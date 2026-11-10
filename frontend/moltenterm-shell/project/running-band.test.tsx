@@ -1,6 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CiState } from "../mission/ci-model";
@@ -10,6 +13,7 @@ import { ReleaseFollow } from "../mission/release-run-panel";
 import { NowCard, StepsHint } from "./overview-cards";
 import { ProjectCardProps } from "./project-context";
 import { RunningBand } from "./running-band";
+import { RunningBandView } from "./running-band-view";
 
 const Started = Date.now() - 3 * 60_000;
 
@@ -120,8 +124,9 @@ function props(over: Partial<ProjectCardProps> = {}): ProjectCardProps {
     };
 }
 
+// The band's rows are the lazy view: the card around it only decides whether the band is there.
 function render(p: ProjectCardProps): string {
-    return renderToStaticMarkup(<RunningBand {...p} />);
+    return renderToStaticMarkup(<RunningBandView {...p} />);
 }
 
 // The opening tag of the element with this test id.
@@ -137,6 +142,19 @@ describe("the In progress band (AC-1, #2188)", () => {
         expect(render(props({ runs: [build({ state: "success", finishedat: Started + 1000 })] }))).toBe("");
         expect(render(props({ runs: [build({ state: "cancelled", finishedat: Started + 1000 })] }))).toBe("");
         expect(render(props({ runs: [build({ state: "failure", closed: true })] }))).toBe("");
+    });
+
+    it("loads its rows only when something runs: the card around them draws nothing and loads nothing otherwise", () => {
+        const card = (p: ProjectCardProps) => renderToStaticMarkup(<RunningBand {...p} />);
+        expect(card(props())).toBe("");
+        expect(card(props({ runs: [build({ state: "success", finishedat: Started + 1000 })] }))).toBe("");
+        expect(card(props({ runs: [build({ state: "failure", closed: true })] }))).toBe("");
+        const source = readFileSync(new URL("./running-band.tsx", import.meta.url), "utf8");
+        expect(source).toMatch(/lazy\(\(\) => import\("\.\/running-band-view"\)/);
+        expect(source).not.toMatch(/from "\.\/running-band-view"/);
+        for (const eager of ["build-run-row", "release-run-row", "run-row"]) {
+            expect(source, eager).not.toContain(`mission/${eager}"`);
+        }
     });
 
     it("holds one row per run under one border, and no frame inside a row", () => {
@@ -176,6 +194,34 @@ describe("the In progress band (AC-1, #2188)", () => {
         const html = render(props({ ci }));
         expect(html).toContain("CI on feature/2");
         expect(html).toContain('data-testid="project-work"');
+    });
+});
+
+// The entry bundle is budgeted (scripts/perf): what only the band uses stays out of it. The row modules are imported by
+// the band's own files alone, which running-band.tsx imports lazily.
+describe("the band's code stays out of the entry bundle (#2188)", () => {
+    const shell = fileURLToPath(new URL("..", import.meta.url));
+    const sources = (readdirSync(shell, { recursive: true }) as string[])
+        .map((f) => f.split("\\").join("/"))
+        .filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f));
+    const importers = (module: RegExp) =>
+        sources.filter((f) => module.test(readFileSync(join(shell, f), "utf8"))).sort();
+
+    it("is imported by the lazy view and its rows only", () => {
+        expect(importers(/from "(?:\.\.\/mission|\.)\/run-row"/)).toEqual([
+            "mission/build-run-row.tsx",
+            "mission/release-run-row.tsx",
+            "project/running-band-view.tsx",
+        ]);
+        expect(importers(/from "(?:\.\.\/mission|\.)\/run-row-model"/)).toEqual([
+            "mission/build-run-row.tsx",
+            "mission/release-run-row.tsx",
+            "mission/run-row.tsx",
+            "project/running-band-view.tsx",
+        ]);
+        expect(importers(/from "(?:\.\.\/mission|\.)\/(?:build|release)-run-row"/)).toEqual([
+            "project/running-band-view.tsx",
+        ]);
     });
 });
 

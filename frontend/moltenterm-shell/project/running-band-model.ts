@@ -1,28 +1,21 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Which runs the Project overview's "In progress" band lists besides the local build and the release followed
-// (FR-MC-024, #2188): the rest of what the Now card used to list.
+// Which runs the Project overview's "In progress" band lists (FR-MC-024, #2188). The band's own code loads only when
+// something runs (running-band.tsx): what decides that stays small, here, with the code the cards always need.
 
 import { CiState } from "../mission/ci-model";
 import { RunRecord } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
-import { BandRow } from "../mission/run-row-model";
 import { projectWork, WorkItem } from "./project-model";
 
-export function workBandRow(item: WorkItem): BandRow {
-    return {
-        id: item.id,
-        kind: "work",
-        tone: "working",
-        name: item.label,
-        context: item.detail,
-        note: "",
-        phases: [],
-        startedat: item.startedat,
-        endedat: 0,
-        estimateMs: 0,
-    };
+// A build is in the band while it runs and, once it failed or was interrupted, until the developer closes it; one that
+// succeeded or was cancelled is a line of the Now card (#2188).
+export function buildInBand(run: RunRecord): boolean {
+    if (run == null) {
+        return false;
+    }
+    return run.state === "running" || (!run.closed && (run.state === "failure" || run.state === "lost"));
 }
 
 // What runs besides the local build and the release followed in the band, and besides the trunk's CI, which keeps its

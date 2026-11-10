@@ -28,7 +28,6 @@ import { deliveredBy } from "../mission/builds-model";
 import { latestRun, MissionSnapshot, toTreeData } from "../mission/mission-model";
 import { openSetupTab } from "../mission/pipeline-tab-open";
 import { NextPublicRelease, ReleaseHistory } from "../mission/release-state-panel";
-import { buildInBand, releaseBandRow } from "../mission/run-row-model";
 import { showBuildInFolder, useDeliveredManifest } from "../mission/runs-view";
 import { releaseState, treeRules } from "../mission/versions";
 import { MoltentermNotifications } from "../notifications-store";
@@ -53,6 +52,7 @@ import {
 } from "./overview-cards-model";
 import { ProjectCardProps } from "./project-context";
 import { workspaceAgents } from "./project-model";
+import { buildInBand } from "./running-band-model";
 import { useNow } from "./use-now";
 
 const MaxAgentsShown = 5;
@@ -299,7 +299,7 @@ export function NowCard({ project, pipeline, runs, ci, startBuild, snapshot, rel
         state,
         followed && {
             tag: followed.tag,
-            failed: releaseBandRow(followed, releaseFollow.jobs, releaseFollow.startedat).tone === "failed",
+            failed: followed.phases.some((p) => p.status === "failed"),
         },
         now
     );

@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Starting and following a project's declared builds (FR-MC-006, DS-MC-005): the trust prompt the first run of a
-// project's commands asks for, the row of a build in the overview's "In progress" band (phases, its log under it,
-// cancel, retry, #2188), and the list of recent builds.
+// project's commands asks for, the log a run's panels read, and the list of recent builds. The build's row in the
+// overview's band is build-run-row.tsx (#2188).
 
 import { getApi } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
@@ -17,12 +17,9 @@ import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { pathParent } from "../workspace-project";
-import { BuildManifest, BuildPhaseDef } from "./builds-model";
-import { missionBuilds, missionCancel, missionClose, missionLog, missionRun, missionTrust } from "./mission-client";
+import { BuildManifest } from "./builds-model";
+import { missionBuilds, missionLog, missionRun, missionTrust } from "./mission-client";
 import { logTail, RunRecord, RunState, RunStateLabels, UntrustedInfo } from "./mission-model";
-import { usePendingLock } from "./pending-action";
-import { LogToggle, RowButtonClass, RowCtaClass, RunLogArea, RunRow } from "./run-row";
-import { buildBandRow } from "./run-row-model";
 import { timeAgo } from "./time-format";
 
 const StateClasses: Record<RunState, string> = {
@@ -271,113 +268,6 @@ export function useDeliveredManifest(dir: string, run: RunRecord): BuildManifest
         };
     }, [dir, run?.id, run?.state]);
     return manifest;
-}
-
-function BuildRunLog({ run }: { run: RunRecord }) {
-    return <RunLogArea log={useRunLog(run)} testId="build-run-log" />;
-}
-
-// The local build in the overview's band (FR-MC-013, #2188), as Notulia's panel was: the build's declared phases as a
-// bar with the current one named, what it does, what was delivered or why it stopped; Log, and Cancel while it runs,
-// Retry and Close once it failed. A failed build keeps its row and its log open until the developer closes it.
-export function BuildRunRow({
-    run,
-    phases,
-    manifest,
-    runs,
-    trunk,
-    now,
-    onRetry,
-}: {
-    run: RunRecord;
-    phases: BuildPhaseDef[];
-    manifest: BuildManifest;
-    runs: readonly RunRecord[];
-    trunk: string;
-    now: number;
-    onRetry?: () => void;
-}) {
-    const t = useT();
-    const [logOpen, setLogOpen] = useState<boolean>(null);
-    // A cancel holds until the run reads stopped: the process takes a moment to end (#952).
-    const lock = usePendingLock(run.state);
-    const [error, setError] = useState<string>(null);
-    const locked = lock.pending !== "";
-    const runLocked = (key: string, fn: () => Promise<boolean | void>) =>
-        fireAndForget(async () => {
-            setError(null);
-            try {
-                await lock.run(key, fn);
-            } catch (e) {
-                setError(serverErrorText(e));
-            }
-        });
-    const row = buildBandRow(run, phases, manifest, runs, trunk, now);
-    const stopped = run.state !== "running";
-    const open = logOpen ?? stopped;
-    return (
-        <RunRow
-            row={row}
-            now={now}
-            testId="build-run"
-            phasesLabel={t("mc.builds.phasesLabel")}
-            actions={
-                <>
-                    <LogToggle open={open} onToggle={() => setLogOpen(!open)} />
-                    {run.state === "running" ? (
-                        <button
-                            type="button"
-                            disabled={locked}
-                            aria-busy={lock.pending === "cancel"}
-                            onClick={() =>
-                                runLocked("cancel", async () => {
-                                    await missionCancel(run.dir, run.id);
-                                    return true;
-                                })
-                            }
-                            className={RowButtonClass}
-                            data-testid="build-run-cancel"
-                        >
-                            {lock.pending === "cancel" ? <DominoLoader /> : null}
-                            {lock.pending === "cancel" ? t("mc.run.cancelling") : t("common.cancel")}
-                        </button>
-                    ) : null}
-                    {stopped && onRetry ? (
-                        <button type="button" onClick={onRetry} className={RowCtaClass} data-testid="build-run-retry">
-                            {t("mc.run.retry")}
-                            <MoltenWave />
-                        </button>
-                    ) : null}
-                    {stopped ? (
-                        <button
-                            type="button"
-                            disabled={locked}
-                            aria-busy={lock.pending === "close"}
-                            onClick={() =>
-                                runLocked("close", async () => {
-                                    await missionClose(run.dir, run.id);
-                                })
-                            }
-                            className={RowButtonClass}
-                            data-testid="build-run-close"
-                        >
-                            {lock.pending === "close" ? <DominoLoader /> : null}
-                            {lock.pending === "close" ? t("mc.run.closing") : t("common.close")}
-                        </button>
-                    ) : null}
-                </>
-            }
-            extra={
-                error ? (
-                    <p className="mt-2 mr-4 text-right text-12 text-danger" role="alert">
-                        {error}
-                    </p>
-                ) : null
-            }
-        >
-            {open ? <BuildRunLog run={run} /> : null}
-        </RunRow>
-    );
 }
 
 export function RecentBuilds({ runs }: { runs: RunRecord[] }) {

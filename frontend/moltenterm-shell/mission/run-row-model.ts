@@ -58,15 +58,6 @@ export function saysOf(status: PhaseStatus): string {
     return t(PhaseWords[status]);
 }
 
-// A build is in the band while it runs and, once it failed or was interrupted, until the developer closes it; one that
-// succeeded or was cancelled is a line of the Now card (#2188).
-export function buildInBand(run: RunRecord): boolean {
-    if (run == null) {
-        return false;
-    }
-    return run.state === "running" || (!run.closed && (run.state === "failure" || run.state === "lost"));
-}
-
 // The previous successful run of the same step, which the running one is measured against. The list is newest first.
 export function previousSuccess(runs: readonly RunRecord[], run: RunRecord): RunRecord {
     return (
@@ -207,6 +198,22 @@ export function releaseBandRow(run: ReleaseRun, jobs: readonly ReleaseGhJob[], s
         note: "",
         phases,
         startedat,
+        endedat: 0,
+        estimateMs: 0,
+    };
+}
+
+// Any other run the overview lists: its name, its detail and its start, with no phases.
+export function workBandRow(item: { id: string; label: string; detail: string; startedat: number }): BandRow {
+    return {
+        id: item.id,
+        kind: "work",
+        tone: "working",
+        name: item.label,
+        context: item.detail,
+        note: "",
+        phases: [],
+        startedat: item.startedat,
         endedat: 0,
         estimateMs: 0,
     };

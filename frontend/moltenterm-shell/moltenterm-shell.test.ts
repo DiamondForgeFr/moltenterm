@@ -369,10 +369,13 @@ const IndicatorSources = [
     "mission/release-menu.tsx",
     "mission/release-run-panel.tsx",
     "mission/release-state-panel.tsx",
+    "mission/build-run-row.tsx",
+    "mission/release-run-row.tsx",
     "mission/run-row.tsx",
     "mission/runs-view.tsx",
     "project/next-station-header.tsx",
     "project/overview-cards.tsx",
+    "project/running-band-view.tsx",
     "project/running-band.tsx",
     "status-bar-model.ts",
 ];
