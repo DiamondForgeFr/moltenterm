@@ -41,6 +41,8 @@ type (
 	ForgetRequest     = handoffwire.ForgetRequest
 	HistoryEntry      = handoffwire.HistoryEntry
 	HistoryResult     = handoffwire.HistoryResult
+	ChainEdge         = handoffwire.ChainEdge
+	ChainResult       = handoffwire.ChainResult
 	SettleRequest     = handoffwire.SettleRequest
 	SettleResult      = handoffwire.SettleResult
 	SettledEntry      = handoffwire.SettledEntry
@@ -58,6 +60,8 @@ const (
 	ForgetCommand         = handoffwire.ForgetCommand
 	HistoryCommand        = handoffwire.HistoryCommand
 	HistoryEvent          = handoffwire.HistoryEvent
+	ChainCommand          = handoffwire.ChainCommand
+	ChainEvent            = handoffwire.ChainEvent
 	PendingCommand        = handoffwire.PendingCommand
 	PendingEvent          = handoffwire.PendingEvent
 	LinksGesture          = handoffwire.LinksGesture
