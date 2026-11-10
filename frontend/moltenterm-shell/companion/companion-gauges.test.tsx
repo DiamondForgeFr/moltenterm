@@ -871,7 +871,7 @@ describe("the share of each day under its block (#2164)", () => {
         );
         expect(/\n\.mt-uw\[data-figures="true"\] \{([^}]*)\}/.exec(css)?.[1]).toContain("container-type: inline-size");
         expect(/\n\.mt-uw-unit \{([^}]*)\}/.exec(css)?.[1]).toContain("display: none");
-        expect(/@container \(min-width: 360px\) \{\s*\.mt-uw-unit \{([^}]*)\}/.exec(css)?.[1]).toContain(
+        expect(/@container \(min-width: 400px\) \{\s*\.mt-uw-unit \{([^}]*)\}/.exec(css)?.[1]).toContain(
             "display: inline"
         );
         expect(markup(enabled)).toContain('data-figures="true"');
