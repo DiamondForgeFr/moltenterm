@@ -5,13 +5,20 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { RpcApi } from "@/app/store/wshclientapi";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { findNode } from "@/layout/lib/layoutNode";
-import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
+import {
+    FlexDirection,
+    LayoutTreeActionType,
+    type LayoutNode,
+    type LayoutTreeInsertNodeAction,
+    type LayoutTreeSplitHorizontalAction,
+} from "@/layout/lib/types";
 import { atom, type PrimitiveAtom } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { showToast } from "../toast-store";
 import { canPinBeside, carpetScrollStops, defaultCarpetWidthPx } from "./carpet-model";
 import { besideZonePx, placesFit, placesFixedPx } from "./carpet-places";
 import { PlacesToastId, PlacesUndoMs } from "./carpet-places-toast";
+import { ResizeSettleMs } from "./view360-decision";
 import { View360MetaKey, View360PinsMetaKey, View360PlacesMetaKey } from "./view360-meta";
 import { View360Model } from "./view360-model";
 
@@ -28,6 +35,9 @@ vi.mock("./screen-store", async () => {
     screenThreshold.atom = atom(8);
     return { ScreenModel: { getInstance: () => ({ thresholdAtom: screenThreshold.atom }) } };
 });
+function setScreenThreshold(n: number) {
+    globalStore.set(screenThreshold.atom as PrimitiveAtom<number>, n);
+}
 vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: { SetMetaCommand: vi.fn(() => Promise.resolve()) } }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: {} }));
 vi.mock("../toast-store", () => ({ showToast: vi.fn(() => "toast:1") }));
@@ -163,7 +173,12 @@ describe("360 × N in the model (FR-SHELL-123)", () => {
         const pinned = besideZonePx([defaultCarpetWidthPx("web")]);
         let width = 1300;
         while (
-            !(placesFit(width, 2) && !placesFit(width, 2, 0, pinned) && placesFit(width, 1, 0, pinned) && canPinBeside(width, 0))
+            !(
+                placesFit(width, 2) &&
+                !placesFit(width, 2, 0, pinned) &&
+                placesFit(width, 1, 0, pinned) &&
+                canPinBeside(width, 0)
+            )
         ) {
             width += 10;
         }
@@ -277,18 +292,187 @@ describe("360 × N in the model (FR-SHELL-123)", () => {
         expect(layoutModel.treeReducer).not.toHaveBeenCalledWith(undefined);
     });
 
-    it("stays in 360 × N once panels close until nothing is hidden", () => {
+    it("stays in 360 × N while something is stored, however many panels close", () => {
+        const root = rowOf(5);
+        const { model, pass } = makeModel(root);
+        pass();
+        model.applyPlaces("b-c1", 1);
+        pass();
+        root.children.splice(3, 1);
+        expect(pass()).not.toBeNull();
+        expect(model.active).toBe(true);
+        expect(model.places()).toBe(1);
+    });
+});
+
+describe("a 360 × N that stores nothing rests in the grid (#2175, FR-SHELL-123-AC15)", () => {
+    // Four columns and a 360 × 1: closing two of them leaves the first column and one carpet panel, every panel visible.
+    function restingView() {
         const root = rowOf(4);
+        const view = makeModel(root);
+        view.pass();
+        view.model.applyPlaces("b-c1", 1);
+        view.pass();
+        expect(view.model.active).toBe(true);
+        vi.mocked(showToast).mockClear();
+        vi.mocked(RpcApi.SetMetaCommand).mockClear();
+        const signal = globalStore.get(view.model.signalAtom);
+        root.children.splice(2, 2);
+        return { ...view, root, signal };
+    }
+
+    it("draws the grid once every panel is visible, keeping the N", () => {
+        const { model, pass } = restingView();
+        expect(pass()).toBeNull();
+        expect(model.active).toBe(false);
+        expect(model.places()).toBe(1);
+        expect(model.wanted).toBe(true);
+        expect(globalStore.get(model.shownPlacesAtom)).toBeNull();
+        expect(globalStore.get(model.decisionAtom)).toMatchObject({ active: false, source: "manual", idle: true });
+        expect(metaWrites().some((m) => View360PlacesMetaKey in m)).toBe(false);
+    });
+
+    it("gives the developer's proportions back, as any other way out of 360 view does", () => {
+        const root = rowOf(4, [40, 20, 20, 20]);
         const { model, pass } = makeModel(root);
         pass();
         model.applyPlaces("b-c1", 1);
         pass();
         root.children.splice(2, 2);
+        root.children.forEach((c) => (c.size = 10));
+        expect(pass()).toBeNull();
+        expect(model.active).toBe(false);
+        expect(root.children.map((c) => Math.round(c.size))).toEqual([67, 33]);
+    });
+
+    it("brings the 360 view back with the same N when a panel opens, with no notice and no glow", () => {
+        const { model, pass, root, signal } = restingView();
         pass();
+        root.children.push(leaf("c9"));
+        const layout = pass();
+        expect(layout).not.toBeNull();
         expect(model.active).toBe(true);
+        expect(model.places()).toBe(1);
+        expect(globalStore.get(model.shownPlacesAtom)).toBe(1);
+        expect(layout.columns.map((c) => c.nodeId)).toEqual(["c1", "c9"]);
+        expect(showToast).not.toHaveBeenCalled();
+        expect(globalStore.get(model.signalAtom)).toBe(signal);
+        expect(globalStore.get(model.decisionAtom).source).toBe("manual");
+    });
+
+    it("says nothing when the view goes to the grid and back", () => {
+        const { pass, root, signal, model } = restingView();
+        pass();
+        root.children.push(leaf("c9"));
+        pass();
+        root.children.pop();
+        pass();
+        expect(model.active).toBe(false);
+        expect(showToast).not.toHaveBeenCalled();
+        expect(globalStore.get(model.signalAtom)).toBe(signal);
+    });
+
+    it("lays a panel opened while the grid rests at the end of the carpet, which brings the 360 view back", () => {
+        const { model, pass, root } = restingView();
+        pass();
+        const node = leaf("c9");
+        const rewritten = model.rewriteAction(
+            {
+                type: LayoutTreeActionType.InsertNode,
+                node,
+                magnified: false,
+                focused: true,
+            } as LayoutTreeInsertNodeAction,
+            root
+        ) as LayoutTreeSplitHorizontalAction;
+        expect([rewritten.targetNodeId, rewritten.position]).toEqual(["c1", "after"]);
+    });
+
+    it("rests for a view put in 360 view by hand as well", () => {
+        const { model, pass } = makeModel(rowOf(2), { [View360MetaKey]: true, [View360PlacesMetaKey]: 1 });
+        expect(pass()).toBeNull();
+        expect(model.active).toBe(false);
         expect(model.places()).toBe(1);
     });
 
+    it("rests after a restart too, whatever the threshold", () => {
+        setScreenThreshold(2);
+        const { model, pass } = makeModel(rowOf(3), { [View360PlacesMetaKey]: 2 });
+        expect(pass()).toBeNull();
+        expect(model.active).toBe(false);
+        expect(model.places()).toBe(2);
+        setScreenThreshold(8);
+    });
+
+    it("keeps the 360 view when the panels do not fit side by side at their readable minimums", () => {
+        vi.useFakeTimers();
+        try {
+            const root = rowOf(4);
+            const { model, pass } = makeModel(root);
+            pass();
+            model.applyPlaces("b-c1", 2);
+            pass();
+            root.children.splice(3, 1);
+            expect(pass({ ...Wide, width: 1100 })).not.toBeNull();
+            expect(model.active).toBe(true);
+            expect(model.places()).toBe(2);
+            expect(globalStore.get(model.decisionAtom).idle).toBeUndefined();
+            // Wide again: the automatic rule leaves only once the width has held, then the view rests.
+            pass();
+            expect(model.active).toBe(true);
+            vi.advanceTimersByTime(ResizeSettleMs);
+            expect(pass()).toBeNull();
+            expect(model.active).toBe(false);
+            expect(model.places()).toBe(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("counts the carpet without the pinned columns: a pin that leaves nothing stored lets the view rest", () => {
+        const root = rowOf(4);
+        const { model, pass } = makeModel(root);
+        pass();
+        model.applyPlaces("b-c1", 1);
+        pass();
+        root.children.splice(3, 1);
+        expect(pass()).not.toBeNull();
+        expect(globalStore.get(model.carpetColumnCountAtom)).toBe(2);
+        expect(model.pin("b-c2", "beside")).toBe(true);
+        expect(pass()).toBeNull();
+        expect(globalStore.get(model.carpetColumnCountAtom)).toBe(1);
+        expect(model.active).toBe(false);
+        expect(model.places()).toBe(1);
+        root.children.push(leaf("c9"));
+        expect(pass()).not.toBeNull();
+        expect(model.active).toBe(true);
+    });
+
+    it("turns the plain 360 view on from the button, forgetting the N that kept the grid", () => {
+        const { model, pass, tabAtom } = restingView();
+        pass();
+        model.setActive(true);
+        expect(model.places()).toBeNull();
+        expect(metaWrites().some((m) => m[View360PlacesMetaKey] === null)).toBe(true);
+        expect(metaWrites().some((m) => m[View360MetaKey] === true)).toBe(true);
+        // The tab's meta caught up with the button's write.
+        globalStore.set(tabAtom, { oid: "tab-1", meta: { [View360MetaKey]: true } } as unknown as Tab);
+        expect(pass()).not.toBeNull();
+        expect(model.active).toBe(true);
+    });
+
+    it("leaves the N alone when the button is clicked on a view that stores something", () => {
+        const root = rowOf(5);
+        const { model, pass } = makeModel(root);
+        pass();
+        model.applyPlaces("b-c1", 1);
+        pass();
+        model.setActive(true);
+        expect(model.places()).toBe(1);
+    });
+});
+
+describe("360 × N in the model: the carpet's steps and the header button (FR-SHELL-123)", () => {
     it("moves the carpet by whole panels on a wheel gesture", async () => {
         const { model, pass } = makeModel(rowOf(6));
         pass();

@@ -6558,6 +6558,7 @@
             "heldSetting": "D'après le réglage Vue 360 (Toujours).",
             "heldColumns": "Automatique : plus de {count} colonnes sur cet écran.",
             "offManual": "Désactivée pour cette vue jusqu'à ce qu'elle revienne au nombre de colonnes de cet écran. Elle s'active encore d'elle-même si les panneaux ne tiennent plus du tout côte à côte.",
+            "offPlaces": "Cette vue garde son 360 × N. Tous les panneaux sont visibles et se partagent la largeur. Le tapis revient de lui-même quand un panneau serait rangé.",
             "offColumns": "Automatique : s'active d'elle-même au-delà de {count} colonnes sur cet écran, ou quand les panneaux ne tiennent plus côte à côte.",
             "offGrid": "Garder la grille : les panneaux restent côte à côte. Elle s'active d'elle-même seulement s'ils ne tiennent plus du tout côte à côte.",
             "clickOn": "Cliquer pour l'activer.",

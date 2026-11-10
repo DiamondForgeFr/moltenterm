@@ -171,9 +171,13 @@ describe("View360Model.equalizeParts (#1479)", () => {
     });
 
     it("brings back a fixed zone dragged wider, whose drag set the first column's floor", () => {
-        for (const meta of [{ [View360PlacesMetaKey]: 2 }, { [View360MetaKey]: true }]) {
+        // A 360 × 2 holds the view only while a panel is stored (#2175): one more column than the plain 360 view needs.
+        for (const [meta, columns] of [
+            [{ [View360PlacesMetaKey]: 2 }, 4],
+            [{ [View360MetaKey]: true }, 3],
+        ] as const) {
             floor.px = null;
-            const { model, pass } = makeModel(rowOf(3), meta);
+            const { model, pass } = makeModel(rowOf(columns), { ...meta });
             pass();
             model.grippedFixedPx = 1100;
             floor.px = 1100;

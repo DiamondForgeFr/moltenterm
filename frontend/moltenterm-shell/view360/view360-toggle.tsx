@@ -44,6 +44,9 @@ function toggleTitle(decision: View360Decision, single: boolean, threshold: numb
                   : View360Text.heldSetting;
         return `${View360Text.tooltipOn}\n${held}\n${View360Text.clickOff}`;
     }
+    if (decision.idle) {
+        return `${View360Text.tooltipOff}\n${t("view360.ui.offPlaces")}\n${View360Text.clickOn}`;
+    }
     const off =
         decision.source === "manual"
             ? View360Text.offManual
