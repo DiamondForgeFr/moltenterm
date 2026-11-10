@@ -759,7 +759,8 @@ describe("the legend, the explanation and the source line (#2123)", () => {
     });
 });
 
-// The share of each day under its block, in the expanded section only (FR-SHELL-027, amended for #2164).
+// The share of each day under its block, in the expanded section and in the compact form, never Brokk's grid
+// (FR-SHELL-027, amended for #2164 and #2186).
 describe("the share of each day under its block (#2164)", () => {
     const sharesOf = (html: string, window: string): [number, string][] =>
         [
@@ -875,7 +876,7 @@ describe("the share of each day under its block (#2164)", () => {
             "display: inline"
         );
         expect(markup(enabled)).toContain('data-figures="true"');
-        expect(compactOf(enabled)).not.toContain("data-figures");
+        expect(compactOf(enabled)).toContain('data-figures="true"');
         const rows = [{ key: "week", agent: "claude", name: "Claude", line: gaugeRows(enabled.snapshot, now)[1].line }];
         expect(renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} />)).not.toContain("data-figures");
     });
@@ -898,10 +899,19 @@ describe("the share of each day under its block (#2164)", () => {
         }
     });
 
-    it("leaves the compact form and Brokk's grid without any figure", () => {
-        expect(compactOf(enabled)).toContain('data-testid="usage-week"');
-        expect(compactOf(enabled)).not.toContain("usage-week-share");
-        expect(markup(enabled)).toContain("usage-week-share");
+    it("shows the same figures in the compact form, and nothing else there (#2186)", () => {
+        const compact = compactOf(enabled);
+        expect(compact).toContain('data-testid="usage-week"');
+        expect(compact.match(/data-testid="usage-week-share"/g)).toHaveLength(14);
+        expect(sharesOf(compact, "week")).toEqual(sharesOf(markup(enabled), "week"));
+        expect(sharesOf(compact, "session")).toEqual(sharesOf(markup(enabled), "session"));
+        expect(compact).not.toContain("usage-week-legend");
+        expect(compact).not.toContain("companion-plan-usage-explain");
+        expect(compact).not.toContain("usage-week-note");
+        expect(compact).not.toContain("companion-plan-usage-credits");
+    });
+
+    it("leaves Brokk's grid without any figure", () => {
         const rows = [{ key: "week", agent: "claude", name: "Claude", line: gaugeRows(enabled.snapshot, now)[1].line }];
         expect(renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} />)).not.toContain("usage-week-share");
         expect(renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} legend />)).not.toContain("usage-week-share");

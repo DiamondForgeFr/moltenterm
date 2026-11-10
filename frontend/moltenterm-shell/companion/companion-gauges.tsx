@@ -608,7 +608,11 @@ function CompactGauges({ view, onDetails }: { view: Extract<GaugesView, { kind: 
                     <div className="truncate pr-14 text-11 text-secondary">{view.credits}</div>
                 ) : null}
                 {rows.length > 0 ? (
-                    <UsageWeekGrid rows={rows.map((row) => weekRow(view, row, about, false))} now={view.now} />
+                    <UsageWeekGrid
+                        rows={rows.map((row) => weekRow(view, row, about, false))}
+                        now={view.now}
+                        dayFigures
+                    />
                 ) : null}
             </div>
             {/* In the grid's empty corner, over the initials' line, so the rows keep the whole width. */}
