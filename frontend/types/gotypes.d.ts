@@ -1521,6 +1521,7 @@ declare global {
         "moltenterm:settingsreveal"?: boolean;
         "moltenterm:theme"?: string;
         "moltenterm:view360"?: string;
+        "moltenterm:view360places"?: string;
         "moltenterm:terminalscreenreader"?: string;
         "moltenterm:codingagent"?: string;
         "moltenterm:reviewssort"?: string;

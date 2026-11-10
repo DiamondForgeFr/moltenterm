@@ -106,7 +106,7 @@ import {
 } from "./pin-model";
 import { PinText } from "./pin-text";
 import { ScreenModel } from "./screen-store";
-import type { ScreenInfo } from "./screen-threshold";
+import { columnsForPlaces, type ScreenInfo } from "./screen-threshold";
 import {
     anyColumnTooTight,
     autoMinColumns,
@@ -134,20 +134,38 @@ import {
     View360SettingKey,
 } from "./view360-decision";
 import {
+    hasView360History,
+    OfferGrid,
+    OfferTaken,
     setTabFixedPx,
     setTabFractions,
+    setTabOfferAnswer,
     setTabPins,
     setTabView360,
     storedFixedPx,
     storedFractions,
     storedGroup,
+    storedOfferAnswer,
     storedPins,
     storedPlaces,
     tabManualView360,
     View360PlacesState,
     writePlacesState,
+    type OfferAnswer,
 } from "./view360-meta";
 import { shouldShowView360Notice, showView360Notice, View360NoticeChoice, View360NoticeState } from "./view360-notice";
+import {
+    adoptedPlaces,
+    crossedThreshold,
+    offerDue,
+    offerEligible,
+    offerKeptGrid,
+    storeEveryView,
+    View360PlacesSettingKey,
+    type OfferChoice,
+    type OfferState,
+    type ScreenOffer,
+} from "./view360-offer";
 
 const SmoothScrollMs = 260;
 // Transitions stay off this long after the last scroll step, so the panels follow the scroll without lag.
@@ -167,6 +185,8 @@ export type PanelPlacement = "first" | "carpet" | PinMode;
 // What a 360 × N changes, kept for its Undo (FR-SHELL-123-AC8).
 export type PlacesSnapshot = {
     places: number;
+    // The view's answer to the first-time offer: a 360 × N applied by hand answers it, and its Undo takes it back (#2180).
+    offerAnswer: OfferAnswer;
     group: CarpetGroup;
     pins: TabPins;
     grippedFixedPx: number;
@@ -260,6 +280,22 @@ export class View360Model {
     // trip.
     pendingGroupAtom: PrimitiveAtom<{ group: CarpetGroup }> = atom(null) as PrimitiveAtom<{ group: CarpetGroup }>;
     groupAtom: Atom<CarpetGroup>;
+    // The first-time offer (FR-SHELL-066-AC11, #2180). The number of visible panels the setting stores with Automatic;
+    // the view's own answer, from the tab's meta or this window's last write ahead of its round trip; whether the view
+    // ever was in 360 view or answered; whether it is asked before the threshold switches it; whether it kept the grid
+    // at the offer.
+    placesSettingAtom: Atom<string>;
+    pendingOfferAnswerAtom: PrimitiveAtom<{ answer: OfferAnswer }> = atom(null) as PrimitiveAtom<{
+        answer: OfferAnswer;
+    }>;
+    offerAnswerAtom: Atom<OfferAnswer>;
+    historyAtom: Atom<boolean>;
+    offeringAtom: Atom<boolean>;
+    keptGridAtom: Atom<boolean>;
+    // The card on screen, measured on every pass: null when none is due.
+    offerAtom: PrimitiveAtom<OfferState> = atom(null) as PrimitiveAtom<OfferState>;
+    // "Save for this screen?" after a change of configuration on a screen the list does not hold (FR-SHELL-066-AC12).
+    screenOfferAtom: PrimitiveAtom<ScreenOffer> = atom(null) as PrimitiveAtom<ScreenOffer>;
 
     layout: CarpetLayout = null;
     // The tab's width at the last layout pass.
@@ -337,9 +373,22 @@ export class View360Model {
         const metaGroupAtom = selectAtom(tabAtom, (tab) => storedGroup(tab));
         this.groupAtom = atom((get) => get(this.pendingGroupAtom)?.group ?? get(metaGroupAtom));
         this.watch(metaGroupAtom, () => globalStore.set(this.pendingGroupAtom, null));
+        this.placesSettingAtom = getSettingsKeyAtom(View360PlacesSettingKey as keyof SettingsType) as Atom<string>;
+        const metaOfferAtom = selectAtom(tabAtom, (tab) => storedOfferAnswer(tab));
+        this.offerAnswerAtom = atom((get) => {
+            const pending = get(this.pendingOfferAnswerAtom);
+            return pending != null ? pending.answer : get(metaOfferAtom);
+        });
+        this.watch(metaOfferAtom, () => globalStore.set(this.pendingOfferAnswerAtom, null));
+        const metaHistoryAtom = selectAtom(tabAtom, (tab) => hasView360History(tab));
+        this.historyAtom = atom(
+            (get) => get(metaHistoryAtom) || get(this.placesAtom) != null || get(this.offerAnswerAtom) != null
+        );
+        this.offeringAtom = atom((get) => offerEligible(get(this.settingAtom), get(this.historyAtom)));
+        this.keptGridAtom = atom((get) => offerKeptGrid(get(this.settingAtom), get(this.offerAnswerAtom)));
         this.decisionAtom = atom((get) =>
             decideView360({
-                setting: normalizeView360Setting(get(this.settingAtom)),
+                setting: get(this.keptGridAtom) ? "grid" : normalizeView360Setting(get(this.settingAtom)),
                 manual: get(this.manualAtom),
                 autoOn: get(this.autoOnAtom),
                 columnsOver: get(this.columnsOverAtom),
@@ -348,8 +397,15 @@ export class View360Model {
                 narrowWindow: get(narrowWindowAtom),
                 places: get(this.placesAtom),
                 carpetColumns: get(this.carpetColumnCountAtom),
+                offering: get(this.offeringAtom),
             })
         );
+        // The setting chosen elsewhere, or the view answering, changes whether the offer is due.
+        this.watch(this.offeringAtom, () => {
+            if (!this.inLayoutPass) {
+                this.layoutModel.updateTree();
+            }
+        });
         // Another N redraws the carpet, also while the view was already in 360 view.
         this.watch(this.placesAtom, () => {
             if (!this.inLayoutPass) {
@@ -569,6 +625,7 @@ export class View360Model {
         this.inLayoutPass = true;
         try {
             this.evaluateInPass(rootNode, width);
+            this.refreshOffer(width);
         } finally {
             this.inLayoutPass = false;
         }
@@ -605,6 +662,7 @@ export class View360Model {
         ) {
             this.setManual(null);
         }
+        this.adoptStoredPlaces(prevCount, count, threshold);
 
         const prevOn = globalStore.get(this.autoOnAtom);
         const want = this.autoWantsNow(prevOn, count, width, gap, columnMins);
@@ -644,7 +702,9 @@ export class View360Model {
         const threshold = globalStore.get(this.thresholdAtom);
         const columnMins = columnMinimumsPx(count, currentFirstColumnFloorPx());
         return decideView360({
-            setting: normalizeView360Setting(globalStore.get(this.settingAtom)),
+            setting: globalStore.get(this.keptGridAtom)
+                ? "grid"
+                : normalizeView360Setting(globalStore.get(this.settingAtom)),
             manual: globalStore.get(this.manualAtom),
             autoOn: this.autoWantsNow(globalStore.get(this.autoOnAtom), count, width, gap, columnMins),
             columnsOver: count >= AutoMinColumns && overThreshold(count, threshold),
@@ -652,7 +712,118 @@ export class View360Model {
             columnCount: count,
             narrowWindow: globalStore.get(narrowWindowAtom),
             places: globalStore.get(this.placesAtom),
+            offering: globalStore.get(this.offeringAtom),
         }).wanted;
+    }
+
+    // ---- the first-time offer (FR-SHELL-066-AC11, AC12, #2180) -----------------------------------------------------
+
+    // A view crossing the screen's threshold under Automatic with a stored number of visible panels takes that 360 × N
+    // by itself: the developer answered "Do the same in every view", so there is no offer and no message.
+    private adoptStoredPlaces(prevCount: number, count: number, threshold: number) {
+        if (!crossedThreshold(prevCount, count, threshold)) {
+            return;
+        }
+        if (globalStore.get(this.manualAtom) != null || this.places() != null) {
+            return;
+        }
+        const n = adoptedPlaces(globalStore.get(this.settingAtom), globalStore.get(this.placesSettingAtom));
+        if (n != null) {
+            this.writePlaces(n);
+        }
+    }
+
+    // Whether the normal layout is what the view is meant to show beyond the threshold: Keep the grid, from the setting
+    // or from this view's answer, or the view waiting for its answer.
+    private holdsGrid(): boolean {
+        return (
+            normalizeView360Setting(globalStore.get(this.settingAtom)) === "grid" ||
+            globalStore.get(this.keptGridAtom) ||
+            globalStore.get(this.offeringAtom)
+        );
+    }
+
+    // Measured at the end of each pass: the card is due while the view is eligible, beyond the threshold, and nothing
+    // switched it. The numbers are the ones the chooser would offer.
+    private refreshOffer(width: number) {
+        const eligible = globalStore.get(this.offeringAtom);
+        const options = eligible
+            ? placeOptions(globalStore.get(this.carpetColumnCountAtom), width, currentFirstColumnFloorPx() ?? 0, 0)
+            : [];
+        const due = offerDue({
+            eligible,
+            columnCount: globalStore.get(this.columnCountAtom),
+            columnsOver: globalStore.get(this.columnsOverAtom),
+            active: this.active,
+            options,
+        });
+        const next: OfferState = due ? { options } : null;
+        if (JSON.stringify(next) !== JSON.stringify(globalStore.get(this.offerAtom))) {
+            globalStore.set(this.offerAtom, next);
+        }
+    }
+
+    // The answer to the card: a 360 × N applied to the view, or Keep the grid for this view. With `everyView` the
+    // answer is stored in the settings too, so no other view is asked. Returns false when the number cannot apply.
+    answerOffer(choice: OfferChoice, everyView: boolean): boolean {
+        if (choice === OfferGrid) {
+            this.keepGridForView();
+        } else {
+            const blockId = this.placesBlockId();
+            if (blockId == null || !this.applyPlaces(blockId, choice)) {
+                return false;
+            }
+        }
+        globalStore.set(this.offerAtom, null);
+        if (everyView) {
+            fireAndForget(() => storeEveryView(choice));
+        }
+        return true;
+    }
+
+    private keepGridForView() {
+        this.writeOfferAnswer(OfferGrid);
+    }
+
+    offerAnswer(): OfferAnswer {
+        return globalStore.get(this.offerAnswerAtom);
+    }
+
+    private writeOfferAnswer(answer: OfferAnswer) {
+        if (this.offerAnswer() === answer) {
+            return;
+        }
+        globalStore.set(this.pendingOfferAnswerAtom, { answer });
+        const tabId = this.tabId;
+        if (tabId != null) {
+            fireAndForget(() => setTabOfferAnswer(tabId, answer));
+        }
+    }
+
+    // A number picked by the developer on a screen the Columns per screen list does not hold offers to save it, once. An
+    // Undo and the stored number taken by itself pick nothing.
+    private offerScreenSave(n: number) {
+        const screens = ScreenModel.getInstance();
+        const screen = screens.screen;
+        if (!screens.saveOffered(screen)) {
+            return;
+        }
+        globalStore.set(this.screenOfferAtom, { screen, columns: columnsForPlaces(n, screens.threshold) });
+    }
+
+    // Save stores the screen with its threshold in the list; Not now remembers the screen as asked.
+    answerScreenOffer(save: boolean): void {
+        const offer = globalStore.get(this.screenOfferAtom);
+        globalStore.set(this.screenOfferAtom, null);
+        if (offer == null) {
+            return;
+        }
+        const screens = ScreenModel.getInstance();
+        if (save) {
+            screens.setThreshold(offer.columns, offer.screen);
+            return;
+        }
+        screens.decline(offer.screen);
     }
 
     // Whether the tab's columns, as last measured, fit side by side at their minimums with the terminal floor (#733).
@@ -782,10 +953,7 @@ export class View360Model {
                 if (bounds?.width > 0) {
                     if (this.drawnActive) {
                         this.restoreProportions(rootNode);
-                    } else if (
-                        !globalStore.get(this.columnsOverAtom) ||
-                        normalizeView360Setting(globalStore.get(this.settingAtom)) === "grid"
-                    ) {
+                    } else if (!globalStore.get(this.columnsOverAtom) || this.holdsGrid()) {
                         this.rememberFractions(rootNode);
                     }
                     this.noteDrawn(false);
@@ -1193,6 +1361,7 @@ export class View360Model {
             return false;
         }
         const before = this.placesSnapshot();
+        this.writeOfferAnswer(OfferTaken);
         this.grippedFixedPx = null;
         this.carpetPx.clear();
         const pins = this.pinsUnder(group);
@@ -1212,6 +1381,7 @@ export class View360Model {
             this.layoutModel.focusNode(node.id);
         }
         showPlacesToast(n, option.stored, () => this.restorePlaces(before));
+        this.offerScreenSave(n);
         return true;
     }
 
@@ -1229,6 +1399,7 @@ export class View360Model {
     placesSnapshot(): PlacesSnapshot {
         return {
             places: this.places(),
+            offerAnswer: this.offerAnswer(),
             group: this.group(),
             pins: globalStore.get(this.pinsAtom),
             grippedFixedPx: this.grippedFixedPx,
@@ -1242,6 +1413,7 @@ export class View360Model {
     // Undo (AC8): the exact state before the apply: 360 view on or off and N, pins, fixed zone width, scroll and focus.
     restorePlaces(snapshot: PlacesSnapshot): void {
         this.pendingStart = null;
+        this.writeOfferAnswer(snapshot.offerAnswer ?? null);
         this.grippedFixedPx = snapshot.grippedFixedPx;
         this.savedFixedPx = snapshot.savedFixedPx;
         this.carpetPx = new Map(snapshot.carpetPx);

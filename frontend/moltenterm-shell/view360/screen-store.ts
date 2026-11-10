@@ -13,13 +13,18 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, type Atom, type PrimitiveAtom } from "jotai";
 import {
+    readScreensAsked,
     readScreenThresholds,
-    type ScreenInfo,
+    ScreensAskedMetaKey,
+    screenSaveOffered,
     ScreenThresholdsMetaKey,
-    type ScreenThresholds,
     thresholdFor,
+    withAsked,
     withoutScreen,
     withThreshold,
+    type ScreenInfo,
+    type ScreensAsked,
+    type ScreenThresholds,
 } from "./screen-threshold";
 
 type ScreenApi = {
@@ -45,6 +50,9 @@ export class ScreenModel {
     pendingAtom: PrimitiveAtom<ScreenThresholds> = atom(null) as PrimitiveAtom<ScreenThresholds>;
     storedAtom: Atom<ScreenThresholds>;
     thresholdAtom: Atom<number>;
+    // The screens declined for the offer to save them (#2180), this window's last write ahead of the meta's round trip.
+    pendingAskedAtom: PrimitiveAtom<ScreensAsked> = atom(null) as PrimitiveAtom<ScreensAsked>;
+    askedAtom: Atom<ScreensAsked>;
 
     private constructor() {
         const metaAtom = atom((get) => {
@@ -52,6 +60,12 @@ export class ScreenModel {
             const client = clientAtom == null ? null : get(clientAtom);
             return readScreenThresholds((client?.meta as Record<string, unknown>)?.[ScreenThresholdsMetaKey]);
         });
+        const askedMetaAtom = atom((get) => {
+            const clientAtom = ClientModel.getInstance().clientAtom;
+            const client = clientAtom == null ? null : get(clientAtom);
+            return readScreensAsked((client?.meta as Record<string, unknown>)?.[ScreensAskedMetaKey]);
+        });
+        this.askedAtom = atom((get) => get(this.pendingAskedAtom) ?? get(askedMetaAtom));
         this.storedAtom = atom((get) => get(this.pendingAtom) ?? get(metaAtom));
         this.thresholdAtom = atom((get) => thresholdFor(get(this.storedAtom), get(this.screenAtom)));
         const api = screenApi();
@@ -112,5 +126,35 @@ export class ScreenModel {
             return;
         }
         this.write(withoutScreen(stored, key));
+    }
+
+    // Whether the current screen is offered to be saved after a change of configuration (FR-SHELL-066-AC12, #2180).
+    saveOffered(screen: ScreenInfo = this.screen): boolean {
+        return screenSaveOffered(globalStore.get(this.storedAtom), globalStore.get(this.askedAtom), screen);
+    }
+
+    // "Not now": the screen is not offered again.
+    decline(screen: ScreenInfo = this.screen): void {
+        if (screen?.key == null) {
+            return;
+        }
+        const next = withAsked(globalStore.get(this.askedAtom), screen);
+        const clientId = ClientModel.getInstance().clientId;
+        globalStore.set(this.pendingAskedAtom, next);
+        if (clientId == null) {
+            return;
+        }
+        fireAndForget(async () => {
+            try {
+                await RpcApi.SetMetaCommand(TabRpcClient, {
+                    oref: WOS.makeORef("client", clientId),
+                    meta: { [ScreensAskedMetaKey]: next } as MetaType,
+                });
+            } finally {
+                if (globalStore.get(this.pendingAskedAtom) === next) {
+                    globalStore.set(this.pendingAskedAtom, null);
+                }
+            }
+        });
     }
 }

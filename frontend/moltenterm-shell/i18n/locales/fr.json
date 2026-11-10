@@ -1395,6 +1395,16 @@
                     "always": "Toujours"
                 }
             },
+            "moltenterm:view360places": {
+                "label": "Panneaux visibles quand elle s'active seule",
+                "description": "Avec Automatique : combien de panneaux restent visibles à côté de la première colonne. Vide : la vue 360 simple.",
+                "unset": "Vue 360 simple",
+                "options": {
+                    "1": "1 panneau visible",
+                    "2": "2 panneaux visibles",
+                    "3": "3 panneaux visibles"
+                }
+            },
             "review:publishlanguage": {
                 "label": "Langue de publication",
                 "description": "Langue des commentaires de revue sur GitHub quand le projet n'en désigne aucune ; vide : d'après ses PR et son README."
@@ -6563,6 +6573,7 @@
             "offPlaces": "Cette vue garde son 360 × N. Tous les panneaux sont visibles et se partagent la largeur. Le tapis revient de lui-même quand un panneau serait rangé.",
             "offColumns": "Automatique : s'active d'elle-même au-delà de {count} colonnes sur cet écran, ou quand les panneaux ne tiennent plus côte à côte.",
             "offGrid": "Garder la grille : les panneaux restent côte à côte. Elle s'active d'elle-même seulement s'ils ne tiennent plus du tout côte à côte.",
+            "offAsking": "Automatique : demande avant de s'activer au-delà de {count} colonnes sur cet écran.",
             "clickOn": "Cliquer pour l'activer.",
             "clickOff": "Cliquer pour la quitter : les panneaux retrouvent les proportions que vous leur avez données.",
             "tooltipSingle": "La vue 360 demande un deuxième panneau à côté du premier.",
@@ -6580,6 +6591,16 @@
             "message": "La première colonne reste fixe et les autres panneaux s'alignent sur un tapis qui défile sur le côté. Modifiable dans les Réglages.",
             "keepGrid": "Garder la grille",
             "use360": "Utiliser la 360"
+        },
+        "offer": {
+            "title": "Passer en vue 360 ?",
+            "message": "La première colonne reste fixe. Choisissez combien de panneaux restent visibles à droite ; les autres sont rangés sur le tapis, toujours actifs.",
+            "everyView": "Faire pareil dans toutes les vues",
+            "everyViewHint": "Aucune autre vue ne redemande. Modifiable dans les Réglages.",
+            "saveTitle": "Enregistrer pour cet écran de {width} × {height} ?",
+            "saveText": "Sur cet écran, vue 360 au-delà de {count} colonnes. Visible dans les Réglages, sous Colonnes par écran.",
+            "save": "Enregistrer",
+            "notNow": "Pas maintenant"
         },
         "screens": {
             "title": "Colonnes par écran",

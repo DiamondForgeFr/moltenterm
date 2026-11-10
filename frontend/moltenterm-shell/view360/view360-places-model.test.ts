@@ -33,7 +33,8 @@ const screenThreshold = vi.hoisted(() => ({ atom: null as unknown }));
 vi.mock("./screen-store", async () => {
     const { atom } = await import("jotai");
     screenThreshold.atom = atom(8);
-    return { ScreenModel: { getInstance: () => ({ thresholdAtom: screenThreshold.atom }) } };
+    const { makeFakeScreens } = await import("./screen-store-fake");
+    return { ScreenModel: { getInstance: () => makeFakeScreens(screenThreshold.atom) } };
 });
 function setScreenThreshold(n: number) {
     globalStore.set(screenThreshold.atom as PrimitiveAtom<number>, n);

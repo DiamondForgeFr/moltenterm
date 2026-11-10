@@ -89,6 +89,35 @@ func TestOrderFollowsTheList(t *testing.T) {
 	}
 }
 
+// #2180: the number of visible panels "Do the same in every view" stores is a setting of the 360 view's group, so the
+// developer can change it, or empty it, where the 360 view setting is.
+func TestView360PlacesIsShownWithTheView360Setting(t *testing.T) {
+	view, ok := Lookup("moltenterm:view360")
+	if !ok {
+		t.Fatalf("moltenterm:view360 has no entry")
+	}
+	places, ok := Lookup("moltenterm:view360places")
+	if !ok || places.Hidden {
+		t.Fatalf("moltenterm:view360places must be a shown setting")
+	}
+	if places.Section != view.Section || places.Group != view.Group {
+		t.Errorf("moltenterm:view360places is in %s/%q, want %s/%q", places.Section, places.Group, view.Section, view.Group)
+	}
+	if places.Control != ControlSelect || places.UnsetLabel == "" {
+		t.Errorf("moltenterm:view360places must be a select that can be empty, got %q %q", places.Control, places.UnsetLabel)
+	}
+	var values []string
+	for _, o := range places.Options {
+		values = append(values, o.Value)
+	}
+	if !slices.Equal(values, []string{"1", "2", "3"}) {
+		t.Errorf("moltenterm:view360places offers %v, want 1, 2 and 3", values)
+	}
+	if places.Order != view.Order+1 {
+		t.Errorf("moltenterm:view360places comes at %d, want right after the 360 view setting (%d)", places.Order, view.Order)
+	}
+}
+
 func TestBossNameDefaultsToBrokk(t *testing.T) {
 	s, ok := Lookup("boss:name")
 	if !ok {

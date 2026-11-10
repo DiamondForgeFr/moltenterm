@@ -168,6 +168,7 @@ const (
 	ConfigKey_MoltentermSettingsReveal       = "moltenterm:settingsreveal"
 	ConfigKey_MoltentermTheme                = "moltenterm:theme"
 	ConfigKey_MoltentermView360              = "moltenterm:view360"
+	ConfigKey_MoltentermView360Places        = "moltenterm:view360places"
 	ConfigKey_MoltentermTerminalScreenReader = "moltenterm:terminalscreenreader"
 	ConfigKey_MoltentermCodingAgent          = "moltenterm:codingagent"
 	ConfigKey_MoltentermReviewsSort          = "moltenterm:reviewssort"

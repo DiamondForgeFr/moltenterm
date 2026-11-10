@@ -303,6 +303,41 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
         expect(decideView360({ ...base, manual: true, columnsOver: false, columnCount: 2 }).source).toBe("manual");
     });
 
+    it("does not switch by the threshold a view that is offered the choice first (FR-SHELL-066-AC11, #2180)", () => {
+        const base = { setting: "auto" as const, manual: null as boolean, autoOn: false, offering: true };
+        const asked = decideView360({ ...base, columnsOver: true, columnCount: 3 });
+        expect(asked).toEqual({ active: false, wanted: false, source: "auto", asking: true });
+        // The same view without the offer is switched, as before.
+        expect(decideView360({ ...base, offering: false, columnsOver: true, columnCount: 3 })).toMatchObject({
+            active: true,
+            reason: "columns",
+        });
+        // The safety nets stay: the readable minimums, columns that cannot fit.
+        expect(decideView360({ ...base, autoOn: true, columnsOver: true, columnCount: 3 })).toMatchObject({
+            active: true,
+            reason: "fit",
+        });
+        expect(decideView360({ ...base, columnsOver: true, columnCount: 3, setting: "always" }).active).toBe(true);
+        // Within the threshold it is not "asking" about anything the developer sees: still the same answer.
+        expect(decideView360({ ...base, columnsOver: false, columnCount: 2 }).active).toBe(false);
+    });
+
+    it("a view that kept the grid is not asking, and keeps the panels side by side beyond the threshold (#2180)", () => {
+        const kept = decideView360({
+            setting: "grid",
+            manual: null,
+            autoOn: false,
+            columnsOver: true,
+            columnCount: 5,
+            offering: false,
+        });
+        expect(kept).toEqual({ active: false, wanted: false, source: "setting" });
+        // Only columns that cannot fit at all still go to 360 view.
+        expect(
+            decideView360({ setting: "grid", manual: null, autoOn: false, cannotFit: true, columnCount: 5 }).active
+        ).toBe(true);
+    });
+
     it("measures the normal columns and finds the one too tight to read", () => {
         const pxs = normalColumnPxs([50, 25, 25], 1204, 2);
         expect(pxs.map(Math.round)).toEqual([600, 300, 300]);
