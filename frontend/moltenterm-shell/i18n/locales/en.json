@@ -2789,6 +2789,7 @@
             "agent": "Agent",
             "savedDefault": "Saved as your default",
             "defaultModel": "Your default model",
+            "latestModel": "{name} (latest)",
             "nativeModel": "{native} model: {provider} may swap it for one of its own",
             "nativeLevel": "{native} level: {provider} may ignore it",
             "chooseIn": "Choose in {agent}",
