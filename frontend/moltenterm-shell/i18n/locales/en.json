@@ -7447,6 +7447,18 @@
             "stepAdd": "Add #{number} to the group merge",
             "mergeCount": "Merge these {count} in this order…",
             "mergeOne": "Merge this 1",
+            "mergeScoped": {
+                "one": "Merge {name}'s 1",
+                "other": "Merge {name}'s {count}"
+            },
+            "mergeScopedMany": {
+                "one": "Merge the 1 of {names}",
+                "other": "Merge the {count} of {names}"
+            },
+            "scopeNote": {
+                "one": "The merge covers the shown list only. The {count} other does not move.",
+                "other": "The merge covers the shown list only. The {count} others do not move."
+            },
             "chooseNone": "No pull request chosen for the group merge.",
             "wait": {
                 "agent": "Wait for {name}, still working on it",
@@ -7750,6 +7762,10 @@
         },
         "check": {
             "button": "Check the agents",
+            "buttonScoped": {
+                "one": "Check the agent of {names} ({count})",
+                "other": "Check the agents of {names} ({count})"
+            },
             "buttonTitle": "Ask the agent on each pull request with something left (conflicts, red CI, requested changes, no test report) to check it against its ticket and finish it. The others are skipped; nothing starts without your confirmation.",
             "checking": "Checking…",
             "checked": {

@@ -10,7 +10,7 @@
 
 import { cn } from "@/util/util";
 import { useLayoutEffect, useRef } from "react";
-import { useT } from "../i18n/i18n";
+import { useT, useTCount } from "../i18n/i18n";
 import { useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
@@ -18,6 +18,7 @@ import { QueuedAsk, ReviewsAskQueue } from "./reviews-ask-queue";
 import { ForecastStatusLine } from "./reviews-forecast";
 import type { ForecastStatus } from "./reviews-forecast-model";
 import type { ReviewPr } from "./reviews-model";
+import type { ScopeLabel } from "./reviews-owners-model";
 import {
     AfterMerge,
     afterMergeText,
@@ -47,7 +48,10 @@ export function MergeQueueBlock({
     onStep,
     onChoose,
     onMerge,
+    scope,
 }: {
+    // The view's filter (FR-REV-034 AC8): the merge acts on the shown list, and its label says whose.
+    scope?: ScopeLabel;
     queue: MergeQueue;
     prs: readonly ReviewPr[];
     base: string;
@@ -64,6 +68,7 @@ export function MergeQueueBlock({
     onMerge: () => void;
 }) {
     const t = useT();
+    const tc = useTCount();
     const word = useWordPhrase();
     const cost = word(queueCost(queue));
     const legend = word(queueLegend(queue, base));
@@ -221,15 +226,31 @@ export function MergeQueueBlock({
                 </div>
             ) : null}
             {canMerge ? (
-                <div className="flex justify-end pt-0.5">
+                <div className="flex items-center justify-end gap-3 pt-0.5">
+                    {scope != null && scope.others > 0 ? (
+                        <span className="min-w-0 text-11 text-muted" data-testid="reviews-queue-scope">
+                            {tc("reviews.queue.scopeNote", scope.others, { count: scope.others })}
+                        </span>
+                    ) : null}
                     <button
                         type="button"
                         onClick={onMerge}
                         title={t("reviews.queue.mergeTitle")}
-                        className="molten-btn flex h-[26px] cursor-pointer items-center gap-1.5 rounded-6 px-2.5 text-12"
+                        className="molten-btn flex h-[26px] shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 text-12"
                         data-testid="reviews-queue-merge"
+                        data-scoped={scope != null ? "true" : undefined}
                     >
-                        {chosen === 1 ? t("reviews.queue.mergeOne") : t("reviews.queue.mergeCount", { count: chosen })}
+                        {scope != null
+                            ? tc(
+                                  scope.names.length === 1
+                                      ? "reviews.queue.mergeScoped"
+                                      : "reviews.queue.mergeScopedMany",
+                                  chosen,
+                                  { count: chosen, name: scope.names[0], names: scope.names.join(", ") }
+                              )
+                            : chosen === 1
+                              ? t("reviews.queue.mergeOne")
+                              : t("reviews.queue.mergeCount", { count: chosen })}
                         <MoltenWave />
                     </button>
                 </div>

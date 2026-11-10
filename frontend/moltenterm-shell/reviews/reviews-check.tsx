@@ -14,6 +14,7 @@ import { useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
 import type { ReviewPr } from "./reviews-model";
+import type { ScopeLabel } from "./reviews-owners-model";
 import { ReviewsModel } from "./reviews-store";
 import { CheckReport, checkReportText } from "./reviews-task-model";
 
@@ -54,8 +55,15 @@ export function useCheckAgents(dir: string, repo: string, prs: ReviewPr[]): Chec
     };
 }
 
-export function CheckAgentsButton({ check }: { check: CheckAgents }) {
+// scope: the view's filter and the number of pull requests it leaves in the list (FR-REV-034 AC8): the button then names
+// whose agents it asks and how many pull requests it covers.
+export function CheckAgentsButton({ check, scope, count }: { check: CheckAgents; scope?: ScopeLabel; count?: number }) {
     const t = useT();
+    const tc = useTCount();
+    const label =
+        scope != null
+            ? tc("reviews.check.buttonScoped", count ?? 0, { count: count ?? 0, names: scope.names.join(", ") })
+            : t("reviews.check.button");
     return (
         <button
             type="button"
@@ -67,7 +75,7 @@ export function CheckAgentsButton({ check }: { check: CheckAgents }) {
             data-testid="reviews-check-button"
         >
             {check.busy ? <DominoLoader /> : <i className="fa fa-solid fa-list-check text-10" aria-hidden />}
-            {check.busy ? t("reviews.check.checking") : t("reviews.check.button")}
+            {check.busy ? t("reviews.check.checking") : label}
         </button>
     );
 }

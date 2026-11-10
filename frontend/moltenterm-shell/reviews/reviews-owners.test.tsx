@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { ChainEdge } from "../agent-chain-store";
 import { I18nModel } from "../i18n/i18n";
+import { CheckAgentsButton } from "./reviews-check";
 import { LeadGroupHeader, OthersWaitLine, OwnerChip, OwnersBar } from "./reviews-owners";
 import type { ViewScopeState } from "./reviews-owners-store";
 
@@ -134,6 +135,28 @@ describe("a lead's group", () => {
         expect(folded).toContain("made by hand or by an agent that closed");
         expect(folded).toContain('aria-expanded="false"');
         expect(folded).not.toContain("Filter on");
+    });
+});
+
+describe("Check the agents on a filtered list", () => {
+    const check = { busy: false, report: null, check: () => {} } as unknown as Parameters<
+        typeof CheckAgentsButton
+    >[0]["check"];
+
+    it("names whose agents it asks and how many pull requests it covers", () => {
+        const html = renderToStaticMarkup(
+            <CheckAgentsButton check={check} scope={{ names: ["Flore"], others: 14 }} count={3} />
+        );
+        expect(html).toContain("Check the agents of Flore (3)");
+        expect(
+            renderToStaticMarkup(<CheckAgentsButton check={check} scope={{ names: ["Flore"], others: 14 }} count={1} />)
+        ).toContain("Check the agent of Flore (1)");
+    });
+
+    it("reads as it always did without a filter", () => {
+        const html = renderToStaticMarkup(<CheckAgentsButton check={check} />);
+        expect(html).toContain("Check the agents<");
+        expect(html).not.toContain(" of ");
     });
 });
 
