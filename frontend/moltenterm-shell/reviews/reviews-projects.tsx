@@ -10,6 +10,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AgentChain } from "../agent-chain-store";
 import { EmptyState } from "../empty-state";
 import { useT } from "../i18n/i18n";
 import { useWordPhrase } from "../i18n/phrase";
@@ -23,6 +24,9 @@ import { useCardContext } from "./reviews-agent-bar";
 import { TurnTitleKeys } from "./reviews-card-model";
 import { useReviews } from "./reviews-client";
 import { rebaseAskKey, reviewsEmptyState, splitReviews } from "./reviews-model";
+import { OthersWaitLine, OwnerChip, OwnersBar } from "./reviews-owners";
+import { inScope, ownerFacts, ownersOf, prOwner, waitsForYou } from "./reviews-owners-model";
+import { useViewScope } from "./reviews-owners-store";
 import { AllProjects, projectLanes, ProjectPrRow, ReviewsProjectFilter } from "./reviews-projects-model";
 import { cardStates } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
@@ -105,9 +109,15 @@ function ProjectProbe({
             return;
         }
         const empty = reviewsEmptyState(answer);
-        const rows = listed.map((pr) => ({ projectId: project.id, dir, pr, card: cards[pr.number] }));
+        const rows = listed.map((pr) => ({
+            projectId: project.id,
+            dir,
+            pr,
+            card: cards[pr.number],
+            owner: prOwner(pr, ctx.upcoming),
+        }));
         onReport(project.id, { rows, loaded: true, note: empty?.title });
-    }, [answer, error, listed, cards, project.id, dir]);
+    }, [answer, error, listed, cards, project.id, dir, ctx.upcoming]);
     return null;
 }
 
@@ -122,13 +132,34 @@ export function AllProjectsList({ workspace, projects }: { workspace: Workspace;
         setReports((prev) => ({ ...prev, [id]: report }));
     }, []);
     const linked = projects.filter((p) => p.dir !== "");
+    // The view's filter composes with the project chips (FR-REV-034): the agents of two projects in the view filter
+    // this list on both, and each row keeps its project tag. What it hides is counted, and what waits is signalled.
+    const view = useViewScope();
+    const edges = useAtomValue(AgentChain.getInstance().edgesAtom);
+    const [revealed, setRevealed] = useState(false);
+    const allRows = useMemo(() => Object.values(reports).flatMap((r) => r.rows), [reports]);
+    const hiddenRows = useMemo(
+        () => allRows.filter((row) => !inScope(row.owner ?? "", view.names)),
+        [allRows, view.names]
+    );
+    const hiddenWaiting = hiddenRows.filter((row) => waitsForYou(row.card));
     const rowsByProject = useMemo(() => {
         const rtn: Record<string, ProjectPrRow[]> = {};
         for (const [id, report] of Object.entries(reports)) {
-            rtn[id] = report.rows;
+            rtn[id] = report.rows.filter(
+                (row) => inScope(row.owner ?? "", view.names) || (revealed && waitsForYou(row.card))
+            );
         }
         return rtn;
-    }, [reports]);
+    }, [reports, view.names, revealed]);
+    const owners = useMemo(
+        () =>
+            ownersOf(
+                allRows.map((row) => row.owner ?? ""),
+                edges
+            ),
+        [allRows, edges]
+    );
     const lanes = projectLanes(projects, rowsByProject);
     const loading = linked.some((p) => !reports[p.id]?.loaded);
     const notes = projects
@@ -150,6 +181,7 @@ export function AllProjectsList({ workspace, projects }: { workspace: Workspace;
                     onReport={onReport}
                 />
             ))}
+            <OwnersBar view={view} edges={edges} owners={owners} hidden={hiddenRows.length} />
             <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <span className="text-12 text-secondary">
                     {t("reviews.projects.count", { count: projects.length })}
@@ -214,6 +246,7 @@ export function AllProjectsList({ workspace, projects }: { workspace: Workspace;
                                     {labels.get(row.projectId)}
                                 </span>
                                 <span className="min-w-0 truncate">{row.pr.title}</span>
+                                <OwnerChip owner={ownerFacts(row.owner ?? "", edges)} />
                                 {row.card != null ? (
                                     <span className="ml-auto shrink-0 truncate pl-2 text-11 text-muted">
                                         {word(row.card.sentence)}
@@ -223,6 +256,11 @@ export function AllProjectsList({ workspace, projects }: { workspace: Workspace;
                         ))}
                     </section>
                 ))}
+                <OthersWaitLine
+                    local={hiddenWaiting.length}
+                    revealed={revealed}
+                    onToggle={() => setRevealed((v) => !v)}
+                />
                 {notes.length > 0 ? (
                     <ul className="m-0 flex list-none flex-col gap-1 p-0 text-11 text-muted">
                         {notes.map((n) => (

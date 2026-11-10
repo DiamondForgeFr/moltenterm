@@ -111,6 +111,15 @@ describe("the view's filter", () => {
         expect(globalStore.get(store.scopeAtom("t1"))).toEqual({ agents: ["Flore"], ignored: [] });
     });
 
+    it("tells once that it just opened on agents, for the page to select their project", () => {
+        const store = ViewScope.getInstance();
+        store.ensure("t1", ["Flore"]);
+        store.ensure("t2", []);
+        expect(store.takeFresh("t1")).toBe(true);
+        expect(store.takeFresh("t1")).toBe(false);
+        expect(store.takeFresh("t2")).toBe(false);
+    });
+
     it("writes nothing for a page without a view", () => {
         const store = ViewScope.getInstance();
         store.write("", { agents: ["Flore"], ignored: [] });
