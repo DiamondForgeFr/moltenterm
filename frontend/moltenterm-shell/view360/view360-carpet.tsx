@@ -9,14 +9,31 @@ import { globalStore } from "@/app/store/jotaiStore";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { CSSProperties, memo, useEffect, useState } from "react";
+import { CSSProperties, lazy, memo, Suspense, useEffect, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { Rect } from "./carpet-model";
 import { canScrollX, horizontalWheelDelta, routeHorizontalWheel, wheelDeltaPx } from "./carpet-wheel";
+import type { View360Model } from "./view360-model";
 import { CarpetSensors } from "./view360-offcarpet";
-import { View360Offers } from "./view360-offer-card";
 import { View360Radar } from "./view360-radar";
 import "./view360.css";
+
+// Loaded on demand: the offers of the first time only show until the developer answers them, so their cards stay out of
+// the JS every tab view loads up front (NFR-PERF-003, bundle.initialJsMB).
+const View360Offers = lazy(() => import("./view360-offer-card").then((m) => ({ default: m.View360Offers })));
+
+function OffersHost({ view360 }: { view360: View360Model }) {
+    const offer = useAtomValue(view360.offerAtom);
+    const screenOffer = useAtomValue(view360.screenOfferAtom);
+    if (offer == null && screenOffer == null) {
+        return null;
+    }
+    return (
+        <Suspense fallback={null}>
+            <View360Offers view360={view360} />
+        </Suspense>
+    );
+}
 
 function rectStyle(rect: Rect): CSSProperties {
     return {
@@ -103,7 +120,7 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
 
     // The offers of the first time (#2180) are drawn in the grid as well, where the view waits for the answer.
     if (layout == null) {
-        return <View360Offers view360={view360} />;
+        return <OffersHost view360={view360} />;
     }
     const gripStuck = view360.gripNoRoom() != null;
     // The edge fades went with the carpet's frame (#1545): the peeks of View360Radar sit in the gutters instead.
@@ -120,7 +137,7 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
                 )}
                 <View360Radar layoutModel={layoutModel} layout={layout} />
             </div>
-            <View360Offers view360={view360} />
+            <OffersHost view360={view360} />
         </>
     );
 });
