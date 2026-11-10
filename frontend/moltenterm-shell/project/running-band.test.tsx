@@ -215,6 +215,8 @@ describe("the build's row (AC-2, AC-3)", () => {
         expect(tagOf(html, "build-run-close")).toBeTruthy();
         expect(html).not.toContain('data-testid="build-run-cancel"');
         expect(html).toContain("Failed during");
+        expect(tagOf(html, "run-row-time")).toBeTruthy();
+        expect(html.match(/data-testid="run-row-time"[^>]*>([^<]*)</)?.[1]).toBe("5 s");
         expect(html).toContain("Whole log");
         expect(html).toContain("Copy");
     });

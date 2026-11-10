@@ -144,7 +144,7 @@ export function RowTime({ row, now }: { row: BandRow; now: number }) {
     }
     return (
         <span className="text-13 whitespace-nowrap text-primary tabular-nums" data-testid="run-row-time">
-            {durationText(now - row.startedat)}
+            {durationText((row.endedat > 0 ? row.endedat : now) - row.startedat)}
             {row.estimateMs > 0 ? (
                 <span className="text-muted">
                     {" "}
@@ -197,9 +197,12 @@ export function RunRow({
     extra?: ReactNode;
 }) {
     const t = useT();
+    const hasBar = row.phases.length > 0 || !!row.note;
     return (
         <div className="flex flex-col py-3" data-testid={testId ?? "run-row"} data-kind={row.kind} data-tone={row.tone}>
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-2.5 px-4 @min-[56rem]:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_minmax(0,10rem)_auto]">
+            {/* One column on a narrow pane (name, bar, time, actions), then the actions beside the name and the time
+                beside the bar, then four columns like the mockup. */}
+            <div className="grid grid-cols-1 gap-x-6 gap-y-2.5 px-4 @min-[34rem]:grid-cols-[minmax(0,1fr)_auto] @min-[34rem]:items-center @min-[56rem]:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_minmax(0,10rem)_auto]">
                 <div className="flex min-w-0 items-center gap-2.5">
                     <span
                         className="flex w-3 shrink-0 items-center justify-center"
@@ -218,7 +221,12 @@ export function RunRow({
                         ) : null}
                     </div>
                 </div>
-                <div className="col-span-2 row-start-2 min-w-0 @min-[56rem]:col-span-1 @min-[56rem]:row-start-auto">
+                <div
+                    className={cn(
+                        "min-w-0 @min-[34rem]:col-start-1 @min-[34rem]:row-start-2 @min-[56rem]:col-start-auto @min-[56rem]:row-start-auto",
+                        !hasBar && "hidden @min-[56rem]:block"
+                    )}
+                >
                     {row.phases.length > 0 ? (
                         <RowPhases
                             phases={row.phases}
@@ -231,11 +239,19 @@ export function RunRow({
                     ) : null}
                     <RowNote text={row.note} tone={row.tone} />
                 </div>
-                <div className="col-span-2 row-start-3 @min-[56rem]:col-span-1 @min-[56rem]:row-start-auto @min-[56rem]:text-right">
+                <div
+                    className={cn(
+                        "@min-[34rem]:col-start-2 @min-[34rem]:self-start @min-[56rem]:col-start-auto @min-[56rem]:row-start-auto @min-[56rem]:self-center @min-[56rem]:text-right",
+                        hasBar ? "@min-[34rem]:row-start-2" : "@min-[34rem]:row-start-1"
+                    )}
+                >
                     <RowTime row={row} now={now} />
                 </div>
                 <div
-                    className="col-start-2 row-start-1 flex flex-wrap items-center justify-end gap-2 @min-[56rem]:col-start-auto @min-[56rem]:row-start-auto"
+                    className={cn(
+                        "flex-wrap items-center justify-start gap-2 @min-[34rem]:col-start-2 @min-[34rem]:row-start-1 @min-[34rem]:justify-end @min-[56rem]:col-start-auto @min-[56rem]:row-start-auto",
+                        actions == null ? "hidden @min-[56rem]:flex" : "flex"
+                    )}
                     data-testid="run-row-actions"
                     aria-label={t("project.band.actionsOf", { name: row.name })}
                     role="group"

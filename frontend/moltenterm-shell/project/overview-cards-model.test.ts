@@ -365,6 +365,14 @@ describe("the Now card's flat lines (#2188)", () => {
         });
     });
 
+    it("says a release that failed is failed, see above", () => {
+        expect(releaseNowLine(state(null, null), { tag: "v1.0.0-12", failed: true }, Now)).toEqual({
+            label: "Release v1.0.0-12",
+            text: "failed, see above",
+            tone: "failure",
+        });
+    });
+
     it("says when the latest release was published, a candidate or a public one", () => {
         const rc = tag("v1.0.0-12", new Date(Now - 4 * 60_000).toISOString());
         const pub = tag("v0.9.0", new Date(Now - 5 * 86_400_000).toISOString());

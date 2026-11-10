@@ -40,6 +40,8 @@ export type BandRow = {
     note: string;
     phases: RowPhase[];
     startedat: number;
+    // When a run that stopped did, so its time stands still; 0 while it goes on.
+    endedat: number;
     // What the same build took last time, 0 when there is no earlier one to measure against.
     estimateMs: number;
 };
@@ -155,6 +157,7 @@ export function buildBandRow(
         note: view.line,
         phases,
         startedat: run.startedat,
+        endedat: stopped ? (run.finishedat ?? 0) : 0,
         estimateMs: estimate,
     };
 }
@@ -204,6 +207,7 @@ export function releaseBandRow(run: ReleaseRun, jobs: readonly ReleaseGhJob[], s
         note: "",
         phases,
         startedat,
+        endedat: 0,
         estimateMs: 0,
     };
 }
