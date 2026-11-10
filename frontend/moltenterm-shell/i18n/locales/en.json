@@ -2144,7 +2144,7 @@
                 "codex-appserver": "Codex app-server"
             },
             "sourceAnd": "{list} and {last}",
-            "explain": "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the \"Resets\" line says when the window starts again.",
+            "explain": "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the \"Resets\" line says when the window starts again. The small figures under the blocks spread that total over the days from the reset, one seventh each, so they tell how many days' worth has been used.",
             "details": "Plan usage details",
             "detailsMore": "Plan usage details ({count} more)",
             "setupLabel": "Plan usage setup",
@@ -11711,6 +11711,7 @@
     },
     "usageWeek": {
         "percent": "{percent} %",
+        "dayShare": "{percent}%",
         "unreadable": "no reading",
         "row": "{name}, {percent} %",
         "rowReset": "{name}, {percent} %, resets {day}",

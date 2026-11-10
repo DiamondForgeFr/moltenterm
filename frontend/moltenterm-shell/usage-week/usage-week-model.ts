@@ -150,6 +150,14 @@ export function dayFills(percent: number, start = 0): number[] {
     });
 }
 
+// The figure under each day block (#2164): the share of that day's part of the window already used, in whole percent,
+// 0 included. The total is spread over the days from the reset, one seventh each, so the figures tell how many days'
+// worth has been used (67 % from a Tuesday reset is 4.69 days' worth: Tuesday to Friday 100, Saturday 69, the others 0).
+// They are the blocks' fills, so the two can never disagree.
+export function dayShares(percent: number, start = 0): number[] {
+    return dayFills(percent, start).map((fill) => Math.round(fill * 100));
+}
+
 // The pace of a window: what it consumed against what the time gone since its last reset allows (two days into a week
 // allow 28.5 %). Without a reset time or a length the pace is unknown: a nearly spent window reads as far ahead, any
 // other as on pace.

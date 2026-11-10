@@ -2144,7 +2144,7 @@
                 "codex-appserver": "app-server de Codex"
             },
             "sourceAnd": "{list} et {last}",
-            "explain": "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; la ligne « Remise à zéro » indique quand la fenêtre repart.",
+            "explain": "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; la ligne « Remise à zéro » indique quand la fenêtre repart. Les petits chiffres sous les blocs répartissent ce total sur les jours depuis la remise à zéro, un septième chacun : ils disent combien de journées ont été utilisées.",
             "details": "Détails de l'utilisation de l'abonnement",
             "detailsMore": "Détails de l'utilisation de l'abonnement ({count} de plus)",
             "setupLabel": "Configuration de l'utilisation de l'abonnement",
@@ -11710,6 +11710,7 @@
         }
     },
     "usageWeek": {
+        "dayShare": "{percent} %",
         "percent": "{percent} %",
         "unreadable": "aucun relevé",
         "row": "{name}, {percent} %",
