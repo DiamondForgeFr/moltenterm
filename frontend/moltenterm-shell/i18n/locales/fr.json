@@ -3161,6 +3161,7 @@
             "badge": "Badge",
             "rien": "Rien",
             "quietBetween": "Heures calmes, de et à",
+            "inView": "Il ne vient pas pour ce que vous avez déjà sous les yeux.",
             "example": {
                 "button": "Voir une visite",
                 "hint": "Exemple : un agent vous attend depuis 6 min. Rien n'est noté ni compté, et les heures calmes ne le retiennent pas."

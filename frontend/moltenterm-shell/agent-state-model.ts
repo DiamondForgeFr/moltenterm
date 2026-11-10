@@ -203,6 +203,8 @@ export type AgentSeenView = {
     active: boolean;
     blockIds: string[];
     focusedBlockId: string;
+    // The project folders whose pull requests an Integration panel of the view lists (#2166).
+    prDirs?: string[];
 };
 
 // Done means finished and not seen yet (#784). In an active view, a done agent in the focused pane is seen at once,
