@@ -162,13 +162,24 @@ type Env struct {
 	// answer of that turn (empty when it is not there); false: its transcript is not known, the answer is only in the
 	// terminal.
 	ReadAnswer func(blockId string, index int) (Answer, bool)
+	// ChosenAgent is the agent the developer explicitly chose for the folder and that is installed: never the order's
+	// fallback, which would use a subscription nobody pointed at (#2203).
+	ChosenAgent func(dir string) (agent string, ok bool)
+	// RunPrint runs the agent's cheap, read-only, non-interactive form in dir with the prompt on its standard input and
+	// returns what it printed (#2203).
+	RunPrint func(ctx context.Context, dir string, agent string, prompt string) ([]byte, error)
+	// Now is the clock of the hourly ceiling on phrasings; time.Now when nil.
+	Now func() time.Time
 }
 
 type Service struct {
 	env Env
 
-	lock    sync.Mutex
-	working bool
+	lock     sync.Mutex
+	working  bool
+	phrasing bool
+	// When each phrasing of the last hour started.
+	phrased []time.Time
 }
 
 func MakeService(env Env) *Service {

@@ -38,6 +38,13 @@ function rowOf(html: string, key: string): string {
     return rows.find((row) => row.startsWith(` data-setting="${key}"`)) ?? "";
 }
 
+// The choices a line offers, as inputs.
+function choicesOf(html: string, key: string): string[] {
+    return [...rowOf(html, key).matchAll(/<input[^>]*data-testid="brokk-coming-choice"[^>]*>/g)].map(
+        (m) => /data-value="([^"]+)"/.exec(m[0])[1]
+    );
+}
+
 // The choices ticked in a line (React writes checked="" after the other attributes).
 function checked(html: string, key: string): string[] {
     return [...rowOf(html, key).matchAll(/<input[^>]*>/g)]
@@ -60,13 +67,19 @@ describe('the table of Preferences, "Quand Brokk vient me chercher" (FR-BOSS-009
         const html = render();
         const rows = [...html.matchAll(/data-testid="brokk-coming-row" data-setting="([^"]+)"/g)].map((m) => m[1]);
         expect(rows).toEqual(SettingIds.map((id) => VisitSettingKeys.coming[id]));
-        for (const key of rows) {
-            expect([...rowOf(html, key).matchAll(/data-value="([^"]+)"/g)].map((m) => m[1])).toEqual([
-                "vient",
-                "badge",
-                "rien",
-            ]);
+        for (const key of rows.filter((key) => key !== VisitSettingKeys.coming.finished)) {
+            expect(choicesOf(html, key)).toEqual(["vient", "badge", "rien"]);
         }
+    });
+
+    // #2203, AC79: an agent that finished has its Done card in the notifications already, so it never brings him.
+    it("offers an agent that finished Badge and Rien only, and reads an older Vient as Badge", () => {
+        const key = VisitSettingKeys.coming.finished;
+        expect(choicesOf(render(), key)).toEqual(["badge", "rien"]);
+        expect(rowOf(render(), key)).toContain('data-testid="brokk-coming-none"');
+        expect(checked(render(), key)).toEqual(["badge"]);
+        expect(checked(render({ [key]: "vient" }), key)).toEqual(["badge"]);
+        expect(checked(render({ [key]: "rien" }), key)).toEqual(["rien"]);
     });
 
     it("shows each event at its default until the developer chose, then at his choice", () => {

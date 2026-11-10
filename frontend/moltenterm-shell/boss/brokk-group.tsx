@@ -12,7 +12,8 @@
 //
 // His square is his living portrait, not a plain video: it takes the pose and the mood the #2003 panel took
 // (use-brokk-live.ts useCardLive: listening while the developer writes, thinking, speaking, the severity gestures, the
-// expression queue, the blink rhythm, #2025's waiting), and the line under it is the caption of the same scene.
+// expression queue, the blink rhythm, #2025's waiting), and the line under it is his own answer or a moment of a kind
+// colleague (brokk-colleague.ts), else nothing (#2203).
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms } from "@/app/store/global";
@@ -53,6 +54,7 @@ import {
     ConversationChromePx,
     conversationHeight,
     conversationWidth,
+    EmptyReportSize,
     groupFlow,
     groupGeometry,
     groupOpeningPanel,
@@ -93,9 +95,9 @@ import { BrokkTalk } from "./brokk-talk";
 import { talkPose, talkWaits } from "./brokk-talk-model";
 import { WeeklyUsage, weeklyUsage } from "./brokk-usage-model";
 import { useBrokkActions } from "./use-brokk-actions";
-import { useGroupCaption } from "./use-brokk-caption";
 import { useAvatarKeys } from "./use-brokk-hub";
 import { useCardLive } from "./use-brokk-live";
+import { useBrokkMoment } from "./use-brokk-moment";
 
 // How often "up 12 min" and the ages are read again while the group shows.
 const AgeTickMs = 15000;
@@ -355,8 +357,19 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         observer.observe(usage);
         return () => observer.disconnect();
     }, []);
-    const g = useMemo(() => groupGeometry(SquarePx, TilePx, usageHeight), [usageHeight]);
-    const report = reportView(g, reportSize, reportHovered || reportFocused, frame.place.heightRoom);
+    // His line under the square is his own when his session has something the developer has not seen (AC25), else the
+    // moment of a kind colleague (AC72), else nothing: the line is hidden and the card holds the usage grid alone (AC71).
+    const moment = useBrokkMoment(shown);
+    const unseen = exchange.find((item) => item.role === "brokk" && item.id === unseenId) as BrokkItem;
+    const line = sayLine(unseen, moment?.text ?? "");
+    const hasLine = line !== "";
+    const g = useMemo(() => groupGeometry(SquarePx, TilePx, usageHeight, hasLine), [usageHeight, hasLine]);
+    const report = reportView(
+        g,
+        hasLine ? reportSize : EmptyReportSize,
+        reportHovered || reportFocused,
+        frame.place.heightRoom
+    );
     const flow = groupFlow(g, report.growth);
     const onReportSize = useCallback(
         (next: ReportSize) =>
@@ -406,10 +419,6 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     // a message, speaks while his answer comes in (AC25).
     const pose = talkPose({ typing, awaiting: talkWaits(talk), working: answering, speaking });
     const live = useCardLive(pose);
-    const caption = useGroupCaption(pose);
-    // His line under the square is his own when his session has something the developer has not seen (AC25).
-    const unseen = exchange.find((item) => item.role === "brokk" && item.id === unseenId) as BrokkItem;
-    const line = sayLine(unseen, caption);
     // The sign of a conversation on the title-bar face: the developer writes to him or his session answers.
     useEffect(() => {
         globalStore.set(boss.talkingAtom, pose != null);
@@ -679,7 +688,13 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                     />
                 );
             case "downloads":
-                return <DownloadsPanel count={downloadItems.length + transfers.length} onLeave={leave} onClose={closePanel} />;
+                return (
+                    <DownloadsPanel
+                        count={downloadItems.length + transfers.length}
+                        onLeave={leave}
+                        onClose={closePanel}
+                    />
+                );
             case "keepawake":
                 return <BrokkKeepAwakePanel onLeave={leave} onClose={closePanel} />;
             default:
@@ -807,14 +822,16 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                         ...delay(1),
                     }}
                 >
-                    <BrokkSay
-                        line={line}
-                        source={unseen != null && line !== caption ? "session" : "activity"}
-                        view={report}
-                        onSize={onReportSize}
-                        onHover={setReportHovered}
-                        onFocusVisible={setReportFocused}
-                    />
+                    {hasLine ? (
+                        <BrokkSay
+                            line={line}
+                            source={unseen != null && line !== moment?.text ? "session" : "moment"}
+                            view={report}
+                            onSize={onReportSize}
+                            onHover={setReportHovered}
+                            onFocusVisible={setReportFocused}
+                        />
+                    ) : null}
                     <div ref={usageRef} className="mt-brokk-usage" data-testid="brokk-usage">
                         {weekly.length === 0 ? (
                             <span className="mt-brokk-usage-empty" data-testid="brokk-usage-empty">

@@ -132,7 +132,11 @@ func codingAgentOptions() []Option {
 // What an event does (FR-BOSS-009, AC4): Brokk comes, only the badge counts it, or nothing.
 var comingOptions = []Option{{Value: "vient", Label: "Comes to fetch me"}, {Value: "badge", Label: "Badge only"}, {Value: "rien", Label: "Nothing"}}
 
-var graceOptions = []Option{{Value: "1", Label: "1 minute"}, {Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
+// How near Brokk stands (FR-BOSS-009, AC75): discreet, only the events that matter; colleague, his moments and their
+// phrasing by his model. The scale grows: 1.1.0 adds close and partner (#2156), so a value is added, never a switch.
+var proximityOptions = []Option{{Value: "discreet", Label: "Discreet"}, {Value: "colleague", Label: "Colleague"}}
+
+var graceOptions =[]Option{{Value: "1", Label: "1 minute"}, {Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
 
 var blockedOptions =[]Option{{Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
 
@@ -230,6 +234,8 @@ var settings = []Setting{
 	// Range, for a text, is its length in characters.
 	{Key: "boss:name", Section: SectionBoss, Group: "Avatar", Label: "Name", Description: "The name the foreman goes by, from 1 to 24 characters. His tooltip, card and menus use it.", Control: ControlText, Range: rng(1, 24, 1), Default: "Brokk"},
 	{Key: "boss:show", Section: SectionBoss, Group: "Avatar", Label: "Show the avatar", Description: "An avatar in the title bar counts what waits and comes to fetch you. Off, it never shows.", Control: ControlToggle, Default: true},
+	// How near he stands (FR-BOSS-009, AC75, #2203): a scale that grows (1.1.0 adds Close and Partner), so a select and not a switch.
+	{Key: "boss:proximity", Section: SectionBoss, Group: "Avatar", Label: "Proximity", Description: "How near he stands to you.", Control: ControlSelect, Options: proximityOptions, Default: "colleague"},
 	// The avatar stays in the title row, never over a terminal: there is nothing left to fold (#2002).
 	hidden("boss:collapseontype"),
 	// When Brokk comes to fetch the developer (#2001 keys, #2003 table, FR-BOSS-009 AC4): the screen draws this group as
@@ -239,7 +245,7 @@ var settings = []Setting{
 	{Key: "boss:visiterror", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent stopped on an error", Description: "An agent that stopped on an error.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
 	{Key: "boss:visitci", Section: SectionBoss, Group: BrokkTableGroup, Label: "CI failed on my pull request", Description: "The checks of one of your pull requests failed.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
 	{Key: "boss:visitready", Section: SectionBoss, Group: BrokkTableGroup, Label: "A pull request is ready to merge", Description: "A pull request that is approved and green.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
-	{Key: "boss:visitfinished", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent finished", Description: "An agent that finished its work.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitfinished", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent finished", Description: "An agent that finished its work. It counts on the badge and never brings him.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
 	{Key: "boss:visitdownload", Section: SectionBoss, Group: BrokkTableGroup, Label: "A download finished or failed", Description: "A file downloaded from a web page, finished or interrupted.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
 	{Key: "boss:visitupdate", Section: SectionBoss, Group: BrokkTableGroup, Label: "An update is available", Description: "A new version of MoltenTerm.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
 	{Key: "boss:visitusage", Section: SectionBoss, Group: BrokkTableGroup, Label: "Plan usage above 90 %", Description: "The plan usage of an agent crosses 90 %.", Control: ControlSelect, Options: comingOptions, Default: "badge"},

@@ -1,14 +1,16 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// What a visit says in words (FR-BOSS-009, AC29, AC30, #2070): the sentence of the event that brought him, the very words
-// his rows say of it, so that the collapsed sidebar that stays half open for him, and the banner it unfolds with,
-// tell what he wants and not only that he wants something. The scene's accessible name stays for screen readers
-// (brokk-visit-scene-model.ts). Pure, so the rules are tested without a window.
+// What a visit says in words (FR-BOSS-009, AC29, AC30, AC79, #2070, #2203): the sentence of the event that brought him, the
+// very words his rows say of it, so that the collapsed sidebar that stays half open for him, and the banner it unfolds
+// with, tell what he wants and not only that he wants something. The count is the visit's own: the events it names, the
+// gravest in words and the others as "and N more", so the line and the number come from one source. The scene's accessible
+// name stays for screen readers (brokk-visit-scene-model.ts). Pure, so the rules are tested without a window.
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
-import type { InfoItem, ToHandleItem } from "./boss-to-handle-model";
+import { t, tCount } from "../i18n/i18n";
+import type { ToHandleItem } from "./boss-to-handle-model";
 import { toHandleHeadline } from "./boss-to-handle-model";
 import type { CaptionLine } from "./brokk-scene";
 import type { Visit } from "./brokk-visit";
@@ -25,26 +27,35 @@ function lineOfRow(item: ToHandleItem, now: number): CaptionLine {
     return { text: toHandleHeadline(item) };
 }
 
-const FinishedPrefix = "finished:";
+// An event that is no row of the list (a download, the update on offer, a plan reading, a security alert) says what it is,
+// by its kind: its key is how a source names it (brokk-extra-feeds.ts). Never a count of "things to handle": those are
+// the rows, and these are not.
+const ReasonKeys: [prefix: string, key: string][] = [
+    ["download:", "boss.visit.reason.download"],
+    ["update:", "boss.visit.reason.update"],
+    ["usage:", "boss.visit.reason.usage"],
+    ["security:", "boss.visit.reason.security"],
+];
 
-// The line of the gravest event of the visit that has words of its own, or how many things wait when none has (a
-// download, an update or a plan reading, which are no row).
-export function visitLineOf(visit: Visit, items: ToHandleItem[], info: InfoItem[], now: number): CaptionLine {
-    // The example of the settings' "Show a visit" (#2079) stands for an agent that waited 6 min and has no row.
+const OtherReasonKey = "boss.visit.reason.other";
+
+function reasonKeyOf(key: string): string {
+    return ReasonKeys.find(([prefix]) => key.startsWith(prefix))?.[1] ?? OtherReasonKey;
+}
+
+// The line of the gravest event of the visit, and how many others it covers. The example of the settings' "Show a visit"
+// (#2079) stands for an agent that waited 6 min and has no row.
+export function visitLineOf(visit: Visit, items: ToHandleItem[], now: number): CaptionLine {
     if (visit.example === true) {
         return { key: "boss.visit.exampleLine" };
     }
-    for (const key of visit.keys) {
-        const item = items.find((entry) => entry.key === key);
-        if (item != null) {
-            return lineOfRow(item, now);
-        }
-        if (key.startsWith(FinishedPrefix)) {
-            const done = info.find((entry) => entry.key === `done:${key.slice(FinishedPrefix.length)}`);
-            if (done != null) {
-                return { key: "boss.screen.finished", vars: { name: done.name } };
-            }
-        }
+    const key = visit.keys[0];
+    const item = items.find((entry) => entry.key === key);
+    const first: CaptionLine = item != null ? lineOfRow(item, now) : { key: reasonKeyOf(key ?? "") };
+    const others = Math.max(0, visit.count - 1);
+    if (others === 0) {
+        return first;
     }
-    return { key: "boss.screen.toHandle", count: visit.count };
+    const sentence = first.text ?? t(first.key, first.vars);
+    return { text: `${sentence} ${tCount("boss.peek.more", others)}` };
 }

@@ -13,6 +13,7 @@
 import type { AgentSeenView, AgentStatesData } from "../agent-state-model";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { GateEvent, gateHold } from "./brokk-gate";
+import type { PanelId } from "./brokk-group-model";
 import { finishedSetAfter } from "./brokk-hub-feed";
 import {
     brokkAfter,
@@ -24,6 +25,7 @@ import {
     InitialBrokk,
     SnoozeChoiceId,
     Visit,
+    visitPanelOf,
     VisitState,
 } from "./brokk-visit";
 import type { BrokkEvent, VisitSettings } from "./brokk-visit-events";
@@ -45,8 +47,8 @@ export type HubDeps = {
     clearTimer: (timer: unknown) => void;
     // A menu or a dialog is open, or his panel is: he does not come then.
     overlayOpen: () => boolean;
-    // Shows his panel.
-    openPanel: () => void;
+    // Shows his panel, on the one that names the reason of the visit that is up (visitPanelOf), null for his own choice.
+    openPanel: (panel: PanelId) => void;
     readShared: () => SharedVisit;
     writeShared: (shared: SharedVisit) => void;
 };
@@ -214,8 +216,9 @@ export class BrokkHub {
 
     // A click on the scene or the avatar, or Enter or Space on them: he folds back and his panel opens in one gesture.
     open(): void {
+        const panel = visitPanelOf(this.view.visit);
         this.panelOpened();
-        this.deps.openPanel();
+        this.deps.openPanel(panel);
     }
 
     // Another view or window changed what is shared.

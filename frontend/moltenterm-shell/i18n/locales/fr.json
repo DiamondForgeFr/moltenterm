@@ -780,6 +780,18 @@
                 "label": "Afficher l'avatar",
                 "description": "Un avatar dans la barre de titre compte ce qui attend et vient vous chercher. Désactivé, il ne s'affiche jamais."
             },
+            "boss:proximity": {
+                "label": "Proximité",
+                "description": "À quelle distance il se tient de vous.",
+                "options": {
+                    "discreet": "Discrète",
+                    "colleague": "Collègue"
+                },
+                "hints": {
+                    "discreet": "Il ne vient que pour l'essentiel. Pas de bonjour, pas de rappel de pause, et rien n'est envoyé à son modèle.",
+                    "colleague": "Il vous dit bonjour, vous suggère des pauses et vous prévient le soir. Son modèle, si vous en avez un, ne reçoit que l'heure, votre durée de travail et le nombre d'agents en cours."
+                }
+            },
             "boss:visitsecurity": {
                 "label": "Une alerte de sécurité sur une dépendance",
                 "description": "Une alerte haute ou critique sur une dépendance de vos projets.",
@@ -807,7 +819,7 @@
             },
             "boss:visitfinished": {
                 "label": "Un agent a terminé",
-                "description": "Un agent qui a fini son travail.",
+                "description": "Un agent qui a fini son travail. Il compte sur le badge et ne le fait jamais venir.",
                 "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
             },
             "boss:visitdownload": {
@@ -3140,6 +3152,13 @@
         "visit": {
             "label": "{name} voudrait vous parler ({severity})",
             "exampleLine": "Un agent attend depuis 6 min",
+            "reason": {
+                "download": "Un téléchargement a du nouveau",
+                "update": "Une mise à jour est disponible",
+                "usage": "Un forfait est presque épuisé",
+                "security": "Une alerte de sécurité sur une dépendance",
+                "other": "Quelque chose vous attend"
+            },
             "example": "Exemple : {name} voudrait vous parler ({severity}). Un agent vous attend depuis 6 min.",
             "severity": {
                 "grave": "grave",
@@ -3277,47 +3296,82 @@
             }
         },
         "screen": {
-            "quiet": "Rien à traiter",
-            "toHandle": {
-                "one": "{count} chose à traiter",
-                "other": "{count} choses à traiter"
+            "waitedFor": "{name} attend depuis {minutes} min"
+        },
+        "moment": {
+            "hello": {
+                "early": {
+                    "p1": "Déjà debout avant que la forge soit chaude. Le café d'abord, on coule ensuite.",
+                    "p2": "Départ matinal. L'enclume est encore froide, prenez le temps de chauffer.",
+                    "p3": "Salut, lève-tôt. Le calme du matin, c'est le meilleur moment pour réfléchir.",
+                    "p4": "Vous avez devancé le soleil. Je garde le feu doux le temps que vous vous réveilliez.",
+                    "p5": "Content de vous voir. Un début tranquille fait une solide journée."
+                },
+                "morning": {
+                    "p1": "Bonjour. Le feu est allumé, les outils sont sortis. On commence par quoi ?",
+                    "p2": "Bonjour ! Journée neuve, enclume propre. Ça me plaît déjà.",
+                    "p3": "Vous voilà. J'ai gardé votre coin de forge au chaud.",
+                    "p4": "Salut, salut. Un souffle, un café, et on tape sur le fer.",
+                    "p5": "Bonjour. Quoi que la journée nous envoie, on a vu pire."
+                },
+                "lateMorning": {
+                    "p1": "Bonjour, ou presque midi. La forge vous a gardé votre place.",
+                    "p2": "Salut. Mieux vaut un départ tardif qu'une forge froide.",
+                    "p3": "La moitié de la matinée est partie, la meilleure moitié du jour reste devant nous.",
+                    "p4": "Bienvenue. Je n'ai touché à rien en votre absence, promis.",
+                    "p5": "Prenez un tabouret. On a le temps avant le déjeuner."
+                },
+                "back": {
+                    "p1": "Content de vous revoir. J'ai gardé un œil sur la maison pendant votre absence.",
+                    "p2": "Vous revoilà. L'atelier tient toujours debout, comme promis.",
+                    "p3": "De retour à l'établi. Tant mieux, je commençais à parler à l'enclume.",
+                    "p4": "Re-bonjour, l'étranger. Le café est froid, mais l'accueil est chaud.",
+                    "p5": "Vous voilà. Quelle qu'ait été la journée, la forge est à vous maintenant."
+                }
             },
-            "working": "{name} travaille",
-            "workingCount": {
-                "one": "{count} agent au travail",
-                "other": "{count} agents au travail"
+            "break": {
+                "p1": "On y est depuis un bon moment. Levez le nez, laissez le fer refroidir un peu.",
+                "p2": "Attention, vous chauffez. Un verre d'eau, on s'étire, et on repart.",
+                "p3": "Quelques minutes sans écran. Le code sera toujours là, je m'en porte garant.",
+                "p4": "Un forgeron qui ne trempe jamais son acier le rend cassant. Faites une pause.",
+                "p5": "Allez faire quelques pas dehors. Aucun bon ouvrage n'est sorti d'un bras fatigué.",
+                "p6": "Ça fait une longue série sans respirer. Debout, je surveille le feu.",
+                "p7": "Hé, c'est l'heure de souffler. Ce n'est pas une suggestion, c'est un ordre amical de collègue.",
+                "p8": "Regardez par la fenêtre une minute. Au loin, pas sur un écran.",
+                "p9": "Vous avez bien mérité une pause. Revenez la tête fraîche, l'ouvrage n'en sera que meilleur.",
+                "p10": "Épaules basses, mâchoire détendue. Oui, vous. Respirez, puis reprenez.",
+                "p11": "Même la forge se tait entre deux coulées. Reposez-vous un moment.",
+                "p12": "Un verre d'eau et un petit moment à ne rien faire. C'est mon ordonnance.",
+                "p13": "Longue séance. Je suis fier de vous, maintenant allez dégourdir vos jambes.",
+                "p14": "La meilleure idée de la journée arrive souvent loin du bureau. Allez la chercher.",
+                "p15": "Mains fatiguées, soudures de travers. Pause, puis on redresse tout ça.",
+                "p16": "Je monte la garde. Faites une vraie pause, loin du clavier.",
+                "p17": "Pensez à cligner des yeux. À vous lever. Et à manger quelque chose, s'il y a longtemps.",
+                "p18": "L'ouvrage tiendra le coup. Vous, en revanche, avez besoin de souffler.",
+                "p19": "C'est le moment de poser le marteau un instant. L'enclume ne va nulle part.",
+                "p20": "Un petit repos maintenant évite une grosse erreur plus tard. Allez, ouste."
             },
-            "nothingForYou": "Rien pour vous",
-            "asleep": "Endormi pendant votre absence",
-            "speech": {
-                "one": "Une chose pour vous : {line}",
-                "other": "{count} choses pour vous : {line}"
-            },
-            "finished": "{name} a terminé",
-            "finishedAll": "Tout le monde a terminé",
-            "merged": "PR #{number} fusionnée",
-            "cleared": "Tout est traité",
-            "thanks": "Merci",
-            "niceWork": "Beau travail",
-            "lateNight": "Il se fait tard",
-            "relieved": "Réglé",
-            "welcomeBack": "Re-bonjour",
-            "backNothing": "Rien de neuf",
-            "backFinished": {
-                "one": "{names} a terminé pendant votre absence",
-                "other": "{names} ont terminé pendant votre absence"
-            },
-            "backArrived": {
-                "one": "{count} chose est arrivée pendant votre absence",
-                "other": "{count} choses sont arrivées pendant votre absence"
-            },
-            "waitedFor": "{name} attend depuis {minutes} min",
-            "waitedLine": "{line} · depuis {minutes} min",
-            "handled": {
-                "answer": "C'est noté",
-                "rerun": "Je relance la CI",
-                "handoff": "Mise en relation autorisée",
-                "done": "C'est noté"
+            "handover": {
+                "p1": "Vos agents sont toujours à l'ouvrage. Je garde un œil dessus, vous pouvez souffler.",
+                "p2": "Bonsoir. L'équipe continue et moi je veille. Rentrez quand vous voulez.",
+                "p3": "Ça cogne encore là-bas. Ce qu'ils finiront vous attendra dans les notifications.",
+                "p4": "Laissez-les travailler, vous avez fait votre part.",
+                "p5": "C'est l'heure du dîner, je crois. Les agents ne vont pas vous regretter de sitôt.",
+                "p6": "Soirée calme à la forge. Les agents sont occupés et je surveille. Allez vivre un peu.",
+                "p7": "Laissez-les faire. Leurs résultats seront là quand vous reviendrez.",
+                "p8": "L'atelier est encore éclairé et les agents travaillent toujours. Il n'y a aucun mal à arrêter là.",
+                "p9": "Je reste de garde pendant qu'ils terminent. À demain, reposé et frais.",
+                "p10": "Pour vous, la journée est finie, pas pour eux. Ils laisseront leurs résultats dans vos notifications.",
+                "p11": "Chut, maintenant. Je garde les braises, vous gardez votre soirée.",
+                "p12": "Ils n'ont pas fini, mais vous en avez le droit. Ce qu'ils terminent sera là demain.",
+                "p13": "Vous en avez assez fait pour aujourd'hui. Les agents continuent et je passe les voir de temps en temps.",
+                "p14": "Bonsoir, collègue. Les agents s'activent encore et je fais le guet.",
+                "p15": "Débranchez-vous la tête pour ce soir. Je guette, le reste peut attendre demain.",
+                "p16": "Ça martèle encore dehors. J'écoute, vous, reposez vos oreilles.",
+                "p17": "Encore une bonne journée de travail. Les agents finissent, je surveille, et demain vous lirez les résultats.",
+                "p18": "Le plus propre pour finir la journée, c'est de les laisser faire. Revenez demain, je serai là.",
+                "p19": "Les lampes sont basses et les agents toujours occupés. Profitez de votre soirée, j'ai la veille.",
+                "p20": "L'heure de rentrer, quand vous voulez. Ils continuent et moi je reste aux aguets."
             }
         }
     },

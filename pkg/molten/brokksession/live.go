@@ -4,11 +4,13 @@
 package brokksession
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -117,6 +120,43 @@ func livePickAgent(dir string) (string, string, bool) {
 	return choice.Agent, molten.AgentDisplayName(choice.Agent), false
 }
 
+func liveChosenAgent(dir string) (string, bool) {
+	choice := agentchoice.Resolve(dir, "")
+	if !choice.Explicit() || choice.Missing || choice.Agent == "" {
+		return "", false
+	}
+	return choice.Agent, true
+}
+
+// liveRunPrint runs the agent's quick, read-only form with the login shell's PATH, since a window opened from the
+// desktop has a bare one. Nothing is printed on a terminal; stderr is kept for the error.
+func liveRunPrint(ctx context.Context, dir string, agent string, prompt string) ([]byte, error) {
+	argv := agentchoice.QuickPrintArgv(agent, dir)
+	if argv == nil {
+		return nil, fmt.Errorf("%s has no non-interactive form", agent)
+	}
+	path := molten.LoginPath()
+	program := molten.LookPathIn(argv[0], path)
+	if program == "" {
+		return nil, fmt.Errorf("%s is not on the login PATH", argv[0])
+	}
+	cmd := spawns.Command(ctx, program, argv[1:]...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "PATH="+path)
+	cmd.Stdin = strings.NewReader(prompt)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return nil, fmt.Errorf("%s: %s", argv[0], msg)
+	}
+	return stdout.Bytes(), nil
+}
+
 func liveType(ctx context.Context, blockId string, line string) TypeOutcome {
 	out := termupdate.TypeHandoffLine(ctx, blockId, line)
 	if out.Result == termupdate.InputSent {
@@ -163,6 +203,9 @@ func Live() *Service {
 		Ready:      termupdate.AgentTakesLine,
 		Sleep:      liveSleep,
 		ReadAnswer: (&answerReader{}).read,
+
+		ChosenAgent: liveChosenAgent,
+		RunPrint:    liveRunPrint,
 	})
 }
 
@@ -205,6 +248,12 @@ func (s *Service) handle(ctx context.Context, command string, data any) (any, er
 		ctx, cancel := context.WithTimeout(ctx, findTimeout)
 		defer cancel()
 		return s.Reply(ctx, reply), nil
+	case PhraseCommand:
+		var phrase PhraseRequest
+		if err := utilfn.ReUnmarshal(&phrase, data); err != nil {
+			return nil, err
+		}
+		return s.Phrase(ctx, phrase), nil
 	}
 	return nil, fmt.Errorf("unknown Brokk session command %q", command)
 }

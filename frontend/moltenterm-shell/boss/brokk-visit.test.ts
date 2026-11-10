@@ -888,11 +888,14 @@ describe("fed by any source (FR-BOSS-009, AC11)", () => {
         expect(w.view.badge).toBe(4);
         w.gate({ type: "leave" }, T0 + 5);
         w.tick(T0 + 5 + AfterLeaveMs);
-        expect(w.view.visit).toMatchObject({ severity: "neutre", expression: "call", count: 4 });
+        // An agent that finished counts on the badge and never brings him (#2203): the visit holds the other three.
+        expect(w.view.visit).toMatchObject({ severity: "neutre", expression: "call", count: 3 });
+        expect(w.view.visit.keys).not.toContain("finished:b1");
         w.step({ type: "cancel", key: "download:1" }, T0 + 3000);
         w.step({ type: "cancel", key: "update:1.0.1" }, T0 + 3001);
         w.step({ type: "cancel", key: "usage:claude" }, T0 + 3002);
-        expect(w.view.visit).toMatchObject({ severity: "bonne", expression: "smile", count: 1 });
+        expect(w.view.visit).toBeNull();
+        expect(w.view.badge).toBe(1);
     });
 
     it("keeps the model free of any surface: a plain value goes in, a plain value comes out", () => {

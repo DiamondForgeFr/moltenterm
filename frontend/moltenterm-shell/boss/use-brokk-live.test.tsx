@@ -44,12 +44,10 @@ vi.mock("./brokk-expressions", async () => {
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabActivity } from "../tab-activity";
-import type { BossPeek } from "./boss-overview";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import type { BrokkScene } from "./brokk-scene";
-import { useGroupCaption } from "./use-brokk-caption";
 import {
     faceVisibleIn,
     useBrokkScene,
@@ -61,8 +59,6 @@ import {
 
 const bubble = BossBubbleModel.getInstance() as any;
 const expressions = BrokkExpressionsModel.getInstance() as any;
-
-const NoPeek: BossPeek = { waiting: [], waitingMore: 0, working: [], workingMore: 0, usage: [], latest: null };
 
 function row(key: string, extra: Partial<ToHandleItem> = {}): ToHandleItem {
     return {
@@ -165,15 +161,12 @@ describe("where his face can be seen (#2154)", () => {
     });
 });
 
-describe("the scene the tooltip reads (FR-BOSS-007, AC10 and AC11, #1959)", () => {
-    function scene(
-        options: { cardOpen?: boolean; pinned?: boolean; peek?: BossPeek; speaks?: boolean } = {}
-    ): BrokkScene {
+describe("the scene the portrait reads (FR-BOSS-007, AC10, #1959)", () => {
+    function scene(options: { cardOpen?: boolean; pinned?: boolean; speaks?: boolean } = {}): BrokkScene {
         return hook(() => {
             const situation = useBrokkSituation(options.cardOpen === true, false);
             return useBrokkScene({
                 pinned: options.pinned === true,
-                peek: options.peek ?? NoPeek,
                 situation,
                 speaks: options.speaks === true,
             });
@@ -183,52 +176,23 @@ describe("the scene the tooltip reads (FR-BOSS-007, AC10 and AC11, #1959)", () =
     it("is calm with nothing going on", () => {
         const s = scene();
         expect(s.face).toBe("listening");
-        expect(s.caption.status).toEqual({ key: "boss.screen.quiet" });
+        expect(Object.keys(s)).not.toContain("caption");
     });
 
-    it("says the one row's own sentence, in the app's language, where the badge counts it", () => {
+    it("carries the badge's count in the round, where the badge counts it", () => {
         globalStore.set(bubble.badgeAtom, { count: 1, text: "1", tone: "waiting" });
         globalStore.set(bubble.toHandleAtom, { items: [row("agent:a")], info: [], parked: 0 });
         const s = scene();
-        expect(s.caption.status).toEqual({ text: "Olivia waits for you" });
-        expect(s.card.status).toEqual(s.caption.status);
         expect(s.round).toMatchObject({ count: 1, text: "1" });
     });
 
-    it("leaves out the rows the developer has already acted on, as the badge does", () => {
-        globalStore.set(bubble.badgeAtom, { count: 1, text: "1", tone: "waiting" });
-        globalStore.set(bubble.toHandleAtom, {
-            items: [row("notif:n", { seen: true, name: "Seen" }), row("agent:a")],
-            info: [],
-            parked: 0,
-        });
-        expect(scene().caption.status).toEqual({ text: "Olivia waits for you" });
-    });
-
-    // At night he is tired and says so instead of the plan reading: the clock is fixed to the afternoon so the test does
-    // not depend on the hour it runs at.
-    it("names the one agent at work, and shows the plan reading from the warning level, with no gesture", () => {
-        vi.useFakeTimers({ toFake: ["Date"] });
-        vi.setSystemTime(new Date(2026, 10, 7, 14, 0, 0));
+    it("shows the domino while agents work, with no gesture", () => {
         globalStore.set(bubble.workingCountAtom, 1);
-        const peek: BossPeek = {
-            ...NoPeek,
-            working: [{ workspace: "Forge", names: ["Arthur"], more: 0 }],
-            usage: [
-                { agent: "Claude Code", label: "5-hour", percent: "86 % used", resets: "", level: "warning" },
-                { agent: "Codex", label: "5-hour", percent: "3 % used", resets: "", level: "normal" },
-            ],
-        };
-        const working = scene({ peek });
-        expect(working.caption.status).toEqual({ key: "boss.screen.working", vars: { name: "Arthur" } });
+        const working = scene();
         expect(working.loader).toBe(true);
+        expect(working.gesture).toBeNull();
         globalStore.set(bubble.workingCountAtom, 0);
-        const calm = scene({ peek });
-        expect(calm.caption.detail).toEqual({
-            key: "boss.peek.usage",
-            vars: { agent: "Claude Code", label: "5-hour", used: "86 % used" },
-        });
-        expect(calm.gesture).toBeNull();
+        expect(scene().loader).toBe(false);
     });
 
     it("looks up when the card opens, even while agents work, and says so in the header", () => {
@@ -277,47 +241,26 @@ describe("the group's square is driven by the same pose and mood models (FR-BOSS
         expect(hook(() => useCardLive("typing"))).toBeNull();
     });
 
-    it("says under the square the caption of the same scene, so that the words match the face", () => {
+    it("speaks on opening when something waits: the face speaks, and no sentence of the notifications is read", () => {
         globalStore.set(bubble.badgeAtom, { count: 1, text: "1", tone: "waiting" });
         globalStore.set(bubble.toHandleAtom, { items: [row("agent:a")], info: [], parked: 0 });
-        // On opening he says the row, and his pose is speaking: the words and the face come from the same scene.
-        const caption = hook(() => useGroupCaption());
-        expect(caption).toBe("A thing for you: Olivia waits for you");
         const scene = hook(() => {
             const situation = useBrokkSituation(true, false);
-            return useBrokkScene({ pinned: false, peek: NoPeek, situation, speaks: true });
+            return useBrokkScene({ pinned: false, situation, speaks: true });
         });
         expect(scene.face).toBe("speaking");
-        expect(scene.caption.status).toMatchObject({
-            key: "boss.screen.speech",
-            vars: { line: "Olivia waits for you" },
-        });
+        expect(JSON.stringify(scene)).not.toContain("Olivia");
     });
 
-    it("says the calm words when nothing goes on, and what works when something does", () => {
-        expect(hook(() => useGroupCaption())).toMatch(/\S/);
-        globalStore.set(bubble.workingCountAtom, 2);
-        expect(hook(() => useGroupCaption())).toContain("2");
-    });
-
-    // #2033: the status and its detail ("2 agents at work", "Nothing for you") were joined by a space alone.
-    it("reads the two lines of his caption as two sentences, not as one run of words", () => {
-        globalStore.set(bubble.workingCountAtom, 2);
-        const caption = hook(() => useGroupCaption());
-        expect(caption).toBe("2 agents at work. Nothing for you.");
-        expect(caption).not.toMatch(/work Nothing/);
-    });
-
+    // #2203: the line under the square used to be the caption of this scene and repeated the Notifications panel.
     it("is wired to the portrait through the same hooks the panel used, with no video or package of its own", () => {
         const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(group).toContain("useCardLive(pose)");
-        expect(group).toContain("useGroupCaption(pose)");
+        expect(group).toContain("useBrokkMoment(shown)");
+        expect(group).not.toContain("useGroupCaption");
         expect(group).toContain('<BossPortrait live={live} framing="banner" />');
         expect(group).not.toContain("TransmissionPortrait");
         expect(group).not.toContain("<video");
-        const caption = readFileSync(join(__dirname, "use-brokk-caption.ts"), "utf8");
-        expect(caption).toContain("useBrokkScene(");
-        expect(caption).toContain("useBrokkSituation(");
     });
 
     it("keeps the expressions model watching, and lets his nod answer what the developer handles in the panels", () => {

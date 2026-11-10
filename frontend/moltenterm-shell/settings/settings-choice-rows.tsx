@@ -33,6 +33,12 @@ export function ChoiceRows({
                     name={name}
                     value={c.value}
                     label={c.label}
+                    meta={c.hint}
+                    className={
+                        c.hint != null
+                            ? "[&_.df-option-label]:overflow-visible [&_.df-option-label]:whitespace-normal"
+                            : undefined
+                    }
                     icon={settingsOptionIcon(entry.key, c.value)}
                     selected={c.value === current}
                     selectedLabel={t("common.selected")}

@@ -16,13 +16,11 @@ import { AgentStates } from "../agent-state-store";
 import { prefersReducedMotion } from "../molten-motion";
 import { TabActivity } from "../tab-activity";
 import { ActivityState, isShowing } from "../tab-activity-model";
-import { BossPeek } from "./boss-overview";
 import { BossBubbleModel } from "./boss-store";
-import { toHandleHeadline } from "./boss-to-handle-model";
 import { BrokkSituation, speaksOnOpen } from "./brokk-ask-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import type { BrokkLiveProps } from "./brokk-live";
-import { BrokkScene, brokkScene, CaptionLine } from "./brokk-scene";
+import { BrokkScene, brokkScene } from "./brokk-scene";
 import { moodFactsOf, unseenItems } from "./brokk-watch";
 import { useDeveloperAway } from "./developer-away";
 
@@ -79,15 +77,14 @@ const MaxTimerMs = 2 ** 31 - 1;
 export type BrokkSceneOptions = {
     // The comm screen stands beside the open card (the bubble is not folded): the card's header shows the still.
     pinned: boolean;
-    peek: BossPeek;
     situation: BrokkSituation;
     speaks: boolean;
 };
 
 // The scene the bubble draws now, read once: it changes with the rows, the agents, the mood and the clock, and it is
-// drawn again by itself when a mention runs out or a wait crosses a limit.
+// drawn again by itself when a wait crosses a limit or the night begins or ends.
 export function useBrokkScene(options: BrokkSceneOptions): BrokkScene {
-    const { pinned, peek, situation, speaks } = options;
+    const { pinned, situation, speaks } = options;
     const model = BossBubbleModel.getInstance();
     const expressions = BrokkExpressionsModel.getInstance();
     const badge = useAtomValue(model.badgeAtom, { store: globalStore });
@@ -101,9 +98,6 @@ export function useBrokkScene(options: BrokkSceneOptions): BrokkScene {
     const now = Date.now();
 
     const items = unseenItems(toHandle);
-    const top: CaptionLine = items.length > 0 ? { text: toHandleHeadline(items[0]) } : null;
-    const worker = situation.working === 1 ? (peek.working[0]?.names[0] ?? "") : "";
-    const usage = peek.usage.find((line) => line.level !== "normal");
     const workingSince = Object.values(agents?.states ?? {})
         .filter((info) => info?.state === "working" && info.since > 0)
         .reduce((oldest, info) => (oldest === 0 || info.since < oldest ? info.since : oldest), 0);
@@ -111,9 +105,7 @@ export function useBrokkScene(options: BrokkSceneOptions): BrokkScene {
         situation,
         now,
         memory,
-        facts: moodFactsOf(items, toHandleHeadline),
-        top,
-        worker,
+        facts: moodFactsOf(items),
         badge,
         asked,
         speaking: speaks,
@@ -121,9 +113,6 @@ export function useBrokkScene(options: BrokkSceneOptions): BrokkScene {
         pinned,
         lastKeyAt,
         workingSince,
-        usage: usage
-            ? { key: "boss.peek.usage", vars: { agent: usage.agent, label: usage.label, used: usage.percent } }
-            : null,
     });
 
     useEffect(() => {

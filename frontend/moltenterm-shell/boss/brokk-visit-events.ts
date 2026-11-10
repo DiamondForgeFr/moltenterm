@@ -155,9 +155,22 @@ export function visitSettingsOf(read: (key: string) => unknown): VisitSettings {
     };
 }
 
+// The events that never bring him (#2203): an agent that finished is good news its Done card already tells in the
+// notifications, so it counts on the badge and nothing more, whatever an older setting says.
+const NeverComes: BrokkSettingId[] = ["finished"];
+
+// The choices a row of the table offers: every event but the ones that never bring him can be set to Vient.
+export function comingChoices(id: BrokkSettingId): Coming[] {
+    return NeverComes.includes(id) ? ComingValues.filter((choice) => choice !== "vient") : ComingValues;
+}
+
 export function comingOf(kind: BrokkEventKind, settings: VisitSettings): Coming {
     const id = SettingOf[kind];
-    return id == null ? "rien" : settings.coming[id];
+    if (id == null) {
+        return "rien";
+    }
+    const value = settings.coming[id];
+    return comingChoices(id).includes(value) ? value : "badge";
 }
 
 export function blockedThresholdMs(settings: VisitSettings): number {

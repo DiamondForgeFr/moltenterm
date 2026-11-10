@@ -590,6 +590,18 @@
                 "label": "Show the avatar",
                 "description": "An avatar in the title bar counts what waits and comes to fetch you. Off, it never shows."
             },
+            "boss:proximity": {
+                "label": "Proximity",
+                "description": "How near he stands to you.",
+                "options": {
+                    "discreet": "Discreet",
+                    "colleague": "Colleague"
+                },
+                "hints": {
+                    "discreet": "He only comes for what matters. No hello, no break reminder, and nothing goes to his model.",
+                    "colleague": "He says hello, suggests breaks and lets you know in the evening. His model, if you have one, only gets the time of day, how long you have worked and how many agents run."
+                }
+            },
             "boss:visitsecurity": {
                 "label": "A security alert on a dependency",
                 "description": "A high or critical alert on a dependency of your projects.",
@@ -617,7 +629,7 @@
             },
             "boss:visitfinished": {
                 "label": "An agent finished",
-                "description": "An agent that finished its work.",
+                "description": "An agent that finished its work. It counts on the badge and never brings him.",
                 "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
             },
             "boss:visitdownload": {
@@ -3141,6 +3153,13 @@
             "label": "{name} would like a word ({severity})",
             "example": "Example: {name} would like a word ({severity}). An agent has been waiting for you for 6 min.",
             "exampleLine": "An agent has waited 6 min",
+            "reason": {
+                "download": "A download has news",
+                "update": "An update is available",
+                "usage": "A plan is nearly used up",
+                "security": "A security alert on a dependency",
+                "other": "Something needs you"
+            },
             "severity": {
                 "grave": "grave",
                 "important": "important",
@@ -3277,47 +3296,82 @@
             }
         },
         "screen": {
-            "quiet": "Nothing to handle",
-            "toHandle": {
-                "one": "{count} thing to handle",
-                "other": "{count} things to handle"
+            "waitedFor": "{name} has waited {minutes} min"
+        },
+        "moment": {
+            "hello": {
+                "early": {
+                    "p1": "Up before the forge is even hot. Coffee first, then we pour.",
+                    "p2": "Early start. The anvil is still cold, so ease into it.",
+                    "p3": "Hello, early bird. The quiet hours are the best ones for thinking.",
+                    "p4": "You beat the sun to it. I will keep the fire low until you are awake.",
+                    "p5": "Good to see you. A gentle start makes for a sturdy day."
+                },
+                "morning": {
+                    "p1": "Good morning. Fire is lit, tools are laid out. Where do we start?",
+                    "p2": "Morning! Fresh day, clean anvil. I like it already.",
+                    "p3": "There you are. I kept your corner of the forge warm.",
+                    "p4": "Hello, hello. A breath, a coffee, and then we hammer.",
+                    "p5": "Good morning. Whatever today throws at us, we have handled worse."
+                },
+                "lateMorning": {
+                    "p1": "Good morning, or nearly noon. The forge kept your spot.",
+                    "p2": "Hello. Better a late start than a cold forge.",
+                    "p3": "Half the morning is gone, the best half of the day is still ahead.",
+                    "p4": "Welcome. I touched nothing while you were gone, promise.",
+                    "p5": "Pull up a stool. There is time before lunch."
+                },
+                "back": {
+                    "p1": "Welcome back. I kept an eye on the place while you were away.",
+                    "p2": "There you are again. The workshop is still standing, as promised.",
+                    "p3": "Back at the bench. Good, I was starting to talk to the anvil.",
+                    "p4": "Hello again, stranger. The coffee is cold, the welcome is warm.",
+                    "p5": "You made it. Whatever the day was, the forge is yours now."
+                }
             },
-            "working": "{name} is working",
-            "workingCount": {
-                "one": "{count} agent at work",
-                "other": "{count} agents at work"
+            "break": {
+                "p1": "We have been at it a good while. Step away and let the iron cool for a bit.",
+                "p2": "Careful, you are running hot. Water, a stretch, then back at it.",
+                "p3": "Eyes off the screen for a few minutes. The code will still be here, I will make sure.",
+                "p4": "A smith who never quenches ends up with brittle steel. Take a break.",
+                "p5": "Go and take a short walk. Nothing good was ever hammered by a tired arm.",
+                "p6": "That is a long stretch without a pause. Stand up, I will watch the fire.",
+                "p7": "Hey, time to rest. Not a suggestion, a colleague's friendly order.",
+                "p8": "Look out of the window for a minute. Far away, not at a screen.",
+                "p9": "You have earned a pause. Come back with a fresh head, the work will be better.",
+                "p10": "Shoulders down, jaw loose. Yes, you. Breathe, then carry on.",
+                "p11": "Even the forge goes quiet between two pours. Rest a moment.",
+                "p12": "A glass of water and a little while of nothing. That is my prescription.",
+                "p13": "Long session. I am proud of you, now go and stretch your legs.",
+                "p14": "Your best idea of the day often turns up away from the desk. Go and fetch it.",
+                "p15": "Tired hands make crooked welds. Pause, then we straighten things out.",
+                "p16": "I will keep guard. Take a real break, away from the keyboard.",
+                "p17": "Remember to blink. And to stand up. And to eat something, if it has been a while.",
+                "p18": "The work will hold. You, on the other hand, need a pause.",
+                "p19": "Time to put the hammer down for a little while. The anvil is not going anywhere.",
+                "p20": "A short rest now saves a long mistake later. Off you go."
             },
-            "nothingForYou": "Nothing for you",
-            "asleep": "Asleep while you are away",
-            "speech": {
-                "one": "A thing for you: {line}",
-                "other": "{count} things for you: {line}"
-            },
-            "finished": "{name} finished",
-            "finishedAll": "Everyone finished",
-            "merged": "PR #{number} merged",
-            "cleared": "All handled",
-            "thanks": "Thank you",
-            "niceWork": "Nice work",
-            "lateNight": "It is getting late",
-            "relieved": "Sorted out",
-            "welcomeBack": "Welcome back",
-            "backNothing": "Nothing new",
-            "backFinished": {
-                "one": "{names} finished while you were away",
-                "other": "{names} finished while you were away"
-            },
-            "backArrived": {
-                "one": "{count} thing arrived while you were away",
-                "other": "{count} things arrived while you were away"
-            },
-            "waitedFor": "{name} has waited {minutes} min",
-            "waitedLine": "{line} · {minutes} min",
-            "handled": {
-                "answer": "Noted",
-                "rerun": "Rerunning the CI",
-                "handoff": "Handoff allowed",
-                "done": "Noted"
+            "handover": {
+                "p1": "Your agents are still at it. I will keep an eye on them, you can rest.",
+                "p2": "Good evening. The team keeps working and I keep watching. Go home when you are ready.",
+                "p3": "Still hammering over there. Whatever they finish will be waiting in your notifications.",
+                "p4": "Let them work, you have done your share.",
+                "p5": "Dinner time, I think. The agents will not miss you for a while.",
+                "p6": "Quiet evening at the forge. The agents are busy and I am watching. Go and live a little.",
+                "p7": "Leave them to it. Their results will be here when you come back.",
+                "p8": "The workshop is still lit and the agents are still working. No shame in calling it a day.",
+                "p9": "I will stay on watch while they finish. See you tomorrow, rested and fresh.",
+                "p10": "Your day is done, theirs is not. They will leave their results in your notifications.",
+                "p11": "Quiet now. I keep the embers going, you keep your evening.",
+                "p12": "They are not done, but you are allowed to be. What they finish will be there tomorrow.",
+                "p13": "You have done enough for today. The agents carry on, and I look in on them now and then.",
+                "p14": "Good evening, colleague. The agents are still busy and I am keeping watch.",
+                "p15": "Unplug your head for the evening. I am on the lookout, the rest can wait for tomorrow.",
+                "p16": "Still some hammering going on out there. I will listen for it, you go and rest your ears.",
+                "p17": "Another good day of work. The agents wrap up, I watch, and tomorrow you read the results.",
+                "p18": "The tidiest way to end the day is to leave them at it. Come back tomorrow, I will be here.",
+                "p19": "The lamps are low and the agents are still busy. Enjoy your evening, I have the watch.",
+                "p20": "Home time, whenever you are ready. They keep working and I stay alert."
             }
         }
     },

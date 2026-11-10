@@ -1518,6 +1518,7 @@ declare global {
         "boss:quietfrom"?: string;
         "boss:quietto"?: string;
         "boss:nevercome"?: boolean;
+        "boss:proximity"?: string;
         "moltenterm:settingsreveal"?: boolean;
         "moltenterm:theme"?: string;
         "moltenterm:view360"?: string;
