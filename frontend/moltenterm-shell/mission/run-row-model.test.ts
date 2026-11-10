@@ -7,7 +7,6 @@ import { ReleaseFacts, releaseRun } from "./release-run";
 import {
     buildBandRow,
     buildContext,
-    buildInBand,
     durationText,
     estimateMs,
     phaseDurations,
@@ -38,21 +37,6 @@ const Defs = [
     { id: "package", title: "Package" },
     { id: "install", title: "Install" },
 ];
-
-describe("the build in the band (#2188)", () => {
-    it("is there while it runs, and once it failed or was interrupted until it is closed", () => {
-        expect(buildInBand(run())).toBe(true);
-        expect(buildInBand(run({ state: "failure" }))).toBe(true);
-        expect(buildInBand(run({ state: "lost" }))).toBe(true);
-        expect(buildInBand(run({ state: "failure", closed: true }))).toBe(false);
-    });
-
-    it("leaves when it succeeded or was cancelled, and when there is none", () => {
-        expect(buildInBand(run({ state: "success" }))).toBe(false);
-        expect(buildInBand(run({ state: "cancelled" }))).toBe(false);
-        expect(buildInBand(null)).toBe(false);
-    });
-});
 
 describe("estimateMs", () => {
     const done = (id: string, startedat: number, finishedat: number, extra: Partial<RunRecord> = {}) =>

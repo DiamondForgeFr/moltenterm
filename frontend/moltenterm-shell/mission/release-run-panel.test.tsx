@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 import { PendingLock, PendingLockContext } from "./pending-action";
 import { ReleaseFailureActions } from "./release-resolve";
 import { Phase, ReleaseFacts, releaseRun } from "./release-run";
-import { ReleasePanelActions, ReleaseRunPanel } from "./release-run-panel";
+import { ReleasePanelActions } from "./release-run-panel";
+import { ReleaseRunPanel } from "./release-run-row";
 
 const actions: ReleasePanelActions = {
     run: async () => true,

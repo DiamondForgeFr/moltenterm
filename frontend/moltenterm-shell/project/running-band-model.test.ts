@@ -4,7 +4,38 @@
 import { describe, expect, it } from "vitest";
 import { CiState } from "../mission/ci-model";
 import { RunRecord } from "../mission/mission-model";
-import { bandWork, workBandRow } from "./running-band-model";
+import { workBandRow } from "../mission/run-row-model";
+import { bandWork, buildInBand } from "./running-band-model";
+
+const build = (extra: Partial<RunRecord> = {}) =>
+    ({
+        id: "b1",
+        dir: "/p",
+        kind: "build",
+        stepid: "gold",
+        title: "Gold",
+        command: "x",
+        startedat: 1,
+        state: "running",
+        phases: [],
+        logsize: 0,
+        ...extra,
+    }) as RunRecord;
+
+describe("the build in the band (#2188)", () => {
+    it("is there while it runs, and once it failed or was interrupted until it is closed", () => {
+        expect(buildInBand(build())).toBe(true);
+        expect(buildInBand(build({ state: "failure" }))).toBe(true);
+        expect(buildInBand(build({ state: "lost" }))).toBe(true);
+        expect(buildInBand(build({ state: "failure", closed: true }))).toBe(false);
+    });
+
+    it("leaves when it succeeded or was cancelled, and when there is none", () => {
+        expect(buildInBand(build({ state: "success" }))).toBe(false);
+        expect(buildInBand(build({ state: "cancelled" }))).toBe(false);
+        expect(buildInBand(null)).toBe(false);
+    });
+});
 
 const ci: CiState = {
     runs: [
