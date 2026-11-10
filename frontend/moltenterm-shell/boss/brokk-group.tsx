@@ -28,6 +28,7 @@ import { agentName } from "../companion/companion-task-model";
 import { isActive, overallDownloadProgress } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { useLocale, useT } from "../i18n/i18n";
+import { CupIcon } from "../keepawake-cup-icon";
 import { keepAwakeActive } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { modalIsOpen } from "../modal-open";
@@ -176,11 +177,17 @@ function RailMarkView({ mark }: { mark: RailMark }) {
                 </span>
             ) : null}
             {mark.dot ? <span className="mt-brokk-dot" aria-hidden data-testid="brokk-rail-dot" /> : null}
-            {mark.ember ? (
-                <span className="mt-brokk-dot" data-ember="true" aria-hidden data-testid="brokk-rail-ember" />
-            ) : null}
         </>
     );
+}
+
+// Keep awake says "on" with the cup itself, orange with rising steam, never with a dot: a dot on the rail means
+// something to look at (FR-BOSS-009 AC80, #2206).
+function RailIcon({ id, mark }: { id: PanelId; mark: RailMark }) {
+    if (id === "keepawake") {
+        return <CupIcon on={mark.ember} tone="action" steam="rise" />;
+    }
+    return <i className={makeIconClass(RailIcons[id], true)} aria-hidden />;
 }
 
 // The light scrim over the work area while the group is open (FR-BOSS-009, AC39, #2082). It fills the host's layer, which
@@ -654,8 +661,8 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         if (id === "downloads" && (mark.dot || mark.count > 0)) {
             return t("boss.group.rail.news", { name: label });
         }
-        if (id === "keepawake" && mark.ember) {
-            return t("boss.group.rail.awake", { name: label });
+        if (id === "keepawake") {
+            return t(mark.ember ? "boss.group.rail.awake" : "boss.group.rail.awakeOff", { name: label });
         }
         return label;
     };
@@ -805,7 +812,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                                 onClick={() => clickIcon(id)}
                                 onKeyDown={(e) => onRailKeyDown(e, id)}
                             >
-                                <i className={makeIconClass(RailIcons[id], true)} aria-hidden />
+                                <RailIcon id={id} mark={marks[id]} />
                                 <RailMarkView mark={marks[id]} />
                             </button>
                         );

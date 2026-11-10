@@ -3131,7 +3131,8 @@
                 "running": "{name}, {percent} % téléchargé",
                 "runningUnknown": "{name}, un téléchargement est en cours",
                 "news": "{name}, un téléchargement a du nouveau",
-                "awake": "{name}, activé"
+                "awake": "{name}, activé",
+                "awakeOff": "{name}, désactivé"
             },
             "priority": {
                 "urgent": "Urgent",

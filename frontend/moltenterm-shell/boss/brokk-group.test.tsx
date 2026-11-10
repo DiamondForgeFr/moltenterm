@@ -497,7 +497,7 @@ describe("the rail (AC17)", () => {
         expect(attr(html, "brokk-rail", "aria-orientation")).toBe("vertical");
         expect(attr(html, "brokk-rail-agents", "role")).toBe("tab");
         expect(attr(html, "brokk-rail-agents", "aria-label")).toBe("Agents");
-        expect(attr(html, "brokk-rail-keepawake", "aria-label")).toBe("Keep awake");
+        expect(attr(html, "brokk-rail-keepawake", "aria-label")).toBe("Keep awake, off");
         expect(attr(html, "brokk-rail-agents", "aria-controls")).toBe("brokk-panel");
     });
 
@@ -556,14 +556,36 @@ describe("the rail (AC17)", () => {
         expect(attr(html, "brokk-rail-downloads", "aria-label")).toBe("Downloads, 62 % downloaded");
     });
 
-    it("shows the cup's ember on Garder éveillé while the computer is kept awake", () => {
-        expect(render()).not.toContain('data-testid="brokk-rail-ember"');
+    it("says keep-awake is on with an orange cup and rising steam, never a dot (AC80, #2206)", () => {
+        const button = (html: string) => {
+            const start = html.indexOf('data-testid="brokk-rail-keepawake"');
+            return html.slice(start, html.indexOf("</button>", start));
+        };
+        const off = button(render());
+        expect(off).toMatch(/<span class="mt-cup"[^>]*data-testid="keepawake-cup-icon"/);
+        expect(off).not.toContain("data-on");
+        expect(off).not.toContain("mt-brokk-dot");
+        expect(off).not.toContain("fa-mug-hot");
         globalStore.set(keep.stateAtom, {
             ...EmptyKeepAwakeState,
             version: 1,
             coffees: [{ workspaceid: "wsA", since: 1, reason: "work", untilidle: true }],
         });
-        expect(render()).toContain('data-testid="brokk-rail-ember"');
+        const html = render();
+        const on = button(html);
+        expect(on).toMatch(/data-on=""[^>]*data-tone="action"[^>]*data-steam="rise"/);
+        expect(on).not.toContain("mt-brokk-dot");
+        expect(attr(html, "brokk-rail-keepawake", "aria-label")).toBe("Keep awake, on");
+        expect(attr(html, "brokk-rail-keepawake", "title")).toBe("Keep awake, on");
+        const i18n = I18nModel.getInstance();
+        try {
+            globalStore.set(i18n.languageSettingAtom, "fr");
+            expect(attr(render(), "brokk-rail-keepawake", "aria-label")).toBe("Garder éveillé, activé");
+            globalStore.set(keep.stateAtom, EmptyKeepAwakeState);
+            expect(attr(render(), "brokk-rail-keepawake", "title")).toBe("Garder éveillé, désactivé");
+        } finally {
+            globalStore.set(i18n.languageSettingAtom, "");
+        }
     });
 });
 

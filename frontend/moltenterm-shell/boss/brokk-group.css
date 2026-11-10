@@ -317,10 +317,6 @@
     background: var(--mt-state-waiting);
 }
 
-.mt-brokk-dot[data-ember="true"] {
-    background: var(--mt-action);
-}
-
 /* A running download: a ring around the icon. */
 .mt-brokk-ring-progress {
     position: absolute;
