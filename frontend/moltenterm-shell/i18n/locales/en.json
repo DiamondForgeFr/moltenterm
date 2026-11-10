@@ -3131,7 +3131,8 @@
                 "running": "{name}, {percent} % downloaded",
                 "runningUnknown": "{name}, a download is running",
                 "news": "{name}, a download has news",
-                "awake": "{name}, on"
+                "awake": "{name}, on",
+                "awakeOff": "{name}, off"
             },
             "priority": {
                 "urgent": "Urgent",

@@ -540,7 +540,7 @@ export type RailMark = {
     dot: boolean;
     // A progress ring around the icon: 0 to 1, -1 when the size is unknown, null for none.
     ring: number;
-    // The ember dot of keep-awake.
+    // Keep-awake is on: the cup turns orange and its steam rises, never a dot (AC80, #2206).
     ember: boolean;
 };
 

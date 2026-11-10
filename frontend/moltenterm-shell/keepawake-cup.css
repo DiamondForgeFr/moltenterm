@@ -65,6 +65,15 @@
     opacity: 1;
 }
 
+/* Brokk's rail (FR-BOSS-009 AC80, #2206): on is the action orange, since the rail's other marks are action-coloured
+   and a dot there would read as news. Its steam rises and fades instead of swaying: two keyframe sets, the middle line
+   half a cycle behind the outer two, on the same 4 s grid as the sway. The jump back to the bottom happens at opacity
+   0, so it never shows; the middle line makes it over a short interval of its own, one keyframe boundary more per
+   cycle. */
+.mt-cup[data-on][data-tone="action"] {
+    color: var(--mt-action);
+}
+
 @media (prefers-reduced-motion: no-preference) {
     .mt-cup[data-on] .mt-cup-steam {
         animation-duration: 4s;
@@ -83,6 +92,15 @@
 
     .mt-cup[data-on] .mt-cup-steam-3 {
         animation-name: mt-cup-steam-3;
+    }
+
+    .mt-cup[data-on][data-steam="rise"] .mt-cup-steam-1,
+    .mt-cup[data-on][data-steam="rise"] .mt-cup-steam-3 {
+        animation-name: mt-cup-rise;
+    }
+
+    .mt-cup[data-on][data-steam="rise"] .mt-cup-steam-2 {
+        animation-name: mt-cup-rise-half;
     }
 }
 
@@ -112,6 +130,40 @@
     50% {
         opacity: 0.6;
         transform: translate(-0.045em, 0);
+    }
+}
+
+@keyframes mt-cup-rise {
+    0% {
+        opacity: 0;
+        transform: translate(0, 0.1em);
+    }
+    50% {
+        opacity: 1;
+        transform: translate(0, 0);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(0, -0.12em);
+    }
+}
+
+@keyframes mt-cup-rise-half {
+    0% {
+        opacity: 1;
+        transform: translate(0, 0);
+    }
+    48% {
+        opacity: 0;
+        transform: translate(0, -0.12em);
+    }
+    52% {
+        opacity: 0;
+        transform: translate(0, 0.1em);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(0, 0);
     }
 }
 
