@@ -12,7 +12,7 @@ import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { useLayoutEffect, useRef } from "react";
 import { MotionClass, prefersReducedMotion } from "../molten-motion";
-import { DragKind, dropAction, dropsAfter, DropZone, isMoveAction } from "./view-menu-model";
+import { blockStacks, DragKind, dropAction, dropsAfter, dropsBelow, DropZone, isMoveAction } from "./view-menu-model";
 import { ViewPins } from "./view-pins-store";
 
 export const DragThresholdPx = 4;
@@ -57,7 +57,9 @@ export function zoneAt(x: number, y: number): ZoneHit {
     if (block == null || !zoneEl.contains(block)) {
         return { zone, key: null, after: false };
     }
-    return { zone, key: block.getAttribute(KeyAttr), after: dropsAfter(x, block.getBoundingClientRect()) };
+    const rect = block.getBoundingClientRect();
+    const stacked = zone === "tiles" && blockStacks(rect, (block.parentElement ?? zoneEl).getBoundingClientRect());
+    return { zone, key: block.getAttribute(KeyAttr), after: stacked ? dropsBelow(y, rect) : dropsAfter(x, rect) };
 }
 
 export function zoneProps(zone: DropZone): Record<string, string> {
