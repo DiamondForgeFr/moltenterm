@@ -17,6 +17,7 @@ import {
     InstallFacts,
     installPlanOf,
     MoltentermReleaseInstallApplyChannel,
+    MoltentermReleaseInstallCancelChannel,
     MoltentermReleaseInstallEventChannel,
     MoltentermReleaseInstallLastChannel,
     MoltentermReleaseInstallRevealChannel,
@@ -261,6 +262,10 @@ export function initMoltentermReleaseInstall() {
         installer == null ? { ok: false, error: installError("stale") } : installer.reveal()
     );
     handleAppIpc(MoltentermReleaseInstallLastChannel, () => takeLastReleaseSwap());
+    // Cancel from Settings › About or Brokk's Downloads (#2163): only a download in flight stops.
+    handleAppIpc(MoltentermReleaseInstallCancelChannel, () =>
+        installer == null ? { ok: false, error: installError("stale") } : installer.cancelDownload()
+    );
     // A release that is no longer the one offered (a newer one, the preference turned off) takes its staged update with it.
     onReleaseCheck((check) => {
         const state = installer?.getState();

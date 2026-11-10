@@ -230,6 +230,16 @@ function ReleaseCardState({ view, now }: { view: ReturnType<typeof releaseCardVi
                             />
                         </div>
                     ) : null}
+                    <div>
+                        <button
+                            type="button"
+                            data-testid="release-cancel"
+                            onClick={() => fireAndForget(() => model.cancel())}
+                            className={SecondaryButton}
+                        >
+                            {t("update.install.cancel")}
+                        </button>
+                    </div>
                 </div>
             );
         case "verifying":

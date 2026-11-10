@@ -352,4 +352,23 @@ describe("what it will not start", () => {
         expect(f.installer.getState()).toEqual({ phase: "idle" });
         expect(f.calls.armed).toBe(0);
     });
+
+    it("the user's Cancel stops only a download in flight (#2163)", async () => {
+        let started: () => void;
+        const begun = new Promise<void>((resolve) => (started = resolve));
+        const f = await fixture({
+            fileSent: (_req, res) => {
+                res.writeHead(200, { "content-length": "100000" });
+                res.write(Buffer.alloc(10));
+                started();
+            },
+        });
+        expect(f.installer.cancelDownload()).toMatchObject({ ok: false, error: { kind: "stale" } });
+        expect(f.installer.start(Offer)).toEqual({ ok: true });
+        await begun;
+        expect(f.installer.cancelDownload()).toEqual({ ok: true });
+        await f.installer.whenDone();
+        expect(f.installer.getState()).toEqual({ phase: "idle" });
+        expect(f.calls.armed).toBe(0);
+    });
 });

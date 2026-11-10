@@ -6,7 +6,7 @@
 // read the downloads store and its progress helper, the rail's own source. The ring stands still: reduced motion loses
 // nothing, since it never turns.
 
-import type { DownloadRecord } from "../downloads/downloads-model";
+import type { RingProgress } from "../downloads/downloads-model";
 import { downloadRingOf } from "../downloads/downloads-model";
 import { useTCount } from "../i18n/i18n";
 import { AvatarVariant, downloadRingRadiusUnits, RingStrokeUnits, RingUnits } from "./brokk-avatar-model";
@@ -16,7 +16,7 @@ const IndeterminateArc = 0.25;
 
 // The words of the running downloads: "1 download running, 13 %", or without a percentage while no size is known. Null
 // while none runs. The hook is called before any early return, so that it stays on every render.
-export function useDownloadWords(running: DownloadRecord[]): string | null {
+export function useDownloadWords(running: RingProgress[]): string | null {
     const tCount = useTCount();
     const ring = downloadRingOf(running);
     if (ring == null) {

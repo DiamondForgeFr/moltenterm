@@ -13,7 +13,7 @@ vi.mock("./brokk-menu", () => ({ brokkMenuItems: () => [] }));
 vi.mock("../working-beat", () => ({ useWorkingBeat: vi.fn() }));
 vi.mock("../downloads/downloads-store", async () => {
     const { atom } = await import("jotai");
-    const model = { runningAtom: atom<unknown[]>([]) };
+    const model = { ringAtom: atom<unknown[]>([]) };
     return { DownloadsModel: { getInstance: () => model } };
 });
 vi.mock("./boss-portrait", () => ({
@@ -506,7 +506,7 @@ describe("no hover card: hovering the face opens his group (FR-BOSS-009, AC52 to
 
 describe("the download ring on his face (FR-BOSS-009, AC34 to AC36, #2083)", () => {
     const Length = 2 * Math.PI * downloadRingRadiusUnits("row");
-    const runningAtom = (DownloadsModel.getInstance() as any).runningAtom;
+    const runningAtom = (DownloadsModel.getInstance() as any).ringAtom;
     const running = (...items: { received: number; total: number; state?: string }[]) =>
         globalStore.set(
             runningAtom,

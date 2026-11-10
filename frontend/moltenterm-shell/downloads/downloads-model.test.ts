@@ -4,8 +4,9 @@
 import { describe, expect, it } from "vitest";
 import {
     clearedRecords,
-    downloadRingOf,
+    connectionOfRemoteUri,
     DownloadRecord,
+    downloadRingOf,
     extensionOf,
     groupDownloads,
     hasExecuteBit,
@@ -259,6 +260,18 @@ describe("names", () => {
         expect(uniqueFileName("report.pdf", (c) => taken.has(c))).toBe("report (2).pdf");
         expect(uniqueFileName("fresh.pdf", (c) => taken.has(c))).toBe("fresh.pdf");
         expect(uniqueFileName("README", (c) => c === "README")).toBe("README (1)");
+    });
+
+    it("a Files panel download names its connection, keeps its kind across a restart and offers no Copy link (#2163)", () => {
+        expect(connectionOfRemoteUri("wsh://dev-box/home/dev/report.pdf")).toBe("dev-box");
+        expect(connectionOfRemoteUri("wsh://local/tmp/a.txt")).toBe("local");
+        expect(connectionOfRemoteUri("/tmp/a.txt")).toBe("");
+        const files = record({ source: "files", url: "http://127.0.0.1:5000/wave/stream-file/a.pdf?path=x" });
+        expect(parseRecord(files).source).toBe("files");
+        expect(parseRecord(record()).source).toBe("web");
+        expect(rowActions(files).copyLink).toBe(false);
+        expect(rowActions(files).open).toBe(true);
+        expect(rowActions(record()).copyLink).toBe(true);
     });
 
     it("shows the host of a web address and nothing for another scheme", () => {

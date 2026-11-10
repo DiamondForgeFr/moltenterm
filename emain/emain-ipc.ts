@@ -33,6 +33,7 @@ import { initMoltentermBrowserAgent, isAgentInput } from "./moltenterm-browserag
 import { isFlatFrame } from "./moltenterm-carpet-thumb-store"; // MOLTENTERM-PATCH (#1814)
 import { initMoltentermContextMenu } from "./moltenterm-contextmenu";
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
+import { expectFileDownload } from "./moltenterm-downloads"; // MOLTENTERM-PATCH (#2163)
 import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
 import { initFileClipboardIpc } from "./moltenterm-file-clipboard"; // MOLTENTERM-PATCH (#2115)
 import { initNativePathIpc } from "./moltenterm-native-path"; // MOLTENTERM-PATCH (#1575)
@@ -258,6 +259,8 @@ export function initIpcHandlers() {
         const baseName = encodeURIComponent(path.basename(payload.filePath));
         const streamingUrl =
             getWebServerEndpoint() + "/wave/stream-file/" + baseName + "?path=" + encodeURIComponent(payload.filePath);
+        // MOLTENTERM-PATCH (#2163): the Files panel's Download shows in Brokk's Downloads like a page's download.
+        expectFileDownload(streamingUrl, payload.filePath);
         event.sender.downloadURL(streamingUrl);
     });
 

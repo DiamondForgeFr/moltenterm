@@ -2411,6 +2411,7 @@
             "downloaded": "MoltenTerm {version} was downloaded and checked. Installing it is up to you.",
             "showInFolder": "Show in folder",
             "releasePage": "Open the release page",
+            "cancel": "Cancel",
             "failed": "MoltenTerm {version} was not installed",
             "notice": {
                 "readyTitle": "MoltenTerm {version} is ready to install",
@@ -11443,7 +11444,16 @@
             "running": {
                 "one": "In progress · {count}",
                 "other": "In progress · {count}"
-            }
+            },
+            "app": "MoltenTerm"
+        },
+        "update": {
+            "title": "MoltenTerm {version}",
+            "origin": "Update of MoltenTerm",
+            "verifying": "Verifying",
+            "readySwap": "Ready: it installs when MoltenTerm restarts",
+            "readyDownload": "Downloaded and checked, in your Downloads folder",
+            "openUpdate": "Open the Update panel"
         },
         "day": {
             "today": "Today",
@@ -11478,7 +11488,8 @@
             "reopen": "Reopen the page",
             "reopenIn": "Reopen in {workspace}",
             "reopenTitle": "Reopen the page in the workspace “{workspace}”",
-            "toView": "Go to the view"
+            "toView": "Go to the view",
+            "files": "From the Files panel · {connection}"
         },
         "reason": {
             "connectionAt": "The connection was lost at {percent}%",

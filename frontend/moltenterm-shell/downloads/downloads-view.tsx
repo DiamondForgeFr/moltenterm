@@ -16,6 +16,7 @@ import { formatSize, reasonText, runningStats } from "./downloads-format";
 import { DownloadRecord, extensionOf, groupDownloads, isActive, percentOf, rowActions } from "./downloads-model";
 import { OriginState } from "./downloads-origin-model";
 import { DownloadsModel } from "./downloads-store";
+import { isRunningTransfer, TrackedTransfer, TransferAction, transferPercent } from "./tracked-transfer";
 
 const AgeTickMs = 30000;
 
@@ -88,6 +89,20 @@ function OriginLine({
     onFollow: (how: "page" | "reopen" | "view") => void;
 }) {
     const t = useT();
+    if (record.source === "files") {
+        return (
+            <div
+                className="mt-0.5 flex min-w-0 items-center gap-1 text-11 text-muted"
+                data-testid="download-origin"
+                data-origin="files"
+            >
+                <i className={cn(makeIconClass("folder", true), "text-10")} aria-hidden />
+                <span className="min-w-0 truncate" data-testid="download-origin-text" title={record.pageTitle}>
+                    {t("downloads.origin.files", { connection: record.host })}
+                </span>
+            </div>
+        );
+    }
     const site = record.host;
     const name = record.pageTitle || site;
     const workspace = origin?.otherWorkspace
@@ -126,7 +141,11 @@ function OriginLine({
             data-origin={origin?.kind ?? "unknown"}
         >
             <i className={cn(makeIconClass("globe", true), "text-10")} aria-hidden />
-            <span className="min-w-0 break-words" data-testid="download-origin-text" title={record.pageUrl || record.url}>
+            <span
+                className="min-w-0 break-words"
+                data-testid="download-origin-text"
+                title={record.pageUrl || record.url}
+            >
                 {text}
             </span>
             {hasActions ? (
@@ -510,6 +529,95 @@ export const DownloadRow = memo(function DownloadRow({
     );
 });
 
+// The row of a transfer another source tracks (#2163): drawn from that source's state, with the actions it offers.
+export const TransferRow = memo(function TransferRow({
+    transfer,
+    onLeave,
+}: {
+    transfer: TrackedTransfer;
+    onLeave: () => void;
+}) {
+    const t = useT();
+    const model = DownloadsModel.getInstance();
+    const percent = transferPercent(transfer);
+    const running = isRunningTransfer(transfer);
+    const act = (action: TransferAction) => {
+        if (action.leaves) {
+            onLeave();
+        }
+        fireAndForget(() => model.actTransfer(transfer.id, action.id));
+    };
+    return (
+        <li
+            data-testid="transfer-row"
+            data-transfer={transfer.id}
+            data-phase={transfer.phase}
+            className="flex gap-2.5 border-b border-border px-3 py-2.5 last:border-b-0"
+        >
+            <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-4 border border-border text-12 text-secondary"
+                aria-hidden
+            >
+                <i className={makeIconClass(transfer.icon, true)} />
+            </span>
+            <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                    <span className="min-w-0 flex-1 truncate font-medium" data-testid="transfer-title">
+                        {t(transfer.title.key, transfer.title.vars)}
+                    </span>
+                    {running && percent != null ? (
+                        <span className="shrink-0 text-11 text-secondary tabular-nums" data-testid="transfer-percent">
+                            {t("downloads.stats.percent", { percent })}
+                        </span>
+                    ) : null}
+                </div>
+                <div className="mt-0.5 text-11 text-muted" data-testid="transfer-origin">
+                    {t(transfer.origin.key, transfer.origin.vars)}
+                </div>
+                {running ? (
+                    <div
+                        role="progressbar"
+                        aria-label={t("downloads.row.progress")}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={percent ?? undefined}
+                        className="mt-2 h-1 overflow-hidden rounded-full bg-hover"
+                        data-testid="transfer-progress"
+                    >
+                        <div
+                            className={cn("h-full rounded-full bg-accent", percent == null && "mt-beat-blink w-1/3")}
+                            style={percent == null ? undefined : { width: `${percent}%` }}
+                        />
+                    </div>
+                ) : null}
+                {transfer.status ? (
+                    <div
+                        className={cn("mt-1 text-11", transfer.failed ? "text-danger" : "text-secondary")}
+                        data-testid="transfer-status"
+                    >
+                        {t(transfer.status.key, transfer.status.vars)}
+                    </div>
+                ) : null}
+                {transfer.actions.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        {transfer.actions.map((action) => (
+                            <button
+                                key={action.id}
+                                type="button"
+                                className={action.main ? MainActionClass : OtherActionClass}
+                                data-testid={`transfer-${action.id}`}
+                                onClick={() => act(action)}
+                            >
+                                {t(action.label.key, action.label.vars)}
+                            </button>
+                        ))}
+                    </div>
+                ) : null}
+            </div>
+        </li>
+    );
+});
+
 function GroupHeading({ children }: { children: React.ReactNode }) {
     return <div className="px-3 pt-2 text-11 font-medium tracking-wide text-muted uppercase">{children}</div>;
 }
@@ -524,6 +632,7 @@ export function DownloadsList({ onLeave }: { onLeave?: () => void }) {
     const origins = useAtomValue(model.originsAtom, { store: globalStore });
     const errors = useAtomValue(model.errorsAtom, { store: globalStore });
     const request = useAtomValue(model.requestAtom, { store: globalStore });
+    const transfers = useAtomValue(model.transfersAtom, { store: globalStore });
     const [now, setNow] = useState(Date.now());
     const [confirmId, setConfirmId] = useState<string>(null);
     const [highlightId, setHighlightId] = useState<string>(null);
@@ -566,8 +675,14 @@ export function DownloadsList({ onLeave }: { onLeave?: () => void }) {
 
     const groups = groupDownloads(items, now);
     const closed = items.filter((r) => !isActive(r)).length;
+    const runningTransfers = transfers.filter(isRunningTransfer);
+    const settledTransfers = transfers.filter((tr) => !isRunningTransfer(tr));
+    const runningCount = groups.running.length + runningTransfers.length;
+    const renderTransfer = (transfer: TrackedTransfer) => (
+        <TransferRow key={transfer.id} transfer={transfer} onLeave={() => onLeave?.()} />
+    );
 
-    if (items.length === 0) {
+    if (items.length === 0 && transfers.length === 0) {
         return (
             <div className="px-6 py-8 text-center" data-testid="downloads-empty">
                 <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-border text-secondary">
@@ -604,10 +719,19 @@ export function DownloadsList({ onLeave }: { onLeave?: () => void }) {
     );
     return (
         <div data-testid="downloads-list">
-            {groups.running.length > 0 ? (
+            {runningCount > 0 ? (
                 <section>
-                    <GroupHeading>{tc("downloads.group.running", groups.running.length)}</GroupHeading>
-                    <ul>{groups.running.map(renderRow)}</ul>
+                    <GroupHeading>{tc("downloads.group.running", runningCount)}</GroupHeading>
+                    <ul>
+                        {runningTransfers.map(renderTransfer)}
+                        {groups.running.map(renderRow)}
+                    </ul>
+                </section>
+            ) : null}
+            {settledTransfers.length > 0 ? (
+                <section data-testid="downloads-transfers">
+                    <GroupHeading>{t("downloads.group.app")}</GroupHeading>
+                    <ul>{settledTransfers.map(renderTransfer)}</ul>
                 </section>
             ) : null}
             {groups.days.map((day) => (

@@ -388,4 +388,23 @@ describe("the way back to the page (#1992)", () => {
         expect(html).toContain('data-testid="download-pause"');
         expect(html).toContain('data-testid="download-cancel"');
     });
+
+    it("a Files panel download says it comes from the Files panel and its connection (#2163)", () => {
+        const html = show([
+            record({
+                source: "files",
+                host: "dev-box",
+                url: "http://127.0.0.1:5000/wave/stream-file/a.pdf?path=x",
+                pageUrl: "",
+                pageTitle: "wsh://dev-box/home/dev/a.pdf",
+                workspaceId: "",
+                tabId: "",
+                blockId: "",
+            }),
+        ]);
+        expect(html).toContain('data-origin="files"');
+        expect(html).toContain("From the Files panel · dev-box");
+        expect(html).toContain('data-testid="download-open"');
+        expect(html).not.toContain('data-testid="download-copy"');
+    });
 });

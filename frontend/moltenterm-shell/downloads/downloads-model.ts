@@ -55,7 +55,12 @@ export type DownloadRecord = DownloadOrigin & {
     missing: boolean;
     // The name of the agent that started it, when one did (FR-BRW-010).
     agent: string;
+    // web: a page's download. files: the Files panel's Download of a file on a connection (#2163), whose address is
+    // MoltenTerm's own local stream and whose host is the connection's name.
+    source?: DownloadRecordSource;
 };
+
+export type DownloadRecordSource = "web" | "files";
 
 export type DownloadsSnapshot = { items: DownloadRecord[]; folder: string; askWhere: boolean };
 
@@ -212,6 +217,7 @@ export function parseRecord(value: unknown): DownloadRecord {
         executable: raw.executable === true,
         missing: false,
         agent: str(raw.agent, 100),
+        source: raw.source === "files" ? "files" : "web",
         workspaceId: str(raw.workspaceId, 200),
         tabId: str(raw.tabId, 200),
         blockId: str(raw.blockId, 200),
@@ -254,8 +260,11 @@ export function secondsLeft(record: Pick<DownloadRecord, "received" | "total" | 
     return Math.ceil((record.total - record.received) / record.bytesPerSecond);
 }
 
+// What a ring reads of a running download or tracked transfer (#2163).
+export type RingProgress = Pick<DownloadRecord, "state" | "received" | "total">;
+
 // The ring of the bell and the pill: the mean of what is measured, null when nothing running knows its size.
-export function overallDownloadProgress(items: DownloadRecord[]): number {
+export function overallDownloadProgress(items: RingProgress[]): number {
     const measured = items.filter((r) => r.state === "progressing" && r.total > 0);
     if (measured.length === 0) {
         return null;
@@ -269,7 +278,7 @@ export function runningDownloads(items: DownloadRecord[]): DownloadRecord[] {
 
 // The ring of Brokk's face (FR-BOSS-009, AC34, #2083) and of the rail: the overall progress of the running downloads,
 // -1 while none of them knows its size, null while none runs. A failed or finished download is not running, so it shows none.
-export function downloadRingOf(running: DownloadRecord[]): number {
+export function downloadRingOf(running: RingProgress[]): number {
     if (running.length === 0) {
         return null;
     }
@@ -342,7 +351,8 @@ export function rowActions(record: DownloadRecord): RowActions {
         open: present,
         reveal: present,
         redownload: done && record.missing,
-        copyLink: record.url !== "",
+        // The Files panel's address is MoltenTerm's own local stream: nothing another app could open.
+        copyLink: record.url !== "" && record.source !== "files",
         remove: !isActive(record),
     };
 }
@@ -384,6 +394,12 @@ export function uniqueFileName(name: string, taken: (candidate: string) => boole
         }
     }
     return `${stem} (${Date.now()})${ext === "" ? "" : `.${ext}`}`;
+}
+
+// The connection of a Files panel address ("wsh://<connection>/<path>"), which its row shows in place of a site (#2163).
+export function connectionOfRemoteUri(uri: string): string {
+    const m = /^wsh:\/\/([^/]*)/.exec(String(uri ?? ""));
+    return m == null ? "" : m[1].slice(0, 253);
 }
 
 // The site a row shows: the host of the address, without "www.".
