@@ -20,41 +20,14 @@ import { MoltenWave } from "../molten-button";
 import { openSettingsSection } from "../settings/settings-open";
 import { ScreenModel } from "./screen-store";
 import { ThresholdChoices } from "./screen-threshold";
-import { normalizeView360Setting, type View360Decision, type View360Exit } from "./view360-decision";
+import { normalizeView360Setting, type View360Exit } from "./view360-decision";
 import { CarpetIcon } from "./view360-icon";
 import type { View360Model } from "./view360-model";
 import { View360Text } from "./view360-text";
+import { toggleTitle } from "./view360-toggle-title";
 import "./view360.css";
 
 const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";
-
-// The tooltip: the state, what holds it (or keeps it off), and what a click does.
-function toggleTitle(decision: View360Decision, single: boolean, threshold: number): string {
-    if (single) {
-        return View360Text.tooltipSingle;
-    }
-    if (decision.active) {
-        const held =
-            decision.source === "manual"
-                ? View360Text.heldManual
-                : decision.source === "auto"
-                  ? decision.reason === "columns"
-                      ? t("view360.ui.heldColumns", { count: threshold })
-                      : View360Text.heldAuto
-                  : View360Text.heldSetting;
-        return `${View360Text.tooltipOn}\n${held}\n${View360Text.clickOff}`;
-    }
-    if (decision.idle) {
-        return `${View360Text.tooltipOff}\n${t("view360.ui.offPlaces")}\n${View360Text.clickOn}`;
-    }
-    const off =
-        decision.source === "manual"
-            ? View360Text.offManual
-            : decision.source === "setting"
-              ? t("view360.ui.offGrid")
-              : t("view360.ui.offColumns", { count: threshold });
-    return `${View360Text.tooltipOff}\n${off}\n${View360Text.clickOn}`;
-}
 
 // The "close panels first" message (#733): leaving is refused only when the columns do not fit even at their
 // readable minimums.
