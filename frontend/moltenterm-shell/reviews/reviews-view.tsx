@@ -79,6 +79,7 @@ import {
     ownerFacts,
     ownersOf,
     prOwner,
+    scopeLabel,
     scopeSplit,
     waitsForYou,
 } from "./reviews-owners-model";
@@ -362,6 +363,8 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     );
     const listSplit = scoped.shown;
     const listed = useMemo(() => [...listSplit.ready, ...listSplit.drafts], [listSplit]);
+    // What the group actions say of the list they act on: whose it is, and how many others they leave alone.
+    const groupScope = useMemo(() => scopeLabel(view.scope, scoped.hidden.length), [view.scope, scoped.hidden.length]);
     const mergedNumbers = useMemo(() => (answer.merged ?? []).map((pr) => pr.number), [answer.merged]);
     // The conflict forecast (FR-REV-023), asked for the PRs listed.
     const forecastReq = useMemo(() => forecastRequestOf(answer, listSplit), [answer, listSplit]);
@@ -694,6 +697,7 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     onStep={goToCard}
                     onChoose={(number, inGroup) => model.setInGroupMerge(dir, number, inGroup)}
                     onMerge={() => setConfirming(true)}
+                    scope={groupScope}
                 />
             ) : null}
             {confirming && plannedBatch != null ? (
@@ -782,7 +786,9 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                                         : undefined
                                 }
                             >
-                                {section.turn === checkTurn ? <CheckAgentsButton check={check} /> : null}
+                                {section.turn === checkTurn ? (
+                                    <CheckAgentsButton check={check} scope={groupScope} count={listed.length} />
+                                ) : null}
                             </SectionHeading>
                             {section.turn === checkTurn ? <CheckAgentsReport check={check} /> : null}
                             {section.turn === queueTurn ? queueBlock : null}

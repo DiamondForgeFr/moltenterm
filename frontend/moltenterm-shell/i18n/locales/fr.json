@@ -7468,6 +7468,18 @@
             "stepAdd": "Ajouter #{number} à la fusion groupée",
             "mergeCount": "Fusionner ces {count} dans cet ordre…",
             "mergeOne": "Fusionner celle-ci",
+            "mergeScoped": {
+                "one": "Fusionner celle de {name}",
+                "other": "Fusionner les {count} de {name}"
+            },
+            "mergeScopedMany": {
+                "one": "Fusionner celle de {names}",
+                "other": "Fusionner les {count} de {names}"
+            },
+            "scopeNote": {
+                "one": "La fusion ne porte que sur la liste affichée. {count} autre ne bouge pas.",
+                "other": "La fusion ne porte que sur la liste affichée. Les {count} autres ne bougent pas."
+            },
             "chooseNone": "Aucune pull request choisie pour la fusion groupée.",
             "wait": {
                 "agent": "Attendre {name}, qui y travaille encore",
@@ -7771,6 +7783,10 @@
         },
         "check": {
             "button": "Vérifier les agents",
+            "buttonScoped": {
+                "one": "Vérifier l’agent de {names} ({count})",
+                "other": "Vérifier les agents de {names} ({count})"
+            },
             "buttonTitle": "Demander à l'agent de chaque pull request où il reste quelque chose (conflits, CI rouge, changements demandés, pas de rapport de test) de la vérifier par rapport à son ticket et de la finir. Les autres sont ignorées ; rien ne démarre sans votre confirmation.",
             "checking": "Vérification…",
             "checked": {

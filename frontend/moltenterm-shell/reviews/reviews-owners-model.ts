@@ -227,6 +227,14 @@ export function proposals(present: readonly string[], scope: OwnerScope, edges: 
     return rtn;
 }
 
+// ScopeLabel: what a group action says of the list it acts on (FR-REV-034 AC8): whose it is, and how many others it
+// leaves alone. null without a filter: the action reads as it always did.
+export type ScopeLabel = { names: string[]; others: number };
+
+export function scopeLabel(scope: OwnerScope, others: number): ScopeLabel {
+    return scopeOn(scope) ? { names: [...scope.agents], others } : null;
+}
+
 export function scopeAdd(scope: OwnerScope, name: string): OwnerScope {
     const base = scope ?? { agents: [], ignored: [] };
     return {
