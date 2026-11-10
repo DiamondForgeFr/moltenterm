@@ -15,7 +15,8 @@ import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AgentChain } from "../agent-chain-store";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
 import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
@@ -68,6 +69,20 @@ import { CardMotion } from "./reviews-motion";
 import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
+import { LeadGroupHeader, OthersWaitLine, OwnersBar } from "./reviews-owners";
+import {
+    branchOwner,
+    groupByLead,
+    inScope,
+    LeadGroup,
+    NoLead,
+    ownerFacts,
+    ownersOf,
+    prOwner,
+    scopeSplit,
+    waitsForYou,
+} from "./reviews-owners-model";
+import { useViewScope } from "./reviews-owners-store";
 import {
     AllProjects,
     projectOfDir,
@@ -324,7 +339,28 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     // start folded (FR-REV-001 AC12).
     const [long, setLong] = useState<boolean>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const listSplit = useMemo(() => splitReviews(answer, readied), [answer, readied]);
+    // Each card's one state (#1061), computed here once so its section and the card itself agree. Every PR of the
+    // project has one, the ones the view's filter hides too: what of them waits for the developer is signalled.
+    const ctx = useCardContext(dir);
+    const view = useViewScope();
+    const edges = useAtomValue(AgentChain.getInstance().edgesAtom);
+    const [revealed, setRevealed] = useState(false);
+    const splitAll = useMemo(() => splitReviews(answer, readied), [answer, readied]);
+    const listedAll = useMemo(() => [...splitAll.ready, ...splitAll.drafts], [splitAll]);
+    const cards = useMemo(
+        () => cardStates(listedAll, asks, (n) => rebaseAskKey(dir, n), ctx),
+        [listedAll, asks, dir, ctx]
+    );
+    // The list follows the view's agents (FR-REV-034): everything below, the merge queue and the group actions
+    // included, works on the pull requests the filter keeps.
+    const ownerOf = useCallback((pr: ReviewPr) => prOwner(pr, ctx.upcoming), [ctx.upcoming]);
+    const outside = useMemo(() => scopeSplit(splitAll, view.names, ownerOf), [splitAll, view.names, ownerOf]);
+    const hiddenWaiting = useMemo(() => outside.hidden.filter((pr) => waitsForYou(cards[pr.number])), [outside, cards]);
+    const scoped = useMemo(
+        () => scopeSplit(splitAll, view.names, ownerOf, revealed ? (pr) => waitsForYou(cards[pr.number]) : undefined),
+        [splitAll, view.names, ownerOf, revealed, cards]
+    );
+    const listSplit = scoped.shown;
     const listed = useMemo(() => [...listSplit.ready, ...listSplit.drafts], [listSplit]);
     const mergedNumbers = useMemo(() => (answer.merged ?? []).map((pr) => pr.number), [answer.merged]);
     // The conflict forecast (FR-REV-023), asked for the PRs listed.
@@ -333,9 +369,6 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const forecast = useForecastAnswer(dir);
     const locale = useLocale();
     const sort = useReviewsSort();
-    // Each card's one state (#1060), computed here once so its section and the card itself agree.
-    const ctx = useCardContext(dir);
-    const cards = useMemo(() => cardStates(listed, asks, (n) => rebaseAskKey(dir, n), ctx), [listed, asks, dir, ctx]);
     // The merge queue (#1062, FR-REV-024): the suggested order of the PRs the developer can merge now (#1211), for
     // those kept in the group merge (#1108); the others wait, an agent on them, their CI or an earlier PR.
     const groupOut = groupOuts[dir];
@@ -368,17 +401,46 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     const upcoming = useUpcomingAnswer(dir);
     const leftoverAsks = useLeftoverAsks(dir);
     const leftoverTurns = useMemo(
-        () => leftoverTurnRows(leftoverRows(upcoming, answer), leftoverAsks),
-        [upcoming, answer, leftoverAsks]
+        () =>
+            leftoverTurnRows(
+                leftoverRows(upcoming, answer).filter((l) => inScope(branchOwner(upcoming, l.branch), view.names)),
+                leftoverAsks
+            ),
+        [upcoming, answer, leftoverAsks, view.names]
     );
     // A queue that runs holds every other merge: its banner heads the list (#2141).
     const bannerInWaiting = batchVisible && batchBannerTurn(batchRun) === "waiting";
     const bannerOnTop = batchVisible && !bannerInWaiting;
-    const sections = useMemo(() => {
+    const sectionsByState = useMemo(() => {
         let rtn = withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "waiting", bannerInWaiting || batchPointer);
         rtn = withTurnShown(rtn, "waiting", (leftoverTurns.waiting?.length ?? 0) > 0);
         return withTurnShown(rtn, "yours", (leftoverTurns.yours?.length ?? 0) > 0);
     }, [listed, cards, sort, ranks, bannerInWaiting, batchPointer, leftoverTurns]);
+    // Without a filter, work in progress groups under the lead at the top of its owner's chain (FR-REV-034 AC7); the
+    // work nobody owns folds into a group of its own. A section keeps the order its groups give it.
+    const owned = useMemo(() => listedAll.some((pr) => ownerOf(pr) !== ""), [listedAll, ownerOf]);
+    const [noAgentOpen, setNoAgentOpen] = useState(false);
+    const leadGroups = useMemo(() => {
+        const rtn: Partial<Record<CardTurn, LeadGroup<ReviewPr>[]>> = {};
+        if (view.names != null || !owned) {
+            return rtn;
+        }
+        for (const s of sectionsByState) {
+            if (s.turn === "waiting" || s.turn === "agents") {
+                rtn[s.turn] = groupByLead(s.prs, ownerOf, edges);
+            }
+        }
+        return rtn;
+    }, [view.names, owned, sectionsByState, ownerOf, edges]);
+    const sections = useMemo(
+        () =>
+            sectionsByState.map((s) =>
+                leadGroups[s.turn] ? { ...s, prs: leadGroups[s.turn].flatMap((g) => g.rows) } : s
+            ),
+        [sectionsByState, leadGroups]
+    );
+    const groupFolded = (turn: CardTurn, group: LeadGroup<ReviewPr>) =>
+        group.lead === NoLead && !noAgentOpen && (leadGroups[turn]?.length ?? 0) > 1;
     const filled = useMemo(
         () =>
             filledAction(
@@ -396,7 +458,17 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
     for (const s of sections) {
         foldedTurns[s.turn] = !turnOpen(s.turn);
     }
-    const rows = sectionRows(sections, foldedTurns);
+    const rows = sectionRows(
+        sections.map((s) =>
+            leadGroups[s.turn]
+                ? {
+                      ...s,
+                      prs: leadGroups[s.turn].filter((g) => !groupFolded(s.turn, g)).flatMap((g) => g.rows),
+                  }
+                : s
+        ),
+        foldedTurns
+    );
     // The cards' places for their motion (#1063), folded sections included: folding never animates.
     const motionLayout = useMemo(
         () => sections.flatMap((s) => s.prs.map((pr) => ({ number: pr.number, section: s.turn }))),
@@ -573,7 +645,18 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
         queued: queuedAsks[rebaseAskKey(dir, pr.number)],
         batchMark: batchRowMark(batchRun, pr.number, pr),
         onBatchRetry: () => retryBatchItem(pr.number),
+        owner: ownerFacts(ownerOf(pr), edges),
+        ownerByHand: owned,
     });
+    // Everyone who owns work in the project, for the Owners menu: the pull requests and the tickets without one yet.
+    const ownerCounts = useMemo(
+        () =>
+            ownersOf(
+                [...listedAll.map(ownerOf), ...(upcoming?.branches ?? []).map((b) => branchOwner(upcoming, b.branch))],
+                edges
+            ),
+        [listedAll, ownerOf, upcoming, edges]
+    );
     const edgeText = (number: number, where: EdgeWhere) =>
         word(
             edgeLine(
@@ -640,6 +723,9 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
             onMouseLeave={() => setHovered(null)}
             data-role="molten-reviews"
         >
+            <div className="-mx-3 -mt-3">
+                <OwnersBar view={view} edges={edges} owners={ownerCounts} hidden={scoped.hidden.length} />
+            </div>
             <ForecastLinks
                 listRef={listRef}
                 source={hot.length > 0 ? active : null}
@@ -661,7 +747,13 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
                     data-testid="reviews-none-open"
                 >
-                    {t("reviews.sections.none")} <code>{answer.target}</code>.
+                    {scoped.hidden.length > 0 ? (
+                        t("reviews.owners.noneShown")
+                    ) : (
+                        <>
+                            {t("reviews.sections.none")} <code>{answer.target}</code>.
+                        </>
+                    )}
                 </p>
             ) : null}
             <CardMotion dir={dir} layout={motionLayout} merged={mergedNumbers} around={motionAround}>
@@ -706,9 +798,42 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                                     role="list"
                                     data-testid={`reviews-section-${section.turn}-list`}
                                 >
-                                    {section.prs.map((pr) => (
-                                        <ReviewRow key={pr.number} {...rowProps(pr)} />
-                                    ))}
+                                    {leadGroups[section.turn]
+                                        ? leadGroups[section.turn].map((group) => {
+                                              const folded = groupFolded(section.turn, group);
+                                              return (
+                                                  <Fragment key={`group:${group.lead}`}>
+                                                      <LeadGroupHeader
+                                                          lead={group.lead}
+                                                          subs={group.subs}
+                                                          count={group.rows.length}
+                                                          onFilter={
+                                                              group.lead === NoLead
+                                                                  ? undefined
+                                                                  : () => view.only(group.lead)
+                                                          }
+                                                          open={
+                                                              group.lead === NoLead &&
+                                                              leadGroups[section.turn].length > 1
+                                                                  ? !folded
+                                                                  : undefined
+                                                          }
+                                                          onToggle={
+                                                              group.lead === NoLead &&
+                                                              leadGroups[section.turn].length > 1
+                                                                  ? () => setNoAgentOpen((v) => !v)
+                                                                  : undefined
+                                                          }
+                                                      />
+                                                      {folded
+                                                          ? null
+                                                          : group.rows.map((pr) => (
+                                                                <ReviewRow key={pr.number} {...rowProps(pr)} />
+                                                            ))}
+                                                  </Fragment>
+                                              );
+                                          })
+                                        : section.prs.map((pr) => <ReviewRow key={pr.number} {...rowProps(pr)} />)}
                                     {turnLeftovers.map((row) => (
                                         <LeftoverOwnerCard
                                             key={`leftover:${row.leftover.branch}`}
@@ -724,7 +849,8 @@ function ReviewsList({ dir, answer, blockId }: { dir: string; answer: ReviewsAns
                     );
                 })}
             </CardMotion>
-            <UpcomingSection dir={dir} reviews={answer} defaultOpen={bottomOpen} />
+            <OthersWaitLine count={hiddenWaiting.length} revealed={revealed} onToggle={() => setRevealed((v) => !v)} />
+            <UpcomingSection dir={dir} reviews={answer} defaultOpen={bottomOpen} names={view.names} />
             {answer.repo ? (
                 <NotesSection dir={dir} repo={answer.repo} blockId={blockId} ask={notesAsk} defaultOpen={bottomOpen} />
             ) : null}

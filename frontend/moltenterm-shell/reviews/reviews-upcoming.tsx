@@ -31,6 +31,7 @@ import { launchTargetOfBranch } from "./reviews-launch-model";
 import type { ReviewsAnswer } from "./reviews-model";
 import { NumberLink } from "./reviews-number-link";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
+import { branchOwner, inScope, type ScopeNames } from "./reviews-owners-model";
 import { SectionHeading } from "./reviews-section-heading";
 import { upcomingEntries, UpcomingEntry, UpcomingItem, upcomingWaitingCount } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
@@ -93,9 +94,12 @@ export function UpcomingSection({
     dir,
     reviews,
     defaultOpen = true,
+    names = null,
 }: {
     dir: string;
     reviews: ReviewsAnswer;
+    // The view's filter (FR-REV-034): only the tickets whose branch belongs to a followed agent; null shows them all.
+    names?: ScopeNames;
     // Folded by default when the panel's content is longer than the panel (#1061), unless an agent here waits.
     defaultOpen?: boolean;
 }) {
@@ -105,7 +109,10 @@ export function UpcomingSection({
     const upcoming = useUpcomingAnswer(dir);
     const states = useAtomValue(AgentStates.getInstance().dataAtom);
     const folds = useAtomValue(ReviewsFolds.getInstance().foldsAtom);
-    const rows = useMemo(() => upcomingRows(upcoming, reviews), [upcoming, reviews]);
+    const rows = useMemo(
+        () => upcomingRows(upcoming, reviews).filter((b) => inScope(branchOwner(upcoming, b.branch), names)),
+        [upcoming, reviews, names]
+    );
     const entries = useMemo(
         () =>
             upcomingEntries(

@@ -6988,6 +6988,45 @@
             "noFolderTitle": "{project} has no folder yet",
             "noFolder": "Give it a folder to follow its pull requests."
         },
+        "owners": {
+            "label": "Owners",
+            "bar": "Whose work this view shows",
+            "all": "All · {count}",
+            "change": "Change",
+            "menuAria": "Choose whose work to show",
+            "menuEmpty": "No agent owns work here yet.",
+            "menuItemSubs": "+ {count} sub-agents",
+            "noAgents": "No agent in this view: no filter",
+            "chipSubs": {
+                "one": "+ {count} sub-agent",
+                "other": "+ {count} sub-agents"
+            },
+            "chipTitle": "This view follows {name} and the agents {name} handed work to",
+            "chipRemove": "Stop following {name}",
+            "hidden": {
+                "one": "{count} other hidden",
+                "other": "{count} others hidden"
+            },
+            "showAll": "Show all",
+            "waits": {
+                "one": "{count} other waits for you",
+                "other": "{count} others wait for you"
+            },
+            "waitsShow": "Show",
+            "waitsHide": "Hide",
+            "propose": "+ {name} ?",
+            "proposeTitle": "{name} joined this view. Nothing changes until you add them; ignoring them removes this for good in this view.",
+            "add": "Add",
+            "ignore": "Ignore {name}",
+            "noneShown": "Nothing of the followed agents is open.",
+            "byHand": "by hand",
+            "byHandTitle": "No agent signed this work",
+            "subOf": "{name} · sub-agent of {lead}",
+            "groupSubs": "+ {names}",
+            "filterOn": "Filter on {name}",
+            "noAgentGroup": "No agent",
+            "noAgentHint": "made by hand or by an agent that closed"
+        },
         "launch": {
             "button": "Launch",
             "buttonTitle": "Launch {target} on this computer and open it in the browser",
