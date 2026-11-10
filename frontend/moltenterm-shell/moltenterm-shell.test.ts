@@ -535,9 +535,13 @@ describe("action and place (#1319)", () => {
             /\.block-no-highlight:not\(\.block-preview\) \.block-mask \{\s*box-shadow:\s*inset 0 0 0 1px color-mix\(in srgb, var\(--mt-place\) 55%/
         );
         const sidebarCss = readFileSync(new URL("./sidebar/sidebar.css", import.meta.url), "utf8");
-        for (const cue of ["mt-sb-place-strip", "mt-sb-place-bar", "mt-sb-tile-place"]) {
+        for (const cue of ["mt-sb-place-strip", "mt-sb-place-bar"]) {
             expect(sidebarCss).toMatch(new RegExp(`\\.${cue} \\{[^}]*var\\(--mt-place\\)`));
         }
+        // The selected view's cue is the shared liseré (DS-SHELL-156, #2189), in the place colour: no bar of its own.
+        expect(shellCss).toContain("--mt-selected-line: inset 0 -2px 0 var(--mt-place);");
+        expect(sidebarCss).toMatch(/\.mt-sb-selected \{[^}]*var\(--mt-selected-line\)/);
+        expect(sidebarCss).not.toContain("mt-sb-tile-place");
     });
 
     it("runs the place strip down the sidebar's left edge, top to bottom, inset from the floating sidebar's corners (#1630)", () => {

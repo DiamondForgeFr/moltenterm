@@ -267,7 +267,9 @@ function Segmented({
                     onClick={() => onChange(o.value)}
                     className={cn(
                         "h-6 cursor-pointer border-r border-border px-2 text-12 last:border-r-0 disabled:cursor-default disabled:opacity-40",
-                        value === o.value ? "bg-hover text-primary" : "text-secondary hover:text-primary"
+                        value === o.value
+                            ? "mt-selected-action bg-hover text-primary"
+                            : "text-secondary hover:text-primary"
                     )}
                 >
                     {o.label}

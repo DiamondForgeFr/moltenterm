@@ -121,9 +121,7 @@ function ViewTile({
             data-testid="workspace-view-tile"
             className={cn(
                 TileClass,
-                selected
-                    ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
-                    : "bg-white/[0.09] hover:bg-white/15",
+                selected ? "mt-sb-selected bg-white/20" : "bg-white/[0.09] hover:bg-white/15",
                 dragged && "opacity-40",
                 mark
             )}

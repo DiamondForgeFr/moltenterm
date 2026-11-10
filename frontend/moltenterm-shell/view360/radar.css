@@ -336,9 +336,10 @@
 }
 
 /* The liseré: an inset shadow, not a bar, so it follows the tab's rounded corners and thins out at both ends. It is
-   the only coloured line of the strip, inside or outside the visible area. */
+   the only coloured line of the strip, inside or outside the visible area. It is the interface's one mark of the
+   selected one among siblings (--mt-selected-line, DS-SHELL-156): the strip draws no line of its own. */
 .mt-strip-tab[data-focus] {
-    --mt-strip-line: inset 0 -2px 0 var(--mt-place);
+    --mt-strip-line: var(--mt-selected-line);
 }
 
 .mt-strip-tab:focus-visible {

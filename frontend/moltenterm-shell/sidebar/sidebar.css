@@ -1129,8 +1129,8 @@
 }
 
 /* The place cues (FR-SHELL-004, theme "Coulée" #1319): the workspace colour shows only here in the sidebar, as a 2 px
-   strip down its left edge, a bar beside the workspace's name and the line under the active view's tile, besides the
-   workspace dots. Everything that acts stays molten (--mt-action), whatever the workspace. A gradient workspace paints
+   strip down its left edge, a bar beside the workspace's name and the liseré of the selected view (.mt-sb-selected,
+   --mt-selected-line), besides the workspace dots. Everything that acts stays molten (--mt-action), whatever the workspace. A gradient workspace paints
    the strip and the bar with its stops, top to bottom. The docked sidebar's left edge is the window's: the strip runs
    from the window's top to its bottom and the window's rounded corners clip it (#1630). The floating sidebar has its
    own rounded corners, which nothing clips, so its strip stops short of them. */
@@ -1169,15 +1169,12 @@
     );
 }
 
-.mt-sb-tile-place {
-    position: absolute;
-    right: 10px;
-    bottom: -1px;
-    left: 10px;
-    height: 2px;
-    border-radius: var(--mt-radius-control);
-    background: var(--mt-place);
-    pointer-events: none;
+/* The selected tile and top block (DS-SHELL-156): the shared liseré over the surface's own ring, in one box-shadow
+   since a tile keeps its ring. The temporary and agent rows take the line alone (mt-selected, sidebar-agents.css). */
+.mt-sb-selected {
+    box-shadow:
+        var(--mt-selected-line),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }
 
 /* The pinned tiles always fill their rows (FR-SHELL-079, #2173, #2184). The area is a wrapping flex row and each tile
@@ -1192,7 +1189,7 @@
 
 /* The cell is the tile's size container, since a container cannot restyle itself: the tile's shape follows its own
    width. From PinnedRowMinWidth (140 px) it lays its icon on the left and its name on the right like the temporary
-   views' rows; narrower its icon stands above its name. The active underline, the lights and the corner's marks stay
+   views' rows; narrower its icon stands above its name. The selected liseré, the lights and the corner's marks stay
    on the tile, the marks turning from a column into a line at the row's end. */
 .mt-sb-tilecell {
     container: mttile / inline-size;

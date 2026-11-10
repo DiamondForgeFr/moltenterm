@@ -396,7 +396,9 @@ export function UpdateStep({
                                 onClick={() => setChannel(c)}
                                 className={cn(
                                     "cursor-pointer rounded-4 border px-3 py-1 text-11",
-                                    channel === c ? "border-accent/60 text-primary" : "border-border text-secondary"
+                                    channel === c
+                                        ? "mt-selected-action border-border text-primary"
+                                        : "border-border text-secondary"
                                 )}
                                 data-testid={`update-channel-${c}`}
                             >

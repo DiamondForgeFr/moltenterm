@@ -152,6 +152,25 @@
     --color-accenthover: var(--mt-action-hover);
 }
 
+/* The selected one among siblings (DS-SHELL-156, #2189): a tab, a segment of a track, a section's entry, a view's tile
+   or row. One mark for all, the carpet strip's liseré: an inset line, not a bar, so it follows the element's rounded
+   corners and thins out at both ends. The place colour marks what stands for a place of the workspace (the strip's
+   tabs, the sidebar's and the Library's views), the action colour every other. Defined here and nowhere else: a
+   surface with other shadow layers composes the token into its own box-shadow; the classes serve the ones without,
+   at zero specificity so a surface's own box-shadow wins. The element keeps its own fill. */
+:root {
+    --mt-selected-line: inset 0 -2px 0 var(--mt-place);
+    --mt-selected-line-action: inset 0 -2px 0 var(--mt-action);
+}
+
+:where(.mt-selected) {
+    box-shadow: var(--mt-selected-line);
+}
+
+:where(.mt-selected-action) {
+    box-shadow: var(--mt-selected-line-action);
+}
+
 /* The keyboard focus ring (#751, #1319): the fixed --mt-focus, 2 px with a 2 px offset, reading at 7.56:1 on the
    lightest surface in every workspace. Without this, a control with no ring of its own showed Chromium's, in the
    system's highlight colour. :where() keeps it at zero specificity: every component ring still wins. */

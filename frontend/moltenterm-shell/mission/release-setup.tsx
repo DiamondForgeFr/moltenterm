@@ -375,7 +375,7 @@ export function ChoicesStep({
                             className={cn(
                                 PlainButton,
                                 "py-1 text-11",
-                                channel === c && "border-accent/60 text-primary"
+                                channel === c && "mt-selected-action text-primary"
                             )}
                         >
                             {t(`mc.setup.flow.${c}`)}

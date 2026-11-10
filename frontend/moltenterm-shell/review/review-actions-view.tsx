@@ -347,8 +347,8 @@ function DepthToggle({ model }: { model: ReviewTabModel }) {
                     role="radio"
                     aria-checked={depth === o.depth}
                     className={cn(
-                        "cursor-pointer rounded-4 px-1.5 py-px transition-colors duration-120 ease-mt",
-                        depth === o.depth ? "bg-hover text-primary" : "text-muted hover:text-primary"
+                        "cursor-pointer rounded-4 px-1.5 py-0.5 transition-colors duration-120 ease-mt",
+                        depth === o.depth ? "mt-selected-action bg-hover text-primary" : "text-muted hover:text-primary"
                     )}
                     onClick={() => globalStore.set(model.depthAtom, o.depth)}
                     title={`${t(o.hint)} ${t("review.ask.depthHint")}`}
