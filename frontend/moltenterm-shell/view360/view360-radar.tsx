@@ -36,6 +36,7 @@ import {
     carpetTabMenu,
     dropIndex,
     NoShare,
+    panelNamesLine,
     rovingColumnId,
     shareLine,
     stepIndex,
@@ -496,6 +497,7 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
     const hoveredPage = hovered?.page ? pages[hovered.focusBlockId] : null;
     const shared = hoveredPage == null ? "" : shareLine(hoveredPage.share ?? NoShare);
     const opener = shared ? "" : (hoveredPage?.agentName ?? "");
+    const panelsLine = hovered == null ? "" : panelNamesLine(hovered);
     const previewShown = hovered != null && !busy;
     const previewId = previewShown ? `mt-strip-preview-${hovered.columnId}` : undefined;
     const cardShown = previewShown || (windowCard && !busy);
@@ -548,6 +550,11 @@ export const View360Radar = memo(({ layoutModel, layout }: { layoutModel: Layout
                         <PreviewShot tick={hovered} />
                         <b>{hovered.title}</b>
                         <i>{`${StripText.kind(hovered.kind)} · ${radarHint(hovered)}`}</i>
+                        {panelsLine && (
+                            <i className="mt-radar-card-opener" data-testid="mt-carpet-preview-panels">
+                                {panelsLine}
+                            </i>
+                        )}
                         {shared && (
                             <i className="mt-radar-card-opener" data-testid="mt-carpet-preview-share">
                                 {shared}

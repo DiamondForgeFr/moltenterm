@@ -29,6 +29,8 @@ const facts: Record<string, RadarBlockFacts> = {
     r: { view: "molten-review", agent: false, title: "Review", attention: null },
     t: { view: "term", agent: false, title: "~", attention: "notification" },
     q: { view: "term", agent: true, title: "Codex", attention: "answer" },
+    n: { view: "term", agent: false, title: "Release", renamed: true, attention: null },
+    m: { view: "molten-companion", agent: false, title: "My notes", renamed: true, attention: null },
 };
 
 function notif(over: Partial<MoltentermNotification>): MoltentermNotification {
@@ -82,6 +84,42 @@ describe("buildRadarTicks", () => {
         expect(tick.title).toBe(`github.com ${RadarText.morePanels(2)}`);
         expect(tick.attention).toBe("answer");
         expect(tick.focusNodeId).toBe("n-q");
+    });
+
+    it("names a column of two panels after both, each by its own title (#2172)", () => {
+        const [tick] = buildRadarTicks([col("c1", "r", "a")], facts, ["c1"]);
+        expect(tick.title).toBe("Review & Léa · Claude Code");
+        expect(tick.names).toEqual(["Review", "Léa · Claude Code"]);
+        expect(tick.kind).toBe("review");
+    });
+
+    it("keeps a lone panel's title, and the first title with a count from three panels (#2172)", () => {
+        const columns = [col("c1", "w"), col("c2", "w", "q", "t"), col("c3", "w", "q", "t", "c")];
+        const [lone, three, four] = buildRadarTicks(columns, facts, []);
+        expect(lone.title).toBe("github.com");
+        expect(lone.names).toEqual(["github.com"]);
+        expect(three.title).toBe("github.com +2 panels");
+        expect(three.names).toEqual(["github.com", "Codex", "~"]);
+        expect(four.title).toBe("github.com +3 panels");
+        expect(four.names).toHaveLength(4);
+    });
+
+    it("keeps the name the developer typed on the first panel, with the count of the others (#2172)", () => {
+        const [pair, three] = buildRadarTicks([col("c1", "n", "r"), col("c2", "n", "r", "c")], facts, []);
+        expect(pair.title).toBe("Release +1 panel");
+        expect(three.title).toBe("Release +2 panels");
+        expect(pair.names).toEqual(["Release", "Review"]);
+    });
+
+    it("shows the name the developer typed on the second panel in the pair (#2172)", () => {
+        const [tick] = buildRadarTicks([col("c1", "r", "m")], facts, []);
+        expect(tick.title).toBe("Review & My notes");
+    });
+
+    it("names a panel it knows nothing about with the generic name, in a pair too (#2172)", () => {
+        const [tick] = buildRadarTicks([col("c1", "r", "zz")], facts, []);
+        expect(tick.title).toBe(`Review & ${RadarText.untitled}`);
+        expect(tick.names).toEqual(["Review", RadarText.untitled]);
     });
 
     it("focuses the column's first panel when nothing waits, and names an unknown panel", () => {

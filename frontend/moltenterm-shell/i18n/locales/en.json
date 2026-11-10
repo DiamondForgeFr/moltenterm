@@ -6603,6 +6603,7 @@
             "untitled": "Panel",
             "morePanelsOne": "+1 panel",
             "morePanels": "+{count} panels",
+            "pairTitle": "{first} & {second}",
             "window": "Visible area",
             "windowHint": "drag to move, click a panel to jump to it"
         },
@@ -6612,6 +6613,7 @@
             "moveLeft": "Move left",
             "moveRight": "Move right",
             "tabName": "{kind}: {title}, {state}",
+            "panelsList": "Panels: {names}",
             "visible": "visible",
             "stored": "stored on the carpet",
             "openedBy": "opened by {name}",

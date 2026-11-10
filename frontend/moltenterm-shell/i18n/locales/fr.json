@@ -6603,6 +6603,7 @@
             "untitled": "Panneau",
             "morePanelsOne": "+1 panneau",
             "morePanels": "+{count} panneaux",
+            "pairTitle": "{first} & {second}",
             "window": "Zone visible",
             "windowHint": "faites glisser pour la déplacer, cliquez sur un panneau pour y aller"
         },
@@ -6612,6 +6613,7 @@
             "moveLeft": "Déplacer à gauche",
             "moveRight": "Déplacer à droite",
             "tabName": "{kind}\u00a0: {title}, {state}",
+            "panelsList": "Panneaux\u00a0: {names}",
             "visible": "visible",
             "stored": "rangé sur le tapis",
             "openedBy": "ouvert par {name}",
