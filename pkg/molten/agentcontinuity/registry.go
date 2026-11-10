@@ -121,6 +121,36 @@ func checkPlanned(r *Registry, planned []PlannedAgent) error {
 	return nil
 }
 
+// checkTried refuses a registry where a registered agent (an adapter or a planned one) has no valid tried level, or
+// where a level is given to an agent that is not registered: a new agent cannot ship without saying how much it has
+// been tried (FR-AGC-001, #2167).
+func checkTried(r *Registry, planned []PlannedAgent, levels map[string]string) error {
+	registered := r.Ids()
+	for _, p := range planned {
+		registered = append(registered, p.Id)
+	}
+	for _, id := range registered {
+		level, ok := levels[id]
+		if !ok {
+			return fmt.Errorf("agent %s: no tried level (TriedLevels)", id)
+		}
+		if !slices.Contains(validTried, level) {
+			return fmt.Errorf("agent %s: tried level %q", id, level)
+		}
+	}
+	var orphans []string
+	for id := range levels {
+		if !slices.Contains(registered, id) {
+			orphans = append(orphans, id)
+		}
+	}
+	if len(orphans) > 0 {
+		slices.Sort(orphans)
+		return fmt.Errorf("tried level for %s, which is not a registered agent", strings.Join(orphans, ", "))
+	}
+	return nil
+}
+
 // Find returns the adapter of an agent id, or nil.
 func (r *Registry) Find(id string) AgentAdapter {
 	if r == nil {
@@ -170,6 +200,9 @@ func mustBuiltinRegistry() *Registry {
 	r, err := MakeRegistry(claudeAdapter{}, codexAdapter{})
 	if err == nil {
 		err = checkPlanned(r, PlannedAgents)
+	}
+	if err == nil {
+		err = checkTried(r, PlannedAgents, TriedLevels)
 	}
 	if err != nil {
 		// A built-in adapter with a bad declaration is a programming error: refuse it at startup.

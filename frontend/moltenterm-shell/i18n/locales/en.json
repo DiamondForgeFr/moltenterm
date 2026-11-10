@@ -10352,6 +10352,22 @@
             "provider": "the provider behind the agent does not offer it"
         }
     },
+    "agentTried": {
+        "line": "Tried with MoltenTerm:",
+        "chipLabel": "{level}: how much {name} has been tried with MoltenTerm",
+        "asof": "Level set on {date}",
+        "report": "Report a problem",
+        "level": {
+            "daily": "Daily use",
+            "tested": "Tested",
+            "little": "Little tested"
+        },
+        "meaning": {
+            "daily": "MoltenTerm is used with {name} every day. If something does not work, you can report it.",
+            "tested": "MoltenTerm has been tried with {name}, but less than with the agent used every day, so a rough edge is possible. If you meet one, you can report it.",
+            "little": "MoltenTerm has not been tried much with {name} yet, so you may meet a rough edge. MoltenTerm is open source: if you do, you can report it."
+        }
+    },
     "agentInfo": {
         "title": "Everything about {name}",
         "everything": "Everything about {name}",
