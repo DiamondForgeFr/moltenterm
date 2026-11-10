@@ -24,7 +24,8 @@ import { useCardContext } from "./reviews-agent-bar";
 import { TurnTitleKeys } from "./reviews-card-model";
 import { useReviews } from "./reviews-client";
 import { rebaseAskKey, reviewsEmptyState, splitReviews } from "./reviews-model";
-import { OthersWaitLine, OwnerChip, OwnersBar } from "./reviews-owners";
+import { OthersWaitLine, OwnerChip, OwnersFilterHost } from "./reviews-owners";
+import type { OwnersFilter } from "./reviews-owners-filter";
 import { inScope, ownerFacts, ownersOf, prOwner, waitsForYou } from "./reviews-owners-model";
 import { useViewScope } from "./reviews-owners-store";
 import { AllProjects, projectLanes, ProjectPrRow, ReviewsProjectFilter } from "./reviews-projects-model";
@@ -123,7 +124,15 @@ function ProjectProbe({
 
 const TurnTitle = TurnTitleKeys;
 
-export function AllProjectsList({ workspace, projects }: { workspace: Workspace; projects: WorkspaceProjectEntry[] }) {
+export function AllProjectsList({
+    workspace,
+    projects,
+    filter,
+}: {
+    workspace: Workspace;
+    projects: WorkspaceProjectEntry[];
+    filter: OwnersFilter;
+}) {
     const t = useT();
     const word = useWordPhrase();
     const [reports, setReports] = useState<Record<string, ProjectReport>>({});
@@ -181,7 +190,7 @@ export function AllProjectsList({ workspace, projects }: { workspace: Workspace;
                     onReport={onReport}
                 />
             ))}
-            <OwnersBar view={view} edges={edges} owners={owners} hidden={hiddenRows.length} />
+            <OwnersFilterHost filter={filter} view={view} owners={owners} hidden={hiddenRows.length} />
             <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <span className="text-12 text-secondary">
                     {t("reviews.projects.count", { count: projects.length })}

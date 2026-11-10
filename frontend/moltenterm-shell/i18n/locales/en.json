@@ -7089,19 +7089,9 @@
             "inProject": "{count} in {project}",
             "openProject": "Show {project}'s pull requests",
             "label": "Owners",
-            "bar": "Whose work this view shows",
-            "all": "All · {count}",
-            "change": "Change",
             "menuAria": "Choose whose work to show",
             "menuEmpty": "No agent owns work here yet.",
             "menuItemSubs": "+ {count} sub-agents",
-            "noAgents": "No agent in this view: no filter",
-            "chipSubs": {
-                "one": "+ {count} sub-agent",
-                "other": "+ {count} sub-agents"
-            },
-            "chipTitle": "This view follows {name} and the agents {name} handed work to",
-            "chipRemove": "Stop following {name}",
             "hidden": {
                 "one": "{count} other hidden",
                 "other": "{count} others hidden"
