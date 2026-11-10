@@ -339,11 +339,18 @@ export function modelItem(
     }
     const models = info?.models ?? [];
     const behind = nativeListNote(agent, "model");
+    // The adapters label their choices in English for molten's output; the window words its own parts of them.
+    const modelChoiceLabel = (m: { id: string; label: string }): string => {
+        if (!m.id) {
+            return t("cmdpanel.agent.defaultModel");
+        }
+        const latest = /^(.+) \(latest\)$/.exec(m.label);
+        return latest ? t("cmdpanel.agent.latestModel", { name: latest[1] }) : m.label;
+    };
     for (const m of models) {
         options.push({
             id: `model:${m.id}`,
-            // The adapters label the no-id choice in English for molten's output; the window words it itself.
-            label: m.id ? m.label : t("cmdpanel.agent.defaultModel"),
+            label: modelChoiceLabel(m),
             detail: behind || t("cmdpanel.agent.savedDefault"),
             checked: false,
             run: () => handlers.setModel?.(m.id),

@@ -109,7 +109,7 @@ describe("model in the command panel (#573)", () => {
             I18nModel.getInstance().setLanguageSetting("fr");
             const item = modelItem(claude, info, claudeModelDef, handlers());
             expect(item.options[1].label).toBe("Votre modèle par défaut");
-            expect(item.options[2].label).toBe("Fable (latest)");
+            expect(item.options[2].label).toBe("Fable (dernier)");
         } finally {
             I18nModel.getInstance().setLanguageSetting("en");
         }

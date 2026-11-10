@@ -2789,6 +2789,7 @@
             "agent": "Agent",
             "savedDefault": "Enregistré par défaut",
             "defaultModel": "Votre modèle par défaut",
+            "latestModel": "{name} (dernier)",
             "nativeModel": "Modèle {native} : {provider} peut le remplacer par l'un des siens",
             "nativeLevel": "Niveau {native} : {provider} peut l'ignorer",
             "chooseIn": "Choisir dans {agent}",
