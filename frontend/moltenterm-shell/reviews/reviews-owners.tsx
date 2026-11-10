@@ -20,7 +20,7 @@ function Initial({ name, dashed }: { name: string; dashed?: boolean }) {
     return (
         <span
             className={cn(
-                "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-11 font-bold",
+                "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-11 font-semibold",
                 dashed ? "border border-dashed border-border text-muted" : "bg-hover text-accent"
             )}
             aria-hidden
@@ -143,7 +143,7 @@ function OwnersMenu({
             ref={ref}
             role="menu"
             aria-label={label}
-            className="absolute top-8 left-0 z-20 flex min-w-[220px] flex-col rounded-6 border border-border bg-panel p-1 shadow-lg"
+            className="absolute top-8 left-0 z-20 flex min-w-[220px] flex-col rounded-4 border border-border bg-panel p-1 shadow-lg"
             data-testid="reviews-owners-menu"
         >
             {rows.length === 0 ? (
