@@ -176,7 +176,7 @@
     justify-content: flex-end;
     margin-top: -6px;
     color: var(--mt-text-3);
-    font-size: calc(var(--mt-text-11) - 1px);
+    font-size: var(--mt-text-11);
     font-variant-numeric: tabular-nums;
     line-height: 1;
     white-space: nowrap;
@@ -186,7 +186,7 @@
     display: none;
 }
 
-@container (min-width: 360px) {
+@container (min-width: 400px) {
     .mt-uw-unit {
         display: inline;
     }
