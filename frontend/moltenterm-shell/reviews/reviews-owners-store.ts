@@ -42,6 +42,7 @@ export class ViewScope {
 
     pendingAtom = atom({}) as PrimitiveAtom<Record<string, Pending>>;
     atomsByTab = new Map<string, Atom<OwnerScope>>();
+    fresh = new Set<string>();
 
     private constructor() {}
 
@@ -96,6 +97,15 @@ export class ViewScope {
             return;
         }
         this.write(tabId, initialScope(present));
+        if (present.length > 0) {
+            this.fresh.add(tabId);
+        }
+    }
+
+    // The panel just opened its filter on agents in this view: true once, for the page that asks first (it then selects
+    // the project chip of those agents, FR-REV-034).
+    takeFresh(tabId: string): boolean {
+        return this.fresh.delete(tabId);
     }
 }
 

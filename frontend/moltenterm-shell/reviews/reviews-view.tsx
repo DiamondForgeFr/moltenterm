@@ -11,12 +11,13 @@
 // open sections (arrows, Home, End) and Enter opens one.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { atoms } from "@/app/store/global";
+import { atoms, getBlockMetaKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { Fragment, lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentChain } from "../agent-chain-store";
+import { AgentStates } from "../agent-state-store";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
 import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
@@ -83,9 +84,11 @@ import {
     scopeSplit,
     waitsForYou,
 } from "./reviews-owners-model";
-import { useViewScope } from "./reviews-owners-store";
+import { useViewScope, ViewScope } from "./reviews-owners-store";
 import {
     AllProjects,
+    followedAgentFolders,
+    projectIdsOfFolders,
     projectOfDir,
     resolveProjectFilter,
     ReviewsProjectFilter,
@@ -171,6 +174,23 @@ function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
             ReviewsProjectFilter.getInstance().set(workspace?.oid, project.id);
         }
     }, [focus, several, projects, workspace?.oid]);
+    // Opened in a view where agents are already present, the panel follows them and selects their project's chip: the
+    // agents of two projects show "All projects" (FR-REV-034). Only when the filter opens; the chip stays the
+    // developer's afterwards.
+    const view = useViewScope();
+    useEffect(() => {
+        if (!several || !ViewScope.getInstance().takeFresh(view.tabId)) {
+            return;
+        }
+        const states = globalStore.get(AgentStates.getInstance().dataAtom);
+        const folders = followedAgentFolders(states, view.tabId, view.scope.agents, (blockId) =>
+            String(globalStore.get(getBlockMetaKeyAtom(blockId, "cmd:cwd")) ?? "")
+        );
+        const ids = projectIdsOfFolders(projects, folders);
+        if (ids.length > 0) {
+            ReviewsProjectFilter.getInstance().set(workspace?.oid, ids.length === 1 ? ids[0] : AllProjects);
+        }
+    }, [view.tabId, view.scope, several, projects, workspace?.oid]);
     const shown = several && filter !== AllProjects ? projects.find((p) => p.id === filter) : null;
     const frame = (
         <MissionFrame

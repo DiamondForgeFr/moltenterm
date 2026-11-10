@@ -3,11 +3,14 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { describe, expect, it, vi } from "vitest";
+import type { AgentStatesData } from "../agent-state-model";
 import type { WorkspaceProjectEntry } from "../sidebar/workspace-projects";
 import type { CardState } from "./reviews-card-model";
 import type { ReviewPr } from "./reviews-model";
 import {
     AllProjects,
+    followedAgentFolders,
+    projectIdsOfFolders,
     projectLanes,
     projectOfDir,
     ProjectPrRow,
@@ -77,6 +80,41 @@ describe("Pilotage across projects (FR-SHELL-087)", () => {
         expect(lanes.map((l) => l.turn)).toEqual(["yours", "waiting", "agents"]);
         expect(lanes[0].rows.map((r) => `${r.projectId}#${r.pr.number}`)).toEqual(["p1#4", "p2#7"]);
         expect(projectLanes(Projects, {})).toEqual([]);
+    });
+});
+
+describe("the project of the agents of a view (FR-REV-034)", () => {
+    const ProjectsWithRepo: WorkspaceProjectEntry[] = [
+        { id: "p1", type: "Desktop", dir: "/p/desk", branch: "main" },
+        { id: "p2", type: "Mobile", dir: "/p/mob", branch: "", repo: "/p/mob/app" },
+        { id: "p3", type: "Website", dir: "", branch: "" },
+    ];
+
+    it("is the project whose repository holds the folder, a worktree inside it included", () => {
+        expect(projectIdsOfFolders(ProjectsWithRepo, ["/p/desk"])).toEqual(["p1"]);
+        expect(projectIdsOfFolders(ProjectsWithRepo, ["/p/desk/.claude/worktrees/agent-1"])).toEqual(["p1"]);
+        expect(projectIdsOfFolders(ProjectsWithRepo, ["/p/mob/app/src"])).toEqual(["p2"]);
+        expect(projectIdsOfFolders(ProjectsWithRepo, ["/p/desktop-other", "/elsewhere", ""])).toEqual([]);
+    });
+
+    it("names both projects when the agents work in two, in the workspace's order", () => {
+        expect(projectIdsOfFolders(ProjectsWithRepo, ["/p/mob/app", "/p/desk/x"])).toEqual(["p1", "p2"]);
+    });
+
+    it("reads the folders of the named agents of the view, not of the others", () => {
+        const data = {
+            states: {
+                a: { blockid: "a", tabid: "t1", firstname: "Flore", version: 1 },
+                b: { blockid: "b", tabid: "t1", firstname: "Hugo", version: 1 },
+                c: { blockid: "c", tabid: "t2", firstname: "Flore", version: 1 },
+                d: { blockid: "d", tabid: "t1", firstname: "Brokk", own: true, version: 1 },
+            },
+            versions: {},
+        } as unknown as AgentStatesData;
+        const cwd: Record<string, string> = { a: "/p/desk", b: "/p/mob/app", c: "/p/other", d: "/p/desk" };
+        expect(followedAgentFolders(data, "t1", ["flore"], (id) => cwd[id])).toEqual(["/p/desk"]);
+        expect(followedAgentFolders(data, "t1", ["Flore", "Hugo"], (id) => cwd[id])).toEqual(["/p/desk", "/p/mob/app"]);
+        expect(followedAgentFolders(data, "t1", ["Brokk"], (id) => cwd[id])).toEqual([]);
     });
 });
 
