@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { AttachMarginPx, farEnd, RopePx } from "../tether/tether-model";
 import {
     activePanel,
     afterClick,
@@ -37,15 +38,19 @@ import {
     HoverOpenMs,
     InitialPanels,
     inZone,
+    LinkPx,
     neighbourPanel,
     openingPanel,
     panelHeight,
     PanelId,
     panelRoom,
+    PanelSlidePx,
     panelWidth,
     partMotion,
+    plinkLine,
     PriorityFacts,
     priorityFactsOf,
+    RailBorderPx,
     railCountTotal,
     RailInput,
     railMarks,
@@ -828,8 +833,9 @@ describe("the panel moves with the group (FR-BOSS-009, #2082)", () => {
         expect(stepped).toMatch(/opacity var\(--mt-duration-show\) linear calc\(var\(--i, 0\) \* 50ms\)/);
         const panel = rule(".mt-brokk-gpanel");
         expect(panel).toMatch(/opacity: 0;/);
-        expect(panel).toMatch(/transform: translateX\(-8px\);/);
-        expect(panel).toMatch(/transform var\(--mt-duration-settle\) cubic-bezier\(0\.3, 1\.12, 0\.4, 1\),/);
+        // It comes out of the rail's edge, the whole gap back (#2196, AC66), on the curve of its tether (AC67).
+        expect(panel).toMatch(new RegExp(`transform: translateX\\(-${PanelSlidePx}px\\);`));
+        expect(panel).toMatch(/transform var\(--mt-duration-settle\) var\(--mt-ease-tether\),/);
         expect(panel).toMatch(/opacity var\(--mt-duration-base\) linear,/);
         expect(panel).not.toMatch(/animation:/);
         const panelIn = rule(".mt-brokk-group.is-in > .mt-brokk-gpanel");
@@ -837,14 +843,73 @@ describe("the panel moves with the group (FR-BOSS-009, #2082)", () => {
         // A keyframe animation on the panel would keep the leaving transition from starting: it would vanish at once.
         expect(css).not.toMatch(/\.mt-brokk-(gpanel|plink)[^{]*\{[^}]*animation: (?!none)/);
         expect(css).toMatch(
-            /@starting-style \{\s*\.mt-brokk-group\.is-in > \.mt-brokk-gpanel \{\s*opacity: 0;\s*transform: translateX\(-8px\);/
+            new RegExp(
+                `@starting-style \\{\\s*\\.mt-brokk-group\\.is-in > \\.mt-brokk-gpanel \\{\\s*opacity: 0;\\s*transform: translateX\\(-${PanelSlidePx}px\\);`
+            )
         );
-        const link = rule(".mt-brokk-plink");
-        expect(link).toMatch(/opacity: 0;/);
-        expect(link).toMatch(/transition: opacity var\(--mt-duration-base\) linear;/);
+        // Its link is the tether's (tether.css), which plays the panel's time and curve by default and the square's for the
+        // thread: nothing of it is left in this sheet but that choice.
+        expect(css).not.toMatch(/\.mt-brokk-plink/);
+        const thread = rule(".mt-tether.mt-brokk-thread");
+        expect(thread).toMatch(/--mt-tether-time: var\(--mt-duration-drop\);/);
+        expect(thread).toMatch(/--mt-tether-ease: cubic-bezier\(0\.2, 1\.15, 0\.4, 1\);/);
+        expect(thread).toMatch(/--mt-tether-fade: var\(--mt-duration-show\);/);
+        const tether = readFileSync(join(__dirname, "..", "tether", "tether.css"), "utf8").replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+        );
+        const tetherDefaults = new RegExp("\\n\\.mt-tether \\{([^}]*)\\}").exec(tether)?.[1] ?? "";
+        expect(tetherDefaults).toMatch(/--mt-tether-time: var\(--mt-duration-settle\);/);
+        expect(tetherDefaults).toMatch(/--mt-tether-ease: var\(--mt-ease-tether\);/);
+        expect(tetherDefaults).toMatch(/--mt-tether-fade: var\(--mt-duration-base\);/);
+        expect(tokens).toContain("--mt-ease-tether: cubic-bezier(0.25, 1.5, 0.4, 1);");
         // Nothing waits on the way out: only the arriving rules carry a step.
-        for (const leaving of [square, parts, panel, link, rule(".mt-brokk-fieldbox")]) {
+        for (const leaving of [square, parts, panel, thread, rule(".mt-brokk-fieldbox")]) {
             expect(leaving).not.toMatch(/calc\(var\(--i/);
         }
+    });
+});
+
+describe("the tether of the open panel's icon (FR-BOSS-009, AC65 to AC68, #2196)", () => {
+    const g = groupGeometry();
+
+    it("comes out of the rail's edge: the panel starts the whole gap back", () => {
+        expect(PanelSlidePx).toBe(LinkPx);
+        expect(g.panelLeft - PanelSlidePx).toBe(g.width);
+    });
+
+    it("is tied on each icon's edge at its middle and reaches the panel's edge, the rail's border counted", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        expect(/\n\.mt-brokk-rail \{([^}]*)\}/.exec(css)?.[1]).toMatch(new RegExp(`border: ${RailBorderPx}px solid`));
+        for (const id of RailPanels) {
+            const icon = g.icons[id];
+            const line = plinkLine(g, id, SquarePx);
+            expect(line.left, id).toBe(icon.x + icon.w + RailBorderPx);
+            expect(line.top + RopePx / 2, id).toBe(icon.y + icon.h / 2 + RailBorderPx);
+            expect(line.left + line.width, id).toBe(g.panelLeft);
+        }
+    });
+
+    it("keeps its far end on the panel's edge at every moment of the slide, the give included", () => {
+        const line = plinkLine(g, "notifications", SquarePx);
+        for (const progress of [0, 0.1, 0.25, 0.5, 0.75, 1, 1.08]) {
+            const panelEdge = g.panelLeft - PanelSlidePx * (1 - progress);
+            expect(farEnd(line, progress)).toBeCloseTo(panelEdge, 9);
+        }
+    });
+
+    it("starts at the rail's edge and is whole once the panel is in", () => {
+        const line = plinkLine(g, "agents", SquarePx);
+        expect(line.from).toBeGreaterThan(0);
+        expect(line.from).toBeLessThan(1);
+        expect(farEnd(line, 0)).toBe(g.width);
+        expect(farEnd(line, 1)).toBe(g.panelLeft);
+    });
+
+    it("is held on the panel's edge when the window leaves the panel less height than the icon's level", () => {
+        const icon = g.icons.sessions;
+        expect(icon.y + icon.h / 2).toBeGreaterThan(120);
+        const line = plinkLine(g, "sessions", 120);
+        expect(line.top + RopePx / 2).toBe(120 - AttachMarginPx);
     });
 });

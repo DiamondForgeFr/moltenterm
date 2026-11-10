@@ -32,6 +32,8 @@ import { KeepAwakeModel } from "../keepawake-store";
 import { modalIsOpen } from "../modal-open";
 import { MoltentermNotifications } from "../notifications-store";
 import { TabActivity, whileShown } from "../tab-activity";
+import { Tether } from "../tether/tether";
+import { RopePx, tetherLine } from "../tether/tether-model";
 import { UsageWeekGrid, UsageWeekRow } from "../usage-week/usage-week";
 import { loadWorkspaceSources } from "../workspace-rail";
 import { AnchorAttr, cardKeyAction, CardKeyInput, CardTestId, isOutsidePress } from "./boss-card-model";
@@ -64,6 +66,7 @@ import {
     panelRoom,
     PanelState,
     panelWidth,
+    plinkLine,
     priorityFactsOf,
     RailInput,
     RailMark,
@@ -684,19 +687,19 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         }
     };
     const activeIcon: PanelId = RailPanels.includes(active as PanelId) ? (active as PanelId) : null;
-    const link = activeIcon != null ? g.icons[activeIcon] : null;
+    const plink = activeIcon != null ? plinkLine(g, activeIcon, Math.min(height, heightRoom)) : null;
+    // The square comes out of the face, so the thread starts with nothing out.
+    const thread =
+        frame.thread != null
+            ? tetherLine(frame.thread.x, frame.thread.x + frame.thread.w, frame.thread.y + RopePx / 2, frame.thread.w)
+            : null;
 
     return (
         <>
             <BrokkScrim shown={shown} onClose={() => boss.closeCard()} />
             {holdsHover(panels) ? <div className="mt-brokk-catch" aria-hidden data-testid="brokk-hover-catch" /> : null}
             {frame.thread != null ? (
-                <div
-                    className={cn("mt-brokk-thread", shown && "is-in")}
-                    style={{ left: frame.thread.x, top: frame.thread.y, width: frame.thread.w }}
-                    aria-hidden
-                    data-testid="brokk-thread"
-                />
+                <Tether line={thread} open={shown} className="mt-brokk-thread" testId="brokk-thread" />
             ) : null}
             <div
                 ref={rootRef}
@@ -838,20 +841,9 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                 </div>
                 {active != null ? (
                     <>
-                        <div
-                            className="mt-brokk-plink"
-                            data-testid="brokk-plink"
-                            aria-hidden
-                            style={
-                                link != null
-                                    ? {
-                                          left: link.x + link.w,
-                                          top: link.y + link.h / 2 - 1,
-                                          width: g.panelLeft - (link.x + link.w),
-                                      }
-                                    : { display: "none" }
-                            }
-                        />
+                        {plink != null ? (
+                            <Tether line={plink} open={shown} className="mt-brokk-plink" testId="brokk-plink" />
+                        ) : null}
                         <div
                             ref={panelRef}
                             id="brokk-panel"

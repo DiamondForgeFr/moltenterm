@@ -8,6 +8,8 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
+import { attachMiddle, TetherLine, tetherLine } from "../tether/tether-model";
+
 // The group's panels are the rail's: the usage block under the square opens none (FR-BOSS-009, AC58, #2106).
 export type PanelId = "notifications" | "agents" | "sessions" | "downloads" | "keepawake";
 
@@ -26,6 +28,12 @@ export const RailInsetPx = 6;
 export const EdgePx = 8;
 // From the rail to the panel; the ember link crosses it.
 export const LinkPx = 16;
+// The panel comes out of the rail's edge (FR-BOSS-009, AC66, #2196): it starts the whole gap back, and its tether is as long
+// as what is left between the button and the panel's edge at every moment of the slide.
+export const PanelSlidePx = LinkPx;
+// The rail's own 1 px border (brokk-group.css) puts its icons that far in from the rail's corner, so the tether is tied
+// that much further than the icons' rectangles say.
+export const RailBorderPx = 1;
 export const PanelWidthPx = 420;
 export const MinPanelWidthPx = 280;
 // The card under the square is never shorter than this; past it, it is as tall as its content (blockHeight, #2106).
@@ -208,6 +216,14 @@ export function inRect(r: Rect, x: number, y: number): boolean {
 export function linkRect(g: GroupGeometry, id: PanelId): Rect {
     const icon = g.icons[id];
     return { x: icon.x + icon.w, y: icon.y, w: g.panelLeft - (icon.x + icon.w), h: icon.h };
+}
+
+// The tether from an icon to the panel (AC65 to AC68): tied on the icon's edge at its middle, kept within the panel's
+// height, reaching the panel's edge once it is in place.
+export function plinkLine(g: GroupGeometry, id: PanelId, panelHeight: number): TetherLine {
+    const icon = g.icons[id];
+    const middle = attachMiddle(icon.y + icon.h / 2 + RailBorderPx, panelHeight);
+    return tetherLine(icon.x + icon.w + RailBorderPx, g.panelLeft, middle, PanelSlidePx);
 }
 
 // The hover zone of an icon: the icon, its link and the panel itself, so that the pointer can cross from one to the
