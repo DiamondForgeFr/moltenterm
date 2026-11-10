@@ -333,7 +333,7 @@ export function dropsAfter(clientX: number, rect: { left: number; width: number 
     return clientX > rect.left + rect.width / 2;
 }
 
-// Blocks that fill their area's width stand one above the other (the tiles of a wide sidebar, FR-SHELL-079, #2173):
+// Blocks that fill their area's width stand one above the other (a tile alone on its row, FR-SHELL-079, #2173, #2184):
 // the pointer's height tells the side of a drop there, as its x tells it for blocks side by side.
 export function blockStacks(block: { width: number }, area: { width: number }): boolean {
     return area.width > 0 && block.width >= area.width * 0.9;

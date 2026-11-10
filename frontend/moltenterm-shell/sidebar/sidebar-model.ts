@@ -20,12 +20,14 @@ export const SidebarMaxWidth = 420;
 export const SidebarDefaultWidth = 264;
 
 export const TileGap = 6;
-export const TileMinWidth = 74;
-export const TileMaxPerRow = 3;
-// From this much room for the tiles (their area's width: the sidebar's, less the frame's gap and the area's padding,
-// 296 px of sidebar) each tile is a row of its own, its icon on the left and its name on the right (FR-SHELL-079,
-// #2173). The stylesheet's container query states the same number (sidebar.css, "mtpins").
-export const PinnedRowMinWidth = 280;
+// The pinned tiles always fill their rows (FR-SHELL-079, #2184): as many columns as fit at this readable width,
+// never more than there are tiles, each an equal share; a short last row stretches its tiles. The stylesheet states
+// the same number as each tile cell's flex basis (sidebar.css, ".mt-sb-tilecell").
+export const PinnedTileMinWidth = 108;
+// From this width of its own a tile lays its icon on the left and its name on the right (#2173, #2184); narrower,
+// its icon stands above its name. The stylesheet's container query on the tile's cell states the same number
+// (sidebar.css, "mttile").
+export const PinnedRowMinWidth = 140;
 
 // The sidebar is on unless the hidden setting turns it off.
 export function sidebarEnabled(setting: boolean): boolean {
@@ -54,17 +56,30 @@ export function sidebarFloats(storedHidden: boolean, narrowWindow: boolean): boo
     return storedHidden === true || narrowWindow === true;
 }
 
-// The tile grid's columns in CSS, the rule tilesPerRow states: at most 3 a row, never under 74 px, a 6 px gutter.
-export const TileGridColumns = `repeat(auto-fill, minmax(max(${TileMinWidth}px, calc((100% - ${TileGap * (TileMaxPerRow - 1)}px) / ${TileMaxPerRow})), 1fr))`;
+// How many columns the pinned tiles take in an area of the given width: as many as fit at PinnedTileMinWidth with the
+// gutter, at least one, never more than there are tiles. The wrapping flex row of sidebar.css lays them out so.
+export function pinnedColumns(width: number, count: number): number {
+    const fit = Math.max(1, Math.floor((width + TileGap) / (PinnedTileMinWidth + TileGap)));
+    return Math.max(1, Math.min(fit, count));
+}
 
-// How many tiles share a row of the given width: at most 3, never under 74 px each, with a 6 px gutter.
-export function tilesPerRow(width: number, maxPerRow = TileMaxPerRow, minWidth = TileMinWidth): number {
-    for (let n = maxPerRow; n > 1; n--) {
-        if ((width - TileGap * (n - 1)) / n >= minWidth) {
-            return n;
+// The width of each tile, row by row: the tiles of a row share its width equally, the last row's included.
+export function pinnedTileWidths(width: number, count: number): number[] {
+    const cols = pinnedColumns(width, count);
+    const widths: number[] = [];
+    for (let start = 0; start < count; start += cols) {
+        const inRow = Math.min(cols, count - start);
+        const each = (width - TileGap * (inRow - 1)) / inRow;
+        for (let i = 0; i < inRow; i++) {
+            widths.push(each);
         }
     }
-    return 1;
+    return widths;
+}
+
+// A tile's shape from its own width: "row" lays the icon on the left and the name on the right.
+export function pinnedTileShape(width: number): "row" | "stack" {
+    return width >= PinnedRowMinWidth ? "row" : "stack";
 }
 
 // The tabs MoltenTerm pins itself (the Project tab) and the views pinned in the workspace (FR-SHELL-080) are tiles.

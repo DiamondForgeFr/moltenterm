@@ -23,8 +23,6 @@ import {
     SidebarMinWidth,
     SidebarWidthMetaKey,
     splitSidebarTabs,
-    TileGridColumns,
-    tilesPerRow,
 } from "./sidebar-model";
 
 describe("workspace sidebar width (FR-SHELL-079, TC-SHELL-154)", () => {
@@ -76,26 +74,6 @@ describe("narrow window (FR-SHELL-109)", () => {
         expect(isNarrowWindow(820)).toBe(true);
         expect(isNarrowWindow(0)).toBe(false);
         expect(isNarrowWindow(NaN)).toBe(false);
-    });
-});
-
-describe("tile grid", () => {
-    it("holds at most 3 tiles a row, never under 74 px", () => {
-        // The sidebar's content width at 420, 264 and 220 px (8 px padding, 4 px grid inset each side).
-        expect(tilesPerRow(404)).toBe(3);
-        expect(tilesPerRow(248)).toBe(3);
-        expect(tilesPerRow(204)).toBe(2);
-        expect(tilesPerRow(160)).toBe(2);
-        expect(tilesPerRow(120)).toBe(1);
-        for (let width = 150; width <= 420; width++) {
-            const n = tilesPerRow(width);
-            expect(n).toBeLessThanOrEqual(3);
-            expect((width - 6 * (n - 1)) / n).toBeGreaterThanOrEqual(74);
-        }
-    });
-
-    it("states the same rule in CSS", () => {
-        expect(TileGridColumns).toBe("repeat(auto-fill, minmax(max(74px, calc((100% - 12px) / 3)), 1fr))");
     });
 });
 
