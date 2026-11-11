@@ -28,8 +28,10 @@ const InPanelFiles = [
 ];
 
 // App actions: the rail, the status bar, the sidebar, the command palette, the menus, a notification, the foreman's card
-// (a layer over the app, in no panel), a dialog opened from the sidebar. They never write into a pinned view.
+// (a layer over the app, in no panel), a dialog opened from the sidebar, the activity indicator of the title row. They
+// never write into a pinned view.
 const AppActionFiles = new Set([
+    "activity/activity-open.ts",
     "boss/boss-card-actions.ts",
     "menu/app-menu-commands.ts",
     "notifications-store.ts",
