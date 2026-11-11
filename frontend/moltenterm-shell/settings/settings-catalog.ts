@@ -189,6 +189,10 @@ export type SettingsSchema = { $defs?: { SettingsType?: { properties?: Record<st
 
 export const UnknownGroup = "Other settings";
 
+// The switches that turn on only after one explicit confirmation of what they allow (#2257): a security choice of the
+// developer's, never on unless he set it. Each has settings.items.<key>.confirm, confirmOn and confirmCancel.
+export const ConfirmOnKeys = new Set<string>(["boss:autoapprove"]);
+
 // The control of a key without metadata, from its JSON type.
 function controlForType(prop: SchemaProperty): SettingsControl {
     if (prop.enum?.length) {
