@@ -131,6 +131,17 @@ export function conversationWidth(g: GroupGeometry, panelRoom: number): number {
     return g.panelLeft + panelWidth(panelRoom);
 }
 
+// During a brainstorm with no panel open (FR-BOSS-010, #2257, the approved mockup), the window keeps to the group's
+// width, a column under his portrait, and the graph has the space beside it.
+export function conversationWidthFor(g: GroupGeometry, panelRoom: number, column: boolean): number {
+    return column ? g.width : conversationWidth(g, panelRoom);
+}
+
+// The panel the group shows by itself: none during a brainstorm, whose graph takes the space; a click still opens one.
+export function autoPanelIn(auto: PanelId, brainstorming: boolean): PanelId {
+    return brainstorming ? null : auto;
+}
+
 // `contentHeight`: what the exchange needs, the field's row included. `room`: the window's height from the top of the
 // field down.
 export function conversationHeight(contentHeight: number, room: number): number {

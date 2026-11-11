@@ -48,6 +48,41 @@ export function talkFieldHeight(scrollHeight: number, lineHeight: number, paddin
     return Math.min(most, Math.max(least, scrollHeight));
 }
 
+// `/brainstorm` in his field starts the brainstorm at once, `/brainstorm <idea>` with that idea at the centre
+// (FR-BOSS-010, #2257). It is the field's own command, never an agent's: no terminal and no top field reads it, and
+// nothing is installed in his agent for it. Where the gate is shut (rc, public), the field neither offers nor reads it,
+// and the text goes to him as any message.
+export const BrainstormCommand = "/brainstorm";
+
+// The command in the field's text, with the idea after it ("" for none); null when the text is not the command.
+export function brainstormCommand(text: string): { idea: string } {
+    const match = /^\/brainstorm(?:\s+([\s\S]*))?$/i.exec(text.trim());
+    if (match == null) {
+        return null;
+    }
+    return { idea: (match[1] ?? "").trim() };
+}
+
+// What the field does with its text: start the brainstorm (only where the gate allows it), or give the text to him.
+export type FieldAction = { kind: "brainstorm"; idea: string } | { kind: "say"; text: string };
+
+export function fieldAction(text: string, brainstormAllowed: boolean): FieldAction {
+    const command = brainstormAllowed ? brainstormCommand(text) : null;
+    if (command != null) {
+        return { kind: "brainstorm", idea: command.idea };
+    }
+    return { kind: "say", text: text.trim() };
+}
+
+// The hint of the command while the developer starts a slash in the field.
+export function showsCommandHint(text: string, allowed: boolean): boolean {
+    if (!allowed) {
+        return false;
+    }
+    const trimmed = text.trimStart();
+    return trimmed.startsWith("/") && BrainstormCommand.startsWith(trimmed.toLowerCase().split(/\s/)[0]);
+}
+
 // Enter sends; Shift+Enter makes a new line, and so does Enter while an input method composes a word (#2237).
 export function sendsOnKey(key: { key: string; shiftKey?: boolean; isComposing?: boolean }): boolean {
     return key.key === "Enter" && !key.shiftKey && !key.isComposing;

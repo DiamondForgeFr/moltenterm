@@ -3365,6 +3365,8 @@
                 "queued": "{name} is busy: your message goes by itself as soon as he is free.",
                 "agentStopped": "{name}'s agent is no longer running in his terminal. Close that terminal, then send your message again.",
                 "keys": "Enter to send, Shift+Enter for a new line",
+                "keysBrainstorm": "Enter to send, Shift+Enter for a new line, /brainstorm [idea] to brainstorm",
+                "commandHint": "/brainstorm [idea]: brainstorm with {name}, on your idea if you give one",
                 "unreachable": "The message did not go: MoltenTerm got no answer from {name}'s session. Try again in a moment.",
                 "lookupFailed": "The message did not go: MoltenTerm could not look for {name}'s session just now. Try again in a moment.",
                 "refused": "The message did not go: {name}'s terminal did not take it. Open his terminal to see what is there.",

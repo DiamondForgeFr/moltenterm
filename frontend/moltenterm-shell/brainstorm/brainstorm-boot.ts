@@ -63,13 +63,14 @@ export function loadBrainstorm(): Promise<Brainstorm> {
     return loading;
 }
 
-// The developer starts a brainstorm (Brokk's menu, the palette).
-export async function openBrainstorm(): Promise<void> {
+// The developer starts a brainstorm (Brokk's menu, the palette, `/brainstorm` in his field). withIdea: the message that
+// follows is the idea to put at the centre (#2257).
+export async function openBrainstorm(withIdea = false): Promise<void> {
     if (!currentBrainstormAllowed()) {
         return;
     }
     const mod = await loadBrainstorm();
-    await mod.BrainstormModel.getInstance().begin();
+    await mod.BrainstormModel.getInstance().begin(withIdea);
 }
 
 let booted = false;

@@ -229,6 +229,18 @@ describe("the brainstorm mode in a view (FR-BOSS-010, #2246)", () => {
         expect(model.isOpen()).toBe(true);
     });
 
+    // #2257: `/brainstorm <idea>` in his field opens the mode at once; the idea is the next message, so he says no
+    // opening line of his own, and the message tells his session it is a brainstorm.
+    it("starts with the developer's idea, without his opening line", async () => {
+        const model = startModel();
+        await settle();
+        await model.begin(true);
+        expect(calls.find((c) => c.command === OpenCommand).data).toEqual({ by: "you" });
+        expect(session.lines).toEqual([]);
+        expect(session.lead).toBe("boss.brainstorm.lead");
+        expect(model.isOpen()).toBe(true);
+    });
+
     // AC2, AC3: closing his card ends it; one summary line for what arrived, the critical one broke through at the edge.
     it("ends with his card, says once how many things arrived, and brings the sidebar back", async () => {
         const model = startModel();

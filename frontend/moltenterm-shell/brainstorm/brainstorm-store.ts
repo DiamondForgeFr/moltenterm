@@ -216,7 +216,9 @@ export class BrainstormModel {
 
     // The developer starts a brainstorm (Brokk's menu, FR-BOSS-010 AC2): his card opens, he says so in his own line, and
     // the next message tells his session it is a brainstorm. The layer dims at once.
-    async begin(): Promise<void> {
+    // With an idea (the field's `/brainstorm <idea>`, #2257) the developer's next message is that idea, so he says no
+    // opening line of his own: his answer puts it at the centre.
+    async begin(withIdea = false): Promise<void> {
         if (!this.allowed()) {
             return;
         }
@@ -227,7 +229,9 @@ export class BrainstormModel {
         const wasOpen = this.isOpen();
         const state: BrainstormState = await this.ask(OpenCommand, { by: "you" });
         this.apply(state);
-        if (!wasOpen && state != null) {
+        if (withIdea && state != null) {
+            session.setLead(t("boss.brainstorm.lead"));
+        } else if (!wasOpen && state != null) {
             // He says so: a new idea, or the one this computer kept, taken up where it was.
             const title = state.brainstorm?.title ?? "";
             session.addLocalLine(

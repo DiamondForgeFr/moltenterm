@@ -14,7 +14,8 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
+import { BrainstormStateAtom, openBrainstorm } from "../brainstorm/brainstorm-boot";
+import { currentBrainstormAllowed } from "../build/current-build";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { showPane } from "../sessions/pane-focus";
@@ -26,7 +27,9 @@ import { afterCancel, afterClick, afterConfirm, conversationOpen, InlineAction }
 import { BrokkSession } from "./brokk-session";
 import {
     canSend,
+    fieldAction,
     keepsText,
+    showsCommandHint,
     MaxMessageLength,
     onItsWay,
     sendsOnKey,
@@ -82,6 +85,7 @@ export function BrokkTalk({
     // While the brainstorm is on, his conversation stays open beside his portrait whatever has the focus (FR-BOSS-010,
     // #2257): the mockup's exchange lives in his layer.
     const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
+    const brainstormAllowed = currentBrainstormAllowed();
     const open = conversationOpen(focused, text) || brainstorming;
     useEffect(() => onTyping(text.trim() !== ""), [text, onTyping]);
     useEffect(() => () => onTyping(false), [onTyping]);
@@ -148,9 +152,27 @@ export function BrokkTalk({
         if (!canSend(text, state)) {
             return;
         }
-        const result = await session.say(text.trim());
+        const action = fieldAction(text, brainstormAllowed);
+        if (action.kind === "brainstorm") {
+            await startBrainstorm(action.idea);
+            return;
+        }
+        const result = await session.say(action.text);
         if (!keepsText(result)) {
             setText("");
+        }
+    };
+    // `/brainstorm [idea]` (#2257): the mode opens at once, and the idea, when there is one, goes as the message whose
+    // answer puts it at the centre. It stays in the field when his agent could not take it.
+    const startBrainstorm = async (idea: string) => {
+        setText("");
+        await openBrainstorm(idea !== "");
+        if (idea === "") {
+            return;
+        }
+        const result = await session.say(idea);
+        if (keepsText(result) && draft.trim() === "") {
+            setText(idea);
         }
     };
     // A reply he offered goes as the developer's next message. When his agent could not take it, it waits in the field,
@@ -195,6 +217,12 @@ export function BrokkTalk({
         void send();
     };
 
+    // The field's one command, offered while the developer starts a slash (#2257); it has no autocomplete of its own.
+    const commandHint = showsCommandHint(text, brainstormAllowed) ? (
+        <div className="text-11 text-muted" data-testid="brokk-talk-command">
+            {t("boss.panel.talk.commandHint", { name })}
+        </div>
+    ) : null;
     const note = showNote ? (
         <div
             role="status"
@@ -273,6 +301,7 @@ export function BrokkTalk({
                             onCancel={cancel}
                         />
                         {note}
+                        {commandHint}
                     </div>
                 </div>
             ) : null}
@@ -283,7 +312,7 @@ export function BrokkTalk({
                     value={text}
                     maxLength={MaxMessageLength}
                     placeholder={t("boss.panel.talk.placeholder", { name })}
-                    title={t("boss.panel.talk.keys")}
+                    title={brainstormAllowed ? t("boss.panel.talk.keysBrainstorm") : t("boss.panel.talk.keys")}
                     aria-label={t("boss.panel.talk.label", { name })}
                     data-testid="brokk-talk-input"
                     className="mt-brokk-field-input"
@@ -311,7 +340,12 @@ export function BrokkTalk({
                     <MoltenWave />
                 </button>
             </div>
-            {!open && note != null ? <div className="mt-brokk-field-extra">{note}</div> : null}
+            {!open && (note != null || commandHint != null) ? (
+                <div className="mt-brokk-field-extra">
+                    {note}
+                    {commandHint}
+                </div>
+            ) : null}
         </form>
     );
 }

@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest";
 import { restingPose } from "./brokk-ask-model";
 import { brokkPose } from "./brokk-state-model";
 import {
+    BrainstormCommand,
     canSend,
+    fieldAction,
+    showsCommandHint,
     FailedReadingsForNoReply,
     followStep,
     IdleReadingsForAnswered,
@@ -199,6 +202,30 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
         ]);
         expect(talkTerminalAside({ ...IdleTalk, phase: "failed", reason: "refused" })).toBe(false);
         expect(talkWayOut({ ...IdleTalk, phase: "unread" })).toBe("retry");
+    });
+
+    // #2257: `/brainstorm` is the field's own command, read only where the gate allows the brainstorm.
+    it("reads /brainstorm and its idea, only where the brainstorm exists (#2257)", () => {
+        expect(fieldAction("/brainstorm", true)).toEqual({ kind: "brainstorm", idea: "" });
+        expect(fieldAction("  /Brainstorm   a safe video app\nfor kids  ", true)).toEqual({
+            kind: "brainstorm",
+            idea: "a safe video app\nfor kids",
+        });
+        expect(fieldAction("/brainstorming is fun", true)).toEqual({ kind: "say", text: "/brainstorming is fun" });
+        expect(fieldAction("let's /brainstorm", true)).toEqual({ kind: "say", text: "let's /brainstorm" });
+        // rc and public: an ordinary message, and nothing offers it.
+        expect(fieldAction("/brainstorm an idea", false)).toEqual({ kind: "say", text: "/brainstorm an idea" });
+        expect(showsCommandHint("/br", false)).toBe(false);
+        expect(showsCommandHint("/", true)).toBe(true);
+        expect(showsCommandHint("/br", true)).toBe(true);
+        expect(showsCommandHint("/brainstorm an idea", true)).toBe(true);
+        expect(showsCommandHint("/clear", true)).toBe(false);
+        expect(showsCommandHint("hello", true)).toBe(false);
+        expect(BrainstormCommand).toBe("/brainstorm");
+        for (const texts of [En, Fr]) {
+            expect(textAt(texts, "boss.panel.talk.commandHint")).toMatch(/^\/brainstorm .*\{name\}/);
+            expect(textAt(texts, "boss.panel.talk.keysBrainstorm")).toContain("/brainstorm");
+        }
     });
 
     // #2257: a busy agent keeps the message, which goes by itself: the field says so, with the domino.
