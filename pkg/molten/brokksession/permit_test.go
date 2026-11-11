@@ -381,4 +381,3 @@ func TestMapPermission(t *testing.T) {
 		}
 	}
 }
-
