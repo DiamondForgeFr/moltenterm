@@ -52,11 +52,13 @@
     stroke-dasharray: 20 56;
 }
 
-/* Two classes, not one: the icon font's base rule (public/moltenterm-icons.css) sets display: inline-block with the
-   same weight and would win by load order, leaving the glyph left-aligned in the stretched box (#2255). */
+/* Two classes, not one: the icon font's rules (fontawesome.min.css) set display: inline-block and, through fa-fw,
+   width: 1.25em with the same weight, and would win by load order. The fixed width pins a 15 px box to the left edge
+   whatever the inset, so width: auto lets the inset stretch it over the whole 28 px (#2255). */
 .mt-act .mt-act-glyph {
     position: absolute;
     inset: 0;
+    width: auto;
     display: flex;
     align-items: center;
     justify-content: center;
