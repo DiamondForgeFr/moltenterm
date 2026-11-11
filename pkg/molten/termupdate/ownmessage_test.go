@@ -156,6 +156,44 @@ func TestOwnMessageAsksAgainBeforeEnter(t *testing.T) {
 	}
 }
 
+// #2257, second review: the agent is asked again right before Ctrl+C, so a turn that started meanwhile is not cut;
+// and a human typing between the paste and Enter holds Enter, which would send their text with the message.
+func TestOwnMessageAsksAgainBeforeTheClearAndWatchesForAHuman(t *testing.T) {
+	f := claudeInputTerm()
+	f.state = AgentInputState{Draft: true, Own: true, Known: true, Precise: false}
+	checks := 0
+	atRestUntilClear := func() bool {
+		checks++
+		return checks == 1
+	}
+	out := MakeUpdater(f.env()).typeOwnMessage(context.Background(), "b1", "hello", OwnPromptFacts{AtRest: atRestUntilClear})
+	if out.Result != InputRefused || out.Reason != InputReasonUnsettled || len(f.input) != 0 {
+		t.Fatalf("a turn started before the clear: %+v, typed %q", out, f.input)
+	}
+
+	g, w, u, _ := watchedTerm(t)
+	w.input("b1", []byte("\x15"))
+	env := u.env
+	send := env.SendInput
+	env.SendInput = func(blockId string, data []byte) error {
+		if err := send(blockId, data); err != nil {
+			return err
+		}
+		if strings.HasPrefix(string(data), pasteStart) {
+			// A human's keys, right after the paste.
+			w.input(blockId, []byte(" and mine"))
+		}
+		return nil
+	}
+	out = MakeUpdater(env).typeOwnMessage(context.Background(), "b1", "hello", OwnPromptFacts{})
+	if out.Result != InputRefused || out.Reason != InputReasonHumanDraft || strings.Contains(strings.Join(g.input, "|"), "\r") {
+		t.Fatalf("a human typed before Enter: %+v, typed %q", out, g.input)
+	}
+	if !strings.Contains(out.Message, "Enter was not pressed") {
+		t.Fatalf("the refusal does not say so: %q", out.Message)
+	}
+}
+
 func TestOwnMessageRefusals(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
