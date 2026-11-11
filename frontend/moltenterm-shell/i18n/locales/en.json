@@ -3113,6 +3113,7 @@
         "brainstorm": {
             "menu": "Brainstorm with {name}",
             "opening": "An idea? Let's put it on the anvil. Tell me what it is, and who it is for.",
+            "resume": "Back to “{title}”. Where were we?",
             "lead": "Brainstorm:",
             "header": "{name}'s thought · {nodes} · {links}",
             "headerWaiting": "{name} is listening",

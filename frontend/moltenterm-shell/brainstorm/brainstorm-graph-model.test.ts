@@ -56,9 +56,22 @@ describe("the brokk-graph block", () => {
         ["a list", "[1, 2]"],
         ["another version", JSON.stringify({ ...block, v: 2 })],
         ["an unknown talk", JSON.stringify({ ...block, talk: "gossip" })],
-        ["an invalid id", JSON.stringify({ v: 1, talk: "project", ops: [{ op: "centre", id: "Secret Idea", text: "x" }] })],
-        ["an unknown kind", JSON.stringify({ v: 1, talk: "project", ops: [{ op: "add", id: "a", kind: "rumour", text: "x", from: "b" }] })],
-        ["a text too long", JSON.stringify({ v: 1, talk: "project", ops: [{ op: "centre", id: "a", text: "y".repeat(MaxText + 1) }] })],
+        [
+            "an invalid id",
+            JSON.stringify({ v: 1, talk: "project", ops: [{ op: "centre", id: "Secret Idea", text: "x" }] }),
+        ],
+        [
+            "an unknown kind",
+            JSON.stringify({
+                v: 1,
+                talk: "project",
+                ops: [{ op: "add", id: "a", kind: "rumour", text: "x", from: "b" }],
+            }),
+        ],
+        [
+            "a text too long",
+            JSON.stringify({ v: 1, talk: "project", ops: [{ op: "centre", id: "a", text: "y".repeat(MaxText + 1) }] }),
+        ],
         ["a node linked to itself", JSON.stringify({ v: 1, talk: "project", ops: [{ op: "link", a: "a", b: "a" }] })],
         ["an unknown operation", JSON.stringify({ v: 1, talk: "project", ops: [{ op: "delete", id: "a" }] })],
         [
@@ -66,7 +79,13 @@ describe("the brokk-graph block", () => {
             JSON.stringify({
                 v: 1,
                 talk: "project",
-                ops: Array.from({ length: MaxOps + 1 }, (_, i) => ({ op: "add", id: `n${i}`, kind: "idea", text: "x", from: "c" })),
+                ops: Array.from({ length: MaxOps + 1 }, (_, i) => ({
+                    op: "add",
+                    id: `n${i}`,
+                    kind: "idea",
+                    text: "x",
+                    from: "c",
+                })),
             }),
         ],
     ])("drops %s", (_name, json) => {
@@ -78,7 +97,9 @@ describe("the brokk-graph block", () => {
     });
 
     it("skips the operations of later stories rather than dropping the block", () => {
-        expect(blockProblem({ v: 1, talk: "project", ops: [{ op: "propose", id: "p", text: "x", from: "c" }] })).toBe("");
+        expect(blockProblem({ v: 1, talk: "project", ops: [{ op: "propose", id: "p", text: "x", from: "c" }] })).toBe(
+            ""
+        );
     });
 
     it("leaves a quick question a normal exchange, and personal talk draws nothing", () => {

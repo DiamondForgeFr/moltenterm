@@ -19,6 +19,8 @@ describe("the channel Electron main gives wavesrv", () => {
     it("names the variable wavesrv reads, and wavesrv's launch sets it", () => {
         const go = readFileSync("pkg/molten/buildchannel/buildchannel.go", "utf8");
         expect(go).toContain(`const Env = "${BuildChannelEnv}"`);
-        expect(readFileSync("emain/emain-wavesrv.ts", "utf8")).toMatch(/envCopy\[BuildChannelEnv\] = currentBuildChannel\(/);
+        expect(readFileSync("emain/emain-wavesrv.ts", "utf8")).toMatch(
+            /envCopy\[BuildChannelEnv\] = currentBuildChannel\(/
+        );
     });
 });

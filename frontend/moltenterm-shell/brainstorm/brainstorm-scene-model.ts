@@ -26,8 +26,8 @@ export const Ropes = {
     segments: 14,
 } as const;
 
-// The core: a sphere of molten metal of this radius, in the world's units (about pixels at the overview).
-export const CoreRadius = 30;
+// The core: a sphere of molten metal of this radius, in the world's units (about pixels in a close view).
+export const CoreRadius = 46;
 
 // Forge colours (the suite's language: orange is action and heat, brass is what holds). Hot metal for what is proposed,
 // brass for a decision, cold steel for a question: no pastel (FR-BOSS-010 AC17).
@@ -92,8 +92,43 @@ export type CameraGoal = {
 };
 
 export const CameraFov = 38;
-const FollowDistance = 520;
-const MinOverviewDistance = 620;
+// The follow frames the newest node with this much of the graph around it; the overview never frames less than this,
+// so that the core alone stands at about a fifth of the free space, not filling it.
+const FollowRadius = 340;
+const MinOverviewRadius = 170;
+// The share of the free space the framed sphere may take.
+const FitShare = 0.95;
+
+// The free space the graph is shown in, in the stage's pixels: right of Brokk's group, or under it in a narrow window.
+export type FreeRect = { left: number; top: number; width: number; height: number };
+
+// The free space: what is right of his group or what is under it (a 24 px margin), whichever frames a graph larger
+// (the larger smaller side: a graph spreads about as wide as tall); the whole stage when there is no group. `group` is
+// his group's box in the stage's pixels, null without one.
+export function freeRect(stage: { width: number; height: number }, group: FreeRect, margin = 24): FreeRect {
+    if (group == null || group.width <= 0 || group.height <= 0) {
+        return { left: 0, top: 0, width: stage.width, height: stage.height };
+    }
+    const right = Math.max(0, group.left + group.width + margin);
+    const below = Math.max(0, group.top + group.height + margin);
+    const beside: FreeRect = { left: right, top: 0, width: Math.max(0, stage.width - right), height: stage.height };
+    const under: FreeRect = { left: 0, top: below, width: stage.width, height: Math.max(0, stage.height - below) };
+    const side = (r: FreeRect) => Math.min(r.width, r.height);
+    const best = side(beside) >= side(under) ? beside : under;
+    return side(best) > 0 ? best : { left: 0, top: 0, width: stage.width, height: stage.height };
+}
+
+// A plate keeps its size in pixels whatever the distance: the framing leaves room for part of a plate around the graph
+// (the plates make room for each other inside the free space, declutter).
+export const PlateMarginPx = { x: 60, y: 30 };
+
+// The camera's distance at which a sphere of `radius` fills FitShare of the free space, less the plates' margin, for a
+// canvas `canvasHeight` px tall.
+export function fitDistance(radius: number, free: FreeRect, canvasHeight: number, fovDeg: number = CameraFov): number {
+    const tan = Math.tan((fovDeg * Math.PI) / 360);
+    const side = Math.max(80, Math.min(free.width - 2 * PlateMarginPx.x, free.height - 2 * PlateMarginPx.y));
+    return (radius * Math.max(1, canvasHeight)) / (FitShare * tan * side);
+}
 
 // The sphere that holds every node, the centre's at least.
 export function graphBounds(graph: BrainstormGraph): { centre: Vec3; radius: number } {
@@ -112,29 +147,32 @@ export function graphBounds(graph: BrainstormGraph): { centre: Vec3; radius: num
     const centre = lerp(min, max, 0.5);
     let radius = CoreRadius * 4;
     for (const n of nodes) {
-        radius = Math.max(radius, distance(centre, n.pos as Vec3) + 90);
+        radius = Math.max(radius, distance(centre, n.pos as Vec3) + 40);
     }
     return { centre, radius };
 }
 
-// The camera's distance that shows a sphere of `radius` whole in a view of this aspect.
-export function fitDistance(radius: number, aspect: number, fovDeg: number = CameraFov): number {
-    const vertical = (fovDeg * Math.PI) / 180;
-    const horizontal = 2 * Math.atan(Math.tan(vertical / 2) * Math.max(0.2, aspect));
-    const narrowest = Math.min(vertical, horizontal);
-    return Math.max(MinOverviewDistance, (radius / Math.sin(narrowest / 2)) * 1.05);
-}
-
 // Where the camera wants to be: on the newest node and its branch while the talk goes on, on the whole graph after
 // OverviewAfterMs without talk. The follow keeps a little of the graph's middle in view (the mockup's 85 %).
-export function cameraGoal(graph: BrainstormGraph, quietMs: number, aspect: number): CameraGoal {
+export function cameraGoal(graph: BrainstormGraph, quietMs: number, free: FreeRect, canvasHeight: number): CameraGoal {
     const bounds = graphBounds(graph);
     const newest = newestNode(graph);
     if (newest == null || quietMs >= OverviewAfterMs || (graph?.nodes?.length ?? 0) <= 1) {
-        return { mode: "overview", target: bounds.centre, distance: fitDistance(bounds.radius, aspect) };
+        const radius = Math.max(MinOverviewRadius, bounds.radius);
+        return { mode: "overview", target: bounds.centre, distance: fitDistance(radius, free, canvasHeight) };
     }
-    return { mode: "follow", target: lerp(bounds.centre, newest.pos as Vec3, 0.85), distance: FollowDistance };
+    return {
+        mode: "follow",
+        target: lerp(bounds.centre, newest.pos as Vec3, FollowShare),
+        distance: Math.min(
+            fitDistance(FollowRadius, free, canvasHeight),
+            fitDistance(bounds.radius, free, canvasHeight)
+        ),
+    };
 }
+
+// How far toward the newest node the follow moves from the graph's middle: on it, with its parent still in view.
+const FollowShare = 0.7;
 
 // The share of the way to its goal the camera covers in dtMs: a smooth ease, the same at any frame rate.
 export function easeShare(dtMs: number, tauMs = 650): number {
@@ -148,8 +186,9 @@ export const Loops = {
     corePulse: { periodMs: 2600, still: 0.85 },
     // The embers rise through the scene in about 9 s.
     emberRise: { periodMs: 9000, still: 0.35 },
-    // The scene turns slowly, faster at the overview (the mockup's 0.03 and 0.07 rad/s).
-    turn: { followRadPerS: 0.03, overviewRadPerS: 0.07, still: 0 },
+    // The camera sways slowly round the front of the relief, never to its edge: the plates stay readable and the depth
+    // shows in their parallax.
+    sway: { amplitudeRad: 0.34, periodMs: 46000, still: 0 },
     // A node's arrival: it grows out of its parent in this time; a fade alone under reduced motion.
     arrival: { ms: 700, fadeMs: 150 },
     // The cross-fade that replaces a camera move under reduced motion.
@@ -172,11 +211,12 @@ export function emberRise(nowMs: number, offset: number, still: boolean): number
     return (nowMs / Loops.emberRise.periodMs + offset) % 1;
 }
 
-export function turnRate(mode: CameraGoal["mode"], still: boolean): number {
+// The camera's angle round the relief at `elapsedMs` of the stage: a slow sway, and none under reduced motion.
+export function swayAngle(elapsedMs: number, still: boolean): number {
     if (still) {
-        return Loops.turn.still;
+        return Loops.sway.still;
     }
-    return mode === "overview" ? Loops.turn.overviewRadPerS : Loops.turn.followRadPerS;
+    return Loops.sway.amplitudeRad * Math.sin((elapsedMs / Loops.sway.periodMs) * 2 * Math.PI);
 }
 
 // A node's arrival, from 0 to 1: it grows (scale) and lights up (opacity); under reduced motion it only fades in.
@@ -192,10 +232,87 @@ export function arrival(ageMs: number, still: boolean): { scale: number; opacity
     return { scale: Math.max(0.2, eased), opacity: Math.min(1, t * 1.6) };
 }
 
-// How a plate reads at its depth: the nearer, the larger and the clearer (the mockup's depth cue). `depth` is the
-// distance from the camera, `focus` the camera's distance to its target.
-export function plateLook(depth: number, focus: number): { scale: number; opacity: number; blur: number } {
-    const scale = Math.min(1.25, Math.max(0.55, focus / Math.max(1, depth)));
-    const opacity = Math.min(1, Math.max(0.35, 1.25 - Math.max(0, depth - focus) / 900));
+// A box on screen: its middle and its half sizes. A fixed one (the core) is an obstacle that never moves.
+export type ScreenBox = { x: number; y: number; hw: number; hh: number; fixed?: boolean };
+
+// The plates make room for each other on screen (FR-BOSS-010 AC5): a plate keeps its size in pixels while the camera
+// pulls back, so at the overview neighbours would cover each other. Each round pushes every overlapping pair apart along
+// the axis where they overlap least, half each (all of it for a plate against a fixed box), and keeps the plates inside
+// `bounds`. Returns each box's offset; the scene eases toward it and ties the ropes to where the plates are shown.
+export function declutter(boxes: ScreenBox[], bounds: FreeRect, rounds = 10, pad = 8): [number, number][] {
+    const pos = boxes.map((b) => [b.x, b.y]);
+    for (let round = 0; round < rounds; round++) {
+        let moved = false;
+        for (let i = 0; i < boxes.length; i++) {
+            for (let j = i + 1; j < boxes.length; j++) {
+                const a = boxes[i];
+                const b = boxes[j];
+                if (a.fixed && b.fixed) {
+                    continue;
+                }
+                const dx = pos[j][0] - pos[i][0];
+                const dy = pos[j][1] - pos[i][1];
+                const ox = a.hw + b.hw + pad - Math.abs(dx);
+                const oy = a.hh + b.hh + pad - Math.abs(dy);
+                if (ox <= 0 || oy <= 0) {
+                    continue;
+                }
+                moved = true;
+                const shareA = a.fixed ? 0 : b.fixed ? 1 : 0.5;
+                const shareB = 1 - shareA;
+                if (ox < oy) {
+                    const s = dx === 0 ? (i % 2 === 0 ? 1 : -1) : Math.sign(dx);
+                    pos[i][0] -= s * ox * shareA;
+                    pos[j][0] += s * ox * shareB;
+                } else {
+                    const s = dy === 0 ? (j % 2 === 0 ? 1 : -1) : Math.sign(dy);
+                    pos[i][1] -= s * oy * shareA;
+                    pos[j][1] += s * oy * shareB;
+                }
+            }
+        }
+        for (let i = 0; i < boxes.length; i++) {
+            const b = boxes[i];
+            // A plate the camera left outside the free space stays out: only the ones in it are kept in.
+            if (b.fixed || bounds == null || !inside(b, bounds)) {
+                continue;
+            }
+            pos[i][0] = clampInside(pos[i][0], b.hw, bounds.left, bounds.left + bounds.width);
+            pos[i][1] = clampInside(pos[i][1], b.hh, bounds.top, bounds.top + bounds.height);
+        }
+        if (!moved) {
+            break;
+        }
+    }
+    return pos.map((p, i) => [p[0] - boxes[i].x, p[1] - boxes[i].y]);
+}
+
+function inside(b: ScreenBox, r: FreeRect): boolean {
+    return b.x >= r.left && b.x <= r.left + r.width && b.y >= r.top && b.y <= r.top + r.height;
+}
+
+// Keeps a box of half size `half` inside [lo, hi]; a box larger than the room stays centred in it.
+function clampInside(v: number, half: number, lo: number, hi: number): number {
+    if (hi - lo <= 2 * half) {
+        return (lo + hi) / 2;
+    }
+    return Math.min(hi - half, Math.max(lo + half, v));
+}
+
+// How a plate reads at its depth: smaller as the camera pulls back from the follow's distance (`reference`), dimmer
+// behind the camera's target (`focus`, its distance to it). The scale stays in a narrow range so that every plate stays
+// readable; depth shows mostly in its light.
+export function plateLook(
+    depth: number,
+    focus: number,
+    reference: number = focus
+): { scale: number; opacity: number; blur: number } {
+    const scale = Math.min(1.12, Math.max(0.8, Math.sqrt(reference / Math.max(1, depth))));
+    const opacity = Math.min(1, Math.max(0.35, 1.25 - Math.max(0, depth - focus) / (focus * 1.2)));
     return { scale, opacity, blur: opacity < 0.6 ? 0.8 : 0 };
+}
+
+// The camera's distance while it follows the topic, in this free space.
+export function followDistance(free: FreeRect, canvasHeight: number): number {
+    return fitDistance(FollowRadius, free, canvasHeight);
 }

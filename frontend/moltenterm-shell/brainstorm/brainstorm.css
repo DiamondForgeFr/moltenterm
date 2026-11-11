@@ -12,6 +12,8 @@
 .mt-bs-layer {
     position: absolute;
     inset: 0;
+    /* The plates' depth order stays inside the layer: his group, drawn after it, is always above. */
+    isolation: isolate;
     pointer-events: none;
     opacity: 0;
     transition: opacity var(--mt-duration-slow) var(--mt-ease);
@@ -29,9 +31,7 @@
 .mt-bs-scrim {
     position: absolute;
     inset: 0;
-    background:
-        radial-gradient(ellipse 70% 60% at 62% 48%, rgb(40 22 10 / 0.35), transparent 70%),
-        rgb(8 7 6 / 0.66);
+    background: radial-gradient(ellipse 70% 60% at 62% 48%, rgb(40 22 10 / 0.35), transparent 70%), rgb(8 7 6 / 0.72);
 }
 
 /* The forge under the scene: a low orange glow, as if the floor of the workshop were lit from below. */
@@ -100,16 +100,25 @@
     color: rgb(239 230 216);
     background:
         radial-gradient(circle at 5px 5px, rgb(255 236 210 / 0.55) 0 1.2px, rgb(0 0 0 / 0.5) 1.8px, transparent 2.4px),
-        radial-gradient(circle at calc(100% - 5px) 5px, rgb(255 236 210 / 0.55) 0 1.2px, rgb(0 0 0 / 0.5) 1.8px, transparent 2.4px),
-        radial-gradient(circle at 5px calc(100% - 5px), rgb(255 236 210 / 0.55) 0 1.2px, rgb(0 0 0 / 0.5) 1.8px, transparent 2.4px),
+        radial-gradient(
+            circle at calc(100% - 5px) 5px,
+            rgb(255 236 210 / 0.55) 0 1.2px,
+            rgb(0 0 0 / 0.5) 1.8px,
+            transparent 2.4px
+        ),
+        radial-gradient(
+            circle at 5px calc(100% - 5px),
+            rgb(255 236 210 / 0.55) 0 1.2px,
+            rgb(0 0 0 / 0.5) 1.8px,
+            transparent 2.4px
+        ),
         radial-gradient(
             circle at calc(100% - 5px) calc(100% - 5px),
             rgb(255 236 210 / 0.55) 0 1.2px,
             rgb(0 0 0 / 0.5) 1.8px,
             transparent 2.4px
         ),
-        linear-gradient(180deg, rgb(255 255 255 / 0.06), transparent 40%),
-        var(--bs-plate);
+        linear-gradient(180deg, rgb(255 255 255 / 0.06), transparent 40%), var(--bs-plate);
     box-shadow:
         0 0 calc(18px * var(--bs-glow, 0)) rgb(255 124 13 / calc(0.5 * var(--bs-glow, 0))),
         inset 0 1px 0 rgb(255 255 255 / 0.06),
@@ -152,8 +161,11 @@
 /* The line over the free space: whose thought, how many nodes and links. */
 .mt-bs-header {
     position: absolute;
-    top: 14px;
-    right: 24px;
+    top: calc(var(--bs-free-top, 0px) + 12px);
+    right: 16px;
+    padding: 4px 10px;
+    border-radius: var(--mt-radius-control);
+    background: rgb(18 17 16 / 0.85);
     font-size: var(--mt-text-11);
     font-weight: 600;
     letter-spacing: 0.18em;
@@ -218,7 +230,7 @@
 /* What broke through the pause: one line at the right edge, never a toast. */
 .mt-bs-edge {
     position: absolute;
-    top: 40px;
+    top: calc(var(--bs-free-top, 0px) + 46px);
     right: 16px;
     display: flex;
     align-items: center;

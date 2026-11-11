@@ -21,13 +21,14 @@ function entry(over: Partial<MoltentermNotification>): MoltentermNotification {
 function agents(states: Record<string, string>): AgentStatesData {
     const rtn: AgentStatesData = { states: {}, versions: {} };
     for (const [blockid, state] of Object.entries(states)) {
-        rtn.states[blockid] = { blockid, state: state as any, firstname: `Agent ${blockid}` };
+        rtn.states[blockid] = { blockid, state: state as any, firstname: `Agent ${blockid}`, version: 1 };
     }
     return rtn;
 }
 
 const opening = '```brokk-graph\n{"v":1,"talk":"project","ops":[{"op":"centre","id":"c","text":"An idea"}]}\n```';
-const growing = '```brokk-graph\n{"v":1,"talk":"project","ops":[{"op":"add","id":"q","kind":"question","text":"Why?","from":"c"}]}\n```';
+const growing =
+    '```brokk-graph\n{"v":1,"talk":"project","ops":[{"op":"add","id":"q","kind":"question","text":"Why?","from":"c"}]}\n```';
 
 // FR-BOSS-010 AC3 (#2246): only what cannot wait breaks through, everything else waits and is counted once.
 describe("the pause", () => {
@@ -51,7 +52,11 @@ describe("the pause", () => {
         const seen = new Map([["old", 1]]);
         let tally = tallied(EmptyTally, [entry({ id: "old" }), entry({ id: "a", updated: 2 })], seen);
         expect([...tally.ids]).toEqual(["a"]);
-        tally = tallied(tally, [entry({ id: "a", updated: 3 }), entry({ id: "b" }), entry({ id: "c", read: true })], seen);
+        tally = tallied(
+            tally,
+            [entry({ id: "a", updated: 3 }), entry({ id: "b" }), entry({ id: "c", read: true })],
+            seen
+        );
         expect([...tally.ids].sort()).toEqual(["a", "b"]);
         expect(tallied(tally, [entry({ id: "a" })], seen)).toBe(tally);
     });
@@ -99,7 +104,12 @@ describe("which readings of his answer go to wavesrv (AC2, AC4, AC7)", () => {
     });
 
     it("keeps the words of a turn whose block was dropped, and says why without its content", () => {
-        const step = answerStep({ ...base, open: true, final: true, markdown: "Noted.\n\n```brokk-graph\n{secret\n```" });
+        const step = answerStep({
+            ...base,
+            open: true,
+            final: true,
+            markdown: "Noted.\n\n```brokk-graph\n{secret\n```",
+        });
         expect(step).toMatchObject({ kind: "turn", text: "Noted.", block: null, dropped: "not JSON" });
     });
 

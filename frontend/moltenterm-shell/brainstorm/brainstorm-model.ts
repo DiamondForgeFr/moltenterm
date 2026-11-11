@@ -89,7 +89,13 @@ export function answerStep(input: {
         if (!input.open && !opensBrainstorm(read.block)) {
             return { kind: "wait" };
         }
-        return { kind: "turn", key: `${input.turn}:g${textMark(JSON.stringify(read.block))}`, text: read.text, block: read.block, dropped: "" };
+        return {
+            kind: "turn",
+            key: `${input.turn}:g${textMark(JSON.stringify(read.block))}`,
+            text: read.text,
+            block: read.block,
+            dropped: "",
+        };
     }
     if (!input.open || !input.final || read.problem === "open") {
         return { kind: "wait" };

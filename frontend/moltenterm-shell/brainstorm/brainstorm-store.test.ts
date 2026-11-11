@@ -104,7 +104,14 @@ import { BrokkSession } from "../boss/brokk-session";
 import { MoltentermNotifications } from "../notifications-store";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { brainstormHolds } from "./brainstorm-hold";
-import { BrainstormModel, CloseCommand, OpenCommand, SidebarSlidMetaKey, StateCommand, TurnCommand } from "./brainstorm-store";
+import {
+    BrainstormModel,
+    CloseCommand,
+    OpenCommand,
+    SidebarSlidMetaKey,
+    StateCommand,
+    TurnCommand,
+} from "./brainstorm-store";
 
 const session = BrokkSession.getInstance() as any;
 const boss = BossBubbleModel.getInstance() as any;
@@ -152,7 +159,8 @@ async function settle(): Promise<void> {
     }
 }
 
-const opening = 'Let\'s put it on the anvil.\n\n```brokk-graph\n{"v":1,"talk":"project","ops":[{"op":"centre","id":"c","text":"An idea"}]}\n```';
+const opening =
+    'Let\'s put it on the anvil.\n\n```brokk-graph\n{"v":1,"talk":"project","ops":[{"op":"centre","id":"c","text":"An idea"}]}\n```';
 
 beforeEach(async () => {
     BrainstormModel.resetInstance();
@@ -229,11 +237,28 @@ describe("the brainstorm mode in a view (FR-BOSS-010, #2246)", () => {
         globalStore.set(sidebar.windowMetaAtom, { [SidebarSlidMetaKey]: true });
         globalStore.set(notifications.entriesAtom, [
             { id: "a", source: "build", kind: "info", title: "Build done", time: 2, updated: 2, read: false },
-            { id: "b", source: "trust", kind: "warning", title: "A run waits for your trust", time: 3, updated: 3, read: false },
+            {
+                id: "b",
+                source: "trust",
+                kind: "warning",
+                title: "A run waits for your trust",
+                time: 3,
+                updated: 3,
+                read: false,
+            },
         ]);
-        expect(globalStore.get(model.breakthroughAtom)).toMatchObject({ kind: "trust", text: "A run waits for your trust" });
-        globalStore.set(agents.dataAtom, { states: { blk: { blockid: "blk", state: "error", firstname: "Léa" } }, versions: {} });
-        expect(globalStore.get(model.breakthroughAtom)).toMatchObject({ kind: "crash", text: "boss.brainstorm.crashedNamed(Léa)" });
+        expect(globalStore.get(model.breakthroughAtom)).toMatchObject({
+            kind: "trust",
+            text: "A run waits for your trust",
+        });
+        globalStore.set(agents.dataAtom, {
+            states: { blk: { blockid: "blk", state: "error", firstname: "Léa" } },
+            versions: {},
+        });
+        expect(globalStore.get(model.breakthroughAtom)).toMatchObject({
+            kind: "crash",
+            text: "boss.brainstorm.crashedNamed(Léa)",
+        });
         expect(toasts).toEqual([]);
         boss.closeCard();
         await settle();
@@ -258,6 +283,34 @@ describe("the brainstorm mode in a view (FR-BOSS-010, #2246)", () => {
         const turns = calls.filter((c) => c.command === TurnCommand);
         expect(turns).toHaveLength(1);
         expect(turns[0].data).toMatchObject({ brokk: "What does it do?", block: null });
+    });
+
+    it("takes a brainstorm up where it was when the developer starts one after a restart", async () => {
+        const model = startModel();
+        await settle();
+        model.useCall(async (command, data) => {
+            const rtn = await fakeCall(command, data);
+            return command === OpenCommand
+                ? { ...rtn, brainstorm: { slug: "forge-notes", title: "Forge notes" } }
+                : rtn;
+        });
+        await model.begin();
+        expect(session.lines).toEqual(["boss.brainstorm.resume"]);
+    });
+
+    // AC2: a tab switch keeps the mode; the view switched to opens his card, and closes it when the mode ends elsewhere.
+    it("opens his card in the view switched to, and closes it with the mode", async () => {
+        const activity = (await import("../tab-activity")).TabActivity.getInstance() as any;
+        globalStore.set(activity.onScreenAtom, false);
+        const model = startModel();
+        await settle();
+        model.apply({ allowed: true, open: true, version: 5 });
+        expect(globalStore.get(boss.cardOpenAtom)).toBe(false);
+        globalStore.set(activity.onScreenAtom, true);
+        expect(globalStore.get(boss.cardOpenAtom)).toBe(true);
+        model.apply({ allowed: true, open: false, version: 6 });
+        expect(globalStore.get(boss.cardOpenAtom)).toBe(false);
+        expect(calls.filter((c) => c.command === CloseCommand)).toHaveLength(0);
     });
 
     it("drops a state older than the one it has", async () => {

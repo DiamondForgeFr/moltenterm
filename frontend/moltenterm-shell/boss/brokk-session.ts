@@ -165,7 +165,14 @@ export class BrokkSession {
     replayStep(key: string, you: string, markdown: string, turn: number, final: boolean): void {
         let tracked = this.replayed.get(key);
         if (tracked == null) {
-            tracked = { id: `replay${++this.counter}`, text: you, sentAt: Date.now(), turn, markdown: "", stopped: true };
+            tracked = {
+                id: `replay${++this.counter}`,
+                text: you,
+                sentAt: Date.now(),
+                turn,
+                markdown: "",
+                stopped: true,
+            };
             this.replayed.set(key, tracked);
             const id = tracked.id;
             globalStore.set(this.exchangeAtom, (items) => withMessage(items, id, you, Date.now()));
