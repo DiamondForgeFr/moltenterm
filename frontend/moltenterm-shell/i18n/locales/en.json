@@ -596,8 +596,8 @@
             },
             "boss:autoapprove": {
                 "label": "Approve his agent's requests without asking",
-                "description": "He acts without asking, each action a line in his window; your keys, ~/.ssh and force pushes still ask.",
-                "confirm": "Turned on, his agent runs commands, edits and writes files, reads pages, all without asking you first, until you turn it off. Each action shows as a line in his talk window. What touches MoltenTerm's own data, your credentials, keychain or ~/.ssh, or force-pushes and deletes branches on a remote, still asks you.",
+                "description": "Only what stays in his own folder goes without asking, each a line in his window; the rest still asks.",
+                "confirm": "Turned on, his agent reads, edits and writes the files of his own folder, and runs simple read-only commands there (git status, diff, log, show, the tests), all without asking you first, until you turn it off. Each action shows as a line in his talk window. Everything else still asks you: any other file or folder, other commands, web pages and searches.",
                 "confirmOn": "Turn it on",
                 "confirmCancel": "Keep asking me"
             },
