@@ -42,6 +42,7 @@ export function useTalkFace(signals: TalkFaceSignals): BrokkSituation["talk"] {
         quietSince: quietSince.current,
         now: Date.now(),
     });
+    useEffect(() => speech.noteFace(face.talk), [speech, face.talk]);
     useEffect(() => {
         if (face.wakeAt == null) {
             return;

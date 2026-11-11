@@ -11,11 +11,13 @@
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
+import type { BrokkSituation } from "./brokk-ask-model";
 import { BrokkItem, ExchangeItem } from "./brokk-exchange-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import { BrokkSession } from "./brokk-session";
 import {
     alreadySaid,
+    FaceTrack,
     Heard,
     NoSpeech,
     shownAt,
@@ -24,6 +26,8 @@ import {
     speechAfterHeard,
     speechFlushed,
     speechWakeAt,
+    StartTrack,
+    trackAfter,
 } from "./brokk-speech-model";
 
 // The answer being revealed and how many of its characters show; id null when none is.
@@ -64,6 +68,8 @@ export class BrokkSpeech {
     speakingAtom = atom(false) as PrimitiveAtom<boolean>;
 
     speech: Speech = NoSpeech;
+    // What his face did last with the conversation: whether the tone of an answer can start at once.
+    track: FaceTrack = StartTrack;
     private timer: Timer = LiveTimer;
     private wake: unknown = null;
     private now: () => number = () => Date.now();
@@ -120,7 +126,7 @@ export class BrokkSpeech {
 
     // More of his answer was read.
     heard(items: ExchangeItem[]): void {
-        const step = speechAfterHeard(this.speech, latestAnswer(items), this.now(), this.instant());
+        const step = speechAfterHeard(this.speech, latestAnswer(items), this.now(), this.instant(), this.track);
         if (step.speech === this.speech) {
             return;
         }
@@ -129,6 +135,11 @@ export class BrokkSpeech {
             BrokkExpressionsModel.getInstance().ask(step.gesture, { answer: true });
         }
         this.draw();
+    }
+
+    // What his group's face does with the conversation (use-brokk-talk-face.ts), told as it changes.
+    noteFace(talk: BrokkSituation["talk"]): void {
+        this.track = trackAfter(this.track, talk, this.now());
     }
 
     // A click or a key: the rest of his answer shows at once.
@@ -148,6 +159,7 @@ export class BrokkSpeech {
         this.watching++;
         if (this.watching === 1) {
             this.speech = alreadySaid(latestAnswer(globalStore.get(session.exchangeAtom)));
+            this.track = null;
             this.draw();
         }
         const stopExchange = globalStore.sub(session.exchangeAtom, () =>
