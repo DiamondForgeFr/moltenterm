@@ -31,8 +31,8 @@ vi.mock("./mission/trust-approval-model", () => ({ trustReviewAction: () => null
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { setBrainstormHold } from "./brainstorm/brainstorm-hold";
-import { startNotificationToasts } from "./notification-toasts";
 import { ToastCoalesceMs } from "./notification-rules";
+import { startNotificationToasts } from "./notification-toasts";
 import { MoltentermNotifications } from "./notifications-store";
 
 const model = MoltentermNotifications.getInstance() as any;

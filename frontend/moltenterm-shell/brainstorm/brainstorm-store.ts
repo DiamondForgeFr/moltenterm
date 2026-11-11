@@ -15,12 +15,12 @@
 
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { atom, Atom, PrimitiveAtom } from "jotai";
-import { AgentStates } from "../agent-state-store";
 import type { AgentStatesData } from "../agent-state-model";
+import { AgentStates } from "../agent-state-store";
 import { BossBubbleModel } from "../boss/boss-store";
 import { AnswerRead, BrokkSession } from "../boss/brokk-session";
 import { currentBrainstormAllowed } from "../build/current-build";
@@ -40,8 +40,8 @@ import {
     newlyCrashed,
     sidebarOnClose,
     sidebarOnOpen,
-    Tally,
     tallied,
+    Tally,
 } from "./brainstorm-model";
 
 // must match pkg/molten/brainstorm/route.go
@@ -111,6 +111,8 @@ export class BrainstormModel {
     private seen = new Map<string, number>();
     private agentsBefore: AgentStatesData = null;
     private cardWasOpen = false;
+    // The mode opened his card in this view (a tab switch onto it): it closes it again when it ends.
+    private cardOpenedByMode = false;
     private stops: (() => void)[] = [];
 
     private constructor() {
@@ -233,11 +235,19 @@ export class BrainstormModel {
         const session = BrokkSession.getInstance();
         boss.openCard(undefined, { force: true });
         boss.pinCard();
-        if (!this.isOpen()) {
-            session.addLocalLine(t("boss.brainstorm.opening", { name: globalStore.get(boss.nameAtom) }));
+        const wasOpen = this.isOpen();
+        const state: BrainstormState = await this.ask(OpenCommand, { by: "you" });
+        this.apply(state);
+        if (!wasOpen && state != null) {
+            // He says so: a new idea, or the one this computer kept, taken up where it was.
+            const title = state.brainstorm?.title ?? "";
+            session.addLocalLine(
+                title !== ""
+                    ? t("boss.brainstorm.resume", { title })
+                    : t("boss.brainstorm.opening", { name: globalStore.get(boss.nameAtom) })
+            );
             session.setLead(t("boss.brainstorm.lead"));
         }
-        this.apply(await this.ask(OpenCommand, { by: "you" }));
         focusTalkField();
     }
 
@@ -281,7 +291,11 @@ export class BrainstormModel {
         setBrainstormHold(true);
         notifyApi()?.moltentermSystemNotifyHold?.(true);
         this.sent.clear();
-        this.seen = new Map(MoltentermNotifications.getInstance().entries().map((e) => [e.id, e.updated]));
+        this.seen = new Map(
+            MoltentermNotifications.getInstance()
+                .entries()
+                .map((e) => [e.id, e.updated])
+        );
         globalStore.set(this.tallyAtom, EmptyTally);
         globalStore.set(this.breakthroughAtom, null);
         this.agentsBefore = globalStore.get(AgentStates.getInstance().dataAtom);
@@ -296,6 +310,7 @@ export class BrainstormModel {
         const boss = BossBubbleModel.getInstance();
         if (!globalStore.get(boss.cardOpenAtom)) {
             boss.openCard(undefined, { force: true });
+            this.cardOpenedByMode = true;
         }
         boss.pinCard();
         this.cardWasOpen = true;
@@ -312,6 +327,12 @@ export class BrainstormModel {
         globalStore.set(this.breakthroughAtom, null);
         const count = globalStore.get(this.tallyAtom).ids.size;
         globalStore.set(this.tallyAtom, EmptyTally);
+        // His card goes with the mode in a view the mode opened it in (the mode ended in another view).
+        if (this.cardOpenedByMode) {
+            this.cardOpenedByMode = false;
+            this.cardWasOpen = false;
+            BossBubbleModel.getInstance().closeCard({ restoreFocus: false });
+        }
         if (!this.onScreen()) {
             return;
         }
@@ -410,8 +431,9 @@ async function writeWindowMeta(meta: Record<string, any>): Promise<void> {
     }
 }
 
-// The talk field takes the keyboard once his group is in (it arrives after two frames).
-function focusTalkField(tries = 12): void {
+// The talk field takes the keyboard once his group is in (it arrives after two frames): his conversation window opens
+// with it, so the exchange shows beside the thought.
+export function focusTalkField(tries = 12): void {
     if (typeof document === "undefined") {
         return;
     }

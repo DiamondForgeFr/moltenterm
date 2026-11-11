@@ -17,9 +17,9 @@ import { useEffect, useState } from "react";
 import { BossBubbleModel } from "../boss/boss-store";
 import { tCount, useLocale, useT } from "../i18n/i18n";
 import { prefersReducedMotion } from "../molten-motion";
-import "./brainstorm.css";
 import { BrainstormStage } from "./brainstorm-stage";
 import { BrainstormModel, BrainstormState } from "./brainstorm-store";
+import "./brainstorm.css";
 
 // The layer stays this long after the mode ends, for its fade.
 const LeaveMs = 420;
@@ -61,14 +61,16 @@ function SavedPlate({ state }: { state: BrainstormState }) {
     const brainstorm = state.brainstorm;
     let line: string;
     let tone = "ok";
+    // A brainstorm resumed after a restart was saved when it last changed.
+    const savedAt = state.savedat || brainstorm?.updated || 0;
     if (state.saveerror) {
         line = t("boss.brainstorm.saved.failed");
         tone = "failed";
-    } else if (brainstorm == null || !state.savedat) {
+    } else if (brainstorm == null || !savedAt) {
         line = t("boss.brainstorm.saved.nothing");
         tone = "waiting";
     } else {
-        line = t("boss.brainstorm.saved.at", { time: savedTime(state.savedat, locale) });
+        line = t("boss.brainstorm.saved.at", { time: savedTime(savedAt, locale) });
     }
     return (
         <div className="mt-bs-saved" role="status" data-testid="brainstorm-saved" data-tone={tone}>
@@ -99,7 +101,10 @@ function Breakthrough() {
     return (
         <div className="mt-bs-edge" role="alert" data-kind={breakthrough.kind} data-testid="brainstorm-edge">
             <i
-                className={makeIconClass(breakthrough.kind === "trust" ? "shield-halved" : "triangle-exclamation", false)}
+                className={makeIconClass(
+                    breakthrough.kind === "trust" ? "shield-halved" : "triangle-exclamation",
+                    false
+                )}
                 aria-hidden
             />
             <span className="mt-bs-edge-text">{breakthrough.text}</span>

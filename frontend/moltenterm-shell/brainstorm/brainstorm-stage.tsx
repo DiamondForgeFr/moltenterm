@@ -14,6 +14,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useT } from "../i18n/i18n";
 import { TabActivity, whileShown } from "../tab-activity";
 import type { BrainstormGraph, NodeKind } from "./brainstorm-graph-model";
+import { FreeRect, freeRect } from "./brainstorm-scene-model";
 import { BrainstormModel } from "./brainstorm-store";
 
 // The scene's type alone: its module stays behind the import() below.
@@ -23,22 +24,36 @@ type BrainstormScene = import("./brainstorm-scene").BrainstormScene;
 const CrossFadeMs = 150;
 const FreeSpaceEveryMs = 400;
 
-// The right edge of Brokk's group and of what opened from it (his conversation window, his panel), in the stage's
-// pixels: the free space starts there.
-function freeLeftOf(stage: HTMLElement): number {
+// The box of Brokk's group and of what opened from it (his conversation window, his panel), in the stage's pixels.
+function groupBoxOf(stage: HTMLElement): FreeRect {
     const group = document.querySelector("[data-boss-card]");
     if (group == null) {
-        return 0;
+        return null;
     }
-    const origin = stage.getBoundingClientRect().left;
-    let right = 0;
+    const origin = stage.getBoundingClientRect();
+    let left = Infinity;
+    let top = Infinity;
+    let right = -Infinity;
+    let bottom = -Infinity;
     for (const child of Array.from(group.children)) {
         const box = child.getBoundingClientRect();
-        if (box.width > 0 && box.height > 0) {
-            right = Math.max(right, box.right - origin);
+        if (box.width <= 0 || box.height <= 0) {
+            continue;
         }
+        left = Math.min(left, box.left - origin.left);
+        top = Math.min(top, box.top - origin.top);
+        right = Math.max(right, box.right - origin.left);
+        bottom = Math.max(bottom, box.bottom - origin.top);
     }
-    return right > 0 ? right + 24 : 0;
+    return right > left ? { left, top, width: right - left, height: bottom - top } : null;
+}
+
+// The free space for the scene, and for the lines over it (its header and its edge line read --bs-free-top).
+function placeFree(stage: HTMLElement, scene: BrainstormScene): void {
+    const box = stage.getBoundingClientRect();
+    const free = freeRect({ width: box.width, height: box.height }, groupBoxOf(stage));
+    scene.setFreeRect(free);
+    stage.parentElement?.style.setProperty("--bs-free-top", `${Math.round(free.top)}px`);
 }
 
 export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
@@ -83,7 +98,7 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
                 const resize = () => {
                     const box = stage.getBoundingClientRect();
                     scene.setSize(box.width, box.height);
-                    scene.setFreeLeft(freeLeftOf(stage));
+                    placeFree(stage, scene);
                 };
                 resize();
                 if (typeof ResizeObserver !== "undefined") {
@@ -93,7 +108,7 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
                 // What opened from his group changes the free space (his conversation window grows with the talk).
                 stopFollow = TabActivity.getInstance().every(
                     whileShown(FreeSpaceEveryMs),
-                    () => scene.setFreeLeft(freeLeftOf(stage)),
+                    () => placeFree(stage, scene),
                     "brainstorm-free-space"
                 );
                 scene.start();

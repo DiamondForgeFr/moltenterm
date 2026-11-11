@@ -3113,6 +3113,7 @@
         "brainstorm": {
             "menu": "Brainstorm avec {name}",
             "opening": "Une idée ? On la met sur l'enclume. Dites-moi ce que c'est, et pour qui.",
+            "resume": "On reprend « {title} ». Où en étions-nous ?",
             "lead": "Brainstorm :",
             "header": "La pensée de {name} · {nodes} · {links}",
             "headerWaiting": "{name} écoute",

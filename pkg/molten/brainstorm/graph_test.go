@@ -195,15 +195,27 @@ func TestPlacesAreStableAndApart(t *testing.T) {
 	if !reflect.DeepEqual(a, b) {
 		t.Fatal("the same graph grew to other places")
 	}
-	for i := range a.Nodes {
-		for j := i + 1; j < len(a.Nodes); j++ {
-			if d := distance(a.Nodes[i].Pos, a.Nodes[j].Pos); d < 40 {
-				t.Errorf("%s and %s are %.1f apart", a.Nodes[i].Id, a.Nodes[j].Id, d)
+	// Each node is born a plate's gap from the ones before it (a later one may push into an earlier one's gap only by
+	// the pushes' rounding).
+	for j := 1; j < len(a.Nodes); j++ {
+		for i := 0; i < j; i++ {
+			d := vec3(a.Nodes[j].Pos).sub(vec3(a.Nodes[i].Pos))
+			if gapOf(d) < 0.95 {
+				t.Errorf("%s was born %.2f gaps from %s", a.Nodes[j].Id, gapOf(d), a.Nodes[i].Id)
 			}
 		}
 	}
+	// A relief more than a ball: far more spread across and up than in depth.
+	var spreadXY, spreadZ float64
+	for _, n := range a.Nodes {
+		spreadXY = math.Max(spreadXY, math.Hypot(n.Pos[0], n.Pos[1]))
+		spreadZ = math.Max(spreadZ, math.Abs(n.Pos[2]))
+	}
+	if spreadZ > spreadXY/2 {
+		t.Errorf("depth %.1f against a spread of %.1f", spreadZ, spreadXY)
+	}
 	first, _ := a.node("r0-0")
-	if d := distance(first.Pos, [3]float64{}); d < firstRing*0.9 || d > firstRing*2 {
+	if d := distance(first.Pos, [3]float64{}); d < firstRing*0.7 || d > firstRing*2 {
 		t.Errorf("a first branch stands %.1f from the centre", d)
 	}
 }

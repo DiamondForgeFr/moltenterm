@@ -29,19 +29,37 @@ import {
     CameraFov,
     CameraGoal,
     cameraGoal,
-    CoreRadius,
     corePulse,
+    CoreRadius,
     CrossLinkColor,
+    declutter,
     easeShare,
+    followDistance,
+    FreeRect,
     KindLooks,
     Loops,
     plateLook,
     ropeCurve,
     Ropes,
     SceneColors,
-    turnRate,
+    ScreenBox,
+    swayAngle,
     Vec3,
 } from "./brainstorm-scene-model";
+
+// The tether's colour (tether.css --mt-action), read from the theme so that a rope here is the app's rope.
+function tetherColor(): string {
+    try {
+        const value = getComputedStyle(document.documentElement).getPropertyValue("--mt-action").trim();
+        if (value !== "") {
+            new THREE.Color(value);
+            return value;
+        }
+    } catch {
+        // An unreadable value falls back to the forge's ember.
+    }
+    return CrossLinkColor;
+}
 
 export type SceneHost = {
     canvas: HTMLCanvasElement;
@@ -62,9 +80,17 @@ type PlateEntry = {
     halfH: number;
     // When this view saw it come, 0 for a node that was there when the stage opened.
     bornAt: number;
+    // How far the plate stands from its node on screen, having made room for its neighbours (eased).
+    offX: number;
+    offY: number;
 };
 
-const EmberCount = 140;
+// Above this many plates they no longer make room for each other each frame (#2247 lays large graphs out).
+const DeclutterLimit = 160;
+
+const EmberCount = 180;
+// A node made this recently still arrives when the stage opens on it.
+const FreshMs = 4000;
 const RopeCapacity = MaxNodes * Ropes.segments;
 const CrossCapacity = MaxLinks * Ropes.segments;
 const TiltRad = 0.28;
@@ -269,19 +295,26 @@ export class BrainstormScene {
     textures: THREE.Texture[] = [];
     width = 1;
     height = 1;
-    // The left edge of the free space, right of Brokk's group, in the stage's pixels: the graph is centred in what is
-    // left of the stage.
-    freeLeft = 0;
-    shownFreeLeft = 0;
+    // The free space beside or under Brokk's group, in the stage's pixels: the graph is centred and framed in it. The
+    // shown one eases toward it when his conversation window grows.
+    free: FreeRect = null;
+    shownFree: FreeRect = null;
     still = false;
     // When he last spoke or the graph last grew: the camera follows until OverviewAfterMs after it.
     talkAt = 0;
     target = new THREE.Vector3();
     distance = 900;
-    azimuth = 0.5;
+    azimuth = 0;
     mode: CameraGoal["mode"] = "overview";
+    startedAt = Date.now();
+    ropeColor = tetherColor();
+    coreTitleHalfW = 0;
+    coreTitleH = 0;
     lastFrame = 0;
     lastNewest = "";
+    // The cross-links are drawn again only when the graph changed or a node is still arriving.
+    lastBornAt = 0;
+    crossRev = -1;
     frame = 0;
     raf = 0;
     disposed = false;
@@ -389,7 +422,7 @@ export class BrainstormScene {
             seeds[i * 4] = rand() * 6.28;
             seeds[i * 4 + 1] = rand() * 6.28;
             seeds[i * 4 + 2] = rand();
-            seeds[i * 4 + 3] = 2 + rand() * 3;
+            seeds[i * 4 + 3] = 3 + rand() * 4;
         }
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -421,8 +454,25 @@ export class BrainstormScene {
         }
     }
 
-    setFreeLeft(left: number): void {
-        this.freeLeft = Math.max(0, Math.min(this.width * 0.6, left));
+    setFreeRect(rect: FreeRect): void {
+        this.free = rect;
+        if (this.shownFree == null) {
+            this.shownFree = { ...rect };
+        }
+    }
+
+    private easeFree(share: number): FreeRect {
+        const goal = this.free ?? { left: 0, top: 0, width: this.width, height: this.height };
+        if (this.shownFree == null || share >= 1) {
+            this.shownFree = { ...goal };
+            return this.shownFree;
+        }
+        const s = this.shownFree;
+        s.left += (goal.left - s.left) * share;
+        s.top += (goal.top - s.top) * share;
+        s.width += (goal.width - s.width) * share;
+        s.height += (goal.height - s.height) * share;
+        return s;
     }
 
     setStill(still: boolean): void {
@@ -456,11 +506,17 @@ export class BrainstormScene {
                 }
                 continue;
             }
-            this.plates.set(node.id, this.makePlate(node, first ? 0 : now));
+            // A node the stage opened with arrives too when it was just made (the answer that opened the mode).
+            const fresh = !first || (node.at > 0 && now - node.at < FreshMs);
+            this.plates.set(node.id, this.makePlate(node, fresh ? now : 0));
+            if (fresh) {
+                this.lastBornAt = now;
+            }
         }
         if (!first && graph?.nodes?.length) {
             this.talked(now);
         }
+        this.crossRev = -1;
         this.relabel();
     }
 
@@ -470,7 +526,7 @@ export class BrainstormScene {
         const textEl = document.createElement("span");
         if (node.kind === "topic") {
             // The centre is the core; its title is the core's own label.
-            return { node, el, kindEl, textEl, halfW: 0, halfH: 0, bornAt };
+            return { node, el, kindEl, textEl, halfW: 0, halfH: 0, bornAt, offX: 0, offY: 0 };
         }
         el.className = "mt-bs-plate";
         el.dataset.kind = node.kind;
@@ -488,7 +544,7 @@ export class BrainstormScene {
         textEl.textContent = node.text;
         el.append(kindEl, textEl);
         this.host.plates.appendChild(el);
-        return { node, el, kindEl, textEl, halfW: 0, halfH: 0, bornAt };
+        return { node, el, kindEl, textEl, halfW: 0, halfH: 0, bornAt, offX: 0, offY: 0 };
     }
 
     // The kinds' names follow the interface language.
@@ -505,12 +561,14 @@ export class BrainstormScene {
         }
     }
 
+    // Every time of the scene is the wall clock's (Date.now), the one the graph's arrivals and his talk are stamped with;
+    // requestAnimationFrame's own time counts from the page's start and would never meet them.
     start(): void {
-        const loop = (now: number) => {
+        const loop = () => {
             if (this.disposed) {
                 return;
             }
-            this.renderFrame(now);
+            this.renderFrame(Date.now());
             this.raf = requestAnimationFrame(loop);
         };
         this.raf = requestAnimationFrame(loop);
@@ -539,7 +597,7 @@ export class BrainstormScene {
         };
     }
 
-    private project(pos: Vec3): { x: number; y: number; depth: number; front: boolean } {
+    private project(pos: Vec3): { x: number; y: number; depth: number; front: boolean; ndcZ: number } {
         this.tmp.set(pos[0], pos[1], pos[2]);
         const depth = this.tmp.distanceTo(this.camera.position);
         this.tmp.project(this.camera);
@@ -548,12 +606,18 @@ export class BrainstormScene {
             y: ((1 - this.tmp.y) / 2) * this.height,
             depth,
             front: this.tmp.z < 1,
+            ndcZ: this.tmp.z,
         };
     }
 
-    private moveCamera(now: number, dt: number): void {
-        const freeWidth = Math.max(1, this.width - this.shownFreeLeft);
-        const goal = cameraGoal(this.graph, now - this.talkAt, freeWidth / this.height);
+    // The world point shown at (x, y) on screen, at the depth `ndcZ`: where a rope meets a plate that made room.
+    private unproject(x: number, y: number, ndcZ: number): Vec3 {
+        this.tmp.set((x / this.width) * 2 - 1, 1 - (y / this.height) * 2, ndcZ).unproject(this.camera);
+        return [this.tmp.x, this.tmp.y, this.tmp.z];
+    }
+
+    private moveCamera(now: number, dt: number, free: FreeRect): void {
+        const goal = cameraGoal(this.graph, now - this.talkAt, free, this.height);
         const newest = this.graph?.nodes?.[this.graph.nodes.length - 1]?.id ?? "";
         const goalTarget = new THREE.Vector3(goal.target[0], goal.target[1], goal.target[2]);
         if (this.still) {
@@ -566,8 +630,8 @@ export class BrainstormScene {
             const share = easeShare(dt);
             this.target.lerp(goalTarget, share);
             this.distance += (goal.distance - this.distance) * share;
-            this.azimuth += (turnRate(goal.mode, false) * dt) / 1000;
         }
+        this.azimuth = swayAngle(now - this.startedAt, this.still);
         this.mode = goal.mode;
         this.lastNewest = newest;
         const flat = Math.cos(TiltRad) * this.distance;
@@ -577,9 +641,18 @@ export class BrainstormScene {
             this.target.z + Math.cos(this.azimuth) * flat
         );
         this.camera.lookAt(this.target);
-        // The graph is centred in the free space right of Brokk's group: the view's middle moves by half of it.
+        // The graph is centred in the free space: the view's middle moves to the free space's middle.
+        const cx = free.left + free.width / 2;
+        const cy = free.top + free.height / 2;
         this.camera.aspect = this.width / this.height;
-        this.camera.setViewOffset(this.width, this.height, -this.shownFreeLeft / 2, 0, this.width, this.height);
+        this.camera.setViewOffset(
+            this.width,
+            this.height,
+            this.width / 2 - cx,
+            this.height / 2 - cy,
+            this.width,
+            this.height
+        );
         this.camera.updateProjectionMatrix();
     }
 
@@ -588,14 +661,16 @@ export class BrainstormScene {
         const dt = this.lastFrame === 0 ? 16 : Math.min(100, now - this.lastFrame);
         this.lastFrame = now;
         this.frame++;
-        this.shownFreeLeft += (this.freeLeft - this.shownFreeLeft) * (this.still ? 1 : easeShare(dt, 300));
-        this.moveCamera(now, dt);
+        const free = this.easeFree(this.still ? 1 : easeShare(dt, 300));
+        this.moveCamera(now, dt, free);
         const pulse = corePulse(now, this.still);
-        this.coreMaterial.uniforms.uTime.value = this.still ? 0 : now / 1000;
+        // The shaders get small numbers: a float of the graphics card holds the epoch's milliseconds to the minute only.
+        const elapsed = now - this.startedAt;
+        this.coreMaterial.uniforms.uTime.value = this.still ? 0 : (elapsed / 1000) % 3600;
         this.coreMaterial.uniforms.uPulse.value = pulse;
         this.emberMaterial.uniforms.uRise.value = this.still
             ? Loops.emberRise.still
-            : now / Loops.emberRise.periodMs;
+            : (elapsed / Loops.emberRise.periodMs) % 1;
         this.emberMaterial.uniforms.uPixelRatio.value = this.renderer.getPixelRatio();
         this.placeCore(now, pulse);
         this.placeRopesAndPlates(now);
@@ -640,41 +715,109 @@ export class BrainstormScene {
         let segments = 0;
         let marks = 0;
         const placed = new Map<string, { pos: Vec3; x: number; y: number; hw: number; hh: number; opacity: number }>();
-        const color = new THREE.Color();
+        const color = new THREE.Color(this.ropeColor);
         const measure = this.frame % 15 === 1;
+        const reference = followDistance(
+            this.shownFree ?? { left: 0, top: 0, width: this.width, height: this.height },
+            this.height
+        );
 
+        // Where each node falls on screen as the camera sees it.
         const centreId = this.graph?.centre ?? "";
+        let coreRadiusPx = 0;
+        const items: {
+            entry: PlateEntry;
+            at: ReturnType<BrainstormScene["nodePos"]>;
+            p: ReturnType<BrainstormScene["project"]>;
+            box: ScreenBox;
+            scale: number;
+            opacity: number;
+            blur: number;
+        }[] = [];
         for (const entry of this.plates.values()) {
             const at = this.nodePos(entry, now);
             const p = this.project(at.pos);
             if (entry.node.id === centreId) {
                 const edge = this.project([at.pos[0] + CoreRadius * at.scale, at.pos[1], at.pos[2]]);
                 const r = Math.max(6, Math.hypot(edge.x - p.x, edge.y - p.y));
-                placed.set(entry.node.id, { pos: at.pos, x: p.x, y: p.y, hw: r * 0.92, hh: r * 0.92, opacity: at.opacity });
+                if (measure || this.coreTitleHalfW === 0) {
+                    this.coreTitleHalfW = this.coreTitle.offsetWidth / 2;
+                    this.coreTitleH = this.coreTitle.offsetHeight;
+                }
+                // The core and its title under it: an obstacle the plates keep clear of.
+                const top = p.y - r * 1.15;
+                const bottom = p.y + r * 1.3 + this.coreTitleH;
+                items.push({
+                    entry,
+                    at,
+                    p,
+                    box: {
+                        x: p.x,
+                        y: (top + bottom) / 2,
+                        hw: Math.max(r * 1.2, this.coreTitleHalfW),
+                        hh: (bottom - top) / 2,
+                        fixed: true,
+                    },
+                    scale: 1,
+                    opacity: at.opacity,
+                    blur: 0,
+                });
+                coreRadiusPx = r;
                 continue;
             }
-            const look = plateLook(p.depth, this.distance);
+            const look = plateLook(p.depth, this.distance, reference);
             if (measure || entry.halfW === 0) {
                 entry.halfW = entry.el.offsetWidth / 2;
                 entry.halfH = entry.el.offsetHeight / 2;
             }
             const scale = look.scale * at.scale;
-            const opacity = look.opacity * at.opacity;
-            entry.el.style.opacity = opacity.toFixed(3);
-            entry.el.style.zIndex = String(Math.max(1, Math.round(10000 - p.depth)));
-            entry.el.style.filter = look.blur > 0 ? `blur(${look.blur}px)` : "";
-            entry.el.style.transform = p.front
-                ? `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${scale.toFixed(3)})`
-                : Hidden;
-            placed.set(entry.node.id, {
-                pos: at.pos,
-                x: p.x,
-                y: p.y,
-                hw: entry.halfW * scale,
-                hh: entry.halfH * scale,
-                opacity,
+            items.push({
+                entry,
+                at,
+                p,
+                box: { x: p.x, y: p.y, hw: entry.halfW * scale, hh: entry.halfH * scale, fixed: !p.front },
+                scale,
+                opacity: look.opacity * at.opacity,
+                blur: look.blur,
             });
         }
+        // The plates make room for each other, and the shown places ease toward it (DeclutterLimit plates at most).
+        const offsets =
+            items.length <= DeclutterLimit
+                ? declutter(
+                      items.map((i) => i.box),
+                      this.shownFree
+                  )
+                : items.map(() => [0, 0]);
+        const ease = this.still ? 1 : 0.18;
+        items.forEach((item, i) => {
+            const entry = item.entry;
+            entry.offX += (offsets[i][0] - entry.offX) * ease;
+            entry.offY += (offsets[i][1] - entry.offY) * ease;
+            const x = item.p.x + entry.offX;
+            const y = item.p.y + entry.offY;
+            if (entry.node.id === centreId) {
+                // A rope leaves the core at its round edge.
+                const r = coreRadiusPx * 0.92;
+                placed.set(entry.node.id, {
+                    pos: item.at.pos,
+                    x: item.p.x,
+                    y: item.p.y,
+                    hw: r,
+                    hh: r,
+                    opacity: item.opacity,
+                });
+                return;
+            }
+            const pos = item.box.fixed ? item.at.pos : this.unproject(x, y, item.p.ndcZ);
+            placed.set(entry.node.id, { pos, x, y, hw: item.box.hw, hh: item.box.hh, opacity: item.opacity });
+            entry.el.style.opacity = item.opacity.toFixed(3);
+            entry.el.style.zIndex = String(Math.max(1, Math.round(10000 - item.p.depth)));
+            entry.el.style.filter = item.blur > 0 ? `blur(${item.blur}px)` : "";
+            entry.el.style.transform = item.p.front
+                ? `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${item.scale.toFixed(3)})`
+                : Hidden;
+        });
 
         for (const entry of this.plates.values()) {
             const node = entry.node;
@@ -704,8 +847,6 @@ export class BrainstormScene {
             const start = this.edgePoint(curve, screen, first, parent, -1);
             const end = this.edgePoint(curve, screen, last, child, 1);
             const points: Vec3[] = [start, ...curve.slice(first, last + 1), end];
-            const look = KindLooks[node.kind] ?? KindLooks.idea;
-            color.set(look.rope);
             const dim = Math.min(child.opacity, parent.opacity);
             for (let i = 0; i < points.length - 1 && segments < RopeCapacity; i++) {
                 const o = segments * 6;
@@ -713,7 +854,10 @@ export class BrainstormScene {
                 const b = points[i + 1];
                 ropePos.set([a[0], a[1], a[2], b[0], b[1], b[2]], o);
                 outlinePos.set([a[0], a[1], a[2], b[0], b[1], b[2]], o);
-                ropeCol.set([color.r * dim, color.g * dim, color.b * dim, color.r * dim, color.g * dim, color.b * dim], o);
+                ropeCol.set(
+                    [color.r * dim, color.g * dim, color.b * dim, color.r * dim, color.g * dim, color.b * dim],
+                    o
+                );
                 segments++;
             }
             if (marks < MaxNodes) {
@@ -733,7 +877,11 @@ export class BrainstormScene {
         this.anchors.geometry.attributes.color.needsUpdate = true;
         this.knots.geometry.attributes.position.needsUpdate = true;
         this.knots.geometry.attributes.color.needsUpdate = true;
-        this.placeCrossLinks(placed);
+        const arriving = now - this.lastBornAt < Loops.arrival.ms + 100;
+        if (arriving || this.crossRev !== (this.graph?.rev ?? 0)) {
+            this.crossRev = this.graph?.rev ?? 0;
+            this.placeCrossLinks(placed);
+        }
     }
 
     // Where the rope crosses the edge of a box on screen, between the point at `i` (outside) and its neighbour toward
@@ -785,9 +933,35 @@ export class BrainstormScene {
             }
         }
         markSegments(this.crossLinks, segments, false);
-        if (segments > 0) {
-            this.crossLinks.computeLineDistances();
+        this.dashDistances(segments);
+    }
+
+    // The dashes run along each link: the distances are written in place, in a buffer made once (three's own
+    // computeLineDistances makes a new one at each call).
+    private dashDistances(segments: number): void {
+        const geometry = this.crossLinks.geometry;
+        let start = geometry.attributes.instanceDistanceStart as THREE.InterleavedBufferAttribute;
+        if (start == null) {
+            const buffer = new THREE.InstancedInterleavedBuffer(new Float32Array(CrossCapacity * 2), 2, 1);
+            geometry.setAttribute("instanceDistanceStart", new THREE.InterleavedBufferAttribute(buffer, 1, 0));
+            geometry.setAttribute("instanceDistanceEnd", new THREE.InterleavedBufferAttribute(buffer, 1, 1));
+            start = geometry.attributes.instanceDistanceStart as THREE.InterleavedBufferAttribute;
         }
+        const positions = positionsOf(this.crossLinks);
+        const distances = start.data.array as Float32Array;
+        let total = 0;
+        for (let i = 0; i < segments; i++) {
+            const o = i * 6;
+            const length = Math.hypot(
+                positions[o + 3] - positions[o],
+                positions[o + 4] - positions[o + 1],
+                positions[o + 5] - positions[o + 2]
+            );
+            distances[i * 2] = total;
+            total += length;
+            distances[i * 2 + 1] = total;
+        }
+        start.data.needsUpdate = true;
     }
 
     dispose(): void {

@@ -14,7 +14,7 @@ import { BossBubbleModel } from "../boss/boss-store";
 import { BrokkSession } from "../boss/brokk-session";
 import { getLocale } from "../i18n/i18n";
 import { GraphFence, GraphOp } from "./brainstorm-graph-model";
-import { BrainstormModel } from "./brainstorm-store";
+import { BrainstormModel, focusTalkField } from "./brainstorm-store";
 
 export type ReplayStep = { you: string; line: string; ops: GraphOp[] };
 
@@ -161,6 +161,7 @@ export async function playReplay(stepMs = 3600): Promise<void> {
     }
     boss.openCard(undefined, { force: true });
     boss.pinCard();
+    focusTalkField();
     const script = replayScript(getLocale());
     const base = 900000 + Math.floor(Date.now() % 100000) * 10;
     for (let i = 0; i < script.length; i++) {

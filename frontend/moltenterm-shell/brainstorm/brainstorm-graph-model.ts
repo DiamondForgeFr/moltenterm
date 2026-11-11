@@ -21,7 +21,16 @@ export const IdPattern = /^[a-z0-9-]{1,32}$/;
 
 export type NodeKind = "topic" | "question" | "answer" | "idea" | "theme" | "decision" | "proposal" | "conclusion";
 
-export const NodeKinds: NodeKind[] = ["topic", "question", "answer", "idea", "theme", "decision", "proposal", "conclusion"];
+export const NodeKinds: NodeKind[] = [
+    "topic",
+    "question",
+    "answer",
+    "idea",
+    "theme",
+    "decision",
+    "proposal",
+    "conclusion",
+];
 
 // The kinds an `add` may give: the topic is the centre's, a proposal comes with `propose` (#2247).
 export const AddKinds: NodeKind[] = ["question", "answer", "idea", "theme", "decision", "conclusion"];
