@@ -28,6 +28,8 @@ import {
     encodeMemory,
     evaluate,
     eveningKey,
+    helloCue,
+    HelloCueFacts,
     helloDayKey,
     HelloLifeMs,
     helloPartOf,
@@ -106,7 +108,9 @@ describe("the hello (FR-BOSS-009, AC72, AC-2)", () => {
         const memory = afterInput(EmptyColleague, facts(at(10, 8, 15)));
         const [hello] = momentsOf(memory, "hello");
         expect(hello).toMatchObject({ kind: "hello", set: "hello.morning", clock: "08:15" });
-        expect(memory.helloDay).toBe(dayKey(at(10, 8, 15)));
+        // #2217: the day is greeted once the line was on screen, not when the hello is raised.
+        expect(memory.helloDay).toBe("");
+        expect(afterShown(memory, hello.id, at(10, 8, 16)).helloDay).toBe(dayKey(at(10, 8, 15)));
     });
 
     it("picks the set from the hour of that first activity: early, morning, late morning, back", () => {
@@ -194,7 +198,7 @@ describe("the hello (FR-BOSS-009, AC72, AC-2)", () => {
         memory = afterInput(memory, facts(at(11, 8, 58)));
         const [hello] = momentsOf(memory, "hello");
         expect(hello).toMatchObject({ set: "hello.morning", clock: "08:58" });
-        expect(memory.helloDay).toBe(dayKey(at(11, 8, 58)));
+        expect(afterShown(memory, hello.id, at(11, 8, 59)).helloDay).toBe(dayKey(at(11, 8, 58)));
     });
 
     it("does not count a restart as an absence: the last presence is kept across it", () => {
@@ -263,10 +267,78 @@ describe("the hello (FR-BOSS-009, AC72, AC-2)", () => {
         expect(decodeMemory(JSON.stringify({ presentAt: -3 })).presentAt).toBeNull();
     });
 
-    it("lapses when nobody looked at it for an hour", () => {
+    // #2217 (AC-3): a hello never shown (the window hidden, quiet hours) leaves the day ungreeted and waits for its chance.
+    it("waits, never shown, for the rest of its day, and leaves the day ungreeted meanwhile", () => {
         const memory = afterInput(EmptyColleague, facts(at(10, 8, 0)));
-        expect(momentsOf(evaluate(memory, facts(at(10, 8, 0) + HelloLifeMs - 1)), "hello")).toHaveLength(1);
-        expect(momentsOf(evaluate(memory, facts(at(10, 8, 0) + HelloLifeMs)), "hello")).toHaveLength(0);
+        const later = evaluate(memory, facts(at(10, 16, 0)));
+        expect(momentsOf(later, "hello")).toHaveLength(1);
+        expect(later.helloDay).toBe("");
+        expect(momentsOf(evaluate(memory, facts(at(11, 4, 59))), "hello")).toHaveLength(1);
+        const nextDay = evaluate(memory, facts(at(11, 5, 0)));
+        expect(momentsOf(nextDay, "hello")).toHaveLength(0);
+        expect(nextDay.helloDay).toBe("");
+    });
+
+    it("lapses an hour after it was shown, when nobody closed the group on it", () => {
+        let memory = afterInput(EmptyColleague, facts(at(10, 8, 0)));
+        memory = afterShown(memory, momentsOf(memory)[0].id, at(10, 8, 30));
+        expect(momentsOf(evaluate(memory, facts(at(10, 8, 30) + HelloLifeMs - 1)), "hello")).toHaveLength(1);
+        expect(momentsOf(evaluate(memory, facts(at(10, 8, 30) + HelloLifeMs)), "hello")).toHaveLength(0);
+    });
+
+    it("goes when another window has greeted its day", () => {
+        const memory = afterInput(EmptyColleague, facts(at(10, 8, 0)));
+        const elsewhere = { ...memory, helloDay: dayKey(at(10, 8, 0)) };
+        expect(momentsOf(evaluate(elsewhere, facts(at(10, 8, 1))), "hello")).toHaveLength(0);
+    });
+
+    it("takes the written set of the part of the day it shows in", () => {
+        let memory = afterInput(EmptyColleague, facts(at(10, 6, 30)));
+        const hello = momentsOf(memory, "hello")[0];
+        expect(hello.set).toBe("hello.early");
+        memory = afterPhrased(memory, hello.id, "Up with the larks today, are we.");
+        memory = afterShown(memory, hello.id, at(10, 8, 5));
+        const shown = momentsOf(memory, "hello")[0];
+        expect(shown).toMatchObject({ set: "hello.morning", index: hello.index });
+        expect(shown.line).toBeUndefined();
+        expect(momentLine(shown)).toEqual({ key: phraseKey("hello.morning", hello.index) });
+        // Shown in the part it was raised in, it keeps his model's line.
+        let same = afterInput(EmptyColleague, facts(at(10, 8, 0)));
+        const id = momentsOf(same, "hello")[0].id;
+        same = afterShown(afterPhrased(same, id, "The fire is lit, tools are out."), id, at(10, 8, 10));
+        expect(momentLine(momentsOf(same, "hello")[0])).toEqual({ text: "The fire is lit, tools are out." });
+    });
+});
+
+describe("the hello shows itself on the folded avatar (FR-BOSS-009, AC74, #2217)", () => {
+    const hello = () => momentsOf(afterInput(EmptyColleague, facts(at(10, 8, 0))), "hello");
+    const free: HelloCueFacts = { visible: true, quiet: false, groupOpen: false, sceneUp: false };
+
+    it("shows the hello waiting when the avatar can be seen, outside quiet hours, with the group closed", () => {
+        const moments = hello();
+        expect(helloCue(moments, free)).toBe(moments[0]);
+    });
+
+    it("never while it cannot be seen, in quiet hours, with the group open or a scene in his place", () => {
+        const moments = hello();
+        for (const blocked of [
+            { visible: false },
+            { quiet: true },
+            { groupOpen: true },
+            { sceneUp: true },
+        ] as Partial<HelloCueFacts>[]) {
+            expect(helloCue(moments, { ...free, ...blocked }), JSON.stringify(blocked)).toBeNull();
+        }
+    });
+
+    it("shows only a hello, and only one never shown", () => {
+        let memory = work(EmptyColleague, at(10, 9, 0), at(10, 11, 5), 5 * Min);
+        memory = afterSeen(memory, momentsOf(memory, "hello")[0].id);
+        expect(momentsOf(memory, "break")).toHaveLength(1);
+        expect(helloCue(memory.moments, free)).toBeNull();
+        const raised = afterInput(EmptyColleague, facts(at(10, 8, 0)));
+        const shown = afterShown(raised, raised.moments[0].id, at(10, 8, 1));
+        expect(helloCue(shown.moments, free)).toBeNull();
     });
 });
 
@@ -279,8 +351,8 @@ describe("the break nudge (FR-BOSS-009, AC72, AC-3)", () => {
         memory = afterInput(memory, facts(start + BreakAfterMs));
         const [nudge] = momentsOf(memory, "break");
         expect(nudge).toMatchObject({ kind: "break", set: "break", workedMin: 120 });
-        // The hello of nine o'clock lapsed an hour after it came: only the nudge waits now.
-        expect(memory.moments.map((moment) => moment.kind)).toEqual(["break"]);
+        // The hello of nine o'clock was never shown: it still waits for its chance, beside the nudge (#2217).
+        expect(memory.moments.map((moment) => moment.kind)).toEqual(["hello", "break"]);
     });
 
     it("does not come back for the same stretch, even after it was seen", () => {

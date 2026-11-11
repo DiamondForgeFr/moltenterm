@@ -7,8 +7,6 @@ import {
     DefaultQuietHours,
     dueWaits,
     EmptyMood,
-    greetingDue,
-    GreetWithinMs,
     ImpatientAfterMs,
     inQuietHours,
     isNight,
@@ -236,25 +234,16 @@ describe("his greeting when the developer is back (FR-BOSS-007, AC14)", () => {
         ]);
         expect(memory.back).toEqual({
             at: Day,
-            greeted: false,
             summary: { finished: ["Arthur", "Olivia"], arrived: 1 },
         });
         expect(memory.log).toEqual([]);
     });
 
-    it("greets once, when the screen or the card opens within two minutes of the return", () => {
-        const memory = after([[{ type: "returned", since: Day - 40 * Min }, Day]]);
-        expect(greetingDue(memory, Day)).toBe(true);
-        expect(greetingDue(memory, Day + GreetWithinMs - 1)).toBe(true);
-        expect(greetingDue(memory, Day + GreetWithinMs)).toBe(false);
-        const greeted = moodAfter(memory, { type: "greeted" }, Day + 1000);
-        expect(greetingDue(greeted, Day + 1000)).toBe(false);
-        expect(moodAfter(greeted, { type: "greeted" }, Day + 2000)).toBe(greeted);
-    });
-
-    it("has nothing to greet before anyone has been away", () => {
-        expect(greetingDue(EmptyMood, Day)).toBe(false);
-        expect(moodAfter(EmptyMood, { type: "greeted" }, Day)).toBe(EmptyMood);
+    // #2217 (audit #2214, C6, A2): the mood's greeting nod had no caller left; the kind colleague's hello owns the nod.
+    it("has no greeting of its own: the hello of the kind colleague greets", async () => {
+        const mood = await import("./brokk-mood");
+        expect("greetingDue" in mood).toBe(false);
+        expect("GreetWithinMs" in mood).toBe(false);
     });
 
     it("keeps the welcome in the memory for a minute", () => {

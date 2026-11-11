@@ -196,6 +196,9 @@ describe("the hello, the nudge and the hand-over, from the developer's inputs (F
         const first = rig(at(10, 8, 0));
         first.model.noteInput();
         expect(moments("hello")).toHaveLength(1);
+        // #2217: the day is greeted once the line was on screen.
+        expect(first.meta.text).toContain('"helloDay":""');
+        first.model.noteShown(moments("hello")[0].id);
         expect(first.meta.text).toContain('"helloDay":"2026-11-10"');
 
         const second = rig(at(10, 12, 0), first.meta);
@@ -299,6 +302,8 @@ describe("the hello, the nudge and the hand-over, from the developer's inputs (F
         const r = rig(at(10, 8, 0), meta);
         r.model.noteInput();
         expect(moments("hello")).toHaveLength(1);
+        r.model.noteShown(moments("hello")[0].id);
+        r.model.noteSeen(moments("hello")[0].id);
         // The write is on its way: the meta still reads empty, and a later input must not forget the day greeted.
         r.advance(5 * Hour);
         r.model.noteInput();
@@ -580,9 +585,11 @@ describe("his model phrases a moment (FR-BOSS-009, AC77)", () => {
         globalStore.set(Sources.client, { meta: {} });
         live.useDeps({ now: () => clock.now, working: () => 0 });
         live.noteInput();
-        // One write when the hello is raised, one when his model is asked for it: the last holds both.
-        expect(Sources.setMeta).toHaveBeenCalledTimes(2);
-        const [, data] = Sources.setMeta.mock.calls[1];
+        // One write when the hello is raised, one when his model is asked for it, one when it is on screen (#2217): the
+        // last holds them all.
+        live.noteShown(moments("hello")[0].id);
+        expect(Sources.setMeta).toHaveBeenCalledTimes(3);
+        const [, data] = Sources.setMeta.mock.calls[2];
         expect(data.oref).toBe("client:client-1");
         expect(Object.keys(data.meta)).toEqual([ColleagueMetaKey]);
         expect(JSON.parse(data.meta[ColleagueMetaKey]).helloDay).toBe("2026-11-10");

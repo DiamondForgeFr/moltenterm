@@ -16,7 +16,7 @@ import { AgentStates } from "../agent-state-store";
 import { BossBubbleModel } from "./boss-store";
 import { AskedExpression, BrokkExpression, rose } from "./brokk-ask-model";
 import { BrokkColleagueModel } from "./brokk-colleague-store";
-import { EmptyMood, greetingDue, moodAfter, MoodEvent, MoodMemory, moodOf, replayOf } from "./brokk-mood";
+import { EmptyMood, moodAfter, MoodEvent, MoodMemory, moodOf, replayOf } from "./brokk-mood";
 import { EmptyQueue, queueAfter, QueueEvent, QueueState } from "./brokk-queue";
 import { moodFactsOf, presenceAfter, unseenItems, watchBrokk } from "./brokk-watch";
 import { InputEvents } from "./developer-away";
@@ -117,15 +117,11 @@ export class BrokkExpressionsModel {
         this.ask("smile");
     }
 
-    // The screen or the card opened and his portrait is showing: he greets a developer who is back, and his mood plays
-    // its expression once, at most every five minutes.
+    // The screen or the card opened and his portrait is showing: his mood plays its expression once, at most every five
+    // minutes. The greeting nod is the kind colleague's hello (use-brokk-hello.ts, #2217).
     noteOpen(): void {
         const now = Date.now();
         const memory = globalStore.get(this.moodAtom);
-        if (greetingDue(memory, now)) {
-            this.note({ type: "greeted" });
-            this.ask("nod");
-        }
         const items = unseenItems(globalStore.get(BossBubbleModel.getInstance().toHandleAtom));
         const expression = replayOf(memory, moodOf(memory, moodFactsOf(items), now), now);
         if (expression == null) {

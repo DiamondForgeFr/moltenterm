@@ -221,7 +221,15 @@ function lapsed(moment: Moment, memory: ColleagueMemory, facts: ColleagueFacts):
     const age = facts.now - moment.raisedAt;
     switch (moment.kind) {
         case "hello":
-            return age >= HelloLifeMs;
+            if (moment.shownAt != null) {
+                return facts.now - moment.shownAt >= HelloLifeMs;
+            }
+            // Never shown: it waits for its first chance to show, for the rest of its day, unless another window greeted
+            // that day (#2217).
+            return (
+                helloDayKey(facts.now) !== helloDayKey(moment.raisedAt) ||
+                memory.helloDay === helloDayKey(moment.raisedAt)
+            );
         case "break":
             return age >= BreakLifeMs || !active(memory, facts.now) || memory.stretchStart !== moment.stretchStart;
         case "handover":
@@ -295,11 +303,8 @@ export function afterPresence(memory: ColleagueMemory, at: number, facts: Collea
         next.helloDay !== helloDayKey(at) &&
         !has(next, "hello")
     ) {
-        next = raise(
-            { ...next, helloDay: helloDayKey(at) },
-            { kind: "hello", set: phraseSet("hello", helloPartOf(at)) },
-            facts
-        );
+        // The day counts as greeted once the line was on screen (afterShown), not now (#2217).
+        next = raise(next, { kind: "hello", set: phraseSet("hello", helloPartOf(at)) }, facts);
     }
     return next;
 }
@@ -333,21 +338,52 @@ export function currentMoment(moments: Moment[]): Moment {
     return null;
 }
 
-// The moment is on screen: his model's line, if it comes after this, is too late and is left out.
+// The moment is on screen: his model's line, if it comes after this, is too late and is left out. A hello greets its day
+// now, and takes the written set of the part of the day it shows in, since it may have waited (#2217).
 export function afterShown(memory: ColleagueMemory, id: string, now: number): ColleagueMemory {
     const moment = memory.moments.find((m) => m.id === id);
     if (moment == null || moment.shownAt != null) {
         return memory;
     }
-    return { ...memory, moments: memory.moments.map((m) => (m.id === id ? { ...m, shownAt: now } : m)) };
+    let shown: Moment = { ...moment, shownAt: now };
+    let next = memory;
+    if (moment.kind === "hello") {
+        next = { ...memory, helloDay: helloDayKey(moment.raisedAt) };
+        const set = phraseSet("hello", helloPartOf(now));
+        if (set !== moment.set) {
+            shown = { ...shown, set, line: undefined };
+        }
+    }
+    return { ...next, moments: memory.moments.map((m) => (m.id === id ? shown : m)) };
 }
 
-// The developer has seen it and the group closed: a moment shows once.
+// What decides whether the hello may show itself on the folded avatar (FR-BOSS-009, AC74, #2217).
+export type HelloCueFacts = {
+    // The avatar is mounted where it can be seen: the sidebar's row or the window's top edge, in a view on screen of a
+    // window that shows. Not the collapsed strip, which is out of sight at rest.
+    visible: boolean;
+    quiet: boolean;
+    groupOpen: boolean;
+    // A visit scene stands in his place.
+    sceneUp: boolean;
+};
+
+// The hello the avatar shows now, or null: only a hello, only one never shown, and only when nothing hides it.
+export function helloCue(moments: Moment[], facts: HelloCueFacts): Moment {
+    if (!facts.visible || facts.quiet || facts.groupOpen || facts.sceneUp) {
+        return null;
+    }
+    return moments.find((moment) => moment.kind === "hello" && moment.shownAt == null) ?? null;
+}
+
+// The developer has seen it and the group or the bubble closed: a moment shows once. A hello seen has greeted its day.
 export function afterSeen(memory: ColleagueMemory, id: string): ColleagueMemory {
-    if (!memory.moments.some((m) => m.id === id)) {
+    const moment = memory.moments.find((m) => m.id === id);
+    if (moment == null) {
         return memory;
     }
-    return { ...memory, moments: memory.moments.filter((m) => m.id !== id) };
+    const next = moment.kind === "hello" ? { ...memory, helloDay: helloDayKey(moment.raisedAt) } : memory;
+    return { ...next, moments: memory.moments.filter((m) => m.id !== id) };
 }
 
 // What the group does with the moment as it opens, stays open and closes. `kept` is the moment the group took when it
