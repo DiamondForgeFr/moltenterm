@@ -6,7 +6,9 @@
 import { getApi } from "@/app/store/global";
 import { GateChannel, gateChannel } from "./build-channel";
 import type { MoltentermBuildInfo } from "./build-info";
-import { brainstormAllowed, brainstormReplayAllowed, BuildIdentity, makeBuildIdentity } from "./build-identity";
+import { brainstormReplayAllowed, BuildIdentity, makeBuildIdentity } from "./build-identity";
+import { currentNarrowing } from "./features-narrowing";
+import { featureOn, FeatureBrainstorm, type GatedFeatureId } from "./gated-features";
 
 export function readBuildInfo(): MoltentermBuildInfo {
     return typeof __MOLTENTERM_BUILD__ === "undefined" ? null : __MOLTENTERM_BUILD__;
@@ -48,12 +50,18 @@ export function currentChannel(): GateChannel {
     return channel;
 }
 
-// The window's lock of Brokk's thought in 3D (FR-BOSS-010 AC1), and of its scripted replay.
-export function currentBrainstormGates(): { start: boolean; replay: boolean } {
+// Whether a gated feature is on in this window: its channel opens it (FR-BOSS-010 AC1) and the developer did not switch
+// it off on this computer (FR-BOSS-011). Read at each call, so a switch applies at once.
+export function currentFeatureOn(id: GatedFeatureId): boolean {
     const now = currentChannel();
-    return now == null
-        ? { start: false, replay: false }
-        : { start: brainstormAllowed(now), replay: brainstormReplayAllowed(now) };
+    return now != null && featureOn(id, now, currentNarrowing());
+}
+
+// The window's lock of Brokk's thought in 3D (FR-BOSS-010 AC1), and of its scripted replay: the replay needs the
+// brainstorm itself, so a brainstorm switched off takes it away too.
+export function currentBrainstormGates(): { start: boolean; replay: boolean } {
+    const start = currentFeatureOn(FeatureBrainstorm);
+    return { start, replay: start && brainstormReplayAllowed(currentChannel()) };
 }
 
 export function currentBrainstormAllowed(): boolean {

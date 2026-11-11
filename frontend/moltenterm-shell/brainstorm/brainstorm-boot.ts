@@ -109,7 +109,12 @@ export function bootBrainstorm(): () => void {
             void wake();
         }
     });
-    return stop;
+    // Stopped by the layer (a switch of Features in test turned the brainstorm off, FR-BOSS-011): it can watch again
+    // once the switch is back on.
+    return () => {
+        stop();
+        booted = false;
+    };
 }
 
 async function readState(): Promise<BrainstormState> {

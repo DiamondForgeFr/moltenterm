@@ -15,7 +15,7 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BrainstormStateAtom, openBrainstorm } from "../brainstorm/brainstorm-boot";
-import { currentBrainstormAllowed } from "../build/current-build";
+import { useBrainstormAllowed } from "../build/use-feature-on";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { showPane } from "../sessions/pane-focus";
@@ -88,7 +88,7 @@ export function BrokkTalk({
     // While the brainstorm is on, his conversation stays open beside his portrait whatever has the focus (FR-BOSS-010,
     // #2257): the mockup's exchange lives in his layer.
     const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
-    const brainstormAllowed = currentBrainstormAllowed();
+    const brainstormAllowed = useBrainstormAllowed();
     // A request of his agent opens his conversation, where its card is, and the note sending the developer to his
     // terminal gives way to it (#2257).
     const asking = useAtomValue(session.permissionAtom, { store: globalStore }) != null;

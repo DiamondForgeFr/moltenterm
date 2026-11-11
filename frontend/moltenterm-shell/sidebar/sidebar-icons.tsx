@@ -108,6 +108,13 @@ const Paths = {
             <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
         </>
     ),
+    // Features in test (FR-BOSS-011): a flask.
+    flask: (
+        <>
+            <path d="M9.5 3h5M10.5 3v6.2L5 18.4A1.8 1.8 0 0 0 6.5 21h11a1.8 1.8 0 0 0 1.5-2.6l-5.5-9.2V3" />
+            <path d="M7.7 15h8.6" />
+        </>
+    ),
     // A command-line agent (#1699): a prompt in a window.
     agents: (
         <>
