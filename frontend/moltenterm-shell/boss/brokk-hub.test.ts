@@ -655,3 +655,76 @@ describe("Show a visit: the example of the settings (FR-BOSS-009, AC31 and AC32,
         expect(heard).toBe(2);
     });
 });
+
+describe("Brokk off means off (FR-BOSS-009, #2218)", () => {
+    it("raises no visit for an agent that reaches the threshold after he was turned off", () => {
+        const { hub, advance, timers } = fixture();
+        hub.syncRows([row("agent:a", "waiting", T - 1 * Min)]);
+        expect(timers()).toBeGreaterThan(0);
+        hub.power(false);
+        expect(timers()).toBe(0);
+        advance(10 * Min);
+        expect(hub.getView().visit).toBeNull();
+        expect(hub.getView().cue).toBe(false);
+        expect(hub.getView().comingKeys).toEqual([]);
+    });
+
+    it("raises nothing for an event that comes while he is off, held back or not", () => {
+        const { hub, advance, timers } = fixture();
+        hub.power(false);
+        hub.gate({ type: "enter" });
+        hub.syncRows([BlockedRow(), ErrorRow()]);
+        expect(hub.getView().cue).toBe(false);
+        hub.gate({ type: "leave" });
+        advance(60 * Min);
+        expect(hub.getView().visit).toBeNull();
+        expect(timers()).toBe(0);
+    });
+
+    it("folds the visit that is up and tells the listeners", () => {
+        const { hub } = fixture();
+        hub.syncRows([BlockedRow()]);
+        expect(hub.getView().visit).not.toBeNull();
+        let heard = 0;
+        hub.subscribe(() => heard++);
+        hub.power(false);
+        expect(hub.getView().visit).toBeNull();
+        expect(heard).toBe(1);
+    });
+
+    it("folds the example of the settings too", () => {
+        const { hub } = fixture();
+        hub.showExample();
+        hub.power(false);
+        expect(hub.getView().visit).toBeNull();
+    });
+
+    it("keeps the badge's keys current for the rail while he is off", () => {
+        const { hub } = fixture();
+        hub.power(false);
+        hub.syncRows([BlockedRow(), ErrorRow()]);
+        expect(hub.getView().badgeKeys).toEqual(["agent:a", "agent:b"]);
+        hub.syncRows([ErrorRow()]);
+        expect(hub.getView().badgeKeys).toEqual(["agent:b"]);
+    });
+
+    it("keeps the developer's settings: they apply again once he is back on", () => {
+        const { hub } = fixture();
+        hub.power(false);
+        hub.settings(settings({ blocked: "badge", error: "vient" }));
+        hub.syncRows([BlockedRow(), ErrorRow()]);
+        expect(hub.getView().visit).toBeNull();
+        hub.power(true);
+        expect(hub.getModel().settings.never).toBe(false);
+        expect(hub.getView().visit?.keys).toEqual(["agent:b"]);
+    });
+
+    it("leaves the master switch of the settings as the developer set it", () => {
+        const { hub } = fixture();
+        hub.settings(settings({}, { never: true }));
+        hub.power(false);
+        hub.power(true);
+        hub.syncRows([BlockedRow()]);
+        expect(hub.getView().visit).toBeNull();
+    });
+});

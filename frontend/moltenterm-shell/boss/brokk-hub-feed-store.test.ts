@@ -39,13 +39,16 @@ function states(...infos: AgentStateInfo[]): AgentStatesData {
 }
 
 // The window's sources, as primitive atoms in a store of their own; the hub runs on a clock the test sets.
-function window_(over: { loaded?: boolean; onScreen?: boolean; card?: boolean } = {}) {
+function window_(
+    over: { loaded?: boolean; onScreen?: boolean; card?: boolean; on?: boolean; rows?: ToHandleItem[] } = {}
+) {
     const store = createStore();
     const sources = {
         agents: atom(states()) as PrimitiveAtom<AgentStatesData>,
         loaded: atom(over.loaded ?? true) as PrimitiveAtom<boolean>,
-        rows: atom({ items: [], info: [], parked: 0 } as ToHandleList) as PrimitiveAtom<ToHandleList>,
+        rows: atom({ items: over.rows ?? [], info: [], parked: 0 } as ToHandleList) as PrimitiveAtom<ToHandleList>,
         settings: atom(DefaultVisitSettings) as PrimitiveAtom<VisitSettings>,
+        on: atom(over.on ?? true) as PrimitiveAtom<boolean>,
         onScreen: atom(over.onScreen ?? true) as PrimitiveAtom<boolean>,
         search: atom(false) as PrimitiveAtom<boolean>,
         drag: atom(false) as PrimitiveAtom<boolean>,
@@ -72,6 +75,7 @@ function window_(over: { loaded?: boolean; onScreen?: boolean; card?: boolean } 
         agentsLoadedAtom: sources.loaded,
         toHandleAtom: sources.rows,
         settingsAtom: sources.settings,
+        onAtom: sources.on,
         sidebarOnScreenAtom: sources.onScreen,
         searchOpenAtom: sources.search,
         dragAtom: sources.drag,
@@ -204,5 +208,26 @@ describe("what feeds Brokk's hub (FR-BOSS-009, AC11)", () => {
         w.stop();
         w.list(item("agent:a", "waiting", T - 6 * Min));
         expect(w.hub.getView().visit).toBeNull();
+    });
+});
+
+describe("Brokk's switch reaches the hub (FR-BOSS-009, #2218)", () => {
+    it("folds the visit that is up when he is turned off, and keeps feeding the badge's keys", () => {
+        const w = window_();
+        w.list(item("agent:a", "waiting", T - 6 * Min));
+        expect(w.hub.getView().visit).not.toBeNull();
+        w.store.set(w.sources.on, false);
+        expect(w.hub.getView().visit).toBeNull();
+        w.list(item("agent:a", "waiting", T - 6 * Min), item("agent:b", "error", T - Min));
+        expect(w.hub.getView().visit).toBeNull();
+        expect(w.hub.getView().badgeKeys).toEqual(["agent:a", "agent:b"]);
+    });
+
+    it("raises nothing for what is already there when the window starts with him off", () => {
+        const w = window_({ on: false, rows: [item("agent:a", "waiting", T - 6 * Min)] });
+        expect(w.hub.getView().visit).toBeNull();
+        expect(w.hub.getView().badgeKeys).toEqual(["agent:a"]);
+        w.store.set(w.sources.on, true);
+        expect(w.hub.getView().visit).not.toBeNull();
     });
 });

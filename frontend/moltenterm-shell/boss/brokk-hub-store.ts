@@ -3,7 +3,7 @@
 
 // Brokk's hub in a window (FR-BOSS-009, #2002): the one BrokkHub of this view, wired to the window's own stores. The
 // avatar, the scene and his panel read it; nothing else decides when he comes. It starts with the host that mounts the
-// avatar (brokk-hub-host.tsx) and listens only while that host is on screen.
+// avatar (brokk-hub-host.tsx) and listens while that host is on screen, Brokk on or off (#2218).
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
@@ -186,6 +186,7 @@ export class BrokkHubModel {
             agentsLoadedAtom: loadedAtom,
             toHandleAtom: boss.toHandleAtom,
             settingsAtom: this.settingsAtom,
+            onAtom: boss.showAtom,
             sidebarOnScreenAtom: this.sidebarOnScreenAtom,
             sidebarEdgeAtom: this.sidebarEdgeAtom,
             searchOpenAtom: TopFieldModel.getInstance().openAtom,
