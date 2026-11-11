@@ -19,6 +19,8 @@ vi.mock("./boss-store", async () => {
     const nameAtom = atom("Brokk");
     return { BossBubbleModel: { getInstance: () => ({ nameAtom }) } };
 });
+const gate = vi.hoisted(() => ({ allowed: false }));
+vi.mock("../build/current-build", () => ({ currentBrainstormAllowed: () => gate.allowed }));
 vi.mock("../sessions/pane-focus", () => ({ showPane: vi.fn() }));
 vi.mock("../settings/settings-open", () => ({ openSettingsSection: vi.fn() }));
 vi.mock("./brokk-session", async () => {
@@ -294,6 +296,28 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         globalStore.set(BrainstormStateAtom, null);
     });
 
+    // #2257: the field offers its one command while a slash starts, only where the brainstorm exists.
+    it("offers /brainstorm while a slash starts, only where the brainstorm exists", () => {
+        try {
+            gate.allowed = true;
+            keepDraft("/br");
+            let html = render();
+            expect(html).toContain('data-testid="brokk-talk-command"');
+            expect(html).toContain("/brainstorm [idea]: brainstorm with Brokk");
+            expect(html).toContain('title="Enter to send, Shift+Enter for a new line, /brainstorm [idea] to brainstorm"');
+            keepDraft("hello");
+            expect(render()).not.toContain("brokk-talk-command");
+            gate.allowed = false;
+            keepDraft("/br");
+            html = render();
+            expect(html).not.toContain("brokk-talk-command");
+            expect(html).toContain('title="Enter to send, Shift+Enter for a new line"');
+        } finally {
+            gate.allowed = false;
+            keepDraft("");
+        }
+    });
+
     // #2257: his terminal is never the main way out; it stays a secondary action beside the note.
     it("offers his terminal only beside the note, never as its way out", () => {
         const stateAtom = (BrokkSession.getInstance() as any).stateAtom;
@@ -327,7 +351,10 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
 
     it("gives its messages to his session, and keeps the text unless the agent has it", () => {
         const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
-        expect(source).toContain("await session.say(text.trim())");
+        // The text as fieldAction reads it: trimmed, or the brainstorm's command where it exists (#2257).
+        expect(source).toContain("const action = fieldAction(text, brainstormAllowed);");
+        expect(source).toContain("await session.say(action.text)");
+        expect(source).toContain("await openBrainstorm(idea !== \"\");");
         expect(source).toContain("if (!keepsText(result))");
         expect(source).toContain('onTyping(text.trim() !== "")');
     });

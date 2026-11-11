@@ -151,8 +151,12 @@ import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
 import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
 import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard } from "./brokk-group";
+import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import {
     ArrivalSteps,
+    autoPanelIn,
+    conversationWidth,
+    conversationWidthFor,
     groupGeometry,
     PanelId,
     PanelSlidePx,
@@ -612,7 +616,10 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
     it("remembers the panel the developer pins, and switches to another when the open one is closed (#2090)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain("rememberPanel(panels.pinned);");
-        expect(source).toContain("const closePanel = () => setPanels(afterClose(active, auto));");
+        // During a brainstorm a closed panel leaves the space to the graph (#2257).
+        expect(source).toContain(
+            "const closePanel = () => setPanels(brainstorming ? InitialPanels : afterClose(active, auto));"
+        );
     });
 
     it("1. opens Notifications for a row that is grave or waits for an answer", () => {
@@ -709,7 +716,7 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
 describe("the windows never overlap (AC18)", () => {
     it("keeps the panel while the conversation is open, giving way above the field, and grows back when it folds (#2090)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(source).toContain("const active: PanelId = activePanel(panels, auto);");
+        expect(source).toContain("const active: PanelId = activePanel(panels, autoPanelIn(auto, brainstorming));");
         expect(source).toContain("const heightRoom = panelRoom(g, frame.place.heightRoom, conversation);");
         expect(source).toContain("panelHeight(head + content + 16, heightRoom, Math.min(g.square, heightRoom))");
         expect(source).toContain("height: Math.min(height, heightRoom)");
@@ -734,6 +741,24 @@ describe("the windows never overlap (AC18)", () => {
         expect(talk).toContain("onFocusChange?.(open);");
     });
 
+    // #2257, the approved mockup: during a brainstorm his portrait and his conversation make a column, and the graph
+    // has the space beside it. No panel opens by itself; the rail still opens one at a click.
+    it("leaves the space beside his column to the graph during a brainstorm", () => {
+        expect(autoPanelIn("notifications", true)).toBeNull();
+        expect(autoPanelIn("notifications", false)).toBe("notifications");
+        expect(conversationWidthFor(g, 600, true)).toBe(g.width);
+        expect(conversationWidthFor(g, 600, false)).toBe(conversationWidth(g, 600));
+        expect(conversationWidth(g, 600)).toBeGreaterThan(g.width);
+        const panel = (html: string) => attr(html, "brokk-panel", "data-panel");
+        globalStore.set(BrainstormStateAtom, { allowed: true, open: true, version: 1 });
+        try {
+            expect(panel(render()) ?? null).toBeNull();
+        } finally {
+            globalStore.set(BrainstormStateAtom, null);
+        }
+        expect(panel(render())).toBe("notifications");
+    });
+
     it("keeps the field in its place when the window is folded, the size of the group", () => {
         const html = render();
         expect(attr(html, "brokk-fieldbox", "style")).toContain(`width:${g.field.w}px;height:${g.field.h}px`);
@@ -742,7 +767,7 @@ describe("the windows never overlap (AC18)", () => {
 
     it("sizes the window from the group's geometry: as wide as the group and the panel area, as tall as its exchange", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(source).toContain("w: conversationWidth(g, frame.place.panelRoom),");
+        expect(source).toContain("w: conversationWidthFor(g, frame.place.panelRoom, brainstorming && active == null),");
         expect(source).toContain(
             "h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - flow.field.y),"
         );

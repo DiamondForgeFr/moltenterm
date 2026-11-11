@@ -24,6 +24,7 @@ import { useAtomValue } from "jotai";
 import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentStates } from "../agent-state-store";
 import { AiIcon } from "../ai-icon";
+import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { agentName } from "../companion/companion-task-model";
 import { isActive, overallDownloadProgress } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
@@ -46,6 +47,7 @@ import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
 import { BrokkItem, sayLine } from "./brokk-exchange-model";
 import {
     activePanel,
+    autoPanelIn,
     afterClick,
     afterClose,
     afterHover,
@@ -54,7 +56,7 @@ import {
     ArrivalStepMs,
     ConversationChromePx,
     conversationHeight,
-    conversationWidth,
+    conversationWidthFor,
     EmptyReportSize,
     groupFlow,
     groupGeometry,
@@ -413,7 +415,15 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     };
     // The panel the group opens with is read once, when it opens: nothing changes under the developer's eyes after.
     const [auto] = useState<PanelId>(() => groupOpeningPanel(priorityFactsOf(railInput), rememberedPanel));
-    const active: PanelId = activePanel(panels, auto);
+    // The brainstorm takes the screen (FR-BOSS-010, #2257, the approved mockup): his portrait and his conversation in a
+    // column, the graph in the space beside. No panel opens by itself then; the rail still opens one at a click.
+    const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
+    useEffect(() => {
+        if (brainstorming) {
+            setPanels(InitialPanels);
+        }
+    }, [brainstorming]);
+    const active: PanelId = activePanel(panels, autoPanelIn(auto, brainstorming));
     useEffect(() => {
         if (panels.pinned != null) {
             rememberPanel(panels.pinned);
@@ -446,9 +456,10 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const onFocusChange = useCallback((open: boolean) => setConversation(open), []);
     // The window is as wide as the group and the panel area together, as tall as the exchange needs, from the field's top
     // wherever the grown report card has pushed it (it gives way when the window's room runs out).
+    // During a brainstorm with no panel open it keeps to the group's width, under his portrait, as in the mockup.
     const fieldSize = conversation
         ? {
-              w: conversationWidth(g, frame.place.panelRoom),
+              w: conversationWidthFor(g, frame.place.panelRoom, brainstorming && active == null),
               h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - flow.field.y),
           }
         : { w: g.field.w, h: g.field.h };
@@ -617,7 +628,8 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         };
     }, [boss]);
 
-    const closePanel = () => setPanels(afterClose(active, auto));
+    // During a brainstorm a closed panel leaves the space to the graph.
+    const closePanel = () => setPanels(brainstorming ? InitialPanels : afterClose(active, auto));
     const clickIcon = (id: PanelId) => setPanels(afterClick(id));
     const onRailKeyDown = (e: React.KeyboardEvent, id: PanelId) => {
         const next = neighbourPanel(id, e.key);
