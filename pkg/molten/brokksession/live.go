@@ -252,7 +252,7 @@ func logUntaken(rtn Result) {
 	if rtn.Status == StatusSent {
 		return
 	}
-	log.Printf("[brokksession] a message did not reach his agent: %s %s: %s\n", rtn.Status, rtn.Reason, rtn.Message)
+	log.Printf("[brokksession] a message was not taken as sent: %s %s: %s\n", rtn.Status, rtn.Reason, rtn.Message)
 }
 
 func (s *Service) handle(ctx context.Context, command string, data any) (any, error) {
