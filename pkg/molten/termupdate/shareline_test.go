@@ -99,7 +99,7 @@ func TestMessageLineTakesTheWholeMessage(t *testing.T) {
 		t.Fatalf("a message of %d characters: %+v", MaxTypedMessage, out)
 	}
 	g := claudeInputTerm()
-	out = MakeUpdater(g.env()).typeLineUpTo(context.Background(), "b1", long+"x", true, MaxTypedMessage)
+	out = MakeUpdater(g.env()).typeTextUpTo(context.Background(), "b1", long+"x", true, MaxTypedMessage)
 	if out.Result != InputRefused || len(g.input) != 0 {
 		t.Fatalf("a message past %d characters was typed: %+v", MaxTypedMessage, out)
 	}
@@ -107,6 +107,24 @@ func TestMessageLineTakesTheWholeMessage(t *testing.T) {
 	out = MakeUpdater(h.env()).typeLine(context.Background(), "b1", strings.Repeat("x", maxTypedLine+1), true)
 	if out.Result != InputRefused || len(h.input) != 0 {
 		t.Fatalf("a hand-off line past %d characters was typed: %+v", maxTypedLine, out)
+	}
+}
+
+// #2237: the line breaks the developer typed with Shift+Enter reach the agent inside the paste; nothing else can end
+// it, and a carriage return never submits early.
+func TestMessageLineKeepsItsLineBreaks(t *testing.T) {
+	f := claudeInputTerm()
+	f.state.Draft = false
+	setRunningUpdater(MakeUpdater(f.env()))
+	defer setRunningUpdater(nil)
+	out := TypeMessageLine(context.Background(), "b1", "first\nsecond\r\nthird\rfourth\x1b[201~\x03\n")
+	want := pasteStart + "first\nsecond\nthird\nfourth[201~" + pasteEnd + "|\r"
+	if out.Result != InputSent || strings.Join(f.input, "|") != want {
+		t.Fatalf("got %+v, typed %q", out, f.input)
+	}
+	g := claudeInputTerm()
+	if out := typeLine(g, "a\nb"); out.Result != InputSent || strings.Join(g.input, "|") != pasteStart+"ab"+pasteEnd {
+		t.Fatalf("a share line keeps no line break: %+v, typed %q", out, g.input)
 	}
 }
 

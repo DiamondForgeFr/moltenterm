@@ -72,7 +72,21 @@ func TypeMessageLine(ctx context.Context, blockId string, line string) AgentInpu
 	if u == nil {
 		return refusedCannotType()
 	}
-	return u.typeLineUpTo(ctx, blockId, line, true, MaxTypedMessage)
+	return u.typeTextUpTo(ctx, blockId, cleanMessage(line), true, MaxTypedMessage)
+}
+
+// cleanMessage keeps the line breaks the developer typed (Shift+Enter, #2237) as line feeds inside the paste, where
+// the agent takes them as text: no other control character, so nothing can end the paste or press a key. A carriage
+// return would submit, so it becomes a line feed.
+func cleanMessage(text string) string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	return strings.TrimSpace(strings.Map(func(r rune) rune {
+		if r != '\n' && unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, text))
 }
 
 // AgentTakesLine tells, without typing, whether the agent in blockId would take a typed line with Enter now: it runs,
@@ -105,12 +119,11 @@ func (u *Updater) TypeLine(ctx context.Context, blockId string, line string) Age
 
 // typeLine types the line; submit: press Enter after it when the prompt holds no draft the user may still be writing.
 func (u *Updater) typeLine(ctx context.Context, blockId string, line string, submit bool) AgentInputResult {
-	return u.typeLineUpTo(ctx, blockId, line, submit, maxTypedLine)
+	return u.typeTextUpTo(ctx, blockId, cleanTypedLine(line), submit, maxTypedLine)
 }
 
-// typeLineUpTo is typeLine for a line of at most limit characters.
-func (u *Updater) typeLineUpTo(ctx context.Context, blockId string, line string, submit bool, limit int) AgentInputResult {
-	line = cleanTypedLine(line)
+// typeTextUpTo types an already cleaned text of at most limit characters.
+func (u *Updater) typeTextUpTo(ctx context.Context, blockId string, line string, submit bool, limit int) AgentInputResult {
 	if line == "" || utf8.RuneCountInString(line) > limit {
 		return refused(InputReasonUnknownAction, uimsg.Make("termupdate.line.none"), "There is no line to type: nothing was typed.")
 	}

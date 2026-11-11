@@ -37,6 +37,22 @@ export type ReplyResult = {
 
 export const MaxMessageLength = 4000;
 
+// The field grows with the message up to this many lines, then scrolls inside itself (FR-BOSS-009, AC22b, #2237).
+export const MaxFieldLines = 6;
+
+// The field's height for a text that needs `scrollHeight` px: its own lines, at least one, at most MaxFieldLines.
+// `padding`: the field's padding above and below together.
+export function talkFieldHeight(scrollHeight: number, lineHeight: number, padding: number): number {
+    const least = lineHeight + padding;
+    const most = MaxFieldLines * lineHeight + padding;
+    return Math.min(most, Math.max(least, scrollHeight));
+}
+
+// Enter sends; Shift+Enter makes a new line, and so does Enter while an input method composes a word (#2237).
+export function sendsOnKey(key: { key: string; shiftKey?: boolean; isComposing?: boolean }): boolean {
+    return key.key === "Enter" && !key.shiftKey && !key.isComposing;
+}
+
 // idle: nothing to say; starting: the first message starts his session; sending: on its way; answering: his agent has
 // it and works on it (reply: what he answered so far); answered: his answer is here; unread: he answered in his
 // terminal, where the panel cannot read it; noreply: no answer came; needsanswer: his agent stopped on a prompt in his

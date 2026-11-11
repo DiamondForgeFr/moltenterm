@@ -13,8 +13,11 @@ import {
     IdleReadingsForUnread,
     IdleTalk,
     keepsText,
+    MaxFieldLines,
     MaxMessageLength,
     SayResult,
+    sendsOnKey,
+    talkFieldHeight,
     SendingTalk,
     StartFollow,
     StartingTalk,
@@ -87,6 +90,27 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
         expect(talkNoteKey(talkStateOf({ status: "failed", reason: "gone" }))).toBe("boss.panel.talk.gone");
         expect(talkNoteKey(talkStateOf({ status: "failed", reason: "noagent" }))).toBe("boss.panel.talk.agentStopped");
         expect(talkNoteKey(talkStateOf({ status: "failed" }))).toBe("boss.panel.talk.unreachable");
+    });
+
+    // #2237: the field was one line that scrolled sideways. It grows with the message, then scrolls inside itself.
+    it("grows with the message up to six lines, then scrolls, and shrinks back to one (#2237)", () => {
+        const line = 18;
+        const pad = 8;
+        expect(MaxFieldLines).toBe(6);
+        expect(talkFieldHeight(0, line, pad)).toBe(line + pad);
+        expect(talkFieldHeight(line + pad, line, pad)).toBe(line + pad);
+        expect(talkFieldHeight(3 * line + pad, line, pad)).toBe(3 * line + pad);
+        expect(talkFieldHeight(6 * line + pad, line, pad)).toBe(6 * line + pad);
+        expect(talkFieldHeight(40 * line + pad, line, pad)).toBe(6 * line + pad);
+    });
+
+    it("sends on Enter and makes a new line on Shift+Enter or while a word is composed (#2237)", () => {
+        expect(sendsOnKey({ key: "Enter" })).toBe(true);
+        expect(sendsOnKey({ key: "Enter", shiftKey: true })).toBe(false);
+        expect(sendsOnKey({ key: "Enter", isComposing: true })).toBe(false);
+        expect(sendsOnKey({ key: "a" })).toBe(false);
+        expect(textAt(En, "boss.panel.talk.keys")).toMatch(/Shift\+Enter/);
+        expect(textAt(Fr, "boss.panel.talk.keys")).toMatch(/Maj\+Entrée/);
     });
 
     // #2236: a message his terminal refused (it was too long for the hand-off's line) said "his session is

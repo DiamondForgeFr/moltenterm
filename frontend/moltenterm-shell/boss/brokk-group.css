@@ -446,7 +446,11 @@
 }
 
 .mt-brokk-field[data-open="true"] .mt-brokk-field-row {
-    height: calc(var(--mt-row-32) + 4px);
+    height: auto;
+    min-height: calc(var(--mt-row-32) + 4px);
+    align-items: flex-end;
+    padding-top: 4px;
+    padding-bottom: 4px;
     border-top: 1px solid var(--mt-line-1);
 }
 
@@ -548,16 +552,23 @@
     padding-top: 2px;
 }
 
+/* The field wraps and grows with its lines up to MaxFieldLines (brokk-talk-model.ts), its height set in brokk-talk.tsx;
+   the row grows with it and the exchange above gives up the room (#2237). */
 .mt-brokk-field-input {
     flex: 1;
     min-width: 0;
-    height: 100%;
-    padding: 0 8px;
+    height: 26px;
+    padding: 4px 8px;
     border: 0;
     background: transparent;
     color: var(--mt-text-1);
     font: inherit;
     font-size: var(--mt-text-12);
+    line-height: 18px;
+    overflow-y: auto;
+    resize: none;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
     outline: none;
 }
 

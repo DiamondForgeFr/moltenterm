@@ -3230,6 +3230,7 @@
                 "gone": "{name}'s terminal was closed: send your message again to start a new one.",
                 "notSubmitted": "Your message waits in {name}'s terminal: open it and press Enter.",
                 "agentStopped": "{name}'s agent is no longer running in his terminal. Close that terminal, then send your message again.",
+                "keys": "Enter to send, Shift+Enter for a new line",
                 "unreachable": "The message did not go: MoltenTerm got no answer from {name}'s session. Try again in a moment.",
                 "lookupFailed": "The message did not go: MoltenTerm could not look for {name}'s session just now. Try again in a moment.",
                 "refused": "The message did not go: {name}'s terminal did not take it. Open his terminal to see what is there.",
