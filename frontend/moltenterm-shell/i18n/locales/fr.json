@@ -1299,7 +1299,7 @@
             },
             "moltenterm:sidebarheat": {
                 "label": "Chaleur dans la barre latérale",
-                "description": "Quand des agents travaillent, une légère chaleur monte au bas de la barre latérale."
+                "description": "Quand des agents travaillent ou que quelque chose se construit ou passe en CI, une légère chaleur monte au bas de la barre latérale."
             },
             "moltenterm:settingsreveal": {
                 "label": "Révélation en fusion des réglages",
@@ -10989,6 +10989,31 @@
             "cancel": "Annuler",
             "pending": "Nouvel espace de travail (en création)",
             "failed": "L'espace de travail n'a pas pu être créé : {error}"
+        }
+    },
+    "activity": {
+        "label": "En cours : {list}",
+        "agents": {
+            "one": "un agent",
+            "other": "{count} agents"
+        },
+        "builds": {
+            "one": "un build",
+            "other": "{count} builds"
+        },
+        "localCi": {
+            "one": "une CI locale",
+            "other": "{count} CI locales"
+        },
+        "prCi": {
+            "one": "CI de la PR {numbers}",
+            "other": "CI des PR {numbers}"
+        },
+        "open": {
+            "agent": "Cliquez pour aller à l'agent",
+            "build": "Cliquez pour ouvrir le projet",
+            "localCi": "Cliquez pour ouvrir la CI locale",
+            "prCi": "Cliquez pour ouvrir Intégration"
         }
     },
     "topField": {

@@ -5,8 +5,8 @@
 // of the tab bar, the workspace rail and the status bar. Top to bottom: the window row (sidebar toggle; keep-awake and
 // notifications), the top field (FR-SHELL-083, top-field.tsx), the top row (views pinned everywhere, FR-SHELL-080),
 // the workspace header (name, project type, its menu on hover), the tiles (pinned tabs), the temporary views (the
-// other tabs, New view), the heat in the free space while agents work (sidebar-heat.tsx), the branch and build line, and
-// the bottom bar (library, workspace dots, +).
+// other tabs, New view), the heat in the free space while anything runs (sidebar-heat.tsx), the branch and build line,
+// and the bottom bar (library, workspace dots, +).
 // Everything the replaced bars offered keeps a home here or in these menus (see the PR of #1183 for the mapping).
 
 import { getTabBadgeAtom } from "@/app/store/badge";
@@ -27,6 +27,7 @@ import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useActivityCount } from "../activity/activity-store";
 import { AgentInfoHost } from "../agent-info/agent-info-host";
 import { AgentStateDotClasses, agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
@@ -1327,6 +1328,13 @@ function useSidebarSections(split: SidebarTabSplit) {
     const data = useAtomValue(AgentStates.getInstance().dataAtom);
     const agents = useMemo(() => workspaceAgents(data, ws?.oid), [data, ws?.oid]);
     return useMemo(() => sidebarSections(split, agents), [split, agents]);
+}
+
+// The floor follows the activity source (agents, builds and CI that run, #2233), apart from the sidebar so that a run
+// starting or ending draws the heat and not the page.
+function ActivityHeat({ shown }: { shown: boolean }) {
+    const running = useActivityCount();
+    return <SidebarHeat running={running} shown={shown} />;
 }
 
 // The room the line gives up on hover is "↓ Clear"'s own width, which follows the interface language (#1268).
@@ -2805,7 +2813,7 @@ export function WorkspaceSidebar() {
                                     activeTabId={activeTabId}
                                     asideRef={asideRef}
                                 />
-                                <SidebarHeat agents={sections.agents} shown={!hidden || peek} />
+                                <ActivityHeat shown={!hidden || peek} />
                             </>
                         )}
                     </div>
