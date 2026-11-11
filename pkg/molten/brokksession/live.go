@@ -412,7 +412,14 @@ func livePermits() *PermitBroker {
 			return err == nil && block != nil && molten.IsOwnSession(block.Meta)
 		},
 		AutoApprove: func() bool {
-			return wconfig.GetWatcher().GetFullConfig().Settings.BossAutoApprove
+			if !wconfig.GetWatcher().GetFullConfig().Settings.BossAutoApprove {
+				return false
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), findTimeout)
+			defer cancel()
+			client, err := wstore.DBGetSingleton[*waveobj.Client](ctx)
+			// Without the developer's confirmation, as when an agent wrote settings.json by hand, it is off.
+			return err == nil && client != nil && AutoApproveOn(true, client.Meta)
 		},
 		Guard: func(ask PermissionAsk) string {
 			return GuardReason(ask, PermitGuardEnv{

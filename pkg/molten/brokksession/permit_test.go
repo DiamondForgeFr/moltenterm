@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/keepawake"
+	"github.com/wavetermdev/waveterm/pkg/molten/metaguard"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
 // fakePermits is a broker over a fake agent: its own terminal is "brokk-1", ids count up, the clock stands still.
@@ -279,6 +281,35 @@ func TestAutoApprove(t *testing.T) {
 	}
 	b.Answer(PermitRequest{Id: p.Id, BlockId: "brokk-1", Decision: PermitAllow})
 	waitAsked(t, done)
+}
+
+// #2257, review: boss:autoapprove counts only with the developer's confirmation the window recorded; the setting
+// alone (an agent writing settings.json by hand) is off.
+func TestAutoApproveNeedsTheDevelopersConfirmation(t *testing.T) {
+	t.Parallel()
+	confirmed := map[string]any{AutoApproveConsentKey: float64(1_700_000_000_000)}
+	if !AutoApproveOn(true, confirmed) {
+		t.Fatal("the setting with its confirmation is on")
+	}
+	for name, meta := range map[string]map[string]any{
+		"no confirmation":      {},
+		"a forged true":        {AutoApproveConsentKey: true},
+		"a forged string":      {AutoApproveConsentKey: "yes"},
+		"a confirmation taken": {AutoApproveConsentKey: nil},
+		"no meta":              nil,
+	} {
+		if AutoApproveOn(true, meta) {
+			t.Errorf("%s: on", name)
+		}
+	}
+	if AutoApproveOn(false, confirmed) {
+		t.Fatal("the setting off with an old confirmation is on")
+	}
+	// A terminal cannot write the confirmation: only wavesrv and the window set MoltenTerm's keys on the client.
+	terminal := metaguard.Caller{Local: true, BlockId: "brokk-1"}
+	if err := metaguard.CheckWrite(terminal, waveobj.MakeORef(waveobj.OType_Client, "client-1"), waveobj.MetaMapType{AutoApproveConsentKey: float64(1)}); err == nil {
+		t.Fatal("a terminal wrote the developer's confirmation")
+	}
 }
 
 func TestMapPermission(t *testing.T) {

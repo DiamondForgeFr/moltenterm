@@ -54,7 +54,9 @@ import { AboutBuildCard, AboutUpdatesCard } from "./settings-about";
 import { BookmarksCard } from "./settings-bookmarks";
 import {
     clampSetting,
+    confirmedOn,
     ConfirmOnKeys,
+    consentMeta,
     effectiveSetting,
     groupEntries,
     groupSlug,
@@ -204,11 +206,35 @@ function Toggle({ entry, on, onSet }: { entry: SettingEntry; on: boolean; onSet:
     );
 }
 
+const NoClientAtom = jotai.atom(null) as jotai.Atom<Client>;
+
+// The developer's confirmation in the client's meta, which wavesrv requires with the setting (#2257).
+function writeConsent(key: string, on: boolean): void {
+    const meta = consentMeta(key, on, Date.now());
+    const clientId = ClientModel.getInstance().clientId;
+    if (meta == null || clientId == null) {
+        return;
+    }
+    fireAndForget(() =>
+        RpcApi.SetMetaCommand(TabRpcClient, { oref: WOS.makeORef("client", clientId), meta: meta as MetaType })
+    );
+}
+
 // A switch that turns on only after the developer read what it allows and confirmed it, once (#2257); turning it off
 // asks nothing.
-function ConfirmedToggle({ entry, on, onSet }: { entry: SettingEntry; on: boolean; onSet: (v: unknown) => void }) {
+function ConfirmedToggle({
+    entry,
+    on: setting,
+    onSet,
+}: {
+    entry: SettingEntry;
+    on: boolean;
+    onSet: (v: unknown) => void;
+}) {
     const t = useT();
     const [asking, setAsking] = useState(false);
+    const client = useAtomValue(ClientModel.getInstance().clientAtom ?? NoClientAtom);
+    const on = confirmedOn(entry.key, setting, client?.meta as Record<string, unknown>);
     const base = `settings.items.${entry.key}`;
     return (
         <span className="inline-flex flex-col items-end gap-1.5">
@@ -221,6 +247,7 @@ function ConfirmedToggle({ entry, on, onSet }: { entry: SettingEntry; on: boolea
                         return;
                     }
                     setAsking(false);
+                    writeConsent(entry.key, false);
                     onSet(next);
                 }}
             />
@@ -246,6 +273,7 @@ function ConfirmedToggle({ entry, on, onSet }: { entry: SettingEntry; on: boolea
                             className="molten-btn molten-btn-warning cursor-pointer rounded-4 px-2 py-1 text-12"
                             onClick={() => {
                                 setAsking(false);
+                                writeConsent(entry.key, true);
                                 onSet(true);
                             }}
                         >

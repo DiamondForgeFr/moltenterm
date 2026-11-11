@@ -193,6 +193,31 @@ export const UnknownGroup = "Other settings";
 // developer's, never on unless he set it. Each has settings.items.<key>.confirm, confirmOn and confirmCancel.
 export const ConfirmOnKeys = new Set<string>(["boss:autoapprove"]);
 
+// The confirmation each of them records in the client's meta, which wavesrv requires with the setting: a terminal
+// cannot write it, so an agent that sets the key in settings.json by hand gets nothing. Must match
+// pkg/molten/brokksession/permit.go AutoApproveConsentKey.
+export const ConfirmConsentKeys: Record<string, string> = { "boss:autoapprove": "molten:brokkautoapprove" };
+
+// The switch shows on only when the setting and its confirmation agree, as wavesrv reads it: a setting an agent wrote
+// by hand shows off.
+export function confirmedOn(key: string, setting: boolean, clientMeta: Record<string, unknown>): boolean {
+    const consentKey = ConfirmConsentKeys[key];
+    if (consentKey == null) {
+        return setting;
+    }
+    const at = clientMeta?.[consentKey];
+    return setting && typeof at === "number" && at > 0;
+}
+
+// What the confirmation writes: when the developer confirmed, or nothing once he turns it off.
+export function consentMeta(key: string, on: boolean, now: number): Record<string, number | null> {
+    const consentKey = ConfirmConsentKeys[key];
+    if (consentKey == null) {
+        return null;
+    }
+    return { [consentKey]: on ? now : null };
+}
+
 // The control of a key without metadata, from its JSON type.
 function controlForType(prop: SchemaProperty): SettingsControl {
     if (prop.enum?.length) {

@@ -66,6 +66,21 @@ const (
 	permitMovedSlackMs = 1000
 )
 
+// AutoApproveConsentKey is the developer's confirmation of boss:autoapprove, written by the window in the client's
+// meta when he confirms it, removed when he turns it off (#2257). A terminal cannot write molten:* keys on the client
+// (pkg/molten/metaguard), nor set boss:autoapprove (pkg/wshrpc/wshserver configguard); an agent writing settings.json
+// by hand gets the setting without the confirmation, which counts as off.
+const AutoApproveConsentKey = "molten:brokkautoapprove"
+
+// AutoApproveOn: the setting and the developer's confirmation agree.
+func AutoApproveOn(setting bool, clientMeta map[string]any) bool {
+	if !setting {
+		return false
+	}
+	at, ok := clientMeta[AutoApproveConsentKey].(float64)
+	return ok && at > 0
+}
+
 // PermissionAsk is a request as the window shows it: what is asked (Kind), the exact command or path (Subject), and
 // whether the agent offers to always allow it.
 type PermissionAsk struct {
