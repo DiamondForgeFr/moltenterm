@@ -423,6 +423,7 @@ func livePermits() *PermitBroker {
 		Guard: func(ask PermissionAsk) string {
 			return GuardReason(ask, PermitGuardEnv{OwnFolder: filepath.Join(wavebase.GetWaveDataDir(), FolderName)})
 		},
+		Approvals: MakeApprovalLog(filepath.Join(wavebase.GetWaveDataDir(), FolderName)),
 		Moved: func(blockId string, at int64) bool {
 			run, ok := attention.AgentRun(blockId)
 			return ok && run.State != molten.AgentStateWaiting && run.StateSince > at+permitMovedSlackMs

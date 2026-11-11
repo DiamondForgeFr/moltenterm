@@ -6,6 +6,7 @@ package brokksession
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -310,6 +311,39 @@ func TestAutoApproveNeedsTheDevelopersConfirmation(t *testing.T) {
 	if err := metaguard.CheckWrite(terminal, waveobj.MakeORef(waveobj.OType_Client, "client-1"), waveobj.MetaMapType{AutoApproveConsentKey: float64(1)}); err == nil {
 		t.Fatal("a terminal wrote the developer's confirmation")
 	}
+}
+
+// #2257, second review: each approval made without asking is written to the file of his folder before his agent gets
+// the allow; a burst and a restart lose none, and an approval that cannot be written asks instead.
+func TestAutoApprovalsAreWrittenDownFirst(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	log := MakeApprovalLog(dir)
+	f := &fakePermits{auto: true}
+	b := f.broker()
+	b.env.Approvals = log
+	for i := 0; i < 30; i++ {
+		if answer, _ := b.Ask(context.Background(), bashRequest("ls -la")); answer.Decision != keepawake.PermissionAllow {
+			t.Fatalf("approval %d: %+v", i, answer)
+		}
+	}
+	// A restart: a new broker over the same file.
+	g := &fakePermits{auto: true, n: 100}
+	again := g.broker()
+	again.env.Approvals = MakeApprovalLog(dir)
+	if got := again.AutoApproved(0); len(got) != 30 || got[0].Subject != "ls -la" {
+		t.Fatalf("after a restart the window reads %d approvals", len(got))
+	}
+	// A log that cannot be written: nothing runs unseen, the request asks.
+	h := &fakePermits{auto: true}
+	broken := h.broker()
+	broken.env.Approvals = MakeApprovalLog(filepath.Join(dir, "missing", "folder"))
+	done, p := ask(t, broken, context.Background(), bashRequest("ls -la"))
+	if p == nil {
+		t.Fatal("an approval that could not be written down went without asking")
+	}
+	broken.Answer(PermitRequest{Id: p.Id, BlockId: "brokk-1", Decision: PermitDeny})
+	waitAsked(t, done)
 }
 
 func TestMapPermission(t *testing.T) {

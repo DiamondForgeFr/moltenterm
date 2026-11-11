@@ -131,6 +131,9 @@ type PermitEnv struct {
 	AutoApprove func() bool
 	// Guard names why a request still asks with boss:autoapprove on, "" when it may go (permitguard.go).
 	Guard func(ask PermissionAsk) string
+	// Approvals keeps the approvals made without asking (approvallog.go): written before the agent gets the allow, read
+	// by the window, so a burst or a restart loses none. nil: kept in memory only.
+	Approvals *ApprovalLog
 	// Moved tells whether his agent reported a state other than waiting after at (Unix milliseconds): it went on,
 	// the request was answered elsewhere.
 	Moved func(blockId string, at int64) bool
@@ -176,8 +179,10 @@ func (b *PermitBroker) Ask(ctx context.Context, req keepawake.PermissionRequest)
 	}
 	ask.Id, ask.BlockId, ask.At = b.env.NewId(), req.BlockId, b.env.Now().UnixMilli()
 	if b.env.AutoApprove != nil && b.env.AutoApprove() && (b.env.Guard == nil || b.env.Guard(ask) == "") {
-		b.noteAuto(ask)
-		return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow}, true
+		// Nothing runs unseen: an approval that could not be written down asks instead.
+		if b.noteAuto(ask) {
+			return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow}, true
+		}
 	}
 	p := b.add(ask, req.Suggestions)
 	defer b.remove(p)
@@ -235,13 +240,18 @@ func (b *PermitBroker) remove(p *pendingAsk) {
 	}
 }
 
-func (b *PermitBroker) noteAuto(ask PermissionAsk) {
+func (b *PermitBroker) noteAuto(ask PermissionAsk) bool {
+	approval := AutoApproval{Id: ask.Id, Kind: ask.Kind, Subject: ask.Subject, At: ask.At}
+	if b.env.Approvals != nil {
+		return b.env.Approvals.Append(approval) == nil
+	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.auto = append(b.auto, AutoApproval{Id: ask.Id, Kind: ask.Kind, Subject: ask.Subject, At: ask.At})
+	b.auto = append(b.auto, approval)
 	if len(b.auto) > maxAutoApprovals {
 		b.auto = b.auto[len(b.auto)-maxAutoApprovals:]
 	}
+	return true
 }
 
 // Answer gives the developer's decision to the request waiting under that id in that terminal; anything else is gone.
@@ -278,9 +288,12 @@ func (b *PermitBroker) Pending(blockId string) *PermissionAsk {
 
 // AutoApproved lists the approvals made without asking since after (Unix milliseconds), of the last half hour.
 func (b *PermitBroker) AutoApproved(after int64) []AutoApproval {
+	since := max(after, b.env.Now().Add(-autoApprovalKeep).UnixMilli())
+	if b.env.Approvals != nil {
+		return b.env.Approvals.Since(since, maxAutoApprovals)
+	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	since := max(after, b.env.Now().Add(-autoApprovalKeep).UnixMilli())
 	var rtn []AutoApproval
 	for _, a := range b.auto {
 		if a.At >= since {
