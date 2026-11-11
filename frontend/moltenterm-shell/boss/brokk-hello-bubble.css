@@ -16,7 +16,7 @@
     box-shadow:
         var(--mt-shadow-e2),
         0 0 0 1px color-mix(in srgb, var(--mt-action) 35%, transparent);
-    font-size: 12px;
+    font-size: var(--mt-text-12);
     line-height: 1.4;
     pointer-events: none;
     -webkit-app-region: no-drag;
