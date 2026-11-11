@@ -256,6 +256,32 @@ describe("his answer comes back under the field (#2028)", () => {
     });
 });
 
+// #2248: a brainstorm the developer moves to brings its conversation into his talk window, in place of the one before.
+describe("a brainstorm's conversation comes back (FR-BOSS-010 AC10c, #2248)", () => {
+    it("shows the kept turns, each answer under its message, offering nothing", () => {
+        const session = BrokkSession.getInstance();
+        session.addLocalLine("An earlier line");
+        session.showConversation([
+            { role: "you", text: "A video app for kids", at: 1 },
+            { role: "brokk", text: 'For which ages?\n\n```brokk-actions\n["3 to 10"]\n```', at: 2 },
+            { role: "brokk", text: "And who picks?", at: 3 },
+            { role: "you", text: "The parents", at: 4 },
+        ]);
+        const items = globalStore.get(session.exchangeAtom);
+        expect(items.map((item) => [item.role, item.text])).toEqual([
+            ["you", "A video app for kids"],
+            ["brokk", "For which ages?"],
+            ["brokk", "And who picks?"],
+            ["you", "The parents"],
+        ]);
+        expect(items[0].id).toBe(items[1].id);
+        expect(items[2].id).not.toBe(items[1].id);
+        expect(items.every((item) => item.role !== "brokk" || (item.final && item.actions.length === 0))).toBe(true);
+        session.showConversation([]);
+        expect(globalStore.get(session.exchangeAtom)).toEqual([]);
+    });
+});
+
 // #2033: the exchange. The follow loop and the hold of his speech wait on gates the test releases one by one.
 describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
     let waits: { ms: number; release: () => void }[];

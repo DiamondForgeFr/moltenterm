@@ -22,7 +22,17 @@ export const MaxLinks = 800;
 export const MaxText = 160;
 export const IdPattern = /^[a-z0-9-]{1,32}$/;
 
-export type NodeKind = "topic" | "question" | "answer" | "idea" | "theme" | "decision" | "proposal" | "conclusion";
+// reference: MoltenTerm's own node naming the other folder of a fork (#2248); no block adds one.
+export type NodeKind =
+    | "topic"
+    | "question"
+    | "answer"
+    | "idea"
+    | "theme"
+    | "decision"
+    | "proposal"
+    | "conclusion"
+    | "reference";
 
 export const NodeKinds: NodeKind[] = [
     "topic",
@@ -33,14 +43,18 @@ export const NodeKinds: NodeKind[] = [
     "decision",
     "proposal",
     "conclusion",
+    "reference",
 ];
 
 // The kinds an `add` may give: the topic is the centre's, a proposal comes with `propose` (#2247).
 export const AddKinds: NodeKind[] = ["question", "answer", "idea", "theme", "decision", "conclusion"];
 
-// The operations of later stories (#2247 to #2250): skipped, not a reason to drop the block.
-export const LaterOps = ["edit", "propose", "conclude", "fork", "remember"];
-const KnownOps = ["centre", "add", "link", ...LaterOps];
+// His questions about the folders (#2248): they never change the graph, the window asks the developer.
+export const QuestionOps = ["fork", "resume", "forget"];
+
+// The operations of later stories (#2247, #2249, #2250): skipped, not a reason to drop the block.
+export const LaterOps = ["edit", "propose", "conclude", "remember"];
+const KnownOps = ["centre", "add", "link", ...QuestionOps, ...LaterOps];
 
 export type Talk = "project" | "personal";
 
@@ -53,6 +67,9 @@ export type GraphOp = {
     a?: string;
     b?: string;
     why?: string;
+    // fork, resume and forget: the brainstorm's title, and why the talk is another project.
+    title?: string;
+    reason?: string;
 };
 
 export type GraphBlock = { v: number; talk: Talk; ops: GraphOp[] };
@@ -67,6 +84,8 @@ export type BrainstormNode = {
     turn: number;
     at: number;
     pos: [number, number, number];
+    // The id of the brainstorm a reference node names.
+    ref?: string;
 };
 
 export type BrainstormLink = { a: string; b: string; why?: string; turn: number };
@@ -152,6 +171,13 @@ export function blockProblem(value: unknown): string {
                     (op.a === op.b ? "a node linked to itself" : "") ||
                     ([...cleanText(op.why ?? "")].length > MaxText ? "reason too long" : "");
                 break;
+            case "fork":
+            case "resume":
+            case "forget":
+                problem =
+                    textProblem(op.title) ||
+                    ([...cleanText(op.reason ?? "")].length > MaxText ? "reason too long" : "");
+                break;
             default:
                 problem = LaterOps.includes(op.op) ? "" : "unknown operation";
         }
@@ -224,6 +250,31 @@ export function centreOf(block: GraphBlock): string {
 // normal exchange, and personal talk draws no graph.
 export function opensBrainstorm(block: GraphBlock): boolean {
     return block != null && block.talk === "project" && centreOf(block) !== "";
+}
+
+// His questions about the folders in a block (#2248): the first fork, resume and forget it holds, their texts plain.
+export type BlockQuestions = {
+    fork?: { title: string; reason: string };
+    resume?: string;
+    forget?: string;
+};
+
+export function questionsOf(block: GraphBlock): BlockQuestions {
+    const rtn: BlockQuestions = {};
+    for (const op of block?.ops ?? []) {
+        const title = cleanText(op.title ?? "");
+        if (title === "") {
+            continue;
+        }
+        if (op.op === "fork" && rtn.fork == null) {
+            rtn.fork = { title, reason: cleanText(op.reason ?? "") };
+        } else if (op.op === "resume" && rtn.resume == null) {
+            rtn.resume = title;
+        } else if (op.op === "forget" && rtn.forget == null) {
+            rtn.forget = title;
+        }
+    }
+    return rtn;
 }
 
 // A short stable mark of a text, so that the same answer read twice is applied once (wavesrv keeps the keys).

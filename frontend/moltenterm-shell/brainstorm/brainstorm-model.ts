@@ -7,7 +7,59 @@
 
 import type { AgentStatesData } from "../agent-state-model";
 import type { MoltentermNotification } from "../notifications-model";
-import { GraphBlock, opensBrainstorm, readGraphBlock, textMark } from "./brainstorm-graph-model";
+import type { BrainstormPrompt, BrainstormSummary } from "./brainstorm-boot";
+import {
+    BlockQuestions,
+    GraphBlock,
+    opensBrainstorm,
+    questionsOf,
+    readGraphBlock,
+    textMark,
+} from "./brainstorm-graph-model";
+
+// How many brainstorms the picker offers to resume on entry (AC10a, #2248).
+export const PickerRecent = 3;
+
+// What the developer's start of a brainstorm offers (AC10a): the most recent ones to resume, or nothing when none is
+// saved (he then says his opening line).
+export function pickerOf(list: BrainstormSummary[]): BrainstormPrompt {
+    const saved = (list ?? []).filter((entry) => entry?.slug);
+    if (saved.length === 0) {
+        return null;
+    }
+    return { kind: "picker", recent: saved.slice(0, PickerRecent), total: saved.length };
+}
+
+// When a brainstorm last changed, as the widget and the questions say it: the day and the time.
+export function lastChange(at: number, locale: string): string {
+    if (!at) {
+        return "";
+    }
+    try {
+        return new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(at));
+    } catch {
+        return new Date(at).toLocaleString();
+    }
+}
+
+// The brainstorms the widget lists beside the open one, the one changed last first.
+export function othersOf(list: BrainstormSummary[], currentSlug: string): BrainstormSummary[] {
+    return (list ?? []).filter((entry) => entry?.slug && entry.slug !== currentSlug);
+}
+
+// His questions in a complete answer (#2248), once per answer; null when it asks none. Only a final answer asks: a
+// block still being written could change.
+export function answerQuestions(input: { markdown: string; final: boolean; allowed: boolean }): BlockQuestions {
+    if (!input.allowed || !input.final) {
+        return null;
+    }
+    const read = readGraphBlock(input.markdown);
+    if (read.block == null) {
+        return null;
+    }
+    const questions = questionsOf(read.block);
+    return questions.fork == null && questions.resume == null && questions.forget == null ? null : questions;
+}
 
 // Only what cannot wait breaks through the pause, discreetly at the layer's edge and never as a toast (decided
 // 2026-11-11): a serious security alert, which in MoltenTerm is a run refused until the developer trusts it, and an agent

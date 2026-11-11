@@ -10,6 +10,7 @@ import {
     MaxOps,
     MaxText,
     opensBrainstorm,
+    questionsOf,
     readGraphBlock,
     textMark,
     withoutGraphBlocks,
@@ -137,5 +138,57 @@ describe("the brokk-graph block", () => {
     it("marks the same text the same way", () => {
         expect(textMark("abc")).toBe(textMark("abc"));
         expect(textMark("abc")).not.toBe(textMark("abd"));
+    });
+});
+
+// #2248: fork, resume and forget name a title; they are checked like the rest, and read as questions.
+describe("his questions about the folders (#2248)", () => {
+    it("checks their title and reason", () => {
+        const ok: GraphBlock = {
+            v: 1,
+            talk: "project",
+            ops: [
+                { op: "fork", title: "Parental control for games", reason: "another product" },
+                { op: "resume", title: "Forge notes" },
+                { op: "forget", title: "A family budget" },
+            ],
+        };
+        expect(blockProblem(ok)).toBe("");
+        expect(blockProblem({ v: 1, talk: "project", ops: [{ op: "fork" }] })).toBe("operation 1 (fork): no text");
+        expect(
+            blockProblem({ v: 1, talk: "project", ops: [{ op: "resume", title: "x".repeat(MaxText + 1) }] })
+        ).toMatch(/^operation 1 \(resume\): text over/);
+        expect(
+            blockProblem({
+                v: 1,
+                talk: "project",
+                ops: [{ op: "forget", title: "x", reason: "y".repeat(MaxText + 1) }],
+            })
+        ).toBe("operation 1 (forget): reason too long");
+    });
+
+    it("reads the first of each, as plain words", () => {
+        const questions = questionsOf({
+            v: 1,
+            talk: "project",
+            ops: [
+                { op: "add", id: "a", kind: "idea", text: "x", from: "c" },
+                { op: "resume", title: "Forge\nnotes" },
+                { op: "resume", title: "Another one" },
+                { op: "fork", title: "Games", reason: "another\u0007 product" },
+            ],
+        });
+        expect(questions).toEqual({ resume: "Forge notes", fork: { title: "Games", reason: "another product" } });
+        expect(questionsOf(block)).toEqual({});
+    });
+
+    it("never adds a reference node from his block", () => {
+        expect(
+            blockProblem({
+                v: 1,
+                talk: "project",
+                ops: [{ op: "add", id: "r", kind: "reference", text: "x", from: "c" }],
+            })
+        ).toBe("operation 1 (add): unknown kind");
     });
 });

@@ -17,51 +17,8 @@ import { BossBubbleModel } from "../boss/boss-store";
 import { tCount, useLocale, useT } from "../i18n/i18n";
 import { BrainstormStage } from "./brainstorm-stage";
 import { BrainstormModel, BrainstormState } from "./brainstorm-store";
+import { BrainstormsWidget } from "./brainstorm-widget";
 import "./brainstorm.css";
-
-function savedTime(at: number, locale: string): string {
-    try {
-        return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(new Date(at));
-    } catch {
-        return new Date(at).toLocaleTimeString();
-    }
-}
-
-function SavedPlate({ state }: { state: BrainstormState }) {
-    const t = useT();
-    const locale = useLocale();
-    const brainstorm = state.brainstorm;
-    let line: string;
-    let tone = "ok";
-    // A brainstorm resumed after a restart was saved when it last changed.
-    const savedAt = state.savedat || brainstorm?.updated || 0;
-    if (state.saveerror) {
-        line = t("boss.brainstorm.saved.failed");
-        tone = "failed";
-    } else if (brainstorm == null || !savedAt) {
-        line = t("boss.brainstorm.saved.nothing");
-        tone = "waiting";
-    } else {
-        line = t("boss.brainstorm.saved.at", { time: savedTime(savedAt, locale) });
-    }
-    return (
-        <div className="mt-bs-saved" role="status" data-testid="brainstorm-saved" data-tone={tone}>
-            <div className="mt-bs-saved-head">
-                <i className={makeIconClass("folder-open", false)} aria-hidden />
-                {t("boss.brainstorm.saved.title")}
-            </div>
-            <div className="mt-bs-saved-line" data-testid="brainstorm-saved-line">
-                {line}
-            </div>
-            {brainstorm != null ? (
-                <div className="mt-bs-saved-folder" title={brainstorm.dir} data-testid="brainstorm-saved-folder">
-                    {brainstorm.slug}/
-                </div>
-            ) : null}
-            <div className="mt-bs-saved-hint">{t("boss.brainstorm.leaveHint")}</div>
-        </div>
-    );
-}
 
 function Breakthrough() {
     const t = useT();
@@ -102,6 +59,7 @@ function Header({ state }: { state: BrainstormState }) {
     useLocale();
     const name = useAtomValue(BossBubbleModel.getInstance().nameAtom, { store: globalStore });
     const camera = useAtomValue(BrainstormModel.getInstance().cameraModeAtom, { store: globalStore });
+    const unfolded = useAtomValue(BrainstormModel.getInstance().widgetOpenAtom, { store: globalStore });
     const nodes = state.graph?.nodes?.length ?? 0;
     const links = state.graph?.links?.length ?? 0;
     const text =
@@ -126,18 +84,35 @@ function Header({ state }: { state: BrainstormState }) {
                 {t("boss.brainstorm.leave")}
             </button>
             <span className="mt-bs-header-text">{text}</span>
+            <button
+                type="button"
+                className="mt-bs-leave mt-bs-switch cursor-pointer"
+                data-testid="brainstorm-switch"
+                aria-expanded={unfolded}
+                onClick={switchBrainstorm}
+            >
+                <i className={makeIconClass("folder-tree", false)} aria-hidden />
+                {t("boss.brainstorm.switch")}
+            </button>
         </div>
     );
 }
 
+// The header's switch (AC10c, #2248): it unfolds the widget's list, where another brainstorm loads without leaving the
+// mode.
+export function switchBrainstorm(): void {
+    BrainstormModel.getInstance().showAll();
+}
+
 export function BrainstormView({ state, shown }: { state: BrainstormState; shown: boolean }) {
+    // A move to another brainstorm starts the stage over: its scene shows the graph as it stands and its overview.
     return (
         <div className={cn("mt-bs-layer", shown && "is-in")} data-testid="brainstorm-layer">
             <div className="mt-bs-scrim" aria-hidden />
             <div className="mt-bs-forge" aria-hidden />
-            <BrainstormStage graph={state.graph ?? null} />
+            <BrainstormStage key={state.swap ?? 0} graph={state.graph ?? null} />
             <Header state={state} />
-            <SavedPlate state={state} />
+            <BrainstormsWidget state={state} />
             <Breakthrough />
         </div>
     );

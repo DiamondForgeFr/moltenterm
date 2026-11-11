@@ -22,6 +22,8 @@ export type ReplayStep = { you: string; line: string; ops: GraphOp[] };
 const centre = (id: string, text: string): GraphOp => ({ op: "centre", id, text });
 const add = (id: string, kind: string, text: string, from: string): GraphOp => ({ op: "add", id, kind, text, from });
 const link = (a: string, b: string, why: string): GraphOp => ({ op: "link", a, b, why });
+// His question when the talk turns into another project (#2248): the widget asks the developer.
+const fork = (title: string, reason: string): GraphOp => ({ op: "fork", title, reason });
 
 export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
     en: [
@@ -74,9 +76,12 @@ export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
             ],
         },
         {
-            you: "That's it, I think.",
-            line: "The idea is clear: a first pass is ready.",
-            ops: [add("first-pass", "conclusion", "Clear idea: a first pass is ready", "kids-video")],
+            you: "That's it, I think. And games would need parental control too.",
+            line: "The idea is clear: a first pass is ready. Parental control for games is another project: shall I open its own folder?",
+            ops: [
+                add("first-pass", "conclusion", "Clear idea: a first pass is ready", "kids-video"),
+                fork("Parental control for games", "games are another product than videos"),
+            ],
         },
     ],
     fr: [
@@ -129,9 +134,12 @@ export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
             ],
         },
         {
-            you: "C'est tout, je crois.",
-            line: "L'idée est claire : une première passe est prête.",
-            ops: [add("premiere-passe", "conclusion", "Idée claire : première passe prête", "app-video-enfants")],
+            you: "C'est tout, je crois. Et les jeux auraient besoin d'un contrôle parental aussi.",
+            line: "L'idée est claire : une première passe est prête. Le contrôle parental pour les jeux, c'est un autre projet : je lui ouvre son propre dossier ?",
+            ops: [
+                fork("Contrôle parental pour les jeux", "les jeux sont un autre produit que les vidéos"),
+                add("premiere-passe", "conclusion", "Idée claire : première passe prête", "app-video-enfants"),
+            ],
         },
     ],
 };

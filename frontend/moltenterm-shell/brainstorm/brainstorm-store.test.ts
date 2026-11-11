@@ -90,6 +90,15 @@ vi.mock("../boss/brokk-session", async () => {
         setLead: (lead: string) => {
             session.lead = lead;
         },
+        shown: null as any[],
+        showConversation: (turns: any[]) => {
+            session.shown = turns;
+        },
+        said: [] as { text: string; lead: string }[],
+        say: async (text: string) => {
+            session.said.push({ text, lead: session.lead });
+            return { phase: "answering" };
+        },
     };
     return { BrokkSession: { getInstance: () => session } };
 });
@@ -104,6 +113,12 @@ import { brainstormHolds } from "./brainstorm-hold";
 import {
     BrainstormModel,
     CloseCommand,
+    DeleteCommand,
+    FindCommand,
+    ForkCommand,
+    ListCommand,
+    LoadCommand,
+    NewCommand,
     OpenCommand,
     SidebarSlidMetaKey,
     StateCommand,
@@ -116,21 +131,74 @@ const sidebar = SidebarModel.getInstance() as any;
 const notifications = MoltentermNotifications.getInstance() as any;
 const agents = AgentStates.getInstance() as any;
 
-// A wavesrv of the test: the mode's state and the calls it got.
+// A wavesrv of the test: the mode's state, the synthetic folders it holds, and the calls it got.
 let calls: { command: string; data: any }[];
-let server: { open: boolean; version: number; nodes: number };
+let server: { open: boolean; version: number; nodes: number; current: any; folders: any[] };
+
+const folder = (slug: string, title: string, updated: number) => ({
+    id: `id-${slug}`,
+    slug,
+    title,
+    dir: `/synthetic/Brainstorms/${slug}`,
+    created: 1,
+    updated,
+    state: "open",
+    turns: 0,
+});
 
 function state(): any {
     return {
         allowed: true,
         open: server.open,
         version: server.version,
+        brainstorm: server.current ?? undefined,
         graph: { schema: 1, rev: server.nodes, centre: "c", nodes: [], links: [] },
     };
 }
 
 async function fakeCall(command: string, data: any): Promise<any> {
     calls.push({ command, data });
+    if (command === ListCommand) {
+        return { brainstorms: server.folders };
+    }
+    if (command === FindCommand) {
+        const match = server.folders.find((f) => f.title.toLowerCase() === String(data.title).toLowerCase());
+        return match != null ? { match } : {};
+    }
+    if (command === LoadCommand) {
+        const match = server.folders.find((f) => f.slug === data.slug);
+        if (match == null) {
+            return { state: state(), turns: [], error: "unknown" };
+        }
+        server.open = true;
+        server.current = match;
+        server.version++;
+        return {
+            state: state(),
+            turns: [
+                { turn: 1, at: 1, role: "you", text: `About ${match.title}` },
+                { turn: 1, at: 1, role: "brokk", text: "Where were we?" },
+            ],
+        };
+    }
+    if (command === NewCommand) {
+        server.open = true;
+        server.current = null;
+        server.version++;
+        return { state: state() };
+    }
+    if (command === DeleteCommand) {
+        const match = server.folders.find((f) => f.slug === data.slug);
+        server.folders = server.folders.filter((f) => f.slug !== data.slug);
+        server.version++;
+        return { state: state(), summary: match, trashed: true };
+    }
+    if (command === ForkCommand) {
+        server.current = folder("parental-control", data.title, 9);
+        server.folders = [server.current, ...server.folders];
+        server.version++;
+        return { state: state(), turns: [] };
+    }
     if (command === OpenCommand) {
         server.open = true;
         server.version++;
@@ -162,13 +230,15 @@ const opening =
 beforeEach(async () => {
     BrainstormModel.resetInstance();
     calls = [];
-    server = { open: false, version: 1, nodes: 0 };
+    server = { open: false, version: 1, nodes: 0, current: null, folders: [] };
     toasts.length = 0;
     hold.mockClear();
     setMeta.mockClear();
     gate.allowed = true;
     session.lines.length = 0;
     session.lead = "";
+    session.shown = null;
+    session.said.length = 0;
     globalStore.set(boss.cardOpenAtom, false);
     globalStore.set(sidebar.hiddenAtom, false);
     globalStore.set(sidebar.windowMetaAtom, {});
@@ -240,11 +310,13 @@ describe("the brainstorm mode in a view (FR-BOSS-010, #2246)", () => {
     it("starts with the developer's idea, without his opening line", async () => {
         const model = startModel();
         await settle();
-        await model.begin(true);
+        expect(await model.begin("A garden planner")).toBe(true);
         expect(calls.find((c) => c.command === OpenCommand).data).toEqual({ by: "you" });
+        expect(calls.find((c) => c.command === FindCommand).data).toEqual({ title: "A garden planner" });
         expect(session.lines).toEqual([]);
         expect(session.lead).toBe("boss.brainstorm.lead");
         expect(model.isOpen()).toBe(true);
+        expect(globalStore.get(model.promptAtom)).toBeNull();
     });
 
     // AC2, AC3: closing his card ends it; one summary line for what arrived, the critical one broke through at the edge.
@@ -303,19 +375,6 @@ describe("the brainstorm mode in a view (FR-BOSS-010, #2246)", () => {
         expect(turns[0].data).toMatchObject({ brokk: "What does it do?", block: null });
     });
 
-    it("takes a brainstorm up where it was when the developer starts one after a restart", async () => {
-        const model = startModel();
-        await settle();
-        model.useCall(async (command, data) => {
-            const rtn = await fakeCall(command, data);
-            return command === OpenCommand
-                ? { ...rtn, brainstorm: { slug: "forge-notes", title: "Forge notes" } }
-                : rtn;
-        });
-        await model.begin();
-        expect(session.lines).toEqual(["boss.brainstorm.resume"]);
-    });
-
     // AC2: a tab switch keeps the mode; the view switched to opens his card, and closes it when the mode ends elsewhere.
     it("opens his card in the view switched to, and closes it with the mode", async () => {
         const activity = (await import("../tab-activity")).TabActivity.getInstance() as any;
@@ -348,5 +407,204 @@ describe("the brainstorm mode in a view (FR-BOSS-010, #2246)", () => {
         expect(model.isOpen()).toBe(false);
         model.apply({ allowed: true, open: true, session: "s2", version: 0 });
         expect(model.isOpen()).toBe(false);
+    });
+});
+
+const graphAnswer = (line: string, ops: any[]) =>
+    `${line}\n\n\`\`\`brokk-graph\n${JSON.stringify({ v: 1, talk: "project", ops })}\n\`\`\``;
+
+const commands = () => calls.map((c) => c.command);
+
+describe("the brainstorm folders (FR-BOSS-010 AC10a to AC10d, AC11, #2248)", () => {
+    // AC10a: the developer's start offers the three most recent, a new idea and all of them; nothing is resumed yet.
+    it("opens on a picker of the saved brainstorms, and resumes the one picked", async () => {
+        server.folders = [
+            folder("family-budget", "A family budget", 40),
+            folder("kids-video", "A safe video app for children", 30),
+            folder("forge-notes", "Forge notes", 20),
+            folder("garden", "A garden planner", 10),
+        ];
+        const model = startModel();
+        await settle();
+        expect(await model.begin()).toBe(false);
+        const prompt: any = globalStore.get(model.promptAtom);
+        expect(prompt.kind).toBe("picker");
+        expect(prompt.recent.map((f: any) => f.slug)).toEqual(["family-budget", "kids-video", "forge-notes"]);
+        expect(prompt.total).toBe(4);
+        expect(session.lines).toEqual([]);
+        expect(commands()).not.toContain(LoadCommand);
+        expect(model.isOpen()).toBe(true);
+
+        expect(await model.load("kids-video")).toBe(true);
+        expect(calls.find((c) => c.command === LoadCommand).data).toEqual({ slug: "kids-video" });
+        expect(globalStore.get(model.promptAtom)).toBeNull();
+        expect(session.shown.map((turn: any) => turn.text)).toEqual([
+            "About A safe video app for children",
+            "Where were we?",
+        ]);
+        expect(session.lines).toEqual(["boss.brainstorm.resume"]);
+        expect(session.lead).toBe("boss.brainstorm.resumedLead");
+        expect(globalStore.get(model.stateAtom).brainstorm.slug).toBe("kids-video");
+    });
+
+    it("says his opening line when nothing is saved yet", async () => {
+        const model = startModel();
+        await settle();
+        await model.begin();
+        expect(globalStore.get(model.promptAtom)).toBeNull();
+        expect(session.lines).toEqual(["boss.brainstorm.opening(Brokk)"]);
+    });
+
+    it("unfolds the widget for all brainstorms, and starts a new idea over", async () => {
+        server.folders = [folder("forge-notes", "Forge notes", 20)];
+        const model = startModel();
+        await settle();
+        await model.begin();
+        model.showAll();
+        expect(globalStore.get(model.widgetOpenAtom)).toBe(true);
+        expect(globalStore.get(model.promptAtom)).toBeNull();
+        await model.newIdea();
+        expect(commands()).toContain(NewCommand);
+        expect(session.shown).toEqual([]);
+        expect(session.lines).toEqual(["boss.brainstorm.opening(Brokk)"]);
+        expect(session.lead).toBe("boss.brainstorm.lead");
+        expect(globalStore.get(model.widgetOpenAtom)).toBe(false);
+    });
+
+    // AC10a: `/brainstorm <idea>` of a title already saved asks first, and the idea goes only on Start fresh.
+    it("asks before a near-duplicate idea, and sends it only on Start fresh", async () => {
+        server.folders = [folder("kids-video", "A safe video app for children", 30)];
+        const model = startModel();
+        await settle();
+        expect(await model.begin("a safe video app for children")).toBe(false);
+        const prompt: any = globalStore.get(model.promptAtom);
+        expect(prompt).toMatchObject({
+            kind: "duplicate",
+            idea: "a safe video app for children",
+            match: { slug: "kids-video" },
+        });
+        expect(session.said).toEqual([]);
+        expect(session.lead).toBe("");
+        await model.startFresh(prompt.idea);
+        expect(commands()).toContain(NewCommand);
+        expect(commands()).not.toContain(LoadCommand);
+        expect(session.said).toEqual([{ text: "a safe video app for children", lead: "boss.brainstorm.lead" }]);
+    });
+
+    // AC10b: his offer to resume one never opens it; only Resume does, and Not now leaves everything as it was.
+    it("turns his resume offer into a question, and never loads by itself", async () => {
+        server.folders = [folder("forge-notes", "Forge notes", 20)];
+        const model = startModel();
+        await settle();
+        const offer = graphAnswer("Shall we pick up Forge notes?", [{ op: "resume", title: "Forge notes" }]);
+        session.tell({ id: "m1", you: "Remember my notes idea?", markdown: offer, turn: 7, final: false });
+        await settle();
+        expect(globalStore.get(model.promptAtom)).toBeNull();
+        session.tell({ id: "m1", you: "Remember my notes idea?", markdown: offer, turn: 7, final: true });
+        session.tell({ id: "m1", you: "Remember my notes idea?", markdown: offer, turn: 7, final: true });
+        await settle();
+        expect(globalStore.get(model.promptAtom)).toMatchObject({ kind: "resume", match: { slug: "forge-notes" } });
+        expect(calls.filter((c) => c.command === FindCommand)).toHaveLength(1);
+        expect(commands()).not.toContain(LoadCommand);
+        expect(commands()).not.toContain(TurnCommand);
+        expect(model.isOpen()).toBe(false);
+        model.dismissPrompt();
+        expect(globalStore.get(model.promptAtom)).toBeNull();
+        expect(model.isOpen()).toBe(false);
+        // A title nothing is saved under asks nothing.
+        const unknown = graphAnswer("Shall we?", [{ op: "resume", title: "A rocket" }]);
+        session.tell({ id: "m2", you: "Rockets?", markdown: unknown, turn: 8, final: true });
+        await settle();
+        expect(globalStore.get(model.promptAtom)).toBeNull();
+    });
+
+    // AC10c: a switch from the widget moves without leaving the mode; the conversation swaps.
+    it("switches to another brainstorm without leaving the mode", async () => {
+        server.folders = [
+            folder("forge-notes", "Forge notes", 20),
+            folder("kids-video", "A safe video app for children", 30),
+        ];
+        const model = startModel();
+        await settle();
+        await model.load("kids-video");
+        globalStore.set(model.widgetOpenAtom, true);
+        await model.load("forge-notes");
+        expect(model.isOpen()).toBe(true);
+        expect(commands()).not.toContain(CloseCommand);
+        expect(globalStore.get(model.stateAtom).brainstorm.slug).toBe("forge-notes");
+        expect(session.shown[0].text).toBe("About Forge notes");
+        expect(globalStore.get(model.widgetOpenAtom)).toBe(false);
+        expect(await model.load("gone")).toBe(false);
+        expect(globalStore.get(model.noticeAtom)).toEqual({ kind: "failed", failure: "unknown" });
+    });
+
+    // AC10d: his forget is a question; the folder goes only on the developer's confirmation.
+    it("forgets a brainstorm only after the developer confirms", async () => {
+        server.folders = [folder("family-budget", "A family budget", 40)];
+        const model = startModel();
+        await settle();
+        const forget = graphAnswer("MoltenTerm asks you to confirm.", [{ op: "forget", title: "A family budget" }]);
+        session.tell({ id: "m1", you: "Forget the family budget idea", markdown: forget, turn: 9, final: true });
+        await settle();
+        expect(globalStore.get(model.promptAtom)).toMatchObject({ kind: "forget", match: { slug: "family-budget" } });
+        expect(commands()).not.toContain(DeleteCommand);
+        model.dismissPrompt();
+        expect(commands()).not.toContain(DeleteCommand);
+        expect(server.folders).toHaveLength(1);
+
+        session.tell({ id: "m2", you: "Forget it, really", markdown: forget, turn: 10, final: true });
+        await settle();
+        expect(await model.forgetFolder("family-budget")).toBe(true);
+        expect(calls.filter((c) => c.command === DeleteCommand).map((c) => c.data)).toEqual([
+            { slug: "family-budget" },
+        ]);
+        expect(globalStore.get(model.promptAtom)).toBeNull();
+        expect(session.lines).toEqual(["boss.brainstorm.forgotTrash"]);
+        expect(server.folders).toEqual([]);
+    });
+
+    // AC11: his fork asks in the widget; No changes nothing, Yes makes the folder and moves to it.
+    it("asks about another project, and forks only on Yes", async () => {
+        server.folders = [folder("kids-video", "A safe video app for children", 30)];
+        const model = startModel();
+        await settle();
+        await model.load("kids-video");
+        const fork = graphAnswer("Another project?", [
+            { op: "fork", title: "Parental control for games", reason: "another product" },
+        ]);
+        session.tell({ id: "m1", you: "And games?", markdown: fork, turn: 11, final: true });
+        await settle();
+        expect(globalStore.get(model.forkAtom)).toMatchObject({
+            title: "Parental control for games",
+            reason: "another product",
+        });
+        model.forkNo();
+        expect(globalStore.get(model.forkAtom)).toBeNull();
+        expect(commands()).not.toContain(ForkCommand);
+
+        session.tell({ id: "m2", you: "Games again", markdown: fork, turn: 12, final: true });
+        await settle();
+        expect(await model.forkYes()).toBe(true);
+        expect(calls.find((c) => c.command === ForkCommand).data).toEqual({
+            title: "Parental control for games",
+            reason: "another product",
+        });
+        expect(globalStore.get(model.stateAtom).brainstorm.slug).toBe("parental-control");
+        expect(session.shown).toEqual([]);
+        expect(session.lead).toBe("boss.brainstorm.resumedLead");
+    });
+
+    it("asks nothing on a release channel", async () => {
+        gate.allowed = false;
+        server.folders = [folder("forge-notes", "Forge notes", 20)];
+        const model = startModel();
+        await settle();
+        const offer = graphAnswer("Shall we?", [{ op: "resume", title: "Forge notes" }]);
+        session.tell({ id: "m1", you: "Notes?", markdown: offer, turn: 7, final: true });
+        await settle();
+        expect(await model.load("forge-notes")).toBe(false);
+        expect(await model.forgetFolder("forge-notes")).toBe(false);
+        expect(calls).toEqual([]);
+        expect(globalStore.get(model.promptAtom)).toBeNull();
     });
 });
