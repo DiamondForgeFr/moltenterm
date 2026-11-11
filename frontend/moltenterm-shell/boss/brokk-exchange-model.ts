@@ -7,6 +7,8 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
+import { withoutGraphBlocks } from "../brainstorm/brainstorm-graph-model";
+
 // A reply his answer offers (FR-BOSS-004, AC12): its text is what is sent, so a button cannot hide what it sends.
 // authorise: the reply asks once more before it is sent, which every reply does but a short one he marks safe.
 export type InlineAction = { label: string; authorise: boolean };
@@ -68,9 +70,10 @@ function actionsOf(list: unknown[]): InlineAction[] {
 
 // His answer split into what he says and the replies he offers. The block is the last fenced block of the convention; a
 // block that is still being written (no closing fence yet) is left out of the text and offers nothing yet, and a block
-// that is not a JSON list stays in the text as it is.
+// that is not a JSON list stays in the text as it is. The graph of his thought (`brokk-graph`, FR-BOSS-010, #2246) is
+// never part of what he says: the brainstorm reads it (brainstorm-graph-model.ts).
 export function parseReply(markdown: string): ParsedReply {
-    const text = markdown ?? "";
+    const text = withoutGraphBlocks(markdown ?? "");
     const lines = text.replace(/\r\n/g, "\n").split("\n");
     let open = -1;
     for (let i = lines.length - 1; i >= 0; i--) {

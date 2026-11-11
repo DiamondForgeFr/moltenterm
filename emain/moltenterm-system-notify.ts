@@ -14,11 +14,14 @@ import { getAllWaveWindows, getWaveWindowByWebContentsId, WaveBrowserWindow } fr
 export const SystemNotifyChannel = "moltenterm-system-notify";
 export const SystemNotifyCloseChannel = "moltenterm-system-notify-close";
 export const SystemNotifyClickChannel = "moltenterm-system-notify-click";
+// The brainstorm mode holds the system notifications (FR-BOSS-010 AC3, #2246): the views say when it starts and ends.
+export const SystemNotifyHoldChannel = "moltenterm-system-notify-hold";
 
 // must match SystemNotifyRequest in frontend/types/custom.d.ts
 export type SystemNotifyRequest = { id: string; title: string; body: string };
 
-export type SystemNotifyOutcome = "shown" | "focused" | "duplicate" | "invalid" | "unsupported";
+// held: the brainstorm mode is on; the notification stays in the center, and the mode's summary line counts it.
+export type SystemNotifyOutcome = "shown" | "focused" | "duplicate" | "invalid" | "unsupported" | "held";
 
 // What a notification needs from Electron, so the decisions can be tested without it.
 export type ShownNotification = {
@@ -42,9 +45,15 @@ export class SystemNotifier {
     // Electron drops the click handler of a notification that was garbage collected: keep each one until it closes.
     live = new Map<string, ShownNotification>();
     shown = new Map<string, number>();
+    held = false;
 
     constructor(deps: SystemNotifyDeps) {
         this.deps = deps;
+    }
+
+    // Only a boolean is taken from the renderer: anything else releases the hold, so nothing stays muted by mistake.
+    setHeld(held: unknown) {
+        this.held = held === true;
     }
 
     notify(req: SystemNotifyRequest, senderId: number, now = Date.now()): SystemNotifyOutcome {
@@ -56,6 +65,9 @@ export class SystemNotifier {
         this.forgetOld(now);
         if (this.shown.has(id)) {
             return "duplicate";
+        }
+        if (this.held) {
+            return "held";
         }
         if (this.deps.anyWindowFocused()) {
             return "focused";
@@ -134,4 +146,5 @@ export function initMoltentermSystemNotify() {
         notifier.notify(req, event.sender.id)
     );
     onAppIpc(SystemNotifyCloseChannel, (_event, id: string) => notifier.close(id));
+    onAppIpc(SystemNotifyHoldChannel, (_event, held: unknown) => notifier.setHeld(held));
 }

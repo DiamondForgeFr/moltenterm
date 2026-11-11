@@ -451,6 +451,10 @@
             "sessionsDetail": "terminals and agents still running, local and SSH",
             "bossCard": "Show {name}'s card",
             "bossCardDetail": "the sessions of every workspace, over the app",
+            "brainstorm": "Brainstorm with {name}",
+            "brainstormDetail": "talk an idea through, his thought grows in 3D",
+            "brainstormReplay": "Replay a scripted brainstorm",
+            "brainstormReplayDetail": "development builds: synthetic data, no agent",
             "checkUpdates": "Check for updates now",
             "checkUpdatesDetail": "asks GitHub now, even when it was asked today",
             "settings": "Settings",
@@ -484,6 +488,8 @@
             "checkUpdates": "check for updates, update, upgrade, release, new version",
             "sessions": "sessions, durable, running, agents, ssh, detached, jobs, processes",
             "bossCard": "boss, foreman, avatar, bubble, pennant, card, overview, sessions, agents, waiting",
+            "brainstorm": "brainstorm, idea, project, think, mind map, 3D",
+            "brainstormReplay": "brainstorm, replay, demo, script, synthetic",
             "settings": "config, preferences",
             "shortcuts": "keys, keybindings, hotkeys, help, cheat sheet",
             "viewPin": "pin, unpin, keep, temporary, view, tab",
@@ -579,9 +585,14 @@
             "sidebar": "Sidebar",
             "theme": "Theme",
             "avatar": "Avatar",
-            "whenHeComesToFetchMe": "When he comes to fetch me"
+            "whenHeComesToFetchMe": "When he comes to fetch me",
+            "brainstorms": "Brainstorms"
         },
         "items": {
+            "boss:brainstormsdir": {
+                "label": "Brainstorms folder",
+                "description": "Where your brainstorms with him are saved, one folder per idea, without asking."
+            },
             "boss:name": {
                 "label": "Name",
                 "description": "The name the foreman goes by, from 1 to 24 characters. His tooltip, card and menus use it."
@@ -3099,6 +3110,47 @@
         }
     },
     "boss": {
+        "brainstorm": {
+            "menu": "Brainstorm with {name}",
+            "opening": "An idea? Let's put it on the anvil. Tell me what it is, and who it is for.",
+            "lead": "Brainstorm:",
+            "header": "{name}'s thought · {nodes} · {links}",
+            "headerWaiting": "{name} is listening",
+            "nodes": {
+                "one": "{count} element",
+                "other": "{count} elements"
+            },
+            "links": {
+                "one": "{count} link",
+                "other": "{count} links"
+            },
+            "graphLabel": "The ideas of the brainstorm",
+            "kinds": {
+                "topic": "Topic",
+                "question": "Question",
+                "answer": "Answer",
+                "idea": "Idea",
+                "theme": "Theme",
+                "decision": "Decision",
+                "proposal": "Proposal",
+                "conclusion": "Conclusion"
+            },
+            "saved": {
+                "title": "Brainstorms",
+                "at": "Saved automatically · {time}",
+                "nothing": "Saved as soon as the idea is set",
+                "failed": "Not saved: the folder could not be written"
+            },
+            "leaveHint": "Esc leaves the brainstorm",
+            "summary": {
+                "one": "1 notification arrived during the brainstorm",
+                "other": "{count} notifications arrived during the brainstorm"
+            },
+            "summaryShow": "Show",
+            "edgeShow": "See",
+            "crashed": "An agent stopped on an error",
+            "crashedNamed": "{name} stopped on an error"
+        },
         "label": "{name}, {count} waiting",
         "avatar": {
             "labelCue": "{name}, {count} waiting: has something to tell you",

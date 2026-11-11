@@ -18,6 +18,7 @@ import { BossBubbleModel } from "../boss/boss-store";
 import { useBossName } from "../boss/use-boss-name";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
+import { currentBrainstormGates as brainstormGates } from "../build/current-build";
 import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { FaviconMark } from "../favicon/favicon-mark";
@@ -253,6 +254,7 @@ export function usePaletteEntries(picker: PickerSource) {
                 shortcutsHint: formatShortcutById("shortcuts"),
                 viewPin,
                 bossName: bossShown ? bossName : undefined,
+                brainstorm: brainstormGates(),
             }),
         [
             fullConfig,

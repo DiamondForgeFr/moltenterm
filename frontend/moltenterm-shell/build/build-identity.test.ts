@@ -5,8 +5,31 @@ import { MoltentermWaveBaseVersion } from "@/util/moltenterm-identity";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { resolveBuildChannel } from "./build-channel";
 import type { MoltentermBuildInfo } from "./build-info";
-import { makeBuildIdentity } from "./build-identity";
+import { brainstormAllowed, brainstormReplayAllowed, BuildChannel, makeBuildIdentity } from "./build-identity";
+
+// FR-BOSS-010 AC1 (#2246): Brokk's thought in 3D on gold, dev and local builds only; its scripted replay on dev and local.
+describe("the brainstorm gate", () => {
+    it.each<[BuildChannel, boolean, boolean]>([
+        ["gold", true, false],
+        ["dev", true, true],
+        ["local", true, true],
+        ["rc", false, false],
+        ["public", false, false],
+    ])("%s: brainstorm %s, replay %s", (channel, start, replay) => {
+        expect(brainstormAllowed(channel)).toBe(start);
+        expect(brainstormReplayAllowed(channel)).toBe(replay);
+    });
+
+    it("reads the channel the way Electron main gives it to wavesrv", () => {
+        expect(resolveBuildChannel({ isDev: true, runtimeChannel: "public", buildChannel: "public" })).toBe("dev");
+        expect(resolveBuildChannel({ isDev: false, runtimeChannel: "gold", buildChannel: "public" })).toBe("gold");
+        expect(resolveBuildChannel({ isDev: false, buildChannel: "rc" })).toBe("rc");
+        expect(resolveBuildChannel({ isDev: false, buildChannel: "nightly" })).toBe("local");
+        expect(resolveBuildChannel({ isDev: false })).toBe("local");
+    });
+});
 
 const gold: MoltentermBuildInfo = {
     channel: "gold",

@@ -165,6 +165,7 @@ const (
 	ConfigKey_BossQuietTo                    = "boss:quietto"
 	ConfigKey_BossNeverCome                  = "boss:nevercome"
 	ConfigKey_BossProximity                  = "boss:proximity"
+	ConfigKey_BossBrainstormsDir             = "boss:brainstormsdir"
 
 	ConfigKey_MoltentermSettingsReveal       = "moltenterm:settingsreveal"
 	ConfigKey_MoltentermTheme                = "moltenterm:theme"

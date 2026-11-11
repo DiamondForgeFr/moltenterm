@@ -19,6 +19,8 @@ export const HeavyPackages = [
     "streamdown",
     // The JavaScript parser of `molten mod validate` (#2200): about 190 KB, needed only by that command.
     "acorn",
+    // Brokk's thought in 3D (FR-BOSS-010 AC19, #2246): about 700 KB, needed only while the brainstorm mode is open.
+    "three",
 ];
 
 const HeavyChunkNameRegex = /^(monaco|shiki|mermaid|katex|cytoscape|streamdown)[-._]/;

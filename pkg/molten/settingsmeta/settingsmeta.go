@@ -105,6 +105,9 @@ type Setting struct {
 	Default any `json:"default,omitempty"`
 	// darwin, linux or windows, comma separated: the row shows on those platforms only.
 	Platform string `json:"platform,omitempty"`
+	// gold, dev, local, rc or public, comma separated: the row shows on those build channels only (FR-REL-001), for a
+	// feature a release does not have yet (FR-BOSS-010, #2246).
+	Channels string `json:"channels,omitempty"`
 	Hidden   bool   `json:"hidden,omitempty"`
 	// Inverted: a multi whose list holds the options turned off, shown ticked when absent from it (#947).
 	Inverted bool `json:"inverted,omitempty"`
@@ -238,6 +241,8 @@ var settings = []Setting{
 	{Key: "boss:proximity", Section: SectionBoss, Group: "Avatar", Label: "Proximity", Description: "How near he stands to you.", Control: ControlSelect, Options: proximityOptions, Default: "colleague"},
 	// The avatar stays in the title row, never over a terminal: there is nothing left to fold (#2002).
 	hidden("boss:collapseontype"),
+	// Brokk's thought in 3D (FR-BOSS-010, DS-BOSS-010, #2246): a folder the developer owns, on the channels that have it.
+	{Key: "boss:brainstormsdir", Section: SectionBoss, Group: "Brainstorms", Label: "Brainstorms folder", Description: "Where your brainstorms with him are saved, one folder per idea, without asking.", Control: ControlPath, Default: "~/MoltenTerm/Brainstorms", Channels: "gold,dev,local"},
 	// When Brokk comes to fetch the developer (#2001 keys, #2003 table, FR-BOSS-009 AC4): the screen draws this group as
 	// one table, "Quand Brokk vient me chercher", with a choice per event.
 	{Key: "boss:visitsecurity", Section: SectionBoss, Group: BrokkTableGroup, Label: "A security alert on a dependency", Description: "A high or critical alert on a dependency of your projects.", Control: ControlSelect, Options: comingOptions, Default: "vient"},

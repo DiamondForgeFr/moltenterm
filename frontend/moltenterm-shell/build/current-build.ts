@@ -5,7 +5,13 @@
 
 import { getApi } from "@/app/store/global";
 import type { MoltentermBuildInfo } from "./build-info";
-import { BuildIdentity, makeBuildIdentity } from "./build-identity";
+import {
+    brainstormAllowed,
+    brainstormReplayAllowed,
+    BuildChannel,
+    BuildIdentity,
+    makeBuildIdentity,
+} from "./build-identity";
 
 export function readBuildInfo(): MoltentermBuildInfo {
     return typeof __MOLTENTERM_BUILD__ === "undefined" ? null : __MOLTENTERM_BUILD__;
@@ -22,4 +28,34 @@ export function currentBuildIdentity(version: string): BuildIdentity {
         runtimeChannel: readRuntimeChannel(),
         version,
     });
+}
+
+// The channel this build runs on, read once: it never changes while the app runs. null where it cannot be read (a
+// test or the preview server without the Electron API): what a channel gates is then absent.
+let channelRead = false;
+let channel: BuildChannel = null;
+
+export function currentChannel(): BuildChannel {
+    if (!channelRead) {
+        channelRead = true;
+        try {
+            channel = currentBuildIdentity("").channel;
+        } catch (e) {
+            console.log("build: the channel could not be read", e);
+            channel = null;
+        }
+    }
+    return channel;
+}
+
+// The window's lock of Brokk's thought in 3D (FR-BOSS-010 AC1), and of its scripted replay.
+export function currentBrainstormGates(): { start: boolean; replay: boolean } {
+    const now = currentChannel();
+    return now == null
+        ? { start: false, replay: false }
+        : { start: brainstormAllowed(now), replay: brainstormReplayAllowed(now) };
+}
+
+export function currentBrainstormAllowed(): boolean {
+    return currentBrainstormGates().start;
 }

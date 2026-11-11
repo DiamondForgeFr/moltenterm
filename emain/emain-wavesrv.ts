@@ -26,6 +26,7 @@ import {
     WaveAppPathVarName,
     WaveAppResourcesPathVarName,
 } from "./emain-util";
+import { BuildChannelEnv, currentBuildChannel } from "./moltenterm-build-channel"; // MOLTENTERM-PATCH (#2246)
 import { electronBinaryToRunAsNode } from "./moltenterm-node-runner"; // MOLTENTERM-PATCH (#1975)
 import { updater } from "./updater";
 
@@ -75,6 +76,7 @@ export function runWaveSrv(handleWSEvent: (evtMsg: WSEventType) => void): Promis
     envCopy[AppOriginEnv] = AppOrigin;
     envCopy[WaveDataHomeVarName] = getWaveDataDir();
     envCopy[WaveConfigHomeVarName] = getWaveConfigDir();
+    envCopy[BuildChannelEnv] = currentBuildChannel(electron.app.isPackaged); // MOLTENTERM-PATCH (#2246): wavesrv's lock of the channel-gated features
     const waveSrvCmd = getWaveSrvPath();
     console.log("trying to run local server", waveSrvCmd);
     const proc = child_process.spawn(getWaveSrvPath(), {

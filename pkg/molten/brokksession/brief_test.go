@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/buildchannel"
 )
 
 func readFile(t *testing.T, path string) string {
@@ -36,6 +38,56 @@ func TestWriteBriefPutsTheReplyConventionInHisFolder(t *testing.T) {
 	}
 }
 
+// FR-BOSS-010 AC1 and AC21 (#2246): a gold, dev or local build teaches him the graph block; a release never does.
+func TestTheBrainstormSectionFollowsTheGate(t *testing.T) {
+	t.Parallel()
+	with := BriefText(true)
+	without := BriefText(false)
+	if !strings.HasPrefix(with, without) {
+		t.Fatal("the brainstorm section is not added after the brief")
+	}
+	for _, want := range []string{"```brokk-graph", `"op": "centre"`, `"op": "add"`, "`link`", "`talk`", "Brainstorm:"} {
+		if !strings.Contains(with, want) {
+			t.Errorf("the brainstorm section does not teach %q", want)
+		}
+	}
+	if strings.Contains(without, "brokk-graph") || strings.Contains(without, "Brainstorm") {
+		t.Error("the brief of a release mentions brainstorms")
+	}
+	dir := t.TempDir()
+	if err := writeBrief(dir, with); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, filepath.Join(dir, "AGENTS.md")); got != with {
+		t.Errorf("AGENTS.md is %.40q, want the brief with its brainstorm section", got)
+	}
+	// The same folder after a change of channel: the section goes with the refresh.
+	if err := writeBrief(dir, without); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, filepath.Join(dir, "CLAUDE.md")); got != without {
+		t.Errorf("CLAUDE.md still holds the brainstorm section on a release")
+	}
+}
+
+func TestWriteBriefOnAReleaseHasNoBrainstormSection(t *testing.T) {
+	t.Setenv(buildchannel.Env, buildchannel.Public)
+	dir := t.TempDir()
+	if err := WriteBrief(dir); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(readFile(t, filepath.Join(dir, "AGENTS.md")), "brokk-graph") {
+		t.Error("a public release's brief teaches the graph block")
+	}
+	t.Setenv(buildchannel.Env, buildchannel.Gold)
+	if err := WriteBrief(dir); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(readFile(t, filepath.Join(dir, "AGENTS.md")), "brokk-graph") {
+		t.Error("a gold's brief does not teach the graph block")
+	}
+}
+
 func TestWriteBriefRefreshesWhatItWroteAndNothingElse(t *testing.T) {
 	dir := t.TempDir()
 	older := BriefMarker + " v0 -->\nan older brief\n"
@@ -49,7 +101,7 @@ func TestWriteBriefRefreshesWhatItWroteAndNothingElse(t *testing.T) {
 	if err := WriteBrief(dir); err != nil {
 		t.Fatal(err)
 	}
-	if got := readFile(t, filepath.Join(dir, "AGENTS.md")); got != brief {
+	if got := readFile(t, filepath.Join(dir, "AGENTS.md")); got != BriefText(buildchannel.BrainstormEnabled()) {
 		t.Errorf("AGENTS.md is %.40q, want the current brief in place of the one MoltenTerm wrote", got)
 	}
 	if got := readFile(t, filepath.Join(dir, "CLAUDE.md")); got != mine {

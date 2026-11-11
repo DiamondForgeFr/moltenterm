@@ -16,6 +16,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { isMacOS } from "@/util/platformutil";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { BrainstormLayer } from "../brainstorm/brainstorm-layer";
 import { prefersReducedMotion } from "../molten-motion";
 import { NotificationHost } from "../notification-center";
 import { BossBubbleModel } from "./boss-store";
@@ -153,6 +154,8 @@ function BrokkHostLayer({ show }: { show: boolean }) {
 
     return (
         <div ref={layerRef} className="mt-boss-layer" data-testid="boss-layer">
+            {/* His thought in 3D (FR-BOSS-010, #2246): under his group, above the app; nothing on a release channel. */}
+            <BrainstormLayer />
             {show && place === "none" ? (
                 <BrokkAvatar variant="hanging" style={{ right: hangingRightPx(isMacOS()) }} />
             ) : null}
