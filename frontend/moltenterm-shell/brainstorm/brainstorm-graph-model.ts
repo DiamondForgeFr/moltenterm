@@ -7,9 +7,11 @@
 // nothing yet, and a block that is not valid is dropped and logged without its content. wavesrv checks it again
 // (pkg/molten/brainstorm/graph.go) before it grows the graph. The text of every node is plain text, never HTML.
 //
-// It is part of the bubble's up-front JavaScript: it imports nothing.
+// It loads with the brainstorm; the fence the window needs up front is brainstorm-fence.ts's.
 
-export const GraphFence = "brokk-graph";
+import { GraphFence } from "./brainstorm-fence";
+
+export { GraphFence, withoutGraphBlocks } from "./brainstorm-fence";
 
 // The limits of DS-BOSS-009; must match pkg/molten/brainstorm/graph.go.
 export const BlockVersion = 1;
@@ -205,15 +207,6 @@ export function readGraphBlock(markdown: string): GraphRead {
         return { text, block: null, problem: "invalid", reason };
     }
     return { text, block: value as GraphBlock, problem: "" };
-}
-
-// The answer's words alone: what the exchange shows.
-export function withoutGraphBlocks(markdown: string): string {
-    const lines = (markdown ?? "").split(/\r?\n/);
-    if (!lines.some((line) => OpenFence.test(line))) {
-        return markdown ?? "";
-    }
-    return readGraphBlock(markdown).text;
 }
 
 export function centreOf(block: GraphBlock): string {

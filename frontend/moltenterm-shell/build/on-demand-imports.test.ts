@@ -25,6 +25,10 @@ describe("on-demand modules stay out of the entry chunk (#2200)", () => {
         // Brokk's thought in 3D (FR-BOSS-010 AC19, NFR-BOSS-009, #2246): three.js and the scene load when the mode first
         // opens, never with the window.
         ["../brainstorm/brainstorm-stage.tsx", "./brainstorm-scene"],
+        // What the layer draws loads the first time the mode opens, and the mode's model the first time it is needed;
+        // the entry keeps only the watch (brainstorm-boot.ts).
+        ["../brainstorm/brainstorm-layer.tsx", "./brainstorm-view"],
+        ["../brainstorm/brainstorm-boot.ts", "./brainstorm-store"],
         // The scripted replay's script and player load when the palette plays it (dev and local builds).
         ["../palette/palette-actions.ts", "../brainstorm/brainstorm-replay"],
     ])("%s imports %s on demand only", (file, mod) => {

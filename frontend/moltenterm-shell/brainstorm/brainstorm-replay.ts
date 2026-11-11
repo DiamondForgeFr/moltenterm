@@ -13,6 +13,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { BossBubbleModel } from "../boss/boss-store";
 import { BrokkSession } from "../boss/brokk-session";
 import { getLocale } from "../i18n/i18n";
+import { loadBrainstorm } from "./brainstorm-boot";
 import { GraphFence, GraphOp } from "./brainstorm-graph-model";
 import { BrainstormModel, focusTalkField } from "./brainstorm-store";
 
@@ -153,6 +154,7 @@ let playing = 0;
 // step after `stepMs`. A new replay stops the one before.
 export async function playReplay(stepMs = 3600): Promise<void> {
     const run = ++playing;
+    await loadBrainstorm();
     const model = BrainstormModel.getInstance();
     const session = BrokkSession.getInstance();
     const boss = BossBubbleModel.getInstance();
