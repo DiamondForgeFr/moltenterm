@@ -135,6 +135,23 @@ describe("Brokk says his answer while his group shows (AC87, AC88)", () => {
         expect(shownText(speech)).toBe("The checks of PR 12 came back red.");
     });
 
+    it("gives up the tone, rather than playing it late, when his face thinks or leaves thinking", () => {
+        speech.noteFace("typing");
+        clock.advance(5000);
+        speech.noteFace("thinking");
+        clock.advance(10000);
+        read("[[smile]] Fine, after all that.");
+        expect(Asked.calls).toEqual([]);
+        expect(globalStore.get(speech.speakingAtom)).toBe(true);
+    });
+
+    it("plays the tone at once on a face that listened all along", () => {
+        speech.noteFace("typing");
+        clock.advance(3000);
+        read("[[smile]] Fine.");
+        expect(Asked.calls).toEqual([["smile", { answer: true }]]);
+    });
+
     it("plays no gesture without a tone or with an unknown one, and still speaks", () => {
         read("[[furious]] Two agents run now.");
         expect(Asked.calls).toEqual([]);

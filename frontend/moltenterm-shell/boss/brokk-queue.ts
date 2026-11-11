@@ -101,8 +101,15 @@ function sinceMs(at: number, now: number): number {
     return at == null ? Infinity : now - at;
 }
 
-function waitLimit(expression: BrokkExpression): number {
-    return expression === "call" ? CallWaitLimitMs : WaitLimitMs;
+// The tone of his answer starts with his first words or not at all (FR-BOSS-009, AC88, #2259): a smile that comes once
+// the developer is already reading means nothing.
+export const AnswerWaitLimitMs = 500;
+
+function waitLimit(slot: QueuedExpression): number {
+    if (slot.answer === true) {
+        return AnswerWaitLimitMs;
+    }
+    return slot.expression === "call" ? CallWaitLimitMs : WaitLimitMs;
 }
 
 // A request refused outright: folded into a burst, or repeated too soon.
@@ -175,7 +182,7 @@ export function queueAfter(before: QueueState, event: QueueEvent, now: number): 
             state = { ...state, slot: admitted(state.slot, { expression: event.expression, reply, answer }, now) };
         }
     }
-    if (state.slot != null && now - state.slot.since > waitLimit(state.slot.expression)) {
+    if (state.slot != null && now - state.slot.since > waitLimit(state.slot)) {
         state = { ...state, slot: null };
     }
     const slot = state.slot;
@@ -183,7 +190,7 @@ export function queueAfter(before: QueueState, event: QueueEvent, now: number): 
         return { state, play: null, wakeAt: null };
     }
     const ready = readyAt(state, slot);
-    const expires = slot.since + waitLimit(slot.expression);
+    const expires = slot.since + waitLimit(slot);
     if (ready > now) {
         return { state, play: null, wakeAt: Math.min(ready, expires + 1) };
     }

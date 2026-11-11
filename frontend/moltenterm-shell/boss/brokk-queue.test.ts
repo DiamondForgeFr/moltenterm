@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { BrokkExpression } from "./brokk-ask-model";
 import {
+    AnswerWaitLimitMs,
     BurstMs,
     CallWaitLimitMs,
     EmptyQueue,
@@ -267,18 +268,15 @@ describe("the tone of his answer in the queue (AC88)", () => {
         expect(step.play).toMatchObject({ expression: "smile", at: 3000 });
     });
 
-    it("waits while the developer writes again, as any expression does", () => {
+    it("is given up when the developer writes while it waits: it starts with his first words or not at all", () => {
         const q = drive();
-        // A gesture holds his pose, so the tone waits behind the nod and the developer types meanwhile.
         q.ask("nod", 0);
         q.step(answer("frown"), 1000);
-        q.step({ type: "key" }, 5000);
-        expect(q.wakeAt).toBe(5000 + KeyQuietMs);
+        q.step({ type: "key" }, 1200);
         q.wake();
-        expect(q.played).toEqual([
-            { expression: "nod", at: 0 },
-            { expression: "frown", at: 5000 + KeyQuietMs },
-        ]);
+        expect(q.state.slot).toBeNull();
+        expect(q.names()).toEqual(["nod"]);
+        expect(KeyQuietMs).toBeGreaterThan(AnswerWaitLimitMs);
     });
 
     it("may smile again within the minute: it follows what he says", () => {
@@ -292,13 +290,14 @@ describe("the tone of his answer in the queue (AC88)", () => {
         expect(plain.names()).toEqual(["smile"]);
     });
 
-    it("is still one expression at a time: it waits for the gap after another gesture", () => {
+    it("is still one expression at a time: within the gap after another gesture, it is given up rather than late", () => {
         const q = drive();
         q.ask("nod", 0);
         expect(q.step(answer("frown"), 2000).play).toBeNull();
-        expect(q.wakeAt).toBe(MinGapMs);
+        expect(q.wakeAt).toBe(2000 + AnswerWaitLimitMs + 1);
         q.wake();
-        expect(q.names()).toEqual(["nod", "frown"]);
+        expect(q.names()).toEqual(["nod"]);
+        expect(q.step(answer("frown"), MinGapMs).play).toMatchObject({ expression: "frown" });
     });
 });
 

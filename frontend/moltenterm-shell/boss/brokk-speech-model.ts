@@ -20,9 +20,17 @@ export const RevealCapMs = 3000;
 export const SpeakingSettleMs = 1200;
 // Speech shorter than this reads as a twitch of the mouth, not as speech.
 export const MinSpeakingMs = 2500;
-// A gesture starts only at the end of a round of his loop (no clip is cut, @diamondforge/character): what is allowed
-// for the round to end before it, on average.
-export const GestureLeadMs = 2000;
+// When the tone's gesture starts (#2259). The package (@diamondforge/character 0.3.1, FR-AI-012) plays an expression
+// asked at once on the loop on screen, over a crossfade of AskedFadeMs from wherever the loop is: unlike a gesture drawn
+// by chance, it does not wait for the end of a round. What it does wait for is a clip between two poses, which always
+// plays to its end: the listening and speaking loops swap without one, but leaving or reaching the thinking pose takes
+// one of PoseClipMs (48 frames at 16 fps, brokk-speech-model.test.ts measures them). So the tone plays only when his face
+// is on the listening or speaking loop with no such clip under way, and otherwise not at all (the queue gives it up after
+// AnswerWaitLimitMs as well): a smile that comes once the developer reads means nothing.
+export const AskedFadeMs = 300;
+export const PoseClipMs = 3000;
+// The tone's gesture starts within this long of his first words, or does not play.
+export const TonePromptMs = 500;
 // The pace of the reveal's steps while words are being revealed.
 export const RevealFrameMs = 40;
 // He thinks visibly once nothing of his answer has shown for this long, or his session has worked this long with no new
@@ -128,9 +136,46 @@ export function revealMs(chars: number): number {
 
 export type SpeechStep = { speech: Speech; gesture: BrokkExpression };
 
+// What his face did with the conversation last, as far as the clips between poses go: `clipUntil` is when the last clip
+// to or from the thinking pose ends.
+export type FaceTrack = { talk: BrokkSituation["talk"]; clipUntil: number };
+
+export const StartTrack: FaceTrack = { talk: null, clipUntil: 0 };
+
+// The face's talk changed. Only entering or leaving thinking plays a clip between poses; one asked while another plays
+// follows it. A face that just mounted (`track` null) starts on its pose's loop, with no clip.
+export function trackAfter(track: FaceTrack, talk: BrokkSituation["talk"], now: number): FaceTrack {
+    if (track == null) {
+        return { talk, clipUntil: 0 };
+    }
+    if (talk === track.talk) {
+        return track;
+    }
+    if ((talk === "thinking") === (track.talk === "thinking")) {
+        return { ...track, talk };
+    }
+    return { talk, clipUntil: Math.max(track.clipUntil, now) + PoseClipMs };
+}
+
+// How long after `now` a gesture asked now would start, or null when it cannot within TonePromptMs: the face thinks, or a
+// clip between poses is under way.
+export function toneDelayMs(track: FaceTrack, now: number): number {
+    if (track != null && (track.talk === "thinking" || now < track.clipUntil)) {
+        return null;
+    }
+    return AskedFadeMs;
+}
+
 // More of his answer was read (or a new answer started). `instant`: show it at once (reduced motion). The tone's gesture
-// is asked once per answer, with its first words.
-export function speechAfterHeard(speech: Speech, heard: Heard, now: number, instant: boolean): SpeechStep {
+// is asked once per answer, with its first words, and only when the face can start it promptly (`track`); otherwise he
+// goes straight to speaking.
+export function speechAfterHeard(
+    speech: Speech,
+    heard: Heard,
+    now: number,
+    instant: boolean,
+    track: FaceTrack = StartTrack
+): SpeechStep {
     if (heard == null) {
         return { speech, gesture: null };
     }
@@ -156,11 +201,12 @@ export function speechAfterHeard(speech: Speech, heard: Heard, now: number, inst
     };
     let gesture: BrokkExpression = null;
     if (!next.toned) {
-        gesture = ToneGesture[heard.tone] ?? null;
+        const delay = toneDelayMs(track, now);
+        gesture = delay != null ? (ToneGesture[heard.tone] ?? null) : null;
         next = {
             ...next,
             toned: true,
-            toneUntil: gesture != null ? now + GestureLeadMs + ExpressionMs[gesture] + SpeakingSettleMs : 0,
+            toneUntil: gesture != null ? now + delay + ExpressionMs[gesture] + SpeakingSettleMs : 0,
         };
     }
     return { speech: next, gesture };
