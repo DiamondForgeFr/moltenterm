@@ -120,10 +120,7 @@ export function useBrokkHello(visible: boolean, sceneUp: boolean): HelloBubble {
     const show = useRef<HelloShow>(null);
     if (show.current == null) {
         show.current = new HelloShow({
-            shown: (id) => {
-                colleague.noteShown(id);
-                return globalStore.get(colleague.momentsAtom).find((moment) => moment.id === id) ?? null;
-            },
+            shown: (id) => colleague.noteShown(id),
             seen: (id) => colleague.noteSeen(id),
             nod: () => BrokkExpressionsModel.getInstance().ask("nod"),
             motion: () => !prefersReducedMotion(),

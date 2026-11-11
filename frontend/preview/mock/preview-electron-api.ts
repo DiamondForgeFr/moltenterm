@@ -69,6 +69,13 @@ const previewElectronApi: ElectronApi = {
     setWindowLook: (_look: { translucent: boolean; blur: boolean }) => {}, // MOLTENTERM-PATCH (#1281)
     getWindowLookSupport: async () => ({ translucent: false, blur: false }), // MOLTENTERM-PATCH (#1281)
     moltentermGetSystemIdleSec: async () => 0, // MOLTENTERM-PATCH (#1958)
+    moltentermBrokkStart: async (_facts: any) => ({ rev: 0, moments: [] }), // MOLTENTERM-PATCH (#2221)
+    moltentermBrokkStop: () => {},
+    moltentermBrokkFacts: (_facts: any) => {},
+    moltentermBrokkInput: (_facts: any) => {},
+    moltentermBrokkShown: (_id: string) => null,
+    moltentermBrokkSeen: (_id: string) => {},
+    onMoltentermBrokkMoments: (_callback: (update: any) => void) => () => {},
     closeBuilderWindow: () => {},
     incrementTermCommands: (_opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => {},
     nativePaste: () => {},

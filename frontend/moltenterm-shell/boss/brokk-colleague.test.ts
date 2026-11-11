@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import { flattenKeys, resolveKey, shippedDictionary } from "../i18n/i18n-core";
 import {
     afterInput,
-    afterModelCall,
     afterPhrased,
     afterPresence,
     afterSeen,
@@ -35,11 +34,8 @@ import {
     helloPartOf,
     HelloParts,
     HelloPhrasings,
-    laterPresence,
     LongAbsenceMs,
     MaxLineChars,
-    MaxModelCallsPerDay,
-    modelCallAllowed,
     modelPhrasingOn,
     Moment,
     MomentKind,
@@ -257,12 +253,9 @@ describe("the hello (FR-BOSS-009, AC72, AC-2)", () => {
         expect(momentsOf(afterInput(memory, facts(at(10, 15, 1))), "hello")).toHaveLength(0);
     });
 
-    it("saves the presence to the minute and keeps the latest of two windows", () => {
+    it("saves the presence to the minute", () => {
         expect(savedPresence(at(10, 9, 0) + 59 * 1000)).toBe(at(10, 9, 0));
         expect(savedPresence(null)).toBeNull();
-        expect(laterPresence(null, 5)).toBe(5);
-        expect(laterPresence(7, null)).toBe(7);
-        expect(laterPresence(7, 5)).toBe(7);
         expect(decodeMemory(JSON.stringify({ presentAt: "yesterday" })).presentAt).toBeNull();
         expect(decodeMemory(JSON.stringify({ presentAt: -3 })).presentAt).toBeNull();
     });
@@ -595,18 +588,6 @@ describe("his model's line (FR-BOSS-009, AC77)", () => {
         expect(afterPhrased(raised, hello.id, null)).toBe(raised);
     });
 
-    it("is asked at most five times a day, and the count starts again the next day", () => {
-        let memory: ColleagueMemory = EmptyColleague;
-        for (let i = 0; i < MaxModelCallsPerDay; i++) {
-            expect(modelCallAllowed(memory, at(10, 8 + i))).toBe(true);
-            memory = afterModelCall(memory, at(10, 8 + i));
-        }
-        expect(MaxModelCallsPerDay).toBe(5);
-        expect(modelCallAllowed(memory, at(10, 20))).toBe(false);
-        expect(modelCallAllowed(memory, at(11, 8))).toBe(true);
-        expect(afterModelCall(memory, at(11, 8)).modelCalls).toBe(1);
-    });
-
     it("keeps one line, short, with no markdown, link or digit; anything else is discarded", () => {
         const good = [
             "Morning. Fire is lit, tools are out.",
@@ -650,29 +631,30 @@ describe("his model's line (FR-BOSS-009, AC77)", () => {
 });
 
 describe("what is kept across restarts (FR-BOSS-009, AC72)", () => {
-    it("round-trips the day greeted, the last phrasings, the evening and the model's count", () => {
+    it("round-trips the day greeted, the last phrasings and the evening", () => {
         const memory: ColleagueMemory = {
             ...EmptyColleague,
             helloDay: "2026-11-10",
             last: { break: 4, "hello.morning": 2 },
             handoverEvening: "2026-11-09",
-            modelDay: "2026-11-10",
-            modelCalls: 3,
         };
         expect(decodeMemory(encodeMemory(memory))).toEqual(memory);
+    });
+
+    // #2221: how many times his model was asked is kept where the call is made (wavesrv), not in this text.
+    it("keeps no count of his model's calls, and ignores the one an older text carried", () => {
+        const saved = JSON.parse(encodeMemory({ ...EmptyColleague, helloDay: "2026-11-10" }));
+        expect(saved).not.toHaveProperty("modelCalls");
+        expect(saved).not.toHaveProperty("modelDay");
+        const restored = decodeMemory('{"helloDay":"2026-11-10","modelDay":"2026-11-10","modelCalls":4}');
+        expect(restored.helloDay).toBe("2026-11-10");
+        expect(restored).not.toHaveProperty("modelCalls");
     });
 
     it("keeps no moment, no stretch and no activity of the page: those are a run's; the last presence is kept", () => {
         const memory = work(EmptyColleague, at(10, 9, 0), at(10, 11, 0), 5 * Min);
         const saved = JSON.parse(encodeMemory(memory));
-        expect(Object.keys(saved).sort()).toEqual([
-            "handoverEvening",
-            "helloDay",
-            "last",
-            "modelCalls",
-            "modelDay",
-            "presentAt",
-        ]);
+        expect(Object.keys(saved).sort()).toEqual(["handoverEvening", "helloDay", "last", "presentAt"]);
         const restored = decodeMemory(encodeMemory(memory));
         expect(restored.moments).toEqual([]);
         expect(restored.lastInputAt).toBeNull();
@@ -690,7 +672,6 @@ describe("what is kept across restarts (FR-BOSS-009, AC72)", () => {
             const restored = decodeMemory(text);
             expect(restored.helloDay).toBe("");
             expect(restored.last).toEqual({});
-            expect(restored.modelCalls).toBe(0);
             expect(restored.moments).toEqual([]);
         }
     });

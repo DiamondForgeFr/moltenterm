@@ -2,6 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contextBridge, ipcRenderer, Rectangle, webUtils, WebviewTag } from "electron";
+// MOLTENTERM-PATCH (#2221): the channels of Brokk's kind colleague
+import {
+    ColleagueFactsChannel,
+    ColleagueInputChannel,
+    ColleagueMomentsChannel,
+    ColleagueSeenChannel,
+    ColleagueShownChannel,
+    ColleagueStartChannel,
+    ColleagueStopChannel,
+} from "./moltenterm-colleague-ipc";
 // MOLTENTERM-PATCH (#849, #973): every sendSync is timed, and the page answers Electron main's heartbeat
 import {
     HangCopyChannel,
@@ -210,6 +220,19 @@ contextBridge.exposeInMainWorld("api", {
     onMoltentermScreen: (callback) => ipcRenderer.on("moltenterm-screen", (_event, info) => callback(info)),
     // MOLTENTERM-PATCH (#1958): this computer's idle time, so Brokk sleeps while you are away (emain/moltenterm-system-idle.ts)
     moltentermGetSystemIdleSec: () => ipcRenderer.invoke("moltenterm-system-idle-get"),
+    // MOLTENTERM-PATCH (#2221): Brokk's kind colleague runs once for every tab and window, in Electron main
+    // (emain/moltenterm-colleague.ts); the page tells it what the developer does and shows the moments it raises
+    moltentermBrokkStart: (facts: any) => ipcRenderer.invoke(ColleagueStartChannel, facts),
+    moltentermBrokkStop: () => ipcRenderer.send(ColleagueStopChannel),
+    moltentermBrokkFacts: (facts: any) => ipcRenderer.send(ColleagueFactsChannel, facts),
+    moltentermBrokkInput: (facts: any) => ipcRenderer.send(ColleagueInputChannel, facts),
+    moltentermBrokkShown: (id: string) => sendSync(ColleagueShownChannel, id),
+    moltentermBrokkSeen: (id: string) => ipcRenderer.send(ColleagueSeenChannel, id),
+    onMoltentermBrokkMoments: (callback: (update: any) => void) => {
+        const listener = (_event, update) => callback(update);
+        ipcRenderer.on(ColleagueMomentsChannel, listener);
+        return () => ipcRenderer.removeListener(ColleagueMomentsChannel, listener);
+    },
     // MOLTENTERM-PATCH (#459, #618): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
     moltentermWebviewShown: (
         blockId: string,
