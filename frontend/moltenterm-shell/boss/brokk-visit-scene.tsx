@@ -9,7 +9,7 @@
 // back, and Escape takes the default delay. The content below the title row slides down to make room, which the sidebar
 // does itself (workspace-sidebar.tsx, sidebar.css). In a collapsed sidebar, half open for him or unfolded (AC29, AC30,
 // #2070), the scene is the banner it shows; there and in a docked sidebar (#2155) it says its one line: the sentence of
-// the event that brought him, the very words of his rows (brokk-visit-line.ts). Its accessible name stays the label below.
+// the event that brought him, in his own words (brokk-visit-line.ts). Its accessible name stays the label below.
 //
 // Loaded on the first visit, never with the window: the clips are Brokk's portrait and stay out of the up-front JavaScript.
 
@@ -48,6 +48,7 @@ import {
     unmountAfterMs,
 } from "./brokk-visit-scene-model";
 import "./brokk-visit-scene.css";
+import { BrokkVisitWords } from "./brokk-visit-words-store";
 import BrokkStill from "./portrait/brokk/brokk.jpg";
 import { useHubSelect } from "./use-brokk-hub";
 import { useFaceVisible, useReducedMotion } from "./use-brokk-live";
@@ -315,11 +316,18 @@ export function BrokkVisitScene({ rowHeight, line = false }: { rowHeight: string
     const visit = useHubSelect((view) => view.visit);
     const text = useCaptionText();
     useMinuteTick(line && visit != null);
+    const wording = BrokkVisitWords.getInstance();
+    const over = visit == null;
+    useEffect(() => {
+        if (over) {
+            wording.rest();
+        }
+    }, [over, wording]);
     const last = useRef<Visit>(visit);
     const words = useRef("");
     if (visit != null) {
         last.current = visit;
-        words.current = line ? text(visitLineOf(visit, list.items, Date.now())) : "";
+        words.current = line ? text(visitLineOf(visit, list.items, Date.now(), wording.pick)) : "";
     }
     const reduced = useReducedMotion();
     const life = useSceneLife(visit != null, unmountAfterMs(reduced));

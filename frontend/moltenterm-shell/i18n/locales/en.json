@@ -3155,13 +3155,88 @@
             "example": "Example: {name} would like a word ({severity}). An agent has been waiting for you for 6 min.",
             "exampleLine": "An agent has waited 6 min",
             "reason": {
-                "download": "A download has news",
-                "update": "An update is available",
-                "usage": "A plan is nearly used up",
-                "security": "A security alert on a dependency",
-                "ciFailed": "The CI of PR #{number} failed",
-                "ready": "PR #{number} is ready to merge",
-                "other": "Something needs you"
+                "waitedFor": {
+                    "p1": "{name} has been waiting for you for {minutes} min.",
+                    "p2": "{name} is still waiting on you, {minutes} min now.",
+                    "p3": "{name} has stood idle {minutes} min. A word would help.",
+                    "p4": "Your turn: {name} has waited {minutes} min.",
+                    "p5": "{name} could use you: {minutes} min so far."
+                },
+                "waiting": {
+                    "p1": "{name} is waiting for you.",
+                    "p2": "{name} could use a word from you.",
+                    "p3": "{name} has stopped and looks your way.",
+                    "p4": "Your turn: {name} is waiting on you."
+                },
+                "asks": {
+                    "p1": "{name} has a question for you.",
+                    "p2": "{name} would like your opinion.",
+                    "p3": "{name} needs an answer to go on.",
+                    "p4": "{name} asks for you. A quick answer will do.",
+                    "p5": "{name} wants to check something with you."
+                },
+                "goAhead": {
+                    "p1": "{name} needs your go-ahead.",
+                    "p2": "{name} wants your nod before going on.",
+                    "p3": "{name} will not move without your say-so.",
+                    "p4": "Your go-ahead, please: {name} holds still.",
+                    "p5": "{name} waits at the door for you to open it."
+                },
+                "error": {
+                    "p1": "{name} hit a snag and stopped.",
+                    "p2": "{name} ran into trouble and halted.",
+                    "p3": "{name} stopped on an error. Come and see.",
+                    "p4": "{name} stumbled on an error. Help wanted.",
+                    "p5": "The hammer slipped for {name}. Come and see."
+                },
+                "ciFailed": {
+                    "p1": "The checks on PR #{number} came back red. Shall we look?",
+                    "p2": "PR #{number} tripped the CI. Nothing we cannot fix.",
+                    "p3": "Bad news from the CI: PR #{number} did not pass.",
+                    "p4": "The CI is unhappy with PR #{number}. Let us see why.",
+                    "p5": "PR #{number} cracked under the CI. Take a look."
+                },
+                "ready": {
+                    "p1": "PR #{number} is good to go. Merge when you like.",
+                    "p2": "Good news: PR #{number} passed. The merge is yours.",
+                    "p3": "PR #{number} came out clean. Ready when you are.",
+                    "p4": "PR #{number} is cooled and sound. Your call.",
+                    "p5": "All green on PR #{number}. Merge whenever you want."
+                },
+                "download": {
+                    "p1": "A download has news for you.",
+                    "p2": "Something moved in the downloads. Come and see.",
+                    "p3": "The downloads have something to tell you.",
+                    "p4": "Heads up, a download changed. Look when you can."
+                },
+                "update": {
+                    "p1": "An update is waiting for you.",
+                    "p2": "A new version is here. Update when it suits you.",
+                    "p3": "The forge has a fresh build for you.",
+                    "p4": "No hurry, but a new version is out."
+                },
+                "usage": {
+                    "p1": "One of your plans is running low.",
+                    "p2": "Careful, a plan is nearly used up.",
+                    "p3": "Mind the fuel: a plan is almost gone.",
+                    "p4": "A plan is nearly empty. Spend the rest with care."
+                },
+                "security": {
+                    "p1": "A security alert just came in on a dependency.",
+                    "p2": "A dependency has a flaw that needs your eye.",
+                    "p3": "A security alert is up on a dependency. Look soon.",
+                    "p4": "Trouble in the supply chain: a dependency is flagged."
+                },
+                "other": {
+                    "p1": "Something needs you.",
+                    "p2": "I need you for a moment.",
+                    "p3": "Something is waiting for your eye.",
+                    "p4": "Come by when you can, something needs you."
+                }
+            },
+            "more": {
+                "one": "One more thing waits too.",
+                "other": "{count} more things wait too."
             },
             "severity": {
                 "grave": "grave",
@@ -3297,9 +3372,6 @@
                 "one": "and 1 more",
                 "other": "and {count} more"
             }
-        },
-        "screen": {
-            "waitedFor": "{name} has waited {minutes} min"
         },
         "moment": {
             "hello": {

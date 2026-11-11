@@ -22,6 +22,18 @@ vi.mock("./use-brokk-live", () => ({
     useReducedMotion: () => Mocks.reduced,
     useFaceVisible: () => Mocks.visible,
 }));
+const Wording = vi.hoisted(() => ({ asked: [] as [string, string][] }));
+vi.mock("./brokk-visit-words-store", () => ({
+    BrokkVisitWords: {
+        getInstance: () => ({
+            pick: (reason: string, signature: string) => {
+                Wording.asked.push([reason, signature]);
+                return 0;
+            },
+            rest: () => {},
+        }),
+    },
+}));
 const Package = vi.hoisted(() => ({ props: null as Record<string, any> }));
 vi.mock("@diamondforge/character", () => ({
     TransmissionPortrait: (props: Record<string, any>) => {
@@ -54,6 +66,7 @@ import {
     sceneTimings,
 } from "./brokk-visit-scene-model";
 import { EmptyShared } from "./brokk-visit-share";
+import { wordingKey } from "./brokk-visit-wording";
 
 const Severities: Severity[] = ["grave", "important", "neutre", "bonne"];
 const T = new Date(2026, 10, 6, 14, 0, 0).getTime();
@@ -142,8 +155,9 @@ describe("the scene says the sentence of the event in a collapsed sidebar (FR-BO
     it("tells what he wants, in the words of his rows, and not the generic label of the scene", () => {
         expect(Mocks.hub.getView().visit).not.toBeNull();
         const html = scene(true);
-        expect(html).toContain(t("boss.screen.waitedFor", { name: "Léa", minutes: 6 }));
+        expect(html).toContain(t(wordingKey("waitedFor", 0), { name: "Léa", minutes: 6 }));
         expect(html).toContain("Léa");
+        expect(Wording.asked).toContainEqual(["waitedFor", "waitedFor|agent:a"]);
         const words = new RegExp(`data-testid="brokk-scene-line"[^>]*>([^<]*)<`).exec(html)?.[1];
         expect(words).not.toMatch(/\(important\)|\(grave\)/);
         expect(attr(html, "brokk-scene-hit", "aria-label")).toBe(sceneLabel(t, "Brokk", "important"));
@@ -154,7 +168,7 @@ describe("the scene says the sentence of the event in a collapsed sidebar (FR-BO
     });
 
     it("says it in a docked sidebar too, so that the developer learns why he came without a click (#2155)", () => {
-        expect(scene(edgeLineOn(true))).toContain(t("boss.screen.waitedFor", { name: "Léa", minutes: 6 }));
+        expect(scene(edgeLineOn(true))).toContain(t(wordingKey("waitedFor", 0), { name: "Léa", minutes: 6 }));
     });
 });
 

@@ -369,7 +369,7 @@ describe("every unfold names its reason (AC79)", () => {
         });
     }
 
-    it("counts the events of the visit, all of them, and no other: the line says the first and 'and N more'", () => {
+    it("counts the events of the visit, all of them, and no other: the line says the first and, as a sentence of its own, N more", () => {
         const { hub } = fixture();
         hub.settings(AllVient);
         hub.syncRows([BlockedRow()]);
@@ -378,7 +378,8 @@ describe("every unfold names its reason (AC79)", () => {
         const visit = hub.getView().visit;
         expect(visit.count).toBe(3);
         const line = visitLineOf(visit, [BlockedRow()], T);
-        expect(line.text).toMatch(/ and 2 more$/);
+        expect(line.text).toMatch(/\. 2 more things wait too\.$/);
+        expect(line.text).not.toMatch(/ and 2 more/);
     });
 
     it("never unfolds for a Done card alone, however it is set, and still counts it on the badge", () => {
