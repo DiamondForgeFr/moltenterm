@@ -9,7 +9,8 @@
 // pointer resting on it opens his floating group, unpinned and without the focus, and a click opens it pinned, or pins
 // the one the hover opened (AC52 to AC55, #2103). It never opens anything by itself, takes no focus and plays no sound.
 // While the scene stands in his place it is hidden; while his group is open it keeps its place and its badge, takes a
-// soft ring in the action colour and shows a still frame, so the only animated Brokk is the group's square (#2032).
+// soft ring in the action colour and wears the initial of his name instead of his face, so the only Brokk on screen is the
+// group's animated square (#2032, #2219). Folded, it plays the gestures the app asks of him, the call included.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -23,7 +24,7 @@ import { useWorkingBeat } from "../working-beat";
 import { bubbleCueLabel, bubbleLabel } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
-import { AvatarVariant, avatarVariant, faceClickAction } from "./brokk-avatar-model";
+import { AvatarVariant, avatarVariant, brokkInitial, faceClickAction } from "./brokk-avatar-model";
 import "./brokk-avatar.css";
 import { AvatarDownloadRing, useDownloadWords } from "./brokk-download-ring";
 import { BrokkEdgeModel } from "./brokk-edge-store";
@@ -91,8 +92,8 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
         }
     }, [hover, sceneUp]);
 
-    // His animated face lives in the group's square while it is open: the avatar keeps a still frame. Its click closes
-    // only a pinned group; it pins one the hover opened (AC55).
+    // His animated face lives in the group's square while it is open: the avatar wears a mark, never a still of him. Its
+    // click closes only a pinned group; it pins one the hover opened (AC55).
     const base =
         cardOpen && pinned
             ? t("boss.avatar.close", { name })
@@ -151,7 +152,13 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             onMouseDown={(e) => e.preventDefault()}
         >
             <span className="mt-brokk-face" aria-hidden>
-                <BossPortrait live={live} />
+                {cardOpen ? (
+                    <span className="mt-brokk-mark" data-testid="brokk-mark">
+                        {brokkInitial(name)}
+                    </span>
+                ) : (
+                    <BossPortrait live={live} />
+                )}
             </span>
             {cardOpen && talking ? (
                 <i

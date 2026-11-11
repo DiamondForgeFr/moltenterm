@@ -20,8 +20,16 @@ vi.mock("./boss-portrait", () => ({
     BossPortrait: ({ live }: { live?: unknown }) => <span data-testid="portrait" data-live={live ? "true" : "false"} />,
 }));
 
-const Mocks = vi.hoisted(() => ({ hub: null as any, motion: true, models: null as any }));
-vi.mock("./use-brokk-live", () => ({ useMotionAllowed: () => Mocks.motion }));
+const Mocks = vi.hoisted(() => ({ hub: null as any, motion: true, rhythm: "normal", models: null as any }));
+vi.mock("./use-brokk-live", () => ({
+    useMotionAllowed: () => Mocks.motion,
+    useBlinkRhythm: () => Mocks.rhythm,
+}));
+vi.mock("./brokk-expressions", async () => {
+    const { atom } = await import("jotai");
+    const model = { askedAtom: atom(null) };
+    return { BrokkExpressionsModel: { getInstance: () => model } };
+});
 vi.mock("./boss-store", async () => {
     const { atom } = await import("jotai");
     const model = {
@@ -70,6 +78,7 @@ import {
 } from "./brokk-avatar-model";
 import { EdgeFacePx, EdgePx } from "./brokk-edge-model";
 import { BrokkEdgeModel } from "./brokk-edge-store";
+import { BrokkExpressionsModel } from "./brokk-expressions";
 import { BrokkHub, HubDeps } from "./brokk-hub";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { DefaultVisitSettings } from "./brokk-visit-events";
@@ -79,6 +88,7 @@ import { useAvatarLive } from "./use-brokk-hub";
 
 const boss = BossBubbleModel.getInstance() as any;
 const hubModel = BrokkHubModel.getInstance() as any;
+const expressions = BrokkExpressionsModel.getInstance() as any;
 
 const T = new Date(2026, 10, 6, 14, 0, 0).getTime();
 const Min = 60_000;
@@ -155,6 +165,8 @@ function hook<T>(use: () => T): T {
 
 beforeEach(() => {
     Mocks.motion = true;
+    Mocks.rhythm = "normal";
+    globalStore.set(expressions.askedAtom, null);
     Mocks.hub = makeHub();
     globalStore.set(boss.nameAtom, "Brokk");
     globalStore.set(boss.showAtom, true);
@@ -199,15 +211,32 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
         expect(globalStore.get(boss.cardOpenAtom)).toBe(false);
     });
 
-    it("says its group is open and keeps its face, as a still frame while the square plays the animated one (#2032)", () => {
+    it("says its group is open and wears a mark that is not a face while the square plays the animated one (#2032, #2219, AC-2)", () => {
         globalStore.set(boss.cardOpenAtom, true);
         const html = render();
         expect(attr(html, "brokk-avatar", "aria-expanded")).toBe("true");
         expect(attr(html, "brokk-avatar", "data-panel")).toBe("open");
-        expect(html).toContain('data-live="false"');
-        expect(html.match(/data-testid="portrait"/g)).toHaveLength(1);
-        // The face stays: the title-bar face is still the face of Brokk while his group shows.
-        expect(rule(css("brokk-avatar.css"), '.mt-brokk-avatar[data-panel="open"] .mt-brokk-face')).toBe("");
+        // No portrait is mounted at all: not the animated one, and not his still either.
+        expect(html).not.toContain('data-testid="portrait"');
+        expect(html).toMatch(/data-testid="brokk-mark"[^>]*>B</);
+        expect(html).toMatch(/<span class="mt-brokk-face" aria-hidden="true"><span class="mt-brokk-mark"/);
+    });
+
+    it("wears the initial of the name the developer chose, and his face again once the group has closed (#2219)", () => {
+        globalStore.set(boss.cardOpenAtom, true);
+        globalStore.set(boss.nameAtom, "léa");
+        expect(render()).toMatch(/data-testid="brokk-mark"[^>]*>L</);
+        globalStore.set(boss.cardOpenAtom, false);
+        const closed = render();
+        expect(closed).not.toContain("brokk-mark");
+        expect(closed).toContain('data-testid="portrait" data-live="true"');
+    });
+
+    it("draws the mark in the action colour on the face's own round, with no motion (#2219)", () => {
+        const mark = rule(css("brokk-avatar.css"), ".mt-brokk-mark");
+        expect(mark).toMatch(/color: var\(--mt-action\)/);
+        expect(mark).toMatch(/font-size: var\(--mt-text-11\)/);
+        expect(mark).not.toMatch(/animation|transition/);
     });
 
     it("names its click for what it does while the group is open and pinned: it closes it", () => {
@@ -332,11 +361,37 @@ describe("the ring (AC2)", () => {
 
     it("thinks only while his own session works", () => {
         const probe = (own: boolean, replaced: boolean = false) => hook(() => useAvatarLive(own, replaced)) as any;
-        expect(probe(false)).toMatchObject({ rhythm: "calm", situation: { working: 0, waiting: 0 } });
+        expect(probe(false)).toMatchObject({ situation: { working: 0, waiting: 0 } });
         expect(probe(true).situation.working).toBe(1);
         expect(probe(false, true)).toBeNull();
         Mocks.motion = false;
         expect(probe(false)).toBeNull();
+    });
+
+    it("blinks at the rhythm the scene gives, not at one of its own (#2219, AC-1)", () => {
+        const rhythm = () => (hook(() => useAvatarLive(false, false)) as any).rhythm;
+        expect(rhythm()).toBe("normal");
+        Mocks.rhythm = "calm";
+        expect(rhythm()).toBe("calm");
+        const source = readFileSync(join(__dirname, "use-brokk-hub.ts"), "utf8");
+        expect(source).not.toMatch(/rhythm: "(calm|normal)"/);
+    });
+
+    it("plays the gestures the app asks of him while his group is closed, the call included (#2219, AC-1)", () => {
+        const asked = expressions.askedAtom;
+        expect((hook(() => useAvatarLive(false, false)) as any).asked).toBeNull();
+        for (const [cue, expression] of ["call", "frown", "doubtful", "nod", "smile"].entries()) {
+            const gesture = { expression, cue: cue + 1, at: T };
+            globalStore.set(asked, gesture);
+            expect((hook(() => useAvatarLive(false, false)) as any).asked).toBe(gesture);
+            expect((hook(() => useAvatarLive(true, false)) as any).asked).toBe(gesture);
+        }
+    });
+
+    it("reads the newest gesture from the queue the group's face reads, not from a copy", () => {
+        const source = readFileSync(join(__dirname, "use-brokk-hub.ts"), "utf8");
+        expect(source).toContain("BrokkExpressionsModel.getInstance().askedAtom");
+        expect(source).not.toMatch(/asked: null/);
     });
 
     it("declares only the poses it can take, so that the portrait mounts the transitions between them (#2154)", () => {

@@ -43,13 +43,16 @@ vi.mock("./brokk-expressions", async () => {
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { AgentStates } from "../agent-state-store";
 import { TabActivity } from "../tab-activity";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import type { BrokkScene } from "./brokk-scene";
+import { LongThoughtMs, TypingCalmMs } from "./brokk-scene";
 import {
     faceVisibleIn,
+    useBlinkRhythm,
     useBrokkScene,
     useBrokkSituation,
     useCardLive,
@@ -101,6 +104,7 @@ beforeEach(() => {
     globalStore.set(bubble.badgeAtom, { count: 0, text: "", tone: "waiting" });
     globalStore.set(bubble.toHandleAtom, { items: [], info: [], parked: 0 });
     globalStore.set(expressions.askedAtom, null);
+    globalStore.set(expressions.lastKeyAtAtom, null);
 });
 
 afterEach(() => {
@@ -115,6 +119,65 @@ describe("the card's header (FR-BOSS-007, AC8, #1959; FR-BOSS-009)", () => {
     it("shows the still whatever happens when motion is reduced", () => {
         Mocks.reduced = true;
         expect(hook(() => useCardLive())).toBeNull();
+    });
+});
+
+describe("the rhythm of his blinks comes from the scene (FR-BOSS-007, AC17; FR-BOSS-009, AC1, #2219)", () => {
+    const agents = AgentStates.getInstance() as any;
+
+    afterEach(() => {
+        globalStore.set(agents.dataAtom, { states: {}, versions: {} });
+    });
+
+    it("is normal with nothing going on, for the group's face and for any face that asks", () => {
+        expect(hook(() => useBlinkRhythm({ working: 0, waiting: 0, cardOpen: false }))).toBe("normal");
+        expect(hook(() => useCardLive()).rhythm).toBe("normal");
+    });
+
+    it("turns calm while the developer types, and normal again once the typing is old", () => {
+        globalStore.set(expressions.lastKeyAtAtom, Date.now() - 1000);
+        expect(hook(() => useCardLive()).rhythm).toBe("calm");
+        expect(hook(() => useBlinkRhythm({ working: 0, waiting: 0, cardOpen: false }))).toBe("calm");
+        globalStore.set(expressions.lastKeyAtAtom, Date.now() - TypingCalmMs - 1000);
+        expect(hook(() => useCardLive()).rhythm).toBe("normal");
+    });
+
+    it("turns calm after a long thought, and only while someone still works", () => {
+        const working = { working: 1, waiting: 0, cardOpen: false };
+        globalStore.set(agents.dataAtom, {
+            states: { a: { state: "working", since: Date.now() - LongThoughtMs - 1000 } },
+            versions: {},
+        });
+        expect(hook(() => useBlinkRhythm(working))).toBe("calm");
+        expect(hook(() => useBlinkRhythm({ ...working, working: 0 }))).toBe("normal");
+        globalStore.set(agents.dataAtom, {
+            states: { a: { state: "working", since: Date.now() - LongThoughtMs + 60_000 } },
+            versions: {},
+        });
+        expect(hook(() => useBlinkRhythm(working))).toBe("normal");
+    });
+
+    it("turns calm late at night", () => {
+        vi.setSystemTime(new Date(2026, 5, 15, 1));
+        expect(hook(() => useCardLive()).rhythm).toBe("calm");
+        expect(hook(() => useBlinkRhythm({ working: 0, waiting: 0, cardOpen: false }))).toBe("calm");
+    });
+
+    it("hands the group's portrait the rhythm it read, so that no face keeps one of its own", () => {
+        globalStore.set(expressions.lastKeyAtAtom, Date.now());
+        expect(hook(() => useCardLive())).toMatchObject({ rhythm: "calm" });
+        const hubSource = readFileSync(join(__dirname, "use-brokk-hub.ts"), "utf8");
+        const liveSource = readFileSync(join(__dirname, "use-brokk-live.ts"), "utf8");
+        expect(hubSource).not.toMatch(/rhythm: "(calm|normal)"/);
+        expect(liveSource).not.toMatch(/rhythm: "(calm|normal)"/);
+    });
+
+    it("is read from the stores and not from the keystrokes: the face is drawn again only when the rhythm changes", () => {
+        const source = readFileSync(join(__dirname, "use-brokk-live.ts"), "utf8");
+        const start = source.indexOf("export function useBlinkRhythm");
+        const body = source.slice(start, source.indexOf("export function useCardLive"));
+        expect(body).toContain("useSyncExternalStore");
+        expect(body).not.toContain("useAtomValue");
     });
 });
 

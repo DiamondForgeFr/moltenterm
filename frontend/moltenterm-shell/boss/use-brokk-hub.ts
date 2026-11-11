@@ -8,13 +8,14 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
 import { useMemo, useSyncExternalStore } from "react";
-import { AvatarPoses, avatarSituation } from "./brokk-avatar-model";
-import type { BrokkLiveProps } from "./brokk-live";
-import type { HubView } from "./brokk-hub";
-import { BrokkHubModel } from "./brokk-hub-store";
-import { AvatarBadge, avatarBadgeOf, unmappedRowKeys } from "./brokk-hub-feed";
 import { BossBubbleModel } from "./boss-store";
-import { useMotionAllowed } from "./use-brokk-live";
+import { AvatarPoses, avatarSituation } from "./brokk-avatar-model";
+import { BrokkExpressionsModel } from "./brokk-expressions";
+import type { HubView } from "./brokk-hub";
+import { AvatarBadge, avatarBadgeOf, unmappedRowKeys } from "./brokk-hub-feed";
+import { BrokkHubModel } from "./brokk-hub-store";
+import type { BrokkLiveProps } from "./brokk-live";
+import { useBlinkRhythm, useMotionAllowed } from "./use-brokk-live";
 
 export function useHubSelect<T>(select: (view: HubView) => T): T {
     const hub = BrokkHubModel.getInstance().hub;
@@ -61,16 +62,17 @@ export function useBrokkGateProps() {
     );
 }
 
-// His animated portrait at rest: awake and calm, thinking only while his own session works. He stays animated whenever his
-// face is visible; nothing plays or is mounted under reduced motion, in a window or a tab view nobody sees, and while the
-// scene stands in his place (#2154).
+// His animated portrait at rest: awake, thinking only while his own session works. He stays animated whenever his face is
+// visible; nothing plays or is mounted under reduced motion, in a window or a tab view nobody sees, and while the scene
+// stands in his place (#2154). He plays the gestures the app asks of him here too, the call included: with his group
+// closed this is the only face that can (#2219). His blinks follow the scene's rhythm.
 export function useAvatarLive(ownWorking: boolean, replaced: boolean): BrokkLiveProps {
     const allowed = useMotionAllowed();
+    const asked = useAtomValue(BrokkExpressionsModel.getInstance().askedAtom, { store: globalStore });
+    const situation = useMemo(() => avatarSituation(ownWorking), [ownWorking]);
+    const rhythm = useBlinkRhythm(situation);
     return useMemo(
-        () =>
-            allowed && !replaced
-                ? { situation: avatarSituation(ownWorking), asked: null, rhythm: "calm" as const, poses: AvatarPoses }
-                : null,
-        [allowed, replaced, ownWorking]
+        () => (allowed && !replaced ? { situation, asked, rhythm, poses: AvatarPoses } : null),
+        [allowed, replaced, situation, asked, rhythm]
     );
 }
