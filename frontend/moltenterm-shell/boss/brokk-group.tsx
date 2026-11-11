@@ -47,13 +47,13 @@ import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
 import { BrokkItem, sayLine } from "./brokk-exchange-model";
 import {
     activePanel,
-    autoPanelIn,
     afterClick,
     afterClose,
     afterHover,
     afterRequest,
     arrivalOffset,
     ArrivalStepMs,
+    autoPanelIn,
     ConversationChromePx,
     conversationHeight,
     conversationWidthFor,
