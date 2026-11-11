@@ -58,8 +58,8 @@ export function BrokkPermissionCard({ ask, name }: { ask: PermissionAsk; name: s
                         onClick={() => void answer(decision)}
                         className={
                             decision === "allow"
-                                ? "molten-btn cursor-pointer rounded px-2 py-0.5 text-11"
-                                : "cursor-pointer rounded border border-border px-2 py-0.5 text-11 text-primary hover:bg-hover"
+                                ? "molten-btn cursor-pointer rounded-4 px-2 py-0.5 text-11"
+                                : "cursor-pointer rounded-4 border border-border px-2 py-0.5 text-11 text-primary hover:bg-hover"
                         }
                     >
                         {t(DecisionKeys[decision])}
