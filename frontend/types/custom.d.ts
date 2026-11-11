@@ -165,6 +165,15 @@ declare global {
         setWindowLook: (look: { translucent: boolean; blur: boolean }) => void; // moltenterm-window-look, MOLTENTERM-PATCH (#1281)
         getWindowLookSupport: () => Promise<{ translucent: boolean; blur: boolean }>; // MOLTENTERM-PATCH (#1281)
         moltentermGetSystemIdleSec: () => Promise<number>; // moltenterm-system-idle-get, MOLTENTERM-PATCH (#1958)
+        // Brokk's kind colleague runs in Electron main (emain/moltenterm-colleague.ts), MOLTENTERM-PATCH (#2221): the
+        // shapes are PageFacts, MomentsUpdate and Moment of frontend/moltenterm-shell/boss/brokk-colleague*.ts
+        moltentermBrokkStart: (facts: any) => Promise<any>; // moltenterm-brokk-start: the moments as they now are
+        moltentermBrokkStop: () => void; // moltenterm-brokk-stop
+        moltentermBrokkFacts: (facts: any) => void; // moltenterm-brokk-facts
+        moltentermBrokkInput: (facts: any) => void; // moltenterm-brokk-input
+        moltentermBrokkShown: (id: string) => any; // moltenterm-brokk-shown (sync): the moment, null when another window has it
+        moltentermBrokkSeen: (id: string) => void; // moltenterm-brokk-seen
+        onMoltentermBrokkMoments: (callback: (update: any) => void) => () => void; // moltenterm-brokk-moments
         closeBuilderWindow: () => void; // close-builder-window
         incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) => void; // increment-term-commands
         nativePaste: () => void; // native-paste

@@ -48,8 +48,6 @@ export const BreakLifeMs = 45 * Min;
 // The evening runs from this hour to the other, local time.
 export const EveningFromHour = 21;
 export const EveningToHour = 5;
-// Set by the cost of a model call, not by the clock: a handful a day.
-export const MaxModelCallsPerDay = 5;
 // Evaluation by the clock alone, while the developer has made no input.
 export const TickMs = Min;
 
@@ -162,8 +160,6 @@ export type ColleagueMemory = {
     helloDay: string;
     last: Record<string, number>;
     handoverEvening: string;
-    modelDay: string;
-    modelCalls: number;
     // The last time the developer was known at this computer: an input in a view, or this computer's idle time. What the
     // hello's absence is measured from, so that a restart or a rebuilt view is not an absence (#2216).
     presentAt: number;
@@ -178,8 +174,6 @@ export const EmptyColleague: ColleagueMemory = {
     helloDay: "",
     last: {},
     handoverEvening: "",
-    modelDay: "",
-    modelCalls: 0,
     presentAt: null,
     lastInputAt: null,
     stretchStart: null,
@@ -410,15 +404,6 @@ export function afterPhrased(memory: ColleagueMemory, id: string, line: string):
     return { ...memory, moments: memory.moments.map((m) => (m.id === id ? { ...m, line } : m)) };
 }
 
-export function modelCallAllowed(memory: ColleagueMemory, now: number): boolean {
-    return memory.modelDay !== dayKey(now) || memory.modelCalls < MaxModelCallsPerDay;
-}
-
-export function afterModelCall(memory: ColleagueMemory, now: number): ColleagueMemory {
-    const day = dayKey(now);
-    return { ...memory, modelDay: day, modelCalls: memory.modelDay === day ? memory.modelCalls + 1 : 1 };
-}
-
 // The text a moment shows: his model's line, else the written phrasing, which the caller translates.
 export function momentLine(moment: Moment): { key?: string; text?: string } {
     if (moment.line != null && moment.line !== "") {
@@ -459,12 +444,10 @@ export function validModelLine(text: unknown): string {
     return /^[-•–—]\s/.test(line) ? null : line;
 }
 
-// What is kept across restarts: which day he greeted, which phrasing came last, which evening he handed over and how
-// many times his model was asked today, when the developer was last here. A run's stretches and moments are not.
-export type SavedColleague = Pick<
-    ColleagueMemory,
-    "helloDay" | "last" | "handoverEvening" | "modelDay" | "modelCalls" | "presentAt"
->;
+// What is kept across restarts: which day he greeted, which phrasing came last, which evening he handed over, when the
+// developer was last here. A run's stretches and moments are not. How many times his model was asked today is kept by
+// wavesrv, where the call is made (pkg/molten/brokksession/phrase.go).
+export type SavedColleague = Pick<ColleagueMemory, "helloDay" | "last" | "handoverEvening" | "presentAt">;
 
 // The presence is saved to the minute, so that a developer at work changes the saved text, and writes it, once a minute
 // at most.
@@ -477,19 +460,9 @@ export function encodeMemory(memory: ColleagueMemory): string {
         helloDay: memory.helloDay,
         last: memory.last,
         handoverEvening: memory.handoverEvening,
-        modelDay: memory.modelDay,
-        modelCalls: memory.modelCalls,
         presentAt: savedPresence(memory.presentAt),
     };
     return JSON.stringify(saved);
-}
-
-// The latest of two presences, either unknown.
-export function laterPresence(a: number, b: number): number {
-    if (a == null) {
-        return b;
-    }
-    return b == null ? a : Math.max(a, b);
 }
 
 function textOf(value: unknown): string {
@@ -512,15 +485,12 @@ export function decodeMemory(text: string): ColleagueMemory {
             last[set] = index as number;
         }
     }
-    const calls = Number(saved.modelCalls);
     const present = saved.presentAt;
     return {
         ...EmptyColleague,
         helloDay: textOf(saved.helloDay),
         last,
         handoverEvening: textOf(saved.handoverEvening),
-        modelDay: textOf(saved.modelDay),
-        modelCalls: Number.isInteger(calls) && calls > 0 ? calls : 0,
         presentAt: typeof present === "number" && Number.isFinite(present) && present > 0 ? present : null,
     };
 }

@@ -63,6 +63,7 @@ import { askQuitStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PA
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { initMoltentermHangWatch } from "./moltenterm-hang-watch"; // MOLTENTERM-PATCH (#849)
 import { exportSystemLanguageToEnv, initMoltentermI18n, initMoltentermI18nIpc, mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
+import { initMoltentermColleague } from "./moltenterm-colleague"; // MOLTENTERM-PATCH (#2221)
 import { initMoltentermDownloads } from "./moltenterm-downloads"; // MOLTENTERM-PATCH (#1992)
 import { planMoltentermCookieEncryption, startMoltentermCookieEncryption } from "./moltenterm-cookie-encryption"; // MOLTENTERM-PATCH (#2058)
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
@@ -469,6 +470,7 @@ async function appMain() {
     initMoltentermSitePermissions(fullConfig); // MOLTENTERM-PATCH (#663): the remembered site permissions, live
     initMoltentermClientCertificates(fullConfig); // MOLTENTERM-PATCH (#1979): the remembered certificate per site, live
     initMoltentermDownloads(fullConfig); // MOLTENTERM-PATCH (#1992): the downloads of the web pages, their history and their notifications
+    initMoltentermColleague(); // MOLTENTERM-PATCH (#2221): Brokk's kind colleague, one run for every tab and window
     checkIfRunningUnderARM64Translation(fullConfig);
     if (fullConfig?.settings?.["app:confirmquit"] != null) {
         confirmQuit = fullConfig.settings["app:confirmquit"];

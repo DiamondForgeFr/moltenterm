@@ -64,6 +64,7 @@ ownership, confirmation, capability expiry or browser-agent consent.
 | `moltenterm-tab-activity.ts` | `moltenterm-window-activity-get` |
 | `moltenterm-screen.ts` | `moltenterm-screen-get` |
 | `moltenterm-system-idle.ts` | `moltenterm-system-idle-get` (a number of seconds, this computer's idle time; no argument) |
+| `moltenterm-colleague.ts` | `moltenterm-brokk-start`, `moltenterm-brokk-stop`, `moltenterm-brokk-facts`, `moltenterm-brokk-input`, `moltenterm-brokk-shown`, `moltenterm-brokk-seen` (Brokk's kind colleague runs once in main for every tab and window: a page tells it what the developer does and the few facts only a page knows, as data read into fixed shapes (a count of agents, one of the known proximity levels, a language code) and a moment's id, a short text; main answers with the moments it raised, which hold nothing from a notification, a file, a pull request or a person, and pushes them on `moltenterm-brokk-moments` to the pages that started) |
 | `moltenterm-tabview-host.ts` | `moltenterm-view-pending-action` |
 | `moltenterm-busy-close.ts` | `moltenterm-busy-reply` |
 | `moltenterm-site-permissions.ts` | `moltenterm-site-permission-answer` |
