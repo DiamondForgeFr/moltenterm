@@ -14,7 +14,8 @@ import { BrokkColleagueModel } from "./brokk-colleague-store";
 
 export type MomentView = { id: string; text: string };
 
-// `shown`: the group is on screen. Null when there is nothing to say.
+// `shown`: the group is on screen with the moment in its line. False while his own answer holds the line (AC25): a moment
+// hidden behind it is not shown, so it is not used up either (#2216). Null when there is nothing to say.
 export function useBrokkMoment(shown: boolean): MomentView {
     const model = BrokkColleagueModel.getInstance();
     const t = useT();

@@ -26,6 +26,12 @@ const (
 	KindBreak    = "break"
 	KindHandover = "handover"
 
+	// The part of the day a hello belongs to (brokk-colleague.ts helloPartOf, #2216).
+	HelloEarly       = "early"
+	HelloMorning     = "morning"
+	HelloLateMorning = "lateMorning"
+	HelloBack        = "back"
+
 	// The agent has this long to answer. The window waits a little longer, and never for the screen: the written
 	// phrasing shows meanwhile.
 	phraseTimeout = 25 * time.Second
@@ -49,6 +55,7 @@ type PhraseRequest struct {
 	Kind      string `json:"kind"`
 	Language  string `json:"language,omitempty"`
 	Clock     string `json:"clock,omitempty"`
+	Part      string `json:"part,omitempty"`
 	WorkedMin int    `json:"workedmin,omitempty"`
 	Agents    int    `json:"agents,omitempty"`
 }
@@ -78,12 +85,34 @@ func clamp(n int, low int, high int) int {
 	return n
 }
 
+// helloSituation says which hello it is, so that the model's line matches the written set it replaces.
+func helloSituation(part string) string {
+	switch part {
+	case HelloEarly:
+		return "The developer has just sat down for the first time today, early in the morning, before the day has really begun."
+	case HelloMorning:
+		return "The developer has just sat down for the first time today, in the morning."
+	case HelloLateMorning:
+		return "The developer has just sat down for the first time today, late in the morning."
+	case HelloBack:
+		return "The developer is back after a long absence, later in the day."
+	}
+	return "The developer is back after a long absence."
+}
+
+func helloWish(part string) string {
+	if part == HelloBack {
+		return "Welcome them back, with no morning wish."
+	}
+	return "Greet them."
+}
+
 // phrasePrompt is the whole of what his model is told, from the validated request.
 func phrasePrompt(req PhraseRequest) string {
 	var moment string
 	switch req.Kind {
 	case KindHello:
-		moment = fmt.Sprintf("The developer has just sat down for the first time today. It is %s on their clock. Greet them.", req.Clock)
+		moment = fmt.Sprintf("%s It is %s on their clock. %s", helloSituation(req.Part), req.Clock, helloWish(req.Part))
 	case KindBreak:
 		moment = fmt.Sprintf("The developer has worked for about %d minutes without a real pause. Kindly suggest a break.", req.WorkedMin)
 	default:
@@ -116,6 +145,11 @@ func validRequest(req PhraseRequest) (PhraseRequest, bool) {
 	}
 	req.WorkedMin = clamp(req.WorkedMin, 0, 24*60)
 	req.Agents = clamp(req.Agents, 0, 99)
+	switch req.Part {
+	case HelloEarly, HelloMorning, HelloLateMorning, HelloBack:
+	default:
+		req.Part = ""
+	}
 	return req, true
 }
 

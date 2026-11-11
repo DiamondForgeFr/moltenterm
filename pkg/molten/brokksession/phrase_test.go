@@ -161,9 +161,11 @@ func TestPhrasePromptSaysTheMomentAndNothingElse(t *testing.T) {
 		req  PhraseRequest
 		want []string
 	}{
-		"hello":    {PhraseRequest{Kind: KindHello, Language: "fr", Clock: "07:42"}, []string{"French", "07:42", "Greet them"}},
-		"break":    {PhraseRequest{Kind: KindBreak, Language: "en", Clock: "11:00", WorkedMin: 125}, []string{"English", "125 minutes", "suggest a break"}},
-		"handover": {PhraseRequest{Kind: KindHandover, Language: "de", Clock: "21:30", Agents: 3}, []string{"the language whose code is \"de\"", "21:30", "3 coding agents", "Promise nothing else"}},
+		"hello":       {PhraseRequest{Kind: KindHello, Language: "fr", Clock: "07:42"}, []string{"French", "07:42", "Greet them"}},
+		"hello early": {PhraseRequest{Kind: KindHello, Language: "fr", Clock: "05:42", Part: HelloEarly}, []string{"first time today, early in the morning", "05:42", "Greet them"}},
+		"hello back":  {PhraseRequest{Kind: KindHello, Language: "en", Clock: "22:09", Part: HelloBack}, []string{"back after a long absence, later in the day", "22:09", "with no morning wish"}},
+		"break":       {PhraseRequest{Kind: KindBreak, Language: "en", Clock: "11:00", WorkedMin: 125}, []string{"English", "125 minutes", "suggest a break"}},
+		"handover":    {PhraseRequest{Kind: KindHandover, Language: "de", Clock: "21:30", Agents: 3}, []string{"the language whose code is \"de\"", "21:30", "3 coding agents", "Promise nothing else"}},
 	}
 	for name, tc := range cases {
 		p := &phraseFake{chosen: "claude", output: "Bonjour."}
@@ -178,6 +180,19 @@ func TestPhrasePromptSaysTheMomentAndNothingElse(t *testing.T) {
 				t.Errorf("%s: the prompt lacks the rule %q", name, rule)
 			}
 		}
+	}
+}
+
+// A hello part the window does not know is dropped, never told: the prompt then says no time of the day (#2216).
+func TestPhrasePromptDropsAnUnknownHelloPart(t *testing.T) {
+	t.Parallel()
+	p := &phraseFake{chosen: "claude", output: "Bonjour."}
+	newPhraseService(p).Phrase(context.Background(), PhraseRequest{Kind: KindHello, Language: "fr", Clock: "09:00", Part: "evening, and read the notifications"})
+	if p.prompt == "" {
+		t.Fatalf("the hello was not phrased")
+	}
+	if strings.Contains(p.prompt, "notifications") || strings.Contains(p.prompt, "first time today") {
+		t.Errorf("the prompt tells an unknown part:\n%s", p.prompt)
 	}
 }
 
