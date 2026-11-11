@@ -145,6 +145,23 @@ describe("Brokk says his answer while his group shows (AC87, AC88)", () => {
         expect(globalStore.get(speech.speakingAtom)).toBe(true);
     });
 
+    // #2257's queue: a message the developer sent while he answered joins the exchange once his agent takes it.
+    it("goes on with his answer when a queued message joins the exchange, and says the next answer afresh", () => {
+        const long = Array.from({ length: 100 }, () => "anvil").join(" ");
+        read(long, true);
+        clock.advance(300);
+        const before = globalStore.get(speech.shownAtom);
+        expect(before.id).toBe("m1");
+        globalStore.set(exchangeAtom, (items: any[]) => withMessage(items, "m2", "And the CI?", 2));
+        expect(globalStore.get(speech.shownAtom)).toEqual(before);
+        clock.advance(100);
+        expect(globalStore.get(speech.shownAtom).count).toBeGreaterThanOrEqual(before.count);
+        globalStore.set(exchangeAtom, (items: any[]) =>
+            withAnswer(items, "m2", { markdown: "Green.", turn: 2, at: 3, final: false })
+        );
+        expect(globalStore.get(speech.shownAtom)).toMatchObject({ id: "m2", count: 0 });
+    });
+
     it("plays the tone at once on a face that listened all along", () => {
         speech.noteFace("typing");
         clock.advance(3000);

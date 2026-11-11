@@ -77,11 +77,8 @@ vi.mock("../boss/boss-store", async () => {
     return { BossBubbleModel: { getInstance: () => boss } };
 });
 vi.mock("../boss/brokk-session", async () => {
-    const { atom } = await import("jotai");
-    const speakingAtom = atom(false);
     const listeners = new Set<(a: any) => void>();
     const session = {
-        speakingAtom,
         lines: [] as string[],
         lead: "",
         listenAnswers: (fn: (a: any) => void) => {
@@ -187,6 +184,15 @@ function startModel(): BrainstormModel {
 }
 
 describe("the brainstorm mode in a view (FR-BOSS-010, #2246)", () => {
+    // #2259: the camera follows his words from each reading of his answer, the session holding no speaking flag.
+    it("marks that he spoke at each reading of his answer", async () => {
+        const model = startModel();
+        await settle();
+        globalStore.set(model.talkAtAtom, 0);
+        session.tell({ id: "m1", you: "Hello", markdown: "Hello there.", turn: 3, final: false });
+        expect(globalStore.get(model.talkAtAtom)).toBeGreaterThan(0);
+    });
+
     it("does nothing on a release channel", async () => {
         gate.allowed = false;
         const model = startModel();

@@ -28,7 +28,6 @@ vi.mock("./brokk-hub-store", async () => {
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { SpeakingHoldMs } from "./brokk-exchange-model";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { BrokkSession, PermitCommand, ReplyCommand, SayCommand, SessionCommand, SessionRouteId } from "./brokk-session";
 import { FollowEveryMs, MaxQueueMs, QueueEveryMs, TalkState } from "./brokk-talk-model";
@@ -507,35 +506,21 @@ describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
         expect(shape()).toEqual(["you:first", "you:second"]);
     });
 
-    it("speaks while his answer comes in and a moment after it last changed", async () => {
+    // #2259: his face speaks as his answer is revealed (brokk-speech.ts): the session only tells what changed.
+    it("tells each change of his answer, and not a reading that did not change", async () => {
         const session = BrokkSession.getInstance();
+        const told: string[] = [];
+        const stop = session.listenAnswers((a) => told.push(a.markdown));
         globalStore.set(hub.ownWorkingAtom, true);
         read = () => answer(3, "Two");
         await session.say("hello");
-        expect(globalStore.get(session.speakingAtom)).toBe(false);
         await reading();
-        expect(globalStore.get(session.speakingAtom)).toBe(true);
-
-        // It changes again: the first hold ending does not end the speech.
+        await reading();
+        expect(told).toEqual(["Two"]);
         read = () => answer(3, "Two agents");
         await reading();
-        expect(waits.filter((w) => w.ms === SpeakingHoldMs)).toHaveLength(2);
-        release(SpeakingHoldMs);
-        await flush();
-        expect(globalStore.get(session.speakingAtom)).toBe(true);
-        release(SpeakingHoldMs);
-        await flush();
-        expect(globalStore.get(session.speakingAtom)).toBe(false);
-    });
-
-    it("does not speak again for an answer that did not change", async () => {
-        const session = BrokkSession.getInstance();
-        globalStore.set(hub.ownWorkingAtom, true);
-        read = () => answer(3, "Two");
-        await session.say("hello");
-        await reading();
-        await reading();
-        expect(waits.filter((w) => w.ms === SpeakingHoldMs)).toHaveLength(1);
+        expect(told).toEqual(["Two", "Two agents"]);
+        stop();
     });
 
     it("keeps what he said while the window was folded as his line until the developer looks", async () => {

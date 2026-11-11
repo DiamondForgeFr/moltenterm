@@ -226,9 +226,6 @@ export function leadOf(text: string, max: number = LeadChars): string {
     return plain.slice(0, max - 1).trimEnd() + "…";
 }
 
-// How long he keeps speaking after his answer last changed (the mockup's 2.4 s, and a margin).
-export const SpeakingHoldMs = 3000;
-
 // The line under the square: his latest answer while the developer has not seen it, else the moment he has to say
 // (brokk-colleague.ts), else nothing: "" hides the line.
 export function sayLine(unseen: BrokkItem, moment: string): string {

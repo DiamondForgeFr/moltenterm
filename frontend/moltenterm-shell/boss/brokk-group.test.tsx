@@ -120,7 +120,6 @@ vi.mock("./brokk-session", async () => {
     const session = {
         stateAtom: atom({ phase: "idle", reason: "", agentName: "", started: false, reply: "", where: null } as any),
         exchangeAtom: atom([] as any[]),
-        speakingAtom: atom(false),
         unseenIdAtom: atom(null as string),
     };
     return { BrokkSession: { getInstance: () => session } };
@@ -245,7 +244,7 @@ function quiet() {
     const session = BrokkSession.getInstance() as any;
     globalStore.set(session.exchangeAtom, []);
     globalStore.set(session.unseenIdAtom, null);
-    globalStore.set(session.speakingAtom, false);
+    globalStore.set(BrokkSpeech.getInstance().speakingAtom, false);
     Badge.keys = [];
 }
 

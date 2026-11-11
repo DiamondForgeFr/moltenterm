@@ -152,21 +152,20 @@ export class BrainstormModel {
         } catch (e) {
             console.log("brainstorm: no event bus", e);
         }
-        this.stops.push(BrokkSession.getInstance().listenAnswers((answer) => void this.onAnswer(answer)));
+        // Each reading of his answer that brings words is him speaking: the camera follows the topic (#2259: the session
+        // no longer holds a speaking flag, his face's speech is brokk-speech.ts's).
+        this.stops.push(
+            BrokkSession.getInstance().listenAnswers((answer) => {
+                globalStore.set(this.talkAtAtom, Date.now());
+                void this.onAnswer(answer);
+            })
+        );
         this.cardWasOpen = globalStore.get(boss.cardOpenAtom);
         this.stops.push(globalStore.sub(boss.cardOpenAtom, () => this.onCard(globalStore.get(boss.cardOpenAtom))));
         const notifications = MoltentermNotifications.getInstance();
         this.stops.push(globalStore.sub(notifications.entriesAtom, () => this.onEntries(notifications.entries())));
         const agents = AgentStates.getInstance();
         this.stops.push(globalStore.sub(agents.dataAtom, () => this.onAgents(globalStore.get(agents.dataAtom))));
-        const session = BrokkSession.getInstance();
-        this.stops.push(
-            globalStore.sub(session.speakingAtom, () => {
-                if (globalStore.get(session.speakingAtom)) {
-                    globalStore.set(this.talkAtAtom, Date.now());
-                }
-            })
-        );
         const activity = TabActivity.getInstance();
         this.stops.push(globalStore.sub(activity.onScreenAtom, () => this.onScreenChange()));
         void this.refresh();
