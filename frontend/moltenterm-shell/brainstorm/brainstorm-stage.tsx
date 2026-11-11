@@ -54,6 +54,7 @@ function placeFree(stage: HTMLElement, scene: BrainstormScene): void {
     const free = freeRect({ width: box.width, height: box.height }, groupBoxOf(stage));
     scene.setFreeRect(free);
     stage.parentElement?.style.setProperty("--bs-free-top", `${Math.round(free.top)}px`);
+    stage.parentElement?.style.setProperty("--bs-free-left", `${Math.round(free.left)}px`);
 }
 
 export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
@@ -88,6 +89,7 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
                         plates: platesRef.current,
                         kindLabel: (kind: NodeKind) => tRef.current(`boss.brainstorm.kinds.${kind}`),
                         onCrossFade: () => setFading((n) => n + 1),
+                        onCameraMode: (mode) => globalStore.set(model.cameraModeAtom, mode),
                     });
                 } catch (e) {
                     // No WebGL: the stage stays empty and the conversation goes on (the flat view is #2247's).

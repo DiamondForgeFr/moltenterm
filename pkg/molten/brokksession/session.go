@@ -24,6 +24,13 @@ import (
 const (
 	// BlockMetaKey marks the terminal of Brokk's session; must match frontend/moltenterm-shell/boss/brokk-session.ts.
 	BlockMetaKey = molten.OwnSessionMetaKey
+	// BriefMetaKey: the version of the brief his running agent has read (#2257). A session whose version differs, or a
+	// session started before the key existed, gets the current brief with the next message: an agent reads its
+	// instructions file once, when it starts.
+	BriefMetaKey = "molten:brokkbrief"
+	// HumanDraftMetaKey: a human typed in his terminal's prompt and did not send it (#2257). Kept in the block, so that
+	// a restart, which forgets what the input watch saw, never lets a message clear or send it.
+	HumanDraftMetaKey = "molten:brokkhumandraft"
 	// FolderName is his own folder, under MoltenTerm's data folder.
 	FolderName = "brokk"
 	// DefaultTabName names the hidden tab when the window sent none.
@@ -54,6 +61,8 @@ const (
 	ReasonNotSubmitted = "notsubmitted"
 	// ReasonLookup: looking for his session failed (#2220), which is not "no session" (#2236).
 	ReasonLookup = "lookup"
+	// ReasonHumanDraft: a human's unsent text waits in his prompt; nothing was typed (#2257).
+	ReasonHumanDraft = "humandraft"
 
 	// Reply…: what Reply answered; must match frontend/moltenterm-shell/boss/brokk-talk-model.ts. ReplyAnswer: his answer
 	// to the message; ReplyWaiting: none newer than the message yet; ReplyUnread: his transcript is not known, so the
@@ -93,11 +102,12 @@ type Result struct {
 	Message string `json:"message,omitempty"`
 }
 
-// Found is a session that exists.
+// Found is a session that exists. Brief: the version of the brief its agent read ("" before #2257).
 type Found struct {
 	BlockId     string
 	TabId       string
 	WorkspaceId string
+	Brief       string
 }
 
 // ReplyRequest asks for his answer to a message sent at After (Unix milliseconds). With an Index it asks for the answer
@@ -138,7 +148,9 @@ type TypeOutcome struct {
 	Gone  bool
 	// NoAgent: no coding agent runs in the terminal: the one just started is not up yet, or the one that ran has ended.
 	NoAgent bool
-	Message string
+	// HumanDraft: a human's unsent text is in the prompt: nothing was typed.
+	HumanDraft bool
+	Message    string
 }
 
 // Env is what the service reaches outside itself; the tests give fakes.
@@ -159,6 +171,10 @@ type Env struct {
 	// OpenTerminal creates the terminal in the tab and types line at its first prompt.
 	OpenTerminal func(ctx context.Context, tabId string, meta waveobj.MetaMapType, line string) (string, error)
 	Type         func(ctx context.Context, blockId string, line string) TypeOutcome
+	// Brief writes his brief in his folder and returns its version and its text; nil: no brief is followed.
+	Brief func() (version string, text string, err error)
+	// MarkBrief records in his terminal the version of the brief his agent now has.
+	MarkBrief func(ctx context.Context, blockId string, version string) error
 	// Ready tells whether the agent in the block takes a typed line with Enter now (its hooks report, no draft).
 	Ready func(blockId string) bool
 	// Sleep waits d, false when ctx ended first.
@@ -285,23 +301,55 @@ func (s *Service) Say(ctx context.Context, req Request) Result {
 	}
 	result := Result{}
 	fresh := false
+	version, briefText := s.brief()
 	if !ok {
 		var failed bool
-		found, result, failed = s.start(ctx, req)
+		found, result, failed = s.start(ctx, req, version)
 		if failed {
 			return result
 		}
 		fresh = true
 	}
-	out := s.deliver(ctx, found.BlockId, text, fresh)
+	// A session that runs read its brief when it started: a newer one goes with this message, whatever the agent.
+	refresh := !fresh && version != "" && found.Brief != version
+	typed := text
+	if refresh {
+		typed = withBrief(briefText, text)
+	}
+	out := s.deliver(ctx, found.BlockId, typed, fresh)
 	result.BlockId, result.TabId, result.WorkspaceId = found.BlockId, found.TabId, found.WorkspaceId
 	result.Started = fresh
 	result.Status, result.Reason, result.Message = out.Status, out.Reason, out.Message
+	// Not recorded, the brief goes again with the next message: no harm, only a longer prompt.
+	if refresh && out.Status == StatusSent && s.env.MarkBrief != nil {
+		if err := s.env.MarkBrief(ctx, found.BlockId, version); err != nil {
+			result.Message = fmt.Sprintf("The brief's version could not be recorded: %v", err)
+		}
+	}
 	return result
 }
 
+// brief writes his brief and returns its version and text; "" when none is followed or it could not be written.
+func (s *Service) brief() (string, string) {
+	if s.env.Brief == nil {
+		return "", ""
+	}
+	version, text, err := s.env.Brief()
+	if err != nil {
+		return "", ""
+	}
+	return version, text
+}
+
+// withBrief puts the current brief before the developer's message, for an agent that read an older one at its start.
+func withBrief(brief string, text string) string {
+	return "MoltenTerm updated your brief (CLAUDE.md and AGENTS.md in your folder) after this session started. " +
+		"It replaces the one you read then; follow it from this answer on, and never mention it:\n\n" +
+		strings.TrimSpace(brief) + "\n\nThe developer's message:\n\n" + text
+}
+
 // start makes the hidden tab and the terminal, and starts the agent in it. failed: the answer is final.
-func (s *Service) start(ctx context.Context, req Request) (Found, Result, bool) {
+func (s *Service) start(ctx context.Context, req Request, briefVersion string) (Found, Result, bool) {
 	if req.WorkspaceId == "" {
 		return Found{}, Result{Status: StatusFailed, Reason: ReasonNoSpace, Message: "No workspace to put his tab in."}, true
 	}
@@ -331,6 +379,9 @@ func (s *Service) start(ctx context.Context, req Request) (Found, Result, bool) 
 		waveobj.MetaKey_CmdCwd:     dir,
 		BlockMetaKey:               true,
 	}
+	if briefVersion != "" {
+		meta[BriefMetaKey] = briefVersion
+	}
 	blockId, err := s.env.OpenTerminal(ctx, tabId, meta, s.env.CommandLine(agent))
 	if blockId == "" {
 		if s.env.CloseTab != nil {
@@ -340,7 +391,7 @@ func (s *Service) start(ctx context.Context, req Request) (Found, Result, bool) 
 	}
 	// A terminal whose agent did not start still exists: the text waits for a prompt that may never come, and the
 	// developer sees the answer in the hidden tab.
-	return Found{BlockId: blockId, TabId: tabId, WorkspaceId: req.WorkspaceId}, Result{Agent: agent, AgentName: name}, false
+	return Found{BlockId: blockId, TabId: tabId, WorkspaceId: req.WorkspaceId, Brief: briefVersion}, Result{Agent: agent, AgentName: name}, false
 }
 
 type delivery struct {
@@ -370,6 +421,9 @@ func (s *Service) deliver(ctx context.Context, blockId string, text string, fres
 		}
 		if out.Gone {
 			return delivery{Status: StatusFailed, Reason: ReasonGone, Message: out.Message}
+		}
+		if out.HumanDraft {
+			return delivery{Status: StatusFailed, Reason: ReasonHumanDraft, Message: out.Message}
 		}
 		// The agent just started shows in the terminal a moment after its command; one that was there and ended does not come back.
 		if out.NoAgent && !fresh {

@@ -4,7 +4,9 @@
 package brokksession
 
 import (
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,6 +44,30 @@ func BriefText(brainstorm bool) string {
 // the brief changed, one it did not write stays as it is. The brainstorm section follows the build channel.
 func WriteBrief(dir string) error {
 	return writeBrief(dir, BriefText(buildchannel.BrainstormEnabled()))
+}
+
+// CurrentBrief writes his brief (WriteBrief) and returns its version and its text, for a session that runs: an agent
+// reads its instructions file once, when it starts, so a running one gets a newer brief with the next message (#2257).
+// The version is "" when every brief file of his folder is the developer's: theirs is followed, never replaced.
+func CurrentBrief(dir string) (string, string, error) {
+	return currentBrief(dir, BriefText(buildchannel.BrainstormEnabled()))
+}
+
+func currentBrief(dir string, text string) (string, string, error) {
+	err := writeBrief(dir, text)
+	for _, name := range briefFiles {
+		existing, readErr := os.ReadFile(filepath.Join(dir, name))
+		if readErr == nil && string(existing) == text {
+			return BriefVersion(text), text, err
+		}
+	}
+	return "", "", err
+}
+
+// BriefVersion names a brief's text: two texts have the same version only when they are the same.
+func BriefVersion(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:8])
 }
 
 func writeBrief(dir string, text string) error {

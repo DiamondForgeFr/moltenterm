@@ -25,6 +25,9 @@ import {
     followStep,
     IdleTalk,
     MaxFollowMs,
+    MaxQueueMs,
+    QueueEveryMs,
+    queuedOf,
     ReplyResult,
     SayResult,
     SendingTalk,
@@ -216,7 +219,6 @@ export class BrokkSession {
     // Gives the message to his session, starting it when it does not exist, then follows his answer. Resolves with
     // what came of the message.
     async say(typed: string): Promise<TalkState> {
-        const model = BossBubbleModel.getInstance();
         const lead = this.lead;
         const text = lead !== "" ? `${lead} ${typed}` : typed;
         const gen = ++this.sendGen;
@@ -229,23 +231,23 @@ export class BrokkSession {
         if (existing?.status === "none") {
             globalStore.set(this.stateAtom, StartingTalk);
         }
-        const sentAt = Date.now() - SentSlackMs;
-        let state: TalkState;
-        try {
-            const result: SayResult = await this.call(
-                SayCommand,
-                {
-                    workspaceid: globalStore.get(atoms.workspace)?.oid ?? "",
-                    name: globalStore.get(model.nameAtom),
-                    text,
-                },
-                SayTimeoutMs
-            );
-            this.keep(result);
-            state = talkStateOf(result);
-        } catch (e) {
-            console.log("brokk session: the message did not go", e);
-            state = talkStateOf(null);
+        let sentAt = Date.now() - SentSlackMs;
+        let state = await this.give(text);
+        // His agent was busy (a turn still running, a previous message on its way): the message waits in the field and
+        // goes by itself once he is free (#2257), until the developer writes again or sends another one.
+        let waited = 0;
+        while (gen === this.sendGen && state.phase === "busy" && waited < MaxQueueMs) {
+            globalStore.set(this.stateAtom, queuedOf(state));
+            await this.wait(QueueEveryMs);
+            waited += QueueEveryMs;
+            if (gen !== this.sendGen) {
+                return globalStore.get(this.stateAtom);
+            }
+            if (this.busyNow()) {
+                continue;
+            }
+            sentAt = Date.now() - SentSlackMs;
+            state = await this.give(text);
         }
         if (gen !== this.sendGen) {
             return state;
@@ -260,6 +262,33 @@ export class BrokkSession {
         }
         await this.takeOver(text, sentAt, state, gen);
         return state;
+    }
+
+    // One try at giving the message to his session.
+    private async give(text: string): Promise<TalkState> {
+        const model = BossBubbleModel.getInstance();
+        try {
+            const result: SayResult = await this.call(
+                SayCommand,
+                {
+                    workspaceid: globalStore.get(atoms.workspace)?.oid ?? "",
+                    name: globalStore.get(model.nameAtom),
+                    text,
+                },
+                SayTimeoutMs
+            );
+            this.keep(result);
+            return talkStateOf(result);
+        } catch (e) {
+            console.log("brokk session: the message did not go", e);
+            return talkStateOf(null);
+        }
+    }
+
+    // His own session's prompt is taken (his turn runs, or he waits for the developer): a queued message is not tried
+    // yet. Work he handed to the background leaves his prompt free.
+    private busyNow(): boolean {
+        return globalStore.get(BrokkHubModel.getInstance().ownPromptBusyAtom) === true;
     }
 
     // His agent has the message: the answer before it is read to its end, the message joins the exchange, and its answer
@@ -387,7 +416,11 @@ export class BrokkSession {
     }
 
     // The developer writes again: the note of a failed message goes. An answer that is still coming is not touched.
+    // A queued message stops waiting: the developer changes it, and sends it again himself.
     clearNote(): void {
+        if (globalStore.get(this.stateAtom).phase === "queued") {
+            this.sendGen++;
+        }
         if (this.stateOwner == null) {
             globalStore.set(this.stateAtom, IdleTalk);
         }

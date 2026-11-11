@@ -158,11 +158,13 @@
     pointer-events: none;
 }
 
-/* The line over the free space: whose thought, how many nodes and links. */
+/* The line over the free space: whose thought, how many nodes and links. At the free space's top left, beside his group,
+   as the mockup puts it (#2257). */
 .mt-bs-header {
     position: absolute;
     top: calc(var(--bs-free-top, 0px) + 12px);
-    right: 16px;
+    left: calc(var(--bs-free-left, 0px) + 20px);
+    max-width: calc(100% - var(--bs-free-left, 0px) - 36px);
     padding: 4px 10px;
     border-radius: var(--mt-radius-control);
     background: rgb(18 17 16 / 0.85);

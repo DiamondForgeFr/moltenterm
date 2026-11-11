@@ -57,9 +57,53 @@ func liveFind(ctx context.Context) (Found, bool, error) {
 		if tabId != "" {
 			workspaceId, _ = wstore.DBFindWorkspaceForTabId(ctx, tabId)
 		}
-		return Found{BlockId: block.OID, TabId: tabId, WorkspaceId: workspaceId}, true, nil
+		watchHumanDraft(block.OID)
+		return Found{BlockId: block.OID, TabId: tabId, WorkspaceId: workspaceId, Brief: block.Meta.GetString(BriefMetaKey, "")}, true, nil
 	}
 	return Found{}, false, nil
+}
+
+// watchHumanDraft keeps in his terminal's metadata whether a human left text in its prompt, so that a restart, which
+// forgets what the input watch saw, never lets a message clear it or send it (#2257). Asked at each lookup: the watch
+// keeps one listener per terminal.
+func watchHumanDraft(blockId string) {
+	termupdate.WatchOwnPrompt(blockId, func(foreign bool) {
+		go recordHumanDraft(blockId, foreign)
+	})
+}
+
+func recordHumanDraft(blockId string, foreign bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), findTimeout)
+	defer cancel()
+	var value any
+	if foreign {
+		value = true
+	}
+	if err := wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Block, blockId), waveobj.MetaMapType{HumanDraftMetaKey: value}, false); err != nil {
+		log.Printf("[brokksession] his prompt's draft could not be recorded: %v\n", err)
+	}
+}
+
+func liveHumanDraft(ctx context.Context, blockId string) bool {
+	ctx, cancel := context.WithTimeout(ctx, findTimeout)
+	defer cancel()
+	block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+	// A block that cannot be read says nothing either way: the input watch alone decides.
+	return err == nil && block != nil && block.Meta.GetBool(HumanDraftMetaKey, false)
+}
+
+func liveMarkBrief(ctx context.Context, blockId string, version string) error {
+	ctx, cancel := context.WithTimeout(ctx, findTimeout)
+	defer cancel()
+	return wstore.UpdateObjectMeta(ctx, waveobj.MakeORef(waveobj.OType_Block, blockId), waveobj.MetaMapType{BriefMetaKey: version}, false)
+}
+
+func liveBrief() (string, string, error) {
+	dir, err := liveFolder()
+	if err != nil {
+		return "", "", err
+	}
+	return CurrentBrief(dir)
 }
 
 // answerReader follows his session's transcript, as the companion links it to his terminal: one reader, kept while
@@ -71,13 +115,12 @@ type answerReader struct {
 	reader *companion.SessionReader
 }
 
-func (a *answerReader) read(blockId string, index int) (Answer, bool) {
+// pollLocked brings the reader of the block's transcript up to date; false: the transcript is not known or not readable.
+func (a *answerReader) pollLocked(blockId string) bool {
 	agent, path, ok := companion.LinkedSession(blockId)
 	if !ok || path == "" {
-		return Answer{}, false
+		return false
 	}
-	a.lock.Lock()
-	defer a.lock.Unlock()
 	if a.reader == nil || a.agent != agent || a.path != path {
 		if a.reader != nil {
 			a.reader.Close()
@@ -86,12 +129,29 @@ func (a *answerReader) read(blockId string, index int) (Answer, bool) {
 		reader, err := companion.OpenSessionReader(agent, path)
 		if err != nil {
 			log.Printf("[brokksession] his transcript cannot be read: %v\n", err)
-			return Answer{}, false
+			return false
 		}
 		a.reader, a.agent, a.path = reader, agent, path
 	}
 	if _, err := a.reader.Poll(); err != nil {
 		log.Printf("[brokksession] his transcript cannot be read: %v\n", err)
+		return false
+	}
+	return true
+}
+
+// atRest: his transcript is known and no call of his agent waits for its result, so his agent sits at its prompt and
+// not on a question (#2257).
+func (a *answerReader) atRest(blockId string) bool {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	return a.pollLocked(blockId) && a.reader.PendingCalls() == 0
+}
+
+func (a *answerReader) read(blockId string, index int) (Answer, bool) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if !a.pollLocked(blockId) {
 		return Answer{}, false
 	}
 	view, found := a.reader.AnswerAt(index)
@@ -157,15 +217,23 @@ func liveRunPrint(ctx context.Context, dir string, agent string, prompt string) 
 	return stdout.Bytes(), nil
 }
 
-func liveType(ctx context.Context, blockId string, line string) TypeOutcome {
-	// A hand-off's path would refuse a message past its short line (#2236): the developer's text is typed whole.
-	out := termupdate.TypeMessageLine(ctx, blockId, line)
+// liveType types into his own session through termupdate's path for it (#2257): the developer's text whole (#2236),
+// submitted, and never stacked over what an earlier try left; a human's text in his prompt is never touched.
+func (a *answerReader) liveType(ctx context.Context, blockId string, line string) TypeOutcome {
+	facts := termupdate.OwnPromptFacts{
+		HumanTyped: liveHumanDraft(ctx, blockId),
+		AtRest:     func() bool { return a.atRest(blockId) },
+	}
+	out := termupdate.TypeOwnMessage(ctx, blockId, line, facts)
 	if out.Result == termupdate.InputSent {
 		return TypeOutcome{Sent: true, Unsubmitted: !out.Submitted, Message: out.Message}
 	}
 	switch out.Reason {
-	case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground:
+	case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground,
+		termupdate.InputReasonUnsettled:
 		return TypeOutcome{Retry: true, Message: out.Message}
+	case termupdate.InputReasonHumanDraft:
+		return TypeOutcome{HumanDraft: true, Message: out.Message}
 	case termupdate.InputReasonTerminalGone:
 		return TypeOutcome{Gone: true, Message: out.Message}
 	case termupdate.InputReasonNoAgent:
@@ -201,6 +269,7 @@ func sessionCommandLine(agent string) string {
 // Live is wavesrv's service: the agent choice, the hidden tabs of the agents MoltenTerm starts and the guarded path that
 // types a prompt into an agent.
 func Live() *Service {
+	reader := &answerReader{}
 	return MakeService(Env{
 		Find:        liveFind,
 		Folder:      liveFolder,
@@ -213,10 +282,12 @@ func Live() *Service {
 		OpenTerminal: func(ctx context.Context, tabId string, meta waveobj.MetaMapType, line string) (string, error) {
 			return reviewsession.OpenTerminal(ctx, tabId, "", meta, line)
 		},
-		Type:       liveType,
+		Type:       reader.liveType,
+		Brief:      liveBrief,
+		MarkBrief:  liveMarkBrief,
 		Ready:      termupdate.AgentTakesLine,
 		Sleep:      liveSleep,
-		ReadAnswer: (&answerReader{}).read,
+		ReadAnswer: reader.read,
 
 		ChosenAgent: liveChosenAgent,
 		RunPrint:    liveRunPrint,

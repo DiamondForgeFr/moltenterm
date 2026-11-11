@@ -69,6 +69,8 @@ export type SceneHost = {
     kindLabel: (kind: NodeKind) => string;
     // Under reduced motion a change of view is a short cross-fade of the stage instead of a flight.
     onCrossFade?: () => void;
+    // The camera turned to the newest topic or back to the whole graph: the header says which (#2257, the mockup's).
+    onCameraMode?: (mode: CameraGoal["mode"]) => void;
 };
 
 type PlateEntry = {
@@ -639,6 +641,9 @@ export class BrainstormScene {
             this.distance += (goal.distance - this.distance) * share;
         }
         this.azimuth = swayAngle(now - this.startedAt, this.still);
+        if (goal.mode !== this.mode) {
+            this.host.onCameraMode?.(goal.mode);
+        }
         this.mode = goal.mode;
         this.lastNewest = newest;
         const flat = Math.cos(TiltRad) * this.distance;

@@ -180,6 +180,8 @@ func makeService() *service {
 		},
 		WatchPrompt: s.prompts.watch,
 		InputState:  s.inputs.state,
+		ExpectOwn:   s.inputs.expectOwn,
+		WatchOwn:    s.inputs.watchOwn,
 		EffortLevels: func(agent string, model string) []string {
 			return agentcontinuity.EffortLevels(agentEnv(), agent, model)
 		},

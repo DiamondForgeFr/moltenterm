@@ -30,6 +30,7 @@ vi.mock("./brokk-session", async () => {
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { UsageReadingsAtom } from "./boss-usage";
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk, keepDraft } from "./brokk-talk";
@@ -268,9 +269,8 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
             [{ phase: "agentmissing" }, "chooseAgent", "Choose an agent"],
             [{ phase: "busy" }, "retry", "Try again"],
             [{ phase: "failed" }, "retry", "Try again"],
-            [{ phase: "unread", where: Where }, "openTerminal", "Open his terminal"],
-            [{ phase: "noreply", where: Where }, "openTerminal", "Open his terminal"],
-            [{ phase: "failed", reason: "noagent", where: Where }, "openTerminal", "Open his terminal"],
+            [{ phase: "failed", reason: "noagent", where: Where }, "retry", "Try again"],
+            [{ phase: "failed", reason: "humandraft", where: Where }, "retry", "Try again"],
         ];
         for (const [state, way, label] of cases) {
             globalStore.set(stateAtom, { ...Idle, ...state });
@@ -280,6 +280,37 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         }
         globalStore.set(stateAtom, { ...Idle, phase: "unread", where: Where });
         expect(render()).toContain("Brokk answered in his terminal: open it to read him.");
+    });
+
+    // #2257: during a brainstorm his conversation stays open in his layer, beside his portrait, whatever has the focus.
+    it("keeps his conversation open while the brainstorm is on", () => {
+        keepDraft("");
+        globalStore.set(BrainstormStateAtom, null);
+        expect(render()).toContain('data-testid="brokk-talk" data-open="false"');
+        globalStore.set(BrainstormStateAtom, { allowed: true, open: true, version: 1 });
+        expect(render()).toContain('data-testid="brokk-talk" data-open="true"');
+        globalStore.set(BrainstormStateAtom, { allowed: true, open: false, version: 2 });
+        expect(render()).toContain('data-testid="brokk-talk" data-open="false"');
+        globalStore.set(BrainstormStateAtom, null);
+    });
+
+    // #2257: his terminal is never the main way out; it stays a secondary action beside the note.
+    it("offers his terminal only beside the note, never as its way out", () => {
+        const stateAtom = (BrokkSession.getInstance() as any).stateAtom;
+        for (const state of [
+            { phase: "unread", where: Where },
+            { phase: "noreply", where: Where },
+            { phase: "needsanswer", where: Where },
+            { phase: "failed", reason: "noagent", where: Where },
+            { phase: "failed", reason: "humandraft", where: Where },
+        ]) {
+            globalStore.set(stateAtom, { ...Idle, ...state });
+            const html = render();
+            expect(html, JSON.stringify(state)).not.toContain('data-way="openTerminal"');
+            expect(html, JSON.stringify(state)).toMatch(/data-testid="brokk-talk-terminal"[^>]*>Open his terminal</);
+        }
+        globalStore.set(stateAtom, { ...Idle, phase: "failed", reason: "lookup", where: Where });
+        expect(render()).not.toContain("brokk-talk-terminal");
     });
 
     it("waits with the domino while the message is on its way, and with no other spinner", () => {

@@ -97,6 +97,35 @@ func TestSessionReaderLatestAnswer(t *testing.T) {
 	}
 }
 
+// Brokk's session (#2257): a call without its result (a running tool, a permission question) keeps the agent off its
+// prompt; once the result is there, it is at rest.
+func TestSessionReaderPendingCalls(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "-work-demo", "11111111-2222-3333-4444-555555555555.jsonl")
+	copyFixture(t, "claude-session.jsonl", path)
+	r, err := OpenAdapterSessionReader(MakeClaudeAdapter([]string{root}), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	f, _ := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString(`{"type":"user","message":{"role":"user","content":"List the files"},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:00.000Z"}` + "\n")
+	f.WriteString(`{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_9","name":"Bash","input":{"command":"ls"}}]},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:01.000Z"}` + "\n")
+	f.Close()
+	r.Poll()
+	if n := r.PendingCalls(); n != 1 {
+		t.Fatalf("a call without its result: %d pending", n)
+	}
+	f, _ = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString(`{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_9","content":"a.txt"}]},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:02.000Z"}` + "\n")
+	f.WriteString(`{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"One file."}]},"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:03.000Z"}` + "\n")
+	f.Close()
+	r.Poll()
+	if n := r.PendingCalls(); n != 0 {
+		t.Fatalf("the call has its result: %d pending", n)
+	}
+}
+
 // Brokk's window keeps each answer apart (#2033): the first one stays readable by its turn once a second message started
 // a newer one.
 func TestSessionReaderAnswerAtReadsATurnWhateverCameAfterIt(t *testing.T) {

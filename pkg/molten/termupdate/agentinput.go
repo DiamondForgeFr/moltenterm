@@ -131,6 +131,13 @@ type AgentInputState struct {
 	Modes []string
 	// Draft: the user may have typed a message not sent yet (always, for an agent without precise states).
 	Draft bool
+	// Foreign: text typed by someone other than MoltenTerm is in the prompt; Own: the prompt holds text, all of it typed
+	// by MoltenTerm; Known: the watch followed the prompt since it was last empty, so neither can be from before it
+	// started; Precise: the agent's hooks report its states (#2257).
+	Foreign bool
+	Own     bool
+	Known   bool
+	Precise bool
 }
 
 // AgentInputInfo is what the panel shows before a command: the mode and whether a draft may be cleared.
@@ -434,7 +441,13 @@ func (u *Updater) sendToForegroundAgent(blockId string, agent molten.AgentProces
 		return false, nil
 	}
 	for _, step := range steps {
-		if err := u.env.SendInput(blockId, []byte(step)); err != nil {
+		data := []byte(step)
+		takeBack := func() {}
+		if u.env.ExpectOwn != nil {
+			takeBack = u.env.ExpectOwn(blockId, data)
+		}
+		if err := u.env.SendInput(blockId, data); err != nil {
+			takeBack()
 			return true, err
 		}
 		u.env.Sleep(exitEnterDelay)

@@ -14,6 +14,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { showPane } from "../sessions/pane-focus";
@@ -32,6 +33,7 @@ import {
     talkFieldHeight,
     talkNoteKey,
     TalkState,
+    talkTerminalAside,
     talkWaits,
     TalkWayOut,
     talkWayOut,
@@ -77,7 +79,10 @@ export function BrokkTalk({
         keepDraft(value);
         setTextState(value);
     };
-    const open = conversationOpen(focused, text);
+    // While the brainstorm is on, his conversation stays open beside his portrait whatever has the focus (FR-BOSS-010,
+    // #2257): the mockup's exchange lives in his layer.
+    const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
+    const open = conversationOpen(focused, text) || brainstorming;
     useEffect(() => onTyping(text.trim() !== ""), [text, onTyping]);
     useEffect(() => () => onTyping(false), [onTyping]);
     useEffect(() => {
@@ -97,6 +102,7 @@ export function BrokkTalk({
 
     const noteKey = talkNoteKey(state);
     const wayOut = talkWayOut(state);
+    const terminalAside = talkTerminalAside(state);
     // His words are coming in: the domino of "thinking" has done its work.
     const answerShows = last?.role === "brokk" && last.text !== "";
     const showNote = noteKey != null && !(state.phase === "answering" && answerShows);
@@ -212,6 +218,16 @@ export function BrokkTalk({
                     className="cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-11 text-primary hover:bg-hover"
                 >
                     {t(talkWayOutKey(wayOut), { name })}
+                </button>
+            ) : null}
+            {terminalAside ? (
+                <button
+                    type="button"
+                    data-testid="brokk-talk-terminal"
+                    onClick={() => takeWayOut("openTerminal")}
+                    className="cursor-pointer text-11 text-muted underline-offset-2 hover:text-secondary hover:underline"
+                >
+                    {t("boss.panel.talk.openTerminal", { name })}
                 </button>
             ) : null}
         </div>

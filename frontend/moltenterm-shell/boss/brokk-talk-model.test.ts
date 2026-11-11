@@ -15,6 +15,7 @@ import {
     keepsText,
     MaxFieldLines,
     MaxMessageLength,
+    queuedOf,
     SayResult,
     sendsOnKey,
     talkFieldHeight,
@@ -23,7 +24,10 @@ import {
     StartingTalk,
     talkNoteKey,
     talkPose,
+    TalkState,
     talkStateOf,
+    talkTerminalAside,
+    talkWaits,
     talkWayOut,
     talkWayOutKey,
     UnreachableReason,
@@ -118,15 +122,16 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
     it("says each cause of a failure in its own words, with its own way out (#2236)", () => {
         const where = { workspaceid: "w", tabid: "t", blockid: "b" };
         const causes: [SayResult, string, string][] = [
-            [{ status: "failed", reason: "refused", ...where }, "boss.panel.talk.refused", "openTerminal"],
+            [{ status: "failed", reason: "refused", ...where }, "boss.panel.talk.refused", "retry"],
             [{ status: "failed", reason: "refused" }, "boss.panel.talk.refused", "retry"],
             [{ status: "failed", reason: "terminal" }, "boss.panel.talk.noTerminal", "retry"],
             [{ status: "failed", reason: "nospace" }, "boss.panel.talk.noSpace", "retry"],
             [{ status: "failed", reason: "notext" }, "boss.panel.talk.noText", "retry"],
             [{ status: "failed", reason: "lookup" }, "boss.panel.talk.lookupFailed", "retry"],
             [{ status: "failed", reason: "gone" }, "boss.panel.talk.gone", "retry"],
-            [{ status: "failed", reason: "noagent", ...where }, "boss.panel.talk.agentStopped", "openTerminal"],
-            [{ status: "failed", reason: "notsubmitted", ...where }, "boss.panel.talk.notSubmitted", "openTerminal"],
+            [{ status: "failed", reason: "noagent", ...where }, "boss.panel.talk.agentStopped", "retry"],
+            [{ status: "failed", reason: "notsubmitted", ...where }, "boss.panel.talk.notSubmitted", "retry"],
+            [{ status: "failed", reason: "humandraft", ...where }, "boss.panel.talk.humanDraft", "retry"],
             [null, "boss.panel.talk.unreachable", "retry"],
         ];
         for (const [result, key, way] of causes) {
@@ -142,7 +147,7 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
                 expect(text, `${lang} ${key}`).not.toMatch(/injoignable|could not be reached/);
             }
         }
-        expect(new Set(causes.map(([, key]) => key)).size).toBe(9);
+        expect(new Set(causes.map(([, key]) => key)).size).toBe(10);
         expect(talkStateOf(null).reason).toBe(UnreachableReason);
     });
 
@@ -154,18 +159,60 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
         expect(talkWayOut(talkStateOf({ status: "failed" }))).toBe("retry");
         expect(talkWayOut(talkStateOf({ status: "failed", reason: "gone" }))).toBe("retry");
         expect(talkWayOut(talkStateOf(null))).toBe("retry");
-        expect(talkWayOut({ ...IdleTalk, phase: "failed", reason: "noagent", where })).toBe("openTerminal");
-        expect(talkWayOut({ ...IdleTalk, phase: "failed", reason: "notsubmitted", where })).toBe("openTerminal");
         expect(talkNoteKey({ ...IdleTalk, phase: "failed", reason: "notsubmitted" })).toBe(
             "boss.panel.talk.notSubmitted"
         );
-        expect(talkWayOut({ ...IdleTalk, phase: "unread", where })).toBe("openTerminal");
-        expect(talkWayOut({ ...IdleTalk, phase: "noreply", where })).toBe("openTerminal");
-        for (const phase of ["idle", "sending", "starting", "answering", "answered"] as const) {
+        for (const phase of ["idle", "sending", "starting", "queued", "answering", "answered"] as const) {
             expect(talkWayOut({ ...IdleTalk, phase }), phase).toBeNull();
         }
         for (const way of ["chooseAgent", "retry", "openTerminal"] as const) {
             expect(talkWayOutKey(way)).toMatch(/^boss\.panel\.talk\./);
+        }
+    });
+
+    // #2257: talking to him never needs leaving his layer. His terminal is never the main way out of a note; it stays
+    // beside it, for whoever wants to look, and only where it has something to show.
+    it("never makes his terminal the way out, and keeps it as a secondary action (#2257)", () => {
+        const where = { workspaceid: "w", tabid: "t", blockid: "b" };
+        const states: TalkState[] = [
+            { ...IdleTalk, phase: "failed", reason: "noagent", where },
+            { ...IdleTalk, phase: "failed", reason: "notsubmitted", where },
+            { ...IdleTalk, phase: "failed", reason: "refused", where },
+            { ...IdleTalk, phase: "failed", reason: "humandraft", where },
+            { ...IdleTalk, phase: "unread", where },
+            { ...IdleTalk, phase: "noreply", where },
+            { ...IdleTalk, phase: "needsanswer", where },
+            { ...IdleTalk, phase: "busy", where },
+            { ...IdleTalk, phase: "queued", where },
+        ];
+        for (const state of states) {
+            expect(talkWayOut(state), JSON.stringify(state)).not.toBe("openTerminal");
+        }
+        expect(states.filter(talkTerminalAside).map((s) => s.reason || s.phase)).toEqual([
+            "noagent",
+            "notsubmitted",
+            "refused",
+            "humandraft",
+            "unread",
+            "noreply",
+            "needsanswer",
+        ]);
+        expect(talkTerminalAside({ ...IdleTalk, phase: "failed", reason: "refused" })).toBe(false);
+        expect(talkWayOut({ ...IdleTalk, phase: "unread" })).toBe("retry");
+    });
+
+    // #2257: a busy agent keeps the message, which goes by itself: the field says so, with the domino.
+    it("says a queued message goes by itself, with the domino (#2257)", () => {
+        const queued = queuedOf(talkStateOf({ status: "busy", reason: "notready" }));
+        expect(queued.phase).toBe("queued");
+        expect(talkNoteKey(queued)).toBe("boss.panel.talk.queued");
+        expect(talkWaits(queued)).toBe(true);
+        expect(keepsText(queued)).toBe(true);
+        expect(canSend("changed", queued)).toBe(true);
+        expect(queuedOf(talkStateOf({ status: "sent" })).phase).toBe("answering");
+        for (const texts of [En, Fr]) {
+            expect(textAt(texts, "boss.panel.talk.queued")).toMatch(/\{name\}/);
+            expect(textAt(texts, "boss.panel.talk.humanDraft")).toMatch(/\{name\}/);
         }
     });
 });
@@ -197,7 +244,7 @@ describe("his answer comes back to the panel (#2028)", () => {
             step = followStep(step.state, step.follow, { status: "waiting" }, false);
         }
         expect(step).toMatchObject({ done: true, state: { phase: "noreply" } });
-        expect(talkWayOut(step.state)).toBe("openTerminal");
+        expect(talkTerminalAside(step.state)).toBe(true);
     });
 
     it("says he answered in his terminal when his answer cannot be read", () => {
@@ -242,7 +289,7 @@ describe("a Brokk blocked on a prompt is no silence (#2155)", () => {
         }
         expect(step).toMatchObject({ done: false, state: { phase: "needsanswer" } });
         expect(talkNoteKey(step.state)).toBe("boss.panel.talk.needsAnswer");
-        expect(talkWayOut(step.state)).toBe("openTerminal");
+        expect(talkTerminalAside(step.state)).toBe(true);
         expect(step.state.where).toEqual({ workspaceid: "w", tabid: "t", blockid: "b" });
         expect(keepsText(step.state)).toBe(false);
     });
