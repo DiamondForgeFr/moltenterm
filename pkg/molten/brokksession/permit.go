@@ -92,6 +92,8 @@ type PermissionAsk struct {
 	Subject string `json:"subject"`
 	Always  bool   `json:"always,omitempty"`
 	At      int64  `json:"at"`
+	// Cwd: where his agent runs it, for the guard (permitguard.go); not shown.
+	Cwd string `json:"-"`
 }
 
 // AutoApproval is a request boss:autoapprove let through, for the line in his talk window.
@@ -291,7 +293,7 @@ func (b *PermitBroker) AutoApproved(after int64) []AutoApproval {
 // MapPermission reads a request in plain terms: false when MoltenTerm cannot be sure what it asks. Claude Code's tools
 // by their names and fields; Codex sends the same input for its shell tool.
 func MapPermission(req keepawake.PermissionRequest) (PermissionAsk, bool) {
-	ask := PermissionAsk{Agent: req.Agent, Tool: req.ToolName, Always: len(req.Suggestions) > 0}
+	ask := PermissionAsk{Agent: req.Agent, Tool: req.ToolName, Always: len(req.Suggestions) > 0, Cwd: req.Cwd}
 	field := func(name string) (string, bool) {
 		v, ok := req.ToolInput[name].(string)
 		v = strings.TrimSpace(v)

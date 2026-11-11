@@ -786,8 +786,8 @@
             },
             "boss:autoapprove": {
                 "label": "Approuver les demandes de son agent sans me demander",
-                "description": "Il agit sans demander, chaque action en une ligne dans sa fenêtre ; vos clés, ~/.ssh et les push forcés demandent toujours.",
-                "confirm": "Activé, son agent lance des commandes, modifie et écrit des fichiers, lit des pages, sans vous demander, jusqu'à ce que vous le désactiviez. Chaque action s'affiche en une ligne dans sa fenêtre de discussion. Ce qui touche aux données de MoltenTerm, à vos identifiants, à votre trousseau ou à ~/.ssh, ou force un push et supprime des branches sur un dépôt distant, vous demande toujours.",
+                "description": "Seul ce qui reste dans son dossier se fait sans demander, chaque action en une ligne ; le reste demande toujours.",
+                "confirm": "Activé, son agent lit, modifie et écrit les fichiers de son propre dossier, et y lance des commandes simples en lecture seule (git status, diff, log, show, les tests), sans vous demander, jusqu'à ce que vous le désactiviez. Chaque action s'affiche en une ligne dans sa fenêtre de discussion. Tout le reste vous demande toujours : tout autre fichier ou dossier, les autres commandes, les pages et recherches web.",
                 "confirmOn": "L'activer",
                 "confirmCancel": "Continuer à me demander"
             },

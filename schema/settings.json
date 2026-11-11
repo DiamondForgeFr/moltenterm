@@ -1969,12 +1969,12 @@
         },
         "boss:autoapprove": {
           "type": "boolean",
-          "description": "Approve the permission requests of Brokk's agent without asking, each one shown as a line in his talk window. A request touching MoltenTerm's data, your credentials, keychain or ~/.ssh, or rewriting a remote's git history still asks. Off when unset",
+          "description": "Approve without asking the requests of Brokk's agent that stay in his own folder (reading and editing his files, simple read-only commands, git status, diff, log, show, tests), each one shown as a line in his talk window; everything else still asks. Counts only once confirmed in MoltenTerm's settings. Off when unset",
           "x-moltenterm": {
             "section": "boss",
             "group": "His agent",
             "label": "Approve his agent's requests without asking",
-            "description": "His agent runs commands and edits files without asking you; each one shows as a line in his talk window. What touches MoltenTerm's data, your credentials, keychain or ~/.ssh, or rewrites a remote's git history, still asks.",
+            "description": "Only what stays in his own folder goes without asking, each a line in his window; the rest still asks.",
             "control": "toggle",
             "order": 74
           }

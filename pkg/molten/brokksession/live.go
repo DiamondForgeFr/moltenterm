@@ -403,7 +403,6 @@ func (s *Service) handle(ctx context.Context, command string, data any) (any, er
 
 // livePermits is the broker of his agent's permission requests (#2257), with wavesrv's facts.
 func livePermits() *PermitBroker {
-	home, _ := os.UserHomeDir()
 	return MakePermitBroker(PermitEnv{
 		IsOwn: func(ctx context.Context, blockId string) bool {
 			ctx, cancel := context.WithTimeout(ctx, findTimeout)
@@ -422,11 +421,7 @@ func livePermits() *PermitBroker {
 			return err == nil && client != nil && AutoApproveOn(true, client.Meta)
 		},
 		Guard: func(ask PermissionAsk) string {
-			return GuardReason(ask, PermitGuardEnv{
-				Home:      home,
-				DataDirs:  []string{wavebase.GetWaveDataDir(), wavebase.GetWaveConfigDir()},
-				OwnFolder: filepath.Join(wavebase.GetWaveDataDir(), FolderName),
-			})
+			return GuardReason(ask, PermitGuardEnv{OwnFolder: filepath.Join(wavebase.GetWaveDataDir(), FolderName)})
 		},
 		Moved: func(blockId string, at int64) bool {
 			run, ok := attention.AgentRun(blockId)

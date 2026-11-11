@@ -244,7 +244,7 @@ var settings = []Setting{
 	// Brokk's thought in 3D (FR-BOSS-010, DS-BOSS-010, #2246): a folder the developer owns, on the channels that have it.
 	{Key: "boss:brainstormsdir", Section: SectionBoss, Group: "Brainstorms", Label: "Brainstorms folder", Description: "Where your brainstorms with him are saved, one folder per idea, without asking.", Control: ControlPath, Default: "~/MoltenTerm/Brainstorms", Channels: "gold,dev,local"},
 	// His agent's permission requests (#2257): off by default, turned on only after one explicit confirmation in the window.
-	{Key: "boss:autoapprove", Section: SectionBoss, Group: "His agent", Label: "Approve his agent's requests without asking", Description: "He acts without asking, each action a line in his window; your keys, ~/.ssh and force pushes still ask.", Control: ControlToggle},
+	{Key: "boss:autoapprove", Section: SectionBoss, Group: "His agent", Label: "Approve his agent's requests without asking", Description: "Only what stays in his own folder goes without asking, each a line in his window; the rest still asks.", Control: ControlToggle},
 	// When Brokk comes to fetch the developer (#2001 keys, #2003 table, FR-BOSS-009 AC4): the screen draws this group as
 	// one table, "Quand Brokk vient me chercher", with a choice per event.
 	{Key: "boss:visitsecurity", Section: SectionBoss, Group: BrokkTableGroup, Label: "A security alert on a dependency", Description: "A high or critical alert on a dependency of your projects.", Control: ControlSelect, Options: comingOptions, Default: "vient"},

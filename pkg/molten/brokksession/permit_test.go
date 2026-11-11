@@ -32,7 +32,7 @@ func (f *fakePermits) broker() *PermitBroker {
 			return f.auto
 		},
 		Guard: func(ask PermissionAsk) string {
-			return GuardReason(ask, PermitGuardEnv{Home: "/home/dev", DataDirs: []string{"/home/dev/.molten/data"}, OwnFolder: "/home/dev/.molten/data/brokk"})
+			return GuardReason(ask, PermitGuardEnv{OwnFolder: testOwnFolder})
 		},
 		Moved: func(string, int64) bool {
 			f.lock.Lock()
@@ -51,7 +51,7 @@ func (f *fakePermits) broker() *PermitBroker {
 
 func bashRequest(command string) keepawake.PermissionRequest {
 	return keepawake.PermissionRequest{
-		BlockId: "brokk-1", FromBlock: true, Agent: "claude", ToolName: "Bash",
+		BlockId: "brokk-1", FromBlock: true, Agent: "claude", ToolName: "Bash", Cwd: testOwnFolder,
 		ToolInput: map[string]any{"command": command, "description": "synthetic"},
 	}
 }
@@ -348,42 +348,3 @@ func TestMapPermission(t *testing.T) {
 	}
 }
 
-func TestGuardedRequests(t *testing.T) {
-	t.Parallel()
-	env := PermitGuardEnv{Home: "/home/dev", DataDirs: []string{"/home/dev/.molten/data", "/home/dev/.config/molten"}, OwnFolder: "/home/dev/.molten/data/brokk"}
-	for _, tc := range []struct {
-		kind string
-		subj string
-		want string
-	}{
-		{PermitKindCommand, "cat ~/.ssh/id_ed25519", GuardSsh},
-		{PermitKindRead, "/home/dev/.ssh/config", GuardSsh},
-		{PermitKindCommand, "ls $HOME/.aws", GuardCredentials},
-		{PermitKindWrite, "/home/dev/.netrc", GuardCredentials},
-		{PermitKindCommand, "security find-generic-password -s x", GuardKeychain},
-		{PermitKindCommand, "gh auth token", GuardKeychain},
-		{PermitKindRead, "/home/dev/Library/Keychains/login.keychain-db", GuardKeychain},
-		{PermitKindCommand, "sqlite3 /home/dev/.molten/data/db/waveterm.db", GuardOwnData},
-		{PermitKindEdit, "/home/dev/.config/molten/settings.json", GuardOwnData},
-		{PermitKindEdit, "/home/dev/.molten/data/brokk/CLAUDE.md", GuardOwnData},
-		{PermitKindCommand, "echo hi >> AGENTS.md", GuardOwnData},
-		{PermitKindCommand, "git push --force origin main", GuardRemoteGit},
-		{PermitKindCommand, "git push -f", GuardRemoteGit},
-		{PermitKindCommand, "git push --force-with-lease origin feature", GuardRemoteGit},
-		{PermitKindCommand, "git push origin --delete old-branch", GuardRemoteGit},
-		{PermitKindCommand, "git push origin :old-branch", GuardRemoteGit},
-		{PermitKindCommand, "git push origin +main", GuardRemoteGit},
-		{PermitKindCommand, "cd /w && git -C /w push -d origin x", GuardRemoteGit},
-		// What stays free.
-		{PermitKindCommand, "git push origin feature", ""},
-		{PermitKindCommand, "git status && ls -la", ""},
-		{PermitKindWrite, "/home/dev/.molten/data/brokk/notes.md", ""},
-		{PermitKindRead, "/home/dev/.molten/data/brokk/CLAUDE.md", ""},
-		{PermitKindEdit, "/home/dev/projects/app/src/main.go", ""},
-		{PermitKindFetch, "https://example.com/.ssh", ""},
-	} {
-		if got := GuardReason(PermissionAsk{Kind: tc.kind, Subject: tc.subj}, env); got != tc.want {
-			t.Errorf("%s %q: %q, want %q", tc.kind, tc.subj, got, tc.want)
-		}
-	}
-}

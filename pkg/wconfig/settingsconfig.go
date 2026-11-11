@@ -271,7 +271,7 @@ type SettingsType struct {
 	BossBrainstormsDir string `json:"boss:brainstormsdir,omitempty" jsonschema_description:"The folder where the brainstorms with Brokk are saved, one folder per idea. ~/MoltenTerm/Brainstorms when unset. Gold, dev and local builds only"`
 
 	// MOLTENTERM-PATCH (#2257): Brokk's agent's permission requests approved without asking (pkg/molten/brokksession/permit.go).
-	BossAutoApprove bool `json:"boss:autoapprove,omitempty" jsonschema_description:"Approve the permission requests of Brokk's agent without asking, each one shown as a line in his talk window. A request touching MoltenTerm's data, your credentials, keychain or ~/.ssh, or rewriting a remote's git history still asks. Off when unset"`
+	BossAutoApprove bool `json:"boss:autoapprove,omitempty" jsonschema_description:"Approve without asking the requests of Brokk's agent that stay in his own folder (reading and editing his files, simple read-only commands, git status, diff, log, show, tests), each one shown as a line in his talk window; everything else still asks. Counts only once confirmed in MoltenTerm's settings. Off when unset"`
 
 	// MOLTENTERM-PATCH (#1407): the molten reveal of a settings block opened in the library (FR-SHELL-088, frontend/moltenterm-shell/library/settings-reveal.ts).
 	MoltentermSettingsReveal *bool `json:"moltenterm:settingsreveal,omitempty" jsonschema_description:"A settings block opened in the library is revealed by molten flows that cool and break open, under 700 ms; false, or reduced motion, fades it in instead"`
