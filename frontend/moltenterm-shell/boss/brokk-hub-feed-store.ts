@@ -36,6 +36,9 @@ export type HubSources = {
     agentsLoadedAtom: Atom<boolean>;
     toHandleAtom: Atom<ToHandleList>;
     settingsAtom: Atom<VisitSettings>;
+    // Brokk is turned on (boss:show, #2218): off, he raises nothing, and the sources still feed the badge's keys. A window
+    // without one leaves it out.
+    onAtom?: Atom<boolean>;
     // The sidebar is on screen: docked, or floating over the content. Hidden, there is no scene to stand on.
     sidebarOnScreenAtom: Atom<boolean>;
     // The sidebar is collapsed at the window's edge with his face on it (#2070): the visit stands there, half open, and
@@ -132,8 +135,11 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         hub.syncRows(store.get(src.toHandleAtom).items);
         hub.markReady();
     };
+    // The switch comes first: an event read before it would bring him for a moment while he is off.
+    const stopPower = src.onAtom != null ? follow(store, src.onAtom, (on) => hub.power(on)) : () => {};
     const extra = extraFeeds(hub, src);
     const stops = [
+        stopPower,
         extra.stop,
         follow(store, src.settingsAtom, (settings) => hub.settings(settings)),
         follow(store, src.sidebarOnScreenAtom, (onScreen) => hub.gate({ type: "hidden", hidden: !onScreen })),

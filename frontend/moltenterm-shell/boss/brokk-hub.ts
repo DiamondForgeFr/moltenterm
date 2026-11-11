@@ -121,6 +121,9 @@ export class BrokkHub {
     private shared: SharedVisit;
     private finished: BrokkEvent[] = [];
     private agentsBefore: AgentStatesData = null;
+    // The settings as the developer set them, and Brokk's switch (boss:show): the model reads both as one (#2218).
+    private chosen: VisitSettings;
+    private on = true;
     private wakeTimer: unknown = null;
     private pollTimer: unknown = null;
     private listeners = new Set<() => void>();
@@ -129,6 +132,7 @@ export class BrokkHub {
 
     constructor(deps: HubDeps) {
         this.deps = deps;
+        this.chosen = InitialBrokk.settings;
         this.shared = deps.readShared();
         this.answer = brokkAfter(InitialBrokk, { type: "tick" }, deps.now()).view;
         this.view = { ...this.answer, ready: false };
@@ -166,7 +170,23 @@ export class BrokkHub {
     };
 
     settings(settings: VisitSettings): void {
-        this.run({ type: "settings", settings });
+        this.chosen = settings;
+        this.run({ type: "settings", settings: this.settingsRead() });
+    }
+
+    // Brokk turned on or off (boss:show, #2218). Off, he raises nothing: the model reads "never come" whatever the
+    // developer chose, so a visit that is up folds at once, none comes, no cue and no coming key move the avatar or the
+    // collapsed sidebar, and no timer is left to wake him. The sources keep feeding the hub, so the badge's keys stay
+    // current for the rail of his group, which a toast can still open.
+    power(on: boolean): void {
+        if (on === this.on || this.stopped) {
+            return;
+        }
+        this.on = on;
+        if (!on) {
+            this.example = null;
+        }
+        this.run({ type: "settings", settings: this.settingsRead() });
     }
 
     // The rows To handle that can bring him: the whole set, whatever changed (an event that is gone is cancelled).
@@ -277,6 +297,10 @@ export class BrokkHub {
             this.deps.writeShared(published);
         }
         this.commit(step, now);
+    }
+
+    private settingsRead(): VisitSettings {
+        return this.on ? this.chosen : { ...this.chosen, never: true };
     }
 
     private setExample(visit: Visit): void {

@@ -141,7 +141,8 @@ function BrokkHostLayer({ show }: { show: boolean }) {
     const life = useGroupLife(cardOpen);
 
     useEffect(() => boss.attach(document), [boss]);
-    useEffect(() => (show ? hubModel.start() : undefined), [hubModel, show]);
+    // The feeds run whatever the switch: off, the hub raises nothing but keeps the rail's badge keys current (#2218).
+    useEffect(() => hubModel.start(), [hubModel]);
     useEffect(() => (show ? BrokkExpressionsModel.getInstance().watch(document) : undefined), [show]);
     // The session a restart left, so that the ring turns for it.
     useEffect(() => {
