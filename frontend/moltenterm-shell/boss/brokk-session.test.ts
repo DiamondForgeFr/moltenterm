@@ -30,7 +30,7 @@ vi.mock("./brokk-hub-store", async () => {
 import { globalStore } from "@/app/store/jotaiStore";
 import { SpeakingHoldMs } from "./brokk-exchange-model";
 import { BrokkHubModel } from "./brokk-hub-store";
-import { BrokkSession, ReplyCommand, SayCommand, SessionCommand, SessionRouteId } from "./brokk-session";
+import { BrokkSession, PermitCommand, ReplyCommand, SayCommand, SessionCommand, SessionRouteId } from "./brokk-session";
 import { FollowEveryMs, MaxQueueMs, QueueEveryMs, TalkState } from "./brokk-talk-model";
 
 const hub = BrokkHubModel.getInstance() as any;
@@ -160,6 +160,53 @@ describe("the talk field goes to Brokk's session (FR-BOSS-009, AC15)", () => {
 });
 
 // #2028: his session answered in its hidden tab, and nothing came back to the panel.
+// #2257: his agent's permission requests, read with his answer, answered for that request alone.
+describe("his agent's permission requests (#2257)", () => {
+    const ask = { id: "req-7", blockid: "block-9", tool: "Bash", kind: "command", subject: "npm test", at: 5 };
+
+    it("shows the request his agent waits on, and the approvals made without asking, each once", async () => {
+        const session = BrokkSession.getInstance();
+        replies = [
+            { status: "waiting", permission: ask, approved: [{ id: "a1", kind: "command", subject: "ls", at: 1 }] },
+            { status: "waiting", approved: [{ id: "a1", kind: "command", subject: "ls", at: 1 }] },
+            { status: "answer", markdown: "Done." },
+        ];
+        working = [true, true, false];
+        const seen: string[] = [];
+        const stop = globalStore.sub(session.permissionAtom, () => {
+            seen.push(globalStore.get(session.permissionAtom)?.id ?? "none");
+        });
+        await session.say("run the tests");
+        await settled(session, ["answered"]);
+        stop();
+        expect(seen).toEqual(["req-7", "none"]);
+        expect(globalStore.get(session.approvedAtom).map((a) => a.id)).toEqual(["a1"]);
+    });
+
+    it("sends the answer with the request's id and terminal, and says when it came too late", async () => {
+        const session = BrokkSession.getInstance();
+        const permits: any[] = [];
+        let status = "answered";
+        session.useCall(async (command, data) => {
+            calls.push({ command, data, timeout: 0 });
+            if (command === PermitCommand) {
+                permits.push(data);
+                return { status };
+            }
+            return found;
+        });
+        globalStore.set(session.permissionAtom, ask as any);
+        expect(await session.permit(ask as any, "allow")).toBe("answered");
+        expect(permits[0]).toEqual({ id: "req-7", blockid: "block-9", decision: "allow" });
+        expect(globalStore.get(session.permissionAtom)).toBeNull();
+        expect(globalStore.get(session.permissionGoneAtom)).toBe(false);
+        status = "gone";
+        globalStore.set(session.permissionAtom, ask as any);
+        expect(await session.permit(ask as any, "deny")).toBe("gone");
+        expect(globalStore.get(session.permissionGoneAtom)).toBe(true);
+    });
+});
+
 describe("his answer comes back under the field (#2028)", () => {
     it("reads his answer to this message until his agent is done, and shows it", async () => {
         replies = [

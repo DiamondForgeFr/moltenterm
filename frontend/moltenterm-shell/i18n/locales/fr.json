@@ -776,12 +776,20 @@
             "theme": "Thème",
             "avatar": "Avatar",
             "whenHeComesToFetchMe": "Quand il vient me chercher",
-            "brainstorms": "Brainstorms"
+            "brainstorms": "Brainstorms",
+            "hisAgent": "Son agent"
         },
         "items": {
             "boss:brainstormsdir": {
                 "label": "Dossier des brainstorms",
                 "description": "Où vos brainstorms avec lui sont enregistrés, un dossier par idée, sans rien demander."
+            },
+            "boss:autoapprove": {
+                "label": "Approuver les demandes de son agent sans me demander",
+                "description": "Il agit sans demander, chaque action en une ligne dans sa fenêtre ; vos clés, ~/.ssh et les push forcés demandent toujours.",
+                "confirm": "Activé, son agent lance des commandes, modifie et écrit des fichiers, lit des pages, sans vous demander, jusqu'à ce que vous le désactiviez. Chaque action s'affiche en une ligne dans sa fenêtre de discussion. Ce qui touche aux données de MoltenTerm, à vos identifiants, à votre trousseau ou à ~/.ssh, ou force un push et supprime des branches sur un dépôt distant, vous demande toujours.",
+                "confirmOn": "L'activer",
+                "confirmCancel": "Continuer à me demander"
             },
             "boss:name": {
                 "label": "Nom",
@@ -3361,6 +3369,22 @@
                 "queued": "{name} est occupé : votre message part tout seul dès qu'il est libre.",
                 "unknownPrompt": "L'invite de {name} contient peut-être encore un texte d'avant le redémarrage de MoltenTerm, donc rien n'est parti. L'effacer le supprime définitivement.",
                 "clearAndSend": "Effacer son invite et envoyer",
+                "permission": {
+                    "kind": {
+                        "command": "L'agent de {name} demande à lancer cette commande :",
+                        "edit": "L'agent de {name} demande à modifier ce fichier :",
+                        "write": "L'agent de {name} demande à écrire ce fichier :",
+                        "read": "L'agent de {name} demande à lire ce fichier :",
+                        "fetch": "L'agent de {name} demande à ouvrir cette page web :",
+                        "search": "L'agent de {name} demande à chercher sur le web :",
+                        "patch": "L'agent de {name} demande à modifier ces fichiers :"
+                    },
+                    "allow": "Autoriser une fois",
+                    "always": "Toujours autoriser",
+                    "deny": "Refuser",
+                    "gone": "Cette demande est terminée : elle a reçu sa réponse dans son terminal, ou son agent ne la pose plus.",
+                    "autoApproved": "Approuvé sans demander :"
+                },
                 "unsettled": "L'agent de {name} n'est jamais revenu à son invite (une étape qui ne s'est pas terminée), donc rien n'est parti. Réessayez dans un instant.",
                 "slashKept": "Un message qui commence par / reste ici : l'agent de {name} l'exécuterait comme une de ses commandes. Écrivez-le sans la barre oblique.",
                 "busy": "L'agent de {name} est occupé : votre message reste ici, réessayez dans un instant.",

@@ -22,6 +22,8 @@ import {
     MaxMessageLength,
     MaxQueueMs,
     MaxUnsettledQueueMs,
+    PermissionKinds,
+    permitChoices,
     queueBoundMs,
     queuedOf,
     SayResult,
@@ -40,6 +42,7 @@ import {
     talkWayOut,
     talkWayOutKey,
     UnreachableReason,
+    withApprovals,
 } from "./brokk-talk-model";
 
 function textAt(texts: unknown, key: string): string {
@@ -265,6 +268,24 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
         expect(MaxUnsettledQueueMs).toBeLessThan(MaxQueueMs);
         expect(talkNoteKey(unsettled)).toBe("boss.panel.talk.unsettled");
         expect(talkNoteKey(talkStateOf({ status: "busy" }))).toBe("boss.panel.talk.busy");
+    });
+
+    // #2257: the answers a permission request offers, always allow only when his agent offers it; the approvals made
+    // without asking show each once.
+    it("offers always allow only when his agent does, and lists each approval once (#2257)", () => {
+        const ask = { id: "r", blockid: "b", tool: "Bash", kind: "command" as const, subject: "ls", at: 1 };
+        expect(permitChoices(ask)).toEqual(["allow", "deny"]);
+        expect(permitChoices({ ...ask, always: true })).toEqual(["allow", "always", "deny"]);
+        const a = { id: "a", kind: "command" as const, subject: "ls", at: 1 };
+        const b = { id: "b", kind: "edit" as const, subject: "/w/x.go", at: 2 };
+        const shown = withApprovals([], [a]);
+        expect(withApprovals(shown, [a, b]).map((x) => x.id)).toEqual(["a", "b"]);
+        expect(withApprovals(shown, undefined)).toBe(shown);
+        for (const kind of PermissionKinds) {
+            for (const texts of [En, Fr]) {
+                expect(textAt(texts, `boss.panel.talk.permission.kind.${kind}`)).toMatch(/\{name\}.*:$/);
+            }
+        }
     });
 
     // Review of #2257: the field empties only when it still holds what was sent.

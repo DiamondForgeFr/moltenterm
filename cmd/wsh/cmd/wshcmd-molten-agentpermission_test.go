@@ -95,6 +95,37 @@ func TestAgentPermissionReportsWaiting(t *testing.T) {
 	}
 }
 
+// #2257: Brokk's own session answers in his layer: a deny with its reason, an "always allow" with the agent's own
+// suggested rules, and the hook may wait for the developer as long as its budget allows.
+func TestAgentPermissionPrintsTheDevelopersAnswer(t *testing.T) {
+	var sent keepawake.PermissionRequest
+	var out bytes.Buffer
+	runAgentPermission(strings.NewReader(recordedPermissionInput), &out, "block-1", "claude", func(req keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
+		sent = req
+		return keepawake.PermissionAnswer{Decision: keepawake.PermissionDeny, Message: "denied in MoltenTerm"}, nil
+	})
+	if out.String() != `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"denied in MoltenTerm"}}}`+"\n" {
+		t.Fatalf("deny printed %q", out.String())
+	}
+	if len(sent.Suggestions) != 1 {
+		t.Fatalf("the agent's suggestions were not sent: %+v", sent.Suggestions)
+	}
+	if sent.HoldMs < 60_000 {
+		t.Fatalf("Claude Code's request may wait for the developer only %d ms", sent.HoldMs)
+	}
+	out.Reset()
+	runAgentPermission(strings.NewReader(recordedPermissionInput), &out, "block-1", "claude", func(req keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
+		return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow, Updated: req.Suggestions}, nil
+	})
+	if !strings.Contains(out.String(), `"behavior":"allow","updatedPermissions":[{"behavior":"allow","destination":"localSettings","rules":[{"ruleContent":"cat:*","toolName":"Bash"}],"type":"addRules"}]`) {
+		t.Fatalf("always allow printed %q", out.String())
+	}
+	// The hold always leaves the hook time to print before its agent kills it.
+	if permissionHoldMs("codex") >= int64(15_000) || permissionHoldMs("claude") >= int64(600_000) {
+		t.Fatalf("holds %d / %d leave no margin", permissionHoldMs("codex"), permissionHoldMs("claude"))
+	}
+}
+
 // FR-SHELL-064: Codex's PermissionRequest input (its documented fields, an apply_patch) gets the same answer, in the
 // output shape Codex documents.
 func TestAgentPermissionCodexInput(t *testing.T) {

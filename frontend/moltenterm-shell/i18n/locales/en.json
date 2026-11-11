@@ -586,12 +586,20 @@
             "theme": "Theme",
             "avatar": "Avatar",
             "whenHeComesToFetchMe": "When he comes to fetch me",
-            "brainstorms": "Brainstorms"
+            "brainstorms": "Brainstorms",
+            "hisAgent": "His agent"
         },
         "items": {
             "boss:brainstormsdir": {
                 "label": "Brainstorms folder",
                 "description": "Where your brainstorms with him are saved, one folder per idea, without asking."
+            },
+            "boss:autoapprove": {
+                "label": "Approve his agent's requests without asking",
+                "description": "He acts without asking, each action a line in his window; your keys, ~/.ssh and force pushes still ask.",
+                "confirm": "Turned on, his agent runs commands, edits and writes files, reads pages, all without asking you first, until you turn it off. Each action shows as a line in his talk window. What touches MoltenTerm's own data, your credentials, keychain or ~/.ssh, or force-pushes and deletes branches on a remote, still asks you.",
+                "confirmOn": "Turn it on",
+                "confirmCancel": "Keep asking me"
             },
             "boss:name": {
                 "label": "Name",
@@ -3366,6 +3374,22 @@
                 "queued": "{name} is busy: your message goes by itself as soon as he is free.",
                 "unknownPrompt": "{name}'s prompt may still hold text from before MoltenTerm restarted, so nothing was sent. Clearing it erases that text for good.",
                 "clearAndSend": "Clear his prompt and send",
+                "permission": {
+                    "kind": {
+                        "command": "{name}'s agent asks to run this command:",
+                        "edit": "{name}'s agent asks to edit this file:",
+                        "write": "{name}'s agent asks to write this file:",
+                        "read": "{name}'s agent asks to read this file:",
+                        "fetch": "{name}'s agent asks to open this web page:",
+                        "search": "{name}'s agent asks to search the web for:",
+                        "patch": "{name}'s agent asks to change these files:"
+                    },
+                    "allow": "Allow once",
+                    "always": "Always allow",
+                    "deny": "Deny",
+                    "gone": "That request is over: it was answered in his terminal, or his agent stopped asking.",
+                    "autoApproved": "Approved without asking:"
+                },
                 "unsettled": "{name}'s agent never came back to its prompt (a step that never ended), so nothing was sent. Try again in a moment.",
                 "slashKept": "A message starting with / stays here: {name}'s agent would run it as one of its own commands. Write it without the slash.",
                 "agentStopped": "{name}'s agent is no longer running in his terminal. Close that terminal, then send your message again.",
