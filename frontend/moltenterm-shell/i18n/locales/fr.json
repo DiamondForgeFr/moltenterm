@@ -10993,6 +10993,30 @@
     },
     "activity": {
         "label": "En cours : {list}",
+        "idle": "Rien ne tourne : les fourneaux sont éteints",
+        "popover": {
+            "idle": "Les fourneaux sont éteints",
+            "one": "En cours",
+            "many": "{count} activités en cours",
+            "none": "Aucun agent, build ni CI en cours."
+        },
+        "group": {
+            "agents": {
+                "one": "Agent",
+                "other": "Agents"
+            },
+            "ci": "CI",
+            "builds": {
+                "one": "Build",
+                "other": "Builds"
+            }
+        },
+        "row": {
+            "localCi": "CI locale",
+            "pr": "PR #{number}",
+            "prChecks": "GitHub · {done}/{total} checks",
+            "percent": "{percent} %"
+        },
         "agents": {
             "one": "un agent",
             "other": "{count} agents"

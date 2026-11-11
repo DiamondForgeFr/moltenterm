@@ -166,13 +166,17 @@ describe("the activity source", () => {
         globalStore.set(ReviewsMerges.getInstance().mergesAtom, {});
     });
 
-    it("gives the same summary while the same items run, so a message or a title moving draws nothing", () => {
+    it("gives the same summary while the same items say the same, so a version or a title moving draws nothing", () => {
         setAgents(agent("b1", "working", 10));
         const first = summary();
-        setAgents({ ...agent("b1", "working", 10), message: "reading files", version: 7 });
+        setAgents({ ...agent("b1", "working", 10), version: 7, hooked: true });
         expect(summary()).toBe(first);
-        setWork({});
+        setAgents({ ...agent("b1", "working", 10), message: "reading files" });
         expect(summary()).not.toBe(first);
+        setAgents(agent("b1", "working", 10));
+        const again = summary();
+        setWork({});
+        expect(summary()).not.toBe(again);
     });
 
     it("holds the work reading while a reader shows", () => {
