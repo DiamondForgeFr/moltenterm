@@ -11190,6 +11190,29 @@
             "clearTerminal": "Clear the terminal"
         }
     },
+    "featuresInTest": {
+        "publicVersion": {
+            "label": "See the public version",
+            "description": "Turns every feature below off, so the app shows what release candidates and public releases show. Your own switches stay as they are."
+        },
+        "list": "Features in test",
+        "switchLabel": "{name}, on this computer",
+        "state": {
+            "on": "On",
+            "off": "Off",
+            "publicOff": "Off in the public version",
+            "closedHere": "Not open on this build"
+        },
+        "openOn": "Open on",
+        "ticket": "Ticket #{number}",
+        "note": "These switches only turn features off, on this computer. A feature never opens on a build whose channel does not have it, and nothing here is synced.",
+        "features": {
+            "brainstorm": {
+                "label": "Brainstorm with {name}",
+                "description": "Talk an idea through with {name} and watch his thought grow in 3D."
+            }
+        }
+    },
     "library": {
         "label": "Library",
         "navLabel": "Library sections",
@@ -11237,6 +11260,11 @@
                 "label": "Settings",
                 "title": "Settings",
                 "sub": "What applies to all of MoltenTerm."
+            },
+            "features": {
+                "label": "Features in test",
+                "title": "Features in test",
+                "sub": "What only this build has while it is tested. Switch a feature off to see the app without it."
             }
         },
         "workspaces": {

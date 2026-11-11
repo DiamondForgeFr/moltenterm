@@ -9,6 +9,7 @@ import { MoltentermWaveBaseVersion } from "@/util/moltenterm-identity";
 import { t } from "../i18n/i18n";
 import { GateChannel, resolveBuildChannel } from "./build-channel";
 import type { MoltentermBuildInfo } from "./build-info";
+import { FeatureBrainstorm, featureAllowedOn } from "./gated-features";
 
 export type BuildChannel = "dev" | "local" | "gold" | "rc" | "public";
 
@@ -46,11 +47,12 @@ export function isReleaseChannel(channel: BuildChannel): boolean {
     return channel === "rc" || channel === "public";
 }
 
-// Brokk's thought in 3D (FR-BOSS-010 AC1, #2246) exists on gold, dev and local builds only, never on a release candidate
-// or a public release, nor on a channel that is not known. `channel` is the gate channel (build-channel.ts gateChannel).
-// wavesrv holds the second lock (pkg/molten/buildchannel/buildchannel.go BrainstormAllowed).
+// Brokk's thought in 3D (FR-BOSS-010 AC1, #2246) exists on the channels the registry lists for it (gold, dev and local
+// builds), never on a release candidate or a public release, nor on a channel that is not known. `channel` is the gate
+// channel (build-channel.ts gateChannel). wavesrv holds the second lock (pkg/molten/buildchannel/buildchannel.go
+// BrainstormAllowed). It is the first entry of the registry of gated features (FR-BOSS-011, gated-features.ts).
 export function brainstormAllowed(channel: GateChannel): boolean {
-    return channel === "gold" || channel === "dev" || channel === "local";
+    return featureAllowedOn(FeatureBrainstorm, channel);
 }
 
 // Its scripted replay, the instance checks' synthetic brainstorm, exists on dev and local builds only: not even a gold.

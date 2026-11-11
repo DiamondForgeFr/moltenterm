@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
+import type { GateChannel } from "../build/build-channel";
 import en from "../i18n/locales/en.json";
 import fr from "../i18n/locales/fr.json";
 import {
@@ -20,6 +21,7 @@ import {
     SettingsOverviewTab,
     sharedAgentGroups,
     suggestClipboardText,
+    visibleLibrarySections,
     whenText,
     workspaceAgents,
 } from "./library-model";
@@ -45,14 +47,38 @@ describe("library sections (FR-SHELL-088)", () => {
             "materials",
             "putaway",
             "settings",
+            "features",
         ]);
     });
 
     it("walks the navigation with the arrows, round the ends", () => {
-        expect(librarySectionAt("workspaces", 1)).toBe("panels");
-        expect(librarySectionAt("workspaces", -1)).toBe("agents");
-        expect(librarySectionAt("agents", -1)).toBe("settings");
-        expect(librarySectionAt("settings", 1)).toBe("agents");
+        const release = visibleLibrarySections("public");
+        expect(librarySectionAt("workspaces", 1, release)).toBe("panels");
+        expect(librarySectionAt("workspaces", -1, release)).toBe("agents");
+        expect(librarySectionAt("agents", -1, release)).toBe("settings");
+        expect(librarySectionAt("settings", 1, release)).toBe("agents");
+        const gold = visibleLibrarySections("gold");
+        expect(librarySectionAt("agents", -1, gold)).toBe("features");
+        expect(librarySectionAt("settings", 1, gold)).toBe("features");
+        expect(librarySectionAt("features", 1, gold)).toBe("agents");
+    });
+
+    // FR-BOSS-011 AC1: the entry shows on gold, dev and local builds, and never on a release candidate or a public one;
+    // the switches do not hide it (it takes no state), so the page stays there to turn a feature back on.
+    it.each<[GateChannel, boolean]>([
+        ["gold", true],
+        ["dev", true],
+        ["local", true],
+        ["rc", false],
+        ["public", false],
+        ["unknown", false],
+        [null, false],
+    ])("%s: Features in test in the navigation: %s", (channel, shown) => {
+        const ids = visibleLibrarySections(channel).map((s) => s.id);
+        expect(ids.includes("features")).toBe(shown);
+        expect(ids.filter((id) => id !== "features")).toEqual(
+            LibrarySections.map((s) => s.id).filter((id) => id !== "features")
+        );
     });
 
     it("explains each built-in panel kind in plain words, in both languages", () => {

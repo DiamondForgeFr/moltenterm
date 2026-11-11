@@ -11190,6 +11190,29 @@
             "clearTerminal": "Effacer le terminal"
         }
     },
+    "featuresInTest": {
+        "publicVersion": {
+            "label": "Voir la version publique",
+            "description": "Désactive toutes les fonctions ci-dessous, pour que l'app montre ce que voient les versions candidates et les versions publiques. Vos propres réglages restent tels quels."
+        },
+        "list": "Fonctions à l'essai",
+        "switchLabel": "{name}, sur cet ordinateur",
+        "state": {
+            "on": "Activée",
+            "off": "Désactivée",
+            "publicOff": "Désactivée dans la version publique",
+            "closedHere": "Fermée sur cette version"
+        },
+        "openOn": "Ouverte sur",
+        "ticket": "Ticket n°{number}",
+        "note": "Ces réglages ne font que désactiver des fonctions, sur cet ordinateur. Une fonction ne s'ouvre jamais sur une version dont le canal ne l'a pas, et rien ici n'est synchronisé.",
+        "features": {
+            "brainstorm": {
+                "label": "Brainstorm avec {name}",
+                "description": "Parler d'une idée avec {name} et voir sa pensée grandir en 3D."
+            }
+        }
+    },
     "library": {
         "label": "Bibliothèque",
         "navLabel": "Sections de la bibliothèque",
@@ -11237,6 +11260,11 @@
                 "label": "Réglages",
                 "title": "Réglages",
                 "sub": "Ce qui vaut pour tout MoltenTerm."
+            },
+            "features": {
+                "label": "Fonctions à l'essai",
+                "title": "Fonctions à l'essai",
+                "sub": "Ce que seule cette version possède pendant qu'elle est testée. Désactivez une fonction pour voir l'app sans elle."
             }
         },
         "workspaces": {

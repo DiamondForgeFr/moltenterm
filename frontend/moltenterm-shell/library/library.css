@@ -1856,3 +1856,58 @@
     border-left: 2px solid var(--mt-state-info);
     color: var(--color-secondary);
 }
+
+/* Features in test (FR-BOSS-011): a block per gated feature, as the Agents page lays its blocks out, with its switch at
+   the end. */
+.mt-lib-feat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.mt-lib-feat {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.mt-lib-feat-main {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mt-lib-feat-name {
+    color: var(--color-primary);
+    font-size: var(--mt-text-13);
+    font-weight: 600;
+}
+
+.mt-lib-feat-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-lib-feat-chip {
+    padding: 2px 8px;
+    border-radius: var(--mt-radius-panel);
+    background: color-mix(in srgb, var(--mt-veil) 8%, transparent);
+}
+
+.mt-lib-feat-side {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    color: var(--mt-lib-fg-3);
+    font-size: var(--mt-text-12);
+}

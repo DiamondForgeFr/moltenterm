@@ -7,17 +7,34 @@
 import { agentStateUrgency, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";
 import type { AgentTab } from "../browser/browser-agent";
 import type { BrowserTab } from "../browser/browser-model";
+import type { GateChannel } from "../build/build-channel";
+import { featuresInTestShown } from "../build/gated-features";
 import type { PutAwayView } from "../reopen/reopen-model";
 import type { SidebarGlyphName } from "../sidebar/sidebar-icons";
 import type { ViewState } from "../sidebar/view-pins-model";
 
-export type LibrarySection = "agents" | "workspaces" | "panels" | "ai" | "materials" | "putaway" | "settings";
+export type LibrarySection =
+    | "agents"
+    | "workspaces"
+    | "panels"
+    | "ai"
+    | "materials"
+    | "putaway"
+    | "settings"
+    | "features";
 
-export type LibrarySectionInfo = { id: LibrarySection; glyph: SidebarGlyphName; key: string; search?: boolean };
+// gated: the section shows only on a channel that has a feature in test (visibleLibrarySections).
+export type LibrarySectionInfo = {
+    id: LibrarySection;
+    glyph: SidebarGlyphName;
+    key: string;
+    search?: boolean;
+    gated?: boolean;
+};
 
 // The navigation, top to bottom; key names library.sections.<key>.{label,title,sub}. Materials, the agents' output,
 // sits right after Sent to AI, their input (FR-MAT-002). Agents comes first (#1699); the library still opens on
-// Workspaces.
+// Workspaces. Features in test (FR-BOSS-011) comes last, so that the navigation of a release is the same as before.
 export const LibrarySections: LibrarySectionInfo[] = [
     { id: "agents", glyph: "agents", key: "agents" },
     { id: "workspaces", glyph: "spaces", key: "workspaces" },
@@ -26,9 +43,17 @@ export const LibrarySections: LibrarySectionInfo[] = [
     { id: "materials", glyph: "box", key: "materials", search: true },
     { id: "putaway", glyph: "archive", key: "putaway", search: true },
     { id: "settings", glyph: "gear", key: "settings" },
+    { id: "features", glyph: "flask", key: "features", gated: true },
 ];
 
 export const DefaultLibrarySection: LibrarySection = "workspaces";
+
+// The sections the navigation shows on this gate channel: Features in test only where the channel opens a gated
+// feature (gold, dev, local), never on a release candidate or a public release, and whatever the switches say, so the
+// page stays there to turn a feature back on.
+export function visibleLibrarySections(channel: GateChannel): LibrarySectionInfo[] {
+    return LibrarySections.filter((s) => !s.gated || featuresInTestShown(channel));
+}
 
 // Suggest MoltenTerm copies this and nothing else: the public download page, never anything of the workspaces.
 export const PublicDownloadUrl = "https://github.com/DiamondForgeFr/moltenterm/releases/latest";
@@ -57,10 +82,14 @@ export function lastSettingsTab<T extends string>(saved: string, blocks: readonl
     return blocks.find((b) => b === saved) ?? null;
 }
 
-export function librarySectionAt(section: LibrarySection, step: number): LibrarySection {
-    const i = LibrarySections.findIndex((s) => s.id === section);
-    const n = LibrarySections.length;
-    return LibrarySections[((((i < 0 ? 0 : i) + step) % n) + n) % n].id;
+export function librarySectionAt(
+    section: LibrarySection,
+    step: number,
+    sections: LibrarySectionInfo[] = LibrarySections
+): LibrarySection {
+    const i = sections.findIndex((s) => s.id === section);
+    const n = sections.length;
+    return sections[((((i < 0 ? 0 : i) + step) % n) + n) % n].id;
 }
 
 // The section changed while the keyboard focus sits on the nav item of another one (the Library focuses the current item

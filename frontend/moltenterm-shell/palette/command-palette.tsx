@@ -18,7 +18,7 @@ import { BossBubbleModel } from "../boss/boss-store";
 import { useBossName } from "../boss/use-boss-name";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
-import { currentBrainstormGates as brainstormGates } from "../build/current-build";
+import { useBrainstormGates } from "../build/use-feature-on";
 import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
 import { FaviconMark } from "../favicon/favicon-mark";
@@ -233,6 +233,7 @@ export function usePaletteEntries(picker: PickerSource) {
     // A fresh array on every render: its content, joined, is what the memo depends on.
     const recentKey = readRecentFolders(ws).join("\n");
     const home = getHome();
+    const brainstorm = useBrainstormGates();
     const entries = useMemo(
         () =>
             buildPaletteEntries({
@@ -254,7 +255,7 @@ export function usePaletteEntries(picker: PickerSource) {
                 shortcutsHint: formatShortcutById("shortcuts"),
                 viewPin,
                 bossName: bossShown ? bossName : undefined,
-                brainstorm: brainstormGates(),
+                brainstorm,
             }),
         [
             fullConfig,
@@ -274,6 +275,7 @@ export function usePaletteEntries(picker: PickerSource) {
             matrix,
             bossShown,
             bossName,
+            brainstorm,
         ]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home, locale]);

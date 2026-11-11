@@ -10,6 +10,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useEffect, useState } from "react";
+import { useBrainstormAllowed } from "../build/use-feature-on";
 import { prefersReducedMotion } from "../molten-motion";
 import { bootBrainstorm, BrainstormStateAtom } from "./brainstorm-boot";
 
@@ -43,9 +44,17 @@ function useLayerLife(open: boolean): { mounted: boolean; shown: boolean } {
 
 export function BrainstormLayer() {
     const state = useAtomValue(BrainstormStateAtom, { store: globalStore });
-    const open = state?.open === true;
+    const allowed = useBrainstormAllowed();
+    const open = allowed && state?.open === true;
     const life = useLayerLife(open);
-    useEffect(() => bootBrainstorm(), []);
+    // The watch follows the developer's switch (FR-BOSS-011): off, it stops and the state of the mode is forgotten in
+    // this view, so Brokk's group and his field leave the brainstorm layout too; on again, it watches again.
+    useEffect(() => bootBrainstorm(), [allowed]);
+    useEffect(() => {
+        if (!allowed) {
+            globalStore.set(BrainstormStateAtom, null);
+        }
+    }, [allowed]);
     if (!life.mounted || state == null) {
         return null;
     }
