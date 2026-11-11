@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
+import En from "../i18n/locales/en.json";
+import Fr from "../i18n/locales/fr.json";
 import { restingPose } from "./brokk-ask-model";
 import { brokkPose } from "./brokk-state-model";
 import {
     BrainstormCommand,
     canSend,
-    fieldAction,
-    showsCommandHint,
     FailedReadingsForNoReply,
+    fieldAction,
     followStep,
     IdleReadingsForAnswered,
     IdleReadingsForNoReply,
@@ -20,11 +21,12 @@ import {
     MaxMessageLength,
     queuedOf,
     SayResult,
-    sendsOnKey,
-    talkFieldHeight,
     SendingTalk,
+    sendsOnKey,
+    showsCommandHint,
     StartFollow,
     StartingTalk,
+    talkFieldHeight,
     talkNoteKey,
     talkPose,
     TalkState,
@@ -35,8 +37,6 @@ import {
     talkWayOutKey,
     UnreachableReason,
 } from "./brokk-talk-model";
-import En from "../i18n/locales/en.json";
-import Fr from "../i18n/locales/fr.json";
 
 function textAt(texts: unknown, key: string): string {
     return key.split(".").reduce((node: any, part) => node?.[part], texts) as string;

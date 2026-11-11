@@ -304,7 +304,9 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
             let html = render();
             expect(html).toContain('data-testid="brokk-talk-command"');
             expect(html).toContain("/brainstorm [idea]: brainstorm with Brokk");
-            expect(html).toContain('title="Enter to send, Shift+Enter for a new line, /brainstorm [idea] to brainstorm"');
+            expect(html).toContain(
+                'title="Enter to send, Shift+Enter for a new line, /brainstorm [idea] to brainstorm"'
+            );
             keepDraft("hello");
             expect(render()).not.toContain("brokk-talk-command");
             gate.allowed = false;
@@ -354,7 +356,7 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         // The text as fieldAction reads it: trimmed, or the brainstorm's command where it exists (#2257).
         expect(source).toContain("const action = fieldAction(text, brainstormAllowed);");
         expect(source).toContain("await session.say(action.text)");
-        expect(source).toContain("await openBrainstorm(idea !== \"\");");
+        expect(source).toContain('await openBrainstorm(idea !== "");');
         expect(source).toContain("if (!keepsText(result))");
         expect(source).toContain('onTyping(text.trim() !== "")');
     });

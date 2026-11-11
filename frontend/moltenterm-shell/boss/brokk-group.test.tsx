@@ -142,6 +142,7 @@ vi.mock("./brokk-rows-panels", () => ({
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { AgentStates } from "../agent-state-store";
+import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { I18nModel } from "../i18n/i18n";
 import { EmptyKeepAwakeState } from "../keepawake-model";
@@ -151,7 +152,6 @@ import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
 import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
 import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard } from "./brokk-group";
-import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import {
     ArrivalSteps,
     autoPanelIn,

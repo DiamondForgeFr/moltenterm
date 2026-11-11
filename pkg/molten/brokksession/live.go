@@ -21,6 +21,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -73,6 +74,9 @@ func watchHumanDraft(blockId string) {
 }
 
 func recordHumanDraft(blockId string, foreign bool) {
+	defer func() {
+		panichandler.PanicHandler("molten:brokksession:humandraft", recover())
+	}()
 	ctx, cancel := context.WithTimeout(context.Background(), findTimeout)
 	defer cancel()
 	var value any
