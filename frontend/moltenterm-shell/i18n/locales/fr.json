@@ -3154,13 +3154,88 @@
             "label": "{name} voudrait vous parler ({severity})",
             "exampleLine": "Un agent attend depuis 6 min",
             "reason": {
-                "download": "Un téléchargement a du nouveau",
-                "update": "Une mise à jour est disponible",
-                "usage": "Un forfait est presque épuisé",
-                "security": "Une alerte de sécurité sur une dépendance",
-                "ciFailed": "La CI de la PR #{number} a échoué",
-                "ready": "La PR #{number} est prête à fusionner",
-                "other": "Quelque chose vous attend"
+                "waitedFor": {
+                    "p1": "{name} vous attend depuis {minutes} min.",
+                    "p2": "{name} attend toujours, ça fait {minutes} min.",
+                    "p3": "{name} patiente depuis {minutes} min. Un mot suffirait.",
+                    "p4": "À vous de jouer. {name} patiente depuis {minutes} min.",
+                    "p5": "{name} a besoin de vous. Déjà {minutes} min d'attente."
+                },
+                "waiting": {
+                    "p1": "{name} vous attend.",
+                    "p2": "{name} aurait besoin d'un mot de vous.",
+                    "p3": "{name} a fait halte et regarde vers vous.",
+                    "p4": "{name} attend un signe de votre part."
+                },
+                "asks": {
+                    "p1": "{name} a une question pour vous.",
+                    "p2": "{name} voudrait votre avis.",
+                    "p3": "{name} a besoin d'une réponse pour continuer.",
+                    "p4": "{name} vous demande. Une réponse suffira.",
+                    "p5": "{name} voudrait vérifier un point avec vous."
+                },
+                "goAhead": {
+                    "p1": "{name} attend votre feu vert.",
+                    "p2": "{name} veut votre accord avant de continuer.",
+                    "p3": "{name} ne bougera pas sans votre accord.",
+                    "p4": "{name} attend. Un feu vert, s'il vous plaît.",
+                    "p5": "{name} attend à la porte que vous l'ouvriez."
+                },
+                "error": {
+                    "p1": "{name} a buté sur un os et a fait halte.",
+                    "p2": "{name} a eu un souci et a dû s'arrêter.",
+                    "p3": "Une erreur a stoppé le travail de {name}.",
+                    "p4": "{name} a trébuché sur une erreur. Un coup d'œil ?",
+                    "p5": "Le marteau a glissé pour {name}. Venez voir."
+                },
+                "ciFailed": {
+                    "p1": "La CI de la PR #{number} est au rouge. On regarde ?",
+                    "p2": "La PR #{number} a fait trébucher la CI. On répare ?",
+                    "p3": "La PR #{number} coince à la CI. Mauvaise nouvelle.",
+                    "p4": "La CI fait grise mine devant la PR #{number}. Voyons.",
+                    "p5": "La PR #{number} s'est fissurée à la CI. Venez voir."
+                },
+                "ready": {
+                    "p1": "La PR #{number} est bonne pour la fusion.",
+                    "p2": "Bonne nouvelle, la PR #{number} a tout passé.",
+                    "p3": "La PR #{number} est ressortie propre. À vous de jouer.",
+                    "p4": "La PR #{number} a refroidi sans fissure. À vous.",
+                    "p5": "Tout est au vert sur la PR #{number}. À fusionner."
+                },
+                "download": {
+                    "p1": "Un téléchargement a du nouveau pour vous.",
+                    "p2": "Du mouvement côté téléchargements. Venez voir.",
+                    "p3": "Les téléchargements ont quelque chose à vous dire.",
+                    "p4": "Petit signe des téléchargements. Un coup d'œil ?"
+                },
+                "update": {
+                    "p1": "Une mise à jour vous attend.",
+                    "p2": "Une nouvelle version est là. Quand vous voulez.",
+                    "p3": "La forge a une version fraîche pour vous.",
+                    "p4": "Rien ne presse, mais une nouvelle version est sortie."
+                },
+                "usage": {
+                    "p1": "Un de vos forfaits touche à sa fin.",
+                    "p2": "Attention, un forfait est presque épuisé.",
+                    "p3": "Surveillez la jauge, un forfait est presque à sec.",
+                    "p4": "Un forfait est presque vide. Ménagez le reste."
+                },
+                "security": {
+                    "p1": "Une alerte de sécurité vise une dépendance.",
+                    "p2": "Une dépendance a un défaut. Un coup d'œil s'impose.",
+                    "p3": "Alerte de sécurité sur une dépendance. À voir vite.",
+                    "p4": "Une dépendance est signalée pour un souci de sécurité."
+                },
+                "other": {
+                    "p1": "Quelque chose vous attend.",
+                    "p2": "J'ai besoin de vous un instant.",
+                    "p3": "Quelque chose attend votre regard.",
+                    "p4": "Passez quand vous pouvez, on vous attend."
+                }
+            },
+            "more": {
+                "one": "Une autre chose vous attend aussi.",
+                "other": "{count} autres choses vous attendent aussi."
             },
             "example": "Exemple : {name} voudrait vous parler ({severity}). Un agent vous attend depuis 6 min.",
             "severity": {
@@ -3297,9 +3372,6 @@
                 "one": "et 1 autre",
                 "other": "et {count} autres"
             }
-        },
-        "screen": {
-            "waitedFor": "{name} attend depuis {minutes} min"
         },
         "moment": {
             "hello": {
