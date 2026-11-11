@@ -83,10 +83,13 @@ describe("the drawing of the indicator", () => {
         expect(html.match(/ r="12"/g)).toHaveLength(2);
         expect(html.match(/cx="14" cy="14"/g)).toHaveLength(2);
         expect(ruleBody(".mt-act")).toMatch(/width: 28px;\s*height: 28px;/);
-        expect(ruleBody(".mt-act-glyph")).toMatch(
-            /inset: 0;\s*display: flex;\s*align-items: center;\s*justify-content: center;/
+        // Two classes, so the icon font's own `.fa-*` rule (display: inline-block) cannot win by load order (#2255).
+        const glyph = ruleBody(".mt-act .mt-act-glyph");
+        expect(glyph).toMatch(
+            /inset: 0;\s*display: flex;\s*align-items: center;\s*justify-content: center;\s*text-align: center;/
         );
-        expect(ruleBody(".mt-act-glyph")).toContain("font-size: var(--mt-text-12)");
+        expect(glyph).toContain("font-size: var(--mt-text-12)");
+        expect(css).not.toContain("\n.mt-act-glyph {");
     });
 
     it("draws the icon of the panel for one item: sparkles, the list, the hammer", () => {
