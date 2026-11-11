@@ -86,7 +86,8 @@ func TestHisCentralIdeaOpensTheMode(t *testing.T) {
 	}
 }
 
-// AC7: each turn is in the folder when it ends, and a restart resumes the graph when the developer starts the mode.
+// AC7: each turn is in the folder when it ends, and after a restart the developer's start offers it (the picker of
+// AC10a, #2248), and Load resumes the graph.
 func TestEachTurnIsSavedAndARestartResumesIt(t *testing.T) {
 	t.Parallel()
 	f := makeFixture(t)
@@ -108,9 +109,21 @@ func TestEachTurnIsSavedAndARestartResumesIt(t *testing.T) {
 	s.Close()
 
 	restarted := f.service()
-	state := restarted.Open(OpenRequest{By: ByYou})
-	if !state.Open || state.Graph == nil || len(state.Graph.Nodes) != 4 || state.Brainstorm.Dir != dir {
-		t.Fatalf("after a restart the developer's start shows %+v", state)
+	opened := restarted.Open(OpenRequest{By: ByYou})
+	if !opened.Open || opened.Graph != nil || opened.Brainstorm != nil {
+		t.Fatalf("the developer's start resumed a brainstorm without their choice: %+v", opened)
+	}
+	list := restarted.List().Brainstorms
+	if len(list) != 1 || list[0].Dir != dir || list[0].Title != "A safe video app for children" || list[0].Updated != 2000 {
+		t.Fatalf("after a restart the list is %+v", list)
+	}
+	loaded := restarted.Load(SlugRequest{Slug: list[0].Slug})
+	state := loaded.State
+	if loaded.Error != "" || !state.Open || state.Graph == nil || len(state.Graph.Nodes) != 4 || state.Brainstorm.Dir != dir {
+		t.Fatalf("after a restart Load shows %+v", loaded)
+	}
+	if len(loaded.Turns) != 4 || loaded.Turns[3].Text != "Noted. Who picks the videos?" {
+		t.Errorf("the conversation came back as %+v", loaded.Turns)
 	}
 	more := block(add("parents-list", KindIdea, "Parents validate a list", "who-picks"))
 	got := restarted.Turn(TurnRequest{Key: "t3", You: "The parents.", Brokk: "A list they validate, then.", Block: &more, At: 3000})
@@ -123,21 +136,24 @@ func TestEachTurnIsSavedAndARestartResumesIt(t *testing.T) {
 	}
 }
 
-// A graph.json that breaks the block rules is not resumed: the developer's start opens a new brainstorm, and the log
-// says why without its text.
+// A graph.json that breaks the block rules is not resumed: Load says it failed and the mode stays on no brainstorm, and
+// the log says why without its text.
 func TestABrokenFolderIsNotResumed(t *testing.T) {
 	t.Parallel()
 	f := makeFixture(t)
 	s := f.service()
 	s.Turn(openingTurn())
-	dir := s.State().Brainstorm.Dir
+	summary := *s.State().Brainstorm
 	s.Close()
-	if err := os.WriteFile(filepath.Join(dir, GraphFile), []byte(`{"schema":1,"rev":1,"centre":"x","nodes":[{"id":"x","kind":"topic","text":"secret idea","status":"open"},{"id":"y","kind":"rumour","text":"secret","from":"x","status":"open"}],"links":[]}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(summary.Dir, GraphFile), []byte(`{"schema":1,"rev":1,"centre":"x","nodes":[{"id":"x","kind":"topic","text":"secret idea","status":"open"},{"id":"y","kind":"rumour","text":"secret","from":"x","status":"open"}],"links":[]}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	state := f.service().Open(OpenRequest{By: ByYou})
-	if !state.Open || state.Graph != nil || state.Brainstorm != nil {
-		t.Fatalf("a broken folder was resumed: %+v", state)
+	restarted := f.service()
+	restarted.Open(OpenRequest{By: ByYou})
+	loaded := restarted.Load(SlugRequest{Slug: summary.Slug})
+	state := loaded.State
+	if loaded.Error != ReasonFailed || !state.Open || state.Graph != nil || state.Brainstorm != nil {
+		t.Fatalf("a broken folder was resumed: %+v", loaded)
 	}
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -235,7 +251,12 @@ func TestClosingKeepsTheBrainstormForTheNextStart(t *testing.T) {
 	if again := s.Close(); again.Version != closed.Version {
 		t.Error("closing a closed mode told the views")
 	}
-	reopened := s.Open(OpenRequest{By: ByYou})
+	s.Open(OpenRequest{By: ByYou})
+	list := s.List().Brainstorms
+	if len(list) != 1 {
+		t.Fatalf("list %+v", list)
+	}
+	reopened := s.Load(SlugRequest{Slug: list[0].Slug}).State
 	if !reopened.Open || reopened.Graph == nil || reopened.Graph.Centre != "kids-video" {
 		t.Errorf("reopened: %+v", reopened)
 	}
@@ -264,6 +285,9 @@ func TestRouteCallersAndChannels(t *testing.T) {
 	notUi := append([]routetest.From{e.Terminal()}, e.Forged()...)
 	routetest.MustRefuseWith(t, link, notUi, StateCommand, nil, "MoltenTerm windows only")
 	routetest.MustRefuseWith(t, link, notUi, TurnCommand, map[string]any{"key": "x"}, "MoltenTerm windows only")
+	// A forget comes from a window's confirmation alone: a terminal, an agent or a forged caller never reaches it.
+	routetest.MustRefuseWith(t, link, notUi, DeleteCommand, map[string]any{"slug": "x"}, "MoltenTerm windows only")
+	routetest.MustRefuseWith(t, link, notUi, ListCommand, nil, "MoltenTerm windows only")
 	for _, from := range []routetest.From{e.Window(), e.Electron()} {
 		if _, errStr := routetest.Ask(t, link, from, StateCommand, nil); errStr != "" {
 			t.Errorf("the state for %s: %s", from.Name, errStr)
@@ -275,7 +299,7 @@ func TestRouteCallersAndChannels(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, command := range []string{StateCommand, OpenCommand, CloseCommand, TurnCommand} {
+		for _, command := range []string{StateCommand, OpenCommand, CloseCommand, TurnCommand, ListCommand, FindCommand, LoadCommand, NewCommand, RenameCommand, DeleteCommand, ForkCommand} {
 			if _, errStr := routetest.Ask(t, refused, e.Window(), command, map[string]any{}); !strings.Contains(errStr, buildchannel.BrainstormRefusal) {
 				t.Errorf("%q on channel %q: %q, want the plain refusal", command, channel, errStr)
 			}

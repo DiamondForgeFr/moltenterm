@@ -17,6 +17,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
+	"github.com/wavetermdev/waveterm/pkg/molten/brainstorm"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/keepawake"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
@@ -312,6 +313,8 @@ var startOnce sync.Once
 // Start registers the route the windows talk to Brokk's session on; wavesrv calls it once, from Mission Control's start.
 func Start() {
 	startOnce.Do(func() {
+		titles := brainstorm.LiveTitles
+		savedTitles.Store(&titles)
 		svc := Live()
 		permits := livePermits()
 		svc.UsePermits(permits)

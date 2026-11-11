@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/buildchannel"
 )
@@ -34,23 +35,64 @@ var briefBrainstorm string
 
 // BriefText is his brief, with the brainstorm section when brainstorm is true.
 func BriefText(brainstorm bool) string {
+	return BriefTextWith(brainstorm, nil)
+}
+
+// A saved title longer than this is cut in his list.
+const maxBriefTitleLen = 160
+
+// BriefTextWith is his brief with the brainstorm section, and in it the saved brainstorms' titles (FR-BOSS-010 AC10b,
+// #2248): the titles alone, never what a folder holds, so that he can offer to resume one. A release has neither.
+func BriefTextWith(brainstorm bool, titles []string) string {
 	if !brainstorm {
 		return brief
 	}
-	return brief + briefBrainstorm
+	text := brief + briefBrainstorm
+	var lines []string
+	for _, title := range titles {
+		clean := strings.Join(strings.Fields(strings.Map(func(r rune) rune {
+			if r < 0x20 || r == 0x7f || r == '`' {
+				return ' '
+			}
+			return r
+		}, title)), " ")
+		if runes := []rune(clean); len(runes) > maxBriefTitleLen {
+			clean = string(runes[:maxBriefTitleLen])
+		}
+		if clean != "" {
+			lines = append(lines, "- "+clean)
+		}
+	}
+	if len(lines) == 0 {
+		return text + "\nThe developer has no saved brainstorm yet.\n"
+	}
+	return text + "\nThe developer's saved brainstorms, the one changed last first (their titles only: MoltenTerm keeps them):\n\n" +
+		strings.Join(lines, "\n") + "\n"
+}
+
+// savedTitles gives the saved brainstorms' titles; wavesrv sets it at Start (brainstorm.LiveTitles), and until then, as
+// in tests, his brief lists none.
+var savedTitles atomic.Pointer[func() []string]
+
+func liveBriefText() string {
+	var titles []string
+	if source := savedTitles.Load(); source != nil {
+		titles = (*source)()
+	}
+	return BriefTextWith(buildchannel.BrainstormEnabled(), titles)
 }
 
 // WriteBrief puts his brief in his folder: a file that is missing is written, one MoltenTerm wrote is refreshed when
 // the brief changed, one it did not write stays as it is. The brainstorm section follows the build channel.
 func WriteBrief(dir string) error {
-	return writeBrief(dir, BriefText(buildchannel.BrainstormEnabled()))
+	return writeBrief(dir, liveBriefText())
 }
 
 // CurrentBrief writes his brief (WriteBrief) and returns its version and its text, for a session that runs: an agent
 // reads its instructions file once, when it starts, so a running one gets a newer brief with the next message (#2257).
 // The version is "" when every brief file of his folder is the developer's: theirs is followed, never replaced.
 func CurrentBrief(dir string) (string, string, error) {
-	return currentBrief(dir, BriefText(buildchannel.BrainstormEnabled()))
+	return currentBrief(dir, liveBriefText())
 }
 
 func currentBrief(dir string, text string) (string, string, error) {

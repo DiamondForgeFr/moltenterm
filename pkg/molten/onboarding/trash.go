@@ -4,6 +4,7 @@
 package onboarding
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -29,7 +30,16 @@ func trashDir(home string) (string, error) {
 		}
 		return filepath.Join(data, "Trash"), nil
 	}
-	return "", fmt.Errorf("no system trash known on %s", runtime.GOOS)
+	return "", fmt.Errorf("%w on %s", ErrNoTrash, runtime.GOOS)
+}
+
+// ErrNoTrash: this system has no trash MoltenTerm knows how to move into.
+var ErrNoTrash = errors.New("no system trash known")
+
+// MoveToTrash moves path into the system trash and returns where it went (the brainstorm folders a developer forgets,
+// #2248). It fails with ErrNoTrash where the system has no trash MoltenTerm knows.
+func MoveToTrash(home string, path string) (string, error) {
+	return moveToTrash(home, path)
 }
 
 // freeName is name, or name with a number, that does not exist in dir yet.

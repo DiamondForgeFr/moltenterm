@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/brainstorm"
 	"github.com/wavetermdev/waveterm/pkg/molten/buildchannel"
 )
 
@@ -97,6 +98,38 @@ func TestTheBriefOfAReleaseHasNoBrainstormSection(t *testing.T) {
 	gold := BriefText(buildchannel.BrainstormAllowed(buildchannel.GateChannel(false, buildchannel.Gold, "")))
 	if !strings.Contains(gold, "brokk-graph") {
 		t.Error("a gold's brief does not teach the graph block")
+	}
+}
+
+// FR-BOSS-010 AC10b (#2248): his brief lists the saved brainstorms by their titles alone, one plain line each, and
+// teaches the questions he may ask about them; a release lists nothing.
+func TestTheBriefListsTheSavedTitlesOnly(t *testing.T) {
+	t.Parallel()
+	text := BriefTextWith(true, []string{"A safe video app for children", "Forge `notes`\n# injected heading", strings.Repeat("x", 300)})
+	for _, want := range []string{"\n- A safe video app for children\n", "\n- Forge  notes  # injected heading\n", `"op": "fork"`, `"op": "resume"`, `"op": "forget"`, "Brainstorm resumed:", brainstorm.ResumeFile} {
+		if !strings.Contains(text, strings.ReplaceAll(want, "  ", " ")) {
+			t.Errorf("the brief lacks %q", want)
+		}
+	}
+	if strings.Contains(text, strings.Repeat("x", 161)) {
+		t.Error("a title over 160 characters is listed whole")
+	}
+	if !strings.Contains(BriefTextWith(true, nil), "no saved brainstorm yet") {
+		t.Error("an empty list is not said")
+	}
+	if release := BriefTextWith(false, []string{"A safe video app for children"}); strings.Contains(release, "A safe video app") || strings.Contains(release, "saved brainstorm") {
+		t.Error("a release's brief lists brainstorms")
+	}
+	if !strings.HasPrefix(BriefTextWith(true, []string{"x"}), BriefText(false)) {
+		t.Error("the list is not after the brief")
+	}
+}
+
+// The resume brief goes into his own folder: the brainstorm package names it as this one does.
+func TestTheResumeBriefGoesIntoHisFolder(t *testing.T) {
+	t.Parallel()
+	if brainstorm.BrokkFolderName != FolderName {
+		t.Errorf("brainstorm writes the resume brief into %q, his folder is %q", brainstorm.BrokkFolderName, FolderName)
 	}
 }
 
