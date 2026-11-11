@@ -272,7 +272,8 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
             [{ phase: "busy" }, "retry", "Try again"],
             [{ phase: "failed" }, "retry", "Try again"],
             [{ phase: "failed", reason: "noagent", where: Where }, "retry", "Try again"],
-            [{ phase: "failed", reason: "humandraft", where: Where }, "retry", "Try again"],
+            [{ phase: "failed", reason: "humandraft", where: Where }, "clearAndSend", "Clear his prompt and send"],
+            [{ phase: "failed", reason: "unknownprompt", where: Where }, "clearAndSend", "Clear his prompt and send"],
         ];
         for (const [state, way, label] of cases) {
             globalStore.set(stateAtom, { ...Idle, ...state });
@@ -355,9 +356,12 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
         // The text as fieldAction reads it: trimmed, or the brainstorm's command where it exists (#2257).
         expect(source).toContain("const action = fieldAction(text, brainstormAllowed);");
-        expect(source).toContain("await session.say(action.text)");
+        expect(source).toContain("await session.say(action.text, { clearPrompt })");
         expect(source).toContain('await openBrainstorm(idea !== "");');
-        expect(source).toContain("if (!keepsText(result))");
+        // The field empties only when it still holds what was sent (review of #2257).
+        expect(source).toContain("setText(fieldAfterSend(action.text, draft, result));");
+        // A text starting with a slash stays in the field with its note.
+        expect(source).toContain('if (action.kind === "slash") {');
         expect(source).toContain('onTyping(text.trim() !== "")');
     });
 });

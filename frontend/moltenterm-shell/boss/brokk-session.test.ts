@@ -327,6 +327,49 @@ describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
         expect(exchange()).toEqual([]);
     });
 
+    // Review of #2257: the developer writes again while a queued try is on its way. If his agent took it, it went: it
+    // shows in the exchange (and the field keeps the new text, fieldAfterSend).
+    it("shows a queued message his agent took while the developer wrote again", async () => {
+        const session = BrokkSession.getInstance();
+        let answerTry: (value: any) => void = null;
+        sayAnswers = [{ status: "busy", reason: "notready" }];
+        session.useCall(async (command, data, timeout) => {
+            calls.push({ command, data, timeout });
+            if (command === SessionCommand) {
+                return found;
+            }
+            if (command === SayCommand) {
+                sayCalls++;
+                if (sayCalls === 1) {
+                    return sayAnswers[0];
+                }
+                return new Promise((resolve) => (answerTry = resolve));
+            }
+            return read(data);
+        });
+        void session.say("an idea");
+        await flush();
+        release(QueueEveryMs);
+        await flush();
+        expect(sayCalls).toBe(2);
+        session.clearNote();
+        answerTry(said);
+        await flush();
+        expect(shape()).toEqual(["you:an idea"]);
+    });
+
+    // #2257: the developer's own click empties his prompt: the call says so, on every try.
+    it("passes the developer's clear of his prompt", async () => {
+        const session = BrokkSession.getInstance();
+        void session.say("an idea", { clearPrompt: true });
+        await flush();
+        const say = calls.find((c) => c.command === SayCommand);
+        expect(say.data).toMatchObject({ text: "an idea", clearprompt: true });
+        void session.say("another");
+        await flush();
+        expect(calls.filter((c) => c.command === SayCommand)[1].data.clearprompt).toBeUndefined();
+    });
+
     it("gives the field back to the developer when he stays busy too long", async () => {
         const session = BrokkSession.getInstance();
         session.useWait(async () => {});

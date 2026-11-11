@@ -3363,6 +3363,10 @@
                 "notSubmitted": "Your message waits in {name}'s terminal: open it and press Enter.",
                 "humanDraft": "Text typed in {name}'s terminal waits in his prompt, so nothing was sent: MoltenTerm never sends nor erases it. Send or clear it there, then try again.",
                 "queued": "{name} is busy: your message goes by itself as soon as he is free.",
+                "unknownPrompt": "{name}'s prompt may still hold text from before MoltenTerm restarted, so nothing was sent. Clearing it erases that text for good.",
+                "clearAndSend": "Clear his prompt and send",
+                "unsettled": "{name}'s agent never came back to its prompt (a step that never ended), so nothing was sent. Try again in a moment.",
+                "slashKept": "A message starting with / stays here: {name}'s agent would run it as one of its own commands. Write it without the slash.",
                 "agentStopped": "{name}'s agent is no longer running in his terminal. Close that terminal, then send your message again.",
                 "keys": "Enter to send, Shift+Enter for a new line",
                 "keysBrainstorm": "Enter to send, Shift+Enter for a new line, /brainstorm [idea] to brainstorm",
@@ -9706,6 +9710,7 @@
                 "typeddraft": "Typed in {agent}'s prompt without Enter: you may have an unsent message there.",
                 "humandraft": "Text typed in {agent}'s terminal waits in its prompt: nothing was typed.",
                 "unsettled": "{agent}'s state is not known yet: nothing was typed.",
+                "unknownprompt": "{agent}'s prompt may hold text MoltenTerm did not see: nothing was typed.",
                 "typed": "Typed in {agent}'s prompt: add what to do and press Enter."
             },
             "update": {

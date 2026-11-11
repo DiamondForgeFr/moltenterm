@@ -23,6 +23,7 @@ type fake struct {
 	// typed answers, one per call; the last one repeats.
 	answers []TypeOutcome
 	typed   []string
+	opts    []TypeOptions
 	sleeps  int
 
 	tabs      []string
@@ -106,8 +107,9 @@ func (f *fake) baseEnv() Env {
 			f.lock.Unlock()
 			return "block-1", f.openErr
 		},
-		Type: func(_ context.Context, blockId string, line string) TypeOutcome {
+		Type: func(_ context.Context, blockId string, line string, opts TypeOptions) TypeOutcome {
 			f.typed = append(f.typed, blockId+":"+line)
+			f.opts = append(f.opts, opts)
 			i := len(f.typed) - 1
 			if i >= len(f.answers) {
 				i = len(f.answers) - 1
@@ -264,7 +266,7 @@ func TestOnlyOneMessageIsOnItsWayAtATime(t *testing.T) {
 	release := make(chan struct{})
 	f := &fake{found: &Found{BlockId: "block-9"}}
 	env := f.env()
-	env.Type = func(context.Context, string, string) TypeOutcome {
+	env.Type = func(context.Context, string, string, TypeOptions) TypeOutcome {
 		close(entered)
 		<-release
 		return TypeOutcome{Sent: true}

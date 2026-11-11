@@ -63,6 +63,11 @@ const (
 	ReasonLookup = "lookup"
 	// ReasonHumanDraft: a human's unsent text waits in his prompt; nothing was typed (#2257).
 	ReasonHumanDraft = "humandraft"
+	// ReasonUnknownPrompt: his prompt may hold text from before a restart; nothing was typed, the developer may empty
+	// it (Request.ClearPrompt).
+	ReasonUnknownPrompt = "unknownprompt"
+	// ReasonUnsettled: his agent did not come to rest at its prompt (its turn or a call never ended) (#2257).
+	ReasonUnsettled = "unsettled"
 
 	// Reply…: what Reply answered; must match frontend/moltenterm-shell/boss/brokk-talk-model.ts. ReplyAnswer: his answer
 	// to the message; ReplyWaiting: none newer than the message yet; ReplyUnread: his transcript is not known, so the
@@ -86,6 +91,8 @@ type Request struct {
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	Name        string `json:"name,omitempty"`
 	Text        string `json:"text,omitempty"`
+	// ClearPrompt: the developer chose, in his layer, to empty his prompt before the message (#2257).
+	ClearPrompt bool `json:"clearprompt,omitempty"`
 }
 
 type Result struct {
@@ -94,8 +101,8 @@ type Result struct {
 	BlockId     string `json:"blockid,omitempty"`
 	TabId       string `json:"tabid,omitempty"`
 	WorkspaceId string `json:"workspaceid,omitempty"`
-	Agent     string `json:"agent,omitempty"`
-	AgentName string `json:"agentname,omitempty"`
+	Agent       string `json:"agent,omitempty"`
+	AgentName   string `json:"agentname,omitempty"`
 	// Started: this call started the session.
 	Started bool `json:"started,omitempty"`
 	// Message stays English: the detail of a refusal or an error, for the log and the tooltip.
@@ -144,13 +151,24 @@ type TypeOutcome struct {
 	Sent bool
 	// Unsubmitted: typed in the prompt without Enter, since a draft may be there.
 	Unsubmitted bool
-	Retry bool
-	Gone  bool
+	Retry       bool
+	Gone        bool
 	// NoAgent: no coding agent runs in the terminal: the one just started is not up yet, or the one that ran has ended.
 	NoAgent bool
 	// HumanDraft: a human's unsent text is in the prompt: nothing was typed.
 	HumanDraft bool
-	Message    string
+	// UnknownPrompt: the prompt may hold text nobody saw (a restart): nothing was typed.
+	UnknownPrompt bool
+	// Unsettled: with Retry, the agent is not known to be at rest (a turn or a call whose end never came).
+	Unsettled bool
+	Message   string
+}
+
+// TypeOptions is what the typing path needs to know of the message: Fresh, this call started the agent; ClearPrompt,
+// the developer chose to empty the prompt first.
+type TypeOptions struct {
+	Fresh       bool
+	ClearPrompt bool
 }
 
 // Env is what the service reaches outside itself; the tests give fakes.
@@ -170,7 +188,7 @@ type Env struct {
 	CloseTab func(ctx context.Context, tabId string) error
 	// OpenTerminal creates the terminal in the tab and types line at its first prompt.
 	OpenTerminal func(ctx context.Context, tabId string, meta waveobj.MetaMapType, line string) (string, error)
-	Type         func(ctx context.Context, blockId string, line string) TypeOutcome
+	Type         func(ctx context.Context, blockId string, line string, opts TypeOptions) TypeOutcome
 	// Brief writes his brief in his folder and returns its version and its text; nil: no brief is followed.
 	Brief func() (version string, text string, err error)
 	// MarkBrief records in his terminal the version of the brief his agent now has.
@@ -316,7 +334,7 @@ func (s *Service) Say(ctx context.Context, req Request) Result {
 	if refresh {
 		typed = withBrief(briefText, text)
 	}
-	out := s.deliver(ctx, found.BlockId, typed, fresh)
+	out := s.deliver(ctx, found.BlockId, typed, fresh, req.ClearPrompt)
 	result.BlockId, result.TabId, result.WorkspaceId = found.BlockId, found.TabId, found.WorkspaceId
 	result.Started = fresh
 	result.Status, result.Reason, result.Message = out.Status, out.Reason, out.Message
@@ -402,7 +420,8 @@ type delivery struct {
 
 // deliver types the message. A session just started is given until startWait to show its prompt; one that runs is asked
 // once, and a busy agent is told to the developer, whose text stays in the field.
-func (s *Service) deliver(ctx context.Context, blockId string, text string, fresh bool) delivery {
+func (s *Service) deliver(ctx context.Context, blockId string, text string, fresh bool, clearPrompt bool) delivery {
+	opts := TypeOptions{Fresh: fresh, ClearPrompt: clearPrompt}
 	for attempt := 0; ; attempt++ {
 		// A line typed while the agent just started still draws its prompt is lost, or left there without Enter
 		// (#2028): the first message waits until the agent takes it, then is typed anyway once startWait is over.
@@ -412,7 +431,7 @@ func (s *Service) deliver(ctx context.Context, blockId string, text string, fres
 			}
 			continue
 		}
-		out := s.env.Type(ctx, blockId, text)
+		out := s.env.Type(ctx, blockId, text, opts)
 		if out.Sent && out.Unsubmitted {
 			return delivery{Status: StatusFailed, Reason: ReasonNotSubmitted, Message: out.Message}
 		}
@@ -425,6 +444,9 @@ func (s *Service) deliver(ctx context.Context, blockId string, text string, fres
 		if out.HumanDraft {
 			return delivery{Status: StatusFailed, Reason: ReasonHumanDraft, Message: out.Message}
 		}
+		if out.UnknownPrompt {
+			return delivery{Status: StatusFailed, Reason: ReasonUnknownPrompt, Message: out.Message}
+		}
 		// The agent just started shows in the terminal a moment after its command; one that was there and ended does not come back.
 		if out.NoAgent && !fresh {
 			return delivery{Status: StatusFailed, Reason: ReasonNoAgent, Message: out.Message}
@@ -432,11 +454,15 @@ func (s *Service) deliver(ctx context.Context, blockId string, text string, fres
 		if !out.Retry && !out.NoAgent {
 			return delivery{Status: StatusFailed, Reason: ReasonRefused, Message: out.Message}
 		}
+		reason := ReasonNotReady
+		if out.Unsettled {
+			reason = ReasonUnsettled
+		}
 		if !fresh || attempt >= int(startWait/startPoll) {
-			return delivery{Status: StatusBusy, Reason: ReasonNotReady, Message: out.Message}
+			return delivery{Status: StatusBusy, Reason: reason, Message: out.Message}
 		}
 		if !s.env.Sleep(ctx, startPoll) {
-			return delivery{Status: StatusBusy, Reason: ReasonNotReady, Message: out.Message}
+			return delivery{Status: StatusBusy, Reason: reason, Message: out.Message}
 		}
 	}
 }

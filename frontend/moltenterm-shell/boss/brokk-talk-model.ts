@@ -50,8 +50,8 @@ export function talkFieldHeight(scrollHeight: number, lineHeight: number, paddin
 
 // `/brainstorm` in his field starts the brainstorm at once, `/brainstorm <idea>` with that idea at the centre
 // (FR-BOSS-010, #2257). It is the field's own command, never an agent's: no terminal and no top field reads it, and
-// nothing is installed in his agent for it. Where the gate is shut (rc, public), the field neither offers nor reads it,
-// and the text goes to him as any message.
+// nothing is installed in his agent for it. Where the gate is shut (rc, public), the field neither offers nor reads it:
+// like any text starting with a slash, it stays in the field with a note, never sent for his agent to run.
 export const BrainstormCommand = "/brainstorm";
 
 // The command in the field's text, with the idea after it ("" for none); null when the text is not the command.
@@ -63,15 +63,21 @@ export function brainstormCommand(text: string): { idea: string } {
     return { idea: (match[1] ?? "").trim() };
 }
 
-// What the field does with its text: start the brainstorm (only where the gate allows it), or give the text to him.
-export type FieldAction = { kind: "brainstorm"; idea: string } | { kind: "say"; text: string };
+// What the field does with its text: start the brainstorm (only where the gate allows it), keep a text that starts
+// with a slash (his agent would run it as one of its own commands: /clear would wipe his session), or give the text
+// to him (review of #2257).
+export type FieldAction = { kind: "brainstorm"; idea: string } | { kind: "slash" } | { kind: "say"; text: string };
 
 export function fieldAction(text: string, brainstormAllowed: boolean): FieldAction {
     const command = brainstormAllowed ? brainstormCommand(text) : null;
     if (command != null) {
         return { kind: "brainstorm", idea: command.idea };
     }
-    return { kind: "say", text: text.trim() };
+    const trimmed = text.trim();
+    if (trimmed.startsWith("/")) {
+        return { kind: "slash" };
+    }
+    return { kind: "say", text: trimmed };
 }
 
 // The hint of the command while the developer starts a slash in the field.
@@ -143,6 +149,7 @@ const FailedNoteKeys = new Map<string, string>([
     ["gone", "boss.panel.talk.gone"],
     ["notsubmitted", "boss.panel.talk.notSubmitted"],
     ["humandraft", "boss.panel.talk.humanDraft"],
+    ["unknownprompt", "boss.panel.talk.unknownPrompt"],
     ["noagent", "boss.panel.talk.agentStopped"],
     ["refused", "boss.panel.talk.refused"],
     ["terminal", "boss.panel.talk.noTerminal"],
@@ -270,6 +277,14 @@ export function talkWaits(state: TalkState): boolean {
 // at most this long, then the field offers to try again.
 export const QueueEveryMs = 2000;
 export const MaxQueueMs = 10 * 60 * 1000;
+// An agent whose state cannot be read (no hooks) and whose transcript never shows it at rest (a call or a turn whose end
+// never came) is waited for this long only, then the field says so plainly (review of #2257).
+export const MaxUnsettledQueueMs = 2 * 60 * 1000;
+
+// How long a message waits for him in the field, by what kept him busy.
+export function queueBoundMs(state: TalkState): number {
+    return state.reason === "unsettled" ? MaxUnsettledQueueMs : MaxQueueMs;
+}
 
 // What a busy answer becomes while the message waits for him: the field keeps the text and says it goes by itself.
 export function queuedOf(state: TalkState): TalkState {
@@ -294,7 +309,7 @@ export function talkNoteKey(state: TalkState): string {
         case "noreply":
             return "boss.panel.talk.noReply";
         case "busy":
-            return "boss.panel.talk.busy";
+            return state.reason === "unsettled" ? "boss.panel.talk.unsettled" : "boss.panel.talk.busy";
         case "noagent":
             return "boss.panel.talk.noAgent";
         case "agentmissing":
@@ -306,18 +321,20 @@ export function talkNoteKey(state: TalkState): string {
     }
 }
 
-export type TalkWayOut = "chooseAgent" | "retry" | "openTerminal";
+export type TalkWayOut = "chooseAgent" | "retry" | "openTerminal" | "clearAndSend";
 
 // The main way out of a failure: no failure is left without one (#2028), and his terminal is never it (#2257): talking
-// to him never needs leaving his layer. The terminal stays a secondary action (talkTerminalAside).
+// to him never needs leaving his layer. The terminal stays a secondary action (talkTerminalAside). Text in his prompt
+// that MoltenTerm did not type is never cleared but by the developer's own click (clearAndSend).
 export function talkWayOut(state: TalkState): TalkWayOut {
     switch (state.phase) {
         case "noagent":
         case "agentmissing":
             return "chooseAgent";
         case "busy":
-        case "failed":
             return "retry";
+        case "failed":
+            return state.reason === "unknownprompt" || state.reason === "humandraft" ? "clearAndSend" : "retry";
         case "unread":
         case "noreply":
             // His answer is only in his terminal (beside), and the field takes the next message: retrying is for when
@@ -339,12 +356,15 @@ export function talkTerminalAside(state: TalkState): boolean {
         case "unread":
         case "noreply":
             return true;
+        case "busy":
+            return state.reason === "unsettled";
         case "failed":
             return (
                 state.reason === "noagent" ||
                 state.reason === "notsubmitted" ||
                 state.reason === "refused" ||
-                state.reason === "humandraft"
+                state.reason === "humandraft" ||
+                state.reason === "unknownprompt"
             );
         default:
             return false;
@@ -359,9 +379,20 @@ export function talkWayOutKey(way: TalkWayOut): string {
             return "boss.panel.talk.retry";
         case "openTerminal":
             return "boss.panel.talk.openTerminal";
+        case "clearAndSend":
+            return "boss.panel.talk.clearAndSend";
         default:
             return null;
     }
+}
+
+// What is left in the field once a message has gone (review of #2257): the field empties only when it still holds
+// what was sent; text the developer wrote meanwhile (while a queued try was on its way) stays.
+export function fieldAfterSend(sent: string, current: string, result: TalkState): string {
+    if (keepsText(result) || current.trim() !== sent.trim()) {
+        return current;
+    }
+    return "";
 }
 
 export type TalkPoseInput = {

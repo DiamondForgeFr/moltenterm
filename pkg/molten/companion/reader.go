@@ -95,6 +95,12 @@ func (r *SessionReader) PendingCalls() int {
 	return len(r.session.Pending())
 }
 
+// TurnOpen: a turn read by Poll started, or the agent wrote in it, and its end is not recorded: the agent may be
+// generating between two calls, so it is not at its prompt (#2257).
+func (r *SessionReader) TurnOpen() bool {
+	return r.session.turnOpen
+}
+
 func (r *SessionReader) Close() {
 	if r.follower != nil {
 		r.follower.close()

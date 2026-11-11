@@ -11,6 +11,7 @@ import {
     canSend,
     FailedReadingsForNoReply,
     fieldAction,
+    fieldAfterSend,
     followStep,
     IdleReadingsForAnswered,
     IdleReadingsForNoReply,
@@ -19,6 +20,9 @@ import {
     keepsText,
     MaxFieldLines,
     MaxMessageLength,
+    MaxQueueMs,
+    MaxUnsettledQueueMs,
+    queueBoundMs,
     queuedOf,
     SayResult,
     SendingTalk,
@@ -134,7 +138,8 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
             [{ status: "failed", reason: "gone" }, "boss.panel.talk.gone", "retry"],
             [{ status: "failed", reason: "noagent", ...where }, "boss.panel.talk.agentStopped", "retry"],
             [{ status: "failed", reason: "notsubmitted", ...where }, "boss.panel.talk.notSubmitted", "retry"],
-            [{ status: "failed", reason: "humandraft", ...where }, "boss.panel.talk.humanDraft", "retry"],
+            [{ status: "failed", reason: "humandraft", ...where }, "boss.panel.talk.humanDraft", "clearAndSend"],
+            [{ status: "failed", reason: "unknownprompt", ...where }, "boss.panel.talk.unknownPrompt", "clearAndSend"],
             [null, "boss.panel.talk.unreachable", "retry"],
         ];
         for (const [result, key, way] of causes) {
@@ -150,7 +155,7 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
                 expect(text, `${lang} ${key}`).not.toMatch(/injoignable|could not be reached/);
             }
         }
-        expect(new Set(causes.map(([, key]) => key)).size).toBe(10);
+        expect(new Set(causes.map(([, key]) => key)).size).toBe(11);
         expect(talkStateOf(null).reason).toBe(UnreachableReason);
     });
 
@@ -168,7 +173,7 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
         for (const phase of ["idle", "sending", "starting", "queued", "answering", "answered"] as const) {
             expect(talkWayOut({ ...IdleTalk, phase }), phase).toBeNull();
         }
-        for (const way of ["chooseAgent", "retry", "openTerminal"] as const) {
+        for (const way of ["chooseAgent", "retry", "openTerminal", "clearAndSend"] as const) {
             expect(talkWayOutKey(way)).toMatch(/^boss\.panel\.talk\./);
         }
     });
@@ -182,9 +187,11 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
             { ...IdleTalk, phase: "failed", reason: "notsubmitted", where },
             { ...IdleTalk, phase: "failed", reason: "refused", where },
             { ...IdleTalk, phase: "failed", reason: "humandraft", where },
+            { ...IdleTalk, phase: "failed", reason: "unknownprompt", where },
             { ...IdleTalk, phase: "unread", where },
             { ...IdleTalk, phase: "noreply", where },
             { ...IdleTalk, phase: "needsanswer", where },
+            { ...IdleTalk, phase: "busy", reason: "unsettled", where },
             { ...IdleTalk, phase: "busy", where },
             { ...IdleTalk, phase: "queued", where },
         ];
@@ -196,12 +203,17 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
             "notsubmitted",
             "refused",
             "humandraft",
+            "unknownprompt",
             "unread",
             "noreply",
             "needsanswer",
+            "unsettled",
         ]);
         expect(talkTerminalAside({ ...IdleTalk, phase: "failed", reason: "refused" })).toBe(false);
         expect(talkWayOut({ ...IdleTalk, phase: "unread" })).toBe("retry");
+        // Text MoltenTerm did not type leaves his prompt only by the developer's own click.
+        expect(talkWayOut({ ...IdleTalk, phase: "failed", reason: "unknownprompt", where })).toBe("clearAndSend");
+        expect(talkWayOut({ ...IdleTalk, phase: "failed", reason: "humandraft", where })).toBe("clearAndSend");
     });
 
     // #2257: `/brainstorm` is the field's own command, read only where the gate allows the brainstorm.
@@ -211,10 +223,12 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
             kind: "brainstorm",
             idea: "a safe video app\nfor kids",
         });
-        expect(fieldAction("/brainstorming is fun", true)).toEqual({ kind: "say", text: "/brainstorming is fun" });
         expect(fieldAction("let's /brainstorm", true)).toEqual({ kind: "say", text: "let's /brainstorm" });
-        // rc and public: an ordinary message, and nothing offers it.
-        expect(fieldAction("/brainstorm an idea", false)).toEqual({ kind: "say", text: "/brainstorm an idea" });
+        // Review: a text starting with a slash never goes, where his agent would run it as its own command; on rc and
+        // public /brainstorm is one of those, and nothing offers it.
+        expect(fieldAction("/brainstorming is fun", true)).toEqual({ kind: "slash" });
+        expect(fieldAction("/brainstorm an idea", false)).toEqual({ kind: "slash" });
+        expect(fieldAction("  /clear", true)).toEqual({ kind: "slash" });
         expect(showsCommandHint("/br", false)).toBe(false);
         expect(showsCommandHint("/", true)).toBe(true);
         expect(showsCommandHint("/br", true)).toBe(true);
@@ -241,6 +255,24 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
             expect(textAt(texts, "boss.panel.talk.queued")).toMatch(/\{name\}/);
             expect(textAt(texts, "boss.panel.talk.humanDraft")).toMatch(/\{name\}/);
         }
+    });
+
+    // Review of #2257: an agent that never comes to rest is waited for a short while, then said plainly.
+    it("bounds the wait for an agent that never comes to rest, and says so (#2257)", () => {
+        const unsettled = talkStateOf({ status: "busy", reason: "unsettled" });
+        expect(queueBoundMs(unsettled)).toBe(MaxUnsettledQueueMs);
+        expect(queueBoundMs(talkStateOf({ status: "busy", reason: "notready" }))).toBe(MaxQueueMs);
+        expect(MaxUnsettledQueueMs).toBeLessThan(MaxQueueMs);
+        expect(talkNoteKey(unsettled)).toBe("boss.panel.talk.unsettled");
+        expect(talkNoteKey(talkStateOf({ status: "busy" }))).toBe("boss.panel.talk.busy");
+    });
+
+    // Review of #2257: the field empties only when it still holds what was sent.
+    it("keeps what the developer wrote while a message waited (#2257)", () => {
+        const taken = talkStateOf({ status: "sent" });
+        expect(fieldAfterSend("an idea", "an idea", taken)).toBe("");
+        expect(fieldAfterSend("an idea", "an idea, for kids", taken)).toBe("an idea, for kids");
+        expect(fieldAfterSend("an idea", "an idea", talkStateOf({ status: "busy" }))).toBe("an idea");
     });
 });
 

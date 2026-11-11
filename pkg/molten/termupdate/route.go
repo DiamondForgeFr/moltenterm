@@ -417,6 +417,9 @@ func Start() {
 		return
 	}
 	setRunningUpdater(s.updater)
+	for blockId, onForeign := range keptOwnWatches() {
+		s.inputs.watchOwn(blockId, onForeign)
+	}
 	go s.recordLoop()
 	go s.publishLoop()
 	rpcClient := wshclient.GetBareRpcClient()
