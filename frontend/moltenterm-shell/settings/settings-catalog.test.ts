@@ -14,6 +14,7 @@ import { SuiteIcons } from "../suite/suite-icons";
 import {
     buildCatalog,
     clampSetting,
+    ConfirmOnKeys,
     groupEntries,
     groupSlug,
     isChanged,
@@ -424,7 +425,9 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
     it("holds the name, Show the avatar and his proximity, then the table of when he comes, and no longer the bubble's collapse (FR-BOSS-009, AC4, AC13, AC75)", () => {
         const keys = sectionEntries(catalog(), "boss").map((e) => e.key);
         expect(keys.slice(0, 3)).toEqual(["boss:name", "boss:show", "boss:proximity"]);
-        expect(keys.slice(3)).toEqual([
+        // His agent's permission requests (#2257), before the table.
+        expect(keys[3]).toBe("boss:autoapprove");
+        expect(keys.slice(4)).toEqual([
             "boss:visitsecurity",
             "boss:visitblocked",
             "boss:visiterror",
@@ -443,9 +446,30 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
         expect(entry("boss:collapseontype")).toBeUndefined();
     });
 
+    // #2257: approving his agent's requests without asking is never on unless the developer set it, and turning it on
+    // asks one explicit confirmation that says what it allows, in both languages.
+    it("keeps his agent's auto-approval off by default, behind an explicit confirmation", () => {
+        const auto = entry("boss:autoapprove");
+        expect(auto).toMatchObject({ control: "toggle", group: "His agent" });
+        expect(auto.defaultValue ?? false).toBe(false);
+        expect(ConfirmOnKeys.has("boss:autoapprove")).toBe(true);
+        for (const translateTo of [tr, trFr]) {
+            for (const part of ["confirm", "confirmOn", "confirmCancel"]) {
+                const key = `settings.items.boss:autoapprove.${part}`;
+                expect(translateTo(key), key).not.toBe(key);
+            }
+        }
+        expect(tr("settings.items.boss:autoapprove.confirm")).toMatch(/without asking/);
+        expect(tr("settings.items.boss:autoapprove.confirm")).toMatch(/still asks/);
+    });
+
     it("draws the keys of the table as one group, the one the card of Preferences replaces the rows of", () => {
         const table = sectionEntries(catalog(), "boss").filter(
-            (e) => e.key !== "boss:name" && e.key !== "boss:show" && e.key !== "boss:proximity"
+            (e) =>
+                e.key !== "boss:name" &&
+                e.key !== "boss:show" &&
+                e.key !== "boss:proximity" &&
+                e.key !== "boss:autoapprove"
         );
         expect(new Set(table.map((e) => e.group))).toEqual(new Set([BrokkTableGroup]));
         expect(table[0].key).toBe(BrokkTableKey);
@@ -507,7 +531,12 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
         const localized = localizeCatalog(sectionEntries(catalog(), "boss"), trFr);
         expect(localized.slice(0, 3).map((e) => e.label)).toEqual(["Nom", "Afficher l'avatar", "Proximité"]);
         expect(localized.slice(0, 3).every((e) => e.group === "Avatar")).toBe(true);
-        const table = localized.slice(3);
+        expect(localized[3]).toMatchObject({
+            key: "boss:autoapprove",
+            label: "Approuver les demandes de son agent sans me demander",
+            group: "Son agent",
+        });
+        const table = localized.slice(4);
         expect(table.every((e) => e.group === "Quand il vient me chercher")).toBe(true);
         expect(table.find((e) => e.key === "boss:visitblocked").label).toBe("Un agent attend ma réponse");
         expect(table.find((e) => e.key === "boss:visitci").options.map((o) => o.label)).toEqual([

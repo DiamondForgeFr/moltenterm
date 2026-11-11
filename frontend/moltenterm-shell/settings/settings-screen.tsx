@@ -36,6 +36,7 @@ import { I18nModel, useT } from "../i18n/i18n";
 import { languageName } from "../i18n/i18n-core";
 import { AutomaticSetting } from "../keepawake-model";
 import { KeepAwakeDetails } from "../keepawake-ui";
+import { MoltenWave } from "../molten-button";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
 import { NotificationSubjectsCard } from "../notification-settings";
@@ -53,6 +54,7 @@ import { AboutBuildCard, AboutUpdatesCard } from "./settings-about";
 import { BookmarksCard } from "./settings-bookmarks";
 import {
     clampSetting,
+    ConfirmOnKeys,
     effectiveSetting,
     groupEntries,
     groupSlug,
@@ -199,6 +201,61 @@ function Toggle({ entry, on, onSet }: { entry: SettingEntry; on: boolean; onSet:
         >
             <span className={cn("molten-cmdpanel-switch", on && "is-on")} aria-hidden />
         </button>
+    );
+}
+
+// A switch that turns on only after the developer read what it allows and confirmed it, once (#2257); turning it off
+// asks nothing.
+function ConfirmedToggle({ entry, on, onSet }: { entry: SettingEntry; on: boolean; onSet: (v: unknown) => void }) {
+    const t = useT();
+    const [asking, setAsking] = useState(false);
+    const base = `settings.items.${entry.key}`;
+    return (
+        <span className="inline-flex flex-col items-end gap-1.5">
+            <Toggle
+                entry={entry}
+                on={on}
+                onSet={(next) => {
+                    if (next === true) {
+                        setAsking(true);
+                        return;
+                    }
+                    setAsking(false);
+                    onSet(next);
+                }}
+            />
+            {asking ? (
+                <span
+                    role="alertdialog"
+                    aria-label={entry.label}
+                    data-testid="settings-confirm-on"
+                    className="flex max-w-[420px] flex-col gap-2 rounded-4 border border-border p-2 text-12 text-secondary"
+                >
+                    <span>{t(`${base}.confirm`)}</span>
+                    <span className="inline-flex justify-end gap-2">
+                        <button
+                            type="button"
+                            className="cursor-pointer rounded px-2 py-1 text-12 text-secondary hover:bg-hover"
+                            onClick={() => setAsking(false)}
+                        >
+                            {t(`${base}.confirmCancel`)}
+                        </button>
+                        <button
+                            type="button"
+                            data-testid="settings-confirm-on-yes"
+                            className="molten-btn molten-btn-warning cursor-pointer rounded px-2 py-1 text-12"
+                            onClick={() => {
+                                setAsking(false);
+                                onSet(true);
+                            }}
+                        >
+                            {t(`${base}.confirmOn`)}
+                            <MoltenWave />
+                        </button>
+                    </span>
+                </span>
+            ) : null}
+        </span>
     );
 }
 
@@ -391,6 +448,9 @@ function Control({
     const shown = effectiveSetting(entry, value);
     switch (entry.control) {
         case "toggle":
+            if (ConfirmOnKeys.has(entry.key)) {
+                return <ConfirmedToggle entry={entry} on={!!shown} onSet={onSet} />;
+            }
             return <Toggle entry={entry} on={!!shown} onSet={onSet} />;
         case "select": {
             if (entry.optionsFrom === LanguagesOptions) {
