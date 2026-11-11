@@ -34,10 +34,14 @@ const (
 	KindDecision   = "decision"
 	KindProposal   = "proposal"
 	KindConclusion = "conclusion"
+	// KindReference is MoltenTerm's own (#2248): the node that names the other folder of a fork. No block adds one.
+	KindReference = "reference"
 )
 
-// The operations of a block. The first three are this story's; the others belong to the stories that follow (#2247 to
-// #2250) and are skipped until then, so that a block written for a newer brief is not dropped whole.
+// The operations of a block. centre, add and link grow the graph. fork, resume and forget (#2248) never change it: the
+// window turns each into a question to the developer, and MoltenTerm acts only on the answer. The others belong to the
+// stories that follow (#2247, #2249, #2250) and are skipped until then, so that a block written for a newer brief is not
+// dropped whole.
 const (
 	OpCentre   = "centre"
 	OpAdd      = "add"
@@ -46,6 +50,8 @@ const (
 	OpPropose  = "propose"
 	OpConclude = "conclude"
 	OpFork     = "fork"
+	OpResume   = "resume"
+	OpForget   = "forget"
 	OpRemember = "remember"
 )
 
@@ -57,6 +63,9 @@ const (
 const StatusOpen = "open"
 
 var idPattern = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
+
+// refPattern: the id of another brainstorm a reference node names (Info.Id).
+var refPattern = regexp.MustCompile(`^[a-z0-9-]{1,64}$`)
 
 // The kinds an `add` may give; the topic is the centre's and a proposal comes with `propose`.
 var addKinds = map[string]bool{
@@ -77,13 +86,13 @@ var knownKinds = map[string]bool{
 	KindDecision:   true,
 	KindProposal:   true,
 	KindConclusion: true,
+	KindReference:  true,
 }
 
 var laterOps = map[string]bool{
 	OpEdit:     true,
 	OpPropose:  true,
 	OpConclude: true,
-	OpFork:     true,
 	OpRemember: true,
 }
 
@@ -96,6 +105,8 @@ type Node struct {
 	Turn   int        `json:"turn"`
 	At     int64      `json:"at"`
 	Pos    [3]float64 `json:"pos"`
+	// Ref: the id of the brainstorm a reference node names (#2248).
+	Ref string `json:"ref,omitempty"`
 }
 
 type Link struct {
@@ -123,6 +134,9 @@ type Op struct {
 	A    string `json:"a,omitempty"`
 	B    string `json:"b,omitempty"`
 	Why  string `json:"why,omitempty"`
+	// fork, resume and forget (#2248): the brainstorm's title, and why the talk is another project.
+	Title  string `json:"title,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // Block is what one answer of his carries: {"v":1,"talk":"project","ops":[…]}.
@@ -189,7 +203,7 @@ func checkId(id string, what string) error {
 // writes the name, and an error is logged.
 func opLabel(i int, op string) string {
 	switch op {
-	case OpCentre, OpAdd, OpLink, OpEdit, OpPropose, OpConclude, OpFork, OpRemember:
+	case OpCentre, OpAdd, OpLink, OpEdit, OpPropose, OpConclude, OpFork, OpResume, OpForget, OpRemember:
 		return fmt.Sprintf("operation %d (%s)", i+1, op)
 	}
 	return fmt.Sprintf("operation %d (unknown op)", i+1)
@@ -242,6 +256,13 @@ func ValidateBlock(b Block) error {
 			if utf8.RuneCountInString(CleanText(op.Why)) > MaxText {
 				return fmt.Errorf("%s: reason over %d characters", what, MaxText)
 			}
+		case OpFork, OpResume, OpForget:
+			if _, err := checkText(op.Title, what); err != nil {
+				return err
+			}
+			if utf8.RuneCountInString(CleanText(op.Reason)) > MaxText {
+				return fmt.Errorf("%s: reason over %d characters", what, MaxText)
+			}
 		default:
 			if !laterOps[op.Op] {
 				return fmt.Errorf("%s: unknown operation", what)
@@ -292,6 +313,9 @@ func ValidateGraph(g Graph) (Graph, error) {
 		}
 		if !idPattern.MatchString(n.Status) {
 			return Graph{}, fmt.Errorf("%s: invalid status", what)
+		}
+		if n.Ref != "" && !refPattern.MatchString(n.Ref) {
+			return Graph{}, fmt.Errorf("%s: invalid reference", what)
 		}
 		text, err := checkText(n.Text, what)
 		if err != nil {
@@ -425,4 +449,70 @@ func Apply(g Graph, b Block, turn int, at int64) (Applied, error) {
 	next.Rev++
 	rtn.Graph = next
 	return rtn, nil
+}
+
+// IdOf makes a node id out of a title, the way a slug is made, cut to the id's 32 characters.
+func IdOf(title string) string {
+	id := Slug(title)
+	if len(id) > 32 {
+		id = strings.TrimRight(id[:32], "-")
+	}
+	if id == "" {
+		return fallbackSlug
+	}
+	return id
+}
+
+// freeId is base, or base with a number, that no node of g has; the number keeps it within the id's 32 characters.
+func freeId(g Graph, base string) string {
+	if _, taken := g.node(base); !taken {
+		return base
+	}
+	for n := 2; ; n++ {
+		suffix := fmt.Sprintf("-%d", n)
+		stem := base
+		if len(stem)+len(suffix) > 32 {
+			stem = strings.TrimRight(stem[:32-len(suffix)], "-")
+		}
+		if _, taken := g.node(stem + suffix); !taken {
+			return stem + suffix
+		}
+	}
+}
+
+// CentredGraph is a new graph with title at its centre (a fork's folder, #2248).
+func CentredGraph(title string, at int64) (Graph, error) {
+	text, err := checkText(cutText(CleanText(title), MaxText), "centre")
+	if err != nil {
+		return Graph{}, err
+	}
+	id := IdOf(text)
+	return Graph{
+		Schema: GraphSchema,
+		Rev:    1,
+		Centre: id,
+		Nodes:  []Node{{Id: id, Kind: KindTopic, Text: text, Status: StatusOpen, At: at}},
+		Links:  []Link{},
+	}, nil
+}
+
+// WithReference adds to g, under its centre, the node that names another brainstorm (a fork's two folders, #2248). A
+// graph without a centre or already full stays as it is: the folders' siblings keep the link.
+func WithReference(g Graph, title string, ref string, at int64) Graph {
+	centre, ok := g.node(g.Centre)
+	text := cutText(CleanText(title), MaxText)
+	if !ok || text == "" || !refPattern.MatchString(ref) || len(g.Nodes) >= MaxNodes {
+		return g
+	}
+	for _, n := range g.Nodes {
+		if n.Kind == KindReference && n.Ref == ref {
+			return g
+		}
+	}
+	next := Graph{Schema: GraphSchema, Rev: g.Rev + 1, Centre: g.Centre, Nodes: append([]Node{}, g.Nodes...), Links: append([]Link{}, g.Links...)}
+	id := freeId(next, IdOf("ref-"+text))
+	node := Node{Id: id, Kind: KindReference, Text: text, From: centre.Id, Status: StatusOpen, At: at, Ref: ref}
+	node.Pos = birthPos(next, centre, id)
+	next.Nodes = append(next.Nodes, node)
+	return next
 }

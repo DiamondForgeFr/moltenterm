@@ -15,6 +15,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten/buildchannel"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/onboarding"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
@@ -34,7 +35,18 @@ const (
 	OpenCommand  = "moltenbrainstormopen"
 	CloseCommand = "moltenbrainstormclose"
 	TurnCommand  = "moltenbrainstormturn"
-	Event        = "molten:brainstorm"
+	// The folders (#2248).
+	ListCommand   = "moltenbrainstormlist"
+	FindCommand   = "moltenbrainstormfind"
+	LoadCommand   = "moltenbrainstormload"
+	NewCommand    = "moltenbrainstormnew"
+	RenameCommand = "moltenbrainstormrename"
+	DeleteCommand = "moltenbrainstormdelete"
+	ForkCommand   = "moltenbrainstormfork"
+	Event         = "molten:brainstorm"
+
+	// BriefTitles: how many saved titles Brokk's brief lists.
+	BriefTitles = 30
 
 	stateDirName = "brainstorm"
 )
@@ -105,14 +117,65 @@ func (s *Service) handle(command string, data any) (any, error) {
 			return nil, err
 		}
 		return s.Turn(req), nil
+	case ListCommand:
+		return s.List(), nil
+	case FindCommand:
+		var req FindRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.Find(req), nil
+	case LoadCommand:
+		var req SlugRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.Load(req), nil
+	case NewCommand:
+		return s.New(), nil
+	case RenameCommand:
+		var req RenameRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.Rename(req), nil
+	case DeleteCommand:
+		var req SlugRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.Delete(req), nil
+	case ForkCommand:
+		var req ForkRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.Fork(req), nil
 	}
 	return nil, fmt.Errorf("unknown brainstorm command %q", command)
 }
 
-// Live is wavesrv's service: the folder the setting names and MoltenTerm's own data folder.
+func liveTrash(path string) (string, error) {
+	return onboarding.MoveToTrash(wavebase.GetHomeDir(), path)
+}
+
+// Live is wavesrv's service: the folder the setting names, MoltenTerm's own data folder, the system trash, and Brokk's
+// own folder for the resume brief.
 func Live() *Service {
 	store := MakeStore(liveRoot, filepath.Join(wavebase.GetWaveDataDir(), stateDirName))
-	return MakeService(store, time.Now, livePublish, log.Printf)
+	store.UseTrash(liveTrash, onboarding.ErrNoTrash)
+	svc := MakeService(store, time.Now, livePublish, log.Printf)
+	svc.UseResumeDir(filepath.Join(wavebase.GetWaveDataDir(), BrokkFolderName))
+	return svc
+}
+
+// LiveTitles are the saved brainstorms' titles Brokk's brief lists, the titles alone (AC10b); none where the channel has
+// no brainstorms.
+func LiveTitles() []string {
+	if !buildchannel.BrainstormEnabled() {
+		return nil
+	}
+	return MakeStore(liveRoot, "").Titles(BriefTitles)
 }
 
 var startOnce sync.Once

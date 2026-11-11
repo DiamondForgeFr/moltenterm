@@ -52,6 +52,8 @@ type Info struct {
 	Source     string   `json:"source"`
 	Siblings   []string `json:"siblings"`
 	PromotedTo any      `json:"promotedto"`
+	// Named: the developer gave the title (Rename, #2248); the centre's text no longer replaces it.
+	Named bool `json:"named,omitempty"`
 }
 
 // Turn is one line of conversation.jsonl: what the developer said or what Brokk answered, without his blocks.
@@ -76,14 +78,23 @@ type Saved struct {
 }
 
 // Store reads and writes the folders. root gives the brainstorms folder at each call, so a change of the setting
-// applies to the next idea; stateDir is MoltenTerm's own.
+// applies to the next idea; stateDir is MoltenTerm's own. trash moves a forgotten folder to the system trash.
 type Store struct {
 	root     func() string
 	stateDir string
+	trash      func(path string) (string, error)
+	errNoTrash error
 }
 
 func MakeStore(root func() string, stateDir string) *Store {
 	return &Store{root: root, stateDir: stateDir}
+}
+
+// UseTrash sets how a forgotten folder goes to the trash. errNoTrash (or one that wraps it): the system has none, and
+// the folder is removed.
+func (s *Store) UseTrash(trash func(path string) (string, error), errNoTrash error) {
+	s.trash = trash
+	s.errNoTrash = errNoTrash
 }
 
 // slugReplacements spell the accented letters of the languages MoltenTerm speaks the way a folder name can.

@@ -22,24 +22,30 @@ const (
 	maxTurnText = 20000
 )
 
-// Summary is what the views show of the brainstorm: the Saved widget's title, folder and time.
+// Summary is what the views show of a brainstorm: the widget's title, folder, times and state.
 type Summary struct {
+	Id      string `json:"id,omitempty"`
 	Slug    string `json:"slug"`
 	Title   string `json:"title"`
 	Dir     string `json:"dir"`
 	Created int64  `json:"created"`
 	Updated int64  `json:"updated"`
+	State   string `json:"state,omitempty"`
 	Turns   int    `json:"turns"`
 }
 
 // State is what every view reads back after the event. Version counts from 0 in each wavesrv: Session names the one
 // that counted it, so that a view does not drop a restarted wavesrv's states as older than the ones it had.
+// Swap counts the brainstorms the developer moved to (load, new idea, a fork's Yes: the stage starts its camera over);
+// ListRev counts the changes of the folders' list (a folder made, renamed, forgotten: the widget reads the list again).
 type State struct {
 	Allowed    bool     `json:"allowed"`
 	Open       bool     `json:"open"`
 	By         string   `json:"by,omitempty"`
 	Session    string   `json:"session,omitempty"`
 	Version    int64    `json:"version"`
+	Swap       int64    `json:"swap"`
+	ListRev    int64    `json:"listrev"`
 	Brainstorm *Summary `json:"brainstorm,omitempty"`
 	Graph      *Graph   `json:"graph,omitempty"`
 	SavedAt    int64    `json:"savedat,omitempty"`
@@ -48,6 +54,47 @@ type State struct {
 
 type OpenRequest struct {
 	By string `json:"by"`
+}
+
+// SlugRequest names a brainstorm by its slug, the one name of a folder a window may give (#2248).
+type SlugRequest struct {
+	Slug string `json:"slug"`
+}
+
+type RenameRequest struct {
+	Slug  string `json:"slug"`
+	Title string `json:"title"`
+}
+
+type FindRequest struct {
+	Title string `json:"title"`
+}
+
+type ForkRequest struct {
+	Title  string `json:"title"`
+	Reason string `json:"reason,omitempty"`
+}
+
+type ListResult struct {
+	Brainstorms []Summary `json:"brainstorms"`
+}
+
+type FindResult struct {
+	Match *Summary `json:"match,omitempty"`
+}
+
+// LoadResult is the state once the brainstorm is open, and its conversation for his talk window.
+type LoadResult struct {
+	State State  `json:"state"`
+	Turns []Turn `json:"turns"`
+	Error string `json:"error,omitempty"`
+}
+
+type ActionResult struct {
+	State   State    `json:"state"`
+	Summary *Summary `json:"summary,omitempty"`
+	Trashed bool     `json:"trashed,omitempty"`
+	Error   string   `json:"error,omitempty"`
 }
 
 // TurnRequest is one exchange: the developer's message, his answer without its blocks, his graph block if it had one.
@@ -77,9 +124,14 @@ type Service struct {
 	// sessionId is State.Session.
 	sessionId string
 
+	// resumeDir is Brokk's own folder, where a loaded brainstorm's resume brief goes; "" writes none.
+	resumeDir string
+
 	open    bool
 	by      string
 	version int64
+	swap    int64
+	listRev int64
 	// The brainstorm of the mode; nil until his first central idea, or the one the developer resumed.
 	session *Saved
 	// What was said before the first central idea: written with the folder that idea makes.
@@ -93,19 +145,20 @@ func MakeService(store *Store, now func() time.Time, publish func(int64), logf f
 	return &Service{store: store, now: now, publish: publish, logf: logf, sessionId: newId(), keys: map[string]bool{}}
 }
 
+// UseResumeDir names Brokk's own folder, where a loaded brainstorm's resume brief goes.
+func (s *Service) UseResumeDir(dir string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.resumeDir = dir
+}
+
 func (s *Service) stateLocked() State {
-	state := State{Allowed: true, Open: s.open, By: s.by, Session: s.sessionId, Version: s.version, SavedAt: s.savedAt, SaveError: s.saveErr}
+	state := State{Allowed: true, Open: s.open, By: s.by, Session: s.sessionId, Version: s.version, Swap: s.swap, ListRev: s.listRev, SavedAt: s.savedAt, SaveError: s.saveErr}
 	if s.session != nil {
 		graph := s.session.Graph
 		state.Graph = &graph
-		state.Brainstorm = &Summary{
-			Slug:    s.session.Info.Slug,
-			Title:   s.session.Info.Title,
-			Dir:     s.session.Dir,
-			Created: s.session.Info.Created,
-			Updated: s.session.Info.Updated,
-			Turns:   len(s.session.Turns),
-		}
+		summary := summaryOf(s.session.Dir, s.session.Info, len(s.session.Turns))
+		state.Brainstorm = &summary
 	}
 	return state
 }
@@ -128,29 +181,22 @@ func (s *Service) tell(version int64) {
 	}
 }
 
+// openLocked opens the mode on no brainstorm: his answer's central idea makes a new one (he detected a brainstorm), and
+// the developer's start offers the saved ones first (the picker of AC10a, #2248): nothing is resumed without their
+// choice.
 func (s *Service) openLocked(by string) {
 	s.open = true
 	s.by = by
 	s.keys = map[string]bool{}
 	s.pending = nil
-	if by == ByBrokk {
-		// He detected a new brainstorm: it gets its own folder at his central idea, whatever was open before.
+	if s.session != nil {
 		s.session = nil
-		return
-	}
-	if s.session == nil {
-		saved, ok, err := s.store.Current()
-		if err != nil {
-			s.logf("[brainstorm] the brainstorm open last does not load: %v\n", err)
-		}
-		if ok {
-			s.session = &saved
-		}
+		s.swap++
 	}
 }
 
-// Open starts the mode. The developer's start resumes the brainstorm open last (a restart included); an opening by his
-// answer starts a new one. Opening an open mode changes nothing.
+// Open starts the mode on no brainstorm: the developer then picks one, or a new idea (#2248); an opening by his answer
+// starts a new one at his central idea. Opening an open mode changes nothing.
 func (s *Service) Open(req OpenRequest) State {
 	s.lock.Lock()
 	if s.open {
@@ -169,7 +215,7 @@ func (s *Service) Open(req OpenRequest) State {
 	return state
 }
 
-// Close ends the mode. The brainstorm stays saved, and the developer's next start resumes it.
+// Close ends the mode. The brainstorm stays saved, and the developer's next start offers it first.
 func (s *Service) Close() State {
 	s.lock.Lock()
 	if !s.open {
@@ -274,9 +320,10 @@ func (s *Service) applyLocked(block Block, at int64) TurnResult {
 		saved.Turns = append(saved.Turns, s.pending...)
 		s.pending = nil
 		s.session = &saved
+		s.listRev++
 	}
 	s.session.Graph = applied.Graph
-	if centre, ok := applied.Graph.node(applied.Graph.Centre); ok {
+	if centre, ok := applied.Graph.node(applied.Graph.Centre); ok && !s.session.Info.Named {
 		s.session.Info.Title = centre.Text
 	}
 	return TurnResult{Applied: true, Added: applied.Added}
