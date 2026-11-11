@@ -77,7 +77,8 @@ export const SettingOf: Record<BrokkEventKind, BrokkSettingId> = {
     usage: "usage",
 };
 
-// He comes for a dependency alert and for an agent blocked on the developer; everything else only counts on the badge.
+// He comes for a dependency alert and for an agent blocked on the developer; everything else only counts on the badge,
+// but the plan usage, which has no card to count (#2213).
 export const DefaultComing: Record<BrokkSettingId, Coming> = {
     security: "vient",
     blocked: "vient",
@@ -87,7 +88,7 @@ export const DefaultComing: Record<BrokkSettingId, Coming> = {
     finished: "badge",
     download: "badge",
     update: "badge",
-    usage: "badge",
+    usage: "rien",
 };
 
 export const ComingValues: Coming[] = ["vient", "badge", "rien"];
@@ -159,18 +160,32 @@ export function visitSettingsOf(read: (key: string) => unknown): VisitSettings {
 // notifications, so it counts on the badge and nothing more, whatever an older setting says.
 const NeverComes: BrokkSettingId[] = ["finished"];
 
-// The choices a row of the table offers: every event but the ones that never bring him can be set to Vient.
+// The events no panel of his group lists as a card (#2213): the plan usage shows in the usage grid of his own block. The
+// badge counts what the panels list, so they are never on it: he comes for them, or nothing.
+const NoCard: BrokkSettingId[] = ["usage"];
+
+// The choices a row of the table offers: every event but the ones that never bring him can be set to Vient, and every
+// event but the ones without a card can be set to Badge.
 export function comingChoices(id: BrokkSettingId): Coming[] {
-    return NeverComes.includes(id) ? ComingValues.filter((choice) => choice !== "vient") : ComingValues;
+    return ComingValues.filter(
+        (choice) => !(choice === "vient" && NeverComes.includes(id)) && !(choice === "badge" && NoCard.includes(id))
+    );
 }
 
+// A value the row does not offer (an older setting) reads as the row's default.
 export function comingOf(kind: BrokkEventKind, settings: VisitSettings): Coming {
     const id = SettingOf[kind];
     if (id == null) {
         return "rien";
     }
     const value = settings.coming[id];
-    return comingChoices(id).includes(value) ? value : "badge";
+    return comingChoices(id).includes(value) ? value : DefaultComing[id];
+}
+
+// What the badge may count (#2213): an event not set to Rien that a panel lists as a card.
+export function countsOnBadge(kind: BrokkEventKind, settings: VisitSettings): boolean {
+    const id = SettingOf[kind];
+    return id != null && !NoCard.includes(id) && comingOf(kind, settings) !== "rien";
 }
 
 export function blockedThresholdMs(settings: VisitSettings): number {

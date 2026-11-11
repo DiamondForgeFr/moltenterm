@@ -67,9 +67,19 @@ describe('the table of Preferences, "Quand Brokk vient me chercher" (FR-BOSS-009
         const html = render();
         const rows = [...html.matchAll(/data-testid="brokk-coming-row" data-setting="([^"]+)"/g)].map((m) => m[1]);
         expect(rows).toEqual(SettingIds.map((id) => VisitSettingKeys.coming[id]));
-        for (const key of rows.filter((key) => key !== VisitSettingKeys.coming.finished)) {
+        const narrowed = [VisitSettingKeys.coming.finished, VisitSettingKeys.coming.usage];
+        for (const key of rows.filter((key) => !narrowed.includes(key))) {
             expect(choicesOf(html, key)).toEqual(["vient", "badge", "rien"]);
         }
+    });
+
+    // #2213: the plan usage has no card in his panels, so no badge can count it; it shows in his own block.
+    it("offers the plan usage Vient and Rien only, and reads an older Badge as Rien", () => {
+        const key = VisitSettingKeys.coming.usage;
+        expect(choicesOf(render(), key)).toEqual(["vient", "rien"]);
+        expect(checked(render(), key)).toEqual(["rien"]);
+        expect(checked(render({ [key]: "badge" }), key)).toEqual(["rien"]);
+        expect(checked(render({ [key]: "vient" }), key)).toEqual(["vient"]);
     });
 
     // #2203, AC79: an agent that finished has its Done card in the notifications already, so it never brings him.

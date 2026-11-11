@@ -70,7 +70,7 @@ const UpdateReviewGesture = "update:review";
 // "Try again" on a rolled-back build (#1193): a rollback can be wrong, so the build it skipped can be offered again.
 const UpdateRetryGesture = "update:retry";
 
-function updateAvailableKey(buildId: number): string {
+export function updateAvailableKey(buildId: number): string {
     return `update:available:${buildId}`;
 }
 

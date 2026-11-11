@@ -14,8 +14,9 @@
     }
 }
 
-/* A notification's toast that times out shrinks into the bell (#1403): its top-left corner travels to the bell's
-   centre (--mt-toast-to-x, --mt-toast-to-y, measured when it leaves). Instant under reduced motion. */
+/* A notification's toast that times out shrinks into the bell (#1403): its top-left corner travels to just under the
+   centre of Brokk's face, which stands where the bell was, so that it never passes over his face (#2213; toastFlightTarget,
+   --mt-toast-to-x, --mt-toast-to-y, measured when it leaves). Instant under reduced motion. */
 .molten-toast.molten-toast-to-bell {
     transform-origin: 0 0;
     animation: molten-toast-to-bell var(--mt-duration-slow) var(--mt-ease) forwards;

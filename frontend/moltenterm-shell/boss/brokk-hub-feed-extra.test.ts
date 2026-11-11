@@ -85,16 +85,20 @@ describe("the downloads, the update notice and the plan usage reach Brokk (FR-BO
         expect(comes.hub.getView().visit?.severity).toBe("neutre");
     });
 
-    it("counts a plan usage that crosses 90 %, and brings him when it is set to Vient", () => {
+    it("brings him for a plan usage that crosses 90 % when it is set to Vient, and never counts it (#2213)", () => {
         const hot: UsageReadings = {
             claude: { agent: "claude", source: "t", readat: T, windows: [{ id: "w", label: "w", usedpercent: 93 }] },
         };
-        const badge = window_();
+        const badge = window_({
+            ...DefaultVisitSettings,
+            coming: { ...DefaultVisitSettings.coming, usage: "badge" },
+        });
         badge.store.set(badge.sources.usage, hot);
-        expect(badge.hub.getView().badge).toBe(1);
+        expect(badge.hub.getView().badge).toBe(0);
         const comes = window_(vient("usage"));
         comes.store.set(comes.sources.usage, hot);
         expect(comes.hub.getView().visit).not.toBeNull();
+        expect(comes.hub.getView().badge).toBe(0);
     });
 
     it("counts nothing for an event set to Rien", () => {

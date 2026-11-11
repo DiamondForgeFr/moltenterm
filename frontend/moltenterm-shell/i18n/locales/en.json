@@ -644,7 +644,7 @@
             },
             "boss:visitusage": {
                 "label": "Plan usage above 90 %",
-                "description": "The plan usage of an agent crosses 90 %.",
+                "description": "The plan usage of an agent crosses 90 %. It shows in his own block and never counts on the badge.",
                 "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
             },
             "boss:blockedmin": {

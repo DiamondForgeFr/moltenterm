@@ -10,6 +10,7 @@
 
 import { gaugeRows } from "../companion/companion-gauges-model";
 import { DownloadRecord } from "../downloads/downloads-model";
+import { checkUnread, MoltentermNotification } from "../notifications-model";
 import type { UsageReadings } from "./boss-usage";
 import type { BrokkEvent } from "./brokk-visit-events";
 
@@ -81,7 +82,17 @@ export function acknowledgeDownloads(memory: DownloadsMemory, items: DownloadRec
 
 // ---- the update notice ------------------------------------------------------------------------------------------------
 
-// `offer` names the update on offer ("" for none): a gold's build, a release's version. `seen` is the one the developer
+// The update's card in the Notifications panel (#2213): the badge counts the offer only while that card is listed and
+// unread, whatever the view, so that the badge never leads to a panel without it. `cardKey` is the key of the offer's
+// notification; "" when no card stands for it.
+export function listedUpdateCard(cardKey: string, entries: MoltentermNotification[]): string {
+    if (!cardKey) {
+        return "";
+    }
+    return (entries ?? []).some((entry) => entry.key === cardKey && checkUnread(entry)) ? cardKey : "";
+}
+
+// `offer` names the update on offer ("" for none): its card's key (listedUpdateCard). `seen` is the one the developer
 // has been shown by opening Brokk; a newer offer is news again.
 export function updateEventsOf(offer: string, seen: string): BrokkEvent[] {
     if (offer === "" || offer === seen) {
