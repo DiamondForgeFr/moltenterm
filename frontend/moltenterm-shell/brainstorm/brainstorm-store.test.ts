@@ -316,9 +316,19 @@ describe("the brainstorm mode in a view (FR-BOSS-010, #2246)", () => {
     it("drops a state older than the one it has", async () => {
         const model = startModel();
         await settle();
-        model.apply({ allowed: true, open: true, version: 9 });
-        model.apply({ allowed: true, open: false, version: 4 });
+        model.apply({ allowed: true, open: true, session: "s1", version: 9 });
+        model.apply({ allowed: true, open: false, session: "s1", version: 4 });
         expect(model.isOpen()).toBe(true);
         expect(calls.filter((c) => c.command === StateCommand)).toHaveLength(1);
+    });
+
+    it("takes the states of a restarted wavesrv, which counts from 0 again", async () => {
+        const model = startModel();
+        await settle();
+        model.apply({ allowed: true, open: true, session: "s1", version: 9 });
+        model.apply({ allowed: true, open: false, session: "s2", version: 1 });
+        expect(model.isOpen()).toBe(false);
+        model.apply({ allowed: true, open: true, session: "s2", version: 0 });
+        expect(model.isOpen()).toBe(false);
     });
 });

@@ -38,6 +38,8 @@ export type BrainstormState = {
     allowed: boolean;
     open: boolean;
     by?: "you" | "brokk";
+    // The wavesrv that counted version: each one counts from 0.
+    session?: string;
     version: number;
     brainstorm?: BrainstormSummary;
     graph?: BrainstormGraph;

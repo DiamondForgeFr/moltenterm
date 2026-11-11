@@ -5,7 +5,7 @@ import { MoltentermWaveBaseVersion } from "@/util/moltenterm-identity";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveBuildChannel } from "./build-channel";
+import { gateChannel, resolveBuildChannel } from "./build-channel";
 import type { MoltentermBuildInfo } from "./build-info";
 import { brainstormAllowed, brainstormReplayAllowed, BuildChannel, makeBuildIdentity } from "./build-identity";
 
@@ -22,12 +22,44 @@ describe("the brainstorm gate", () => {
         expect(brainstormReplayAllowed(channel)).toBe(replay);
     });
 
-    it("reads the channel the way Electron main gives it to wavesrv", () => {
+    it("names a build after the launcher's channel, as its badge and its updates did", () => {
         expect(resolveBuildChannel({ isDev: true, runtimeChannel: "public", buildChannel: "public" })).toBe("dev");
         expect(resolveBuildChannel({ isDev: false, runtimeChannel: "gold", buildChannel: "public" })).toBe("gold");
         expect(resolveBuildChannel({ isDev: false, buildChannel: "rc" })).toBe("rc");
         expect(resolveBuildChannel({ isDev: false, buildChannel: "nightly" })).toBe("local");
         expect(resolveBuildChannel({ isDev: false })).toBe("local");
+    });
+
+    // The gate never widens: a release launched as a gold stays shut, and an unknown name opens nothing. Must match
+    // pkg/molten/buildchannel TestGateChannelNeverWidensARelease.
+    it.each<[boolean, string, string, string, boolean]>([
+        [false, "public", "gold", "public", false],
+        [false, "rc", "dev", "rc", false],
+        [false, "public", "anything", "public", false],
+        [false, "nightly", "", "unknown", false],
+        [false, "gold", "anything", "unknown", false],
+        [false, "gold", "", "gold", true],
+        [false, "local", "", "local", true],
+        [false, "", "", "local", true],
+        [false, "local", "gold", "gold", true],
+        [false, "local", "dev", "dev", true],
+        [false, "gold", "dev", "gold", true],
+        [false, "gold", "local", "gold", true],
+        [false, "gold", "public", "public", false],
+        [false, "gold", "rc", "rc", false],
+        [true, "public", "", "dev", true],
+    ])("gates dev=%s baked %s launcher %s as %s (allowed %s)", (isDev, buildChannel, runtimeChannel, want, allowed) => {
+        const gate = gateChannel({ isDev, buildChannel, runtimeChannel });
+        expect(gate).toBe(want);
+        expect(brainstormAllowed(gate)).toBe(allowed);
+    });
+
+    it("never opens the replay of a gold, whatever the launcher says", () => {
+        for (const runtimeChannel of ["", "gold", "dev", "local", "rc", "public", "anything"]) {
+            expect(brainstormReplayAllowed(gateChannel({ isDev: false, buildChannel: "gold", runtimeChannel }))).toBe(
+                false
+            );
+        }
     });
 });
 

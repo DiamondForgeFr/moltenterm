@@ -4,11 +4,14 @@
 package brainstorm
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func makeTestStore(t *testing.T) (*Store, string) {
@@ -135,8 +138,8 @@ func TestARenameReplacesTheFileWhole(t *testing.T) {
 func TestCurrentIsRememberedAcrossARestart(t *testing.T) {
 	t.Parallel()
 	store, _ := makeTestStore(t)
-	if _, ok := store.Current(); ok {
-		t.Fatal("a brainstorm is current before any")
+	if _, ok, err := store.Current(); ok || err != nil {
+		t.Fatalf("a brainstorm is current before any: %v", err)
 	}
 	saved, err := store.Create("Forge notes", 1)
 	if err != nil {
@@ -150,15 +153,112 @@ func TestCurrentIsRememberedAcrossARestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	restarted := MakeStore(store.root, store.stateDir)
-	back, ok := restarted.Current()
-	if !ok || !reflect.DeepEqual(back.Graph, saved.Graph) {
-		t.Fatalf("after a restart: %v %+v", ok, back.Graph)
+	back, ok, err := restarted.Current()
+	if !ok || err != nil || !reflect.DeepEqual(back.Graph, saved.Graph) {
+		t.Fatalf("after a restart: %v %v %+v", ok, err, back.Graph)
 	}
 	if err := os.RemoveAll(saved.Dir); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := restarted.Current(); ok {
-		t.Error("a deleted folder is still current")
+	if _, ok, err := restarted.Current(); ok || err != nil {
+		t.Errorf("a deleted folder is still current: %v", err)
+	}
+}
+
+// The folder is the developer's: a graph.json changed by hand or by another program is read back only when it obeys
+// the rules a block does, and the reason it does not never quotes its text.
+func TestALoadedGraphObeysTheBlockRules(t *testing.T) {
+	t.Parallel()
+	store, _ := makeTestStore(t)
+	saved, err := store.Create("Forge notes", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved.Graph = sampleGraph(t)
+	if err := store.Save(saved); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Load(saved.Dir); err != nil {
+		t.Fatalf("the saved graph does not load: %v", err)
+	}
+	centre := saved.Graph.Centre
+	child := saved.Graph.Nodes[1].Id
+	secret := "secret plan " + strings.Repeat("s", MaxText)
+	cases := map[string]func(g *Graph){
+		"an invalid id":            func(g *Graph) { g.Nodes[1].Id = "Bad Id" },
+		"an id twice":              func(g *Graph) { g.Nodes[1].Id = centre },
+		"an unknown kind":          func(g *Graph) { g.Nodes[1].Kind = "rumour" },
+		"a second topic":           func(g *Graph) { g.Nodes[1].Kind = KindTopic },
+		"a centre of another kind": func(g *Graph) { g.Nodes[0].Kind = KindIdea },
+		"a centre with a parent":   func(g *Graph) { g.Nodes[0].From = child },
+		"no centre":                func(g *Graph) { g.Centre = "" },
+		"a centre that is no node": func(g *Graph) { g.Centre = "nowhere" },
+		"an unknown parent":        func(g *Graph) { g.Nodes[1].From = "nowhere" },
+		"a parent after its child": func(g *Graph) { g.Nodes[0], g.Nodes[1] = g.Nodes[1], g.Nodes[0] },
+		"a text too long":          func(g *Graph) { g.Nodes[1].Text = secret },
+		"an empty text":            func(g *Graph) { g.Nodes[1].Text = " \t " },
+		"an invalid status":        func(g *Graph) { g.Nodes[1].Status = "<b>secret</b>" },
+		"a link to nothing":        func(g *Graph) { g.Links = append(g.Links, Link{A: centre, B: "nowhere"}) },
+		"a node linked to itself":  func(g *Graph) { g.Links = append(g.Links, Link{A: child, B: child}) },
+		"a reason too long":        func(g *Graph) { g.Links = append(g.Links, Link{A: centre, B: child, Why: secret}) },
+		"another schema":           func(g *Graph) { g.Schema = 2 },
+		"too many nodes": func(g *Graph) {
+			for i := len(g.Nodes); i <= MaxNodes; i++ {
+				g.Nodes = append(g.Nodes, Node{Id: fmt.Sprintf("n%d", i), Kind: KindIdea, Text: "x", From: centre, Status: StatusOpen})
+			}
+		},
+		"too many links": func(g *Graph) {
+			for i := len(g.Links); i <= MaxLinks; i++ {
+				g.Links = append(g.Links, Link{A: centre, B: child})
+			}
+		},
+	}
+	for name, change := range cases {
+		g := sampleGraph(t)
+		g.Nodes = append([]Node{}, g.Nodes...)
+		g.Links = append([]Link{}, g.Links...)
+		change(&g)
+		data, err := json.Marshal(g)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(saved.Dir, GraphFile), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, err = store.Load(saved.Dir)
+		if err == nil {
+			t.Errorf("%s: loaded", name)
+			continue
+		}
+		if strings.Contains(err.Error(), "secret") {
+			t.Errorf("%s: the reason quotes the file: %v", name, err)
+		}
+	}
+}
+
+// The title of a brainstorm.json changed by hand is read back as one plain line, cut where a node's text would be.
+func TestALoadedTitleIsOnePlainLine(t *testing.T) {
+	t.Parallel()
+	store, _ := makeTestStore(t)
+	saved, err := store.Create("Forge notes", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved.Graph = sampleGraph(t)
+	saved.Info.Title = "line one\n\x1b[31mline two " + strings.Repeat("é", MaxText)
+	saved.Info.Slug = "../elsewhere"
+	if err := store.Save(saved); err != nil {
+		t.Fatal(err)
+	}
+	back, err := store.Load(saved.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.ContainsAny(back.Info.Title, "\n\x1b") || utf8.RuneCountInString(back.Info.Title) != MaxText {
+		t.Errorf("the title read back is %q", back.Info.Title)
+	}
+	if back.Info.Slug != "forge-notes" {
+		t.Errorf("the slug read back is %q, want the folder's name", back.Info.Slug)
 	}
 }
 

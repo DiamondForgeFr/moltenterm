@@ -331,7 +331,14 @@ export class BrainstormScene {
         });
         this.renderer.setClearColor(0x000000, 0);
         this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
-        this.build();
+        try {
+            this.build();
+        } catch (e) {
+            // The stage never gets a scene that failed half-built, so it could not free its graphics context: free it
+            // here, with what was built.
+            this.dispose();
+            throw e;
+        }
     }
 
     private build(): void {
@@ -985,7 +992,7 @@ export class BrainstormScene {
             entry.el.remove();
         }
         this.plates.clear();
-        this.coreTitle.remove();
+        this.coreTitle?.remove();
         this.renderer.dispose();
         // The graphics context goes with the stage (FR-BOSS-010 AC19, NFR-BOSS-009): none while the mode is closed.
         this.renderer.forceContextLoss();

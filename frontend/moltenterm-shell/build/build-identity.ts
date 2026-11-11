@@ -7,7 +7,7 @@
 
 import { MoltentermWaveBaseVersion } from "@/util/moltenterm-identity";
 import { t } from "../i18n/i18n";
-import { resolveBuildChannel } from "./build-channel";
+import { GateChannel, resolveBuildChannel } from "./build-channel";
 import type { MoltentermBuildInfo } from "./build-info";
 
 export type BuildChannel = "dev" | "local" | "gold" | "rc" | "public";
@@ -47,13 +47,14 @@ export function isReleaseChannel(channel: BuildChannel): boolean {
 }
 
 // Brokk's thought in 3D (FR-BOSS-010 AC1, #2246) exists on gold, dev and local builds only, never on a release candidate
-// or a public release. wavesrv holds the second lock (pkg/molten/buildchannel/buildchannel.go BrainstormAllowed).
-export function brainstormAllowed(channel: BuildChannel): boolean {
+// or a public release, nor on a channel that is not known. `channel` is the gate channel (build-channel.ts gateChannel).
+// wavesrv holds the second lock (pkg/molten/buildchannel/buildchannel.go BrainstormAllowed).
+export function brainstormAllowed(channel: GateChannel): boolean {
     return channel === "gold" || channel === "dev" || channel === "local";
 }
 
 // Its scripted replay, the instance checks' synthetic brainstorm, exists on dev and local builds only: not even a gold.
-export function brainstormReplayAllowed(channel: BuildChannel): boolean {
+export function brainstormReplayAllowed(channel: GateChannel): boolean {
     return channel === "dev" || channel === "local";
 }
 

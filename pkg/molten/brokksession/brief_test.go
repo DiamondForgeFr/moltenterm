@@ -70,20 +70,15 @@ func TestTheBrainstormSectionFollowsTheGate(t *testing.T) {
 	}
 }
 
-func TestWriteBriefOnAReleaseHasNoBrainstormSection(t *testing.T) {
-	t.Setenv(buildchannel.Env, buildchannel.Public)
-	dir := t.TempDir()
-	if err := WriteBrief(dir); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(readFile(t, filepath.Join(dir, "AGENTS.md")), "brokk-graph") {
+// The brief follows the gate: a public build launched as a gold still gets the release's brief.
+func TestTheBriefOfAReleaseHasNoBrainstormSection(t *testing.T) {
+	t.Parallel()
+	release := BriefText(buildchannel.BrainstormAllowed(buildchannel.GateChannel(false, buildchannel.Public, buildchannel.Gold)))
+	if strings.Contains(release, "brokk-graph") {
 		t.Error("a public release's brief teaches the graph block")
 	}
-	t.Setenv(buildchannel.Env, buildchannel.Gold)
-	if err := WriteBrief(dir); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(readFile(t, filepath.Join(dir, "AGENTS.md")), "brokk-graph") {
+	gold := BriefText(buildchannel.BrainstormAllowed(buildchannel.GateChannel(false, buildchannel.Gold, "")))
+	if !strings.Contains(gold, "brokk-graph") {
 		t.Error("a gold's brief does not teach the graph block")
 	}
 }

@@ -249,8 +249,15 @@ func (s *Store) Save(saved Saved) error {
 	return writeAtomic(filepath.Join(saved.Dir, InfoFile), append(info, '\n'))
 }
 
-// Load reads a brainstorm's folder back. A graph that does not read is an error: the folder is the developer's, and
-// nothing is guessed in its place.
+func cutText(text string, max int) string {
+	if runes := []rune(text); len(runes) > max {
+		return string(runes[:max])
+	}
+	return text
+}
+
+// Load reads a brainstorm's folder back. A graph that does not read, or breaks the rules a block obeys, is an error:
+// the folder is the developer's, and nothing is guessed in its place.
 func (s *Store) Load(dir string) (Saved, error) {
 	var saved Saved
 	saved.Dir = dir
@@ -261,18 +268,21 @@ func (s *Store) Load(dir string) (Saved, error) {
 	if err := json.Unmarshal(data, &saved.Info); err != nil {
 		return Saved{}, fmt.Errorf("%s: %w", InfoFile, err)
 	}
+	saved.Info.Title = cutText(CleanText(saved.Info.Title), MaxText)
+	saved.Info.Slug = Slug(filepath.Base(dir))
+	if saved.Info.Siblings == nil {
+		saved.Info.Siblings = []string{}
+	}
 	data, err = os.ReadFile(filepath.Join(dir, GraphFile))
 	if err != nil {
 		return Saved{}, err
 	}
-	if err := json.Unmarshal(data, &saved.Graph); err != nil {
+	var graph Graph
+	if err := json.Unmarshal(data, &graph); err != nil {
 		return Saved{}, fmt.Errorf("%s: %w", GraphFile, err)
 	}
-	if saved.Graph.Nodes == nil {
-		saved.Graph.Nodes = []Node{}
-	}
-	if saved.Graph.Links == nil {
-		saved.Graph.Links = []Link{}
+	if saved.Graph, err = ValidateGraph(graph); err != nil {
+		return Saved{}, fmt.Errorf("%s: %w", GraphFile, err)
 	}
 	saved.Turns = []Turn{}
 	file, err := os.Open(filepath.Join(dir, ConversationFile))
@@ -310,19 +320,23 @@ func (s *Store) Remember(dir string) error {
 	return writeAtomic(filepath.Join(s.stateDir, currentFile), data)
 }
 
-// Current loads the brainstorm open last, if its folder is still there.
-func (s *Store) Current() (Saved, bool) {
+// Current loads the brainstorm open last. ok is false when none was or its folder is gone; err says why a folder still
+// there does not load, and the developer's next start opens a new brainstorm instead.
+func (s *Store) Current() (saved Saved, ok bool, err error) {
 	data, err := os.ReadFile(filepath.Join(s.stateDir, currentFile))
 	if err != nil {
-		return Saved{}, false
+		return Saved{}, false, nil
 	}
 	var cur current
 	if json.Unmarshal(data, &cur) != nil || cur.Dir == "" {
-		return Saved{}, false
+		return Saved{}, false, nil
 	}
-	saved, err := s.Load(cur.Dir)
+	saved, err = s.Load(cur.Dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return Saved{}, false, nil
+	}
 	if err != nil {
-		return Saved{}, false
+		return Saved{}, false, err
 	}
-	return saved, true
+	return saved, true, nil
 }
