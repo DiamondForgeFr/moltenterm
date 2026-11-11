@@ -19,14 +19,14 @@ import { MoltentermNotifications } from "../notifications-store";
 import { sidebarDragAtom } from "../sidebar/sidebar-drag";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { TopFieldModel } from "../sidebar/top-field-store";
-import { ReleaseUpdateModel } from "../update/release-update-store";
-import { GoldUpdateModel } from "../update/update-store";
+import { releaseAvailableKey, ReleaseUpdateModel } from "../update/release-update-store";
+import { GoldUpdateModel, updateAvailableKey } from "../update/update-store";
 import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleModel } from "./boss-store";
 import { UsageReadingsAtom } from "./boss-usage";
 import { FaceHoverIntent } from "./brokk-avatar-model";
 import { SidebarPlace, sidebarPlaceOf } from "./brokk-edge-model";
-import { closedDownloadIds } from "./brokk-extra-feeds";
+import { closedDownloadIds, listedUpdateCard } from "./brokk-extra-feeds";
 import { BrokkHub } from "./brokk-hub";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
 import { openDoneBlocks } from "./brokk-notes-model";
@@ -59,7 +59,8 @@ export class BrokkHubModel {
     sidebarPlaceAtom: Atom<SidebarPlace>;
     sidebarOnScreenAtom: Atom<boolean>;
     sidebarEdgeAtom: Atom<boolean>;
-    // The update on offer, a gold's build or a release's version; "" for none (FR-BOSS-009, AC11).
+    // The update on offer, as the key of its card while the Notifications panel lists it unread; "" for none (FR-BOSS-009,
+    // AC11, #2213).
     updateOfferAtom: Atom<string>;
     // The downloads whose notification the developer settled or cleared (FR-BOSS-009, AC16), the same set while it holds.
     closedDownloadsAtom: Atom<ReadonlySet<string>>;
@@ -77,11 +78,14 @@ export class BrokkHubModel {
         const release = ReleaseUpdateModel.getInstance();
         this.updateOfferAtom = atom((get) => {
             const goldOffer = get(gold.offerAtom);
-            if (goldOffer != null) {
-                return `gold:${goldOffer.buildId}`;
-            }
             const releaseOffer = get(release.offerAtom);
-            return releaseOffer != null ? `release:${releaseOffer.version}` : "";
+            const cardKey =
+                goldOffer != null
+                    ? updateAvailableKey(goldOffer.buildId)
+                    : releaseOffer != null
+                      ? releaseAvailableKey(releaseOffer.tag)
+                      : "";
+            return listedUpdateCard(cardKey, get(MoltentermNotifications.getInstance().shownEntriesAtom));
         });
         let closedDownloads: ReadonlySet<string> = new Set();
         this.closedDownloadsAtom = atom((get) => {

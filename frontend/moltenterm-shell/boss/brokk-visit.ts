@@ -23,6 +23,7 @@ import { severest, Severity, SeverityExpression, SeverityRank } from "./brokk-qu
 import {
     BrokkEvent,
     comingOf,
+    countsOnBadge,
     DefaultVisitSettings,
     eventMoments,
     isRaised,
@@ -238,11 +239,11 @@ export function visitOf(events: StoredEvent[], settings: VisitSettings, now: num
     };
 }
 
-// What the badge counts: every event not set to Rien, told or not. Its keys are how the collapsed sidebar tells a new
-// notification from one it already told (brokk-edge-model.ts).
+// What the badge counts: every event not set to Rien that a panel lists as a card (#2213), told or not. Its keys are how
+// the collapsed sidebar tells a new notification from one it already told (brokk-edge-model.ts).
 export function badgeKeys(visits: VisitState, settings: VisitSettings): string[] {
     return Object.values(visits.events)
-        .filter(({ event }) => comingOf(event.kind, settings) !== "rien")
+        .filter(({ event }) => countsOnBadge(event.kind, settings))
         .map(({ event }) => event.key)
         .sort();
 }

@@ -14,7 +14,17 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { labelled, useT } from "./i18n/i18n";
 import { InlineCodeText, plainInlineText } from "./inline-code";
 import { DominoLoader } from "./suite/suite";
-import { bellOrder, Toast, ToastDismissMs, ToastStackPlace, toastStackPlace, ToastText, toneOf } from "./toast-model";
+import {
+    bellOrder,
+    Toast,
+    ToastDismissMs,
+    ToastFlight,
+    toastFlightTarget,
+    ToastStackPlace,
+    toastStackPlace,
+    ToastText,
+    toneOf,
+} from "./toast-model";
 import { Toasts } from "./toast-store";
 import "./toast.css";
 
@@ -27,7 +37,7 @@ const OtherActionClass = cn(ActionClass, "molten-btn-ghost text-secondary hover:
 const FlightFallbackMs = 600;
 const DefaultFrameGapPx = 8;
 
-type Flight = { x: number; y: number };
+type Flight = ToastFlight;
 
 function ToastItem({ toast, bellRef }: { toast: Toast; bellRef?: React.RefObject<HTMLElement> }) {
     const t = useT();
@@ -50,7 +60,7 @@ function ToastItem({ toast, bellRef }: { toast: Toast; bellRef?: React.RefObject
             model.dismiss(toast.id, "timeout", toast);
             return;
         }
-        setFlight({ x: bell.left + bell.width / 2 - own.left, y: bell.top + bell.height / 2 - own.top });
+        setFlight(toastFlightTarget(bell, own));
     };
 
     // The countdown restarts where it stopped: a toast pointed at for a while still gets the rest of its time.

@@ -834,7 +834,7 @@
             },
             "boss:visitusage": {
                 "label": "Usage du forfait au-delà de 90 %",
-                "description": "L'usage du forfait d'un agent dépasse 90 %.",
+                "description": "L'usage du forfait d'un agent dépasse 90 %. Il s'affiche dans son propre bloc et ne compte jamais sur le badge.",
                 "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
             },
             "boss:blockedmin": {

@@ -140,7 +140,7 @@ func TestBrokkVisitKeysAreShown(t *testing.T) {
 		"boss:visitfinished": "badge",
 		"boss:visitdownload": "badge",
 		"boss:visitupdate":   "badge",
-		"boss:visitusage":    "badge",
+		"boss:visitusage":    "rien",
 		"boss:blockedmin":    5,
 		"boss:quiet":         true,
 		"boss:quietfrom":     "22:00",

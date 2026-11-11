@@ -128,6 +128,18 @@ export function toastStackPlace(frame: ToastStackFrame): ToastStackPlace {
     return { top, left, width: Math.max(ToastMinWidthPx, Math.min(ToastWidthPx, frame.windowWidth - left - right)) };
 }
 
+export type ToastFlight = { x: number; y: number };
+
+// Where a notification's toast that times out flies (#1403), as a shift of its top-left corner: under Brokk's face, which
+// stands where the bell was, never onto it (#2213). The toast shrinks from that corner and spreads right and down of it,
+// so a corner that never rises above the face's bottom edge keeps the whole flight clear of his face.
+export function toastFlightTarget(
+    face: { left: number; width: number; bottom: number },
+    own: { left: number; top: number }
+): ToastFlight {
+    return { x: face.left + face.width / 2 - own.left, y: face.bottom + ToastBellGapPx - own.top };
+}
+
 // The stack shows the newest toast first, nearest the bell.
 export function bellOrder(stack: Toast[]): Toast[] {
     return [...stack].reverse();

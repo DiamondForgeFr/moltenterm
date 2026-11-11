@@ -359,7 +359,8 @@ describe("every unfold names its reason (AC79)", () => {
             expect(visit, "he unfolds").not.toBeNull();
             expect(visit.count).toBe(1);
             expect(visit.keys).toHaveLength(1);
-            expect(hub.getView().badge).toBeGreaterThanOrEqual(visit.count);
+            // The plan usage has no card to count (#2213): its place is the usage grid of his own block.
+            expect(hub.getView().badge).toBe(source.panel == null ? 0 : visit.count);
             const words = JSON.stringify(visitLineOf(visit, [BlockedRow(), ErrorRow()], T));
             expect(words).not.toContain("toHandle");
             expect(visitPanelOf(visit)).toBe(source.panel);

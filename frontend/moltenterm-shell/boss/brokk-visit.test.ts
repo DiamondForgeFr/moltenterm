@@ -243,8 +243,11 @@ describe("one visit at a time (FR-BOSS-009, AC5)", () => {
         expect(w.view.badge).toBe(1);
     });
 
-    it("counts the events of every kind but Rien in the badge, whether or not they bring him", () => {
-        const w = drive();
+    it("counts the events of every kind but Rien in the badge, whether or not they bring him, but the cardless usage", () => {
+        const w = drive({
+            ...DefaultVisitSettings,
+            coming: { ...DefaultVisitSettings.coming, usage: "vient" },
+        });
         const kinds: BrokkEventKind[] = [
             "security",
             "blocked",
@@ -258,7 +261,9 @@ describe("one visit at a time (FR-BOSS-009, AC5)", () => {
             "usage",
         ];
         kinds.forEach((kind, i) => w.raise(event(kind, `${kind}:1`), T0 + i));
-        expect(w.view.badge).toBe(10);
+        // The plan usage has no card in any panel (#2213): it may bring him, never count.
+        expect(w.view.badge).toBe(9);
+        expect(w.view.badgeKeys).not.toContain("usage:1");
         w.step(
             {
                 type: "settings",
@@ -266,7 +271,7 @@ describe("one visit at a time (FR-BOSS-009, AC5)", () => {
             },
             T0 + 20
         );
-        expect(w.view.badge).toBe(8);
+        expect(w.view.badge).toBe(7);
         expect(badgeCount(EmptyVisits, DefaultVisitSettings)).toBe(0);
     });
 
@@ -885,7 +890,8 @@ describe("fed by any source (FR-BOSS-009, AC11)", () => {
         w.raise(event("update", "update:1.0.1"), T0 + 2, "updates");
         w.raise(event("usage", "usage:claude"), T0 + 3, "usage");
         w.step({ type: "sync", source: "bell", events: [event("finished", "finished:b1")] }, T0 + 4);
-        expect(w.view.badge).toBe(4);
+        // The usage brings him and has no card to count (#2213).
+        expect(w.view.badge).toBe(3);
         w.gate({ type: "leave" }, T0 + 5);
         w.tick(T0 + 5 + AfterLeaveMs);
         // An agent that finished counts on the badge and never brings him (#2203): the visit holds the other three.

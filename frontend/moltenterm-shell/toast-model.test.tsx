@@ -17,6 +17,7 @@ import {
     pushToast,
     Toast,
     toastActionsOf,
+    toastFlightTarget,
     toastStackPlace,
     toneOf,
 } from "./toast-model";
@@ -81,6 +82,31 @@ describe("toast stack (FR-SHELL-055 AC1)", () => {
             "notif:archived",
             "notif:deleted",
         ]);
+    });
+});
+
+describe("a toast's flight keeps clear of Brokk's face (#2213)", () => {
+    // A face of 26 px at the right end of the sidebar's title row, the toast right of the sidebar under it.
+    const face = { left: 238, width: 26, top: 8, bottom: 34 };
+    const own = { left: 280, top: 40 };
+
+    it("lands under the face's centre, never onto it", () => {
+        const to = toastFlightTarget(face, own);
+        expect(own.left + to.x).toBe(face.left + face.width / 2);
+        expect(own.top + to.y).toBeGreaterThan(face.bottom);
+    });
+
+    it("never takes the toast's top-left corner above the face's bottom edge along the way", () => {
+        const to = toastFlightTarget(face, own);
+        for (let step = 0; step <= 10; step++) {
+            expect(own.top + (to.y * step) / 10).toBeGreaterThan(face.bottom);
+        }
+    });
+
+    it("stays under a face that hangs from the window's top edge, with the stack under it", () => {
+        const hanging = { left: 1200, width: 14, top: 0, bottom: 14 };
+        const to = toastFlightTarget(hanging, { left: 854, top: 20 });
+        expect(20 + to.y).toBeGreaterThan(hanging.bottom);
     });
 });
 

@@ -1812,12 +1812,12 @@
             "badge",
             "rien"
           ],
-          "description": "What a plan usage above 90 % does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset",
+          "description": "What a plan usage above 90 % does: vient, Brokk comes to fetch you; rien, it is ignored. It has no card to count, so badge reads as rien (#2213). Rien when unset",
           "x-moltenterm": {
             "section": "boss",
             "group": "When he comes to fetch me",
             "label": "Plan usage above 90 %",
-            "description": "The plan usage of an agent crosses 90 %.",
+            "description": "The plan usage of an agent crosses 90 %. It shows in his own block and never counts on the badge.",
             "control": "select",
             "options": [
               {
@@ -1833,7 +1833,7 @@
                 "label": "Nothing"
               }
             ],
-            "default": "badge",
+            "default": "rien",
             "order": 81
           }
         },
