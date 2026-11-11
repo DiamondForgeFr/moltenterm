@@ -4,17 +4,18 @@
 // What Brokk shows and when his animated portrait is asked for (FR-BOSS-007, AC3 to AC5 and AC10 to AC16). The scene
 // (brokk-scene.ts) is read from the rows To handle, the agents, his mood and the clock, and the faces draw what they need
 // of it: today the rhythm of their blinks (useBlinkRhythm). The portrait is asked for by each surface that shows his face:
-// the card's header, which plays while the card shows, and the avatar, which plays at rest (use-brokk-hub.ts). Nothing plays under
-// reduced motion (the app's setting or the system's), in a window nobody sees or in a tab view that is not on screen
-// (faceVisibleIn): those surfaces show the still, and mount no video. What is returned for the portrait is what
-// BossPortrait hands to the lazy portrait (brokk-live.tsx), or null for the still alone.
+// the card's header, which plays while the card shows, and the avatar, which plays at rest (use-brokk-hub.ts). Nothing
+// plays in a window nobody sees or in a tab view that is not on screen (faceVisibleIn): those surfaces show the still, and
+// mount no video. Under reduced motion (the app's setting or the system's, read from its atom) the face is still
+// asked for, as a calm loop: no gesture asked, `calm` set (brokk-calm.tsx, #2224). What is returned for the portrait is
+// what BossPortrait hands to the lazy portrait (brokk-live.tsx), or null for the still alone.
 
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { AgentStatesData } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
-import { prefersReducedMotion } from "../molten-motion";
 import { TabActivity } from "../tab-activity";
 import { ActivityState, isShowing } from "../tab-activity-model";
 import { BossBubbleModel } from "./boss-store";
@@ -50,10 +51,18 @@ export function useFaceVisible(): boolean {
     return faceVisibleIn(pageVisible, activity);
 }
 
-// The clips play unless the developer asked for less motion or nobody can see them.
+// Less motion, asked for by the system or by the app's own setting. Read from its atom, so that a change reaches every
+// face at once instead of at their next draw (#2224).
+export function useReducedMotion(): boolean {
+    return useAtomValue(atoms.prefersReducedMotionAtom, { store: globalStore });
+}
+
+// The whole of his motion (gestures, clips between poses) plays unless the developer asked for less or nobody can see him.
+// Under less motion a face that can be seen still plays a calm loop (brokk-calm.tsx).
 export function useMotionAllowed(): boolean {
     const visible = useFaceVisible();
-    return visible && !prefersReducedMotion();
+    const reduced = useReducedMotion();
+    return visible && !reduced;
 }
 
 // `watchAway`: a surface shows his face, so whether the developer is away is read (developer-away.ts).
@@ -188,11 +197,12 @@ export function useBlinkRhythm(situation: BrokkSituation): BlinkRhythm {
 // animated Brokk at a time (FR-BOSS-007, AC8). `talk`: what the field is doing (brokk-talk-model.ts talkPose).
 export function useCardLive(talk?: BrokkSituation["talk"]): BrokkLiveProps {
     const asked = useAtomValue(BrokkExpressionsModel.getInstance().askedAtom, { store: globalStore });
-    const allowed = useMotionAllowed();
-    const situation = useBrokkSituation(true, allowed, talk);
+    const visible = useFaceVisible();
+    const calm = useReducedMotion();
+    const situation = useBrokkSituation(true, visible, talk);
     const rhythm = useBlinkRhythm(situation);
     return useMemo(
-        () => (allowed ? { situation, asked, speaks: speaksOnOpen(situation), rhythm } : null),
-        [allowed, situation, asked, rhythm]
+        () => (visible ? { situation, asked, speaks: speaksOnOpen(situation), rhythm, calm } : null),
+        [visible, calm, situation, asked, rhythm]
     );
 }

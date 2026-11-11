@@ -1,0 +1,27 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* His face under reduced motion (brokk-calm.tsx, FR-BOSS-009, AC1, #2224): the loop of his pose, and a blink clip over it for
+   one round now and then. Both fill the box they are put in as the package's clips do, with no filter and no transition:
+   the blink is shown and hidden at once, since the app's reduced-motion rule leaves nothing to fade with. */
+
+.mt-brokk-calm {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+
+.mt-brokk-calm-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    user-select: none;
+    -webkit-user-select: none;
+    pointer-events: none;
+}
+
+.mt-brokk-calm-blink[data-on="false"] {
+    opacity: 0;
+}

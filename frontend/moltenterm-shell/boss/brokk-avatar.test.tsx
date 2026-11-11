@@ -20,9 +20,17 @@ vi.mock("./boss-portrait", () => ({
     BossPortrait: ({ live }: { live?: unknown }) => <span data-testid="portrait" data-live={live ? "true" : "false"} />,
 }));
 
-const Mocks = vi.hoisted(() => ({ hub: null as any, motion: true, rhythm: "normal", models: null as any }));
+const Mocks = vi.hoisted(() => ({
+    hub: null as any,
+    visible: true,
+    reduced: false,
+    rhythm: "normal",
+    models: null as any,
+}));
 vi.mock("./use-brokk-live", () => ({
-    useMotionAllowed: () => Mocks.motion,
+    useFaceVisible: () => Mocks.visible,
+    useReducedMotion: () => Mocks.reduced,
+    useMotionAllowed: () => Mocks.visible && !Mocks.reduced,
     useBlinkRhythm: () => Mocks.rhythm,
 }));
 vi.mock("./brokk-expressions", async () => {
@@ -164,7 +172,8 @@ function hook<T>(use: () => T): T {
 }
 
 beforeEach(() => {
-    Mocks.motion = true;
+    Mocks.visible = true;
+    Mocks.reduced = false;
     Mocks.rhythm = "normal";
     globalStore.set(expressions.askedAtom, null);
     Mocks.hub = makeHub();
@@ -200,9 +209,11 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
         expect(attr(render(), "brokk-avatar", "aria-label")).toBe("Léa");
     });
 
-    it("carries his portrait, still when motion is reduced and calm and alive otherwise", () => {
+    it("carries his portrait, alive wherever it can be seen, reduced motion included (#2224, AC-1)", () => {
         expect(render()).toContain('data-testid="portrait" data-live="true"');
-        Mocks.motion = false;
+        Mocks.reduced = true;
+        expect(render()).toContain('data-testid="portrait" data-live="true"');
+        Mocks.visible = false;
         expect(render()).toContain('data-testid="portrait" data-live="false"');
     });
 
@@ -364,8 +375,23 @@ describe("the ring (AC2)", () => {
         expect(probe(false)).toMatchObject({ situation: { working: 0, waiting: 0 } });
         expect(probe(true).situation.working).toBe(1);
         expect(probe(false, true)).toBeNull();
-        Mocks.motion = false;
+        Mocks.visible = false;
         expect(probe(false)).toBeNull();
+    });
+
+    it("is a calm face under reduced motion, and a full one otherwise (#2224, AC-1)", () => {
+        const probe = (own: boolean = false) => hook(() => useAvatarLive(own, false)) as any;
+        expect(probe().calm).toBe(false);
+        Mocks.reduced = true;
+        expect(probe()).toMatchObject({ calm: true, poses: AvatarPoses, situation: { working: 0 } });
+        expect(probe(true).situation.working).toBe(1);
+        Mocks.reduced = false;
+        expect(probe().calm).toBe(false);
+    });
+
+    it("mounts no face while the scene stands in his place, reduced motion or not", () => {
+        Mocks.reduced = true;
+        expect(hook(() => useAvatarLive(false, true))).toBeNull();
     });
 
     it("blinks at the rhythm the scene gives, not at one of its own (#2219, AC-1)", () => {
@@ -489,9 +515,9 @@ describe("on the strip of the collapsed sidebar (FR-BOSS-009, AC27, AC28, #2070)
         edge.tell([], false, true);
         edge.tell([], false, true);
         edge.tell(["agent:a"], false, true);
-        Mocks.motion = false;
+        Mocks.reduced = true;
         expect(attr(render("edge"), "brokk-avatar", "data-news")).toBe("true");
-        Mocks.motion = true;
+        Mocks.reduced = false;
         expect(attr(render("edge"), "brokk-avatar", "data-news")).toBeUndefined();
     });
 
@@ -500,7 +526,7 @@ describe("on the strip of the collapsed sidebar (FR-BOSS-009, AC27, AC28, #2070)
         edge.tell([], false, true);
         edge.tell([], false, true);
         edge.tell(["agent:a"], false, true);
-        Mocks.motion = false;
+        Mocks.reduced = true;
         expect(attr(render("row"), "brokk-avatar", "data-news")).toBeUndefined();
         expect(attr(render("hanging"), "brokk-avatar", "data-news")).toBeUndefined();
         edge.tell(["agent:a"], true, true);

@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 
-const Mocks = vi.hoisted(() => ({ hub: null as any, motion: true, visible: true, reduced: false }));
+const Mocks = vi.hoisted(() => ({ hub: null as any, visible: true, reduced: false }));
 vi.mock("./brokk-hub-store", () => ({ BrokkHubModel: { getInstance: () => ({ hub: Mocks.hub }) } }));
 vi.mock("./boss-store", async () => {
     const { atom } = await import("jotai");
@@ -19,10 +19,9 @@ vi.mock("./use-brokk-hub", () => ({
     useHubSelect: (select: (view: unknown) => unknown) => select(Mocks.hub.getView()),
 }));
 vi.mock("./use-brokk-live", () => ({
-    useMotionAllowed: () => Mocks.motion && Mocks.visible,
+    useReducedMotion: () => Mocks.reduced,
     useFaceVisible: () => Mocks.visible,
 }));
-vi.mock("../molten-motion", () => ({ prefersReducedMotion: () => Mocks.reduced }));
 const Package = vi.hoisted(() => ({ props: null as Record<string, any> }));
 vi.mock("@diamondforge/character", () => ({
     TransmissionPortrait: (props: Record<string, any>) => {
@@ -106,7 +105,6 @@ function hubFixture(): { hub: BrokkHub; panels: () => number } {
 }
 
 beforeEach(() => {
-    Mocks.motion = true;
     Mocks.visible = true;
     Mocks.reduced = false;
     Mocks.hub = hubFixture().hub;
@@ -228,19 +226,29 @@ describe("the forge scene (FR-BOSS-009, AC6)", () => {
         expect(sceneLabel(t, "Brokk", "grave")).toContain(t("boss.visit.severity.grave"));
     });
 
-    it("holds one still frame of the clip of the severity under reduced motion, never a loop (#2025)", () => {
-        Mocks.motion = false;
-        expect(attr(render("grave"), "brokk-scene-video", "src")).toContain("listening.frown");
-        expect(attr(render("important"), "brokk-scene-video", "src")).toContain("listening.doubtful");
-        expect(attr(render("neutre"), "brokk-scene-video", "src")).toContain("listening.call");
-        expect(attr(render("bonne"), "brokk-scene-video", "src")).toContain("listening.smile");
-        const html = render("important");
-        expect(html).not.toMatch(/autoPlay=""|autoplay=""/i);
-        expect(html).not.toMatch(/loop=""/);
-        expect(html).toMatch(/muted=""/);
-        Package.props = null;
-        render("important");
-        expect(Package.props).toBeNull();
+    it("plays the calm loop of his listening pose under reduced motion, whatever the severity, with no gesture (#2224, AC-1)", () => {
+        Mocks.reduced = true;
+        for (const severity of Severities) {
+            Package.props = null;
+            const html = render(severity);
+            expect(Package.props, severity).toBeNull();
+            expect(html, severity).toMatch(
+                /data-testid="brokk-calm"[^>]*data-pose="listening"|data-pose="listening"[^>]*data-testid="brokk-calm"/
+            );
+            const loop = /<video[^>]*\sloop=""[^>]*>/.exec(html)?.[0] ?? "";
+            expect(loop, severity).toMatch(/src="[^"]*listening[^"]*\.webm"/);
+            expect(loop, severity).not.toMatch(/listening\.(frown|doubtful|call|smile|nod)/);
+            expect(loop, severity).toMatch(/autoPlay=""|autoplay=""/i);
+            expect(loop, severity).toMatch(/muted=""/);
+            expect(html, severity).not.toMatch(/listening\.(frown|doubtful|call|smile|nod)/);
+        }
+    });
+
+    it("lets a change of the reduced-motion setting reach the scene at once, without a restart (#2224, AC-2)", () => {
+        const source = readFileSync(join(__dirname, "brokk-visit-scene.tsx"), "utf8");
+        expect(source).toContain("useReducedMotion()");
+        expect(source).not.toContain("prefersReducedMotion(");
+        expect(source).not.toContain("molten-motion");
     });
 
     it("mounts no video and no portrait where his face cannot be seen: a tab view behind another, a hidden window (#2154)", () => {
@@ -522,7 +530,7 @@ describe("the forge has no box (AC6)", () => {
 
     it("has no outline, border or shadow on the clip that would draw its box again", () => {
         expect(clip).not.toMatch(/border|outline|box-shadow/);
-        expect(rule(scene, ".mt-brokk-scene-video")).not.toMatch(/border|outline|box-shadow/);
+        expect(rule(css("brokk-calm.css"), ".mt-brokk-calm-video")).not.toMatch(/border|outline|box-shadow/);
     });
 });
 

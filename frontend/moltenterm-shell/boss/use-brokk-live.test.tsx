@@ -9,11 +9,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 
 const Mocks = vi.hoisted(() => ({
-    reduced: false,
+    reducedAtom: null as any,
     noteOpen: vi.fn(),
     models: null as any,
 }));
-vi.mock("../molten-motion", () => ({ prefersReducedMotion: () => Mocks.reduced }));
+vi.mock("@/app/store/global", async () => {
+    const { atom } = await import("jotai");
+    Mocks.reducedAtom = atom(false);
+    return { atoms: { prefersReducedMotionAtom: Mocks.reducedAtom } };
+});
 vi.mock("./developer-away", () => ({ useDeveloperAway: () => false, InputEvents: [] }));
 vi.mock("../agent-state-store", async () => {
     const { atom } = await import("jotai");
@@ -58,6 +62,7 @@ import {
     useCardLive,
     useFaceVisible,
     useMotionAllowed,
+    useReducedMotion,
 } from "./use-brokk-live";
 
 const bubble = BossBubbleModel.getInstance() as any;
@@ -80,6 +85,10 @@ function row(key: string, extra: Partial<ToHandleItem> = {}): ToHandleItem {
     };
 }
 
+function setReduced(value: boolean) {
+    globalStore.set(Mocks.reducedAtom, value);
+}
+
 // Runs a hook in a component and hands back what it returned.
 function hook<T>(use: () => T): T {
     let value: T;
@@ -98,7 +107,7 @@ afterEach(() => {
 beforeEach(() => {
     // Local noon in any time zone: at night the scene speaks of the late hour instead (#2035).
     vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 5, 15, 12) });
-    Mocks.reduced = false;
+    setReduced(false);
     Mocks.noteOpen.mockReset();
     globalStore.set(bubble.workingCountAtom, 0);
     globalStore.set(bubble.badgeAtom, { count: 0, text: "", tone: "waiting" });
@@ -116,9 +125,11 @@ describe("the card's header (FR-BOSS-007, AC8, #1959; FR-BOSS-009)", () => {
         expect(hook(() => useCardLive())).toMatchObject({ rhythm: "normal" });
     });
 
-    it("shows the still whatever happens when motion is reduced", () => {
-        Mocks.reduced = true;
-        expect(hook(() => useCardLive())).toBeNull();
+    it("keeps him animated when motion is reduced, as a calm face (#2224, AC-1)", () => {
+        setReduced(true);
+        expect(hook(() => useCardLive())).toMatchObject({ calm: true });
+        setReduced(false);
+        expect(hook(() => useCardLive())).toMatchObject({ calm: false });
     });
 });
 
@@ -178,6 +189,37 @@ describe("the rhythm of his blinks comes from the scene (FR-BOSS-007, AC17; FR-B
         const body = source.slice(start, source.indexOf("export function useCardLive"));
         expect(body).toContain("useSyncExternalStore");
         expect(body).not.toContain("useAtomValue");
+    });
+});
+
+describe("reduced motion is read from its atom (FR-BOSS-009, AC1, #2224, AC-2)", () => {
+    it("follows the setting: what a face reads is the atom's value at once, and motion is allowed only without it", () => {
+        expect(hook(() => useReducedMotion())).toBe(false);
+        expect(hook(() => useMotionAllowed())).toBe(true);
+        setReduced(true);
+        expect(hook(() => useReducedMotion())).toBe(true);
+        expect(hook(() => useMotionAllowed())).toBe(false);
+        setReduced(false);
+        expect(hook(() => useReducedMotion())).toBe(false);
+        expect(hook(() => useMotionAllowed())).toBe(true);
+    });
+
+    it("keeps his face mounted wherever it can be seen, reduced motion or not", () => {
+        setReduced(true);
+        expect(hook(() => useCardLive())).not.toBeNull();
+        const activity = TabActivity.getInstance();
+        globalStore.set(activity.documentVisibleAtom, false);
+        expect(hook(() => useCardLive())).toBeNull();
+        globalStore.set(activity.documentVisibleAtom, true);
+        TabActivity.resetInstance();
+    });
+
+    it("no face asks the page's media query while it draws: every one reads the atom", () => {
+        for (const file of ["use-brokk-live.ts", "use-brokk-hub.ts", "brokk-visit-scene.tsx"]) {
+            const source = readFileSync(join(__dirname, file), "utf8");
+            expect(source, file).not.toMatch(/prefersReducedMotion\(/);
+            expect(source, file).not.toContain("molten-motion");
+        }
     });
 });
 
@@ -270,7 +312,7 @@ describe("the scene the portrait reads (FR-BOSS-007, AC10, #1959)", () => {
     it("shows the gesture the queue started while its clip lasts, and none with reduced motion", () => {
         globalStore.set(expressions.askedAtom, { expression: "smile", cue: 1, at: Date.now() });
         expect(scene().gesture).toBe("smile");
-        Mocks.reduced = true;
+        setReduced(true);
         expect(scene().gesture).toBeNull();
     });
 });
@@ -298,10 +340,15 @@ describe("the group's square is driven by the same pose and mood models (FR-BOSS
         expect(hook(() => useCardLive()).situation).toMatchObject({ waiting: 2, working: 1, cardOpen: true });
     });
 
-    it("shows the still under reduced motion, whatever happens", () => {
-        Mocks.reduced = true;
-        globalStore.set(expressions.askedAtom, { expression: "smile", cue: 1, at: Date.now() });
-        expect(hook(() => useCardLive("typing"))).toBeNull();
+    it("keeps listening and answering under reduced motion, and tells the face to play none of what is asked (#2224, AC-1)", () => {
+        setReduced(true);
+        const asked = { expression: "smile", cue: 1, at: Date.now() };
+        globalStore.set(expressions.askedAtom, asked);
+        const typing = hook(() => useCardLive("typing"));
+        expect(typing).toMatchObject({ calm: true, situation: { talk: "typing" } });
+        expect(hook(() => useCardLive("answering")).situation.talk).toBe("answering");
+        // The gesture is still handed over, so that a face turned back to full motion does not replay an old one.
+        expect(typing.asked).toBe(asked);
     });
 
     it("speaks on opening when something waits: the face speaks, and no sentence of the notifications is read", () => {

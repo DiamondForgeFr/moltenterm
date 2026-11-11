@@ -6,12 +6,15 @@
 // package and its clips are read by nobody before. The package plays the clips (the loop of the pose, the clips between
 // two poses, the gestures); this component hands it the pose MoltenTerm's signals give (brokk-state-model.ts) and the
 // gesture the app asks. The package is asked for the picture alone (`bare`): the furniture around it is the surface's own.
+// Under reduced motion (`calm`) the package is not drawn: it plays no clip while the system asks for less motion, and
+// all of them otherwise, so the app's own player draws the loop of the pose with slow blinks (brokk-calm.tsx, #2224).
 // Whatever fails to load or to play leaves the still showing.
 
 import { TransmissionPortrait } from "@diamondforge/character";
 import "@diamondforge/character/styles.css";
 import { useEffect, useMemo, useReducer } from "react";
 import type { AskedExpression, BrokkPose, BrokkSituation } from "./brokk-ask-model";
+import { BrokkCalm } from "./brokk-calm";
 import "./brokk-live.css";
 import { startMoments } from "./brokk-moments";
 import { BrokkPortrait, declarationForPoses, rhythmProps } from "./brokk-portrait";
@@ -39,6 +42,9 @@ export type BrokkLiveProps = {
     // The only poses this face can take, when it is not all four: the package is declared with the transitions between
     // them (declarationForPoses). A constant, since a new array declares the portrait anew.
     poses?: readonly BrokkPose[];
+    // Reduced motion (#2224): the loop of the pose with slow blinks, played by the app's own player (brokk-calm.tsx). No
+    // gesture, no clip between two poses.
+    calm?: boolean;
 };
 
 export function BrokkLive({
@@ -51,6 +57,7 @@ export function BrokkLive({
     onOpened,
     rhythm,
     poses,
+    calm,
 }: BrokkLiveProps) {
     const [face, dispatch] = useReducer(faceAfter, { asked, play, speaks }, startFace);
     const reaction = face.reaction;
@@ -103,6 +110,16 @@ export function BrokkLive({
             onOpened?.();
         }
     }, [situation.cardOpen]);
+
+    // Hooks all run above, so that the app's reduced-motion setting can change while this face is mounted.
+    if (calm) {
+        const calmPose = brokkPose(situation, { speaking: false, expression: null });
+        return (
+            <div className="mt-brokk-live" data-pose={calmPose} data-calm="true" data-testid="brokk-live">
+                <BrokkCalm pose={calmPose} />
+            </div>
+        );
+    }
 
     const pose = brokkPose(situation, { speaking: face.speaking, expression: reaction?.expression ?? null });
 

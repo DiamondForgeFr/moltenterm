@@ -15,7 +15,7 @@ import type { HubView } from "./brokk-hub";
 import { AvatarBadge, avatarBadgeOf, unmappedRowKeys } from "./brokk-hub-feed";
 import { BrokkHubModel } from "./brokk-hub-store";
 import type { BrokkLiveProps } from "./brokk-live";
-import { useBlinkRhythm, useMotionAllowed } from "./use-brokk-live";
+import { useBlinkRhythm, useFaceVisible, useReducedMotion } from "./use-brokk-live";
 
 export function useHubSelect<T>(select: (view: HubView) => T): T {
     const hub = BrokkHubModel.getInstance().hub;
@@ -63,16 +63,19 @@ export function useBrokkGateProps() {
 }
 
 // His animated portrait at rest: awake, thinking only while his own session works. He stays animated whenever his face is
-// visible; nothing plays or is mounted under reduced motion, in a window or a tab view nobody sees, and while the scene
-// stands in his place (#2154). He plays the gestures the app asks of him here too, the call included: with his group
-// closed this is the only face that can (#2219). His blinks follow the scene's rhythm.
+// visible; nothing plays or is mounted in a window or a tab view nobody sees, and while the scene stands in his place
+// (#2154). He plays the gestures the app asks of him here too, the call included: with his group closed this is the only
+// face that can (#2219). His blinks follow the scene's rhythm. Under reduced motion the same face is told to be `calm`
+// (#2224): it still gets the gestures asked, so that a face turned back to full motion does not replay an old one, and
+// plays none of them.
 export function useAvatarLive(ownWorking: boolean, replaced: boolean): BrokkLiveProps {
-    const allowed = useMotionAllowed();
+    const visible = useFaceVisible();
+    const calm = useReducedMotion();
     const asked = useAtomValue(BrokkExpressionsModel.getInstance().askedAtom, { store: globalStore });
     const situation = useMemo(() => avatarSituation(ownWorking), [ownWorking]);
     const rhythm = useBlinkRhythm(situation);
     return useMemo(
-        () => (allowed && !replaced ? { situation, asked, rhythm, poses: AvatarPoses } : null),
-        [allowed, replaced, situation, asked, rhythm]
+        () => (visible && !replaced ? { situation, asked, rhythm, poses: AvatarPoses, calm } : null),
+        [visible, replaced, calm, situation, asked, rhythm]
     );
 }

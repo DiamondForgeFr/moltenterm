@@ -20,10 +20,10 @@ import "@diamondforge/character/styles.css";
 import { useAtomValue } from "jotai";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
-import { prefersReducedMotion } from "../molten-motion";
 import { TabActivity, whileShown } from "../tab-activity";
-import "./brokk-visit-scene.css";
+import { BossBubbleModel } from "./boss-store";
 import type { BrokkExpression } from "./brokk-ask-model";
+import { BrokkCalm } from "./brokk-calm";
 import { useCaptionText } from "./brokk-caption";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
@@ -36,11 +36,10 @@ import {
     LaterOption,
     laterOptions,
     sceneActions,
-    sceneClipOf,
     SceneClock,
     sceneEscapes,
-    SceneGestures,
     sceneGestureOf,
+    SceneGestures,
     sceneLabel,
     ScenePhase,
     scenePhase,
@@ -48,21 +47,10 @@ import {
     startSceneGestures,
     unmountAfterMs,
 } from "./brokk-visit-scene-model";
+import "./brokk-visit-scene.css";
 import BrokkStill from "./portrait/brokk/brokk.jpg";
-import { BossBubbleModel } from "./boss-store";
 import { useHubSelect } from "./use-brokk-hub";
-import { useFaceVisible, useMotionAllowed } from "./use-brokk-live";
-
-// The four faces: the clips of his listening pose, by the file name the package ships them under. Read as URLs only.
-const Clips = import.meta.glob("./portrait/brokk/listening.*.webm", {
-    query: "?url",
-    import: "default",
-    eager: true,
-}) as unknown as Record<string, string>;
-
-function clipUrl(name: string): string {
-    return Clips[`./portrait/brokk/${name}.webm`];
-}
+import { useFaceVisible, useReducedMotion } from "./use-brokk-live";
 
 // The scene is mounted from the moment a visit is up until it has folded back, and drawn open one frame after it is
 // mounted, so that the movement has a start to play from.
@@ -138,51 +126,17 @@ export function SceneLive({ expression, clock = BrowserClock }: { expression: Br
     );
 }
 
-// Without motion (the app's setting, the system's, or a window nobody sees) his face is one still frame of the clip of
-// the severity: the package ships no still per expression, so the clip is held at its middle.
-function SceneStill({ clip }: { clip: string }) {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    useEffect(() => {
-        const video = videoRef.current;
-        if (video == null) {
-            return;
-        }
-        video.pause();
-        const hold = () => {
-            if (Number.isFinite(video.duration)) {
-                video.currentTime = video.duration / 2;
-            }
-        };
-        if (video.readyState >= 1) {
-            hold();
-            return;
-        }
-        video.addEventListener("loadedmetadata", hold, { once: true });
-        return () => video.removeEventListener("loadedmetadata", hold);
-    }, [clip]);
-    return (
-        <video
-            key={clip}
-            ref={videoRef}
-            className="mt-brokk-scene-video"
-            src={clipUrl(clip)}
-            poster={BrokkStill}
-            muted
-            playsInline
-            preload="auto"
-            data-testid="brokk-scene-video"
-        />
-    );
-}
-
+// Under reduced motion (the app's setting or the system's, read from its atom) his face is the calm loop of his listening
+// pose with slow blinks, with no gesture of the severity (#2224): the scene's accessible name and, where it shows one,
+// its line carry the severity instead. A window nobody sees mounts nothing.
 function SceneFace({ severity }: { severity: Severity }) {
     const visible = useFaceVisible();
-    const motion = useMotionAllowed();
+    const calm = useReducedMotion();
     if (!visible) {
         return null;
     }
-    if (!motion) {
-        return <SceneStill clip={sceneClipOf(severity)} />;
+    if (calm) {
+        return <BrokkCalm pose={ScenePose} poster={BrokkStill} />;
     }
     return <SceneLive expression={sceneGestureOf(severity)} />;
 }
@@ -347,11 +301,7 @@ export function BrokkVisitSceneView({
                     {t("boss.visit.later.label")}
                 </button>
                 {options != null ? (
-                    <LaterMenu
-                        menuRef={menuRef}
-                        options={options}
-                        onChoose={(id) => leave(() => actions.choose(id))}
-                    />
+                    <LaterMenu menuRef={menuRef} options={options} onChoose={(id) => leave(() => actions.choose(id))} />
                 ) : null}
             </div>
         </div>
@@ -371,7 +321,8 @@ export function BrokkVisitScene({ rowHeight, line = false }: { rowHeight: string
         last.current = visit;
         words.current = line ? text(visitLineOf(visit, list.items, Date.now())) : "";
     }
-    const life = useSceneLife(visit != null, unmountAfterMs(prefersReducedMotion()));
+    const reduced = useReducedMotion();
+    const life = useSceneLife(visit != null, unmountAfterMs(reduced));
     if (!life.mounted || last.current == null) {
         return null;
     }

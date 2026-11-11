@@ -116,3 +116,52 @@ describe("the animated portrait hears the end of a gesture from the package (FR-
         expect(Package.props.expression).toBe(call);
     });
 });
+
+describe("the animated portrait under reduced motion plays a calm loop (FR-BOSS-009, AC1, #2224, AC-1)", () => {
+    const call = { expression: "call" as const, cue: 3, at: 0 };
+
+    beforeEach(() => {
+        Package.props = null;
+    });
+
+    it("leaves the package out: it draws no clip while the system asks for less motion and every gesture otherwise", () => {
+        const html = draw({ ...Live, calm: true });
+        expect(Package.props).toBeNull();
+        expect(html).toContain('data-calm="true"');
+        expect(html).toContain('data-testid="brokk-calm"');
+        Package.props = null;
+        const full = draw({ ...Live, calm: false });
+        expect(Package.props).not.toBeNull();
+        expect(full).not.toContain("brokk-calm");
+    });
+
+    it("plays no gesture and no speech, whatever is asked, played or said", () => {
+        const html = draw({
+            situation: { working: 0, waiting: 2, cardOpen: true },
+            asked: call,
+            play: call,
+            speaks: true,
+            calm: true,
+        });
+        expect(Package.props).toBeNull();
+        expect(html).toMatch(/data-pose="listening"/);
+        expect(html).not.toMatch(/\.(nod|doubtful|frown|smile|call)\.webm/);
+        expect(html).not.toMatch(/speaking/);
+    });
+
+    it("keeps the pose his situation gives: listening, thinking while his session works, speaking while it answers", () => {
+        expect(draw({ ...Live, calm: true })).toMatch(/data-pose="listening"/);
+        expect(draw({ situation: { working: 1, waiting: 0, cardOpen: false }, asked: null, calm: true })).toMatch(
+            /data-pose="thinking"/
+        );
+        expect(
+            draw({ situation: { working: 0, waiting: 0, cardOpen: true, talk: "answering" }, asked: null, calm: true })
+        ).toMatch(/data-pose="speaking"/);
+    });
+
+    it("hooks run before the choice, so that the setting can change while this face is mounted", () => {
+        const source = readFileSync(join(__dirname, "brokk-live.tsx"), "utf8");
+        expect(source.indexOf("if (calm)")).toBeGreaterThan(source.lastIndexOf("useEffect("));
+        expect(source).toContain("calm?: boolean");
+    });
+});
