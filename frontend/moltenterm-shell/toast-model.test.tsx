@@ -4,6 +4,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { groupGeometry, groupPlace, PanelWidthPx } from "./boss/brokk-group-model";
 import { InlineCodeText, splitInlineCode } from "./inline-code";
 import { displayActions, GoToTerminalLabel, MoltentermNotification } from "./notifications-model";
 import {
@@ -14,10 +15,13 @@ import {
     MaxToastAnswers,
     MaxToasts,
     notificationToastId,
+    PlaceRect,
     pushToast,
     Toast,
     toastActionsOf,
     toastFlightTarget,
+    toastStackClear,
+    ToastStackMinHeightPx,
     toastStackPlace,
     toneOf,
 } from "./toast-model";
@@ -82,6 +86,78 @@ describe("toast stack (FR-SHELL-055 AC1)", () => {
             "notif:archived",
             "notif:deleted",
         ]);
+    });
+});
+
+describe("the stack keeps clear of every Brokk surface (#2241)", () => {
+    // A window of 1440 x 900 with the sidebar 260 px wide, his face at the right end of its title row, as drawn.
+    const frame = { windowWidth: 1440, frameGap: 8, bellBottom: 34, bellRight: 252, sidebarRight: 260 };
+    const face: PlaceRect = { left: 226, top: 8, right: 252, bottom: 34 };
+    const g = groupGeometry();
+    const at = groupPlace({ x: 0, y: 0, w: 260, h: 900 }, { width: 1440, height: 900 }, g, 8);
+    const rect = (r: { x: number; y: number; w: number; h: number }): PlaceRect => ({
+        left: at.left + r.x,
+        top: at.top + r.y,
+        right: at.left + r.x + r.w,
+        bottom: at.top + r.y + r.h,
+    });
+    const square = rect({ x: 0, y: 0, w: g.square, h: g.square });
+    const rail = rect(g.rail);
+    const block = rect(g.block);
+    const field = rect(g.field);
+    const panel = rect({ x: g.panelLeft, y: 0, w: PanelWidthPx, h: g.square });
+    const open = [face, square, rail, block, field, panel];
+    const overlap = (a: PlaceRect, b: PlaceRect) =>
+        a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const box = (p: { top: number; left: number; width: number }, h: number): PlaceRect => ({
+        left: p.left,
+        top: p.top,
+        right: p.left + p.width,
+        bottom: p.top + h,
+    });
+
+    it("used to sit on his open group: the place it comes from is over his portrait", () => {
+        expect(overlap(box(toastStackPlace(frame), 140), square)).toBe(true);
+    });
+
+    for (const height of [0, 140, 320]) {
+        it(`covers none of his surfaces, his group open, with a stack ${height} px tall`, () => {
+            const place = toastStackClear(toastStackPlace(frame), height, open, frame);
+            for (const r of open) {
+                expect(overlap(box(place, Math.max(height, ToastStackMinHeightPx)), r)).toBe(false);
+            }
+        });
+    }
+
+    it("shows an archive's toast beside the notification panel it was made in", () => {
+        const place = toastStackClear(toastStackPlace(frame), 140, open, frame);
+        expect(place.left).toBeGreaterThanOrEqual(panel.right);
+        expect(place.left - panel.right).toBeLessThanOrEqual(16);
+        expect(place.top).toBeGreaterThanOrEqual(panel.top);
+        expect(place.top).toBeLessThan(panel.bottom);
+    });
+
+    it("goes below what it would cover when the window has no room beside it", () => {
+        const narrow = { ...frame, windowWidth: 1100 };
+        const place = toastStackClear(toastStackPlace(narrow), 140, open, narrow);
+        for (const r of open) {
+            expect(overlap(box(place, 140), r)).toBe(false);
+        }
+        // No room right of the panel: it goes below the portrait and the panel, then beside the card.
+        expect(place.top).toBeGreaterThanOrEqual(panel.bottom);
+        expect(place.left + place.width).toBeLessThanOrEqual(narrow.windowWidth);
+    });
+
+    it("stays where it comes from when his group is closed, clear of his face", () => {
+        const place = toastStackClear(toastStackPlace(frame), 140, [face], frame);
+        expect(place).toEqual(toastStackPlace(frame));
+        expect(overlap(box(place, 140), face)).toBe(false);
+    });
+
+    it("keeps clear of his visit's scene", () => {
+        const scene: PlaceRect = { left: 270, top: 30, right: 520, bottom: 200 };
+        const place = toastStackClear(toastStackPlace(frame), 140, [face, scene], frame);
+        expect(overlap(box(place, 140), scene)).toBe(false);
     });
 });
 

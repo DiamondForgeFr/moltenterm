@@ -43,7 +43,7 @@ vi.mock("../notification-center", () => ({
     WorkRow: ({ item }: { item: { title: string } }) => <div data-testid="running-work">{item.title}</div>,
 }));
 vi.mock("../notification-settings", () => ({ openNotificationSettings: vi.fn() }));
-vi.mock("../sidebar/sidebar-undo", () => ({ showUndoToast: vi.fn() }));
+vi.mock("../sidebar/sidebar-undo", () => ({ showUndoToast: vi.fn(), showCountedUndoToast: vi.fn() }));
 vi.mock("../project/project-tab", () => ({ showProjectTab: vi.fn() }));
 
 import { globalStore } from "@/app/store/jotaiStore";
@@ -279,7 +279,9 @@ describe("the header keeps what the centre offered, as compact icon buttons (FR-
     it("archives every card of the list with an undo toast, never a confirmation (#2195)", () => {
         const source = readFileSync(join(__dirname, "brokk-notes-panel.tsx"), "utf8");
         expect(source).toContain("const undo = actions.archive(archivePlan(cards, entries));");
-        expect(source).toContain('showUndoToast(translateCount("notif.center.archivedCount", cards.length), undo)');
+        // One toast for successive archives, counted, whose Undo gives them all back (#2241).
+        expect(source).toContain("showCountedUndoToast(");
+        expect(source).toContain('(count) => translateCount("notif.center.archivedCount", count)');
         expect(source).toContain("onClick={() => archiveCards(rows)}");
         expect(source).toContain("onArchive={() => archiveCards([row])}");
         expect(source).not.toContain("window.confirm");

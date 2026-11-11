@@ -35,7 +35,7 @@ import {
 } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
 import { useRunningWork } from "../running-work";
-import { showUndoToast } from "../sidebar/sidebar-undo";
+import { showCountedUndoToast } from "../sidebar/sidebar-undo";
 import { DominoLoader } from "../suite/suite";
 import { toneOf } from "../toast-model";
 import { GhostButton, PrimaryButton, SecondaryButton } from "./boss-card-buttons";
@@ -53,6 +53,8 @@ import {
 import { EmptyLine, HeaderIconButton, PanelFrame, PanelProblem } from "./brokk-panel-frame";
 import { goToWorkspace, labelOfRow, WorkspaceTag } from "./brokk-workspace-tag";
 import { BrokkActions } from "./use-brokk-actions";
+
+const ArchiveUndoKind = "notifications:archive";
 
 // The ordered rows of the two lists carry the same testids as the centre's and the card's rows, so a surface that knows
 // one finds the other.
@@ -566,7 +568,13 @@ export function NotificationsPanel({
             return;
         }
         const undo = actions.archive(archivePlan(cards, entries));
-        showUndoToast(translateCount("notif.center.archivedCount", cards.length), undo);
+        // Successive archives make one toast that counts them all, and its Undo gives them all back (#2241).
+        showCountedUndoToast(
+            ArchiveUndoKind,
+            cards.length,
+            (count) => translateCount("notif.center.archivedCount", count),
+            undo
+        );
     };
     // Takes the developer to what the card is about; going there settles a notification as FR-MC-019 (#2026) says, and an
     // agent that finished leaves when its pane is seen.
