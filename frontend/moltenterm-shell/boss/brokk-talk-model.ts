@@ -81,6 +81,24 @@ export function whereOf(result: { blockid?: string; tabid?: string; workspaceid?
     return { workspaceid: result.workspaceid ?? "", tabid: result.tabid, blockid: result.blockid };
 }
 
+// The reason of a call wavesrv did not answer (refused, timed out, no route): the window's own, never one of
+// pkg/molten/brokksession/session.go.
+export const UnreachableReason = "unreachable";
+
+// Each cause of a failure has its own note (#2236): one note for all of them said "unreachable" when his terminal had
+// only refused a long message. The reasons are pkg/molten/brokksession/session.go's, and the window's UnreachableReason.
+const FailedNoteKeys = new Map<string, string>([
+    ["gone", "boss.panel.talk.gone"],
+    ["notsubmitted", "boss.panel.talk.notSubmitted"],
+    ["noagent", "boss.panel.talk.agentStopped"],
+    ["refused", "boss.panel.talk.refused"],
+    ["terminal", "boss.panel.talk.noTerminal"],
+    ["nospace", "boss.panel.talk.noSpace"],
+    ["notext", "boss.panel.talk.noText"],
+    ["lookup", "boss.panel.talk.lookupFailed"],
+    [UnreachableReason, "boss.panel.talk.unreachable"],
+]);
+
 // What the answer to a message says; a message his agent has goes on to wait for his answer.
 export function talkStateOf(result: SayResult): TalkState {
     const status = result?.status;
@@ -92,7 +110,7 @@ export function talkStateOf(result: SayResult): TalkState {
               : "failed";
     return {
         phase,
-        reason: result?.reason ?? "",
+        reason: result == null ? UnreachableReason : (result.reason ?? ""),
         agentName: result?.agentname ?? "",
         started: result?.started === true,
         reply: "",
@@ -217,13 +235,7 @@ export function talkNoteKey(state: TalkState): string {
         case "agentmissing":
             return "boss.panel.talk.agentMissing";
         case "failed":
-            if (state.reason === "gone") {
-                return "boss.panel.talk.gone";
-            }
-            if (state.reason === "notsubmitted") {
-                return "boss.panel.talk.notSubmitted";
-            }
-            return state.reason === "noagent" ? "boss.panel.talk.agentStopped" : "boss.panel.talk.failed";
+            return FailedNoteKeys.get(state.reason) ?? "boss.panel.talk.unreachable";
         default:
             return null;
     }
@@ -245,7 +257,10 @@ export function talkWayOut(state: TalkState): TalkWayOut {
         case "noreply":
             return state.where != null ? "openTerminal" : "retry";
         case "failed":
-            if ((state.reason === "noagent" || state.reason === "notsubmitted") && state.where != null) {
+            if (
+                (state.reason === "noagent" || state.reason === "notsubmitted" || state.reason === "refused") &&
+                state.where != null
+            ) {
                 return "openTerminal";
             }
             return "retry";

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -51,6 +52,8 @@ const (
 	ReasonNoAgent    = "noagent"
 	// ReasonNotSubmitted: the message was typed in his agent's prompt without Enter (#2028).
 	ReasonNotSubmitted = "notsubmitted"
+	// ReasonLookup: looking for his session failed (#2220), which is not "no session" (#2236).
+	ReasonLookup = "lookup"
 
 	// Reply…: what Reply answered; must match frontend/moltenterm-shell/boss/brokk-talk-model.ts. ReplyAnswer: his answer
 	// to the message; ReplyWaiting: none newer than the message yet; ReplyUnread: his transcript is not known, so the
@@ -59,7 +62,8 @@ const (
 	ReplyWaiting = "waiting"
 	ReplyUnread  = "unread"
 
-	// A message is one line the agent reads as a prompt.
+	// A message is one line the agent reads as a prompt, of at most this many characters: the window's field
+	// (brokk-talk-model.ts MaxMessageLength) and the typing path (termupdate.MaxTypedMessage) take as many.
 	MaxTextLength = 4000
 
 	// An agent just started shows its prompt after a while; the text waits for it this long, checking this often.
@@ -206,7 +210,7 @@ func (s *Service) release() {
 }
 
 func findFailed(err error) Result {
-	return Result{Status: StatusFailed, Reason: ReasonTerminal, Message: fmt.Sprintf("His session could not be looked for: %v", err)}
+	return Result{Status: StatusFailed, Reason: ReasonLookup, Message: fmt.Sprintf("His session could not be looked for: %v", err)}
 }
 
 // Session says whether his session exists, and where. It starts nothing.
@@ -259,7 +263,7 @@ func (s *Service) Reply(ctx context.Context, req ReplyRequest) Reply {
 // Say gives the message to his session, starting it first when it does not exist.
 func (s *Service) Say(ctx context.Context, req Request) Result {
 	text := strings.TrimSpace(req.Text)
-	if text == "" || len(text) > MaxTextLength {
+	if text == "" || utf8.RuneCountInString(text) > MaxTextLength {
 		return Result{Status: StatusFailed, Reason: ReasonNoText, Message: "There is no message to give, or it is too long."}
 	}
 	if !s.claim() {

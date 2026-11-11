@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
@@ -21,8 +22,11 @@ import (
 const (
 	pasteStart = "\x1b[200~"
 	pasteEnd   = "\x1b[201~"
-	// A line longer than this is not a share line.
+	// A line longer than this (in characters) is not a share or hand-off line.
 	maxTypedLine = 600
+	// MaxTypedMessage is the longest message the developer writes to an agent in a field of MoltenTerm (Brokk's), in
+	// characters: his whole text, never cut (#2236). A hand-off line is a short pointer and keeps maxTypedLine.
+	MaxTypedMessage = 4000
 )
 
 var runningLock sync.Mutex
@@ -61,6 +65,16 @@ func TypeHandoffLine(ctx context.Context, blockId string, line string) AgentInpu
 	return u.typeLine(ctx, blockId, line, true)
 }
 
+// TypeMessageLine types a message the developer wrote to the agent (Brokk's field, FR-BOSS-009) through the hand-off's
+// guarded path, submitted the same way, up to MaxTypedMessage characters rather than a hand-off's short line.
+func TypeMessageLine(ctx context.Context, blockId string, line string) AgentInputResult {
+	u := getRunningUpdater()
+	if u == nil {
+		return refusedCannotType()
+	}
+	return u.typeLineUpTo(ctx, blockId, line, true, MaxTypedMessage)
+}
+
 // AgentTakesLine tells, without typing, whether the agent in blockId would take a typed line with Enter now: it runs,
 // its hooks report precise states, and no draft is in its prompt. Brokk's session waits for it before typing the first
 // message into an agent it just started (#2028).
@@ -91,8 +105,13 @@ func (u *Updater) TypeLine(ctx context.Context, blockId string, line string) Age
 
 // typeLine types the line; submit: press Enter after it when the prompt holds no draft the user may still be writing.
 func (u *Updater) typeLine(ctx context.Context, blockId string, line string, submit bool) AgentInputResult {
+	return u.typeLineUpTo(ctx, blockId, line, submit, maxTypedLine)
+}
+
+// typeLineUpTo is typeLine for a line of at most limit characters.
+func (u *Updater) typeLineUpTo(ctx context.Context, blockId string, line string, submit bool, limit int) AgentInputResult {
 	line = cleanTypedLine(line)
-	if line == "" || len(line) > maxTypedLine {
+	if line == "" || utf8.RuneCountInString(line) > limit {
 		return refused(InputReasonUnknownAction, uimsg.Make("termupdate.line.none"), "There is no line to type: nothing was typed.")
 	}
 	if !u.begin(blockId) {
