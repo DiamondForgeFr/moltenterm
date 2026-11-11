@@ -86,6 +86,37 @@ func TestHandoffLineSubmitsWithoutADraft(t *testing.T) {
 	}
 }
 
+// #2236: a message the developer wrote to Brokk is typed whole, up to the field's 4000 characters, accents included;
+// a hand-off line keeps its short limit.
+func TestMessageLineTakesTheWholeMessage(t *testing.T) {
+	long := strings.Repeat("é", MaxTypedMessage)
+	f := claudeInputTerm()
+	f.state.Draft = false
+	setRunningUpdater(MakeUpdater(f.env()))
+	defer setRunningUpdater(nil)
+	out := TypeMessageLine(context.Background(), "b1", long)
+	if out.Result != InputSent || !out.Submitted || strings.Join(f.input, "|") != pasteStart+long+pasteEnd+"|\r" {
+		t.Fatalf("a message of %d characters: %+v", MaxTypedMessage, out)
+	}
+	g := claudeInputTerm()
+	out = MakeUpdater(g.env()).typeLineUpTo(context.Background(), "b1", long+"x", true, MaxTypedMessage)
+	if out.Result != InputRefused || len(g.input) != 0 {
+		t.Fatalf("a message past %d characters was typed: %+v", MaxTypedMessage, out)
+	}
+	h := claudeInputTerm()
+	out = MakeUpdater(h.env()).typeLine(context.Background(), "b1", strings.Repeat("x", maxTypedLine+1), true)
+	if out.Result != InputRefused || len(h.input) != 0 {
+		t.Fatalf("a hand-off line past %d characters was typed: %+v", maxTypedLine, out)
+	}
+}
+
+func TestTypeMessageLineRefusesBeforeStart(t *testing.T) {
+	setRunningUpdater(nil)
+	if out := TypeMessageLine(context.Background(), "b1", "hello"); out.Result != InputRefused || out.Reason != InputReasonUnavailable {
+		t.Fatalf("got %+v", out)
+	}
+}
+
 // #2028: Brokk's session asks, without typing, whether its agent takes a line with Enter yet.
 func TestAgentTakesLineFollowsTheDraft(t *testing.T) {
 	setRunningUpdater(nil)

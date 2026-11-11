@@ -11,6 +11,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
+	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 )
 
 // #2220 (P1): only the windows and Electron main reach his session. A program or an agent in a local terminal would
@@ -83,5 +84,27 @@ func TestAFailedLookupStartsNoSecondSession(t *testing.T) {
 	}
 	if _, err := s.handle(context.Background(), ReplyCommand, map[string]any{"after": 1}); err == nil {
 		t.Errorf("the reply command answered a failed lookup without an error")
+	}
+	if got := s.Say(context.Background(), Request{WorkspaceId: "ws-1", Text: "hello"}); got.Reason != ReasonLookup {
+		t.Errorf("a failed lookup has reason %q, want its own, %q (#2236)", got.Reason, ReasonLookup)
+	}
+}
+
+// #2236: the developer could not talk to Brokk. A message over 600 bytes was refused by the hand-off's typing path,
+// and the window said "unreachable". The window, Say and the typing path now take the same 4000 characters.
+func TestAMessageAsLongAsTheFieldTakesReachesHisAgent(t *testing.T) {
+	t.Parallel()
+	if MaxTextLength != termupdate.MaxTypedMessage {
+		t.Fatalf("Say takes %d characters, the typing path %d", MaxTextLength, termupdate.MaxTypedMessage)
+	}
+	long := strings.Repeat("é", MaxTextLength)
+	f := &fake{found: &Found{BlockId: "block-9", TabId: "tab-9"}, answers: []TypeOutcome{{Sent: true}}}
+	got := MakeService(f.env()).Say(context.Background(), Request{WorkspaceId: "ws-1", Text: long})
+	if got.Status != StatusSent || len(f.typed) != 1 || f.typed[0] != "block-9:"+long {
+		t.Fatalf("a message of %d accented characters: %+v", MaxTextLength, got)
+	}
+	g := &fake{found: &Found{BlockId: "block-9", TabId: "tab-9"}, answers: []TypeOutcome{{Sent: true}}}
+	if got := MakeService(g.env()).Say(context.Background(), Request{Text: long + "x"}); got.Status != StatusFailed || got.Reason != ReasonNoText || len(g.typed) != 0 {
+		t.Fatalf("a message past %d characters: %+v", MaxTextLength, got)
 	}
 }

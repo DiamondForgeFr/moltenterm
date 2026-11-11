@@ -158,7 +158,8 @@ func liveRunPrint(ctx context.Context, dir string, agent string, prompt string) 
 }
 
 func liveType(ctx context.Context, blockId string, line string) TypeOutcome {
-	out := termupdate.TypeHandoffLine(ctx, blockId, line)
+	// A hand-off's path would refuse a message past its short line (#2236): the developer's text is typed whole.
+	out := termupdate.TypeMessageLine(ctx, blockId, line)
 	if out.Result == termupdate.InputSent {
 		return TypeOutcome{Sent: true, Unsubmitted: !out.Submitted, Message: out.Message}
 	}
@@ -245,6 +246,15 @@ func (s *Service) route() localroute.Route {
 	}
 }
 
+// logUntaken leaves a line for a message his agent did not take: the window words the reason, and without this line a
+// failure leaves no trace in the log (#2236). Never the text of the message.
+func logUntaken(rtn Result) {
+	if rtn.Status == StatusSent {
+		return
+	}
+	log.Printf("[brokksession] a message did not reach his agent: %s %s: %s\n", rtn.Status, rtn.Reason, rtn.Message)
+}
+
 func (s *Service) handle(ctx context.Context, command string, data any) (any, error) {
 	var req Request
 	if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -256,7 +266,9 @@ func (s *Service) handle(ctx context.Context, command string, data any) (any, er
 	case SayCommand:
 		ctx, cancel := context.WithTimeout(ctx, sayTimeout)
 		defer cancel()
-		return s.Say(ctx, req), nil
+		rtn := s.Say(ctx, req)
+		logUntaken(rtn)
+		return rtn, nil
 	case ReplyCommand:
 		var reply ReplyRequest
 		if err := utilfn.ReUnmarshal(&reply, data); err != nil {

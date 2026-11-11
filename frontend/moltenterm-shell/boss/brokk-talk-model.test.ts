@@ -23,7 +23,14 @@ import {
     talkStateOf,
     talkWayOut,
     talkWayOutKey,
+    UnreachableReason,
 } from "./brokk-talk-model";
+import En from "../i18n/locales/en.json";
+import Fr from "../i18n/locales/fr.json";
+
+function textAt(texts: unknown, key: string): string {
+    return key.split(".").reduce((node: any, part) => node?.[part], texts) as string;
+}
 
 describe("what a message does (FR-BOSS-009, AC15)", () => {
     it("reads each answer of his session", () => {
@@ -79,7 +86,40 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
         expect(talkNoteKey(talkStateOf({ status: "agentmissing" }))).toBe("boss.panel.talk.agentMissing");
         expect(talkNoteKey(talkStateOf({ status: "failed", reason: "gone" }))).toBe("boss.panel.talk.gone");
         expect(talkNoteKey(talkStateOf({ status: "failed", reason: "noagent" }))).toBe("boss.panel.talk.agentStopped");
-        expect(talkNoteKey(talkStateOf({ status: "failed" }))).toBe("boss.panel.talk.failed");
+        expect(talkNoteKey(talkStateOf({ status: "failed" }))).toBe("boss.panel.talk.unreachable");
+    });
+
+    // #2236: a message his terminal refused (it was too long for the hand-off's line) said "his session is
+    // unreachable", the one note of every failure. Each cause now says its own, in both languages, with its way out.
+    it("says each cause of a failure in its own words, with its own way out (#2236)", () => {
+        const where = { workspaceid: "w", tabid: "t", blockid: "b" };
+        const causes: [SayResult, string, string][] = [
+            [{ status: "failed", reason: "refused", ...where }, "boss.panel.talk.refused", "openTerminal"],
+            [{ status: "failed", reason: "refused" }, "boss.panel.talk.refused", "retry"],
+            [{ status: "failed", reason: "terminal" }, "boss.panel.talk.noTerminal", "retry"],
+            [{ status: "failed", reason: "nospace" }, "boss.panel.talk.noSpace", "retry"],
+            [{ status: "failed", reason: "notext" }, "boss.panel.talk.noText", "retry"],
+            [{ status: "failed", reason: "lookup" }, "boss.panel.talk.lookupFailed", "retry"],
+            [{ status: "failed", reason: "gone" }, "boss.panel.talk.gone", "retry"],
+            [{ status: "failed", reason: "noagent", ...where }, "boss.panel.talk.agentStopped", "openTerminal"],
+            [{ status: "failed", reason: "notsubmitted", ...where }, "boss.panel.talk.notSubmitted", "openTerminal"],
+            [null, "boss.panel.talk.unreachable", "retry"],
+        ];
+        for (const [result, key, way] of causes) {
+            const state = talkStateOf(result);
+            expect(talkNoteKey(state), JSON.stringify(result)).toBe(key);
+            expect(talkWayOut(state), JSON.stringify(result)).toBe(way);
+            for (const [lang, texts] of [
+                ["en", En],
+                ["fr", Fr],
+            ] as const) {
+                const text = textAt(texts, key);
+                expect(text, `${lang} ${key}`).toMatch(/\S/);
+                expect(text, `${lang} ${key}`).not.toMatch(/injoignable|could not be reached/);
+            }
+        }
+        expect(new Set(causes.map(([, key]) => key)).size).toBe(9);
+        expect(talkStateOf(null).reason).toBe(UnreachableReason);
     });
 
     it("gives every failure a way out (#2028)", () => {
