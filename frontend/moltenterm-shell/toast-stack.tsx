@@ -16,10 +16,12 @@ import { InlineCodeText, plainInlineText } from "./inline-code";
 import { DominoLoader } from "./suite/suite";
 import {
     bellOrder,
+    PlaceRect,
     Toast,
     ToastDismissMs,
     ToastFlight,
     toastFlightTarget,
+    toastStackClear,
     ToastStackPlace,
     toastStackPlace,
     ToastText,
@@ -56,7 +58,9 @@ function ToastItem({ toast, bellRef }: { toast: Toast; bellRef?: React.RefObject
     const timeOut = () => {
         const bell = bellRef?.current?.getBoundingClientRect();
         const own = rootRef.current?.getBoundingClientRect();
-        if (toast.notificationId == null || bell == null || own == null || bell.right <= 0) {
+        // His group open, the flight to his face would cross it (#2241): the toast simply goes, its notification is listed.
+        const groupOpen = document.querySelector(".mt-brokk-group.is-in") != null;
+        if (toast.notificationId == null || bell == null || own == null || bell.right <= 0 || groupOpen) {
             model.dismiss(toast.id, "timeout", toast);
             return;
         }
@@ -222,48 +226,96 @@ function ToastItem({ toast, bellRef }: { toast: Toast; bellRef?: React.RefObject
     );
 }
 
-function measurePlace(bell: HTMLElement): ToastStackPlace {
+// What Brokk stands on (#2241): every face of his, his open group and what it holds, and his visit's scene.
+export const BrokkSurfaceSelector =
+    "[data-brokk-avatar], .mt-brokk-group.is-in, .mt-brokk-group.is-in > *, [data-testid='brokk-scene']";
+
+// A surface over most of the window is a catcher of the pointer, not something to see: it is no obstacle.
+const CatcherShare = 0.5;
+
+function brokkSurfaces(): PlaceRect[] {
+    const area = window.innerWidth * window.innerHeight;
+    return [...document.querySelectorAll<HTMLElement>(BrokkSurfaceSelector)]
+        .map((el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0 && r.width * r.height < area * CatcherShare)
+        .map((r) => ({ left: r.left, top: r.top, right: r.right, bottom: r.bottom }));
+}
+
+function measurePlace(bell: HTMLElement, stackHeight: number): ToastStackPlace {
     if (typeof window === "undefined") {
         return toastStackPlace({ windowWidth: 1280, frameGap: DefaultFrameGapPx });
     }
     const sidebar = bell?.closest<HTMLElement>('[data-testid="workspace-sidebar"]');
     const gap = parseFloat(getComputedStyle(sidebar ?? document.documentElement).getPropertyValue("--mt-frame-gap"));
     const bellRect = bell?.getBoundingClientRect();
-    return toastStackPlace({
+    const frame = {
         windowWidth: window.innerWidth,
         frameGap: Number.isFinite(gap) ? gap : DefaultFrameGapPx,
         bellBottom: bellRect?.bottom,
         bellRight: bellRect?.right,
         sidebarRight: sidebar?.getBoundingClientRect().right,
-    });
+    };
+    return toastStackClear(toastStackPlace(frame), stackHeight, brokkSurfaces(), frame);
 }
 
-// Follows the bell while toasts show: the window's width, the sidebar's width, and the sidebar hiding, floating in or
-// sliding out (its class, then the end of its slide).
-function useStackPlace(bellRef: React.RefObject<HTMLElement>, active: boolean): ToastStackPlace {
-    const [place, setPlace] = useState<ToastStackPlace>(() => measurePlace(bellRef?.current));
+function samePlace(a: ToastStackPlace, b: ToastStackPlace): boolean {
+    return a.top === b.top && a.left === b.left && a.width === b.width;
+}
+
+// Follows the bell while toasts show: the window's width, the sidebar's width, the sidebar hiding, floating in or
+// sliding out (its class, then the end of its slide), and Brokk's surfaces opening, closing or moving (#2241): what
+// changes in the page is read again once per frame.
+function useStackPlace(
+    bellRef: React.RefObject<HTMLElement>,
+    stackRef: React.RefObject<HTMLElement>,
+    active: boolean
+): ToastStackPlace {
+    const [place, setPlace] = useState<ToastStackPlace>(() => measurePlace(bellRef?.current, 0));
     useLayoutEffect(() => {
         if (!active) {
             return;
         }
-        const update = () => setPlace(measurePlace(bellRef?.current));
-        update();
-        const sidebar = bellRef?.current?.closest<HTMLElement>('[data-testid="workspace-sidebar"]');
+        let frame: number = null;
+        const measure = () => {
+            frame = null;
+            const next = measurePlace(bellRef?.current, stackRef?.current?.offsetHeight ?? 0);
+            setPlace((current) => (samePlace(current, next) ? current : next));
+        };
+        const update = () => {
+            if (frame == null) {
+                frame = requestAnimationFrame(measure);
+            }
+        };
+        measure();
         window.addEventListener("resize", update);
+        document.addEventListener("transitionend", update, true);
+        document.addEventListener("animationend", update, true);
         const resize = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
         const mutation = typeof MutationObserver === "undefined" ? null : new MutationObserver(update);
+        const sidebar = bellRef?.current?.closest<HTMLElement>('[data-testid="workspace-sidebar"]');
         if (sidebar != null) {
             resize?.observe(sidebar);
-            mutation?.observe(sidebar, { attributes: true, attributeFilter: ["class", "data-hidden"] });
-            sidebar.addEventListener("transitionend", update);
         }
+        if (stackRef?.current != null) {
+            resize?.observe(stackRef.current);
+        }
+        mutation?.observe(document.body, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            attributeFilter: ["class", "data-hidden", "data-shown"],
+        });
         return () => {
+            if (frame != null) {
+                cancelAnimationFrame(frame);
+            }
             window.removeEventListener("resize", update);
+            document.removeEventListener("transitionend", update, true);
+            document.removeEventListener("animationend", update, true);
             resize?.disconnect();
             mutation?.disconnect();
-            sidebar?.removeEventListener("transitionend", update);
         };
-    }, [active, bellRef]);
+    }, [active, bellRef, stackRef]);
     return place;
 }
 
@@ -278,9 +330,11 @@ export function ToastStack({
     const model = Toasts.getInstance();
     const stack = useAtomValue(model.stackAtom, { store: globalStore });
     const collapsed = useAtomValue(model.collapsedAtom, { store: globalStore });
-    const place = useStackPlace(bellRef, stack.length > 0);
+    const stackRef = useRef<HTMLDivElement>(null);
+    const place = useStackPlace(bellRef, stackRef, stack.length > 0);
     return (
         <div
+            ref={stackRef}
             data-testid="toast-stack"
             aria-label={t("notif.center.title")}
             style={{ top: place.top, left: place.left, width: place.width }}
