@@ -9,7 +9,7 @@
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
 import { ClientModel } from "@/app/store/client-model";
-import { getSettingsKeyAtom, globalStore } from "@/app/store/global";
+import { getApi, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
@@ -22,6 +22,7 @@ import {
     afterInput,
     afterModelCall,
     afterPhrased,
+    afterPresence,
     afterSeen,
     afterShown,
     ColleagueFacts,
@@ -30,6 +31,7 @@ import {
     EmptyColleague,
     encodeMemory,
     evaluate,
+    laterPresence,
     modelCallAllowed,
     modelPhrasingOn,
     Moment,
@@ -64,6 +66,8 @@ export type PhraseRequest = {
     language: string;
     // The local time of day, HH:MM.
     clock: string;
+    // Hello: the part of the day its written set follows (early, morning, lateMorning, back).
+    part?: string;
     // Break: how long the stretch lasted, in minutes.
     workedmin?: number;
     // Hand-over: how many agents work.
@@ -87,6 +91,9 @@ export type ColleagueDeps = {
     language: () => string;
     proximity: () => Proximity;
     working: () => number;
+    // How long this computer has had no keyboard or pointer input, in seconds (emain/moltenterm-system-idle.ts); null
+    // where it cannot be read.
+    idleSec: () => Promise<number>;
     // Runs `run` every `ms` and returns the stop: the app's one scheduler, paused where the view is not on screen.
     every: (ms: number, run: () => void) => () => void;
 };
@@ -119,11 +126,18 @@ const LiveDeps: ColleagueDeps = {
     language: () => getLocale(),
     proximity: () => proximityOf(globalStore.get(getSettingsKeyAtom(ProximitySettingKey as keyof SettingsType))),
     working: () => workingOf(globalStore.get(AgentStates.getInstance().dataAtom)),
+    idleSec: () => {
+        const ask = getApi()?.moltentermGetSystemIdleSec;
+        return ask == null ? Promise.resolve(null) : ask();
+    },
     every: (ms, run) => TabActivity.getInstance().every(whileShown(ms), run, "brokk-colleague"),
 };
 
 export function requestOf(moment: Moment, language: string): PhraseRequest {
     const request: PhraseRequest = { kind: moment.kind, language, clock: moment.clock };
+    if (moment.kind === "hello") {
+        request.part = moment.set.slice("hello.".length);
+    }
     if (moment.kind === "break") {
         request.workedmin = moment.workedMin;
     }
@@ -211,6 +225,7 @@ export class BrokkColleagueModel {
                 handoverEvening: other.handoverEvening,
                 modelDay: other.modelDay,
                 modelCalls: other.modelCalls,
+                presentAt: laterPresence(this.memory.presentAt, other.presentAt),
             };
             this.saved = text;
         } catch {
@@ -273,6 +288,29 @@ export class BrokkColleagueModel {
         this.load();
         this.reload();
         this.apply(evaluate(this.memory, this.facts()));
+        this.readPresence();
+    }
+
+    // This computer's idle time tells a presence the page cannot see: input in another view or another application, and
+    // the developer back after a sleep (#2216).
+    private readPresence(): void {
+        let reading: Promise<number>;
+        try {
+            reading = Promise.resolve(this.deps.idleSec());
+        } catch {
+            return;
+        }
+        reading
+            .then((sec) => {
+                if (typeof sec !== "number" || !Number.isFinite(sec) || sec < 0) {
+                    return;
+                }
+                this.load();
+                this.reload();
+                const facts = this.facts();
+                this.apply(afterPresence(this.memory, facts.now - sec * 1000, facts));
+            })
+            .catch(() => {});
     }
 
     noteShown(id: string): void {
@@ -312,6 +350,7 @@ export class BrokkColleagueModel {
     // Listens while the avatar is on screen: the clock, the agents at work and the setting. Returns the stop.
     start(): () => void {
         this.load();
+        this.readPresence();
         const stopTimer = this.deps.every(TickMs, () => this.tick());
         const stopAgents = globalStore.sub(AgentStates.getInstance().dataAtom, () => this.tick());
         const stopSetting = globalStore.sub(getSettingsKeyAtom(ProximitySettingKey as keyof SettingsType), () =>

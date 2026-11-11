@@ -60,8 +60,13 @@ export const HelloParts: HelloPart[] = ["early", "morning", "lateMorning", "back
 export const HelloPhrasings = 5;
 export const MomentPhrasings = 20;
 
+// Between midnight and the end of the evening (EveningToHour) no hello is raised (helloHours): a late return is still the
+// evening, never a dawn.
 export function helloPartOf(now: number): HelloPart {
     const hour = new Date(now).getHours();
+    if (hour < EveningToHour) {
+        return "back";
+    }
     if (hour < 7) {
         return "early";
     }
@@ -123,6 +128,16 @@ export function eveningKey(now: number): string {
     return dayKey(now - EveningToHour * Hour);
 }
 
+// The day a hello belongs to turns when the evening ends, not at midnight (#2216): an input at half past midnight must not
+// greet the morning that follows.
+export function helloDayKey(now: number): string {
+    return eveningKey(now);
+}
+
+export function helloHours(now: number): boolean {
+    return new Date(now).getHours() >= EveningToHour;
+}
+
 export type Moment = {
     id: string;
     kind: MomentKind;
@@ -149,6 +164,9 @@ export type ColleagueMemory = {
     handoverEvening: string;
     modelDay: string;
     modelCalls: number;
+    // The last time the developer was known at this computer: an input in a view, or this computer's idle time. What the
+    // hello's absence is measured from, so that a restart or a rebuilt view is not an absence (#2216).
+    presentAt: number;
     // For a run of the window.
     lastInputAt: number;
     stretchStart: number;
@@ -162,6 +180,7 @@ export const EmptyColleague: ColleagueMemory = {
     handoverEvening: "",
     modelDay: "",
     modelCalls: 0,
+    presentAt: null,
     lastInputAt: null,
     stretchStart: null,
     nudgedStretch: null,
@@ -259,26 +278,45 @@ export function evaluate(memory: ColleagueMemory, facts: ColleagueFacts): Collea
     return next;
 }
 
+// The developer is at this computer at `at`: an input in a view, or this computer's idle time read by the clock. The first
+// presence of the day after a long absence is greeted. A wake read by the idle time before any input in a view is that
+// presence too, or the input that follows would find no absence left (#2216).
+export function afterPresence(memory: ColleagueMemory, at: number, facts: ColleagueFacts): ColleagueMemory {
+    if (at == null || !Number.isFinite(at) || (memory.presentAt != null && at <= memory.presentAt)) {
+        return memory;
+    }
+    const absence = memory.presentAt == null ? Infinity : at - memory.presentAt;
+    // A moment nobody saw that has lapsed must not hold the place of the one this presence calls for.
+    let next = withoutLapsed({ ...memory, presentAt: at }, facts);
+    if (
+        momentsOn(facts.proximity) &&
+        absence >= LongAbsenceMs &&
+        helloHours(at) &&
+        next.helloDay !== helloDayKey(at) &&
+        !has(next, "hello")
+    ) {
+        next = raise(
+            { ...next, helloDay: helloDayKey(at) },
+            { kind: "hello", set: phraseSet("hello", helloPartOf(at)) },
+            facts
+        );
+    }
+    return next;
+}
+
 // An input of the developer: it ends or continues a stretch, and the first one after the night is greeted.
 export function afterInput(memory: ColleagueMemory, facts: ColleagueFacts): ColleagueMemory {
     const { now } = facts;
     const gap = memory.lastInputAt == null ? Infinity : now - memory.lastInputAt;
-    // A moment nobody saw that has lapsed must not hold the place of the one this input calls for.
-    let next = withoutLapsed(
+    const next = afterPresence(
         {
             ...memory,
             lastInputAt: now,
             stretchStart: gap >= PauseMs || memory.stretchStart == null ? now : memory.stretchStart,
         },
+        now,
         facts
     );
-    if (momentsOn(facts.proximity) && gap >= LongAbsenceMs && next.helloDay !== dayKey(now) && !has(next, "hello")) {
-        next = raise(
-            { ...next, helloDay: dayKey(now) },
-            { kind: "hello", set: phraseSet("hello", helloPartOf(now)) },
-            facts
-        );
-    }
     return evaluate(next, facts);
 }
 
@@ -386,8 +424,17 @@ export function validModelLine(text: unknown): string {
 }
 
 // What is kept across restarts: which day he greeted, which phrasing came last, which evening he handed over and how
-// many times his model was asked today. A run's stretches and moments are not.
-export type SavedColleague = Pick<ColleagueMemory, "helloDay" | "last" | "handoverEvening" | "modelDay" | "modelCalls">;
+// many times his model was asked today, when the developer was last here. A run's stretches and moments are not.
+export type SavedColleague = Pick<
+    ColleagueMemory,
+    "helloDay" | "last" | "handoverEvening" | "modelDay" | "modelCalls" | "presentAt"
+>;
+
+// The presence is saved to the minute, so that a developer at work changes the saved text, and writes it, once a minute
+// at most.
+export function savedPresence(at: number): number {
+    return at == null ? null : Math.floor(at / Min) * Min;
+}
 
 export function encodeMemory(memory: ColleagueMemory): string {
     const saved: SavedColleague = {
@@ -396,8 +443,17 @@ export function encodeMemory(memory: ColleagueMemory): string {
         handoverEvening: memory.handoverEvening,
         modelDay: memory.modelDay,
         modelCalls: memory.modelCalls,
+        presentAt: savedPresence(memory.presentAt),
     };
     return JSON.stringify(saved);
+}
+
+// The latest of two presences, either unknown.
+export function laterPresence(a: number, b: number): number {
+    if (a == null) {
+        return b;
+    }
+    return b == null ? a : Math.max(a, b);
 }
 
 function textOf(value: unknown): string {
@@ -421,6 +477,7 @@ export function decodeMemory(text: string): ColleagueMemory {
         }
     }
     const calls = Number(saved.modelCalls);
+    const present = saved.presentAt;
     return {
         ...EmptyColleague,
         helloDay: textOf(saved.helloDay),
@@ -428,5 +485,6 @@ export function decodeMemory(text: string): ColleagueMemory {
         handoverEvening: textOf(saved.handoverEvening),
         modelDay: textOf(saved.modelDay),
         modelCalls: Number.isInteger(calls) && calls > 0 ? calls : 0,
+        presentAt: typeof present === "number" && Number.isFinite(present) && present > 0 ? present : null,
     };
 }

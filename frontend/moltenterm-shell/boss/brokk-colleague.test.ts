@@ -11,6 +11,7 @@ import {
     afterInput,
     afterModelCall,
     afterPhrased,
+    afterPresence,
     afterSeen,
     afterShown,
     allPhraseKeys,
@@ -27,10 +28,12 @@ import {
     encodeMemory,
     evaluate,
     eveningKey,
+    helloDayKey,
     HelloLifeMs,
     helloPartOf,
     HelloParts,
     HelloPhrasings,
+    laterPresence,
     LongAbsenceMs,
     MaxLineChars,
     MaxModelCallsPerDay,
@@ -49,6 +52,7 @@ import {
     Proximities,
     Proximity,
     proximityOf,
+    savedPresence,
     setSize,
     validModelLine,
 } from "./brokk-colleague";
@@ -108,7 +112,7 @@ describe("the hello (FR-BOSS-009, AC72, AC-2)", () => {
     it("picks the set from the hour of that first activity: early, morning, late morning, back", () => {
         expect(HelloParts).toEqual(["early", "morning", "lateMorning", "back"]);
         const cases: [number, number, string][] = [
-            [0, 0, "early"],
+            [5, 0, "early"],
             [6, 59, "early"],
             [7, 0, "morning"],
             [9, 59, "morning"],
@@ -157,6 +161,106 @@ describe("the hello (FR-BOSS-009, AC72, AC-2)", () => {
         expect(momentsOf(again, "hello")).toHaveLength(0);
         const nextDay = afterInput(restarted, facts(at(11, 8, 0)));
         expect(momentsOf(nextDay, "hello")).toHaveLength(1);
+    });
+
+    // #2216 (audit #2214, T5): at one in the morning he said "You beat the sun to it".
+    it("raises no hello between midnight and five: a late return is still the evening", () => {
+        for (const [hour, minute] of [
+            [0, 0],
+            [0, 35],
+            [4, 59],
+        ]) {
+            const memory = afterInput(EmptyColleague, facts(at(11, hour, minute)));
+            expect(momentsOf(memory, "hello"), `${hour}:${minute}`).toHaveLength(0);
+            expect(memory.helloDay).toBe("");
+        }
+        expect(helloDayKey(at(11, 0, 35))).toBe(dayKey(at(10, 12, 0)));
+        expect(helloDayKey(at(11, 5, 0))).toBe(dayKey(at(11, 12, 0)));
+    });
+
+    // #2216 (audit #2214, C1, AC-1): a build restarted at 00:35 spent the day's hello on its first input, the computer
+    // slept until morning, and the morning found the day already greeted.
+    it("greets the morning after a restart at half past midnight and a night of sleep", () => {
+        // The evening's work, the hello of that day already said.
+        let memory = afterInput(EmptyColleague, facts(at(10, 9, 0)));
+        memory = afterSeen(memory, momentsOf(memory)[0].id);
+        memory = work(memory, at(10, 22, 0), at(11, 0, 34), 2 * Min);
+        // The restart: only what the meta keeps comes back.
+        memory = decodeMemory(encodeMemory(memory));
+        memory = afterInput(memory, facts(at(11, 0, 35)));
+        expect(momentsOf(memory, "hello")).toHaveLength(0);
+        // The night, then the first input of the morning.
+        memory = decodeMemory(encodeMemory(memory));
+        memory = afterInput(memory, facts(at(11, 8, 58)));
+        const [hello] = momentsOf(memory, "hello");
+        expect(hello).toMatchObject({ set: "hello.morning", clock: "08:58" });
+        expect(memory.helloDay).toBe(dayKey(at(11, 8, 58)));
+    });
+
+    it("does not count a restart as an absence: the last presence is kept across it", () => {
+        let memory = afterInput(EmptyColleague, facts(at(10, 9, 0)));
+        memory = afterSeen(memory, momentsOf(memory)[0].id);
+        memory = work(memory, at(10, 9, 0), at(10, 23, 0), 30 * Min);
+        // A new day's key with the old rule, the same evening with the new one: no hello either way at 23:10.
+        const restarted = decodeMemory(encodeMemory({ ...memory, helloDay: "" }));
+        expect(restarted.presentAt).toBe(savedPresence(at(10, 23, 0)));
+        const again = afterInput(restarted, facts(at(10, 23, 10)));
+        expect(momentsOf(again, "hello")).toHaveLength(0);
+    });
+
+    // #2216 (AC-2): after a wake, the view that shows is often built anew, with no memory of the page.
+    it("raises no hello by itself in a view rebuilt after a wake", () => {
+        // A long night of work, the day of the 10th greeted, then a short sleep of the computer at 04:50.
+        let memory = afterInput(EmptyColleague, facts(at(10, 18, 0)));
+        memory = afterSeen(memory, momentsOf(memory)[0].id);
+        memory = work(memory, at(10, 18, 0), at(11, 4, 50), 10 * Min);
+        // The view on screen is built anew after the wake: it starts from the meta, with no input of its own.
+        const rebuilt = decodeMemory(encodeMemory(memory));
+        expect(rebuilt.lastInputAt).toBeNull();
+        const first = afterInput(rebuilt, facts(at(11, 5, 10)));
+        expect(momentsOf(first, "hello")).toHaveLength(0);
+        // A real absence after it is still greeted.
+        const morning = afterInput(first, facts(at(11, 9, 30)));
+        expect(momentsOf(morning, "hello")).toHaveLength(1);
+    });
+
+    it("greets the morning after the night in a view rebuilt after the wake", () => {
+        let memory = afterInput(EmptyColleague, facts(at(10, 18, 0)));
+        memory = afterSeen(memory, momentsOf(memory)[0].id);
+        const rebuilt = decodeMemory(encodeMemory(memory));
+        expect(momentsOf(afterInput(rebuilt, facts(at(11, 8, 58))), "hello")).toHaveLength(1);
+    });
+
+    it("greets a return that only this computer's idle time saw, before any input in a view", () => {
+        let memory = afterInput(EmptyColleague, facts(at(10, 18, 0)));
+        memory = afterSeen(memory, momentsOf(memory)[0].id);
+        // At the wake, the idle time is short: the developer is back, though no view had an input yet.
+        memory = afterPresence(memory, at(11, 8, 58), facts(at(11, 8, 59)));
+        expect(momentsOf(memory, "hello")).toHaveLength(1);
+        expect(momentsOf(memory, "hello")[0].set).toBe("hello.morning");
+        // A reading during the night (the idle time running since the evening) is no presence.
+        let night = afterInput(EmptyColleague, facts(at(10, 18, 0)));
+        night = afterSeen(night, momentsOf(night)[0].id);
+        expect(afterPresence(night, at(10, 18, 0) - Min, facts(at(11, 3, 0)))).toBe(night);
+    });
+
+    it("takes input elsewhere on this computer as presence: no hello after a day spent in another application", () => {
+        let memory = afterInput(EmptyColleague, facts(at(10, 9, 0)));
+        memory = afterSeen(memory, momentsOf(memory)[0].id);
+        for (let t = at(10, 9, 0); t <= at(10, 15, 0); t += 30 * Min) {
+            memory = afterPresence(memory, t, facts(t));
+        }
+        expect(momentsOf(afterInput(memory, facts(at(10, 15, 1))), "hello")).toHaveLength(0);
+    });
+
+    it("saves the presence to the minute and keeps the latest of two windows", () => {
+        expect(savedPresence(at(10, 9, 0) + 59 * 1000)).toBe(at(10, 9, 0));
+        expect(savedPresence(null)).toBeNull();
+        expect(laterPresence(null, 5)).toBe(5);
+        expect(laterPresence(7, null)).toBe(7);
+        expect(laterPresence(7, 5)).toBe(7);
+        expect(decodeMemory(JSON.stringify({ presentAt: "yesterday" })).presentAt).toBeNull();
+        expect(decodeMemory(JSON.stringify({ presentAt: -3 })).presentAt).toBeNull();
     });
 
     it("lapses when nobody looked at it for an hour", () => {
@@ -486,10 +590,17 @@ describe("what is kept across restarts (FR-BOSS-009, AC72)", () => {
         expect(decodeMemory(encodeMemory(memory))).toEqual(memory);
     });
 
-    it("keeps no moment, no stretch and no activity: those are a run's", () => {
+    it("keeps no moment, no stretch and no activity of the page: those are a run's; the last presence is kept", () => {
         const memory = work(EmptyColleague, at(10, 9, 0), at(10, 11, 0), 5 * Min);
         const saved = JSON.parse(encodeMemory(memory));
-        expect(Object.keys(saved).sort()).toEqual(["handoverEvening", "helloDay", "last", "modelCalls", "modelDay"]);
+        expect(Object.keys(saved).sort()).toEqual([
+            "handoverEvening",
+            "helloDay",
+            "last",
+            "modelCalls",
+            "modelDay",
+            "presentAt",
+        ]);
         const restored = decodeMemory(encodeMemory(memory));
         expect(restored.moments).toEqual([]);
         expect(restored.lastInputAt).toBeNull();

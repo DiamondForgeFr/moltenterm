@@ -403,7 +403,7 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
         render();
         expect(Calls.moment).toEqual([true]);
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(source).toContain("useBrokkMoment(shown)");
+        expect(source).toContain("useBrokkMoment(shown && !answerHoldsLine)");
         expect(source).not.toContain("useGroupCaption");
     });
 
@@ -813,6 +813,26 @@ describe("the block under the square (AC17 and AC20)", () => {
             const html = render();
             expect(html).toContain("I looked at the failing build.");
             expect(attr(html, "brokk-say", "data-source")).toBe("session");
+        });
+
+        // #2216 (audit #2214, C3): the hello hidden behind his answer was marked shown, then seen, and never displayed.
+        it("does not use up a moment his session's answer hides", () => {
+            const session = BrokkSession.getInstance() as any;
+            globalStore.set(session.exchangeAtom, [
+                {
+                    id: "m1",
+                    role: "brokk",
+                    text: "I looked at the failing build.",
+                    actions: [],
+                    at: 1,
+                    turn: 1,
+                    final: true,
+                },
+            ]);
+            globalStore.set(session.unseenIdAtom, "m1");
+            const html = render();
+            expect(attr(html, "brokk-say", "data-source")).toBe("session");
+            expect(Calls.moment).toEqual([false]);
         });
     });
 

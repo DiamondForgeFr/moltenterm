@@ -116,6 +116,8 @@ type Rig = {
     answer: { next: () => Promise<PhraseAnswer> };
     working: { count: number };
     ticks: ReturnType<typeof ticker>;
+    // This computer's idle time, in seconds; null where it cannot be read.
+    idle: { sec: number };
     advance: (ms: number) => void;
 };
 
@@ -134,7 +136,9 @@ function rig(start: number, meta: FakeMeta = new FakeMeta()): Rig {
     const answer = { next: async (): Promise<PhraseAnswer> => ({ status: "none" }) };
     const working = { count: 0 };
     const ticks = ticker();
+    const idle = { sec: null as number };
     model.useDeps({
+        idleSec: async () => idle.sec,
         now: () => clock.now,
         every: ticks.every,
         random: () => 0.5,
@@ -156,6 +160,7 @@ function rig(start: number, meta: FakeMeta = new FakeMeta()): Rig {
         answer,
         working,
         ticks,
+        idle,
         advance: (ms) => {
             clock.now += ms;
         },
@@ -199,6 +204,65 @@ describe("the hello, the nudge and the hand-over, from the developer's inputs (F
         const nextDay = rig(at(11, 8, 0), first.meta);
         nextDay.model.noteInput();
         expect(moments("hello")).toHaveLength(1);
+    });
+
+    // #2216 (audit #2214, C1, AC-1): the build restarted at 00:35 greeted its first input, the computer slept, and the
+    // morning found the day already greeted.
+    it("greets the morning after a restart at half past midnight, not the restart", async () => {
+        const evening = rig(at(10, 23, 30));
+        type(evening, 60 * Min);
+        const restarted = rig(at(11, 0, 35), evening.meta);
+        restarted.model.noteInput();
+        expect(moments("hello")).toHaveLength(0);
+        restarted.clock.now = at(11, 8, 58);
+        restarted.model.noteInput();
+        expect(moments("hello")).toHaveLength(1);
+        expect(moments("hello")[0].set).toBe("hello.morning");
+    });
+
+    // #2216 (AC-2): the tab view on screen is rebuilt after a wake; it used to take its empty memory for a night.
+    it("raises no hello in a view rebuilt after a wake while the developer is at work", async () => {
+        // A night of work from the evening: the evening's hello said, none owed past midnight.
+        const working = rig(at(10, 22, 0));
+        type(working, 7 * Hour + 10 * Min);
+        const rebuilt = rig(at(11, 5, 25), working.meta);
+        rebuilt.idle.sec = 20;
+        rebuilt.model.start();
+        await flush();
+        rebuilt.model.noteInput();
+        expect(moments("hello")).toHaveLength(0);
+    });
+
+    it("greets a return the idle time saw before any input in a view, and says it once", async () => {
+        const evening = rig(at(10, 18, 0));
+        evening.model.noteInput();
+        evening.model.noteSeen(moments("hello")[0].id);
+        const morning = rig(at(11, 8, 58), evening.meta);
+        morning.idle.sec = 5;
+        morning.model.tick();
+        await flush();
+        expect(moments("hello")).toHaveLength(1);
+        morning.advance(Min);
+        morning.model.noteInput();
+        expect(moments("hello")).toHaveLength(1);
+    });
+
+    it("saves the last presence at most once a minute", () => {
+        const r = rig(at(10, 9, 0));
+        r.model.noteInput();
+        const writes = r.meta.writes.length;
+        for (let i = 0; i < 20; i++) {
+            r.advance(2 * 1000);
+            r.model.noteInput();
+        }
+        expect(r.meta.writes.length - writes).toBeLessThanOrEqual(1);
+    });
+
+    it("tells his model the part of the day of a hello", async () => {
+        const r = rig(at(10, 5, 30));
+        r.model.noteInput();
+        await flush();
+        expect(r.asked[0]).toMatchObject({ kind: "hello", part: "early", clock: "05:30" });
     });
 
     // The pages' localStorage is gone at every restart (#1763): the day greeted lives in the client's meta.
@@ -401,7 +465,7 @@ describe("his model phrases a moment (FR-BOSS-009, AC77)", () => {
         const r = rig(at(10, 8, 15));
         r.answer.next = async () => ({ status: "line", line: "Morning. The fire is lit, tools are out." });
         r.model.noteInput();
-        expect(r.asked).toEqual([{ kind: "hello", language: "fr", clock: "08:15" }]);
+        expect(r.asked).toEqual([{ kind: "hello", language: "fr", clock: "08:15", part: "morning" }]);
         await flush();
         expect(momentLine(moments("hello")[0])).toEqual({ text: "Morning. The fire is lit, tools are out." });
     });
@@ -414,7 +478,7 @@ describe("his model phrases a moment (FR-BOSS-009, AC77)", () => {
         await flush();
         const byKind = Object.fromEntries(r.asked.map((request) => [request.kind, request]));
         expect(Object.keys(byKind).sort()).toEqual(["break", "handover", "hello"]);
-        expect(byKind.hello).toEqual({ kind: "hello", language: "fr", clock: "21:00" });
+        expect(byKind.hello).toEqual({ kind: "hello", language: "fr", clock: "21:00", part: "back" });
         expect(byKind.handover).toEqual({ kind: "handover", language: "fr", clock: "21:00", agents: 3 });
         expect(Object.keys(byKind.break).sort()).toEqual(["clock", "kind", "language", "workedmin"]);
         expect(byKind.break.workedmin).toBeGreaterThanOrEqual(120);

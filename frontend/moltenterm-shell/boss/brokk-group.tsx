@@ -366,8 +366,9 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     }, []);
     // His line under the square is his own when his session has something the developer has not seen (AC25), else the
     // moment of a kind colleague (AC72), else nothing: the line is hidden and the card holds the usage grid alone (AC71).
-    const moment = useBrokkMoment(shown);
     const unseen = exchange.find((item) => item.role === "brokk" && item.id === unseenId) as BrokkItem;
+    const answerHoldsLine = sayLine(unseen, "") !== "";
+    const moment = useBrokkMoment(shown && !answerHoldsLine);
     const line = sayLine(unseen, moment?.text ?? "");
     const hasLine = line !== "";
     const g = useMemo(() => groupGeometry(SquarePx, TilePx, usageHeight, hasLine), [usageHeight, hasLine]);
