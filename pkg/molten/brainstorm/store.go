@@ -80,8 +80,8 @@ type Saved struct {
 // Store reads and writes the folders. root gives the brainstorms folder at each call, so a change of the setting
 // applies to the next idea; stateDir is MoltenTerm's own. trash moves a forgotten folder to the system trash.
 type Store struct {
-	root     func() string
-	stateDir string
+	root       func() string
+	stateDir   string
 	trash      func(path string) (string, error)
 	errNoTrash error
 }
