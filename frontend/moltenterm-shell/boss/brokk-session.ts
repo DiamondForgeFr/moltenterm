@@ -18,7 +18,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, PrimitiveAtom } from "jotai";
 import { BossBubbleModel } from "./boss-store";
-import { ExchangeItem, SpeakingHoldMs, withAnswer, withMessage } from "./brokk-exchange-model";
+import { ExchangeItem, withAnswer, withMessage } from "./brokk-exchange-model";
 import { BrokkHubModel } from "./brokk-hub-store";
 import {
     AutoApproval,
@@ -91,8 +91,6 @@ export class BrokkSession {
     stateAtom = atom(IdleTalk) as PrimitiveAtom<TalkState>;
     // The developer's messages and his answers, oldest first, for as long as MoltenTerm runs.
     exchangeAtom = atom([]) as PrimitiveAtom<ExchangeItem[]>;
-    // His answer is coming in, or came a moment ago: his face speaks (FR-BOSS-009, AC25).
-    speakingAtom = atom(false) as PrimitiveAtom<boolean>;
     // The answer that changed while the window was folded: his line under the square (AC25). Null when seen.
     unseenIdAtom = atom(null) as PrimitiveAtom<string>;
     // What his agent asks the developer now, answered in his talk window (#2257); null when nothing waits.
@@ -112,7 +110,6 @@ export class BrokkSession {
     // writes again.
     private stateOwner: string = null;
     private windowOpen = false;
-    private speakGen = 0;
     private answerListeners = new Set<AnswerListener>();
     private replayed = new Map<string, Tracked>();
     // Words put before the developer's next message, shown in the exchange as sent (the brainstorm's start, #2246).
@@ -358,7 +355,6 @@ export class BrokkSession {
         if (!changed) {
             return;
         }
-        this.speaks();
         if (!this.windowOpen) {
             globalStore.set(this.unseenIdAtom, tracked.id);
         }
@@ -378,17 +374,6 @@ export class BrokkSession {
             })
         );
         this.told(tracked, true);
-    }
-
-    // He speaks while his answer comes in and for a short while after it last changed.
-    private speaks(): void {
-        const gen = ++this.speakGen;
-        globalStore.set(this.speakingAtom, true);
-        void this.wait(SpeakingHoldMs).then(() => {
-            if (gen === this.speakGen) {
-                globalStore.set(this.speakingAtom, false);
-            }
-        });
     }
 
     // Reads his answer until his agent is done with the message, or gives up and points to his terminal.
