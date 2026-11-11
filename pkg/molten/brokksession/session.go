@@ -62,7 +62,7 @@ const (
 	ReplyWaiting = "waiting"
 	ReplyUnread  = "unread"
 
-	// A message is one line the agent reads as a prompt, of at most this many characters: the window's field
+	// A message is one prompt the agent reads (its line breaks kept, #2237), of at most this many characters: the window's field
 	// (brokk-talk-model.ts MaxMessageLength) and the typing path (termupdate.MaxTypedMessage) take as many.
 	MaxTextLength = 4000
 

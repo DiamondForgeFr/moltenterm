@@ -28,6 +28,8 @@ import {
     keepsText,
     MaxMessageLength,
     onItsWay,
+    sendsOnKey,
+    talkFieldHeight,
     talkNoteKey,
     TalkState,
     talkWaits,
@@ -68,7 +70,7 @@ export function BrokkTalk({
     const [text, setTextState] = useState(draft);
     const [focused, setFocused] = useState(false);
     const [confirming, setConfirming] = useState<InlineAction>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const innerRef = useRef<HTMLDivElement>(null);
     const setText = (value: string) => {
@@ -113,12 +115,28 @@ export function BrokkTalk({
         observer.observe(inner);
         return () => observer.disconnect();
     }, [open, onContentHeight]);
+    // The field grows with its lines (AC22b, #2237): measured at its natural height, then capped. The exchange above it
+    // gives up the room, and stays scrolled to the latest.
+    useLayoutEffect(() => {
+        const field = inputRef.current;
+        if (field == null) {
+            return;
+        }
+        const style = getComputedStyle(field);
+        const lineHeight = parseFloat(style.lineHeight);
+        const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+        if (!Number.isFinite(lineHeight) || !Number.isFinite(padding)) {
+            return;
+        }
+        field.style.height = "auto";
+        field.style.height = `${talkFieldHeight(field.scrollHeight, lineHeight, padding)}px`;
+    }, [text]);
     useEffect(() => {
         const scroll = scrollRef.current;
         if (open && scroll != null) {
             scroll.scrollTop = scroll.scrollHeight;
         }
-    }, [open, items, state.phase, confirming]);
+    }, [open, items, state.phase, confirming, text]);
 
     const send = async () => {
         if (!canSend(text, state)) {
@@ -243,12 +261,13 @@ export function BrokkTalk({
                 </div>
             ) : null}
             <div className="mt-brokk-field-row">
-                <input
+                <textarea
                     ref={inputRef}
-                    type="text"
+                    rows={1}
                     value={text}
                     maxLength={MaxMessageLength}
                     placeholder={t("boss.panel.talk.placeholder", { name })}
+                    title={t("boss.panel.talk.keys")}
                     aria-label={t("boss.panel.talk.label", { name })}
                     data-testid="brokk-talk-input"
                     className="mt-brokk-field-input"
@@ -257,6 +276,13 @@ export function BrokkTalk({
                         if (clearsOnTyping(state)) {
                             session.clearNote();
                         }
+                    }}
+                    onKeyDown={(e) => {
+                        if (!sendsOnKey({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing })) {
+                            return;
+                        }
+                        e.preventDefault();
+                        void send();
                     }}
                 />
                 <button

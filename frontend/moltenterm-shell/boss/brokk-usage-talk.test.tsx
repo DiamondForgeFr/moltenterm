@@ -101,6 +101,19 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         expect(html).not.toContain('data-testid="brokk-talk-note"');
     });
 
+    // #2237: one endless line hid the message being typed.
+    it("is a field that wraps its lines, says its keys, and sends on Enter but not on Shift+Enter", () => {
+        const html = render();
+        expect(html).toMatch(/<textarea rows="1"[^>]*data-testid="brokk-talk-input"/);
+        expect(html).toContain('title="Enter to send, Shift+Enter for a new line"');
+        const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
+        expect(source).toMatch(/onKeyDown=\{\(e\) => \{\s*if \(!sendsOnKey\(/);
+        expect(source).toContain("talkFieldHeight(field.scrollHeight");
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        expect(css).toMatch(/\.mt-brokk-field-input \{[^}]*resize: none;[^}]*white-space: pre-wrap;/);
+        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-row \{[^}]*height: auto;/);
+    });
+
     it("wears the Molten call to action", () => {
         expect(render()).toMatch(/class="molten-btn [^"]*"[^>]*>Send<[^>]*>/);
         const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
@@ -139,7 +152,7 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         keepDraft("and the blocked ones?");
         const html = render();
         expect(html).toContain('data-open="true"');
-        expect(html).toContain('value="and the blocked ones?"');
+        expect(html).toContain(">and the blocked ones?</textarea>");
     });
 
     it("opens as a log of the exchange named for him, with a hint while it is empty", () => {

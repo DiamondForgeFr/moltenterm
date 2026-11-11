@@ -3305,6 +3305,7 @@
                 "gone": "Le terminal de {name} a été fermé : renvoyez votre message pour en démarrer un nouveau.",
                 "notSubmitted": "Votre message attend dans le terminal de {name} : ouvrez-le et appuyez sur Entrée.",
                 "agentStopped": "L'agent de {name} ne tourne plus dans son terminal. Fermez ce terminal, puis renvoyez votre message.",
+                "keys": "Entrée pour envoyer, Maj+Entrée pour un retour à la ligne",
                 "unreachable": "Le message n'est pas parti : la session de {name} n'a pas répondu à MoltenTerm. Réessayez dans un instant.",
                 "lookupFailed": "Le message n'est pas parti : MoltenTerm n'a pas pu chercher la session de {name} à l'instant. Réessayez dans un instant.",
                 "refused": "Le message n'est pas parti : le terminal de {name} ne l'a pas pris. Ouvrez son terminal pour voir ce qui s'y passe.",
