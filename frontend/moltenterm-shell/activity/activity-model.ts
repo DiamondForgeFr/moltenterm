@@ -9,6 +9,8 @@
 // Brokk's and the notifications' to tell. Pure, so the rules are tested without a window.
 
 import type { AgentStateInfo } from "../agent-state-model";
+import { AiIcon } from "../ai-icon";
+import type { ServerText } from "../i18n/server-text";
 import type { ReviewPr, ReviewsAnswer } from "../reviews/reviews-model";
 import type { WorkItem } from "../running-work";
 
@@ -25,13 +27,32 @@ export type ActivityTarget =
     | { type: "local-ci"; dir: string }
     | { type: "pr-ci"; dir: string; number: number; url?: string };
 
+// What a row of the popover says about an item, as its source holds it; the words are made where they show.
+export type ActivityAbout = {
+    // An agent's first name, a build's title; empty for CI, whose row names it.
+    title: string;
+    // The agent's line, the phase or job running.
+    detail: string;
+    detailtext?: ServerText;
+    // The share done, 0 to 1, or -1 when it is not known (a local CI run).
+    progress: number;
+    // A pull request's checks on GitHub: how many ended, out of how many.
+    done: number;
+    total: number;
+};
+
 export type ActivityItem = {
     id: string;
     kind: ActivityKind;
     // ms since the epoch; 0 when it is not known, and then the item never leads over one that is.
     startedat: number;
     target: ActivityTarget;
+    about: ActivityAbout;
 };
+
+function aboutOf(more: Partial<ActivityAbout> = {}): ActivityAbout {
+    return { title: "", detail: "", progress: -1, done: 0, total: 0, ...more };
+}
 
 export type ActivityCounts = Record<ActivityKind, number>;
 
@@ -76,18 +97,30 @@ function agentItems(agents: Record<string, AgentStateInfo>): ActivityItem[] {
             kind: "agent" as const,
             startedat: info.started ?? info.since ?? 0,
             target: { type: "agent" as const, blockid: info.blockid, tabid: info.tabid, workspaceid: info.workspaceid },
+            about: aboutOf({
+                title: (info.firstname || info.agentname || info.agent || "").trim(),
+                detail: info.message ?? "",
+                detailtext: info.messagetext,
+            }),
         }));
 }
 
 function workItems(work: readonly WorkItem[]): ActivityItem[] {
     return (work ?? []).map((item) => {
         const startedat = item.startedat ?? 0;
+        const about = aboutOf({
+            title: item.kind === "ci" ? "" : item.title,
+            detail: item.detail ?? "",
+            detailtext: item.detailtext,
+            progress: item.progress ?? -1,
+        });
         if (item.kind === "ci") {
             return {
                 id: `work:${item.id}`,
                 kind: "ci" as const,
                 startedat,
                 target: { type: "local-ci" as const, dir: item.dir },
+                about,
             };
         }
         return {
@@ -95,6 +128,7 @@ function workItems(work: readonly WorkItem[]): ActivityItem[] {
             kind: "build" as const,
             startedat,
             target: { type: "build" as const, dir: item.dir, workspaceid: item.workspaceid },
+            about,
         };
     });
 }
@@ -134,11 +168,13 @@ function prItems(answers: Record<string, ReviewsAnswer>, dirs: readonly string[]
             if (running.length === 0) {
                 continue;
             }
+            const remote = (pr.ci?.checks ?? []).filter((c) => !c.local);
             rtn.push({
                 id: `pr:${dir}#${pr.number}`,
                 kind: "ci",
                 startedat: prStart(pr, running),
                 target: { type: "pr-ci", dir, number: pr.number, url: pr.url },
+                about: aboutOf({ done: remote.length - running.length, total: remote.length }),
             });
         }
     }
@@ -169,9 +205,16 @@ export function summarizeActivity(items: readonly ActivityItem[]): ActivitySumma
     return { items: sorted, count: sorted.length, kinds, lead: sorted[0] };
 }
 
-// What a summary is, to tell two of them apart: the same running items give the same key, whatever else moved.
+// What a summary is, to tell two of them apart: the same running items saying the same give the same key, whatever else
+// about their source moved (an agent's version, a pull request's title).
 export function activityKey(summary: ActivitySummary): string {
-    return summary.items.map((i) => `${i.id}@${i.startedat}`).join("|");
+    return summary.items
+        .map((i) => {
+            const a = i.about;
+            const text = JSON.stringify(a.detailtext ?? null);
+            return [i.id, i.startedat, a.title, a.detail, text, a.progress, a.done, a.total].join("@");
+        })
+        .join("|");
 }
 
 // The words of the tooltip and the accessible name. Pure over the translation functions, so a test drives them with
@@ -210,7 +253,7 @@ export function activityLines(summary: ActivitySummary, tc: ActivityTCount): str
     return lines;
 }
 
-// Where a click goes, said before it goes there.
+// Where a click on a row goes, said before it goes there (the row's tooltip).
 export function activityWhereKey(target: ActivityTarget): string {
     switch (target?.type) {
         case "agent":
@@ -228,23 +271,107 @@ export function activityWhereKey(target: ActivityTarget): string {
 export type ActivityTexts = {
     // The list of what runs, comma-separated.
     list: string;
-    // The accessible name: what runs, then where a click goes.
+    // The accessible name of the indicator: what runs, or that nothing does.
     label: string;
-    // The tooltip: one line per sort of item, then where a click goes.
-    title: string;
 };
 
 export function activityTexts(summary: ActivitySummary, t: ActivityT, tc: ActivityTCount): ActivityTexts {
     if (summary.count === 0) {
-        return { list: "", label: "", title: "" };
+        return { list: "", label: t("activity.idle") };
     }
-    const lines = activityLines(summary, tc);
-    const list = lines.join(", ");
-    const whereKey = activityWhereKey(summary.lead?.target);
-    const where = whereKey ? t(whereKey) : "";
+    const list = activityLines(summary, tc).join(", ");
+    return { list, label: t("activity.label", { list }) };
+}
+
+// The picture of the indicator (FR-BOSS-009, AC85): nothing running is the flame put out, one item the icon of its
+// panel, several items the flame lit.
+export type ActivityGlyph = "idle" | "agent" | "ci" | "build" | "fire";
+
+export function activityGlyph(summary: ActivitySummary): ActivityGlyph {
+    if (summary == null || summary.count === 0) {
+        return "idle";
+    }
+    return summary.count > 1 ? "fire" : summary.lead.kind;
+}
+
+// The Font Awesome icons of the app: the AI icon for an agent, the CI/CD view's for CI, a hammer for a build.
+export const ActivityGlyphIcons: Record<ActivityGlyph, string> = {
+    idle: "fire",
+    fire: "fire",
+    agent: AiIcon,
+    ci: "list-check",
+    build: "hammer",
+};
+
+export type ActivityGroupId = "agents" | "ci" | "builds";
+
+export type ActivityRow = {
+    id: string;
+    what: string;
+    detail: string;
+    // How long ago it started, "" when that is not known.
+    since: string;
+    target: ActivityTarget;
+};
+
+export type ActivityGroup = { id: ActivityGroupId; title: string; rows: ActivityRow[] };
+
+// What the rows need to be worded: the translation functions, the age of a start, and wavesrv's sentences in the
+// interface language. Passed in, so that a test drives them with fakes.
+export type ActivityWords = {
+    t: ActivityT;
+    tc: ActivityTCount;
+    now: number;
+    age: (startedat: number, now: number) => string;
+    server: (text: ServerText, english: string) => string;
+};
+
+const GroupOfKind: Record<ActivityKind, ActivityGroupId> = { agent: "agents", ci: "ci", build: "builds" };
+const GroupOrder: readonly ActivityGroupId[] = ["agents", "ci", "builds"];
+
+function rowOf(item: ActivityItem, w: ActivityWords): ActivityRow {
+    const a = item.about;
+    const target = item.target;
+    let what = a.title;
+    let detail = w.server(a.detailtext, a.detail);
+    if (target.type === "local-ci") {
+        what = w.t("activity.row.localCi");
+        if (a.progress >= 0) {
+            const percent = w.t("activity.row.percent", { percent: Math.round(a.progress * 100) });
+            detail = [detail, percent].filter((s) => s).join(" · ");
+        }
+    }
+    if (target.type === "pr-ci") {
+        what = w.t("activity.row.pr", { number: target.number });
+        detail = a.total > 0 ? w.t("activity.row.prChecks", { done: a.done, total: a.total }) : "";
+    }
     return {
-        list,
-        label: [t("activity.label", { list }), where].filter((s) => s).join(". "),
-        title: [...lines, where].filter((s) => s).join("\n"),
+        id: item.id,
+        what,
+        detail,
+        since: item.startedat > 0 ? w.age(item.startedat, w.now) : "",
+        target,
     };
+}
+
+// The popover's groups, in the order agents, CI, builds, each with its rows newest first; an empty group is left out.
+export function activityGroups(summary: ActivitySummary, w: ActivityWords): ActivityGroup[] {
+    const rtn: ActivityGroup[] = [];
+    for (const id of GroupOrder) {
+        const items = (summary?.items ?? []).filter((i) => GroupOfKind[i.kind] === id);
+        if (items.length === 0) {
+            continue;
+        }
+        const title = id === "ci" ? w.t("activity.group.ci") : w.tc(`activity.group.${id}`, items.length);
+        rtn.push({ id, title, rows: items.map((i) => rowOf(i, w)) });
+    }
+    return rtn;
+}
+
+// The popover's title: the furnaces out, a single item running, or how many.
+export function activityPopoverTitle(summary: ActivitySummary, t: ActivityT): string {
+    if (summary == null || summary.count === 0) {
+        return t("activity.popover.idle");
+    }
+    return summary.count === 1 ? t("activity.popover.one") : t("activity.popover.many", { count: summary.count });
 }

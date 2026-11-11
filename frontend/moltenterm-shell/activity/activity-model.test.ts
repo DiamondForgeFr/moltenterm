@@ -11,20 +11,29 @@ import frLocale from "../i18n/locales/fr.json";
 import type { ReviewCheck, ReviewPr, ReviewsAnswer } from "../reviews/reviews-model";
 import type { WorkItem } from "../running-work";
 import {
+    activityGlyph,
+    ActivityGlyphIcons,
+    activityGroups,
     ActivityInputs,
     activityItems,
     activityKey,
     activityLines,
+    activityPopoverTitle,
     ActivityT,
     ActivityTCount,
     activityTexts,
     activityWhereKey,
+    ActivityWords,
     EmptyActivity,
     NamedPrs,
     summarizeActivity,
 } from "./activity-model";
 
 const Dir = "/work/product";
+
+// A translation that shows the key, the count and the variables it was given.
+const fakeT: ActivityT = (key, vars) => (vars ? `${key}${JSON.stringify(vars)}` : key);
+const fakeTc: ActivityTCount = (key, count, vars) => `${key}:${count}${vars ? JSON.stringify(vars) : ""}`;
 
 let blockCount = 0;
 
@@ -277,21 +286,148 @@ describe("the summary", () => {
         expect(one.kinds).toEqual({ agent: 0, build: 1, ci: 0 });
     });
 
-    it("keeps the same key while the same items run, whatever else about them moved", () => {
-        const a = agent("working", { started: 10 });
+    it("keeps the same key while the same items say the same, whatever else about their source moved", () => {
+        const a = agent("working", { started: 10, message: "reading files" });
         const first = summarizeActivity(activityItems(inputs({ agents: agents(a) })));
         const again = summarizeActivity(
-            activityItems(inputs({ agents: agents({ ...a, message: "thinking", version: 99 }) }))
+            activityItems(inputs({ agents: agents({ ...a, version: 99, hooked: true, model: "other" }) }))
         );
         expect(activityKey(again)).toBe(activityKey(first));
         const other = summarizeActivity(activityItems(inputs({ agents: agents(a, agent("working")) })));
         expect(activityKey(other)).not.toBe(activityKey(first));
     });
+
+    it("changes the key when a row would say something else: the agent's line, a CI run's job, a PR's checks", () => {
+        const a = agent("working", { started: 10, message: "reading files" });
+        const key = (list: ActivityInputs) => activityKey(summarizeActivity(activityItems(list)));
+        expect(key(inputs({ agents: agents({ ...a, message: "running the tests" }) }))).not.toBe(
+            key(inputs({ agents: agents(a) }))
+        );
+        expect(key(inputs({ work: [work("ci", 5, { id: "r", detail: "lint" })] }))).not.toBe(
+            key(inputs({ work: [work("ci", 5, { id: "r", detail: "tests" })] }))
+        );
+        const checks = (done: number) => pr(3, [...Array(done).fill(check("success")), check("pending")]);
+        expect(key(inputs({ answers: { [Dir]: answer([checks(2)]) } }))).not.toBe(
+            key(inputs({ answers: { [Dir]: answer([checks(3)]) } }))
+        );
+    });
 });
 
-// A translation that shows the key, the count and the variables it was given.
-const fakeT: ActivityT = (key, vars) => (vars ? `${key}${JSON.stringify(vars)}` : key);
-const fakeTc: ActivityTCount = (key, count, vars) => `${key}:${count}${vars ? JSON.stringify(vars) : ""}`;
+describe("the indicator's picture", () => {
+    const glyphOf = (list: Partial<ActivityInputs>) => activityGlyph(summarizeActivity(activityItems(inputs(list))));
+
+    it("is the flame put out with nothing running", () => {
+        expect(activityGlyph(EmptyActivity)).toBe("idle");
+        expect(activityGlyph(null)).toBe("idle");
+    });
+
+    it("is the icon of the panel when one item runs: sparkles, the list, the hammer", () => {
+        expect(glyphOf({ agents: agents(agent("working")) })).toBe("agent");
+        expect(glyphOf({ work: [work("ci", 1)] })).toBe("ci");
+        expect(glyphOf({ answers: { [Dir]: answer([pr(4, [check("pending")])]) } })).toBe("ci");
+        expect(glyphOf({ work: [work("release", 1)] })).toBe("build");
+        expect(ActivityGlyphIcons.agent).toBe("sparkles");
+        expect(ActivityGlyphIcons.ci).toBe("list-check");
+        expect(ActivityGlyphIcons.build).toBe("hammer");
+    });
+
+    it("is the flame lit when several items run, of one kind or of several", () => {
+        expect(glyphOf({ agents: agents(agent("working"), agent("working")) })).toBe("fire");
+        expect(glyphOf({ agents: agents(agent("working")), work: [work("build", 1)] })).toBe("fire");
+        expect(ActivityGlyphIcons.fire).toBe("fire");
+        expect(ActivityGlyphIcons.idle).toBe("fire");
+    });
+});
+
+describe("the popover", () => {
+    // Words that show the key, the count and the variables, as an age that shows its start.
+    const words: ActivityWords = {
+        t: fakeT,
+        tc: fakeTc,
+        now: 1_000_000,
+        age: (startedat, now) => `${Math.round((now - startedat) / 1000)}s`,
+        server: (text, english) => (text?.code ? `[${text.code}]` : english),
+    };
+
+    it("titles itself by how many items run", () => {
+        expect(activityPopoverTitle(EmptyActivity, fakeT)).toBe("activity.popover.idle");
+        const one = summarizeActivity(activityItems(inputs({ work: [work("build", 1)] })));
+        expect(activityPopoverTitle(one, fakeT)).toBe("activity.popover.one");
+        const two = summarizeActivity(activityItems(inputs({ work: [work("build", 1), work("ci", 2)] })));
+        expect(activityPopoverTitle(two, fakeT)).toBe('activity.popover.many{"count":2}');
+    });
+
+    it("groups the rows as agents, CI, builds, newest first, and leaves out a group with nothing", () => {
+        const summary = summarizeActivity(
+            activityItems(
+                inputs({
+                    agents: agents(
+                        agent("working", { started: 900_000, firstname: "Flore", message: "fixing #2233" }),
+                        agent("working", { started: 800_000, firstname: "Berenice", message: "" })
+                    ),
+                    work: [work("build", 940_000, { title: "Gold packaging", detail: "pack" })],
+                })
+            )
+        );
+        const groups = activityGroups(summary, words);
+        expect(groups.map((g) => g.id)).toEqual(["agents", "builds"]);
+        expect(groups[0].title).toBe("activity.group.agents:2");
+        expect(groups[0].rows.map((r) => [r.what, r.detail, r.since])).toEqual([
+            ["Flore", "fixing #2233", "100s"],
+            ["Berenice", "", "200s"],
+        ]);
+        expect(groups[1].title).toBe("activity.group.builds:1");
+        expect(groups[1].rows[0]).toMatchObject({ what: "Gold packaging", detail: "pack", since: "60s" });
+        expect(activityGroups(EmptyActivity, words)).toEqual([]);
+    });
+
+    it("words a local CI run with its job and share, and a pull request with its checks", () => {
+        const summary = summarizeActivity(
+            activityItems(
+                inputs({
+                    work: [work("ci", 970_000, { detail: "tests", progress: 0.43 })],
+                    answers: {
+                        [Dir]: answer([
+                            pr(2227, [
+                                check("success"),
+                                check("success"),
+                                check("pending", { startedat: "1970-01-01T00:16:00Z" }),
+                            ]),
+                        ]),
+                    },
+                })
+            )
+        );
+        const [ci] = activityGroups(summary, words);
+        expect(ci.id).toBe("ci");
+        expect(ci.title).toBe("activity.group.ci");
+        const byWhat = Object.fromEntries(ci.rows.map((r) => [r.what, r]));
+        const local = byWhat["activity.row.localCi"];
+        expect(local.detail).toBe('tests · activity.row.percent{"percent":43}');
+        expect(local.since).toBe("30s");
+        const remote = byWhat['activity.row.pr{"number":2227}'];
+        expect(remote.detail).toBe('activity.row.prChecks{"done":2,"total":3}');
+        expect(remote.target).toMatchObject({ type: "pr-ci", number: 2227 });
+    });
+
+    it("words an agent's line and a build's phase in the interface language when wavesrv sent a code", () => {
+        const summary = summarizeActivity(
+            activityItems(
+                inputs({
+                    agents: agents(agent("working", { message: "fixing", messagetext: { code: "agent.fixing" } })),
+                    work: [work("build", 1, { detail: "preparing", detailtext: { code: "mission.work.preparing" } })],
+                })
+            )
+        );
+        const rows = activityGroups(summary, words).flatMap((g) => g.rows);
+        expect(rows.map((r) => r.detail).sort()).toEqual(["[agent.fixing]", "[mission.work.preparing]"]);
+    });
+
+    it("says nothing of a start it does not know", () => {
+        const summary = summarizeActivity(activityItems(inputs({ agents: agents(agent("working")) })));
+        expect(activityGroups(summary, words)[0].rows[0].since).toBe("");
+    });
+});
 
 describe("the words", () => {
     it("lists what runs, one line per sort: agents, CI of the pull requests, local CI, builds", () => {
@@ -319,41 +455,67 @@ describe("the words", () => {
         expect(activityLines(summary, fakeTc)).toEqual(['activity.prCi:5{"numbers":"#4, #7, #21 +2"}']);
     });
 
-    it("says where a click goes, the lead's place, in the label and the tooltip", () => {
+    it("names what runs in the accessible name of the indicator, and says when nothing does", () => {
         const summary = summarizeActivity(
             activityItems(inputs({ agents: agents(agent("working", { started: 5 })), work: [work("build", 9)] }))
         );
-        expect(summary.lead.kind).toBe("build");
         const texts = activityTexts(summary, fakeT, fakeTc);
         expect(texts.list).toBe("activity.agents:1, activity.builds:1");
-        expect(texts.label).toBe('activity.label{"list":"activity.agents:1, activity.builds:1"}. activity.open.build');
-        expect(texts.title).toBe("activity.agents:1\nactivity.builds:1\nactivity.open.build");
+        expect(texts.label).toBe('activity.label{"list":"activity.agents:1, activity.builds:1"}');
+        expect(activityTexts(EmptyActivity, fakeT, fakeTc)).toEqual({ list: "", label: "activity.idle" });
+        expect(activityLines(EmptyActivity, fakeTc)).toEqual([]);
+    });
+
+    it("says where a click on a row goes, in the row's tooltip", () => {
         expect(activityWhereKey({ type: "agent", blockid: "b" })).toBe("activity.open.agent");
+        expect(activityWhereKey({ type: "build", dir: Dir })).toBe("activity.open.build");
         expect(activityWhereKey({ type: "local-ci", dir: Dir })).toBe("activity.open.localCi");
         expect(activityWhereKey({ type: "pr-ci", dir: Dir, number: 1 })).toBe("activity.open.prCi");
         expect(activityWhereKey(null)).toBe("");
     });
 
-    it("has no words when nothing runs", () => {
-        expect(activityTexts(EmptyActivity, fakeT, fakeTc)).toEqual({ list: "", label: "", title: "" });
-        expect(activityLines(EmptyActivity, fakeTc)).toEqual([]);
-    });
-
     it("has the keys it asks for in both languages, with the same variables", () => {
-        const keys = ["agents", "builds", "localCi", "prCi"];
+        const plural = ["agents", "builds", "localCi", "prCi", "group.agents", "group.builds"];
+        const text = [
+            "label",
+            "idle",
+            "popover.idle",
+            "popover.one",
+            "popover.many",
+            "popover.none",
+            "group.ci",
+            "row.localCi",
+            "row.pr",
+            "row.prChecks",
+            "row.percent",
+            "open.agent",
+            "open.build",
+            "open.localCi",
+            "open.prCi",
+        ];
+        const get = (dict: any, path: string) => path.split(".").reduce((node, part) => node?.[part], dict.activity);
+        const vars = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
         for (const dict of [enLocale as any, frLocale as any]) {
-            expect(typeof dict.activity.label).toBe("string");
-            expect(dict.activity.label).toContain("{list}");
-            for (const key of keys) {
-                expect(typeof dict.activity[key].one, key).toBe("string");
-                expect(typeof dict.activity[key].other, key).toBe("string");
+            for (const key of plural) {
+                expect(typeof get(dict, `${key}.one`), key).toBe("string");
+                expect(typeof get(dict, `${key}.other`), key).toBe("string");
             }
-            for (const where of ["agent", "build", "localCi", "prCi"]) {
-                expect(typeof dict.activity.open[where], where).toBe("string");
+            for (const key of text) {
+                expect(typeof get(dict, key), key).toBe("string");
             }
-            expect(dict.activity.prCi.one).toContain("{numbers}");
-            expect(dict.activity.prCi.other).toContain("{numbers}");
-            expect(dict.activity.agents.other).toContain("{count}");
         }
+        for (const key of [...text, ...plural.flatMap((k) => [`${k}.one`, `${k}.other`])]) {
+            const en = get(enLocale, key);
+            if (typeof en === "string") {
+                expect(vars(get(frLocale, key)), key).toEqual(vars(en));
+            }
+        }
+        expect(get(enLocale, "label")).toContain("{list}");
+        expect(get(enLocale, "prCi.one")).toContain("{numbers}");
+        expect(get(enLocale, "agents.other")).toContain("{count}");
+        expect(get(enLocale, "popover.many")).toContain("{count}");
+        expect(get(enLocale, "popover.none")).toBe("No agent, build or CI is running.");
+        expect(get(frLocale, "popover.none")).toBe("Aucun agent, build ni CI en cours.");
+        expect(get(frLocale, "popover.idle")).toBe("Les fourneaux sont éteints");
     });
 });

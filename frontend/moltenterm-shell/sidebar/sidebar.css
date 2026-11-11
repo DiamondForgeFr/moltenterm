@@ -256,9 +256,11 @@
 }
 
 /* Out of sight, and out of the keyboard's way, all of the sidebar but his face and, while it is half open, his banner.
-   They hide after the slide that folds them, and show at once when it unfolds. */
+   The activity indicator (FR-BOSS-009, AC85, #2233) stays with his face: it shows wherever the row does, half open and
+   unfolded; the 30 px strip that peeks out for news holds his face alone. They hide after the slide that folds them, and
+   show at once when it unfolds. */
 .mt-sb[data-edge] > :not(.mt-sb-window-row, .mt-brokk-scene-layer),
-.mt-sb[data-edge] .mt-sb-window-row > :not(.mt-brokk-avatar) {
+.mt-sb[data-edge] .mt-sb-window-row > :not(.mt-brokk-avatar, .mt-act) {
     visibility: hidden;
     transition: visibility 0s linear var(--mt-duration-base);
 }

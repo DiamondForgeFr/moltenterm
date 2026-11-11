@@ -27,6 +27,7 @@ import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ActivityIcon } from "../activity/activity-icon";
 import { useActivityCount } from "../activity/activity-store";
 import { AgentInfoHost } from "../agent-info/agent-info-host";
 import { AgentStateDotClasses, agentStateTitle } from "../agent-state-model";
@@ -451,8 +452,8 @@ function ToggleButton() {
     );
 }
 
-// The window's own row: the room the window buttons take, then the toggle; Brokk's avatar on the right (FR-BOSS-009):
-// the bell and the keep-awake cup are in his panel (#2003). Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
+// The window's own row: the room the window buttons take, then the toggle; the activity indicator and Brokk's avatar on
+// the right (FR-BOSS-009, AC85): the bell and the keep-awake cup are in his panel (#2003). Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
 // floating panel (#1293) it is exactly as tall as the window buttons, which Electron main places at the panel's inner
 // margin from its top and left edges (macButtonsPosition), so the row starts where they do and its icons share their
 // centre line.
@@ -475,6 +476,7 @@ function WindowRow({ peeked, standIns }: { peeked: boolean; standIns: boolean })
             <AppMenuButton />
             <ToggleButton />
             <div className="h-full flex-1" />
+            <ActivityIcon />
             <BrokkAvatarSlot />
         </div>
     );

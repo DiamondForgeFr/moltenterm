@@ -15,6 +15,22 @@ const ShellDir = resolve(__dirname, "..");
 // the reduced form of a flow.
 const LoopTokens = new Set(["loop", "spin", "dominoes", "turn", "fade"]);
 
+// The working beat (working-beat.ts) is the rule for an indicator: it runs no animation of its own, so a view draws a
+// frame a second at most (#473). These loops are the narrow exceptions, each decided by the developer: a smooth loop that
+// is a transform alone on an HTML box (the compositor runs it without a main-thread frame), paused while the window or
+// the view is not active, and stopped under both reduced-motion paths. A loop that is not in this list follows the beat.
+const SmoothLoops = [
+    {
+        file: "activity/activity-icon.css",
+        selector: ".mt-act",
+        keyframes: ["mt-act-turn", "mt-act-flicker"],
+        reason:
+            "The activity indicator of the title row (FR-BOSS-009 AC85, #2233, decided 2026-11-11): its ring turns like an " +
+            "indeterminate download and its flame flickers; at the beat's one step a second they read as ticks, not as " +
+            "something running. The flame shares the frames the ring already draws.",
+    },
+];
+
 function cssFiles(): string[] {
     const files: string[] = [];
     for (const rel of readdirSync(ShellDir, { recursive: true }) as string[]) {
@@ -79,5 +95,31 @@ describe("reduced motion (NFR-SHELL-027, FR-SHELL-118)", () => {
             }
         }
         expect(missing).toEqual([]);
+    });
+});
+
+describe("the smooth loops that are an exception to the working beat", () => {
+    it.each(SmoothLoops)("$file: transform alone, paused when not active, stilled under reduced motion", (loop) => {
+        const src = stripCssComments(readFileSync(join(ShellDir, loop.file), "utf8"));
+        expect(loop.reason.length).toBeGreaterThan(40);
+        for (const name of loop.keyframes) {
+            const start = src.indexOf(`@keyframes ${name} {`);
+            expect(start, name).toBeGreaterThanOrEqual(0);
+            const frames = braceBody(src, src.indexOf("{", start));
+            const props = [...frames.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]);
+            expect(new Set(props), `${name} animates only transform`).toEqual(new Set(["transform"]));
+            expect(src, name).toMatch(new RegExp(`animation: ${name} [^;]*\\binfinite\\b`));
+        }
+        expect(src).toMatch(
+            new RegExp(`:root\\[data-mt-motion="still"\\] ${loop.selector.replace(".", "\\.")}[^{]*\\{\\s*animation-play-state: paused;`)
+        );
+        expect(reducedMotionText(src)).toMatch(new RegExp(`${loop.selector.replace(".", "\\.")}[^{]*\\{\\s*animation: none;`));
+        expect(src.slice(src.indexOf("\n.prefers-reduced-motion"))).toMatch(/animation: none;/);
+    });
+
+    it("lets no other file's infinite animation off the beat unless it is in the list", () => {
+        const listed = new Set(SmoothLoops.map((l) => join(ShellDir, l.file)));
+        const titleRow = cssFiles().filter((f) => /[\\/]activity[\\/]/.test(f));
+        expect(titleRow.every((f) => listed.has(f) || !/infinite/.test(readFileSync(f, "utf8")))).toBe(true);
     });
 });

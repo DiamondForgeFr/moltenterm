@@ -10921,6 +10921,30 @@
     },
     "activity": {
         "label": "Running now: {list}",
+        "idle": "Nothing is running: the furnaces are out",
+        "popover": {
+            "idle": "The furnaces are out",
+            "one": "Running",
+            "many": "{count} things running",
+            "none": "No agent, build or CI is running."
+        },
+        "group": {
+            "agents": {
+                "one": "Agent",
+                "other": "Agents"
+            },
+            "ci": "CI",
+            "builds": {
+                "one": "Build",
+                "other": "Builds"
+            }
+        },
+        "row": {
+            "localCi": "Local CI",
+            "pr": "PR #{number}",
+            "prChecks": "GitHub · {done}/{total} checks",
+            "percent": "{percent} %"
+        },
         "agents": {
             "one": "an agent",
             "other": "{count} agents"
