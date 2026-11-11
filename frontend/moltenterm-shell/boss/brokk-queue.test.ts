@@ -256,6 +256,52 @@ describe("the expression queue (FR-BOSS-007, AC13)", () => {
     });
 });
 
+// FR-BOSS-009, AC88 (#2259): the tone his answer opens with.
+describe("the tone of his answer in the queue (AC88)", () => {
+    const answer = (expression: BrokkExpression): QueueEvent => ({ type: "ask", expression, answer: true });
+
+    it("is not held back by the keys that sent the message", () => {
+        const q = drive();
+        q.step({ type: "key" }, 0);
+        const step = q.step(answer("smile"), 3000);
+        expect(step.play).toMatchObject({ expression: "smile", at: 3000 });
+    });
+
+    it("waits while the developer writes again, as any expression does", () => {
+        const q = drive();
+        // A gesture holds his pose, so the tone waits behind the nod and the developer types meanwhile.
+        q.ask("nod", 0);
+        q.step(answer("frown"), 1000);
+        q.step({ type: "key" }, 5000);
+        expect(q.wakeAt).toBe(5000 + KeyQuietMs);
+        q.wake();
+        expect(q.played).toEqual([
+            { expression: "nod", at: 0 },
+            { expression: "frown", at: 5000 + KeyQuietMs },
+        ]);
+    });
+
+    it("may smile again within the minute: it follows what he says", () => {
+        const q = drive();
+        q.step(answer("smile"), 0);
+        q.step(answer("smile"), BurstMs + MinGapMs);
+        expect(q.names()).toEqual(["smile", "smile"]);
+        const plain = drive();
+        plain.ask("smile", 0);
+        plain.ask("smile", BurstMs + MinGapMs);
+        expect(plain.names()).toEqual(["smile"]);
+    });
+
+    it("is still one expression at a time: it waits for the gap after another gesture", () => {
+        const q = drive();
+        q.ask("nod", 0);
+        expect(q.step(answer("frown"), 2000).play).toBeNull();
+        expect(q.wakeAt).toBe(MinGapMs);
+        q.wake();
+        expect(q.names()).toEqual(["nod", "frown"]);
+    });
+});
+
 describe("the face of a visit (FR-BOSS-009, AC5)", () => {
     const table: [Severity, BrokkExpression][] = [
         ["grave", "frown"],

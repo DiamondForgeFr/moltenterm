@@ -38,6 +38,23 @@ func TestWriteBriefPutsTheReplyConventionInHisFolder(t *testing.T) {
 	}
 }
 
+// FR-BOSS-009, AC88 (#2259): the brief teaches him the tone marker and its fixed list, every build alike; the window's
+// list (frontend/moltenterm-shell/boss/brokk-tone.ts BrokkTones) is checked against this text by brokk-tone.test.ts.
+func TestTheBriefTeachesTheToneMarker(t *testing.T) {
+	t.Parallel()
+	for _, brainstorm := range []bool{false, true} {
+		text := BriefText(brainstorm)
+		if !strings.Contains(text, "## Your tone") || !strings.Contains(text, "\n[[smile]]\n") {
+			t.Errorf("brainstorm=%v: the brief does not teach the tone marker", brainstorm)
+		}
+		for _, tone := range []string{"smile", "warm", "amused", "proud", "concerned", "surprised", "thinking", "neutral"} {
+			if !strings.Contains(text, "`"+tone+"`") {
+				t.Errorf("brainstorm=%v: the brief does not list the tone %q", brainstorm, tone)
+			}
+		}
+	}
+}
+
 // FR-BOSS-010 AC1 and AC21 (#2246): a gold, dev or local build teaches him the graph block; a release never does.
 func TestTheBrainstormSectionFollowsTheGate(t *testing.T) {
 	t.Parallel()

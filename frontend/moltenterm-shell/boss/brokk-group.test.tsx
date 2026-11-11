@@ -172,6 +172,7 @@ import {
     typingTarget,
 } from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
+import { BrokkSpeech } from "./brokk-speech";
 
 const boss = BossBubbleModel.getInstance() as any;
 const notifications = MoltentermNotifications.getInstance() as any;
@@ -400,7 +401,7 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
         expect(Calls.live).toEqual([null]);
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain(
-            "const pose = talkPose({ typing, awaiting: talkWaits(talk), working: answering, speaking });"
+            "const pose = useTalkFace({ typing, awaiting: talkWaits(talk), working: answering });"
         );
         expect(source).toContain("useCardLive(pose)");
         expect(source).toContain('<BossPortrait live={live} framing="banner" />');
@@ -415,14 +416,15 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
         expect(source).not.toContain("useGroupCaption");
     });
 
-    // FR-BOSS-009, AC25: listens while he is written to, thinks while his session works, speaks while his answer comes in.
-    describe("his face with the conversation (AC25)", () => {
+    // FR-BOSS-009, AC86 and AC87 (#2259): listens while he is written to and while his answer is on its way, thinks only
+    // once that lasts (use-brokk-talk-face.ts, brokk-speech-model.test.ts), speaks while his answer is said.
+    describe("his face with the conversation (AC86, AC87)", () => {
         const session = BrokkSession.getInstance() as any;
 
         afterEach(async () => {
             const { BrokkHubModel } = await import("./brokk-hub-store");
             globalStore.set((BrokkHubModel.getInstance() as any).ownWorkingAtom, false);
-            globalStore.set(session.speakingAtom, false);
+            globalStore.set(BrokkSpeech.getInstance().speakingAtom, false);
             globalStore.set(session.stateAtom, {
                 phase: "idle",
                 reason: "",
@@ -433,14 +435,14 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
             });
         });
 
-        it("thinks while his own session works", async () => {
+        it("listens, rather than thinks, the moment his own session starts to work", async () => {
             const { BrokkHubModel } = await import("./brokk-hub-store");
             globalStore.set((BrokkHubModel.getInstance() as any).ownWorkingAtom, true);
             render();
-            expect(Calls.live).toEqual(["thinking"]);
+            expect(Calls.live).toEqual(["typing"]);
         });
 
-        it("thinks from the moment his agent has a message, before his session shows work", () => {
+        it("listens, rather than thinks, the moment his agent has a message", () => {
             globalStore.set(session.stateAtom, {
                 phase: "answering",
                 reason: "",
@@ -450,13 +452,13 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
                 where: null,
             });
             render();
-            expect(Calls.live).toEqual(["thinking"]);
+            expect(Calls.live).toEqual(["typing"]);
         });
 
-        it("speaks while his answer comes in, over thinking", async () => {
+        it("speaks while his answer is said, over his session's work", async () => {
             const { BrokkHubModel } = await import("./brokk-hub-store");
             globalStore.set((BrokkHubModel.getInstance() as any).ownWorkingAtom, true);
-            globalStore.set(session.speakingAtom, true);
+            globalStore.set(BrokkSpeech.getInstance().speakingAtom, true);
             render();
             expect(Calls.live).toEqual(["answering"]);
         });

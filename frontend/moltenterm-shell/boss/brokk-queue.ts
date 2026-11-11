@@ -65,7 +65,8 @@ export const ExpressionMs: Record<BrokkExpression, number> = {
     call: 2500,
 };
 
-export type QueuedExpression = { expression: BrokkExpression; since: number; reply: boolean };
+// `answer`: the tone that opens his answer to the developer (FR-BOSS-009, AC88, #2259).
+export type QueuedExpression = { expression: BrokkExpression; since: number; reply: boolean; answer?: boolean };
 
 export type QueueState = {
     // The one request that waits for its moment.
@@ -81,8 +82,12 @@ export type QueueState = {
 export const EmptyQueue: QueueState = { slot: null, last: null, startedAt: {}, lastKeyAt: null, cue: 0 };
 
 export type QueueEvent =
-    // `reply`: the expression answers the developer's own action.
-    { type: "ask"; expression: BrokkExpression; reply?: boolean } | { type: "key" } | { type: "tick" };
+    // `reply`: the expression answers the developer's own action. `answer`: it is the tone his answer opens with, which
+    // the keystroke that sent the message does not hold back, and which may come back within the minute: it follows
+    // what he says, not a tic.
+    | { type: "ask"; expression: BrokkExpression; reply?: boolean; answer?: boolean }
+    | { type: "key" }
+    | { type: "tick" };
 
 export type QueueStep = {
     state: QueueState;
@@ -101,7 +106,7 @@ function waitLimit(expression: BrokkExpression): number {
 }
 
 // A request refused outright: folded into a burst, or repeated too soon.
-function refused(state: QueueState, expression: BrokkExpression, reply: boolean, now: number): boolean {
+function refused(state: QueueState, expression: BrokkExpression, again: boolean, now: number): boolean {
     const last = state.last;
     if (
         last != null &&
@@ -110,7 +115,7 @@ function refused(state: QueueState, expression: BrokkExpression, reply: boolean,
     ) {
         return true;
     }
-    return !reply && sinceMs(state.startedAt[expression], now) < RepeatMs;
+    return !again && sinceMs(state.startedAt[expression], now) < RepeatMs;
 }
 
 // An expression that follows another one without waiting for the gap: a smile after the nod of the last answer, because
@@ -133,7 +138,8 @@ function readyAt(state: QueueState, slot: QueuedExpression): number {
     if (state.last != null && !upgradesLast(state, slot.expression, slot.since)) {
         at = Math.max(at, state.last.at + MinGapMs);
     }
-    if (state.lastKeyAt != null) {
+    // The keys that sent the message do not hold back the tone of his answer; the developer writing again does.
+    if (state.lastKeyAt != null && !(slot.answer === true && state.lastKeyAt <= slot.since)) {
         at = Math.max(at, state.lastKeyAt + KeyQuietMs);
     }
     if (slot.reply) {
@@ -142,9 +148,17 @@ function readyAt(state: QueueState, slot: QueuedExpression): number {
     return at;
 }
 
-function admitted(slot: QueuedExpression, request: { expression: BrokkExpression; reply: boolean }, now: number) {
+function admitted(
+    slot: QueuedExpression,
+    request: { expression: BrokkExpression; reply: boolean; answer: boolean },
+    now: number
+): QueuedExpression {
     if (slot == null || ExpressionRank[request.expression] < ExpressionRank[slot.expression]) {
-        return { expression: request.expression, since: now, reply: request.reply };
+        const rtn: QueuedExpression = { expression: request.expression, since: now, reply: request.reply };
+        if (request.answer) {
+            rtn.answer = true;
+        }
+        return rtn;
     }
     return slot;
 }
@@ -154,11 +168,12 @@ export function queueAfter(before: QueueState, event: QueueEvent, now: number): 
     if (event.type === "key") {
         state = { ...state, lastKeyAt: now };
     }
-    if (event.type === "ask" && !refused(state, event.expression, event.reply === true, now)) {
-        state = {
-            ...state,
-            slot: admitted(state.slot, { expression: event.expression, reply: event.reply === true }, now),
-        };
+    if (event.type === "ask") {
+        const reply = event.reply === true;
+        const answer = event.answer === true;
+        if (!refused(state, event.expression, reply || answer, now)) {
+            state = { ...state, slot: admitted(state.slot, { expression: event.expression, reply, answer }, now) };
+        }
     }
     if (state.slot != null && now - state.slot.since > waitLimit(state.slot.expression)) {
         state = { ...state, slot: null };

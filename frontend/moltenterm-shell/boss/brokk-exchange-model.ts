@@ -8,6 +8,7 @@
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
 import { withoutGraphBlocks } from "../brainstorm/brainstorm-fence";
+import { BrokkTone, readTone } from "./brokk-tone";
 
 // A reply his answer offers (FR-BOSS-004, AC12): its text is what is sent, so a button cannot hide what it sends.
 // authorise: the reply asks once more before it is sent, which every reply does but a short one he marks safe.
@@ -24,7 +25,7 @@ export const ActionsFence = "brokk-actions";
 const OpenFence = new RegExp("^```" + ActionsFence + "\\s*$");
 const CloseFence = /^```\s*$/;
 
-export type ParsedReply = { text: string; actions: InlineAction[] };
+export type ParsedReply = { text: string; actions: InlineAction[]; tone: BrokkTone };
 
 // Control characters in a reply's text would reach his terminal as typed keys.
 // eslint-disable-next-line no-control-regex
@@ -71,8 +72,16 @@ function actionsOf(list: unknown[]): InlineAction[] {
 // His answer split into what he says and the replies he offers. The block is the last fenced block of the convention; a
 // block that is still being written (no closing fence yet) is left out of the text and offers nothing yet, and a block
 // that is not a JSON list stays in the text as it is. The graph of his thought (`brokk-graph`, FR-BOSS-010, #2246) is
-// never part of what he says: the brainstorm reads it (brainstorm-graph-model.ts).
-export function parseReply(markdown: string): ParsedReply {
+// never part of what he says: the brainstorm reads it (brainstorm-graph-model.ts). Nor is the marker of his tone (AC88,
+// #2259): it is read into `tone`. `final`: his agent is done with the answer, so a marker cut at its end is no longer
+// held back.
+export function parseReply(markdown: string, final = true): ParsedReply {
+    const parsed = splitActions(markdown);
+    const read = readTone(parsed.text, final);
+    return { text: read.text, actions: parsed.actions, tone: read.tone };
+}
+
+function splitActions(markdown: string): { text: string; actions: InlineAction[] } {
     const text = withoutGraphBlocks(markdown ?? "");
     const lines = text.replace(/\r\n/g, "\n").split("\n");
     let open = -1;
@@ -149,6 +158,8 @@ export type BrokkItem = {
     turn: number;
     // His agent is done with the message: the answer will not change.
     final: boolean;
+    // The tone he tagged it with (AC88); neutral when none, or left out.
+    tone?: BrokkTone;
 };
 export type ExchangeItem = YouItem | BrokkItem;
 
@@ -162,7 +173,7 @@ export function withAnswer(
     id: string,
     read: { markdown: string; turn: number; at: number; final: boolean }
 ): ExchangeItem[] {
-    const parsed = parseReply(read.markdown);
+    const parsed = parseReply(read.markdown, read.final);
     const item: BrokkItem = {
         id,
         role: "brokk",
@@ -171,6 +182,7 @@ export function withAnswer(
         at: read.at,
         turn: read.turn,
         final: read.final,
+        tone: parsed.tone,
     };
     const at = items.findIndex((other) => other.role === "brokk" && other.id === id);
     if (at < 0) {
@@ -181,6 +193,7 @@ export function withAnswer(
         same.text === item.text &&
         same.final === item.final &&
         same.turn === item.turn &&
+        same.tone === item.tone &&
         same.actions.length === item.actions.length
     ) {
         return items;

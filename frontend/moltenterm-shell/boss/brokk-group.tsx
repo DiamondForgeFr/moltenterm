@@ -98,12 +98,13 @@ import { PanelContentAttr, PanelHeadAttr } from "./brokk-panel-frame";
 import { AgentsPanel, DownloadsPanel, SessionsPanel } from "./brokk-rows-panels";
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk } from "./brokk-talk";
-import { talkPose, talkWaits } from "./brokk-talk-model";
+import { talkWaits } from "./brokk-talk-model";
 import { WeeklyUsage, weeklyUsage } from "./brokk-usage-model";
 import { useBrokkActions } from "./use-brokk-actions";
 import { useAvatarKeys } from "./use-brokk-hub";
 import { useCardLive } from "./use-brokk-live";
 import { useBrokkMoment } from "./use-brokk-moment";
+import { useTalkFace } from "./use-brokk-talk-face";
 
 // How often "up 12 min" and the ages are read again while the group shows.
 const AgeTickMs = 15000;
@@ -319,7 +320,6 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const answering = useAtomValue(hubModel.ownWorkingAtom, { store: globalStore });
     const session = BrokkSession.getInstance();
     const talk = useAtomValue(session.stateAtom, { store: globalStore });
-    const speaking = useAtomValue(session.speakingAtom, { store: globalStore });
     const exchange = useAtomValue(session.exchangeAtom, { store: globalStore });
     const unseenId = useAtomValue(session.unseenIdAtom, { store: globalStore });
     const agentStates = useAtomValue(AgentStates.getInstance().dataAtom, { store: globalStore });
@@ -441,9 +441,9 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const weekly = useMemo(() => weeklyUsage(readings, now, unreadable), [readings, now, unreadable]);
     const weekRows = useMemo(() => weekly.map(weekRow), [weekly]);
 
-    // What his face does with the conversation: it listens while the developer writes, thinks while his session works on
-    // a message, speaks while his answer comes in (AC25).
-    const pose = talkPose({ typing, awaiting: talkWaits(talk), working: answering, speaking });
+    // What his face does with the conversation: it listens while the developer writes, thinks only when his answer is
+    // slow to come, speaks while it is revealed (AC86, AC87, #2259).
+    const pose = useTalkFace({ typing, awaiting: talkWaits(talk), working: answering });
     const live = useCardLive(pose);
     // The sign of a conversation on the title-bar face: the developer writes to him or his session answers.
     useEffect(() => {

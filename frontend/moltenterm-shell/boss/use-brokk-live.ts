@@ -196,7 +196,7 @@ export function useBlinkRhythm(situation: BrokkSituation): BlinkRhythm {
 }
 
 // The panel's portrait plays while the panel shows: the avatar that opened it has emptied its face, so there is one
-// animated Brokk at a time (FR-BOSS-007, AC8). `talk`: what the field is doing (brokk-talk-model.ts talkPose).
+// animated Brokk at a time (FR-BOSS-007, AC8). `talk`: what the conversation is doing (brokk-speech-model.ts talkFace).
 export function useCardLive(talk?: BrokkSituation["talk"]): BrokkLiveProps {
     const asked = useAtomValue(BrokkExpressionsModel.getInstance().askedAtom, { store: globalStore });
     const visible = useFaceVisible();
