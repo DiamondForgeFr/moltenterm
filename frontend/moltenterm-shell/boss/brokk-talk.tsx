@@ -24,6 +24,7 @@ import { DominoLoader } from "../suite/suite";
 import { BossBubbleModel } from "./boss-store";
 import { ExchangeView } from "./brokk-exchange";
 import { afterCancel, afterClick, afterConfirm, conversationOpen, InlineAction } from "./brokk-exchange-model";
+import { BrokkPermissions } from "./brokk-permission";
 import { BrokkSession } from "./brokk-session";
 import {
     canSend,
@@ -88,7 +89,10 @@ export function BrokkTalk({
     // #2257): the mockup's exchange lives in his layer.
     const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
     const brainstormAllowed = currentBrainstormAllowed();
-    const open = conversationOpen(focused, text) || brainstorming;
+    // A request of his agent opens his conversation, where its card is, and the note sending the developer to his
+    // terminal gives way to it (#2257).
+    const asking = useAtomValue(session.permissionAtom, { store: globalStore }) != null;
+    const open = conversationOpen(focused, text) || brainstorming || asking;
     useEffect(() => onTyping(text.trim() !== ""), [text, onTyping]);
     useEffect(() => () => onTyping(false), [onTyping]);
     useEffect(() => {
@@ -111,7 +115,8 @@ export function BrokkTalk({
     const terminalAside = talkTerminalAside(state);
     // His words are coming in: the domino of "thinking" has done its work.
     const answerShows = last?.role === "brokk" && last.text !== "";
-    const showNote = noteKey != null && !(state.phase === "answering" && answerShows);
+    const showNote =
+        noteKey != null && !(state.phase === "answering" && answerShows) && !(state.phase === "needsanswer" && asking);
 
     useLayoutEffect(() => {
         const inner = innerRef.current;
@@ -313,6 +318,7 @@ export function BrokkTalk({
                             onConfirm={confirm}
                             onCancel={cancel}
                         />
+                        <BrokkPermissions name={name} />
                         {note}
                         {slashNote}
                         {commandHint}

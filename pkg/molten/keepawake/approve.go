@@ -40,12 +40,47 @@ type PermissionRequest struct {
 	PermissionMode string         `json:"permissionmode,omitempty"`
 	ToolName       string         `json:"toolname"`
 	ToolInput      map[string]any `json:"toolinput,omitempty"`
+	// Suggestions: the rules the agent offers for "always allow" (Claude Code's permission_suggestions), none when it
+	// offers none (#2257).
+	Suggestions []any `json:"suggestions,omitempty"`
+	// HoldMs: how long the hook may wait for an answer, its own budget less a margin; 0 for an answer at once.
+	HoldMs int64 `json:"holdms,omitempty"`
+	// FromBlock: the caller's token names BlockId, so the request is that terminal's own. Set by wavesrv, never read
+	// from the caller.
+	FromBlock bool `json:"-"`
 }
 
-// PermissionAnswer: Decision is PermissionAllow, or empty to leave the request to the agent's prompt.
+// PermissionAnswer: Decision is PermissionAllow, PermissionDeny (Brokk's own session, #2257), or empty to leave the
+// request to the agent's prompt. Updated: the agent's own suggested rules to apply ("always allow"); Message: why a
+// deny, for the agent.
 type PermissionAnswer struct {
 	Decision string `json:"decision,omitempty"`
 	Reason   string `json:"reason,omitempty"`
+	Updated  []any  `json:"updated,omitempty"`
+	Message  string `json:"message,omitempty"`
+}
+
+// PermissionDeny refuses the request for the agent (the developer's Deny in Brokk's layer, #2257).
+const PermissionDeny = "deny"
+
+// OwnSessionAsker answers the requests of MoltenTerm's own agent session (Brokk's, #2257) itself: handled is false
+// for any other terminal, which the coffee approvals answer.
+type OwnSessionAsker func(ctx context.Context, req PermissionRequest) (answer PermissionAnswer, handled bool)
+
+var ownAskerLock sync.Mutex
+var ownAsker OwnSessionAsker
+
+// UseOwnSessionAsker sets the asker of the own session's requests (brokksession sets it at start).
+func UseOwnSessionAsker(asker OwnSessionAsker) {
+	ownAskerLock.Lock()
+	defer ownAskerLock.Unlock()
+	ownAsker = asker
+}
+
+func getOwnSessionAsker() OwnSessionAsker {
+	ownAskerLock.Lock()
+	defer ownAskerLock.Unlock()
+	return ownAsker
 }
 
 // Approval is one decision taken while a coffee held.

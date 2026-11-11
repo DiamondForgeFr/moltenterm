@@ -24,7 +24,46 @@ export type SayResult = {
 // must match the Reply… statuses of pkg/molten/brokksession/session.go
 export type ReplyStatus = "answer" | "waiting" | "unread" | "none";
 
+// must match PermissionAsk and AutoApproval in pkg/molten/brokksession/permit.go
+export type PermissionKind = "command" | "edit" | "write" | "read" | "fetch" | "search" | "patch";
+
+export type PermissionAsk = {
+    id: string;
+    blockid: string;
+    agent?: string;
+    tool: string;
+    kind: PermissionKind;
+    subject: string;
+    always?: boolean;
+    at: number;
+};
+
+export type AutoApproval = { id: string; kind: PermissionKind; subject: string; at: number };
+
+// must match the Permit… decisions and results of pkg/molten/brokksession/permit.go
+export type PermitDecision = "allow" | "always" | "deny";
+export type PermitStatus = "answered" | "gone" | "invalid";
+
+export const PermissionKinds: PermissionKind[] = ["command", "edit", "write", "read", "fetch", "search", "patch"];
+
+// The decisions the card offers: always allow only when his agent offers it (#2257).
+export function permitChoices(ask: PermissionAsk): PermitDecision[] {
+    return ask?.always ? ["allow", "always", "deny"] : ["allow", "deny"];
+}
+
+// The approvals of the latest reading added to those shown, each once, in their order.
+export function withApprovals(shown: AutoApproval[], read: AutoApproval[]): AutoApproval[] {
+    if (read == null || read.length === 0) {
+        return shown;
+    }
+    const known = new Set(shown.map((a) => a.id));
+    const added = read.filter((a) => a?.id && !known.has(a.id));
+    return added.length === 0 ? shown : [...shown, ...added];
+}
+
 export type ReplyResult = {
+    permission?: PermissionAsk;
+    approved?: AutoApproval[];
     status: ReplyStatus;
     blockid?: string;
     tabid?: string;

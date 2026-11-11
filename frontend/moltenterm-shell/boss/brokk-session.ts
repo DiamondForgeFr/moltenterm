@@ -21,10 +21,14 @@ import { BossBubbleModel } from "./boss-store";
 import { ExchangeItem, SpeakingHoldMs, withAnswer, withMessage } from "./brokk-exchange-model";
 import { BrokkHubModel } from "./brokk-hub-store";
 import {
+    AutoApproval,
     FollowEveryMs,
     followStep,
     IdleTalk,
     MaxFollowMs,
+    PermissionAsk,
+    PermitDecision,
+    PermitStatus,
     queueBoundMs,
     queuedOf,
     QueueEveryMs,
@@ -35,6 +39,7 @@ import {
     StartingTalk,
     TalkState,
     talkStateOf,
+    withApprovals,
 } from "./brokk-talk-model";
 
 // must match pkg/molten/brokksession/live.go
@@ -42,6 +47,7 @@ export const SessionRouteId = "molten:brokk";
 export const SessionCommand = "moltenbrokksession";
 export const SayCommand = "moltenbrokksay";
 export const ReplyCommand = "moltenbrokkreply";
+export const PermitCommand = "moltenbrokkpermit";
 
 const FindTimeoutMs = 8000;
 // wavesrv waits up to 90 s for an agent just started to show its prompt.
@@ -89,6 +95,12 @@ export class BrokkSession {
     speakingAtom = atom(false) as PrimitiveAtom<boolean>;
     // The answer that changed while the window was folded: his line under the square (AC25). Null when seen.
     unseenIdAtom = atom(null) as PrimitiveAtom<string>;
+    // What his agent asks the developer now, answered in his talk window (#2257); null when nothing waits.
+    permissionAtom = atom(null) as PrimitiveAtom<PermissionAsk>;
+    // The developer's answer did not reach it: the request was over (answered in his terminal, or no longer asked).
+    permissionGoneAtom = atom(false) as PrimitiveAtom<boolean>;
+    // What boss:autoapprove let through, each shown once as a line in his talk window.
+    approvedAtom = atom([]) as PrimitiveAtom<AutoApproval[]>;
 
     private call: Call = LiveCall;
     private wait: Wait = LiveWait;
@@ -395,6 +407,7 @@ export class BrokkSession {
             } catch (e) {
                 console.log("brokk session: his answer could not be read", e);
             }
+            this.keepPermission(reply);
             if (tracked.stopped) {
                 return;
             }
@@ -420,6 +433,43 @@ export class BrokkSession {
                 return;
             }
         }
+    }
+
+    // What a reading says of his agent's permission requests (#2257): the one waiting, and the approvals made without
+    // asking. A request answered meanwhile is gone from the next reading.
+    private keepPermission(reply: ReplyResult): void {
+        if (reply == null) {
+            return;
+        }
+        const next = reply.permission ?? null;
+        const current = globalStore.get(this.permissionAtom);
+        if (next?.id !== current?.id) {
+            globalStore.set(this.permissionAtom, next);
+            if (next != null) {
+                globalStore.set(this.permissionGoneAtom, false);
+            }
+        }
+        globalStore.set(this.approvedAtom, (shown) => withApprovals(shown, reply.approved));
+    }
+
+    // The developer's answer to the request on screen, for that request alone: its id and his terminal's block.
+    async permit(ask: PermissionAsk, decision: PermitDecision): Promise<PermitStatus> {
+        let status: PermitStatus = "gone";
+        try {
+            const result = await this.call(
+                PermitCommand,
+                { id: ask.id, blockid: ask.blockid, decision },
+                FindTimeoutMs
+            );
+            status = result?.status ?? "gone";
+        } catch (e) {
+            console.log("brokk session: the answer to his agent's request did not go", e);
+        }
+        if (globalStore.get(this.permissionAtom)?.id === ask.id) {
+            globalStore.set(this.permissionAtom, null);
+        }
+        globalStore.set(this.permissionGoneAtom, status !== "answered");
+        return status;
     }
 
     // The developer writes again: the note of a failed message goes. An answer that is still coming is not touched.

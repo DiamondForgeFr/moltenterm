@@ -27,7 +27,20 @@ vi.mock("./brokk-session", async () => {
     const { atom } = await import("jotai");
     const stateAtom = atom({ phase: "idle", reason: "", agentName: "", started: false, reply: "", where: null });
     const exchangeAtom = atom([] as any[]);
-    const session = { stateAtom, exchangeAtom, say: vi.fn(), clearNote: vi.fn(), setWindowOpen: vi.fn() };
+    const permissionAtom = atom(null as any);
+    const permissionGoneAtom = atom(false);
+    const approvedAtom = atom([] as any[]);
+    const session = {
+        stateAtom,
+        exchangeAtom,
+        permissionAtom,
+        permissionGoneAtom,
+        approvedAtom,
+        say: vi.fn(),
+        permit: vi.fn(),
+        clearNote: vi.fn(),
+        setWindowOpen: vi.fn(),
+    };
     return { BrokkSession: { getInstance: () => session } };
 });
 
@@ -317,6 +330,53 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
             expect(html).toContain('title="Enter to send, Shift+Enter for a new line"');
         } finally {
             gate.allowed = false;
+            keepDraft("");
+        }
+    });
+
+    // #2257: his agent's permission request shows in his talk window, in plain words with the exact command, and opens
+    // his conversation; always allow only when his agent offers it; the note sending to his terminal gives way.
+    it("shows his agent's permission request with its exact command and its answers", () => {
+        const session = BrokkSession.getInstance() as any;
+        const stateAtom = session.stateAtom;
+        keepDraft("");
+        globalStore.set(stateAtom, { ...Idle, phase: "needsanswer", where: Where });
+        globalStore.set(session.permissionAtom, {
+            id: "req-1",
+            blockid: "block-1",
+            tool: "Bash",
+            kind: "command",
+            subject: "npm test -- --run",
+            at: 1,
+        });
+        try {
+            const html = render();
+            expect(html).toContain('data-testid="brokk-talk" data-open="true"');
+            expect(html).toContain("Brokk&#x27;s agent asks to run this command:");
+            expect(html).toMatch(/data-testid="brokk-permission-subject"[^>]*>npm test -- --run</);
+            expect(html).toContain('data-testid="brokk-permission-allow"');
+            expect(html).toContain('data-testid="brokk-permission-deny"');
+            expect(html).not.toContain('data-testid="brokk-permission-always"');
+            expect(html).not.toContain("his agent waits for you in his terminal");
+            globalStore.set(session.permissionAtom, {
+                id: "req-2",
+                blockid: "block-1",
+                tool: "Bash",
+                kind: "command",
+                subject: "npm test",
+                always: true,
+                at: 2,
+            });
+            expect(render()).toContain('data-testid="brokk-permission-always"');
+            globalStore.set(session.permissionAtom, null);
+            globalStore.set(session.approvedAtom, [{ id: "a1", kind: "command", subject: "npm run lint", at: 3 }]);
+            globalStore.set(stateAtom, { ...Idle, phase: "answering", where: Where });
+            keepDraft("x");
+            expect(render()).toMatch(/Approved without asking: <code[^>]*>npm run lint</);
+        } finally {
+            globalStore.set(session.permissionAtom, null);
+            globalStore.set(session.approvedAtom, []);
+            globalStore.set(stateAtom, Idle);
             keepDraft("");
         }
     });

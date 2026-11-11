@@ -135,6 +135,10 @@ type Reply struct {
 	Rev         int64  `json:"rev,omitempty"`
 	At          int64  `json:"at,omitempty"`
 	Markdown    string `json:"markdown,omitempty"`
+	// Permission: what his agent asks the developer now, answered in his layer (#2257); Approved: what
+	// boss:autoapprove let through since the message.
+	Permission *PermissionAsk `json:"permission,omitempty"`
+	Approved   []AutoApproval `json:"approved,omitempty"`
 }
 
 // Answer is the last answer his transcript holds; Markdown is empty before the first one.
@@ -219,6 +223,8 @@ type Env struct {
 
 type Service struct {
 	env Env
+	// permits: his agent's permission requests, answered in his layer (permit.go); nil: none are kept.
+	permits *PermitBroker
 
 	lock     sync.Mutex
 	working  bool
@@ -232,6 +238,11 @@ type Service struct {
 
 func MakeService(env Env) *Service {
 	return &Service{env: env}
+}
+
+// UsePermits gives the service the broker of his agent's permission requests.
+func (s *Service) UsePermits(b *PermitBroker) {
+	s.permits = b
 }
 
 // claim lets one call start or talk at a time: a second one is told it is busy rather than queued behind a wait of
@@ -285,6 +296,10 @@ func (s *Service) Reply(ctx context.Context, req ReplyRequest) Reply {
 		return Reply{Status: StatusNone}
 	}
 	rtn := Reply{Status: ReplyUnread, BlockId: found.BlockId, TabId: found.TabId, WorkspaceId: found.WorkspaceId}
+	if s.permits != nil {
+		rtn.Permission = s.permits.Pending(found.BlockId)
+		rtn.Approved = s.permits.AutoApproved(req.After)
+	}
 	if s.env.ReadAnswer == nil {
 		return rtn
 	}

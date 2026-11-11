@@ -16,7 +16,9 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
+	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
+	"github.com/wavetermdev/waveterm/pkg/molten/keepawake"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
 	"github.com/wavetermdev/waveterm/pkg/molten/spawns"
@@ -25,6 +27,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
@@ -309,7 +312,11 @@ var startOnce sync.Once
 // Start registers the route the windows talk to Brokk's session on; wavesrv calls it once, from Mission Control's start.
 func Start() {
 	startOnce.Do(func() {
-		if _, err := localroute.Register(wshutil.DefaultRouter, Live().route()); err != nil {
+		svc := Live()
+		permits := livePermits()
+		svc.UsePermits(permits)
+		keepawake.UseOwnSessionAsker(permits.Ask)
+		if _, err := localroute.Register(wshutil.DefaultRouter, svc.route()); err != nil {
 			log.Printf("[brokksession] route not started: %v\n", err)
 		}
 		// His terminal is looked for at once, so that the watch of his prompt starts with wavesrv, not with the first
@@ -381,6 +388,42 @@ func (s *Service) handle(ctx context.Context, command string, data any) (any, er
 			return nil, err
 		}
 		return s.Phrase(ctx, phrase), nil
+	case PermitCommand:
+		var permit PermitRequest
+		if err := utilfn.ReUnmarshal(&permit, data); err != nil {
+			return nil, err
+		}
+		if s.permits == nil {
+			return PermitResult{Status: PermitGone}, nil
+		}
+		return s.permits.Answer(permit), nil
 	}
 	return nil, fmt.Errorf("unknown Brokk session command %q", command)
+}
+
+// livePermits is the broker of his agent's permission requests (#2257), with wavesrv's facts.
+func livePermits() *PermitBroker {
+	home, _ := os.UserHomeDir()
+	return MakePermitBroker(PermitEnv{
+		IsOwn: func(ctx context.Context, blockId string) bool {
+			ctx, cancel := context.WithTimeout(ctx, findTimeout)
+			defer cancel()
+			block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+			return err == nil && block != nil && molten.IsOwnSession(block.Meta)
+		},
+		AutoApprove: func() bool {
+			return wconfig.GetWatcher().GetFullConfig().Settings.BossAutoApprove
+		},
+		Guard: func(ask PermissionAsk) string {
+			return GuardReason(ask, PermitGuardEnv{
+				Home:      home,
+				DataDirs:  []string{wavebase.GetWaveDataDir(), wavebase.GetWaveConfigDir()},
+				OwnFolder: filepath.Join(wavebase.GetWaveDataDir(), FolderName),
+			})
+		},
+		Moved: func(blockId string, at int64) bool {
+			run, ok := attention.AgentRun(blockId)
+			return ok && run.State != molten.AgentStateWaiting && run.StateSince > at+permitMovedSlackMs
+		},
+	})
 }

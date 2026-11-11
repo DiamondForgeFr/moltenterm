@@ -180,13 +180,14 @@ MoltenTerm's launcher. For a Claude Code started otherwise in a MoltenTerm termi
 {
   "hooks": {
     "PermissionRequest": [
-      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent permission --agent claude || true", "timeout": 15 }] }
+      { "hooks": [{ "type": "command", "command": "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent permission --agent claude || true", "timeout": 600 }] }
     ]
   }
 }
 ```
 
-With the coffee off it prints nothing, and Claude Code asks you as usual. Every decision taken while a coffee is on is
+With the coffee off it prints nothing, and Claude Code asks you as usual. In Brokk's own session the hook waits for
+your answer in his talk window instead (up to its timeout), so you never have to open his terminal. Every decision taken while a coffee is on is
 kept in the status bar's sleep list and in `molten/coffee-approvals.jsonl` in MoltenTerm's data folder.
 
 ## Codex
