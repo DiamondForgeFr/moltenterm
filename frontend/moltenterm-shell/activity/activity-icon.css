@@ -52,12 +52,15 @@
     stroke-dasharray: 20 56;
 }
 
-.mt-act-glyph {
+/* Two classes, not one: the icon font's base rule (public/moltenterm-icons.css) sets display: inline-block with the
+   same weight and would win by load order, leaving the glyph left-aligned in the stretched box (#2255). */
+.mt-act .mt-act-glyph {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    text-align: center;
     font-size: var(--mt-text-12);
     line-height: 1;
     pointer-events: none;
