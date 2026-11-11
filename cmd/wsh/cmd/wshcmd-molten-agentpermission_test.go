@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/keepawake"
 )
 
@@ -110,8 +111,9 @@ func TestAgentPermissionPrintsTheDevelopersAnswer(t *testing.T) {
 	if len(sent.Suggestions) != 1 {
 		t.Fatalf("the agent's suggestions were not sent: %+v", sent.Suggestions)
 	}
-	if sent.HoldMs < 60_000 {
-		t.Fatalf("Claude Code's request may wait for the developer only %d ms", sent.HoldMs)
+	// Review: outside Brokk's own session nothing waits for a human (this terminal is not his).
+	if sent.HoldMs != 0 {
+		t.Fatalf("a terminal that is not his own session asked to be held %d ms", sent.HoldMs)
 	}
 	out.Reset()
 	runAgentPermission(strings.NewReader(recordedPermissionInput), &out, "block-1", "claude", func(req keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
@@ -120,9 +122,19 @@ func TestAgentPermissionPrintsTheDevelopersAnswer(t *testing.T) {
 	if !strings.Contains(out.String(), `"behavior":"allow","updatedPermissions":[{"behavior":"allow","destination":"localSettings","rules":[{"ruleContent":"cat:*","toolName":"Bash"}],"type":"addRules"}]`) {
 		t.Fatalf("always allow printed %q", out.String())
 	}
-	// The hold always leaves the hook time to print before its agent kills it.
-	if permissionHoldMs("codex") >= int64(15_000) || permissionHoldMs("claude") >= int64(600_000) {
-		t.Fatalf("holds %d / %d leave no margin", permissionHoldMs("codex"), permissionHoldMs("claude"))
+	// His own session may wait for the developer; the hold always leaves the hook time to print before its agent kills
+	// it. Any other terminal is answered at once.
+	if h := permissionHoldMs("claude", true); h < 60_000 || h >= int64(molten.ClaudeOwnSessionPermissionHookTimeout)*1000 {
+		t.Fatalf("his Claude Code session holds %d ms", h)
+	}
+	if h := permissionHoldMs("codex", true); h <= 0 || h >= int64(molten.CodexPermissionHookTimeout)*1000 {
+		t.Fatalf("his Codex session holds %d ms", h)
+	}
+	if permissionHoldMs("claude", false) != 0 || permissionHoldMs("codex", false) != 0 {
+		t.Fatal("another terminal's request is held")
+	}
+	if molten.ClaudePermissionHookTimeout != 15 {
+		t.Fatalf("every terminal's hook budget is %d s", molten.ClaudePermissionHookTimeout)
 	}
 }
 
