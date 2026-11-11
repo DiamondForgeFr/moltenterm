@@ -130,6 +130,7 @@ var englishFields = map[string]string{
 	"companion.ExperimentalInfo.Reason":     "already a code (UsageReason), worded by companion-gauges-model.ts",
 	"companion.UsageInfo.Reason":            "already a code (UsageReason), worded by companion-gauges-model.ts",
 	"keepawake.PermissionAnswer.Reason":     "the answer the agent's PermissionRequest hook reads (agent-facing); the window shows Approval.ReasonText",
+	"keepawake.PermissionAnswer.Message":    "why a deny, for the agent's PermissionRequest hook (agent-facing, #2257); never shown in a window",
 	"keepawake.Approval.Detail":             "the request's command or path (data, not a sentence)",
 	"mcpbrowser.rpcError.Message":           "MCP error the agent reads (agent-facing)",
 	"agentparts.PartState.Reason":           "read only by `molten mod` output (cmd/wsh), which stays English",
