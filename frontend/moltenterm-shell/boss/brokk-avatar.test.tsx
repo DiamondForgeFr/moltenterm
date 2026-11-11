@@ -84,6 +84,8 @@ import {
     RingUnits,
     workingRingBoxPx,
 } from "./brokk-avatar-model";
+import { afterInput, EmptyColleague } from "./brokk-colleague";
+import { BrokkColleagueModel } from "./brokk-colleague-store";
 import { EdgeFacePx, EdgePx } from "./brokk-edge-model";
 import { BrokkEdgeModel } from "./brokk-edge-store";
 import { BrokkExpressionsModel } from "./brokk-expressions";
@@ -324,6 +326,24 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
 describe("the badge (AC1)", () => {
     it("is hidden at zero", () => {
         expect(render()).not.toContain('data-testid="boss-badge"');
+    });
+
+    // #2217 (AC-2): the hello shows itself with a nod and a bubble, never with a badge or an unfold.
+    it("stays hidden, and the group closed, while a hello waits to show", () => {
+        const colleague = BrokkColleagueModel.getInstance();
+        const hello = afterInput(EmptyColleague, {
+            now: T,
+            proximity: "colleague",
+            working: 0,
+            random: () => 0.5,
+        }).moments;
+        expect(hello.map((moment) => moment.kind)).toEqual(["hello"]);
+        globalStore.set(colleague.momentsAtom, hello);
+        const html = render();
+        expect(html).not.toContain('data-testid="boss-badge"');
+        expect(attr(html, "brokk-avatar", "aria-expanded")).toBe("false");
+        expect(globalStore.get(boss.cardOpenAtom)).toBe(false);
+        globalStore.set(colleague.momentsAtom, []);
     });
 
     it("counts what waits, amber, and red when a counted row failed, 9+ beyond nine", () => {

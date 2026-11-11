@@ -55,7 +55,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import type { BrokkExpression } from "./brokk-ask-model";
 import { BrokkExpressionsModel, watchCalls } from "./brokk-expressions";
-import { BackMs, GreetWithinMs, ReplayEveryMs, ReturnAfterMs } from "./brokk-mood";
+import { ReplayEveryMs, ReturnAfterMs } from "./brokk-mood";
 import { KeyQuietMs, MinGapMs, RepeatMs, ReplySettleMs } from "./brokk-queue";
 
 const Min = 60_000;
@@ -224,23 +224,12 @@ describe("what his mood plays when the screen or the card opens (FR-BOSS-007, AC
     });
 });
 
-describe("his greeting when the developer is back (FR-BOSS-007, AC14)", () => {
-    it("nods once, when the screen opens soon after a long absence", () => {
+describe("his greeting when the developer is back (FR-BOSS-007, AC14; FR-BOSS-009, AC74, #2217)", () => {
+    // The kind colleague's hello owns the nod (use-brokk-hello.ts): opening asks none of its own.
+    it("does not nod on opening after a long absence", () => {
         model().note({ type: "returned", since: Start.getTime() - 40 * Min });
-        model().noteOpen();
-        expect(asked()).toMatchObject({ expression: "nod" });
-        expect(globalStore.get(model().moodAtom).back.greeted).toBe(true);
-        vi.advanceTimersByTime(RepeatMs + 1);
-        model().noteOpen();
-        expect(asked()).toMatchObject({ cue: 1 });
-    });
-
-    it("does not greet someone who opens it later than two minutes after coming back", () => {
-        model().note({ type: "returned", since: Start.getTime() - 40 * Min });
-        vi.advanceTimersByTime(GreetWithinMs + 1);
         model().noteOpen();
         expect(asked()).toBeNull();
-        expect(BackMs).toBeLessThan(GreetWithinMs);
     });
 });
 
@@ -293,7 +282,7 @@ describe("what a bubble on screen listens to (FR-BOSS-007, AC3 and AC14)", () =>
         expect(globalStore.get(model().moodAtom).back).toBeNull();
         vi.advanceTimersByTime(ReturnAfterMs);
         target.dispatch("pointermove");
-        expect(globalStore.get(model().moodAtom).back).toMatchObject({ greeted: false });
+        expect(globalStore.get(model().moodAtom).back).toMatchObject({ at: expect.any(Number) });
         stop();
     });
 

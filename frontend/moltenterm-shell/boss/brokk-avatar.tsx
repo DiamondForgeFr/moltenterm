@@ -16,7 +16,7 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { downloadRingOf } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { useT } from "../i18n/i18n";
@@ -28,10 +28,12 @@ import { AvatarVariant, avatarVariant, brokkInitial, faceClickAction } from "./b
 import "./brokk-avatar.css";
 import { AvatarDownloadRing, useDownloadWords } from "./brokk-download-ring";
 import { BrokkEdgeModel } from "./brokk-edge-store";
+import { HelloBubbleView } from "./brokk-hello-bubble";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { brokkMenuItems } from "./brokk-menu";
+import { useBrokkHello } from "./use-brokk-hello";
 import { useAvatarBadge, useAvatarLive, useHubSelect } from "./use-brokk-hub";
-import { useMotionAllowed } from "./use-brokk-live";
+import { useFaceVisible, useMotionAllowed } from "./use-brokk-live";
 
 // The ring is the bell's (notification-center.tsx): a faint track and an arc that takes a quarter turn on each beat of
 // the working beat, and stands still when the beat does (reduced motion, a window nobody looks at).
@@ -82,6 +84,10 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     const downloadRing = downloadRingOf(running);
     const downloadWords = useDownloadWords(running);
     const motion = useMotionAllowed();
+    const faceVisible = useFaceVisible();
+    // The collapsed strip is out of sight at rest: the hello waits there for the group or another avatar (AC74).
+    const hello = useBrokkHello(faceVisible && variant !== "edge", sceneUp);
+    const buttonRef = useRef<HTMLButtonElement>(null);
     const hover = hubModel.faceHover;
 
     // The face leaves the page (the scene stands in its place, Brokk turned off): the pointer is no longer on it.
@@ -129,6 +135,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
 
     return (
         <button
+            ref={buttonRef}
             type="button"
             className={cn("mt-brokk-avatar", variant === "hanging" && "is-hanging", variant === "edge" && "is-edge")}
             style={style}
@@ -180,6 +187,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
                     {badge.text}
                 </span>
             ) : null}
+            {hello != null ? <HelloBubbleView text={hello.text} anchor={buttonRef} variant={variant} /> : null}
         </button>
     );
 }

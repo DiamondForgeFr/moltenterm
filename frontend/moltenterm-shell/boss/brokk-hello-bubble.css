@@ -1,0 +1,40 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The hello beside the folded avatar (FR-BOSS-009, AC74, #2217): one short line for a few seconds, drawn over the page at
+   the height of Brokk's layer (under the toasts, the menus and the dialogs). It takes no pointer, so nothing under it is
+   blocked. It fades in once, and simply appears under reduced motion. */
+.mt-brokk-hello {
+    position: fixed;
+    z-index: 800;
+    box-sizing: border-box;
+    max-width: min(280px, calc(100vw - 16px));
+    padding: 6px 10px;
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+    box-shadow:
+        var(--mt-shadow-e2),
+        0 0 0 1px color-mix(in srgb, var(--mt-action) 35%, transparent);
+    font-size: 12px;
+    line-height: 1.4;
+    pointer-events: none;
+    -webkit-app-region: no-drag;
+    animation: mt-brokk-hello-in var(--mt-duration-base) var(--mt-ease);
+}
+
+@keyframes mt-brokk-hello-in {
+    from {
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-brokk-hello {
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-brokk-hello {
+    animation: none;
+}

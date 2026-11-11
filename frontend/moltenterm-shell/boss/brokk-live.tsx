@@ -32,8 +32,7 @@ export type BrokkLiveProps = {
     speaks?: boolean;
     // The gesture asked at the mount has ended.
     onPlayed?: () => void;
-    // The comm screen is open and shows this face: its mood plays once, and a developer who is back is greeted
-    // (BrokkExpressionsModel.noteOpen). It is told here, once this face is mounted, since a gesture asked before it
+    // The comm screen is open and shows this face: its mood plays once (BrokkExpressionsModel.noteOpen). It is told here, once this face is mounted, since a gesture asked before it
     // mounts is not played.
     opened?: boolean;
     onOpened?: () => void;
