@@ -235,7 +235,7 @@ function ConfirmedToggle({ entry, on, onSet }: { entry: SettingEntry; on: boolea
                     <span className="inline-flex justify-end gap-2">
                         <button
                             type="button"
-                            className="cursor-pointer rounded px-2 py-1 text-12 text-secondary hover:bg-hover"
+                            className="cursor-pointer rounded-4 px-2 py-1 text-12 text-secondary hover:bg-hover"
                             onClick={() => setAsking(false)}
                         >
                             {t(`${base}.confirmCancel`)}
@@ -243,7 +243,7 @@ function ConfirmedToggle({ entry, on, onSet }: { entry: SettingEntry; on: boolea
                         <button
                             type="button"
                             data-testid="settings-confirm-on-yes"
-                            className="molten-btn molten-btn-warning cursor-pointer rounded px-2 py-1 text-12"
+                            className="molten-btn molten-btn-warning cursor-pointer rounded-4 px-2 py-1 text-12"
                             onClick={() => {
                                 setAsking(false);
                                 onSet(true);

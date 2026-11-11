@@ -739,8 +739,8 @@ describe("the windows never overlap (AC18)", () => {
 
     it("opens with the focus and stays open with text in the field, and folds only when it is empty and unfocused", () => {
         const talk = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
-        // During a brainstorm it stays open whatever has the focus (#2257).
-        expect(talk).toContain("const open = conversationOpen(focused, text) || brainstorming;");
+        // During a brainstorm, or while his agent asks a permission, it stays open whatever has the focus (#2257).
+        expect(talk).toContain("const open = conversationOpen(focused, text) || brainstorming || asking;");
         expect(talk).toContain("onFocus={() => setFocused(true)}");
         // The focus moving from the field to a button of the window is still the conversation.
         expect(talk).toContain("onBlur={(e) => setFocused(e.currentTarget.contains(e.relatedTarget as Node))}");
