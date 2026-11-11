@@ -434,26 +434,4 @@ export function fieldAfterSend(sent: string, current: string, result: TalkState)
     return "";
 }
 
-export type TalkPoseInput = {
-    // The developer has text in the field.
-    typing: boolean;
-    // A message is on its way, or his agent has it and his answer is not complete.
-    awaiting: boolean;
-    // His own session works (the ring turns).
-    working: boolean;
-    // His answer is coming in, or came a moment ago (brokk-exchange-model.ts SpeakingHoldMs).
-    speaking: boolean;
-};
-
-// What his face does with the conversation (FR-BOSS-009, AC25): he speaks while his answer comes in, thinks from the
-// moment his agent takes a message (or whenever his own session works) until the answer is there, and listens while the
-// developer writes. Otherwise the field says nothing to his face.
-export function talkPose(input: TalkPoseInput): "typing" | "thinking" | "answering" {
-    if (input.speaking) {
-        return "answering";
-    }
-    if (input.awaiting || input.working) {
-        return "thinking";
-    }
-    return input.typing ? "typing" : null;
-}
+// What his face does with the conversation is brokk-speech-model.ts talkFace (FR-BOSS-009, AC86, AC87, #2259).

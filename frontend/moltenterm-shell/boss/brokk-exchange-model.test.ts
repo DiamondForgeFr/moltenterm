@@ -29,9 +29,13 @@ function block(body: string): string {
 
 describe("the replies an answer offers (FR-BOSS-009, AC24; FR-BOSS-004, AC12)", () => {
     it("leaves an answer without a block as it is", () => {
-        expect(parseReply("Two agents run now.")).toEqual({ text: "Two agents run now.", actions: [] });
-        expect(parseReply("")).toEqual({ text: "", actions: [] });
-        expect(parseReply(null)).toEqual({ text: "", actions: [] });
+        expect(parseReply("Two agents run now.")).toEqual({
+            text: "Two agents run now.",
+            actions: [],
+            tone: "neutral",
+        });
+        expect(parseReply("")).toEqual({ text: "", actions: [], tone: "neutral" });
+        expect(parseReply(null)).toEqual({ text: "", actions: [], tone: "neutral" });
     });
 
     it("takes the block at the end out of the text and offers its replies", () => {
@@ -88,9 +92,9 @@ describe("the replies an answer offers (FR-BOSS-009, AC24; FR-BOSS-004, AC12)", 
 
     it("shows a block that is not a list of replies as the text it is", () => {
         const text = `Here is code:\n${block("not json")}`;
-        expect(parseReply(text)).toEqual({ text, actions: [] });
+        expect(parseReply(text)).toEqual({ text, actions: [], tone: "neutral" });
         const object = `A\n${block('{"label": "Yes"}')}`;
-        expect(parseReply(object)).toEqual({ text: object, actions: [] });
+        expect(parseReply(object)).toEqual({ text: object, actions: [], tone: "neutral" });
     });
 
     it("keeps the words after the block, and takes the last block only", () => {
@@ -104,11 +108,11 @@ describe("the replies an answer offers (FR-BOSS-009, AC24; FR-BOSS-004, AC12)", 
 
     it("hides a block that is still being written, and offers nothing yet", () => {
         const parsed = parseReply(`Open it?\n\n${Fence}brokk-actions\n["Ye`);
-        expect(parsed).toEqual({ text: "Open it?", actions: [] });
+        expect(parsed).toEqual({ text: "Open it?", actions: [], tone: "neutral" });
     });
 
     it("reads a block of a list that has no valid entry as a block without replies", () => {
-        expect(parseReply(`Done.\n${block("[]")}`)).toEqual({ text: "Done.", actions: [] });
+        expect(parseReply(`Done.\n${block("[]")}`)).toEqual({ text: "Done.", actions: [], tone: "neutral" });
     });
 });
 

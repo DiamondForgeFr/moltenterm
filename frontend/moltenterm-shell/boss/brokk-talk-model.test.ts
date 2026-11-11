@@ -34,7 +34,6 @@ import {
     StartingTalk,
     talkFieldHeight,
     talkNoteKey,
-    talkPose,
     TalkState,
     talkStateOf,
     talkTerminalAside,
@@ -394,26 +393,6 @@ describe("a Brokk blocked on a prompt is no silence (#2155)", () => {
 
 describe("his face with the field (FR-BOSS-009, AC9; FR-BOSS-007)", () => {
     const open = { working: 0, waiting: 0, cardOpen: true };
-
-    const quiet = { typing: false, awaiting: false, working: false, speaking: false };
-
-    it("answers with a pose for what the conversation is doing (AC25)", () => {
-        expect(talkPose(quiet)).toBeNull();
-        expect(talkPose({ ...quiet, typing: true })).toBe("typing");
-        expect(talkPose({ ...quiet, awaiting: true })).toBe("thinking");
-        expect(talkPose({ ...quiet, working: true })).toBe("thinking");
-        expect(talkPose({ ...quiet, speaking: true })).toBe("answering");
-    });
-
-    it("thinks from the moment his agent takes a message, and speaks over thinking once his words come in", () => {
-        expect(talkPose({ ...quiet, typing: true, awaiting: true })).toBe("thinking");
-        expect(talkPose({ ...quiet, awaiting: true, working: true, speaking: true })).toBe("answering");
-    });
-
-    it("listens again once the answer is complete and he has finished speaking", () => {
-        expect(talkPose({ ...quiet, typing: true })).toBe("typing");
-        expect(talkPose(quiet)).toBeNull();
-    });
 
     it("listens while the developer writes", () => {
         expect(restingPose({ ...open, cardOpen: false, talk: "typing" })).toBe("listening");

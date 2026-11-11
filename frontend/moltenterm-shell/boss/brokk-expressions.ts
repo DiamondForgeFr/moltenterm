@@ -86,9 +86,9 @@ export class BrokkExpressionsModel {
     }
 
     // Asks for an expression: the queue decides when it starts, if it does. `reply`: it answers the developer's own
-    // action.
-    ask(expression: BrokkExpression, options: { reply?: boolean } = {}): void {
-        this.step({ type: "ask", expression, reply: options.reply === true });
+    // action. `answer`: it is the tone his answer opens with (FR-BOSS-009, AC88, brokk-speech.ts).
+    ask(expression: BrokkExpression, options: { reply?: boolean; answer?: boolean } = {}): void {
+        this.step({ type: "ask", expression, reply: options.reply === true, answer: options.answer === true });
     }
 
     note(event: MoodEvent): void {

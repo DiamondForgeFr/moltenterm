@@ -9,6 +9,7 @@
 //
 // It loads with the brainstorm; the fence the window needs up front is brainstorm-fence.ts's.
 
+import { withoutTone } from "../boss/brokk-tone";
 import { GraphFence } from "./brainstorm-fence";
 
 export { GraphFence, withoutGraphBlocks } from "./brainstorm-fence";
@@ -189,10 +190,13 @@ export function readGraphBlock(markdown: string): GraphRead {
         }
         body.push(line);
     }
-    const text = kept
-        .join("\n")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
+    // The marker of his tone (FR-BOSS-009, AC88, #2259) is not one of his words either.
+    const text = withoutTone(
+        kept
+            .join("\n")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim()
+    );
     if (open && last == null) {
         return { text, block: null, problem: "open" };
     }

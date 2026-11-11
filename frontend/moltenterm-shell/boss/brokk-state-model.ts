@@ -10,7 +10,9 @@
 // first call: nothing the bubble loads up front may import it (brokk-ask-model.ts is the part that does).
 //
 // The pose never comes from what an agent writes. No `[[expression]]` marker is looked for in output, files or code:
-// the signals are the count of agents working, the count of rows To handle and whether the card is open.
+// the signals are the count of agents working, the count of rows To handle and whether the card is open. The one
+// exception is the tone Brokk's own session tags his answer with (FR-BOSS-009, AC88, #2259): it is read in
+// brokk-tone.ts from a fixed list and only asks a gesture of the queue, like any other signal.
 
 import type { AskedExpression, BrokkExpression, BrokkPose, BrokkSituation } from "./brokk-ask-model";
 import { restingPose, SpeakingMs } from "./brokk-ask-model";

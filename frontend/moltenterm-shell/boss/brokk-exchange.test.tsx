@@ -4,10 +4,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { ExchangeView, ExchangeViewProps } from "./brokk-exchange";
 import { BrokkItem, ExchangeItem, InlineAction } from "./brokk-exchange-model";
+import { BrokkSpeech, NothingShown } from "./brokk-speech";
 
 const yes: InlineAction = { label: "Yes", authorise: false };
 const grant: InlineAction = { label: "Yes, delete the 2 branches", authorise: true };
@@ -89,5 +91,38 @@ describe("the replies under his answer (FR-BOSS-009, AC24)", () => {
         expect(talk).toContain("const outcome = afterClick(action);");
         expect(talk).toContain("const outcome = afterConfirm(confirming);");
         expect(talk).toContain("setConfirming(afterCancel().confirming);");
+    });
+});
+
+// FR-BOSS-009, AC87 (#2259): his latest answer is revealed as he says it (brokk-speech.ts).
+describe("his answer as he says it (AC87)", () => {
+    const speech = BrokkSpeech.getInstance();
+
+    afterEach(() => globalStore.set(speech.shownAtom, NothingShown));
+
+    it("shows the words said, keeps the place of the rest unseen, and is busy for screen readers until whole", () => {
+        globalStore.set(speech.shownAtom, { id: "m1", count: "Olivia waits".length });
+        const html = render([question, answer([yes])]);
+        expect(html).toMatch(
+            /data-testid="brokk-msg-text">Olivia waits<span class="text-transparent" data-testid="brokk-msg-unsaid"> to delete 2 branches\.<\/span>/
+        );
+        expect(html).toMatch(/data-role="brokk" data-testid="brokk-msg" aria-busy="true"/);
+    });
+
+    it("offers its replies only once it is whole", () => {
+        globalStore.set(speech.shownAtom, { id: "m1", count: 6 });
+        expect(render([question, answer([yes])])).not.toContain('data-testid="brokk-act"');
+        globalStore.set(speech.shownAtom, NothingShown);
+        const html = render([question, answer([yes])]);
+        expect(html).toContain('data-testid="brokk-act"');
+        expect(html).not.toContain("aria-busy");
+        expect(html).not.toContain("brokk-msg-unsaid");
+    });
+
+    it("reveals only the answer being said: the developer's message and earlier answers show whole", () => {
+        globalStore.set(speech.shownAtom, { id: "m9", count: 0 });
+        const html = render([question, answer([yes])]);
+        expect(html).toContain(">Olivia waits to delete 2 branches.</div>");
+        expect(html).toContain(">Any news?</div>");
     });
 });
