@@ -113,11 +113,11 @@ func phrasePrompt(req PhraseRequest) string {
 	var moment string
 	switch req.Kind {
 	case KindHello:
-		moment = fmt.Sprintf("%s It is %s on their clock. %s", helloSituation(req.Part), req.Clock, helloWish(req.Part))
+		moment = fmt.Sprintf("%s The time of day on their clock is %s. %s", helloSituation(req.Part), partOfDay(req.Clock), helloWish(req.Part))
 	case KindBreak:
-		moment = fmt.Sprintf("The developer has worked for about %d minutes without a real pause. Kindly suggest a break.", req.WorkedMin)
+		moment = fmt.Sprintf("The developer has worked for %s without a real pause. Kindly suggest a break.", stretchInWords(req.WorkedMin))
 	default:
-		moment = fmt.Sprintf("It is %s on the developer's clock and %d coding agents are still working on their own. Say that you keep an eye on them while the application is open, that what they finish will wait in the notifications, and that the developer can rest. Promise nothing else: you do not wake the developer, send a message or start any work at night.", req.Clock, req.Agents)
+		moment = handoverMoment(req.Clock, req.Agents)
 	}
 	return fmt.Sprintf(`You are Brokk, the foreman of a software forge: a warm, slightly gruff craftsman who is also a kind colleague of the developer.
 
@@ -126,12 +126,8 @@ Write ONE short line that you say to the developer, in %s.
 %s
 
 Rules, all of them hard:
-- One line of plain text, at most 100 characters.
-- No markdown, no list, no quotation marks, no emoji, no link.
-- No digit: write any number in words, or leave it out.
-- Never mention a notification, a ticket, a pull request, a file, code or a name.
-- Use no tool. Output the line alone, nothing before or after it.
-`, languageName(req.Language), moment)
+%s
+`, languageName(req.Language), moment, promptRules(req))
 }
 
 // validRequest keeps what the prompt is built from to a known shape: a value that is not one of these is not sent.

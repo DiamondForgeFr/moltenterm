@@ -6,6 +6,7 @@ package brokksession
 import (
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -175,11 +176,11 @@ func TestPhrasePromptSaysTheMomentAndNothingElse(t *testing.T) {
 		req  PhraseRequest
 		want []string
 	}{
-		"hello":       {PhraseRequest{Kind: KindHello, Language: "fr", Clock: "07:42"}, []string{"French", "07:42", "Greet them"}},
-		"hello early": {PhraseRequest{Kind: KindHello, Language: "fr", Clock: "05:42", Part: HelloEarly}, []string{"first time today, early in the morning", "05:42", "Greet them"}},
-		"hello back":  {PhraseRequest{Kind: KindHello, Language: "en", Clock: "22:09", Part: HelloBack}, []string{"back after a long absence, later in the day", "22:09", "with no morning wish"}},
-		"break":       {PhraseRequest{Kind: KindBreak, Language: "en", Clock: "11:00", WorkedMin: 125}, []string{"English", "125 minutes", "suggest a break"}},
-		"handover":    {PhraseRequest{Kind: KindHandover, Language: "de", Clock: "21:30", Agents: 3}, []string{"the language whose code is \"de\"", "21:30", "3 coding agents", "Promise nothing else"}},
+		"hello":       {PhraseRequest{Kind: KindHello, Language: "fr", Clock: "07:42"}, []string{"French", "clock is morning", "Greet them"}},
+		"hello early": {PhraseRequest{Kind: KindHello, Language: "fr", Clock: "05:42", Part: HelloEarly}, []string{"first time today, early in the morning", "clock is early morning", "Greet them"}},
+		"hello back":  {PhraseRequest{Kind: KindHello, Language: "en", Clock: "22:09", Part: HelloBack}, []string{"back after a long absence, later in the day", "clock is late evening", "with no morning wish"}},
+		"break":       {PhraseRequest{Kind: KindBreak, Language: "en", Clock: "11:00", WorkedMin: 125}, []string{"English", "about two hours", "suggest a break"}},
+		"handover":    {PhraseRequest{Kind: KindHandover, Language: "de", Clock: "21:30", Agents: 3}, []string{"the language whose code is \"de\"", "late evening", "three coding agents are", "Promise nothing else"}},
 	}
 	for name, tc := range cases {
 		p := &phraseFake{chosen: "claude", output: "Bonjour."}
@@ -189,7 +190,7 @@ func TestPhrasePromptSaysTheMomentAndNothingElse(t *testing.T) {
 				t.Errorf("%s: the prompt lacks %q:\n%s", name, want, p.prompt)
 			}
 		}
-		for _, rule := range []string{"One line of plain text", "No markdown", "No digit", "Never mention a notification, a ticket, a pull request, a file, code or a name", "Use no tool"} {
+		for _, rule := range []string{"One line of plain text", "No markdown", "No digit", "Use no tool"} {
 			if !strings.Contains(p.prompt, rule) {
 				t.Errorf("%s: the prompt lacks the rule %q", name, rule)
 			}
@@ -210,17 +211,137 @@ func TestPhrasePromptDropsAnUnknownHelloPart(t *testing.T) {
 	}
 }
 
+// The prompt forbids digits and the window discards a line that has one: the prompt must not hand the model any to copy.
+// The only digits left are the 100 of the length rule, which is no value of the developer's.
+func TestPhrasePromptSendsNoDigitToCopy(t *testing.T) {
+	t.Parallel()
+	digit := regexp.MustCompile(`\d`)
+	for _, kind := range []string{KindHello, KindBreak, KindHandover} {
+		for _, clock := range []string{"00:05", "06:30", "08:15", "11:45", "13:00", "15:20", "19:59", "22:10"} {
+			for _, minutes := range []int{0, 45, 125, 200, 1440} {
+				for _, agents := range []int{0, 1, 2, 7, 99} {
+					for _, part := range []string{"", HelloEarly, HelloMorning, HelloLateMorning, HelloBack} {
+						prompt := phrasePrompt(PhraseRequest{Kind: kind, Language: "fr", Clock: clock, Part: part, WorkedMin: minutes, Agents: agents})
+						told := strings.ReplaceAll(prompt, "at most 100 characters", "")
+						if digit.MatchString(told) {
+							t.Fatalf("%s at %s, part %q, %d min, %d agents: the prompt carries a digit:\n%s", kind, clock, part, minutes, agents, prompt)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+// T1 of the audit #2214: the hand-over says that what the agents finish waits in the notifications, and its rules used to
+// forbid mentioning a notification.
+func TestPhraseHandoverMayMentionTheNotificationsAndTheOthersMayNot(t *testing.T) {
+	t.Parallel()
+	const forbiddenWithNotification = "Never mention a notification, a ticket, a pull request, a file, code or a name"
+	const forbiddenWithout = "Never mention a ticket, a pull request, a file, code or a name"
+	handover := phrasePrompt(PhraseRequest{Kind: KindHandover, Language: "en", Clock: "22:00", Agents: 2})
+	if !strings.Contains(handover, "will wait in the notifications") {
+		t.Errorf("the hand-over no longer says that the results wait in the notifications:\n%s", handover)
+	}
+	if strings.Contains(handover, forbiddenWithNotification) || !strings.Contains(handover, forbiddenWithout) {
+		t.Errorf("the hand-over forbids what it asks for:\n%s", handover)
+	}
+	for _, kind := range []string{KindHello, KindBreak} {
+		prompt := phrasePrompt(PhraseRequest{Kind: kind, Language: "en", Clock: "10:00", WorkedMin: 130})
+		if !strings.Contains(prompt, forbiddenWithNotification) {
+			t.Errorf("%s: the prompt lets the model mention a notification:\n%s", kind, prompt)
+		}
+		if strings.Contains(prompt, "the notifications") {
+			t.Errorf("%s: the prompt talks of the notifications:\n%s", kind, prompt)
+		}
+	}
+}
+
+// T2 of the audit #2214: every written French line says vous and gives the developer no gender.
+func TestPhraseHoldsFrenchToVousAndNoGender(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{KindHello, KindBreak, KindHandover} {
+		for _, language := range []string{"fr", "FR", "fr-CA"} {
+			prompt := phrasePrompt(PhraseRequest{Kind: kind, Language: language, Clock: "09:00", Agents: 2})
+			for _, want := range []string{"address the developer as vous", "never tu", "gives the developer a gender"} {
+				if !strings.Contains(prompt, want) {
+					t.Errorf("%s in %s: the prompt lacks %q:\n%s", kind, language, want, prompt)
+				}
+			}
+		}
+		for _, language := range []string{"en", "de", "frisian"} {
+			prompt := phrasePrompt(PhraseRequest{Kind: kind, Language: language, Clock: "09:00", Agents: 2})
+			if strings.Contains(prompt, "vous") {
+				t.Errorf("%s in %s: the French rule reached another language:\n%s", kind, language, prompt)
+			}
+		}
+	}
+}
+
+// T6 of the audit #2214: the hand-over is raised with a single agent as often as with several.
+func TestPhraseHandoverTellsOneAgentAsOne(t *testing.T) {
+	t.Parallel()
+	one := phrasePrompt(PhraseRequest{Kind: KindHandover, Language: "en", Clock: "22:00", Agents: 1})
+	for _, want := range []string{"one coding agent is still working on its own", "keep an eye on it", "what it finishes will wait"} {
+		if !strings.Contains(one, want) {
+			t.Errorf("one agent: the prompt lacks %q:\n%s", want, one)
+		}
+	}
+	for _, bad := range []string{"agents", "on them", "their", "they finish"} {
+		if strings.Contains(one, bad) {
+			t.Errorf("one agent: the prompt says %q:\n%s", bad, one)
+		}
+	}
+	several := phrasePrompt(PhraseRequest{Kind: KindHandover, Language: "en", Clock: "22:00", Agents: 2})
+	for _, want := range []string{"two coding agents are still working on their own", "keep an eye on them", "what they finish will wait"} {
+		if !strings.Contains(several, want) {
+			t.Errorf("two agents: the prompt lacks %q:\n%s", want, several)
+		}
+	}
+}
+
 func TestPhraseBoundsTheNumbersItTells(t *testing.T) {
 	t.Parallel()
 	p := &phraseFake{chosen: "claude", output: "Reposez-vous."}
 	newPhraseService(p).Phrase(context.Background(), PhraseRequest{Kind: KindBreak, Language: "fr", Clock: "11:00", WorkedMin: 99999})
-	if !strings.Contains(p.prompt, "1440 minutes") {
+	if !strings.Contains(p.prompt, "about twenty-four hours") {
 		t.Errorf("an absurd stretch was told as is:\n%s", p.prompt)
 	}
 	q := &phraseFake{chosen: "claude", output: "Bonsoir."}
 	newPhraseService(q).Phrase(context.Background(), PhraseRequest{Kind: KindHandover, Language: "fr", Clock: "22:00", Agents: -5})
-	if !strings.Contains(q.prompt, "0 coding agents") {
+	if !strings.Contains(q.prompt, "some coding agents are") {
 		t.Errorf("a negative count was told as is:\n%s", q.prompt)
+	}
+	r := &phraseFake{chosen: "claude", output: "Bonsoir."}
+	newPhraseService(r).Phrase(context.Background(), PhraseRequest{Kind: KindHandover, Language: "fr", Clock: "22:00", Agents: 5000})
+	if !strings.Contains(r.prompt, "many coding agents are") {
+		t.Errorf("an absurd count was told as is:\n%s", r.prompt)
+	}
+}
+
+func TestPhraseTellsTimeAndStretchInWords(t *testing.T) {
+	t.Parallel()
+	parts := map[string]string{
+		"00:00": "late night", "04:59": "late night", "05:00": "early morning", "06:59": "early morning",
+		"07:00": "morning", "09:59": "morning", "10:00": "late morning", "11:59": "late morning",
+		"12:00": "midday", "13:59": "midday", "14:00": "afternoon", "16:59": "afternoon",
+		"17:00": "evening", "20:59": "evening", "21:00": "late evening", "23:59": "late evening",
+	}
+	for clock, want := range parts {
+		if got := partOfDay(clock); got != want {
+			t.Errorf("partOfDay(%q) = %q, want %q", clock, got, want)
+		}
+	}
+	stretches := map[int]string{
+		0: "a few minutes", 14: "a few minutes", 15: "about half an hour", 44: "about half an hour",
+		45: "about an hour", 74: "about an hour", 75: "about an hour and a half", 104: "about an hour and a half",
+		105: "about two hours", 125: "about two hours", 134: "about two hours", 135: "about two and a half hours",
+		200: "about three and a half hours", 1440: "about twenty-four hours",
+	}
+	for minutes, want := range stretches {
+		if got := stretchInWords(minutes); got != want {
+			t.Errorf("stretchInWords(%d) = %q, want %q", minutes, got, want)
+		}
 	}
 }
 
