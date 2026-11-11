@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 // #2257: a session started before the brief changed (the brainstorm section, #2246) read the old one at its start, and
@@ -64,6 +66,80 @@ func TestSaySaysAHumansTextWaitsInHisPrompt(t *testing.T) {
 	got := MakeService(f.env()).Say(context.Background(), Request{Text: "hello"})
 	if got.Status != StatusFailed || got.Reason != ReasonHumanDraft || got.TabId != "tab-9" {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+// #2257, review: a prompt that may hold text from before a restart is never emptied on a guess: the window says so, and
+// the developer's explicit clear goes with the next try; the session this call started is fresh.
+func TestSayTellsAnUnknownPromptAndTakesTheDevelopersClear(t *testing.T) {
+	t.Parallel()
+	f := &fake{found: &Found{BlockId: "block-9", TabId: "tab-9"}, answers: []TypeOutcome{{UnknownPrompt: true}}}
+	svc := MakeService(f.env())
+	got := svc.Say(context.Background(), Request{Text: "hello"})
+	if got.Status != StatusFailed || got.Reason != ReasonUnknownPrompt || f.opts[0].ClearPrompt || f.opts[0].Fresh {
+		t.Fatalf("got %+v with %+v", got, f.opts)
+	}
+	f.answers = []TypeOutcome{{Sent: true}}
+	if got := svc.Say(context.Background(), Request{Text: "hello", ClearPrompt: true}); got.Status != StatusSent || !f.opts[1].ClearPrompt {
+		t.Fatalf("the developer's clear: %+v with %+v", got, f.opts)
+	}
+	g := &fake{agent: "claude", answers: []TypeOutcome{{Sent: true}}}
+	if got := MakeService(g.env()).Say(context.Background(), Request{WorkspaceId: "ws-1", Text: "hello"}); got.Status != StatusSent || !g.opts[0].Fresh {
+		t.Fatalf("a session this call started: %+v with %+v", got, g.opts)
+	}
+}
+
+// #2257, review: an agent that never comes to rest is said plainly, not left as a plain "busy".
+func TestSaySaysAnAgentThatNeverComesToRest(t *testing.T) {
+	t.Parallel()
+	f := &fake{found: &Found{BlockId: "block-9"}, answers: []TypeOutcome{{Retry: true, Unsettled: true}}}
+	if got := MakeService(f.env()).Say(context.Background(), Request{Text: "hello"}); got.Status != StatusBusy || got.Reason != ReasonUnsettled {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+// #2257, review: the human-draft record of a terminal is written in order, the latest value last, whatever the
+// speed of each write: "typed, emptied, typed" never ends as "no human".
+func TestHumanDraftRecordsEndOnTheLatestValue(t *testing.T) {
+	t.Parallel()
+	var lock sync.Mutex
+	written := map[string]bool{}
+	release := make(chan struct{})
+	first := true
+	r := makeDraftRecorder(func(blockId string, foreign bool) {
+		lock.Lock()
+		wait := first
+		first = false
+		lock.Unlock()
+		if wait {
+			<-release
+		}
+		lock.Lock()
+		defer lock.Unlock()
+		written[blockId] = foreign
+	})
+	r.record("b1", true)
+	r.record("b1", false)
+	r.record("b1", true)
+	close(release)
+	deadline := time.Now().Add(time.Minute)
+	for {
+		lock.Lock()
+		got, ok := written["b1"]
+		lock.Unlock()
+		r.lock.Lock()
+		idle := !r.running["b1"]
+		r.lock.Unlock()
+		if ok && idle {
+			if !got {
+				t.Fatal("the last value written is not the latest")
+			}
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the writes never ended")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

@@ -169,6 +169,7 @@ func (s *Session) closeTurnAnswer(ended bool) {
 // NoteTurnEnd: the agent's transcript says its turn ended (Claude Code's turn_duration), for the materials only; the
 // turn's pending calls are left to the agent's hook (EndTurn is Codex's).
 func (s *Session) NoteTurnEnd() {
+	s.turnOpen = false
 	s.closeTurnAnswer(true)
 }
 

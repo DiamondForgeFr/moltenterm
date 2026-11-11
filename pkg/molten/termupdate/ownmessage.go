@@ -6,6 +6,7 @@ package termupdate
 import (
 	"context"
 	"fmt"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -18,10 +19,13 @@ import (
 // hooks have not reported since looks as if it always held one. This path never leaves anything in the prompt:
 //   - text a human typed there (seen by the input watch, or remembered by the session's owner across restarts) is never
 //     sent nor cleared: nothing is typed;
-//   - text MoltenTerm left there, or a prompt the watch has not followed since it was last empty, is cleared first, so a
-//     retry never stacks the message;
-//   - Enter is pressed only when the agent is at rest at its prompt: its hooks report its states, or its transcript
-//     shows no call pending (a permission question is a pending call), so the message never answers a question;
+//   - text MoltenTerm itself left there since the watch saw the prompt emptied is cleared first, so a retry never
+//     stacks the message;
+//   - a prompt the watch has not seen emptied (after a restart) is never cleared on a guess: nothing is typed, and the
+//     developer may choose to empty it (ClearConfirmed);
+//   - Enter is pressed only when the agent is at rest at its prompt, asked again right before each key: its hooks
+//     report its states, or its transcript shows its last turn ended with no call pending (a permission question is
+//     a pending call), so the message never answers a question nor cuts a turn;
 //   - otherwise nothing is typed, and the caller tries again later.
 
 const (
@@ -34,6 +38,9 @@ const (
 	InputReasonUnsettled = "unsettled"
 	// InputReasonHumanDraft: a human's unsent text is in the prompt. Nothing was typed.
 	InputReasonHumanDraft = "humandraft"
+	// InputReasonUnknownPrompt: the watch has not seen the prompt emptied since it started (a restart), so it may hold
+	// text nobody knows of. Nothing was typed; the developer may choose to empty it (ClearConfirmed).
+	InputReasonUnknownPrompt = "unknownprompt"
 
 	// Ctrl+C empties the whole input of Claude Code and Codex, a multi-line paste included, and does nothing else while
 	// they wait at their prompt with text in it.
@@ -44,9 +51,13 @@ const (
 type OwnPromptFacts struct {
 	// HumanTyped: a human's text was left in the prompt before this wavesrv started (the owner remembers it).
 	HumanTyped bool
-	// AtRest reads the agent's transcript: true when it sits at its prompt with no call pending. Asked only when its
+	// AtRest reads the agent's transcript: true when its last turn ended and no call is pending. Asked only when its
 	// hooks have not reported in this run.
 	AtRest func() bool
+	// Fresh: the owner started this agent for this message, so its prompt is empty but for what the watch saw.
+	Fresh bool
+	// ClearConfirmed: the developer chose, with an explicit action, to empty the prompt before the message.
+	ClearConfirmed bool
 }
 
 // clearInputKey is the key that empties the agent's whole input; Ctrl+U (one line) for the agents whose Ctrl+C is not known.
@@ -68,12 +79,37 @@ func TypeOwnMessage(ctx context.Context, blockId string, text string, facts OwnP
 
 // WatchOwnPrompt tells onForeign when a human's text comes into (true) or leaves (false) the prompt of an own session's
 // terminal, so that its owner can remember it across restarts; nil stops.
+// A watch asked for before the updater runs (an owner looking at wavesrv's start) is kept and given to it when it does.
 func WatchOwnPrompt(blockId string, onForeign func(foreign bool)) {
+	keepOwnWatch(blockId, onForeign)
 	u := getRunningUpdater()
 	if u == nil || u.env.WatchOwn == nil {
 		return
 	}
 	u.env.WatchOwn(blockId, onForeign)
+}
+
+var ownWatchLock sync.Mutex
+var ownWatches = map[string]func(bool){}
+
+func keepOwnWatch(blockId string, onForeign func(bool)) {
+	ownWatchLock.Lock()
+	defer ownWatchLock.Unlock()
+	if onForeign == nil {
+		delete(ownWatches, blockId)
+		return
+	}
+	ownWatches[blockId] = onForeign
+}
+
+func keptOwnWatches() map[string]func(bool) {
+	ownWatchLock.Lock()
+	defer ownWatchLock.Unlock()
+	rtn := make(map[string]func(bool), len(ownWatches))
+	for id, fn := range ownWatches {
+		rtn[id] = fn
+	}
+	return rtn
 }
 
 func (u *Updater) typeOwnMessage(ctx context.Context, blockId string, text string, facts OwnPromptFacts) AgentInputResult {
@@ -102,35 +138,69 @@ func (u *Updater) typeOwnMessage(ctx context.Context, blockId string, text strin
 	if blocker := u.foregroundBlocker(st.agent, st.shell.Pid); blocker != "" {
 		return base(refusedBlocked(blocker, name))
 	}
-	if run, ok := u.env.AgentRun(blockId); ok && run.Running {
-		switch run.State {
-		case molten.AgentStateWaiting:
-			return base(refusedWaiting(name))
-		case molten.AgentStateWorking:
-			return base(refused(InputReasonWorking, uimsg.Make("termupdate.line.working", "agent", name),
-				fmt.Sprintf("%s is working: wait for its turn to end.", name)))
+	// The agent at rest, asked again right before each key that could cut or answer something: a turn a background
+	// task started meanwhile is never interrupted, and a question it asks is never answered.
+	atRest := func() AgentInputResult {
+		if run, ok := u.env.AgentRun(blockId); ok && run.Running {
+			switch run.State {
+			case molten.AgentStateWaiting:
+				return base(refusedWaiting(name))
+			case molten.AgentStateWorking:
+				return base(refused(InputReasonWorking, uimsg.Make("termupdate.line.working", "agent", name),
+					fmt.Sprintf("%s is working: wait for its turn to end.", name)))
+			}
 		}
+		if !u.inputState(blockId).Precise && (facts.AtRest == nil || !facts.AtRest()) {
+			return base(refused(InputReasonUnsettled, uimsg.Make("termupdate.line.unsettled", "agent", name),
+				fmt.Sprintf("%s's state is not known yet: nothing was typed.", name)))
+		}
+		return AgentInputResult{}
+	}
+	if r := atRest(); r.Result != "" {
+		return r
 	}
 	in := u.inputState(blockId)
-	if in.Foreign || (facts.HumanTyped && !in.Known) {
+	// Known: the watch saw the prompt emptied since; a session MoltenTerm just started has an empty prompt too.
+	known := in.Known || facts.Fresh
+	clear := false
+	switch {
+	case facts.ClearConfirmed:
+		// The developer chose, in his layer, to empty the prompt: whatever is there goes, nothing of it is sent.
+		clear = true
+	case in.Foreign || (facts.HumanTyped && !in.Known):
 		return base(refused(InputReasonHumanDraft, uimsg.Make("termupdate.line.humandraft", "agent", name),
 			fmt.Sprintf("Text typed in %s's terminal waits in its prompt: nothing was typed.", name)))
+	case !known:
+		// After a restart the prompt may hold anything: it is never emptied on a guess, nor sent with the message.
+		return base(refused(InputReasonUnknownPrompt, uimsg.Make("termupdate.line.unknownprompt", "agent", name),
+			fmt.Sprintf("%s's prompt may hold text MoltenTerm did not see: nothing was typed.", name)))
+	case in.Own:
+		clear = true
 	}
-	if !in.Precise && (facts.AtRest == nil || !facts.AtRest()) {
-		return base(refused(InputReasonUnsettled, uimsg.Make("termupdate.line.unsettled", "agent", name),
-			fmt.Sprintf("%s's state is not known yet: nothing was typed.", name)))
+	send := func(steps ...string) AgentInputResult {
+		sent, err := u.sendSteps(blockId, st.agent, st.shell.Pid, steps, true)
+		if err != nil {
+			return base(refusedNotTaken(err))
+		}
+		if !sent {
+			return base(refusedGone(name))
+		}
+		return AgentInputResult{}
 	}
-	var steps []string
-	if in.Own || !in.Known {
-		steps = append(steps, clearInputKey(agent))
+	if clear {
+		if r := send(clearInputKey(agent)); r.Result != "" {
+			return r
+		}
 	}
-	steps = append(steps, pasteStart+text+pasteEnd, "\r")
-	sent, err := u.sendToForegroundAgent(blockId, st.agent, st.shell.Pid, steps)
-	if err != nil {
-		return base(refusedNotTaken(err))
+	if r := send(pasteStart + text + pasteEnd); r.Result != "" {
+		return r
 	}
-	if !sent {
-		return base(refusedGone(name))
+	// Not at rest any more: the line stays as MoltenTerm's own, which the next try empties first.
+	if r := atRest(); r.Result != "" {
+		return r
+	}
+	if r := send("\r"); r.Result != "" {
+		return r
 	}
 	rtn := sentResult(uimsg.Make("termupdate.line.sent", "agent", name), fmt.Sprintf("Sent to %s.", name))
 	rtn.Submitted = true

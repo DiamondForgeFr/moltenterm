@@ -430,6 +430,13 @@ func (u *Updater) unreadable(blockId string, out *Outcome) AgentInputResult {
 // program; false: it is not, and nothing was typed. Shared by StopAgent and moltenagentinput, so both keep the same
 // guarantee. Claude Code takes text followed at once by Enter for a paste: each step goes on its own.
 func (u *Updater) sendToForegroundAgent(blockId string, agent molten.AgentProcess, shellPid int32, steps []string) (bool, error) {
+	return u.sendSteps(blockId, agent, shellPid, steps, false)
+}
+
+// sendSteps is sendToForegroundAgent; own: the bytes are MoltenTerm's own text in its own session (#2257), told to the
+// input watch so that a leftover of them may be cleared. Only that path is own: anything else MoltenTerm types (a
+// hand-off, a share line) is never cleared.
+func (u *Updater) sendSteps(blockId string, agent molten.AgentProcess, shellPid int32, steps []string, own bool) (bool, error) {
 	if u.foregroundBlocker(agent, shellPid) != "" {
 		return false, nil
 	}
@@ -443,7 +450,7 @@ func (u *Updater) sendToForegroundAgent(blockId string, agent molten.AgentProces
 	for _, step := range steps {
 		data := []byte(step)
 		takeBack := func() {}
-		if u.env.ExpectOwn != nil {
+		if own && u.env.ExpectOwn != nil {
 			takeBack = u.env.ExpectOwn(blockId, data)
 		}
 		if err := u.env.SendInput(blockId, data); err != nil {

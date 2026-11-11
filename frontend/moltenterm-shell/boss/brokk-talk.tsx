@@ -28,6 +28,7 @@ import { BrokkSession } from "./brokk-session";
 import {
     canSend,
     fieldAction,
+    fieldAfterSend,
     keepsText,
     MaxMessageLength,
     onItsWay,
@@ -75,6 +76,7 @@ export function BrokkTalk({
     const [text, setTextState] = useState(draft);
     const [focused, setFocused] = useState(false);
     const [confirming, setConfirming] = useState<InlineAction>(null);
+    const [slashKept, setSlashKept] = useState(false);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const innerRef = useRef<HTMLDivElement>(null);
@@ -148,7 +150,9 @@ export function BrokkTalk({
         }
     }, [open, items, state.phase, confirming, text]);
 
-    const send = async () => {
+    // clearPrompt: the developer's own click on "Clear his prompt and send" (#2257), the one way text MoltenTerm did not
+    // type leaves his prompt.
+    const send = async (clearPrompt = false) => {
         if (!canSend(text, state)) {
             return;
         }
@@ -157,10 +161,13 @@ export function BrokkTalk({
             await startBrainstorm(action.idea);
             return;
         }
-        const result = await session.say(action.text);
-        if (!keepsText(result)) {
-            setText("");
+        if (action.kind === "slash") {
+            setSlashKept(true);
+            return;
         }
+        const result = await session.say(action.text, { clearPrompt });
+        // What the developer wrote while the message waited stays (`draft` is the field as it is now).
+        setText(fieldAfterSend(action.text, draft, result));
     };
     // `/brainstorm [idea]` (#2257): the mode opens at once, and the idea, when there is one, goes as the message whose
     // answer puts it at the centre. It stays in the field when his agent could not take it.
@@ -214,8 +221,14 @@ export function BrokkTalk({
             showPane(state.where);
             return;
         }
-        void send();
+        void send(way === "clearAndSend");
     };
+    // A text starting with a slash stays in the field (review of #2257): his agent would run it as its own command.
+    const slashNote = slashKept ? (
+        <div role="status" className="text-11 text-secondary" data-testid="brokk-talk-slash">
+            {t("boss.panel.talk.slashKept", { name })}
+        </div>
+    ) : null;
 
     // The field's one command, offered while the developer starts a slash (#2257); it has no autocomplete of its own.
     const commandHint = showsCommandHint(text, brainstormAllowed) ? (
@@ -301,6 +314,7 @@ export function BrokkTalk({
                             onCancel={cancel}
                         />
                         {note}
+                        {slashNote}
                         {commandHint}
                     </div>
                 </div>
@@ -318,6 +332,7 @@ export function BrokkTalk({
                     className="mt-brokk-field-input"
                     onChange={(e) => {
                         setText(e.target.value);
+                        setSlashKept(false);
                         if (clearsOnTyping(state)) {
                             session.clearNote();
                         }
@@ -340,9 +355,10 @@ export function BrokkTalk({
                     <MoltenWave />
                 </button>
             </div>
-            {!open && (note != null || commandHint != null) ? (
+            {!open && (note != null || slashNote != null || commandHint != null) ? (
                 <div className="mt-brokk-field-extra">
                     {note}
+                    {slashNote}
                     {commandHint}
                 </div>
             ) : null}

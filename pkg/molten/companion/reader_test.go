@@ -124,6 +124,17 @@ func TestSessionReaderPendingCalls(t *testing.T) {
 	if n := r.PendingCalls(); n != 0 {
 		t.Fatalf("the call has its result: %d pending", n)
 	}
+	// No call pending, but the turn goes on (generating, or between two calls): not at the prompt yet.
+	if !r.TurnOpen() {
+		t.Fatal("a turn whose end is not recorded is open")
+	}
+	f, _ = os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString(`{"type":"system","subtype":"turn_duration","durationMs":2000,"sessionId":"11111111-2222-3333-4444-555555555555","timestamp":"2026-10-04T10:05:04.000Z"}` + "\n")
+	f.Close()
+	r.Poll()
+	if r.TurnOpen() {
+		t.Fatal("the turn's end is recorded")
+	}
 }
 
 // Brokk's window keeps each answer apart (#2033): the first one stays readable by its turn once a second message started

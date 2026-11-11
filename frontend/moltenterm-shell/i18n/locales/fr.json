@@ -3358,6 +3358,10 @@
                 "openTerminal": "Ouvrir son terminal",
                 "humanDraft": "Un texte tapé dans le terminal de {name} attend dans son invite, donc rien n'est parti : MoltenTerm ne l'envoie ni ne l'efface jamais. Envoyez-le ou effacez-le là-bas, puis réessayez.",
                 "queued": "{name} est occupé : votre message part tout seul dès qu'il est libre.",
+                "unknownPrompt": "L'invite de {name} contient peut-être encore un texte d'avant le redémarrage de MoltenTerm, donc rien n'est parti. L'effacer le supprime définitivement.",
+                "clearAndSend": "Effacer son invite et envoyer",
+                "unsettled": "L'agent de {name} n'est jamais revenu à son invite (une étape qui ne s'est pas terminée), donc rien n'est parti. Réessayez dans un instant.",
+                "slashKept": "Un message qui commence par / reste ici : l'agent de {name} l'exécuterait comme une de ses commandes. Écrivez-le sans la barre oblique.",
                 "busy": "L'agent de {name} est occupé : votre message reste ici, réessayez dans un instant.",
                 "noAgent": "Aucun agent de code n'est installé pour démarrer la session de {name}.",
                 "agentMissing": "L'agent de code choisi n'est pas installé : {name} ne peut pas démarrer.",
@@ -9705,6 +9709,7 @@
                 "sent": "Envoyé à {agent}.",
                 "humandraft": "Un texte tapé dans le terminal de {agent} attend dans son invite : rien n'a été tapé.",
                 "unsettled": "L'état de {agent} n'est pas encore connu : rien n'a été tapé.",
+                "unknownprompt": "L'invite de {agent} contient peut-être un texte que MoltenTerm n'a pas vu : rien n'a été tapé.",
                 "typeddraft": "Tapé dans l'invite de {agent} sans Entrée : vous y avez peut-être un message non envoyé.",
                 "typed": "Tapé dans l'invite de {agent} : ajoutez ce qu'il faut faire et appuyez sur Entrée."
             },

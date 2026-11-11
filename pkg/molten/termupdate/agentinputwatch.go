@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
@@ -137,10 +136,10 @@ func ScanDraft(data []byte, draft bool, inPaste bool) (bool, bool) {
 	return draft, inPaste
 }
 
-// Whose text the draft is (#2257): what MoltenTerm types goes through sendToForegroundAgent, which tells the watch the
-// exact bytes first (expectOwn); any other input that writes text is someone else's, a human at the terminal. A prompt
-// is known once the watch has seen it emptied (Enter, Ctrl+U, Ctrl+C), or when the agent started after the watch did:
-// before that, what an earlier wavesrv saw is lost.
+// Whose text the draft is (#2257): what MoltenTerm types into its own session tells the watch the exact bytes first
+// (expectOwn); any other input that writes text is someone else's: a human at the terminal, or a hand-off. A prompt is
+// known only once the watch has seen it emptied (Enter, Ctrl+U, Ctrl+C): when the agent's run record started says
+// nothing, since a hook can make that record after a restart, and what an earlier wavesrv saw is lost.
 
 type paneInput struct {
 	// run: the agent run these facts belong to (its start), so a new agent starts with nothing known.
@@ -163,8 +162,6 @@ type inputWatch struct {
 	panes   map[string]*paneInput
 	runOf   func(blockId string) (molten.AgentRunInfo, bool)
 	precise func(blockId string) bool
-	// since: when the watch started, in Unix milliseconds: a run started later was followed from its start.
-	since int64
 	// own: per terminal, the chunks MoltenTerm is about to type, in order.
 	own map[string][][]byte
 	// ownWatch: the terminals whose owner is told when a human's text comes into, or leaves, their prompt.
@@ -176,7 +173,6 @@ func makeInputWatch(runOf func(string) (molten.AgentRunInfo, bool), precise func
 		panes:    map[string]*paneInput{},
 		runOf:    runOf,
 		precise:  precise,
-		since:    time.Now().UnixMilli(),
 		own:      map[string][][]byte{},
 		ownWatch: map[string]func(bool){},
 	}
@@ -226,15 +222,29 @@ func (w *inputWatch) takeOwnLocked(blockId string, data []byte) bool {
 	return false
 }
 
-// watchOwn tells onForeign each time a human's text comes into the terminal's prompt (true) or leaves it (false).
+// watchOwn tells onForeign each time a human's text comes into the terminal's prompt (true), and each time the prompt
+// is seen emptied (false). A human's text the watch already saw is told at once, so text typed before the owner
+// registered is not lost.
 func (w *inputWatch) watchOwn(blockId string, onForeign func(foreign bool)) {
+	if seed := w.registerOwn(blockId, onForeign); seed {
+		onForeign(true)
+	}
+}
+
+func (w *inputWatch) registerOwn(blockId string, onForeign func(foreign bool)) bool {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	if onForeign == nil {
 		delete(w.ownWatch, blockId)
-		return
+		return false
+	}
+	if _, already := w.ownWatch[blockId]; already {
+		w.ownWatch[blockId] = onForeign
+		return false
 	}
 	w.ownWatch[blockId] = onForeign
+	p := w.panes[blockId]
+	return p != nil && p.draft && p.foreign
 }
 
 // writesText: the input puts or removes text in the line (printable characters, Backspace, Ctrl+W, Ctrl+K...), not
@@ -304,20 +314,27 @@ func (w *inputWatch) inputLocked(blockId string, run molten.AgentRunInfo, data [
 	}
 	p.draft = draft
 	was := p.foreign
+	emptied := false
 	switch {
 	case !draft:
 		p.foreign = false
 		// Only a key that empties the line proves the prompt empty: a Backspace on a prompt not followed proves nothing.
 		if bytes.ContainsAny(data, "\r\n\x15\x03") {
 			p.known = true
+			emptied = true
 		}
 	case !own && writesText(data):
 		p.foreign = true
 	}
-	if p.foreign == was {
-		return nil, false
+	tell := w.ownWatch[blockId]
+	switch {
+	case p.foreign && !was:
+		return tell, true
+	case emptied:
+		// The owner forgets a human's text only when the prompt was seen emptied, never because the watch knows nothing.
+		return tell, false
 	}
-	return w.ownWatch[blockId], p.foreign
+	return nil, false
 }
 
 func (w *inputWatch) output(blockId string, data []byte) {
@@ -353,7 +370,7 @@ func (w *inputWatch) state(blockId string) AgentInputState {
 		Draft:   p.draft || !precise,
 		Foreign: p.draft && p.foreign,
 		Own:     p.draft && !p.foreign,
-		Known:   p.known || run.Started >= w.since,
+		Known:   p.known,
 		Precise: precise,
 	}
 }

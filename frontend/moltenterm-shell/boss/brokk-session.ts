@@ -25,7 +25,7 @@ import {
     followStep,
     IdleTalk,
     MaxFollowMs,
-    MaxQueueMs,
+    queueBoundMs,
     queuedOf,
     QueueEveryMs,
     ReplyResult,
@@ -218,7 +218,9 @@ export class BrokkSession {
 
     // Gives the message to his session, starting it when it does not exist, then follows his answer. Resolves with
     // what came of the message.
-    async say(typed: string): Promise<TalkState> {
+    // clearPrompt: the developer chose, with his own click, to empty his prompt before the message (#2257).
+    async say(typed: string, opts: { clearPrompt?: boolean } = {}): Promise<TalkState> {
+        const clearPrompt = opts.clearPrompt === true;
         const lead = this.lead;
         const text = lead !== "" ? `${lead} ${typed}` : typed;
         const gen = ++this.sendGen;
@@ -232,11 +234,12 @@ export class BrokkSession {
             globalStore.set(this.stateAtom, StartingTalk);
         }
         let sentAt = Date.now() - SentSlackMs;
-        let state = await this.give(text);
+        let state = await this.give(text, clearPrompt);
         // His agent was busy (a turn still running, a previous message on its way): the message waits in the field and
-        // goes by itself once he is free (#2257), until the developer writes again or sends another one.
+        // goes by itself once he is free (#2257), until the developer writes again or sends another one. An agent that
+        // never comes to rest is waited for a shorter while, then said plainly (queueBoundMs).
         let waited = 0;
-        while (gen === this.sendGen && state.phase === "busy" && waited < MaxQueueMs) {
+        while (gen === this.sendGen && state.phase === "busy" && waited < queueBoundMs(state)) {
             globalStore.set(this.stateAtom, queuedOf(state));
             await this.wait(QueueEveryMs);
             waited += QueueEveryMs;
@@ -247,9 +250,13 @@ export class BrokkSession {
                 continue;
             }
             sentAt = Date.now() - SentSlackMs;
-            state = await this.give(text);
+            state = await this.give(text, clearPrompt);
         }
         if (gen !== this.sendGen) {
+            // The developer wrote again while a try was on its way, and his agent took it: it went, so it shows.
+            if (state.phase === "answering") {
+                await this.takeOver(text, sentAt, state, this.sendGen);
+            }
             return state;
         }
         if (state.phase !== "answering") {
@@ -265,18 +272,18 @@ export class BrokkSession {
     }
 
     // One try at giving the message to his session.
-    private async give(text: string): Promise<TalkState> {
+    private async give(text: string, clearPrompt: boolean): Promise<TalkState> {
         const model = BossBubbleModel.getInstance();
+        const data: Record<string, unknown> = {
+            workspaceid: globalStore.get(atoms.workspace)?.oid ?? "",
+            name: globalStore.get(model.nameAtom),
+            text,
+        };
+        if (clearPrompt) {
+            data.clearprompt = true;
+        }
         try {
-            const result: SayResult = await this.call(
-                SayCommand,
-                {
-                    workspaceid: globalStore.get(atoms.workspace)?.oid ?? "",
-                    name: globalStore.get(model.nameAtom),
-                    text,
-                },
-                SayTimeoutMs
-            );
+            const result: SayResult = await this.call(SayCommand, data, SayTimeoutMs);
             this.keep(result);
             return talkStateOf(result);
         } catch (e) {

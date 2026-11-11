@@ -64,19 +64,18 @@ func liveFind(ctx context.Context) (Found, bool, error) {
 	return Found{}, false, nil
 }
 
+var humanDrafts = makeDraftRecorder(writeHumanDraft)
+
 // watchHumanDraft keeps in his terminal's metadata whether a human left text in its prompt, so that a restart, which
-// forgets what the input watch saw, never lets a message clear it or send it (#2257). Asked at each lookup: the watch
-// keeps one listener per terminal.
+// forgets what the input watch saw, never lets a message send it (#2257). Asked at each lookup, the first one at
+// wavesrv's start: the watch keeps one listener per terminal, and tells it at once of a human's text it already saw.
 func watchHumanDraft(blockId string) {
 	termupdate.WatchOwnPrompt(blockId, func(foreign bool) {
-		go recordHumanDraft(blockId, foreign)
+		humanDrafts.record(blockId, foreign)
 	})
 }
 
-func recordHumanDraft(blockId string, foreign bool) {
-	defer func() {
-		panichandler.PanicHandler("molten:brokksession:humandraft", recover())
-	}()
+func writeHumanDraft(blockId string, foreign bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), findTimeout)
 	defer cancel()
 	var value any
@@ -144,12 +143,12 @@ func (a *answerReader) pollLocked(blockId string) bool {
 	return true
 }
 
-// atRest: his transcript is known and no call of his agent waits for its result, so his agent sits at its prompt and
-// not on a question (#2257).
+// atRest: his transcript is known, its last turn ended and no call of his agent waits for its result, so his agent
+// sits at its prompt: neither on a question, nor generating between two calls (#2257).
 func (a *answerReader) atRest(blockId string) bool {
 	a.lock.Lock()
 	defer a.lock.Unlock()
-	return a.pollLocked(blockId) && a.reader.PendingCalls() == 0
+	return a.pollLocked(blockId) && a.reader.PendingCalls() == 0 && !a.reader.TurnOpen()
 }
 
 func (a *answerReader) read(blockId string, index int) (Answer, bool) {
@@ -223,21 +222,26 @@ func liveRunPrint(ctx context.Context, dir string, agent string, prompt string) 
 
 // liveType types into his own session through termupdate's path for it (#2257): the developer's text whole (#2236),
 // submitted, and never stacked over what an earlier try left; a human's text in his prompt is never touched.
-func (a *answerReader) liveType(ctx context.Context, blockId string, line string) TypeOutcome {
+func (a *answerReader) liveType(ctx context.Context, blockId string, line string, opts TypeOptions) TypeOutcome {
 	facts := termupdate.OwnPromptFacts{
-		HumanTyped: liveHumanDraft(ctx, blockId),
-		AtRest:     func() bool { return a.atRest(blockId) },
+		HumanTyped:     liveHumanDraft(ctx, blockId),
+		AtRest:         func() bool { return a.atRest(blockId) },
+		Fresh:          opts.Fresh,
+		ClearConfirmed: opts.ClearPrompt,
 	}
 	out := termupdate.TypeOwnMessage(ctx, blockId, line, facts)
 	if out.Result == termupdate.InputSent {
 		return TypeOutcome{Sent: true, Unsubmitted: !out.Submitted, Message: out.Message}
 	}
 	switch out.Reason {
-	case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground,
-		termupdate.InputReasonUnsettled:
+	case termupdate.InputReasonWorking, termupdate.InputReasonWaiting, termupdate.InputReasonBusy, termupdate.InputReasonNotForeground:
 		return TypeOutcome{Retry: true, Message: out.Message}
+	case termupdate.InputReasonUnsettled:
+		return TypeOutcome{Retry: true, Unsettled: true, Message: out.Message}
 	case termupdate.InputReasonHumanDraft:
 		return TypeOutcome{HumanDraft: true, Message: out.Message}
+	case termupdate.InputReasonUnknownPrompt:
+		return TypeOutcome{UnknownPrompt: true, Message: out.Message}
 	case termupdate.InputReasonTerminalGone:
 		return TypeOutcome{Gone: true, Message: out.Message}
 	case termupdate.InputReasonNoAgent:
@@ -308,7 +312,19 @@ func Start() {
 		if _, err := localroute.Register(wshutil.DefaultRouter, Live().route()); err != nil {
 			log.Printf("[brokksession] route not started: %v\n", err)
 		}
+		// His terminal is looked for at once, so that the watch of his prompt starts with wavesrv, not with the first
+		// window that asks (#2257).
+		go findAtStart()
 	})
+}
+
+func findAtStart() {
+	defer func() {
+		panichandler.PanicHandler("molten:brokksession:findatstart", recover())
+	}()
+	if _, _, err := liveFind(context.Background()); err != nil {
+		log.Printf("[brokksession] his session could not be looked for at start: %v\n", err)
+	}
 }
 
 // route lets in the windows and Electron main only (#2220): a program or an agent in a terminal would otherwise start
