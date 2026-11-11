@@ -41,12 +41,12 @@ const (
 	sayTimeout = startWait + 20*time.Second
 )
 
-func liveFind(ctx context.Context) (Found, bool) {
+func liveFind(ctx context.Context) (Found, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, findTimeout)
 	defer cancel()
 	blocks, err := wstore.DBGetAllObjsByType[*waveobj.Block](ctx, waveobj.OType_Block)
 	if err != nil {
-		return Found{}, false
+		return Found{}, false, err
 	}
 	for _, block := range blocks {
 		if block == nil || block.Meta[BlockMetaKey] != true {
@@ -57,9 +57,9 @@ func liveFind(ctx context.Context) (Found, bool) {
 		if tabId != "" {
 			workspaceId, _ = wstore.DBFindWorkspaceForTabId(ctx, tabId)
 		}
-		return Found{BlockId: block.OID, TabId: tabId, WorkspaceId: workspaceId}, true
+		return Found{BlockId: block.OID, TabId: tabId, WorkspaceId: workspaceId}, true, nil
 	}
-	return Found{}, false
+	return Found{}, false, nil
 }
 
 // answerReader follows his session's transcript, as the companion links it to his terminal: one reader, kept while
@@ -184,6 +184,19 @@ func liveSleep(ctx context.Context, d time.Duration) bool {
 	}
 }
 
+// sessionCommandLine starts his agent in a mode that asks before acting, whatever the developer's own default is (a
+// bypass default would give him full reach, #2220). Codex keeps its sandbox to his folder and asks to step out of it.
+// The other agents of the catalog have no flag MoltenTerm knows to be the asking one: they start in their own default.
+func sessionCommandLine(agent string) string {
+	switch agent {
+	case molten.AgentIdClaude:
+		return reviewsession.CommandLine(agent, []string{"--permission-mode", "default"})
+	case molten.AgentIdCodex:
+		return reviewsession.CommandLine(agent, []string{"--sandbox", "workspace-write", "--ask-for-approval", "on-request"})
+	}
+	return reviewsession.CommandLine(agent, nil)
+}
+
 // Live is wavesrv's service: the agent choice, the hidden tabs of the agents MoltenTerm starts and the guarded path that
 // types a prompt into an agent.
 func Live() *Service {
@@ -191,7 +204,7 @@ func Live() *Service {
 		Find:        liveFind,
 		Folder:      liveFolder,
 		PickAgent:   livePickAgent,
-		CommandLine: func(agent string) string { return reviewsession.CommandLine(agent, nil) },
+		CommandLine: sessionCommandLine,
 		AgentTab: func(ctx context.Context, workspaceId string, name string, meta waveobj.MetaMapType) (string, error) {
 			return wcore.CreateAgentTab(ctx, workspaceId, name, meta, true)
 		},
@@ -214,18 +227,22 @@ var startOnce sync.Once
 // Start registers the route the windows talk to Brokk's session on; wavesrv calls it once, from Mission Control's start.
 func Start() {
 	startOnce.Do(func() {
-		service := Live()
-		route := localroute.Route{
-			Id:     RouteId,
-			Policy: localroute.Policy{Default: localroute.AllowLocal},
-			Handler: func(ctx context.Context, command string, _ localroute.Caller, data any) (any, error) {
-				return service.handle(ctx, command, data)
-			},
-		}
-		if _, err := localroute.Register(wshutil.DefaultRouter, route); err != nil {
+		if _, err := localroute.Register(wshutil.DefaultRouter, Live().route()); err != nil {
 			log.Printf("[brokksession] route not started: %v\n", err)
 		}
 	})
+}
+
+// route lets in the windows and Electron main only (#2220): a program or an agent in a terminal would otherwise start
+// his session and type into it, read his conversation, or spend the developer's subscription on phrasings.
+func (s *Service) route() localroute.Route {
+	return localroute.Route{
+		Id:     RouteId,
+		Policy: localroute.Policy{Default: localroute.AllowUi},
+		Handler: func(ctx context.Context, command string, _ localroute.Caller, data any) (any, error) {
+			return s.handle(ctx, command, data)
+		},
+	}
 }
 
 func (s *Service) handle(ctx context.Context, command string, data any) (any, error) {
@@ -247,7 +264,12 @@ func (s *Service) handle(ctx context.Context, command string, data any) (any, er
 		}
 		ctx, cancel := context.WithTimeout(ctx, findTimeout)
 		defer cancel()
-		return s.Reply(ctx, reply), nil
+		rtn := s.Reply(ctx, reply)
+		// The window counts a reading that failed as one, as it does a call that failed; "none" would end the exchange.
+		if rtn.Status == StatusFailed {
+			return nil, fmt.Errorf("his session could not be looked for")
+		}
+		return rtn, nil
 	case PhraseCommand:
 		var phrase PhraseRequest
 		if err := utilfn.ReUnmarshal(&phrase, data); err != nil {

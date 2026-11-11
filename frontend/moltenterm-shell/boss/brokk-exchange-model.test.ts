@@ -12,6 +12,7 @@ import {
     leadOf,
     MaxActionLabel,
     MaxActions,
+    MaxSafeLabel,
     offersActions,
     parseReply,
     sayLine,
@@ -37,22 +38,37 @@ describe("the replies an answer offers (FR-BOSS-009, AC24; FR-BOSS-004, AC12)", 
         const parsed = parseReply(`Open the PR #2024?\n\n${block('["Yes", "No"]')}`);
         expect(parsed.text).toBe("Open the PR #2024?");
         expect(parsed.actions).toEqual([
-            { label: "Yes", authorise: false },
-            { label: "No", authorise: false },
+            { label: "Yes", authorise: true },
+            { label: "No", authorise: true },
         ]);
     });
 
-    it("marks a reply as an authorisation only when he says so, with a real true", () => {
+    it("asks for every reply by default; only a short one he marks safe, with a real true, goes at once (#2220)", () => {
         const parsed = parseReply(
             block(
-                '[{"label": "Yes, delete", "authorise": true}, {"label": "Later", "authorise": "true"}, {"label": "No"}]'
+                '[{"label": "Yes, delete", "authorise": true}, {"label": "Later", "safe": "true"}, {"label": "No", "safe": true}, "Maybe"]'
             )
         );
         expect(parsed.actions).toEqual([
             { label: "Yes, delete", authorise: true },
-            { label: "Later", authorise: false },
+            { label: "Later", authorise: true },
             { label: "No", authorise: false },
+            { label: "Maybe", authorise: true },
         ]);
+    });
+
+    it("never lifts the confirmation of an authorisation or of a long reply marked safe (#2220)", () => {
+        const long = "y".repeat(MaxSafeLabel + 1);
+        const parsed = parseReply(
+            block(
+                JSON.stringify([
+                    { label: "Yes, merge", authorise: true, safe: true },
+                    { label: long, safe: true },
+                    { label: "y".repeat(MaxSafeLabel), safe: true },
+                ])
+            )
+        );
+        expect(parsed.actions.map((a) => a.authorise)).toEqual([true, true, false]);
     });
 
     it("offers at most four replies, each of a text that fits, the first of each text", () => {
@@ -62,7 +78,7 @@ describe("the replies an answer offers (FR-BOSS-009, AC24; FR-BOSS-004, AC12)", 
         const long = "x".repeat(MaxActionLabel + 1);
         const fits = "y".repeat(MaxActionLabel);
         expect(parseReply(block(JSON.stringify([long, fits, "", "  ", 3, null, {}]))).actions).toEqual([
-            { label: fits, authorise: false },
+            { label: fits, authorise: true },
         ]);
     });
 
@@ -100,7 +116,7 @@ describe("the confirmation rule (AC24)", () => {
     const yes = { label: "Yes", authorise: false };
     const grant = { label: "Yes, delete the branches", authorise: true };
 
-    it("sends a reversible reply at once, as the text of the button", () => {
+    it("sends a reply he marked safe at once, as the text of the button", () => {
         expect(stepOf(yes)).toBe("send");
         expect(afterClick(yes)).toEqual({ confirming: null, send: "Yes" });
     });

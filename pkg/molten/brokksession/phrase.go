@@ -29,12 +29,13 @@ const (
 	// The agent has this long to answer. The window waits a little longer, and never for the screen: the written
 	// phrasing shows meanwhile.
 	phraseTimeout = 25 * time.Second
-	// The line is read from the first bytes of what the agent printed.
+	// More than this printed is no line.
 	maxPhraseOutput = 8 << 10
-	// A line longer than this is cut here and the window discards it anyway (brokk-colleague.ts validModelLine).
+	// An output longer than this is no line; the window discards anything past its own, shorter limit anyway
+	// (brokk-colleague.ts validModelLine).
 	maxPhraseLine = 400
-	// The window asks at most 5 a day (brokk-colleague.ts MaxModelCallsPerDay); this many an hour is a ceiling for any
-	// other caller of the route.
+	// The window asks at most 5 a day (brokk-colleague.ts MaxModelCallsPerDay); this many an hour is a ceiling should a
+	// window ask more.
 	maxPhrasesPerHour = 8
 )
 
@@ -119,21 +120,18 @@ func validRequest(req PhraseRequest) (PhraseRequest, bool) {
 	return req, true
 }
 
-func firstLine(out []byte) string {
+// phraseOutput is the whole of what the agent printed, trimmed: the window's one-line check (brokk-colleague.ts
+// validModelLine) must see a preamble or a second line to refuse it (#2220). An output too long to be one line is
+// none, rather than a cut that could drop what made it invalid.
+func phraseOutput(out []byte) string {
 	if len(out) > maxPhraseOutput {
-		out = out[:maxPhraseOutput]
+		return ""
 	}
-	for _, line := range strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		if utf8.RuneCountInString(line) > maxPhraseLine {
-			line = string([]rune(line)[:maxPhraseLine])
-		}
-		return line
+	text := strings.TrimSpace(strings.ToValidUTF8(string(out), ""))
+	if utf8.RuneCountInString(text) > maxPhraseLine {
+		return ""
 	}
-	return ""
+	return text
 }
 
 // claimPhrase lets one phrasing run at a time.
@@ -154,7 +152,7 @@ func (s *Service) releasePhrase() {
 }
 
 // allowRun counts the run that is about to start and refuses it past a handful an hour: the window asks a handful a day,
-// so a caller that asks for more (the route is open to every local client) is spending the developer's subscription.
+// so a caller that asks for more is spending the developer's subscription.
 func (s *Service) allowRun() bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -205,7 +203,7 @@ func (s *Service) Phrase(ctx context.Context, req PhraseRequest) PhraseResult {
 		log.Printf("[brokksession] his model could not phrase a moment: %v\n", err)
 		return none
 	}
-	line := firstLine(out)
+	line := phraseOutput(out)
 	if line == "" {
 		return none
 	}

@@ -139,8 +139,9 @@ type TypeOutcome struct {
 
 // Env is what the service reaches outside itself; the tests give fakes.
 type Env struct {
-	// Find looks for the terminal that carries BlockMetaKey.
-	Find func(ctx context.Context) (Found, bool)
+	// Find looks for the terminal that carries BlockMetaKey. An error is a lookup that failed, never "not found": a
+	// slow or failing database must not start a second session (#2220).
+	Find func(ctx context.Context) (Found, bool, error)
 	// Folder is his own folder, made when it does not exist.
 	Folder func() (string, error)
 	// PickAgent resolves the developer's coding agent for the folder: its id and display name, or "" when none can
@@ -204,12 +205,19 @@ func (s *Service) release() {
 	s.working = false
 }
 
+func findFailed(err error) Result {
+	return Result{Status: StatusFailed, Reason: ReasonTerminal, Message: fmt.Sprintf("His session could not be looked for: %v", err)}
+}
+
 // Session says whether his session exists, and where. It starts nothing.
 func (s *Service) Session(ctx context.Context) Result {
 	if s.env.Find == nil {
 		return Result{Status: StatusNone}
 	}
-	found, ok := s.env.Find(ctx)
+	found, ok, err := s.env.Find(ctx)
+	if err != nil {
+		return findFailed(err)
+	}
 	if !ok {
 		return Result{Status: StatusNone}
 	}
@@ -222,7 +230,10 @@ func (s *Service) Reply(ctx context.Context, req ReplyRequest) Reply {
 	if s.env.Find == nil {
 		return Reply{Status: StatusNone}
 	}
-	found, ok := s.env.Find(ctx)
+	found, ok, err := s.env.Find(ctx)
+	if err != nil {
+		return Reply{Status: StatusFailed}
+	}
 	if !ok {
 		return Reply{Status: StatusNone}
 	}
@@ -255,7 +266,10 @@ func (s *Service) Say(ctx context.Context, req Request) Result {
 		return Result{Status: StatusBusy, Reason: ReasonInProgress, Message: "The previous message is still on its way."}
 	}
 	defer s.release()
-	found, ok := s.env.Find(ctx)
+	found, ok, err := s.env.Find(ctx)
+	if err != nil {
+		return findFailed(err)
+	}
 	result := Result{}
 	fresh := false
 	if !ok {

@@ -17,6 +17,7 @@ type fake struct {
 	lock sync.Mutex
 
 	found   *Found
+	findErr error
 	agent   string
 	missing bool
 	// typed answers, one per call; the last one repeats.
@@ -45,13 +46,16 @@ type fake struct {
 
 func (f *fake) env() Env {
 	return Env{
-		Find: func(context.Context) (Found, bool) {
+		Find: func(context.Context) (Found, bool, error) {
 			f.lock.Lock()
 			defer f.lock.Unlock()
-			if f.found == nil {
-				return Found{}, false
+			if f.findErr != nil {
+				return Found{}, false, f.findErr
 			}
-			return *f.found, true
+			if f.found == nil {
+				return Found{}, false, nil
+			}
+			return *f.found, true, nil
 		},
 		Folder: func() (string, error) { return f.folder, nil },
 		PickAgent: func(string) (string, string, bool) {
