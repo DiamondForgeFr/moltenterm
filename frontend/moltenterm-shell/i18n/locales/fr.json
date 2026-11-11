@@ -1214,7 +1214,13 @@
             "power:graceminutes": {
                 "label": "Rester éveillé après la fin du travail",
                 "description": "Combien de temps il reste éveillé après le dernier travail, pour qu'une pause entre deux tours ne soit pas une veille.",
-                "options": { "1": "1 minute", "2": "2 minutes", "5": "5 minutes", "10": "10 minutes", "15": "15 minutes" }
+                "options": {
+                    "1": "1 minute",
+                    "2": "2 minutes",
+                    "5": "5 minutes",
+                    "10": "10 minutes",
+                    "15": "15 minutes"
+                }
             },
             "power:workagents": {
                 "label": "Les agents au travail comptent",
@@ -3146,7 +3152,8 @@
                 "theme": "Thème",
                 "decision": "Décision",
                 "proposal": "Proposition",
-                "conclusion": "Conclusion"
+                "conclusion": "Conclusion",
+                "reference": "Autre dossier"
             },
             "saved": {
                 "title": "Brainstorms",
@@ -3163,12 +3170,78 @@
             "summaryShow": "Voir",
             "edgeShow": "Voir",
             "crashed": "Un agent s'est arrêté sur une erreur",
-            "crashedNamed": "{name} s'est arrêté sur une erreur"
+            "crashedNamed": "{name} s'est arrêté sur une erreur",
+            "resumedLead": "Brainstorm repris : « {title} ».",
+            "forked": "« {title} » a maintenant son propre dossier. On le commence.",
+            "forgotTrash": "Oublié : « {title} » est dans la corbeille.",
+            "forgotRemoved": "Oublié : « {title} » est supprimé.",
+            "newIdea": "Nouvelle idée",
+            "lastChange": "Dernière modification {when}",
+            "resumeAction": "Reprendre",
+            "switch": "Changer",
+            "picker": {
+                "label": "Brainstorms avec {name}",
+                "ask": "On commence par quoi ?",
+                "resume": "Reprendre « {title} »",
+                "all": "Tous les brainstorms ({count})…"
+            },
+            "duplicate": {
+                "ask": "On a déjà « {title} » : on le reprend, ou on repart de zéro ?",
+                "fresh": "Repartir de zéro"
+            },
+            "offer": {
+                "label": "{name} propose de reprendre un brainstorm",
+                "ask": "On rouvre « {title} » ?",
+                "later": "Pas maintenant"
+            },
+            "forget": {
+                "label": "Oublier un brainstorm",
+                "ask": "Oublier « {title} » ?",
+                "detail": "Dernière modification {when}. Son dossier part à la corbeille, et il ne le cite plus.",
+                "confirm": "L'oublier",
+                "cancel": "Le garder"
+            },
+            "fork": {
+                "label": "Un autre projet",
+                "ask": "{name} : « {title} », c'est un autre projet. Je lui ouvre son propre dossier ?",
+                "yes": "Oui",
+                "no": "Non, on reste ici"
+            },
+            "widget": {
+                "all": "Tous ({count})",
+                "fold": "Replier",
+                "others": "Autres idées :",
+                "loadOne": "Charger « {title} »",
+                "none": "Aucun brainstorm enregistré pour l'instant",
+                "meta": "{when} · {state}",
+                "here": "Ouvert",
+                "load": "Charger",
+                "rename": "Renommer",
+                "renameLabel": "Le nouveau titre du brainstorm",
+                "renameSave": "Enregistrer",
+                "show": "Afficher dans le dossier",
+                "delete": "Supprimer",
+                "forgotTrash": "« {title} » est dans la corbeille.",
+                "forgotRemoved": "« {title} » est supprimé."
+            },
+            "state": {
+                "open": "ouvert",
+                "clear": "clair",
+                "promoted": "promu"
+            },
+            "failed": {
+                "unknown": "Ce brainstorm n'est plus dans le dossier.",
+                "notsaved": "Le brainstorm ouvert n'a pas pu être enregistré : rien n'a bougé.",
+                "noidea": "Aucune idée n'est encore ouverte.",
+                "invalid": "Ce titre ne peut pas servir.",
+                "trash": "Le dossier n'a pas pu aller à la corbeille : il reste où il est.",
+                "failed": "Ça n'a pas marché. Le dossier reste tel qu'il était."
+            }
         },
         "label": "{name}, {count} en attente",
         "avatar": {
             "labelCueAlone": "{name} a quelque chose à vous dire",
-            "labelCue":"{name}, {count} en attente : a quelque chose à vous dire",
+            "labelCue": "{name}, {count} en attente : a quelque chose à vous dire",
             "close": "Fermer {name}",
             "downloadKnown": {
                 "one": "{count} téléchargement en cours, {percent} %",

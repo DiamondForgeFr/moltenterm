@@ -1016,7 +1016,13 @@
             "power:graceminutes": {
                 "label": "Stay awake after the work ends",
                 "description": "How long it stays awake after the last work stopped, so a pause between two turns is not a sleep.",
-                "options": { "1": "1 minute", "2": "2 minutes", "5": "5 minutes", "10": "10 minutes", "15": "15 minutes" }
+                "options": {
+                    "1": "1 minute",
+                    "2": "2 minutes",
+                    "5": "5 minutes",
+                    "10": "10 minutes",
+                    "15": "15 minutes"
+                }
             },
             "power:workagents": {
                 "label": "Agents at work count",
@@ -3146,7 +3152,8 @@
                 "theme": "Theme",
                 "decision": "Decision",
                 "proposal": "Proposal",
-                "conclusion": "Conclusion"
+                "conclusion": "Conclusion",
+                "reference": "Other folder"
             },
             "saved": {
                 "title": "Brainstorms",
@@ -3163,7 +3170,73 @@
             "summaryShow": "Show",
             "edgeShow": "See",
             "crashed": "An agent stopped on an error",
-            "crashedNamed": "{name} stopped on an error"
+            "crashedNamed": "{name} stopped on an error",
+            "resumedLead": "Brainstorm resumed: “{title}”.",
+            "forked": "“{title}” has its own folder now. Let's start it.",
+            "forgotTrash": "Forgotten: “{title}” is in the trash.",
+            "forgotRemoved": "Forgotten: “{title}” is removed.",
+            "newIdea": "New idea",
+            "lastChange": "Last change {when}",
+            "resumeAction": "Resume",
+            "switch": "Switch",
+            "picker": {
+                "label": "Brainstorms with {name}",
+                "ask": "Where do we start?",
+                "resume": "Resume “{title}”",
+                "all": "All brainstorms ({count})…"
+            },
+            "duplicate": {
+                "ask": "We already have “{title}”: resume it, or start fresh?",
+                "fresh": "Start fresh"
+            },
+            "offer": {
+                "label": "{name} offers to resume a brainstorm",
+                "ask": "Reopen “{title}”?",
+                "later": "Not now"
+            },
+            "forget": {
+                "label": "Forget a brainstorm",
+                "ask": "Forget “{title}”?",
+                "detail": "Last change {when}. Its folder goes to the trash, and he stops listing it.",
+                "confirm": "Forget it",
+                "cancel": "Keep it"
+            },
+            "fork": {
+                "label": "Another project",
+                "ask": "{name}: “{title}” is another project. Open its own folder?",
+                "yes": "Yes",
+                "no": "No, we stay here"
+            },
+            "widget": {
+                "all": "All ({count})",
+                "fold": "Fold",
+                "others": "Other ideas:",
+                "loadOne": "Load “{title}”",
+                "none": "No brainstorm saved yet",
+                "meta": "{when} · {state}",
+                "here": "Open",
+                "load": "Load",
+                "rename": "Rename",
+                "renameLabel": "The brainstorm's new title",
+                "renameSave": "Save",
+                "show": "Show in folder",
+                "delete": "Delete",
+                "forgotTrash": "“{title}” is in the trash.",
+                "forgotRemoved": "“{title}” is removed."
+            },
+            "state": {
+                "open": "open",
+                "clear": "clear",
+                "promoted": "promoted"
+            },
+            "failed": {
+                "unknown": "That brainstorm is no longer in the folder.",
+                "notsaved": "The open brainstorm could not be saved: nothing moved.",
+                "noidea": "No idea is open yet.",
+                "invalid": "That title cannot be used.",
+                "trash": "The folder could not go to the trash: it stays where it is.",
+                "failed": "That did not work. The folder stays as it was."
+            }
         },
         "label": "{name}, {count} waiting",
         "avatar": {

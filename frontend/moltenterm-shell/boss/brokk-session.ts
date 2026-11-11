@@ -167,6 +167,38 @@ export class BrokkSession {
         );
     }
 
+    // The conversation of a brainstorm the developer moved to (#2248): his talk window shows it in place of the one
+    // before, each line as it was kept (conversation.jsonl), complete and offering nothing. An answer still being read
+    // comes in after it.
+    showConversation(turns: { role: string; text: string; at: number }[]): void {
+        const items: ExchangeItem[] = [];
+        let id = "";
+        for (const turn of turns ?? []) {
+            if (turn?.role === "you") {
+                id = `saved${++this.counter}`;
+                items.push({ id, role: "you", text: turn.text ?? "", at: turn.at ?? 0 });
+                continue;
+            }
+            if (turn?.role !== "brokk") {
+                continue;
+            }
+            const answers = id !== "" && !items.some((item) => item.role === "brokk" && item.id === id);
+            const kept = withAnswer(items, answers ? id : `saved${++this.counter}`, {
+                markdown: turn.text ?? "",
+                turn: 0,
+                at: turn.at ?? 0,
+                final: true,
+            });
+            items.splice(0, items.length, ...kept);
+            const last = items[items.length - 1];
+            if (last.role === "brokk") {
+                last.actions = [];
+            }
+        }
+        globalStore.set(this.exchangeAtom, items);
+        globalStore.set(this.unseenIdAtom, null);
+    }
+
     // Words the developer's next message starts with; "" for none. The message shows with them, as it is sent.
     setLead(lead: string): void {
         this.lead = lead ?? "";

@@ -21,17 +21,27 @@ export const StateCommand = "moltenbrainstormstate";
 export const OpenCommand = "moltenbrainstormopen";
 export const CloseCommand = "moltenbrainstormclose";
 export const TurnCommand = "moltenbrainstormturn";
+// The folders (#2248).
+export const ListCommand = "moltenbrainstormlist";
+export const FindCommand = "moltenbrainstormfind";
+export const LoadCommand = "moltenbrainstormload";
+export const NewCommand = "moltenbrainstormnew";
+export const RenameCommand = "moltenbrainstormrename";
+export const DeleteCommand = "moltenbrainstormdelete";
+export const ForkCommand = "moltenbrainstormfork";
 export const BrainstormEvent = "molten:brainstorm";
 
 export const CallTimeoutMs = 8000;
 
 // must match pkg/molten/brainstorm/service.go
 export type BrainstormSummary = {
+    id?: string;
     slug: string;
     title: string;
     dir: string;
     created: number;
     updated: number;
+    state?: string;
     turns: number;
 };
 
@@ -42,6 +52,10 @@ export type BrainstormState = {
     // The wavesrv that counted version: each one counts from 0.
     session?: string;
     version: number;
+    // The brainstorms the developer moved to: the stage starts its camera over on each (#2248).
+    swap?: number;
+    // The changes of the folders' list: the widget reads it again on each.
+    listrev?: number;
     brainstorm?: BrainstormSummary;
     graph?: BrainstormGraph;
     savedat?: number;
@@ -50,6 +64,21 @@ export type BrainstormState = {
 
 // The mode as wavesrv last told this view; null before it did (and always on a release channel).
 export const BrainstormStateAtom = atom(null) as PrimitiveAtom<BrainstormState>;
+
+// A question his talk window asks the developer about the brainstorms (FR-BOSS-010 AC10a to AC10d, #2248). The window
+// answers it with a click, and only then does MoltenTerm act:
+// - picker: on entry, the most recent ones to resume, a new idea, or all of them in the widget;
+// - duplicate: `/brainstorm <idea>` when one of nearly that title is saved: resume it, or start fresh;
+// - resume: his offer to reopen one (Resume, Not now): nothing opens by itself;
+// - forget: the developer asked him to forget one: its title and last change, then the confirmation.
+export type BrainstormPrompt =
+    | { kind: "picker"; recent: BrainstormSummary[]; total: number }
+    | { kind: "duplicate"; idea: string; match: BrainstormSummary }
+    | { kind: "resume"; match: BrainstormSummary }
+    | { kind: "forget"; match: BrainstormSummary };
+
+// The question on screen, null for none. Up front so that his talk window knows when to load what draws it.
+export const BrainstormPromptAtom = atom(null) as PrimitiveAtom<BrainstormPrompt>;
 
 type Brainstorm = typeof import("./brainstorm-store");
 
@@ -77,14 +106,15 @@ export function forgetBrainstorm(): void {
     loaded.BrainstormModel.getInstance().forget();
 }
 
-// The developer starts a brainstorm (Brokk's menu, the palette, `/brainstorm` in his field). withIdea: the message that
-// follows is the idea to put at the centre (#2257).
-export async function openBrainstorm(withIdea = false): Promise<void> {
+// The developer starts a brainstorm (Brokk's menu, the palette, `/brainstorm` in his field). With no idea, his talk
+// window offers the saved ones first (#2248). With an idea (#2257) it resolves true when the field sends it now as the
+// message whose answer puts it at the centre; false when a brainstorm of nearly that title is saved and he asks first.
+export async function openBrainstorm(idea = ""): Promise<boolean> {
     if (!currentBrainstormAllowed()) {
-        return;
+        return false;
     }
     const mod = await loadBrainstorm();
-    await mod.BrainstormModel.getInstance().begin(withIdea);
+    return mod.BrainstormModel.getInstance().begin(idea);
 }
 
 let booted = false;

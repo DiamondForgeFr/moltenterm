@@ -5,14 +5,48 @@ import { describe, expect, it } from "vitest";
 import type { AgentStatesData } from "../agent-state-model";
 import type { MoltentermNotification } from "../notifications-model";
 import {
+    answerQuestions,
     answerStep,
     breaksThrough,
     EmptyTally,
     newlyCrashed,
+    othersOf,
+    pickerOf,
     sidebarOnClose,
     sidebarOnOpen,
     tallied,
 } from "./brainstorm-model";
+
+const folder = (slug: string, updated: number) => ({
+    slug,
+    title: slug,
+    dir: `/synthetic/${slug}`,
+    created: 1,
+    updated,
+    turns: 0,
+});
+
+describe("the folders' rules (#2248)", () => {
+    it("offers the three most recent on entry, and nothing when none is saved", () => {
+        const list = [folder("a", 4), folder("b", 3), folder("c", 2), folder("d", 1)];
+        expect(pickerOf(list)).toEqual({ kind: "picker", recent: list.slice(0, 3), total: 4 });
+        expect(pickerOf([])).toBeNull();
+        expect(pickerOf(null)).toBeNull();
+    });
+
+    it("lists the others beside the open one", () => {
+        expect(othersOf([folder("a", 2), folder("b", 1)], "a").map((f) => f.slug)).toEqual(["b"]);
+    });
+
+    it("asks his questions only once his answer is complete, and only where the gate is open", () => {
+        const markdown =
+            'Shall we?\n\n```brokk-graph\n{"v":1,"talk":"project","ops":[{"op":"resume","title":"Forge notes"}]}\n```';
+        expect(answerQuestions({ markdown, final: true, allowed: true })).toEqual({ resume: "Forge notes" });
+        expect(answerQuestions({ markdown, final: false, allowed: true })).toBeNull();
+        expect(answerQuestions({ markdown, final: true, allowed: false })).toBeNull();
+        expect(answerQuestions({ markdown: "No block.", final: true, allowed: true })).toBeNull();
+    });
+});
 
 function entry(over: Partial<MoltentermNotification>): MoltentermNotification {
     return { id: "n1", source: "build", title: "x", kind: "info", time: 1, updated: 1, read: false, ...over };

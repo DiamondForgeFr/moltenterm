@@ -42,6 +42,8 @@ export const KindLooks: Record<NodeKind, KindLook> = {
     decision: { rope: "#c9a46a", edge: "#c9a46a", label: "#e8c27a", plate: "rgba(44, 37, 25, 0.95)", glow: 0.3 },
     proposal: { rope: "#ff7c0d", edge: "#ff7c0d", label: "#ffb27a", plate: "rgba(58, 26, 8, 0.95)", glow: 0.8 },
     conclusion: { rope: "#ff9a3c", edge: "#ff9a3c", label: "#ffd9a8", plate: "rgba(60, 30, 10, 0.95)", glow: 1 },
+    // The other folder of a fork (#2248): a plain brass plate, what holds; #2247 refines its look.
+    reference: { rope: "#a88a5c", edge: "#a88a5c", label: "#d9bf8f", plate: "rgba(36, 31, 23, 0.95)", glow: 0 },
 };
 
 export const CrossLinkColor = "#ff7c0d";

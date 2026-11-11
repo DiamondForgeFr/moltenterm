@@ -13,8 +13,8 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { BrainstormStateAtom, openBrainstorm } from "../brainstorm/brainstorm-boot";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { BrainstormPromptAtom, BrainstormStateAtom, openBrainstorm } from "../brainstorm/brainstorm-boot";
 import { useBrainstormAllowed } from "../build/use-feature-on";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
@@ -44,6 +44,11 @@ import {
     talkWayOut,
     talkWayOutKey,
 } from "./brokk-talk-model";
+
+// The questions about the brainstorms (#2248) load with the brainstorm, the first time one is asked.
+const BrainstormPrompts = lazy(() =>
+    import("../brainstorm/brainstorm-prompts").then((mod) => ({ default: mod.BrainstormPrompts }))
+);
 
 // What the developer was writing when the group hid: it comes back with the group, so Escape never costs a message.
 let draft = "";
@@ -92,7 +97,9 @@ export function BrokkTalk({
     // A request of his agent opens his conversation, where its card is, and the note sending the developer to his
     // terminal gives way to it (#2257).
     const asking = useAtomValue(session.permissionAtom, { store: globalStore }) != null;
-    const open = conversationOpen(focused, text) || brainstorming || asking;
+    // A question about the brainstorms (the picker, his offer to resume one, a forget's confirmation) opens it too.
+    const prompted = useAtomValue(BrainstormPromptAtom, { store: globalStore }) != null;
+    const open = conversationOpen(focused, text) || brainstorming || asking || prompted;
     useEffect(() => onTyping(text.trim() !== ""), [text, onTyping]);
     useEffect(() => () => onTyping(false), [onTyping]);
     useEffect(() => {
@@ -175,11 +182,12 @@ export function BrokkTalk({
         setText(fieldAfterSend(action.text, draft, result));
     };
     // `/brainstorm [idea]` (#2257): the mode opens at once, and the idea, when there is one, goes as the message whose
-    // answer puts it at the centre. It stays in the field when his agent could not take it.
+    // answer puts it at the centre. It stays in the field when his agent could not take it. When one of nearly that title
+    // is saved, he asks first, and the idea goes only on Start fresh (#2248).
     const startBrainstorm = async (idea: string) => {
         setText("");
-        await openBrainstorm(idea !== "");
-        if (idea === "") {
+        const sendNow = await openBrainstorm(idea);
+        if (idea === "" || !sendNow) {
             return;
         }
         const result = await session.say(idea);
@@ -319,6 +327,11 @@ export function BrokkTalk({
                             onCancel={cancel}
                         />
                         <BrokkPermissions name={name} />
+                        {prompted ? (
+                            <Suspense fallback={null}>
+                                <BrainstormPrompts name={name} />
+                            </Suspense>
+                        ) : null}
                         {note}
                         {slashNote}
                         {commandHint}

@@ -417,7 +417,9 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         // The text as fieldAction reads it: trimmed, or the brainstorm's command where it exists (#2257).
         expect(source).toContain("const action = fieldAction(text, brainstormAllowed);");
         expect(source).toContain("await session.say(action.text, { clearPrompt })");
-        expect(source).toContain('await openBrainstorm(idea !== "");');
+        // The idea goes now only when no brainstorm of nearly that title is saved (#2248).
+        expect(source).toContain("const sendNow = await openBrainstorm(idea);");
+        expect(source).toContain('if (idea === "" || !sendNow) {');
         // The field empties only when it still holds what was sent (review of #2257).
         expect(source).toContain("setText(fieldAfterSend(action.text, draft, result));");
         // A text starting with a slash stays in the field with its note.

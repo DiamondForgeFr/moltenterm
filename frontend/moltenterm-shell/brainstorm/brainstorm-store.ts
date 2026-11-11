@@ -34,29 +34,63 @@ import { TabActivity } from "../tab-activity";
 import { showToast } from "../toast-store";
 import {
     BrainstormEvent,
+    BrainstormPromptAtom,
     BrainstormRouteId,
     BrainstormState,
     BrainstormStateAtom,
+    BrainstormSummary,
     CallTimeoutMs,
     CloseCommand,
+    DeleteCommand,
+    FindCommand,
+    ForkCommand,
+    ListCommand,
+    LoadCommand,
+    NewCommand,
     OpenCommand,
+    RenameCommand,
     StateCommand,
     TurnCommand,
 } from "./brainstorm-boot";
 import { setBrainstormHold } from "./brainstorm-hold";
 import {
+    answerQuestions,
     answerStep,
     breaksThrough,
     EmptyTally,
     newlyCrashed,
+    pickerOf,
     sidebarOnClose,
     sidebarOnOpen,
     tallied,
     Tally,
 } from "./brainstorm-model";
 
-export { CloseCommand, OpenCommand, StateCommand, TurnCommand } from "./brainstorm-boot";
-export type { BrainstormState, BrainstormSummary } from "./brainstorm-boot";
+export {
+    CloseCommand,
+    DeleteCommand,
+    FindCommand,
+    ForkCommand,
+    ListCommand,
+    LoadCommand,
+    NewCommand,
+    OpenCommand,
+    RenameCommand,
+    StateCommand,
+    TurnCommand,
+} from "./brainstorm-boot";
+export type { BrainstormPrompt, BrainstormState, BrainstormSummary } from "./brainstorm-boot";
+
+// must match the Reason… codes of pkg/molten/brainstorm/service_folders.go
+export type FolderFailure = "unknown" | "notsaved" | "noidea" | "invalid" | "trash" | "failed";
+
+// His fork (AC11): the other project he heard, asked in the widget until the developer answers.
+export type ForkAsk = { key: string; title: string; reason: string };
+
+// What the widget says of the developer's last action on a folder that did not go through, or of a forget.
+export type FolderNotice =
+    | { kind: "failed"; failure: FolderFailure }
+    | { kind: "forgot"; title: string; trashed: boolean };
 
 // Set on the window's meta while the mode keeps the sidebar slid in: the views of the window bring it back on exit.
 export const SidebarSlidMetaKey = "molten:brainstormsidebar";
@@ -91,11 +125,20 @@ export class BrainstormModel {
     // Where the camera looks, as the stage's scene says (the header's last words, #2257).
     cameraModeAtom = atom("overview") as PrimitiveAtom<"follow" | "overview">;
     tallyAtom = atom(EmptyTally) as PrimitiveAtom<Tally>;
+    // The folders (#2248): the question in his talk window, the widget's list and whether it is unfolded, his fork's
+    // question, and the line about the last action.
+    promptAtom = BrainstormPromptAtom;
+    listAtom = atom([]) as PrimitiveAtom<BrainstormSummary[]>;
+    widgetOpenAtom = atom(false) as PrimitiveAtom<boolean>;
+    forkAtom = atom(null) as PrimitiveAtom<ForkAsk>;
+    noticeAtom = atom(null) as PrimitiveAtom<FolderNotice>;
 
     private call: Call = LiveCall;
     private started = false;
     private paused = false;
     private sent = new Set<string>();
+    private asked = new Set<string>();
+    private listRev = -1;
     private seen = new Map<string, number>();
     private agentsBefore: AgentStatesData = null;
     private cardWasOpen = false;
@@ -118,6 +161,7 @@ export class BrainstormModel {
         BrainstormModel.instance?.stop();
         BrainstormModel.instance = null;
         globalStore.set(BrainstormStateAtom, null);
+        globalStore.set(BrainstormPromptAtom, null);
     }
 
     useCall(call: Call): void {
@@ -212,15 +256,29 @@ export class BrainstormModel {
         } else if (wasOpen && !next.open) {
             this.closed();
         }
+        if (next.open && (next.listrev ?? 0) !== this.listRev) {
+            this.listRev = next.listrev ?? 0;
+            void this.refreshList();
+        }
     }
 
-    // The developer starts a brainstorm (Brokk's menu, FR-BOSS-010 AC2): his card opens, he says so in his own line, and
-    // the next message tells his session it is a brainstorm. The layer dims at once.
-    // With an idea (the field's `/brainstorm <idea>`, #2257) the developer's next message is that idea, so he says no
-    // opening line of his own: his answer puts it at the centre.
-    async begin(withIdea = false): Promise<void> {
+    // The widget's list, read again when it changed.
+    async refreshList(): Promise<BrainstormSummary[]> {
+        const result = await this.ask(ListCommand, {});
+        const list: BrainstormSummary[] = result?.brainstorms ?? [];
+        globalStore.set(this.listAtom, list);
+        return list;
+    }
+
+    // The developer starts a brainstorm (Brokk's menu, the palette, `/brainstorm`, FR-BOSS-010 AC2): his card opens and the
+    // layer dims at once. With no idea his talk window offers the saved ones first (the picker of AC10a, #2248); with
+    // none saved, he says his opening line and the next message tells his session it is a brainstorm.
+    // With an idea (`/brainstorm <idea>`, #2257) the developer's next message is that idea, so he says no opening line of
+    // his own: his answer puts it at the centre. Unless one of nearly that title is saved: he asks first (AC10a), and the
+    // field does not send it. Resolves true when the field sends the idea now.
+    async begin(idea = ""): Promise<boolean> {
         if (!this.allowed()) {
-            return;
+            return false;
         }
         const boss = BossBubbleModel.getInstance();
         const session = BrokkSession.getInstance();
@@ -229,19 +287,232 @@ export class BrainstormModel {
         const wasOpen = this.isOpen();
         const state: BrainstormState = await this.ask(OpenCommand, { by: "you" });
         this.apply(state);
-        if (withIdea && state != null) {
+        if (state == null) {
+            return false;
+        }
+        globalStore.set(this.promptAtom, null);
+        if (idea !== "") {
+            const found = await this.ask(FindCommand, { title: idea });
+            if (found?.match != null) {
+                globalStore.set(this.promptAtom, { kind: "duplicate", idea, match: found.match });
+                focusTalkField();
+                return false;
+            }
             session.setLead(t("boss.brainstorm.lead"));
-        } else if (!wasOpen && state != null) {
-            // He says so: a new idea, or the one this computer kept, taken up where it was.
-            const title = state.brainstorm?.title ?? "";
-            session.addLocalLine(
-                title !== ""
-                    ? t("boss.brainstorm.resume", { title })
-                    : t("boss.brainstorm.opening", { name: globalStore.get(boss.nameAtom) })
-            );
-            session.setLead(t("boss.brainstorm.lead"));
+            return true;
+        }
+        const picker = pickerOf(await this.refreshList());
+        if (picker != null) {
+            globalStore.set(this.promptAtom, picker);
+        } else if (!wasOpen) {
+            this.sayOpening();
         }
         focusTalkField();
+        return false;
+    }
+
+    private sayOpening(): void {
+        const session = BrokkSession.getInstance();
+        session.addLocalLine(
+            t("boss.brainstorm.opening", { name: globalStore.get(BossBubbleModel.getInstance().nameAtom) })
+        );
+        session.setLead(t("boss.brainstorm.lead"));
+    }
+
+    dismissPrompt(): void {
+        globalStore.set(this.promptAtom, null);
+    }
+
+    private failed(failure: FolderFailure): void {
+        globalStore.set(this.noticeAtom, { kind: "failed", failure });
+    }
+
+    // Moves to a saved brainstorm (AC10, AC10c): the developer's click on Resume, Load or a chip. wavesrv saves the one
+    // open first; then the graph swaps, his talk window shows that brainstorm's conversation, he says where it was, and
+    // the next message tells his session to read the resume brief wavesrv put in his folder.
+    async load(slug: string): Promise<boolean> {
+        if (!this.allowed() || !slug) {
+            return false;
+        }
+        this.dismissPrompt();
+        globalStore.set(this.forkAtom, null);
+        const boss = BossBubbleModel.getInstance();
+        boss.openCard(undefined, { force: true });
+        boss.pinCard();
+        const result = await this.ask(LoadCommand, { slug });
+        if (result?.state == null) {
+            this.failed("failed");
+            return false;
+        }
+        this.apply(result.state);
+        if (result.error) {
+            this.failed(result.error);
+            return false;
+        }
+        globalStore.set(this.noticeAtom, null);
+        globalStore.set(this.widgetOpenAtom, false);
+        const title = result.state.brainstorm?.title ?? "";
+        const session = BrokkSession.getInstance();
+        session.showConversation(result.turns ?? []);
+        session.addLocalLine(t("boss.brainstorm.resume", { title }));
+        session.setLead(t("boss.brainstorm.resumedLead", { title }));
+        focusTalkField();
+        return true;
+    }
+
+    // A new idea (AC10): the one open stays saved, his talk window starts over with his opening line, and the folder is
+    // made at his first central idea.
+    async newIdea(): Promise<boolean> {
+        if (!this.allowed()) {
+            return false;
+        }
+        this.dismissPrompt();
+        globalStore.set(this.forkAtom, null);
+        const result = await this.ask(NewCommand, {});
+        if (result?.state == null) {
+            this.failed("failed");
+            return false;
+        }
+        this.apply(result.state);
+        if (result.error) {
+            this.failed(result.error);
+            return false;
+        }
+        globalStore.set(this.noticeAtom, null);
+        globalStore.set(this.widgetOpenAtom, false);
+        BrokkSession.getInstance().showConversation([]);
+        this.sayOpening();
+        focusTalkField();
+        return true;
+    }
+
+    // The duplicate's Start fresh: a new idea, and the idea goes as the message whose answer puts it at the centre.
+    async startFresh(idea: string): Promise<void> {
+        if (!(await this.newIdea())) {
+            return;
+        }
+        const session = BrokkSession.getInstance();
+        session.setLead(t("boss.brainstorm.lead"));
+        await session.say(idea);
+    }
+
+    // All brainstorms… unfolds the widget's list (AC10a).
+    showAll(): void {
+        this.dismissPrompt();
+        globalStore.set(this.widgetOpenAtom, true);
+        void this.refreshList();
+    }
+
+    async rename(slug: string, title: string): Promise<boolean> {
+        const clean = (title ?? "").trim();
+        if (!this.allowed() || !slug || clean === "") {
+            return false;
+        }
+        const result = await this.ask(RenameCommand, { slug, title: clean });
+        if (result?.state == null) {
+            this.failed("failed");
+            return false;
+        }
+        this.apply(result.state);
+        if (result.error) {
+            this.failed(result.error);
+            return false;
+        }
+        globalStore.set(this.noticeAtom, null);
+        void this.refreshList();
+        return true;
+    }
+
+    // Forgets a brainstorm (AC10d). Called only from the confirm button of a question that showed its title and last
+    // change: Brokk's forget operation, or the widget's Delete, only ask it. Its folder goes to the trash, wavesrv
+    // takes away its resume brief, and its title leaves his brief's list.
+    async forgetFolder(slug: string): Promise<boolean> {
+        if (!this.allowed() || !slug) {
+            return false;
+        }
+        this.dismissPrompt();
+        const result = await this.ask(DeleteCommand, { slug });
+        if (result?.state == null) {
+            this.failed("failed");
+            return false;
+        }
+        this.apply(result.state);
+        if (result.error) {
+            this.failed(result.error);
+            return false;
+        }
+        const title = result.summary?.title ?? "";
+        globalStore.set(this.noticeAtom, { kind: "forgot", title, trashed: result.trashed === true });
+        BrokkSession.getInstance().addLocalLine(
+            t(result.trashed ? "boss.brainstorm.forgotTrash" : "boss.brainstorm.forgotRemoved", { title })
+        );
+        void this.refreshList();
+        return true;
+    }
+
+    // Yes to his fork (AC11): its own folder, both graphs keep a reference, and the mode moves to it.
+    async forkYes(): Promise<boolean> {
+        const ask = globalStore.get(this.forkAtom);
+        if (ask == null || !this.allowed()) {
+            return false;
+        }
+        globalStore.set(this.forkAtom, null);
+        const result = await this.ask(ForkCommand, { title: ask.title, reason: ask.reason });
+        if (result?.state == null) {
+            this.failed("failed");
+            return false;
+        }
+        this.apply(result.state);
+        if (result.error) {
+            this.failed(result.error);
+            return false;
+        }
+        const title = result.state.brainstorm?.title ?? ask.title;
+        const session = BrokkSession.getInstance();
+        session.showConversation([]);
+        session.addLocalLine(t("boss.brainstorm.forked", { title }));
+        session.setLead(t("boss.brainstorm.resumedLead", { title }));
+        focusTalkField();
+        return true;
+    }
+
+    // No, we stay here: nothing moves.
+    forkNo(): void {
+        globalStore.set(this.forkAtom, null);
+    }
+
+    // His questions about the folders in a complete answer (#2248): each becomes a question to the developer, once per
+    // answer. resume and forget name a saved title: wavesrv finds it, and nothing is asked for a title it does not have.
+    private async onQuestions(answer: AnswerRead): Promise<void> {
+        const questions = answerQuestions({ markdown: answer.markdown, final: answer.final, allowed: this.allowed() });
+        if (questions == null) {
+            return;
+        }
+        const key = `${answer.turn}:${answer.id}`;
+        if (this.asked.has(key)) {
+            return;
+        }
+        this.asked.add(key);
+        if (questions.fork != null && this.isOpen() && globalStore.get(this.stateAtom)?.brainstorm != null) {
+            globalStore.set(this.forkAtom, { key, ...questions.fork });
+        }
+        const title = questions.forget ?? questions.resume;
+        if (title == null) {
+            return;
+        }
+        const found = await this.ask(FindCommand, { title });
+        const match: BrainstormSummary = found?.match;
+        if (match == null) {
+            return;
+        }
+        if (questions.forget != null) {
+            globalStore.set(this.promptAtom, { kind: "forget", match });
+            return;
+        }
+        if (globalStore.get(this.stateAtom)?.brainstorm?.slug === match.slug && this.isOpen()) {
+            return;
+        }
+        globalStore.set(this.promptAtom, { kind: "resume", match });
     }
 
     async end(): Promise<void> {
@@ -254,6 +525,7 @@ export class BrainstormModel {
     // Each reading of his answer: the turn goes to wavesrv once, as soon as its graph block is complete, else once his
     // agent is done (a turn of words alone). Outside the mode only an answer that opens a brainstorm goes.
     async onAnswer(answer: AnswerRead): Promise<void> {
+        void this.onQuestions(answer);
         const step = answerStep({
             markdown: answer.markdown,
             turn: answer.turn,
@@ -340,6 +612,14 @@ export class BrainstormModel {
     private closed(): void {
         this.pause(false);
         globalStore.set(this.breakthroughAtom, null);
+        // The questions of the mode go with it; his offer to resume, asked outside it, stays.
+        globalStore.set(this.forkAtom, null);
+        globalStore.set(this.widgetOpenAtom, false);
+        globalStore.set(this.noticeAtom, null);
+        const prompt = globalStore.get(this.promptAtom);
+        if (prompt?.kind === "picker" || prompt?.kind === "duplicate") {
+            globalStore.set(this.promptAtom, null);
+        }
         const count = globalStore.get(this.tallyAtom).ids.size;
         globalStore.set(this.tallyAtom, EmptyTally);
         // His card goes with the mode in a view the mode opened it in (the mode ended in another view).
