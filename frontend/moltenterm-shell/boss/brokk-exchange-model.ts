@@ -7,12 +7,14 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
-// A reply his answer offers (FR-BOSS-004, AC12): its text is what is sent, so a button cannot hide what it sends. An
-// authorisation (agreeing grants something) asks once more before it is sent.
+// A reply his answer offers (FR-BOSS-004, AC12): its text is what is sent, so a button cannot hide what it sends.
+// authorise: the reply asks once more before it is sent, which every reply does but a short one he marks safe.
 export type InlineAction = { label: string; authorise: boolean };
 
 export const MaxActions = 4;
 export const MaxActionLabel = 80;
+// The longest reply he may mark safe, sent without a confirmation.
+export const MaxSafeLabel = 24;
 
 // The info string of the fenced block that ends an answer; must match pkg/molten/brokksession/brief.md.
 export const ActionsFence = "brokk-actions";
@@ -35,7 +37,17 @@ function actionOf(entry: unknown): InlineAction {
     if (label === "" || label.length > MaxActionLabel) {
         return null;
     }
-    return { label, authorise: typeof entry === "object" && (entry as { authorise?: unknown }).authorise === true };
+    return { label, authorise: !sentAtOnce(entry, label) };
+}
+
+// Every reply asks once more by default (#2220): the model, or a text injected into what it read, decides only which
+// short replies it marks safe, and never lifts the confirmation of an authorisation.
+function sentAtOnce(entry: unknown, label: string): boolean {
+    if (entry == null || typeof entry !== "object" || label.length > MaxSafeLabel) {
+        return false;
+    }
+    const marks = entry as { authorise?: unknown; safe?: unknown };
+    return marks.safe === true && marks.authorise !== true;
 }
 
 // Up to four valid replies, the first of each text.
@@ -97,7 +109,7 @@ export function parseReply(markdown: string): ParsedReply {
     return { text: [before, after].filter((part) => part !== "").join("\n\n"), actions: actionsOf(list) };
 }
 
-// What clicking a reply does: it is sent at once, unless it is an authorisation, which asks once more (AC24).
+// What clicking a reply does: it asks once more, unless he marked it safe (AC24, #2220).
 export type ActionStep = "send" | "confirm";
 
 export function stepOf(action: InlineAction): ActionStep {

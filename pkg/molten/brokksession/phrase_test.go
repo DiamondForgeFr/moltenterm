@@ -67,10 +67,10 @@ func hello() PhraseRequest {
 
 func TestPhraseAnswersTheLineOfTheChosenAgent(t *testing.T) {
 	t.Parallel()
-	p := &phraseFake{chosen: "claude", output: "\n  Bonjour, la forge est allumée.  \nA second line the window would never see.\n"}
+	p := &phraseFake{chosen: "claude", output: "\n  Bonjour, la forge est allumée.  \n"}
 	got := newPhraseService(p).Phrase(context.Background(), hello())
 	if got.Status != StatusLine || got.Line != "Bonjour, la forge est allumée." {
-		t.Fatalf("Phrase = %+v, want the first line of what the agent printed", got)
+		t.Fatalf("Phrase = %+v, want the line the agent printed", got)
 	}
 	if p.dir != "/data/brokk" || p.agent != "claude" {
 		t.Errorf("ran %q in %q, want the chosen agent in Brokk's own folder, never a project's", p.agent, p.dir)
@@ -119,16 +119,30 @@ func TestPhraseIsNoneWhenTheAgentFailsOrSaysNothing(t *testing.T) {
 	}
 }
 
-func TestPhraseCutsALongLineAndReadsOnlyTheStartOfTheOutput(t *testing.T) {
+func TestPhraseIsNoneWhenTheOutputIsTooLongForALine(t *testing.T) {
 	t.Parallel()
-	long := &phraseFake{chosen: "claude", output: strings.Repeat("é", 5000)}
-	got := newPhraseService(long).Phrase(context.Background(), hello())
-	if n := len([]rune(got.Line)); got.Status != StatusLine || n != maxPhraseLine {
-		t.Errorf("a long line came back with %d characters, want it cut at %d", n, maxPhraseLine)
+	fits := &phraseFake{chosen: "claude", output: strings.Repeat("é", maxPhraseLine)}
+	if got := newPhraseService(fits).Phrase(context.Background(), hello()); got.Status != StatusLine || len([]rune(got.Line)) != maxPhraseLine {
+		t.Errorf("an output of %d characters: Phrase = %+v, want it whole", maxPhraseLine, got)
+	}
+	long := &phraseFake{chosen: "claude", output: strings.Repeat("é", maxPhraseLine+1)}
+	if got := newPhraseService(long).Phrase(context.Background(), hello()); got.Status != StatusNone {
+		t.Errorf("an output longer than a line came back cut: %+v", got)
 	}
 	huge := &phraseFake{chosen: "claude", output: strings.Repeat("\n", maxPhraseOutput+10) + "Too far down to be read."}
 	if got := newPhraseService(huge).Phrase(context.Background(), hello()); got.Status != StatusNone {
-		t.Errorf("a line past the first %d bytes was read: %+v", maxPhraseOutput, got)
+		t.Errorf("an output past %d bytes was read: %+v", maxPhraseOutput, got)
+	}
+}
+
+// #2220 (P4): Go gives the window the whole output, so its one-line check sees a preamble or a second line and refuses
+// it; picking the first line made "Here is the line:" his line.
+func TestPhraseGivesTheWindowTheWholeOutput(t *testing.T) {
+	t.Parallel()
+	p := &phraseFake{chosen: "claude", output: "\n Here is the line:\nBonjour, la forge est allumée.\n "}
+	got := newPhraseService(p).Phrase(context.Background(), hello())
+	if got.Status != StatusLine || got.Line != "Here is the line:\nBonjour, la forge est allumée." {
+		t.Fatalf("Phrase = %+v, want the whole trimmed output for the window to judge", got)
 	}
 }
 
