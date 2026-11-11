@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	// PhraseCommand must match frontend/moltenterm-shell/boss/brokk-colleague-store.ts.
+	// PhraseCommand must match emain/moltenterm-colleague.ts, the one caller.
 	PhraseCommand = "moltenbrokkphrase"
 
 	// StatusLine: his model wrote a line (Line); StatusNone is every other outcome, so the window shows its written
@@ -40,8 +40,10 @@ const (
 	// An output longer than this is no line; the window discards anything past its own, shorter limit anyway
 	// (brokk-colleague.ts validModelLine).
 	maxPhraseLine = 400
-	// The window asks at most 5 a day (brokk-colleague.ts MaxModelCallsPerDay); this many an hour is a ceiling should a
-	// window ask more.
+	// MaxPhrasesPerDay is the most times his model is asked in a local day, whoever asks (FR-BOSS-009, AC77). The count
+	// lives here, where the call is made: two windows asking at once cannot spend it twice (#2221).
+	MaxPhrasesPerDay = 5
+	// A ceiling on a burst, should the day's budget be set higher.
 	maxPhrasesPerHour = 8
 )
 
@@ -181,8 +183,9 @@ func (s *Service) releasePhrase() {
 	s.phrasing = false
 }
 
-// allowRun counts the run that is about to start and refuses it past a handful an hour: the window asks a handful a day,
-// so a caller that asks for more is spending the developer's subscription.
+// allowRun counts the run that is about to start and refuses it past the day's budget (MaxPhrasesPerDay) and past a
+// handful an hour: a caller that asks for more is spending the developer's subscription. Both counts are taken under
+// one lock, and only when both allow the run.
 func (s *Service) allowRun() bool {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -200,7 +203,40 @@ func (s *Service) allowRun() bool {
 	if len(s.phrased) >= maxPhrasesPerHour {
 		return false
 	}
+	if !s.takeDayLocked(now) {
+		return false
+	}
 	s.phrased = append(s.phrased, now)
+	return true
+}
+
+func (s *Service) phrasesPerDay() int {
+	if s.env.PhrasesPerDay > 0 {
+		return s.env.PhrasesPerDay
+	}
+	return MaxPhrasesPerDay
+}
+
+// takeDayLocked counts a run on now's local day and saves the count; false when the day's budget is used up. s.lock is
+// held.
+func (s *Service) takeDayLocked(now time.Time) bool {
+	if !s.budgetLoaded {
+		s.budgetLoaded = true
+		if s.env.LoadBudget != nil {
+			s.budget = s.env.LoadBudget()
+		}
+	}
+	day := now.Format(budgetDayLayout)
+	if s.budget.Day != day {
+		s.budget = PhraseBudget{Day: day}
+	}
+	if s.budget.Calls >= s.phrasesPerDay() {
+		return false
+	}
+	s.budget.Calls++
+	if s.env.SaveBudget != nil {
+		s.env.SaveBudget(s.budget)
+	}
 	return true
 }
 

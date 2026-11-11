@@ -6,6 +6,8 @@ package brokksession
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -383,13 +385,14 @@ func TestPhraseRunsOneAtATime(t *testing.T) {
 	}
 }
 
-// The window asks a handful a day; any other caller of the route is held to a handful an hour, on a clock of the test.
+// A burst is held to a handful an hour, on a clock of the test, even when the day's budget is set higher.
 func TestPhraseHoldsOtherCallersToAHandfulAnHour(t *testing.T) {
 	t.Parallel()
 	p := &phraseFake{chosen: "claude", output: "Bonjour."}
 	now := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
 	env := p.env()
 	env.Now = func() time.Time { return now }
+	env.PhrasesPerDay = 3 * maxPhrasesPerHour
 	s := MakeService(env)
 	for i := 0; i < maxPhrasesPerHour; i++ {
 		if got := s.Phrase(context.Background(), hello()); got.Status != StatusLine {
@@ -425,10 +428,138 @@ func TestPhraseCountsOnlyTheRunsThatStarted(t *testing.T) {
 	}
 }
 
+func (p *phraseFake) runCount() int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	return p.runs
+}
+
+// FR-BOSS-009, AC77 (#2221): his model is asked at most five times in a local day, and the next day starts again.
+func TestPhraseHoldsTheDayToItsBudget(t *testing.T) {
+	t.Parallel()
+	p := &phraseFake{chosen: "claude", output: "Bonjour."}
+	now := time.Date(2026, 11, 10, 0, 10, 0, 0, time.Local)
+	env := p.env()
+	env.Now = func() time.Time { return now }
+	s := MakeService(env)
+	// Spread over the day, so that only the day's budget can refuse.
+	for i := 0; i < MaxPhrasesPerDay; i++ {
+		if got := s.Phrase(context.Background(), hello()); got.Status != StatusLine {
+			t.Fatalf("call %d: Phrase = %+v, want its line", i+1, got)
+		}
+		now = now.Add(3 * time.Hour)
+	}
+	if got := s.Phrase(context.Background(), hello()); got.Status != StatusNone {
+		t.Errorf("past %d a day: Phrase = %+v, want none", MaxPhrasesPerDay, got)
+	}
+	if runs := p.runCount(); runs != MaxPhrasesPerDay {
+		t.Errorf("the agent ran %d times, want %d", runs, MaxPhrasesPerDay)
+	}
+	now = time.Date(2026, 11, 11, 8, 0, 0, 0, time.Local)
+	if got := s.Phrase(context.Background(), hello()); got.Status != StatusLine {
+		t.Errorf("the next day: Phrase = %+v, want its line again", got)
+	}
+}
+
+// AC-3 of #2221: two windows, or a window and a tab, asking at the same moment cannot spend the day's budget twice.
+func TestPhraseDayBudgetHoldsUnderConcurrentCalls(t *testing.T) {
+	t.Parallel()
+	p := &phraseFake{chosen: "claude", output: "Bonjour."}
+	var clock sync.Mutex
+	now := time.Date(2026, 11, 10, 8, 0, 0, 0, time.Local)
+	env := p.env()
+	// Callers read the clock from several goroutines: it moves a second at each reading and never leaves the day.
+	env.Now = func() time.Time {
+		clock.Lock()
+		defer clock.Unlock()
+		now = now.Add(time.Second)
+		return now
+	}
+	s := MakeService(env)
+	for round := 0; round < 5; round++ {
+		start := make(chan struct{})
+		var wg sync.WaitGroup
+		for i := 0; i < 40; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				<-start
+				s.Phrase(context.Background(), hello())
+			}()
+		}
+		close(start)
+		wg.Wait()
+		if runs := p.runCount(); runs > MaxPhrasesPerDay {
+			t.Fatalf("round %d: the agent ran %d times, want at most %d", round+1, runs, MaxPhrasesPerDay)
+		}
+	}
+	// Whatever the burst spent, the budget is spent exactly once: the calls that follow use what is left and no more.
+	for i := 0; i < 2*MaxPhrasesPerDay; i++ {
+		s.Phrase(context.Background(), hello())
+	}
+	if runs := p.runCount(); runs != MaxPhrasesPerDay {
+		t.Errorf("the agent ran %d times in the day, want %d", runs, MaxPhrasesPerDay)
+	}
+}
+
+func TestPhraseDayBudgetSurvivesARestart(t *testing.T) {
+	t.Parallel()
+	p := &phraseFake{chosen: "claude", output: "Bonjour."}
+	now := time.Date(2026, 11, 10, 9, 0, 0, 0, time.Local)
+	var kept PhraseBudget
+	env := p.env()
+	env.Now = func() time.Time { return now }
+	env.LoadBudget = func() PhraseBudget { return kept }
+	env.SaveBudget = func(budget PhraseBudget) { kept = budget }
+	first := MakeService(env)
+	for i := 0; i < 3; i++ {
+		first.Phrase(context.Background(), hello())
+		now = now.Add(time.Minute)
+	}
+	if kept.Calls != 3 || kept.Day != "2026-11-10" {
+		t.Fatalf("kept = %+v, want 3 calls on 2026-11-10", kept)
+	}
+	// wavesrv restarted: a new service reads the count back.
+	second := MakeService(env)
+	for i := 0; i < MaxPhrasesPerDay; i++ {
+		second.Phrase(context.Background(), hello())
+	}
+	if runs := p.runCount(); runs != MaxPhrasesPerDay {
+		t.Errorf("the agent ran %d times across the restart, want %d", runs, MaxPhrasesPerDay)
+	}
+}
+
+func TestPhraseDayBudgetFileKeepsTheCountAndForgetsWhatItCannotRead(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "data", budgetFileName)
+	if got := readBudgetFile(path); got != (PhraseBudget{}) {
+		t.Errorf("no file: budget = %+v, want none", got)
+	}
+	want := PhraseBudget{Day: "2026-11-10", Calls: 4}
+	if err := writeBudgetFile(path, want); err != nil {
+		t.Fatalf("writeBudgetFile: %v", err)
+	}
+	if got := readBudgetFile(path); got != want {
+		t.Errorf("budget = %+v, want %+v", got, want)
+	}
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if got := readBudgetFile(path); got != (PhraseBudget{}) {
+		t.Errorf("unreadable file: budget = %+v, want none", got)
+	}
+	if err := os.WriteFile(path, []byte(`{"day":"2026-11-10","calls":-3}`), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if got := readBudgetFile(path); got != (PhraseBudget{}) {
+		t.Errorf("negative count: budget = %+v, want none", got)
+	}
+}
+
 func TestPhraseIsOnTheRouteOfHisSession(t *testing.T) {
 	t.Parallel()
 	if PhraseCommand != "moltenbrokkphrase" {
-		t.Errorf("PhraseCommand = %q, want the command brokk-colleague-store.ts calls", PhraseCommand)
+		t.Errorf("PhraseCommand = %q, want the command emain/moltenterm-colleague.ts calls", PhraseCommand)
 	}
 	p := &phraseFake{chosen: "codex", output: "Bonsoir."}
 	s := newPhraseService(p)

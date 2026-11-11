@@ -173,8 +173,14 @@ type Env struct {
 	// RunPrint runs the agent's cheap, read-only, non-interactive form in dir with the prompt on its standard input and
 	// returns what it printed (#2203).
 	RunPrint func(ctx context.Context, dir string, agent string, prompt string) ([]byte, error)
-	// Now is the clock of the hourly ceiling on phrasings; time.Now when nil.
+	// Now is the clock of the limits on phrasings; time.Now when nil.
 	Now func() time.Time
+	// PhrasesPerDay is how many phrasings a local day allows; MaxPhrasesPerDay when zero.
+	PhrasesPerDay int
+	// LoadBudget reads the count of phrasings kept by SaveBudget, so that a restart does not give the day's budget
+	// back; nil keeps the count in memory only.
+	LoadBudget func() PhraseBudget
+	SaveBudget func(budget PhraseBudget)
 }
 
 type Service struct {
@@ -185,6 +191,9 @@ type Service struct {
 	phrasing bool
 	// When each phrasing of the last hour started.
 	phrased []time.Time
+	// The phrasings started on the local day budget.Day; read from the Env at the first one.
+	budget       PhraseBudget
+	budgetLoaded bool
 }
 
 func MakeService(env Env) *Service {

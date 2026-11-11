@@ -220,6 +220,8 @@ func Live() *Service {
 
 		ChosenAgent: liveChosenAgent,
 		RunPrint:    liveRunPrint,
+		LoadBudget:  liveLoadBudget,
+		SaveBudget:  liveSaveBudget,
 	})
 }
 
