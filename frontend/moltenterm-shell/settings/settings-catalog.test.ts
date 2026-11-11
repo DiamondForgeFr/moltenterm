@@ -14,7 +14,9 @@ import { SuiteIcons } from "../suite/suite-icons";
 import {
     buildCatalog,
     clampSetting,
+    confirmedOn,
     ConfirmOnKeys,
+    consentMeta,
     groupEntries,
     groupSlug,
     isChanged,
@@ -461,6 +463,15 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
         }
         expect(tr("settings.items.boss:autoapprove.confirm")).toMatch(/without asking/);
         expect(tr("settings.items.boss:autoapprove.confirm")).toMatch(/still asks/);
+        // Review: the confirmation is recorded in the client's meta, which a terminal cannot write; a setting an agent
+        // wrote in settings.json by hand shows (and counts) as off.
+        expect(consentMeta("boss:autoapprove", true, 1234)).toEqual({ "molten:brokkautoapprove": 1234 });
+        expect(consentMeta("boss:autoapprove", false, 1234)).toEqual({ "molten:brokkautoapprove": null });
+        expect(consentMeta("term:fontsize", true, 1234)).toBeNull();
+        expect(confirmedOn("boss:autoapprove", true, { "molten:brokkautoapprove": 1234 })).toBe(true);
+        expect(confirmedOn("boss:autoapprove", true, {})).toBe(false);
+        expect(confirmedOn("boss:autoapprove", true, { "molten:brokkautoapprove": true })).toBe(false);
+        expect(confirmedOn("boss:autoapprove", false, { "molten:brokkautoapprove": 1234 })).toBe(false);
     });
 
     it("draws the keys of the table as one group, the one the card of Preferences replaces the rows of", () => {
