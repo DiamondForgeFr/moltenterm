@@ -1,18 +1,16 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The sidebar's heat (FR-SHELL-122, DS-SHELL-133, #1409): while agents of the workspace work, a faint heat rises in
-// the free space at the bottom of the sidebar's page, stronger with more of them, and cools out when the last one
-// stops. It is ambient, never the indicator: the agent rows, the tiles and the dots keep telling the state. It is a
-// flex spacer after the page's last section, so it is exactly the free space and never covers a row; with no free
-// space it has no height and draws nothing (sidebar-heat.css). The embers rise from a molten bath along its bottom
-// edge (#1457): the bath rises before they start, and cools and sinks after they stop.
+// The sidebar's heat (FR-SHELL-122, DS-SHELL-133, #1409): while anything runs (the activity source: agents, builds,
+// CI, #2233), a faint heat rises in the free space at the bottom of the sidebar's page, stronger with more of it, and
+// cools out when the last one stops. It is ambient, never the indicator: the agent rows, the tiles and the dots keep
+// telling the state. It is a flex spacer after the page's last section, so it is exactly the free space and never
+// covers a row; with no free space it has no height and draws nothing (sidebar-heat.css). The embers rise from a
+// molten bath along its bottom edge (#1457): the bath rises before they start, and cools and sinks after they stop.
 
 import { atoms, getSettingsKeyAtom } from "@/app/store/global";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
-import type { AgentStateInfo } from "../agent-state-model";
-import { agentRowLook } from "./sidebar-agents-model";
 import "./sidebar-heat.css";
 
 export const SidebarHeatSettingKey = "moltenterm:sidebarheat";
@@ -27,10 +25,9 @@ const CoolAnimationName = "mt-sb-heat-out";
 
 type RiseAnimation = Pick<Animation, "startTime" | "effect"> & { animationName?: string };
 
-// 1 to 3 with the working agents of the workspace, 0 with none.
-export function sidebarHeatLevel(agents: AgentStateInfo[]): number {
-    const working = (agents ?? []).filter((a) => agentRowLook(a) === "working").length;
-    return Math.min(working, SidebarHeatMaxLevel);
+// 1 to 3 with the running items of the activity source (agents, builds, CI), 0 with none.
+export function sidebarHeatLevel(running: number): number {
+    return Math.min(Math.max(running ?? 0, 0), SidebarHeatMaxLevel);
 }
 
 // Each layer's steps fall on its own start time: layers or indicators started apart would change on different frames
@@ -82,10 +79,10 @@ function useSmallMark(el: HTMLDivElement) {
     }, [el]);
 }
 
-export function SidebarHeat({ agents, shown }: { agents: AgentStateInfo[]; shown: boolean }) {
+export function SidebarHeat({ running, shown }: { running: number; shown: boolean }) {
     const setting = useAtomValue(getSettingsKeyAtom(SidebarHeatSettingKey));
     const reducedMotion = useAtomValue(atoms.prefersReducedMotionAtom);
-    const level = sidebarHeatLevel(agents);
+    const level = sidebarHeatLevel(running);
     const allowed = shown && setting !== false && !reducedMotion;
     const on = allowed && level > 0;
     const [cooling, setCooling] = useState(false);
@@ -94,8 +91,8 @@ export function SidebarHeat({ agents, shown }: { agents: AgentStateInfo[]; shown
     const [el, setEl] = useState<HTMLDivElement>(null);
     useSmallMark(el);
     // Decided while rendering, as the working light: the heat stays mounted from on to cooling, or it would vanish
-    // for a frame before its cool-down starts. Only the last agent stopping cools it; the setting, reduced motion or
-    // the sidebar going away remove it at once.
+    // for a frame before its cool-down starts. Only the last running item stopping cools it; the setting, reduced
+    // motion or the sidebar going away remove it at once.
     if (prevOn !== on) {
         setPrevOn(on);
         setCooling(!on && allowed);

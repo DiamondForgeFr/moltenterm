@@ -1101,7 +1101,7 @@
             },
             "moltenterm:sidebarheat": {
                 "label": "Heat in the sidebar",
-                "description": "While agents work, a faint heat rises at the bottom of the sidebar."
+                "description": "While agents work or something builds or runs CI, a faint heat rises at the bottom of the sidebar."
             },
             "moltenterm:settingsreveal": {
                 "label": "Molten reveal of settings",
@@ -10917,6 +10917,31 @@
             "cancel": "Cancel",
             "pending": "New workspace (being created)",
             "failed": "The workspace could not be created: {error}"
+        }
+    },
+    "activity": {
+        "label": "Running now: {list}",
+        "agents": {
+            "one": "an agent",
+            "other": "{count} agents"
+        },
+        "builds": {
+            "one": "a build",
+            "other": "{count} builds"
+        },
+        "localCi": {
+            "one": "a local CI run",
+            "other": "{count} local CI runs"
+        },
+        "prCi": {
+            "one": "CI of PR {numbers}",
+            "other": "CI of PRs {numbers}"
+        },
+        "open": {
+            "agent": "Click to go to the agent",
+            "build": "Click to open the project",
+            "localCi": "Click to open the local CI",
+            "prCi": "Click to open Integration"
         }
     },
     "topField": {
