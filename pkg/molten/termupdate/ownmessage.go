@@ -188,6 +188,10 @@ func (u *Updater) typeOwnMessage(ctx context.Context, blockId string, text strin
 		return AgentInputResult{}
 	}
 	if clear {
+		// Asked again right before the key: Ctrl+C would interrupt a turn that started meanwhile.
+		if r := atRest(); r.Result != "" {
+			return r
+		}
 		if r := send(clearInputKey(agent)); r.Result != "" {
 			return r
 		}
@@ -198,6 +202,11 @@ func (u *Updater) typeOwnMessage(ctx context.Context, blockId string, text strin
 	// Not at rest any more: the line stays as MoltenTerm's own, which the next try empties first.
 	if r := atRest(); r.Result != "" {
 		return r
+	}
+	// A human typed between the paste and Enter: Enter would send their text with the message. It waits, and says so.
+	if u.inputState(blockId).Foreign {
+		return base(refused(InputReasonHumanDraft, uimsg.Make("termupdate.line.humandraft", "agent", name),
+			fmt.Sprintf("Text was typed in %s's terminal while the message was on its way: Enter was not pressed.", name)))
 	}
 	if r := send("\r"); r.Result != "" {
 		return r
