@@ -30,8 +30,9 @@ const (
 	Unknown = "unknown"
 )
 
-// BrainstormRefusal is the plain reason the brainstorm commands give on a release channel.
-const BrainstormRefusal = "brainstorms with Brokk exist only on gold, dev and local builds"
+// BrainstormRefusal is the plain reason the brainstorm commands give on a release channel, or when the developer
+// switched the brainstorm off in Features in test.
+const BrainstormRefusal = "brainstorms with Brokk exist only on gold, dev and local builds, and can be switched off in Features in test"
 
 // gateReach is how much of what is gated a channel opens: the brainstorm on gold, its scripted replay too on local and
 // dev.
@@ -69,10 +70,10 @@ func GateChannel(dev bool, baked string, runtime string) string {
 	return runtime
 }
 
-// BrainstormAllowed: Brokk's thought in 3D exists on gold, dev and local builds, never on a release candidate or a
-// public release, and never on a channel that is not known.
+// BrainstormAllowed: Brokk's thought in 3D exists on the channels the registry lists for it (gold, dev and local
+// builds), never on a release candidate or a public release, and never on a channel that is not known.
 func BrainstormAllowed(channel string) bool {
-	return channel == Gold || channel == Dev || channel == Local
+	return FeatureAllowed(FeatureBrainstorm, channel)
 }
 
 // What Electron main said when wavesrv started; "" when it was started without it (tests, a hand-started wavesrv),
@@ -103,7 +104,8 @@ func Current() string {
 	return started.channel
 }
 
-// BrainstormEnabled reads the gate for the channel this wavesrv runs on.
+// BrainstormEnabled reads the gate for the channel this wavesrv runs on, narrowed by the developer's switches
+// (FeatureEnabled).
 func BrainstormEnabled() bool {
-	return started.given && BrainstormAllowed(started.channel)
+	return FeatureEnabled(FeatureBrainstorm)
 }
