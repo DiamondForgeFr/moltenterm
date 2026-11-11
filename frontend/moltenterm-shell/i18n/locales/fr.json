@@ -3146,7 +3146,8 @@
                 "nothing": "Enregistré dès que l'idée est posée",
                 "failed": "Non enregistré : le dossier n'a pas pu être écrit"
             },
-            "leaveHint": "Échap quitte le brainstorm",
+            "leaveHint": "Quittez le brainstorm avec son bouton en haut, ou Échap hors d'un champ",
+            "leave": "Quitter le brainstorm",
             "summary": {
                 "one": "1 notification est arrivée pendant le brainstorm",
                 "other": "{count} notifications sont arrivées pendant le brainstorm"

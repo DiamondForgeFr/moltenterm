@@ -155,8 +155,11 @@ import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard } from "./br
 import {
     ArrivalSteps,
     autoPanelIn,
+    brainstormPanel,
+    closesCardIn,
     conversationWidth,
     conversationWidthFor,
+    dockedPlace,
     groupGeometry,
     PanelId,
     PanelSlidePx,
@@ -166,6 +169,7 @@ import {
     reportView,
     SquarePx,
     TilePx,
+    typingTarget,
 } from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
 
@@ -716,7 +720,9 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
 describe("the windows never overlap (AC18)", () => {
     it("keeps the panel while the conversation is open, giving way above the field, and grows back when it folds (#2090)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(source).toContain("const active: PanelId = activePanel(panels, autoPanelIn(auto, brainstorming));");
+        expect(source).toContain(
+            "const active: PanelId = brainstormPanel(activePanel(panels, autoPanelIn(auto, brainstorming)), brainstorming);"
+        );
         expect(source).toContain("const heightRoom = panelRoom(g, frame.place.heightRoom, conversation);");
         expect(source).toContain("panelHeight(head + content + 16, heightRoom, Math.min(g.square, heightRoom))");
         expect(source).toContain("height: Math.min(height, heightRoom)");
@@ -757,6 +763,55 @@ describe("the windows never overlap (AC18)", () => {
             globalStore.set(BrainstormStateAtom, null);
         }
         expect(panel(render())).toBe("notifications");
+    });
+
+    // #2257, the developer on the gold: the notifications panel stays closed during the mode (they are held), even
+    // asked for; his usage gauges hide and give their height to his conversation.
+    it("keeps the notifications closed and hides the usage gauges during a brainstorm", () => {
+        expect(brainstormPanel("notifications", true)).toBeNull();
+        expect(brainstormPanel("downloads", true)).toBe("downloads");
+        expect(brainstormPanel("notifications", false)).toBe("notifications");
+        const panel = (html: string) => attr(html, "brokk-panel", "data-panel");
+        globalStore.set(boss.tabRequestAtom, { tab: "notifications", seq: 1, highlight: [] });
+        globalStore.set(BrainstormStateAtom, { allowed: true, open: true, version: 1 });
+        try {
+            const html = render();
+            expect(panel(html) ?? null).toBeNull();
+            expect(html).toMatch(/data-testid="brokk-usage" hidden=""/);
+        } finally {
+            globalStore.set(BrainstormStateAtom, null);
+            globalStore.set(boss.tabRequestAtom, null);
+        }
+        expect(render()).not.toMatch(/data-testid="brokk-usage" hidden/);
+    });
+
+    // #2257: a click outside (the dim) never ends a brainstorm; Escape does, only while no field has the keyboard.
+    it("ends a brainstorm only with Escape outside a field, never with a click outside", () => {
+        expect(closesCardIn(false, "outside")).toBe(true);
+        expect(closesCardIn(false, "escape", true)).toBe(true);
+        expect(closesCardIn(true, "outside")).toBe(false);
+        expect(closesCardIn(true, "escape", true)).toBe(false);
+        expect(closesCardIn(true, "escape", false)).toBe(true);
+        expect(typingTarget({ tagName: "TEXTAREA" })).toBe(true);
+        expect(typingTarget({ tagName: "INPUT" })).toBe(true);
+        expect(typingTarget({ tagName: "DIV", isContentEditable: true })).toBe(true);
+        expect(typingTarget({ tagName: "BUTTON" })).toBe(false);
+        expect(typingTarget(null)).toBe(false);
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).toContain('closesCardIn(brainstormingRef.current, "outside")');
+        expect(source).toContain(
+            'closesCardIn(brainstormingRef.current, "escape", typingTarget(document.activeElement))'
+        );
+        expect(source).toContain('if (closesCardIn(brainstorming, "outside")) {');
+    });
+
+    // #2257: with the sidebar slid away, his group docks at the window's top left during a brainstorm.
+    it("docks his group at the top left during a brainstorm", () => {
+        expect(dockedPlace("edge", true)).toBe("none");
+        expect(dockedPlace("screen", true)).toBe("none");
+        expect(dockedPlace("edge", false)).toBe("edge");
+        const host = readFileSync(join(__dirname, "brokk-hub-host.tsx"), "utf8");
+        expect(host).toContain("const sidebarAt = dockedPlace(sidebarPlace, brainstorming);");
     });
 
     it("keeps the field in its place when the window is folded, the size of the group", () => {
@@ -1299,8 +1354,12 @@ describe("the block under the square (AC17 and AC20)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain("const measure = () => setUsageHeight(usage.offsetHeight);");
         expect(source).toContain("observer.observe(usage);");
-        expect(source).toContain("groupGeometry(SquarePx, TilePx, usageHeight, hasLine)");
-        expect(source).toContain('<div ref={usageRef} className="mt-brokk-usage" data-testid="brokk-usage">');
+        // During a brainstorm the gauges give their height to the conversation (#2257).
+        expect(source).toContain("const usageRoom = brainstorming ? 0 : usageHeight;");
+        expect(source).toContain("groupGeometry(SquarePx, TilePx, usageRoom, hasLine)");
+        expect(source).toMatch(
+            /<div\s+ref=\{usageRef\}\s+className="mt-brokk-usage"\s+data-testid="brokk-usage"\s+hidden=\{brainstorming \|\| undefined\}\s*>/
+        );
     });
 
     it("keeps no 5-hour or per-model window in the block: they are in the detail", () => {

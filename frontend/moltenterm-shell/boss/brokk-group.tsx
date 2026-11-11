@@ -54,6 +54,8 @@ import {
     arrivalOffset,
     ArrivalStepMs,
     autoPanelIn,
+    brainstormPanel,
+    closesCardIn,
     ConversationChromePx,
     conversationHeight,
     conversationWidthFor,
@@ -84,6 +86,7 @@ import {
     reportView,
     SquarePx,
     TilePx,
+    typingTarget,
 } from "./brokk-group-model";
 import "./brokk-group.css";
 import { BrokkHubModel } from "./brokk-hub-store";
@@ -328,6 +331,12 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const unreadable = useAtomValue(UsageUnreadableAtom, { store: globalStore });
     const keepState = useAtomValue(KeepAwakeModel.getInstance().stateAtom, { store: globalStore });
     const currentWorkspace = useAtomValue(atoms.workspace, { store: globalStore });
+    // The brainstorm takes the screen (FR-BOSS-010, #2257, the approved mockup): his portrait and his conversation in a
+    // column, the graph in the space beside. No panel opens by itself, the notifications not at all (they are held),
+    // his usage gauges hide, and only Escape or the layer's Leave button ends it, never a click outside.
+    const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
+    const brainstormingRef = useRef(brainstorming);
+    brainstormingRef.current = brainstorming;
     const rootRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const [now, setNow] = useState(Date.now());
@@ -373,7 +382,9 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const moment = useBrokkMoment(shown && !answerHoldsLine);
     const line = sayLine(unseen, moment?.text ?? "");
     const hasLine = line !== "";
-    const g = useMemo(() => groupGeometry(SquarePx, TilePx, usageHeight, hasLine), [usageHeight, hasLine]);
+    // The usage gauges give their height to his conversation during a brainstorm (#2257).
+    const usageRoom = brainstorming ? 0 : usageHeight;
+    const g = useMemo(() => groupGeometry(SquarePx, TilePx, usageRoom, hasLine), [usageRoom, hasLine]);
     const report = reportView(
         g,
         hasLine ? reportSize : EmptyReportSize,
@@ -415,15 +426,12 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     };
     // The panel the group opens with is read once, when it opens: nothing changes under the developer's eyes after.
     const [auto] = useState<PanelId>(() => groupOpeningPanel(priorityFactsOf(railInput), rememberedPanel));
-    // The brainstorm takes the screen (FR-BOSS-010, #2257, the approved mockup): his portrait and his conversation in a
-    // column, the graph in the space beside. No panel opens by itself then; the rail still opens one at a click.
-    const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
     useEffect(() => {
         if (brainstorming) {
             setPanels(InitialPanels);
         }
     }, [brainstorming]);
-    const active: PanelId = activePanel(panels, autoPanelIn(auto, brainstorming));
+    const active: PanelId = brainstormPanel(activePanel(panels, autoPanelIn(auto, brainstorming)), brainstorming);
     useEffect(() => {
         if (panels.pinned != null) {
             rememberPanel(panels.pinned);
@@ -594,7 +602,10 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
             if (ContextMenuModel.getInstance().session != null) {
                 return;
             }
-            if (isOutsidePress(e.target as Element, rootRef.current)) {
+            if (
+                isOutsidePress(e.target as Element, rootRef.current) &&
+                closesCardIn(brainstormingRef.current, "outside")
+            ) {
                 boss.closeCard();
             }
         };
@@ -611,7 +622,10 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
             }
             const input: CardKeyInput = { key: e.key, focusAtHome: focusIsAtHome(root) };
             const action = cardKeyAction(input);
-            if (!action.hide) {
+            if (
+                !action.hide ||
+                !closesCardIn(brainstormingRef.current, "escape", typingTarget(document.activeElement))
+            ) {
                 return;
             }
             if (action.consume) {
@@ -731,7 +745,14 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
 
     return (
         <>
-            <BrokkScrim shown={shown} onClose={() => boss.closeCard()} />
+            <BrokkScrim
+                shown={shown}
+                onClose={() => {
+                    if (closesCardIn(brainstorming, "outside")) {
+                        boss.closeCard();
+                    }
+                }}
+            />
             {holdsHover(panels) ? <div className="mt-brokk-catch" aria-hidden data-testid="brokk-hover-catch" /> : null}
             {frame.thread != null ? (
                 <Tether line={thread} open={shown} className="mt-brokk-thread" testId="brokk-thread" />
@@ -852,7 +873,12 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                             onFocusVisible={setReportFocused}
                         />
                     ) : null}
-                    <div ref={usageRef} className="mt-brokk-usage" data-testid="brokk-usage">
+                    <div
+                        ref={usageRef}
+                        className="mt-brokk-usage"
+                        data-testid="brokk-usage"
+                        hidden={brainstorming || undefined}
+                    >
                         {weekly.length === 0 ? (
                             <span className="mt-brokk-usage-empty" data-testid="brokk-usage-empty">
                                 {t("boss.panel.usage.empty")}
