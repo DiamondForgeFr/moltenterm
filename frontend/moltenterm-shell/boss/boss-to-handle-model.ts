@@ -332,6 +332,37 @@ function prItems(answer: ReviewsAnswer, readied: ReadiedPrs): ToHandleItem[] {
     return rtn;
 }
 
+// The review answers the rows are built from (#2223): a project whose last reading failed keeps its last good answer, so
+// that its pull requests do not leave and come back as news at every transient error. Other states (signed out, no
+// repository) are answers of their own and replace it. The very same record when nothing changes.
+export function keptReviewAnswers(
+    kept: Record<string, ReviewsAnswer>,
+    latest: Record<string, ReviewsAnswer>
+): Record<string, ReviewsAnswer> {
+    const next: Record<string, ReviewsAnswer> = {};
+    let changed = Object.keys(kept ?? {}).length !== Object.keys(latest ?? {}).length;
+    for (const [dir, answer] of Object.entries(latest ?? {})) {
+        const before = kept?.[dir];
+        next[dir] = answer?.state === "error" && before?.state === "ok" ? before : answer;
+        changed ||= next[dir] !== before;
+    }
+    return changed ? next : kept;
+}
+
+// When the CI failed (#2223): the last end of a failing check, else the pull request's last update. A "Re-run CI" pushes
+// no commit, so the update does not move: a second failure must still be a new episode, which the row's mark of the first
+// one does not hold back.
+export function ciFailureSince(pr: ReviewPr): number {
+    let last = 0;
+    for (const check of checksOf(pr.ci, "failure")) {
+        const ms = Date.parse(check.completedat ?? "");
+        if (Number.isFinite(ms) && ms > last) {
+            last = ms;
+        }
+    }
+    return last > 0 ? last : prSince(pr);
+}
+
 function failedCiItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
     const checks = checkNames(checksOf(pr.ci, "failure"));
     return {
@@ -343,7 +374,7 @@ function failedCiItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
         line: { key: "boss.todo.ciFailed", vars: { checks } },
         place,
         dir,
-        since: prSince(pr),
+        since: ciFailureSince(pr),
         rank: RankError,
         seen: false,
         actions: markPrimary([

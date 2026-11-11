@@ -11,7 +11,7 @@ import type { AgentStatesData } from "../agent-state-model";
 import { badgeCount } from "../notification-rules";
 import type { Badge } from "./boss-overview";
 import type { ToHandleItem } from "./boss-to-handle-model";
-import { BrokkEvent, comingOf, VisitSettings } from "./brokk-visit-events";
+import { BrokkEvent, comingOf, countsOnBadge, VisitSettings } from "./brokk-visit-events";
 import { finishedEvents, unseenItems, visitEventsOfRows } from "./brokk-watch";
 
 const FinishedPrefix = "finished:";
@@ -56,6 +56,20 @@ export function unmappedRowKeys(items: ToHandleItem[]): string[] {
     return items
         .filter((item) => !item.seen && visitEventsOfRows([item]).length === 0)
         .map((item) => `row:${item.key}`);
+}
+
+// The rows To handle the face's badge counts (#2223): an unseen row whose event is not set to Rien, or that raises no
+// event. The call the badge's rise asks for reads the same, so a row the badge leaves out never makes him call.
+export function faceRowKeys(items: ToHandleItem[], settings: VisitSettings): string[] {
+    return items
+        .filter((item) => {
+            if (item.seen) {
+                return false;
+            }
+            const [event] = visitEventsOfRows([item]);
+            return event == null || countsOnBadge(event.kind, settings);
+        })
+        .map((item) => item.key);
 }
 
 export type AvatarBadge = Badge;

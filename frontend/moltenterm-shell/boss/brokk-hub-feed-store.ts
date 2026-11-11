@@ -23,6 +23,7 @@ import {
     updateEventsOf,
     UpdateSource,
     usageEventsAfter,
+    type UsageMemory,
     UsageSource,
 } from "./brokk-extra-feeds";
 import type { BrokkHub } from "./brokk-hub";
@@ -57,6 +58,8 @@ export type HubSources = {
     closedDownloadsAtom?: Atom<ReadonlySet<string>>;
     updateOfferAtom?: Atom<string>;
     usageAtom?: Atom<UsageReadings>;
+    // Where the plan usage already seen is kept across restarts (#2223). A window without one starts empty each time.
+    usageMemory?: { read: () => UsageMemory; write: (memory: UsageMemory) => void };
     // What this tab view shows the developer (makeSeenViewAtom, #2166): what is in it does not bring him. A window
     // without one leaves it out.
     inViewAtom?: Atom<AgentSeenView>;
@@ -92,7 +95,13 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const { store } = src;
     let downloads = makeDownloadsMemory(Date.now());
     let seenUpdate = "";
-    let usage = EmptyUsageMemory;
+    let usage = src.usageMemory?.read() ?? EmptyUsageMemory;
+    const keepUsage = (next: UsageMemory) => {
+        if (next !== usage) {
+            usage = next;
+            src.usageMemory?.write(next);
+        }
+    };
     const items = () => (src.downloadsAtom != null ? store.get(src.downloadsAtom) : []);
     const offer = () => (src.updateOfferAtom != null ? store.get(src.updateOfferAtom) : "");
     const readings = () => (src.usageAtom != null ? store.get(src.usageAtom) : {});
@@ -101,7 +110,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const feedUpdate = () => hub.feed(UpdateSource, updateEventsOf(offer(), seenUpdate));
     const feedUsage = () => {
         const step = usageEventsAfter(usage, readings(), Date.now());
-        usage = step.memory;
+        keepUsage(step.memory);
         hub.feed(UsageSource, step.events);
     };
     const feedAll = () => {
@@ -112,7 +121,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const acknowledge = () => {
         downloads = acknowledgeDownloads(downloads, items());
         seenUpdate = offer();
-        usage = acknowledgeUsage(readings(), Date.now());
+        keepUsage(acknowledgeUsage(readings(), Date.now(), usage));
         feedAll();
     };
     const stops = [

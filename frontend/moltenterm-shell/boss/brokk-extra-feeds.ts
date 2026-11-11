@@ -128,19 +128,54 @@ export function hotProviders(readings: UsageReadings, now: number): string[] {
     return [...latest.entries()].filter(([, bar]) => bar >= UsageThresholdPercent).map(([provider]) => provider);
 }
 
+// The providers some reading tells of, hot or not.
+function readProviders(readings: UsageReadings): Set<string> {
+    return new Set(
+        Object.entries(readings ?? {})
+            .filter(([, snapshot]) => snapshot != null)
+            .map(([agent, snapshot]) => snapshot.agent || agent)
+    );
+}
+
+// A provider leaves `seen` only once a reading says it is below the line: the readings come in a while after a start,
+// and a provider not read yet is not a provider that cooled down (#2223).
 export function usageEventsAfter(
     memory: UsageMemory,
     readings: UsageReadings,
     now: number
 ): { memory: UsageMemory; events: BrokkEvent[] } {
     const hot = hotProviders(readings, now);
-    const seen = new Set([...memory.seen].filter((provider) => hot.includes(provider)));
+    const read = readProviders(readings);
+    const seen = new Set([...memory.seen].filter((provider) => hot.includes(provider) || !read.has(provider)));
     const events = hot
         .filter((provider) => !seen.has(provider))
         .map((provider) => ({ key: `usage:${provider}`, kind: "usage" as const, since: 0 }));
     return { memory: seen.size === memory.seen.size ? memory : { seen }, events };
 }
 
-export function acknowledgeUsage(readings: UsageReadings, now: number): UsageMemory {
-    return { seen: new Set(hotProviders(readings, now)) };
+// The developer opened Brokk: what is hot now is seen, and so stays what was seen and is not read yet.
+export function acknowledgeUsage(
+    readings: UsageReadings,
+    now: number,
+    memory: UsageMemory = EmptyUsageMemory
+): UsageMemory {
+    const read = readProviders(readings);
+    const kept = [...memory.seen].filter((provider) => !read.has(provider));
+    return { seen: new Set([...kept, ...hotProviders(readings, now)]) };
+}
+
+// The seen providers survive a restart (#2223): kept in the local storage of this computer.
+export const UsageSeenKey = "moltenterm:brokk-usage-seen";
+
+export function readUsageMemory(raw: string): UsageMemory {
+    try {
+        const value = JSON.parse(raw ?? "");
+        return Array.isArray(value) ? { seen: new Set(value.filter((p) => typeof p === "string")) } : EmptyUsageMemory;
+    } catch {
+        return EmptyUsageMemory;
+    }
+}
+
+export function usageMemoryText(memory: UsageMemory): string {
+    return JSON.stringify([...memory.seen].sort());
 }

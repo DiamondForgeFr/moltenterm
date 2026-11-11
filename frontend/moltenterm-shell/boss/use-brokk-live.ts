@@ -21,6 +21,7 @@ import { ActivityState, isShowing } from "../tab-activity-model";
 import { BossBubbleModel } from "./boss-store";
 import { BrokkSituation, speaksOnOpen } from "./brokk-ask-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
+import { BrokkHubModel } from "./brokk-hub-store";
 import type { BrokkLiveProps } from "./brokk-live";
 import { BlinkRhythm, BrokkScene, brokkScene } from "./brokk-scene";
 import { moodFactsOf, unseenItems } from "./brokk-watch";
@@ -73,7 +74,8 @@ export function useBrokkSituation(
 ): BrokkSituation {
     const model = BossBubbleModel.getInstance();
     const working = useAtomValue(model.workingCountAtom, { store: globalStore });
-    const badge = useAtomValue(model.badgeAtom, { store: globalStore });
+    // The face's count, the one the avatar shows (#2223).
+    const badge = useAtomValue(BrokkHubModel.getInstance().faceBadgeAtom, { store: globalStore });
     const away = useDeveloperAway(watchAway);
     return useMemo(
         () => ({ working, waiting: badge.count, cardOpen, away, talk }),
@@ -97,7 +99,7 @@ export function useBrokkScene(options: BrokkSceneOptions): BrokkScene {
     const { pinned, situation, speaks } = options;
     const model = BossBubbleModel.getInstance();
     const expressions = BrokkExpressionsModel.getInstance();
-    const badge = useAtomValue(model.badgeAtom, { store: globalStore });
+    const badge = useAtomValue(BrokkHubModel.getInstance().faceBadgeAtom, { store: globalStore });
     const toHandle = useAtomValue(model.toHandleAtom, { store: globalStore });
     const memory = useAtomValue(expressions.moodAtom, { store: globalStore });
     const asked = useAtomValue(expressions.askedAtom, { store: globalStore });
@@ -143,7 +145,7 @@ function sceneFromStores(situation: BrokkSituation, now: number): BrokkScene {
         now,
         memory: globalStore.get(expressions.moodAtom),
         facts: moodFactsOf(unseenItems(globalStore.get(model.toHandleAtom))),
-        badge: globalStore.get(model.badgeAtom),
+        badge: globalStore.get(BrokkHubModel.getInstance().faceBadgeAtom),
         asked: globalStore.get(expressions.askedAtom),
         speaking: false,
         motion: true,

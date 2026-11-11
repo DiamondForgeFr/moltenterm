@@ -27,6 +27,7 @@ export function useHubSelect<T>(select: (view: HubView) => T): T {
 }
 
 // The badge of the avatar: what the visit model counts, and the rows that are no event of its table.
+// The same count as BrokkHubModel.faceBadgeAtom, which his portrait's pose reads (#2223).
 export function useAvatarBadge(): AvatarBadge {
     const list = useAtomValue(BossBubbleModel.getInstance().toHandleAtom, { store: globalStore });
     const settings = useAtomValue(BrokkHubModel.getInstance().settingsAtom, { store: globalStore });
