@@ -75,6 +75,10 @@ describe("the brokk-graph block", () => {
         ["a node linked to itself", JSON.stringify({ v: 1, talk: "project", ops: [{ op: "link", a: "a", b: "a" }] })],
         ["an unknown operation", JSON.stringify({ v: 1, talk: "project", ops: [{ op: "delete", id: "a" }] })],
         [
+            "an operation named with the model's text",
+            JSON.stringify({ v: 1, talk: "project", ops: [{ op: "Secret plan for the launch", id: "a" }] }),
+        ],
+        [
             "too many operations",
             JSON.stringify({
                 v: 1,
@@ -94,6 +98,15 @@ describe("the brokk-graph block", () => {
         expect(read.problem).toBe("invalid");
         expect(read.text).toBe("His words.");
         expect(read.reason).not.toMatch(/Secret|yyy|rumour/);
+    });
+
+    it("names a known operation in its reason, and only a known one", () => {
+        expect(blockProblem({ v: 1, talk: "project", ops: [{ op: "link", a: "a", b: "a" }] })).toBe(
+            "operation 1 (link): a node linked to itself"
+        );
+        expect(blockProblem({ v: 1, talk: "project", ops: [{ op: "my secret", id: "a" }] })).toBe(
+            "operation 1 (unknown op): unknown operation"
+        );
     });
 
     it("skips the operations of later stories rather than dropping the block", () => {

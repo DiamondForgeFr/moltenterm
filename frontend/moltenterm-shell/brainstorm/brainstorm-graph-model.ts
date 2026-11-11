@@ -39,6 +39,7 @@ export const AddKinds: NodeKind[] = ["question", "answer", "idea", "theme", "dec
 
 // The operations of later stories (#2247 to #2250): skipped, not a reason to drop the block.
 export const LaterOps = ["edit", "propose", "conclude", "fork", "remember"];
+const KnownOps = ["centre", "add", "link", ...LaterOps];
 
 export type Talk = "project" | "personal";
 
@@ -154,7 +155,9 @@ export function blockProblem(value: unknown): string {
                 problem = LaterOps.includes(op.op) ? "" : "unknown operation";
         }
         if (problem !== "") {
-            return `${at} (${op.op}): ${problem}`;
+            // The model writes the op's name: only a known one is quoted in a logged reason.
+            const name = KnownOps.includes(op.op) ? op.op : "unknown op";
+            return `${at} (${name}): ${problem}`;
         }
     }
     return "";

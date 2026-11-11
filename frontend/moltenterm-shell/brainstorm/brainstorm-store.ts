@@ -189,13 +189,14 @@ export class BrainstormModel {
         this.apply(await this.ask(StateCommand, {}));
     }
 
-    // A state read back from wavesrv; an older one than the view has is dropped.
+    // A state read back from wavesrv; an older one than the view has is dropped. A restarted wavesrv counts its versions
+    // from 0 again, so only a state of the same wavesrv is compared.
     apply(next: BrainstormState): void {
         if (next == null) {
             return;
         }
         const current = globalStore.get(this.stateAtom);
-        if (current != null && next.version < current.version) {
+        if (current != null && next.session === current.session && next.version < current.version) {
             return;
         }
         const wasOpen = current?.open === true;

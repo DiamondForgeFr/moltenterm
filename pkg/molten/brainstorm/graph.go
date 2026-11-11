@@ -68,6 +68,17 @@ var addKinds = map[string]bool{
 	KindConclusion: true,
 }
 
+var knownKinds = map[string]bool{
+	KindTopic:      true,
+	KindQuestion:   true,
+	KindAnswer:     true,
+	KindIdea:       true,
+	KindTheme:      true,
+	KindDecision:   true,
+	KindProposal:   true,
+	KindConclusion: true,
+}
+
 var laterOps = map[string]bool{
 	OpEdit:     true,
 	OpPropose:  true,
@@ -174,6 +185,16 @@ func checkId(id string, what string) error {
 	return nil
 }
 
+// opLabel names an operation in an error: its place, and its name only when it is one this package knows. The model
+// writes the name, and an error is logged.
+func opLabel(i int, op string) string {
+	switch op {
+	case OpCentre, OpAdd, OpLink, OpEdit, OpPropose, OpConclude, OpFork, OpRemember:
+		return fmt.Sprintf("operation %d (%s)", i+1, op)
+	}
+	return fmt.Sprintf("operation %d (unknown op)", i+1)
+}
+
 // ValidateBlock checks the block's shape alone (DS-BOSS-009). Its errors never quote the model's text: they are logged.
 func ValidateBlock(b Block) error {
 	if b.V != BlockVersion {
@@ -186,7 +207,7 @@ func ValidateBlock(b Block) error {
 		return fmt.Errorf("%d operations, over %d", len(b.Ops), MaxOps)
 	}
 	for i, op := range b.Ops {
-		what := fmt.Sprintf("operation %d (%s)", i+1, op.Op)
+		what := opLabel(i, op.Op)
 		switch op.Op {
 		case OpCentre:
 			if err := checkId(op.Id, what); err != nil {
@@ -228,6 +249,76 @@ func ValidateBlock(b Block) error {
 		}
 	}
 	return nil
+}
+
+// ValidateGraph checks a graph.json read back from the developer's folder against the rules a block obeys
+// (DS-BOSS-009): the folder is theirs, another program or a hand may have changed it, and every view draws what it
+// holds. A parent comes before its children, as Apply adds them. It returns the graph with its texts made plain; its
+// errors never quote the file's text.
+func ValidateGraph(g Graph) (Graph, error) {
+	if g.Schema != GraphSchema {
+		return Graph{}, fmt.Errorf("schema %d", g.Schema)
+	}
+	if len(g.Nodes) > MaxNodes {
+		return Graph{}, fmt.Errorf("%d nodes, over %d", len(g.Nodes), MaxNodes)
+	}
+	if len(g.Links) > MaxLinks {
+		return Graph{}, fmt.Errorf("%d links, over %d", len(g.Links), MaxLinks)
+	}
+	if g.Rev < 0 {
+		return Graph{}, fmt.Errorf("a negative revision")
+	}
+	out := Graph{Schema: GraphSchema, Rev: g.Rev, Centre: g.Centre, Nodes: make([]Node, 0, len(g.Nodes)), Links: make([]Link, 0, len(g.Links))}
+	seen := make(map[string]bool, len(g.Nodes))
+	for i, n := range g.Nodes {
+		what := fmt.Sprintf("node %d", i+1)
+		if err := checkId(n.Id, what); err != nil {
+			return Graph{}, err
+		}
+		if seen[n.Id] {
+			return Graph{}, fmt.Errorf("%s: id already in the graph", what)
+		}
+		if !knownKinds[n.Kind] {
+			return Graph{}, fmt.Errorf("%s: unknown kind", what)
+		}
+		if (n.Kind == KindTopic) != (n.Id == g.Centre) {
+			return Graph{}, fmt.Errorf("%s: the topic is the centre's kind alone", what)
+		}
+		if n.Id == g.Centre && n.From != "" {
+			return Graph{}, fmt.Errorf("%s: the centre has a parent", what)
+		}
+		if n.Id != g.Centre && !seen[n.From] {
+			return Graph{}, fmt.Errorf("%s: unknown parent", what)
+		}
+		if !idPattern.MatchString(n.Status) {
+			return Graph{}, fmt.Errorf("%s: invalid status", what)
+		}
+		text, err := checkText(n.Text, what)
+		if err != nil {
+			return Graph{}, err
+		}
+		n.Text = text
+		seen[n.Id] = true
+		out.Nodes = append(out.Nodes, n)
+	}
+	if (g.Centre != "" || len(g.Nodes) > 0) && !seen[g.Centre] {
+		return Graph{}, fmt.Errorf("the centre is not a node")
+	}
+	for i, l := range g.Links {
+		what := fmt.Sprintf("link %d", i+1)
+		if !seen[l.A] || !seen[l.B] {
+			return Graph{}, fmt.Errorf("%s: unknown node", what)
+		}
+		if l.A == l.B {
+			return Graph{}, fmt.Errorf("%s: a node linked to itself", what)
+		}
+		l.Why = CleanText(l.Why)
+		if utf8.RuneCountInString(l.Why) > MaxText {
+			return Graph{}, fmt.Errorf("%s: reason over %d characters", what, MaxText)
+		}
+		out.Links = append(out.Links, l)
+	}
+	return out, nil
 }
 
 // CentreOf is the id the block's `centre` names, "" when it has none.
@@ -275,7 +366,7 @@ func Apply(g Graph, b Block, turn int, at int64) (Applied, error) {
 		index[n.Id] = i
 	}
 	for i, op := range b.Ops {
-		what := fmt.Sprintf("operation %d (%s)", i+1, op.Op)
+		what := opLabel(i, op.Op)
 		switch op.Op {
 		case OpCentre:
 			text, _ := checkText(op.Text, what)

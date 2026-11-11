@@ -6,6 +6,7 @@ package brainstorm
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -115,6 +116,34 @@ func TestEachTurnIsSavedAndARestartResumesIt(t *testing.T) {
 	got := restarted.Turn(TurnRequest{Key: "t3", You: "The parents.", Brokk: "A list they validate, then.", Block: &more, At: 3000})
 	if !got.Applied || len(got.State.Graph.Nodes) != 5 {
 		t.Errorf("the resumed graph did not grow: %+v", got)
+	}
+	// The restarted wavesrv counts its versions from 0 again: its states name it, so a view does not drop them.
+	if got.State.Session == "" || got.State.Session == s.State().Session || got.State.Version > s.State().Version {
+		t.Errorf("sessions %q then %q, versions %d then %d", s.State().Session, got.State.Session, s.State().Version, got.State.Version)
+	}
+}
+
+// A graph.json that breaks the block rules is not resumed: the developer's start opens a new brainstorm, and the log
+// says why without its text.
+func TestABrokenFolderIsNotResumed(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	s := f.service()
+	s.Turn(openingTurn())
+	dir := s.State().Brainstorm.Dir
+	s.Close()
+	if err := os.WriteFile(filepath.Join(dir, GraphFile), []byte(`{"schema":1,"rev":1,"centre":"x","nodes":[{"id":"x","kind":"topic","text":"secret idea","status":"open"},{"id":"y","kind":"rumour","text":"secret","from":"x","status":"open"}],"links":[]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	state := f.service().Open(OpenRequest{By: ByYou})
+	if !state.Open || state.Graph != nil || state.Brainstorm != nil {
+		t.Fatalf("a broken folder was resumed: %+v", state)
+	}
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	logs := strings.Join(f.logs, "")
+	if !strings.Contains(logs, "unknown kind") || strings.Contains(logs, "secret") {
+		t.Errorf("logs %q", logs)
 	}
 }
 

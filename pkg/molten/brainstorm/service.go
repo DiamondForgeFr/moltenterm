@@ -32,11 +32,13 @@ type Summary struct {
 	Turns   int    `json:"turns"`
 }
 
-// State is what every view reads back after the event.
+// State is what every view reads back after the event. Version counts from 0 in each wavesrv: Session names the one
+// that counted it, so that a view does not drop a restarted wavesrv's states as older than the ones it had.
 type State struct {
 	Allowed    bool     `json:"allowed"`
 	Open       bool     `json:"open"`
 	By         string   `json:"by,omitempty"`
+	Session    string   `json:"session,omitempty"`
 	Version    int64    `json:"version"`
 	Brainstorm *Summary `json:"brainstorm,omitempty"`
 	Graph      *Graph   `json:"graph,omitempty"`
@@ -72,6 +74,8 @@ type Service struct {
 	now     func() time.Time
 	publish func(version int64)
 	logf    func(format string, args ...any)
+	// sessionId is State.Session.
+	sessionId string
 
 	open    bool
 	by      string
@@ -86,11 +90,11 @@ type Service struct {
 }
 
 func MakeService(store *Store, now func() time.Time, publish func(int64), logf func(string, ...any)) *Service {
-	return &Service{store: store, now: now, publish: publish, logf: logf, keys: map[string]bool{}}
+	return &Service{store: store, now: now, publish: publish, logf: logf, sessionId: newId(), keys: map[string]bool{}}
 }
 
 func (s *Service) stateLocked() State {
-	state := State{Allowed: true, Open: s.open, By: s.by, Version: s.version, SavedAt: s.savedAt, SaveError: s.saveErr}
+	state := State{Allowed: true, Open: s.open, By: s.by, Session: s.sessionId, Version: s.version, SavedAt: s.savedAt, SaveError: s.saveErr}
 	if s.session != nil {
 		graph := s.session.Graph
 		state.Graph = &graph
@@ -135,7 +139,11 @@ func (s *Service) openLocked(by string) {
 		return
 	}
 	if s.session == nil {
-		if saved, ok := s.store.Current(); ok {
+		saved, ok, err := s.store.Current()
+		if err != nil {
+			s.logf("[brainstorm] the brainstorm open last does not load: %v\n", err)
+		}
+		if ok {
 			s.session = &saved
 		}
 	}

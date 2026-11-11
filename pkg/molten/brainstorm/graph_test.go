@@ -107,6 +107,19 @@ func TestABadBlockIsDroppedWhole(t *testing.T) {
 	}
 }
 
+// An error is logged: it names a known operation, never one the model made up.
+func TestAnErrorNamesOnlyAKnownOperation(t *testing.T) {
+	t.Parallel()
+	err := ValidateBlock(block(Op{Op: "my secret plan", Id: "ages"}))
+	if err == nil || strings.Contains(err.Error(), "secret") || !strings.Contains(err.Error(), "unknown op") {
+		t.Errorf("an unknown operation: %v", err)
+	}
+	err = ValidateBlock(block(link("ages", "ages")))
+	if err == nil || !strings.Contains(err.Error(), "(link)") {
+		t.Errorf("a known operation: %v", err)
+	}
+}
+
 func TestAnAddBeforeAnyCentreIsDropped(t *testing.T) {
 	t.Parallel()
 	if _, err := Apply(EmptyGraph(), block(add("orphan", KindIdea, "x", "nowhere")), 1, 1); err == nil {
