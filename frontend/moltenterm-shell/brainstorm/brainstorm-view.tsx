@@ -91,6 +91,11 @@ function Breakthrough() {
     );
 }
 
+// The header's Leave the brainstorm button (#2257).
+export function leaveBrainstorm(): void {
+    void BrainstormModel.getInstance().end();
+}
+
 // The line over the free space (the mockup's): his thought, how many nodes, how many cross-links.
 function Header({ state }: { state: BrainstormState }) {
     const t = useT();
@@ -108,9 +113,19 @@ function Header({ state }: { state: BrainstormState }) {
                   links: tCount("boss.brainstorm.links", links),
                   camera: t(`boss.brainstorm.camera.${camera}`),
               });
+    // The one way out with the pointer (#2257): a click on the dim never ends the brainstorm.
     return (
         <div className="mt-bs-header" data-testid="brainstorm-header">
-            {text}
+            <button
+                type="button"
+                className="mt-bs-leave cursor-pointer"
+                data-testid="brainstorm-leave"
+                onClick={leaveBrainstorm}
+            >
+                <i className={makeIconClass("arrow-right-from-bracket", false)} aria-hidden />
+                {t("boss.brainstorm.leave")}
+            </button>
+            <span className="mt-bs-header-text">{text}</span>
         </div>
     );
 }

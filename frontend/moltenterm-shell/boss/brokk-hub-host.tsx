@@ -16,6 +16,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { isMacOS } from "@/util/platformutil";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { BrainstormLayer } from "../brainstorm/brainstorm-layer";
 import { prefersReducedMotion } from "../molten-motion";
 import { NotificationHost } from "../notification-center";
@@ -25,7 +26,7 @@ import { hangingRightPx, Rect as ScreenRect } from "./brokk-avatar-model";
 import type { SidebarPlace } from "./brokk-edge-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import { BrokkGroup, GroupFrame } from "./brokk-group";
-import { groupGeometry, groupPlace } from "./brokk-group-model";
+import { dockedPlace, groupGeometry, groupPlace } from "./brokk-group-model";
 import "./brokk-group.css";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { BrokkSession } from "./brokk-session";
@@ -48,7 +49,14 @@ export function frameInset(layer: Element): number {
 
 // Where the group stands and where it arrives from, in the layer's coordinates: 8 px right of the sidebar and 8 px from
 // the top of the window area; from the title-bar face that opened it. It follows the window's size while it is open.
-function useGroupFrame(layerRef: React.RefObject<HTMLDivElement>, open: boolean, sidebarAt: SidebarPlace): GroupFrame {
+// During a brainstorm the group docks at the window's top left, whatever the sidebar's strip (#2257).
+function useGroupFrame(
+    layerRef: React.RefObject<HTMLDivElement>,
+    open: boolean,
+    sidebarPlace: SidebarPlace,
+    brainstorming: boolean
+): GroupFrame {
+    const sidebarAt = dockedPlace(sidebarPlace, brainstorming);
     const [frame, setFrame] = useState<GroupFrame>(null);
     useLayoutEffect(() => {
         const layer = layerRef.current;
@@ -138,7 +146,8 @@ function BrokkHostLayer({ show }: { show: boolean }) {
     const cardOpen = useAtomValue(boss.cardOpenAtom, { store: globalStore });
     const place = useAtomValue(hubModel.sidebarPlaceAtom, { store: globalStore });
     const layerRef = useRef<HTMLDivElement>(null);
-    const frame = useGroupFrame(layerRef, cardOpen, place);
+    const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
+    const frame = useGroupFrame(layerRef, cardOpen, place, brainstorming);
     const life = useGroupLife(cardOpen);
 
     useEffect(() => boss.attach(document), [boss]);

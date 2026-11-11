@@ -3146,7 +3146,8 @@
                 "nothing": "Saved as soon as the idea is set",
                 "failed": "Not saved: the folder could not be written"
             },
-            "leaveHint": "Esc leaves the brainstorm",
+            "leaveHint": "Leave the brainstorm with its button above, or Esc outside a field",
+            "leave": "Leave the brainstorm",
             "summary": {
                 "one": "1 notification arrived during the brainstorm",
                 "other": "{count} notifications arrived during the brainstorm"

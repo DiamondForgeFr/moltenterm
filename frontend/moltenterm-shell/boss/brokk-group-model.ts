@@ -9,6 +9,7 @@
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
 import { attachMiddle, TetherLine, tetherLine } from "../tether/tether-model";
+import type { SidebarPlace } from "./brokk-edge-model";
 
 // The group's panels are the rail's: the usage block under the square opens none (FR-BOSS-009, AC58, #2106).
 export type PanelId = "notifications" | "agents" | "sessions" | "downloads" | "keepawake";
@@ -140,6 +141,35 @@ export function conversationWidthFor(g: GroupGeometry, panelRoom: number, column
 // The panel the group shows by itself: none during a brainstorm, whose graph takes the space; a click still opens one.
 export function autoPanelIn(auto: PanelId, brainstorming: boolean): PanelId {
     return brainstorming ? null : auto;
+}
+
+// Where the group measures the sidebar from: during a brainstorm, nowhere, so it docks at the window's top left
+// instead of staying beside the sidebar's strip (#2257).
+export function dockedPlace(place: SidebarPlace, brainstorming: boolean): SidebarPlace {
+    return brainstorming ? "none" : place;
+}
+
+// During a brainstorm the notifications are held, so their panel never shows, even at a click (#2257).
+export function brainstormPanel(active: PanelId, brainstorming: boolean): PanelId {
+    return brainstorming && active === "notifications" ? null : active;
+}
+
+// What closes his group (#2257): outside a brainstorm, a press outside or Escape; during one, only Escape while no
+// field has the keyboard (the layer's Leave button ends it too). A click on the dim never ends a brainstorm.
+export function closesCardIn(brainstorming: boolean, event: "outside" | "escape", typing = false): boolean {
+    if (!brainstorming) {
+        return true;
+    }
+    return event === "escape" && !typing;
+}
+
+// The element takes typed text: Escape there belongs to it.
+export function typingTarget(element: { tagName?: string; isContentEditable?: boolean }): boolean {
+    if (element == null) {
+        return false;
+    }
+    const tag = (element.tagName ?? "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || element.isContentEditable === true;
 }
 
 // `contentHeight`: what the exchange needs, the field's row included. `room`: the window's height from the top of the

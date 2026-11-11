@@ -398,6 +398,11 @@
     padding: 0;
 }
 
+/* During a brainstorm the gauges give their height to his conversation (#2257). */
+.mt-brokk-usage[hidden] {
+    display: none;
+}
+
 .mt-brokk-usage-empty {
     color: var(--mt-text-3);
 }
