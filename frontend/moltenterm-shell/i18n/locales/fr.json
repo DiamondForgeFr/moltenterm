@@ -3115,7 +3115,11 @@
             "opening": "Une idée ? On la met sur l'enclume. Dites-moi ce que c'est, et pour qui.",
             "resume": "On reprend « {title} ». Où en étions-nous ?",
             "lead": "Brainstorm :",
-            "header": "La pensée de {name} · {nodes} · {links}",
+            "header": "La pensée de {name} · {nodes} · {links} · {camera}",
+            "camera": {
+                "follow": "caméra sur le sujet",
+                "overview": "vue d'ensemble"
+            },
             "headerWaiting": "{name} écoute",
             "nodes": {
                 "one": "{count} élément",
@@ -3352,6 +3356,8 @@
                 "chooseAgent": "Choisir un agent",
                 "retry": "Réessayer",
                 "openTerminal": "Ouvrir son terminal",
+                "humanDraft": "Un texte tapé dans le terminal de {name} attend dans son invite, donc rien n'est parti : MoltenTerm ne l'envoie ni ne l'efface jamais. Envoyez-le ou effacez-le là-bas, puis réessayez.",
+                "queued": "{name} est occupé : votre message part tout seul dès qu'il est libre.",
                 "busy": "L'agent de {name} est occupé : votre message reste ici, réessayez dans un instant.",
                 "noAgent": "Aucun agent de code n'est installé pour démarrer la session de {name}.",
                 "agentMissing": "L'agent de code choisi n'est pas installé : {name} ne peut pas démarrer.",
@@ -9695,6 +9701,8 @@
                 "none": "Il n'y a pas de ligne à taper : rien n'a été tapé.",
                 "working": "{agent} travaille : attendez la fin de son tour.",
                 "sent": "Envoyé à {agent}.",
+                "humandraft": "Un texte tapé dans le terminal de {agent} attend dans son invite : rien n'a été tapé.",
+                "unsettled": "L'état de {agent} n'est pas encore connu : rien n'a été tapé.",
                 "typeddraft": "Tapé dans l'invite de {agent} sans Entrée : vous y avez peut-être un message non envoyé.",
                 "typed": "Tapé dans l'invite de {agent} : ajoutez ce qu'il faut faire et appuyez sur Entrée."
             },

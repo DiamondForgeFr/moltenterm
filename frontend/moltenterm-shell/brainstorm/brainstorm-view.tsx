@@ -96,6 +96,7 @@ function Header({ state }: { state: BrainstormState }) {
     const t = useT();
     useLocale();
     const name = useAtomValue(BossBubbleModel.getInstance().nameAtom, { store: globalStore });
+    const camera = useAtomValue(BrainstormModel.getInstance().cameraModeAtom, { store: globalStore });
     const nodes = state.graph?.nodes?.length ?? 0;
     const links = state.graph?.links?.length ?? 0;
     const text =
@@ -105,6 +106,7 @@ function Header({ state }: { state: BrainstormState }) {
                   name,
                   nodes: tCount("boss.brainstorm.nodes", nodes),
                   links: tCount("boss.brainstorm.links", links),
+                  camera: t(`boss.brainstorm.camera.${camera}`),
               });
     return (
         <div className="mt-bs-header" data-testid="brainstorm-header">

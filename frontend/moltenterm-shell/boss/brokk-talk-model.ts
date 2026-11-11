@@ -57,11 +57,12 @@ export function sendsOnKey(key: { key: string; shiftKey?: boolean; isComposing?:
 // it and works on it (reply: what he answered so far); answered: his answer is here; unread: he answered in his
 // terminal, where the panel cannot read it; noreply: no answer came; needsanswer: his agent stopped on a prompt in his
 // hidden terminal (a permission, a trust question) and waits for the developer there. The others are the failures of
-// the message.
+// the message. queued: his agent was busy, and the message goes by itself once he is free (#2257).
 export type TalkPhase =
     | "idle"
     | "starting"
     | "sending"
+    | "queued"
     | "answering"
     | "needsanswer"
     | "answered"
@@ -106,6 +107,7 @@ export const UnreachableReason = "unreachable";
 const FailedNoteKeys = new Map<string, string>([
     ["gone", "boss.panel.talk.gone"],
     ["notsubmitted", "boss.panel.talk.notSubmitted"],
+    ["humandraft", "boss.panel.talk.humanDraft"],
     ["noagent", "boss.panel.talk.agentStopped"],
     ["refused", "boss.panel.talk.refused"],
     ["terminal", "boss.panel.talk.noTerminal"],
@@ -226,7 +228,17 @@ export function keepsText(state: TalkState): boolean {
 
 // The domino turns while the developer waits for him.
 export function talkWaits(state: TalkState): boolean {
-    return onItsWay(state) || state.phase === "answering";
+    return onItsWay(state) || state.phase === "answering" || state.phase === "queued";
+}
+
+// A message his agent was too busy to take waits for him (#2257): it is tried again this often while he is free, for
+// at most this long, then the field offers to try again.
+export const QueueEveryMs = 2000;
+export const MaxQueueMs = 10 * 60 * 1000;
+
+// What a busy answer becomes while the message waits for him: the field keeps the text and says it goes by itself.
+export function queuedOf(state: TalkState): TalkState {
+    return state.phase === "busy" ? { ...state, phase: "queued" } : state;
 }
 
 // The line under the field, as an interface key; null says nothing.
@@ -236,6 +248,8 @@ export function talkNoteKey(state: TalkState): string {
             return "boss.panel.talk.starting";
         case "sending":
             return "boss.panel.talk.sending";
+        case "queued":
+            return "boss.panel.talk.queued";
         case "answering":
             return "boss.panel.talk.thinking";
         case "needsanswer":
@@ -259,29 +273,46 @@ export function talkNoteKey(state: TalkState): string {
 
 export type TalkWayOut = "chooseAgent" | "retry" | "openTerminal";
 
-// The way out of a failure: no failure is left without one (#2028).
+// The main way out of a failure: no failure is left without one (#2028), and his terminal is never it (#2257): talking
+// to him never needs leaving his layer. The terminal stays a secondary action (talkTerminalAside).
 export function talkWayOut(state: TalkState): TalkWayOut {
     switch (state.phase) {
         case "noagent":
         case "agentmissing":
             return "chooseAgent";
         case "busy":
+        case "failed":
             return "retry";
-        case "needsanswer":
-            return state.where != null ? "openTerminal" : null;
         case "unread":
         case "noreply":
-            return state.where != null ? "openTerminal" : "retry";
-        case "failed":
-            if (
-                (state.reason === "noagent" || state.reason === "notsubmitted" || state.reason === "refused") &&
-                state.where != null
-            ) {
-                return "openTerminal";
-            }
-            return "retry";
+            // His answer is only in his terminal (beside), and the field takes the next message: retrying is for when
+            // his terminal cannot even be shown.
+            return state.where != null ? null : "retry";
         default:
             return null;
+    }
+}
+
+// His terminal, offered beside the main way out for whoever wants to look (#2257): where the answer is only there, his
+// agent waits on a prompt there, or the cause of a failure shows there.
+export function talkTerminalAside(state: TalkState): boolean {
+    if (state.where == null) {
+        return false;
+    }
+    switch (state.phase) {
+        case "needsanswer":
+        case "unread":
+        case "noreply":
+            return true;
+        case "failed":
+            return (
+                state.reason === "noagent" ||
+                state.reason === "notsubmitted" ||
+                state.reason === "refused" ||
+                state.reason === "humandraft"
+            );
+        default:
+            return false;
     }
 }
 

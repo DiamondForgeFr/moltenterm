@@ -42,9 +42,30 @@ type fake struct {
 	// byTurn: the answers of the turns held, by index; readIndexes: the index each read asked for.
 	byTurn      map[int]Answer
 	readIndexes []int
+
+	// brief: the version of the current brief ("" follows none); marked: the versions recorded in his terminal.
+	brief  string
+	marked []string
 }
 
 func (f *fake) env() Env {
+	env := f.baseEnv()
+	if f.brief != "" {
+		env.Brief = func() (string, string, error) { return f.brief, "BRIEF " + f.brief, nil }
+		env.MarkBrief = func(_ context.Context, blockId string, version string) error {
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			f.marked = append(f.marked, blockId+":"+version)
+			if f.found != nil {
+				f.found.Brief = version
+			}
+			return nil
+		}
+	}
+	return env
+}
+
+func (f *fake) baseEnv() Env {
 	return Env{
 		Find: func(context.Context) (Found, bool, error) {
 			f.lock.Lock()

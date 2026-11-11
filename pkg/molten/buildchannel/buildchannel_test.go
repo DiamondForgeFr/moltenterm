@@ -81,3 +81,17 @@ func TestWhatMainGaveIsReadOnceAndRemoved(t *testing.T) {
 		t.Errorf("read again %v %q, want nothing", given, channel)
 	}
 }
+
+// #2257: the developer's gold, as scripts/moltenterm-build-gold.sh bakes it (MOLTENTERM_BUILD_CHANNEL=gold) and Electron
+// main hands it on for a packaged app (emain/moltenterm-build-channel.ts wavesrvChannelEnv(true, "gold")), launched
+// without a launcher's channel: the brainstorm is open, so his brief carries its section.
+func TestTheDevelopersGoldOpensTheBrainstorm(t *testing.T) {
+	t.Setenv(AppChannelEnv, Gold)
+	t.Setenv(AppDevEnv, "")
+	t.Setenv(RuntimeChannelEnv, "")
+	os.Unsetenv(RuntimeChannelEnv)
+	given, channel := takeFromEnv()
+	if !given || channel != Gold || !BrainstormAllowed(channel) {
+		t.Errorf("read %v %q (allowed %v), want the gold with its brainstorm", given, channel, BrainstormAllowed(channel))
+	}
+}

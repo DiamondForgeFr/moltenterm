@@ -95,6 +95,11 @@ type Env struct {
 	WatchPrompt func(blockId string) (<-chan struct{}, func())
 	// InputState: what the terminal's input and output tell about its agent (moltenagentinput); nil: nothing known.
 	InputState func(blockId string) AgentInputState
+	// ExpectOwn tells the input watch that MoltenTerm types data next, so the draft it makes is MoltenTerm's own
+	// (#2257); the returned func takes it back when it was not sent. nil: nothing is told.
+	ExpectOwn func(blockId string, data []byte) func()
+	// WatchOwn tells onForeign when a human's text comes into or leaves the terminal's prompt (nil onForeign stops).
+	WatchOwn func(blockId string, onForeign func(foreign bool))
 	// EffortLevels: the effort levels an agent takes for a model, in its order (#549); EffortKeysRemapped: the user
 	// moved the agent's effort keys; ClearEffort: forget a run's effort until its agent reports it again.
 	EffortLevels       func(agent string, model string) []string

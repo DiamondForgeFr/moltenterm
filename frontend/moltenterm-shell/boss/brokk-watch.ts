@@ -12,7 +12,7 @@
 
 import type { Atom, createStore } from "jotai";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
-import { agentCallName } from "../agent-state-model";
+import { agentCallName, agentPromptState } from "../agent-state-model";
 import type { ToHandleItem, ToHandleList } from "./boss-to-handle-model";
 import type { BrokkExpression } from "./brokk-ask-model";
 import { dueWaits, MoodEvent, MoodFacts, MoodMemory, ReturnAfterMs, WaitRow } from "./brokk-mood";
@@ -123,6 +123,16 @@ export function workingOf(data: AgentStatesData): number {
 // his session; without one, he is not at work.
 export function brokkWorking(data: AgentStatesData, ownBlockId: string): boolean {
     return ownBlockId != null && ownBlockId !== "" && data?.states?.[ownBlockId]?.state === "working";
+}
+
+// Brokk's own prompt is taken: his turn runs, or he waits for the developer (#2257). Work he handed to the background
+// leaves it free (agentPromptState), so a message waiting for him goes then.
+export function brokkPromptBusy(data: AgentStatesData, ownBlockId: string): boolean {
+    if (ownBlockId == null || ownBlockId === "") {
+        return false;
+    }
+    const prompt = agentPromptState(data?.states?.[ownBlockId]);
+    return prompt === "working" || prompt === "waiting";
 }
 
 // Brokk's own agent stopped on a prompt in his hidden terminal and waits for the developer there (#2155).

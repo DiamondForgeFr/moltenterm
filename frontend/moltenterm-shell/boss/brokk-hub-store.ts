@@ -40,7 +40,7 @@ import { feedBrokkHub } from "./brokk-hub-feed-store";
 import { openDoneBlocks } from "./brokk-notes-model";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
 import { EmptyShared, readShared, sharedText, VisitShareKey } from "./brokk-visit-share";
-import { brokkWaiting, brokkWorking } from "./brokk-watch";
+import { brokkPromptBusy, brokkWaiting, brokkWorking } from "./brokk-watch";
 
 function storage(): Storage {
     try {
@@ -60,6 +60,8 @@ export class BrokkHubModel {
     ownWorkingAtom: Atom<boolean>;
     // His session's agent waits for the developer on a prompt (#2155).
     ownWaitingAtom: Atom<boolean>;
+    // His prompt is taken (his turn runs, or he waits for the developer): a message waiting for him goes once it is free.
+    ownPromptBusyAtom: Atom<boolean>;
     settingsAtom: Atom<VisitSettings>;
     // Where the sidebar stands for Brokk (#2070): on screen (docked, or floating over the content), collapsed at the
     // window's edge with his face on it, or nowhere. With the sidebar turned off altogether (the tab bar is back), Brokk
@@ -121,6 +123,7 @@ export class BrokkHubModel {
         // His session is in no list of agents (FR-BOSS-009, AC26): its state is kept apart, and only his face shows it.
         this.ownWorkingAtom = atom((get) => brokkWorking(get(agents.ownDataAtom), get(this.sessionBlockAtom)));
         this.ownWaitingAtom = atom((get) => brokkWaiting(get(agents.ownDataAtom), get(this.sessionBlockAtom)));
+        this.ownPromptBusyAtom = atom((get) => brokkPromptBusy(get(agents.ownDataAtom), get(this.sessionBlockAtom)));
         this.settingsAtom = atom((get) => visitSettingsOf((key) => get(getSettingsKeyAtom(key as keyof SettingsType))));
         this.sidebarPlaceAtom = atom((get) =>
             sidebarPlaceOf(

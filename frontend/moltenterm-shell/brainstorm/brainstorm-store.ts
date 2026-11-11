@@ -88,6 +88,8 @@ export class BrainstormModel {
     // When he last spoke or the graph last grew in this view: the camera follows the topic until a pause.
     talkAtAtom = atom(0) as PrimitiveAtom<number>;
     breakthroughAtom = atom(null) as PrimitiveAtom<Breakthrough>;
+    // Where the camera looks, as the stage's scene says (the header's last words, #2257).
+    cameraModeAtom = atom("overview") as PrimitiveAtom<"follow" | "overview">;
     tallyAtom = atom(EmptyTally) as PrimitiveAtom<Tally>;
 
     private call: Call = LiveCall;
@@ -285,6 +287,7 @@ export class BrainstormModel {
         );
         globalStore.set(this.tallyAtom, EmptyTally);
         globalStore.set(this.breakthroughAtom, null);
+        globalStore.set(this.cameraModeAtom, "overview");
         this.agentsBefore = globalStore.get(AgentStates.getInstance().dataAtom);
         globalStore.set(this.talkAtAtom, Date.now());
         if (this.onScreen()) {

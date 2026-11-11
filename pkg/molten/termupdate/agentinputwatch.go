@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 )
@@ -136,6 +137,11 @@ func ScanDraft(data []byte, draft bool, inPaste bool) (bool, bool) {
 	return draft, inPaste
 }
 
+// Whose text the draft is (#2257): what MoltenTerm types goes through sendToForegroundAgent, which tells the watch the
+// exact bytes first (expectOwn); any other input that writes text is someone else's, a human at the terminal. A prompt
+// is known once the watch has seen it emptied (Enter, Ctrl+U, Ctrl+C), or when the agent started after the watch did:
+// before that, what an earlier wavesrv saw is lost.
+
 type paneInput struct {
 	// run: the agent run these facts belong to (its start), so a new agent starts with nothing known.
 	run     int64
@@ -143,17 +149,117 @@ type paneInput struct {
 	inPaste bool
 	mode    string
 	modes   []string
+	// foreign: some of the draft was typed by someone other than MoltenTerm.
+	foreign bool
+	// known: the watch saw this prompt emptied.
+	known bool
 }
+
+// maxOwnPending bounds the chunks MoltenTerm said it would type into one terminal and that did not come through yet.
+const maxOwnPending = 16
 
 type inputWatch struct {
 	lock    sync.Mutex
 	panes   map[string]*paneInput
 	runOf   func(blockId string) (molten.AgentRunInfo, bool)
 	precise func(blockId string) bool
+	// since: when the watch started, in Unix milliseconds: a run started later was followed from its start.
+	since int64
+	// own: per terminal, the chunks MoltenTerm is about to type, in order.
+	own map[string][][]byte
+	// ownWatch: the terminals whose owner is told when a human's text comes into, or leaves, their prompt.
+	ownWatch map[string]func(foreign bool)
 }
 
 func makeInputWatch(runOf func(string) (molten.AgentRunInfo, bool), precise func(string) bool) *inputWatch {
-	return &inputWatch{panes: map[string]*paneInput{}, runOf: runOf, precise: precise}
+	return &inputWatch{
+		panes:    map[string]*paneInput{},
+		runOf:    runOf,
+		precise:  precise,
+		since:    time.Now().UnixMilli(),
+		own:      map[string][][]byte{},
+		ownWatch: map[string]func(bool){},
+	}
+}
+
+// expectOwn says MoltenTerm types data into the terminal next; the returned func takes it back when it was not sent.
+func (w *inputWatch) expectOwn(blockId string, data []byte) func() {
+	chunk := append([]byte(nil), data...)
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	list := append(w.own[blockId], chunk)
+	if len(list) > maxOwnPending {
+		list = list[len(list)-maxOwnPending:]
+	}
+	w.own[blockId] = list
+	return func() { w.dropOwn(blockId, chunk) }
+}
+
+func (w *inputWatch) dropOwn(blockId string, chunk []byte) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	list := w.own[blockId]
+	for i, c := range list {
+		if bytes.Equal(c, chunk) {
+			w.own[blockId] = append(list[:i:i], list[i+1:]...)
+			break
+		}
+	}
+	if len(w.own[blockId]) == 0 {
+		delete(w.own, blockId)
+	}
+}
+
+// takeOwnLocked tells whether data is the next chunk MoltenTerm said it would type, and consumes it.
+func (w *inputWatch) takeOwnLocked(blockId string, data []byte) bool {
+	list := w.own[blockId]
+	for i, c := range list {
+		if !bytes.Equal(c, data) {
+			continue
+		}
+		w.own[blockId] = append(list[:i:i], list[i+1:]...)
+		if len(w.own[blockId]) == 0 {
+			delete(w.own, blockId)
+		}
+		return true
+	}
+	return false
+}
+
+// watchOwn tells onForeign each time a human's text comes into the terminal's prompt (true) or leaves it (false).
+func (w *inputWatch) watchOwn(blockId string, onForeign func(foreign bool)) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if onForeign == nil {
+		delete(w.ownWatch, blockId)
+		return
+	}
+	w.ownWatch[blockId] = onForeign
+}
+
+// writesText: the input puts or removes text in the line (printable characters, Backspace, Ctrl+W, Ctrl+K...), not
+// only moves or answers the terminal (escape sequences).
+func writesText(data []byte) bool {
+	for i := 0; i < len(data); i++ {
+		c := data[i]
+		if c == 0x1b {
+			if i+1 < len(data) && (data[i+1] == '[' || data[i+1] == 'O') {
+				j := i + 2
+				for j < len(data) && (data[j] < 0x40 || data[j] > 0x7e) {
+					j++
+				}
+				i = j
+			} else {
+				i++
+			}
+			continue
+		}
+		if c == '\r' || c == '\n' || c == 0x15 || c == 0x03 {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func (w *inputWatch) paneLocked(blockId string, run int64) *paneInput {
@@ -177,17 +283,41 @@ func (w *inputWatch) input(blockId string, data []byte) {
 		w.forget(blockId)
 		return
 	}
+	tell, foreign := w.inputLocked(blockId, run, data)
+	if tell != nil {
+		tell(foreign)
+	}
+}
+
+// inputLocked applies the input; it returns the owner to tell when a human's text came into or left the prompt.
+func (w *inputWatch) inputLocked(blockId string, run molten.AgentRunInfo, data []byte) (func(bool), bool) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
+	own := w.takeOwnLocked(blockId, data)
 	p := w.paneLocked(blockId, run.Started)
 	draft, inPaste := ScanDraft(data, p.draft, p.inPaste)
 	p.inPaste = inPaste
 	// Keys typed while the agent waits answer its own question ("1", "y" pick a choice without Enter): they leave the
 	// prompt as it was, so a handoff to an empty prompt is still sent with Enter (#790).
 	if run.State == molten.AgentStateWaiting {
-		return
+		return nil, false
 	}
 	p.draft = draft
+	was := p.foreign
+	switch {
+	case !draft:
+		p.foreign = false
+		// Only a key that empties the line proves the prompt empty: a Backspace on a prompt not followed proves nothing.
+		if bytes.ContainsAny(data, "\r\n\x15\x03") {
+			p.known = true
+		}
+	case !own && writesText(data):
+		p.foreign = true
+	}
+	if p.foreign == was {
+		return nil, false
+	}
+	return w.ownWatch[blockId], p.foreign
 }
 
 func (w *inputWatch) output(blockId string, data []byte) {
@@ -217,5 +347,13 @@ func (w *inputWatch) state(blockId string) AgentInputState {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	p := w.paneLocked(blockId, run.Started)
-	return AgentInputState{Mode: p.mode, Modes: append([]string(nil), p.modes...), Draft: p.draft || !precise}
+	return AgentInputState{
+		Mode:    p.mode,
+		Modes:   append([]string(nil), p.modes...),
+		Draft:   p.draft || !precise,
+		Foreign: p.draft && p.foreign,
+		Own:     p.draft && !p.foreign,
+		Known:   p.known || run.Started >= w.since,
+		Precise: precise,
+	}
 }
