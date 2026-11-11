@@ -128,6 +128,9 @@ export type PaletteSourceInput = {
     shortcutsHint?: string;
     // The foreman's name while his bubble shows (FR-BOSS-002): the palette offers his card. Absent, no card to show.
     bossName?: string;
+    // What the build's channel allows of a brainstorm with him (FR-BOSS-010, #2246): starting one, and its scripted
+    // replay (dev and local builds). Absent, neither.
+    brainstorm?: { start: boolean; replay: boolean };
     // The pin moves of the view on screen, as its menu offers them, and the move the keep shortcut makes (#1652).
     viewPin?: { moves: PinMove[]; keepMove: PinMove; keepHint: string };
 };
@@ -450,6 +453,38 @@ export function bossCardEntries(name: string): PaletteEntry[] {
     ];
 }
 
+// "Brainstorm with {name}" (FR-BOSS-010 AC2, #2246) on the channels that have it, and on dev and local builds the
+// scripted replay that every instance check plays (synthetic data, no agent).
+export function brainstormEntries(name: string, gates: { start: boolean; replay: boolean }): PaletteEntry[] {
+    const rtn: PaletteEntry[] = [];
+    if (!name || gates == null) {
+        return rtn;
+    }
+    if (gates.start) {
+        rtn.push({
+            id: "action:brainstorm",
+            group: "actions",
+            label: t("palette.actions.brainstorm", { name }),
+            detail: t("palette.actions.brainstormDetail"),
+            icon: "diagram-project",
+            keywords: paletteKeywords("brainstorm", name),
+            run: { kind: "brainstorm" },
+        });
+    }
+    if (gates.replay) {
+        rtn.push({
+            id: "action:brainstormreplay",
+            group: "actions",
+            label: t("palette.actions.brainstormReplay"),
+            detail: t("palette.actions.brainstormReplayDetail"),
+            icon: "film",
+            keywords: paletteKeywords("brainstormReplay", "replay", "brainstorm"),
+            run: { kind: "brainstormreplay" },
+        });
+    }
+    return rtn;
+}
+
 // The shortcuts sheet (FR-SHELL-042-AC8): the palette names it, with its keys.
 export function shortcutsEntry(hint?: string): PaletteEntry {
     return {
@@ -660,6 +695,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         ...folderEntries(folders, input.home),
         ...actions,
         ...bossCardEntries(input.bossName),
+        ...brainstormEntries(input.bossName, input.brainstorm),
         ...(input.picker == null ? viewPinEntries(input.viewPin) : []),
         ...browserEntries(input.installedBrowser, input.hasBrowserPanel),
         ...termUpdateEntries(input.outdatedTerminals),

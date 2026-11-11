@@ -10,6 +10,7 @@
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
 import { DefaultBossName } from "../boss/boss-name";
+import { currentChannel } from "../build/current-build";
 import { t, TFunction } from "../i18n/i18n";
 import { hasKey } from "../i18n/i18n-core";
 import { ProjectMetaKey, WorkspaceFolderMetaKey } from "../workspace-project";
@@ -170,6 +171,8 @@ type SchemaMeta = {
     unit?: string;
     default?: unknown;
     platform?: string;
+    // The build channels the row shows on, comma separated (pkg/molten/settingsmeta Setting.Channels, #2246).
+    channels?: string;
     hidden?: boolean;
     inverted?: boolean;
     order?: number;
@@ -209,10 +212,12 @@ const SectionIds = new Set<string>(SettingsSections.map((s) => s.id));
 // Unknown keys come after every described one, in the schema's order (the struct's).
 const UnknownOrderBase = 10000;
 
+// `channel` is the build's (FR-REL-001): a row gated to some channels shows only there, and nowhere when it is unknown.
 export function buildCatalog(
     schema: SettingsSchema,
     defaults: Record<string, unknown>,
-    platform: string
+    platform: string,
+    channel: string = null
 ): SettingEntry[] {
     const props = schema?.$defs?.SettingsType?.properties ?? {};
     const entries: SettingEntry[] = [];
@@ -222,6 +227,9 @@ export function buildCatalog(
             return;
         }
         if (meta?.platform && !meta.platform.split(",").includes(platform)) {
+            return;
+        }
+        if (meta?.channels && (channel == null || !meta.channels.split(",").includes(channel))) {
             return;
         }
         if (meta == null || !SectionIds.has(meta.section)) {
@@ -293,7 +301,12 @@ export function settingsCatalog(platform: string): SettingEntry[] {
     if (cached == null) {
         cached = [
             ...WorkspaceSettings,
-            ...buildCatalog(settingsSchema as SettingsSchema, builtinDefaults as Record<string, unknown>, platform),
+            ...buildCatalog(
+                settingsSchema as SettingsSchema,
+                builtinDefaults as Record<string, unknown>,
+                platform,
+                currentChannel()
+            ),
         ];
     }
     return cached;

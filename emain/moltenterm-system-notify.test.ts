@@ -114,4 +114,16 @@ describe("SystemNotifier", () => {
         notifier.close("n1");
         notifier.close("unknown");
     });
+
+    // FR-BOSS-010 AC3 (#2246): the brainstorm mode holds them; the id is not spent, so nothing is lost.
+    it("holds every notification while the brainstorm mode is on, and only a true hold holds", () => {
+        const { notifier, made } = setup();
+        notifier.setHeld(true);
+        expect(notifier.notify(Question, 7)).toBe("held");
+        expect(made).toHaveLength(0);
+        notifier.setHeld("yes");
+        expect(notifier.held).toBe(false);
+        expect(notifier.notify(Question, 7)).toBe("shown");
+        expect(made).toHaveLength(1);
+    });
 });

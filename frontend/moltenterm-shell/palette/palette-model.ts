@@ -37,6 +37,9 @@ export type PaletteRun =
     | { kind: "sessions" }
     // The foreman's Sessions card over the app (FR-BOSS-002), anchored to his bubble.
     | { kind: "bosscard" }
+    // A brainstorm with him (FR-BOSS-010, #2246), and its scripted replay on dev and local builds.
+    | { kind: "brainstorm" }
+    | { kind: "brainstormreplay" }
     // Back to the pane the palette was opened from, to type an agent's own command there.
     | { kind: "focusorigin" }
     // The browser panel's active page, handed off to the installed browser (FR-BRW-002).

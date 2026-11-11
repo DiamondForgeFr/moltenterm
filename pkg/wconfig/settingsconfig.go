@@ -267,6 +267,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#2203): how near Brokk stands (FR-BOSS-009, AC75, frontend/moltenterm-shell/boss/brokk-colleague.ts).
 	BossProximity string `json:"boss:proximity,omitempty" jsonschema:"enum=discreet,enum=colleague" jsonschema_description:"How near Brokk stands. discreet: only the events that matter, no moments and no model call; colleague: he says hello, suggests breaks and lets you know in the evening, and his model may phrase them. Colleague when unset"`
 
+	// MOLTENTERM-PATCH (#2246): where the brainstorms with Brokk are saved (FR-BOSS-010, DS-BOSS-010, pkg/molten/brainstorm).
+	BossBrainstormsDir string `json:"boss:brainstormsdir,omitempty" jsonschema_description:"The folder where the brainstorms with Brokk are saved, one folder per idea. ~/MoltenTerm/Brainstorms when unset. Gold, dev and local builds only"`
+
 	// MOLTENTERM-PATCH (#1407): the molten reveal of a settings block opened in the library (FR-SHELL-088, frontend/moltenterm-shell/library/settings-reveal.ts).
 	MoltentermSettingsReveal *bool `json:"moltenterm:settingsreveal,omitempty" jsonschema_description:"A settings block opened in the library is revealed by molten flows that cool and break open, under 700 ms; false, or reduced motion, fades it in instead"`
 

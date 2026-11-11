@@ -451,6 +451,10 @@
             "sessionsDetail": "terminaux et agents encore en cours, locaux et SSH",
             "bossCard": "Afficher la fiche de {name}",
             "bossCardDetail": "les sessions de tous les espaces de travail, par-dessus l'app",
+            "brainstorm": "Brainstorm avec {name}",
+            "brainstormDetail": "parler d'une idée, sa pensée se construit en 3D",
+            "brainstormReplay": "Rejouer un brainstorm scripté",
+            "brainstormReplayDetail": "versions de développement : données synthétiques, sans agent",
             "checkUpdates": "Rechercher une mise à jour maintenant",
             "checkUpdatesDetail": "interroge GitHub maintenant, même si elle a été faite aujourd'hui",
             "settings": "Réglages",
@@ -484,6 +488,8 @@
             "checkUpdates": "mise à jour, mettre à jour, rechercher, version, nouvelle version, publication",
             "sessions": "sessions, durables, en cours, agents, ssh, détachées, tâches, processus",
             "bossCard": "chef, contremaître, avatar, bulle, fanion, fiche, carte, vue d'ensemble, sessions, agents, en attente",
+            "brainstorm": "brainstorm, idée, projet, réfléchir, carte mentale, 3D",
+            "brainstormReplay": "brainstorm, rejouer, démo, script, synthétique",
             "settings": "configuration, préférences, paramètres, options",
             "shortcuts": "touches, raccourcis, aide, aide-mémoire",
             "viewPin": "épingler, désépingler, garder, temporaire, vue, onglet",
@@ -769,9 +775,14 @@
             "sidebar": "Barre latérale",
             "theme": "Thème",
             "avatar": "Avatar",
-            "whenHeComesToFetchMe": "Quand il vient me chercher"
+            "whenHeComesToFetchMe": "Quand il vient me chercher",
+            "brainstorms": "Brainstorms"
         },
         "items": {
+            "boss:brainstormsdir": {
+                "label": "Dossier des brainstorms",
+                "description": "Où vos brainstorms avec lui sont enregistrés, un dossier par idée, sans rien demander."
+            },
             "boss:name": {
                 "label": "Nom",
                 "description": "Le nom du contremaître, de 1 à 24 caractères. Son info-bulle, sa fiche et ses menus le reprennent."
@@ -3099,6 +3110,47 @@
         }
     },
     "boss": {
+        "brainstorm": {
+            "menu": "Brainstorm avec {name}",
+            "opening": "Une idée ? On la met sur l'enclume. Dites-moi ce que c'est, et pour qui.",
+            "lead": "Brainstorm :",
+            "header": "La pensée de {name} · {nodes} · {links}",
+            "headerWaiting": "{name} écoute",
+            "nodes": {
+                "one": "{count} élément",
+                "other": "{count} éléments"
+            },
+            "links": {
+                "one": "{count} lien",
+                "other": "{count} liens"
+            },
+            "graphLabel": "Les idées du brainstorm",
+            "kinds": {
+                "topic": "Sujet",
+                "question": "Question",
+                "answer": "Réponse",
+                "idea": "Idée",
+                "theme": "Thème",
+                "decision": "Décision",
+                "proposal": "Proposition",
+                "conclusion": "Conclusion"
+            },
+            "saved": {
+                "title": "Brainstorms",
+                "at": "Enregistré automatiquement · {time}",
+                "nothing": "Enregistré dès que l'idée est posée",
+                "failed": "Non enregistré : le dossier n'a pas pu être écrit"
+            },
+            "leaveHint": "Échap quitte le brainstorm",
+            "summary": {
+                "one": "1 notification est arrivée pendant le brainstorm",
+                "other": "{count} notifications sont arrivées pendant le brainstorm"
+            },
+            "summaryShow": "Voir",
+            "edgeShow": "Voir",
+            "crashed": "Un agent s'est arrêté sur une erreur",
+            "crashedNamed": "{name} s'est arrêté sur une erreur"
+        },
         "label": "{name}, {count} en attente",
         "avatar": {
             "labelCueAlone": "{name} a quelque chose à vous dire",

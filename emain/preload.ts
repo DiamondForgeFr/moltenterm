@@ -258,6 +258,8 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#605): a system notification while no window is in front (emain/moltenterm-system-notify.ts)
     moltentermSystemNotify: (req: any) => ipcRenderer.invoke("moltenterm-system-notify", req),
     moltentermSystemNotifyClose: (id: string) => ipcRenderer.send("moltenterm-system-notify-close", id),
+    // MOLTENTERM-PATCH (#2246): the brainstorm mode holds the system notifications while it is on (FR-BOSS-010 AC3)
+    moltentermSystemNotifyHold: (held: boolean) => ipcRenderer.send("moltenterm-system-notify-hold", held === true),
     onMoltentermSystemNotifyClick: (callback: (id: string) => void) => {
         const listener = (_event, id) => callback(id);
         ipcRenderer.on("moltenterm-system-notify-click", listener);

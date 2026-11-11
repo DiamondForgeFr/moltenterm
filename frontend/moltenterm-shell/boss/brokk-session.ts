@@ -54,10 +54,18 @@ const LiveCall: Call = (command, data, timeout) =>
 
 const LiveWait: Wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// His answer as it is read, for what follows his conversation (the brainstorm of FR-BOSS-010, #2246): the message it
+// answers, what he has written so far, its turn in his transcript, and whether his agent is done with it.
+export type AnswerRead = { id: string; you: string; markdown: string; turn: number; final: boolean };
+
+export type AnswerListener = (answer: AnswerRead) => void;
+
 // A message whose answer is followed.
 type Tracked = {
     // The message's id in the exchange, which its answer carries too.
     id: string;
+    // What the developer sent.
+    text: string;
     sentAt: number;
     // The turn of his transcript the answer was read from; 0 until the first reading.
     turn: number;
@@ -90,6 +98,10 @@ export class BrokkSession {
     private stateOwner: string = null;
     private windowOpen = false;
     private speakGen = 0;
+    private answerListeners = new Set<AnswerListener>();
+    private replayed = new Map<string, Tracked>();
+    // Words put before the developer's next message, shown in the exchange as sent (the brainstorm's start, #2246).
+    private lead = "";
 
     static getInstance(): BrokkSession {
         if (BrokkSession.instance == null) {
@@ -109,6 +121,56 @@ export class BrokkSession {
 
     useWait(wait: Wait): void {
         this.wait = wait;
+    }
+
+    // Each reading of his answer, while it comes in and once it is complete. Returns the stop.
+    listenAnswers(listener: AnswerListener): () => void {
+        this.answerListeners.add(listener);
+        return () => this.answerListeners.delete(listener);
+    }
+
+    private told(tracked: Tracked, final: boolean): void {
+        const answer: AnswerRead = {
+            id: tracked.id,
+            you: tracked.text,
+            markdown: tracked.markdown,
+            turn: tracked.turn,
+            final,
+        };
+        this.answerListeners.forEach((listener) => {
+            try {
+                listener(answer);
+            } catch (e) {
+                console.log("brokk session: a listener of his answers failed", e);
+            }
+        });
+    }
+
+    // A line of his that MoltenTerm says for him, with no message behind it (the brainstorm's opening, #2246): it shows
+    // in the exchange as his, complete, and offers nothing.
+    addLocalLine(text: string): void {
+        const id = `local${++this.counter}`;
+        globalStore.set(this.exchangeAtom, (items) =>
+            withAnswer(items, id, { markdown: text, turn: 0, at: Date.now(), final: true })
+        );
+    }
+
+    // Words the developer's next message starts with; "" for none. The message shows with them, as it is sent.
+    setLead(lead: string): void {
+        this.lead = lead ?? "";
+    }
+
+    // The scripted replay of a brainstorm (dev and local builds, #2246): a message and what he answers to it so far, as
+    // if his agent had written it, read the way a real answer is. Nothing reaches his session. `key` names the exchange.
+    replayStep(key: string, you: string, markdown: string, turn: number, final: boolean): void {
+        let tracked = this.replayed.get(key);
+        if (tracked == null) {
+            tracked = { id: `replay${++this.counter}`, text: you, sentAt: Date.now(), turn, markdown: "", stopped: true };
+            this.replayed.set(key, tracked);
+            const id = tracked.id;
+            globalStore.set(this.exchangeAtom, (items) => withMessage(items, id, you, Date.now()));
+        }
+        this.keepAnswer(tracked, { status: "answer", markdown, index: turn, at: Date.now() }, final);
     }
 
     private keep(result: { blockid?: string }): void {
@@ -146,8 +208,10 @@ export class BrokkSession {
 
     // Gives the message to his session, starting it when it does not exist, then follows his answer. Resolves with
     // what came of the message.
-    async say(text: string): Promise<TalkState> {
+    async say(typed: string): Promise<TalkState> {
         const model = BossBubbleModel.getInstance();
+        const lead = this.lead;
+        const text = lead !== "" ? `${lead} ${typed}` : typed;
         const gen = ++this.sendGen;
         this.stateOwner = null;
         globalStore.set(this.stateAtom, SendingTalk);
@@ -184,6 +248,9 @@ export class BrokkSession {
             globalStore.set(this.stateAtom, state);
             return state;
         }
+        if (this.lead === lead) {
+            this.lead = "";
+        }
         await this.takeOver(text, sentAt, state, gen);
         return state;
     }
@@ -199,7 +266,7 @@ export class BrokkSession {
         if (gen !== this.sendGen) {
             return;
         }
-        const tracked: Tracked = { id: `m${++this.counter}`, sentAt, turn: 0, markdown: "", stopped: false };
+        const tracked: Tracked = { id: `m${++this.counter}`, text, sentAt, turn: 0, markdown: "", stopped: false };
         globalStore.set(this.exchangeAtom, (items) => withMessage(items, tracked.id, text, Date.now()));
         this.tracked = tracked;
         this.stateOwner = tracked.id;
@@ -230,6 +297,9 @@ export class BrokkSession {
         globalStore.set(this.exchangeAtom, (items) =>
             withAnswer(items, tracked.id, { markdown, turn: tracked.turn, at: reply.at ?? Date.now(), final })
         );
+        if (changed || final) {
+            this.told(tracked, final);
+        }
         if (!changed) {
             return;
         }
@@ -252,6 +322,7 @@ export class BrokkSession {
                 final: true,
             })
         );
+        this.told(tracked, true);
     }
 
     // He speaks while his answer comes in and for a short while after it last changed.

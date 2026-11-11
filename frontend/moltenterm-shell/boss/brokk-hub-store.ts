@@ -12,6 +12,7 @@ import { getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { modalsModel } from "@/app/store/modalmodel";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { makeSeenViewAtom } from "../agent-seen";
+import { brainstormHolds } from "../brainstorm/brainstorm-hold";
 import { AgentStates } from "../agent-state-store";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { modalIsOpen } from "../modal-open";
@@ -135,7 +136,9 @@ export class BrokkHubModel {
             now: () => Date.now(),
             setTimer: (run, ms) => setTimeout(run, ms),
             clearTimer: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
+            // The brainstorm mode holds his visits too (FR-BOSS-010 AC3): they come once it ends.
             overlayOpen: () =>
+                brainstormHolds() ||
                 ContextMenuModel.getInstance().session != null ||
                 modalIsOpen() ||
                 modalsModel.hasOpenModals() ||
