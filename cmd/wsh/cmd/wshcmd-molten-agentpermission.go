@@ -89,18 +89,22 @@ func readPermissionRequest(r io.Reader, blockId string, agent string) (keepawake
 	return keepawake.PermissionRequest{
 		BlockId: blockId, Agent: agent, SessionId: input.SessionId, Cwd: input.Cwd, PermissionMode: input.PermissionMode,
 		ToolName: input.ToolName, ToolInput: input.ToolInput, Suggestions: input.PermissionSuggestions,
-		HoldMs: permissionHoldMs(agent),
+		HoldMs: permissionHoldMs(agent, os.Getenv(molten.OwnSessionEnvVar) == "1"),
 	}, true
 }
 
-// permissionHoldMs is how long wavesrv may keep the request for the developer's answer (Brokk's own session asks in
-// his layer, #2257): the agent's hook budget less a margin, so the hook always prints before the agent kills it.
-func permissionHoldMs(agent string) int64 {
+// permissionHoldMs is how long wavesrv may keep the request for the developer's answer: 0 (an answer at once) in any
+// terminal but Brokk's own session, which asks in his layer (#2257); there, the hook's budget less a margin, so the
+// hook always prints before the agent kills it.
+func permissionHoldMs(agent string, ownSession bool) int64 {
+	if !ownSession {
+		return 0
+	}
 	budget := int64(molten.CodexPermissionHookTimeout)
 	if agent == molten.AgentIdClaude {
-		budget = int64(molten.ClaudePermissionHookTimeout)
+		budget = int64(molten.ClaudeOwnSessionPermissionHookTimeout)
 	}
-	return max(budget*1000-moltenAgentPermissionMarginMs, moltenAgentPermissionTimeoutMs)
+	return max(budget*1000-moltenAgentPermissionMarginMs, 0)
 }
 
 // reportPermissionWaiting tells the pane its agent now waits on its own prompt (#988): Codex has no Notification
@@ -145,7 +149,11 @@ func sendPermissionRequest(req keepawake.PermissionRequest) (keepawake.Permissio
 	if err := setupHookRpcClient(jwtToken); err != nil {
 		return answer, err
 	}
-	opts := &wshrpc.RpcOpts{Route: keepawake.Route, Timeout: max(req.HoldMs+moltenAgentPermissionReplyMs, moltenAgentPermissionTimeoutMs)}
+	timeout := int64(moltenAgentPermissionTimeoutMs)
+	if req.HoldMs > 0 {
+		timeout = max(req.HoldMs+moltenAgentPermissionReplyMs, timeout)
+	}
+	opts := &wshrpc.RpcOpts{Route: keepawake.Route, Timeout: timeout}
 	out, err := RpcClient.SendRpcRequest(keepawake.PermissionCommand, req, opts)
 	if err != nil {
 		return answer, err

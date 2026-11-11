@@ -44,9 +44,14 @@ const (
 	agentPermissionHookCommand  = "molten agent permission"
 	ClaudePermissionHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent permission --agent claude || true`
 	ClaudePermissionHookEvent   = "PermissionRequest"
-	// Seconds: the command waits 5 s at most for wavesrv, Claude Code showing its prompt meanwhile, except in Brokk's
-	// own session, whose requests wait for the developer's answer in his layer (#2257): up to this budget.
-	ClaudePermissionHookTimeout = 600
+	// Seconds: the command waits 5 s at most for wavesrv; Claude Code shows its prompt meanwhile.
+	ClaudePermissionHookTimeout = 15
+	// Brokk's own session (#2257, OwnSessionEnvVar in its terminal): its requests wait for the developer's answer in
+	// his layer, up to this budget. No other terminal gets it, so no other agent's hook can wait that long.
+	ClaudeOwnSessionPermissionHookTimeout = 600
+	// OwnSessionEnvVar marks the terminal of MoltenTerm's own agent session (cmd:env of Brokk's block). It only
+	// lengthens that terminal's own hook: wavesrv still checks the caller's block before keeping any request.
+	OwnSessionEnvVar = "MOLTENTERM_OWN_SESSION"
 	// Codex's PermissionRequest hook (FR-SHELL-064, DS-SHELL-113), the same answer. Codex trusts a hook against the
 	// hash of its definition, so this text and its timeout must not change from one run or version to the next: a
 	// change asks the developer to trust it again in /hooks.

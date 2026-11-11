@@ -11,6 +11,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
 // #2257: a session started before the brief changed (the brainstorm section, #2246) read the old one at its start, and
@@ -56,6 +59,10 @@ func TestAFreshSessionRecordsTheBriefItStartsWith(t *testing.T) {
 	}
 	if f.openedMet[0][BriefMetaKey] != "v2" || f.typed[0] != "block-1:hello" || len(f.marked) != 0 {
 		t.Fatalf("meta %v, typed %q, marked %v", f.openedMet[0], f.typed, f.marked)
+	}
+	// Review: his terminal, and only his, tells the launcher his permission hook may wait for the developer.
+	if env := f.openedMet[0].GetStringMap(waveobj.MetaKey_CmdEnv, false); env[molten.OwnSessionEnvVar] != "1" {
+		t.Fatalf("his terminal's environment %v", env)
 	}
 }
 

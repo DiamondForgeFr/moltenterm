@@ -415,6 +415,9 @@ func (s *Service) start(ctx context.Context, req Request, briefVersion string) (
 	if briefVersion != "" {
 		meta[BriefMetaKey] = briefVersion
 	}
+	// His agent's permission requests wait for the developer in his layer (#2257): the launcher gives this terminal's
+	// hook, and only this one, the time a human answer takes.
+	meta[waveobj.MetaKey_CmdEnv] = map[string]any{molten.OwnSessionEnvVar: "1"}
 	blockId, err := s.env.OpenTerminal(ctx, tabId, meta, s.env.CommandLine(agent))
 	if blockId == "" {
 		if s.env.CloseTab != nil {
