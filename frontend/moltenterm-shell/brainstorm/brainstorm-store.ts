@@ -11,7 +11,8 @@
 // - slides the sidebar in, and brings it back on exit unless the developer showed it meanwhile;
 // - ends it when his card closes (Escape, a click on the dim, his square).
 //
-// It is part of the window's up-front JavaScript, and small: the 3D scene is the stage's, behind an import().
+// It loads on demand (brainstorm-boot.ts), the first time the mode is needed in a view; the 3D scene loads later still,
+// behind the stage's own import().
 
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -31,7 +32,17 @@ import { MoltentermNotifications } from "../notifications-store";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { TabActivity } from "../tab-activity";
 import { showToast } from "../toast-store";
-import type { BrainstormGraph } from "./brainstorm-graph-model";
+import {
+    BrainstormEvent,
+    BrainstormRouteId,
+    BrainstormState,
+    BrainstormStateAtom,
+    CallTimeoutMs,
+    CloseCommand,
+    OpenCommand,
+    StateCommand,
+    TurnCommand,
+} from "./brainstorm-boot";
 import { setBrainstormHold } from "./brainstorm-hold";
 import {
     answerStep,
@@ -44,40 +55,13 @@ import {
     Tally,
 } from "./brainstorm-model";
 
-// must match pkg/molten/brainstorm/route.go
-export const BrainstormRouteId = "molten:brainstorm";
-export const StateCommand = "moltenbrainstormstate";
-export const OpenCommand = "moltenbrainstormopen";
-export const CloseCommand = "moltenbrainstormclose";
-export const TurnCommand = "moltenbrainstormturn";
-export const BrainstormEvent = "molten:brainstorm";
+export { CloseCommand, OpenCommand, StateCommand, TurnCommand } from "./brainstorm-boot";
+export type { BrainstormState, BrainstormSummary } from "./brainstorm-boot";
 
 // Set on the window's meta while the mode keeps the sidebar slid in: the views of the window bring it back on exit.
 export const SidebarSlidMetaKey = "molten:brainstormsidebar";
 
-const CallTimeoutMs = 8000;
 const SummaryToastId = "brainstorm-summary";
-
-// must match pkg/molten/brainstorm/service.go
-export type BrainstormSummary = {
-    slug: string;
-    title: string;
-    dir: string;
-    created: number;
-    updated: number;
-    turns: number;
-};
-
-export type BrainstormState = {
-    allowed: boolean;
-    open: boolean;
-    by?: "you" | "brokk";
-    version: number;
-    brainstorm?: BrainstormSummary;
-    graph?: BrainstormGraph;
-    savedat?: number;
-    saveerror?: string;
-};
 
 // What broke through the pause: one line at the layer's edge, the latest.
 export type Breakthrough = { key: string; kind: "trust" | "crash"; text: string; at: number };
@@ -98,7 +82,8 @@ function notifyApi(): SystemNotifyApi {
 export class BrainstormModel {
     private static instance: BrainstormModel = null;
 
-    stateAtom = atom(null) as PrimitiveAtom<BrainstormState>;
+    // The atom the layer reads up front (brainstorm-boot.ts): this model writes it.
+    stateAtom = BrainstormStateAtom;
     openAtom: Atom<boolean>;
     // When he last spoke or the graph last grew in this view: the camera follows the topic until a pause.
     talkAtAtom = atom(0) as PrimitiveAtom<number>;
@@ -129,6 +114,7 @@ export class BrainstormModel {
     static resetInstance(): void {
         BrainstormModel.instance?.stop();
         BrainstormModel.instance = null;
+        globalStore.set(BrainstormStateAtom, null);
     }
 
     useCall(call: Call): void {

@@ -7,7 +7,7 @@
 // the old panel is lost.
 
 import { fireAndForget } from "@/util/util";
-import { BrainstormModel } from "../brainstorm/brainstorm-store";
+import { openBrainstorm } from "../brainstorm/brainstorm-boot";
 import { currentBrainstormAllowed } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import { t } from "../i18n/i18n";
@@ -31,7 +31,7 @@ export function brokkMenuItems(name: string, leave?: () => void, first?: BrokkMe
         items.push(
             {
                 label: t("boss.brainstorm.menu", { name }),
-                click: () => fireAndForget(() => BrainstormModel.getInstance().begin()),
+                click: () => fireAndForget(() => openBrainstorm()),
             },
             { type: "separator" }
         );

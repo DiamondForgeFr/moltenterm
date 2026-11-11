@@ -39,6 +39,8 @@ var englishFields = map[string]string{
 	"fileconfine.CheckResult.Error":         "the OS's error resolving a path, logged and never shown: an unresolvable path counts as outside (#1624)",
 	"pipelinesetup.SurveyReleases.Error":    "gh's raw error, the detail under mc.setup.detect.releasesUnread (#1100)",
 	"pipelinesetup.BoardItem.Why":           "the setup agent's own one-line reason, shown on its card as it wrote it (#1163)",
+	"brainstorm.Op.Why":                     "Brokk's own words on why two ideas are linked, in the developer's language, read as data (#2246)",
+	"brainstorm.Link.Why":                   "Brokk's own words on why two ideas are linked, kept in graph.json as he wrote them (#2246)",
 	"pipelinesetup.BoardExplain.Note":       "the setup agent's own words beside the highlighted step (#1163)",
 	"pipelinesetup.BoardRefusal.Detail":     "`molten pipeline setup` output, agent-facing (#1163)",
 	"mission.SetupAgentRequest.Why":         "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
