@@ -28,11 +28,16 @@ vi.mock("./boss-store", async () => {
     const { atom } = await import("jotai");
     const model = {
         workingCountAtom: atom(0),
-        badgeAtom: atom({ count: 0, text: "", tone: "waiting" }),
         toHandleAtom: atom({ items: [], info: [], parked: 0 }),
         peekAtom: atom({ waiting: [], waitingMore: 0, working: [], workingMore: 0, usage: [], latest: null }),
     };
     return { BossBubbleModel: { getInstance: () => model } };
+});
+// The face's badge (#2223): the one count the avatar shows and the pose reads.
+vi.mock("./brokk-hub-store", async () => {
+    const { atom } = await import("jotai");
+    const model = { faceBadgeAtom: atom({ count: 0, text: "", tone: "waiting" }) };
+    return { BrokkHubModel: { getInstance: () => model } };
 });
 vi.mock("./brokk-expressions", async () => {
     const { atom } = await import("jotai");
@@ -52,6 +57,7 @@ import { TabActivity } from "../tab-activity";
 import { BossBubbleModel } from "./boss-store";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
+import { BrokkHubModel } from "./brokk-hub-store";
 import type { BrokkScene } from "./brokk-scene";
 import { LongThoughtMs, TypingCalmMs } from "./brokk-scene";
 import {
@@ -66,6 +72,7 @@ import {
 } from "./use-brokk-live";
 
 const bubble = BossBubbleModel.getInstance() as any;
+const face = BrokkHubModel.getInstance() as any;
 const expressions = BrokkExpressionsModel.getInstance() as any;
 
 function row(key: string, extra: Partial<ToHandleItem> = {}): ToHandleItem {
@@ -110,7 +117,7 @@ beforeEach(() => {
     setReduced(false);
     Mocks.noteOpen.mockReset();
     globalStore.set(bubble.workingCountAtom, 0);
-    globalStore.set(bubble.badgeAtom, { count: 0, text: "", tone: "waiting" });
+    globalStore.set(face.faceBadgeAtom, { count: 0, text: "", tone: "waiting" });
     globalStore.set(bubble.toHandleAtom, { items: [], info: [], parked: 0 });
     globalStore.set(expressions.askedAtom, null);
     globalStore.set(expressions.lastKeyAtAtom, null);
@@ -285,7 +292,7 @@ describe("the scene the portrait reads (FR-BOSS-007, AC10, #1959)", () => {
     });
 
     it("carries the badge's count in the round, where the badge counts it", () => {
-        globalStore.set(bubble.badgeAtom, { count: 1, text: "1", tone: "waiting" });
+        globalStore.set(face.faceBadgeAtom, { count: 1, text: "1", tone: "waiting" });
         globalStore.set(bubble.toHandleAtom, { items: [row("agent:a")], info: [], parked: 0 });
         const s = scene();
         expect(s.round).toMatchObject({ count: 1, text: "1" });
@@ -335,7 +342,7 @@ describe("the group's square is driven by the same pose and mood models (FR-BOSS
     });
 
     it("lets what waits show in his pose, as in the panel: the situation counts the badge", () => {
-        globalStore.set(bubble.badgeAtom, { count: 2, text: "2", tone: "error" });
+        globalStore.set(face.faceBadgeAtom, { count: 2, text: "2", tone: "error" });
         globalStore.set(bubble.workingCountAtom, 1);
         expect(hook(() => useCardLive()).situation).toMatchObject({ waiting: 2, working: 1, cardOpen: true });
     });
@@ -352,7 +359,7 @@ describe("the group's square is driven by the same pose and mood models (FR-BOSS
     });
 
     it("speaks on opening when something waits: the face speaks, and no sentence of the notifications is read", () => {
-        globalStore.set(bubble.badgeAtom, { count: 1, text: "1", tone: "waiting" });
+        globalStore.set(face.faceBadgeAtom, { count: 1, text: "1", tone: "waiting" });
         globalStore.set(bubble.toHandleAtom, { items: [row("agent:a")], info: [], parked: 0 });
         const scene = hook(() => {
             const situation = useBrokkSituation(true, false);

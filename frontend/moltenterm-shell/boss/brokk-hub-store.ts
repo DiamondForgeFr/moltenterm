@@ -26,8 +26,15 @@ import { BossBubbleModel } from "./boss-store";
 import { UsageReadingsAtom } from "./boss-usage";
 import { FaceHoverIntent } from "./brokk-avatar-model";
 import { SidebarPlace, sidebarPlaceOf } from "./brokk-edge-model";
-import { closedDownloadIds, listedUpdateCard } from "./brokk-extra-feeds";
+import {
+    closedDownloadIds,
+    listedUpdateCard,
+    readUsageMemory,
+    usageMemoryText,
+    UsageSeenKey,
+} from "./brokk-extra-feeds";
 import { BrokkHub } from "./brokk-hub";
+import { AvatarBadge, avatarBadgeOf } from "./brokk-hub-feed";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
 import { openDoneBlocks } from "./brokk-notes-model";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
@@ -67,6 +74,8 @@ export class BrokkHubModel {
     // The agents whose Done card the Notifications panel still lists (#2210), the same set while it holds.
     openDoneAtom: Atom<ReadonlySet<string>>;
     hub: BrokkHub;
+    // The face's badge (#2223): the one count the avatar shows, his portrait's pose reads and the call follows.
+    faceBadgeAtom: Atom<AvatarBadge>;
     // The hover of the title-bar face, which opens his group (FR-BOSS-009, AC53 to AC55, #2103): the face and the group
     // both tell it where the pointer is.
     faceHover: FaceHoverIntent;
@@ -148,6 +157,16 @@ export class BrokkHubModel {
                 }
             },
         });
+        const hubCount = atom(this.hub.getView().badge) as PrimitiveAtom<number>;
+        this.hub.subscribe(() => {
+            const count = this.hub.getView().badge;
+            if (globalStore.get(hubCount) !== count) {
+                globalStore.set(hubCount, count);
+            }
+        });
+        this.faceBadgeAtom = atom((get) =>
+            avatarBadgeOf(get(BossBubbleModel.getInstance().toHandleAtom).items, get(hubCount), get(this.settingsAtom))
+        );
         const boss = BossBubbleModel.getInstance();
         this.faceHover = new FaceHoverIntent({
             isOpen: () => globalStore.get(boss.cardOpenAtom),
@@ -196,6 +215,16 @@ export class BrokkHubModel {
             closedDownloadsAtom: this.closedDownloadsAtom,
             updateOfferAtom: this.updateOfferAtom,
             usageAtom: UsageReadingsAtom,
+            usageMemory: {
+                read: () => readUsageMemory(storage()?.getItem(UsageSeenKey)),
+                write: (memory) => {
+                    try {
+                        storage()?.setItem(UsageSeenKey, usageMemoryText(memory));
+                    } catch {
+                        // A full or missing storage only means the next start may tell it again.
+                    }
+                },
+            },
             inViewAtom: makeSeenViewAtom(),
             openDoneAtom: this.openDoneAtom,
         });

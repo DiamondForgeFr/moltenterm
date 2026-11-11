@@ -15,6 +15,7 @@ import { I18nModel } from "../i18n/i18n";
 import { keepAwakeActive } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { MoltentermNotifications } from "../notifications-store";
+import type { ReviewsAnswer } from "../reviews/reviews-model";
 import { SharedReadiedAtom, SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
 import { DurableSessions } from "../sessions/sessions-store";
 import { FocusTarget, focusTargetOf, restoreFocus } from "./boss-card-model";
@@ -33,10 +34,12 @@ import {
 import { PendingHandoffs } from "./boss-handoffs";
 import { bossName, BossNameSettingKey, bossSettingOn, BossShowSettingKey } from "./boss-name";
 import { Badge, BossPeek, makePeek, workingCount, workspaceNamesOf } from "./boss-overview";
-import { buildToHandle, peekRowOf, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
+import { buildToHandle, keptReviewAnswers, peekRowOf, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
 import { startUsageReadings, UsageReadingsAtom } from "./boss-usage";
 import { PanelId, PanelRequest } from "./brokk-group-model";
+import { faceRowKeys } from "./brokk-hub-feed";
 import type { ArchivePlan } from "./brokk-notes-model";
+import { visitSettingsOf } from "./brokk-visit-events";
 import { arrivalsAfter, EmptyArrivals, unseenItems } from "./brokk-watch";
 
 // The slice of the document the model listens on, so the rules run against a stand-in in the tests.
@@ -102,11 +105,16 @@ export class BossBubbleModel {
     private constructor() {
         this.nameAtom = atom((get) => bossName(get(getSettingsKeyAtom(BossNameSettingKey as keyof SettingsType))));
         this.showAtom = atom((get) => bossSettingOn(get(getSettingsKeyAtom(BossShowSettingKey as keyof SettingsType))));
+        let answers: Record<string, ReviewsAnswer> = {};
+        const answersAtom = atom((get) => {
+            answers = keptReviewAnswers(answers, get(SharedReviewsAnswersAtom));
+            return answers;
+        });
         this.toHandleAtom = atom((get) =>
             buildToHandle({
                 states: get(AgentStates.getInstance().dataAtom),
                 notifications: get(MoltentermNotifications.getInstance().shownEntriesAtom),
-                answers: get(SharedReviewsAnswersAtom),
+                answers: get(answersAtom),
                 readied: get(SharedReadiedAtom),
                 sessions: get(DurableSessions.getInstance().dataAtom)?.sessions,
                 parked: get(this.parkedAtom),
@@ -295,6 +303,7 @@ export class BossBubbleModel {
         const agents = AgentStates.getInstance();
         const handoffs = PendingHandoffs.getInstance();
         let memory = EmptyArrivals;
+        const readSetting = (key: string) => globalStore.get(getSettingsKeyAtom(key as keyof SettingsType));
         const check = () => {
             const list = globalStore.get(this.toHandleAtom);
             const step = arrivalsAfter(memory, {
@@ -304,7 +313,9 @@ export class BossBubbleModel {
                 reviewDirs: Object.keys(globalStore.get(SharedReviewsAnswersAtom) ?? {}),
             });
             memory = step.memory;
-            const arrived = step.arrived.filter((key) => !this.givenBack.has(key));
+            // Only a row the face's badge counts calls (#2223): one set to Rien moves nothing.
+            const counted = new Set(faceRowKeys(list.items, visitSettingsOf(readSetting)));
+            const arrived = step.arrived.filter((key) => !this.givenBack.has(key) && counted.has(key));
             list.items.forEach((item) => this.givenBack.delete(item.key));
             if (arrived.length > 0) {
                 globalStore.set(this.cueAtom, (n) => n + 1);

@@ -21,7 +21,7 @@ import {
     PendingHandoff,
 } from "../agent-handoff";
 import { MoltentermNotification } from "../notifications-model";
-import { PendingHandoffs } from "./boss-handoffs";
+import { PendingHandoffs, ReadQuickTries, readRetryDelay, ReadRetryMs, ReadSlowRetryMs } from "./boss-handoffs";
 import { buildToHandle, toHandleBadge } from "./boss-to-handle-model";
 
 // A bounded wait for the state to settle; the deadline only bounds a failing run.
@@ -203,6 +203,62 @@ describe("the window's copy of the pending hand-off requests (FR-BOSS-005)", () 
         expect(globalStore.get(store.loadedAtom)).toBe(true);
         expect(globalStore.get(store.dataAtom).map((w) => w.requestid)).toEqual(["r1"]);
         stop();
+    });
+});
+
+describe("a read that keeps failing never silences Brokk (#2223)", () => {
+    it("counts the list as read after the quick tries, keeps trying, and takes the requests once a read succeeds", async () => {
+        vi.useFakeTimers();
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        startServer([request("r1")]);
+        const serve = m.call.getMockImplementation();
+        let failing = true;
+        m.call.mockImplementation(async (command: string, data: any, opts: { route: string }) => {
+            if (failing) {
+                throw new Error("wavesrv is not ready");
+            }
+            return serve(command, data, opts);
+        });
+        const stop = store.start();
+        await vi.advanceTimersByTimeAsync(ReadRetryMs * ReadQuickTries);
+        expect(globalStore.get(store.loadedAtom)).toBe(true);
+        expect(globalStore.get(store.dataAtom)).toEqual([]);
+        const tries = m.call.mock.calls.length;
+        await vi.advanceTimersByTimeAsync(ReadSlowRetryMs * 3);
+        expect(m.call.mock.calls.length).toBeGreaterThan(tries);
+        failing = false;
+        await vi.advanceTimersByTimeAsync(ReadSlowRetryMs);
+        expect(globalStore.get(store.dataAtom).map((w) => w.requestid)).toEqual(["r1"]);
+        stop();
+    });
+
+    it("keeps the last good list through a failed read", async () => {
+        vi.useFakeTimers();
+        startServer([request("r1")]);
+        const serve = m.call.getMockImplementation();
+        let failing = false;
+        m.call.mockImplementation(async (command: string, data: any, opts: { route: string }) => {
+            if (failing) {
+                throw new Error("lost the route");
+            }
+            return serve(command, data, opts);
+        });
+        const stop = store.start();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(globalStore.get(store.dataAtom).map((w) => w.requestid)).toEqual(["r1"]);
+        failing = true;
+        server.publish();
+        await vi.advanceTimersByTimeAsync(ReadRetryMs);
+        expect(globalStore.get(store.dataAtom).map((w) => w.requestid)).toEqual(["r1"]);
+        expect(globalStore.get(store.loadedAtom)).toBe(true);
+        stop();
+    });
+
+    it("waits a little between the first tries, then longer", () => {
+        expect(readRetryDelay(1)).toBe(ReadRetryMs);
+        expect(readRetryDelay(ReadQuickTries - 1)).toBe(ReadRetryMs);
+        expect(readRetryDelay(ReadQuickTries)).toBe(ReadSlowRetryMs);
+        expect(readRetryDelay(ReadQuickTries * 10)).toBe(ReadSlowRetryMs);
     });
 });
 
