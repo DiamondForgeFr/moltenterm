@@ -2,16 +2,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // What Brokk shows and when his animated portrait is asked for (FR-BOSS-007, AC3 to AC5 and AC10 to AC16). The scene
-// (brokk-scene.ts) is read once per surface, from the rows To handle, the agents, his mood and the clock, and every
-// surface draws what it gives. The portrait is asked for by each surface that shows his face: the card's header, which
-// plays while the card shows, and the avatar, which plays its calm loop at rest (use-brokk-hub.ts). Nothing plays under
+// (brokk-scene.ts) is read from the rows To handle, the agents, his mood and the clock, and the faces draw what they need
+// of it: today the rhythm of their blinks (useBlinkRhythm). The portrait is asked for by each surface that shows his face:
+// the card's header, which plays while the card shows, and the avatar, which plays at rest (use-brokk-hub.ts). Nothing plays under
 // reduced motion (the app's setting or the system's), in a window nobody sees or in a tab view that is not on screen
 // (faceVisibleIn): those surfaces show the still, and mount no video. What is returned for the portrait is what
 // BossPortrait hands to the lazy portrait (brokk-live.tsx), or null for the still alone.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { AgentStatesData } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { prefersReducedMotion } from "../molten-motion";
 import { TabActivity } from "../tab-activity";
@@ -20,7 +21,7 @@ import { BossBubbleModel } from "./boss-store";
 import { BrokkSituation, speaksOnOpen } from "./brokk-ask-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import type { BrokkLiveProps } from "./brokk-live";
-import { BrokkScene, brokkScene } from "./brokk-scene";
+import { BlinkRhythm, BrokkScene, brokkScene } from "./brokk-scene";
 import { moodFactsOf, unseenItems } from "./brokk-watch";
 import { useDeveloperAway } from "./developer-away";
 
@@ -97,22 +98,18 @@ export function useBrokkScene(options: BrokkSceneOptions): BrokkScene {
     const [, redraw] = useState(0);
     const now = Date.now();
 
-    const items = unseenItems(toHandle);
-    const workingSince = Object.values(agents?.states ?? {})
-        .filter((info) => info?.state === "working" && info.since > 0)
-        .reduce((oldest, info) => (oldest === 0 || info.since < oldest ? info.since : oldest), 0);
     const scene = brokkScene({
         situation,
         now,
         memory,
-        facts: moodFactsOf(items),
+        facts: moodFactsOf(unseenItems(toHandle)),
         badge,
         asked,
         speaking: speaks,
         motion,
         pinned,
         lastKeyAt,
-        workingSince,
+        workingSince: oldestWorkingSince(agents),
     });
 
     useEffect(() => {
@@ -123,14 +120,79 @@ export function useBrokkScene(options: BrokkSceneOptions): BrokkScene {
     return scene;
 }
 
+function oldestWorkingSince(agents: AgentStatesData): number {
+    return Object.values(agents?.states ?? {})
+        .filter((info) => info?.state === "working" && info.since > 0)
+        .reduce((oldest, info) => (oldest === 0 || info.since < oldest ? info.since : oldest), 0);
+}
+
+function sceneFromStores(situation: BrokkSituation, now: number): BrokkScene {
+    const model = BossBubbleModel.getInstance();
+    const expressions = BrokkExpressionsModel.getInstance();
+    return brokkScene({
+        situation,
+        now,
+        memory: globalStore.get(expressions.moodAtom),
+        facts: moodFactsOf(unseenItems(globalStore.get(model.toHandleAtom))),
+        badge: globalStore.get(model.badgeAtom),
+        asked: globalStore.get(expressions.askedAtom),
+        speaking: false,
+        motion: true,
+        pinned: false,
+        lastKeyAt: globalStore.get(expressions.lastKeyAtAtom),
+        workingSince: oldestWorkingSince(globalStore.get(AgentStates.getInstance().dataAtom)),
+    });
+}
+
+// How the scene wants his blinks spaced for this situation: calmer late at night, while the developer types and after a
+// long thought (FR-BOSS-007, AC17, #2010; FR-BOSS-009, AC1, #2219). Every face that blinks asks it here. It reads the
+// stores itself and is drawn again only when the rhythm changes, not when a keystroke or an agent's state does: the
+// avatar and the open group must not draw again for each of those.
+export function useBlinkRhythm(situation: BrokkSituation): BlinkRhythm {
+    const latest = useRef(situation);
+    latest.current = situation;
+    const subscribe = useCallback((notify: () => void) => {
+        const model = BossBubbleModel.getInstance();
+        const expressions = BrokkExpressionsModel.getInstance();
+        let timer: ReturnType<typeof setTimeout> = null;
+        const arm = () => {
+            clearTimeout(timer);
+            const scene = sceneFromStores(latest.current, Date.now());
+            const wait = Math.min(Math.max(scene.until - Date.now(), 0) + 1, MaxTimerMs);
+            timer = setTimeout(() => {
+                notify();
+                arm();
+            }, wait);
+        };
+        const onChange = () => {
+            notify();
+            arm();
+        };
+        arm();
+        const stops = [
+            expressions.moodAtom,
+            expressions.lastKeyAtAtom,
+            model.toHandleAtom,
+            AgentStates.getInstance().dataAtom,
+        ].map((source) => globalStore.sub(source, onChange));
+        return () => {
+            clearTimeout(timer);
+            stops.forEach((stop) => stop());
+        };
+    }, []);
+    const read = () => sceneFromStores(situation, Date.now()).rhythm;
+    return useSyncExternalStore(subscribe, read, read);
+}
+
 // The panel's portrait plays while the panel shows: the avatar that opened it has emptied its face, so there is one
 // animated Brokk at a time (FR-BOSS-007, AC8). `talk`: what the field is doing (brokk-talk-model.ts talkPose).
 export function useCardLive(talk?: BrokkSituation["talk"]): BrokkLiveProps {
     const asked = useAtomValue(BrokkExpressionsModel.getInstance().askedAtom, { store: globalStore });
     const allowed = useMotionAllowed();
     const situation = useBrokkSituation(true, allowed, talk);
+    const rhythm = useBlinkRhythm(situation);
     return useMemo(
-        () => (allowed ? { situation, asked, speaks: speaksOnOpen(situation), rhythm: "normal" } : null),
-        [allowed, situation, asked]
+        () => (allowed ? { situation, asked, speaks: speaksOnOpen(situation), rhythm } : null),
+        [allowed, situation, asked, rhythm]
     );
 }

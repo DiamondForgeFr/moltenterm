@@ -2,16 +2,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { restingPose } from "./brokk-ask-model";
+import { BrokkExpression, restingPose } from "./brokk-ask-model";
 import {
+    AvatarPoses,
     avatarSituation,
     avatarVariant,
+    brokkInitial,
     faceClickAction,
     FaceHoverCloseMs,
     FaceHoverIntent,
     FaceHoverOpenMs,
     hangingRightPx,
 } from "./brokk-avatar-model";
+import { BrokkPortrait, declarationForPoses } from "./brokk-portrait";
+import { brokkPose, faceAfter, startFace } from "./brokk-state-model";
 
 describe("where the avatar stands (FR-BOSS-009, AC1, AC14)", () => {
     it("is in the sidebar's row when the sidebar is on screen, on the strip of a collapsed one, and hangs from the window's edge only with no sidebar", () => {
@@ -205,5 +209,57 @@ describe("a click on the face (AC55)", () => {
         vi.advanceTimersByTime(10 * FaceHoverOpenMs);
         expect(state.pinned).toBe(true);
         expect(state.opened).toBe(0);
+    });
+});
+
+describe("the gestures asked of him play on the folded avatar (FR-BOSS-009, AC1, #2219)", () => {
+    const Gestures: BrokkExpression[] = ["call", "frown", "doubtful", "nod", "smile"];
+
+    it("declares every gesture the app asks, to be played on demand, in the pose he rests in", () => {
+        const declaration = declarationForPoses(BrokkPortrait, AvatarPoses);
+        const listening = declaration.idles.listening ?? [];
+        for (const gesture of Gestures) {
+            expect(listening.find((idle) => idle.name === gesture)?.onDemand, gesture).toBe(true);
+        }
+    });
+
+    it("gives a mounted face the reaction as soon as the gesture is asked, whether his session works or not", () => {
+        for (const ownWorking of [false, true]) {
+            const situation = avatarSituation(ownWorking);
+            for (const [index, expression] of Gestures.entries()) {
+                const asked = { expression, cue: index + 1, at: 0 };
+                const mounted = startFace({ asked: null });
+                const face = faceAfter(mounted, { type: "asked", asked });
+                expect(face.reaction, `${expression} (working: ${ownWorking})`).toBe(asked);
+                const pose = brokkPose(situation, { speaking: false, expression });
+                expect(pose, expression).toBe("listening");
+                expect(AvatarPoses).toContain(pose);
+            }
+        }
+    });
+
+    it("does not replay a gesture asked before the face was mounted, so that coming back shows none", () => {
+        const asked = { expression: "call" as const, cue: 3, at: 0 };
+        const mounted = startFace({ asked });
+        expect(faceAfter(mounted, { type: "asked", asked })).toBe(mounted);
+        expect(mounted.reaction).toBeNull();
+    });
+});
+
+describe("the mark the avatar wears while his group is open (AC17, #2219)", () => {
+    it("is the first letter of his name, in capitals, whatever the script", () => {
+        expect(brokkInitial("Brokk")).toBe("B");
+        expect(brokkInitial("  léa")).toBe("L");
+        expect(brokkInitial("élodie")).toBe("É");
+    });
+
+    it("keeps a whole character when the name starts with one made of two code units", () => {
+        expect(brokkInitial("🔥 Forge")).toBe("🔥");
+    });
+
+    it("falls back to the default name's initial for an empty name", () => {
+        expect(brokkInitial("")).toBe("B");
+        expect(brokkInitial("   ")).toBe("B");
+        expect(brokkInitial(undefined)).toBe("B");
     });
 });
