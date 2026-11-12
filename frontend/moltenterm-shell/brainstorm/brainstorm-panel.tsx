@@ -8,6 +8,7 @@
 // fork's question and the line about the last action. Each action is the developer's click. It loads with the
 // brainstorm (brokk-group.tsx), whose group draws its frame at once.
 
+import { ContextMenuModel } from "@/app/store/contextmenu";
 import { getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { makeIconClass } from "@/util/util";
@@ -292,12 +293,43 @@ function Row({ entry }: { entry: BrainstormSummary }) {
                 >
                     {t("boss.brainstorm.resumeAction")}
                 </button>
-                <span className="mt-bsp-row-more">
-                    <FolderLinks entry={entry} onRename={() => setMode("rename")} onDelete={() => setMode("delete")} />
-                </span>
+                <button
+                    type="button"
+                    className="mt-bsp-more cursor-pointer"
+                    aria-label={t("boss.brainstorm.panel.more", { title: entry.title })}
+                    title={t("boss.brainstorm.panel.more", { title: entry.title })}
+                    aria-haspopup="menu"
+                    data-testid="brainstorm-row-more"
+                    onClick={(e) =>
+                        ContextMenuModel.getInstance().showContextMenu(
+                            rowMenu(t, entry, {
+                                onRename: () => setMode("rename"),
+                                onDelete: () => setMode("delete"),
+                            }),
+                            e
+                        )
+                    }
+                >
+                    <i className={makeIconClass("ellipsis", false)} aria-hidden />
+                </button>
             </div>
         </li>
     );
+}
+
+// The rest of a listed brainstorm's actions, in its ⋯ menu so that the row keeps the room for its title: Rename, Show
+// in folder, and Delete, which asks first in the row (AC10, AC10d).
+export function rowMenu(
+    t: TFunction,
+    entry: BrainstormSummary,
+    on: { onRename: () => void; onDelete: () => void }
+): ContextMenuItem[] {
+    return [
+        { label: t("boss.brainstorm.panel.rename"), click: on.onRename },
+        { label: t("boss.brainstorm.panel.show"), click: () => revealFolder(entry.dir) },
+        { type: "separator" },
+        { label: t("boss.brainstorm.panel.delete"), click: on.onDelete },
+    ];
 }
 
 // The open brainstorm: its title, where it is saved and when, its folder, and what the developer can do with it.

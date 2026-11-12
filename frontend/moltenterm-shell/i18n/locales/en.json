@@ -3224,6 +3224,7 @@
                 "others": "Other brainstorms",
                 "none": "No other brainstorm yet",
                 "resumeOne": "Resume “{title}”",
+                "more": "More for “{title}”",
                 "rename": "Rename",
                 "renameLabel": "The brainstorm's new title",
                 "renameSave": "Save",

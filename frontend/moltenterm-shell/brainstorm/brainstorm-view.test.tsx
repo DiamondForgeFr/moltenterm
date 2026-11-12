@@ -7,7 +7,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
-vi.mock("@/app/store/global", () => ({ getApi: () => ({ revealNativePath: vi.fn() }) }));
+const reveal = vi.hoisted(() => vi.fn());
+vi.mock("@/app/store/global", () => ({ getApi: () => ({ revealNativePath: reveal }) }));
+vi.mock("@/app/store/contextmenu", () => ({ ContextMenuModel: { getInstance: () => ({ showContextMenu: vi.fn() }) } }));
 vi.mock("./brainstorm-stage", () => ({ BrainstormStage: () => <div data-testid="mock-stage" /> }));
 vi.mock("../boss/boss-store", async () => {
     const { atom } = await import("jotai");
@@ -40,7 +42,7 @@ vi.mock("./brainstorm-store", async () => {
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { t } from "../i18n/i18n";
-import { BrainstormPanel, leaveBrainstorm, savedLine } from "./brainstorm-panel";
+import { BrainstormPanel, leaveBrainstorm, rowMenu, savedLine } from "./brainstorm-panel";
 import { BrainstormPrompts, ForgetConfirm } from "./brainstorm-prompts";
 import { BrainstormModel } from "./brainstorm-store";
 import { BrainstormView, followBrokk, recentreBrainstorm } from "./brainstorm-view";
@@ -146,12 +148,31 @@ describe("the brainstorm panel (FR-BOSS-010 AC9, AC10, AC23, AC25, #2285)", () =
         expect(rows[0]).toMatch(/data-state="open"[^>]*>in progress</);
         expect(rows[2]).toMatch(/data-state="done"[^>]*>finished</);
         for (const row of rows) {
-            for (const action of ["load", "rename", "show", "delete"]) {
-                expect(row).toContain(`data-testid="brainstorm-row-${action}"`);
-            }
+            expect(row).toContain('data-testid="brainstorm-row-load"');
+            expect(row).toMatch(/aria-haspopup="menu" data-testid="brainstorm-row-more"/);
         }
         expect(rows[0]).toContain(">Resume</button>");
+        expect(rows[0]).toContain('aria-label="More for “Forge notes”"');
         expect(html).not.toContain('data-slug="kids-video"');
+    });
+
+    // The ⋯ of a row keeps the room for its title: Rename, Show in folder, and Delete, which asks first in the row.
+    it("puts Rename, Show in folder and Delete of a listed brainstorm in its ⋯ menu", () => {
+        const onRename = vi.fn();
+        const onDelete = vi.fn();
+        const menu = rowMenu(t, folder("garden", "A garden planner", 1), { onRename, onDelete });
+        expect(menu.map((item) => item.label ?? item.type)).toEqual([
+            "Rename",
+            "Show in folder",
+            "separator",
+            "Delete",
+        ]);
+        menu[0].click();
+        menu[3].click();
+        expect(onRename).toHaveBeenCalledTimes(1);
+        expect(onDelete).toHaveBeenCalledTimes(1);
+        menu[1].click();
+        expect(reveal).toHaveBeenCalledWith("/synthetic/Brainstorms/garden");
     });
 
     it("says when there is no other brainstorm", () => {

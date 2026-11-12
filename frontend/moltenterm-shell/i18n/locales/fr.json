@@ -3224,6 +3224,7 @@
                 "others": "Autres brainstorms",
                 "none": "Aucun autre brainstorm pour l'instant",
                 "resumeOne": "Reprendre « {title} »",
+                "more": "Plus pour « {title} »",
                 "rename": "Renommer",
                 "renameLabel": "Le nouveau titre du brainstorm",
                 "renameSave": "Enregistrer",

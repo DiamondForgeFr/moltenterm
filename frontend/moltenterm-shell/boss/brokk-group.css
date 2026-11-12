@@ -436,12 +436,14 @@
         top var(--mt-duration-settle) var(--mt-ease);
 }
 
+/* The frame takes the panels' surface, which follows the theme (#2285): the terminal's surface stays dark in the light
+   theme, and his answers, with no bubble of their own, are read on the frame itself. */
 .mt-brokk-field {
     position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: var(--mt-surface-term);
+    background: var(--mt-surface-1);
     border: 1px solid var(--mt-line-2);
     border-radius: var(--mt-radius-panel);
     cursor: text;
@@ -628,7 +630,7 @@
     overflow-x: auto;
     border: 1px solid var(--mt-line-1);
     border-radius: var(--mt-radius-control);
-    background: var(--mt-surface-term);
+    background: var(--mt-surface-0);
     line-height: 1.5;
 }
 

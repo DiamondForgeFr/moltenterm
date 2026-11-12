@@ -165,5 +165,8 @@ describe("the look of the exchange (AC89, AC90)", () => {
         expect(rule('.mt-brokk-msg[data-role="you"]')).toMatch(/align-self: flex-end;/);
         expect(rule('.mt-brokk-msg[data-role="you"]')).toMatch(/background: var\(--mt-surface-2\);/);
         expect(rule(".mt-brokk-msg")).toMatch(/line-height: 1\.6;/);
+        // His answers are read on the frame itself: it follows the theme, never the terminal's dark surface.
+        expect(rule(".mt-brokk-field")).toMatch(/background: var\(--mt-surface-1\);/);
+        expect(rule(".mt-brokk-md pre")).not.toMatch(/surface-term/);
     });
 });
