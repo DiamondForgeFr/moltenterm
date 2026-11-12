@@ -49,7 +49,7 @@ Finalization and cleanup after merge.
 ## Guard
 
 `workflow-cli.sh update-status <N> Done` exits non-zero unless a matching PR is verified merged into the configured working branch. Aggregate Epics and verified bundled children are exempt because
-they own no PR. Escape hatch: `SF_WORKFLOW_BYPASS_PR_MERGED_GUARD=1`.
+they own no PR. An escape hatch is the developer's to apply (`escape-hatches.md`).
 
 > [!note] Convention sanity check
 >

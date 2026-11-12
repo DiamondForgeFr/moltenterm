@@ -65,7 +65,7 @@ aiInstructions: |
   - Commit at each subtask done
 
   **Validate Phase:**
-  - Build + lint + typecheck + unit tests
+  - Build + lint + typecheck + the unit tests the change affects (the full suites run once, at AI Testing)
   - Verify each acceptance criterion
   - Fix failures before proceeding
   - Generate test plan and post as comment

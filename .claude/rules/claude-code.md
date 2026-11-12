@@ -2,8 +2,9 @@
 
 The project instructions are in `AGENTS.md`, which Claude Code reads natively. This rule adds what only Claude Code does.
 
-- **Session start.** `.claude/settings.json` declares a `SessionStart` hook that runs `sf status --claude-friendly --no-network` (an alias of `--agent-friendly`) and injects its output: the preconditions are already in context
-  when the session opens.
+- **Session start.** `.claude/settings.json` declares a `SessionStart` hook that runs `status --agent-friendly --no-network` through the project's own CLI (`node_modules/.bin/saasfoundryai`, then `bin/sf.js` in the
+  SaaSFoundryAI CLI repository, then `saasfoundryai` on the PATH; never a bare `sf`) and injects its output: the preconditions are already in context when the session opens. The report states facts; the
+  rules for reading it are in `AGENTS.md`, under "Reading the project status".
 - **Skills.** Invoke a skill by name with `/sf-<name>` (for example `/sf-workflow`); Claude Code discovers them under `.claude/skills/`.
 - **Permissions.** The harness's read-only commands (`workflow-cli.sh status|next|help`, the board CLI's read commands, `sf status`, `sf agents list`, `sf agents route`, `sf agents routing report`) are
   allowed in `.claude/settings.json`; commands that change a ticket, a board or a pull request, or write evidence the routing acts on (`sf agents outcome record|mark`, and `sf agents route` with
