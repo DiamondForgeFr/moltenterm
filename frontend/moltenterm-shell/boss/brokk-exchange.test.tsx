@@ -100,13 +100,23 @@ describe("his answer as he says it (AC87)", () => {
 
     afterEach(() => globalStore.set(speech.shownAtom, NothingShown));
 
+    // #2285: the whole answer is laid out unseen, keeping its place, and the words said are drawn over it.
     it("shows the words said, keeps the place of the rest unseen, and is busy for screen readers until whole", () => {
         globalStore.set(speech.shownAtom, { id: "m1", count: "Olivia waits".length });
         const html = render([question, answer([yes])]);
         expect(html).toMatch(
-            /data-testid="brokk-msg-text">Olivia waits<span class="text-transparent" data-testid="brokk-msg-unsaid"> to delete 2 branches\.<\/span>/
+            /<div class="mt-brokk-md-unsaid" aria-hidden="true" data-testid="brokk-msg-unsaid"><p>Olivia waits to delete 2 branches\.<\/p><\/div>/
         );
+        expect(html).toMatch(/<div class="mt-brokk-md-said" data-testid="brokk-msg-said"><p>Olivia waits<\/p><\/div>/);
         expect(html).toMatch(/data-role="brokk" data-testid="brokk-msg" aria-busy="true"/);
+    });
+
+    it("closes the marks the cut leaves open, so that his words never show them while he speaks", () => {
+        const text = "Two things: **the review of the branch** and `molten ci`.";
+        globalStore.set(speech.shownAtom, { id: "m1", count: "Two things: **the review".length });
+        const html = render([question, { ...answer([yes]), text }]);
+        expect(html).toMatch(/data-testid="brokk-msg-said"><p>Two things: <strong>the review<\/strong><\/p>/);
+        expect(html).not.toMatch(/brokk-msg-said">[^]*?\*\*/);
     });
 
     it("offers its replies only once it is whole", () => {
@@ -122,7 +132,38 @@ describe("his answer as he says it (AC87)", () => {
     it("reveals only the answer being said: the developer's message and earlier answers show whole", () => {
         globalStore.set(speech.shownAtom, { id: "m9", count: 0 });
         const html = render([question, answer([yes])]);
-        expect(html).toContain(">Olivia waits to delete 2 branches.</div>");
+        expect(html).toContain("<p>Olivia waits to delete 2 branches.</p></div>");
         expect(html).toContain(">Any news?</div>");
+    });
+});
+
+// FR-BOSS-009 AC89 and AC90 (#2285): his answers read as Markdown, full width with no bubble; the developer's messages
+// stay the plain text they typed, in a quiet block on the right.
+describe("the look of the exchange (AC89, AC90)", () => {
+    it("renders his Markdown: paragraphs, lists, bold, code and a code block", () => {
+        const text = "First point.\n\n- one\n- **two**\n\nRun `molten ci` then:\n\n```sh\nmolten ci status\n```";
+        const html = render([question, { ...answer([]), text }]);
+        expect(html).toContain("<p>First point.</p>");
+        expect(html).toContain("<ul>\n<li>one</li>\n<li><strong>two</strong></li>\n</ul>");
+        expect(html).toContain("<code>molten ci</code>");
+        expect(html).toMatch(/<pre><code class="language-sh">molten ci status\n<\/code><\/pre>/);
+        expect(html).toMatch(/class="mt-brokk-msg-text mt-brokk-md" data-testid="brokk-msg-text"/);
+    });
+
+    it("keeps the developer's message as typed: no Markdown, no HTML", () => {
+        const html = render([{ ...question, text: "**not bold** <i>nor this</i>" }, answer([])]);
+        expect(html).toContain(">**not bold** &lt;i&gt;nor this&lt;/i&gt;</div>");
+        expect(html).not.toContain("<strong>not bold");
+    });
+
+    it("draws his side with the brass rule and the developer's as a quiet block on the right", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        const rule = (selector: string) =>
+            new RegExp(`${selector.replace(/[[\]".]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1];
+        expect(rule('.mt-brokk-msg[data-role="brokk"]')).toMatch(/border-left: 2px solid/);
+        expect(rule('.mt-brokk-msg[data-role="brokk"]')).not.toMatch(/background/);
+        expect(rule('.mt-brokk-msg[data-role="you"]')).toMatch(/align-self: flex-end;/);
+        expect(rule('.mt-brokk-msg[data-role="you"]')).toMatch(/background: var\(--mt-surface-2\);/);
+        expect(rule(".mt-brokk-msg")).toMatch(/line-height: 1\.6;/);
     });
 });

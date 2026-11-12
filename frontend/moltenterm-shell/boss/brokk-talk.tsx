@@ -8,7 +8,8 @@
 // authorisation asks once more), and the notes about a message his agent could not take, each with a way out: choose an
 // agent, try again, or open his terminal. He listens while the developer writes (onTyping). Folded, the field is one
 // row as wide as the group, and what it says hangs under it, so the group's geometry never moves. While the window is
-// open the panel beside the group gives way above it (onFocusChange, AC18, #2090).
+// open the panel beside the group gives way above it (onFocusChange, AC18, #2090), and the field is roomy, with its
+// hint and the send button under it (AC91, #2285).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
@@ -167,7 +168,8 @@ export function BrokkTalk({
         return () => observer.disconnect();
     }, [open, onContentHeight]);
     // The field grows with its lines (AC22b, #2237): measured at its natural height, then capped. The exchange above it
-    // gives up the room, and stays scrolled to the latest.
+    // gives up the room, and stays scrolled to the latest. The open window's field has its own size and leading (#2285):
+    // it is measured again when the window opens or folds.
     useLayoutEffect(() => {
         const field = inputRef.current;
         if (field == null) {
@@ -181,7 +183,7 @@ export function BrokkTalk({
         }
         field.style.height = "auto";
         field.style.height = `${talkFieldHeight(field.scrollHeight, lineHeight, padding)}px`;
-    }, [text]);
+    }, [text, open]);
     useEffect(() => {
         const scroll = scrollRef.current;
         if (open && scroll != null) {
@@ -337,6 +339,20 @@ export function BrokkTalk({
         </div>
     ) : null;
 
+    // Folded, the field keeps its one row with the button at its end; open, the roomy field has its hint and the button
+    // under it (AC91, #2285).
+    const sendButton = (
+        <button
+            type="submit"
+            disabled={!canSend(text, state)}
+            data-testid="brokk-talk-send"
+            className="molten-btn inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-0.5 text-11 font-medium"
+        >
+            {t("boss.panel.talk.send")}
+            <MoltenWave />
+        </button>
+    );
+
     return (
         <form
             className="mt-brokk-field"
@@ -435,16 +451,16 @@ export function BrokkTalk({
                         void send();
                     }}
                 />
-                <button
-                    type="submit"
-                    disabled={!canSend(text, state)}
-                    data-testid="brokk-talk-send"
-                    className="molten-btn inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-0.5 text-11 font-medium"
-                >
-                    {t("boss.panel.talk.send")}
-                    <MoltenWave />
-                </button>
+                {open ? null : sendButton}
             </div>
+            {open ? (
+                <div className="mt-brokk-field-foot" data-testid="brokk-talk-foot">
+                    <span className="mt-brokk-field-hint" data-testid="brokk-talk-hint">
+                        {t("boss.panel.talk.hint")}
+                    </span>
+                    {sendButton}
+                </div>
+            ) : null}
             {!open && (note != null || slashNote != null || commandHint != null || resumeLine != null) ? (
                 <div className="mt-brokk-field-extra">
                     {note}

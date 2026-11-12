@@ -510,7 +510,12 @@ describe("the conversation window", () => {
 
     it("starts at the field's top, under the block, in the group's own coordinates", () => {
         expect(g.field.y).toBe(g.block.y + g.block.h + 8);
-        expect(ConversationChromePx).toBe(10 + 4 + 36 + 1 + 2);
+        // The roomy input of #2285: the rule, the row's padding, two lines of the field and the footer.
+        expect(ConversationChromePx).toBe(121);
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        expect(css).toMatch(/\.mt-brokk-convo \{[^}]*padding: 14px 16px 8px;/);
+        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-input \{[^}]*min-height: 52px;/);
+        expect(css).toMatch(/\.mt-brokk-field-foot \{[^}]*height: 36px;/);
     });
 });
 
