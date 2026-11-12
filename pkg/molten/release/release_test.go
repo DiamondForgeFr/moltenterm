@@ -42,7 +42,12 @@ type fakeGh struct {
 	lock      sync.Mutex
 	calls     [][]string
 	ciRuns    map[string]string
-	dispatch  func()
+	// The event of the runs ciRuns lists (default push), the checks the trunk requires, and the jobs of a run (JSON,
+	// default one green job named like the only required check).
+	ciEvent    string
+	ciRequired []string
+	ciJobs     string
+	dispatch   func()
 	draft     bool
 	noRelease bool
 	issues    string
@@ -113,6 +118,39 @@ func (f *fakeGh) answer(args []string) ([]byte, error) {
 			answer, f.pendings = f.pendings[0], f.pendings[1:]
 		}
 		return []byte(answer), nil
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/actions/workflows/") && strings.Contains(joined, "/runs?head_sha="):
+		f.lock.Lock()
+		defer f.lock.Unlock()
+		workflow := strings.Split(strings.TrimPrefix(args[1], "repos/{owner}/{repo}/actions/workflows/"), "/")[0]
+		sha := strings.Split(strings.Split(args[1], "head_sha=")[1], "&")[0]
+		event := f.ciEvent
+		if event == "" {
+			event = "push"
+		}
+		run := func(id int, status string, conclusion string) string {
+			return fmt.Sprintf(`{"workflow_runs":[{"id":%d,"event":%q,"status":%q,"conclusion":%q,"head_sha":%q,"head_branch":"develop","html_url":"https://ci/%d","repository":{"full_name":"acme/app"},"head_repository":{"full_name":"acme/app"}}]}`,
+				id, event, status, conclusion, sha, id)
+		}
+		switch f.ciRuns[workflow] {
+		case "green":
+			return []byte(run(1, "completed", "success")), nil
+		case "red":
+			return []byte(run(2, "completed", "failure")), nil
+		case "running":
+			return []byte(run(3, "in_progress", "")), nil
+		}
+		return []byte(`{"workflow_runs":[]}`), nil
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/rules/branches/"):
+		checks := make([]string, 0, len(f.ciRequired))
+		for _, c := range f.ciRequired {
+			checks = append(checks, fmt.Sprintf(`{"context":%q}`, c))
+		}
+		return []byte(`[{"type":"required_status_checks","parameters":{"required_status_checks":[` + strings.Join(checks, ",") + `]}}]`), nil
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/actions/runs/") && strings.Contains(joined, "/jobs?"):
+		if f.ciJobs != "" {
+			return []byte(f.ciJobs), nil
+		}
+		return []byte(`{"total_count":1,"jobs":[{"name":"Required gate","status":"completed","conclusion":"success"}]}`), nil
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/actions/runs/"):
 		if f.artifacts == "" {
 			return []byte(`{"artifacts":[]}`), nil
@@ -121,15 +159,6 @@ func (f *fakeGh) answer(args []string) ([]byte, error) {
 	case strings.HasPrefix(joined, "run download"):
 		return nil, nil
 	case strings.HasPrefix(joined, "run list"):
-		state := f.ciRuns[args[3]]
-		switch state {
-		case "green":
-			return []byte(`[{"status":"completed","conclusion":"success","url":"https://ci/1"}]`), nil
-		case "red":
-			return []byte(`[{"status":"completed","conclusion":"failure","url":"https://ci/2"}]`), nil
-		case "running":
-			return []byte(`[{"status":"in_progress","conclusion":"","url":"https://ci/3"}]`), nil
-		}
 		return []byte(`[]`), nil
 	case strings.HasPrefix(joined, "workflow run"):
 		if f.dispatch != nil {
@@ -259,6 +288,7 @@ func (f *fixture) env() *Env {
 		IsGithub: func(ctx context.Context) bool { return f.github },
 		Sleep:    func(time.Duration) {},
 		CiPoll:   time.Millisecond,
+		Repo:     "acme/app",
 	}
 }
 
@@ -559,6 +589,44 @@ func TestPromoteRequiresGreenCi(t *testing.T) {
 	}
 	if f.originRef(t, "main") != f.originRef(t, "develop") {
 		t.Fatalf("main was not promoted once CI turned green")
+	}
+}
+
+// #2277: the trunk's CI is a run of the full suites on the exact commit; a pull request's run on the same commit (a
+// draft's, or an affected-only one) is not it, so the CI is started on the trunk.
+func TestPromoteIgnoresAPullRequestRunOnTheCommit(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	ctx := context.Background()
+	f.commitOnDevelop(t, "feat(#2): a feature")
+	f.gh.ciEvent = "pull_request"
+	f.gh.dispatch = func() { f.gh.ciEvent = "push" }
+	mustRun(t, f, "promote with only a pull request run", f.env().Promote(ctx, PromoteOptions{Workflows: []string{"ci.yml"}}))
+	if len(f.gh.called("workflow", "run", "ci.yml", "--ref", "develop")) != 1 {
+		t.Fatalf("the trunk's CI was not started once: %v", f.gh.calls)
+	}
+	if f.originRef(t, "main") != f.originRef(t, "develop") {
+		t.Fatalf("main was not promoted once the trunk's own run was green")
+	}
+}
+
+// #2277: when the trunk requires checks, the run is green only when each is a successful job; a skipped one is not.
+func TestPromoteRequiresTheTrunksRequiredChecksToSucceed(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	ctx := context.Background()
+	f.commitOnDevelop(t, "feat(#2): a feature")
+	before := f.originRef(t, "main")
+	f.gh.ciRequired = []string{"Required gate"}
+	f.gh.ciJobs = `{"total_count":1,"jobs":[{"name":"Required gate","status":"completed","conclusion":"skipped"}]}`
+	mustFail(t, f, "promote with a skipped required check", f.env().Promote(ctx, PromoteOptions{Workflows: []string{"ci.yml"}}), "was skipped")
+	if f.originRef(t, "main") != before {
+		t.Fatalf("main moved on a skipped required check")
+	}
+	f.gh.ciJobs = ""
+	mustRun(t, f, "promote with the required check green", f.env().Promote(ctx, PromoteOptions{Workflows: []string{"ci.yml"}}))
+	if f.originRef(t, "main") != f.originRef(t, "develop") {
+		t.Fatalf("main was not promoted on a green required check")
 	}
 }
 

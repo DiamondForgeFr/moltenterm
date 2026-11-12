@@ -166,6 +166,16 @@ describe("buildBandRow", () => {
         expect(current).toMatchObject({ label: "Wavesrv", status: "failed", fill: 1 });
     });
 
+    it("keeps how the commit was verified under the phase's text, whichever phase the build is in (#2277)", () => {
+        expect(buildBandRow(run(), Defs, null, [], "develop", now).verification).toBe("");
+        const verified = run({
+            verify: { by: "github", runid: 123456, jobs: 6, sha: "69c7639", url: "https://x/run" },
+        });
+        const row = buildBandRow(verified, Defs, null, [], "develop", now);
+        expect(row.verification).toBe("Verified by GitHub CI · run 123456 · 6 jobs green on 69c7639");
+        expect(row.phases.find((p) => p.current).label).toBe("Wavesrv");
+    });
+
     it("names the commit it builds", () => {
         expect(buildContext("develop", "9b79731abcdef")).toBe("local build · develop @ 9b79731");
         expect(buildContext("", "9b79731")).toBe("local build");

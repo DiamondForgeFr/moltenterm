@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/remoteci"
 )
 
 func TestDraftNotes(t *testing.T) {
@@ -75,22 +76,21 @@ func TestGithubRepoPinsEveryGhCall(t *testing.T) {
 	}
 }
 
-func TestCiVerdict(t *testing.T) {
+func TestMissingRunReasonsAreTheOnesANewRunFixes(t *testing.T) {
 	t.Parallel()
-	cases := []struct {
-		runs []CiRun
-		want string
-	}{
-		{nil, CiMissing},
-		{[]CiRun{{Status: "completed", Conclusion: "cancelled"}}, CiMissing},
-		{[]CiRun{{Status: "completed", Conclusion: "failure"}}, CiRed},
-		{[]CiRun{{Status: "completed", Conclusion: "failure"}, {Status: "completed", Conclusion: "success"}}, CiGreen},
-		{[]CiRun{{Status: "completed", Conclusion: "failure"}, {Status: "in_progress"}}, CiRunning},
-		{[]CiRun{{Status: "queued"}}, CiRunning},
+	for _, code := range []string{remoteci.ReasonNoRun, remoteci.ReasonPartialOnly, remoteci.ReasonCancelled} {
+		if !missingRun(code) || couldNotAsk(code) {
+			t.Errorf("%s: a new run is what is missing", code)
+		}
 	}
-	for i, c := range cases {
-		if got := CiVerdict(c.runs); got != c.want {
-			t.Errorf("case %d: %s, want %s", i, got, c.want)
+	for _, code := range []string{remoteci.ReasonNoRepo, remoteci.ReasonNoGh, remoteci.ReasonLoggedOut, remoteci.ReasonRateLimited, remoteci.ReasonUnreachable} {
+		if missingRun(code) || !couldNotAsk(code) {
+			t.Errorf("%s: GitHub could not be asked", code)
+		}
+	}
+	for _, code := range []string{remoteci.ReasonFailed, remoteci.ReasonRequiredSkipped, remoteci.ReasonNoRequired} {
+		if missingRun(code) || couldNotAsk(code) {
+			t.Errorf("%s: GitHub answered, and not with a run to wait for", code)
 		}
 	}
 }

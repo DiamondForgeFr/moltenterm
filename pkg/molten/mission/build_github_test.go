@@ -348,7 +348,9 @@ func TestBuildWaitsForARunInProgress(t *testing.T) {
 	}
 	if !g.seen(func(rec RunRecord) bool {
 		return rec.Verify != nil && rec.Verify.By == VerifyByWaiting && rec.Verify.RunId == 4242 && rec.Verify.Done == 1 && rec.Verify.Total == 3
-	}) || !g.seen(func(rec RunRecord) bool { return rec.Verify != nil && rec.Verify.By == VerifyByWaiting && rec.Verify.Done == 2 }) {
+	}) || !g.seen(func(rec RunRecord) bool {
+		return rec.Verify != nil && rec.Verify.By == VerifyByWaiting && rec.Verify.Done == 2
+	}) {
 		t.Fatalf("the row followed the run's jobs")
 	}
 	if !strings.Contains(log, "GitHub CI run 4242 is still going") {

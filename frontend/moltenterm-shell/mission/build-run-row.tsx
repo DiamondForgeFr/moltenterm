@@ -11,9 +11,10 @@ import { useState } from "react";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { openWebLink } from "../open-web-link";
 import { DominoLoader } from "../suite/suite";
 import { BuildManifest, BuildPhaseDef } from "./builds-model";
-import { missionCancel, missionClose } from "./mission-client";
+import { missionCancel, missionClose, missionVerifyHere } from "./mission-client";
 import { RunRecord } from "./mission-model";
 import { usePendingLock } from "./pending-action";
 import { LogToggle, RowButtonClass, RowCtaClass, RunLogArea, RunRow } from "./run-row";
@@ -68,6 +69,36 @@ export function BuildRunRow({
             actions={
                 <>
                     <LogToggle open={open} onToggle={() => setLogOpen(!open)} />
+                    {run.verify?.url ? (
+                        <button
+                            type="button"
+                            onClick={() => fireAndForget(() => openWebLink(run.verify.url))}
+                            title={row.verification}
+                            className={RowButtonClass}
+                            data-testid="build-run-github"
+                        >
+                            {t("project.band.seeOnGithub")}
+                            <i className="fa fa-solid fa-arrow-up-right-from-square text-11" aria-hidden />
+                        </button>
+                    ) : null}
+                    {run.state === "running" && run.verify?.by === "waiting" ? (
+                        <button
+                            type="button"
+                            disabled={locked}
+                            aria-busy={lock.pending === "verifyhere"}
+                            onClick={() =>
+                                runLocked("verifyhere", async () => {
+                                    await missionVerifyHere(run.dir, run.id);
+                                    return true;
+                                })
+                            }
+                            className={RowButtonClass}
+                            data-testid="build-run-verify-here"
+                        >
+                            {lock.pending === "verifyhere" ? <DominoLoader /> : null}
+                            {t("mc.builds.verify.here")}
+                        </button>
+                    ) : null}
                     {run.state === "running" ? (
                         <button
                             type="button"

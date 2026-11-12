@@ -5,67 +5,46 @@ package release
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
-)
 
-const (
-	CiGreen   = "green"
-	CiRunning = "running"
-	CiRed     = "red"
-	CiMissing = "missing"
+	"github.com/wavetermdev/waveterm/pkg/molten/remoteci"
 )
-
-type CiRun struct {
-	Status     string `json:"status"`
-	Conclusion string `json:"conclusion"`
-	Url        string `json:"url"`
-}
 
 var redConclusions = map[string]bool{"failure": true, "timed_out": true, "startup_failure": true, "action_required": true}
 
-// CiVerdict reads the runs of one workflow on one commit as Notulia's promotion does: a success among them is green (a
-// failed run re-run green counts), else a run still going is running, else a failure is red; no run, or only
-// cancelled or skipped ones, is missing.
-func CiVerdict(runs []CiRun) string {
-	for _, r := range runs {
-		if r.Status == "completed" && r.Conclusion == "success" {
-			return CiGreen
-		}
+// ciRepo is origin's GitHub repository, as the checks of a run's repository compare it with (#2277).
+func (e *Env) ciRepo(ctx context.Context, root string) string {
+	if e.Repo != "" {
+		return e.Repo
 	}
-	for _, r := range runs {
-		if r.Status != "completed" {
-			return CiRunning
-		}
-	}
-	for _, r := range runs {
-		if redConclusions[r.Conclusion] {
-			return CiRed
-		}
-	}
-	return CiMissing
+	url, _ := e.git(ctx, root, "remote", "get-url", "origin")
+	return GithubRepo(url)
 }
 
-func firstRed(runs []CiRun) string {
-	for _, r := range runs {
-		if redConclusions[r.Conclusion] {
-			return r.Url
-		}
+// ciAnswer asks GitHub whether the named workflow is green on the commit, with the guardrails of a build's verify
+// (FR-MC-012, #2277): the commit's own run in the project's repository, of a push, a dispatch or a schedule on the
+// branch, and each check the branch requires a successful job of it. A pull request's run on the same commit is not the
+// branch's CI.
+func (e *Env) ciAnswer(ctx context.Context, root string, branch string, sha string, workflow string) remoteci.Answer {
+	gh := func(ctx context.Context, args ...string) ([]byte, error) {
+		return e.gh(ctx, root, args...)
 	}
-	return ""
+	return remoteci.Check(ctx, gh, remoteci.Query{Repo: e.ciRepo(ctx, root), Sha: sha, Branches: []string{branch}, Workflow: workflow})
 }
 
-func (e *Env) ciRuns(ctx context.Context, root string, workflow string, sha string) ([]CiRun, error) {
-	out, err := e.gh(ctx, root, "run", "list", "--workflow", workflow, "--commit", sha, "--limit", "50", "--json", "status,conclusion,url")
-	if err != nil {
-		return nil, err
+// A reason that says the workflow has no usable run on the commit yet: a new run is what is missing.
+func missingRun(code string) bool {
+	return code == remoteci.ReasonNoRun || code == remoteci.ReasonPartialOnly || code == remoteci.ReasonCancelled
+}
+
+// A reason that says GitHub could not be asked, as opposed to what it answered.
+func couldNotAsk(code string) bool {
+	switch code {
+	case remoteci.ReasonNoRepo, remoteci.ReasonNoGh, remoteci.ReasonLoggedOut, remoteci.ReasonRateLimited, remoteci.ReasonUnreachable, remoteci.ReasonBadSha:
+		return true
 	}
-	var runs []CiRun
-	if err := json.Unmarshal(out, &runs); err != nil {
-		return nil, fmt.Errorf("gh run list: unreadable answer")
-	}
-	return runs, nil
+	return false
 }
 
 // requireCi waits until every named workflow is green on the commit. A missing run is started on the branch, once,
@@ -90,18 +69,20 @@ func (e *Env) requireCi(ctx context.Context, root string, branch string, sha str
 		pending := []string{}
 		missing := []string{}
 		for _, wf := range workflows {
-			runs, err := e.ciRuns(ctx, root, wf, sha)
-			if err != nil {
-				return fmt.Errorf("could not read the runs of %s: %w", wf, err)
-			}
-			switch CiVerdict(runs) {
-			case CiRed:
-				url := firstRed(runs)
-				return fmt.Errorf("%s failed on %s %s %s: fix %s first, or re-run it (gh run rerun --failed) when the code was not the cause", wf, branch, short, url, branch)
-			case CiGreen:
+			answer := e.ciAnswer(ctx, root, branch, sha, wf)
+			why, _ := answer.Reason.Describe()
+			switch {
+			case answer.Status == remoteci.StatusVerified:
 				continue
-			case CiMissing:
+			case answer.Status == remoteci.StatusPending:
+			case couldNotAsk(answer.Reason.Code):
+				return fmt.Errorf("could not read the runs of %s: %s", wf, why)
+			case answer.Reason.Code == remoteci.ReasonFailed:
+				return fmt.Errorf("%s failed on %s %s %s: fix %s first, or re-run it (gh run rerun --failed) when the code was not the cause", wf, branch, short, answer.Url, branch)
+			case missingRun(answer.Reason.Code):
 				missing = append(missing, wf)
+			default:
+				return fmt.Errorf("%s is not green on %s %s: %s (%s)", wf, branch, short, why, answer.Url)
 			}
 			pending = append(pending, wf)
 		}

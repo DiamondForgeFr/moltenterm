@@ -13,6 +13,7 @@ import type { PipelineReleaseStep } from "./mission-model";
 import type { SetupCheck, SetupDraft, SetupOptions } from "./release-setup-model";
 import { PlainFlowScreen } from "./release-setup-plain";
 import {
+    plainBuildChecks,
     plainChanges,
     plainChannel,
     plainChannels,
@@ -464,5 +465,88 @@ describe("Your way of publishing (FR-MC-044)", () => {
         const ctx = { draft, examples: plainExamples(survey, draft) };
         const alone = plainChannel([saasFoundryRelease.public[7]], "public", ctx);
         expect(stepText(fr, alone.steps[0])).toBe("Le jalon de la version est fermé.");
+    });
+
+    describe("how the builds are checked (#2277, AC8)", () => {
+        const withBuilds = (builds: object[], over: Partial<SetupDraft> = {}) =>
+            makeDraft({
+                current: JSON.stringify({ schema: 1, name: "P", release: saasFoundryRelease, builds }),
+                ...over,
+            });
+
+        it("lists the builds the CI gates, and whether they are always checked on this computer", () => {
+            const draft = withBuilds([
+                { id: "gold", title: "Gold", verify: "ci" },
+                { id: "rc", verify: "ci-local" },
+                { id: "plain" },
+            ]);
+            expect(plainBuildChecks(draft)).toEqual([
+                { id: "gold", name: "Gold", always: false },
+                { id: "rc", name: "rc", always: true },
+            ]);
+            expect(plainBuildChecks(makeDraft())).toEqual([]);
+            expect(plainBuildChecks(makeDraft({ current: "not json" }))).toEqual([]);
+        });
+
+        it("reads the pipeline about to be written before the committed one", () => {
+            const proposed = JSON.stringify({ schema: 1, name: "P", builds: [{ id: "gold", verify: "ci-local" }] });
+            const draft = withBuilds([{ id: "gold", verify: "ci" }], { proposed });
+            expect(plainBuildChecks(draft)).toEqual([{ id: "gold", name: "gold", always: true }]);
+        });
+
+        for (const lang of ["fr", "en"]) {
+            it(`tells it in plain words, with no path, command or key (${lang})`, () => {
+                I18nModel.getInstance().setLanguageSetting(lang);
+                const html = renderToStaticMarkup(
+                    <PlainFlowScreen
+                        survey={survey}
+                        draft={withBuilds([
+                            { id: "gold", title: "Gold", verify: "ci" },
+                            { id: "rc", title: "RC local", verify: "ci-local" },
+                        ])}
+                        projectName="P"
+                        onDescribe={() => {}}
+                        onAdjust={() => {}}
+                        onConfirm={() => {}}
+                        canConfirm
+                    />
+                );
+                const text = textOf(html);
+                for (const re of Forbidden) {
+                    expect(text).not.toMatch(re);
+                }
+                expect(text).not.toContain("ci-local");
+                expect(html).toContain('data-testid="plain-build-gold"');
+                expect(html).toContain('data-testid="plain-build-rc"');
+                expect(text).toContain(
+                    lang === "fr" ? "Comment vos builds sont vérifiés" : "How your builds are checked"
+                );
+                expect(text).toContain(
+                    lang === "fr"
+                        ? "Gold n'est pas revérifié sur cet ordinateur"
+                        : "Gold is not checked again on this computer"
+                );
+                expect(text).toContain(
+                    lang === "fr"
+                        ? "RC local est toujours vérifié sur cet ordinateur"
+                        : "RC local is always checked on this computer"
+                );
+            });
+        }
+
+        it("shows nothing when no build waits for the CI", () => {
+            const html = renderToStaticMarkup(
+                <PlainFlowScreen
+                    survey={survey}
+                    draft={makeDraft()}
+                    projectName="P"
+                    onDescribe={() => {}}
+                    onAdjust={() => {}}
+                    onConfirm={() => {}}
+                    canConfirm
+                />
+            );
+            expect(html).not.toContain('data-testid="plain-builds"');
+        });
     });
 });
