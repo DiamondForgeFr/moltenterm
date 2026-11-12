@@ -6,6 +6,7 @@
 // needed: the mode is on in some view (wavesrv says so at start, or its event comes), the developer starts one, or his
 // answer carries a graph block. A window that never brainstorms loads none of it, and a release channel watches nothing.
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, PrimitiveAtom } from "jotai";
@@ -53,14 +54,27 @@ export const BrainstormStateAtom = atom(null) as PrimitiveAtom<BrainstormState>;
 type Brainstorm = typeof import("./brainstorm-store");
 
 let loading: Promise<Brainstorm> = null;
+let loaded: Brainstorm = null;
 
 // The brainstorm, loaded once and started: from then on it follows the mode itself.
 export function loadBrainstorm(): Promise<Brainstorm> {
     loading ??= import("./brainstorm-store").then((mod) => {
+        loaded = mod;
         mod.BrainstormModel.getInstance().start();
         return mod;
     });
     return loading;
+}
+
+// The developer switched the brainstorm off (FR-BOSS-011): this view lets go of the mode through its model, which
+// releases what the mode held (the pause, the slid sidebar, his card), then forgets its state. Before the model ever
+// loaded there is nothing held.
+export function forgetBrainstorm(): void {
+    if (loaded == null) {
+        globalStore.set(BrainstormStateAtom, null);
+        return;
+    }
+    loaded.BrainstormModel.getInstance().forget();
 }
 
 // The developer starts a brainstorm (Brokk's menu, the palette, `/brainstorm` in his field). withIdea: the message that
@@ -85,7 +99,15 @@ export function bootBrainstorm(): () => void {
     const stop = () => stops.splice(0).forEach((fn) => fn());
     const wake = () => {
         stop();
-        return loadBrainstorm();
+        // A model loaded before (this view watches again after a switch of Features in test turned the brainstorm off
+        // and on) does not read wavesrv's state by itself: the mode may be on already.
+        const before = loaded != null;
+        return loadBrainstorm().then((mod) => {
+            if (before) {
+                void mod.BrainstormModel.getInstance().refresh();
+            }
+            return mod;
+        });
     };
     try {
         stops.push(
