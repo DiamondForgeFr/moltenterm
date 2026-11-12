@@ -1,12 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// What runs in the app (FR-BOSS-009, AC85; FR-SHELL-122, #2233): one list of running items that the sidebar's floor and
-// the title row's activity icon both read. It is built from what MoltenTerm already holds, so it asks for nothing:
-// the agents working (every workspace, Brokk's own session left out), the runs MoltenTerm started (builds, release and
-// adapter steps, dependency syncs), the local CI runs, and the GitHub checks of the open pull requests of the
-// workspace's projects, from the answers the Integration panel holds. A run that ended is not in it: results are
-// Brokk's and the notifications' to tell. Pure, so the rules are tested without a window.
+// What runs in the window's workspace (FR-BOSS-009, AC85; FR-SHELL-122, #2233, #2261): one list of running items that
+// the sidebar's floor and the title row's activity icon both read. It is built from what MoltenTerm already holds, so it
+// asks for nothing: the agents working in the workspace (Brokk's own session left out), the runs MoltenTerm started for
+// it (builds, release and adapter steps, dependency syncs), its local CI runs, and the GitHub checks of the open pull
+// requests of its projects, from the answers the Integration panel holds. Only Brokk centralises what happens across
+// workspaces: an item whose workspace cannot be told is left out rather than shown in every window. A run that ended
+// is not in it: results are Brokk's and the notifications' to tell. Pure, so the rules are tested without a window.
 
 import type { AgentStateInfo } from "../agent-state-model";
 import { AiIcon } from "../ai-icon";
@@ -83,15 +84,23 @@ export type ActivityInputs = {
     answers: Record<string, ReviewsAnswer>;
     // The repository folders of the workspace's projects: the pull requests followed.
     dirs: readonly string[];
+    // The window's workspace: the agents and runs shown are its own.
+    workspaceid: string;
+    // The folders of the workspace's projects and their repositories: a run that carries no workspace is the
+    // workspace's when it runs in one of them.
+    folders: readonly string[];
 };
 
 function isWorkingAgent(info: AgentStateInfo): boolean {
     return info?.state === "working" && !info.own && !!(info.agent || info.agentname);
 }
 
-function agentItems(agents: Record<string, AgentStateInfo>): ActivityItem[] {
+function agentItems(agents: Record<string, AgentStateInfo>, workspaceid: string): ActivityItem[] {
+    if (!workspaceid) {
+        return [];
+    }
     return Object.values(agents ?? {})
-        .filter(isWorkingAgent)
+        .filter((info) => isWorkingAgent(info) && info.workspaceid === workspaceid)
         .map((info) => ({
             id: `agent:${info.blockid}`,
             kind: "agent" as const,
@@ -105,8 +114,16 @@ function agentItems(agents: Record<string, AgentStateInfo>): ActivityItem[] {
         }));
 }
 
-function workItems(work: readonly WorkItem[]): ActivityItem[] {
-    return (work ?? []).map((item) => {
+function isWorkspaceWork(item: WorkItem, workspaceid: string, folders: readonly string[]): boolean {
+    if (item.workspaceid) {
+        return !!workspaceid && item.workspaceid === workspaceid;
+    }
+    return !!item.dir && (folders ?? []).includes(item.dir);
+}
+
+function workItems(work: readonly WorkItem[], workspaceid: string, folders: readonly string[]): ActivityItem[] {
+    const own = (work ?? []).filter((item) => isWorkspaceWork(item, workspaceid, folders));
+    return own.map((item) => {
         const startedat = item.startedat ?? 0;
         const about = aboutOf({
             title: item.kind === "ci" ? "" : item.title,
@@ -182,7 +199,11 @@ function prItems(answers: Record<string, ReviewsAnswer>, dirs: readonly string[]
 }
 
 export function activityItems(inputs: ActivityInputs): ActivityItem[] {
-    return [...agentItems(inputs.agents), ...workItems(inputs.work), ...prItems(inputs.answers, inputs.dirs)];
+    return [
+        ...agentItems(inputs.agents, inputs.workspaceid),
+        ...workItems(inputs.work, inputs.workspaceid, inputs.folders),
+        ...prItems(inputs.answers, inputs.dirs),
+    ];
 }
 
 function newestFirst(a: ActivityItem, b: ActivityItem): number {
