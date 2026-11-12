@@ -54,8 +54,12 @@ func (s *Service) editableLocked(swap *int64) (EditResult, bool) {
 	return EditResult{}, true
 }
 
-// commitLocked saves the brainstorm after a change and tells every view; it releases the lock.
+// commitLocked saves the brainstorm after a change and tells every view; it releases the lock. The centre's text names
+// the brainstorm until the developer gives it a title (Rename), as with Brokk's own `centre`.
 func (s *Service) commitLocked(at int64, seqs []int64) EditResult {
+	if centre, ok := s.session.Graph.node(s.session.Graph.Centre); ok && !s.session.Info.Named {
+		s.session.Info.Title = centre.Text
+	}
 	s.saveLocked(at)
 	version := s.changedLocked()
 	rtn := EditResult{State: s.stateLocked(), Seqs: seqs}
