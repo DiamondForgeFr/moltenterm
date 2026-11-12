@@ -7358,9 +7358,11 @@
             "filter": "Filtrer par projet",
             "all": "Tous les projets",
             "count": "{count} projets",
-            "none": "Aucune pull request ouverte",
-            "noneHint": "Rien ne vous attend sur {name}.",
+            "none": "Rien d’ouvert, à venir ni fusionné récemment",
+            "noneHint": "Rien d’ouvert, à venir ni fusionné récemment sur les projets de {name}.",
             "openTitle": "Ouvrir #{number} dans le panneau Intégration de {project}",
+            "openProject": "Ouvrir",
+            "openProjectTitle": "Ouvrir le panneau Intégration de {project}",
             "noFolderTitle": "{project} n’a pas encore de dossier",
             "noFolder": "Donnez-lui un dossier pour suivre ses pull requests.",
             "waits": {

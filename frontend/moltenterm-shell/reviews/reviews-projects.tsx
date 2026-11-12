@@ -4,7 +4,7 @@
 // Pilotage across a workspace's projects (FR-SHELL-087): filter chips (All projects, Desktop, Mobile…) above the list.
 // All projects lists every project's open pull requests by whose turn it is, each with its project's tag; a row opens
 // its project's chip on that pull request, where the full Pilotage of that project (cards, merge queue, upcoming,
-// notes, merged) works as before.
+// notes, merged) works as before. Under the lanes, each project's Coming and Recently merged sections (#2280).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
@@ -23,14 +23,28 @@ import { openProjectSheet } from "../workspace-edit";
 import { useCardContext } from "./reviews-agent-bar";
 import { TurnTitleKeys } from "./reviews-card-model";
 import { useReviews } from "./reviews-client";
-import { rebaseAskKey, reviewsEmptyState, splitReviews } from "./reviews-model";
+import { leftoverRows } from "./reviews-leftovers-model";
+import { MergedSection } from "./reviews-merged";
+import { rebaseAskKey, ReviewsAnswer, reviewsEmptyState, splitReviews } from "./reviews-model";
 import { OthersWaitLine, OwnerChip, OwnersFilterHost } from "./reviews-owners";
 import type { OwnersFilter } from "./reviews-owners-filter";
-import { inScope, ownerFacts, ownersOf, prOwner, waitsForYou } from "./reviews-owners-model";
+import { branchOwner, inScope, ownerFacts, ownersOf, prOwner, ScopeNames, waitsForYou } from "./reviews-owners-model";
 import { useViewScope } from "./reviews-owners-store";
-import { AllProjects, projectLanes, ProjectPrRow, ReviewsProjectFilter } from "./reviews-projects-model";
+import {
+    AllProjects,
+    allProjectsEmpty,
+    projectLanes,
+    ProjectPrRow,
+    ProjectSectionBlock,
+    projectSectionBlocks,
+    ProjectSectionCounts,
+    ReviewsProjectFilter,
+} from "./reviews-projects-model";
 import { cardStates } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
+import { UpcomingSection } from "./reviews-upcoming";
+import { useUpcomingAnswer, useUpcomingWatch } from "./reviews-upcoming-client";
+import { UpcomingAnswer, upcomingRows } from "./reviews-upcoming-model";
 import { useProjectWaiting } from "./reviews-workspace";
 
 export function ProjectChips({
@@ -74,7 +88,30 @@ export function ProjectChips({
     );
 }
 
-type ProjectReport = { rows: ProjectPrRow[]; loaded: boolean; note?: string };
+// answer and sections (#2280): the project's review answer and what its Coming and Recently merged sections hold, so
+// All projects shows those sections too.
+type ProjectReport = {
+    rows: ProjectPrRow[];
+    loaded: boolean;
+    note?: string;
+    answer?: ReviewsAnswer;
+    sections?: ProjectSectionCounts;
+};
+
+// What a project's own view shows under Coming (in the view's scope, as there) and Recently merged.
+export function projectSectionCounts(
+    answer: ReviewsAnswer,
+    upcoming: UpcomingAnswer,
+    names: ScopeNames
+): ProjectSectionCounts {
+    if (answer == null || answer.state !== "ok") {
+        return { coming: 0, merged: 0 };
+    }
+    const coming =
+        upcomingRows(upcoming, answer).filter((b) => inScope(branchOwner(upcoming, b.branch), names)).length +
+        leftoverRows(upcoming, answer).length;
+    return { coming, merged: answer.repo ? (answer.merged?.length ?? 0) : 0 };
+}
 
 // One project's pull requests as Pilotage computes them (the same card states as its full list), told to the merged
 // list; it draws nothing itself.
@@ -94,6 +131,11 @@ function ProjectProbe({
     const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
     const asks = useAtomValue(ReviewsModel.getInstance().rebaseAsksAtom);
     const ctx = useCardContext(dir);
+    // The project's upcoming work is asked here as its own view asks it, so its Coming section can show (#2280).
+    useUpcomingWatch(dir, answer);
+    const upcoming = useUpcomingAnswer(dir);
+    const { names } = useViewScope();
+    const sections = useMemo(() => projectSectionCounts(answer, upcoming, names), [answer, upcoming, names]);
     const listed = useMemo(() => {
         const split = splitReviews(answer, readied);
         return [...split.ready, ...split.drafts];
@@ -117,8 +159,8 @@ function ProjectProbe({
             card: cards[pr.number],
             owner: prOwner(pr, ctx.upcoming),
         }));
-        onReport(project.id, { rows, loaded: true, note: empty?.title });
-    }, [answer, error, listed, cards, project.id, dir, ctx.upcoming]);
+        onReport(project.id, { rows, loaded: true, note: empty?.title, answer, sections });
+    }, [answer, error, listed, cards, project.id, dir, ctx.upcoming, sections]);
     return null;
 }
 
@@ -170,6 +212,10 @@ export function AllProjectsList({
         [allRows, edges]
     );
     const lanes = projectLanes(projects, rowsByProject);
+    const blocks = projectSectionBlocks(
+        linked,
+        Object.fromEntries(Object.entries(reports).map(([id, r]) => [id, r.sections ?? { coming: 0, merged: 0 }]))
+    );
     const loading = linked.some((p) => !reports[p.id]?.loaded);
     const notes = projects
         .map((p) => ({ project: p, note: p.dir === "" ? t("reviews.projects.noFolder") : reports[p.id]?.note }))
@@ -179,6 +225,7 @@ export function AllProjectsList({
         ReviewsProjectFilter.getInstance().set(workspace?.oid, row.projectId);
         globalStore.set(ReviewsModel.getInstance().focusAtom, { dir: row.dir, number: row.pr.number, at: Date.now() });
     };
+    const openProject = (id: string) => ReviewsProjectFilter.getInstance().set(workspace?.oid, id);
     const name = workspaceShownName(workspace?.name, t);
     return (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="reviews-all-projects">
@@ -210,7 +257,7 @@ export function AllProjectsList({
                 </button>
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
-                {lanes.length === 0 && !loading ? (
+                {allProjectsEmpty(lanes, blocks) && !loading ? (
                     <EmptyState
                         icon="code-pull-request"
                         title={t("reviews.projects.none")}
@@ -270,6 +317,15 @@ export function AllProjectsList({
                     revealed={revealed}
                     onToggle={() => setRevealed((v) => !v)}
                 />
+                {blocks.map((block) => (
+                    <ProjectSectionsBlock
+                        key={block.project.id}
+                        block={block}
+                        answer={reports[block.project.id]?.answer}
+                        names={view.names}
+                        onOpen={() => openProject(block.project.id)}
+                    />
+                ))}
                 {notes.length > 0 ? (
                     <ul className="m-0 flex list-none flex-col gap-1 p-0 text-11 text-muted">
                         {notes.map((n) => (
@@ -281,6 +337,51 @@ export function AllProjectsList({
                 ) : null}
             </div>
         </div>
+    );
+}
+
+// One project's Coming and Recently merged sections in All projects (#2280), the same components as its own view, under
+// a header naming the project with a link to that view. A section with nothing in it is left out.
+export function ProjectSectionsBlock({
+    block,
+    answer,
+    names,
+    onOpen,
+}: {
+    block: ProjectSectionBlock;
+    answer: ReviewsAnswer;
+    names: ScopeNames;
+    onOpen: () => void;
+}) {
+    const t = useT();
+    if (answer == null) {
+        return null;
+    }
+    const label = projectLabel(block.project);
+    return (
+        <section
+            className="flex flex-col gap-2 border-t border-border pt-3"
+            aria-label={label}
+            data-testid="reviews-all-project-sections"
+            data-project={block.project.id}
+        >
+            <div className="flex min-w-0 items-center gap-2">
+                <h4 className="m-0 min-w-0 truncate text-11 font-semibold tracking-[0.08em] text-muted uppercase">
+                    {label}
+                </h4>
+                <button
+                    type="button"
+                    onClick={onOpen}
+                    className="ml-auto shrink-0 cursor-pointer text-11 leading-4 font-normal text-accent hover:underline"
+                    title={t("reviews.projects.openProjectTitle", { project: label })}
+                    data-testid="reviews-all-project-open"
+                >
+                    {t("reviews.projects.openProject")}
+                </button>
+            </div>
+            {block.coming > 0 ? <UpcomingSection dir={answer.dir} reviews={answer} names={names} /> : null}
+            {block.merged > 0 ? <MergedSection answer={answer} onShowNotes={onOpen} /> : null}
+        </section>
     );
 }
 

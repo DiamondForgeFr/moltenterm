@@ -7358,9 +7358,11 @@
             "filter": "Filter by project",
             "all": "All projects",
             "count": "{count} projects",
-            "none": "No pull request open",
-            "noneHint": "Nothing waits for you on {name}.",
+            "none": "Nothing open, coming or merged lately",
+            "noneHint": "Nothing open, coming or merged lately on {name}'s projects.",
             "openTitle": "Open #{number} in {project}'s Integration panel",
+            "openProject": "Open",
+            "openProjectTitle": "Open {project}'s Integration panel",
             "noFolderTitle": "{project} has no folder yet",
             "noFolder": "Give it a folder to follow its pull requests.",
             "waits": {
