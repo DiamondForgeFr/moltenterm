@@ -94,6 +94,7 @@ export class BrainstormModel {
 
     private call: Call = LiveCall;
     private started = false;
+    private paused = false;
     private sent = new Set<string>();
     private seen = new Map<string, number>();
     private agentsBefore: AgentStatesData = null;
@@ -280,8 +281,7 @@ export class BrainstormModel {
     }
 
     private opened(): void {
-        setBrainstormHold(true);
-        notifyApi()?.moltentermSystemNotifyHold?.(true);
+        this.pause(true);
         this.sent.clear();
         this.seen = new Map(
             MoltentermNotifications.getInstance()
@@ -314,9 +314,31 @@ export class BrainstormModel {
         }
     }
 
+    // The developer switched the brainstorm off in Features in test (FR-BOSS-011). The mode is wavesrv's, which now
+    // refuses every view, so it can no longer tell this one that the mode ended: what the mode held here is let go as
+    // when it ends (the pause, the slid sidebar, his pinned card), and the view forgets its state. Wavesrv's own state
+    // is read again when the switch is back on.
+    forget(): void {
+        const was = this.isOpen();
+        globalStore.set(this.stateAtom, null);
+        if (was) {
+            this.closed();
+        }
+    }
+
+    // The pause of the notifications, here and in Electron main: asked again for the state it is in, it does nothing, so
+    // the mode opening again after this view let go of it holds once, and one end releases it.
+    private pause(on: boolean): void {
+        if (this.paused === on) {
+            return;
+        }
+        this.paused = on;
+        setBrainstormHold(on);
+        notifyApi()?.moltentermSystemNotifyHold?.(on);
+    }
+
     private closed(): void {
-        setBrainstormHold(false);
-        notifyApi()?.moltentermSystemNotifyHold?.(false);
+        this.pause(false);
         globalStore.set(this.breakthroughAtom, null);
         const count = globalStore.get(this.tallyAtom).ids.size;
         globalStore.set(this.tallyAtom, EmptyTally);
