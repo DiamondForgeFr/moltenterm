@@ -17,15 +17,40 @@
     container: bsp / inline-size;
 }
 
-/* A narrow window gives the panel less room (#2285, brainstormLayout): the eyebrow keeps its icon, what does not fit on
-   a line goes to the next, and a listed brainstorm's Resume and ⋯ go under its title. */
+/* The open brainstorm's ⋯ shows only in a narrow panel, in place of its three links. */
+.mt-bsp-acts .mt-bsp-more {
+    display: none;
+}
+
+/* A narrow window gives the panel less room (#2285, brainstormLayout): the eyebrow leaves Leave alone on its line, the
+   saved line keeps one line without the folder's name, the open brainstorm's links go into its ⋯, and a listed
+   brainstorm's Resume and ⋯ go under its title. */
 @container bsp (max-width: 320px) {
+    .mt-bsp-eyebrow > i,
     .mt-bsp-eyebrow-text {
-        visibility: hidden;
+        display: none;
     }
 
-    .mt-bsp-saved {
-        flex-wrap: wrap;
+    .mt-bsp-leave {
+        margin-left: auto;
+    }
+
+    .mt-bsp-folder {
+        display: none;
+    }
+
+    .mt-bsp-saved-text {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .mt-bsp-acts .mt-bsp-links {
+        display: none;
+    }
+
+    .mt-bsp-acts .mt-bsp-more {
+        display: inline-flex;
     }
 
     .mt-bsp-row {
