@@ -132,6 +132,9 @@ export class BrokkSession {
     private lead = "";
     // The conversations not on screen, as they were left.
     private aside = new Map<ConversationKey, ExchangeItem[]>();
+    // The conversation the waiting message was written in, and the lead it had then (#2285).
+    private queuedIn: ConversationKey = "main";
+    private queuedLead = "";
 
     static getInstance(): BrokkSession {
         if (BrokkSession.instance == null) {
@@ -342,6 +345,8 @@ export class BrokkSession {
         }
         const lead = this.lead;
         const text = lead !== "" ? `${lead} ${typed}` : typed;
+        // The conversation it is written in (#2285): it joins that one, whichever shows when his agent takes it.
+        const conversation = this.shownConversation();
         const gen = ++this.sendGen;
         this.stateOwner = null;
         globalStore.set(this.stateAtom, SendingTalk);
@@ -357,7 +362,7 @@ export class BrokkSession {
         if (gen !== this.sendGen) {
             // Another message started while this try was on its way, and his agent took this one: it went, so it shows.
             if (state.phase === "answering") {
-                await this.takeOver(text, sentAt, state, this.sendGen);
+                await this.takeOver(text, sentAt, state, this.sendGen, conversation);
             }
             return state;
         }
@@ -366,6 +371,8 @@ export class BrokkSession {
             // waits in his talk window, then goes by itself once he is free (#2257, #2284). Never "try again". The lead
             // stays for the try that is taken.
             globalStore.set(this.queuedAtom, { text: typed, since: Date.now() });
+            this.queuedIn = conversation;
+            this.queuedLead = lead;
             const queued = queuedOf(state);
             globalStore.set(this.stateAtom, queued);
             void this.drain(gen, clearPrompt, state);
@@ -379,7 +386,7 @@ export class BrokkSession {
         if (this.lead === lead) {
             this.lead = "";
         }
-        await this.takeOver(text, sentAt, state, gen);
+        await this.takeOver(text, sentAt, state, gen, conversation);
         return state;
     }
 
@@ -398,7 +405,9 @@ export class BrokkSession {
                 continue;
             }
             const queued = globalStore.get(this.queuedAtom);
-            const lead = this.lead;
+            // A message waiting from the brainstorm the developer left keeps its lead, and goes into its conversation
+            // (#2285).
+            const lead = this.shownConversation() === this.queuedIn ? this.lead : this.queuedLead;
             const text = lead !== "" ? `${lead} ${queued.text}` : queued.text;
             const sentAt = Date.now() - SentSlackMs;
             state = await this.give(text, clearPrompt);
@@ -413,7 +422,7 @@ export class BrokkSession {
                 if (this.lead === lead) {
                     this.lead = "";
                 }
-                await this.takeOver(text, sentAt, state, gen);
+                await this.takeOver(text, sentAt, state, gen, this.queuedIn);
                 if (later !== "") {
                     void this.say(later);
                 }
@@ -486,7 +495,13 @@ export class BrokkSession {
 
     // His agent has the message: the answer before it is read to its end, the message joins the exchange, and its answer
     // is followed.
-    private async takeOver(text: string, sentAt: number, state: TalkState, gen: number): Promise<void> {
+    private async takeOver(
+        text: string,
+        sentAt: number,
+        state: TalkState,
+        gen: number,
+        conversation: ConversationKey
+    ): Promise<void> {
         const prior = this.tracked;
         if (prior != null && !prior.stopped) {
             prior.stopped = true;
@@ -497,14 +512,14 @@ export class BrokkSession {
         }
         const tracked: Tracked = {
             id: `m${++this.counter}`,
-            conversation: this.shownConversation(),
+            conversation,
             text,
             sentAt,
             turn: 0,
             markdown: "",
             stopped: false,
         };
-        globalStore.set(this.exchangeAtom, (items) => withMessage(items, tracked.id, text, Date.now()));
+        this.updateIn(conversation, (items) => withMessage(items, tracked.id, text, Date.now()));
         this.tracked = tracked;
         this.stateOwner = tracked.id;
         this.takenListeners.forEach((listener) => {
