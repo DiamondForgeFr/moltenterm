@@ -89,6 +89,10 @@ type RunRecord struct {
 	Changed []string `json:"changed,omitempty"`
 	// Still fetching, verifying or preparing in wavesrv: there is no process to follow yet.
 	Preparing bool `json:"preparing,omitempty"`
+	// Why a build stopped when a time limit or the developer stopped it (#2273), for its log, its row and its
+	// notification; empty when its log alone says why.
+	Stopped     string      `json:"stopped,omitempty"`
+	StoppedText *uimsg.Text `json:"stoppedtext,omitempty"`
 	// Its end was told in the notification center (FR-MC-014).
 	Told bool `json:"told,omitempty"`
 	// Closed by the user once it no longer runs: a build's card leaves the Project tab, a step's log stays hidden, until
@@ -147,6 +151,8 @@ type Runs struct {
 	// How often a followed run is read again, and a build reads its local CI run; zero is runPollInterval and
 	// buildCiPoll. Tests shorten it (#2019).
 	pollEvery time.Duration
+	// How long a build's git step or prepare command may take; zero is buildStepTimeout. Tests shorten it.
+	stepTimeout time.Duration
 }
 
 func (r *Runs) pollInterval() time.Duration {

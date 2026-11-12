@@ -4305,7 +4305,7 @@
             "built": "Built.",
             "failedDuring": "Failed during “{phase}”. The end of the log says why.",
             "lostDuring": "Interrupted during “{phase}”: its process is gone without an exit code.",
-            "cancelledDuring": "Cancelled during “{phase}”.",
+            "cancelledDuring": "Cancelled by you during “{phase}”.",
             "flavor": {
                 "gold": "Gold",
                 "rc": "RC local"
@@ -9905,6 +9905,13 @@
             },
             "noPipeline": "The project has no pipeline (.molten/project.json).",
             "pipelineProblems": "The pipeline has problems: {detail}",
+            "build": {
+                "stalled": "Stopped: the local CI made no progress for {minutes} minutes ({jobs}). Relaunch the build: the jobs already green are reused.",
+                "ciCancelled": "Stopped: its local CI run was cancelled.",
+                "worktreeTimeout": "Stopped: preparing the build's worktree took longer than {minutes} minutes.",
+                "prepareTimeout": "Stopped: the build's prepare command took longer than {minutes} minutes.",
+                "cancelled": "Cancelled by you."
+            },
             "ci": {
                 "noJobs": "The pipeline declares no CI job (ci.jobs).",
                 "notACommit": "{rev} is not a commit of this project.",
