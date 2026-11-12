@@ -392,13 +392,28 @@
     opacity: 1;
 }
 
+/* The ring (#2265): another workspace where an agent waits for the developer or where notifications are unread. It is
+   the dot's own box, laid out on the dot's top left corner as the ripple is (#1993), with the line drawn as an outline
+   at a fixed distance from it, so it is rounded exactly as the dot is and stays on its centre at every zoom and in
+   both row sizes. Never an inset from the 24 px slot: (24 - 15) / 2 is a half pixel, which rounds on its own. It
+   breathes in place on the shell's calm loop (opacity only, the radar's waiting pulse), where the ripple grows. Sizes
+   are unitless pixels, as the ripple's. */
+.mt-sb-dot.has-ring {
+    --mt-sb-ring-dot: 9;
+    --mt-sb-ring-gap: 3px;
+}
+
 .mt-sb-dot.has-ring::after {
     content: "";
     position: absolute;
-    inset: 4.5px;
+    top: calc(50% - var(--mt-sb-ring-dot) * 0.5px);
+    left: calc(50% - var(--mt-sb-ring-dot) * 0.5px);
+    width: calc(var(--mt-sb-ring-dot) * 1px);
+    height: calc(var(--mt-sb-ring-dot) * 1px);
     border-radius: 9999px;
     pointer-events: none;
-    box-shadow: 0 0 0 1.5px var(--mt-sb-dot-colour);
+    outline: 1.5px solid var(--mt-sb-dot-colour);
+    outline-offset: var(--mt-sb-ring-gap);
     animation: mt-sb-ring var(--mt-duration-loop) ease-in-out infinite;
 }
 
@@ -928,8 +943,9 @@
     height: 18px;
 }
 
-.mt-sb-dots.is-many .mt-sb-dot.has-ring::after {
-    inset: 5px;
+.mt-sb-dots.is-many .mt-sb-dot.has-ring {
+    --mt-sb-ring-dot: 7;
+    --mt-sb-ring-gap: 3.5px;
 }
 
 @media (prefers-reduced-motion: reduce) {

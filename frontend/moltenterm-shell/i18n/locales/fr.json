@@ -6233,6 +6233,14 @@
     "rail": {
         "keepAwakeWhileWorking": "Garder cet ordinateur éveillé pendant le travail",
         "keptAwake": "gardé éveillé {condition}",
+        "dot": {
+            "waiting": "{name} vous attend",
+            "waitingAgent": "Un agent vous attend",
+            "unread": {
+                "one": "{count} notification non lue",
+                "other": "{count} notifications non lues"
+            }
+        },
         "unread": {
             "one": "{count} non lue",
             "other": "{count} non lues"
