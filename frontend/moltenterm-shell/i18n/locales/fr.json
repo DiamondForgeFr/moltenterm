@@ -455,7 +455,7 @@
             "brainstormDetail": "parler d'une idée, sa pensée se construit en 3D",
             "brainstormReplay": "Rejouer un brainstorm scripté",
             "brainstormResume": "Reprendre le brainstorm « {title} »",
-            "brainstormResumeDetail": "là où vous l'avez laissé avec {name} : son graphe et sa conversation",
+            "brainstormResumeDetail": "là où vous l'avez laissé avec {name} : son graphe et sa conversation",
             "brainstormReplayDetail": "versions de développement : données synthétiques, sans agent",
             "checkUpdates": "Rechercher une mise à jour maintenant",
             "checkUpdatesDetail": "interroge GitHub maintenant, même si elle a été faite aujourd'hui",
