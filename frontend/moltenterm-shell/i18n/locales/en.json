@@ -4205,7 +4205,15 @@
             "driftUncommitted": "The pipeline (.molten/project.json) has changes that are not committed: the release would follow them while its branch carries the committed pipeline.",
             "driftBase": "The pipeline (.molten/project.json) differs from {base}, which the release branch is made from.",
             "driftHint": "Commit and push it, or bring this checkout up to date, then start again. Nothing started yet.",
-            "startAnyway": "Start anyway"
+            "startAnyway": "Start anyway",
+            "plannedHeading": "Planned: next station {tag}",
+            "computedHeading": "Or the number computed from the commits",
+            "computedReason": "{tag} follows the commits: {reason}, a {level} version.",
+            "computedReasonPlain": "{tag} follows the commits: a {level} version.",
+            "plannedTagged": "{tag}, the next station, is already tagged: only the computed number is offered.",
+            "plannedConfirm": "The commits call for a {level} version ({derived}): {reason}. Start {tag} as planned all the same?",
+            "plannedConfirmPlain": "The commits call for a {level} version ({derived}). Start {tag} as planned all the same?",
+            "plannedBack": "Back"
         },
         "builds": {
             "neverBuilt": "Never built",
@@ -6552,8 +6560,8 @@
             "nothing": "Nothing to release yet.",
             "planned": "Planned — milestone {milestone}, {open}, nothing on {trunk} yet",
             "milestoneFirst": "Milestone {milestone} is due first; the changes on {trunk} fit in it.",
-            "biggerBump": "{reason} on {trunk}: {tag} would be a {level} version.",
-            "biggerBumpPlain": "The changes on {trunk} call for a {level} version: {tag} would be one.",
+            "biggerBump": "{reason} on {trunk}: the changes call for a {level} version ({derived}). The release planned as {tag} can still go out under that number.",
+            "biggerBumpPlain": "The changes on {trunk} call for a {level} version ({derived}). The release planned as {tag} can still go out under that number.",
             "open": {
                 "one": "{count} open",
                 "other": "{count} open"

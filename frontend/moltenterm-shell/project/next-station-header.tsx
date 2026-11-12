@@ -287,6 +287,7 @@ export function NextStationHeader({
                             session={release}
                             rcSteps={pipeline.release?.rc ?? []}
                             publicSteps={pipeline.release?.public ?? []}
+                            milestones={milestones}
                             onStarted={() => {
                                 reloadRelease();
                                 showRuns();
