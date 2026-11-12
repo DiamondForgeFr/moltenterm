@@ -39,11 +39,14 @@ describe("on-demand modules stay out of the entry chunk (#2200)", () => {
         expect(text).toContain(`import("${mod}")`);
     });
 
+    // Read here, while the file is collected: collection has no timeout, and a loaded machine stretches this scan of
+    // every source past a test's 5 s (#2274). The test below only reads the result.
+    const threeOwners = shellSources().filter((file) => staticImports(readFileSync(file, "utf8")).some(isThree));
+
     // three.js comes only through the scene: no module the window loads up front imports it, and the entry guard of the
     // build refuses it in the entry chunk (entry-guard.ts HeavyPackages).
     it("three.js is imported by the brainstorm scene alone", () => {
-        const owners = shellSources().filter((file) => staticImports(readFileSync(file, "utf8")).some(isThree));
-        expect(owners.map((file) => file.slice(file.indexOf("moltenterm-shell")))).toEqual([
+        expect(threeOwners.map((file) => file.slice(file.indexOf("moltenterm-shell")))).toEqual([
             "moltenterm-shell/brainstorm/brainstorm-scene.ts",
         ]);
     });

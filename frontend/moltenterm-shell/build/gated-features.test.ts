@@ -231,6 +231,21 @@ describe("every gate names a feature of the registry", () => {
         Object.entries(Gated).filter(([name, value]) => /^Feature[A-Z]/.test(name) && typeof value === "string")
     ) as Record<string, string>;
 
+    // Read here, while the file is collected: collection has no timeout, and a loaded machine stretches this CPU-bound
+    // scan of every source past a test's 5 s (#2274). The test below only reads the results. Another module may have a
+    // function of the same name (browser-popup.ts reads the features of window.open): only the files that import the
+    // gates are checked.
+    const files = sources();
+    let gates = 0;
+    const problems = files.flatMap((file) => {
+        const src = readFileSync(file, "utf8");
+        if (!ImportsAGate.test(src) && !HandOnFiles.some((f) => file.endsWith(f))) {
+            return [];
+        }
+        gates += [...src.matchAll(GateCalls)].length;
+        return gateProblems(file, src, ids, constants).map((p) => p.slice(p.indexOf("frontend")));
+    });
+
     it("catches a feature that is not declared, a variable and a constant that does not exist", () => {
         expect(gateProblems("a", `featureOn(FeatureBrainstorm, channel, state)`, ids, constants)).toEqual([]);
         expect(gateProblems("a", `featureAllowedOn("brainstorm", channel)`, ids, constants)).toEqual([]);
@@ -244,20 +259,8 @@ describe("every gate names a feature of the registry", () => {
         expect(gateProblems("x/build/gated-features.ts", `featureAllowedOn("nope", "gold")`, ids, constants)).toHaveLength(1);
     });
 
-    // Another module may have a function of the same name (browser-popup.ts reads the features of window.open): only
-    // the files that import the gates are read.
     it("holds in every source of the window and of Electron main that imports a gate", () => {
-        const files = sources();
         expect(files.length).toBeGreaterThan(100);
-        let gates = 0;
-        const problems = files.flatMap((file) => {
-            const src = readFileSync(file, "utf8");
-            if (!ImportsAGate.test(src) && !HandOnFiles.some((f) => file.endsWith(f))) {
-                return [];
-            }
-            gates += [...src.matchAll(GateCalls)].length;
-            return gateProblems(file, src, ids, constants).map((p) => p.slice(p.indexOf("frontend")));
-        });
         expect(gates).toBeGreaterThan(0);
         expect(problems).toEqual([]);
     });

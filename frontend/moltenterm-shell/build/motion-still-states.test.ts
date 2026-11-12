@@ -61,6 +61,28 @@ function reducedMotionText(src: string): string {
     return text;
 }
 
+function loopsWithoutStill(files: string[]): string[] {
+    const missing: string[] = [];
+    for (const file of files) {
+        const src = stripCssComments(readFileSync(file, "utf8"));
+        const stilled = reducedMotionText(src);
+        const rule = /([^{}]+)\{[^{}]*animation:[^;{}]*\binfinite\b[^;{}]*;/g;
+        for (let m = rule.exec(src); m != null; m = rule.exec(src)) {
+            const cls = /\.([\w-]+)/.exec(m[1]);
+            if (cls == null || !new RegExp(`\\.${cls[1]}(?![\\w-])`).test(stilled)) {
+                missing.push(`${file.slice(ShellDir.length + 1)}: ${m[1].trim().split("\n").pop()}`);
+            }
+        }
+    }
+    return missing;
+}
+
+// The whole tree is scanned here, while the file is collected: collection has no timeout, and a loaded machine stretches
+// this CPU-bound work past a test's 5 s (#2274). The tests below only read the results.
+const Stylesheets = cssFiles();
+const LoopsWithoutStill = loopsWithoutStill(Stylesheets);
+const TitleRowLoops = Stylesheets.filter((f) => /[\\/]activity[\\/]/.test(f) && /infinite/.test(readFileSync(f, "utf8")));
+
 describe("reduced motion (NFR-SHELL-027, FR-SHELL-118)", () => {
     const tokens = stripCssComments(readFileSync(join(ShellDir, "tokens.css"), "utf8"));
     const durations = [...tokens.matchAll(/^\s*--mt-duration-([a-z]+):/gm)].map((m) => m[1]);
@@ -82,19 +104,7 @@ describe("reduced motion (NFR-SHELL-027, FR-SHELL-118)", () => {
     });
 
     it("stills every infinite animation of MoltenTerm's CSS under the system preference", () => {
-        const missing: string[] = [];
-        for (const file of cssFiles()) {
-            const src = stripCssComments(readFileSync(file, "utf8"));
-            const stilled = reducedMotionText(src);
-            const rule = /([^{}]+)\{[^{}]*animation:[^;{}]*\binfinite\b[^;{}]*;/g;
-            for (let m = rule.exec(src); m != null; m = rule.exec(src)) {
-                const cls = /\.([\w-]+)/.exec(m[1]);
-                if (cls == null || !new RegExp(`\\.${cls[1]}(?![\\w-])`).test(stilled)) {
-                    missing.push(`${file.slice(ShellDir.length + 1)}: ${m[1].trim().split("\n").pop()}`);
-                }
-            }
-        }
-        expect(missing).toEqual([]);
+        expect(LoopsWithoutStill).toEqual([]);
     });
 });
 
@@ -119,7 +129,6 @@ describe("the smooth loops that are an exception to the working beat", () => {
 
     it("lets no other file's infinite animation off the beat unless it is in the list", () => {
         const listed = new Set(SmoothLoops.map((l) => join(ShellDir, l.file)));
-        const titleRow = cssFiles().filter((f) => /[\\/]activity[\\/]/.test(f));
-        expect(titleRow.every((f) => listed.has(f) || !/infinite/.test(readFileSync(f, "utf8")))).toBe(true);
+        expect(TitleRowLoops.filter((f) => !listed.has(f))).toEqual([]);
     });
 });
