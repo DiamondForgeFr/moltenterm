@@ -1,0 +1,349 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The brainstorm panel (FR-BOSS-010 AC23, AC25, DS-BOSS-013, #2285): in Brokk's group, in the rail's place beside his
+   square, inside the frame brokk-group.css draws. It takes the shell's tokens, so it reads the same in light and dark,
+   in the suite's language: plain rows, a brass eyebrow, an ember for what is still in progress, no ornament. */
+
+.mt-bsp {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+    min-height: 0;
+    padding: 12px 14px 10px;
+    font-size: var(--mt-text-12);
+    color: var(--mt-text-2);
+}
+
+.mt-bsp :focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 1px;
+}
+
+/* The open brainstorm. */
+.mt-bsp-head {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.mt-bsp-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mt-text-3);
+}
+
+.mt-bsp-eyebrow > i {
+    color: var(--mt-action-text);
+}
+
+.mt-bsp-eyebrow-text {
+    flex: 1 1 auto;
+}
+
+/* Leave the brainstorm (AC2a): always there, whatever Brokk is doing. A calm bordered button, not a call to action. */
+.mt-bsp-leave,
+.mt-bsp-btn {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-2);
+    color: var(--mt-text-1);
+    font: inherit;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-medium);
+    letter-spacing: normal;
+    text-transform: none;
+    transition:
+        border-color var(--mt-duration-fast) var(--mt-ease),
+        color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-bsp-leave:hover,
+.mt-bsp-btn:hover {
+    border-color: color-mix(in srgb, var(--mt-action) 60%, transparent);
+    color: var(--mt-action-text);
+}
+
+.mt-bsp-title {
+    overflow: hidden;
+    font-size: var(--mt-text-15);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--mt-text-1);
+}
+
+.mt-bsp-saved {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+}
+
+.mt-bsp-saved-dot {
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mt-state-done);
+}
+
+.mt-bsp-saved[data-tone="waiting"] .mt-bsp-saved-dot {
+    background: var(--mt-text-3);
+}
+
+.mt-bsp-saved[data-tone="failed"] {
+    color: var(--mt-danger-text);
+}
+
+.mt-bsp-saved[data-tone="failed"] .mt-bsp-saved-dot {
+    background: var(--mt-state-error);
+}
+
+.mt-bsp-folder {
+    min-width: 0;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    text-overflow: ellipsis;
+    color: var(--mt-text-3);
+}
+
+.mt-bsp-acts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    margin-top: 4px;
+}
+
+.mt-bsp-links {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0 10px;
+    font-size: var(--mt-text-11);
+}
+
+.mt-bsp-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    color: var(--mt-text-2);
+    transition: color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-bsp-link:hover {
+    color: var(--mt-action-text);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.mt-bsp-link-danger:hover {
+    color: var(--mt-danger-text);
+}
+
+.mt-bsp-link:disabled {
+    opacity: 0.5;
+}
+
+/* His fork's question (AC11): one line from him with Yes and No, we stay here. */
+.mt-bsp-fork {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 10px;
+    border-left: 2px solid var(--mt-action);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-action-wash);
+    line-height: 1.45;
+    color: var(--mt-text-1);
+}
+
+.mt-bsp-notice {
+    flex: none;
+    font-size: var(--mt-text-11);
+}
+
+.mt-bsp-notice[data-kind="failed"] {
+    color: var(--mt-danger-text);
+}
+
+/* The other brainstorms (AC10, AC25): the unfinished ones first. */
+.mt-bsp-others {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--mt-line-1);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mt-text-3);
+}
+
+.mt-bsp-count {
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--mt-surface-2);
+    letter-spacing: normal;
+    color: var(--mt-text-2);
+}
+
+.mt-bsp-list {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+    margin: 0 -6px;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+
+.mt-bsp-empty {
+    padding: 4px 6px;
+    font-size: var(--mt-text-11);
+    color: var(--mt-text-3);
+}
+
+.mt-bsp-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 6px;
+    border-radius: var(--mt-radius-control);
+}
+
+.mt-bsp-row:hover,
+.mt-bsp-row:focus-within {
+    background: var(--mt-surface-2);
+}
+
+.mt-bsp-row-main {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.mt-bsp-row-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--mt-text-1);
+}
+
+.mt-bsp-row-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+    color: var(--mt-text-3);
+}
+
+/* In progress: an ember, as for what is still warm on the anvil; finished: a cold ring. */
+.mt-bsp-mark {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+}
+
+.mt-bsp-mark::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.mt-bsp-mark[data-state="open"] {
+    color: var(--mt-action-text);
+}
+
+.mt-bsp-mark[data-state="open"]::before {
+    background: var(--mt-action);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--mt-action) 60%, transparent);
+}
+
+.mt-bsp-mark[data-state="done"]::before {
+    border: 1px solid var(--mt-text-3);
+}
+
+.mt-bsp-row-acts {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+}
+
+.mt-bsp-resume {
+    padding: 2px 10px;
+    border: 1px solid color-mix(in srgb, var(--mt-action) 50%, transparent);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-action-wash);
+    color: var(--mt-action-text);
+    font: inherit;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-medium);
+    transition: border-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-bsp-resume:hover {
+    border-color: var(--mt-action);
+}
+
+/* Rename, Show in folder and Delete of a row show with the pointer or the keyboard on it: the list stays calm. */
+.mt-bsp-row-more {
+    display: inline-flex;
+    gap: 0 10px;
+    font-size: var(--mt-text-11);
+    opacity: 0;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-bsp-row:hover .mt-bsp-row-more,
+.mt-bsp-row:focus-within .mt-bsp-row-more {
+    opacity: 1;
+}
+
+.mt-bsp-rename {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.mt-bsp-rename-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 2px 6px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-term);
+    font: inherit;
+    color: var(--mt-text-1);
+}

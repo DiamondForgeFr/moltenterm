@@ -12,9 +12,12 @@ import {
     newlyCrashed,
     othersOf,
     pickerOf,
+    resumeOrder,
     sidebarOnClose,
     sidebarOnOpen,
+    stateOf,
     tallied,
+    unfinished,
 } from "./brainstorm-model";
 
 const folder = (slug: string, updated: number) => ({
@@ -36,6 +39,25 @@ describe("the folders' rules (#2248)", () => {
 
     it("lists the others beside the open one", () => {
         expect(othersOf([folder("a", 2), folder("b", 1)], "a").map((f) => f.slug)).toEqual(["b"]);
+    });
+
+    // FR-BOSS-010 AC25 (#2285): a brainstorm is in progress until Brokk marks it finished; the unfinished ones come
+    // first, in the picker and the panel, the most recent first in each.
+    it("offers the unfinished brainstorms first, the most recent first, then the finished ones", () => {
+        const done = (slug: string, updated: number, state = "done") => ({ ...folder(slug, updated), state });
+        const list = [done("old-done", 9), folder("open-a", 3), done("promoted", 8, "promoted"), folder("open-b", 5)];
+        expect(resumeOrder(list).map((f) => f.slug)).toEqual(["open-b", "open-a", "old-done", "promoted"]);
+        expect(pickerOf(list)).toMatchObject({
+            recent: [{ slug: "open-b" }, { slug: "open-a" }, { slug: "old-done" }],
+        });
+        expect(othersOf(list, "open-b").map((f) => f.slug)).toEqual(["open-a", "old-done", "promoted"]);
+        expect(unfinished(folder("x", 1))).toBe(true);
+        expect(unfinished({ ...folder("x", 1), state: "open" })).toBe(true);
+        expect(unfinished({ ...folder("x", 1), state: "sketch" })).toBe(true);
+        expect(unfinished(done("x", 1))).toBe(false);
+        expect(stateOf({ ...folder("x", 1), state: "sketch" })).toBe("open");
+        expect(stateOf(done("x", 1, "clear"))).toBe("clear");
+        expect(resumeOrder(null)).toEqual([]);
     });
 
     it("asks his questions only once his answer is complete, and only where the gate is open", () => {

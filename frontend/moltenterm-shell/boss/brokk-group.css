@@ -68,6 +68,7 @@
    goes back to the face at once on the way out (the approved mockup's motion, #2082). */
 .mt-brokk-sq,
 .mt-brokk-rail,
+.mt-brokk-bspanel,
 .mt-brokk-block,
 .mt-brokk-fieldbox {
     position: absolute;
@@ -82,6 +83,7 @@
 
 .mt-brokk-group.is-in > .mt-brokk-sq,
 .mt-brokk-group.is-in > .mt-brokk-rail,
+.mt-brokk-group.is-in > .mt-brokk-bspanel,
 .mt-brokk-group.is-in > .mt-brokk-block,
 .mt-brokk-group.is-in > .mt-brokk-fieldbox {
     opacity: 1;
@@ -90,6 +92,7 @@
 }
 
 .mt-brokk-group.is-in > .mt-brokk-rail,
+.mt-brokk-group.is-in > .mt-brokk-bspanel,
 .mt-brokk-group.is-in > .mt-brokk-block {
     transition:
         transform var(--mt-duration-snap) cubic-bezier(0.3, 1.12, 0.4, 1) calc(var(--i, 0) * 50ms),
@@ -250,6 +253,23 @@
     box-shadow: var(--mt-shadow-e2);
 }
 
+/* During a brainstorm the rail gives its place to the brainstorm panel (FR-BOSS-010 AC23, #2285). */
+.mt-brokk-rail[hidden] {
+    display: none;
+}
+
+/* The brainstorm panel's frame, in the rail's place beside the square: the panel's own surface and brass edge, drawn at
+   once while its content (brainstorm-panel.tsx) loads with the brainstorm. */
+.mt-brokk-bspanel {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--mt-surface-1);
+    border: 1px solid var(--mt-line-1);
+    border-radius: var(--mt-radius-panel);
+    box-shadow: var(--mt-shadow-e2);
+}
+
 .mt-brokk-icon {
     position: absolute;
     display: flex;
@@ -396,11 +416,6 @@
     display: block;
     margin: 0;
     padding: 0;
-}
-
-/* During a brainstorm the gauges give their height to his conversation (#2257). */
-.mt-brokk-usage[hidden] {
-    display: none;
 }
 
 .mt-brokk-usage-empty {
@@ -891,6 +906,7 @@
 @media (prefers-reduced-motion: reduce) {
     .mt-brokk-sq,
     .mt-brokk-rail,
+    .mt-brokk-bspanel,
     .mt-brokk-block,
     .mt-brokk-fieldbox {
         transform: none !important;
@@ -927,6 +943,7 @@
 
 .prefers-reduced-motion .mt-brokk-sq,
 .prefers-reduced-motion .mt-brokk-rail,
+.prefers-reduced-motion .mt-brokk-bspanel,
 .prefers-reduced-motion .mt-brokk-block,
 .prefers-reduced-motion .mt-brokk-fieldbox {
     transform: none !important;

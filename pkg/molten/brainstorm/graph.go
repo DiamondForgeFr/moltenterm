@@ -53,6 +53,9 @@ const (
 	OpResume   = "resume"
 	OpForget   = "forget"
 	OpRemember = "remember"
+	// OpFinish (#2285): the developer says the brainstorm is done. It never changes the graph: the open brainstorm is
+	// saved as finished.
+	OpFinish = "finish"
 )
 
 const (
@@ -203,7 +206,7 @@ func checkId(id string, what string) error {
 // writes the name, and an error is logged.
 func opLabel(i int, op string) string {
 	switch op {
-	case OpCentre, OpAdd, OpLink, OpEdit, OpPropose, OpConclude, OpFork, OpResume, OpForget, OpRemember:
+	case OpCentre, OpAdd, OpLink, OpEdit, OpPropose, OpConclude, OpFork, OpResume, OpForget, OpRemember, OpFinish:
 		return fmt.Sprintf("operation %d (%s)", i+1, op)
 	}
 	return fmt.Sprintf("operation %d (unknown op)", i+1)
@@ -263,6 +266,7 @@ func ValidateBlock(b Block) error {
 			if utf8.RuneCountInString(CleanText(op.Reason)) > MaxText {
 				return fmt.Errorf("%s: reason over %d characters", what, MaxText)
 			}
+		case OpFinish:
 		default:
 			if !laterOps[op.Op] {
 				return fmt.Errorf("%s: unknown operation", what)
@@ -353,6 +357,16 @@ func CentreOf(b Block) string {
 		}
 	}
 	return ""
+}
+
+// Finishes: the block holds a `finish` (#2285).
+func Finishes(b Block) bool {
+	for _, op := range b.Ops {
+		if op.Op == OpFinish {
+			return true
+		}
+	}
+	return false
 }
 
 // StartsNewIdea: the block puts a central idea other than the graph's, so it begins a brainstorm of its own and the

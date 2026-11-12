@@ -3165,12 +3165,11 @@
                 "reference": "Other folder"
             },
             "saved": {
-                "title": "Brainstorms",
                 "at": "Saved automatically · {time}",
                 "nothing": "Saved as soon as the idea is set",
                 "failed": "Not saved: the folder could not be written"
             },
-            "leaveHint": "Leave the brainstorm with its button above, or Esc outside a field",
+            "leaveHint": "Escape outside a field leaves the brainstorm too",
             "leave": "Leave the brainstorm",
             "summary": {
                 "one": "1 notification arrived during the brainstorm",
@@ -3188,7 +3187,6 @@
             "lastChange": "Last change {when}",
             "resumeAction": "Resume",
             "resumeDismiss": "Not now",
-            "switch": "Switch",
             "picker": {
                 "label": "Brainstorms with {name}",
                 "ask": "Where do we start?",
@@ -3219,15 +3217,13 @@
                 "yes": "Yes",
                 "no": "No, we stay here"
             },
-            "widget": {
-                "all": "All ({count})",
-                "fold": "Fold",
-                "others": "Other ideas:",
-                "loadOne": "Load “{title}”",
-                "none": "No brainstorm saved yet",
-                "meta": "{when} · {state}",
-                "here": "Open",
-                "load": "Load",
+            "panel": {
+                "label": "The brainstorm",
+                "eyebrow": "Brainstorm",
+                "untitled": "A new idea",
+                "others": "Other brainstorms",
+                "none": "No other brainstorm yet",
+                "resumeOne": "Resume “{title}”",
                 "rename": "Rename",
                 "renameLabel": "The brainstorm's new title",
                 "renameSave": "Save",
@@ -3237,7 +3233,8 @@
                 "forgotRemoved": "“{title}” is removed for good."
             },
             "state": {
-                "open": "open",
+                "open": "in progress",
+                "done": "finished",
                 "clear": "clear",
                 "promoted": "promoted"
             },

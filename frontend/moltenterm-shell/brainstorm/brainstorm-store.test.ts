@@ -104,6 +104,10 @@ vi.mock("../boss/brokk-session", async () => {
         stopFollowing: () => {
             session.stops++;
         },
+        switches: [] as { key: string; carry?: string; fresh?: boolean }[],
+        switchConversation: (key: string, opts: { carry?: string; fresh?: boolean } = {}) => {
+            session.switches.push({ key, ...opts });
+        },
         said: [] as { text: string; lead: string }[],
         say: async (text: string) => {
             session.said.push({ text, lead: session.lead });
@@ -275,6 +279,7 @@ beforeEach(async () => {
     session.shown = null;
     session.said.length = 0;
     session.stops = 0;
+    session.switches.length = 0;
     globalStore.set(boss.cardOpenAtom, false);
     globalStore.set(sidebar.hiddenAtom, false);
     globalStore.set(sidebar.windowMetaAtom, {});
@@ -398,6 +403,38 @@ describe("the brainstorm mode in a view (FR-BOSS-010, #2246)", () => {
         expect(globalStore.get(model.breakthroughAtom)).toBeNull();
     });
 
+    // AC24 (#2285): the brainstorm's exchanges are its own conversation. The developer's start shows it empty; leaving
+    // brings his ordinary conversation back, and the brainstorm's lead never reaches a message sent after.
+    it("shows the brainstorm's own conversation for the mode, and his ordinary one again after", async () => {
+        const model = startModel();
+        await settle();
+        await model.begin();
+        expect(session.switches).toEqual([{ key: "brainstorm", fresh: true, carry: null }]);
+        expect(session.lead).toBe("boss.brainstorm.lead");
+        await model.end();
+        expect(model.isOpen()).toBe(false);
+        expect(session.switches).toEqual([{ key: "brainstorm", fresh: true, carry: null }, { key: "main" }]);
+        expect(session.lead).toBe("");
+    });
+
+    // AC24: opened by his answer, that message and his answer move into the brainstorm's conversation, whether the
+    // turn's reply or wavesrv's event says first that the mode is open.
+    it("carries his answer that opened the brainstorm into its conversation", async () => {
+        const model = startModel();
+        await settle();
+        session.tell({ id: "m7", you: "I have an idea", markdown: opening, turn: 3, final: true });
+        await settle();
+        expect(model.isOpen()).toBe(true);
+        expect(session.switches).toEqual([{ key: "brainstorm", fresh: true, carry: "m7" }]);
+        await model.end();
+        session.switches.length = 0;
+        // The event of another view's opening reaches this one before any answer: nothing is carried.
+        server.open = true;
+        server.version += 5;
+        await model.refresh();
+        expect(session.switches).toEqual([{ key: "brainstorm", fresh: true, carry: null }]);
+    });
+
     it("sends the words of each turn of the mode once, with no block when he drew nothing", async () => {
         const model = startModel();
         await settle();
@@ -491,20 +528,20 @@ describe("the brainstorm folders (FR-BOSS-010 AC10a to AC10d, AC11, #2248)", () 
         expect(session.lines).toEqual(["boss.brainstorm.opening(Brokk)"]);
     });
 
-    it("unfolds the widget for all brainstorms, and starts a new idea over", async () => {
+    it("brings the panel's list forward for all brainstorms, and starts a new idea over", async () => {
         server.folders = [folder("forge-notes", "Forge notes", 20)];
         const model = startModel();
         await settle();
         await model.begin();
+        const asked = globalStore.get(model.listAskedAtom);
         model.showAll();
-        expect(globalStore.get(model.widgetOpenAtom)).toBe(true);
+        expect(globalStore.get(model.listAskedAtom)).toBe(asked + 1);
         expect(globalStore.get(model.promptAtom)).toBeNull();
         await model.newIdea();
         expect(commands()).toContain(NewCommand);
         expect(session.shown).toEqual([]);
         expect(session.lines).toEqual(["boss.brainstorm.opening(Brokk)"]);
         expect(session.lead).toBe("boss.brainstorm.lead");
-        expect(globalStore.get(model.widgetOpenAtom)).toBe(false);
     });
 
     // AC10a: `/brainstorm <idea>` of a title already saved asks first, and the idea goes only on Start fresh.
@@ -554,7 +591,7 @@ describe("the brainstorm folders (FR-BOSS-010 AC10a to AC10d, AC11, #2248)", () 
         expect(globalStore.get(model.promptAtom)).toBeNull();
     });
 
-    // AC10c: a switch from the widget moves without leaving the mode; the conversation swaps.
+    // AC10c: Resume in the panel moves without leaving the mode; the conversation swaps.
     it("switches to another brainstorm without leaving the mode", async () => {
         server.folders = [
             folder("forge-notes", "Forge notes", 20),
@@ -563,13 +600,11 @@ describe("the brainstorm folders (FR-BOSS-010 AC10a to AC10d, AC11, #2248)", () 
         const model = startModel();
         await settle();
         await model.load("kids-video");
-        globalStore.set(model.widgetOpenAtom, true);
         await model.load("forge-notes");
         expect(model.isOpen()).toBe(true);
         expect(commands()).not.toContain(CloseCommand);
         expect(globalStore.get(model.stateAtom).brainstorm.slug).toBe("forge-notes");
         expect(session.shown[0].text).toBe("About Forge notes");
-        expect(globalStore.get(model.widgetOpenAtom)).toBe(false);
         expect(await model.load("gone")).toBe(false);
         expect(globalStore.get(model.noticeAtom)).toEqual({ kind: "failed", failure: "unknown" });
     });

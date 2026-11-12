@@ -1,7 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The questions Brokk's talk window asks about the brainstorms (FR-BOSS-010 AC10a to AC10d, #2248): the picker on entry,
+// The questions Brokk's talk window asks about the brainstorms (FR-BOSS-010 AC10a to AC10d, #2248): the picker on entry
+// (the unfinished ones first and marked, AC25, #2285),
 // the near-duplicate of `/brainstorm <idea>`, his offer to resume one, and the confirmation of a forget. Each acts only on
 // the developer's click: his offer never opens anything, and a forget is sent only from the confirm button, after its
 // title and last change were shown. Loaded on demand (brokk-talk.tsx), the first time a question is asked.
@@ -11,7 +12,7 @@ import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { lastChange } from "./brainstorm-model";
+import { lastChange, unfinished } from "./brainstorm-model";
 import { BrainstormModel, BrainstormSummary } from "./brainstorm-store";
 
 const Card = "flex flex-col gap-1.5 rounded-4 border border-border p-2 text-12";
@@ -129,6 +130,11 @@ export function BrainstormPrompts({ name }: { name: string }) {
                             onClick={run(() => model.load(entry.slug))}
                         >
                             {t("boss.brainstorm.picker.resume", { title: entry.title })}
+                            {unfinished(entry) ? (
+                                <span className="ml-1.5 opacity-80" data-testid="brainstorm-picker-open">
+                                    · {t("boss.brainstorm.state.open")}
+                                </span>
+                            ) : null}
                             {i === 0 ? <MoltenWave /> : null}
                         </button>
                     ))}

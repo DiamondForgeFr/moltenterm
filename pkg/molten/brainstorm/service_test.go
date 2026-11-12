@@ -323,6 +323,48 @@ func blockPtr(b Block) *Block {
 	return &b
 }
 
+// FR-BOSS-010 AC25 (#2285): a brainstorm is in progress until his `finish` marks it finished, on the developer's word;
+// an answer that grows it again puts it back in progress. A finish before any central idea makes no folder.
+func TestFinishMarksTheBrainstormFinished(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	s := f.service()
+	s.Open(OpenRequest{By: ByYou})
+	early := s.Turn(TurnRequest{Key: "f0", You: "Never mind.", Brokk: "Fine.", Block: blockPtr(block(Op{Op: OpFinish})), At: 500})
+	if early.State.Brainstorm != nil {
+		t.Fatalf("a finish with no idea made a brainstorm: %+v", early.State.Brainstorm)
+	}
+	if entries, _ := os.ReadDir(f.root); len(entries) != 0 {
+		t.Fatalf("a finish with no idea made a folder: %v", entries)
+	}
+	opened := s.Turn(openingTurn())
+	if opened.State.Brainstorm == nil || opened.State.Brainstorm.State != StateOpen {
+		t.Fatalf("a new brainstorm is not in progress: %+v", opened.State.Brainstorm)
+	}
+	done := s.Turn(TurnRequest{Key: "f1", You: "That's it, we're done.", Brokk: "Done, it's saved.", Block: blockPtr(block(Op{Op: OpFinish})), At: 2000})
+	if !done.Applied || done.State.Brainstorm.State != StateDone {
+		t.Fatalf("finish did not mark it finished: %+v", done)
+	}
+	saved, err := f.store.Load(done.State.Brainstorm.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved.Info.State != StateDone || len(saved.Graph.Nodes) != 2 {
+		t.Fatalf("the folder says %q with %d nodes", saved.Info.State, len(saved.Graph.Nodes))
+	}
+	if list := s.List().Brainstorms; len(list) != 1 || list[0].State != StateDone {
+		t.Fatalf("the list says %+v", list)
+	}
+	words := s.Turn(TurnRequest{Key: "f2", You: "Thanks.", Brokk: "Anytime.", At: 3000})
+	if words.State.Brainstorm.State != StateDone {
+		t.Fatalf("words alone reopened it: %q", words.State.Brainstorm.State)
+	}
+	grown := s.Turn(TurnRequest{Key: "f3", You: "One more idea.", Brokk: "Go on.", Block: blockPtr(block(add("night", KindIdea, "A night mode", "kids-video"))), At: 4000})
+	if grown.State.Brainstorm.State != StateOpen {
+		t.Fatalf("a new node left it finished: %q", grown.State.Brainstorm.State)
+	}
+}
+
 // AC1 and the security rationale: the windows and Electron main only, and never on a release channel.
 func TestRouteCallersAndChannels(t *testing.T) {
 	t.Parallel()

@@ -823,10 +823,13 @@ describe("the panel moves with the group (FR-BOSS-009, #2082)", () => {
         const square = rule(".mt-brokk-sq");
         expect(square).toMatch(/transform var\(--mt-duration-drop\) cubic-bezier\(0\.2, 1\.15, 0\.4, 1\),/);
         expect(square).toMatch(/opacity var\(--mt-duration-show\) linear;/);
-        const parts = rule(".mt-brokk-sq,\n.mt-brokk-rail,\n.mt-brokk-block,\n.mt-brokk-fieldbox");
+        // The brainstorm panel in the rail's place (#2285) arrives as the rail does.
+        const parts = rule(".mt-brokk-sq,\n.mt-brokk-rail,\n.mt-brokk-bspanel,\n.mt-brokk-block,\n.mt-brokk-fieldbox");
         expect(parts).toMatch(/transform var\(--mt-duration-snap\) cubic-bezier\(0\.3, 1\.12, 0\.4, 1\),/);
         expect(parts).toMatch(/opacity var\(--mt-duration-show\) linear;/);
-        const stepped = rule(".mt-brokk-group.is-in > .mt-brokk-rail,\n.mt-brokk-group.is-in > .mt-brokk-block");
+        const stepped = rule(
+            ".mt-brokk-group.is-in > .mt-brokk-rail,\n.mt-brokk-group.is-in > .mt-brokk-bspanel,\n.mt-brokk-group.is-in > .mt-brokk-block"
+        );
         expect(stepped).toMatch(
             /transform var\(--mt-duration-snap\) cubic-bezier\(0\.3, 1\.12, 0\.4, 1\) calc\(var\(--i, 0\) \* 50ms\)/
         );

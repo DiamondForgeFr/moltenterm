@@ -308,6 +308,9 @@ func (s *Service) Turn(req TurnRequest) TurnResult {
 	rtn := TurnResult{}
 	if req.Block != nil {
 		rtn = s.applyLocked(*req.Block, at)
+		if s.session != nil && rtn.Applied {
+			s.session.Info.State = stateAfter(s.session.Info.State, *req.Block, rtn)
+		}
 	}
 	s.recordLocked(req, at)
 	version := s.changedLocked()
@@ -315,6 +318,18 @@ func (s *Service) Turn(req TurnRequest) TurnResult {
 	s.lock.Unlock()
 	s.tell(version)
 	return rtn
+}
+
+// stateAfter (#2285): a finish marks the brainstorm finished; an answer that grows a finished one puts it back in
+// progress, since the developer went on with it.
+func stateAfter(state string, block Block, applied TurnResult) string {
+	if Finishes(block) {
+		return StateDone
+	}
+	if state == StateDone && len(applied.Added) > 0 {
+		return StateOpen
+	}
+	return state
 }
 
 func (s *Service) applyLocked(block Block, at int64) TurnResult {
@@ -334,6 +349,10 @@ func (s *Service) applyLocked(block Block, at int64) TurnResult {
 		// Never the content: the model's text stays out of the log (FR-BOSS-010 security rationale).
 		s.logf("[brainstorm] a graph block was dropped: %v\n", err)
 		return TurnResult{Dropped: true}
+	}
+	if s.session == nil && applied.Graph.Centre == "" {
+		// Nothing to file yet (a finish or a question before any central idea): no folder is made for it.
+		return TurnResult{}
 	}
 	if s.session == nil {
 		centre, _ := applied.Graph.node(applied.Graph.Centre)
