@@ -3152,7 +3152,42 @@
                 "one": "{count} link",
                 "other": "{count} links"
             },
-            "graphLabel": "The ideas of the brainstorm",
+            "graphLabel": "The ideas of the brainstorm: arrows to walk them, Enter to focus one, the menu key or a right-click for its actions",
+            "plate": {
+                "menu": "Actions for “{text}”",
+                "editText": "Edit text",
+                "changeKind": "Change kind",
+                "linkTo": "Link to…",
+                "remove": "Remove"
+            },
+            "edits": {
+                "note": "[My changes to the graph: {changes}.]",
+                "join": "; ",
+                "node": "“{text}” ({id})",
+                "remove": "removed {node}",
+                "edit": "rewrote {id} as “{text}”",
+                "retype": "{node} is now: {kind}",
+                "link": "linked {a} and {b}",
+                "unlink": "unlinked {a} and {b}",
+                "restore": "put back {node}",
+                "revert": "undid the change to {node}",
+                "linking": "Link “{text}” to another plate: click it, or Esc to cancel",
+                "linkCancel": "Cancel",
+                "bar": {
+                    "youRemoved": "You removed “{text}”",
+                    "brokkRemoved": "{name} removed “{text}”",
+                    "brokkMerged": "{name} folded plates into “{text}”",
+                    "undo": "Undo",
+                    "dismiss": "Dismiss"
+                },
+                "failed": {
+                    "conflict": "A later change touched it: nothing was put back.",
+                    "invalid": "That change cannot be made.",
+                    "unknown": "That change is no longer in the history.",
+                    "noidea": "No brainstorm is open.",
+                    "failed": "That did not work: the graph stays as it was."
+                }
+            },
             "kinds": {
                 "topic": "Topic",
                 "question": "Question",

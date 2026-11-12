@@ -29,6 +29,10 @@ export const NewCommand = "moltenbrainstormnew";
 export const RenameCommand = "moltenbrainstormrename";
 export const DeleteCommand = "moltenbrainstormdelete";
 export const ForkCommand = "moltenbrainstormfork";
+// The developer's changes to the graph (#2247).
+export const EditCommand = "moltenbrainstormedit";
+export const UndoCommand = "moltenbrainstormundo";
+export const ToldCommand = "moltenbrainstormtold";
 export const BrainstormEvent = "molten:brainstorm";
 
 export const CallTimeoutMs = 8000;
@@ -62,6 +66,28 @@ export type BrainstormState = {
     graph?: BrainstormGraph;
     savedat?: number;
     saveerror?: string;
+    // The brainstorm's last operations, who made each, and whether each can be put back (#2247).
+    history?: HistoryNote[];
+};
+
+// must match pkg/molten/brainstorm/history.go
+export type NoteNode = { id: string; text?: string; kind?: string };
+
+export type HistoryNote = {
+    seq: number;
+    at: number;
+    by: "you" | "brokk";
+    op: string;
+    // An undo: the line it put back, and that line's operation.
+    ref?: number;
+    refop?: string;
+    // The nodes the change names: a removed node, a link's two ends, a merge's kept node first.
+    nodes?: NoteNode[];
+    // What an edit or a retype replaced: the text, the kind.
+    was?: string;
+    undone?: boolean;
+    told?: boolean;
+    undoable?: boolean;
 };
 
 // The mode as wavesrv last told this view; null before it did (and always on a release channel).

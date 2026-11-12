@@ -43,17 +43,33 @@ import {
     CallTimeoutMs,
     CloseCommand,
     DeleteCommand,
+    EditCommand,
     FindCommand,
     ForkCommand,
+    HistoryNote,
     ListCommand,
     LoadCommand,
     NewCommand,
     OpenCommand,
     RenameCommand,
     StateCommand,
+    ToldCommand,
     TurnCommand,
+    UndoCommand,
 } from "./brainstorm-boot";
 import type { CameraMode } from "./brainstorm-camera-model";
+import {
+    ChangesNote,
+    changesNote,
+    lastOwnChange,
+    lastSeq,
+    NoNote,
+    toldBy,
+    typedText,
+    undoOffer,
+    withNote,
+} from "./brainstorm-edit-model";
+import type { GraphOp, NodeKind } from "./brainstorm-graph-model";
 import { setBrainstormHold } from "./brainstorm-hold";
 import {
     answerQuestions,
@@ -71,6 +87,7 @@ import {
 export {
     CloseCommand,
     DeleteCommand,
+    EditCommand,
     FindCommand,
     ForkCommand,
     ListCommand,
@@ -79,9 +96,17 @@ export {
     OpenCommand,
     RenameCommand,
     StateCommand,
+    ToldCommand,
     TurnCommand,
+    UndoCommand,
 } from "./brainstorm-boot";
-export type { BrainstormPrompt, BrainstormState, BrainstormSummary } from "./brainstorm-boot";
+export type { BrainstormPrompt, BrainstormState, BrainstormSummary, HistoryNote } from "./brainstorm-boot";
+
+// The layer's Undo bar (FR-BOSS-010 AC27, #2247): a removal or a merge it offers to put back for 5 s, or why the
+// developer's change or undo did not go. The pause of the mode holds the app's toasts, so the bar is the layer's own.
+export type UndoBar =
+    | { kind: "offer"; key: string; note: HistoryNote }
+    | { kind: "failed"; key: string; reason: string };
 
 // must match the Reason… codes of pkg/molten/brainstorm/service_folders.go
 export type FolderFailure = "unknown" | "notsaved" | "noidea" | "invalid" | "trash" | "notrash" | "failed";
@@ -143,8 +168,20 @@ export class BrainstormModel {
     listAskedAtom = atom(0) as PrimitiveAtom<number>;
     forkAtom = atom(null) as PrimitiveAtom<ForkAsk>;
     noticeAtom = atom(null) as PrimitiveAtom<FolderNotice>;
+    // The living graph (#2247): the node whose text the developer edits in place, the node Link to… started from (a
+    // click on another plate ties them), and the layer's Undo bar.
+    editingAtom = atom(null) as PrimitiveAtom<string>;
+    linkingAtom = atom(null) as PrimitiveAtom<string>;
+    undoBarAtom = atom(null) as PrimitiveAtom<UndoBar>;
 
     private call: Call = LiveCall;
+    // The newest history line this view saw; -1 before the brainstorm's first state, which offers no Undo.
+    private historySeen = -1;
+    private historySwap: number = null;
+    // The note of the developer's changes now before their next message, and the last ones put there.
+    private note: ChangesNote = NoNote;
+    private notes: ChangesNote[] = [];
+    private noteChecked = new Set<string>();
     private started = false;
     private paused = false;
     private sent = new Set<string>();
@@ -230,6 +267,8 @@ export class BrainstormModel {
                 void this.onAnswer(answer);
             })
         );
+        // The developer's message that carried the note of their graph changes: wavesrv marks them told (#2247).
+        this.stops.push(BrokkSession.getInstance().listenAnswers((answer) => this.noteWent(answer)));
         this.stops.push(
             BrokkSession.getInstance().listenTaken((id, conversation) => {
                 // A message written in the brainstorm and taken after the developer left it is the brainstorm's all the
@@ -282,7 +321,8 @@ export class BrainstormModel {
             return;
         }
         const wasOpen = current?.open === true;
-        const grew = (next.graph?.rev ?? 0) !== (current?.graph?.rev ?? 0);
+        // The developer's own change to the graph never moves the camera (#2247): only Brokk's growth does.
+        const grew = (next.graph?.rev ?? 0) !== (current?.graph?.rev ?? 0) && !byDeveloper(next.history);
         globalStore.set(this.stateAtom, next);
         // The developer moved to another brainstorm (#2285): a message still waiting from the one before never goes to
         // this one; it comes back to the field.
@@ -296,6 +336,10 @@ export class BrainstormModel {
             this.opened();
         } else if (wasOpen && !next.open) {
             this.closed();
+            this.leaveEdits();
+        }
+        if (next.open) {
+            this.onHistory(next);
         }
         if (next.open && (next.listrev ?? 0) !== this.listRev) {
             this.listRev = next.listrev ?? 0;
@@ -548,6 +592,174 @@ export class BrainstormModel {
         globalStore.set(this.forkAtom, null);
     }
 
+    // The developer's changes from a plate's menu (FR-BOSS-010 AC27, #2247), on the brainstorm on screen: wavesrv applies
+    // them with a block's rules and keeps them in the history; a removal gets the Undo bar from the state that follows.
+    async editGraph(ops: GraphOp[]): Promise<boolean> {
+        if (!this.allowed() || !this.isOpen() || (ops?.length ?? 0) === 0) {
+            return false;
+        }
+        const result = await this.ask(EditCommand, { ops, swap: globalStore.get(this.stateAtom)?.swap });
+        this.apply(result?.state);
+        if (result == null || result.stale) {
+            return false;
+        }
+        if (result.error) {
+            this.changeFailed(result.error);
+            return false;
+        }
+        return true;
+    }
+
+    // A change of the history put back (the bar's Undo, Ctrl/⌘ + Z), unless a later change touched the same nodes.
+    async undo(seq: number): Promise<boolean> {
+        if (!this.allowed() || !this.isOpen() || !seq) {
+            return false;
+        }
+        globalStore.set(this.undoBarAtom, null);
+        const result = await this.ask(UndoCommand, { seq, swap: globalStore.get(this.stateAtom)?.swap });
+        this.apply(result?.state);
+        if (result == null || result.stale) {
+            return false;
+        }
+        if (result.error) {
+            this.changeFailed(result.error);
+            return false;
+        }
+        return true;
+    }
+
+    // Ctrl/⌘ + Z on the graph: the developer's last change that can still be put back, after a reload too (AC28).
+    undoLast(): Promise<boolean> {
+        const note = lastOwnChange(globalStore.get(this.stateAtom)?.history);
+        return note == null ? Promise.resolve(false) : this.undo(note.seq);
+    }
+
+    dismissUndo(): void {
+        globalStore.set(this.undoBarAtom, null);
+    }
+
+    private changeFailed(reason: string): void {
+        globalStore.set(this.undoBarAtom, { kind: "failed", key: `failed:${Date.now()}`, reason });
+    }
+
+    // Edit text: the plate's text is edited in place; saving sends it only when it changed.
+    startEdit(id: string): void {
+        globalStore.set(this.linkingAtom, null);
+        globalStore.set(this.editingAtom, id);
+    }
+
+    async saveText(id: string, text: string): Promise<boolean> {
+        if (globalStore.get(this.editingAtom) === id) {
+            globalStore.set(this.editingAtom, null);
+        }
+        const clean = typedText(text);
+        const node = globalStore.get(this.stateAtom)?.graph?.nodes?.find((n) => n.id === id);
+        if (clean === "" || node == null || node.text === clean) {
+            return false;
+        }
+        return this.editGraph([{ op: "edit", id, text: clean }]);
+    }
+
+    cancelEdit(): void {
+        globalStore.set(this.editingAtom, null);
+    }
+
+    retype(id: string, kind: NodeKind): Promise<boolean> {
+        return this.editGraph([{ op: "retype", id, kind }]);
+    }
+
+    remove(id: string): Promise<boolean> {
+        return this.editGraph([{ op: "remove", id }]);
+    }
+
+    // Link to…: the next click on another plate ties the two; Escape or a click on the background cancels.
+    startLink(id: string): void {
+        globalStore.set(this.editingAtom, null);
+        globalStore.set(this.linkingAtom, id);
+    }
+
+    cancelLink(): void {
+        globalStore.set(this.linkingAtom, null);
+    }
+
+    async linkTo(id: string): Promise<boolean> {
+        const from = globalStore.get(this.linkingAtom);
+        this.cancelLink();
+        if (from == null || from === id) {
+            return false;
+        }
+        return this.editGraph([{ op: "link", a: from, b: id }]);
+    }
+
+    // The history of the brainstorm on screen came with a state (#2247): a removal or a merge since the last one seen
+    // gets the Undo bar, an offer already put back leaves it, and the note before the developer's next message follows
+    // their changes not told yet.
+    private onHistory(next: BrainstormState): void {
+        const history = next.history ?? [];
+        const swap = next.swap ?? 0;
+        if (this.historySwap !== swap) {
+            // Another brainstorm: its past is not offered.
+            this.historySwap = swap;
+            this.historySeen = -1;
+            globalStore.set(this.undoBarAtom, null);
+        }
+        const bar = globalStore.get(this.undoBarAtom);
+        if (bar?.kind === "offer" && !history.some((note) => note.seq === bar.note.seq && note.undoable)) {
+            globalStore.set(this.undoBarAtom, null);
+        }
+        if (this.historySeen >= 0) {
+            const offer = undoOffer(history, this.historySeen);
+            if (offer != null) {
+                globalStore.set(this.undoBarAtom, { kind: "offer", key: `${swap}:${offer.seq}`, note: offer });
+            }
+        }
+        this.historySeen = Math.max(this.historySeen, lastSeq(history), 0);
+        this.followNote(history);
+    }
+
+    // The note of the developer's changes goes before their next message, in place of the one before (AC27).
+    private followNote(history: HistoryNote[]): void {
+        const note = changesNote(history, t, (kind) => t(`boss.brainstorm.kinds.${kind}`));
+        if (note.text === this.note.text) {
+            this.note = note;
+            return;
+        }
+        const session = BrokkSession.getInstance();
+        session.setLead(withNote(session.leadOf(), this.note.text, note.text));
+        this.note = note;
+        if (note.text !== "") {
+            this.notes = [...this.notes.slice(-9), note];
+        }
+    }
+
+    // His answer names the message it answers: when that message carried a note, Brokk was told of those changes.
+    private noteWent(answer: AnswerRead): void {
+        if (this.notes.length === 0 || this.noteChecked.has(answer.id)) {
+            return;
+        }
+        this.noteChecked.add(answer.id);
+        const went = toldBy(answer.you, this.notes);
+        if (went == null) {
+            return;
+        }
+        void this.ask(ToldCommand, { seq: went.seq }).then((state) => this.apply(state));
+    }
+
+    // The mode ended: what the living graph held in this view goes with it, and the note leaves the next message.
+    private leaveEdits(): void {
+        globalStore.set(this.editingAtom, null);
+        globalStore.set(this.linkingAtom, null);
+        globalStore.set(this.undoBarAtom, null);
+        this.historySeen = -1;
+        this.historySwap = null;
+        if (this.note.text !== "") {
+            const session = BrokkSession.getInstance();
+            session.setLead(withNote(session.leadOf(), this.note.text, ""));
+        }
+        this.note = NoNote;
+        this.notes = [];
+    }
+
     // His questions about the folders in a complete answer (#2248): each becomes a question to the developer, once per
     // answer. resume and forget name a saved title: wavesrv finds it, and nothing is asked for a title it does not have.
     private async onQuestions(answer: AnswerRead): Promise<void> {
@@ -690,6 +902,7 @@ export class BrainstormModel {
         globalStore.set(this.stateAtom, null);
         if (was) {
             this.closed();
+            this.leaveEdits();
         }
     }
 
@@ -816,6 +1029,11 @@ export class BrainstormModel {
             at: Date.now(),
         });
     }
+}
+
+// The newest line of the history is the developer's own change (or their undo).
+function byDeveloper(history: HistoryNote[]): boolean {
+    return history?.[history.length - 1]?.by === "you";
 }
 
 async function writeWindowMeta(meta: Record<string, any>): Promise<void> {

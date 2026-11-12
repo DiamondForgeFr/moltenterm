@@ -48,8 +48,9 @@ export const KindLooks: Record<NodeKind, KindLook> = {
 
 export const CrossLinkColor = "#ff7c0d";
 
-// The dark of the under-rope and of a knot's middle (hot iron's soot), and the white a tinted mark is drawn in.
-export const SceneColors = { soot: "#1a120a", white: "#ffffff" } as const;
+// The dark of the under-rope and of a knot's middle (hot iron's soot), the white a tinted mark is drawn in, and the
+// cold iron a removed plate's rope cools to (#2247).
+export const SceneColors = { soot: "#1a120a", white: "#ffffff", cold: "#4f4a45" } as const;
 
 export type Vec3 = [number, number, number];
 
@@ -195,7 +196,52 @@ export const Loops = {
     arrival: { ms: 700, fadeMs: 150 },
     // The cross-fade that replaces a camera move under reduced motion.
     crossFade: { ms: 150 },
+    // The nodes of one answer arrive one by one (AC5, #2247): each this long after the one before.
+    arrivalStep: { ms: 280 },
+    // A plate leaving the graph (AC18, #2247): removed, it cools and fades while its rope slackens and drops; folded by a
+    // merge, it is pulled into the plate kept. A fade alone under reduced motion.
+    leave: { ms: 950, fadeMs: 150, drop: 140, slack: 3.5 },
 } as const;
+
+export type LeaveLook = {
+    opacity: number;
+    // 0 hot as it was, 1 cold iron.
+    cool: number;
+    // How far it has dropped (world units, down) and how much its rope sags, as a share of its usual sag.
+    drop: number;
+    slack: number;
+    // A merge: how far it has been pulled into the plate kept, from 0 to 1.
+    pull: number;
+    scale: number;
+    done: boolean;
+};
+
+// A plate leaving at `ageMs` after it left the graph.
+export function leaveLook(ageMs: number, still: boolean): LeaveLook {
+    const age = Math.max(0, ageMs);
+    if (still) {
+        const opacity = Math.max(0, 1 - age / Loops.leave.fadeMs);
+        return { opacity, cool: 0, drop: 0, slack: 1, pull: 0, scale: 1, done: age >= Loops.leave.fadeMs };
+    }
+    const t = Math.min(1, age / Loops.leave.ms);
+    // It cools first, then falls: the heat goes in the first third, the fall speeds up like a weight let go.
+    const cool = Math.min(1, t * 3);
+    const fall = Math.max(0, (t - 0.15) / 0.85);
+    return {
+        opacity: Math.max(0, 1 - t * t * 1.2),
+        cool,
+        drop: Loops.leave.drop * fall * fall,
+        slack: 1 + (Loops.leave.slack - 1) * Math.min(1, t * 1.6),
+        pull: t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
+        scale: 1 - 0.18 * t,
+        done: t >= 1,
+    };
+}
+
+// When the k-th node of one state of the graph arrives, after the state came: one by one.
+export function arrivalDelay(k: number, still: boolean): number {
+    return still ? 0 : Math.max(0, k) * Loops.arrivalStep.ms;
+}
 
 export function corePulse(nowMs: number, still: boolean): number {
     if (still) {

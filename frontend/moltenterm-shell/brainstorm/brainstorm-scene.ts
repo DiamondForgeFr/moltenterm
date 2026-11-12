@@ -21,24 +21,35 @@
 //
 // The developer may take the camera (pan, zoom about the pointer, Recentre): brainstorm-camera-model.ts decides who holds
 // it and where it looks; this scene only follows its goal (#2283).
+//
+// The graph is living (FR-BOSS-010 AC26 to AC28, #2247): the nodes of one answer arrive one by one; an edit or a retype
+// changes a plate in place; a removed plate cools and fades while its rope slackens and drops, and a merge pulls the
+// folded plates into the one kept, while the others keep their places (the layout never jumps). Each plate is an item
+// of the graph's outline: it takes the focus, carries a handle for its menu, and its text can be edited in place.
 
+import { makeIconClass } from "@/util/util";
 import * as THREE from "three";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
+import type { HistoryNote } from "./brainstorm-boot";
 import {
     CameraMode,
     CameraNav,
     cameraPosition,
     CameraView,
     drawsAgain,
+    inView,
+    InViewMarginPx,
     Lens,
     StillSettleMs,
 } from "./brainstorm-camera-model";
+import { editKey } from "./brainstorm-edit-model";
 import type { BrainstormGraph, BrainstormNode, NodeKind } from "./brainstorm-graph-model";
 import { MaxLinks, MaxNodes } from "./brainstorm-graph-model";
 import {
     arrival,
+    arrivalDelay,
     CameraFov,
     corePulse,
     CoreRadius,
@@ -48,6 +59,7 @@ import {
     followDistance,
     FreeRect,
     KindLooks,
+    leaveLook,
     Loops,
     OverviewAfterMs,
     plateLook,
@@ -79,6 +91,8 @@ export type SceneHost = {
     plates: HTMLElement;
     // The kind's name as the plates show it, in the interface language.
     kindLabel: (kind: NodeKind) => string;
+    // The name of a plate's handle, which opens its menu (#2247), in the interface language.
+    gripLabel?: (text: string) => string;
     // Under reduced motion a change of view is a short cross-fade of the stage instead of a flight.
     onCrossFade?: () => void;
     // The camera turned to the newest topic or back to the whole graph, or the developer took it: the header says which
@@ -100,7 +114,28 @@ type PlateEntry = {
     // How far the plate stands from its node on screen, having made room for its neighbours (eased).
     offX: number;
     offY: number;
+    gripEl?: HTMLButtonElement;
+    // The developer edits its text in place: a new state of the graph does not overwrite what they type.
+    editing?: boolean;
 };
+
+// A plate that left the graph (#2247), drawn until its leave ends: when it left, the plate a merge folded it into, and
+// the parent its rope hung from.
+type LeavingEntry = PlateEntry & { goneAt: number; into: string; parent: string };
+
+// The plates folded by the merges of the history, each with the plate kept.
+function mergedInto(history: HistoryNote[]): Map<string, string> {
+    const into = new Map<string, string>();
+    for (const note of history ?? []) {
+        if (note?.op !== "merge" || note.undone || (note.nodes?.length ?? 0) < 2) {
+            continue;
+        }
+        for (const folded of note.nodes.slice(1)) {
+            into.set(folded.id, note.nodes[0].id);
+        }
+    }
+    return into;
+}
 
 // Above this many plates they no longer make room for each other each frame (#2247 lays large graphs out).
 const DeclutterLimit = 160;
@@ -297,7 +332,12 @@ export class BrainstormScene {
     camera = new THREE.PerspectiveCamera(CameraFov, 1, 1, 20000);
     graph: BrainstormGraph = null;
     plates = new Map<string, PlateEntry>();
+    // The plates that left the graph and are still leaving (#2247).
+    leaving = new Map<string, LeavingEntry>();
+    lastLeftAt = 0;
     coreTitle: HTMLDivElement;
+    // The core's title stands for the centre in the outline: its text edited in place too.
+    coreEditing = false;
     core: THREE.Mesh;
     coreMaterial: THREE.ShaderMaterial;
     coreGlow: THREE.Sprite;
@@ -412,6 +452,9 @@ export class BrainstormScene {
         this.coreTitle = document.createElement("div");
         this.coreTitle.className = "mt-bs-core-title";
         this.coreTitle.style.transform = Hidden;
+        // The centre's item of the outline: first in it, and its text edited in place like a plate's (#2247).
+        this.coreTitle.setAttribute("role", "listitem");
+        this.coreTitle.tabIndex = -1;
         this.host.plates.appendChild(this.coreTitle);
     }
 
@@ -529,45 +572,105 @@ export class BrainstormScene {
         this.wakeUntil(this.talkAt + OverviewAfterMs + StillSettleMs);
     }
 
-    // A new state of the graph. Nodes this view had not seen arrive from their parent; the first graph of the stage is
-    // shown as it stands.
-    setGraph(graph: BrainstormGraph, now: number): void {
+    // A new state of the graph. Nodes this view had not seen arrive from their parent, one after the other (AC5); the
+    // first graph of the stage is shown as it stands. A node gone leaves (removed, or folded by a merge the history
+    // names), and one changed in place keeps its plate. `history` is the state's (#2247).
+    setGraph(graph: BrainstormGraph, now: number, history: HistoryNote[] = null): void {
         const first = this.graph == null;
         this.graph = graph;
         const ids = new Set((graph?.nodes ?? []).map((n) => n.id));
+        const folded = mergedInto(history);
         for (const [id, entry] of this.plates) {
-            if (!ids.has(id)) {
-                entry.el.remove();
-                this.plates.delete(id);
+            if (ids.has(id)) {
+                continue;
             }
+            this.plates.delete(id);
+            if (first || entry.node.kind === "topic") {
+                entry.el.remove();
+                continue;
+            }
+            this.leave(entry, folded.get(id) ?? null, now);
         }
+        let born = 0;
+        let lastBirth = now;
         for (const node of graph?.nodes ?? []) {
             const known = this.plates.get(node.id);
             if (known != null) {
+                const kindChanged = known.node.kind !== node.kind;
                 known.node = node;
-                if (known.textEl.textContent !== node.text) {
+                if (kindChanged) {
+                    this.restyle(known);
+                }
+                if (!known.editing && known.textEl.textContent !== node.text) {
                     known.textEl.textContent = node.text;
                     known.halfW = 0;
                 }
                 continue;
             }
+            // A plate put back by an undo leaves no ghost behind.
+            this.leaving.get(node.id)?.el.remove();
+            this.leaving.delete(node.id);
             // A node the stage opened with arrives too when it was just made (the answer that opened the mode).
             const fresh = !first || (node.at > 0 && now - node.at < FreshMs);
-            this.plates.set(node.id, this.makePlate(node, fresh ? now : 0));
+            const bornAt = fresh ? now + arrivalDelay(born, this.still) : 0;
+            this.plates.set(node.id, this.makePlate(node, bornAt));
             if (fresh) {
-                this.lastBornAt = now;
+                born++;
+                lastBirth = bornAt;
+                this.lastBornAt = Math.max(this.lastBornAt, bornAt);
             }
             // Out of the developer's view after a quiet stretch: the chip says so, the view stays (#2283).
             if (!first && this.nav.plateAdded(node.pos, this.shownView(), this.lens(), now)) {
                 this.host.onFollowPulse?.();
             }
         }
-        if (!first && graph?.nodes?.length) {
+        // A plate the developer put back is theirs: the camera stays where it is.
+        if (!first && born > 0 && history?.[history.length - 1]?.by !== "you") {
             this.talked(now);
         }
         this.crossRev = -1;
         this.relabel();
-        this.wake(Loops.arrival.ms + StillSettleMs);
+        this.wake(lastBirth - now + Loops.arrival.ms + StillSettleMs);
+        if (this.leaving.size > 0) {
+            this.wake(Loops.leave.ms + StillSettleMs);
+        }
+    }
+
+    // A plate leaves the graph: it stays drawn while it cools, drops or is pulled in, then goes.
+    private leave(entry: PlateEntry, into: string, now: number): void {
+        const gone: LeavingEntry = { ...entry, goneAt: now, into, parent: entry.node.from ?? "" };
+        gone.el.classList.add("is-leaving");
+        gone.el.removeAttribute("role");
+        gone.el.tabIndex = -1;
+        gone.el.setAttribute("aria-hidden", "true");
+        this.leaving.get(entry.node.id)?.el.remove();
+        this.leaving.set(entry.node.id, gone);
+        this.lastLeftAt = now;
+        if (this.still) {
+            this.host.onCrossFade?.();
+        }
+    }
+
+    // A retype: the plate takes its new kind's colours and name in place; a short flash says it changed (a cross-fade
+    // under reduced motion).
+    private restyle(entry: PlateEntry): void {
+        if (entry.node.kind === "topic") {
+            return;
+        }
+        const look = KindLooks[entry.node.kind] ?? KindLooks.idea;
+        entry.el.dataset.kind = entry.node.kind;
+        entry.el.style.setProperty("--bs-edge", look.edge);
+        entry.el.style.setProperty("--bs-label", look.label);
+        entry.el.style.setProperty("--bs-plate", look.plate);
+        entry.el.style.setProperty("--bs-glow", String(look.glow));
+        entry.el.classList.remove("is-retyped");
+        // A reflow restarts the flash when the same plate changes twice.
+        void entry.el.offsetWidth;
+        entry.el.classList.add("is-retyped");
+        entry.halfW = 0;
+        if (this.still) {
+            this.host.onCrossFade?.();
+        }
     }
 
     private makePlate(node: BrainstormNode, bornAt: number): PlateEntry {
@@ -588,16 +691,27 @@ export class BrainstormScene {
         el.style.setProperty("--bs-plate", look.plate);
         el.style.setProperty("--bs-glow", String(look.glow));
         el.setAttribute("role", "listitem");
+        // An item of the graph's outline (AC20): the stage moves the one focusable plate as the keyboard walks it.
+        el.tabIndex = -1;
         el.style.transform = Hidden;
         kindEl.className = "mt-bs-plate-kind";
         textEl.className = "mt-bs-plate-text";
         textEl.textContent = node.text;
-        el.append(kindEl, textEl);
+        // The handle that opens the plate's menu (AC27): the pointer's way; the keyboard's is the menu key on the plate.
+        const gripEl = document.createElement("button");
+        gripEl.type = "button";
+        gripEl.className = "mt-bs-plate-grip";
+        gripEl.tabIndex = -1;
+        const icon = document.createElement("i");
+        icon.className = makeIconClass("ellipsis", false);
+        icon.setAttribute("aria-hidden", "true");
+        gripEl.appendChild(icon);
+        el.append(kindEl, textEl, gripEl);
         this.host.plates.appendChild(el);
-        return { node, el, kindEl, textEl, halfW: 0, halfH: 0, bornAt, offX: 0, offY: 0 };
+        return { node, el, kindEl, textEl, halfW: 0, halfH: 0, bornAt, offX: 0, offY: 0, gripEl };
     }
 
-    // The kinds' names follow the interface language.
+    // The kinds' names follow the interface language, and so does each handle's name.
     relabel(): void {
         for (const entry of this.plates.values()) {
             if (entry.node.kind === "topic") {
@@ -608,7 +722,108 @@ export class BrainstormScene {
                 entry.kindEl.textContent = label;
                 entry.halfW = 0;
             }
+            const grip = this.host.gripLabel?.(entry.node.text) ?? "";
+            if (entry.gripEl != null && entry.gripEl.getAttribute("aria-label") !== grip) {
+                entry.gripEl.setAttribute("aria-label", grip);
+                entry.gripEl.title = grip;
+            }
         }
+        this.wake();
+    }
+
+    // The element of a node in the outline: its plate, or the core's title for the centre.
+    nodeElement(id: string): HTMLElement {
+        if (id != null && id === this.graph?.centre) {
+            return this.coreTitle;
+        }
+        return this.plates.get(id)?.el ?? null;
+    }
+
+    // A click on a node, or Enter on it in the outline (AC7, AC20): the camera glides to it.
+    focusNode(id: string): void {
+        const node = this.plates.get(id)?.node;
+        if (node == null) {
+            return;
+        }
+        this.nav.focusOn(node.pos as Vec3, this.graph, this.lens(), Date.now(), this.still);
+        this.wake();
+    }
+
+    // The keyboard walked the outline to a node out of the free space: the camera goes to it; one in view stays put.
+    revealNode(id: string): void {
+        const node = this.plates.get(id)?.node;
+        if (node == null || inView(node.pos as Vec3, this.shownView(), this.lens(), InViewMarginPx)) {
+            return;
+        }
+        this.focusNode(id);
+    }
+
+    // Edit text (AC27): the node's text becomes editable in place; Enter or leaving the field saves it, Escape cancels.
+    // done gets the typed text, or null when cancelled. Keys stay in the field: none pans, and Escape never ends the
+    // brainstorm.
+    beginEdit(id: string, done: (text: string) => void): void {
+        const isCentre = id === this.graph?.centre;
+        const entry = this.plates.get(id);
+        const field = isCentre ? this.coreTitle : entry?.textEl;
+        if (field == null || entry == null || entry.editing || (isCentre && this.coreEditing)) {
+            return;
+        }
+        const before = entry.node.text;
+        entry.editing = true;
+        if (isCentre) {
+            this.coreEditing = true;
+        }
+        const plate = isCentre ? this.coreTitle : entry.el;
+        plate.classList.add("is-editing");
+        try {
+            field.contentEditable = "plaintext-only";
+        } catch {
+            field.contentEditable = "true";
+        }
+        field.spellcheck = true;
+        let finished = false;
+        const finish = (save: boolean) => {
+            if (finished) {
+                return;
+            }
+            finished = true;
+            field.removeEventListener("keydown", onKey);
+            field.removeEventListener("blur", onBlur);
+            field.contentEditable = "false";
+            field.removeAttribute("contenteditable");
+            plate.classList.remove("is-editing");
+            entry.editing = false;
+            if (isCentre) {
+                this.coreEditing = false;
+            }
+            const typed = field.textContent ?? "";
+            // What shows until the graph says: the typed text when it is saved, the text as it was otherwise.
+            if (!save) {
+                field.textContent = before;
+            }
+            entry.halfW = 0;
+            this.wake();
+            done(save ? typed : null);
+        };
+        const onKey = (e: KeyboardEvent) => {
+            e.stopPropagation();
+            const action = editKey(e);
+            if (action == null) {
+                return;
+            }
+            e.preventDefault();
+            finish(action === "save");
+            plate.focus({ preventScroll: true });
+        };
+        const onBlur = () => finish(true);
+        field.addEventListener("keydown", onKey);
+        field.addEventListener("blur", onBlur);
+        field.focus({ preventScroll: true });
+        const range = document.createRange();
+        range.selectNodeContents(field);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
         this.wake();
     }
 
@@ -810,8 +1025,11 @@ export class BrainstormScene {
         this.coreGlow.position.copy(this.core.position);
         this.coreGlow.scale.setScalar(CoreRadius * 7.5 * placed.scale * (0.85 + 0.25 * pulse));
         (this.coreGlow.material as THREE.SpriteMaterial).opacity = placed.opacity * (0.7 + 0.3 * pulse);
-        if (this.coreTitle.textContent !== centre.node.text) {
+        if (!this.coreEditing && this.coreTitle.textContent !== centre.node.text) {
             this.coreTitle.textContent = centre.node.text;
+        }
+        if (this.coreTitle.dataset.nodeId !== centre.node.id) {
+            this.coreTitle.dataset.nodeId = centre.node.id;
         }
         const p = this.project([placed.pos[0], placed.pos[1] - CoreRadius * 1.25, placed.pos[2]]);
         const look = plateLook(p.depth, this.distance);
@@ -929,6 +1147,8 @@ export class BrainstormScene {
             const pos = item.box.fixed ? item.at.pos : this.unproject(x, y, item.p.ndcZ);
             placed.set(entry.node.id, { pos, x, y, hw: item.box.hw, hh: item.box.hh, opacity: item.opacity });
             entry.el.style.opacity = item.opacity.toFixed(3);
+            // A plate not born yet takes no click where it will appear.
+            entry.el.style.visibility = item.opacity <= 0.01 ? "hidden" : "";
             entry.el.style.zIndex = String(Math.max(1, Math.round(10000 - item.p.depth)));
             entry.el.style.filter = item.blur > 0 ? `blur(${item.blur}px)` : "";
             entry.el.style.transform = item.p.front
@@ -936,19 +1156,20 @@ export class BrainstormScene {
                 : Hidden;
         });
 
-        for (const entry of this.plates.values()) {
-            const node = entry.node;
-            if (!node.from) {
-                continue;
-            }
-            const child = placed.get(node.id);
-            const parent = placed.get(node.from);
-            if (child == null || parent == null) {
-                continue;
-            }
-            const curve = ropeCurve(parent.pos, child.pos);
+        let outlineSegments = 0;
+        type Box = { pos: Vec3; x: number; y: number; hw: number; hh: number; opacity: number };
+        // A rope from parent to child cut at their edges on screen, in `tint` dimmed by `dim`; its dark under-rope only
+        // while it is lit enough to need one (a leaving rope loses it as it fades).
+        const drawRope = (
+            parent: Box,
+            child: Box,
+            curve: Vec3[],
+            tint: THREE.Color,
+            dim: number,
+            withOutline: boolean
+        ) => {
             const screen = curve.map((pt) => this.project(pt));
-            const inside = (i: number, box: typeof parent) =>
+            const inside = (i: number, box: Box) =>
                 Math.abs(screen[i].x - box.x) <= box.hw && Math.abs(screen[i].y - box.y) <= box.hh;
             let first = 0;
             while (first < curve.length - 1 && inside(first, parent)) {
@@ -959,34 +1180,56 @@ export class BrainstormScene {
                 last--;
             }
             if (last <= first) {
-                continue;
+                return;
             }
             const start = this.edgePoint(curve, screen, first, parent, -1);
             const end = this.edgePoint(curve, screen, last, child, 1);
             const points: Vec3[] = [start, ...curve.slice(first, last + 1), end];
-            const dim = Math.min(child.opacity, parent.opacity);
+            const r = tint.r * dim;
+            const g = tint.g * dim;
+            const b = tint.b * dim;
             for (let i = 0; i < points.length - 1 && segments < RopeCapacity; i++) {
-                const o = segments * 6;
-                const a = points[i];
-                const b = points[i + 1];
-                ropePos.set([a[0], a[1], a[2], b[0], b[1], b[2]], o);
-                outlinePos.set([a[0], a[1], a[2], b[0], b[1], b[2]], o);
-                ropeCol.set(
-                    [color.r * dim, color.g * dim, color.b * dim, color.r * dim, color.g * dim, color.b * dim],
-                    o
-                );
+                const p = points[i];
+                const q = points[i + 1];
+                ropePos.set([p[0], p[1], p[2], q[0], q[1], q[2]], segments * 6);
+                ropeCol.set([r, g, b, r, g, b], segments * 6);
                 segments++;
+                if (withOutline) {
+                    outlinePos.set([p[0], p[1], p[2], q[0], q[1], q[2]], outlineSegments * 6);
+                    outlineSegments++;
+                }
             }
             if (marks < MaxNodes) {
                 anchorPos.set(start, marks * 3);
-                anchorCol.set([color.r * dim, color.g * dim, color.b * dim], marks * 3);
+                anchorCol.set([r, g, b], marks * 3);
                 knotPos.set(end, marks * 3);
-                knotCol.set([color.r * dim, color.g * dim, color.b * dim], marks * 3);
+                knotCol.set([r, g, b], marks * 3);
                 marks++;
             }
+        };
+        for (const entry of this.plates.values()) {
+            const node = entry.node;
+            if (!node.from) {
+                continue;
+            }
+            const child = placed.get(node.id);
+            const parent = placed.get(node.from);
+            // A node not born yet (the ones of an answer arrive one by one) has no rope yet.
+            if (child == null || parent == null || child.opacity <= 0.01) {
+                continue;
+            }
+            drawRope(
+                parent,
+                child,
+                ropeCurve(parent.pos, child.pos),
+                color,
+                Math.min(child.opacity, parent.opacity),
+                true
+            );
         }
+        this.placeLeaving(now, placed, reference, color, drawRope);
         markSegments(this.ropes, segments, true);
-        markSegments(this.outlines, segments, false);
+        markSegments(this.outlines, outlineSegments, false);
         (this.outlines.material as LineMaterial).opacity = 0.85;
         this.anchors.geometry.setDrawRange(0, marks);
         this.knots.geometry.setDrawRange(0, marks);
@@ -998,6 +1241,70 @@ export class BrainstormScene {
         if (arriving || this.crossRev !== (this.graph?.rev ?? 0)) {
             this.crossRev = this.graph?.rev ?? 0;
             this.placeCrossLinks(placed);
+        }
+    }
+
+    // The plates leaving the graph (#2247). A removed one cools to cold iron and fades while it drops, its rope from its
+    // parent slackening and falling with it; one folded by a merge is pulled into the plate kept, with no rope. Under
+    // reduced motion each only fades where it stood. A plate whose leave ended goes.
+    private placeLeaving(
+        now: number,
+        placed: Map<string, { pos: Vec3; x: number; y: number; hw: number; hh: number; opacity: number }>,
+        reference: number,
+        color: THREE.Color,
+        drawRope: (
+            parent: { pos: Vec3; x: number; y: number; hw: number; hh: number; opacity: number },
+            child: { pos: Vec3; x: number; y: number; hw: number; hh: number; opacity: number },
+            curve: Vec3[],
+            tint: THREE.Color,
+            dim: number,
+            withOutline: boolean
+        ) => void
+    ): void {
+        const cold = new THREE.Color(SceneColors.cold);
+        for (const [id, gone] of this.leaving) {
+            const look = leaveLook(now - gone.goneAt, this.still);
+            if (look.done) {
+                gone.el.remove();
+                this.leaving.delete(id);
+                continue;
+            }
+            const from = gone.node.pos as Vec3;
+            const into = gone.into != null ? placed.get(gone.into) : null;
+            const pos: Vec3 =
+                into != null
+                    ? [
+                          from[0] + (into.pos[0] - from[0]) * look.pull,
+                          from[1] + (into.pos[1] - from[1]) * look.pull,
+                          from[2] + (into.pos[2] - from[2]) * look.pull,
+                      ]
+                    : [from[0], from[1] - look.drop, from[2]];
+            const p = this.project(pos);
+            const depthLook = plateLook(p.depth, this.distance, reference);
+            const opacity = depthLook.opacity * look.opacity;
+            const scale = depthLook.scale * look.scale;
+            const x = p.x + gone.offX;
+            const y = p.y + gone.offY;
+            gone.el.style.opacity = opacity.toFixed(3);
+            gone.el.style.filter = "";
+            gone.el.style.setProperty("--bs-cool", look.cool.toFixed(3));
+            gone.el.style.transform = p.front
+                ? `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%) scale(${scale.toFixed(3)})`
+                : Hidden;
+            const parent = into == null ? placed.get(gone.parent) : null;
+            if (parent == null || opacity <= 0.02) {
+                continue;
+            }
+            const box = { pos, x, y, hw: gone.halfW * scale, hh: gone.halfH * scale, opacity };
+            const tint = color.clone().lerp(cold, look.cool);
+            drawRope(
+                parent,
+                box,
+                ropeCurve(parent.pos, pos, Ropes.segments, Ropes.sag * look.slack),
+                tint,
+                Math.min(opacity, parent.opacity),
+                opacity > 0.5
+            );
         }
     }
 
@@ -1098,10 +1405,11 @@ export class BrainstormScene {
             }
         });
         this.textures.forEach((texture) => texture.dispose());
-        for (const entry of this.plates.values()) {
+        for (const entry of [...this.plates.values(), ...this.leaving.values()]) {
             entry.el.remove();
         }
         this.plates.clear();
+        this.leaving.clear();
         this.coreTitle?.remove();
         this.renderer.dispose();
         // The graphics context goes with the stage (FR-BOSS-010 AC19, NFR-BOSS-009): none while the mode is closed.
