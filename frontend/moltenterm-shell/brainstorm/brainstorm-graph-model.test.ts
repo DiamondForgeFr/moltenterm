@@ -116,6 +116,17 @@ describe("the brokk-graph block", () => {
         );
     });
 
+    // FR-BOSS-010 AC25 (#2285): his finish goes to wavesrv with the block, which marks the brainstorm finished.
+    it("keeps a block that finishes the brainstorm, alone or with nodes", () => {
+        const done = readGraphBlock(
+            answer("Done, it's saved.", '{"v": 1, "talk": "project", "ops": [{"op": "finish"}]}')
+        );
+        expect(done.problem).toBe("");
+        expect(done.block.ops).toEqual([{ op: "finish" }]);
+        expect(opensBrainstorm(done.block)).toBe(false);
+        expect(blockProblem({ v: 1, talk: "project", ops: [...block.ops, { op: "finish" }] })).toBe("");
+    });
+
     it("leaves a quick question a normal exchange, and personal talk draws nothing", () => {
         expect(opensBrainstorm(null)).toBe(false);
         expect(opensBrainstorm({ v: 1, talk: "personal", ops: block.ops })).toBe(false);

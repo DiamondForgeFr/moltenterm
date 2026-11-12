@@ -135,11 +135,12 @@ export class BrainstormModel {
     followPulseAtom = atom(0) as PrimitiveAtom<number>;
     cameraAskAtom = atom(null) as PrimitiveAtom<CameraAsk>;
     tallyAtom = atom(EmptyTally) as PrimitiveAtom<Tally>;
-    // The folders (#2248): the question in his talk window, the widget's list and whether it is unfolded, his fork's
-    // question, and the line about the last action.
+    // The folders (#2248): the question in his talk window, the brainstorm panel's list (#2285) and how many times the
+    // developer asked for it (All brainstorms…, which brings it forward), his fork's question, and the line about the
+    // last action.
     promptAtom = BrainstormPromptAtom;
     listAtom = atom([]) as PrimitiveAtom<BrainstormSummary[]>;
-    widgetOpenAtom = atom(false) as PrimitiveAtom<boolean>;
+    listAskedAtom = atom(0) as PrimitiveAtom<number>;
     forkAtom = atom(null) as PrimitiveAtom<ForkAsk>;
     noticeAtom = atom(null) as PrimitiveAtom<FolderNotice>;
 
@@ -158,6 +159,9 @@ export class BrainstormModel {
     private cardWasOpen = false;
     // The mode opened his card in this view (a tab switch onto it): it closes it again when it ends.
     private cardOpenedByMode = false;
+    // The answer whose turn may open the mode (his central idea, outside it): its message and the answer move into the
+    // brainstorm's conversation when it opens (#2285), whether the turn's reply or wavesrv's event says so first.
+    private openingAnswer: string = null;
     private stops: (() => void)[] = [];
 
     private constructor() {
@@ -382,7 +386,6 @@ export class BrainstormModel {
             return false;
         }
         globalStore.set(this.noticeAtom, null);
-        globalStore.set(this.widgetOpenAtom, false);
         const title = result.state.brainstorm?.title ?? "";
         const session = BrokkSession.getInstance();
         // The brainstorm just left opens again with no swap (#2284): his answer still coming in is its own, so it is
@@ -424,7 +427,6 @@ export class BrainstormModel {
             return false;
         }
         globalStore.set(this.noticeAtom, null);
-        globalStore.set(this.widgetOpenAtom, false);
         BrokkSession.getInstance().stopFollowing();
         BrokkSession.getInstance().showConversation([]);
         this.sayOpening();
@@ -442,10 +444,10 @@ export class BrainstormModel {
         await session.say(idea);
     }
 
-    // All brainstorms… unfolds the widget's list (AC10a).
+    // All brainstorms… brings the brainstorm panel's list forward (AC10a, #2285).
     showAll(): void {
         this.dismissPrompt();
-        globalStore.set(this.widgetOpenAtom, true);
+        globalStore.set(this.listAskedAtom, (asked) => asked + 1);
         void this.refreshList();
     }
 
@@ -611,6 +613,9 @@ export class BrainstormModel {
             console.log("brainstorm: a graph block was dropped:", step.dropped);
         }
         globalStore.set(this.talkAtAtom, Date.now());
+        if (!this.isOpen()) {
+            this.openingAnswer = answer.id;
+        }
         const result = await this.ask(TurnCommand, {
             key: step.key,
             you: answer.you,
@@ -621,9 +626,15 @@ export class BrainstormModel {
             late: late || undefined,
         });
         this.apply(result?.state);
+        if (this.openingAnswer === answer.id) {
+            this.openingAnswer = null;
+        }
     }
 
     private opened(): void {
+        // His talk window shows the brainstorm's own conversation (AC24, #2285); his answer that opened it comes along.
+        BrokkSession.getInstance().switchConversation("brainstorm", { fresh: true, carry: this.openingAnswer });
+        this.openingAnswer = null;
         this.pause(true);
         globalStore.set(BrainstormLastLeftAtom, null);
         this.sent.clear();
@@ -688,10 +699,14 @@ export class BrainstormModel {
         if (left?.slug) {
             globalStore.set(BrainstormLastLeftAtom, left);
         }
+        // His ordinary conversation comes back as it was, and the brainstorm's lead never reaches his next ordinary
+        // message (AC24, #2285).
+        const session = BrokkSession.getInstance();
+        session.switchConversation("main");
+        session.setLead("");
         globalStore.set(this.breakthroughAtom, null);
         // The questions of the mode go with it; his offer to resume, asked outside it, stays.
         globalStore.set(this.forkAtom, null);
-        globalStore.set(this.widgetOpenAtom, false);
         globalStore.set(this.noticeAtom, null);
         const prompt = globalStore.get(this.promptAtom);
         if (prompt?.kind === "picker" || prompt?.kind === "duplicate") {

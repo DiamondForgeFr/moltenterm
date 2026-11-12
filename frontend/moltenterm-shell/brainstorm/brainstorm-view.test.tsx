@@ -15,8 +15,8 @@ vi.mock("../boss/boss-store", async () => {
     return { BossBubbleModel: { getInstance: () => ({ nameAtom, showPanel: vi.fn() }) } };
 });
 const end = vi.hoisted(() => vi.fn());
-const showAll = vi.hoisted(() => vi.fn());
 const askCamera = vi.hoisted(() => vi.fn());
+const load = vi.hoisted(() => vi.fn());
 vi.mock("./brainstorm-store", async () => {
     const { atom } = await import("jotai");
     const model = {
@@ -26,22 +26,24 @@ vi.mock("./brainstorm-store", async () => {
         askCamera,
         breakthroughAtom: atom(null),
         listAtom: atom([]),
-        widgetOpenAtom: atom(false),
+        listAskedAtom: atom(0),
         noticeAtom: atom(null),
         forkAtom: atom(null),
         promptAtom: atom(null),
-        stateAtom: atom({ allowed: true, open: true, version: 1, cantrash: true }),
+        stateAtom: atom({ allowed: true, open: true, version: 1, cantrash: true } as any),
         refreshList: async () => [],
         end,
-        showAll,
+        load,
     };
     return { BrainstormModel: { getInstance: () => model } };
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { t } from "../i18n/i18n";
+import { BrainstormPanel, leaveBrainstorm, savedLine } from "./brainstorm-panel";
 import { BrainstormPrompts, ForgetConfirm } from "./brainstorm-prompts";
 import { BrainstormModel } from "./brainstorm-store";
-import { BrainstormView, followBrokk, leaveBrainstorm, recentreBrainstorm, switchBrainstorm } from "./brainstorm-view";
+import { BrainstormView, followBrokk, recentreBrainstorm } from "./brainstorm-view";
 
 const model = BrainstormModel.getInstance() as any;
 const Css = readFileSync(join(__dirname, "brainstorm.css"), "utf8");
@@ -72,64 +74,126 @@ beforeEach(() => {
     globalStore.set(model.listAtom, [
         state.brainstorm,
         folder("forge-notes", "Forge notes", 3),
-        folder("family-budget", "A family budget", 2),
+        { ...folder("family-budget", "A family budget", 2), state: "done" },
         folder("garden", "A garden planner", 1),
     ]);
-    globalStore.set(model.widgetOpenAtom, false);
+    globalStore.set(model.stateAtom, { ...state, cantrash: true });
     globalStore.set(model.forkAtom, null);
     globalStore.set(model.promptAtom, null);
     globalStore.set(model.noticeAtom, null);
 });
 
-function widget(html: string): string {
-    const start = html.indexOf('data-testid="brainstorm-saved"');
-    return start < 0 ? "" : html.slice(start);
+function panel(): string {
+    return renderToStaticMarkup(<BrainstormPanel />);
 }
 
-// #2257: a click on the dim never ends a brainstorm; the header holds the way out, at the free space's top left.
-describe("the brainstorm's header (#2257)", () => {
-    it("holds a Leave the brainstorm button, before the line of his thought", () => {
+// #2285: the layer keeps the line of his thought over the free space; the bottom-right widget and the header's Leave and
+// Switch go, since the brainstorm panel of his group holds them (FR-BOSS-010 AC23).
+describe("the brainstorm's layer (#2257, #2285)", () => {
+    it("draws the stage and the line of his thought, with no widget, and no Leave or switch in the header", () => {
         const html = renderToStaticMarkup(<BrainstormView state={state} shown={true} />);
+        expect(html).toContain('data-testid="mock-stage"');
         const header =
             /<div class="mt-bs-header" data-testid="brainstorm-header">([\s\S]*?)<\/div>/.exec(html)?.[1] ?? "";
-        expect(header).toMatch(
-            /<button type="button" class="mt-bs-leave cursor-pointer" data-testid="brainstorm-leave">/
-        );
-        expect(header).toContain("Leave the brainstorm");
-        expect(header.indexOf("brainstorm-leave")).toBeLessThan(header.indexOf("mt-bs-header-text"));
-        expect(html).toContain("Leave the brainstorm with its button above, or Esc outside a field");
+        expect(header).toContain("Brokk&#x27;s thought");
+        // Its only button is #2283's Recentre.
+        expect(header.match(/<button/g)).toHaveLength(1);
+        expect(header).toContain('data-testid="brainstorm-recentre"');
+        for (const gone of ["brainstorm-saved", "brainstorm-leave", "brainstorm-switch", "brainstorm-list"]) {
+            expect(html).not.toContain(`data-testid="${gone}"`);
+        }
+    });
+});
+
+describe("the brainstorm panel (FR-BOSS-010 AC9, AC10, AC23, AC25, #2285)", () => {
+    it("shows the open brainstorm's title, where it is saved and when, its folder, New idea and Leave", () => {
+        const html = panel();
+        expect(html).toContain('data-testid="brainstorm-title"');
+        expect(html).toContain("A safe video app for children");
+        expect(html).toMatch(/data-testid="brainstorm-saved-line"[^>]*>[^]*?Saved automatically · /);
+        expect(html).toContain("kids-video/");
+        expect(html).toContain('data-testid="brainstorm-new"');
+        expect(html).toMatch(/data-testid="brainstorm-leave"[^>]*>[^]*?Leave the brainstorm<\/button>/);
+        expect(html).toContain('title="Escape outside a field leaves the brainstorm too"');
+        const current = html.slice(0, html.indexOf('class="mt-bsp-others"'));
+        for (const action of ["rename", "show", "delete"]) {
+            expect(current).toContain(`data-testid="brainstorm-row-${action}"`);
+        }
     });
 
-    it("ends the brainstorm from the button", () => {
+    it("says why a brainstorm is not saved, and names a new idea before its first central idea", () => {
+        globalStore.set(model.stateAtom, { ...state, saveerror: "disk full" });
+        expect(panel()).toContain("Not saved: the folder could not be written");
+        globalStore.set(model.stateAtom, { allowed: true, open: true, version: 1 });
+        const html = panel();
+        expect(html).toContain("A new idea");
+        expect(html).toContain("Saved as soon as the idea is set");
+        expect(html).not.toContain('data-testid="brainstorm-saved-folder"');
+        expect(savedLine({ allowed: true, open: true, version: 1 }, t, "en").tone).toBe("waiting");
+    });
+
+    // AC25: the others, the unfinished ones first and marked, the most recent first; each with Resume and its folder's
+    // actions. The open one is not listed again.
+    it("lists the other brainstorms, unfinished first, each with Resume, Rename, Show in folder and Delete", () => {
+        const html = panel();
+        const rows = html.split('data-testid="brainstorm-row"').slice(1);
+        expect(rows).toHaveLength(3);
+        expect(rows.map((row) => /data-slug="([^"]+)"/.exec(row)?.[1])).toEqual([
+            "forge-notes",
+            "garden",
+            "family-budget",
+        ]);
+        expect(rows[0]).toMatch(/data-state="open"[^>]*>in progress</);
+        expect(rows[2]).toMatch(/data-state="done"[^>]*>finished</);
+        for (const row of rows) {
+            for (const action of ["load", "rename", "show", "delete"]) {
+                expect(row).toContain(`data-testid="brainstorm-row-${action}"`);
+            }
+        }
+        expect(rows[0]).toContain(">Resume</button>");
+        expect(html).not.toContain('data-slug="kids-video"');
+    });
+
+    it("says when there is no other brainstorm", () => {
+        globalStore.set(model.listAtom, [state.brainstorm]);
+        expect(panel()).toContain("No other brainstorm yet");
+    });
+
+    it("leaves the brainstorm from its button", () => {
         end.mockClear();
         leaveBrainstorm();
         expect(end).toHaveBeenCalledTimes(1);
     });
 
-    // AC10c (#2248): the header's switch unfolds the widget's list, without leaving the mode.
-    it("holds a switch that unfolds the brainstorms", () => {
-        const html = renderToStaticMarkup(<BrainstormView state={state} shown={true} />);
-        expect(html).toMatch(/data-testid="brainstorm-switch" aria-expanded="false">[^]*?Switch<\/button>/);
-        showAll.mockClear();
-        end.mockClear();
-        switchBrainstorm();
-        expect(showAll).toHaveBeenCalledTimes(1);
-        expect(end).not.toHaveBeenCalled();
+    // AC11: his fork waits in the panel, with the mockup's two answers.
+    it("asks his fork's question: Yes, or No, we stay here", () => {
+        globalStore.set(model.forkAtom, { key: "k", title: "Parental control for games", reason: "another product" });
+        const html = panel();
+        expect(html).toContain("Brokk: “Parental control for games” is another project. Open its own folder?");
+        expect(html).toContain('data-testid="brainstorm-fork-yes"');
+        expect(html).toContain("No, we stay here");
+    });
+
+    it("says what a forget did, and why an action did not go through", () => {
+        globalStore.set(model.noticeAtom, { kind: "forgot", title: "A family budget", trashed: true });
+        expect(panel()).toContain("“A family budget” is in the trash.");
+        globalStore.set(model.noticeAtom, { kind: "failed", failure: "trash" });
+        expect(panel()).toContain("The folder could not go to the trash: it stays where it is.");
     });
 });
 
-// FR-BOSS-010 AC7a, AC7b (#2283): Recentre and the Follow Brokk chip, added to the header and nothing else moved.
+// FR-BOSS-010 AC7a, AC7b (#2283): Recentre and the Follow Brokk chip in the header, after the line of his thought; Leave
+// and the switch are in the brainstorm panel (#2285).
 describe("the header's camera controls (#2283)", () => {
     const header = () =>
         /<div class="mt-bs-header" data-testid="brainstorm-header">([\s\S]*?)<\/div>/.exec(
             renderToStaticMarkup(<BrainstormView state={state} shown={true} />)
         )?.[1] ?? "";
 
-    it("holds Recentre between his thought's line and the switch, with no Follow chip while Brokk holds the camera", () => {
+    it("holds Recentre after his thought's line, with no Follow chip while Brokk holds the camera", () => {
         const html = header();
         expect(html).toMatch(/data-testid="brainstorm-recentre"[^>]*>[^]*?Recentre<\/button>/);
         expect(html.indexOf("mt-bs-header-text")).toBeLessThan(html.indexOf("brainstorm-recentre"));
-        expect(html.indexOf("brainstorm-recentre")).toBeLessThan(html.indexOf("brainstorm-switch"));
         expect(html).not.toContain("brainstorm-follow");
         expect(html).toContain("overview");
     });
@@ -140,7 +204,6 @@ describe("the header's camera controls (#2283)", () => {
         expect(html).toMatch(/data-testid="brainstorm-follow"[^>]*>[^]*?Follow Brokk<\/button>/);
         expect(html).toContain("your view");
         expect(html.indexOf("brainstorm-recentre")).toBeLessThan(html.indexOf("brainstorm-follow"));
-        expect(html.indexOf("brainstorm-follow")).toBeLessThan(html.indexOf("brainstorm-switch"));
     });
 
     it("pulses the chip only when asked, once per ask", () => {
@@ -177,72 +240,23 @@ describe("the header's camera controls (#2283)", () => {
     });
 });
 
-describe("the Brainstorms widget (FR-BOSS-010 AC10, #2248)", () => {
-    // The mockup's folded plate: Saved and its folder, the other ideas by their folder, Load and New idea.
-    it("folded, says where the open one is saved and names two other ideas", () => {
-        const html = widget(renderToStaticMarkup(<BrainstormView state={state} shown={true} />));
-        expect(html).toContain("Brainstorms");
-        expect(html).toContain("kids-video/");
-        expect(html).toContain("Other ideas:");
-        expect(html.match(/data-testid="brainstorm-other"/g)).toHaveLength(2);
-        expect(html).toContain("forge-notes");
-        expect(html).not.toContain(">garden<");
-        expect(html).toContain('data-testid="brainstorm-new"');
-        expect(html).toContain("All (4)");
-        expect(html).not.toContain('data-testid="brainstorm-list"');
-    });
-
-    // AC-1: every folder with its title, last change and state, and each action; the open one says so.
-    it("unfolded, lists every folder with its title, last change, state and actions", () => {
-        globalStore.set(model.widgetOpenAtom, true);
-        const html = widget(renderToStaticMarkup(<BrainstormView state={state} shown={true} />));
-        const rows = html.split('data-testid="brainstorm-row"').slice(1);
-        expect(rows).toHaveLength(4);
-        expect(rows[0]).toContain("A safe video app for children");
-        expect(rows[0]).toContain("· open");
-        expect(rows[0]).toContain(">Open<");
-        expect(rows[0]).not.toContain('data-testid="brainstorm-row-load"');
-        for (const row of rows.slice(1)) {
-            for (const action of ["load", "rename", "show", "delete"]) {
-                expect(row).toContain(`data-testid="brainstorm-row-${action}"`);
-            }
-        }
-        expect(rows[1]).toContain("Forge notes");
-        expect(html).toContain("Fold");
-    });
-
-    // AC11: his fork waits in the widget, with the mockup's two answers.
-    it("asks his fork's question: Yes, or No, we stay here", () => {
-        globalStore.set(model.forkAtom, { key: "k", title: "Parental control for games", reason: "another product" });
-        const html = widget(renderToStaticMarkup(<BrainstormView state={state} shown={true} />));
-        expect(html).toContain("Brokk: “Parental control for games” is another project. Open its own folder?");
-        expect(html).toContain('data-testid="brainstorm-fork-yes"');
-        expect(html).toContain("No, we stay here");
-    });
-
-    it("says what a forget did, and why an action did not go through", () => {
-        globalStore.set(model.noticeAtom, { kind: "forgot", title: "A family budget", trashed: true });
-        expect(widget(renderToStaticMarkup(<BrainstormView state={state} shown={true} />))).toContain(
-            "“A family budget” is in the trash."
-        );
-        globalStore.set(model.noticeAtom, { kind: "failed", failure: "trash" });
-        expect(widget(renderToStaticMarkup(<BrainstormView state={state} shown={true} />))).toContain(
-            "The folder could not go to the trash: it stays where it is."
-        );
-    });
-});
-
 describe("the questions in his talk window (AC10a to AC10d, #2248)", () => {
     it("offers the recent ones, a new idea and all brainstorms on entry", () => {
         globalStore.set(model.promptAtom, {
             kind: "picker",
-            recent: [folder("forge-notes", "Forge notes", 3), folder("garden", "A garden planner", 1)],
+            recent: [
+                folder("forge-notes", "Forge notes", 3),
+                { ...folder("garden", "A garden planner", 1), state: "done" },
+            ],
             total: 5,
         });
         const html = renderToStaticMarkup(<BrainstormPrompts name="Brokk" />);
         expect(html).toContain("Where do we start?");
         expect(html.match(/data-testid="brainstorm-picker-resume"/g)).toHaveLength(2);
         expect(html).toContain("Resume “Forge notes”");
+        // AC25 (#2285): an unfinished one says so; a finished one does not.
+        expect(html.match(/data-testid="brainstorm-picker-open"/g)).toHaveLength(1);
+        expect(html).toMatch(/Resume “Forge notes”<span[^>]*data-testid="brainstorm-picker-open">· in progress</);
         expect(html).toContain("New idea");
         expect(html).toContain("All brainstorms (5)…");
     });

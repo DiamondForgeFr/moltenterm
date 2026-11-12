@@ -31,6 +31,8 @@ const (
 	InfoSchema  = 1
 	SourceBrokk = "brokk"
 	StateOpen   = "open"
+	// StateDone: Brokk marked it finished on the developer's word (#2285); open is in progress.
+	StateDone = "done"
 
 	// DefaultDirName is the brainstorms folder under the home folder when boss:brainstormsdir is unset.
 	DefaultDirName = "MoltenTerm/Brainstorms"

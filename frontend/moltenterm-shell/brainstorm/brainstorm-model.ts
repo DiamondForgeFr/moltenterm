@@ -20,10 +20,40 @@ import {
 // How many brainstorms the picker offers to resume on entry (AC10a, #2248).
 export const PickerRecent = 3;
 
-// What the developer's start of a brainstorm offers (AC10a): the most recent ones to resume, or nothing when none is
-// saved (he then says his opening line). The one last left comes first (AC10e, #2284).
+// The states that say a brainstorm is finished: Brokk's finish (#2285), and the clear first pass and the project it
+// became of DS-BOSS-010. Every other state, an unknown one too, is in progress. must match pkg/molten/brainstorm/store.go
+export const FinishedStates = ["done", "clear", "promoted"];
+
+// A brainstorm the developer left without Brokk marking it finished (FR-BOSS-010 AC25, #2285).
+export function unfinished(entry: BrainstormSummary): boolean {
+    return !FinishedStates.includes(entry?.state ?? "");
+}
+
+// The state a list says (AC25): in progress, or how it was finished.
+export function stateOf(entry: BrainstormSummary): string {
+    return unfinished(entry) ? "open" : entry.state;
+}
+
+// The order the picker and the panel offer them in (AC25): the unfinished ones first, then the finished ones, the one
+// changed last first in each.
+export function resumeOrder(list: BrainstormSummary[]): BrainstormSummary[] {
+    return (list ?? [])
+        .filter((entry) => entry?.slug)
+        .map((entry, i) => ({ entry, i }))
+        .sort(
+            (a, b) =>
+                Number(unfinished(b.entry)) - Number(unfinished(a.entry)) ||
+                (b.entry.updated ?? 0) - (a.entry.updated ?? 0) ||
+                a.i - b.i
+        )
+        .map(({ entry }) => entry);
+}
+
+// What the developer's start of a brainstorm offers (AC10a): the most recent ones to resume, the unfinished ones first
+// (AC25, #2285), or nothing when none is saved (he then says his opening line). The one last left comes first (AC10e,
+// #2284).
 export function pickerOf(list: BrainstormSummary[], lastSlug = ""): BrainstormPrompt {
-    const saved = (list ?? []).filter((entry) => entry?.slug);
+    const saved = resumeOrder(list);
     if (saved.length === 0) {
         return null;
     }
@@ -46,9 +76,9 @@ export function lastChange(at: number, locale: string): string {
     }
 }
 
-// The brainstorms the widget lists beside the open one, the one changed last first.
+// The brainstorms the panel lists beside the open one, in the order of resumeOrder (#2285).
 export function othersOf(list: BrainstormSummary[], currentSlug: string): BrainstormSummary[] {
-    return (list ?? []).filter((entry) => entry?.slug && entry.slug !== currentSlug);
+    return resumeOrder(list).filter((entry) => entry.slug !== currentSlug);
 }
 
 // His questions in a complete answer (#2248), once per answer; null when it asks none. Only a final answer asks: a

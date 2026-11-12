@@ -54,7 +54,9 @@ export const QuestionOps = ["fork", "resume", "forget"];
 
 // The operations of later stories (#2247, #2249, #2250): skipped, not a reason to drop the block.
 export const LaterOps = ["edit", "propose", "conclude", "remember"];
-const KnownOps = ["centre", "add", "link", ...QuestionOps, ...LaterOps];
+// The developer said the brainstorm is done (#2285): wavesrv saves it as finished, the graph does not change.
+export const FinishOp = "finish";
+const KnownOps = ["centre", "add", "link", ...QuestionOps, ...LaterOps, FinishOp];
 
 export type Talk = "project" | "personal";
 
@@ -177,6 +179,8 @@ export function blockProblem(value: unknown): string {
                 problem =
                     textProblem(op.title) ||
                     ([...cleanText(op.reason ?? "")].length > MaxText ? "reason too long" : "");
+                break;
+            case FinishOp:
                 break;
             default:
                 problem = LaterOps.includes(op.op) ? "" : "unknown operation";

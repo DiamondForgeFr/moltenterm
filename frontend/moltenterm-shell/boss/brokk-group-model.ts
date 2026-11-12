@@ -132,13 +132,29 @@ export function conversationWidth(g: GroupGeometry, panelRoom: number): number {
     return g.panelLeft + panelWidth(panelRoom);
 }
 
-// During a brainstorm with no panel open (FR-BOSS-010, #2257, the approved mockup), the window keeps to the group's
-// width, a column under his portrait, and the graph has the space beside it.
-export function conversationWidthFor(g: GroupGeometry, panelRoom: number, column: boolean): number {
-    return column ? g.width : conversationWidth(g, panelRoom);
+// The brainstorm layout of his group (FR-BOSS-010 AC23, DS-BOSS-013, #2285), for the whole mode: his square; the
+// brainstorm panel in the rail's place, from the square's edge to the wide width, as tall as the square; and under both
+// his talk window, as wide as beside an open rail panel (never past the window's room) and as tall as the window
+// allows. No block under the square, no rail: the graph has the space to the right.
+export type BrainstormLayout = { width: number; panel: Rect; talk: Rect; height: number };
+
+// The talk window is never shorter than this, even in a short window.
+export const BrainstormTalkMinPx = 160;
+
+export function brainstormLayout(g: GroupGeometry, place: GroupPlace): BrainstormLayout {
+    const width = Math.max(g.width, g.panelLeft + Math.min(PanelWidthPx, place.panelRoom));
+    const left = g.square + EdgePx;
+    const top = g.square + EdgePx;
+    const talkHeight = Math.max(BrainstormTalkMinPx, place.heightRoom - top);
+    return {
+        width,
+        panel: { x: left, y: 0, w: width - left, h: g.square },
+        talk: { x: 0, y: top, w: width, h: talkHeight },
+        height: top + talkHeight,
+    };
 }
 
-// The panel the group shows by itself: none during a brainstorm, whose graph takes the space; a click still opens one.
+// The panel the group shows by itself: none during a brainstorm, whose graph takes the space.
 export function autoPanelIn(auto: PanelId, brainstorming: boolean): PanelId {
     return brainstorming ? null : auto;
 }
@@ -149,9 +165,10 @@ export function dockedPlace(place: SidebarPlace, brainstorming: boolean): Sideba
     return brainstorming ? "none" : place;
 }
 
-// During a brainstorm the notifications are held, so their panel never shows, even at a click (#2257).
+// During a brainstorm no rail panel shows (#2285): the brainstorm panel stands in the rail's place, and the notifications
+// are held (#2257). A panel a surface asked for meanwhile shows once the mode ends.
 export function brainstormPanel(active: PanelId, brainstorming: boolean): PanelId {
-    return brainstorming && active === "notifications" ? null : active;
+    return brainstorming ? null : active;
 }
 
 // What closes his group (#2257): outside a brainstorm, a press outside or Escape; during one, only Escape while no

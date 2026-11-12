@@ -3165,12 +3165,11 @@
                 "reference": "Autre dossier"
             },
             "saved": {
-                "title": "Brainstorms",
                 "at": "Enregistré automatiquement · {time}",
                 "nothing": "Enregistré dès que l'idée est posée",
                 "failed": "Non enregistré : le dossier n'a pas pu être écrit"
             },
-            "leaveHint": "Quittez le brainstorm avec son bouton en haut, ou Échap hors d'un champ",
+            "leaveHint": "Échap hors d'un champ quitte aussi le brainstorm",
             "leave": "Quitter le brainstorm",
             "summary": {
                 "one": "1 notification est arrivée pendant le brainstorm",
@@ -3188,7 +3187,6 @@
             "lastChange": "Dernière modification {when}",
             "resumeAction": "Reprendre",
             "resumeDismiss": "Pas maintenant",
-            "switch": "Changer",
             "picker": {
                 "label": "Brainstorms avec {name}",
                 "ask": "On commence par quoi ?",
@@ -3219,15 +3217,13 @@
                 "yes": "Oui",
                 "no": "Non, on reste ici"
             },
-            "widget": {
-                "all": "Tous ({count})",
-                "fold": "Replier",
-                "others": "Autres idées :",
-                "loadOne": "Charger « {title} »",
-                "none": "Aucun brainstorm enregistré pour l'instant",
-                "meta": "{when} · {state}",
-                "here": "Ouvert",
-                "load": "Charger",
+            "panel": {
+                "label": "Le brainstorm",
+                "eyebrow": "Brainstorm",
+                "untitled": "Une nouvelle idée",
+                "others": "Autres brainstorms",
+                "none": "Aucun autre brainstorm pour l'instant",
+                "resumeOne": "Reprendre « {title} »",
                 "rename": "Renommer",
                 "renameLabel": "Le nouveau titre du brainstorm",
                 "renameSave": "Enregistrer",
@@ -3237,7 +3233,8 @@
                 "forgotRemoved": "« {title} » est supprimé définitivement."
             },
             "state": {
-                "open": "ouvert",
+                "open": "en cours",
+                "done": "terminé",
                 "clear": "clair",
                 "promoted": "promu"
             },

@@ -71,10 +71,16 @@ export type AnswerRead = { id: string; you: string; markdown: string; turn: numb
 
 export type AnswerListener = (answer: AnswerRead) => void;
 
+// The conversations of his talk window (FR-BOSS-010 AC24, #2285): his ordinary one, and the brainstorm's, which never
+// shows in the other.
+export type ConversationKey = "main" | "brainstorm";
+
 // A message whose answer is followed.
 type Tracked = {
     // The message's id in the exchange, which its answer carries too.
     id: string;
+    // The conversation it was sent in: its answer is written there, on screen or aside.
+    conversation: ConversationKey;
     // What the developer sent.
     text: string;
     sentAt: number;
@@ -91,8 +97,11 @@ export class BrokkSession {
 
     // The status of the last message, for the notes of the window.
     stateAtom = atom(IdleTalk) as PrimitiveAtom<TalkState>;
-    // The developer's messages and his answers, oldest first, for as long as MoltenTerm runs.
+    // The developer's messages and his answers in the conversation on screen, oldest first, for as long as MoltenTerm
+    // runs.
     exchangeAtom = atom([]) as PrimitiveAtom<ExchangeItem[]>;
+    // Which conversation the window shows (#2285); the other one waits in `aside`.
+    conversationAtom = atom("main") as PrimitiveAtom<ConversationKey>;
     // The answer that changed while the window was folded: his line under the square (AC25). Null when seen.
     unseenIdAtom = atom(null) as PrimitiveAtom<string>;
     // What his agent asks the developer now, answered in his talk window (#2257); null when nothing waits.
@@ -121,6 +130,8 @@ export class BrokkSession {
     private replayed = new Map<string, Tracked>();
     // Words put before the developer's next message, shown in the exchange as sent (the brainstorm's start, #2246).
     private lead = "";
+    // The conversations not on screen, as they were left.
+    private aside = new Map<ConversationKey, ExchangeItem[]>();
 
     static getInstance(): BrokkSession {
         if (BrokkSession.instance == null) {
@@ -226,6 +237,44 @@ export class BrokkSession {
         this.lead = lead ?? "";
     }
 
+    // The window moves to another conversation (FR-BOSS-010 AC24, #2285): the one shown goes aside as it is, and `key`'s
+    // comes back as it was left, or empty with `fresh`. `carry` names a message whose exchange moves with it (his answer
+    // that opened the brainstorm): its answer is written in `key`'s conversation from then on.
+    switchConversation(key: ConversationKey, opts: { carry?: string; fresh?: boolean } = {}): void {
+        const current = globalStore.get(this.conversationAtom);
+        if (key === current) {
+            return;
+        }
+        const shown = globalStore.get(this.exchangeAtom);
+        const carried = opts.carry ? shown.filter((item) => item.id === opts.carry) : [];
+        this.aside.set(
+            current,
+            shown.filter((item) => !carried.includes(item))
+        );
+        if (carried.length > 0 && this.tracked?.id === opts.carry) {
+            this.tracked.conversation = key;
+        }
+        const next = opts.fresh ? [] : (this.aside.get(key) ?? []);
+        this.aside.delete(key);
+        globalStore.set(this.conversationAtom, key);
+        globalStore.set(this.exchangeAtom, [...next, ...carried]);
+        globalStore.set(this.unseenIdAtom, null);
+    }
+
+    private shownConversation(): ConversationKey {
+        return globalStore.get(this.conversationAtom);
+    }
+
+    // Writes in a message's conversation, on screen or aside. True when it is the one on screen.
+    private updateIn(key: ConversationKey, update: (items: ExchangeItem[]) => ExchangeItem[]): boolean {
+        if (key === this.shownConversation()) {
+            globalStore.set(this.exchangeAtom, update);
+            return true;
+        }
+        this.aside.set(key, update(this.aside.get(key) ?? []));
+        return false;
+    }
+
     // The scripted replay of a brainstorm (dev and local builds, #2246): a message and what he answers to it so far, as
     // if his agent had written it, read the way a real answer is. Nothing reaches his session. `key` names the exchange.
     replayStep(key: string, you: string, markdown: string, turn: number, final: boolean): void {
@@ -233,6 +282,7 @@ export class BrokkSession {
         if (tracked == null) {
             tracked = {
                 id: `replay${++this.counter}`,
+                conversation: this.shownConversation(),
                 text: you,
                 sentAt: Date.now(),
                 turn,
@@ -445,7 +495,15 @@ export class BrokkSession {
         if (gen !== this.sendGen) {
             return;
         }
-        const tracked: Tracked = { id: `m${++this.counter}`, text, sentAt, turn: 0, markdown: "", stopped: false };
+        const tracked: Tracked = {
+            id: `m${++this.counter}`,
+            conversation: this.shownConversation(),
+            text,
+            sentAt,
+            turn: 0,
+            markdown: "",
+            stopped: false,
+        };
         globalStore.set(this.exchangeAtom, (items) => withMessage(items, tracked.id, text, Date.now()));
         this.tracked = tracked;
         this.stateOwner = tracked.id;
@@ -480,7 +538,7 @@ export class BrokkSession {
         const changed = markdown !== tracked.markdown;
         tracked.markdown = markdown;
         tracked.turn = reply.index ?? tracked.turn;
-        globalStore.set(this.exchangeAtom, (items) =>
+        const onScreen = this.updateIn(tracked.conversation, (items) =>
             withAnswer(items, tracked.id, { markdown, turn: tracked.turn, at: reply.at ?? Date.now(), final })
         );
         if (changed || final) {
@@ -489,7 +547,7 @@ export class BrokkSession {
         if (!changed) {
             return;
         }
-        if (!this.windowOpen) {
+        if (!this.windowOpen && onScreen) {
             globalStore.set(this.unseenIdAtom, tracked.id);
         }
     }
@@ -499,7 +557,7 @@ export class BrokkSession {
         if (tracked.markdown === "") {
             return;
         }
-        globalStore.set(this.exchangeAtom, (items) =>
+        this.updateIn(tracked.conversation, (items) =>
             withAnswer(items, tracked.id, {
                 markdown: tracked.markdown,
                 turn: tracked.turn,

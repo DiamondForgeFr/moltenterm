@@ -649,4 +649,54 @@ describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
         session.setWindowOpen(true);
         expect(shape()).toEqual(["you:hello", "brokk:Two."]);
     });
+
+    // FR-BOSS-010 AC24 (#2285): the brainstorm's exchanges are its own conversation. His ordinary one comes back as it
+    // was, and an answer of the brainstorm that ends after the developer left is written in the brainstorm's, unseen.
+    it("keeps a brainstorm's exchanges out of his ordinary conversation, even an answer that ends after leaving", async () => {
+        const session = BrokkSession.getInstance();
+        globalStore.set(hub.ownWorkingAtom, false);
+        read = () => answer(3, "Hello.");
+        await session.say("hi");
+        await reading();
+        await reading();
+        expect(globalStore.get(session.stateAtom).phase).toBe("answered");
+        session.switchConversation("brainstorm", { fresh: true });
+        expect(globalStore.get(session.conversationAtom)).toBe("brainstorm");
+        expect(exchange()).toEqual([]);
+        globalStore.set(hub.ownWorkingAtom, true);
+        read = () => answer(4, "An idea");
+        await session.say("my idea");
+        await reading();
+        expect(shape()).toEqual(["you:my idea", "brokk:An idea"]);
+
+        session.switchConversation("main");
+        expect(shape()).toEqual(["you:hi", "brokk:Hello."]);
+        read = () => answer(4, "An idea, grown.");
+        await reading();
+        expect(shape()).toEqual(["you:hi", "brokk:Hello."]);
+        expect(globalStore.get(session.unseenIdAtom)).toBeNull();
+
+        session.switchConversation("brainstorm");
+        expect(shape()).toEqual(["you:my idea", "brokk:An idea, grown."]);
+        session.switchConversation("main");
+        session.switchConversation("brainstorm", { fresh: true });
+        expect(exchange()).toEqual([]);
+    });
+
+    // AC24: the message whose answer opened the brainstorm goes into its conversation, and its answer goes on there.
+    it("carries the message whose answer opened the brainstorm, and follows its answer there", async () => {
+        const session = BrokkSession.getInstance();
+        globalStore.set(hub.ownWorkingAtom, true);
+        read = () => answer(3, "Let's put it on the anvil.");
+        await session.say("I have an idea");
+        await reading();
+        const id = exchange()[0].id;
+        session.switchConversation("brainstorm", { fresh: true, carry: id });
+        expect(shape()).toEqual(["you:I have an idea", "brokk:Let's put it on the anvil."]);
+        read = () => answer(3, "Let's put it on the anvil. Who is it for?");
+        await reading();
+        expect(shape()).toEqual(["you:I have an idea", "brokk:Let's put it on the anvil. Who is it for?"]);
+        session.switchConversation("main");
+        expect(exchange()).toEqual([]);
+    });
 });

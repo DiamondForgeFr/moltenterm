@@ -31,6 +31,8 @@ describe("on-demand modules stay out of the entry chunk (#2200)", () => {
         ["../brainstorm/brainstorm-boot.ts", "./brainstorm-store"],
         // The questions about the folders load into his talk window the first time one is asked (#2248).
         ["../boss/brokk-talk.tsx", "../brainstorm/brainstorm-prompts"],
+        // The brainstorm panel loads into his group the first time the mode opens (#2285).
+        ["../boss/brokk-group.tsx", "../brainstorm/brainstorm-panel"],
         // The scripted replay's script and player load when the palette plays it (dev and local builds).
         ["../palette/palette-actions.ts", "../brainstorm/brainstorm-replay"],
     ])("%s imports %s on demand only", (file, mod) => {
