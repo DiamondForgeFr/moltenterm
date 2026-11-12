@@ -16,9 +16,11 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { agentFactsLine } from "../agent-facts";
 import { AgentStates } from "../agent-state-store";
 import { TFunction, useT, useTCount } from "../i18n/i18n";
+import { errorPhrase, useWordPhrase, type Phrase } from "../i18n/phrase";
 import { serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { resumeUpcoming } from "../review/review-client";
 import { showPanel } from "../review/review-panels";
 import { StateMark } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
@@ -44,9 +46,11 @@ import {
     boardStatusText,
     branchAgent,
     durationText,
+    stoppedWithoutPr,
     UpcomingBranch,
     upcomingFocusBranch,
     UpcomingFocusMarkMs,
+    upcomingResumeOutcome,
     upcomingRows,
 } from "./reviews-upcoming-model";
 
@@ -190,6 +194,7 @@ export function UpcomingSection({
                                     dir={dir}
                                     entry={entry}
                                     repoUrl={reviews?.url}
+                                    base={upcoming.target}
                                     marked={marked}
                                 />
                             ) : (
@@ -198,6 +203,7 @@ export function UpcomingSection({
                                     dir={dir}
                                     item={entry.item}
                                     repoUrl={reviews?.url}
+                                    base={upcoming.target}
                                     marked={marked === entry.item.branch.branch}
                                 />
                             )
@@ -217,10 +223,55 @@ export function UpcomingSection({
     );
 }
 
-type UpcomingState = { tone: CardTone; sentence: string; why?: string; saysStatus?: boolean };
+type UpcomingState = { tone: CardTone; sentence: string; why?: string; saysStatus?: boolean; saysAhead?: boolean };
 
-// An upcoming branch's state: an agent waiting for you, an agent on it (or done, idle), or nobody on it.
+// Resume (#2270): the stopped sub-agent's lead is asked to continue it; the answer is the card's line.
+async function askResume(dir: string, branch: UpcomingBranch, base: string): Promise<Phrase> {
+    try {
+        const result = await resumeUpcoming({
+            dir,
+            branch: branch.branch,
+            ticket: branch.ticket > 0 ? branch.ticket : undefined,
+            title: branch.title || undefined,
+            ahead: branch.ahead || undefined,
+            base: base || undefined,
+        });
+        return upcomingResumeOutcome(result);
+    } catch (e) {
+        return upcomingResumeOutcome(null, errorPhrase(e));
+    }
+}
+
+// useResume: the card's Resume, run once at a time, and the line it left.
+function useResume(dir: string, base: string) {
+    const [busy, setBusy] = useState(false);
+    const [note, setNote] = useState<Phrase>(null);
+    const run = (branch: UpcomingBranch) => {
+        if (busy) {
+            return;
+        }
+        setBusy(true);
+        fireAndForget(async () => {
+            const outcome = await askResume(dir, branch, base);
+            setNote(outcome);
+            setBusy(false);
+        });
+    };
+    return { busy, note, run };
+}
+
+// An upcoming branch's state: an agent waiting for you, an agent on it (or done, idle), its delegated agent stopped
+// without a PR (#2270), or nobody on it.
 export function upcomingState(t: TFunction, branch: UpcomingBranch, agent: AgentBarFacts): UpcomingState {
+    if (stoppedWithoutPr(agent)) {
+        return {
+            tone: "wait",
+            sentence: t("reviewsAgents.upcoming.state.stopped"),
+            why: aheadText(t, branch.ahead),
+            saysStatus: true,
+            saysAhead: true,
+        };
+    }
     if (agent == null) {
         const why = [
             branch.status ? boardStatusText(t, branch.status) : "",
@@ -259,41 +310,54 @@ function UpcomingRow({
     dir,
     item,
     repoUrl,
+    base,
     marked,
 }: {
     dir: string;
     item: UpcomingItem;
     repoUrl: string;
+    base: string;
     marked: boolean;
 }) {
     const t = useT();
+    const word = useWordPhrase();
+    const resume = useResume(dir, base);
     const { branch, agent } = item;
     const url = ticketUrl(branch, repoUrl);
     const panel = agentPanel(agent);
     const state = upcomingState(t, branch, agent);
     const afterText = afterPrText(t, branch);
     const answers = agent?.kind === "panel" && agent.state === "waiting" && !!panel;
+    const stopped = stoppedWithoutPr(agent);
     const openTicket = () => {
         if (url) {
             fireAndForget(() => openWebLink(url));
         }
     };
     const goThere = () => fireAndForget(() => showPanel(panel));
+    const runResume = () => resume.run(branch);
     const open = panel ? goThere : openTicket;
     const primary = answers
         ? { label: t("reviews.card.action.answer", { name: agent.name }), run: goThere, molten: true }
-        : panel
-          ? { label: t("reviewsAgents.upcoming.goThere"), run: goThere, molten: false }
-          : url
-            ? { label: t("reviewsAgents.upcoming.openTicket"), run: openTicket, molten: false }
-            : null;
+        : stopped
+          ? { label: t("reviewsAgents.upcoming.resume.action"), run: runResume, molten: true }
+          : panel
+            ? { label: t("reviewsAgents.upcoming.goThere"), run: goThere, molten: false }
+            : url
+              ? { label: t("reviewsAgents.upcoming.openTicket"), run: openTicket, molten: false }
+              : null;
     const openMenu = (e: React.MouseEvent) => {
-        const items: ContextMenuItem[] = [
-            {
-                label: t("reviews.card.action.launch"),
-                click: () => LaunchModel.getInstance().ask(dir, launchTargetOfBranch(branch)),
-            },
-        ];
+        const items: ContextMenuItem[] = [];
+        if (stopped) {
+            items.push({ label: t("reviewsAgents.upcoming.resume.action"), click: runResume });
+            if (panel) {
+                items.push({ label: t("reviewsAgents.upcoming.goThere"), click: goThere });
+            }
+        }
+        items.push({
+            label: t("reviews.card.action.launch"),
+            click: () => LaunchModel.getInstance().ask(dir, launchTargetOfBranch(branch)),
+        });
         if (url && primary?.run !== openTicket) {
             items.push({ label: t("reviewsAgents.upcoming.openTicket"), click: openTicket });
         }
@@ -343,8 +407,13 @@ function UpcomingRow({
                         </span>
                     </div>
                     <StateLine state={state} />
+                    {resume.note != null ? (
+                        <div className="text-11 leading-4 text-secondary" data-testid="reviews-upcoming-resume-note">
+                            {word(resume.note)}
+                        </div>
+                    ) : null}
                     <div className="flex min-h-4 flex-wrap items-center gap-x-3 gap-y-1 text-11 leading-4 text-muted">
-                        <span>{aheadText(t, branch.ahead)}</span>
+                        {state.saysAhead ? null : <span>{aheadText(t, branch.ahead)}</span>}
                         {afterText ? <span data-testid="reviews-upcoming-after">{afterText}</span> : null}
                         {branch.remote && !state.saysStatus ? <span>{t("reviewsAgents.upcoming.remote")}</span> : null}
                         {branch.status && !state.saysStatus ? (
@@ -364,6 +433,14 @@ function UpcomingRow({
                                 primary.run();
                             }}
                             onKeyDown={stop}
+                            disabled={primary.run === runResume && resume.busy}
+                            title={
+                                primary.run === runResume
+                                    ? t("reviewsAgents.upcoming.resume.title", {
+                                          name: agent?.parentName || t("reviewsAgents.subagent.name"),
+                                      })
+                                    : undefined
+                            }
                             className={primary.molten ? MoltenButton : CalmButton}
                             data-testid="reviews-upcoming-primary"
                             data-molten={primary.molten || undefined}
@@ -415,29 +492,43 @@ function SessionCard({
     dir,
     entry,
     repoUrl,
+    base,
     marked,
 }: {
     dir: string;
     entry: Extract<UpcomingEntry, { kind: "session" }>;
     repoUrl: string;
+    base: string;
     marked: string;
 }) {
     const t = useT();
     const tCount = useTCount();
+    const word = useWordPhrase();
     const now = useMinuteNow();
+    const resume = useResume(dir, base);
     const name = entry.parentName;
-    const tone: CardTone = entry.waiting ? "you" : "agent";
+    const stoppedItems = entry.items.filter((item) => stoppedWithoutPr(item.agent));
+    const allStopped = !entry.waiting && stoppedItems.length === entry.items.length;
+    const tone: CardTone = entry.waiting ? "you" : allStopped ? "wait" : "agent";
     const sentence = entry.waiting
         ? t("reviews.card.state.agentWaiting", { name: name || t("reviews.card.anAgent") })
-        : tCount("reviewsAgents.upcoming.session.orchestrates", entry.items.length, {
-              name: name || t("reviews.card.anAgent"),
-          });
+        : allStopped
+          ? tCount("reviewsAgents.upcoming.session.stopped", entry.items.length)
+          : tCount("reviewsAgents.upcoming.session.orchestrates", entry.items.length, {
+                name: name || t("reviews.card.anAgent"),
+            });
     const goThere = () => fireAndForget(() => showPanel(entry.parentBlockId));
     const openMenu = (e: React.MouseEvent) => {
-        const items: ContextMenuItem[] = entry.items.map((item) => ({
-            label: t("reviewsAgents.upcoming.session.launch", { ticket: item.branch.ticket }),
-            click: () => LaunchModel.getInstance().ask(dir, launchTargetOfBranch(item.branch)),
-        }));
+        const items: ContextMenuItem[] = [
+            ...stoppedItems.map((item) => ({
+                label: t("reviewsAgents.upcoming.session.resume", { ticket: item.branch.ticket }),
+                click: () => resume.run(item.branch),
+            })),
+            ...entry.items.map((item) => ({
+                label: t("reviewsAgents.upcoming.session.launch", { ticket: item.branch.ticket }),
+                click: () => LaunchModel.getInstance().ask(dir, launchTargetOfBranch(item.branch)),
+            })),
+        ];
         showMenu(e, items);
     };
     return (
@@ -472,6 +563,11 @@ function SessionCard({
                         </span>
                     </div>
                     <StateLine state={{ tone, sentence }} />
+                    {resume.note != null ? (
+                        <div className="text-11 leading-4 text-secondary" data-testid="reviews-upcoming-resume-note">
+                            {word(resume.note)}
+                        </div>
+                    ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                     <button
@@ -522,18 +618,23 @@ function SessionLine({ item, now, url, marked }: { item: UpcomingItem; now: numb
     const t = useT();
     const { branch, agent } = item;
     const working = agent.kind === "background" || agent.state === "working";
+    const stopped = stoppedWithoutPr(agent);
     const stateText =
         agent.kind === "background"
             ? t("reviewsAgents.state.background")
-            : agent.subState === "done"
-              ? t("reviewsAgents.subagent.finishedAgo", { duration: durationText(t, now - (agent.since ?? now)) })
-              : agent.subState === "quiet"
-                ? t("reviewsAgents.subagent.state.quiet")
-                : t("reviewsAgents.state.working");
+            : stopped
+              ? t("reviewsAgents.upcoming.stoppedLine")
+              : agent.subState === "done"
+                ? t("reviewsAgents.subagent.finishedAgo", { duration: durationText(t, now - (agent.since ?? now)) })
+                : agent.subState === "quiet"
+                  ? t("reviewsAgents.subagent.state.quiet")
+                  : t("reviewsAgents.state.working");
     const detail =
         agent.kind === "background"
             ? t("reviewsAgents.upcoming.session.background")
-            : agentFactsLine(agentFacts(agent)) || (branch.status ? boardStatusText(t, branch.status) : "");
+            : stopped
+              ? aheadText(t, branch.ahead)
+              : agentFactsLine(agentFacts(agent)) || (branch.status ? boardStatusText(t, branch.status) : "");
     return (
         <div
             tabIndex={-1}

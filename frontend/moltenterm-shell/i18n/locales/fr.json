@@ -7115,7 +7115,23 @@
                 "subagent": "Un sous-agent de {name} s'en occupe",
                 "subagentDone": "Un sous-agent de {name} a terminé",
                 "background": "Un agent s'en occupe probablement",
-                "signed": "{name} s'en occupe probablement"
+                "signed": "{name} s'en occupe probablement",
+                "stopped": "Arrêté sans pull request"
+            },
+            "stoppedLine": "arrêté sans pull request",
+            "resume": {
+                "action": "Reprendre",
+                "title": "Demander à {name} de reprendre son sous-agent dans son worktree : finir les vérifications, pousser et ouvrir la pull request en brouillon",
+                "sent": "Confié à {name}, qui reprend son sous-agent : il termine le travail et ouvre la pull request en brouillon.",
+                "typed": "Tapé dans l'invite de {name}, après ce qui s'y trouvait : appuyez sur Entrée dans son terminal pour l'envoyer.",
+                "queued": "{name} est occupé : le brief est tapé dans son terminal quand son invite est libre, et il reprend son sous-agent.",
+                "already": "{name} a déjà cette demande : rien de plus n'a été envoyé.",
+                "alreadyAnon": "L'agent principal a déjà cette demande : rien de plus n'a été envoyé.",
+                "working": "Un sous-agent de {name} y travaille de nouveau : rien n'a été envoyé.",
+                "workingAnon": "Un agent y travaille de nouveau : rien n'a été envoyé.",
+                "leadGone": "{name} ne tourne plus : rien n'a été envoyé.",
+                "nothing": "Aucun sous-agent ne peut être repris sur cette branche : rien n'a été envoyé.",
+                "failed": "La reprise n'a pas abouti : {message}"
             },
             "session": {
                 "title": "Session de {name}",
@@ -7129,6 +7145,11 @@
                     "other": "{name} orchestre {count} tickets"
                 },
                 "launch": "Lancer #{ticket}",
+                "resume": "Reprendre #{ticket}",
+                "stopped": {
+                    "one": "{count} ticket arrêté sans pull request",
+                    "other": "{count} tickets arrêtés sans pull request"
+                },
                 "background": "arrière-plan"
             },
             "after": {

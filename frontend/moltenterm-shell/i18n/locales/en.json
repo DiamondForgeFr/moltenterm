@@ -7115,7 +7115,23 @@
                 "subagent": "A sub-agent of {name} is on it",
                 "subagentDone": "A sub-agent of {name} has finished",
                 "background": "An agent is probably on it",
-                "signed": "{name} is probably on it"
+                "signed": "{name} is probably on it",
+                "stopped": "Stopped without a pull request"
+            },
+            "stoppedLine": "stopped without a pull request",
+            "resume": {
+                "action": "Resume",
+                "title": "Ask {name} to continue its sub-agent in its worktree: finish the checks, push and open the draft pull request",
+                "sent": "Handed to {name}, which continues its sub-agent: it finishes the work and opens the draft pull request.",
+                "typed": "Typed in {name}'s prompt, after what was already there: press Enter in its terminal to send it.",
+                "queued": "{name} is busy: the brief is typed in its terminal when its prompt is idle, and it continues its sub-agent.",
+                "already": "{name} already has this request: nothing more was sent.",
+                "alreadyAnon": "The lead already has this request: nothing more was sent.",
+                "working": "A sub-agent of {name} is working on it again: nothing was sent.",
+                "workingAnon": "An agent is working on it again: nothing was sent.",
+                "leadGone": "{name} no longer runs: nothing was sent.",
+                "nothing": "No sub-agent can be continued on this branch: nothing was sent.",
+                "failed": "Resume did not go through: {message}"
             },
             "session": {
                 "title": "{name}'s session",
@@ -7129,6 +7145,11 @@
                     "other": "{name} orchestrates {count} tickets"
                 },
                 "launch": "Launch #{ticket}",
+                "resume": "Resume #{ticket}",
+                "stopped": {
+                    "one": "{count} ticket stopped without a pull request",
+                    "other": "{count} tickets stopped without a pull request"
+                },
                 "background": "in the background"
             },
             "after": {

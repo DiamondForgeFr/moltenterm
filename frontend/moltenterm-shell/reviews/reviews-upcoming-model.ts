@@ -10,7 +10,7 @@ import { agentDisplayName, currentFeatureMatrix } from "../agent-info/agent-feat
 import { agentToolName, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";
 import { branchTicketNumber } from "../agent-work-model";
 import { TFunction } from "../i18n/i18n";
-import type { Phrase } from "../i18n/phrase";
+import { phrase, serverPhrase, type Phrase } from "../i18n/phrase";
 import type { ServerText } from "../i18n/server-text";
 import { dateLocale } from "../mission/time-format";
 import type { LeftoverOwner } from "./reviews-leftover-owner-model";
@@ -600,6 +600,65 @@ export function afterPrText(t: TFunction, branch: UpcomingBranch): string {
         return t(`reviewsAgents.upcoming.after.${state}Unknown`, { number });
     }
     return state === "closed" ? t("reviewsAgents.upcoming.after.closedNothing", { number }) : "";
+}
+
+// stoppedWithoutPr (#2270, FR-REV-022 AC23): the delegated agent of an Upcoming branch (which has no PR) is a sub-agent
+// that finished or went quiet: nothing works on the branch any more. The states are those wavesrv already reads (AC9).
+export function stoppedWithoutPr(agent: AgentBarFacts): boolean {
+    return agent?.kind === "subagent" && (agent.subState === "done" || agent.subState === "quiet");
+}
+
+// must match RestartResult in pkg/molten/review/restart.go (the fields Resume reads)
+export type UpcomingResumeResult = {
+    status: string;
+    reason?: string;
+    firstname?: string;
+    agentname?: string;
+    message?: string;
+    messagetext?: ServerText;
+};
+
+// upcomingResumeOutcome: the card's line for what wavesrv answered to Resume (#2270).
+export function upcomingResumeOutcome(result: UpcomingResumeResult, error?: Phrase): Phrase {
+    if (error != null) {
+        return phrase("reviewsAgents.upcoming.resume.failed", { message: error });
+    }
+    if (result == null) {
+        return null;
+    }
+    const name = result.firstname || result.agentname || "";
+    const vars = { name };
+    switch (result.status) {
+        case "sent":
+            return phrase("reviewsAgents.upcoming.resume.sent", vars);
+        case "typed":
+            return phrase("reviewsAgents.upcoming.resume.typed", vars);
+        case "queued":
+            return phrase("reviewsAgents.upcoming.resume.queued", vars);
+        case "busy":
+            if (result.reason === "alreadyhanded") {
+                return phrase(
+                    name ? "reviewsAgents.upcoming.resume.already" : "reviewsAgents.upcoming.resume.alreadyAnon",
+                    vars
+                );
+            }
+            return phrase(
+                name ? "reviewsAgents.upcoming.resume.working" : "reviewsAgents.upcoming.resume.workingAnon",
+                vars
+            );
+    }
+    switch (result.reason) {
+        case "leadnotrunning":
+            return phrase(
+                name ? "reviewsAgents.upcoming.resume.leadGone" : "reviewsAgents.upcoming.resume.nothing",
+                vars
+            );
+        case "nothingtoresume":
+            return phrase("reviewsAgents.upcoming.resume.nothing");
+    }
+    return phrase("reviewsAgents.upcoming.resume.failed", {
+        message: serverPhrase(result.messagetext, result.message ?? ""),
+    });
 }
 
 export function aheadText(t: TFunction, ahead: number): string {
