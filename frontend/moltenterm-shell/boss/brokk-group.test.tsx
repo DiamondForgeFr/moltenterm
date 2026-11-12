@@ -760,22 +760,21 @@ describe("the windows never overlap (AC18)", () => {
     // brainstorm panel in the rail's place, and under both his talk window, wide from the start and as tall as the
     // window allows. No strip under the square, no rail and no rail panel; the graph has the space to the right.
     it("lays the brainstorm out: the square, the brainstorm panel in the rail's place, the wide talk window under both", () => {
-        const place = Frame.place;
+        // A 1,920 px window: the talk window takes its most, the width it has beside an open rail panel.
+        const place = { ...Frame.place, layerWidth: 1920 };
         const bs = brainstormLayout(g, place);
         expect(bs.width).toBe(conversationWidth(g, place.panelRoom));
         expect(bs.width).toBe(g.panelLeft + 420);
+        expect(bs.square).toBe(SquarePx);
         expect(bs.panel).toEqual({ x: SquarePx + 8, y: 0, w: bs.width - SquarePx - 8, h: SquarePx });
         expect(bs.talk).toEqual({ x: 0, y: SquarePx + 8, w: bs.width, h: place.heightRoom - SquarePx - 8 });
         expect(bs.height).toBe(place.heightRoom);
-        // A narrow window: never past its room, never narrower than the group; a short one keeps a usable window.
-        const narrow = brainstormLayout(g, { ...place, panelRoom: 120, heightRoom: 300 });
-        expect(narrow.width).toBe(g.panelLeft + 120);
-        expect(brainstormLayout(g, { ...place, panelRoom: -40 }).width).toBe(g.width);
-        expect(narrow.talk.h).toBe(BrainstormTalkMinPx);
+        // A short window keeps a usable talk window.
+        expect(brainstormLayout(g, { ...place, heightRoom: 300 }).talk.h).toBe(BrainstormTalkMinPx);
 
         globalStore.set(BrainstormStateAtom, { allowed: true, open: true, version: 1 });
         try {
-            const html = render();
+            const html = render({ ...Frame, place });
             expect(attr(html, CardTestId, "data-layout")).toBe("brainstorm");
             expect(attr(html, CardTestId, "style")).toContain(`width:${bs.width}px;height:${bs.height}px`);
             expect(attr(html, "brokk-brainstorm-panel", "style")).toContain(

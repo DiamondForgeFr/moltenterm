@@ -134,22 +134,43 @@ export function conversationWidth(g: GroupGeometry, panelRoom: number): number {
 }
 
 // The brainstorm layout of his group (FR-BOSS-010 AC23, DS-BOSS-013, #2285), for the whole mode: his square; the
-// brainstorm panel in the rail's place, from the square's edge to the wide width, as tall as the square; and under both
-// his talk window, as wide as beside an open rail panel (never past the window's room) and as tall as the window
-// allows. No block under the square, no rail: the graph has the space to the right.
-export type BrainstormLayout = { width: number; panel: Rect; talk: Rect; height: number };
+// brainstorm panel in the rail's place, from the square's edge to the group's width, as tall as the square; and under
+// both his talk window, as tall as the window allows. No block under the square, no rail: the 3D graph has the rest of
+// the window, to the right.
+export type BrainstormLayout = { width: number; square: number; panel: Rect; talk: Rect; height: number };
 
 // The talk window is never shorter than this, even in a short window.
 export const BrainstormTalkMinPx = 160;
+// Its width (decided on #2285): about 45 % of the window, at most the width it has beside an open rail panel (the
+// group and a 420 px panel: 764 px), at least what keeps the input usable, and never past the window's room. The graph
+// keeps the rest.
+export const BrainstormTalkShare = 0.45;
+export const BrainstormTalkMaxPx = SquarePx + EdgePx + TilePx + RailPaddingPx + LinkPx + PanelWidthPx;
+export const BrainstormTalkFloorPx = 420;
+// His square gives some of its size to a narrow window, so that the panel beside it keeps a usable width.
+export const BrainstormPanelMinPx = 220;
+export const BrainstormSquareMinPx = 184;
+
+// The talk window's width for a window `windowWidth` px wide, with `available` px from the group's left edge.
+export function brainstormWidth(windowWidth: number, available: number): number {
+    const share = Math.round(Math.max(0, windowWidth) * BrainstormTalkShare);
+    const wanted = Math.min(BrainstormTalkMaxPx, Math.max(BrainstormTalkFloorPx, share));
+    return Math.max(BrainstormSquareMinPx + EdgePx + BrainstormPanelMinPx, Math.min(wanted, available));
+}
 
 export function brainstormLayout(g: GroupGeometry, place: GroupPlace): BrainstormLayout {
-    const width = Math.max(g.width, g.panelLeft + Math.min(PanelWidthPx, place.panelRoom));
-    const left = g.square + EdgePx;
-    const top = g.square + EdgePx;
+    // What is left from the group's left edge to the window's right margin.
+    const available = g.panelLeft + place.panelRoom;
+    const windowWidth = place.layerWidth ?? place.left + available + EdgePx;
+    const width = brainstormWidth(windowWidth, available);
+    const square = Math.max(BrainstormSquareMinPx, Math.min(g.square, width - EdgePx - BrainstormPanelMinPx));
+    const left = square + EdgePx;
+    const top = square + EdgePx;
     const talkHeight = Math.max(BrainstormTalkMinPx, place.heightRoom - top);
     return {
         width,
-        panel: { x: left, y: 0, w: width - left, h: g.square },
+        square,
+        panel: { x: left, y: 0, w: width - left, h: square },
         talk: { x: 0, y: top, w: width, h: talkHeight },
         height: top + talkHeight,
     };
@@ -204,6 +225,8 @@ export type GroupPlace = {
     // The width left to the right of the rail for the panel, and the height the window area offers.
     panelRoom: number;
     heightRoom: number;
+    // The host layer's width: the brainstorm's talk window takes a share of it (#2285).
+    layerWidth?: number;
 };
 
 // 8 px to the right of the sidebar and 8 px from the top of the window area; with no sidebar on screen, 8 px from the
@@ -225,6 +248,7 @@ export function groupPlace(
         top,
         panelRoom: layer.width - left - g.panelLeft - inset - EdgePx,
         heightRoom: layer.height - top - inset - EdgePx,
+        layerWidth: layer.width,
     };
 }
 
