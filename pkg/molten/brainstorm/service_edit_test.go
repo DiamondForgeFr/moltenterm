@@ -186,6 +186,28 @@ func TestBrokksPruningIsKeptAndCanBeUndone(t *testing.T) {
 	}
 }
 
+// The centre's text names the brainstorm, the developer's edit of it too, until they give it a title of their own.
+func TestTheDevelopersCentreEditNamesTheBrainstorm(t *testing.T) {
+	t.Parallel()
+	_, s := editedService(t)
+	got := s.Edit(EditRequest{Ops: []Op{{Op: OpEdit, Id: "kids-video", Text: "A safe video app for young children"}}})
+	if got.Error != "" || got.State.Brainstorm.Title != "A safe video app for young children" {
+		t.Fatalf("after the edit the title is %q (%s)", got.State.Brainstorm.Title, got.Error)
+	}
+	back := s.Undo(UndoRequest{Seq: got.Seqs[0]})
+	if back.State.Brainstorm.Title != "A safe video app for children" {
+		t.Errorf("after the undo the title is %q", back.State.Brainstorm.Title)
+	}
+	slug := back.State.Brainstorm.Slug
+	if renamed := s.Rename(RenameRequest{Slug: slug, Title: "Kids videos"}); renamed.Error != "" {
+		t.Fatal(renamed.Error)
+	}
+	again := s.Edit(EditRequest{Ops: []Op{{Op: OpEdit, Id: "kids-video", Text: "Videos for children"}}})
+	if again.State.Brainstorm.Title != "Kids videos" {
+		t.Errorf("an edit replaced the developer's own title: %q", again.State.Brainstorm.Title)
+	}
+}
+
 // AC27: the developer's changes are told once their note went with a message; up to the line named, no further.
 func TestToldMarksTheDevelopersChanges(t *testing.T) {
 	t.Parallel()
