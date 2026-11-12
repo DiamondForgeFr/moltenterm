@@ -253,7 +253,9 @@ describe("the header's camera controls (#2283)", () => {
 
     it("pulses the chip once, never in a loop, and as a glow alone under reduced motion", () => {
         expect(Css).toMatch(/\n\.mt-bs-follow-glow\.is-pulsing \{\s*animation: mt-bs-follow-pulse \d+ms ease-out 1;/);
-        expect(Css).toMatch(/\.prefers-reduced-motion \.mt-bs-follow-glow\.is-pulsing \{\s*animation-name: mt-bs-follow-glow;/);
+        expect(Css).toMatch(
+            /\.prefers-reduced-motion \.mt-bs-follow-glow\.is-pulsing \{\s*animation-name: mt-bs-follow-glow;/
+        );
         const glow = /@keyframes mt-bs-follow-glow \{([\s\S]*?)\n\}/.exec(Css)?.[1] ?? "";
         const sizes = [...glow.matchAll(/box-shadow: ([^;]+);/g)].map((m) => m[1]);
         expect(sizes).toHaveLength(2);

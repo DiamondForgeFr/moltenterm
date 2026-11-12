@@ -14,6 +14,28 @@
     padding: 12px 14px 10px;
     font-size: var(--mt-text-12);
     color: var(--mt-text-2);
+    container: bsp / inline-size;
+}
+
+/* A narrow window gives the panel less room (#2285, brainstormLayout): the eyebrow keeps its icon, what does not fit on
+   a line goes to the next, and a listed brainstorm's Resume and ⋯ go under its title. */
+@container bsp (max-width: 320px) {
+    .mt-bsp-eyebrow-text {
+        visibility: hidden;
+    }
+
+    .mt-bsp-saved {
+        flex-wrap: wrap;
+    }
+
+    .mt-bsp-row {
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+
+    .mt-bsp-row-main {
+        flex-basis: 100%;
+    }
 }
 
 .mt-bsp :focus-visible {

@@ -694,7 +694,9 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         return { ["--dx" as string]: `${dx}px`, ["--dy" as string]: `${dy}px` };
     };
     const delay = (i: number): CSSProperties => ({ ["--i" as string]: i * (ArrivalStepMs / 50) });
-    const square: Rect = { x: 0, y: 0, w: g.square, h: g.square };
+    // A narrow window takes some of his square's size during a brainstorm (#2285), so that the panel keeps its width.
+    const squareSize = bs != null ? bs.square : g.square;
+    const square: Rect = { x: 0, y: 0, w: squareSize, h: squareSize };
     const bodyLabel = (id: PanelId) => t(`boss.group.panels.${id}`);
     const railLabel = (id: PanelId): string => {
         const mark = marks[id];
@@ -810,7 +812,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
             >
                 <div
                     className="mt-brokk-sq"
-                    style={{ width: g.square, height: g.square, ...offsetOf(square), ...delay(0) }}
+                    style={{ width: squareSize, height: squareSize, ...offsetOf(square), ...delay(0) }}
                     data-testid="brokk-square"
                     onContextMenu={showMenu}
                 >

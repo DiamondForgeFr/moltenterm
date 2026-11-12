@@ -17,6 +17,12 @@ import {
     badgeShares,
     BlockChromePx,
     BlockHeightPx,
+    brainstormLayout,
+    BrainstormPanelMinPx,
+    BrainstormSquareMinPx,
+    BrainstormTalkFloorPx,
+    BrainstormTalkMaxPx,
+    brainstormWidth,
     ConversationChromePx,
     conversationHeight,
     ConversationMaxPx,
@@ -46,6 +52,7 @@ import {
     panelRoom,
     PanelSlidePx,
     panelWidth,
+    PanelWidthPx,
     partMotion,
     plinkLine,
     PriorityFacts,
@@ -516,6 +523,53 @@ describe("the conversation window", () => {
         expect(css).toMatch(/\.mt-brokk-convo \{[^}]*padding: 14px 16px 8px;/);
         expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-input \{[^}]*min-height: 52px;/);
         expect(css).toMatch(/\.mt-brokk-field-foot \{[^}]*height: 36px;/);
+    });
+});
+
+// FR-BOSS-010 AC23 (#2285, decided on the PR): in a brainstorm the talk window takes about 45 % of the window, at most
+// 764 px, at least what keeps the input usable (about 420 px), never past the window's room; the graph keeps the rest.
+describe("the brainstorm's talk window width", () => {
+    const g = groupGeometry();
+    const placeIn = (windowWidth: number, heightRoom = 900) => groupPlace(null, { width: windowWidth, height: 980 }, g);
+
+    it("takes 45 % of the window, at most 764 px and at least about 420 px", () => {
+        expect(BrainstormTalkMaxPx).toBe(764);
+        expect(BrainstormTalkMaxPx).toBe(conversationWidth(g, PanelWidthPx));
+        expect(brainstormWidth(2560, 5000)).toBe(764);
+        expect(brainstormWidth(1440, 5000)).toBe(648);
+        expect(brainstormWidth(1200, 5000)).toBe(540);
+        expect(brainstormWidth(800, 5000)).toBe(BrainstormTalkFloorPx);
+        expect(brainstormWidth(1440, 500)).toBe(500);
+        // Never so narrow that his square and a usable panel no longer fit side by side.
+        expect(brainstormWidth(300, 200)).toBe(BrainstormSquareMinPx + 8 + BrainstormPanelMinPx);
+    });
+
+    it("leaves the rest of the window to the graph, whatever its width", () => {
+        for (const width of [900, 1100, 1280, 1440, 1728, 2560]) {
+            const place = placeIn(width);
+            const bs = brainstormLayout(g, place);
+            expect(bs.width, `${width}`).toBeLessThanOrEqual(Math.max(BrainstormTalkFloorPx, Math.round(width * 0.45)));
+            expect(bs.width, `${width}`).toBeLessThanOrEqual(764);
+            expect(place.left + bs.width, `${width}`).toBeLessThan(width);
+            expect(width - place.left - bs.width, `${width}`).toBeGreaterThanOrEqual(width * 0.5);
+        }
+    });
+
+    it("gives some of his square to a narrow window, so that the panel beside it stays usable", () => {
+        const wide = brainstormLayout(g, placeIn(1440));
+        expect(wide.square).toBe(SquarePx);
+        expect(wide.panel.w).toBe(648 - SquarePx - 8);
+        const narrow = brainstormLayout(g, placeIn(1000));
+        expect(narrow.width).toBe(450);
+        expect(narrow.square).toBe(450 - 8 - BrainstormPanelMinPx);
+        expect(narrow.panel).toEqual({ x: narrow.square + 8, y: 0, w: BrainstormPanelMinPx, h: narrow.square });
+        expect(narrow.talk.y).toBe(narrow.square + 8);
+        const floor = brainstormLayout(g, placeIn(700));
+        expect(floor.width).toBe(BrainstormTalkFloorPx);
+        expect(floor.square).toBe(BrainstormTalkFloorPx - 8 - BrainstormPanelMinPx);
+        const smallest = brainstormLayout(g, placeIn(420));
+        expect(smallest.square).toBe(BrainstormSquareMinPx);
+        expect(smallest.panel.w).toBe(BrainstormPanelMinPx);
     });
 });
 
