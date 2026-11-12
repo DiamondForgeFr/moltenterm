@@ -140,7 +140,7 @@ func (s *Service) handle(command string, data any) (any, error) {
 		}
 		return s.Rename(req), nil
 	case DeleteCommand:
-		var req SlugRequest
+		var req DeleteRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
@@ -163,7 +163,7 @@ func liveTrash(path string) (string, error) {
 // own folder for the resume brief.
 func Live() *Service {
 	store := MakeStore(liveRoot, filepath.Join(wavebase.GetWaveDataDir(), stateDirName))
-	store.UseTrash(liveTrash, onboarding.ErrNoTrash)
+	store.UseTrash(liveTrash, func() bool { return onboarding.TrashAvailable(wavebase.GetHomeDir()) })
 	svc := MakeService(store, time.Now, livePublish, log.Printf)
 	svc.UseResumeDir(filepath.Join(wavebase.GetWaveDataDir(), BrokkFolderName))
 	return svc

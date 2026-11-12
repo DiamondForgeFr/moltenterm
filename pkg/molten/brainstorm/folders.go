@@ -56,14 +56,25 @@ func (s *Store) LoadSlug(slug string) (Saved, error) {
 	return s.Load(dir)
 }
 
+// checkedId is a brainstorm's id as MoltenTerm writes it, "" for one changed by hand into anything else: it never
+// reaches his resume brief or a reference, and a forget then names the folder by its slug and "".
+func checkedId(id string) string {
+	if !refPattern.MatchString(id) {
+		return ""
+	}
+	return id
+}
+
 func summaryOf(dir string, info Info, turns int) Summary {
 	state := info.State
 	if !idPattern.MatchString(state) {
 		state = StateOpen
 	}
 	return Summary{
-		Id:      info.Id,
-		Slug:    Slug(filepath.Base(dir)),
+		Id: checkedId(info.Id),
+		// The folder's own name, never made again from it: Slug cuts at 48 letters, which would drop the "-2" of a second
+		// folder whose title starts like the first (review of #2248).
+		Slug:    filepath.Base(dir),
 		Title:   cutText(CleanText(info.Title), MaxText),
 		Dir:     dir,
 		Created: info.Created,
@@ -171,7 +182,8 @@ func (s *Store) Find(title string) (Summary, bool, error) {
 }
 
 // Rename gives the brainstorm the developer's title and moves its folder to the title's free slug. The title stays the
-// developer's: the centre's text no longer replaces it.
+// developer's: the centre's text no longer replaces it. A rename that fails once the folder moved moves it back; the
+// Saved it returns names the folder where it is, even with an error, so the open brainstorm keeps following it.
 func (s *Store) Rename(slug string, title string, now int64) (Saved, error) {
 	saved, err := s.LoadSlug(slug)
 	if err != nil {
@@ -181,14 +193,12 @@ func (s *Store) Rename(slug string, title string, now int64) (Saved, error) {
 	if err != nil {
 		return Saved{}, err
 	}
+	from := saved.Dir
 	base := Slug(clean)
 	if base != slug && base != numberSuffix.ReplaceAllString(slug, "") {
 		dir, newSlug, err := s.moveTo(saved.Dir, base)
 		if err != nil {
-			return Saved{}, err
-		}
-		if err := s.followMove(saved.Dir, dir); err != nil {
-			return Saved{}, err
+			return saved, err
 		}
 		saved.Dir = dir
 		saved.Info.Slug = newSlug
@@ -196,10 +206,31 @@ func (s *Store) Rename(slug string, title string, now int64) (Saved, error) {
 	saved.Info.Title = clean
 	saved.Info.Named = true
 	saved.Info.Updated = now
-	if err := s.Save(saved); err != nil {
-		return Saved{}, err
+	err = s.followMove(from, saved.Dir)
+	if err == nil {
+		err = s.Save(saved)
 	}
-	return saved, nil
+	if err == nil || saved.Dir == from {
+		return saved, err
+	}
+	return s.moveBack(saved, from, slug, err)
+}
+
+// moveBack puts a folder back where it was after a rename that failed, current.json with it. When it cannot, the Saved
+// still names where the folder is.
+func (s *Store) moveBack(saved Saved, from string, slug string, cause error) (Saved, error) {
+	if err := os.Rename(saved.Dir, from); err != nil {
+		_ = s.followMove(from, saved.Dir)
+		return saved, cause
+	}
+	_ = s.followMove(saved.Dir, from)
+	back, err := s.Load(from)
+	if err != nil {
+		back = saved
+		back.Dir = from
+		back.Info.Slug = slug
+	}
+	return back, cause
 }
 
 // moveTo moves a folder to the first free "<base>" or "<base>-<n>" of the brainstorms folder. The new name is taken
@@ -251,15 +282,26 @@ func (s *Store) currentDir() string {
 	return cur.Dir
 }
 
-// Deleted is what a forget did: the folder went to the trash, or was removed where the system has none.
+// Deleted is what a forget did: the folder went to the trash, or was removed for good where the system has none.
 type Deleted struct {
 	Summary Summary
 	Trashed bool
 }
 
-// Delete forgets a brainstorm (AC10d): its folder goes to the system trash, or is removed where the system has none. A
-// move that fails keeps the folder where it was and says why. current.json lets go of it.
-func (s *Store) Delete(slug string) (Deleted, error) {
+// ErrNeedsRemoveConfirmation: the system has no trash, and the developer's confirmation did not say the folder is
+// removed for good.
+var ErrNeedsRemoveConfirmation = errors.New("no trash: removing for good needs its own confirmation")
+
+// CanTrash: a forgotten folder goes to the system trash. When false the confirmation says it is removed for good.
+func (s *Store) CanTrash() bool {
+	return s.trash != nil && (s.canTrash == nil || s.canTrash())
+}
+
+// Delete forgets a brainstorm (AC10d), named by its slug and its id, both from the confirmation the developer answered:
+// a slug that now names another brainstorm takes nothing. Its folder goes to the system trash; a move that fails keeps
+// it where it was and says why, and is never followed by a removal. Where the system has no trash, the folder is removed
+// for good only when the confirmation said so (permanent). current.json lets go of it.
+func (s *Store) Delete(slug string, id string, permanent bool) (Deleted, error) {
 	dir, err := s.dirOf(slug)
 	if err != nil {
 		return Deleted{}, err
@@ -271,19 +313,21 @@ func (s *Store) Delete(slug string) (Deleted, error) {
 	var info Info
 	_ = json.Unmarshal(data, &info)
 	rtn := Deleted{Summary: summaryOf(dir, info, 0)}
-	if s.trash == nil {
-		return Deleted{}, errors.New("no way to the trash")
+	if rtn.Summary.Id != id {
+		return Deleted{}, ErrUnknownBrainstorm
 	}
-	_, moveErr := s.trash(dir)
-	switch {
-	case moveErr == nil:
+	if s.CanTrash() {
+		if _, err := s.trash(dir); err != nil {
+			return Deleted{}, fmt.Errorf("the folder could not be moved to the trash: %w", err)
+		}
 		rtn.Trashed = true
-	case s.errNoTrash != nil && errors.Is(moveErr, s.errNoTrash):
+	} else {
+		if !permanent {
+			return Deleted{}, ErrNeedsRemoveConfirmation
+		}
 		if err := os.RemoveAll(dir); err != nil {
 			return Deleted{}, err
 		}
-	default:
-		return Deleted{}, fmt.Errorf("the folder could not be moved to the trash: %w", moveErr)
 	}
 	if s.currentDir() == dir {
 		if err := os.Remove(filepath.Join(s.stateDir, currentFile)); err != nil && !errors.Is(err, os.ErrNotExist) {

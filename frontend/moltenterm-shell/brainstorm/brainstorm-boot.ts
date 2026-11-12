@@ -56,6 +56,8 @@ export type BrainstormState = {
     swap?: number;
     // The changes of the folders' list: the widget reads it again on each.
     listrev?: number;
+    // A forgotten folder goes to the system trash; false: the confirmation says it is removed for good.
+    cantrash?: boolean;
     brainstorm?: BrainstormSummary;
     graph?: BrainstormGraph;
     savedat?: number;

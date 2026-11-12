@@ -20,7 +20,9 @@ const (
 	ReasonNoIdea   = "noidea"
 	ReasonInvalid  = "invalid"
 	ReasonTrash    = "trash"
-	ReasonFailed   = "failed"
+	// The system has no trash and the confirmation did not say the folder goes for good.
+	ReasonNoTrash = "notrash"
+	ReasonFailed  = "failed"
 )
 
 func (s *Service) List() ListResult {
@@ -56,18 +58,31 @@ func (s *Service) saveCurrentLocked() error {
 	return nil
 }
 
-func (s *Service) writeResumeLocked() {
+// writeResumeLocked writes the open brainstorm's resume brief; false when none was written, and the window then does
+// not tell his session to read one.
+func (s *Service) writeResumeLocked() bool {
 	if s.resumeDir == "" || s.session == nil {
-		return
+		return false
 	}
 	if err := WriteResume(s.resumeDir, *s.session); err != nil {
 		s.logf("[brainstorm] the resume brief could not be written: %v\n", err)
+		// The brief of the brainstorm left must not stand for this one.
+		s.removeResumeLocked()
+		return false
+	}
+	return true
+}
+
+func (s *Service) removeResumeLocked() {
+	if err := RemoveResume(s.resumeDir); err != nil {
+		s.logf("[brainstorm] the resume brief could not be removed: %v\n", err)
 	}
 }
 
 // switchLocked makes saved the open brainstorm: the mode opens if it was not (the developer's Resume outside it), and
-// the stage starts its camera over.
-func (s *Service) switchLocked(saved *Saved) {
+// the stage starts its camera over: an answer to the one before is refused from now on (Turn's Swap). It returns
+// whether his folder got the resume brief; a new idea (nil) leaves none in it.
+func (s *Service) switchLocked(saved *Saved) bool {
 	if !s.open {
 		s.open = true
 		s.by = ByYou
@@ -78,12 +93,13 @@ func (s *Service) switchLocked(saved *Saved) {
 	s.swap++
 	s.saveErr = ""
 	if saved == nil {
-		return
+		s.removeResumeLocked()
+		return false
 	}
 	if err := s.store.Remember(saved.Dir); err != nil {
 		s.logf("[brainstorm] the open brainstorm could not be remembered: %v\n", err)
 	}
-	s.writeResumeLocked()
+	return s.writeResumeLocked()
 }
 
 func (s *Service) loadFailed(reason string) LoadResult {
@@ -97,7 +113,7 @@ func (s *Service) Load(req SlugRequest) LoadResult {
 	s.lock.Lock()
 	if s.open && s.session != nil && s.session.Info.Slug == req.Slug {
 		defer s.lock.Unlock()
-		return LoadResult{State: s.stateLocked(), Turns: append([]Turn{}, s.session.Turns...)}
+		return LoadResult{State: s.stateLocked(), Turns: append([]Turn{}, s.session.Turns...), ResumeBrief: s.writeResumeLocked()}
 	}
 	saved, err := s.store.LoadSlug(req.Slug)
 	if errors.Is(err, ErrUnknownBrainstorm) {
@@ -110,10 +126,10 @@ func (s *Service) Load(req SlugRequest) LoadResult {
 	if s.saveCurrentLocked() != nil {
 		return s.loadFailed(ReasonNotSaved)
 	}
-	s.switchLocked(&saved)
+	resume := s.switchLocked(&saved)
 	s.savedAt = 0
 	version := s.changedLocked()
-	rtn := LoadResult{State: s.stateLocked(), Turns: append([]Turn{}, saved.Turns...)}
+	rtn := LoadResult{State: s.stateLocked(), Turns: append([]Turn{}, saved.Turns...), ResumeBrief: resume}
 	s.lock.Unlock()
 	s.tell(version)
 	return rtn
@@ -155,6 +171,13 @@ func (s *Service) Rename(req RenameRequest) ActionResult {
 	}
 	if err != nil {
 		s.logf("[brainstorm] a brainstorm could not be renamed: %v\n", err)
+		// The folder is where the store left it (moved back, or moved when that failed too): the open brainstorm
+		// follows it, so the next turn is written there and not into a folder that is gone.
+		if current && renamed.Dir != "" && renamed.Dir != s.session.Dir {
+			s.session.Dir = renamed.Dir
+			s.session.Info.Slug = renamed.Info.Slug
+			s.listRev++
+		}
 		return s.actionFailed(ReasonFailed)
 	}
 	if current {
@@ -173,11 +196,14 @@ func (s *Service) Rename(req RenameRequest) ActionResult {
 // Delete forgets a brainstorm, on the developer's confirmation alone (AC10d): its folder goes to the trash, his resume
 // brief of it goes, and its title leaves his brief's list with the folder. The window sends it only from the confirm
 // button of a question that showed its title and last change.
-func (s *Service) Delete(req SlugRequest) ActionResult {
+func (s *Service) Delete(req DeleteRequest) ActionResult {
 	s.lock.Lock()
-	deleted, err := s.store.Delete(req.Slug)
+	deleted, err := s.store.Delete(req.Slug, req.Id, req.Permanent)
 	if errors.Is(err, ErrUnknownBrainstorm) {
 		return s.actionFailed(ReasonUnknown)
+	}
+	if errors.Is(err, ErrNeedsRemoveConfirmation) {
+		return s.actionFailed(ReasonNoTrash)
 	}
 	if err != nil {
 		s.logf("[brainstorm] a brainstorm could not be forgotten: %v\n", err)
@@ -239,11 +265,11 @@ func (s *Service) Fork(req ForkRequest) LoadResult {
 		s.logf("[brainstorm] the folder of a fork could not be saved: %v\n", err)
 		return s.loadFailed(ReasonFailed)
 	}
-	s.switchLocked(&created)
+	resume := s.switchLocked(&created)
 	s.listRev++
 	s.savedAt = s.now().UnixMilli()
 	version := s.changedLocked()
-	rtn := LoadResult{State: s.stateLocked(), Turns: []Turn{}}
+	rtn := LoadResult{State: s.stateLocked(), Turns: []Turn{}, ResumeBrief: resume}
 	s.lock.Unlock()
 	s.tell(version)
 	return rtn

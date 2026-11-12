@@ -94,6 +94,10 @@ vi.mock("../boss/brokk-session", async () => {
         showConversation: (turns: any[]) => {
             session.shown = turns;
         },
+        stops: 0,
+        stopFollowing: () => {
+            session.stops++;
+        },
         said: [] as { text: string; lead: string }[],
         say: async (text: string) => {
             session.said.push({ text, lead: session.lead });
@@ -133,7 +137,16 @@ const agents = AgentStates.getInstance() as any;
 
 // A wavesrv of the test: the mode's state, the synthetic folders it holds, and the calls it got.
 let calls: { command: string; data: any }[];
-let server: { open: boolean; version: number; nodes: number; current: any; folders: any[] };
+let server: {
+    open: boolean;
+    version: number;
+    nodes: number;
+    current: any;
+    folders: any[];
+    swap?: number;
+    cantrash?: boolean;
+    resumeBrief?: boolean;
+};
 
 const folder = (slug: string, title: string, updated: number) => ({
     id: `id-${slug}`,
@@ -151,6 +164,8 @@ function state(): any {
         allowed: true,
         open: server.open,
         version: server.version,
+        swap: server.swap ?? 0,
+        cantrash: server.cantrash !== false,
         brainstorm: server.current ?? undefined,
         graph: { schema: 1, rev: server.nodes, centre: "c", nodes: [], links: [] },
     };
@@ -173,8 +188,10 @@ async function fakeCall(command: string, data: any): Promise<any> {
         server.open = true;
         server.current = match;
         server.version++;
+        server.swap = (server.swap ?? 0) + 1;
         return {
             state: state(),
+            resumebrief: server.resumeBrief !== false,
             turns: [
                 { turn: 1, at: 1, role: "you", text: `About ${match.title}` },
                 { turn: 1, at: 1, role: "brokk", text: "Where were we?" },
@@ -188,16 +205,23 @@ async function fakeCall(command: string, data: any): Promise<any> {
         return { state: state() };
     }
     if (command === DeleteCommand) {
-        const match = server.folders.find((f) => f.slug === data.slug);
-        server.folders = server.folders.filter((f) => f.slug !== data.slug);
+        const match = server.folders.find((f) => f.slug === data.slug && f.id === data.id);
+        if (match == null) {
+            return { state: state(), error: "unknown" };
+        }
+        if (server.cantrash === false && !data.permanent) {
+            return { state: state(), error: "notrash" };
+        }
+        server.folders = server.folders.filter((f) => f !== match);
         server.version++;
-        return { state: state(), summary: match, trashed: true };
+        return { state: state(), summary: match, trashed: server.cantrash !== false };
     }
     if (command === ForkCommand) {
         server.current = folder("parental-control", data.title, 9);
         server.folders = [server.current, ...server.folders];
         server.version++;
-        return { state: state(), turns: [] };
+        server.swap = (server.swap ?? 0) + 1;
+        return { state: state(), turns: [], resumebrief: true };
     }
     if (command === OpenCommand) {
         server.open = true;
@@ -239,6 +263,7 @@ beforeEach(async () => {
     session.lead = "";
     session.shown = null;
     session.said.length = 0;
+    session.stops = 0;
     globalStore.set(boss.cardOpenAtom, false);
     globalStore.set(sidebar.hiddenAtom, false);
     globalStore.set(sidebar.windowMetaAtom, {});
@@ -554,9 +579,9 @@ describe("the brainstorm folders (FR-BOSS-010 AC10a to AC10d, AC11, #2248)", () 
 
         session.tell({ id: "m2", you: "Forget it, really", markdown: forget, turn: 10, final: true });
         await settle();
-        expect(await model.forgetFolder("family-budget")).toBe(true);
+        expect(await model.forgetFolder(folder("family-budget", "A family budget", 40))).toBe(true);
         expect(calls.filter((c) => c.command === DeleteCommand).map((c) => c.data)).toEqual([
-            { slug: "family-budget" },
+            { slug: "family-budget", id: "id-family-budget", permanent: false },
         ]);
         expect(globalStore.get(model.promptAtom)).toBeNull();
         expect(session.lines).toEqual(["boss.brainstorm.forgotTrash"]);
@@ -594,6 +619,47 @@ describe("the brainstorm folders (FR-BOSS-010 AC10a to AC10d, AC11, #2248)", () 
         expect(session.lead).toBe("boss.brainstorm.resumedLead");
     });
 
+    // Review of #2248: where the system has no trash, the confirmation said "removed for good", and only that is sent.
+    it("sends a removal for good only where the system has no trash", async () => {
+        server.cantrash = false;
+        server.folders = [folder("family-budget", "A family budget", 40)];
+        const model = startModel();
+        await settle();
+        expect(await model.forgetFolder(folder("family-budget", "A family budget", 40))).toBe(true);
+        expect(calls.find((c) => c.command === DeleteCommand).data).toEqual({
+            slug: "family-budget",
+            id: "id-family-budget",
+            permanent: true,
+        });
+        expect(session.lines).toEqual(["boss.brainstorm.forgotRemoved"]);
+    });
+
+    // Review of #2248: an answer still coming in for the brainstorm left is no longer followed, its turn carries the swap
+    // it began in, and his session is told to read a resume brief only when wavesrv wrote one.
+    it("stops the answer of the brainstorm left, and sends each turn with the swap it began in", async () => {
+        server.folders = [folder("forge-notes", "Forge notes", 20), folder("kids-video", "A safe video app", 30)];
+        const model = startModel();
+        await settle();
+        await model.load("kids-video");
+        const swapA = globalStore.get(model.stateAtom).swap;
+        session.tell({ id: "m1", you: "Ages?", markdown: "For which ages", turn: 20, final: false });
+        server.resumeBrief = false;
+        const before = session.stops;
+        await model.load("forge-notes");
+        expect(session.stops).toBe(before + 1);
+        expect(session.lead).toBe("boss.brainstorm.lead");
+        session.tell({ id: "m1", you: "Ages?", markdown: "For which ages?", turn: 20, final: true });
+        session.tell({ id: "m2", you: "Notes?", markdown: "Which notes?", turn: 21, final: true });
+        await settle();
+        const turns = calls.filter((c) => c.command === TurnCommand).map((c) => [c.data.you, c.data.swap]);
+        expect(turns).toEqual([
+            ["Ages?", swapA],
+            ["Notes?", swapA + 1],
+        ]);
+        await model.newIdea();
+        expect(session.stops).toBe(before + 2);
+    });
+
     it("asks nothing on a release channel", async () => {
         gate.allowed = false;
         server.folders = [folder("forge-notes", "Forge notes", 20)];
@@ -603,7 +669,7 @@ describe("the brainstorm folders (FR-BOSS-010 AC10a to AC10d, AC11, #2248)", () 
         session.tell({ id: "m1", you: "Notes?", markdown: offer, turn: 7, final: true });
         await settle();
         expect(await model.load("forge-notes")).toBe(false);
-        expect(await model.forgetFolder("forge-notes")).toBe(false);
+        expect(await model.forgetFolder(folder("forge-notes", "Forge notes", 20))).toBe(false);
         expect(calls).toEqual([]);
         expect(globalStore.get(model.promptAtom)).toBeNull();
     });
