@@ -4,8 +4,11 @@
 import { describe, expect, it } from "vitest";
 import { RawTag } from "./mission-model";
 import {
+    computedReasonText,
     MaxListedMilestoneIssues,
     milestoneWarning,
+    plannedConfirmText,
+    plannedRelease,
     preparationSteps,
     releaseBaseOf,
     releaseChoiceTag,
@@ -156,5 +159,69 @@ describe("the milestone a release ships", () => {
         const none = milestoneWarning("1.1.0", null);
         expect(none.warn).toBe(false);
         expect(none.text).toBe("No open milestone for 1.1.0.");
+    });
+});
+
+// #2268, synthetic: last tag v1.1.0, milestone v1.1.1 due first with its issues closed, 2 features on develop.
+describe("the planned next version comes first in the Release menu (FR-MC-015, #2268)", () => {
+    const features = ["feat(#1): a tour", "feat(#2): help pages"].map((subject, i) => ({
+        sha: `f${i}`,
+        date: "2026-11-05",
+        subject,
+    }));
+    const planOf = (names: string[]) =>
+        releasePlan(
+            releaseState(
+                names.map((n) => tag(n, "2026-11-01")),
+                features,
+                features
+            ),
+            names
+        );
+    const Station = { tag: "v1.1.1", milestonefirst: true, bigger: true };
+
+    it("offers the station's candidate and public release, and asks once because the commits call for more", () => {
+        const plan = planOf(["v1.1.0"]);
+        expect(plan).toMatchObject({ publicVersion: "1.2.0", rc: "v1.2.0-1", level: "minor" });
+        expect(plannedRelease(plan, Station)).toEqual({
+            version: "1.1.1",
+            tag: "v1.1.1",
+            rc: "v1.1.1-1",
+            refused: null,
+            confirm: true,
+        });
+        expect(computedReasonText(plan)).toBe("v1.2.0 follows the commits: 2 new features, a minor version.");
+        expect(plannedConfirmText(plan, "v1.1.1")).toBe(
+            "The commits call for a minor version (v1.2.0): 2 new features. Start v1.1.1 as planned all the same?"
+        );
+    });
+
+    it("numbers the station's candidate after its existing ones, and does not confirm a bigger planned number", () => {
+        const plan = planOf(["v1.1.0", "v1.3.0-1"]);
+        expect(plannedRelease(plan, { tag: "v1.3.0", milestonefirst: true, bigger: false })).toMatchObject({
+            rc: "v1.3.0-2",
+            tag: "v1.3.0",
+            confirm: false,
+        });
+    });
+
+    it("leaves the menu as it was when the station is the computed number, a derived one, or a first release", () => {
+        const plan = planOf(["v1.1.0"]);
+        expect(plannedRelease(plan, { tag: "v1.2.0", milestonefirst: true })).toBeNull();
+        expect(plannedRelease(plan, { tag: "v1.2.0" })).toBeNull();
+        expect(plannedRelease(plan, null)).toBeNull();
+        expect(plannedRelease(planOf([]), Station)).toBeNull();
+        expect(plannedRelease(null, Station)).toBeNull();
+    });
+
+    it("does not offer the station's number once it is tagged, and says why", () => {
+        const plan = { ...planOf(["v1.1.0"]), tags: ["v1.1.0", "v1.1.1"] };
+        expect(plannedRelease(plan, Station)).toEqual({
+            version: "1.1.1",
+            tag: "v1.1.1",
+            rc: null,
+            refused: "v1.1.1, the next station, is already tagged: only the computed number is offered.",
+            confirm: false,
+        });
     });
 });

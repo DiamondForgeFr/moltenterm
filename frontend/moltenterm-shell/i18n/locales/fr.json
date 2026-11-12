@@ -4205,7 +4205,15 @@
             "driftUncommitted": "Le pipeline (.molten/project.json) a des modifications non commitées : la release les suivrait alors que sa branche porte le pipeline commité.",
             "driftBase": "Le pipeline (.molten/project.json) diffère de {base}, dont la branche de release est issue.",
             "driftHint": "Commitez-le et poussez-le, ou mettez ce checkout à jour, puis relancez. Rien n’a encore démarré.",
-            "startAnyway": "Démarrer quand même"
+            "startAnyway": "Démarrer quand même",
+            "plannedHeading": "Prévu : prochaine station {tag}",
+            "computedHeading": "Ou le numéro calculé depuis les commits",
+            "computedReason": "{tag} suit les commits : {reason}, une version {level}.",
+            "computedReasonPlain": "{tag} suit les commits : une version {level}.",
+            "plannedTagged": "{tag}, la prochaine station, est déjà taguée : seul le numéro calculé est proposé.",
+            "plannedConfirm": "Les commits demandent une version {level} ({derived}) : {reason}. Démarrer quand même {tag} comme prévu ?",
+            "plannedConfirmPlain": "Les commits demandent une version {level} ({derived}). Démarrer quand même {tag} comme prévu ?",
+            "plannedBack": "Retour"
         },
         "builds": {
             "neverBuilt": "Jamais compilé",
@@ -6552,8 +6560,8 @@
             "nothing": "Rien à publier pour l'instant.",
             "planned": "Prévue — jalon {milestone}, {open}, rien encore sur {trunk}",
             "milestoneFirst": "Le jalon {milestone} arrive en premier ; les changements sur {trunk} y entrent.",
-            "biggerBump": "{reason} sur {trunk} : {tag} serait une version {level}.",
-            "biggerBumpPlain": "Les changements sur {trunk} demandent une version {level} : {tag} en serait une.",
+            "biggerBump": "{reason} sur {trunk} : les changements demandent une version {level} ({derived}). La release prévue en {tag} peut quand même sortir sous ce numéro.",
+            "biggerBumpPlain": "Les changements sur {trunk} demandent une version {level} ({derived}). La release prévue en {tag} peut quand même sortir sous ce numéro.",
             "open": {
                 "one": "{count} ouvert",
                 "other": "{count} ouverts"
