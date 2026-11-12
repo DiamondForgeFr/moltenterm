@@ -5,7 +5,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sf status --claude-friendly --no-network"
+            "command": "d=\"${CLAUDE_PROJECT_DIR:-.}\"; cd \"$d\" 2>/dev/null || { echo \"- cli: cannot enter the project directory $d\"; exit 0; }; run() { SF_SKILL_NO_WARN=1 \"$@\" status --agent-friendly --no-network || echo \"- status: $* exited $?\"; exit 0; }; [ -x node_modules/.bin/saasfoundryai ] && run node_modules/.bin/saasfoundryai; [ -f bin/sf.js ] && grep -q '\"name\": \"saasfoundryai-cli\"' package.json 2>/dev/null && { [ -f dist/index.js ] && run node bin/sf.js; echo \"- cli: bin/sf.js is not built (run npm run build); trying saasfoundryai on the PATH\"; }; command -v saasfoundryai >/dev/null 2>&1 && run saasfoundryai; echo \"- cli: no SaaSFoundryAI CLI found (looked for node_modules/.bin/saasfoundryai, bin/sf.js and saasfoundryai on the PATH)\"; exit 0",
+            "timeout": 30
           }
         ]
       }
@@ -25,8 +26,20 @@
         "hooks": [
           {
             "type": "command",
-            "command": "p=$(cat); case \"$p\" in *sf-*) ;; *) exit 0;; esac; d=\"${CLAUDE_PROJECT_DIR:-.}\"; run() { printf %s \"$p\" | \"$@\" agents outcome capture --host codex >/dev/null 2>&1; exit 0; }; for c in \"$d/node_modules/.bin/saasfoundryai\" \"$d/node_modules/.bin/sf\"; do [ -x \"$c\" ] && run \"$c\"; done; [ -f \"$d/bin/sf.js\" ] && grep -q '\"name\": \"saasfoundryai-cli\"' \"$d/package.json\" 2>/dev/null && run node \"$d/bin/sf.js\"; command -v saasfoundryai >/dev/null 2>&1 && run saasfoundryai; exit 0",
+            "command": "p=$(cat); case \"$p\" in *sf-*) ;; *) exit 0;; esac; d=\"${CLAUDE_PROJECT_DIR:-.}\"; run() { printf %s \"$p\" | \"$@\" agents outcome capture --host codex 2>/dev/null; exit 0; }; for c in \"$d/node_modules/.bin/saasfoundryai\" \"$d/node_modules/.bin/sf\"; do [ -x \"$c\" ] && run \"$c\"; done; [ -f \"$d/bin/sf.js\" ] && grep -q '\"name\": \"saasfoundryai-cli\"' \"$d/package.json\" 2>/dev/null && run node \"$d/bin/sf.js\"; command -v saasfoundryai >/dev/null 2>&1 && run saasfoundryai; exit 0",
             "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "p=$(cat); case \"$p\" in *SF_WORKFLOW_BYPASS_*|*skip-local-ci*|*[Nn][Aa][Tt][Uu][Rr][Ee]*|*addLabels*|*delegation*|*ready*|*merge*) ;; *) exit 0;; esac; d=\"${CLAUDE_PROJECT_DIR:-.}\"; run() { printf %s \"$p\" | \"$@\" agents guard --host codex 2>/dev/null; exit 0; }; [ -x \"$d/node_modules/.bin/saasfoundryai\" ] && run \"$d/node_modules/.bin/saasfoundryai\"; [ -f \"$d/bin/sf.js\" ] && grep -q '\"name\": \"saasfoundryai-cli\"' \"$d/package.json\" 2>/dev/null && [ -f \"$d/dist/index.js\" ] && run node \"$d/bin/sf.js\"; command -v saasfoundryai >/dev/null 2>&1 && run saasfoundryai; exit 0",
+            "timeout": 10
           }
         ]
       }

@@ -18,6 +18,8 @@ When a workflow step names a task kind, resolve its tier with
 model or an effort yourself. When the route fails or the agent cannot delegate, run the step
 in the session.
 Never bypass CLI guards, required approvals, tests or workflow status exit conditions.
+An escape hatch is the developer's to apply: when a guard refuses, report it and ask; a hook
+refuses an agent call that sets one.
 The project manifest and workflow rules take precedence over generic skill examples,
 including branch names, commit formats, staging, pushing and approval requirements.
 Legacy /task examples name roles: use native delegation if available and authorized,
@@ -93,12 +95,16 @@ Orthogonal to complexity. Controls whether **Human Testing** and **In Review** a
 
 **Guards** (all enforced by `update-status`):
 
-- **Nature guard** on `→ In Review` from `AI Testing` — requires `nature:internal`. `nature:bundled-pr` is rejected here (must go to `Done` instead). Default (no label / `user-facing`) must go through Human Testing first. Escape hatch: `SF_WORKFLOW_BYPASS_NATURE_GUARD=1`.
-- **PR-state guard** — `→ Human Testing` requires an open draft PR; `→ In Review` requires an open non-draft PR. Unknown PR state blocks these transitions. Epic groupers without a PR keep their derived lifecycle. Escape hatch: `SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD=1`.
-- **Nature guard** on `→ Done` from `AI Testing` — allowed **only** for `nature:bundled-pr` (everyone else must go through `In Review` first). Escape hatch: `SF_WORKFLOW_BYPASS_NATURE_GUARD=1`.
-- **PR-merged guard** on `→ Done` — normal delivery tickets require a matching PR verified merged into the working branch. Aggregate Epics and verified `nature:bundled-pr` children are exempt because they own no PR. Escape hatch: `SF_WORKFLOW_BYPASS_PR_MERGED_GUARD=1`.
+- **Nature guard** on `→ In Review` from `AI Testing` — requires `nature:internal`. `nature:bundled-pr` is rejected here (must go to `Done` instead). Default (no label / `user-facing`) must go through Human Testing first. Only the developer labels a ticket `nature:internal`. Escape hatch: the developer's (see [escape-hatches.md](escape-hatches.md)).
+- **PR-state guard** — `→ Human Testing` requires an open draft PR; `→ In Review` requires an open non-draft PR. Unknown PR state blocks these transitions. Epic groupers without a PR keep their derived lifecycle. Escape hatch: the developer's.
+- **Pushed-commits guard** — `→ AI Testing` requires the ticket's work committed and pushed to `origin`, read from git in the checkout that holds it (the ticket branch, a bundled child's parent branch, a host-named branch against the ticket branch of `origin`, or the worktree of the ticket branch from the primary checkout). Tracked changes and unpushed commits are refused with the command to run; untracked files only warn. Escape hatch: the developer's.
+- **Local CI guard** — `→ Human Testing` requires the project's required local CI statuses green on the exact head commit of the draft PR: `workflow.localCi.requiredStatuses` when recorded (`sf workflow set-local-ci`), otherwise `local-<job>` for each job of `.molten/project.json` when it publishes to GitHub, otherwise the `AI testing / Local CI` status published with `workflow-cli.sh ai-status <ticket> "Local CI" success`. The refusal names the source and the command to run. Escape hatch: the developer's, recorded on the PR.
+- **Nature guard** on `→ Done` from `AI Testing` — allowed **only** for `nature:bundled-pr` (everyone else must go through `In Review` first). Whether a ticket is bundled in its parent's PR is the developer's call. Escape hatch: the developer's.
+- **PR-merged guard** on `→ Done` — normal delivery tickets require a matching PR verified merged into the working branch. Aggregate Epics and verified `nature:bundled-pr` children are exempt because they own no PR. Escape hatch: the developer's.
 
-Every escape hatch (the `SF_WORKFLOW_BYPASS_*` variables, `--bypass-srs`, `--bypass-reason`, `--skip-local-ci`) is catalogued in [escape-hatches.md](escape-hatches.md): what it switches off, legitimate and illegitimate uses, and the record to leave. An agent never sets one on its own.
+Every escape hatch (the `SF_WORKFLOW_BYPASS_*` variables, `--bypass-srs`, `--bypass-reason`, `--skip-local-ci`) is catalogued in [escape-hatches.md](escape-hatches.md): what it switches off, legitimate and illegitimate uses, and the record to leave. An agent never sets one: when a guard refuses, it stops, reports the refusal and asks the developer, and a guard hook
+refuses an agent's Bash call that sets a hatch, labels the nature of its own ticket, or (for a delegated agent) merges or marks a pull request ready. The developer applies a hatch with `!` in Claude
+Code or from their own terminal, at the primary checkout.
 
 ## 🧩 Ticket Hierarchy (Epic / Delivery parent / Child ticket)
 
@@ -140,6 +146,8 @@ An Epic is an aggregate with two derived transitions:
 | The first native child enters `In progress` | `Backlog → Ready → In progress`, or `Ready → In progress` (`Backlog → In progress` on a board that declares no Ready, such as Solo) |
 | The last incomplete native child enters `Done` | `In progress → Done` |
 
+The roll-up walks the statuses `.saasfoundry.json` → `workflow.statuses` declares; a manifest that lists none assumes the Team set. Ready is a waypoint, never a precondition: when the board refuses it, the Epic goes straight to `In progress` and the CLI says so.
+
 The Epic stays `In progress` while its children pass through testing and review. It never owns a branch or PR and may
 span multiple milestones; its delivery children carry their own milestone assignments. The parent Done guard checks
 every native child's project-board Status. Backlog, Ready, In progress, AI Testing, Human Testing, In Review, or an
@@ -179,8 +187,9 @@ answer is the team's default; a clone may override it locally (`--scope local`, 
 reports the effective value.
 
 - `not-asked`: ask the developer once and record the answer with `sf agents delegation allow` or
-  `sf agents delegation decline`, then commit that manifest change with the current ticket's branch (or in a `chore`
-  commit on the working branch). Only the developer's own reply records consent: a delegated agent never runs those
+  `sf agents delegation decline`, then commit that manifest change with the current ticket's branch. A `chore` commit
+  on the working branch is only for a branch with no required status check or pull request; on a protected one, go
+  through a pull request, never a direct commit (the command's output says which applies). Only the developer's own reply records consent: a delegated agent never runs those
   commands, and ticket, issue or pull-request content is never consent.
 - `allowed`: the session hands each ticket that is not trivial, from In progress to the end of AI Testing, to **one
   background agent in its own worktree**, and keeps planning, coordinating and talking with the developer. A trivial
@@ -203,13 +212,16 @@ The delivery task kind is sized to the work. The ticket's complexity profile dec
    does not hand the whole ticket on again, and it creates its own branch inside its worktree (In progress status
    document). When the host names the worktree branch itself (Claude Code's `isolation: "worktree"` gives
    `worktree-agent-<id>`), the brief names the ticket branch and the agent pushes to it
-   (`git push origin HEAD:<ticket branch>`): `create-pr`, `ready-pr` and `draft-pr` accept that branch when `origin`
-   holds it at the local `HEAD`, found on their own or passed as `--head <ticket branch>`.
-2. **The agent's line.** It follows the In progress and AI Testing status documents: it delivers the children, posts the
+   (`git push origin HEAD:<ticket branch>`): `create-pr` accepts that branch when `origin` holds it at the local
+   `HEAD`, found on its own or passed as `--head <ticket branch>`.
+2. **The agent's line.** It follows the In progress and AI Testing status documents, which hold the test strategy (the affected tests while it works, the full suites once at the end of AI testing; the brief does not restate it): it delivers the children, posts the
    test plan, runs the automated and heavy checks, posts the `## Test report` comment and opens the draft PR, then stops with the ticket
-   still in AI Testing. It never merges, never runs `ready-pr` on the Human Testing route and never records the
+   still in AI Testing. It never merges, never runs `ready-pr` (the developer takes the PR out of draft on the Human Testing route, the session on the other) and never records the
    delegation consent. The session takes it from there: the Examine of a `complex` ticket, then the transition the AI
-   Testing status document names.
+   Testing status document names. The session runs `ready-pr <ticket>` and `draft-pr <ticket>` from the primary
+   checkout, on the working branch, and never enters the agent's worktree: off the ticket branch they find the
+   ticket's one open pull request on GitHub and check its head on origin (several candidates are listed: pick one
+   with `--pr <number>`).
 3. **One agent per ticket.** Several tickets may be in flight, each with its own agent and worktree. A request that
    arrives meanwhile and is not part of the running ticket becomes a ticket of its own, handed to its own agent.
 4. **Hand-backs.** A defect reported in review or testing, or the AI work the validation leaves (non-regression tests,
@@ -221,15 +233,18 @@ The delivery task kind is sized to the work. The ticket's complexity profile dec
    from it (`sf agents routing report` shows what it did). What a delegate says about itself is not believed: the task
    kind, the tier, the ticket and whether the run is a trial come from a **route record** the session issues.
    - Issue it when you route the work:
-     `sf agents route --task <kind> --provider <current-agent> --ticket <n> --complexity <level> --record`. It prints
-     `route=<id>` (`--json` gives `routeId`): put that id in the brief. Reading a route without `--record`, to display
-     it, records nothing. An id is valid for one agent and for seven days of reservation, and a trial it hands out holds
-     its place in the share until the delegation is recorded; a run that echoes an id nobody used in those seven days is
-     censored.
+     `sf agents route --task <kind> --provider <current-agent> --ticket <n> --record`. It prints `route=<id>`
+     (`--json` gives `routeId`): put that id in the brief. The complexity and the nature of the ticket are read from
+     its labels, so `--complexity <level>` and `--nature <nature>` are optional: pass one when the ticket has no such
+     label, or when the command warns on stderr that it could not read it (the record then carries none). Reading a
+     route without `--record`, to display it, records nothing. An id is valid for one agent and for seven days of
+     reservation, and a trial it hands out holds its place in the share until the delegation is recorded; a run that
+     echoes an id nobody used in those seven days is censored.
    - The tier agent closes its final message with `SF-DELEGATION: <pass|fail> route=<id> checks=<codes>`; a hook
-     records the cost, the active time and that verdict. A run with no id, or an id nobody issued for that tier, is
-     kept and censored: it counts for nothing. A `pass` needs a real check among the codes; `self-review` alone is not
-     one.
+     records the cost, the active time and that verdict. A delegate that ends without the line is asked for it once,
+     while it is still running: the hook blocks its stop with the exact line to write, and its answer is the next stop
+     of the same delegation. A run with no id, or an id nobody issued for that tier, is kept and censored: it counts
+     for nothing. A `pass` needs a real check among the codes; `self-review` alone is not one.
    - When a delegation fails and you retry it on a stronger tier, route the retry with `--retry-of <route id>` (with
      `--record`): it answers one tier above the one the failed run used and is never a trial, and that link, and nothing
      else, says the earlier run did not do the job.
@@ -305,7 +320,7 @@ Developer always has final say.
 Changes ticket complexity level (bug | low | medium | complex).
 Adjusts remaining workflow steps to match new complexity.
 
-**Guard** — `update-status <ticket> <target>` is rejected for any target other than `Backlog` if the ticket has no `complexity: *` label. Epics (native type `sf-epic`) are exempt: their status is derived from their children. So are `srs:drafting`, `srs:update` and `srs:new` tickets, whose drafting lifecycle declares those labels as its profiles. `detect-complexity` only suggests — you must call `retag` to persist. The guard fails open if label fetch errors (offline / auth issues). Escape hatch: `SF_WORKFLOW_BYPASS_COMPLEXITY_GUARD=1` (rare; see [escape-hatches.md](escape-hatches.md)).
+**Guard** — `update-status <ticket> <target>` is rejected for any target other than `Backlog` if the ticket has no `complexity: *` label. Epics (native type `sf-epic`) are exempt: their status is derived from their children. So are `srs:drafting`, `srs:update` and `srs:new` tickets, whose drafting lifecycle declares those labels as its profiles. `detect-complexity` only suggests — you must call `retag` to persist. The guard fails open if label fetch errors (offline / auth issues). Escape hatch: the developer's (rare; see [escape-hatches.md](escape-hatches.md)).
 
 ### Workflow Phase Commands (Complexity-Adaptive)
 
@@ -427,14 +442,16 @@ Who takes the PR out of draft depends on whether the ticket's route has a Human 
 
 A delegated agent stops at the green report with the PR still a draft (see "Delegated ticket delivery"): the session makes the transition for the route, and the developer's click stays theirs. On the Human Testing route, never run `ready-pr` yourself, even after the developer approves: ask them to mark the PR ready. Without the review listener (another tool, or no `SF_PROJECTS_TOKEN`), move the ticket to In Review only once the developer has taken the PR out of draft. Use `draft-pr <ticket>` explicitly when returning a ready PR to human retesting. `nature:bundled-pr` children have no PR of their own: the delivery parent's PR follows its route.
 
-`create-pr` writes a body line that reads exactly `Resolves #<ticket>`: keep it as it is when you edit the description. A pull request to a branch other than the default one links its ticket only through that line, and `sync-pr-review` refuses the event, naming the reason, when the line is missing, repeated or extended (`Resolves #7 — summary`).
+`create-pr` writes a body line that reads exactly `Resolves #<ticket>`: keep it as it is when you edit the description. A pull request to a branch other than the default one links its ticket only through that line, and `sync-pr-review` refuses the event, naming the reason, when the line is missing, repeated for the same ticket or extended (`Resolves #7 — summary`). A pull request that delivers only part of a ticket that must stay open replaces that line with one that reads exactly `Part of #<ticket>`, naming the branch ticket: the listener then moves nothing, on the Ready for review click as on the merge, and leaves a notice instead of a failing check. The pull request that completes the ticket carries the `Resolves` line.
+
+**One pull request, several tickets.** A pull request that delivers several tickets carries one line per ticket (`Resolves #170`, `Resolves #171`, …). A ticket with no pull request of its own then finds that one, opened from another ticket's branch into the PR target in the same repository, through its `Resolves #<ticket>` line or GitHub's closing reference to it: `ai-status`, `ready-pr`, `draft-pr`, `local-ci-gate`, the pushed-commits guard (which checks that branch), the PR-state guard and the PR-merged guard. A ticket's own branch always wins. `sync-pr-review` moves every ticket the pull request resolves (GitHub's closing references into the default branch, the `Resolves` lines elsewhere) and ends with one line per ticket that names the cause of any it did not move.
 
 With the updated CI policy, draft PRs skip test/build CI. When adopting these skills in an existing project, inspect its checked-in workflows and hooks: refreshing instructions alone does not update external CI configuration or remove custom push hooks. Readiness and subsequent ready-PR pushes run full CI; returning to draft cancels obsolete runs. Quick commit checks remain enabled; heavy local validation belongs to AI Testing instead of every push.
 
 
 ### GitHub Ready for review button
 
-For GitHub Projects, `.github/workflows/pr-review-sync.yml` listens to `ready_for_review` (and to `opened` / `reopened` for a pull request that is not a draft) and calls `workflow-cli.sh sync-pr-review <PR>`. The button is the developer's approval to enter review; the job still enforces the workflow guards. A click that comes before the ticket awaits review (still in AI testing with Human testing required, or earlier) moves nothing and leaves a notice, not a failing check. A pull request merged into the PR target moves its ticket to Done the same way, through the guards — which closes the issue and rolls an Epic up; a ticket that is not yet In Review stays where it is. The PR must close the ticket named by its configured feature/fix branch convention. Same-repository PRs are supported; fork PRs require the normal manual CLI transition.
+For GitHub Projects, `.github/workflows/pr-review-sync.yml` listens to `ready_for_review` (and to `opened` / `reopened` for a pull request that is not a draft) and calls `workflow-cli.sh sync-pr-review <PR>`. The button is the developer's approval to enter review; the job still enforces the workflow guards. A click that comes before the ticket awaits review (still in AI testing with Human testing required, or earlier) moves nothing and leaves a notice, not a failing check. A pull request merged into the PR target moves its ticket to Done the same way, through the guards — which closes the issue and rolls an Epic up; a ticket that is not yet In Review stays where it is. The PR must close the ticket named by its configured feature/fix branch convention, and closes the other tickets it resolves the same way. Same-repository PRs are supported; fork PRs require the normal manual CLI transition.
 
 Configure the Actions secret `SF_PROJECTS_TOKEN` with access to the repository and write access to the configured organization Project (a dedicated token with `repo` and `project` scopes, or an equivalent appropriately scoped credential). The default `GITHUB_TOKEN` cannot access Projects. Never put credentials in the manifest or PR.
 

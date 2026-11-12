@@ -51,7 +51,7 @@ Each complexity level enables/disables workflow steps:
 - Analyze: Standard (2-4 agents)
 - Plan: Detailed file-by-file (requires approval)
 - Execute: Subtasks mandatory (delegated as `multi-file-feature` once decomposed)
-- Validate: Build + lint + typecheck + unit tests
+- Validate: Build + lint + typecheck + the unit tests the change affects (the full suites run once, at AI Testing)
 - Skip: Examine
 - Tests: Unit + E2E recommended
 
@@ -60,7 +60,7 @@ Each complexity level enables/disables workflow steps:
 - Analyze: Deep (6-10 agents)
 - Plan: Comprehensive with dependencies (requires approval)
 - Execute: Granular subtasks mandatory (delegated as `multi-file-feature` once decomposed)
-- Validate: Full test suite
+- Validate: Build + lint + typecheck + the affected tests; the full suite runs once, at AI Testing
 - **Examine: Adversarial review (security, logic, performance)**
 - Tests: Unit + E2E + regression mandatory (80% coverage)
 

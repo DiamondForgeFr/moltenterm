@@ -3,9 +3,11 @@
 The SaaSFoundryAI upstream repository (`DiamondForgeFr/SaasFoundryAI`) and every generated project expects the labels below to exist. They're used for issue classification, dedup search, voting
 filters, and to let `sf-srs` detect drafting / update / creation events on the board.
 
-> **Auto-provisioning** — `sf new --profile harness` creates the workflow guard labels (`complexity:*`, `nature:*`, and `srs:*` when an SRS backend is configured) on the target repo automatically and
-> idempotently, right after writing the manifest. The canonical catalogue lives in `src/installers/harness-provisioning.ts` (`buildWorkflowLabels`); the tables below mirror it. The manual
-> `gh label create` snippets remain useful for the upstream repo and for the feedback labels, which are **not** auto-provisioned on consumer projects.
+> **Auto-provisioning** — `sf new` creates the workflow guard labels (`complexity:*`, `nature:*`, and `srs:*` when an SRS backend is configured) automatically and idempotently, right after writing the
+> manifest, whenever the workflow tracker is GitHub Projects: `--profile harness` on the repository it runs in, `--profile full` on the monorepo or on both multirepo repositories. Its summary reports
+> the labels it created, or why it could not (no GitHub remote yet, `gh` not authenticated). The canonical catalogue lives in `src/installers/harness-provisioning.ts` (`buildWorkflowLabels`); the
+> tables below mirror it. The manual `gh label create` snippets remain useful when that step was skipped, for the upstream repo, and for the feedback labels, which are **not** auto-provisioned on
+> consumer projects.
 
 ## Labels used by `sf feedback`
 
