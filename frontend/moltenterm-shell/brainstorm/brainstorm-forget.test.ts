@@ -96,6 +96,8 @@ vi.mock("../boss/brokk-session", async () => {
         addLocalLine: () => {},
         setLead: () => {},
         switchConversation: () => {},
+        hasInFlight: () => false,
+        returnWaiting: () => {},
     };
     return { BrokkSession: { getInstance: () => session } };
 });

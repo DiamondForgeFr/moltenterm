@@ -1,6 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AgentStatesData } from "../agent-state-model";
 import type { MoltentermNotification } from "../notifications-model";
@@ -9,6 +11,7 @@ import {
     answerStep,
     breaksThrough,
     EmptyTally,
+    FinishedStates,
     newlyCrashed,
     othersOf,
     pickerOf,
@@ -44,20 +47,29 @@ describe("the folders' rules (#2248)", () => {
     // FR-BOSS-010 AC25 (#2285): a brainstorm is in progress until Brokk marks it finished; the unfinished ones come
     // first, in the picker and the panel, the most recent first in each.
     it("offers the unfinished brainstorms first, the most recent first, then the finished ones", () => {
-        const done = (slug: string, updated: number, state = "done") => ({ ...folder(slug, updated), state });
-        const list = [done("old-done", 9), folder("open-a", 3), done("promoted", 8, "promoted"), folder("open-b", 5)];
-        expect(resumeOrder(list).map((f) => f.slug)).toEqual(["open-b", "open-a", "old-done", "promoted"]);
+        const done = (slug: string, updated: number) => ({ ...folder(slug, updated), state: "done" });
+        const list = [done("old-done", 9), folder("open-a", 3), done("done-b", 8), folder("open-b", 5)];
+        expect(resumeOrder(list).map((f) => f.slug)).toEqual(["open-b", "open-a", "old-done", "done-b"]);
         expect(pickerOf(list)).toMatchObject({
             recent: [{ slug: "open-b" }, { slug: "open-a" }, { slug: "old-done" }],
         });
-        expect(othersOf(list, "open-b").map((f) => f.slug)).toEqual(["open-a", "old-done", "promoted"]);
+        expect(othersOf(list, "open-b").map((f) => f.slug)).toEqual(["open-a", "old-done", "done-b"]);
         expect(unfinished(folder("x", 1))).toBe(true);
         expect(unfinished({ ...folder("x", 1), state: "open" })).toBe(true);
+        // A state MoltenTerm does not write (a folder changed by hand) is in progress.
         expect(unfinished({ ...folder("x", 1), state: "sketch" })).toBe(true);
         expect(unfinished(done("x", 1))).toBe(false);
         expect(stateOf({ ...folder("x", 1), state: "sketch" })).toBe("open");
-        expect(stateOf(done("x", 1, "clear"))).toBe("clear");
+        expect(stateOf(done("x", 1))).toBe("done");
         expect(resumeOrder(null)).toEqual([]);
+    });
+
+    // The finished states are the ones wavesrv writes (pkg/molten/brainstorm/store.go): open and done.
+    it("knows the states wavesrv writes, and those alone", () => {
+        const store = readFileSync(join(__dirname, "../../../pkg/molten/brainstorm/store.go"), "utf8");
+        const states = [...store.matchAll(/^\s*State\w+\s*=\s*"([a-z]+)"/gm)].map((m) => m[1]).sort();
+        expect(states).toEqual(["done", "open"]);
+        expect(FinishedStates).toEqual(["done"]);
     });
 
     it("asks his questions only once his answer is complete, and only where the gate is open", () => {

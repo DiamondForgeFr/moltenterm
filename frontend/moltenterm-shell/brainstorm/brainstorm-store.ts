@@ -32,7 +32,6 @@ import { MoltentermNotifications } from "../notifications-store";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { TabActivity } from "../tab-activity";
 import { showToast } from "../toast-store";
-import type { CameraMode } from "./brainstorm-camera-model";
 import {
     BrainstormEvent,
     BrainstormLastLeftAtom,
@@ -54,6 +53,7 @@ import {
     StateCommand,
     TurnCommand,
 } from "./brainstorm-boot";
+import type { CameraMode } from "./brainstorm-camera-model";
 import { setBrainstormHold } from "./brainstorm-hold";
 import {
     answerQuestions,
@@ -231,8 +231,10 @@ export class BrainstormModel {
             })
         );
         this.stops.push(
-            BrokkSession.getInstance().listenTaken((id) => {
-                this.beganOpen.set(id, this.isOpen());
+            BrokkSession.getInstance().listenTaken((id, conversation) => {
+                // A message written in the brainstorm and taken after the developer left it is the brainstorm's all the
+                // same (#2285): its answer is saved there, as a late one.
+                this.beganOpen.set(id, this.isOpen() || conversation === "brainstorm");
                 const swap = globalStore.get(this.stateAtom)?.swap;
                 if (swap != null) {
                     this.swapOf.set(id, swap);
@@ -282,6 +284,11 @@ export class BrainstormModel {
         const wasOpen = current?.open === true;
         const grew = (next.graph?.rev ?? 0) !== (current?.graph?.rev ?? 0);
         globalStore.set(this.stateAtom, next);
+        // The developer moved to another brainstorm (#2285): a message still waiting from the one before never goes to
+        // this one; it comes back to the field.
+        if (current != null && next.session === current.session && (next.swap ?? 0) !== (current.swap ?? 0)) {
+            BrokkSession.getInstance().returnWaiting("brainstorm");
+        }
         if (grew && next.open) {
             globalStore.set(this.talkAtAtom, Date.now());
         }
@@ -632,8 +639,13 @@ export class BrainstormModel {
     }
 
     private opened(): void {
-        // His talk window shows the brainstorm's own conversation (AC24, #2285); his answer that opened it comes along.
-        BrokkSession.getInstance().switchConversation("brainstorm", { fresh: true, carry: this.openingAnswer });
+        // His talk window shows the brainstorm's own conversation (AC24, #2285); his answer that opened it comes along. It
+        // starts over unless a message of it still waits or is still answered.
+        const session = BrokkSession.getInstance();
+        session.switchConversation("brainstorm", {
+            fresh: !session.hasInFlight("brainstorm"),
+            carry: this.openingAnswer,
+        });
         this.openingAnswer = null;
         this.pause(true);
         globalStore.set(BrainstormLastLeftAtom, null);

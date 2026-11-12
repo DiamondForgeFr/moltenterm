@@ -3235,9 +3235,7 @@
             },
             "state": {
                 "open": "in progress",
-                "done": "finished",
-                "clear": "clear",
-                "promoted": "promoted"
+                "done": "finished"
             },
             "failed": {
                 "unknown": "That brainstorm is no longer in the folder.",

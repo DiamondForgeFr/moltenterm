@@ -3235,9 +3235,7 @@
             },
             "state": {
                 "open": "en cours",
-                "done": "terminé",
-                "clear": "clair",
-                "promoted": "promu"
+                "done": "terminé"
             },
             "failed": {
                 "unknown": "Ce brainstorm n'est plus dans le dossier.",
