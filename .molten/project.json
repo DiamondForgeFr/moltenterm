@@ -70,7 +70,7 @@
                 {
                     "id": "verify",
                     "title": "Verify",
-                    "text": "The local CI on this commit of develop: only the jobs not green yet run."
+                    "text": "GitHub's full CI run of this exact commit of develop when it has one for this kind of system, else the local CI on it: only the jobs not green yet run."
                 },
                 {
                     "id": "build",

@@ -39,19 +39,23 @@ const fixtureProject = `{
 `
 
 type fakeGh struct {
-	lock      sync.Mutex
-	calls     [][]string
-	ciRuns    map[string]string
+	lock   sync.Mutex
+	calls  [][]string
+	ciRuns map[string]string
 	// The event of the runs ciRuns lists (default push), the checks the trunk requires, and the jobs of a run (JSON,
 	// default one green job named like the only required check).
 	ciEvent    string
 	ciRequired []string
 	ciJobs     string
-	dispatch   func()
-	draft     bool
-	noRelease bool
-	issues    string
-	prs       string
+	// The jobs of a workflow's run (JSON), by workflow file; ciJobs answers the others. ciWorkflows numbers the workflows
+	// asked about, for their run ids.
+	ciJobsOf    map[string]string
+	ciWorkflows map[string]int
+	dispatch    func()
+	draft       bool
+	noRelease   bool
+	issues      string
+	prs         string
 	// The open milestones listed (JSON); empty for the default board.
 	milestones string
 	// The rehearsal runs listed (JSON), the states `run view` reports in turn, and the artifacts (JSON).
@@ -127,7 +131,15 @@ func (f *fakeGh) answer(args []string) ([]byte, error) {
 		if event == "" {
 			event = "push"
 		}
-		run := func(id int, status string, conclusion string) string {
+		// A run's id carries its workflow's number (tens) and its state (units), so its jobs can be told apart.
+		if f.ciWorkflows == nil {
+			f.ciWorkflows = map[string]int{}
+		}
+		if f.ciWorkflows[workflow] == 0 {
+			f.ciWorkflows[workflow] = len(f.ciWorkflows) + 1
+		}
+		run := func(state int, status string, conclusion string) string {
+			id := f.ciWorkflows[workflow]*10 + state
 			return fmt.Sprintf(`{"workflow_runs":[{"id":%d,"event":%q,"status":%q,"conclusion":%q,"head_sha":%q,"head_branch":"develop","html_url":"https://ci/%d","repository":{"full_name":"acme/app"},"head_repository":{"full_name":"acme/app"}}]}`,
 				id, event, status, conclusion, sha, id)
 		}
@@ -147,6 +159,15 @@ func (f *fakeGh) answer(args []string) ([]byte, error) {
 		}
 		return []byte(`[{"type":"required_status_checks","parameters":{"required_status_checks":[` + strings.Join(checks, ",") + `]}}]`), nil
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/actions/runs/") && strings.Contains(joined, "/jobs?"):
+		f.lock.Lock()
+		defer f.lock.Unlock()
+		var id int
+		fmt.Sscanf(strings.TrimPrefix(args[1], "repos/{owner}/{repo}/actions/runs/"), "%d", &id)
+		for workflow, n := range f.ciWorkflows {
+			if n == id/10 && f.ciJobsOf[workflow] != "" {
+				return []byte(f.ciJobsOf[workflow]), nil
+			}
+		}
 		if f.ciJobs != "" {
 			return []byte(f.ciJobs), nil
 		}
@@ -628,6 +649,48 @@ func TestPromoteRequiresTheTrunksRequiredChecksToSucceed(t *testing.T) {
 	if f.originRef(t, "main") != f.originRef(t, "develop") {
 		t.Fatalf("main was not promoted on a green required check")
 	}
+}
+
+// #2277: the checks the trunk requires may be jobs of different named workflows: each run answers for the ones it
+// holds, and the workflows together must hold them all.
+func TestPromoteWithSeveralWorkflowsHoldingTheRequiredChecksBetweenThem(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	ctx := context.Background()
+	f.commitOnDevelop(t, "feat(#2): a feature")
+	before := f.originRef(t, "main")
+	f.gh.ciRuns["lint.yml"] = "green"
+	f.gh.ciRequired = []string{"Required gate", "Lint"}
+	f.gh.ciJobsOf = map[string]string{
+		"ci.yml":   `{"total_count":1,"jobs":[{"name":"Required gate","status":"completed","conclusion":"success"}]}`,
+		"lint.yml": `{"total_count":1,"jobs":[{"name":"Lint","status":"completed","conclusion":"success"}]}`,
+	}
+	workflows := []string{"ci.yml", "lint.yml"}
+	mustRun(t, f, "promote with both workflows green", f.env().Promote(ctx, PromoteOptions{Workflows: workflows}))
+	if f.originRef(t, "main") != f.originRef(t, "develop") {
+		t.Fatalf("main was not promoted although the workflows hold every required check")
+	}
+
+	g := makeFixture(t)
+	g.commitOnDevelop(t, "feat(#2): a feature")
+	before = g.originRef(t, "main")
+	g.gh.ciRuns["lint.yml"] = "green"
+	g.gh.ciRequired = []string{"Required gate", "Lint", "Deploy"}
+	g.gh.ciJobsOf = f.gh.ciJobsOf
+	mustFail(t, g, "promote with a required check no named workflow runs", g.env().Promote(ctx, PromoteOptions{Workflows: workflows}), "a job of none of ci.yml, lint.yml")
+	if g.originRef(t, "main") != before {
+		t.Fatalf("main moved while a required check was held by no named workflow")
+	}
+
+	h := makeFixture(t)
+	h.commitOnDevelop(t, "feat(#2): a feature")
+	h.gh.ciRuns["lint.yml"] = "green"
+	h.gh.ciRequired = []string{"Required gate", "Lint"}
+	h.gh.ciJobsOf = map[string]string{
+		"ci.yml":   f.gh.ciJobsOf["ci.yml"],
+		"lint.yml": `{"total_count":1,"jobs":[{"name":"Lint","status":"completed","conclusion":"skipped"}]}`,
+	}
+	mustFail(t, h, "promote with a required check skipped in the workflow that holds it", h.env().Promote(ctx, PromoteOptions{Workflows: workflows}), "was skipped")
 }
 
 func TestPromoteDryRunAndOffGithub(t *testing.T) {

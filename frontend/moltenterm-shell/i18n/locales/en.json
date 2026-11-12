@@ -4925,7 +4925,7 @@
                 "headline": "Here is how this project publishes a version.",
                 "builds": {
                     "title": "How your builds are checked",
-                    "shared": "{build} is not checked again on this computer when GitHub already checked the same version in full. It only runs the checks here when GitHub's are missing, still running, failed or not usable.",
+                    "shared": "{build} is not checked again on this computer when GitHub already checked the same version in full, on this kind of system. It only runs the checks here when GitHub's are missing, still running, failed, made on another kind of system or not usable.",
                     "always": "{build} is always checked on this computer, even when GitHub already checked the same version."
                 },
                 "workBranch": "You work on {trunk}, your working branch.",
@@ -9947,6 +9947,7 @@
                     "requiredMissing": "the required check {check} is not a job of GitHub's run {run}",
                     "requiredSkipped": "the required check {check} was skipped in GitHub's run {run}",
                     "requiredNotGreen": "the required check {check} ended in {conclusion} in GitHub's run {run}",
+                    "platformNotCovered": "GitHub's run did not test this computer's kind of system",
                     "localChosen": "the pipeline asks for the local CI",
                     "hereChosen": "you chose to verify here instead",
                     "stalled": "its run made no progress for {minutes} minutes"

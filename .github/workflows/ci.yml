@@ -239,6 +239,48 @@ jobs:
                       ~/go/pkg/mod
                   key: go-${{ runner.os }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
 
+    macos:
+        # The Go and frontend suites on macOS, for a push, a dispatch or a schedule (#2277). The code and the tests that
+        # only exist on macOS (the darwin files of proctree, termupdate and procinfo, the Gold's signature and update
+        # swap tests) run nowhere else, and the Gold is built for macOS: a local build takes this run's result for its
+        # own verification only when a job of the run was green on a macOS runner. A pull request does not run it, and the
+        # gate waits for it on every other event. No `needs`: it starts with the run.
+        name: macOS tests
+        if: github.event_name != 'pull_request'
+        runs-on: macos-latest
+        timeout-minutes: 45
+        env:
+            NODE_OPTIONS: --max-old-space-size=4096
+            # Tests run under Node, so they do not need native modules rebuilt for Electron.
+            WAVETERM_SKIP_APP_DEPS: "1"
+            EVENT: ${{ github.event_name }}
+            REF: ${{ github.ref_name }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 2
+                  persist-credentials: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: npm
+            - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+              with:
+                  go-version-file: go.mod
+                  cache: false
+            - name: Private package access
+              env:
+                  CHARACTER_REPO_TOKEN: ${{ secrets.DIAMONDFORGE_CHARACTER_TOKEN }}
+              run: git config --global url."https://x-access-token:${CHARACTER_REPO_TOKEN}@github.com/DiamondForgeFr/character-studio.git".insteadOf "ssh://git@github.com/DiamondForgeFr/character-studio.git"
+            - run: scripts/moltenterm-npm-ci.sh --no-audit --no-fund
+            - name: Go toolchain matches go.mod
+              run: node scripts/moltenterm-go-toolchain.mjs --check
+            # Everything runs: a push, a dispatch and a schedule are full runs (Affected tests says so too).
+            - name: Frontend tests
+              run: node scripts/moltenterm-affected.mjs --run --summary --only vitest --base HEAD^1 --full --full-reason "a $EVENT run on $REF"
+            - name: Backend tests
+              run: node scripts/moltenterm-affected.mjs --run --summary --only go --base HEAD^1 --full --full-reason "a $EVENT run on $REF" -- -count=1
+
     perf:
         # The machine-independent subset of the performance harness (scripts/perf/README.md, FR-PERF-006): bundle size,
         # JS evaluated by a tab view, a start-up smoke test and leaked tab views, against scripts/perf/budgets.json and
@@ -339,6 +381,7 @@ jobs:
         # Affected tests' outputs (or a draft), so with Affected tests green their skip is the selection's; a job skipped
         # because Affected tests failed fails through Affected tests' own entry. A called workflow's jobs are named
         # "<caller> / <job>" while it runs and "<caller>" when it is skipped: the gate compares the part before " / ".
+        # macOS tests run on every event but a pull request's, and the gate requires its success there only (#2277).
         name: Required gate
         runs-on: ubuntu-latest
         timeout-minutes: 45
@@ -350,11 +393,13 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   JOBS: repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/jobs
                   DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+                  EVENT: ${{ github.event_name }}
               run: |
                   heavy='["success"]'
                   selected='["success", "skipped"]'
                   if [ "$DRAFT" = "true" ]; then heavy='["skipped"]'; selected='["skipped"]'; fi
                   want="{\"Affected tests\": [\"success\"], \"Quick checks\": [\"success\"], \"Dependency security\": [\"success\", \"skipped\"], \"Frontend\": $heavy, \"Backend\": $selected, \"Perf budgets\": $selected}"
+                  if [ "$EVENT" != pull_request ]; then want=$(echo "$want" | jq -c '. + {"macOS tests": ["success"]}'); fi
                   verdict="wait"
                   while [ "$verdict" = "wait" ]; do
                       sleep 10
@@ -376,7 +421,7 @@ jobs:
         # A failed full run on develop or main (a push, or the nightly dispatch) opens an issue, or adds to the one still
         # open. It never blocks a pull request: it is how a gap in the selection, or a flaky test, surfaces within a day.
         name: Report a failed full run
-        needs: [select, quick, security, frontend, backend, perf]
+        needs: [select, quick, security, frontend, backend, macos, perf]
         if: always() && github.event_name != 'pull_request' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') && contains(needs.*.result, 'failure')
         runs-on: ubuntu-latest
         timeout-minutes: 5

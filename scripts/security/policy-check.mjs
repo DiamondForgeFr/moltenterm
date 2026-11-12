@@ -229,9 +229,17 @@ test("actual Required gate jq expression rejects failed, cancelled, unexplained 
     const draftLine = gate.split("\n").find((line) => line.includes('"$DRAFT" = "true"'));
     const lists = { false: { heavy: assigned(gate, "heavy"), selected: assigned(gate, "selected") }, true: { heavy: assigned(draftLine, "heavy"), selected: assigned(draftLine, "selected") } };
     const wantLine = gate.split("\n").find((line) => line.trim().startsWith('want="'));
-    for (const draft of [true, false]) {
-        const want = JSON.parse(wantLine.trim().slice(6, -1).replaceAll('\\"', '"').replaceAll("$heavy", lists[draft].heavy).replaceAll("$selected", lists[draft].selected));
-        assert.deepEqual(Object.keys(want).sort(), ["Affected tests", "Backend", "Dependency security", "Frontend", "Perf budgets", "Quick checks"]);
+    // #2277: the macOS suites run on every event but a pull request's, and the gate requires them there only.
+    const pushOnly = gate.match(/if \[ "\$EVENT" != pull_request \]; then want=\$\(echo "\$want" \| jq -c '([^']*)'\); fi/)?.[1];
+    assert.ok(pushOnly, "read the gate's push-only job");
+    for (const [event, draft] of [["pull_request", true], ["pull_request", false], ["push", false]]) {
+        let want = JSON.parse(wantLine.trim().slice(6, -1).replaceAll('\\"', '"').replaceAll("$heavy", lists[draft].heavy).replaceAll("$selected", lists[draft].selected));
+        if (event === "push") {
+            const added = spawnSync("jq", ["-c", pushOnly], { input: JSON.stringify(want), encoding: "utf8" });
+            assert.equal(added.status, 0, added.stderr); want = JSON.parse(added.stdout);
+            assert.deepEqual(want["macOS tests"], ["success"]);
+        }
+        assert.deepEqual(Object.keys(want).sort(), ["Affected tests", "Backend", "Dependency security", "Frontend", "Perf budgets", "Quick checks", ...(event === "push" ? ["macOS tests"] : [])].sort());
         assert.deepEqual(want["Affected tests"], ["success"]); assert.deepEqual(want["Quick checks"], ["success"]);
         assert.deepEqual(want["Dependency security"], ["success", "skipped"]);
         const verdict = (entries) => {
@@ -246,7 +254,7 @@ test("actual Required gate jq expression rejects failed, cancelled, unexplained 
         for (const conclusion of ["failure", "cancelled", "timed_out", "neutral", "action_required"]) {
             for (const name of Object.keys(want)) assert.equal(verdict(set(name, { conclusion })), "fail", `${name} ${conclusion}`);
         }
-        for (const name of ["Affected tests", "Quick checks", ...(draft ? [] : ["Frontend"])]) assert.equal(verdict(set(name, { conclusion: "skipped" })), "fail", `${name} skipped`);
+        for (const name of ["Affected tests", "Quick checks", ...(draft ? [] : ["Frontend"]), ...(event === "push" ? ["macOS tests"] : [])]) assert.equal(verdict(set(name, { conclusion: "skipped" })), "fail", `${name} skipped`);
         assert.equal(verdict(set("Dependency security", { status: "in_progress", conclusion: null })), "wait");
     }
     // Their skip is the selection's only because these jobs skip on nothing but Affected tests' outputs (or a draft).

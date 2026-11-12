@@ -4925,7 +4925,7 @@
                 "headline": "Voici comment ce projet publie une version.",
                 "builds": {
                     "title": "Comment vos builds sont vérifiés",
-                    "shared": "{build} n'est pas revérifié sur cet ordinateur quand GitHub a déjà vérifié la même version en entier. Il ne lance les contrôles ici que si ceux de GitHub manquent, tournent encore, ont échoué ou sont inutilisables.",
+                    "shared": "{build} n'est pas revérifié sur cet ordinateur quand GitHub a déjà vérifié la même version en entier, sur ce type de système. Il ne lance les contrôles ici que si ceux de GitHub manquent, tournent encore, ont échoué, ont eu lieu sur un autre type de système ou sont inutilisables.",
                     "always": "{build} est toujours vérifié sur cet ordinateur, même quand GitHub a déjà vérifié la même version."
                 },
                 "workBranch": "Vous travaillez sur {trunk}, votre branche de travail.",
@@ -9946,6 +9946,7 @@
                     "requiredMissing": "le contrôle requis {check} n'est pas un job du passage {run} de GitHub",
                     "requiredSkipped": "le contrôle requis {check} a été ignoré dans le passage {run} de GitHub",
                     "requiredNotGreen": "le contrôle requis {check} s'est terminé en {conclusion} dans le passage {run} de GitHub",
+                    "platformNotCovered": "le passage de GitHub n'a pas testé le type de système de cet ordinateur",
                     "localChosen": "le pipeline demande la CI locale",
                     "hereChosen": "vous avez choisi de vérifier ici",
                     "stalled": "son passage n'a pas avancé pendant {minutes} minutes"

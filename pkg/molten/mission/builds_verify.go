@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,15 @@ type BuildVerify struct {
 	Total   int         `json:"total,omitempty"`
 	Why     string      `json:"why,omitempty"`
 	WhyText *uimsg.Text `json:"whytext,omitempty"`
+}
+
+// buildPlatform is the system the build is made for, which a GitHub run must have tested: the code specific to it never
+// runs on another one.
+func (r *Runs) buildPlatform() string {
+	if r.goos != "" {
+		return remoteci.PlatformOf(r.goos)
+	}
+	return remoteci.PlatformOf(runtime.GOOS)
 }
 
 func (r *Runs) githubPollInterval() time.Duration {
@@ -183,7 +193,7 @@ func (r *Runs) verifyByGithub(ctx context.Context, b *buildLog) (used bool, stop
 	repo, branches := r.githubTarget(ctx, dir)
 	client := r.githubClient(dir, repo)
 	check := func() remoteci.Answer {
-		return remoteci.Check(ctx, client, remoteci.Query{Repo: repo, Sha: b.rec.Commit, Branches: branches})
+		return remoteci.Check(ctx, client, remoteci.Query{Repo: repo, Sha: b.rec.Commit, Branches: branches, Platform: r.buildPlatform()})
 	}
 	b.say("looking for a green GitHub CI run on %s", shortSha(b.rec.Commit))
 	answer := check()
