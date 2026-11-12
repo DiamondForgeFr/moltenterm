@@ -704,6 +704,18 @@ describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
         expect(exchange()).toEqual([]);
     });
 
+    // The scripted replay (dev and local builds) opens the brainstorm the same way: its next words go there too.
+    it("carries a replayed step that opened the brainstorm, and writes its next words there", () => {
+        const session = BrokkSession.getInstance();
+        session.replayStep("r0", "An idea", "Let's", 900, false);
+        const id = exchange()[0].id;
+        session.switchConversation("brainstorm", { fresh: true, carry: id });
+        session.replayStep("r0", "An idea", "Let's put it on the anvil.", 900, true);
+        expect(shape()).toEqual(["you:An idea", "brokk:Let's put it on the anvil."]);
+        session.switchConversation("main");
+        expect(exchange()).toEqual([]);
+    });
+
     // AC24: the message whose answer opened the brainstorm goes into its conversation, and its answer goes on there.
     it("carries the message whose answer opened the brainstorm, and follows its answer there", async () => {
         const session = BrokkSession.getInstance();

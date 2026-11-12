@@ -254,8 +254,12 @@ export class BrokkSession {
             current,
             shown.filter((item) => !carried.includes(item))
         );
-        if (carried.length > 0 && this.tracked?.id === opts.carry) {
-            this.tracked.conversation = key;
+        if (carried.length > 0) {
+            for (const tracked of [this.tracked, ...this.replayed.values()]) {
+                if (tracked?.id === opts.carry) {
+                    tracked.conversation = key;
+                }
+            }
         }
         const next = opts.fresh ? [] : (this.aside.get(key) ?? []);
         this.aside.delete(key);
