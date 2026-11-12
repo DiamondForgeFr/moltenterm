@@ -3135,8 +3135,14 @@
             "header": "{name}'s thought · {nodes} · {links} · {camera}",
             "camera": {
                 "follow": "camera on the topic",
-                "overview": "overview"
+                "overview": "overview",
+                "free": "your view"
             },
+            "recentre": "Recentre",
+            "recentreTitle": "Frame the whole graph (0, or a double click on the background)",
+            "follow": "Follow {name}",
+            "followTitle": "The camera follows {name}'s new plates again",
+            "stageLabel": "The brainstorm's graph: drag or scroll to move it, pinch or + and − to zoom, 0 to recentre",
             "headerWaiting": "{name} is listening",
             "nodes": {
                 "one": "{count} element",

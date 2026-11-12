@@ -3135,8 +3135,14 @@
             "header": "La pensée de {name} · {nodes} · {links} · {camera}",
             "camera": {
                 "follow": "caméra sur le sujet",
-                "overview": "vue d'ensemble"
+                "overview": "vue d'ensemble",
+                "free": "votre vue"
             },
+            "recentre": "Recentrer",
+            "recentreTitle": "Cadrer tout le graphe (0, ou un double clic sur le fond)",
+            "follow": "Suivre {name}",
+            "followTitle": "La caméra suit de nouveau les nouvelles plaques de {name}",
+            "stageLabel": "Le graphe du brainstorm : glissez ou faites défiler pour le déplacer, pincez ou + et − pour zoomer, 0 pour recentrer",
             "headerWaiting": "{name} écoute",
             "nodes": {
                 "one": "{count} élément",

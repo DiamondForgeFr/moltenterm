@@ -752,3 +752,18 @@ describe("leaving a brainstorm and coming back (FR-BOSS-010 AC2a, AC10e, #2284)"
         expect(globalStore.get(BrainstormLastLeftAtom)).toBeNull();
     });
 });
+
+// #2283: the header's Recentre and Follow Brokk reach the stage's scene, each ask with its own number.
+describe("the camera's asks (#2283)", () => {
+    it("numbers each ask, so a stage mounted later never replays an old one", () => {
+        BrainstormModel.resetInstance();
+        const model = BrainstormModel.getInstance();
+        expect(globalStore.get(model.cameraAskAtom)).toBeNull();
+        model.askCamera("recentre");
+        expect(globalStore.get(model.cameraAskAtom)).toEqual({ kind: "recentre", seq: 1 });
+        model.askCamera("follow");
+        expect(globalStore.get(model.cameraAskAtom)).toEqual({ kind: "follow", seq: 2 });
+        expect(globalStore.get(model.cameraModeAtom)).toBe("overview");
+        expect(globalStore.get(model.followPulseAtom)).toBe(0);
+    });
+});

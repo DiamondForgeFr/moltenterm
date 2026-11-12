@@ -8,7 +8,8 @@
    (--bs-edge, --bs-label, --bs-plate, --bs-glow), so a plate and its rope never disagree. */
 
 /* Under Brokk's group and above the app (the host's layer, brokk-group.css). It takes no pointer: a press on the dim
-   reaches his scrim, which closes his group, and the mode ends with it. */
+   reaches his scrim, which closes his group, and the mode ends with it. While the mode is in, its stage takes the
+   pointer instead, for the developer's pan and zoom (#2283, below). */
 .mt-bs-layer {
     position: absolute;
     inset: 0;
@@ -25,7 +26,8 @@
 
 /* His group's own light scrim gives way to the forge-dark one while the mode is on; it still takes the press, but from
    under the layer (#2284): drawn after it at the same level, it covered the header, so Leave the brainstorm, the switch
-   and the widget never took the click. The layer takes no pointer itself, so a press on the dim still reaches it. */
+   and the widget never took the click. The layer takes no pointer itself, so a press on the dim still reaches it; its
+   stage takes that press first since #2283, for the pan (below). */
 .mt-boss-layer:has(> .mt-bs-layer.is-in) .mt-brokk-scrim {
     background: transparent;
     z-index: -1;
@@ -86,6 +88,32 @@
 .mt-bs-plates {
     position: absolute;
     inset: 0;
+}
+
+/* The developer explores the graph by hand (FR-BOSS-010 AC7a, #2283): while the mode is in, the stage takes the pointer
+   and the focus. It covers his light scrim, which lies under the layer (#2284, above), so it takes every press on the
+   dim: a click there still never ends the brainstorm, and the app underneath still takes nothing. A press on the
+   background pans; one on a plate is the plate's (a click, or its drag in #2247). */
+.mt-bs-layer.is-in .mt-bs-stage {
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    outline: none;
+}
+
+.mt-bs-layer.is-in .mt-bs-stage.is-panning {
+    cursor: grabbing;
+}
+
+.mt-bs-stage:focus-visible {
+    box-shadow: inset 0 0 0 1px rgb(201 164 106 / 0.45);
+}
+
+.mt-bs-layer.is-in .mt-bs-plate {
+    pointer-events: auto;
+    cursor: default;
 }
 
 /* A plate of riveted metal: dark steel brushed with its kind's tint, a rivet at each corner, its kind in small letters
@@ -413,6 +441,68 @@
     margin-left: 4px;
 }
 
+/* Follow Brokk (AC7b, #2283): a discreet chip of hot metal while the developer holds the camera. When Brokk adds a plate
+   out of view after a quiet stretch, a ring of heat leaves it once; under reduced motion the ring only glows and fades. */
+.mt-bs-follow {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 10px;
+    border: 1px solid rgb(255 124 13 / 0.55);
+    border-radius: var(--mt-radius-control);
+    background: rgb(58 26 8 / 0.9);
+    color: rgb(255 178 122);
+    font: inherit;
+    letter-spacing: 0.12em;
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
+    transition:
+        border-color var(--mt-duration-fast) var(--mt-ease),
+        color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-bs-follow:hover,
+.mt-bs-follow:focus-visible {
+    border-color: rgb(255 154 60);
+    color: rgb(255 217 168);
+}
+
+.mt-bs-follow-glow {
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.mt-bs-follow-glow.is-pulsing {
+    animation: mt-bs-follow-pulse 900ms ease-out 1;
+}
+
+@keyframes mt-bs-follow-pulse {
+    0% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgb(255 124 13 / 0.7);
+    }
+    100% {
+        opacity: 0;
+        box-shadow: 0 0 0 10px rgb(255 124 13 / 0);
+    }
+}
+
+@keyframes mt-bs-follow-glow {
+    0% {
+        opacity: 1;
+        box-shadow: 0 0 8px 1px rgb(255 124 13 / 0.6);
+    }
+    100% {
+        opacity: 0;
+        box-shadow: 0 0 8px 1px rgb(255 124 13 / 0.6);
+    }
+}
+
 /* What broke through the pause: one line at the right edge, never a toast. */
 .mt-bs-edge {
     position: absolute;
@@ -461,9 +551,17 @@
     .mt-bs-stage {
         transition: opacity var(--mt-duration-fade) linear;
     }
+
+    .mt-bs-follow-glow.is-pulsing {
+        animation-name: mt-bs-follow-glow;
+    }
 }
 
 .prefers-reduced-motion .mt-bs-layer,
 .prefers-reduced-motion .mt-bs-stage {
     transition: opacity var(--mt-duration-fade) linear;
+}
+
+.prefers-reduced-motion .mt-bs-follow-glow.is-pulsing {
+    animation-name: mt-bs-follow-glow;
 }
