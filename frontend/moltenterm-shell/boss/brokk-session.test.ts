@@ -388,6 +388,27 @@ describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
         expect(shape()).toEqual(["you:an idea"]);
     });
 
+    // FR-BOSS-010 AC24 (#2285): a message queued in the brainstorm goes, once he is free, as a brainstorm message: with
+    // its lead and into the brainstorm's conversation, even when the developer left it meanwhile.
+    it("sends a message queued in the brainstorm into its conversation, with its lead, after the developer left", async () => {
+        const session = BrokkSession.getInstance();
+        session.switchConversation("brainstorm", { fresh: true });
+        session.setLead("Brainstorm:");
+        sayAnswers = [{ status: "busy", reason: "notready" }, said];
+        globalStore.set(hub.ownPromptBusyAtom, true);
+        expect((await session.say("a garden planner")).phase).toBe("queued");
+        session.switchConversation("main");
+        session.setLead("");
+        globalStore.set(hub.ownPromptBusyAtom, false);
+        release(QueueEveryMs);
+        await flush();
+        const says = calls.filter((c) => c.command === SayCommand);
+        expect(says[says.length - 1].data.text).toBe("Brainstorm: a garden planner");
+        expect(exchange()).toEqual([]);
+        session.switchConversation("brainstorm");
+        expect(shape()).toEqual(["you:Brainstorm: a garden planner"]);
+    });
+
     // #2284: a long turn of his never turns the waiting message into "busy, try again": while his own state says his
     // turn runs, the wait has no limit.
     it("waits with no limit while his turn runs", async () => {
