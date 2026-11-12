@@ -12,11 +12,13 @@ import {
     FailedReadingsForNoReply,
     fieldAction,
     fieldAfterSend,
+    fieldWithReturned,
     followStep,
     IdleReadingsForAnswered,
     IdleReadingsForNoReply,
     IdleReadingsForUnread,
     IdleTalk,
+    joinQueued,
     keepsText,
     MaxFieldLines,
     MaxMessageLength,
@@ -97,7 +99,7 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
         expect(talkNoteKey({ ...IdleTalk, phase: "answered", reply: "Two." })).toBeNull();
         expect(talkNoteKey({ ...IdleTalk, phase: "unread" })).toBe("boss.panel.talk.unread");
         expect(talkNoteKey({ ...IdleTalk, phase: "noreply" })).toBe("boss.panel.talk.noReply");
-        expect(talkNoteKey(talkStateOf({ status: "busy" }))).toBe("boss.panel.talk.busy");
+        expect(talkNoteKey(talkStateOf({ status: "busy" }))).toBe("boss.panel.talk.refusedWhileFree");
         expect(talkNoteKey(talkStateOf({ status: "noagent" }))).toBe("boss.panel.talk.noAgent");
         expect(talkNoteKey(talkStateOf({ status: "agentmissing" }))).toBe("boss.panel.talk.agentMissing");
         expect(talkNoteKey(talkStateOf({ status: "failed", reason: "gone" }))).toBe("boss.panel.talk.gone");
@@ -250,12 +252,27 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
         expect(queued.phase).toBe("queued");
         expect(talkNoteKey(queued)).toBe("boss.panel.talk.queued");
         expect(talkWaits(queued)).toBe(true);
-        expect(keepsText(queued)).toBe(true);
+        expect(keepsText(queued)).toBe(false);
         expect(canSend("changed", queued)).toBe(true);
         expect(queuedOf(talkStateOf({ status: "sent" })).phase).toBe("answering");
         for (const texts of [En, Fr]) {
             expect(textAt(texts, "boss.panel.talk.queued")).toMatch(/\{name\}/);
             expect(textAt(texts, "boss.panel.talk.humanDraft")).toMatch(/\{name\}/);
+        }
+    });
+
+    // #2284: the waiting message leaves the field; what is sent meanwhile joins it; a cancel gives it back first.
+    it("joins the messages that wait, and gives one back before what was written meanwhile (#2284)", () => {
+        const one = joinQueued(null, "first", 5);
+        expect(one).toEqual({ text: "first", since: 5 });
+        expect(joinQueued(one, "second", 9)).toEqual({ text: "first\n\nsecond", since: 5 });
+        expect(fieldWithReturned("first", "")).toBe("first");
+        expect(fieldWithReturned("first", "  ")).toBe("first");
+        expect(fieldWithReturned("first", "more")).toBe("first\nmore");
+        for (const texts of [En, Fr]) {
+            expect(textAt(texts, "boss.panel.talk.queuedRow")).toMatch(/\{name\}/);
+            expect(textAt(texts, "boss.panel.talk.refusedWhileFree")).toMatch(/\{name\}/);
+            expect(textAt(texts, "boss.panel.talk.cancelQueued")).toBeTruthy();
         }
     });
 
@@ -266,7 +283,7 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
         expect(queueBoundMs(talkStateOf({ status: "busy", reason: "notready" }))).toBe(MaxQueueMs);
         expect(MaxUnsettledQueueMs).toBeLessThan(MaxQueueMs);
         expect(talkNoteKey(unsettled)).toBe("boss.panel.talk.unsettled");
-        expect(talkNoteKey(talkStateOf({ status: "busy" }))).toBe("boss.panel.talk.busy");
+        expect(talkNoteKey(talkStateOf({ status: "busy" }))).toBe("boss.panel.talk.refusedWhileFree");
     });
 
     // #2257: the answers a permission request offers, always allow only when his agent offers it; the approvals made

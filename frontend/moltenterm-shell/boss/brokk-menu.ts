@@ -6,8 +6,9 @@
 // title-bar face and of the square, and the ⋯ at the square's top right opens it. One list for the three, so no door of
 // the old panel is lost.
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
-import { openBrainstorm } from "../brainstorm/brainstorm-boot";
+import { BrainstormLastLeftAtom, openBrainstorm, resumeLastBrainstorm } from "../brainstorm/brainstorm-boot";
 import { currentBrainstormAllowed } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import { t } from "../i18n/i18n";
@@ -28,6 +29,14 @@ export function brokkMenuItems(name: string, leave?: () => void, first?: BrokkMe
     }
     // Brokk's thought in 3D (FR-BOSS-010 AC2, #2246): the developer starts a brainstorm; gold, dev and local builds only.
     if (currentBrainstormAllowed()) {
+        // The way back to the brainstorm last left (AC10e, #2284).
+        const last = globalStore.get(BrainstormLastLeftAtom);
+        if (last != null) {
+            items.push({
+                label: t("boss.brainstorm.picker.resume", { title: last.title }),
+                click: () => fireAndForget(() => resumeLastBrainstorm()),
+            });
+        }
         items.push(
             {
                 label: t("boss.brainstorm.menu", { name }),

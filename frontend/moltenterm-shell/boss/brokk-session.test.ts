@@ -123,14 +123,18 @@ describe("the talk field goes to Brokk's session (FR-BOSS-009, AC15)", () => {
             return { status: "busy", reason: "notready" };
         };
         session.useCall(call);
+        // The queued message's tries wait for ever here: only the first try is looked at.
+        session.useWait(() => new Promise<void>(() => {}));
         await session.say("hello");
         expect(phaseDuring).toBe("sending");
-        expect(globalStore.get(session.stateAtom)).toMatchObject({ phase: "busy", reason: "notready" });
+        expect(globalStore.get(session.stateAtom)).toMatchObject({ phase: "queued", reason: "notready" });
 
+        session.cancelQueued();
         found = { status: "none" };
         phaseDuring = "";
         await session.say("hello");
         expect(phaseDuring).toBe("starting");
+        session.cancelQueued();
     });
 
     it("tells a failure of the call as a failure, and leaves the ring alone", async () => {
@@ -352,25 +356,24 @@ describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
         expect(reads[reads.length - 1].data.index).toBe(3);
     });
 
-    it("keeps a message his agent could not take out of the exchange, and its text with the developer", async () => {
+    it("keeps a message his agent could not take out of the exchange, waiting in his talk window", async () => {
         const session = BrokkSession.getInstance();
         sayAnswers = [{ status: "busy", reason: "notready" }];
-        void session.say("are you there?");
-        await flush();
+        const state = await session.say("are you there?");
         expect(exchange()).toEqual([]);
+        expect(state.phase).toBe("queued");
         expect(globalStore.get(session.stateAtom)).toMatchObject({ phase: "queued" });
+        expect(globalStore.get(session.queuedAtom)).toMatchObject({ text: "are you there?" });
     });
 
-    // #2257: a message his agent was too busy to take waits in the field and goes by itself once his prompt is free:
-    // no retry click.
+    // #2257, #2284: a message his agent was too busy to take leaves the field at once, waits in his talk window and goes
+    // by itself once his prompt is free: no retry click.
     it("sends a queued message by itself once his prompt is free", async () => {
         const session = BrokkSession.getInstance();
         sayAnswers = [{ status: "busy", reason: "notready" }, said];
         globalStore.set(hub.ownPromptBusyAtom, true);
-        let done = false;
-        void session.say("an idea").then(() => (done = true));
-        await flush();
-        expect(globalStore.get(session.stateAtom).phase).toBe("queued");
+        const first = await session.say("an idea");
+        expect(first.phase).toBe("queued");
         expect(sayCalls).toBe(1);
         // Still busy: the next try waits, and nothing is typed.
         release(QueueEveryMs);
@@ -380,23 +383,82 @@ describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
         release(QueueEveryMs);
         await flush();
         expect(sayCalls).toBe(2);
-        expect(done).toBe(true);
+        expect(globalStore.get(session.queuedAtom)).toBeNull();
         expect(globalStore.get(session.stateAtom).phase).toBe("answering");
         expect(shape()).toEqual(["you:an idea"]);
     });
 
-    it("stops a queued message once the developer writes again", async () => {
+    // #2284: a long turn of his never turns the waiting message into "busy, try again": while his own state says his
+    // turn runs, the wait has no limit.
+    it("waits with no limit while his turn runs", async () => {
         const session = BrokkSession.getInstance();
         sayAnswers = [{ status: "busy", reason: "notready" }, said];
-        void session.say("an idea");
+        globalStore.set(hub.ownPromptBusyAtom, true);
+        await session.say("look in my projects");
+        // Past the bound of a free agent that refuses: the time his turn runs never counts.
+        const tries = MaxQueueMs / QueueEveryMs + 10;
+        for (let i = 0; i < tries; i++) {
+            for (let j = 0; j < 50 && !waits.some((w) => w.ms === QueueEveryMs); j++) {
+                await Promise.resolve();
+            }
+            release(QueueEveryMs);
+        }
         await flush();
+        expect(sayCalls).toBe(1);
         expect(globalStore.get(session.stateAtom).phase).toBe("queued");
+        expect(globalStore.get(session.queuedAtom)).toMatchObject({ text: "look in my projects" });
+        globalStore.set(hub.ownPromptBusyAtom, false);
+        release(QueueEveryMs);
+        await flush();
+        expect(sayCalls).toBe(2);
+        expect(shape()).toEqual(["you:look in my projects"]);
+    });
+
+    // #2284: the field is free while a message waits: what is sent meanwhile joins it, and both go in one turn.
+    it("joins a message sent while one waits, and sends them together", async () => {
+        const session = BrokkSession.getInstance();
+        sayAnswers = [{ status: "busy", reason: "notready" }, said];
+        await session.say("first");
         session.clearNote();
+        await session.say("second");
+        expect(sayCalls).toBe(1);
+        expect(globalStore.get(session.queuedAtom).text).toBe("first\n\nsecond");
+        release(QueueEveryMs);
+        await flush();
+        expect(sayCalls).toBe(2);
+        expect(calls.filter((c) => c.command === SayCommand)[1].data.text).toBe("first\n\nsecond");
+        expect(shape()).toEqual(["you:first\n\nsecond"]);
+    });
+
+    // #2284: Cancel stops the waiting message and gives its text back to the field.
+    it("cancels a waiting message, which goes back to the field", async () => {
+        const session = BrokkSession.getInstance();
+        sayAnswers = [{ status: "busy", reason: "notready" }, said];
+        await session.say("an idea");
+        session.cancelQueued();
+        expect(globalStore.get(session.queuedAtom)).toBeNull();
         expect(globalStore.get(session.stateAtom).phase).toBe("idle");
+        expect(session.takeReturned()).toBe("an idea");
+        expect(session.takeReturned()).toBeNull();
         release(QueueEveryMs);
         await flush();
         expect(sayCalls).toBe(1);
         expect(exchange()).toEqual([]);
+    });
+
+    // #2284: a real failure while it waits gives the text back to the field, and the note says what happened.
+    it("gives the text back with what happened when a try fails", async () => {
+        const session = BrokkSession.getInstance();
+        sayAnswers = [
+            { status: "busy", reason: "notready" },
+            { status: "failed", reason: "humandraft" },
+        ];
+        await session.say("an idea");
+        release(QueueEveryMs);
+        await flush();
+        expect(globalStore.get(session.queuedAtom)).toBeNull();
+        expect(globalStore.get(session.stateAtom)).toMatchObject({ phase: "failed", reason: "humandraft" });
+        expect(session.takeReturned()).toBe("an idea");
     });
 
     // Review of #2257: the developer writes again while a queued try is on its way. If his agent took it, it went: it
@@ -442,16 +504,19 @@ describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
         expect(calls.filter((c) => c.command === SayCommand)[1].data.clearprompt).toBeUndefined();
     });
 
-    it("gives the field back to the developer when he stays busy too long", async () => {
+    // #2284: only an agent that seems free and keeps refusing is a failure: past the bound, the text goes back to the
+    // field and the note says so.
+    it("gives the field back when he seems free and keeps refusing too long", async () => {
         const session = BrokkSession.getInstance();
         session.useWait(async () => {});
         sayAnswers = [{ status: "busy", reason: "notready" }];
-        globalStore.set(hub.ownPromptBusyAtom, true);
-        const state = await session.say("an idea");
+        globalStore.set(hub.ownPromptBusyAtom, false);
+        await session.say("an idea");
+        const state = await settled(session, ["busy"]);
         expect(state.phase).toBe("busy");
-        expect(globalStore.get(session.stateAtom).phase).toBe("busy");
-        expect(sayCalls).toBe(1);
-        expect(MaxQueueMs).toBeGreaterThan(0);
+        expect(sayCalls).toBe(MaxQueueMs / QueueEveryMs + 1);
+        expect(globalStore.get(session.queuedAtom)).toBeNull();
+        expect(session.takeReturned()).toBe("an idea");
     });
 
     it("keeps each answer apart over several messages, in order", async () => {
@@ -497,8 +562,10 @@ describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
         expect(exchange()[1]).toMatchObject({ final: true });
         expect(globalStore.get(session.stateAtom).phase).toBe("queued");
 
-        // Writing again clears the note and leaves the answers alone.
+        // Writing again leaves the waiting message alone; Cancel stops it and leaves the answers alone.
         session.clearNote();
+        expect(globalStore.get(session.stateAtom).phase).toBe("queued");
+        session.cancelQueued();
         expect(globalStore.get(session.stateAtom).phase).toBe("idle");
         expect(shape()).toEqual(["you:first", "brokk:Two agents run now."]);
     });

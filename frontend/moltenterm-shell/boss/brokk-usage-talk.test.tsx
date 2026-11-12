@@ -30,12 +30,18 @@ vi.mock("./brokk-session", async () => {
     const permissionAtom = atom(null as any);
     const permissionGoneAtom = atom(false);
     const approvedAtom = atom([] as any[]);
+    const queuedAtom = atom(null as any);
+    const returnedAtom = atom(null as string);
     const session = {
         stateAtom,
         exchangeAtom,
         permissionAtom,
         permissionGoneAtom,
         approvedAtom,
+        queuedAtom,
+        returnedAtom,
+        cancelQueued: vi.fn(),
+        takeReturned: vi.fn(() => null),
         say: vi.fn(),
         permit: vi.fn(),
         clearNote: vi.fn(),
@@ -45,7 +51,7 @@ vi.mock("./brokk-session", async () => {
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
+import { BrainstormLastLeftAtom, BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { UsageReadingsAtom } from "./boss-usage";
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk, keepDraft } from "./brokk-talk";
@@ -143,7 +149,7 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         const stateAtom = (BrokkSession.getInstance() as any).stateAtom;
         globalStore.set(stateAtom, { ...Idle, phase: "busy", reason: "notready" });
         expect(render()).toMatch(
-            /data-testid="brokk-talk-note" data-phase="busy"[^>]*><span>Brokk&#x27;s agent is busy/
+            /data-testid="brokk-talk-note" data-phase="busy"[^>]*><span>Brokk&#x27;s agent refused your message/
         );
         globalStore.set(stateAtom, { ...Idle, phase: "noagent" });
         expect(render()).toContain("No coding agent is installed to start Brokk");
@@ -308,6 +314,53 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         globalStore.set(BrainstormStateAtom, { allowed: true, open: false, version: 2 });
         expect(render()).toContain('data-testid="brokk-talk" data-open="false"');
         globalStore.set(BrainstormStateAtom, null);
+    });
+
+    // #2284: a message waiting for him shows in his open conversation with its Cancel, and the field is free.
+    it("shows the waiting message with its Cancel, the window open", () => {
+        const session = BrokkSession.getInstance() as any;
+        keepDraft("");
+        globalStore.set(session.stateAtom, { ...Idle, phase: "queued", reason: "notready" });
+        globalStore.set(session.queuedAtom, { text: "Look in my projects", since: 1 });
+        try {
+            const html = render();
+            expect(html).toContain('data-testid="brokk-talk" data-open="true"');
+            expect(html).toMatch(/data-testid="brokk-queued"[\s\S]*Look in my projects[\s\S]*Sent when Brokk is done/);
+            expect(html).toContain('data-testid="brokk-queued-cancel"');
+            expect(html).not.toContain('data-testid="brokk-talk-wayout"');
+            expect(html).not.toContain("Try again");
+        } finally {
+            globalStore.set(session.queuedAtom, null);
+        }
+    });
+
+    // #2284: after leaving a brainstorm, the way back is one line, where the brainstorm exists.
+    it("offers to resume the brainstorm left, only where the brainstorm exists and outside it", () => {
+        const last = {
+            slug: "kids-video",
+            title: "A safe video app",
+            dir: "/synthetic",
+            created: 1,
+            updated: 2,
+            turns: 2,
+        };
+        try {
+            globalStore.set(BrainstormLastLeftAtom, last);
+            gate.allowed = true;
+            let html = render();
+            expect(html).toContain('data-testid="brokk-talk-resume"');
+            expect(html).toContain("Resume “A safe video app”");
+            globalStore.set(BrainstormStateAtom, { allowed: true, open: true, version: 1 });
+            expect(render()).not.toContain('data-testid="brokk-talk-resume"');
+            globalStore.set(BrainstormStateAtom, null);
+            gate.allowed = false;
+            html = render();
+            expect(html).not.toContain('data-testid="brokk-talk-resume"');
+        } finally {
+            gate.allowed = false;
+            globalStore.set(BrainstormLastLeftAtom, null);
+            globalStore.set(BrainstormStateAtom, null);
+        }
     });
 
     // #2257: the field offers its one command while a slash starts, only where the brainstorm exists.

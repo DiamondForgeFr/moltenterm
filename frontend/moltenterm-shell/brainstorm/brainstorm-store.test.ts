@@ -86,6 +86,12 @@ vi.mock("../boss/brokk-session", async () => {
             return () => listeners.delete(fn);
         },
         tell: (a: any) => listeners.forEach((fn) => fn(a)),
+        takenListeners: new Set<(id: string) => void>(),
+        listenTaken: (fn: (id: string) => void) => {
+            session.takenListeners.add(fn);
+            return () => session.takenListeners.delete(fn);
+        },
+        taken: (id: string) => session.takenListeners.forEach((fn) => fn(id)),
         addLocalLine: (text: string) => session.lines.push(text),
         setLead: (lead: string) => {
             session.lead = lead;
@@ -113,6 +119,7 @@ import { BossBubbleModel } from "../boss/boss-store";
 import { BrokkSession } from "../boss/brokk-session";
 import { MoltentermNotifications } from "../notifications-store";
 import { SidebarModel } from "../sidebar/sidebar-store";
+import { BrainstormLastLeftAtom, dismissLastBrainstorm, resumeLastBrainstorm } from "./brainstorm-boot";
 import { brainstormHolds } from "./brainstorm-hold";
 import {
     BrainstormModel,
@@ -185,10 +192,14 @@ async function fakeCall(command: string, data: any): Promise<any> {
         if (match == null) {
             return { state: state(), turns: [], error: "unknown" };
         }
+        // The brainstorm just left opens again with no swap (#2284).
+        const again = !server.open && server.current?.slug === match.slug;
         server.open = true;
         server.current = match;
         server.version++;
-        server.swap = (server.swap ?? 0) + 1;
+        if (!again) {
+            server.swap = (server.swap ?? 0) + 1;
+        }
         return {
             state: state(),
             resumebrief: server.resumeBrief !== false,
@@ -232,7 +243,7 @@ async function fakeCall(command: string, data: any): Promise<any> {
         server.version++;
     }
     if (command === TurnCommand) {
-        if (!server.open && data.block != null) {
+        if (!server.open && data.block != null && !data.late) {
             server.open = true;
         }
         server.nodes++;
@@ -672,5 +683,72 @@ describe("the brainstorm folders (FR-BOSS-010 AC10a to AC10d, AC11, #2248)", () 
         expect(await model.forgetFolder(folder("forge-notes", "Forge notes", 20))).toBe(false);
         expect(calls).toEqual([]);
         expect(globalStore.get(model.promptAtom)).toBeNull();
+    });
+});
+
+// #2284: leaving never cuts his work, and the way back is obvious. Synthetic brainstorms only.
+describe("leaving a brainstorm and coming back (FR-BOSS-010 AC2a, AC10e, #2284)", () => {
+    async function inBrainstorm(): Promise<BrainstormModel> {
+        server.folders = [folder("kids-video", "A safe video app for children", 30)];
+        const model = startModel();
+        await settle();
+        await model.begin();
+        await model.load("kids-video");
+        await settle();
+        return model;
+    }
+
+    it("saves in the brainstorm left an answer begun in it, without opening the mode again", async () => {
+        const model = await inBrainstorm();
+        const swap = globalStore.get(model.stateAtom).swap;
+        session.taken("m9");
+        await model.end();
+        expect(model.isOpen()).toBe(false);
+        const more = graphAnswer("Found it.", [{ op: "add", id: "found", kind: "idea", text: "Found", from: "c" }]);
+        session.tell({ id: "m9", you: "Look in my projects", markdown: more, turn: 9, final: true });
+        await settle();
+        const late = calls.filter((c) => c.command === TurnCommand);
+        expect(late).toHaveLength(1);
+        expect(late[0].data).toMatchObject({ you: "Look in my projects", late: true, swap });
+        expect(model.isOpen()).toBe(false);
+
+        // An answer begun outside the mode is not kept.
+        session.taken("m10");
+        session.tell({ id: "m10", you: "What time is it?", markdown: "Ten past two.", turn: 10, final: true });
+        await settle();
+        expect(calls.filter((c) => c.command === TurnCommand)).toHaveLength(1);
+    });
+
+    it("offers the brainstorm left until another starts, first in the picker", async () => {
+        const model = await inBrainstorm();
+        expect(globalStore.get(BrainstormLastLeftAtom)).toBeNull();
+        await model.end();
+        expect(globalStore.get(BrainstormLastLeftAtom)).toMatchObject({ slug: "kids-video" });
+
+        server.folders = [folder("garden", "A garden planner", 99), ...server.folders];
+        await model.begin();
+        const prompt: any = globalStore.get(model.promptAtom);
+        expect(prompt.recent.map((f: any) => f.slug)).toEqual(["kids-video", "garden"]);
+        expect(globalStore.get(BrainstormLastLeftAtom)).toBeNull();
+
+        await model.end();
+        dismissLastBrainstorm();
+        expect(globalStore.get(BrainstormLastLeftAtom)).toBeNull();
+    });
+
+    it("resumes the brainstorm left where it was, and his answer still coming in stays its own", async () => {
+        const model = await inBrainstorm();
+        const swap = globalStore.get(model.stateAtom).swap;
+        await model.end();
+        const stops = session.stops;
+        expect(await resumeLastBrainstorm()).toBe(true);
+        expect(model.isOpen()).toBe(true);
+        expect(globalStore.get(model.stateAtom)).toMatchObject({ swap, brainstorm: { slug: "kids-video" } });
+        expect(session.stops).toBe(stops);
+        expect(session.shown.map((turn: any) => turn.text)).toEqual([
+            "About A safe video app for children",
+            "Where were we?",
+        ]);
+        expect(globalStore.get(BrainstormLastLeftAtom)).toBeNull();
     });
 });

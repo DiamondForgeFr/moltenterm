@@ -296,9 +296,11 @@ export function onItsWay(state: TalkState): boolean {
     return state.phase === "sending" || state.phase === "starting";
 }
 
-// The text leaves the field only once the agent has it: a busy agent, a missing one or a failure keep it for another try.
+// The text leaves the field once the agent has it, or once it waits for him in his talk window (queued, #2284): a
+// missing agent or a failure keep it for another try.
 export function keepsText(state: TalkState): boolean {
     return !(
+        state.phase === "queued" ||
         state.phase === "answering" ||
         state.phase === "needsanswer" ||
         state.phase === "answered" ||
@@ -312,17 +314,36 @@ export function talkWaits(state: TalkState): boolean {
     return onItsWay(state) || state.phase === "answering" || state.phase === "queued";
 }
 
-// A message his agent was too busy to take waits for him (#2257): it is tried again this often while he is free, for
-// at most this long, then the field offers to try again.
+// A message his agent was too busy to take waits for him in his talk window (#2257, #2284): it is tried again this
+// often. While his own state says his turn runs or he waits for the developer, it waits with no limit: a long turn is
+// never a failure. Only the time he seems free and still refuses it counts, up to this long, then the failure is said.
 export const QueueEveryMs = 2000;
 export const MaxQueueMs = 10 * 60 * 1000;
 // An agent whose state cannot be read (no hooks) and whose transcript never shows it at rest (a call or a turn whose end
 // never came) is waited for this long only, then the field says so plainly (review of #2257).
 export const MaxUnsettledQueueMs = 2 * 60 * 1000;
 
-// How long a message waits for him in the field, by what kept him busy.
+// How long a message waits for him while he seems free, by what kept him busy.
 export function queueBoundMs(state: TalkState): number {
     return state.reason === "unsettled" ? MaxUnsettledQueueMs : MaxQueueMs;
+}
+
+// The message waiting for him in his talk window (#2284); several sent meanwhile join it, one per paragraph.
+export type QueuedMessage = { text: string; since: number };
+
+export function joinQueued(queued: QueuedMessage, text: string, now: number): QueuedMessage {
+    if (queued == null) {
+        return { text, since: now };
+    }
+    return { ...queued, text: `${queued.text}\n\n${text}` };
+}
+
+// The text a queued message gives back to the field (Cancel, or a failure): before what the developer wrote meanwhile.
+export function fieldWithReturned(returned: string, current: string): string {
+    if (current.trim() === "") {
+        return returned;
+    }
+    return `${returned}\n${current}`;
 }
 
 // What a busy answer becomes while the message waits for him: the field keeps the text and says it goes by itself.
@@ -348,7 +369,7 @@ export function talkNoteKey(state: TalkState): string {
         case "noreply":
             return "boss.panel.talk.noReply";
         case "busy":
-            return state.reason === "unsettled" ? "boss.panel.talk.unsettled" : "boss.panel.talk.busy";
+            return state.reason === "unsettled" ? "boss.panel.talk.unsettled" : "boss.panel.talk.refusedWhileFree";
         case "noagent":
             return "boss.panel.talk.noAgent";
         case "agentmissing":

@@ -16,6 +16,7 @@ import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import type { AgentStateInfo } from "../agent-state-model";
 import { BossBubbleModel } from "../boss/boss-store";
 import { useBossName } from "../boss/use-boss-name";
+import { BrainstormLastLeftAtom } from "../brainstorm/brainstorm-boot";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { useBrainstormGates } from "../build/use-feature-on";
@@ -233,7 +234,10 @@ export function usePaletteEntries(picker: PickerSource) {
     // A fresh array on every render: its content, joined, is what the memo depends on.
     const recentKey = readRecentFolders(ws).join("\n");
     const home = getHome();
-    const brainstorm = useBrainstormGates();
+    const gates = useBrainstormGates();
+    // The brainstorm last left is offered to resume (#2284).
+    const lastLeft = useAtomValue(BrainstormLastLeftAtom);
+    const brainstorm = useMemo(() => ({ ...gates, resume: lastLeft?.title ?? "" }), [gates, lastLeft]);
     const entries = useMemo(
         () =>
             buildPaletteEntries({

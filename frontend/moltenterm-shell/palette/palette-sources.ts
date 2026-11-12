@@ -130,7 +130,7 @@ export type PaletteSourceInput = {
     bossName?: string;
     // What the build's channel allows of a brainstorm with him (FR-BOSS-010, #2246): starting one, and its scripted
     // replay (dev and local builds). Absent, neither.
-    brainstorm?: { start: boolean; replay: boolean };
+    brainstorm?: { start: boolean; replay: boolean; resume?: string };
     // The pin moves of the view on screen, as its menu offers them, and the move the keep shortcut makes (#1652).
     viewPin?: { moves: PinMove[]; keepMove: PinMove; keepHint: string };
 };
@@ -455,10 +455,25 @@ export function bossCardEntries(name: string): PaletteEntry[] {
 
 // "Brainstorm with {name}" (FR-BOSS-010 AC2, #2246) on the channels that have it, and on dev and local builds the
 // scripted replay that every instance check plays (synthetic data, no agent).
-export function brainstormEntries(name: string, gates: { start: boolean; replay: boolean }): PaletteEntry[] {
+// `resume`: the title of the brainstorm last left, offered first to resume (AC10e, #2284); "" for none.
+export function brainstormEntries(
+    name: string,
+    gates: { start: boolean; replay: boolean; resume?: string }
+): PaletteEntry[] {
     const rtn: PaletteEntry[] = [];
     if (!name || gates == null) {
         return rtn;
+    }
+    if (gates.start && gates.resume) {
+        rtn.push({
+            id: "action:brainstormresume",
+            group: "actions",
+            label: t("palette.actions.brainstormResume", { title: gates.resume }),
+            detail: t("palette.actions.brainstormResumeDetail", { name }),
+            icon: "diagram-project",
+            keywords: paletteKeywords("brainstormResume", name),
+            run: { kind: "brainstormresume" },
+        });
     }
     if (gates.start) {
         rtn.push({

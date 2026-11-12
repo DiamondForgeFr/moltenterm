@@ -21,11 +21,15 @@ import {
 export const PickerRecent = 3;
 
 // What the developer's start of a brainstorm offers (AC10a): the most recent ones to resume, or nothing when none is
-// saved (he then says his opening line).
-export function pickerOf(list: BrainstormSummary[]): BrainstormPrompt {
+// saved (he then says his opening line). The one last left comes first (AC10e, #2284).
+export function pickerOf(list: BrainstormSummary[], lastSlug = ""): BrainstormPrompt {
     const saved = (list ?? []).filter((entry) => entry?.slug);
     if (saved.length === 0) {
         return null;
+    }
+    const last = saved.findIndex((entry) => entry.slug === lastSlug);
+    if (last > 0) {
+        saved.unshift(...saved.splice(last, 1));
     }
     return { kind: "picker", recent: saved.slice(0, PickerRecent), total: saved.length };
 }

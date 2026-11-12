@@ -92,6 +92,7 @@ vi.mock("../boss/boss-store", async () => {
 vi.mock("../boss/brokk-session", async () => {
     const session = {
         listenAnswers: () => () => {},
+        listenTaken: () => () => {},
         addLocalLine: () => {},
         setLead: () => {},
     };

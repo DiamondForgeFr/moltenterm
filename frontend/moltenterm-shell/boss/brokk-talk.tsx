@@ -11,10 +11,17 @@
 // open the panel beside the group gives way above it (onFocusChange, AC18, #2090).
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { cn, fireAndForget } from "@/util/util";
+import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { BrainstormPromptAtom, BrainstormStateAtom, openBrainstorm } from "../brainstorm/brainstorm-boot";
+import {
+    BrainstormLastLeftAtom,
+    BrainstormPromptAtom,
+    BrainstormStateAtom,
+    dismissLastBrainstorm,
+    openBrainstorm,
+    resumeLastBrainstorm,
+} from "../brainstorm/brainstorm-boot";
 import { useBrainstormAllowed } from "../build/use-feature-on";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
@@ -30,6 +37,7 @@ import {
     canSend,
     fieldAction,
     fieldAfterSend,
+    fieldWithReturned,
     keepsText,
     MaxMessageLength,
     onItsWay,
@@ -79,6 +87,8 @@ export function BrokkTalk({
     const name = useAtomValue(BossBubbleModel.getInstance().nameAtom, { store: globalStore });
     const state = useAtomValue(session.stateAtom, { store: globalStore });
     const items = useAtomValue(session.exchangeAtom, { store: globalStore });
+    const queued = useAtomValue(session.queuedAtom, { store: globalStore });
+    const returned = useAtomValue(session.returnedAtom, { store: globalStore });
     const [text, setTextState] = useState(draft);
     const [focused, setFocused] = useState(false);
     const [confirming, setConfirming] = useState<InlineAction>(null);
@@ -99,7 +109,20 @@ export function BrokkTalk({
     const asking = useAtomValue(session.permissionAtom, { store: globalStore }) != null;
     // A question about the brainstorms (the picker, his offer to resume one, a forget's confirmation) opens it too.
     const prompted = useAtomValue(BrainstormPromptAtom, { store: globalStore }) != null;
-    const open = conversationOpen(focused, text) || brainstorming || asking || prompted;
+    // The way back to the brainstorm last left (FR-BOSS-010 AC10e, #2284).
+    const lastLeft = useAtomValue(BrainstormLastLeftAtom, { store: globalStore });
+    // A message waiting for him shows in his conversation, with its Cancel (#2284).
+    const open = conversationOpen(focused, text) || brainstorming || asking || prompted || queued != null;
+    // A Cancel or a failure gives the waiting text back to the field, before what was written meanwhile.
+    useEffect(() => {
+        if (returned == null) {
+            return;
+        }
+        const back = session.takeReturned();
+        if (back != null) {
+            setText(fieldWithReturned(back, draft));
+        }
+    }, [returned, session]);
     useEffect(() => onTyping(text.trim() !== ""), [text, onTyping]);
     useEffect(() => () => onTyping(false), [onTyping]);
     useEffect(() => {
@@ -122,8 +145,12 @@ export function BrokkTalk({
     const terminalAside = talkTerminalAside(state);
     // His words are coming in: the domino of "thinking" has done its work.
     const answerShows = last?.role === "brokk" && last.text !== "";
+    // The waiting message's row says it in the open window; folded, the note under the field does.
     const showNote =
-        noteKey != null && !(state.phase === "answering" && answerShows) && !(state.phase === "needsanswer" && asking);
+        noteKey != null &&
+        !(state.phase === "answering" && answerShows) &&
+        !(state.phase === "needsanswer" && asking) &&
+        !(state.phase === "queued" && open && queued != null);
 
     useLayoutEffect(() => {
         const inner = innerRef.current;
@@ -249,6 +276,29 @@ export function BrokkTalk({
             {t("boss.panel.talk.commandHint", { name })}
         </div>
     ) : null;
+    const resumeLine =
+        lastLeft != null && brainstormAllowed && !brainstorming ? (
+            <div className="flex flex-wrap items-center gap-x-2 text-11" data-testid="brokk-talk-resume">
+                <button
+                    type="button"
+                    data-testid="brokk-talk-resume-go"
+                    onClick={() => fireAndForget(() => resumeLastBrainstorm())}
+                    className="cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-11 text-primary hover:bg-hover"
+                >
+                    {t("boss.brainstorm.picker.resume", { title: lastLeft.title })}
+                </button>
+                <button
+                    type="button"
+                    data-testid="brokk-talk-resume-dismiss"
+                    aria-label={t("boss.brainstorm.resumeDismiss")}
+                    title={t("boss.brainstorm.resumeDismiss")}
+                    onClick={dismissLastBrainstorm}
+                    className="cursor-pointer text-11 text-muted hover:text-secondary"
+                >
+                    <i className={makeIconClass("xmark", false)} aria-hidden />
+                </button>
+            </div>
+        ) : null;
     const note = showNote ? (
         <div
             role="status"
@@ -312,7 +362,7 @@ export function BrokkTalk({
                     data-testid="brokk-convo"
                 >
                     <div ref={innerRef} className="mt-brokk-convo-inner">
-                        {items.length === 0 && note == null ? (
+                        {items.length === 0 && note == null && queued == null ? (
                             <p className="mt-brokk-empty" data-testid="brokk-convo-empty">
                                 {t("boss.panel.talk.empty", { name })}
                             </p>
@@ -326,6 +376,26 @@ export function BrokkTalk({
                             onConfirm={confirm}
                             onCancel={cancel}
                         />
+                        {queued != null ? (
+                            <div className="mt-brokk-msg" data-role="you" data-testid="brokk-queued">
+                                <span className="sr-only">{t("boss.panel.talk.you")}: </span>
+                                <div className="mt-brokk-msg-text opacity-70">{queued.text}</div>
+                                <div role="status" className="flex flex-wrap items-center gap-x-2 text-11 text-muted">
+                                    <span>
+                                        <DominoLoader className="mr-1.5" />
+                                        {t("boss.panel.talk.queuedRow", { name })}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        data-testid="brokk-queued-cancel"
+                                        onClick={() => session.cancelQueued()}
+                                        className="cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-11 text-primary hover:bg-hover"
+                                    >
+                                        {t("boss.panel.talk.cancelQueued")}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : null}
                         <BrokkPermissions name={name} />
                         {prompted ? (
                             <Suspense fallback={null}>
@@ -335,6 +405,7 @@ export function BrokkTalk({
                         {note}
                         {slashNote}
                         {commandHint}
+                        {resumeLine}
                     </div>
                 </div>
             ) : null}
@@ -374,11 +445,12 @@ export function BrokkTalk({
                     <MoltenWave />
                 </button>
             </div>
-            {!open && (note != null || slashNote != null || commandHint != null) ? (
+            {!open && (note != null || slashNote != null || commandHint != null || resumeLine != null) ? (
                 <div className="mt-brokk-field-extra">
                     {note}
                     {slashNote}
                     {commandHint}
+                    {resumeLine}
                 </div>
             ) : null}
         </form>

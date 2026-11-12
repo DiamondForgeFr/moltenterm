@@ -82,6 +82,10 @@ export type BrainstormPrompt =
 // The question on screen, null for none. Up front so that his talk window knows when to load what draws it.
 export const BrainstormPromptAtom = atom(null) as PrimitiveAtom<BrainstormPrompt>;
 
+// The brainstorm the developer last left (Leave or Escape, FR-BOSS-010 AC10e, #2284): his card and his talk window offer
+// to resume it until the developer starts or resumes a brainstorm, or dismisses the offer. Null for none.
+export const BrainstormLastLeftAtom = atom(null) as PrimitiveAtom<BrainstormSummary>;
+
 type Brainstorm = typeof import("./brainstorm-store");
 
 let loading: Promise<Brainstorm> = null;
@@ -117,6 +121,21 @@ export async function openBrainstorm(idea = ""): Promise<boolean> {
     }
     const mod = await loadBrainstorm();
     return mod.BrainstormModel.getInstance().begin(idea);
+}
+
+// Resume « title » (AC10e, #2284): the brainstorm last left opens again where it was, its graph, its conversation and
+// its camera's overview.
+export async function resumeLastBrainstorm(): Promise<boolean> {
+    const last = globalStore.get(BrainstormLastLeftAtom);
+    if (last == null || !currentBrainstormAllowed()) {
+        return false;
+    }
+    const mod = await loadBrainstorm();
+    return mod.BrainstormModel.getInstance().load(last.slug);
+}
+
+export function dismissLastBrainstorm(): void {
+    globalStore.set(BrainstormLastLeftAtom, null);
 }
 
 let booted = false;
