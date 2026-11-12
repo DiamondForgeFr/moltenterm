@@ -45,6 +45,7 @@ var englishFields = map[string]string{
 	"brainstorm.ForkRequest.Reason":         "Brokk's own words on why the talk is another project, sent back with the developer's Yes (#2248)",
 	"brainstorm.LoadResult.Error":           "a code (Reason…) the Brainstorms widget words under boss.brainstorm.failed.* (#2248)",
 	"brainstorm.ActionResult.Error":         "a code (Reason…) the Brainstorms widget words under boss.brainstorm.failed.* (#2248)",
+	"brainstorm.EditResult.Error":           "a code (Reason…) the layer's Undo bar words under boss.brainstorm.edits.failed.* (#2247)",
 	"pipelinesetup.BoardExplain.Note":       "the setup agent's own words beside the highlighted step (#1163)",
 	"pipelinesetup.BoardRefusal.Detail":     "`molten pipeline setup` output, agent-facing (#1163)",
 	"mission.SetupAgentRequest.Why":         "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
