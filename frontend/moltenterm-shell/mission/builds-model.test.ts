@@ -84,8 +84,26 @@ describe("Build run panel (FR-MC-013)", () => {
             "Interrupted during “Verify”: its process is gone without an exit code."
         );
         expect(buildRunView({ state: "cancelled", phases: [], startedat: 0 }, phases, null).line).toBe(
-            "Cancelled during “Verify”."
+            "Cancelled by you during “Verify”."
         );
+    });
+
+    it("says why when a time limit stopped it (#2273)", () => {
+        const stalled = buildRunView(
+            {
+                state: "failure",
+                phases: ["verify"],
+                startedat: 0,
+                stopped: "Stopped: the local CI made no progress for 10 minutes (tests).",
+                stoppedtext: { code: "mission.build.stalled", vars: { minutes: "10", jobs: "tests" } },
+            },
+            phases,
+            null
+        );
+        expect(stalled.line).toBe(
+            "Stopped: the local CI made no progress for 10 minutes (tests). Relaunch the build: the jobs already green are reused."
+        );
+        expect(statuses(stalled)).toBe("failed,todo,todo");
     });
 
     it("falls back to the announced phases when the build declares none", () => {

@@ -4305,7 +4305,7 @@
             "built": "Compilé.",
             "failedDuring": "Échec pendant « {phase} ». La fin du journal dit pourquoi.",
             "lostDuring": "Interrompu pendant « {phase} » : son processus a disparu sans code de sortie.",
-            "cancelledDuring": "Annulé pendant « {phase} ».",
+            "cancelledDuring": "Annulé par vous pendant « {phase} ».",
             "flavor": {
                 "gold": "Gold",
                 "rc": "RC locale"
@@ -9904,6 +9904,13 @@
                 "notReady": "Le port {port} n'a pas répondu en {seconds} s."
             },
             "noPipeline": "Le projet n'a pas de pipeline (.molten/project.json).",
+            "build": {
+                "stalled": "Arrêté : la CI locale n'a pas avancé pendant {minutes} minutes ({jobs}). Relancez le build : les jobs déjà verts sont repris.",
+                "ciCancelled": "Arrêté : son passage de CI locale a été annulé.",
+                "worktreeTimeout": "Arrêté : la préparation du worktree du build a pris plus de {minutes} minutes.",
+                "prepareTimeout": "Arrêté : la commande de préparation du build a pris plus de {minutes} minutes.",
+                "cancelled": "Annulé par vous."
+            },
             "pipelineProblems": "Le pipeline a des problèmes : {detail}",
             "ci": {
                 "noJobs": "Le pipeline ne déclare aucun job de CI (ci.jobs).",

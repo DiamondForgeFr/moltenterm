@@ -5,6 +5,7 @@
 // components so the wording can be tested without the app.
 
 import { getLocale, t } from "../i18n/i18n";
+import { ServerText, serverText } from "../i18n/server-text";
 import { CiVerdictStatus } from "./ci-model";
 
 export type BuildManifest = {
@@ -93,6 +94,8 @@ export type BuildRunInput = {
     phases: string[];
     startedat: number;
     commit?: string;
+    stopped?: string;
+    stoppedtext?: ServerText;
 };
 
 export type BuildRunView = {
@@ -142,6 +145,8 @@ export function buildRunView(run: BuildRunInput, declared: BuildPhaseDef[], mani
                   count: (delivered.notes ?? []).length,
               }).replace(/\s+/g, " ")
             : t("mc.builds.built");
+    } else if (run.state === "failure" && run.stopped) {
+        line = serverText(run.stoppedtext, run.stopped);
     } else if (run.state === "failure") {
         line = t("mc.builds.failedDuring", { phase: at });
     } else if (run.state === "lost") {

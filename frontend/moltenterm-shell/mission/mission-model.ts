@@ -6,6 +6,7 @@
 
 import { guideCalls, type FeatureMatrix } from "../agent-info/agent-features-model";
 import { t } from "../i18n/i18n";
+import type { ServerText } from "../i18n/server-text";
 import { DefaultTagPrefix } from "../releases/versions";
 import { GithubRelease, Milestone, PullRequest, WorkflowRun } from "./github";
 import { labelRecord } from "./mission-i18n";
@@ -333,6 +334,9 @@ export type RunRecord = {
     commit?: string;
     buildkind?: string;
     preparing?: boolean;
+    // Why a build stopped when a time limit or the developer stopped it (#2273).
+    stopped?: string;
+    stoppedtext?: ServerText;
     // A sync's source and watched branch (commit is that branch's tip), and once it ended with exit 0 whether its
     // output changed, with the files (FR-MC-030).
     source?: string;

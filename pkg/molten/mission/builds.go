@@ -12,19 +12,27 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 )
 
 // Local builds (FR-MC-012, FR-MC-013, DS-MC-011): a build is made from the trunk as it is on the remote, in a worktree
 // of the project's own, never in the user's checkout. wavesrv fetches, moves the worktree, verifies the commit with the
 // local CI when the build asks for it, runs its prepare command, then starts the build command detached as any run.
+//
+// Only the steps that can hang without a word are bounded, each on its own: a git step and the prepare command
+// (buildStepTimeout). The local CI has no total bound, since a loaded machine can take far longer than usual (#2273): the
+// build waits for it while its jobs make progress, and stops it after buildVerifyStall without any.
 
 const (
-	buildPrepareTimeout   = 15 * time.Minute
+	buildStepTimeout      = 15 * time.Minute
+	buildVerifyStall      = 10 * time.Minute
+	buildPrepareWaitDelay = 30 * time.Second
 	buildCiPoll           = time.Second
 	ManifestFileName      = "manifest.json"
 	maxBuildManifestBytes = 1 << 20
@@ -178,8 +186,22 @@ func (b *buildLog) cancelled() bool {
 	return b.r.checkCancelAsked(b.rec.Id)
 }
 
+// stop says why the build stops, in its log and on its record: the run card and the notification read it from there.
+func (b *buildLog) stop(text *uimsg.Text, format string, args ...any) {
+	b.rec.Stopped = fmt.Sprintf(format, args...)
+	b.rec.StoppedText = text
+	b.say("%s", b.rec.Stopped)
+}
+
+func (b *buildLog) stopCancelled() {
+	b.stop(uimsg.Make("mission.build.cancelled"), "Cancelled by you.")
+}
+
 // finish ends a build that stopped before its command, using the preparation's known result.
 func (b *buildLog) finish(code int) {
+	if b.rec.Stopped == "" && b.cancelled() {
+		b.stopCancelled()
+	}
 	b.finishRecord(code)
 	if b.r.publish != nil {
 		b.r.publish(*b.rec)
@@ -209,11 +231,15 @@ func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
 	}
 	defer file.Close()
 	b := &buildLog{r: r, rec: &rec, file: file}
-	ctx, cancel := context.WithTimeout(context.Background(), buildPrepareTimeout)
-	defer cancel()
+	ctx := context.Background()
 	tree, err := r.prepareBuildTree(ctx, b)
 	if err != nil {
 		b.say("%v", err)
+		if errors.Is(err, errBuildStepTimeout) {
+			minutes := r.stepBoundMinutes()
+			b.stop(uimsg.Make("mission.build.worktreeTimeout", "minutes", minutes),
+				"Stopped: preparing the build's worktree took longer than %s minutes.", minutes)
+		}
 		b.finish(1)
 		return
 	}
@@ -236,7 +262,17 @@ func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
 			return
 		}
 		b.say("$ %s", prepare)
-		code, err := runBuildCommand(filepath.Join(tree, build.Prepare.Cwd), prepare, build.Prepare.Env, rec, file)
+		stepCtx, cancel := context.WithTimeout(ctx, r.stepBound())
+		code, err := runBuildCommand(stepCtx, filepath.Join(tree, build.Prepare.Cwd), prepare, build.Prepare.Env, rec, file)
+		timedOut := stepCtx.Err() == context.DeadlineExceeded
+		cancel()
+		if timedOut {
+			minutes := r.stepBoundMinutes()
+			b.stop(uimsg.Make("mission.build.prepareTimeout", "minutes", minutes),
+				"Stopped: the build's prepare command took longer than %s minutes.", minutes)
+			b.finish(1)
+			return
+		}
 		if err != nil || code != 0 {
 			if err != nil {
 				b.say("%v", err)
@@ -252,18 +288,49 @@ func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
 	r.launchBuild(b, tree, build)
 }
 
+var errBuildStepTimeout = errors.New("the step took too long")
+
+// stepBound is how long a build's git step or prepare command may take; zero stepTimeout is buildStepTimeout.
+func (r *Runs) stepBound() time.Duration {
+	if r.stepTimeout > 0 {
+		return r.stepTimeout
+	}
+	return buildStepTimeout
+}
+
+func (r *Runs) stepBoundMinutes() string {
+	return strconv.Itoa(max(1, int(r.stepBound().Round(time.Minute).Minutes())))
+}
+
+// buildGit runs one git step of a build under its own bound; a step cut by it reads errBuildStepTimeout.
+func (r *Runs) buildGit(ctx context.Context, dir string, args ...string) ([]byte, error) {
+	stepCtx, cancel := context.WithTimeout(ctx, r.stepBound())
+	defer cancel()
+	out, err := r.git(stepCtx, dir, "git", args...)
+	if err != nil && stepCtx.Err() == context.DeadlineExceeded {
+		return out, fmt.Errorf("%w: git %s took longer than %s minutes", errBuildStepTimeout, args[0], r.stepBoundMinutes())
+	}
+	return out, err
+}
+
+func (r *Runs) buildTrunk(ctx context.Context, dir string) (string, string) {
+	stepCtx, cancel := context.WithTimeout(ctx, r.stepBound())
+	defer cancel()
+	return resolveTrunk(stepCtx, r.git, dir)
+}
+
 func (r *Runs) prepareBuildTree(ctx context.Context, b *buildLog) (string, error) {
 	dir := b.rec.storageProject()
-	trunk, _ := resolveTrunk(ctx, r.git, dir)
+	trunk, _ := r.buildTrunk(ctx, dir)
 	if trunk == "" {
 		return "", errors.New("the project has no trunk branch to build from")
 	}
 	b.say("$ git fetch origin %s", trunk)
-	if out, err := r.git(ctx, dir, "git", "fetch", "--quiet", "origin", trunk); err != nil {
+	if out, err := r.buildGit(ctx, dir, "fetch", "--quiet", "origin", trunk); err != nil {
 		b.say("%s%v: building the last fetched %s", out, err, trunk)
 	}
-	_, ref := resolveTrunk(ctx, r.git, dir)
-	shaOut, err := r.git(ctx, dir, "git", "rev-parse", "--verify", ref+"^{commit}")
+	_, ref := r.buildTrunk(ctx, dir)
+	shaOut, err := r.buildGit(ctx, dir, "rev-parse", "--verify", ref+"^{commit}")
 	if err != nil {
 		return "", fmt.Errorf("%s could not be read: %w", ref, err)
 	}
@@ -271,7 +338,7 @@ func (r *Runs) prepareBuildTree(ctx context.Context, b *buildLog) (string, error
 	b.say("building %s @ %s", ref, shortSha(b.rec.Commit))
 	tree := r.buildTreeDir(dir)
 	step := func(where string, args ...string) error {
-		out, err := r.git(ctx, where, "git", args...)
+		out, err := r.buildGit(ctx, where, args...)
 		if len(out) > 0 {
 			b.file.Write(out)
 		}
@@ -280,7 +347,7 @@ func (r *Runs) prepareBuildTree(ctx context.Context, b *buildLog) (string, error
 	// A .git file whose .git/worktrees/<name> was pruned still stats fine, but every checkout in it fails.
 	_, statErr := os.Stat(filepath.Join(tree, ".git"))
 	if statErr == nil {
-		_, statErr = r.git(ctx, tree, "git", "rev-parse", "--git-dir")
+		_, statErr = r.buildGit(ctx, tree, "rev-parse", "--git-dir")
 	}
 	if statErr != nil {
 		os.RemoveAll(tree)
@@ -334,6 +401,8 @@ func (r *Runs) verifyBuild(ctx context.Context, b *buildLog) bool {
 		run = res.Run
 	}
 	b.say("local CI %s on %s: %d job(s)", run.Id, shortSha(b.rec.Commit), len(run.Jobs))
+	watch := verifyWatch{last: r.now()}
+	var stalled []string
 	for {
 		select {
 		case <-ctx.Done():
@@ -344,8 +413,17 @@ func (r *Runs) verifyBuild(ctx context.Context, b *buildLog) bool {
 		if b.cancelled() {
 			r.ci.Cancel(b.rec.Dir, run.Id)
 		}
+		// The clock is read before the progress: what it says is never later than the progress it is compared with.
+		now := r.now()
 		current, err := r.ci.readRecord(b.rec.Dir, run.Id)
-		if err != nil || current.Status == CiStateRunning {
+		if err != nil {
+			continue
+		}
+		if current.Status == CiStateRunning {
+			if stalled == nil && watch.observe(now, r.ci.progressOf(b.rec.Dir, current)) >= buildVerifyStall {
+				stalled = stalledJobs(current)
+				r.ci.Cancel(b.rec.Dir, run.Id)
+			}
 			continue
 		}
 		for _, job := range current.Jobs {
@@ -354,12 +432,68 @@ func (r *Runs) verifyBuild(ctx context.Context, b *buildLog) bool {
 		if current.Error != "" {
 			b.say("%s", current.Error)
 		}
-		if current.Status != CiStateSuccess {
-			b.say("the local CI is not green on %s: the build stops", shortSha(b.rec.Commit))
+		if stalled != nil {
+			jobs := strings.Join(stalled, ", ")
+			minutes := strconv.Itoa(int(buildVerifyStall.Minutes()))
+			b.stop(uimsg.Make("mission.build.stalled", "minutes", minutes, "jobs", jobs),
+				"Stopped: the local CI made no progress for %s minutes (%s). Relaunch the build: the jobs already green are reused.", minutes, jobs)
 			return false
 		}
-		return true
+		if current.Status == CiStateSuccess {
+			return true
+		}
+		b.say("the local CI is not green on %s: the build stops", shortSha(b.rec.Commit))
+		if current.Status == CiStateCancelled && !b.cancelled() {
+			b.stop(uimsg.Make("mission.build.ciCancelled"), "Stopped: its local CI run was cancelled.")
+		}
+		return false
 	}
+}
+
+// verifyWatch tells how long a local CI run has gone without progress: it measures from the last change it saw.
+type verifyWatch struct {
+	last time.Time
+	seen string
+}
+
+func (w *verifyWatch) observe(now time.Time, progress string) time.Duration {
+	if progress != w.seen {
+		w.seen = progress
+		w.last = now
+		return 0
+	}
+	return now.Sub(w.last)
+}
+
+// progressOf is what changes while a local CI run makes progress: each job's state and the size of each log it writes
+// (a job's, and ci.prepare's while the run prepares). It never moves on its own: the run's heartbeat is not progress.
+func (c *Ci) progressOf(dir string, run CiRunRecord) string {
+	var sb strings.Builder
+	logs := []string{ciPrepareLog}
+	for _, job := range run.Jobs {
+		fmt.Fprintf(&sb, "%s=%s;", job.Name, job.Status)
+		logs = append(logs, job.Name)
+	}
+	for _, name := range logs {
+		if info, err := os.Stat(filepath.Join(c.runDir(dir, run.Id), name+".log")); err == nil {
+			fmt.Fprintf(&sb, "%s.log=%d;", name, info.Size())
+		}
+	}
+	return sb.String()
+}
+
+// stalledJobs names the jobs a stalled run was running, or its preparation when none had started.
+func stalledJobs(run CiRunRecord) []string {
+	jobs := []string{}
+	for _, job := range run.Jobs {
+		if job.Status == CiStateRunning {
+			jobs = append(jobs, job.Name)
+		}
+	}
+	if len(jobs) == 0 {
+		jobs = append(jobs, "ci.prepare")
+	}
+	return jobs
 }
 
 func buildEnv(extra map[string]string, rec RunRecord) []string {
@@ -370,12 +504,18 @@ func buildEnv(extra map[string]string, rec RunRecord) []string {
 	return append(env, "MOLTEN_RUN_ID="+rec.Id, "MOLTEN_BUILD_COMMIT="+rec.Commit)
 }
 
-func runBuildCommand(cwd string, run string, env map[string]string, rec RunRecord, out *os.File) (int, error) {
-	cmd := exec.Command("/bin/sh", "-c", run)
+// runBuildCommand runs a build's prepare command in its own process group: once ctx ends, the whole group is stopped.
+func runBuildCommand(ctx context.Context, cwd string, run string, env map[string]string, rec RunRecord, out *os.File) (int, error) {
+	cmd := exec.CommandContext(ctx, "/bin/sh", "-c", run)
 	cmd.Dir = cwd
 	cmd.Env = buildEnv(env, rec)
 	cmd.Stdout = out
 	cmd.Stderr = out
+	detachRun(cmd)
+	cmd.Cancel = func() error {
+		return stopRunGroup(cmd.Process.Pid)
+	}
+	cmd.WaitDelay = buildPrepareWaitDelay
 	err := cmd.Run()
 	if err == nil {
 		return 0, nil
