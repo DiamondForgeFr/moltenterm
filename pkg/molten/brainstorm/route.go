@@ -43,7 +43,11 @@ const (
 	RenameCommand = "moltenbrainstormrename"
 	DeleteCommand = "moltenbrainstormdelete"
 	ForkCommand   = "moltenbrainstormfork"
-	Event         = "molten:brainstorm"
+	// The developer's changes to the graph (#2247).
+	EditCommand = "moltenbrainstormedit"
+	UndoCommand = "moltenbrainstormundo"
+	ToldCommand = "moltenbrainstormtold"
+	Event       = "molten:brainstorm"
 
 	// BriefTitles: how many saved titles Brokk's brief lists.
 	BriefTitles = 30
@@ -151,6 +155,24 @@ func (s *Service) handle(command string, data any) (any, error) {
 			return nil, err
 		}
 		return s.Fork(req), nil
+	case EditCommand:
+		var req EditRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.Edit(req), nil
+	case UndoCommand:
+		var req UndoRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.Undo(req), nil
+	case ToldCommand:
+		var req ToldRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.Told(req), nil
 	}
 	return nil, fmt.Errorf("unknown brainstorm command %q", command)
 }

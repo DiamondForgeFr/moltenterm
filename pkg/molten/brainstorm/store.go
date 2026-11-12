@@ -77,6 +77,8 @@ type Saved struct {
 	Info  Info
 	Graph Graph
 	Turns []Turn
+	// History is history.jsonl (#2247): the last operations, who made each and what puts it back.
+	History []HistoryEntry
 }
 
 // Store reads and writes the folders. root gives the brainstorms folder at each call, so a change of the setting
@@ -185,7 +187,7 @@ func (s *Store) Create(title string, now int64) (Saved, error) {
 			Source:   SourceBrokk,
 			Siblings: []string{},
 		}
-		return Saved{Dir: dir, Info: info, Graph: EmptyGraph(), Turns: []Turn{}}, nil
+		return Saved{Dir: dir, Info: info, Graph: EmptyGraph(), Turns: []Turn{}, History: []HistoryEntry{}}, nil
 	}
 	return Saved{}, fmt.Errorf("no free folder name for %q", base)
 }
@@ -259,6 +261,15 @@ func (s *Store) Save(saved Saved) error {
 	if err := writeAtomic(filepath.Join(saved.Dir, ConversationFile), conversation); err != nil {
 		return err
 	}
+	if len(saved.History) > 0 {
+		history, err := historyBytes(saved.History)
+		if err != nil {
+			return err
+		}
+		if err := writeAtomic(filepath.Join(saved.Dir, HistoryFile), history); err != nil {
+			return err
+		}
+	}
 	return writeAtomic(filepath.Join(saved.Dir, InfoFile), append(info, '\n'))
 }
 
@@ -303,6 +314,10 @@ func (s *Store) Load(dir string) (Saved, error) {
 	}
 	if saved.Graph, err = ValidateGraph(graph); err != nil {
 		return Saved{}, fmt.Errorf("%s: %w", GraphFile, err)
+	}
+	// The graph never depends on its history: one that does not read leaves only the Undo of what came before.
+	if saved.History, err = loadHistory(dir); err != nil {
+		saved.History = []HistoryEntry{}
 	}
 	saved.Turns = []Turn{}
 	file, err := os.Open(filepath.Join(dir, ConversationFile))
