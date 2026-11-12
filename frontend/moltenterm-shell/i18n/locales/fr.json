@@ -3480,6 +3480,7 @@
                 "agentStopped": "L'agent de {name} ne tourne plus dans son terminal. Fermez ce terminal, puis renvoyez votre message.",
                 "keys": "Entrée pour envoyer, Maj+Entrée pour un retour à la ligne",
                 "keysBrainstorm": "Entrée pour envoyer, Maj+Entrée pour un retour à la ligne, /brainstorm [idée] pour un brainstorm",
+                "hint": "↵ pour envoyer · ⇧↵ pour un retour à la ligne",
                 "commandHint": "/brainstorm [idée] : un brainstorm avec {name}, sur votre idée si vous la donnez",
                 "unreachable": "Le message n'est pas parti : la session de {name} n'a pas répondu à MoltenTerm. Réessayez dans un instant.",
                 "lookupFailed": "Le message n'est pas parti : MoltenTerm n'a pas pu chercher la session de {name} à l'instant. Réessayez dans un instant.",

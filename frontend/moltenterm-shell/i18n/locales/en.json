@@ -3480,6 +3480,7 @@
                 "agentStopped": "{name}'s agent is no longer running in his terminal. Close that terminal, then send your message again.",
                 "keys": "Enter to send, Shift+Enter for a new line",
                 "keysBrainstorm": "Enter to send, Shift+Enter for a new line, /brainstorm [idea] to brainstorm",
+                "hint": "↵ to send · ⇧↵ for a new line",
                 "commandHint": "/brainstorm [idea]: brainstorm with {name}, on your idea if you give one",
                 "unreachable": "The message did not go: MoltenTerm got no answer from {name}'s session. Try again in a moment.",
                 "lookupFailed": "The message did not go: MoltenTerm could not look for {name}'s session just now. Try again in a moment.",

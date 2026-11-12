@@ -177,6 +177,25 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         expect(html).toContain(">and the blocked ones?</textarea>");
     });
 
+    // FR-BOSS-009 AC91 (#2285): open, the field is roomy, with the keys' hint and the send button under it; folded, it
+    // keeps its one row with the button at its end.
+    it("has a roomy field in the open window, with the hint and the send button under it", () => {
+        const folded = render();
+        expect(folded).not.toContain('data-testid="brokk-talk-foot"');
+        expect(folded).toMatch(/data-testid="brokk-talk-input"[^>]*><\/textarea><button type="submit"/);
+        keepDraft("hello");
+        const html = render();
+        expect(html).toMatch(
+            /data-testid="brokk-talk-foot"><span class="mt-brokk-field-hint" data-testid="brokk-talk-hint">↵ to send · ⇧↵ for a new line<\/span><button type="submit"[^>]*data-testid="brokk-talk-send"/
+        );
+        expect(html.match(/data-testid="brokk-talk-send"/g)).toHaveLength(1);
+        expect(html.indexOf('data-testid="brokk-talk-input"')).toBeLessThan(
+            html.indexOf('data-testid="brokk-talk-foot"')
+        );
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-input \{[^}]*min-height: 52px;/);
+    });
+
     it("opens as a log of the exchange named for him, with a hint while it is empty", () => {
         keepDraft("hello");
         const html = render();
@@ -197,7 +216,8 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
             { id: "m2", role: "brokk", text: "Olivia.", actions: [], at: 4, turn: 4, final: true },
         ]);
         const html = render();
-        const order = [...html.matchAll(/data-testid="brokk-msg-text">([^<]*)</g)].map((m) => m[1]);
+        // His answers are Markdown, in a paragraph (#2285).
+        const order = [...html.matchAll(/data-testid="brokk-msg-text">(?:<p>)?([^<]*)</g)].map((m) => m[1]);
         expect(order).toEqual(["how many agents run?", "Two agents run now.", "who is blocked?", "Olivia."]);
         expect([...html.matchAll(/data-role="(you|brokk)"/g)].map((m) => m[1])).toEqual([
             "you",

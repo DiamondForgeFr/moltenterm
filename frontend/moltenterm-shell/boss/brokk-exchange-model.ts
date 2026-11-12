@@ -233,6 +233,24 @@ export function sayLine(unseen: BrokkItem, moment: string): string {
     return lead !== "" ? lead : (moment ?? "");
 }
 
+// The part of his answer said so far, as Markdown (FR-BOSS-009 AC87, AC89, #2285): an inline code or a strong emphasis
+// the cut leaves open is closed, so that his words never show their marks while he speaks. A code block left open stays
+// open: it is a code block to the end, as it will be.
+export function revealedMarkdown(text: string, count: number): string {
+    const said = (text ?? "").slice(0, Math.max(0, count));
+    if (((said.match(/^\s*```/gm) ?? []).length & 1) === 1) {
+        return said;
+    }
+    const outside = said.replace(/^\s*```[^\n]*\n[\s\S]*?^\s*```[^\n]*$/gm, "");
+    if (((outside.match(/`/g) ?? []).length & 1) === 1) {
+        return said.trimEnd() + "`";
+    }
+    if (((outside.replace(/`[^`]*`/g, "").match(/\*\*/g) ?? []).length & 1) === 1) {
+        return said.trimEnd() + "**";
+    }
+    return said;
+}
+
 // The conversation window is open while the field has the focus, and stays open while text is left in it (AC22).
 export function conversationOpen(focused: boolean, draft: string): boolean {
     return focused || (draft ?? "").trim() !== "";
