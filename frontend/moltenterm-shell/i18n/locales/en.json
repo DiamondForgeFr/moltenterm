@@ -6233,6 +6233,14 @@
     "rail": {
         "keepAwakeWhileWorking": "Keep this computer awake while it works",
         "keptAwake": "kept awake {condition}",
+        "dot": {
+            "waiting": "{name} waits for you",
+            "waitingAgent": "An agent waits for you",
+            "unread": {
+                "one": "{count} unread notification",
+                "other": "{count} unread notifications"
+            }
+        },
         "unread": {
             "one": "{count} unread",
             "other": "{count} unread"

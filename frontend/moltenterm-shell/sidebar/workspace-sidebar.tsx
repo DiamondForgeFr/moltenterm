@@ -30,7 +30,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { ActivityIcon } from "../activity/activity-icon";
 import { useActivityCount } from "../activity/activity-store";
 import { AgentInfoHost } from "../agent-info/agent-info-host";
-import { AgentStateDotClasses, agentStateTitle } from "../agent-state-model";
+import { agentCallName, AgentStateDotClasses, agentStateMessage, agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { BossBubbleModel } from "../boss/boss-store";
 import { BrokkAvatarSlot } from "../boss/brokk-avatar";
@@ -191,7 +191,7 @@ import {
     WindowRowPx,
 } from "./window-corner-model";
 import { WorkspaceDotPopover } from "./workspace-dot-popover";
-import { DotPopoverHover, dotPopoverProject, dotShowsPopover } from "./workspace-dot-popover-model";
+import { dotAttention, DotPopoverHover, dotPopoverProject, dotShowsPopover } from "./workspace-dot-popover-model";
 import { snapRipplesOf, workspaceDotLook } from "./workspace-dot-ripple";
 import { filterEntries, WorkspaceLetterFilter } from "./workspace-letter-filter";
 import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
@@ -1899,19 +1899,16 @@ function WorkspaceDot({
     const waiting = agent?.state === "waiting";
     const { ring, ripple } = workspaceDotLook({ active: entry.active, unread, waiting, working });
     const letter = (Array.from(entry.name ?? "")[0] ?? "").toUpperCase();
-    const attention: string[] = [];
-    if (unread > 0) {
-        attention.push(tc("rail.unread", unread));
-    }
-    if (waiting) {
-        attention.push(agentStateTitle(agent));
-    }
-    if (working > 0) {
-        attention.push(tc("rail.working", working));
-    }
-    if (coffee != null) {
-        attention.push(t("rail.keptAwake", { condition: coffeeCondition() }));
-    }
+    const attention = dotAttention(
+        {
+            unread,
+            waitingAgent: waiting ? agentCallName(agent, "") : null,
+            waitingMessage: waiting ? agentStateMessage(agent) : "",
+            working,
+            keptAwake: coffee != null ? coffeeCondition() : null,
+        },
+        { t, tc }
+    );
     const label = [entry.name, ...attention].join(" · ");
     const showPopover = dotShowsPopover({
         hovered: hover.shown,

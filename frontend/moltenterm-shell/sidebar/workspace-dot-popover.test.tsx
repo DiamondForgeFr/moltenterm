@@ -8,10 +8,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { translate, translateCount } from "../i18n/i18n-core";
 import { formatKeys } from "../shortcuts/format";
 import { workspaceJumpKeys } from "./sidebar-keys";
 import { WorkspaceDotCard, WorkspaceDotCardProps } from "./workspace-dot-popover";
-import { DotPopoverHover, dotPopoverProject, dotShowsPopover } from "./workspace-dot-popover-model";
+import { DotPopoverHover, dotAttention, dotPopoverProject, dotShowsPopover } from "./workspace-dot-popover-model";
 
 function card(props: Partial<WorkspaceDotCardProps>): string {
     return renderToStaticMarkup(
@@ -62,6 +63,48 @@ describe("the popover's content", () => {
             texts(card({ keys: formatKeys(workspaceJumpKeys(3, false), false) }), "sidebar-dot-popover-keys")
         ).toEqual(["Ctrl+Alt+3"]);
         expect(card({ keys: "" })).not.toContain("sidebar-dot-popover-keys");
+    });
+});
+
+describe("why a dot rings (#2265)", () => {
+    const text = (locale: string) => ({
+        t: (key: string, vars?: Record<string, string | number>) => translate(locale, key, vars),
+        tc: (key: string, count: number) => translateCount(locale, key, count),
+    });
+    const quiet = { unread: 0, waitingAgent: null, waitingMessage: "", working: 0, keptAwake: null };
+
+    it("says an agent waits first, then what it asks, then the unread notifications", () => {
+        const lines = dotAttention(
+            { ...quiet, unread: 3, waitingAgent: "Olivia", waitingMessage: "Allow the edit?", working: 1 },
+            text("en")
+        );
+        expect(lines).toEqual(["Olivia waits for you", "Allow the edit?", "3 unread notifications", "1 agent at work"]);
+    });
+
+    it("names no one when the waiting agent has no name, and counts one notification", () => {
+        expect(dotAttention({ ...quiet, waitingAgent: "" }, text("en"))).toEqual(["An agent waits for you"]);
+        expect(dotAttention({ ...quiet, unread: 1 }, text("en"))).toEqual(["1 unread notification"]);
+    });
+
+    it("says the same in French", () => {
+        expect(dotAttention({ ...quiet, unread: 2, waitingAgent: "Olivia" }, text("fr"))).toEqual([
+            "Olivia vous attend",
+            "2 notifications non lues",
+        ]);
+        expect(dotAttention({ ...quiet, waitingAgent: "" }, text("fr"))).toEqual(["Un agent vous attend"]);
+    });
+
+    it("says nothing for a dot at rest", () => {
+        expect(dotAttention(quiet, text("en"))).toEqual([]);
+    });
+
+    it("gives the dot's popover and its accessible name the same lines", () => {
+        const source = fs.readFileSync(path.join(__dirname, "workspace-sidebar.tsx"), "utf8");
+        const start = source.indexOf("function WorkspaceDot(");
+        const body = source.slice(start, source.indexOf("\nfunction ", start + 1));
+        expect(body).toContain("const attention = dotAttention(");
+        expect(body).toContain('const label = [entry.name, ...attention].join(" · ");');
+        expect(body).toContain("attention={attention}");
     });
 });
 

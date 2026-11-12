@@ -28,6 +28,7 @@ const dir = fileURLToPath(new URL(".", import.meta.url));
 const css = readFileSync(`${dir}sidebar.css`, "utf8");
 const sidebarSrc = readFileSync(`${dir}workspace-sidebar.tsx`, "utf8");
 const rippleSrc = readFileSync(`${dir}workspace-dot-ripple.ts`, "utf8");
+const rippleTextSrc = readFileSync(`${dir}workspace-dot-popover-model.ts`, "utf8");
 
 let nextVersion = 1;
 
@@ -293,7 +294,8 @@ describe("the dot in the sidebar", () => {
     });
 
     it("says in its label, and in its popover, that agents are at work", () => {
-        expect(body).toContain('attention.push(tc("rail.working", working))');
+        expect(body).toMatch(/const attention = dotAttention\(\s*\{[^}]*\bworking,/);
+        expect(rippleTextSrc).toContain('lines.push(text.tc("rail.working", facts.working))');
         expect(body).toContain("const label = [entry.name, ...attention].join");
     });
 
