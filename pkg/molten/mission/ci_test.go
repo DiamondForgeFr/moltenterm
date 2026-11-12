@@ -110,8 +110,14 @@ func TestSelectCiJobsAndLanes(t *testing.T) {
 	if got := names(selectCiJobs(jobs, verdicts, true, nil)); len(got) != 4 {
 		t.Fatalf("Run all again: %v", got)
 	}
-	if got := names(selectCiJobs(jobs, verdicts, false, []string{"check"})); !reflect.DeepEqual(got, []string{"check"}) {
-		t.Fatalf("only: %v", got)
+	if got := names(selectCiJobs(jobs, verdicts, false, []string{"check"})); len(got) != 0 {
+		t.Fatalf("a green job asked for is not redone: %v", got)
+	}
+	if got := names(selectCiJobs(jobs, verdicts, false, []string{"check", "e2e", "rust"})); !reflect.DeepEqual(got, []string{"e2e", "rust"}) {
+		t.Fatalf("only the jobs asked for that are not green: %v", got)
+	}
+	if got := names(selectCiJobs(jobs, verdicts, true, []string{"check"})); !reflect.DeepEqual(got, []string{"check"}) {
+		t.Fatalf("forced, a green job asked for runs again: %v", got)
 	}
 	lanes := ciLanes(jobs)
 	if len(lanes) != 3 || len(lanes[0]) != 2 || lanes[1][0].Name != "rust" || lanes[2][0].Name != "solo" {
@@ -159,6 +165,13 @@ func TestCiRunKeepsVerdictsPerTree(t *testing.T) {
 	gitIn(t, dir, "commit", "-q", "--allow-empty", "-m", "empty")
 	if status, _ := c.Status(dir, "HEAD"); status.Status != CiStateSuccess {
 		t.Fatalf("same tree, same verdicts: %+v", status)
+	}
+	// Acceptance 5 (#2277): a run limited to jobs already green on this code runs none of them, like a full run.
+	if _, err := c.Start(CiRunRequest{Dir: dir, Only: []string{"rust", "check"}}); err == nil || !strings.Contains(err.Error(), "already green") {
+		t.Fatalf("jobs asked for that are green are not redone: %v", err)
+	}
+	if _, err := c.Start(CiRunRequest{Dir: dir, Only: []string{"nonesuch"}}); err == nil || !strings.Contains(err.Error(), "declares none of the jobs") {
+		t.Fatalf("a job the pipeline does not declare is told as such: %v", err)
 	}
 	forced := startCi(t, c, dir, CiRunRequest{Force: true, Only: []string{"rust"}})
 	if !reflect.DeepEqual(jobStatuses(forced), map[string]string{"rust": "success"}) {

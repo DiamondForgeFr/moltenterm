@@ -222,7 +222,7 @@ func (l *routeLink) handleRun(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.runs.List(req.Dir), nil
-	case LogCommand, CancelCommand, CloseCommand:
+	case LogCommand, CancelCommand, CloseCommand, VerifyHereCommand:
 		var req runIdRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
@@ -232,6 +232,9 @@ func (l *routeLink) handleRun(command string, data any) (any, error) {
 		}
 		if command == CancelCommand {
 			return nil, l.runs.Cancel(req.Dir, req.RunId)
+		}
+		if command == VerifyHereCommand {
+			return nil, l.runs.VerifyHere(req.Dir, req.RunId)
 		}
 		if command == CloseCommand {
 			return nil, l.runs.Close(req.Dir, req.RunId)
@@ -476,6 +479,7 @@ var windowCommands = map[string]string{
 	ReleaseRerunCommand:    "a release's jobs are run again from a MoltenTerm window",
 	ReleaseDispatchCommand: "a release's workflow is started by hand from a MoltenTerm window",
 	ReleaseSaveCommand:     "release notes are saved from a MoltenTerm window",
+	VerifyHereCommand:      "a build is verified here instead of by GitHub's CI from a MoltenTerm window",
 	// The release setup writes in the project and starts a coding agent (FR-MC-036): the developer's click only.
 	SetupRefineCommand: "a release setup is refined from a MoltenTerm window",
 	SetupWriteCommand:  "a release setup is written from a MoltenTerm window",

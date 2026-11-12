@@ -23,7 +23,8 @@ import (
 
 // Local builds (FR-MC-012, FR-MC-013, DS-MC-011): a build is made from the trunk as it is on the remote, in a worktree
 // of the project's own, never in the user's checkout. wavesrv fetches, moves the worktree, verifies the commit with the
-// local CI when the build asks for it, runs its prepare command, then starts the build command detached as any run.
+// local CI when the build asks for it (or accepts a green GitHub run of the same commit instead, builds_verify.go), runs
+// its prepare command, then starts the build command detached as any run.
 //
 // Only the steps that can hang without a word are bounded, each on its own: a git step and the prepare command
 // (buildStepTimeout). The local CI has no total bound, since a loaded machine can take far longer than usual (#2273): the
@@ -59,6 +60,7 @@ func (r *Runs) setPreparing(runId string, preparing bool) {
 	} else {
 		delete(r.preparing, runId)
 		delete(r.cancelAsked, runId)
+		delete(r.verifyHere, runId)
 	}
 }
 
@@ -243,9 +245,9 @@ func (r *Runs) prepareAndLaunch(rec RunRecord, build molten.PipelineBuild) {
 		b.finish(1)
 		return
 	}
-	if build.Verify == molten.PipelineBuildVerifyCi {
+	if build.VerifiesWithCi() {
 		b.say("▶ phase: %s", molten.PipelineVerifyPhase)
-		if !r.verifyBuild(ctx, b) {
+		if !r.verifyBuild(ctx, b, build) {
 			b.finish(1)
 			return
 		}
@@ -367,8 +369,19 @@ func (r *Runs) prepareBuildTree(ctx context.Context, b *buildLog) (string, error
 	return tree, nil
 }
 
-// verifyBuild runs the local CI on the build's commit (only the jobs not green yet) and says whether it is green.
-func (r *Runs) verifyBuild(ctx context.Context, b *buildLog) bool {
+// verifyBuild says whether the build's commit is verified: by a green run of GitHub's full suites on that exact commit
+// when the build accepts one (#2277), else by the local CI.
+func (r *Runs) verifyBuild(ctx context.Context, b *buildLog, build molten.PipelineBuild) bool {
+	if build.Verify == molten.PipelineBuildVerifyCiLocal {
+		b.verifyLocal("the pipeline asks for the local CI", uimsg.Make("mission.build.github.localChosen"))
+	} else if used, stopped := r.verifyByGithub(ctx, b); used || stopped {
+		return used
+	}
+	return r.verifyLocally(ctx, b)
+}
+
+// verifyLocally runs the local CI on the build's commit (only the jobs not green yet) and says whether it is green.
+func (r *Runs) verifyLocally(ctx context.Context, b *buildLog) bool {
 	if r.ci == nil {
 		b.say("the local CI is not available")
 		return false
@@ -682,7 +695,7 @@ func (r *Runs) BuildsFacts(dir string, fresh bool) (BuildsFacts, error) {
 			Manifest:    manifest,
 			Last:        readBuildManifest(manifest),
 		})
-		if build.Verify == molten.PipelineBuildVerifyCi && facts.Ci == nil && r.ci != nil && facts.TrunkSha != "" {
+		if build.VerifiesWithCi() && facts.Ci == nil && r.ci != nil && facts.TrunkSha != "" {
 			if verdict, err := r.ci.Status(dir, facts.TrunkSha); err == nil {
 				facts.Ci = &verdict
 			}

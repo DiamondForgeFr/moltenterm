@@ -4300,6 +4300,7 @@
             "ciRed": "CI au rouge sur {trunk} ({jobs}) : elle repasse d'abord, et le build s'arrête si elle échoue.",
             "ciRunning": "La CI locale tourne sur {trunk}.",
             "ciFirst": "La CI locale passera d'abord sur {trunk}.",
+            "ciFirstGithub": "La CI passera d'abord sur {trunk}, celle de GitHub si elle a déjà vérifié ce commit en entier, sinon la locale.",
             "theBuild": "le build",
             "delivered": "Livré : {product} {version}, commit {commit}, {count} commit(s) depuis le précédent.",
             "built": "Compilé.",
@@ -4321,7 +4322,17 @@
             "fetchFailed": "Échec de la récupération : compilation du dernier tronc récupéré.",
             "phasesLabel": "Phases du build local",
             "noLocalBuild": "Aucun build local pour l'instant : lancez-en un depuis Projet › Build local.",
-            "builtFromCommit": "Compilé depuis {commit}"
+            "builtFromCommit": "Compilé depuis {commit}",
+            "verify": {
+                "github": {
+                    "one": "Vérifié par la CI de GitHub · passage {run} · {count} job vert sur {sha}",
+                    "other": "Vérifié par la CI de GitHub · passage {run} · {count} jobs verts sur {sha}"
+                },
+                "waiting": "En attente de la CI de GitHub · passage {run} · {done} jobs sur {total} terminés",
+                "waitingStart": "En attente de la CI de GitHub · passage {run}",
+                "notUsed": "CI de GitHub non utilisée ({reason}). La CI locale s'exécute.",
+                "here": "Vérifier ici plutôt"
+            }
         },
         "depSync": {
             "howExit": "{state} (code {exit})",
@@ -9911,7 +9922,29 @@
                 "ciCancelled": "Arrêté : son passage de CI locale a été annulé.",
                 "worktreeTimeout": "Arrêté : la préparation du worktree du build a pris plus de {minutes} minutes.",
                 "prepareTimeout": "Arrêté : la commande de préparation du build a pris plus de {minutes} minutes.",
-                "cancelled": "Annulé par vous."
+                "cancelled": "Annulé par vous.",
+                "notWaiting": "{title} n'attend pas la CI de GitHub.",
+                "github": {
+                    "badSha": "le commit n'est pas un identifiant complet",
+                    "noRepo": "origin n'est pas un dépôt GitHub",
+                    "noGh": "gh n'est pas installé",
+                    "loggedOut": "vous n'êtes pas connecté à GitHub (gh auth login)",
+                    "rateLimited": "la limite de requêtes de GitHub est atteinte",
+                    "unreachable": "GitHub est injoignable",
+                    "noRun": "GitHub n'a aucun passage de CI sur {sha}",
+                    "partialOnly": "les passages de GitHub sur {sha} ne sont pas les suites complètes (passages de pull request, ou d'autres branches)",
+                    "failed": "le passage de CI {run} de GitHub s'est terminé en {conclusion} sur {sha}",
+                    "cancelled": "le passage de CI {run} de GitHub a été annulé sur {sha}",
+                    "noRequired": "{branch} ne déclare aucun contrôle requis, donc aucun passage de GitHub ne peut tenir lieu de sa CI complète",
+                    "rulesUnreadable": "les contrôles requis sur {branch} n'ont pas pu être lus",
+                    "jobsUnreadable": "les jobs du passage {run} de GitHub n'ont pas pu être lus",
+                    "requiredMissing": "le contrôle requis {check} n'est pas un job du passage {run} de GitHub",
+                    "requiredSkipped": "le contrôle requis {check} a été ignoré dans le passage {run} de GitHub",
+                    "requiredNotGreen": "le contrôle requis {check} s'est terminé en {conclusion} dans le passage {run} de GitHub",
+                    "localChosen": "le pipeline demande la CI locale",
+                    "hereChosen": "vous avez choisi de vérifier ici",
+                    "stalled": "son passage n'a pas avancé pendant {minutes} minutes"
+                }
             },
             "pipelineProblems": "Le pipeline a des problèmes : {detail}",
             "ci": {
