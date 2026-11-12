@@ -93,6 +93,8 @@ type RunRecord struct {
 	// notification; empty when its log alone says why.
 	Stopped     string      `json:"stopped,omitempty"`
 	StoppedText *uimsg.Text `json:"stoppedtext,omitempty"`
+	// How a build's commit is verified (#2277), for its row; nil until the Verify phase starts.
+	Verify *BuildVerify `json:"verify,omitempty"`
 	// Its end was told in the notification center (FR-MC-014).
 	Told bool `json:"told,omitempty"`
 	// Closed by the user once it no longer runs: a build's card leaves the Project tab, a step's log stays hidden, until
@@ -133,7 +135,9 @@ type Runs struct {
 	preparing      map[string]bool
 	// Cancels asked while a build is being prepared; the preparation alone writes its record meanwhile.
 	cancelAsked map[string]bool
-	git         Runner
+	// Builds whose developer chose to verify here instead of waiting for GitHub's CI (#2277).
+	verifyHere map[string]bool
+	git        Runner
 	ci          *Ci
 	notify      func(RunRecord, molten.NotificationInput)
 	told        map[string]bool
@@ -177,7 +181,7 @@ func (r *Runs) UseWorktrees(w *Worktrees, dataDir string) {
 
 func MakeRuns(baseDir string, trust *TrustStore, publish func(RunRecord)) *Runs {
 	return &Runs{baseDir: baseDir, trust: trust, publish: publish, now: time.Now, watching: map[string]bool{},
-		preparing: map[string]bool{}, cancelAsked: map[string]bool{}, git: ExecRunner, told: map[string]bool{}}
+		preparing: map[string]bool{}, cancelAsked: map[string]bool{}, verifyHere: map[string]bool{}, git: ExecRunner, told: map[string]bool{}}
 }
 
 // UseCi lets builds verify their commit with the local CI first.

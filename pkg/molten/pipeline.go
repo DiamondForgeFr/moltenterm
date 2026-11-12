@@ -100,8 +100,16 @@ const (
 	PipelineBuildKindGold = "gold"
 	PipelineBuildKindRc   = "rc"
 	PipelineBuildVerifyCi = "ci"
-	PipelineVerifyPhase   = "verify"
+	// The local CI always verifies, even when GitHub already verified the same commit in full (#2277).
+	PipelineBuildVerifyCiLocal = "ci-local"
+	PipelineVerifyPhase        = "verify"
 )
+
+// VerifiesWithCi tells whether a build waits for a green CI before it is built: "ci" reuses a green GitHub run of the
+// same commit and runs the local CI otherwise, "ci-local" always runs the local CI (#2277).
+func (b PipelineBuild) VerifiesWithCi() bool {
+	return b.Verify == PipelineBuildVerifyCi || b.Verify == PipelineBuildVerifyCiLocal
+}
 
 // must match the release phases in frontend/moltenterm-shell/mission and pipeline-format.md
 var PipelineReleasePhases = []string{"prepare", "cut", "build", "publish", "back"}
@@ -699,11 +707,11 @@ func (c *pipelineChecker) check(p *Pipeline) {
 		if build.Kind != "" && build.Kind != PipelineBuildKindGold && build.Kind != PipelineBuildKindRc {
 			c.errorf("%s (%s): kind must be %q or %q (got %q)", label, build.Id, PipelineBuildKindGold, PipelineBuildKindRc, build.Kind)
 		}
-		if build.Verify != "" && build.Verify != PipelineBuildVerifyCi {
-			c.errorf("%s (%s): verify must be %q or left out (got %q)", label, build.Id, PipelineBuildVerifyCi, build.Verify)
+		if build.Verify != "" && !build.VerifiesWithCi() {
+			c.errorf("%s (%s): verify must be %q, %q or left out (got %q)", label, build.Id, PipelineBuildVerifyCi, PipelineBuildVerifyCiLocal, build.Verify)
 		}
-		if build.Verify == PipelineBuildVerifyCi && (p.Ci == nil || len(p.Ci.Jobs) == 0) {
-			c.errorf("%s (%s): verify is \"ci\" but the pipeline declares no ci.jobs", label, build.Id)
+		if build.VerifiesWithCi() && (p.Ci == nil || len(p.Ci.Jobs) == 0) {
+			c.errorf("%s (%s): verify is %q but the pipeline declares no ci.jobs", label, build.Id, build.Verify)
 		}
 		phases := map[string]bool{}
 		for j, phase := range build.Phases {

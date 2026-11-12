@@ -4300,6 +4300,7 @@
             "ciRed": "CI red on {trunk} ({jobs}): it runs again first, and the build stops if it fails.",
             "ciRunning": "The local CI is running on {trunk}.",
             "ciFirst": "The local CI will run first on {trunk}.",
+            "ciFirstGithub": "The CI will run first on {trunk}: GitHub's if it already checked this commit in full, else the local one.",
             "theBuild": "the build",
             "delivered": "Delivered: {product} {version}, commit {commit}, {count} commit(s) since the previous one.",
             "built": "Built.",
@@ -4321,7 +4322,17 @@
             "fetchFailed": "Fetching failed: building the last fetched trunk.",
             "phasesLabel": "Phases of the local build",
             "noLocalBuild": "No local build yet: start one from Project › Build local.",
-            "builtFromCommit": "Built from {commit}"
+            "builtFromCommit": "Built from {commit}",
+            "verify": {
+                "github": {
+                    "one": "Verified by GitHub CI · run {run} · {count} job green on {sha}",
+                    "other": "Verified by GitHub CI · run {run} · {count} jobs green on {sha}"
+                },
+                "waiting": "Waiting for GitHub CI · run {run} · {done} of {total} jobs done",
+                "waitingStart": "Waiting for GitHub CI · run {run}",
+                "notUsed": "GitHub CI not used: {reason}. The local CI runs.",
+                "here": "Verify here instead"
+            }
         },
         "depSync": {
             "howExit": "{state} (exit {exit})",
@@ -9912,7 +9923,29 @@
                 "ciCancelled": "Stopped: its local CI run was cancelled.",
                 "worktreeTimeout": "Stopped: preparing the build's worktree took longer than {minutes} minutes.",
                 "prepareTimeout": "Stopped: the build's prepare command took longer than {minutes} minutes.",
-                "cancelled": "Cancelled by you."
+                "cancelled": "Cancelled by you.",
+                "notWaiting": "{title} is not waiting for GitHub's CI.",
+                "github": {
+                    "badSha": "the commit is not a full commit id",
+                    "noRepo": "origin is not a GitHub repository",
+                    "noGh": "gh is not installed",
+                    "loggedOut": "you are not signed in to GitHub (gh auth login)",
+                    "rateLimited": "GitHub's rate limit is reached",
+                    "unreachable": "GitHub could not be reached",
+                    "noRun": "GitHub has no CI run on {sha}",
+                    "partialOnly": "GitHub's runs on {sha} are not the full suites (pull request runs, or runs of other branches)",
+                    "failed": "GitHub's CI run {run} ended in {conclusion} on {sha}",
+                    "cancelled": "GitHub's CI run {run} was cancelled on {sha}",
+                    "noRequired": "{branch} declares no required check, so no GitHub run can stand for its full CI",
+                    "rulesUnreadable": "the checks {branch} requires could not be read",
+                    "jobsUnreadable": "the jobs of GitHub's run {run} could not be read",
+                    "requiredMissing": "the required check {check} is not a job of GitHub's run {run}",
+                    "requiredSkipped": "the required check {check} was skipped in GitHub's run {run}",
+                    "requiredNotGreen": "the required check {check} ended in {conclusion} in GitHub's run {run}",
+                    "localChosen": "the pipeline asks for the local CI",
+                    "hereChosen": "you chose to verify here instead",
+                    "stalled": "its run made no progress for {minutes} minutes"
+                }
             },
             "ci": {
                 "noJobs": "The pipeline declares no CI job (ci.jobs).",

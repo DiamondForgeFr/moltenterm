@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -179,7 +180,8 @@ func (c *Ci) git(ctx context.Context, dir string, args ...string) (string, error
 	return strings.TrimSpace(string(out)), err
 }
 
-// The jobs a run starts with: the ones asked for, all of them, or those not green yet on that tree, in pipeline order.
+// The jobs a run starts with, in pipeline order: those not green yet on that tree, or all of them when forced; limited to
+// the ones asked for when some are. A green verdict is never redone unless forced, whichever jobs are asked for (#2277).
 func selectCiJobs(jobs []molten.PipelineJob, verdicts map[string]CiVerdict, force bool, only []string) []molten.PipelineJob {
 	var rtn []molten.PipelineJob
 	wanted := map[string]bool{}
@@ -187,19 +189,24 @@ func selectCiJobs(jobs []molten.PipelineJob, verdicts map[string]CiVerdict, forc
 		wanted[name] = true
 	}
 	for _, job := range jobs {
-		switch {
-		case len(only) > 0:
-			if !wanted[job.Name] {
-				continue
-			}
-		case !force:
-			if verdicts[job.Name].Status == CiStateSuccess {
-				continue
-			}
+		if len(only) > 0 && !wanted[job.Name] {
+			continue
+		}
+		if !force && verdicts[job.Name].Status == CiStateSuccess {
+			continue
 		}
 		rtn = append(rtn, job)
 	}
 	return rtn
+}
+
+func declaresAnyJob(jobs []molten.PipelineJob, names []string) bool {
+	for _, job := range jobs {
+		if slices.Contains(names, job.Name) {
+			return true
+		}
+	}
+	return false
 }
 
 // Lanes in the order their first job is declared; a job without a lane is a lane of its own.
@@ -573,7 +580,7 @@ func (c *Ci) startAt(req CiRunRequest, project string) (CiRunResult, error) {
 	}
 	jobs := selectCiJobs(pipeline.Ci.Jobs, c.readVerdicts(dir, target.tree), req.Force, req.Only)
 	if len(jobs) == 0 {
-		if len(req.Only) > 0 {
+		if len(req.Only) > 0 && !declaresAnyJob(pipeline.Ci.Jobs, req.Only) {
 			only := strings.Join(req.Only, ", ")
 			return CiRunResult{}, uimsg.Errorf(uimsg.Make("mission.ci.noneOfJobs", "jobs", only), "the pipeline declares none of the jobs %s", only)
 		}
