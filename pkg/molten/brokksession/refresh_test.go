@@ -184,3 +184,23 @@ func TestTheBriefKeepsHimAvailable(t *testing.T) {
 		}
 	}
 }
+
+// #2284: he said "in the background" and searched the projects in his own turn: a sub-agent started the ordinary way
+// runs in the foreground. The brief asks for the background explicitly, gives that very example, and lets him say it
+// only when it is true.
+func TestTheBriefMakesHimDelegateForReal(t *testing.T) {
+	t.Parallel()
+	for _, want := range []string{
+		"during a brainstorm too",
+		"searching the developer's projects",
+		"runs in the foreground and holds your turn",
+		"ask for the background explicitly",
+		`Say "in the background" only when it is true`,
+		`"Look in my projects to find it"`,
+		"You never search the projects yourself in that turn",
+	} {
+		if !strings.Contains(BriefText(true), want) {
+			t.Errorf("the brief does not say %q", want)
+		}
+	}
+}

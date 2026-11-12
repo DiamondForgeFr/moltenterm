@@ -115,6 +115,17 @@ func (s *Service) Load(req SlugRequest) LoadResult {
 		defer s.lock.Unlock()
 		return LoadResult{State: s.stateLocked(), Turns: append([]Turn{}, s.session.Turns...), ResumeBrief: s.writeResumeLocked()}
 	}
+	// The way back to the brainstorm just left (AC10e, #2284): it is still the one held, so it opens again as it was,
+	// with no swap: an answer of his begun in it and still coming in stays its own.
+	if !s.open && s.session != nil && s.session.Info.Slug == req.Slug {
+		s.open = true
+		s.by = ByYou
+		version := s.changedLocked()
+		rtn := LoadResult{State: s.stateLocked(), Turns: append([]Turn{}, s.session.Turns...), ResumeBrief: s.writeResumeLocked()}
+		s.lock.Unlock()
+		s.tell(version)
+		return rtn
+	}
 	saved, err := s.store.LoadSlug(req.Slug)
 	if errors.Is(err, ErrUnknownBrainstorm) {
 		return s.loadFailed(ReasonUnknown)

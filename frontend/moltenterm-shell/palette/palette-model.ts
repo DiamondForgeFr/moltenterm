@@ -40,6 +40,8 @@ export type PaletteRun =
     // A brainstorm with him (FR-BOSS-010, #2246), and its scripted replay on dev and local builds.
     | { kind: "brainstorm" }
     | { kind: "brainstormreplay" }
+    // The brainstorm last left, opened again where it was (#2284).
+    | { kind: "brainstormresume" }
     // Back to the pane the palette was opened from, to type an agent's own command there.
     | { kind: "focusorigin" }
     // The browser panel's active page, handed off to the installed browser (FR-BRW-002).

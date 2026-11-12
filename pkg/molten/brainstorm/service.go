@@ -122,6 +122,9 @@ type TurnRequest struct {
 	Block *Block `json:"block,omitempty"`
 	At    int64  `json:"at"`
 	Swap  *int64 `json:"swap,omitempty"`
+	// Late: the answer began while the mode was open, and the developer left before it ended (#2284). Leaving never
+	// cuts his work: it is saved in the brainstorm left (same Swap), without opening the mode again.
+	Late bool `json:"late,omitempty"`
 }
 
 type TurnResult struct {
@@ -283,7 +286,8 @@ func (s *Service) Turn(req TurnRequest) TurnResult {
 		defer s.lock.Unlock()
 		return TurnResult{State: s.stateLocked(), Stale: true}
 	}
-	if !s.open {
+	late := !s.open && req.Late && req.Swap != nil && s.session != nil
+	if !s.open && !late {
 		if !opensMode(req.Block) || ValidateBlock(*req.Block) != nil {
 			defer s.lock.Unlock()
 			return TurnResult{State: s.stateLocked()}

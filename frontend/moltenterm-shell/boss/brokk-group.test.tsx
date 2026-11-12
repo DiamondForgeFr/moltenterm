@@ -121,6 +121,8 @@ vi.mock("./brokk-session", async () => {
         stateAtom: atom({ phase: "idle", reason: "", agentName: "", started: false, reply: "", where: null } as any),
         exchangeAtom: atom([] as any[]),
         unseenIdAtom: atom(null as string),
+        queuedAtom: atom(null as any),
+        returnedAtom: atom(null as string),
     };
     return { BrokkSession: { getInstance: () => session } };
 });
@@ -742,7 +744,10 @@ describe("the windows never overlap (AC18)", () => {
         const talk = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
         // During a brainstorm, while his agent asks a permission (#2257), or while a question about the brainstorms waits
         // (#2248), it stays open whatever has the focus.
-        expect(talk).toContain("const open = conversationOpen(focused, text) || brainstorming || asking || prompted;");
+        // A message waiting for him (#2284) too.
+        expect(talk).toContain(
+            "const open = conversationOpen(focused, text) || brainstorming || asking || prompted || queued != null;"
+        );
         expect(talk).toContain("onFocus={() => setFocused(true)}");
         // The focus moving from the field to a button of the window is still the conversation.
         expect(talk).toContain("onBlur={(e) => setFocused(e.currentTarget.contains(e.relatedTarget as Node))}");

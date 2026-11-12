@@ -23,9 +23,12 @@
     opacity: 1;
 }
 
-/* His group's own light scrim gives way to the forge-dark one while the mode is on; it still takes the press. */
+/* His group's own light scrim gives way to the forge-dark one while the mode is on; it still takes the press, but from
+   under the layer (#2284): drawn after it at the same level, it covered the header, so Leave the brainstorm, the switch
+   and the widget never took the click. The layer takes no pointer itself, so a press on the dim still reaches it. */
 .mt-boss-layer:has(> .mt-bs-layer.is-in) .mt-brokk-scrim {
     background: transparent;
+    z-index: -1;
 }
 
 .mt-bs-scrim {

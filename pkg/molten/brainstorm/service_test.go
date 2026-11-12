@@ -86,6 +86,57 @@ func TestHisCentralIdeaOpensTheMode(t *testing.T) {
 	}
 }
 
+// AC2a (#2284): leaving never cuts his work. An answer begun in the brainstorm and finished after the developer left is
+// saved in that brainstorm, and the mode stays closed. Without Late, or from another brainstorm, nothing is kept.
+func TestALateAnswerIsSavedInTheBrainstormLeft(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	s := f.service()
+	s.Turn(openingTurn())
+	swap := s.State().Swap
+	s.Close()
+	more := block(add("three-ten", KindAnswer, "From 3 to 10", "ages"))
+	got := s.Turn(TurnRequest{Key: "t2", You: "From 3 to 10.", Brokk: "Noted.", Block: &more, At: 2000, Swap: &swap, Late: true})
+	if got.State.Open || !got.Applied || len(got.State.Graph.Nodes) != 3 {
+		t.Fatalf("the late answer: %+v", got)
+	}
+	saved, err := f.store.Load(s.State().Brainstorm.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(saved.Turns) != 4 || saved.Turns[3].Text != "Noted." || len(saved.Graph.Nodes) != 3 {
+		t.Fatalf("the folder holds %d turns, %d nodes", len(saved.Turns), len(saved.Graph.Nodes))
+	}
+	words := s.Turn(TurnRequest{Key: "t3", You: "Hello", Brokk: "Words only.", At: 3000, Swap: &swap})
+	if words.State.Open || words.State.Brainstorm.Turns != 4 {
+		t.Errorf("an answer that did not begin in the brainstorm was kept: %+v", words.State.Brainstorm)
+	}
+	other := swap + 1
+	stale := s.Turn(TurnRequest{Key: "t4", Brokk: "Elsewhere.", At: 4000, Swap: &other, Late: true})
+	if !stale.Stale || stale.State.Brainstorm.Turns != 4 {
+		t.Errorf("a late answer of another brainstorm was kept: %+v", stale)
+	}
+}
+
+// AC10e (#2284): Resume of the brainstorm just left opens it again as it was, with no swap, so his answer still coming
+// in stays its own.
+func TestResumingTheBrainstormJustLeftKeepsItsSwap(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t)
+	s := f.service()
+	s.Turn(openingTurn())
+	left := s.Close()
+	got := s.Load(SlugRequest{Slug: left.Brainstorm.Slug})
+	if got.Error != "" || !got.State.Open || got.State.Swap != left.Swap || len(got.Turns) != 2 || len(got.State.Graph.Nodes) != 2 {
+		t.Fatalf("the resume: %+v", got)
+	}
+	more := block(add("three-ten", KindAnswer, "From 3 to 10", "ages"))
+	swap := left.Swap
+	if next := s.Turn(TurnRequest{Key: "t2", Brokk: "Noted.", Block: &more, At: 2000, Swap: &swap}); next.Stale || !next.Applied {
+		t.Errorf("his answer begun before the resume was refused: %+v", next)
+	}
+}
+
 // AC7: each turn is in the folder when it ends, and after a restart the developer's start offers it (the picker of
 // AC10a, #2248), and Load resumes the graph.
 func TestEachTurnIsSavedAndARestartResumesIt(t *testing.T) {

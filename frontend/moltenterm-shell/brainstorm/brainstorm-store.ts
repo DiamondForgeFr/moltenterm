@@ -34,6 +34,7 @@ import { TabActivity } from "../tab-activity";
 import { showToast } from "../toast-store";
 import {
     BrainstormEvent,
+    BrainstormLastLeftAtom,
     BrainstormPromptAtom,
     BrainstormRouteId,
     BrainstormState,
@@ -139,6 +140,8 @@ export class BrainstormModel {
     private sent = new Set<string>();
     // The swap each answer began in, by the answer's id (review of #2248).
     private swapOf = new Map<string, number>();
+    // Whether the mode was open when each answer began, by the answer's id (#2284).
+    private beganOpen = new Map<string, boolean>();
     private asked = new Set<string>();
     private listRev = -1;
     private seen = new Map<string, number>();
@@ -164,6 +167,7 @@ export class BrainstormModel {
         BrainstormModel.instance = null;
         globalStore.set(BrainstormStateAtom, null);
         globalStore.set(BrainstormPromptAtom, null);
+        globalStore.set(BrainstormLastLeftAtom, null);
     }
 
     useCall(call: Call): void {
@@ -205,6 +209,15 @@ export class BrainstormModel {
             BrokkSession.getInstance().listenAnswers((answer) => {
                 globalStore.set(this.talkAtAtom, Date.now());
                 void this.onAnswer(answer);
+            })
+        );
+        this.stops.push(
+            BrokkSession.getInstance().listenTaken((id) => {
+                this.beganOpen.set(id, this.isOpen());
+                const swap = globalStore.get(this.stateAtom)?.swap;
+                if (swap != null) {
+                    this.swapOf.set(id, swap);
+                }
             })
         );
         this.cardWasOpen = globalStore.get(boss.cardOpenAtom);
@@ -287,6 +300,7 @@ export class BrainstormModel {
         boss.openCard(undefined, { force: true });
         boss.pinCard();
         const wasOpen = this.isOpen();
+        const lastSlug = globalStore.get(BrainstormLastLeftAtom)?.slug ?? "";
         const state: BrainstormState = await this.ask(OpenCommand, { by: "you" });
         this.apply(state);
         if (state == null) {
@@ -303,7 +317,7 @@ export class BrainstormModel {
             session.setLead(t("boss.brainstorm.lead"));
             return true;
         }
-        const picker = pickerOf(await this.refreshList());
+        const picker = pickerOf(await this.refreshList(), lastSlug);
         if (picker != null) {
             globalStore.set(this.promptAtom, picker);
         } else if (!wasOpen) {
@@ -341,6 +355,7 @@ export class BrainstormModel {
         const boss = BossBubbleModel.getInstance();
         boss.openCard(undefined, { force: true });
         boss.pinCard();
+        const swapBefore = globalStore.get(this.stateAtom)?.swap;
         const result = await this.ask(LoadCommand, { slug });
         if (result?.state == null) {
             this.failed("failed");
@@ -355,7 +370,11 @@ export class BrainstormModel {
         globalStore.set(this.widgetOpenAtom, false);
         const title = result.state.brainstorm?.title ?? "";
         const session = BrokkSession.getInstance();
-        session.stopFollowing();
+        // The brainstorm just left opens again with no swap (#2284): his answer still coming in is its own, so it is
+        // followed on and comes in after the conversation.
+        if (swapBefore == null || result.state.swap !== swapBefore) {
+            session.stopFollowing();
+        }
         session.showConversation(result.turns ?? []);
         session.addLocalLine(t("boss.brainstorm.resume", { title }));
         this.leadInto(title, result.resumebrief === true);
@@ -554,12 +573,18 @@ export class BrainstormModel {
         if (!this.swapOf.has(answer.id) && swap != null) {
             this.swapOf.set(answer.id, swap);
         }
+        if (!this.beganOpen.has(answer.id)) {
+            this.beganOpen.set(answer.id, this.isOpen());
+        }
         void this.onQuestions(answer);
+        // Leaving never cuts his work (AC2a, #2284): an answer begun in the brainstorm, and finished after the developer
+        // left it, still goes to that brainstorm, as a late turn wavesrv saves without opening the mode again.
+        const late = !this.isOpen() && this.beganOpen.get(answer.id) === true && this.swapOf.get(answer.id) === swap;
         const step = answerStep({
             markdown: answer.markdown,
             turn: answer.turn,
             final: answer.final,
-            open: this.isOpen(),
+            open: this.isOpen() || late,
             allowed: this.allowed(),
         });
         if (step.kind !== "turn" || this.sent.has(step.key)) {
@@ -578,12 +603,14 @@ export class BrainstormModel {
             block: step.block,
             at: Date.now(),
             swap: this.swapOf.get(answer.id),
+            late: late || undefined,
         });
         this.apply(result?.state);
     }
 
     private opened(): void {
         this.pause(true);
+        globalStore.set(BrainstormLastLeftAtom, null);
         this.sent.clear();
         this.seen = new Map(
             MoltentermNotifications.getInstance()
@@ -641,6 +668,11 @@ export class BrainstormModel {
 
     private closed(): void {
         this.pause(false);
+        // The way back (AC10e, #2284): the brainstorm left is offered on his card and in his talk window.
+        const left = globalStore.get(this.stateAtom)?.brainstorm;
+        if (left?.slug) {
+            globalStore.set(BrainstormLastLeftAtom, left);
+        }
         globalStore.set(this.breakthroughAtom, null);
         // The questions of the mode go with it; his offer to resume, asked outside it, stays.
         globalStore.set(this.forkAtom, null);
