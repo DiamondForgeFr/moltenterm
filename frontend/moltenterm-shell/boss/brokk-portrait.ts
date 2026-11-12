@@ -7,6 +7,10 @@
 // (brokk-live.tsx), which loads on the first opening of the comm screen, so neither the package nor a clip is read
 // before that.
 //
+// MoltenTerm's copy of the manifest keeps two choices of its own on top of the character project's file (#1999): the
+// blink may repeat and the nod is on demand, in both poses. A new set copied in keeps them (#2262, brokk-portrait.test.ts
+// checks both).
+//
 // His resting pose is called `rest`, as in his manifest: the package takes the name of a character's resting pose from
 // its declaration (`restState`, since v0.2.0) and looks for that pose's clips under it (`rest.webm`,
 // `rest-to-listening.webm`, `listening-to-rest.webm`...).

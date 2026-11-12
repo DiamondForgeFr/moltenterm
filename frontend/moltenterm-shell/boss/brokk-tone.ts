@@ -29,15 +29,15 @@ export type BrokkTone = (typeof BrokkTones)[number];
 export const NeutralTone: BrokkTone = "neutral";
 
 // The gesture each tone plays, among the clips he ships (portrait/brokk/brokk-manifest.json, the gestures of the
-// listening pose). Null plays none: proud and surprised have no clip of their own yet, and are listed for Constance
-// (character-studio) on #2259 rather than drawn or played as something else here.
+// listening pose); neutral plays none. He has no speaking smile, so smile and warm play the listening one, as every tone
+// does (#2262).
 export const ToneGesture: Record<BrokkTone, BrokkExpression> = {
     smile: "smile",
     warm: "smile",
-    amused: "smile",
-    proud: null,
+    amused: "chuckle",
+    proud: "proud",
     concerned: "frown",
-    surprised: null,
+    surprised: "surprised",
     thinking: "doubtful",
     neutral: null,
 };

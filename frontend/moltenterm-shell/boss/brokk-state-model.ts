@@ -24,8 +24,8 @@ export const BrokkExpressions = Object.keys(Manifest.expressionMs) as BrokkExpre
 
 export { SpeakingMs };
 
-// What a clip that carries him into the listening pose may add before the gesture starts (the longest is 4 s), and a
-// margin.
+// What the clips that carry him into the listening pose may add before the gesture starts (the longest is 4 s, or 4.25 s
+// when a clip into thinking still plays as the one out of it is asked, #2262), and a margin.
 const TransitionAllowanceMs = 6000;
 
 // The longest a gesture may hold his pose, should its clip never end (a refused autoplay, a window put to sleep). A

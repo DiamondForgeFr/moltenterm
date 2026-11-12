@@ -10,8 +10,18 @@
 
 import type { HandledKind } from "./brokk-mood";
 
-// The gestures the app asks of him; the manifest holds the length of each one.
-export type BrokkExpression = "smile" | "doubtful" | "frown" | "nod" | "call";
+// The gestures the app asks of him; the manifest holds the length of each one. The tone of his answer asks proud, chuckle
+// and surprised, and only a grave visit asks the sigh (#2262).
+export type BrokkExpression =
+    | "smile"
+    | "doubtful"
+    | "frown"
+    | "nod"
+    | "call"
+    | "sigh"
+    | "proud"
+    | "chuckle"
+    | "surprised";
 
 export type BrokkSituation = {
     // Agents working, in every workspace.

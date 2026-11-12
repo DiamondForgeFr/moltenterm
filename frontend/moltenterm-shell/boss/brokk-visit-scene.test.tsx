@@ -64,6 +64,7 @@ import {
     scenePhase,
     SceneRoomPx,
     sceneTimings,
+    sceneWaitGestureOf,
 } from "./brokk-visit-scene-model";
 import { EmptyShared } from "./brokk-visit-share";
 import { wordingKey } from "./brokk-visit-wording";
@@ -290,17 +291,31 @@ describe("the forge scene (FR-BOSS-009, AC6)", () => {
         }
     });
 
-    it("draws only blinks by chance while he waits: the nod and the faces are on demand", () => {
+    it("draws the waiting idles by chance while he waits: the nod, the faces and the sigh are on demand (#2262)", () => {
         const free = BrokkPortrait.idles.listening.filter((idle) => !idle.onDemand).map((idle) => idle.name);
-        expect(free).toEqual(["blink"]);
+        expect(free).toEqual(["blink", "glance", "breath", "lookaround", "beard", "scratch"]);
         expect(BrokkPortrait.idles.listening.find((idle) => idle.name === "blink").repeat).toBe(true);
+        for (const name of ["nod", "frown", "doubtful", "call", "smile", "sigh"]) {
+            expect(BrokkPortrait.idles.listening.find((idle) => idle.name === name).onDemand, name).toBe(true);
+        }
     });
 
-    it("asks the gesture of the severity: raised brows, frown, call or smile", () => {
+    it("asks the gesture of the severity as he arrives: raised brows, frown, call or smile; a grave visit sighs while he waits", () => {
         expect(sceneGestureOf("important")).toBe("doubtful");
         expect(sceneGestureOf("grave")).toBe("frown");
         expect(sceneGestureOf("neutre")).toBe("call");
         expect(sceneGestureOf("bonne")).toBe("smile");
+        expect(sceneWaitGestureOf("grave")).toBe("sigh");
+    });
+
+    it("hands the package no gesture before the scene has started its own, and hears every gesture it plays", () => {
+        for (const severity of Severities) {
+            Package.props = null;
+            render(severity);
+            expect(Package.props.expression, severity).toBeNull();
+            expect(typeof Package.props.onGesture, severity).toBe("function");
+            expect(() => Package.props.onGesture("glance", "start"), severity).not.toThrow();
+        }
     });
 
     it("is one button over the whole scene, named, that the keyboard reaches only once it is shown", () => {

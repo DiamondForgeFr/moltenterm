@@ -93,22 +93,33 @@ describe("the tones and his clips (AC88)", () => {
         }
     });
 
-    it("maps the tones the ticket names: a smile for smile, warm and amused, a frown for concerned, a doubt for thinking", () => {
+    it("maps the tones the ticket names: a smile for smile and warm, a chuckle for amused, his proud and surprised looks, a frown for concerned, a doubt for thinking (#2262)", () => {
         expect(ToneGesture).toEqual({
             smile: "smile",
             warm: "smile",
-            amused: "smile",
-            proud: null,
+            amused: "chuckle",
+            proud: "proud",
             concerned: "frown",
-            surprised: null,
+            surprised: "surprised",
             thinking: "doubtful",
             neutral: null,
         });
     });
 
-    it("lists for Constance only proud and surprised: the tones no clip of his carries", () => {
+    it("gives every tone but neutral a gesture of its own: none is left for the character project (#2262)", () => {
         const missing = BrokkTones.filter((tone) => tone !== "neutral" && ToneGesture[tone] == null);
-        expect(missing).toEqual(["proud", "surprised"]);
+        expect(missing).toEqual([]);
+        expect(ToneGesture.neutral).toBeNull();
+    });
+
+    it("plays the smile on the listening loop: he has no speaking smile (#2262)", () => {
+        const speaking = new Set(Manifest.idles.speaking.map((idle) => idle.name));
+        expect(speaking.has("smile")).toBe(false);
+        for (const tone of BrokkTones) {
+            if (ToneGesture[tone] != null) {
+                expect(gestures.has(ToneGesture[tone]), tone).toBe(true);
+            }
+        }
     });
 
     it("is the list his brief teaches", () => {

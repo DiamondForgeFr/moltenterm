@@ -109,7 +109,17 @@ describe("the pose while he makes a gesture (AC3)", () => {
     });
 
     it("lists the expressions the manifest times", () => {
-        expect([...BrokkExpressions].sort()).toEqual(["call", "doubtful", "frown", "nod", "smile"]);
+        expect([...BrokkExpressions].sort()).toEqual([
+            "call",
+            "chuckle",
+            "doubtful",
+            "frown",
+            "nod",
+            "proud",
+            "sigh",
+            "smile",
+            "surprised",
+        ]);
     });
 
     it("gives a gesture longer than its clip to end, so a clip that never ends does not hold the pose forever", () => {

@@ -83,29 +83,52 @@ export const SceneClipNames: Record<BrokkExpression, string> = {
     call: "listening.call",
     smile: "listening.smile",
     nod: "listening.nod",
+    sigh: "listening.sigh",
+    proud: "listening.proud",
+    chuckle: "listening.chuckle",
+    surprised: "listening.surprised",
 };
 
 export function sceneClipOf(severity: Severity): string {
     return SceneClipNames[SeverityExpression[severity]];
 }
 
-// The gesture of the severity, which his living portrait plays in the listening pose.
+// The gesture of the severity, which his living portrait plays once in the listening pose, as he arrives.
 export function sceneGestureOf(severity: Severity): BrokkExpression {
     return SeverityExpression[severity];
 }
 
-// The pose he waits in: the package's listening loop, whose free idles are his blinks (the faces are on demand only).
+// What he does now and then while he waits, besides the idles the package draws by chance (#2262): only a grave visit
+// has such a gesture, his sigh, and nothing else ever plays the sigh. The face of the severity no longer comes back: it
+// came back every 20 to 40 s for want of anything else to do (#2025), and the waiting idles took its place.
+export const SceneWaitGestures: Partial<Record<Severity, BrokkExpression>> = { grave: "sigh" };
+
+export function sceneWaitGestureOf(severity: Severity): BrokkExpression {
+    return SceneWaitGestures[severity] ?? null;
+}
+
+// The pose he waits in: the package's listening loop, with the gestures it draws there by chance (the blink, the glance
+// aside, the deep breath, the look around, the hand in the beard, the scratch); the faces are on demand only.
 export const ScenePose = "listening";
 
-// While he waits, the face of the severity comes back now and then so that it keeps saying why he came (#2025): after
-// a wait drawn anew each time between these two, counted from the end of the last one. Played over and over, it read
-// as a machine, not as someone waiting.
+// The waiting gesture comes after a wait drawn anew each time between these two, counted from the end of the last
+// gesture asked of him.
 export const SceneRecurGap = { minMs: 20_000, maxMs: 40_000 };
 
 export function sceneRecurDelayMs(random: number): number {
     const share = Math.min(Math.max(random, 0), 1);
     return Math.round(SceneRecurGap.minMs + share * (SceneRecurGap.maxMs - SceneRecurGap.minMs));
 }
+
+// The waiting gesture never cuts a gesture the package drew by chance, nor follows one back to back: it waits for its
+// end, then a round of his loop (4.5 s, the least the package itself leaves between two gestures it draws). A gesture
+// whose end never comes is let go after DrawnCapMs, longer than any he ships (brokk-visit-scene-model.test.ts measures
+// them).
+export const SceneQuietMs = 4_500;
+export const DrawnCapMs = 10_000;
+
+// A gesture asked of the package: a new cue plays the same gesture again.
+export type SceneCue = { expression: BrokkExpression; cue: number };
 
 export type SceneClock = {
     setTimer: (run: () => void, ms: number) => unknown;
@@ -114,45 +137,86 @@ export type SceneClock = {
 };
 
 export type SceneGestures = {
-    // The package says the gesture has left the screen: the next one waits a fresh gap from now.
-    ended: () => void;
+    // What the package says of a gesture (its onGesture): one of his own, or one it drew by chance.
+    heard: (name: string, phase: "start" | "end") => void;
     stop: () => void;
 };
 
-// Plays the gesture once at once (his arrival), then again after each wait. `cue` receives a new number for each play,
-// the package's way to play the same gesture again. Should the package never say the gesture ended (a clip that cannot
-// play says nothing), the next one still comes, `capMs` (the longest the gesture can last) plus a wait after it was
-// asked, so that two never follow each other without a wait between.
-export function startSceneGestures(clock: SceneClock, capMs: number, cue: (n: number) => void): SceneGestures {
+// Plays the face of the severity at once (his arrival), then, when the visit has a waiting gesture, that gesture after
+// each wait. Should the package never say a gesture of his ended (a clip that cannot play says nothing), the next one
+// still comes, `capMs` of it (the longest it can last) plus a wait after it was asked, so that two never follow each
+// other without a wait between.
+export function startSceneGestures(
+    clock: SceneClock,
+    gestures: { arrival: BrokkExpression; wait: BrokkExpression },
+    capMs: (expression: BrokkExpression) => number,
+    play: (cue: SceneCue) => void
+): SceneGestures {
     let played = 0;
     let timer: unknown = null;
     let stopped = false;
+    // The gesture the package drew by chance that plays now, and whether the waiting gesture waits for its end.
+    let drawn: string = null;
+    let held = false;
+    const own = (name: string) => name === gestures.arrival || name === gestures.wait;
     const clear = () => {
         if (timer != null) {
             clock.clearTimer(timer);
         }
         timer = null;
     };
-    const arm = (ms: number) => {
+    const arm = (ms: number, run: () => void) => {
         clear();
-        timer = clock.setTimer(play, ms);
+        timer = clock.setTimer(run, ms);
     };
-    function play() {
+    const start = (expression: BrokkExpression) => {
+        played++;
+        play({ expression, cue: played });
+        if (gestures.wait != null) {
+            arm(capMs(expression) + sceneRecurDelayMs(clock.random()), due);
+        }
+    };
+    function due() {
         timer = null;
         if (stopped) {
             return;
         }
-        played++;
-        cue(played);
-        arm(capMs + sceneRecurDelayMs(clock.random()));
+        if (drawn != null) {
+            held = true;
+            arm(DrawnCapMs, letGo);
+            return;
+        }
+        start(gestures.wait);
     }
-    play();
+    function letGo() {
+        timer = null;
+        drawn = null;
+        held = false;
+        due();
+    }
+    start(gestures.arrival);
     return {
-        ended: () => {
+        heard: (name, phase) => {
             if (stopped) {
                 return;
             }
-            arm(sceneRecurDelayMs(clock.random()));
+            if (!own(name)) {
+                if (phase === "start") {
+                    drawn = name;
+                    return;
+                }
+                if (drawn === name) {
+                    drawn = null;
+                }
+                if (held) {
+                    held = false;
+                    arm(SceneQuietMs, due);
+                }
+                return;
+            }
+            if (phase === "end" && gestures.wait != null) {
+                arm(sceneRecurDelayMs(clock.random()), due);
+            }
         },
         stop: () => {
             stopped = true;

@@ -58,11 +58,20 @@ describe("the expression queue (FR-BOSS-007, AC13)", () => {
         expect(ExpressionMs).toEqual(Manifest.expressionMs);
     });
 
-    it("ranks the expressions: frown, doubtful, smile, nod, call", () => {
+    it("ranks the expressions: frown, sigh, doubtful, the tone gestures, smile, nod, call (#2262)", () => {
         const order = Object.keys(ExpressionRank).sort(
             (a, b) => ExpressionRank[a as BrokkExpression] - ExpressionRank[b as BrokkExpression]
         );
-        expect(order).toEqual(["frown", "doubtful", "smile", "nod", "call"]);
+        expect(order).toEqual(["frown", "sigh", "doubtful", "surprised", "proud", "chuckle", "smile", "nod", "call"]);
+        expect(new Set(Object.values(ExpressionRank)).size).toBe(order.length);
+    });
+
+    it("gives an answer's tone gesture its own place, like the smile it stands beside (#2262)", () => {
+        for (const expression of ["chuckle", "proud", "surprised"] as BrokkExpression[]) {
+            const q = drive();
+            const step = q.step({ type: "ask", expression, answer: true }, 1000);
+            expect(step.play, expression).toEqual({ expression, cue: 1, at: 1000 });
+        }
     });
 
     it("starts the first request at once, with a cue of its own", () => {

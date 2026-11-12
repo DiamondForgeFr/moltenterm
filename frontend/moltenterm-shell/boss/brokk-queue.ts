@@ -10,8 +10,19 @@
 
 import type { AskedExpression, BrokkExpression } from "./brokk-ask-model";
 
-// Most important first: a frown is never given up for a call.
-export const ExpressionRank: Record<BrokkExpression, number> = { frown: 0, doubtful: 1, smile: 2, nod: 3, call: 4 };
+// Most important first: a frown is never given up for a call. The tone gestures of his answer (#2262) come after the
+// concern and before the good news; the sigh, which only a grave visit plays, ranks with the concern.
+export const ExpressionRank: Record<BrokkExpression, number> = {
+    frown: 0,
+    sigh: 1,
+    doubtful: 2,
+    surprised: 3,
+    proud: 4,
+    chuckle: 5,
+    smile: 6,
+    nod: 7,
+    call: 8,
+};
 
 // How grave an event is for the developer (FR-BOSS-009, AC3). The gravest event waiting for a visit sets the face he
 // comes with. It is not the order above: a gesture queue ranks a smile before a call, but in a visit a call (something
@@ -63,6 +74,10 @@ export const ExpressionMs: Record<BrokkExpression, number> = {
     frown: 2625,
     nod: 2750,
     call: 2500,
+    sigh: 2938,
+    proud: 3875,
+    chuckle: 4125,
+    surprised: 2938,
 };
 
 // `answer`: the tone that opens his answer to the developer (FR-BOSS-009, AC88, #2259).
@@ -101,8 +116,9 @@ function sinceMs(at: number, now: number): number {
     return at == null ? Infinity : now - at;
 }
 
-// The tone of his answer starts with his first words or not at all (FR-BOSS-009, AC88, #2259): a smile that comes once
-// the developer is already reading means nothing.
+// The queue starts the tone of his answer with his first words or not at all (FR-BOSS-009, AC88, #2259): a smile that
+// comes once the developer is already reading means nothing. A clip out of the thinking pose under way does not hold it
+// here: the package plays it as soon as that clip ends (brokk-speech-model.ts toneDelayMs, #2262).
 export const AnswerWaitLimitMs = 500;
 
 function waitLimit(slot: QueuedExpression): number {

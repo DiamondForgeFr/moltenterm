@@ -16,6 +16,9 @@ import {
     RestState,
     rhythmProps,
 } from "./brokk-portrait";
+import { SeverityExpression } from "./brokk-queue";
+import { BrokkTones, ToneGesture } from "./brokk-tone";
+import { SceneWaitGestures } from "./brokk-visit-scene-model";
 import Manifest from "./portrait/brokk/brokk-manifest.json";
 
 const Folder = join(__dirname, "portrait", "brokk");
@@ -57,15 +60,24 @@ describe("Brokk's declaration (FR-BOSS-007, AC1)", () => {
         expect(declaration.transitions).not.toContain("speaking>listening");
     });
 
-    it("declares the gestures with their weights: the blink, the only one drawn by chance, weighs and may repeat; every other waits to be asked", () => {
+    it("declares the gestures with their weights: the waiting idles drawn by chance, the blink alone repeating; every other waits to be asked (#2262)", () => {
         expect(declaration.idles).toEqual({
             listening: [
                 { name: "blink", weight: 4, repeat: true },
                 { name: "nod", onDemand: true },
+                { name: "glance", weight: 2 },
+                { name: "breath", weight: 2 },
+                { name: "lookaround" },
+                { name: "beard" },
+                { name: "scratch" },
                 { name: "doubtful", onDemand: true },
                 { name: "frown", onDemand: true },
                 { name: "smile", onDemand: true },
                 { name: "call", onDemand: true },
+                { name: "sigh", onDemand: true },
+                { name: "proud", onDemand: true },
+                { name: "chuckle", onDemand: true },
+                { name: "surprised", onDemand: true },
             ],
             speaking: [
                 { name: "blink", weight: 2, repeat: true },
@@ -102,15 +114,16 @@ describe("Brokk's clips", () => {
 
     it("are all in the folder, under the names the package looks for, and nothing else is", () => {
         expect([...wanted].sort()).toEqual(found);
-        expect(found).toHaveLength(22);
+        expect(found).toHaveLength(31);
     });
 
-    it("are each under 1 MB, and under 11 MB together (480 x 480, 16 fps, validated by DiamondForge)", () => {
+    it("are each under 1 MB, and within the portrait's 15 MB with the still (480 x 480, 16 fps, validated by DiamondForge)", () => {
         const sizes = found.map((name) => statSync(join(Folder, `${name}.webm`)).size);
         for (const size of sizes) {
             expect(size).toBeLessThan(1_000_000);
         }
-        expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(11_000_000);
+        const still = statSync(join(Folder, Manifest.still)).size;
+        expect(sizes.reduce((sum, size) => sum + size, still)).toBeLessThan(15_000_000);
     });
 
     it("are found by the build, which hands the declaration one folder to read them from", () => {
@@ -227,16 +240,27 @@ describe("the rhythm of his gestures (FR-BOSS-007, AC17)", () => {
         expect(Object.keys(declaration)).not.toContain("idleGap");
     });
 
-    it("leaves the chance to the blink in every pose: it is the one gesture drawn by chance, and it may repeat", () => {
-        const poses = Object.entries(declaration.idles);
-        expect(poses.map(([pose]) => pose).sort()).toEqual(["listening", "speaking"]);
-        for (const [pose, idles] of poses) {
-            const byChance = idles.filter((idle) => !idle.onDemand);
+    it("draws by chance the waiting idles at the weights the ticket gives in the listening pose, and the blink alone in the speaking pose (#2262)", () => {
+        const drawn = (pose: "listening" | "speaking") =>
+            declaration.idles[pose].filter((idle) => !idle.onDemand).map((idle) => [idle.name, idle.weight ?? 1]);
+        expect(Object.keys(declaration.idles).sort()).toEqual(["listening", "speaking"]);
+        expect(drawn("listening")).toEqual([
+            ["blink", 4],
+            ["glance", 2],
+            ["breath", 2],
+            ["lookaround", 1],
+            ["beard", 1],
+            ["scratch", 1],
+        ]);
+        expect(drawn("speaking")).toEqual([["blink", 2]]);
+    });
+
+    it("lets the blink alone repeat, so that no other gesture drawn by chance comes twice in a row (#2262)", () => {
+        for (const [pose, idles] of Object.entries(declaration.idles)) {
             expect(
-                byChance.map((idle) => idle.name),
+                idles.filter((idle) => idle.repeat).map((idle) => idle.name),
                 pose
             ).toEqual(["blink"]);
-            expect(byChance[0].repeat, pose).toBe(true);
         }
     });
 
@@ -313,6 +337,70 @@ describe("the package at v0.3.1 (FR-BOSS-007, AC1 and AC17; #1999, #2007)", () =
                 expect(allowed, `${selector.trim()} { ${declaration} }`).toContain(declaration);
             }
         }
+    });
+});
+
+describe("every gesture of his manifest has its use (#2262)", () => {
+    // What MoltenTerm asks of him: the tone of his answer, the face of a visit and what a grave visit does while it
+    // waits, and the gestures asked by name (the call of the badge, the nods, the smile of a merge, the moods).
+    const AskedBy = ["brokk-expressions.ts", "brokk-watch.ts", "use-brokk-hello.ts"];
+    // A gesture of his set that MoltenTerm leaves out on purpose, with the reason. None today.
+    const LeftOut: Record<string, string> = {};
+
+    function asked(): Map<string, string[]> {
+        const rtn = new Map<string, string[]>();
+        const add = (name: string, by: string) => rtn.set(name, [...(rtn.get(name) ?? []), by]);
+        for (const tone of BrokkTones) {
+            if (ToneGesture[tone] != null) {
+                add(ToneGesture[tone], `the ${tone} tone`);
+            }
+        }
+        for (const [severity, expression] of Object.entries(SeverityExpression)) {
+            add(expression, `a ${severity} visit`);
+        }
+        for (const [severity, expression] of Object.entries(SceneWaitGestures)) {
+            add(expression, `a ${severity} visit while he waits`);
+        }
+        for (const file of AskedBy) {
+            const source = readFileSync(join(__dirname, file), "utf8");
+            for (const [, name] of source.matchAll(/\bask\("([a-z]+)"/g)) {
+                add(name, file);
+            }
+        }
+        return rtn;
+    }
+
+    const listening = Manifest.idles.listening as { name: string; onDemand?: boolean }[];
+    const speaking = Manifest.idles.speaking as { name: string; onDemand?: boolean }[];
+
+    it("asks only gestures his listening pose has, kept for when they are asked and timed by the manifest", () => {
+        for (const [name, by] of asked()) {
+            expect(
+                listening.find((idle) => idle.name === name),
+                `${name} (${by.join(", ")})`
+            ).toMatchObject({ onDemand: true });
+            expect(Manifest.expressionMs, name).toHaveProperty(name);
+        }
+    });
+
+    it("uses each gesture of the manifest: drawn by chance, asked by MoltenTerm, or left out on purpose", () => {
+        const used = asked();
+        for (const idle of [...listening, ...speaking]) {
+            const drawn = !idle.onDemand;
+            expect(drawn || used.has(idle.name) || idle.name in LeftOut, idle.name).toBe(true);
+        }
+        for (const name of Object.keys(LeftOut)) {
+            expect(listening.some((idle) => idle.name === name) && !used.has(name), name).toBe(true);
+        }
+    });
+
+    it("plays the sigh only on a grave visit, never by chance", () => {
+        expect(asked().get("sigh")).toEqual(["a grave visit while he waits"]);
+        expect(listening.find((idle) => idle.name === "sigh")).toMatchObject({ onDemand: true });
+    });
+
+    it("times every gesture it asks, and nothing it never asks", () => {
+        expect(Object.keys(Manifest.expressionMs).sort()).toEqual([...asked().keys()].sort());
     });
 });
 
