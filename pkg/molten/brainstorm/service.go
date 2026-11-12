@@ -52,6 +52,8 @@ type State struct {
 	Graph      *Graph   `json:"graph,omitempty"`
 	SavedAt    int64    `json:"savedat,omitempty"`
 	SaveError  string   `json:"saveerror,omitempty"`
+	// History: the brainstorm's last operations, who made each, and whether it can be put back (#2247).
+	History []HistoryNote `json:"history,omitempty"`
 }
 
 type OpenRequest struct {
@@ -180,6 +182,7 @@ func (s *Service) stateLocked() State {
 		state.Graph = &graph
 		summary := summaryOf(s.session.Dir, s.session.Info, len(s.session.Turns))
 		state.Brainstorm = &summary
+		state.History = Notes(s.session.History, s.session.Graph)
 	}
 	return state
 }
@@ -368,6 +371,7 @@ func (s *Service) applyLocked(block Block, at int64) TurnResult {
 		s.listRev++
 	}
 	s.session.Graph = applied.Graph
+	s.session.History = appendHistory(s.session.History, entriesOf(s.session.History, applied.Changes, ByBrokk, at)...)
 	if centre, ok := applied.Graph.node(applied.Graph.Centre); ok && !s.session.Info.Named {
 		s.session.Info.Title = centre.Text
 	}

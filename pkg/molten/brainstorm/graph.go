@@ -56,6 +56,11 @@ const (
 	// OpFinish (#2285): the developer says the brainstorm is done. It never changes the graph: the open brainstorm is
 	// saved as finished.
 	OpFinish = "finish"
+	// The graph is living (#2247): Brokk corrects what the talk made obsolete, and the developer edits it by hand.
+	OpRemove = "remove"
+	OpUnlink = "unlink"
+	OpRetype = "retype"
+	OpMerge  = "merge"
 )
 
 const (
@@ -93,7 +98,6 @@ var knownKinds = map[string]bool{
 }
 
 var laterOps = map[string]bool{
-	OpEdit:     true,
 	OpPropose:  true,
 	OpConclude: true,
 	OpRemember: true,
@@ -140,6 +144,9 @@ type Op struct {
 	// fork, resume and forget (#2248): the brainstorm's title, and why the talk is another project.
 	Title  string `json:"title,omitempty"`
 	Reason string `json:"reason,omitempty"`
+	// merge (#2247): the nodes folded into Into.
+	Ids  []string `json:"ids,omitempty"`
+	Into string   `json:"into,omitempty"`
 }
 
 // Block is what one answer of his carries: {"v":1,"talk":"project","ops":[…]}.
@@ -208,6 +215,8 @@ func opLabel(i int, op string) string {
 	switch op {
 	case OpCentre, OpAdd, OpLink, OpEdit, OpPropose, OpConclude, OpFork, OpResume, OpForget, OpRemember, OpFinish:
 		return fmt.Sprintf("operation %d (%s)", i+1, op)
+	case OpRemove, OpUnlink, OpRetype, OpMerge:
+		return fmt.Sprintf("operation %d (%s)", i+1, op)
 	}
 	return fmt.Sprintf("operation %d (unknown op)", i+1)
 }
@@ -267,6 +276,10 @@ func ValidateBlock(b Block) error {
 				return fmt.Errorf("%s: reason over %d characters", what, MaxText)
 			}
 		case OpFinish:
+		case OpEdit, OpRemove, OpUnlink, OpRetype, OpMerge:
+			if err := checkLivingOp(op, what); err != nil {
+				return err
+			}
 		default:
 			if !laterOps[op.Op] {
 				return fmt.Errorf("%s: unknown operation", what)
@@ -377,11 +390,13 @@ func StartsNewIdea(g Graph, b Block) bool {
 }
 
 // Applied is what a block did: the graph after it, the nodes it added in their order, and the operations of later
-// stories it skipped.
+// stories it skipped. Changes are the operations that changed the graph, each with what puts it back (#2247): the
+// history keeps them.
 type Applied struct {
 	Graph   Graph
 	Added   []string
 	Skipped int
+	Changes []Change
 }
 
 // Apply grows g with the block, all or nothing: a block that names an unknown parent, adds an id twice, links an unknown
@@ -416,10 +431,15 @@ func Apply(g Graph, b Block, turn int, at int64) (Applied, error) {
 				index[op.Id] = len(next.Nodes)
 				next.Nodes = append(next.Nodes, Node{Id: op.Id, Kind: KindTopic, Text: text, Status: StatusOpen, Turn: turn, At: at})
 				rtn.Added = append(rtn.Added, op.Id)
+				rtn.Changes = append(rtn.Changes, Change{Op: cleanOp(op), Undo: Patch{Added: []string{op.Id}}})
 				continue
 			}
 			if op.Id != next.Centre {
 				return Applied{}, fmt.Errorf("%s: a second centre", what)
+			}
+			if next.Nodes[index[op.Id]].Text != text {
+				was := PatchNode{Index: index[op.Id], Node: next.Nodes[index[op.Id]]}
+				rtn.Changes = append(rtn.Changes, Change{Op: cleanOp(op), Undo: Patch{Nodes: []PatchNode{was}}})
 			}
 			next.Nodes[index[op.Id]].Text = text
 		case OpAdd:
@@ -442,6 +462,7 @@ func Apply(g Graph, b Block, turn int, at int64) (Applied, error) {
 			index[op.Id] = len(next.Nodes)
 			next.Nodes = append(next.Nodes, node)
 			rtn.Added = append(rtn.Added, op.Id)
+			rtn.Changes = append(rtn.Changes, Change{Op: cleanOp(op), Undo: Patch{Added: []string{op.Id}}})
 		case OpLink:
 			if _, ok := index[op.A]; !ok {
 				return Applied{}, fmt.Errorf("%s: unknown node", what)
@@ -455,7 +476,18 @@ func Apply(g Graph, b Block, turn int, at int64) (Applied, error) {
 			if len(next.Links) >= MaxLinks {
 				return Applied{}, fmt.Errorf("%s: over %d links", what, MaxLinks)
 			}
-			next.Links = append(next.Links, Link{A: op.A, B: op.B, Why: CleanText(op.Why), Turn: turn})
+			added := Link{A: op.A, B: op.B, Why: CleanText(op.Why), Turn: turn}
+			next.Links = append(next.Links, added)
+			rtn.Changes = append(rtn.Changes, Change{Op: cleanOp(op), Undo: Patch{LinksAdded: []Link{added}}})
+		case OpEdit, OpRemove, OpUnlink, OpRetype, OpMerge:
+			change, changed, err := applyLiving(&next, op, what)
+			if err != nil {
+				return Applied{}, err
+			}
+			if changed {
+				rtn.Changes = append(rtn.Changes, change)
+				index = indexOf(next)
+			}
 		default:
 			rtn.Skipped++
 		}

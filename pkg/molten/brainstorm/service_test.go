@@ -392,7 +392,7 @@ func TestRouteCallersAndChannels(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, command := range []string{StateCommand, OpenCommand, CloseCommand, TurnCommand, ListCommand, FindCommand, LoadCommand, NewCommand, RenameCommand, DeleteCommand, ForkCommand} {
+		for _, command := range []string{StateCommand, OpenCommand, CloseCommand, TurnCommand, ListCommand, FindCommand, LoadCommand, NewCommand, RenameCommand, DeleteCommand, ForkCommand, EditCommand, UndoCommand, ToldCommand} {
 			if _, errStr := routetest.Ask(t, refused, e.Window(), command, map[string]any{}); !strings.Contains(errStr, buildchannel.BrainstormRefusal) {
 				t.Errorf("%q on channel %q: %q, want the plain refusal", command, channel, errStr)
 			}

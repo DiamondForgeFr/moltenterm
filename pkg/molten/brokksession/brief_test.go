@@ -125,6 +125,23 @@ func TestTheBriefListsTheSavedTitlesOnly(t *testing.T) {
 	}
 }
 
+// FR-BOSS-010 AC26 and AC27 (#2247): he prunes the graph, never its centre, says so, and takes the developer's own
+// changes as done. Each operation he is taught is one wavesrv applies.
+func TestTheBriefTeachesTheLivingGraph(t *testing.T) {
+	t.Parallel()
+	text := BriefText(true)
+	for _, op := range []string{brainstorm.OpEdit, brainstorm.OpRetype, brainstorm.OpRemove, brainstorm.OpUnlink, brainstorm.OpMerge} {
+		if !strings.Contains(text, `{"op": "`+op+`"`) {
+			t.Errorf("the brief does not teach %q", op)
+		}
+	}
+	for _, want := range []string{"Never remove, merge or retype the central idea", "say so in one short line", "the developer's own changes to the graph", "never redo or undo them"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the brief lacks %q", want)
+		}
+	}
+}
+
 // The resume brief goes into his own folder: the brainstorm package names it as this one does.
 func TestTheResumeBriefGoesIntoHisFolder(t *testing.T) {
 	t.Parallel()
