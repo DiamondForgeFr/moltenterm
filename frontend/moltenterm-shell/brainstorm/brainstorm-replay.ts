@@ -24,6 +24,9 @@ const add = (id: string, kind: string, text: string, from: string): GraphOp => (
 const link = (a: string, b: string, why: string): GraphOp => ({ op: "link", a, b, why });
 // His question when the talk turns into another project (#2248): the widget asks the developer.
 const fork = (title: string, reason: string): GraphOp => ({ op: "fork", title, reason });
+// He prunes what the talk made obsolete (#2247): the layer offers Undo for his removal.
+const remove = (id: string, reason: string): GraphOp => ({ op: "remove", id, reason });
+const retype = (id: string, kind: string): GraphOp => ({ op: "retype", id, kind });
 
 export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
     en: [
@@ -56,8 +59,12 @@ export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
         },
         {
             you: "Parents must be able to validate everything.",
-            line: "Then the list it is. On which devices, to start?",
-            ops: [add("devices", "question", "On which devices?", "kids-video")],
+            line: "Then the list it is: I'm making it a decision and dropping the channels. On which devices, to start?",
+            ops: [
+                retype("parents-list", "decision"),
+                remove("approved-channels", "the parents validate everything"),
+                add("devices", "question", "On which devices?", "kids-video"),
+            ],
         },
         {
             you: "The tablet.",
@@ -114,8 +121,12 @@ export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
         },
         {
             you: "Les parents doivent pouvoir tout valider.",
-            line: "Alors la liste. Sur quels appareils, au départ ?",
-            ops: [add("appareils", "question", "Sur quels appareils ?", "app-video-enfants")],
+            line: "Alors la liste : j'en fais une décision et je retire les chaînes. Sur quels appareils, au départ ?",
+            ops: [
+                retype("liste-parents", "decision"),
+                remove("chaines-approuvees", "les parents valident tout"),
+                add("appareils", "question", "Sur quels appareils ?", "app-video-enfants"),
+            ],
         },
         {
             you: "La tablette.",
