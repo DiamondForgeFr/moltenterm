@@ -52,11 +52,18 @@ export const AddKinds: NodeKind[] = ["question", "answer", "idea", "theme", "dec
 // His questions about the folders (#2248): they never change the graph, the window asks the developer.
 export const QuestionOps = ["fork", "resume", "forget"];
 
-// The operations of later stories (#2247, #2249, #2250): skipped, not a reason to drop the block.
-export const LaterOps = ["edit", "propose", "conclude", "remember"];
+// The graph is living (#2247): Brokk corrects what the talk made obsolete. None of them takes the centre (wavesrv checks
+// it against the graph).
+export const LivingOps = ["edit", "remove", "unlink", "retype", "merge"];
+
+// What the developer does by hand from a plate's menu (FR-BOSS-010 AC27): merge is Brokk's.
+export const DeveloperOps = ["edit", "retype", "remove", "link", "unlink"];
+
+// The operations of later stories (#2249, #2250): skipped, not a reason to drop the block.
+export const LaterOps = ["propose", "conclude", "remember"];
 // The developer said the brainstorm is done (#2285): wavesrv saves it as finished, the graph does not change.
 export const FinishOp = "finish";
-const KnownOps = ["centre", "add", "link", ...QuestionOps, ...LaterOps, FinishOp];
+const KnownOps = ["centre", "add", "link", ...QuestionOps, ...LivingOps, ...LaterOps, FinishOp];
 
 export type Talk = "project" | "personal";
 
@@ -72,6 +79,9 @@ export type GraphOp = {
     // fork, resume and forget: the brainstorm's title, and why the talk is another project.
     title?: string;
     reason?: string;
+    // merge (#2247): the nodes folded into `into`.
+    ids?: string[];
+    into?: string;
 };
 
 export type GraphBlock = { v: number; talk: Talk; ops: GraphOp[] };
@@ -130,6 +140,31 @@ function idProblem(id: unknown): string {
     return typeof id === "string" && IdPattern.test(id) ? "" : "invalid id";
 }
 
+// The shape of edit, remove, unlink, retype and merge (#2247), as wavesrv checks it (pkg/molten/brainstorm/edit.go).
+function livingProblem(op: GraphOp): string {
+    switch (op.op) {
+        case "edit":
+            return idProblem(op.id) || textProblem(op.text);
+        case "remove":
+            return idProblem(op.id) || ([...cleanText(op.reason ?? "")].length > MaxText ? "reason too long" : "");
+        case "unlink":
+            return idProblem(op.a) || idProblem(op.b) || (op.a === op.b ? "a node linked to itself" : "");
+        case "retype":
+            return idProblem(op.id) || (AddKinds.includes(op.kind as NodeKind) ? "" : "unknown kind");
+        case "merge": {
+            if (!Array.isArray(op.ids) || op.ids.length === 0 || op.ids.length > MaxOps) {
+                return "no nodes to fold";
+            }
+            const problem = idProblem(op.into) || op.ids.map(idProblem).find((p) => p !== "") || "";
+            if (problem !== "") {
+                return problem;
+            }
+            return new Set([...op.ids, op.into]).size !== op.ids.length + 1 ? "a node named twice" : "";
+        }
+    }
+    return "unknown operation";
+}
+
 // Why a block's shape is refused, "" when it is valid. The reason never quotes the model's text: it is logged.
 export function blockProblem(value: unknown): string {
     if (value == null || typeof value !== "object" || Array.isArray(value)) {
@@ -181,6 +216,13 @@ export function blockProblem(value: unknown): string {
                     ([...cleanText(op.reason ?? "")].length > MaxText ? "reason too long" : "");
                 break;
             case FinishOp:
+                break;
+            case "edit":
+            case "remove":
+            case "unlink":
+            case "retype":
+            case "merge":
+                problem = livingProblem(op);
                 break;
             default:
                 problem = LaterOps.includes(op.op) ? "" : "unknown operation";

@@ -27,6 +27,8 @@ export const NudgeAfterMs = 20000;
 // The closest view frames a sphere of this radius (about the core and its first plates); the farthest frames the
 // whole graph at a third of its overview, never past the camera's far plane.
 export const ClosestRadius = 90;
+// A focused node is framed with about this much of the graph around it (#2247).
+export const FocusRadius = 230;
 const FarthestShare = 3;
 const FarthestDistance = 12000;
 
@@ -267,6 +269,21 @@ export class CameraNav {
     recentre(graph: BrainstormGraph, lens: Lens, now: number, still: boolean): void {
         this.holder = "developer";
         this.view = overviewView(graph, lens);
+        this.glide = !still;
+        this.jump = still;
+        this.touchedAt = now;
+        this.pulsed = false;
+    }
+
+    // A click on a node, or Enter on it in the outline (AC7, AC20, #2247): the camera glides to it, close enough to read
+    // it with its neighbours, and the developer holds it from then on.
+    focusOn(pos: Vec3, graph: BrainstormGraph, lens: Lens, now: number, still: boolean): void {
+        const range = zoomRange(graph, lens);
+        this.holder = "developer";
+        this.view = {
+            target: [pos[0], pos[1], pos[2]],
+            distance: clamp(fitDistance(FocusRadius, lens.free, lens.height), range.min, range.max),
+        };
         this.glide = !still;
         this.jump = still;
         this.touchedAt = now;

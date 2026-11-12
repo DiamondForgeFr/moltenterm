@@ -174,6 +174,12 @@ export class BrokkSession {
         return () => this.takenListeners.delete(listener);
     }
 
+    // The words the developer's next message starts with (setLead): the brainstorm puts the note of their graph changes
+    // after its own (#2247).
+    leadOf(): string {
+        return this.lead;
+    }
+
     private told(tracked: Tracked, final: boolean): void {
         const answer: AnswerRead = {
             id: tracked.id,

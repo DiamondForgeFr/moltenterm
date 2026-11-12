@@ -3152,7 +3152,42 @@
                 "one": "{count} lien",
                 "other": "{count} liens"
             },
-            "graphLabel": "Les idées du brainstorm",
+            "graphLabel": "Les idées du brainstorm : les flèches pour les parcourir, Entrée pour en cadrer une, la touche menu ou un clic droit pour ses actions",
+            "plate": {
+                "menu": "Actions pour « {text} »",
+                "editText": "Modifier le texte",
+                "changeKind": "Changer le type",
+                "linkTo": "Relier à…",
+                "remove": "Retirer"
+            },
+            "edits": {
+                "note": "[Mes changements dans le graphe : {changes}.]",
+                "join": " ; ",
+                "node": "« {text} » ({id})",
+                "remove": "retiré {node}",
+                "edit": "réécrit {id} en « {text} »",
+                "retype": "{node} est maintenant : {kind}",
+                "link": "relié {a} et {b}",
+                "unlink": "délié {a} et {b}",
+                "restore": "remis {node}",
+                "revert": "annulé le changement de {node}",
+                "linking": "Relier « {text} » à une autre plaque : cliquez-la, ou Échap pour annuler",
+                "linkCancel": "Annuler",
+                "bar": {
+                    "youRemoved": "Vous avez retiré « {text} »",
+                    "brokkRemoved": "{name} a retiré « {text} »",
+                    "brokkMerged": "{name} a fondu des plaques dans « {text} »",
+                    "undo": "Annuler",
+                    "dismiss": "Fermer"
+                },
+                "failed": {
+                    "conflict": "Un changement plus récent l'a touché : rien n'a été remis.",
+                    "invalid": "Ce changement n'est pas possible.",
+                    "unknown": "Ce changement n'est plus dans l'historique.",
+                    "noidea": "Aucun brainstorm n'est ouvert.",
+                    "failed": "Cela n'a pas marché : le graphe reste tel qu'il était."
+                }
+            },
             "kinds": {
                 "topic": "Sujet",
                 "question": "Question",

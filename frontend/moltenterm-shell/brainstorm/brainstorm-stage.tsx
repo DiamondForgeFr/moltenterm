@@ -11,6 +11,11 @@
 // click on the background recentres, and while it has the focus + and − zoom, 0 recentres and the arrows pan. A press on
 // a plate is the plate's, and Escape goes on to his group, which ends the brainstorm. brainstorm-camera-model.ts reads
 // the gestures; the scene moves the camera.
+//
+// The plates are the developer's too (FR-BOSS-010 AC7, AC20, AC27, #2247): a click focuses one (the camera goes to it),
+// a right-click, its handle or the menu key opens its menu, a double click or F2 edits its text in place, Delete removes
+// it (the layer's bar offers Undo), and Ctrl/⌘ + Z puts back the developer's last change. With a plate focused, the
+// arrows walk the graph's outline instead of panning. While Link to… waits, a click on another plate ties the two.
 
 import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -20,6 +25,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale, useT } from "../i18n/i18n";
 import { TabActivity, whileShown } from "../tab-activity";
 import { dragStarted, NavAction, pressPans, readKey, readWheel } from "./brainstorm-camera-model";
+import { BrainstormEditBar, openPlateMenu } from "./brainstorm-edit";
+import { isUndoKey, outlineStep, plateMenuOf } from "./brainstorm-edit-model";
 import type { BrainstormGraph, NodeKind } from "./brainstorm-graph-model";
 import { FreeRect, freeRect } from "./brainstorm-scene-model";
 import { BrainstormModel } from "./brainstorm-store";
@@ -64,9 +71,34 @@ function placeFree(stage: HTMLElement, scene: BrainstormScene): void {
     stage.parentElement?.style.setProperty("--bs-free-left", `${Math.round(free.left)}px`);
 }
 
-// A press on a plate is the plate's: a click, or its drag once #2247 adds it.
+// A press on a plate is the plate's (a click, its menu, its text), never a pan; so is one on the layer's bar.
 function onPlate(target: EventTarget): boolean {
-    return (target as Element)?.closest?.(".mt-bs-plate") != null;
+    return (target as Element)?.closest?.(".mt-bs-plate, .mt-bs-core-title, .mt-bs-editbar") != null;
+}
+
+// The node a plate or the core's title stands for; null off them.
+function nodeIdOf(target: EventTarget): string {
+    const el = (target as Element)?.closest?.<HTMLElement>(".mt-bs-plate, .mt-bs-core-title");
+    if (el == null || el.classList.contains("is-leaving")) {
+        return null;
+    }
+    return el.dataset.nodeId || null;
+}
+
+// The outline has one stop for Tab: the node last walked to, else the centre (a roving focus).
+function rove(plates: HTMLElement, id: string): void {
+    if (plates == null) {
+        return;
+    }
+    let found = false;
+    for (const el of Array.from(plates.querySelectorAll<HTMLElement>("[role='listitem']"))) {
+        const mine = el.dataset.nodeId === id;
+        el.tabIndex = mine ? 0 : -1;
+        found ||= mine;
+    }
+    if (!found) {
+        plates.querySelector<HTMLElement>(".mt-bs-core-title[role='listitem']")?.setAttribute("tabindex", "0");
+    }
 }
 
 // A gesture read by the camera model, on the scene; `at` is the pointer's place on the stage for a zoom about it.
@@ -100,6 +132,10 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
     const still = useAtomValue(atoms.prefersReducedMotionAtom, { store: globalStore });
     const talkAt = useAtomValue(model.talkAtAtom, { store: globalStore });
     const cameraAsk = useAtomValue(model.cameraAskAtom, { store: globalStore });
+    const editing = useAtomValue(model.editingAtom, { store: globalStore });
+    const linking = useAtomValue(model.linkingAtom, { store: globalStore });
+    // The node the keyboard last walked to: the outline's one stop for Tab.
+    const roverRef = useRef<string>(null);
     const stageRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const platesRef = useRef<HTMLDivElement>(null);
@@ -129,6 +165,7 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
                         canvas: canvasRef.current,
                         plates: platesRef.current,
                         kindLabel: (kind: NodeKind) => tRef.current(`boss.brainstorm.kinds.${kind}`),
+                        gripLabel: (text: string) => tRef.current("boss.brainstorm.plate.menu", { text }),
                         onCrossFade: () => setFading((n) => n + 1),
                         onCameraMode: (mode) => {
                             globalStore.set(model.cameraModeAtom, mode);
@@ -173,6 +210,9 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
             // The next stage starts with Brokk holding the camera: no Follow Brokk chip left from this one.
             globalStore.set(model.cameraModeAtom, "overview");
             globalStore.set(model.followPulseAtom, 0);
+            // An edit or a link left open belongs to this stage's plates.
+            model.cancelEdit();
+            model.cancelLink();
         };
     }, []);
 
@@ -208,8 +248,36 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
     }, [still, ready]);
 
     useEffect(() => {
-        sceneRef.current?.setGraph(graph, Date.now());
+        // The history of the same state says which plates a merge folded, and whose change it was (#2247).
+        sceneRef.current?.setGraph(graph, Date.now(), globalStore.get(model.stateAtom)?.history ?? null);
+        rove(platesRef.current, roverRef.current);
     }, [graph, ready]);
+
+    // Edit text (AC27): the plate's text becomes editable in place; its end saves or cancels through the model.
+    useEffect(() => {
+        if (editing == null || sceneRef.current == null) {
+            return;
+        }
+        sceneRef.current.beginEdit(editing, (text) => {
+            if (text == null) {
+                model.cancelEdit();
+                return;
+            }
+            void model.saveText(editing, text);
+        });
+    }, [editing, ready]);
+
+    // Link to… marks the plate it starts from.
+    useEffect(() => {
+        const plates = platesRef.current;
+        if (plates == null) {
+            return;
+        }
+        plates.querySelectorAll(".is-link-source").forEach((el) => el.classList.remove("is-link-source"));
+        if (linking != null) {
+            sceneRef.current?.nodeElement(linking)?.classList.add("is-link-source");
+        }
+    }, [linking, ready]);
 
     useEffect(() => {
         sceneRef.current?.talked(talkAt);
@@ -236,7 +304,14 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
             // The middle button's own scroll mode would take the drag.
             e.preventDefault();
         }
-        dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY, panning: false };
+        dragRef.current = {
+            id: e.pointerId,
+            x: e.clientX,
+            y: e.clientY,
+            lastX: e.clientX,
+            lastY: e.clientY,
+            panning: false,
+        };
     };
 
     const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -268,16 +343,121 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
         }
     };
 
+    // The node's element takes the focus, and becomes the outline's stop for Tab.
+    const focusPlate = (id: string) => {
+        const el = sceneRef.current?.nodeElement(id);
+        if (el == null) {
+            return;
+        }
+        roverRef.current = id;
+        rove(platesRef.current, id);
+        el.focus({ preventScroll: true });
+    };
+
+    const nodeOf = (id: string) => {
+        const graph = globalStore.get(model.stateAtom)?.graph;
+        return { graph, node: graph?.nodes?.find((n) => n.id === id) ?? null };
+    };
+
+    // A click on a plate: its handle opens its menu; while Link to… waits it ties the two; otherwise it focuses the node.
+    const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        const id = nodeIdOf(e.target);
+        const linkingNow = globalStore.get(model.linkingAtom);
+        if (id == null) {
+            if (linkingNow != null && !(e.target as Element)?.closest?.(".mt-bs-editbar")) {
+                model.cancelLink();
+            }
+            return;
+        }
+        if ((e.target as Element)?.closest?.(".mt-bs-plate-grip") != null) {
+            if (openPlateMenu(id, e)) {
+                roverRef.current = id;
+                rove(platesRef.current, id);
+            }
+            return;
+        }
+        if (globalStore.get(model.editingAtom) === id) {
+            return;
+        }
+        if (linkingNow != null) {
+            void model.linkTo(id);
+            return;
+        }
+        focusPlate(id);
+        sceneRef.current?.focusNode(id);
+    };
+
+    // A right-click on a plate, or the menu key while it has the focus (the menu host turns it into this event).
+    const onContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+        const id = nodeIdOf(e.target);
+        if (id == null || globalStore.get(model.editingAtom) === id) {
+            return;
+        }
+        if (openPlateMenu(id, e)) {
+            roverRef.current = id;
+            rove(platesRef.current, id);
+        }
+    };
+
     const onDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        const id = nodeIdOf(e.target);
+        if (id != null) {
+            const { graph, node } = nodeOf(id);
+            if (plateMenuOf(node, graph?.centre ?? "")?.edit) {
+                model.startEdit(id);
+            }
+            return;
+        }
         if (onPlate(e.target)) {
             return;
         }
         sceneRef.current?.recentre();
     };
 
-    // Escape is not read here: it goes on to his group, which ends the brainstorm.
+    // A key on a focused plate: the arrows, Home and End walk the outline (AC20), Enter focuses the node (or finishes
+    // Link to…), F2 edits its text, Delete removes it and gives the focus to its parent. True when the key was the plate's.
+    const plateKey = (e: React.KeyboardEvent<HTMLDivElement>, id: string): boolean => {
+        const { graph, node } = nodeOf(id);
+        const next = outlineStep(graph?.nodes, graph?.centre ?? "", id, e.key);
+        if (next != null) {
+            e.preventDefault();
+            e.stopPropagation();
+            focusPlate(next);
+            sceneRef.current?.revealNode(next);
+            return true;
+        }
+        const menu = plateMenuOf(node, graph?.centre ?? "");
+        if (e.key === "Enter") {
+            if (globalStore.get(model.linkingAtom) != null) {
+                void model.linkTo(id);
+            } else {
+                sceneRef.current?.focusNode(id);
+            }
+        } else if (e.key === "F2" && menu?.edit) {
+            model.startEdit(id);
+        } else if ((e.key === "Delete" || e.key === "Backspace") && menu?.remove) {
+            void model.remove(id).then((removed) => removed && focusPlate(node.from));
+        } else {
+            return false;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        return true;
+    };
+
+    // Escape is not read here: it goes on to his group, which ends the brainstorm (Link to… takes it first, in its bar).
     const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (e.nativeEvent.isComposing) {
+            return;
+        }
+        if (isUndoKey(e)) {
+            e.preventDefault();
+            e.stopPropagation();
+            void model.undoLast();
+            return;
+        }
+        const id = e.altKey || e.ctrlKey || e.metaKey ? null : nodeIdOf(e.target);
+        if (id != null && plateKey(e, id)) {
             return;
         }
         const action = readKey(e);
@@ -292,7 +472,7 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
     return (
         <div
             ref={stageRef}
-            className={cn("mt-bs-stage", ready && "is-ready", panning && "is-panning")}
+            className={cn("mt-bs-stage", ready && "is-ready", panning && "is-panning", linking != null && "is-linking")}
             data-testid="brainstorm-stage"
             tabIndex={0}
             role="group"
@@ -301,6 +481,8 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
             onPointerMove={onPointerMove}
             onPointerUp={onPointerEnd}
             onPointerCancel={onPointerEnd}
+            onClick={onClick}
+            onContextMenu={onContextMenu}
             onDoubleClick={onDoubleClick}
             onKeyDown={onKeyDown}
         >
@@ -312,6 +494,7 @@ export function BrainstormStage({ graph }: { graph: BrainstormGraph }) {
                 aria-label={t("boss.brainstorm.graphLabel")}
                 data-testid="brainstorm-plates"
             />
+            <BrainstormEditBar />
         </div>
     );
 }
