@@ -327,11 +327,11 @@ func TestAnEarlierGreenRunBeatsALaterOneInProgress(t *testing.T) {
 func TestEveryFailureToAskIsAReason(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
-		"gh is not installed (or not on the login shell's PATH)":                             ReasonNoGh,
-		"gh api: HTTP 403: API rate limit exceeded for user":                                 ReasonRateLimited,
-		"gh api: HTTP 429: too many requests":                                                ReasonRateLimited,
-		"To get started with GitHub CLI, please run:  gh auth login":                         ReasonLoggedOut,
-		"gh api: HTTP 401: Requires authentication":                                          ReasonLoggedOut,
+		"gh is not installed (or not on the login shell's PATH)":                            ReasonNoGh,
+		"gh api: HTTP 403: API rate limit exceeded for user":                                ReasonRateLimited,
+		"gh api: HTTP 429: too many requests":                                               ReasonRateLimited,
+		"To get started with GitHub CLI, please run:  gh auth login":                        ReasonLoggedOut,
+		"gh api: HTTP 401: Requires authentication":                                         ReasonLoggedOut,
 		"error connecting to api.github.com: dial tcp: lookup api.github.com: no such host": ReasonUnreachable,
 	}
 	for message, want := range cases {

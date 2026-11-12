@@ -4923,6 +4923,11 @@
             "plain": {
                 "title": "Your way of publishing",
                 "headline": "Here is how this project publishes a version.",
+                "builds": {
+                    "title": "How your builds are checked",
+                    "shared": "{build} is not checked again on this computer when GitHub already checked the same version in full. It only runs the checks here when GitHub's are missing, still running, failed or not usable.",
+                    "always": "{build} is always checked on this computer, even when GitHub already checked the same version."
+                },
                 "workBranch": "You work on {trunk}, your working branch.",
                 "introTwo": "To ship a version there are two paths: a release candidate to test, then the public version.",
                 "introRc": "To ship a version, this project makes a release candidate to test.",

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
-import { buildCardTitle, buildRunView, ciLine, deliveredBy, lastBuildLine } from "./builds-model";
+import { buildCardTitle, buildRunView, ciLine, deliveredBy, lastBuildLine, verifyLine } from "./builds-model";
 
 describe("Build local menu (FR-MC-012)", () => {
     const now = Date.parse("2026-10-03T12:00:00Z");
@@ -24,7 +24,13 @@ describe("Build local menu (FR-MC-012)", () => {
         expect(
             ciLine({ trunk: "develop", builds: [], ci: { status: "failure", failed: ["check", "e2e"], sha: "a" } })
         ).toBe("CI red on develop (check, e2e): it runs again first, and the build stops if it fails.");
-        expect(ciLine({ trunk: "develop", builds: [] })).toBe("The local CI will run first on develop.");
+        expect(ciLine({ trunk: "develop", builds: [] }, "ci-local")).toBe("The local CI will run first on develop.");
+    });
+
+    it("does not promise the local CI to a build that accepts GitHub's (#2277)", () => {
+        expect(ciLine({ trunk: "develop", builds: [] }, "ci")).toBe(
+            "The CI will run first on develop: GitHub's if it already checked this commit in full, else the local one."
+        );
     });
 
     it("names a card after the project and the build", () => {
@@ -104,6 +110,42 @@ describe("Build run panel (FR-MC-013)", () => {
             "Stopped: the local CI made no progress for 10 minutes (tests). Relaunch the build: the jobs already green are reused."
         );
         expect(statuses(stalled)).toBe("failed,todo,todo");
+    });
+
+    it("says how the commit was verified, for the whole run (#2277)", () => {
+        const base = { state: "running" as const, phases: ["verify", "build"], startedat: 0 };
+        expect(buildRunView(base, phases, null).verification).toBe("");
+        expect(
+            buildRunView(
+                { ...base, verify: { by: "github", runid: 123456, jobs: 6, sha: "69c7639", url: "https://x/run" } },
+                phases,
+                null
+            ).verification
+        ).toBe("Verified by GitHub CI · run 123456 · 6 jobs green on 69c7639");
+        expect(verifyLine({ by: "github", runid: 7, jobs: 1, sha: "69c7639" })).toBe(
+            "Verified by GitHub CI · run 7 · 1 job green on 69c7639"
+        );
+        expect(verifyLine({ by: "waiting", runid: 123456, done: 3, total: 6 })).toBe(
+            "Waiting for GitHub CI · run 123456 · 3 of 6 jobs done"
+        );
+        expect(verifyLine({ by: "waiting", runid: 123456 })).toBe("Waiting for GitHub CI · run 123456");
+    });
+
+    it("words why GitHub's result was not used in the interface language, else as the server said it (#2277)", () => {
+        expect(
+            verifyLine({
+                by: "local",
+                why: "you are not signed in to GitHub (gh auth login)",
+                whytext: { code: "mission.build.github.loggedOut" },
+            })
+        ).toBe("GitHub CI not used: you are not signed in to GitHub (gh auth login). The local CI runs.");
+        expect(
+            verifyLine({
+                by: "local",
+                why: "a reason of a newer wavesrv",
+                whytext: { code: "mission.build.github.unknown" },
+            })
+        ).toBe("GitHub CI not used: a reason of a newer wavesrv. The local CI runs.");
     });
 
     it("falls back to the announced phases when the build declares none", () => {

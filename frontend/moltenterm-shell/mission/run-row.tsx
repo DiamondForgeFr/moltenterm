@@ -156,7 +156,7 @@ export function RowTime({ row, now }: { row: BandRow; now: number }) {
 }
 
 // What the current phase does, said under the bar, or why the run stopped.
-function RowNote({ text, tone }: { text: string; tone: RowTone }) {
+function RowNote({ text, tone, testId }: { text: string; tone: RowTone; testId?: string }) {
     if (!text) {
         return null;
     }
@@ -164,7 +164,7 @@ function RowNote({ text, tone }: { text: string; tone: RowTone }) {
         <p
             className={cn("mt-1.5 min-w-0 truncate text-12", tone === "failed" ? "text-danger" : "text-muted")}
             title={text}
-            data-testid="run-row-note"
+            data-testid={testId ?? "run-row-note"}
         >
             {text}
         </p>
@@ -197,7 +197,7 @@ export function RunRow({
     extra?: ReactNode;
 }) {
     const t = useT();
-    const hasBar = row.phases.length > 0 || !!row.note;
+    const hasBar = row.phases.length > 0 || !!row.note || !!row.verification;
     return (
         <div className="flex flex-col py-3" data-testid={testId ?? "run-row"} data-kind={row.kind} data-tone={row.tone}>
             {/* One column on a narrow pane (name, bar, time, actions), then the actions beside the name and the time
@@ -238,6 +238,7 @@ export function RunRow({
                         />
                     ) : null}
                     <RowNote text={row.note} tone={row.tone} />
+                    <RowNote text={row.verification} tone="working" testId="run-row-verification" />
                 </div>
                 <div
                     className={cn(

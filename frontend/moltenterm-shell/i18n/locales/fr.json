@@ -4923,6 +4923,11 @@
             "plain": {
                 "title": "Votre façon de publier",
                 "headline": "Voici comment ce projet publie une version.",
+                "builds": {
+                    "title": "Comment vos builds sont vérifiés",
+                    "shared": "{build} n'est pas revérifié sur cet ordinateur quand GitHub a déjà vérifié la même version en entier. Il ne lance les contrôles ici que si ceux de GitHub manquent, tournent encore, ont échoué ou sont inutilisables.",
+                    "always": "{build} est toujours vérifié sur cet ordinateur, même quand GitHub a déjà vérifié la même version."
+                },
                 "workBranch": "Vous travaillez sur {trunk}, votre branche de travail.",
                 "introTwo": "Pour sortir une version, il y a deux chemins : une version candidate pour tester, puis la version publique.",
                 "introRc": "Pour sortir une version, ce projet fait une version candidate pour tester.",

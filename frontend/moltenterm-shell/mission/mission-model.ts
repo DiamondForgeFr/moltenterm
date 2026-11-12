@@ -312,6 +312,20 @@ export function jobsByLane(pipeline: PipelineDef): { lane: string; jobs: Pipelin
 // must match RunRecord in pkg/molten/mission/runs.go
 export type RunState = "running" | "success" | "failure" | "cancelled" | "lost";
 
+// How a build's commit is verified (must match BuildVerify in pkg/molten/mission/builds_verify.go): by a green GitHub
+// run of the same commit, while it waits for one, or with the local CI after saying why GitHub's result was not used.
+export type BuildVerify = {
+    by: "github" | "waiting" | "local";
+    runid?: number;
+    url?: string;
+    sha?: string;
+    jobs?: number;
+    done?: number;
+    total?: number;
+    why?: string;
+    whytext?: ServerText;
+};
+
 export type RunRecord = {
     id: string;
     dir: string;
@@ -337,6 +351,8 @@ export type RunRecord = {
     // Why a build stopped when a time limit or the developer stopped it (#2273).
     stopped?: string;
     stoppedtext?: ServerText;
+    // How a build's commit is verified (#2277), once its Verify phase started.
+    verify?: BuildVerify;
     // A sync's source and watched branch (commit is that branch's tip), and once it ended with exit 0 whether its
     // output changed, with the files (FR-MC-030).
     source?: string;

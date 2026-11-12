@@ -4,9 +4,10 @@
 // What the Build local menu says (FR-MC-012): mirrors BuildsFacts in pkg/molten/mission/builds.go. Kept apart from the
 // components so the wording can be tested without the app.
 
-import { getLocale, t } from "../i18n/i18n";
+import { getLocale, t, tCount } from "../i18n/i18n";
 import { ServerText, serverText } from "../i18n/server-text";
 import { CiVerdictStatus } from "./ci-model";
+import type { BuildVerify } from "./mission-model";
 
 export type BuildManifest = {
     productName?: string;
@@ -65,7 +66,8 @@ export function lastBuildLine(last: BuildManifest, now: number): string {
 
 // What the CI says about the trunk, for a build the CI gates. A red job runs again before the build, which stops only
 // if it fails again.
-export function ciLine(facts: BuildsFacts): string {
+// A build that accepts GitHub's CI ("ci") may not run the local one at all, so it does not promise it (#2277).
+export function ciLine(facts: BuildsFacts, verify?: string): string {
     const trunk = facts?.trunk || t("mc.builds.theTrunk");
     switch (facts?.ci?.status) {
         case "success":
@@ -75,7 +77,29 @@ export function ciLine(facts: BuildsFacts): string {
         case "running":
             return t("mc.builds.ciRunning", { trunk });
     }
-    return t("mc.builds.ciFirst", { trunk });
+    return t(verify === "ci-local" ? "mc.builds.ciFirst" : "mc.builds.ciFirstGithub", { trunk });
+}
+
+// How the Verify phase went, in a line the build's row keeps for the whole run (#2277); empty before it started.
+export function verifyLine(verify: BuildVerify): string {
+    switch (verify?.by) {
+        case "github":
+            return tCount("mc.builds.verify.github", verify.jobs ?? 0, {
+                run: String(verify.runid ?? ""),
+                sha: verify.sha ?? "",
+            });
+        case "waiting":
+            return verify.total
+                ? t("mc.builds.verify.waiting", {
+                      run: String(verify.runid ?? ""),
+                      done: verify.done ?? 0,
+                      total: verify.total,
+                  })
+                : t("mc.builds.verify.waitingStart", { run: String(verify.runid ?? "") });
+        case "local":
+            return t("mc.builds.verify.notUsed", { reason: serverText(verify.whytext, verify.why) });
+    }
+    return "";
 }
 
 export function buildCardTitle(projectName: string, build: Pick<BuildFacts, "id" | "title">): string {
@@ -96,11 +120,14 @@ export type BuildRunInput = {
     commit?: string;
     stopped?: string;
     stoppedtext?: ServerText;
+    verify?: BuildVerify;
 };
 
 export type BuildRunView = {
     phases: { id: string; title: string; status: BuildPhaseStatus }[];
     line: string;
+    // How the commit was verified, kept under the line for the whole run.
+    verification: string;
     delivered: BuildManifest;
     showLog: boolean;
 };
@@ -154,5 +181,5 @@ export function buildRunView(run: BuildRunInput, declared: BuildPhaseDef[], mani
     } else if (run.state === "cancelled") {
         line = t("mc.builds.cancelledDuring", { phase: at });
     }
-    return { phases, line, delivered, showLog: !done };
+    return { phases, line, verification: verifyLine(run.verify), delivered, showLog: !done };
 }

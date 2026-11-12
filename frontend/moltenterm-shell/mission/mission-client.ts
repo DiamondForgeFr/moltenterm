@@ -40,6 +40,7 @@ export const MissionRunsCommand = "moltenmissionruns";
 export const MissionLogCommand = "moltenmissionlog";
 export const MissionCancelCommand = "moltenmissioncancel";
 export const MissionCloseCommand = "moltenmissionclose";
+export const MissionVerifyHereCommand = "moltenmissionverifyhere";
 export const MissionTrustCommand = "moltenmissiontrust";
 // must match UntrustedCommand in pkg/molten/mission/trust_ask.go
 export const MissionUntrustedCommand = "moltenmissionuntrusted";
@@ -274,6 +275,11 @@ export function missionCancel(dir: string, runid: string): Promise<void> {
 
 export function missionClose(dir: string, runid: string): Promise<void> {
     return missionCall(MissionCloseCommand, { dir, runid });
+}
+
+// A build waiting for GitHub's CI stops waiting and verifies its commit with the local CI (#2277).
+export function missionVerifyHere(dir: string, runid: string): Promise<void> {
+    return missionCall(MissionVerifyHereCommand, { dir, runid });
 }
 
 export function missionTrust(dir: string, hash: string): Promise<void> {

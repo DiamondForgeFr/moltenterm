@@ -139,8 +139,8 @@ export function BuildLocalMenu({
                                 {build.description ? (
                                     <div className="text-11 text-muted">{build.description}</div>
                                 ) : null}
-                                {build.verify === "ci" ? (
-                                    <div className="mt-0.5 text-11 text-muted">{ciLine(facts)}</div>
+                                {build.verify === "ci" || build.verify === "ci-local" ? (
+                                    <div className="mt-0.5 text-11 text-muted">{ciLine(facts, build.verify)}</div>
                                 ) : null}
                                 <div className="mt-0.5 pr-6 text-11 text-muted">{lastBuildLine(build.last, now)}</div>
                             </button>

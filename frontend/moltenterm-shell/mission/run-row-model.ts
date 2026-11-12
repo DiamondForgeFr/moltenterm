@@ -38,6 +38,8 @@ export type BandRow = {
     context: string;
     // What the current phase does as the project declares it, or why the run stopped when it did.
     note: string;
+    // How a build's commit was verified, under the note for the whole run (#2277).
+    verification?: string;
     phases: RowPhase[];
     startedat: number;
     // When a run that stopped did, so its time stands still; 0 while it goes on.
@@ -146,6 +148,7 @@ export function buildBandRow(
         name: run.title || run.stepid,
         context: buildContext(trunk, run.commit),
         note: view.line,
+        verification: view.verification,
         phases,
         startedat: run.startedat,
         endedat: stopped ? (run.finishedat ?? 0) : 0,
