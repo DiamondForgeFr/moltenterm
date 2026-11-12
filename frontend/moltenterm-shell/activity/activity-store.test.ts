@@ -51,7 +51,7 @@ vi.mock("../running-work", async () => {
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
-import { ActivitySource, activityDirs } from "./activity-store";
+import { ActivitySource, activityDirs, activityFolders } from "./activity-store";
 
 const src = readFileSync(fileURLToPath(new URL("./activity-store.ts", import.meta.url)), "utf8");
 const modelSrc = readFileSync(fileURLToPath(new URL("./activity-model.ts", import.meta.url)), "utf8");
@@ -59,9 +59,9 @@ const modelSrc = readFileSync(fileURLToPath(new URL("./activity-model.ts", impor
 const Dir = "/work/product";
 const Other = "/work/product/mobile";
 
-function workspace(dirs: string[]) {
+function workspace(dirs: string[], oid = "ws-1") {
     return {
-        oid: "ws-1",
+        oid,
         name: "Product",
         meta: {
             "molten:project": dirs[0],
@@ -155,6 +155,25 @@ describe("the activity source", () => {
                 .sort()
         ).toEqual([1, 2]);
         expect(activityDirs(workspace([Dir, Other]) as any)).toEqual([Dir, Other]);
+    });
+
+    it("shows the window's workspace its own agents and runs, and follows a workspace switch at once (#2261)", () => {
+        const ofA = { ...agent("a1", "working", 10), workspaceid: "ws-a" };
+        const ofB = { ...agent("b1", "working", 20), workspaceid: "ws-b" };
+        setAgents(ofA, ofB);
+        setWork({ kind: "build", dir: "/work/b", workspaceid: "ws-b" }, { kind: "ci", dir: "/work/b" });
+        globalStore.set(m.workspace, workspace(["/work/a"], "ws-a"));
+        expect(summary().items.map((i) => i.id)).toEqual(["agent:a1"]);
+        globalStore.set(m.workspace, workspace(["/work/b"], "ws-b"));
+        expect(summary().items.map((i) => i.id)).toEqual(["agent:b1", "work:w0", "work:w1"]);
+        globalStore.set(m.workspace, null);
+        expect(summary().count).toBe(0);
+    });
+
+    it("takes a run that names no workspace when it runs in a project folder of the workspace", () => {
+        setWork({ kind: "build", dir: Dir }, { kind: "build", dir: "/work/elsewhere" });
+        expect(summary().count).toBe(1);
+        expect(activityFolders(workspace([Dir, Other]) as any)).toEqual([Dir, Other]);
     });
 
     it("leaves out a pull request MoltenTerm merged, as the Integration list does", async () => {

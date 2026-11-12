@@ -92,11 +92,50 @@ function answer(ready: ReviewPr[], drafts: ReviewPr[] = [], more: Partial<Review
 }
 
 function inputs(more: Partial<ActivityInputs> = {}): ActivityInputs {
-    return { agents: {}, work: [], answers: {}, dirs: [Dir], ...more };
+    return { agents: {}, work: [], answers: {}, dirs: [Dir], workspaceid: "ws-1", folders: [Dir], ...more };
 }
 
+describe("what runs: the window's workspace only (#2261)", () => {
+    const a = () => agent("working", { workspaceid: "ws-a" });
+    const b = () => agent("working", { workspaceid: "ws-b" });
+
+    it("shows each workspace its own agent, and none of the other's", () => {
+        const list = agents(a(), b());
+        const inA = activityItems(inputs({ agents: list, workspaceid: "ws-a" }));
+        const inB = activityItems(inputs({ agents: list, workspaceid: "ws-b" }));
+        expect(inA.map((i) => i.target.type === "agent" && i.target.workspaceid)).toEqual(["ws-a"]);
+        expect(inB.map((i) => i.target.type === "agent" && i.target.workspaceid)).toEqual(["ws-b"]);
+    });
+
+    it("leaves out an agent whose workspace is not known, and every agent when the window's is not", () => {
+        const list = agents(agent("working", { workspaceid: undefined }), a());
+        expect(activityItems(inputs({ agents: list, workspaceid: "ws-a" }))).toHaveLength(1);
+        expect(activityItems(inputs({ agents: list, workspaceid: "" }))).toEqual([]);
+    });
+
+    it("leaves a build started in another workspace out", () => {
+        const list = [
+            work("build", 1, { workspaceid: "ws-b", dir: "/work/b" }),
+            work("ci", 2, { workspaceid: "ws-b" }),
+        ];
+        expect(activityItems(inputs({ work: list, workspaceid: "ws-a" }))).toEqual([]);
+        expect(activityItems(inputs({ work: list, workspaceid: "ws-b" }))).toHaveLength(2);
+    });
+
+    it("takes a run that names no workspace by its folder, and leaves one with no folder of the workspace out", () => {
+        const list = [
+            work("build", 1, { dir: Dir }),
+            work("ci", 2, { dir: "/work/elsewhere" }),
+            work("update", 3, { dir: "" }),
+        ];
+        const items = activityItems(inputs({ work: list, workspaceid: "ws-a", folders: [Dir] }));
+        expect(items.map((i) => i.kind)).toEqual(["build"]);
+        expect(activityItems(inputs({ work: list, workspaceid: "ws-a", folders: [] }))).toEqual([]);
+    });
+});
+
 describe("what runs: agents", () => {
-    it("counts the agents that work, in every workspace, and no other state", () => {
+    it("counts the agents that work in the workspace, and no other state", () => {
         const items = activityItems(
             inputs({
                 agents: agents(
@@ -109,7 +148,7 @@ describe("what runs: agents", () => {
                 ),
             })
         );
-        expect(items).toHaveLength(2);
+        expect(items).toHaveLength(1);
         expect(items.every((i) => i.kind === "agent" && i.target.type === "agent")).toBe(true);
     });
 

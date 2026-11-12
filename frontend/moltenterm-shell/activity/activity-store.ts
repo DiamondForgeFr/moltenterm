@@ -1,8 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The activity source (FR-BOSS-009, AC85; FR-SHELL-122, #2233): the derived atoms that say what runs, over what the
-// windows already hold. The agent states and the Integration panel's answers are kept current by their own stores; the
+// The activity source (FR-BOSS-009, AC85; FR-SHELL-122, #2233, #2261): the derived atoms that say what runs in the
+// window's workspace, over what the windows already hold. The agent states and the Integration panel's answers are kept current by their own stores; the
 // running work is read when a watcher comes and on each run or CI event (running-work.ts). This adds no timer and no
 // poll: a reader of the source holds the work reading through watch().
 
@@ -25,10 +25,28 @@ export function activityDirs(ws: Workspace): string[] {
     return workspaceProjectDirs(readProjects(ws), projectRepoDir, readWorkspaceProject(ws).repo);
 }
 
+// The folders a run of the window's workspace may carry when it names no workspace: its projects' folders and their
+// repositories.
+export function activityFolders(ws: Workspace): string[] {
+    const rtn: string[] = [];
+    for (const dir of [...readProjects(ws).map((p) => p.dir), ...activityDirs(ws), readWorkspaceProject(ws).dir]) {
+        if (dir && !rtn.includes(dir)) {
+            rtn.push(dir);
+        }
+    }
+    return rtn;
+}
+
+function sameList(a: readonly string[], b: readonly string[]): boolean {
+    return a.join("\n") === b.join("\n");
+}
+
 export class ActivitySource {
     private static instance: ActivitySource = null;
 
     dirsAtom: Atom<string[]>;
+    foldersAtom: Atom<string[]>;
+    workspaceIdAtom: Atom<string>;
     summaryAtom: Atom<ActivitySummary>;
     countAtom: Atom<number>;
 
@@ -39,12 +57,22 @@ export class ActivitySource {
         let lastDirs: string[] = [];
         this.dirsAtom = atom((get) => {
             const dirs = activityDirs(get(atoms.workspace));
-            if (dirs.join("\n") === lastDirs.join("\n")) {
+            if (sameList(dirs, lastDirs)) {
                 return lastDirs;
             }
             lastDirs = dirs;
             return dirs;
         });
+        let lastFolders: string[] = [];
+        this.foldersAtom = atom((get) => {
+            const folders = activityFolders(get(atoms.workspace));
+            if (sameList(folders, lastFolders)) {
+                return lastFolders;
+            }
+            lastFolders = folders;
+            return folders;
+        });
+        this.workspaceIdAtom = atom((get) => get(atoms.workspace)?.oid ?? "");
         // The summary is the same object while the same items run: an agent's message or a PR's title moving makes no
         // reader draw again.
         let last: ActivitySummary = null;
@@ -58,7 +86,14 @@ export class ActivitySource {
                 followed[dir] = withLocalMerges(answers[dir] ?? null, merges);
             }
             const next = summarizeActivity(
-                activityItems({ agents: get(agentsAtom).states, work: get(workAtom), answers: followed, dirs })
+                activityItems({
+                    agents: get(agentsAtom).states,
+                    work: get(workAtom),
+                    answers: followed,
+                    dirs,
+                    workspaceid: get(this.workspaceIdAtom),
+                    folders: get(this.foldersAtom),
+                })
             );
             const key = activityKey(next);
             if (last != null && key === lastKey) {
