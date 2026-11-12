@@ -20,17 +20,16 @@ export const RevealCapMs = 3000;
 export const SpeakingSettleMs = 1200;
 // Speech shorter than this reads as a twitch of the mouth, not as speech.
 export const MinSpeakingMs = 2500;
-// When the tone's gesture starts (#2259). The package (@diamondforge/character 0.3.1, FR-AI-012) plays an expression
-// asked at once on the loop on screen, over a crossfade of AskedFadeMs from wherever the loop is: unlike a gesture drawn
-// by chance, it does not wait for the end of a round. What it does wait for is a clip between two poses, which always
-// plays to its end: the listening and speaking loops swap without one, but leaving or reaching the thinking pose takes
-// one of PoseClipMs (48 frames at 16 fps, brokk-speech-model.test.ts measures them). So the tone plays only when his face
-// is on the listening or speaking loop with no such clip under way, and otherwise not at all (the queue gives it up after
-// AnswerWaitLimitMs as well): a smile that comes once the developer reads means nothing.
+// When the tone's gesture starts (#2259, #2262). The package (@diamondforge/character 0.3.1, FR-AI-012) plays an
+// expression asked at once on the loop on screen, over a crossfade of AskedFadeMs from wherever the loop is: unlike a
+// gesture drawn by chance, it does not wait for the end of a round. What it does wait for is a clip between two poses,
+// which always plays to its end, and it plays the expression right after: the listening and speaking loops swap without
+// one, but reaching the thinking pose takes IntoThinkingMs (48 frames at 16 fps) and leaving it OutOfThinkingMs (20
+// frames); brokk-speech-model.test.ts measures them. So an answer that starts while his face thinks shows its tone once
+// the clip out of thinking and the crossfade are over, about 1.5 s after his first words.
 export const AskedFadeMs = 300;
-export const PoseClipMs = 3000;
-// The tone's gesture starts within this long of his first words, or does not play.
-export const TonePromptMs = 500;
+export const IntoThinkingMs = 3000;
+export const OutOfThinkingMs = 1250;
 // The pace of the reveal's steps while words are being revealed.
 export const RevealFrameMs = 40;
 // He thinks visibly once nothing of his answer has shown for this long, or his session has worked this long with no new
@@ -154,21 +153,27 @@ export function trackAfter(track: FaceTrack, talk: BrokkSituation["talk"], now: 
     if ((talk === "thinking") === (track.talk === "thinking")) {
         return { ...track, talk };
     }
-    return { talk, clipUntil: Math.max(track.clipUntil, now) + PoseClipMs };
+    const clipMs = talk === "thinking" ? IntoThinkingMs : OutOfThinkingMs;
+    return { talk, clipUntil: Math.max(track.clipUntil, now) + clipMs };
 }
 
-// How long after `now` a gesture asked now would start, or null when it cannot within TonePromptMs: the face thinks, or a
-// clip between poses is under way.
+// How long after `now` a gesture asked now starts: at once over the crossfade on a loop, else once the clip between
+// poses under way has ended. A face that thinks leaves that pose as he starts to speak, so its clip out of thinking
+// comes first.
 export function toneDelayMs(track: FaceTrack, now: number): number {
-    if (track != null && (track.talk === "thinking" || now < track.clipUntil)) {
-        return null;
+    if (track == null) {
+        return AskedFadeMs;
     }
-    return AskedFadeMs;
+    let clipEnd = track.clipUntil;
+    if (track.talk === "thinking") {
+        clipEnd = Math.max(clipEnd, now) + OutOfThinkingMs;
+    }
+    return Math.max(clipEnd - now, 0) + AskedFadeMs;
 }
 
 // More of his answer was read (or a new answer started). `instant`: show it at once (reduced motion). The tone's gesture
-// is asked once per answer, with its first words, and only when the face can start it promptly (`track`); otherwise he
-// goes straight to speaking.
+// is asked once per answer, with its first words; it starts once the face can show it (`track`, toneDelayMs), and not at
+// all when his answer would be over by then: he then goes straight to speaking.
 export function speechAfterHeard(
     speech: Speech,
     heard: Heard,
@@ -202,7 +207,8 @@ export function speechAfterHeard(
     let gesture: BrokkExpression = null;
     if (!next.toned) {
         const delay = toneDelayMs(track, now);
-        gesture = delay != null ? (ToneGesture[heard.tone] ?? null) : null;
+        const said = speakingUntil({ ...next, toneUntil: 0 });
+        gesture = now + delay < said ? (ToneGesture[heard.tone] ?? null) : null;
         next = {
             ...next,
             toned: true,

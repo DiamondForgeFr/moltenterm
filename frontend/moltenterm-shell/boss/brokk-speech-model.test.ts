@@ -4,13 +4,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import type { BrokkExpression } from "./brokk-ask-model";
 import { AnswerWaitLimitMs, ExpressionMs } from "./brokk-queue";
 import {
     alreadySaid,
     AskedFadeMs,
+    IntoThinkingMs,
     MinSpeakingMs,
     NoSpeech,
-    PoseClipMs,
+    OutOfThinkingMs,
     RevealCapMs,
     RevealCharsPerSecond,
     revealingAt,
@@ -27,7 +29,6 @@ import {
     talkFace,
     ThinkingDelayMs,
     toneDelayMs,
-    TonePromptMs,
     trackAfter,
 } from "./brokk-speech-model";
 import { brokkPose } from "./brokk-state-model";
@@ -160,16 +161,31 @@ describe("the tone plays first, then he speaks (AC88)", () => {
         expect(speakingUntil(speech)).toBe(AskedFadeMs + ExpressionMs.smile + SpeakingSettleMs);
     });
 
-    it("asks nothing for neutral, for a tone he has no clip for, or without a tone", () => {
+    it("asks nothing for neutral, for a tone outside the list, or without a tone", () => {
         expect(heard(NoSpeech, "Fine.", 0, "neutral").gesture).toBeNull();
-        expect(heard(NoSpeech, "Fine.", 0, "proud").gesture).toBeNull();
+        expect(heard(NoSpeech, "Fine.", 0, "furious").gesture).toBeNull();
         expect(heard(NoSpeech, "Fine.", 0, undefined).gesture).toBeNull();
-        expect(speakingUntil(heard(NoSpeech, "Fine.", 0, "proud").speech)).toBe(MinSpeakingMs);
+        expect(speakingUntil(heard(NoSpeech, "Fine.", 0, "neutral").speech)).toBe(MinSpeakingMs);
+    });
+
+    it("plays the chuckle for amused, his proud look for proud and his surprised look for surprised, then he speaks (#2262)", () => {
+        const table: [string, BrokkExpression][] = [
+            ["amused", "chuckle"],
+            ["proud", "proud"],
+            ["surprised", "surprised"],
+        ];
+        for (const [tone, gesture] of table) {
+            const step = heard(NoSpeech, "Fine, thanks.", 0, tone);
+            expect(step.gesture, tone).toBe(gesture);
+            expect(speakingUntil(step.speech), tone).toBe(AskedFadeMs + ExpressionMs[gesture] + SpeakingSettleMs);
+        }
     });
 
     it("plays the gesture in the listening pose, then speaks", () => {
         const situation = { working: 0, waiting: 0, cardOpen: true, talk: "answering" as const };
-        expect(brokkPose(situation, { speaking: false, expression: "smile" })).toBe("listening");
+        for (const gesture of ["smile", "chuckle", "proud", "surprised"] as BrokkExpression[]) {
+            expect(brokkPose(situation, { speaking: false, expression: gesture }), gesture).toBe("listening");
+        }
         expect(brokkPose(situation, { speaking: false, expression: null })).toBe("speaking");
     });
 });
@@ -192,7 +208,7 @@ function clipMs(name: string): number {
     throw new Error(`${name}.webm has no duration`);
 }
 
-describe("the tone starts with his first words (AC88, #2259)", () => {
+describe("the tone starts with his first words, or right after a clip out of thinking (AC88, #2259, #2262)", () => {
     const frameMs = 1000 / Manifest.fps;
 
     it("is a gesture of the listening loop, which the package plays at once over a short crossfade", () => {
@@ -208,12 +224,11 @@ describe("the tone starts with his first words (AC88, #2259)", () => {
         expect(Manifest.transitions).not.toContain("speaking>listening");
         expect(Manifest.transitions).not.toContain("listening>speaking");
         expect(Manifest.samePose).toEqual(["listening>speaking", "speaking>listening"]);
-        expect(AskedFadeMs).toBeLessThanOrEqual(TonePromptMs);
-        expect(TonePromptMs).toBeLessThanOrEqual(500);
-        expect(AnswerWaitLimitMs).toBeLessThanOrEqual(TonePromptMs);
+        expect(AskedFadeMs).toBeLessThanOrEqual(AnswerWaitLimitMs);
+        expect(AnswerWaitLimitMs).toBeLessThanOrEqual(500);
     });
 
-    it("starts within the prompt delay on a face that listened or spoke, whatever frame its loop is at", () => {
+    it("starts after the crossfade on a face that listened or spoke, whatever frame its loop is at", () => {
         const listening = trackAfter(StartTrack, "typing", 0);
         expect(toneDelayMs(listening, 1000)).toBe(AskedFadeMs);
         const step = speechAfterHeard(NoSpeech, { id: "m1", text: "Fine,", tone: "smile" }, 1000, false, listening);
@@ -222,32 +237,73 @@ describe("the tone starts with his first words (AC88, #2259)", () => {
         expect(AskedFadeMs / frameMs).toBeLessThan(72 / 10);
     });
 
-    it("measures the clips between poses at PoseClipMs: 48 frames at the manifest's frame rate", () => {
+    it("measures the clips into thinking at IntoThinkingMs (48 frames) and those out of it at OutOfThinkingMs (20 frames)", () => {
         // His group never rests (the card is open): its clips are those to and from thinking.
         const group = Manifest.transitions.filter((t) => t.includes("thinking") && !t.includes("rest"));
         expect(group).toHaveLength(4);
         for (const transition of group) {
             const [from, to] = transition.split(">");
-            const ms = clipMs(`${from}-to-${to}`);
+            const frames = Math.round(clipMs(`${from}-to-${to}`) / frameMs);
             // The container rounds its duration to the millisecond, give or take one.
-            expect(Math.round(ms / frameMs), transition).toBe(48);
+            expect(frames, transition).toBe(to === "thinking" ? 48 : 20);
         }
-        expect(PoseClipMs).toBe(48 * frameMs);
-        expect(PoseClipMs).toBeGreaterThan(TonePromptMs);
+        expect(IntoThinkingMs).toBe(48 * frameMs);
+        expect(OutOfThinkingMs).toBe(20 * frameMs);
     });
 
-    it("is given up, not played late, while the face thinks or a clip to or from thinking plays", () => {
+    it("plays after a thinking pose about 1.5 s after his first words: the clip out of thinking, then the crossfade (#2262)", () => {
         const thinking = trackAfter(trackAfter(StartTrack, "typing", 0), "thinking", 5000);
-        expect(thinking.clipUntil).toBe(5000 + PoseClipMs);
-        expect(toneDelayMs(thinking, 9000)).toBeNull();
-        const step = speechAfterHeard(NoSpeech, { id: "m1", text: "Fine,", tone: "smile" }, 9000, false, thinking);
-        expect(step.gesture).toBeNull();
-        expect(speakingUntil(step.speech)).toBe(MinSpeakingMs + 9000);
+        expect(thinking.clipUntil).toBe(5000 + IntoThinkingMs);
+        const at = 20_000;
+        expect(toneDelayMs(thinking, at)).toBe(OutOfThinkingMs + AskedFadeMs);
+        expect(OutOfThinkingMs + AskedFadeMs).toBe(1550);
+        const step = speechAfterHeard(NoSpeech, { id: "m1", text: "Fine,", tone: "amused" }, at, false, thinking);
+        expect(step.gesture).toBe("chuckle");
+        // He speaks past the gesture: the clip, the crossfade, the chuckle and his settle.
+        expect(speakingUntil(step.speech)).toBe(
+            at + OutOfThinkingMs + AskedFadeMs + ExpressionMs.chuckle + SpeakingSettleMs
+        );
+    });
 
-        const back = trackAfter(thinking, "typing", 6000);
-        expect(back.clipUntil).toBe(5000 + 2 * PoseClipMs);
-        expect(toneDelayMs(back, 5000 + 2 * PoseClipMs - 1)).toBeNull();
-        expect(toneDelayMs(back, 5000 + 2 * PoseClipMs)).toBe(AskedFadeMs);
+    it("waits for a clip into thinking still under way, then the clip out of it", () => {
+        const thinking = trackAfter(trackAfter(StartTrack, "typing", 0), "thinking", 5000);
+        expect(toneDelayMs(thinking, 6000)).toBe(5000 + IntoThinkingMs - 6000 + OutOfThinkingMs + AskedFadeMs);
+    });
+
+    it("waits for a clip out of thinking under way on a face that already listens", () => {
+        const thinking = trackAfter(trackAfter(StartTrack, "typing", 0), "thinking", 5000);
+        const back = trackAfter(thinking, "typing", 10_000);
+        expect(back.clipUntil).toBe(10_000 + OutOfThinkingMs);
+        expect(toneDelayMs(back, 10_500)).toBe(OutOfThinkingMs - 500 + AskedFadeMs);
+        expect(toneDelayMs(back, 10_000 + OutOfThinkingMs)).toBe(AskedFadeMs);
+        // A clip into thinking asked while the one out of it plays follows it.
+        const again = trackAfter(back, "thinking", 10_500);
+        expect(again.clipUntil).toBe(10_000 + OutOfThinkingMs + IntoThinkingMs);
+    });
+
+    it("is given up when his answer has ended by the time it could start (#2262)", () => {
+        // His face went into thinking 500 ms ago: the clip into thinking and the one out of it take more than his
+        // shortest speech.
+        const thinking = trackAfter(trackAfter(StartTrack, "typing", 0), "thinking", 5000);
+        const at = 5500;
+        expect(at + toneDelayMs(thinking, at)).toBeGreaterThanOrEqual(at + MinSpeakingMs);
+        const step = speechAfterHeard(NoSpeech, { id: "m1", text: "Yes.", tone: "proud" }, at, false, thinking);
+        expect(step.gesture).toBeNull();
+        expect(step.speech.toned).toBe(true);
+        expect(speakingUntil(step.speech)).toBe(at + MinSpeakingMs);
+        // More of the same answer never asks it later.
+        expect(
+            speechAfterHeard(step.speech, { id: "m1", text: "Yes. Done.", tone: "proud" }, 9000, false).gesture
+        ).toBeNull();
+    });
+
+    it("still plays it after a clip into thinking when his answer lasts past that clip", () => {
+        const thinking = trackAfter(trackAfter(StartTrack, "typing", 0), "thinking", 5000);
+        const at = 5500;
+        const long = words(400);
+        const step = speechAfterHeard(NoSpeech, { id: "m1", text: long, tone: "surprised" }, at, false, thinking);
+        expect(at + toneDelayMs(thinking, at)).toBeLessThan(step.speech.endAt + SpeakingSettleMs);
+        expect(step.gesture).toBe("surprised");
     });
 
     it("plays on a face that just mounted, which starts on its loop", () => {

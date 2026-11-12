@@ -23,9 +23,10 @@ import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import type { PrimitiveAtom } from "jotai";
 import { withAnswer, withMessage } from "./brokk-exchange-model";
+import { ExpressionMs } from "./brokk-queue";
 import { BrokkSession } from "./brokk-session";
 import { BrokkSpeech, latestAnswer, NothingShown } from "./brokk-speech";
-import { RevealCapMs, SpeakingSettleMs } from "./brokk-speech-model";
+import { AskedFadeMs, OutOfThinkingMs, RevealCapMs, SpeakingSettleMs } from "./brokk-speech-model";
 
 const reducedAtom = atoms.prefersReducedMotionAtom as unknown as PrimitiveAtom<boolean>;
 
@@ -135,12 +136,27 @@ describe("Brokk says his answer while his group shows (AC87, AC88)", () => {
         expect(shownText(speech)).toBe("The checks of PR 12 came back red.");
     });
 
-    it("gives up the tone, rather than playing it late, when his face thinks or leaves thinking", () => {
+    it("asks the tone with his first words after a thinking pose, and speaks past it: the clip out of thinking plays first (#2262)", () => {
         speech.noteFace("typing");
         clock.advance(5000);
         speech.noteFace("thinking");
         clock.advance(10000);
-        read("[[smile]] Fine, after all that.");
+        read("[[amused]] Fine, after all that.");
+        expect(Asked.calls).toEqual([["chuckle", { answer: true }]]);
+        expect(globalStore.get(speech.speakingAtom)).toBe(true);
+        // The clip out of thinking, the crossfade and the chuckle are over, then he finishes his sentence.
+        clock.advance(OutOfThinkingMs + AskedFadeMs + ExpressionMs.chuckle + SpeakingSettleMs - 1);
+        expect(globalStore.get(speech.speakingAtom)).toBe(true);
+        clock.advance(1);
+        expect(globalStore.get(speech.speakingAtom)).toBe(false);
+    });
+
+    it("gives up the tone of a short answer when the clips into and out of thinking outlast it (#2262)", () => {
+        speech.noteFace("typing");
+        clock.advance(5000);
+        speech.noteFace("thinking");
+        clock.advance(500);
+        read("[[proud]] Done.");
         expect(Asked.calls).toEqual([]);
         expect(globalStore.get(speech.speakingAtom)).toBe(true);
     });

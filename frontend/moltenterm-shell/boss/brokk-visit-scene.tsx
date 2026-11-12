@@ -22,7 +22,6 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { TabActivity, whileShown } from "../tab-activity";
 import { BossBubbleModel } from "./boss-store";
-import type { BrokkExpression } from "./brokk-ask-model";
 import { BrokkCalm } from "./brokk-calm";
 import { useCaptionText } from "./brokk-caption";
 import { BrokkHubModel } from "./brokk-hub-store";
@@ -37,6 +36,7 @@ import {
     laterOptions,
     sceneActions,
     SceneClock,
+    SceneCue,
     sceneEscapes,
     sceneGestureOf,
     SceneGestures,
@@ -44,6 +44,7 @@ import {
     ScenePhase,
     scenePhase,
     ScenePose,
+    sceneWaitGestureOf,
     startSceneGestures,
     unmountAfterMs,
 } from "./brokk-visit-scene-model";
@@ -94,25 +95,23 @@ const BrowserClock: SceneClock = {
     random: () => Math.random(),
 };
 
-// His living face (#2025): the package's portrait that drives him elsewhere, waiting in the listening pose with its
-// blinks at the rhythm of brokk-portrait.ts. The face of the severity plays once as he arrives, then now and then while
-// he waits (startSceneGestures): a clip of it played in a loop read as a machine.
-export function SceneLive({ expression, clock = BrowserClock }: { expression: BrokkExpression; clock?: SceneClock }) {
-    const [cue, setCue] = useState(0);
+// His living face (#2025, #2262): the package's portrait that drives him elsewhere, waiting in the listening pose with
+// the idles it draws by chance at the rhythm of brokk-portrait.ts. The face of the severity plays once as he arrives; a
+// grave visit adds his sigh now and then while he waits (startSceneGestures), never over an idle under way.
+export function SceneLive({ severity, clock = BrowserClock }: { severity: Severity; clock?: SceneClock }) {
+    const arrival = sceneGestureOf(severity);
+    const wait = sceneWaitGestureOf(severity);
+    const [cue, setCue] = useState<SceneCue>(null);
     const gestures = useRef<SceneGestures>(null);
     useEffect(() => {
-        const started = startSceneGestures(clock, reactionCapMs(expression), setCue);
+        const started = startSceneGestures(clock, { arrival, wait }, reactionCapMs, setCue);
         gestures.current = started;
         return () => {
             started.stop();
             gestures.current = null;
         };
-    }, [expression, clock]);
-    const onGesture = (name: string, phase: "start" | "end") => {
-        if (name === expression && phase === "end") {
-            gestures.current?.ended();
-        }
-    };
+    }, [arrival, wait, clock]);
+    const onGesture = (name: string, phase: "start" | "end") => gestures.current?.heard(name, phase);
     return (
         <TransmissionPortrait
             {...BrokkPortrait}
@@ -121,7 +120,7 @@ export function SceneLive({ expression, clock = BrowserClock }: { expression: Br
             className="mt-brokk-scene-portrait"
             alt=""
             state={ScenePose}
-            expression={cue > 0 ? { expression, cue } : null}
+            expression={cue}
             onGesture={onGesture}
         />
     );
@@ -139,7 +138,7 @@ function SceneFace({ severity }: { severity: Severity }) {
     if (calm) {
         return <BrokkCalm pose={ScenePose} poster={BrokkStill} />;
     }
-    return <SceneLive expression={sceneGestureOf(severity)} />;
+    return <SceneLive severity={severity} />;
 }
 
 // Plus tard (AC7): the delays of the severity, the first being what Escape takes.
