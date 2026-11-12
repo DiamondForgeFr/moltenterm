@@ -293,27 +293,37 @@ function Row({ entry }: { entry: BrainstormSummary }) {
                 >
                     {t("boss.brainstorm.resumeAction")}
                 </button>
-                <button
-                    type="button"
-                    className="mt-bsp-more cursor-pointer"
-                    aria-label={t("boss.brainstorm.panel.more", { title: entry.title })}
-                    title={t("boss.brainstorm.panel.more", { title: entry.title })}
-                    aria-haspopup="menu"
-                    data-testid="brainstorm-row-more"
-                    onClick={(e) =>
-                        ContextMenuModel.getInstance().showContextMenu(
-                            rowMenu(t, entry, {
-                                onRename: () => setMode("rename"),
-                                onDelete: () => setMode("delete"),
-                            }),
-                            e
-                        )
-                    }
-                >
-                    <i className={makeIconClass("ellipsis", false)} aria-hidden />
-                </button>
+                <MoreButton entry={entry} onRename={() => setMode("rename")} onDelete={() => setMode("delete")} />
             </div>
         </li>
+    );
+}
+
+// A brainstorm's ⋯: Rename, Show in folder and Delete (rowMenu).
+function MoreButton({
+    entry,
+    onRename,
+    onDelete,
+}: {
+    entry: BrainstormSummary;
+    onRename: () => void;
+    onDelete: () => void;
+}) {
+    const t = useT();
+    return (
+        <button
+            type="button"
+            className="mt-bsp-more cursor-pointer"
+            aria-label={t("boss.brainstorm.panel.more", { title: entry.title })}
+            title={t("boss.brainstorm.panel.more", { title: entry.title })}
+            aria-haspopup="menu"
+            data-testid="brainstorm-row-more"
+            onClick={(e) =>
+                ContextMenuModel.getInstance().showContextMenu(rowMenu(t, entry, { onRename, onDelete }), e)
+            }
+        >
+            <i className={makeIconClass("ellipsis", false)} aria-hidden />
+        </button>
     );
 }
 
@@ -365,7 +375,7 @@ function Current({ state }: { state: BrainstormState }) {
             )}
             <div className="mt-bsp-saved" data-tone={saved.tone} data-testid="brainstorm-saved-line">
                 <span className="mt-bsp-saved-dot" aria-hidden />
-                <span>{saved.text}</span>
+                <span className="mt-bsp-saved-text">{saved.text}</span>
                 {brainstorm != null ? (
                     <span className="mt-bsp-folder" title={brainstorm.dir} data-testid="brainstorm-saved-folder">
                         {brainstorm.slug}/
@@ -384,13 +394,21 @@ function Current({ state }: { state: BrainstormState }) {
                     {t("boss.brainstorm.newIdea")}
                 </button>
                 {brainstorm != null ? (
-                    <span className="mt-bsp-links">
-                        <FolderLinks
+                    <>
+                        <span className="mt-bsp-links">
+                            <FolderLinks
+                                entry={brainstorm}
+                                onRename={() => setMode("rename")}
+                                onDelete={() => setMode("delete")}
+                            />
+                        </span>
+                        {/* A narrow panel shows the same three actions in its ⋯ (brainstorm-panel.css). */}
+                        <MoreButton
                             entry={brainstorm}
                             onRename={() => setMode("rename")}
                             onDelete={() => setMode("delete")}
                         />
-                    </span>
+                    </>
                 ) : null}
             </div>
         </div>

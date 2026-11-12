@@ -157,6 +157,19 @@ describe("the brainstorm panel (FR-BOSS-010 AC9, AC10, AC23, AC25, #2285)", () =
     });
 
     // The ⋯ of a row keeps the room for its title: Rename, Show in folder, and Delete, which asks first in the row.
+    // #2285: in a narrow window the panel is narrow too; it folds rather than cutting Leave or its titles.
+    it("folds in a narrow panel: Leave alone on its line, the open brainstorm's links in its ⋯", () => {
+        const css = readFileSync(join(__dirname, "brainstorm-panel.css"), "utf8");
+        expect(css).toMatch(/\.mt-bsp \{[^}]*container: bsp \/ inline-size;/);
+        const narrow = /@container bsp \(max-width: 320px\) \{([\s\S]*?)\n\}/.exec(css)?.[1] ?? "";
+        expect(narrow).toMatch(/\.mt-bsp-eyebrow-text \{\s*display: none;/);
+        expect(narrow).toMatch(/\.mt-bsp-acts \.mt-bsp-links \{\s*display: none;/);
+        expect(narrow).toMatch(/\.mt-bsp-acts \.mt-bsp-more \{\s*display: inline-flex;/);
+        expect(css).toMatch(/\n\.mt-bsp-acts \.mt-bsp-more \{\s*display: none;/);
+        const current = panel().slice(0, panel().indexOf('class="mt-bsp-others"'));
+        expect(current).toContain('aria-label="More for “A safe video app for children”"');
+    });
+
     it("puts Rename, Show in folder and Delete of a listed brainstorm in its ⋯ menu", () => {
         const onRename = vi.fn();
         const onDelete = vi.fn();
