@@ -40,23 +40,75 @@ const (
 
 // The reasons a result is not used. The code is also the key of its sentence (server.mission.build.github.<code>).
 const (
-	ReasonBadSha           = "badSha"
-	ReasonNoRepo           = "noRepo"
-	ReasonNoGh             = "noGh"
-	ReasonLoggedOut        = "loggedOut"
-	ReasonRateLimited      = "rateLimited"
-	ReasonUnreachable      = "unreachable"
-	ReasonNoRun            = "noRun"
-	ReasonPartialOnly      = "partialOnly"
-	ReasonFailed           = "failed"
-	ReasonCancelled        = "cancelled"
-	ReasonNoRequired       = "noRequired"
-	ReasonRulesUnreadable  = "rulesUnreadable"
-	ReasonJobsUnreadable   = "jobsUnreadable"
-	ReasonRequiredMissing  = "requiredMissing"
-	ReasonRequiredSkipped  = "requiredSkipped"
-	ReasonRequiredNotGreen = "requiredNotGreen"
+	ReasonBadSha             = "badSha"
+	ReasonNoRepo             = "noRepo"
+	ReasonNoGh               = "noGh"
+	ReasonLoggedOut          = "loggedOut"
+	ReasonRateLimited        = "rateLimited"
+	ReasonUnreachable        = "unreachable"
+	ReasonNoRun              = "noRun"
+	ReasonPartialOnly        = "partialOnly"
+	ReasonFailed             = "failed"
+	ReasonCancelled          = "cancelled"
+	ReasonNoRequired         = "noRequired"
+	ReasonRulesUnreadable    = "rulesUnreadable"
+	ReasonJobsUnreadable     = "jobsUnreadable"
+	ReasonRequiredMissing    = "requiredMissing"
+	ReasonRequiredSkipped    = "requiredSkipped"
+	ReasonRequiredNotGreen   = "requiredNotGreen"
+	ReasonPlatformNotCovered = "platformNotCovered"
 )
+
+// The systems a build can be for, as GitHub's runners name them; OtherPlatform is one no runner is known for.
+const (
+	PlatformMacos   = "macos"
+	PlatformLinux   = "linux"
+	PlatformWindows = "windows"
+	OtherPlatform   = "other"
+)
+
+// PlatformOf is the runner family of a Go GOOS: the system a build made on this computer is for.
+func PlatformOf(goos string) string {
+	switch goos {
+	case "darwin":
+		return PlatformMacos
+	case "linux":
+		return PlatformLinux
+	case "windows":
+		return PlatformWindows
+	}
+	return OtherPlatform
+}
+
+func platformName(platform string) string {
+	switch platform {
+	case PlatformMacos:
+		return "macOS"
+	case PlatformLinux:
+		return "Linux"
+	case PlatformWindows:
+		return "Windows"
+	}
+	return "this system"
+}
+
+// platformOfLabels is the system of a job's runner, from the labels the job asked for ("macos-latest", "ubuntu-24.04",
+// "windows-2022", or a self-hosted runner's "macOS"); empty when they name none: a runner of unknown system covers
+// nothing.
+func platformOfLabels(labels []string) string {
+	for _, label := range labels {
+		l := strings.ToLower(label)
+		switch {
+		case l == "macos" || strings.HasPrefix(l, "macos-"):
+			return PlatformMacos
+		case l == "linux" || strings.HasPrefix(l, "ubuntu"):
+			return PlatformLinux
+		case l == "windows" || strings.HasPrefix(l, "windows-"):
+			return PlatformWindows
+		}
+	}
+	return ""
+}
 
 // The events whose runs are the full suites: what a push to the trunk, a manual dispatch or a schedule starts. A pull
 // request's run tests the merge of its head, often only what its change affects.
@@ -75,8 +127,13 @@ type Query struct {
 	Sha string
 	// The branches whose runs count: the trunk and the release branch.
 	Branches []string
-	// The workflow file ("ci.yml") when the caller names the one workflow that must be green; empty for any workflow.
+	// The workflow file ("ci.yml") when the caller names the one workflow that must be green; empty for any workflow. A
+	// run of a named workflow is only asked for the required checks it holds, since the others may be jobs of another
+	// named workflow: the caller checks that together they hold them all (Answer.Held).
 	Workflow string
+	// The system the commit is built for (PlatformOf): the run must have a green job on a runner of that system, since
+	// a run on other systems never runs the code that is specific to this one. Empty asks for none.
+	Platform string
 }
 
 type Reason struct {
@@ -137,6 +194,8 @@ func (r Reason) Describe() (string, *uimsg.Text) {
 	case ReasonRequiredNotGreen:
 		return fmt.Sprintf("the required check %s ended in %s in GitHub's run %s", v["check"], v["conclusion"], v["run"]),
 			uimsg.Make("mission.build.github.requiredNotGreen", "check", v["check"], "conclusion", v["conclusion"], "run", v["run"])
+	case ReasonPlatformNotCovered:
+		return fmt.Sprintf("GitHub's run does not cover %s", platformName(v["platform"])), uimsg.Make("mission.build.github.platformNotCovered")
 	}
 	return "GitHub's result could not be used", uimsg.Make("mission.build.github.unreachable")
 }
@@ -151,6 +210,10 @@ type Answer struct {
 	Url   string
 	// Verified: the jobs of the run that concluded success.
 	Jobs int
+	// Verified or refused for a required check, in a named workflow's run: the checks the branch requires, and those of
+	// them that are jobs of this run. The caller asks that the runs it named hold them all between them.
+	Required []string
+	Held     []string
 	// Pending: the jobs ended and the jobs of the run, and what changes while the run makes progress.
 	JobsDone  int
 	JobsTotal int
@@ -187,6 +250,8 @@ type apiJob struct {
 	Status     string `json:"status"`
 	Conclusion string `json:"conclusion"`
 	HeadSha    string `json:"head_sha"`
+	// The labels the job asked its runner for ("ubuntu-latest", "macos-latest").
+	Labels []string `json:"labels"`
 }
 
 type apiJobs struct {
@@ -419,13 +484,13 @@ func verifyJobs(ctx context.Context, gh Gh, q Query, run apiRun, rules *required
 		return answer
 	}
 	jobs, err := listJobs(ctx, gh, run.Id)
-	if err != nil && len(required) > 0 {
+	if err != nil && (len(required) > 0 || q.Platform != "") {
 		answer := unverified(q.Sha, makeReason(ReasonJobsUnreadable, "run", runId))
 		answer.RunId, answer.Url = run.Id, run.HtmlUrl
 		return answer
 	}
 	byName := map[string]apiJob{}
-	green := 0
+	green, greenOnPlatform := 0, 0
 	for _, job := range jobs.Jobs {
 		if job.HeadSha != "" && job.HeadSha != q.Sha {
 			continue
@@ -433,26 +498,36 @@ func verifyJobs(ctx context.Context, gh Gh, q Query, run apiRun, rules *required
 		byName[job.Name] = job
 		if job.Conclusion == "success" {
 			green++
+			if q.Platform != "" && platformOfLabels(job.Labels) == q.Platform {
+				greenOnPlatform++
+			}
 		}
 	}
+	refused := func(reason Reason) Answer {
+		answer := unverified(q.Sha, reason)
+		answer.RunId, answer.Url = run.Id, run.HtmlUrl
+		answer.Required = required
+		return answer
+	}
+	held := []string{}
 	for _, check := range required {
 		job, ok := byName[check]
-		reason := Reason{}
 		switch {
+		case !ok && named:
+			continue
 		case !ok:
-			reason = makeReason(ReasonRequiredMissing, "check", check, "run", runId)
+			return refused(makeReason(ReasonRequiredMissing, "check", check, "run", runId))
 		case job.Status == "completed" && job.Conclusion == "skipped":
-			reason = makeReason(ReasonRequiredSkipped, "check", check, "run", runId)
+			return refused(makeReason(ReasonRequiredSkipped, "check", check, "run", runId))
 		case job.Status != "completed" || job.Conclusion != "success":
-			reason = makeReason(ReasonRequiredNotGreen, "check", check, "conclusion", orStatus(job), "run", runId)
+			return refused(makeReason(ReasonRequiredNotGreen, "check", check, "conclusion", orStatus(job), "run", runId))
 		}
-		if reason.Code != "" {
-			answer := unverified(q.Sha, reason)
-			answer.RunId, answer.Url = run.Id, run.HtmlUrl
-			return answer
-		}
+		held = append(held, check)
 	}
-	return Answer{Status: StatusVerified, Sha: q.Sha, RunId: run.Id, Url: run.HtmlUrl, Jobs: green}
+	if q.Platform != "" && greenOnPlatform == 0 {
+		return refused(makeReason(ReasonPlatformNotCovered, "platform", q.Platform))
+	}
+	return Answer{Status: StatusVerified, Sha: q.Sha, RunId: run.Id, Url: run.HtmlUrl, Jobs: green, Required: required, Held: held}
 }
 
 func orStatus(job apiJob) string {

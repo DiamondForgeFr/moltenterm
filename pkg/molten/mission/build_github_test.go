@@ -38,6 +38,15 @@ type fakeGithub struct {
 	// Called with each look at the runs, to move a test's clock.
 	onRuns func(n int)
 	asked  int
+	// The label of the runners every job ran on (default macos-latest, the system the fixture builds for).
+	runnerLabel string
+}
+
+func (f *fakeGithub) runner() string {
+	if f.runnerLabel == "" {
+		return "macos-latest"
+	}
+	return f.runnerLabel
 }
 
 func (f *fakeGithub) state() ghState {
@@ -100,7 +109,7 @@ func (f *fakeGithub) run(id int64, event string, status string, conclusion strin
 func (f *fakeGithub) jobs(jobs ...[3]string) string {
 	items := make([]string, 0, len(jobs))
 	for _, j := range jobs {
-		items = append(items, fmt.Sprintf(`{"name":%q,"status":%q,"conclusion":%q,"head_sha":%q}`, j[0], j[1], j[2], f.sha))
+		items = append(items, fmt.Sprintf(`{"name":%q,"status":%q,"conclusion":%q,"head_sha":%q,"labels":[%q]}`, j[0], j[1], j[2], f.sha, f.runner()))
 	}
 	return fmt.Sprintf(`{"total_count":%d,"jobs":[%s]}`, len(items), strings.Join(items, ","))
 }
@@ -190,6 +199,7 @@ func makeGithubBuild(t *testing.T, verify string) *githubBuild {
 		return plainRunner(ctx, where, name, args...)
 	}
 	g.r.UseCi(MakeCi(filepath.Join(g.data, "ci"), trust, withoutGh, nil))
+	g.r.goos = "darwin"
 	return g
 }
 
@@ -275,6 +285,10 @@ func TestBuildFallsBackToTheLocalCiWithOneReason(t *testing.T) {
 			st.jobs[4242] = g.gh.jobs([3]string{"Required gate", "completed", "skipped"})
 			g.gh.states = []ghState{st}
 		}, "mission.build.github.requiredSkipped", "was skipped"},
+		{"a run that only ran on other systems", func(g *githubBuild) {
+			g.gh.runnerLabel = "ubuntu-latest"
+			g.gh.states = []ghState{g.gh.green()}
+		}, "mission.build.github.platformNotCovered", "GitHub's run does not cover macOS"},
 		{"no required check declared", func(g *githubBuild) {
 			st := g.gh.green()
 			st.required = nil
@@ -309,6 +323,19 @@ func TestBuildFallsBackToTheLocalCiWithOneReason(t *testing.T) {
 				t.Fatalf("the log says why in one line:\n%s", log)
 			}
 		})
+	}
+}
+
+// The system a run must cover is the one the build is made for: a Linux build takes a run on Linux runners.
+func TestBuildTakesARunThatCoversItsOwnSystem(t *testing.T) {
+	t.Parallel()
+	g := makeGithubBuild(t, "ci")
+	g.r.goos = "linux"
+	g.gh.runnerLabel = "ubuntu-24.04"
+	g.gh.states = []ghState{g.gh.green()}
+	built := waitRun(t, g.r, g.dir, g.start(t).Id)
+	if built.State != RunStateSuccess || g.localCiRan() || built.Verify == nil || built.Verify.By != VerifyByGithub {
+		t.Fatalf("a Linux build is verified by a run on Linux: %+v\n%s", built, g.log(t, built))
 	}
 }
 

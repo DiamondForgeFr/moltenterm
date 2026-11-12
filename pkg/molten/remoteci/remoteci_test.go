@@ -50,18 +50,36 @@ type fakeJob struct {
 	name       string
 	status     string
 	conclusion string
+	// The labels of its runner; empty reads as the Linux runner every job of the fixture runs on.
+	labels []string
 }
 
 func jobsJSON(jobs ...fakeJob) string {
 	items := make([]string, 0, len(jobs))
 	for _, j := range jobs {
-		items = append(items, fmt.Sprintf(`{"name":%q,"status":%q,"conclusion":%q,"head_sha":%q}`, j.name, j.status, j.conclusion, testSha))
+		labels := j.labels
+		if labels == nil {
+			labels = []string{"ubuntu-latest"}
+		}
+		items = append(items, fmt.Sprintf(`{"name":%q,"status":%q,"conclusion":%q,"head_sha":%q,"labels":%s}`, j.name, j.status, j.conclusion, testSha, quoted(labels)))
 	}
 	return fmt.Sprintf(`{"total_count":%d,"jobs":[%s]}`, len(jobs), strings.Join(items, ","))
 }
 
+func quoted(items []string) string {
+	rtn := make([]string, 0, len(items))
+	for _, item := range items {
+		rtn = append(rtn, fmt.Sprintf("%q", item))
+	}
+	return "[" + strings.Join(rtn, ",") + "]"
+}
+
 func done(name string, conclusion string) fakeJob {
 	return fakeJob{name: name, status: "completed", conclusion: conclusion}
+}
+
+func doneOn(name string, conclusion string, labels ...string) fakeJob {
+	return fakeJob{name: name, status: "completed", conclusion: conclusion, labels: append([]string{}, labels...)}
 }
 
 type fakeGh struct {
@@ -376,12 +394,99 @@ func TestARequiredCheckIsReadForTheBranchOfTheRun(t *testing.T) {
 	}
 }
 
+// A run counts for a build only when it has a green job on a runner of the build's system: the code that is specific to
+// a system is never run by a run on others. A runner whose system is not known covers nothing.
+func TestARunMustCoverTheBuildsPlatform(t *testing.T) {
+	t.Parallel()
+	linuxOnly := []fakeJob{done("Quick checks", "success"), done("Required gate", "success")}
+	with := func(extra ...fakeJob) []fakeJob { return append(append([]fakeJob{}, linuxOnly...), extra...) }
+	cases := []struct {
+		name     string
+		platform string
+		jobs     []fakeJob
+		covered  bool
+	}{
+		{"a run on Linux only, for macOS", PlatformMacos, linuxOnly, false},
+		{"a run on Linux only, for Linux", PlatformLinux, linuxOnly, true},
+		{"a green macOS job", PlatformMacos, with(doneOn("macOS tests", "success", "macos-latest")), true},
+		{"a pinned macOS runner", PlatformMacos, with(doneOn("macOS tests", "success", "macos-14-xlarge")), true},
+		{"a self-hosted macOS runner", PlatformMacos, with(doneOn("macOS tests", "success", "self-hosted", "macOS", "ARM64")), true},
+		{"a macOS job that failed", PlatformMacos, with(doneOn("macOS tests", "failure", "macos-latest")), false},
+		{"a macOS job skipped", PlatformMacos, with(doneOn("macOS tests", "skipped", "macos-latest")), false},
+		{"a macOS job whose runner is not known", PlatformMacos, with(doneOn("macOS tests", "success")), false},
+		{"a custom runner group", PlatformMacos, with(doneOn("macOS tests", "success", "my-mac-pool")), false},
+		{"a Windows job, for Windows", PlatformWindows, with(doneOn("Windows tests", "success", "windows-2022")), true},
+		{"a Windows job, for macOS", PlatformMacos, with(doneOn("Windows tests", "success", "windows-2022")), false},
+		{"a system no runner is known for", OtherPlatform, with(doneOn("macOS tests", "success", "macos-latest")), false},
+	}
+	for _, c := range cases {
+		f := greenFixture()
+		f.jobs[100] = c.jobs
+		q := query()
+		q.Platform = c.platform
+		got := Check(context.Background(), f.gh, q)
+		if c.covered && got.Status != StatusVerified {
+			t.Errorf("%s: %+v", c.name, got)
+		}
+		if !c.covered {
+			wantReason(t, got, ReasonPlatformNotCovered)
+			if got.RunId != 100 {
+				t.Errorf("%s: the reason names the run: %+v", c.name, got)
+			}
+		}
+	}
+	f := greenFixture()
+	english, _ := Check(context.Background(), f.gh, Query{Repo: "acme/app", Sha: testSha, Branches: []string{"develop"}, Platform: PlatformMacos}).Reason.Describe()
+	if english != "GitHub's run does not cover macOS" {
+		t.Fatalf("the reason in English: %q", english)
+	}
+	if got := Check(context.Background(), f.gh, query()); got.Status != StatusVerified {
+		t.Fatalf("a caller that asks for no system takes any run: %+v", got)
+	}
+}
+
+func TestPlatformsAreFoundFromTheSystemAndTheLabels(t *testing.T) {
+	t.Parallel()
+	for goos, want := range map[string]string{"darwin": PlatformMacos, "linux": PlatformLinux, "windows": PlatformWindows, "freebsd": OtherPlatform} {
+		if got := PlatformOf(goos); got != want {
+			t.Errorf("%s: %s", goos, got)
+		}
+	}
+	for labels, want := range map[string]string{"ubuntu-24.04": PlatformLinux, "macos-latest": PlatformMacos, "windows-latest": PlatformWindows,
+		"macOS": PlatformMacos, "Linux": PlatformLinux, "gpu-runner": "", "macosx-fake": ""} {
+		if got := platformOfLabels([]string{labels}); got != want {
+			t.Errorf("%s: %q", labels, got)
+		}
+	}
+	if platformOfLabels(nil) != "" {
+		t.Error("no label names no system")
+	}
+}
+
+// A caller that names its workflows asks each run only for the required checks it holds, and learns which ones those
+// are, so that it can ask that the runs hold them all between them.
+func TestANamedWorkflowReportsTheRequiredChecksItHolds(t *testing.T) {
+	t.Parallel()
+	f := greenFixture()
+	f.required = []string{"Required gate", "Lint", "Deploy"}
+	f.jobs[100] = []fakeJob{done("Required gate", "success"), done("Lint", "success"), done("Other", "success")}
+	named := query()
+	named.Workflow = "ci.yml"
+	got := Check(context.Background(), f.gh, named)
+	if got.Status != StatusVerified || strings.Join(got.Held, ",") != "Required gate,Lint" || strings.Join(got.Required, ",") != "Required gate,Lint,Deploy" {
+		t.Fatalf("a named workflow's run is green for the checks it holds: %+v", got)
+	}
+	wantReason(t, Check(context.Background(), f.gh, query()), ReasonRequiredMissing)
+	f.jobs[100] = []fakeJob{done("Required gate", "success"), done("Lint", "skipped")}
+	wantReason(t, Check(context.Background(), f.gh, named), ReasonRequiredSkipped)
+}
+
 // Every reason has its English and its code for the windows; the codes are checked against the locales by pkg/molten/uimsg.
 func TestEveryReasonHasItsSentence(t *testing.T) {
 	t.Parallel()
 	codes := []string{ReasonBadSha, ReasonNoRepo, ReasonNoGh, ReasonLoggedOut, ReasonRateLimited, ReasonUnreachable, ReasonNoRun,
 		ReasonPartialOnly, ReasonFailed, ReasonCancelled, ReasonNoRequired, ReasonRulesUnreadable, ReasonJobsUnreadable,
-		ReasonRequiredMissing, ReasonRequiredSkipped, ReasonRequiredNotGreen}
+		ReasonRequiredMissing, ReasonRequiredSkipped, ReasonRequiredNotGreen, ReasonPlatformNotCovered}
 	for _, code := range codes {
 		english, text := makeReason(code, "sha", "69c7639", "run", "7", "check", "Gate", "conclusion", "failure", "branch", "develop").Describe()
 		if english == "" || text == nil || text.Code != "mission.build.github."+code {

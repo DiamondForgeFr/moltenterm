@@ -137,10 +137,12 @@ type Runs struct {
 	cancelAsked map[string]bool
 	// Builds whose developer chose to verify here instead of waiting for GitHub's CI (#2277).
 	verifyHere map[string]bool
-	git        Runner
-	ci         *Ci
-	notify     func(RunRecord, molten.NotificationInput)
-	told       map[string]bool
+	// The system builds are made for, as Go names it; empty is the running one. Tests set it.
+	goos   string
+	git    Runner
+	ci     *Ci
+	notify func(RunRecord, molten.NotificationInput)
+	told   map[string]bool
 	// agentEnv tells a step the project's coding agent (agentchoice.EnvVar), for the release notes (#845).
 	agentEnv func(dir string) []string
 	// Branch cleaning removes MoltenTerm's worktrees of merged pull requests (#906) through the close-worktree path; the

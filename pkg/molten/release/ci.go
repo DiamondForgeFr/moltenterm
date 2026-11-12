@@ -68,11 +68,18 @@ func (e *Env) requireCi(ctx context.Context, root string, branch string, sha str
 	for {
 		pending := []string{}
 		missing := []string{}
+		// Each workflow's run answers for the required checks it holds; together they must hold every one (#2277).
+		held := map[string]bool{}
+		var required []string
 		for _, wf := range workflows {
 			answer := e.ciAnswer(ctx, root, branch, sha, wf)
 			why, _ := answer.Reason.Describe()
 			switch {
 			case answer.Status == remoteci.StatusVerified:
+				for _, check := range answer.Held {
+					held[check] = true
+				}
+				required = answer.Required
 				continue
 			case answer.Status == remoteci.StatusPending:
 			case couldNotAsk(answer.Reason.Code):
@@ -87,6 +94,11 @@ func (e *Env) requireCi(ctx context.Context, root string, branch string, sha str
 			pending = append(pending, wf)
 		}
 		if len(pending) == 0 {
+			for _, check := range required {
+				if !held[check] {
+					return fmt.Errorf("%s requires the check %s, and it is a job of none of %s: name the workflow that runs it with --workflow", branch, check, strings.Join(workflows, ", "))
+				}
+			}
 			for _, wf := range workflows {
 				e.printf("  %s: green\n", wf)
 			}
