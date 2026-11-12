@@ -177,7 +177,8 @@ export class BrainstormModel {
     private call: Call = LiveCall;
     // The newest history line this view saw; -1 before the brainstorm's first state, which offers no Undo.
     private historySeen = -1;
-    private historySwap: number = null;
+    // The brainstorm that history is of: the swap and the folder's id (a new idea of his keeps the swap).
+    private historyOf: string = null;
     // The note of the developer's changes now before their next message, and the last ones put there.
     private note: ChangesNote = NoNote;
     private notes: ChangesNote[] = [];
@@ -697,9 +698,10 @@ export class BrainstormModel {
     private onHistory(next: BrainstormState): void {
         const history = next.history ?? [];
         const swap = next.swap ?? 0;
-        if (this.historySwap !== swap) {
+        const of = `${swap}:${next.brainstorm?.id ?? next.brainstorm?.slug ?? ""}`;
+        if (this.historyOf !== of) {
             // Another brainstorm: its past is not offered.
-            this.historySwap = swap;
+            this.historyOf = of;
             this.historySeen = -1;
             globalStore.set(this.undoBarAtom, null);
         }
@@ -751,7 +753,7 @@ export class BrainstormModel {
         globalStore.set(this.linkingAtom, null);
         globalStore.set(this.undoBarAtom, null);
         this.historySeen = -1;
-        this.historySwap = null;
+        this.historyOf = null;
         if (this.note.text !== "") {
             const session = BrokkSession.getInstance();
             session.setLead(withNote(session.leadOf(), this.note.text, ""));

@@ -83,7 +83,15 @@ const session = BrokkSession.getInstance() as any;
 // A wavesrv of the test: one open brainstorm, its graph's revision and its history; it applies the developer's
 // changes and undoes, as pkg/molten/brainstorm does, in short.
 let calls: { command: string; data: any }[];
-let server: { version: number; rev: number; swap: number; open: boolean; history: HistoryNote[]; fail?: string };
+let server: {
+    version: number;
+    rev: number;
+    swap: number;
+    open: boolean;
+    history: HistoryNote[];
+    fail?: string;
+    id?: string;
+};
 
 const line = (
     seq: number,
@@ -107,6 +115,7 @@ function state(): any {
         open: server.open,
         version: server.version,
         swap: server.swap,
+        brainstorm: { id: server.id ?? "id-kids-video", slug: "kids-video" },
         graph: {
             schema: 1,
             rev: server.rev,
@@ -227,6 +236,20 @@ describe("the developer edits the graph (FR-BOSS-010 AC27, #2247)", () => {
         server.history = [line(1, "brokk", "remove", "elsewhere")];
         model.apply(changed());
         expect(globalStore.get(model.undoBarAtom)).toBeNull();
+    });
+
+    // His new idea starts a brainstorm of its own in the same view (the swap stays): its history counts from 1 again.
+    it("follows a new idea of his: its first state offers nothing, its later removals are offered", async () => {
+        const model = await openModel();
+        for (let i = 0; i < 6; i++) {
+            brokk(model, "add", `idea-${i}`);
+        }
+        server.id = "id-budget";
+        server.history = [line(1, "brokk", "centre", "budget"), line(2, "brokk", "remove", "budget-old")];
+        model.apply(changed());
+        expect(globalStore.get(model.undoBarAtom)).toBeNull();
+        brokk(model, "remove", "rent");
+        expect(globalStore.get(model.undoBarAtom)).toMatchObject({ note: { seq: 3, op: "remove" } });
     });
 
     it("lets an offer go once its change is put back, here or in another view", async () => {
