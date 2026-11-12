@@ -1,6 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "fs";
+import { join } from "path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,10 +16,14 @@ vi.mock("../boss/boss-store", async () => {
 });
 const end = vi.hoisted(() => vi.fn());
 const showAll = vi.hoisted(() => vi.fn());
+const askCamera = vi.hoisted(() => vi.fn());
 vi.mock("./brainstorm-store", async () => {
     const { atom } = await import("jotai");
     const model = {
         cameraModeAtom: atom("overview"),
+        followPulseAtom: atom(0),
+        cameraAskAtom: atom(null),
+        askCamera,
         breakthroughAtom: atom(null),
         listAtom: atom([]),
         widgetOpenAtom: atom(false),
@@ -35,9 +41,10 @@ vi.mock("./brainstorm-store", async () => {
 import { globalStore } from "@/app/store/jotaiStore";
 import { BrainstormPrompts, ForgetConfirm } from "./brainstorm-prompts";
 import { BrainstormModel } from "./brainstorm-store";
-import { BrainstormView, leaveBrainstorm, switchBrainstorm } from "./brainstorm-view";
+import { BrainstormView, followBrokk, leaveBrainstorm, recentreBrainstorm, switchBrainstorm } from "./brainstorm-view";
 
 const model = BrainstormModel.getInstance() as any;
+const Css = readFileSync(join(__dirname, "brainstorm.css"), "utf8");
 
 const folder = (slug: string, title: string, updated: number) => ({
     id: `id-${slug}`,
@@ -60,6 +67,8 @@ const state = {
 } as any;
 
 beforeEach(() => {
+    globalStore.set(model.cameraModeAtom, "overview");
+    globalStore.set(model.followPulseAtom, 0);
     globalStore.set(model.listAtom, [
         state.brainstorm,
         folder("forge-notes", "Forge notes", 3),
@@ -106,6 +115,65 @@ describe("the brainstorm's header (#2257)", () => {
         switchBrainstorm();
         expect(showAll).toHaveBeenCalledTimes(1);
         expect(end).not.toHaveBeenCalled();
+    });
+});
+
+// FR-BOSS-010 AC7a, AC7b (#2283): Recentre and the Follow Brokk chip, added to the header and nothing else moved.
+describe("the header's camera controls (#2283)", () => {
+    const header = () =>
+        /<div class="mt-bs-header" data-testid="brainstorm-header">([\s\S]*?)<\/div>/.exec(
+            renderToStaticMarkup(<BrainstormView state={state} shown={true} />)
+        )?.[1] ?? "";
+
+    it("holds Recentre between his thought's line and the switch, with no Follow chip while Brokk holds the camera", () => {
+        const html = header();
+        expect(html).toMatch(/data-testid="brainstorm-recentre"[^>]*>[^]*?Recentre<\/button>/);
+        expect(html.indexOf("mt-bs-header-text")).toBeLessThan(html.indexOf("brainstorm-recentre"));
+        expect(html.indexOf("brainstorm-recentre")).toBeLessThan(html.indexOf("brainstorm-switch"));
+        expect(html).not.toContain("brainstorm-follow");
+        expect(html).toContain("overview");
+    });
+
+    it("shows Follow Brokk once the developer holds the camera, and says the view is theirs", () => {
+        globalStore.set(model.cameraModeAtom, "free");
+        const html = header();
+        expect(html).toMatch(/data-testid="brainstorm-follow"[^>]*>[^]*?Follow Brokk<\/button>/);
+        expect(html).toContain("your view");
+        expect(html.indexOf("brainstorm-recentre")).toBeLessThan(html.indexOf("brainstorm-follow"));
+        expect(html.indexOf("brainstorm-follow")).toBeLessThan(html.indexOf("brainstorm-switch"));
+    });
+
+    it("pulses the chip only when asked, once per ask", () => {
+        globalStore.set(model.cameraModeAtom, "free");
+        expect(header()).toMatch(/class="mt-bs-follow-glow"/);
+        globalStore.set(model.followPulseAtom, 1);
+        expect(header()).toMatch(/class="mt-bs-follow-glow is-pulsing"/);
+    });
+
+    it("asks the stage's scene to recentre or to follow Brokk", () => {
+        askCamera.mockClear();
+        recentreBrainstorm();
+        followBrokk();
+        expect(askCamera.mock.calls).toEqual([["recentre"], ["follow"]]);
+    });
+
+    // The stage takes the press while the mode is in: it covers his light scrim, which lies under the layer (#2284), so a
+    // click on the dim still never ends the brainstorm; a press on a plate is the plate's, and the layer takes none.
+    it("lets the stage take the pointer while the mode is in, and only then", () => {
+        expect(Css).toMatch(/\.mt-boss-layer:has\(> \.mt-bs-layer\.is-in\) \.mt-brokk-scrim \{[^}]*z-index: -1;/);
+        expect(Css).toMatch(/\n\.mt-bs-layer\.is-in \.mt-bs-stage \{[^}]*pointer-events: auto;[^}]*cursor: grab;/);
+        expect(Css).toMatch(/\n\.mt-bs-layer\.is-in \.mt-bs-plate \{[^}]*pointer-events: auto;/);
+        expect(/\n\.mt-bs-layer \{([^}]*)\}/.exec(Css)?.[1]).toContain("pointer-events: none;");
+        expect(/\n\.mt-bs-stage \{([^}]*)\}/.exec(Css)?.[1]).not.toContain("pointer-events");
+    });
+
+    it("pulses the chip once, never in a loop, and as a glow alone under reduced motion", () => {
+        expect(Css).toMatch(/\n\.mt-bs-follow-glow\.is-pulsing \{\s*animation: mt-bs-follow-pulse \d+ms ease-out 1;/);
+        expect(Css).toMatch(/\.prefers-reduced-motion \.mt-bs-follow-glow\.is-pulsing \{\s*animation-name: mt-bs-follow-glow;/);
+        const glow = /@keyframes mt-bs-follow-glow \{([\s\S]*?)\n\}/.exec(Css)?.[1] ?? "";
+        const sizes = [...glow.matchAll(/box-shadow: ([^;]+);/g)].map((m) => m[1]);
+        expect(sizes).toHaveLength(2);
+        expect(sizes[0]).toBe(sizes[1]);
     });
 });
 

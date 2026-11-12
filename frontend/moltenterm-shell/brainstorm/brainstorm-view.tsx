@@ -53,6 +53,41 @@ export function leaveBrainstorm(): void {
     void BrainstormModel.getInstance().end();
 }
 
+// The header's Recentre: the whole graph framed, the camera kept by the developer (#2283).
+export function recentreBrainstorm(): void {
+    BrainstormModel.getInstance().askCamera("recentre");
+}
+
+// The Follow Brokk chip: the camera goes back to him (#2283).
+export function followBrokk(): void {
+    BrainstormModel.getInstance().askCamera("follow");
+}
+
+// Shown while the developer holds the camera; it pulses once when Brokk adds a plate out of view after a quiet stretch
+// (the glow is a child remade for each pulse, so the button keeps its focus).
+function FollowChip({ name }: { name: string }) {
+    const t = useT();
+    const pulse = useAtomValue(BrainstormModel.getInstance().followPulseAtom, { store: globalStore });
+    return (
+        <button
+            type="button"
+            className="mt-bs-follow cursor-pointer"
+            data-testid="brainstorm-follow"
+            title={t("boss.brainstorm.followTitle", { name })}
+            onClick={followBrokk}
+        >
+            <span
+                key={pulse}
+                className={cn("mt-bs-follow-glow", pulse > 0 && "is-pulsing")}
+                aria-hidden
+                data-testid="brainstorm-follow-glow"
+            />
+            <i className={makeIconClass("location-arrow", false)} aria-hidden />
+            {t("boss.brainstorm.follow", { name })}
+        </button>
+    );
+}
+
 // The line over the free space (the mockup's): his thought, how many nodes, how many cross-links.
 function Header({ state }: { state: BrainstormState }) {
     const t = useT();
@@ -84,6 +119,19 @@ function Header({ state }: { state: BrainstormState }) {
                 {t("boss.brainstorm.leave")}
             </button>
             <span className="mt-bs-header-text">{text}</span>
+            {nodes > 0 ? (
+                <button
+                    type="button"
+                    className="mt-bs-leave mt-bs-recentre cursor-pointer"
+                    data-testid="brainstorm-recentre"
+                    title={t("boss.brainstorm.recentreTitle")}
+                    onClick={recentreBrainstorm}
+                >
+                    <i className={makeIconClass("crosshairs", false)} aria-hidden />
+                    {t("boss.brainstorm.recentre")}
+                </button>
+            ) : null}
+            {camera === "free" ? <FollowChip name={name} /> : null}
             <button
                 type="button"
                 className="mt-bs-leave mt-bs-switch cursor-pointer"

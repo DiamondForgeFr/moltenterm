@@ -16,19 +16,30 @@
 //   and the camera changes view by a short cross-fade (brainstorm-scene-model.ts holds every loop's still state).
 //
 // The scene draws only while the stage is mounted and the page is visible (requestAnimationFrame stops in a hidden page),
-// and dispose() frees the graphics context.
+// and dispose() frees the graphics context. Under reduced motion nothing moves by itself, so it draws only when something
+// asks (wake): a graph, a size, the free space, a label, the developer's hand (#2283).
+//
+// The developer may take the camera (pan, zoom about the pointer, Recentre): brainstorm-camera-model.ts decides who holds
+// it and where it looks; this scene only follows its goal (#2283).
 
 import * as THREE from "three";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
+import {
+    CameraMode,
+    CameraNav,
+    cameraPosition,
+    CameraView,
+    drawsAgain,
+    Lens,
+    StillSettleMs,
+} from "./brainstorm-camera-model";
 import type { BrainstormGraph, BrainstormNode, NodeKind } from "./brainstorm-graph-model";
 import { MaxLinks, MaxNodes } from "./brainstorm-graph-model";
 import {
     arrival,
     CameraFov,
-    CameraGoal,
-    cameraGoal,
     corePulse,
     CoreRadius,
     CrossLinkColor,
@@ -38,6 +49,7 @@ import {
     FreeRect,
     KindLooks,
     Loops,
+    OverviewAfterMs,
     plateLook,
     ropeCurve,
     Ropes,
@@ -69,8 +81,11 @@ export type SceneHost = {
     kindLabel: (kind: NodeKind) => string;
     // Under reduced motion a change of view is a short cross-fade of the stage instead of a flight.
     onCrossFade?: () => void;
-    // The camera turned to the newest topic or back to the whole graph: the header says which (#2257, the mockup's).
-    onCameraMode?: (mode: CameraGoal["mode"]) => void;
+    // The camera turned to the newest topic or back to the whole graph, or the developer took it: the header says which
+    // (#2257, the mockup's) and shows Follow Brokk while the developer holds it (#2283).
+    onCameraMode?: (mode: CameraMode) => void;
+    // Brokk added a plate out of the developer's view after a quiet stretch: the Follow Brokk chip pulses once.
+    onFollowPulse?: () => void;
 };
 
 type PlateEntry = {
@@ -95,7 +110,6 @@ const EmberCount = 180;
 const FreshMs = 4000;
 const RopeCapacity = MaxNodes * Ropes.segments;
 const CrossCapacity = MaxLinks * Ropes.segments;
-const TiltRad = 0.28;
 const Hidden = "translate3d(-9999px, -9999px, 0)";
 
 function discTexture(ring: boolean): THREE.CanvasTexture {
@@ -307,7 +321,11 @@ export class BrainstormScene {
     target = new THREE.Vector3();
     distance = 900;
     azimuth = 0;
-    mode: CameraGoal["mode"] = "overview";
+    // Who holds the camera, Brokk or the developer, and the developer's view (#2283).
+    nav = new CameraNav();
+    mode: CameraMode = "overview";
+    // The mode the host last heard: the first frame tells it, so a new stage never keeps an old stage's word.
+    reportedMode: CameraMode = null;
     startedAt = Date.now();
     ropeColor = tetherColor();
     coreTitleHalfW = 0;
@@ -319,6 +337,9 @@ export class BrainstormScene {
     crossRev = -1;
     frame = 0;
     raf = 0;
+    running = false;
+    // Under reduced motion the frames stop after this time, until the next wake.
+    awakeUntil = 0;
     disposed = false;
     tmp = new THREE.Vector3();
 
@@ -461,12 +482,24 @@ export class BrainstormScene {
         for (const mesh of [this.ropes, this.outlines, this.crossLinks]) {
             (mesh.material as LineMaterial).resolution.copy(resolution);
         }
+        this.wake();
     }
 
     setFreeRect(rect: FreeRect): void {
+        const same =
+            this.free != null &&
+            rect != null &&
+            this.free.left === rect.left &&
+            this.free.top === rect.top &&
+            this.free.width === rect.width &&
+            this.free.height === rect.height;
         this.free = rect;
         if (this.shownFree == null) {
             this.shownFree = { ...rect };
+        }
+        // The stage measures the free space every 400 ms: only a change asks for frames.
+        if (!same) {
+            this.wake();
         }
     }
 
@@ -486,11 +519,14 @@ export class BrainstormScene {
 
     setStill(still: boolean): void {
         this.still = still;
+        this.wake();
     }
 
-    // He spoke, or the graph grew: the camera follows the newest node again.
+    // He spoke, or the graph grew: the camera follows the newest node again (while Brokk holds it). Under reduced motion
+    // the frames go on until the overview the pause brings.
     talked(at: number): void {
         this.talkAt = Math.max(this.talkAt, at);
+        this.wakeUntil(this.talkAt + OverviewAfterMs + StillSettleMs);
     }
 
     // A new state of the graph. Nodes this view had not seen arrive from their parent; the first graph of the stage is
@@ -521,12 +557,17 @@ export class BrainstormScene {
             if (fresh) {
                 this.lastBornAt = now;
             }
+            // Out of the developer's view after a quiet stretch: the chip says so, the view stays (#2283).
+            if (!first && this.nav.plateAdded(node.pos, this.shownView(), this.lens(), now)) {
+                this.host.onFollowPulse?.();
+            }
         }
         if (!first && graph?.nodes?.length) {
             this.talked(now);
         }
         this.crossRev = -1;
         this.relabel();
+        this.wake(Loops.arrival.ms + StillSettleMs);
     }
 
     private makePlate(node: BrainstormNode, bornAt: number): PlateEntry {
@@ -568,19 +609,83 @@ export class BrainstormScene {
                 entry.halfW = 0;
             }
         }
+        this.wake();
     }
 
     // Every time of the scene is the wall clock's (Date.now), the one the graph's arrivals and his talk are stamped with;
     // requestAnimationFrame's own time counts from the page's start and would never meet them.
     start(): void {
-        const loop = () => {
-            if (this.disposed) {
-                return;
-            }
-            this.renderFrame(Date.now());
-            this.raf = requestAnimationFrame(loop);
+        this.running = true;
+        this.wake();
+    }
+
+    // Asks for frames: the next one, and under reduced motion every one for `ms` more; while things move by themselves
+    // the loop never stops (AC18: the thought is alive while it is visible).
+    wake(ms: number = StillSettleMs): void {
+        this.wakeUntil(Date.now() + ms);
+    }
+
+    private wakeUntil(at: number): void {
+        this.awakeUntil = Math.max(this.awakeUntil, at);
+        if (this.running && !this.disposed && this.raf === 0) {
+            this.raf = requestAnimationFrame(this.tick);
+        }
+    }
+
+    private tick = (): void => {
+        this.raf = 0;
+        if (this.disposed) {
+            return;
+        }
+        const now = Date.now();
+        this.renderFrame(now);
+        if (drawsAgain(this.still, now, this.awakeUntil)) {
+            this.raf = requestAnimationFrame(this.tick);
+        }
+    };
+
+    // The camera as it shows, and what it sees with (brainstorm-camera-model.ts).
+    shownView(): CameraView {
+        return { target: [this.target.x, this.target.y, this.target.z], distance: this.distance };
+    }
+
+    lens(free: FreeRect = this.shownFree): Lens {
+        return {
+            width: this.width,
+            height: this.height,
+            free: free ?? { left: 0, top: 0, width: this.width, height: this.height },
+            azimuth: this.azimuth,
         };
-        this.raf = requestAnimationFrame(loop);
+    }
+
+    // The developer's hand (FR-BOSS-010 AC7a, #2283): the graph follows the pointer by (dx, dy) px.
+    pan(dx: number, dy: number): void {
+        this.nav.pan(this.shownView(), dx, dy, this.graph, this.lens(), Date.now());
+        this.wake();
+    }
+
+    // A zoom by `factor` (above 1: closer) about the stage's point (x, y), which stays under the pointer.
+    zoomAt(factor: number, x: number, y: number): void {
+        this.nav.zoomAt(this.shownView(), factor, { x, y }, this.graph, this.lens(), Date.now());
+        this.wake();
+    }
+
+    // A zoom with the keys, about the middle of the free space.
+    zoomStep(factor: number): void {
+        this.nav.zoomStep(this.shownView(), factor, this.graph, this.lens(), Date.now());
+        this.wake();
+    }
+
+    // The whole graph framed; the developer keeps the camera.
+    recentre(): void {
+        this.nav.recentre(this.graph, this.lens(), Date.now(), this.still);
+        this.wake();
+    }
+
+    // The camera goes back to Brokk (AC7b).
+    followBrokk(): void {
+        this.nav.follow(this.still);
+        this.wake();
     }
 
     private nodePos(entry: PlateEntry, now: number): { pos: Vec3; scale: number; opacity: number } {
@@ -626,11 +731,15 @@ export class BrainstormScene {
     }
 
     private moveCamera(now: number, dt: number, free: FreeRect): void {
-        const goal = cameraGoal(this.graph, now - this.talkAt, free, this.height);
+        this.azimuth = swayAngle(now - this.startedAt, this.still);
+        const goal = this.nav.goal(this.graph, now - this.talkAt, this.lens(free));
         const newest = this.graph?.nodes?.[this.graph.nodes.length - 1]?.id ?? "";
         const goalTarget = new THREE.Vector3(goal.target[0], goal.target[1], goal.target[2]);
-        if (this.still) {
-            if (goal.mode !== this.mode || newest !== this.lastNewest) {
+        const jump = this.nav.takeJump();
+        if (this.still || !goal.glide) {
+            // A pan or a zoom follows the hand: only a change of view the developer did not draw by hand cross-fades.
+            const turned = goal.mode !== this.mode || newest !== this.lastNewest;
+            if (this.still && (jump || (goal.mode !== "free" && this.mode !== "free" && turned))) {
                 this.host.onCrossFade?.();
             }
             this.target.copy(goalTarget);
@@ -640,18 +749,14 @@ export class BrainstormScene {
             this.target.lerp(goalTarget, share);
             this.distance += (goal.distance - this.distance) * share;
         }
-        this.azimuth = swayAngle(now - this.startedAt, this.still);
-        if (goal.mode !== this.mode) {
+        if (goal.mode !== this.reportedMode) {
+            this.reportedMode = goal.mode;
             this.host.onCameraMode?.(goal.mode);
         }
         this.mode = goal.mode;
         this.lastNewest = newest;
-        const flat = Math.cos(TiltRad) * this.distance;
-        this.camera.position.set(
-            this.target.x + Math.sin(this.azimuth) * flat,
-            this.target.y + Math.sin(TiltRad) * this.distance,
-            this.target.z + Math.cos(this.azimuth) * flat
-        );
+        const position = cameraPosition(this.shownView(), this.azimuth);
+        this.camera.position.set(position[0], position[1], position[2]);
         this.camera.lookAt(this.target);
         // The graph is centred in the free space: the view's middle moves to the free space's middle.
         const cx = free.left + free.width / 2;

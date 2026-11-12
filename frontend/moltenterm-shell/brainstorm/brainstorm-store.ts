@@ -32,6 +32,7 @@ import { MoltentermNotifications } from "../notifications-store";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { TabActivity } from "../tab-activity";
 import { showToast } from "../toast-store";
+import type { CameraMode } from "./brainstorm-camera-model";
 import {
     BrainstormEvent,
     BrainstormLastLeftAtom,
@@ -88,6 +89,10 @@ export type FolderFailure = "unknown" | "notsaved" | "noidea" | "invalid" | "tra
 // His fork (AC11): the other project he heard, asked in the widget until the developer answers.
 export type ForkAsk = { key: string; title: string; reason: string };
 
+// The header's Recentre and Follow Brokk, for the stage's scene (#2283): each ask has its own number, so a stage that
+// mounts later never replays an old one.
+export type CameraAsk = { kind: "recentre" | "follow"; seq: number };
+
 // What the widget says of the developer's last action on a folder that did not go through, or of a forget.
 export type FolderNotice =
     | { kind: "failed"; failure: FolderFailure }
@@ -123,8 +128,12 @@ export class BrainstormModel {
     // When he last spoke or the graph last grew in this view: the camera follows the topic until a pause.
     talkAtAtom = atom(0) as PrimitiveAtom<number>;
     breakthroughAtom = atom(null) as PrimitiveAtom<Breakthrough>;
-    // Where the camera looks, as the stage's scene says (the header's last words, #2257).
-    cameraModeAtom = atom("overview") as PrimitiveAtom<"follow" | "overview">;
+    // Where the camera looks, as the stage's scene says (the header's last words, #2257); free while the developer holds
+    // it, when the header shows Follow Brokk (#2283).
+    cameraModeAtom = atom("overview") as PrimitiveAtom<CameraMode>;
+    // The Follow Brokk chip pulses once for each count; back to 0 when Brokk holds the camera again.
+    followPulseAtom = atom(0) as PrimitiveAtom<number>;
+    cameraAskAtom = atom(null) as PrimitiveAtom<CameraAsk>;
     tallyAtom = atom(EmptyTally) as PrimitiveAtom<Tally>;
     // The folders (#2248): the question in his talk window, the widget's list and whether it is unfolded, his fork's
     // question, and the line about the last action.
@@ -172,6 +181,12 @@ export class BrainstormModel {
 
     useCall(call: Call): void {
         this.call = call;
+    }
+
+    // The header's Recentre and Follow Brokk: the stage on screen hands the ask to its scene (#2283).
+    askCamera(kind: CameraAsk["kind"]): void {
+        const seq = (globalStore.get(this.cameraAskAtom)?.seq ?? 0) + 1;
+        globalStore.set(this.cameraAskAtom, { kind, seq });
     }
 
     allowed(): boolean {
