@@ -79,6 +79,28 @@ export const StraightBarAllowed: Record<string, string> = {
         "the legacy rail's tool is a pressed toggle (aria-pressed: its flyout is open), not one of a set of siblings; the rail shows with the sidebar off",
 };
 
+const OwnInsetLine = /inset 0 -2px 0|inset_0_-2px_0|inset 0 calc\(-1 \* 2px\)/;
+
+// Both guards below read every source of the frontend. They are read in one pass, here, while the file is collected:
+// collection has no timeout, and a loaded machine stretches this I/O-bound scan past a test's 5 s (#2274). The tests only
+// read the results.
+function scanSources(): { ownLine: string[]; straightBar: string[] } {
+    const ownLine: string[] = [];
+    const straightBar: string[] = [];
+    for (const path of sourceFiles(/\.(css|scss|ts|tsx)$/)) {
+        const code = read(path);
+        if (path !== ShellCss && OwnInsetLine.test(code)) {
+            ownLine.push(path);
+        }
+        if (/\.tsx?$/.test(path) && StraightBarPattern.test(code) && StraightBarAllowed[path] == null) {
+            straightBar.push(path);
+        }
+    }
+    return { ownLine, straightBar };
+}
+
+const Scan = scanSources();
+
 describe("the selected liseré is defined once (DS-SHELL-156)", () => {
     const shell = read(ShellCss);
 
@@ -90,10 +112,7 @@ describe("the selected liseré is defined once (DS-SHELL-156)", () => {
     });
 
     it("is written nowhere else: no surface draws its own inset line along a bottom edge", () => {
-        const own = /inset 0 -2px 0|inset_0_-2px_0|inset 0 calc\(-1 \* 2px\)/;
-        const files = [...sourceFiles(/\.(css|scss|ts|tsx)$/)].filter((path) => path !== ShellCss);
-        const offenders = files.filter((path) => own.test(read(path)));
-        expect(offenders).toEqual([]);
+        expect(Scan.ownLine).toEqual([]);
     });
 });
 
@@ -119,10 +138,7 @@ describe("every selected tab-like surface takes the shared line", () => {
 
 describe("no straight bar marks a selected tab-like element", () => {
     it("leaves no pseudo-element bar or coloured underline outside the allow-list", () => {
-        const offenders = sourceFiles(/\.(ts|tsx)$/)
-            .filter((path) => StraightBarPattern.test(read(path)))
-            .filter((path) => StraightBarAllowed[path] == null);
-        expect(offenders).toEqual([]);
+        expect(Scan.straightBar).toEqual([]);
     });
 
     it("keeps every allow-list entry honest: the file still holds the bar it excuses", () => {

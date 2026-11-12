@@ -139,16 +139,19 @@ describe("collidingSelectors", () => {
 });
 
 describe("frontend stylesheets", () => {
-    it("never restyle a Tailwind utility class from outside a layer", () => {
-        const offenders: string[] = [];
-        for (const file of stylesheets(FrontendDir)) {
-            for (const selector of collidingSelectors(compiled(file))) {
-                const where = `${path.relative(FrontendDir, file)}: ${selector}`;
-                if (!Harmless.has(where)) {
-                    offenders.push(where);
-                }
+    // Compiled here, while the file is collected: collection has no timeout, and a loaded machine stretches this CPU-bound
+    // scan (Sass and PostCSS over every stylesheet) past a test's 5 s (#2274). The test below only reads the result.
+    const offenders: string[] = [];
+    for (const file of stylesheets(FrontendDir)) {
+        for (const selector of collidingSelectors(compiled(file))) {
+            const where = `${path.relative(FrontendDir, file)}: ${selector}`;
+            if (!Harmless.has(where)) {
+                offenders.push(where);
             }
         }
+    }
+
+    it("never restyle a Tailwind utility class from outside a layer", () => {
         expect(offenders).toEqual([]);
     });
 });
