@@ -767,6 +767,22 @@ export function askReviewFinish(
     return call(FinishCommand, req, RestartTimeoutMs);
 }
 
+// must match UpcomingResumeCommand in pkg/molten/review/upcoming_resume.go
+const UpcomingResumeCommand = "moltenreviewupcomingresume";
+
+// resumeUpcoming is Resume on an Upcoming ticket whose sub-agent stopped without a PR (#2270): its lead gets MoltenTerm's
+// brief to continue that sub-agent in its worktree and open the draft PR.
+export function resumeUpcoming(req: {
+    dir: string;
+    branch: string;
+    ticket?: number;
+    title?: string;
+    ahead?: number;
+    base?: string;
+}): Promise<ReviewRestartResult> {
+    return call(UpcomingResumeCommand, req, RestartTimeoutMs);
+}
+
 // must match ReleaseResolveCommand in pkg/molten/review/release_resolve.go
 const ReleaseResolveCommand = "moltenreviewreleaseresolve";
 

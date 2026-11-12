@@ -225,6 +225,8 @@ type Restarter struct {
 	running map[PrKey]bool
 	// The hand-offs sent and still handled, by task, PR and head (handoff_guard.go).
 	handed map[handedKey]handedTask
+	// The Upcoming resumes sent to a lead and still handled, by branch and sub-agent (upcoming_resume.go).
+	resumed map[string]handedTask
 }
 
 func MakeRestarter(store *Store, env RestartEnv) *Restarter {
