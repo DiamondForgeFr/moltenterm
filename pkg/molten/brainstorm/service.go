@@ -39,13 +39,15 @@ type Summary struct {
 // Swap counts the brainstorms the developer moved to (load, new idea, a fork's Yes: the stage starts its camera over);
 // ListRev counts the changes of the folders' list (a folder made, renamed, forgotten: the widget reads the list again).
 type State struct {
-	Allowed    bool     `json:"allowed"`
-	Open       bool     `json:"open"`
-	By         string   `json:"by,omitempty"`
-	Session    string   `json:"session,omitempty"`
-	Version    int64    `json:"version"`
-	Swap       int64    `json:"swap"`
-	ListRev    int64    `json:"listrev"`
+	Allowed bool   `json:"allowed"`
+	Open    bool   `json:"open"`
+	By      string `json:"by,omitempty"`
+	Session string `json:"session,omitempty"`
+	Version int64  `json:"version"`
+	Swap    int64  `json:"swap"`
+	ListRev int64  `json:"listrev"`
+	// CanTrash: a forgotten folder goes to the system trash; when false the confirmation says it is removed for good.
+	CanTrash   bool     `json:"cantrash"`
 	Brainstorm *Summary `json:"brainstorm,omitempty"`
 	Graph      *Graph   `json:"graph,omitempty"`
 	SavedAt    int64    `json:"savedat,omitempty"`
@@ -59,6 +61,14 @@ type OpenRequest struct {
 // SlugRequest names a brainstorm by its slug, the one name of a folder a window may give (#2248).
 type SlugRequest struct {
 	Slug string `json:"slug"`
+}
+
+// DeleteRequest is the developer's confirmation of a forget: the brainstorm's slug and id as the question showed it,
+// and Permanent when it said the folder is removed for good (a system with no trash).
+type DeleteRequest struct {
+	Slug      string `json:"slug"`
+	Id        string `json:"id"`
+	Permanent bool   `json:"permanent,omitempty"`
 }
 
 type RenameRequest struct {
@@ -87,7 +97,9 @@ type FindResult struct {
 type LoadResult struct {
 	State State  `json:"state"`
 	Turns []Turn `json:"turns"`
-	Error string `json:"error,omitempty"`
+	// ResumeBrief: his folder holds this brainstorm's resume brief; without it, his session is not told to read one.
+	ResumeBrief bool   `json:"resumebrief,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 type ActionResult struct {
@@ -99,12 +111,17 @@ type ActionResult struct {
 
 // TurnRequest is one exchange: the developer's message, his answer without its blocks, his graph block if it had one.
 // Key names the answer, so that a view reading it twice applies it once.
+// Swap: the state's swap when the window saw the answer begin. An answer that began before the developer moved to
+// another brainstorm (load, new idea, a fork's Yes, a forget of the open one) belongs to the one left: it is refused,
+// never stored in the next one's conversation nor allowed to start a folder (review of #2248). Nil: the window did not
+// know the state yet.
 type TurnRequest struct {
 	Key   string `json:"key"`
 	You   string `json:"you"`
 	Brokk string `json:"brokk"`
 	Block *Block `json:"block,omitempty"`
 	At    int64  `json:"at"`
+	Swap  *int64 `json:"swap,omitempty"`
 }
 
 type TurnResult struct {
@@ -112,6 +129,7 @@ type TurnResult struct {
 	Applied   bool     `json:"applied"`
 	Dropped   bool     `json:"dropped"`
 	Duplicate bool     `json:"duplicate"`
+	Stale     bool     `json:"stale,omitempty"`
 	Added     []string `json:"added,omitempty"`
 }
 
@@ -153,7 +171,7 @@ func (s *Service) UseResumeDir(dir string) {
 }
 
 func (s *Service) stateLocked() State {
-	state := State{Allowed: true, Open: s.open, By: s.by, Session: s.sessionId, Version: s.version, Swap: s.swap, ListRev: s.listRev, SavedAt: s.savedAt, SaveError: s.saveErr}
+	state := State{Allowed: true, Open: s.open, By: s.by, Session: s.sessionId, Version: s.version, Swap: s.swap, ListRev: s.listRev, CanTrash: s.store.CanTrash(), SavedAt: s.savedAt, SaveError: s.saveErr}
 	if s.session != nil {
 		graph := s.session.Graph
 		state.Graph = &graph
@@ -261,6 +279,10 @@ func opensMode(b *Block) bool {
 // counts: it opens the mode (he detected a brainstorm); anything else is a normal exchange and is not kept.
 func (s *Service) Turn(req TurnRequest) TurnResult {
 	s.lock.Lock()
+	if req.Swap != nil && *req.Swap != s.swap {
+		defer s.lock.Unlock()
+		return TurnResult{State: s.stateLocked(), Stale: true}
+	}
 	if !s.open {
 		if !opensMode(req.Block) || ValidateBlock(*req.Block) != nil {
 			defer s.lock.Unlock()

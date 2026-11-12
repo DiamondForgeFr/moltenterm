@@ -3174,7 +3174,7 @@
             "resumedLead": "Brainstorm resumed: “{title}”.",
             "forked": "“{title}” has its own folder now. Let's start it.",
             "forgotTrash": "Forgotten: “{title}” is in the trash.",
-            "forgotRemoved": "Forgotten: “{title}” is removed.",
+            "forgotRemoved": "Forgotten: “{title}” is removed for good.",
             "newIdea": "New idea",
             "lastChange": "Last change {when}",
             "resumeAction": "Resume",
@@ -3198,7 +3198,9 @@
                 "label": "Forget a brainstorm",
                 "ask": "Forget “{title}”?",
                 "detail": "Last change {when}. Its folder goes to the trash, and he stops listing it.",
+                "detailRemove": "Last change {when}. This computer has no trash MoltenTerm can use: its folder is removed for good, and he stops listing it.",
                 "confirm": "Forget it",
+                "confirmRemove": "Remove it for good",
                 "cancel": "Keep it"
             },
             "fork": {
@@ -3222,7 +3224,7 @@
                 "show": "Show in folder",
                 "delete": "Delete",
                 "forgotTrash": "“{title}” is in the trash.",
-                "forgotRemoved": "“{title}” is removed."
+                "forgotRemoved": "“{title}” is removed for good."
             },
             "state": {
                 "open": "open",
@@ -3235,6 +3237,7 @@
                 "noidea": "No idea is open yet.",
                 "invalid": "That title cannot be used.",
                 "trash": "The folder could not go to the trash: it stays where it is.",
+                "notrash": "This computer has no trash: nothing was removed. Ask again to remove it for good.",
                 "failed": "That did not work. The folder stays as it was."
             }
         },

@@ -18,7 +18,9 @@ const Card = "flex flex-col gap-1.5 rounded-4 border border-border p-2 text-12";
 const Primary = "molten-btn cursor-pointer rounded-4 px-2 py-0.5 text-11";
 const Secondary = "cursor-pointer rounded-4 border border-border px-2 py-0.5 text-11 text-primary hover:bg-hover";
 
-// The question before a forget, in his talk window and in the widget: the title, its last change, and the two answers.
+// The question before a forget, in his talk window and in the widget: the title, its last change, what becomes of the
+// folder, and the two answers. Where the system has no trash, or wavesrv has not said yet that it has one, it says the
+// folder is removed for good: the confirmation never promises a trash it may not have (review of #2248).
 export function ForgetConfirm({
     summary,
     busy,
@@ -32,6 +34,7 @@ export function ForgetConfirm({
 }) {
     const t = useT();
     const locale = useLocale();
+    const canTrash = useAtomValue(BrainstormModel.getInstance().stateAtom, { store: globalStore })?.cantrash === true;
     return (
         <div
             role="alertdialog"
@@ -40,8 +43,14 @@ export function ForgetConfirm({
             data-testid="brainstorm-forget"
         >
             <span className="text-primary">{t("boss.brainstorm.forget.ask", { title: summary.title })}</span>
-            <span className="text-11 text-secondary" data-testid="brainstorm-forget-detail">
-                {t("boss.brainstorm.forget.detail", { when: lastChange(summary.updated, locale) })}
+            <span
+                className="text-11 text-secondary"
+                data-testid="brainstorm-forget-detail"
+                data-trash={canTrash ? "true" : "false"}
+            >
+                {t(canTrash ? "boss.brainstorm.forget.detail" : "boss.brainstorm.forget.detailRemove", {
+                    when: lastChange(summary.updated, locale),
+                })}
             </span>
             <span className="inline-flex flex-wrap justify-end gap-1.5">
                 <button
@@ -51,7 +60,7 @@ export function ForgetConfirm({
                     data-testid="brainstorm-forget-confirm"
                     onClick={onConfirm}
                 >
-                    {t("boss.brainstorm.forget.confirm")}
+                    {t(canTrash ? "boss.brainstorm.forget.confirm" : "boss.brainstorm.forget.confirmRemove")}
                     <MoltenWave />
                 </button>
                 <button
@@ -93,7 +102,7 @@ export function BrainstormPrompts({ name }: { name: string }) {
             <ForgetConfirm
                 summary={prompt.match}
                 busy={busy}
-                onConfirm={run(() => model.forgetFolder(prompt.match.slug))}
+                onConfirm={run(() => model.forgetFolder(prompt.match))}
                 onCancel={() => model.dismissPrompt()}
             />
         );

@@ -26,7 +26,7 @@ func testTrash(t *testing.T, store *Store) string {
 	store.UseTrash(func(path string) (string, error) {
 		dest := filepath.Join(trash, filepath.Base(path))
 		return dest, os.Rename(path, dest)
-	}, errTestNoTrash)
+	}, nil)
 	return trash
 }
 
@@ -80,6 +80,44 @@ func TestListShowsEveryFolderTheOneChangedLastFirst(t *testing.T) {
 	}
 	if got := store.Titles(2); strings.Join(got, "|") != "A family budget|A safe video app for children" {
 		t.Errorf("the brief's titles %v", got)
+	}
+}
+
+// Review of #2248: two long titles that share their first 48 letters get two folders, "<slug>" and "<slug>-2", and each
+// keeps its own name: a forget of one never takes the other.
+func TestLongTitlesKeepTheirOwnFolder(t *testing.T) {
+	t.Parallel()
+	store, root := makeTestStore(t)
+	testTrash(t, store)
+	prefix := "Controle parental tres complet et tres configurable"
+	games := saveIdea(t, store, prefix+" pour les jeux", 2000)
+	videos := saveIdea(t, store, prefix+" pour les videos", 3000)
+	if games.Info.Slug == videos.Info.Slug || filepath.Base(videos.Dir) != videos.Info.Slug {
+		t.Fatalf("slugs %q and %q, folder %q", games.Info.Slug, videos.Info.Slug, filepath.Base(videos.Dir))
+	}
+	list, err := store.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 || list[0].Slug != videos.Info.Slug || list[1].Slug != games.Info.Slug {
+		t.Fatalf("list %+v", list)
+	}
+	loaded, err := store.LoadSlug(videos.Info.Slug)
+	if err != nil || loaded.Info.Id != videos.Info.Id || loaded.Info.Slug != videos.Info.Slug {
+		t.Fatalf("load: %+v %v", loaded.Info, err)
+	}
+	// The id must be the folder's: a forget naming the other's id takes nothing.
+	if _, err := store.Delete(videos.Info.Slug, games.Info.Id, false); !errors.Is(err, ErrUnknownBrainstorm) {
+		t.Fatalf("a forget with another brainstorm's id: %v", err)
+	}
+	if _, err := store.Delete(videos.Info.Slug, videos.Info.Id, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(games.Dir); err != nil {
+		t.Errorf("forgetting the videos took the games: %v", err)
+	}
+	if entries, _ := os.ReadDir(root); len(entries) != 1 {
+		t.Errorf("%d folders left", len(entries))
 	}
 }
 
@@ -190,7 +228,7 @@ func TestOnlyABrainstormsSlugReachesAPath(t *testing.T) {
 		if _, err := store.LoadSlug(slug); !errors.Is(err, ErrUnknownBrainstorm) {
 			t.Errorf("load %q: %v", slug, err)
 		}
-		if _, err := store.Delete(slug); !errors.Is(err, ErrUnknownBrainstorm) {
+		if _, err := store.Delete(slug, "", false); !errors.Is(err, ErrUnknownBrainstorm) {
 			t.Errorf("delete %q: %v", slug, err)
 		}
 		if _, err := store.Rename(slug, "New title", 1); !errors.Is(err, ErrUnknownBrainstorm) {
@@ -212,7 +250,7 @@ func TestDeleteMovesTheFolderToTheTrash(t *testing.T) {
 	if err := store.Remember(kids.Dir); err != nil {
 		t.Fatal(err)
 	}
-	deleted, err := store.Delete(kids.Info.Slug)
+	deleted, err := store.Delete(kids.Info.Slug, kids.Info.Id, false)
 	if err != nil || !deleted.Trashed || deleted.Summary.Id != kids.Info.Id {
 		t.Fatalf("delete: %+v %v", deleted, err)
 	}
@@ -229,25 +267,73 @@ func TestDeleteMovesTheFolderToTheTrash(t *testing.T) {
 		t.Errorf("list %+v", list)
 	}
 
+	// No trash on this system: the folder goes for good only when the confirmation said so (review of #2248).
 	budget := saveIdea(t, store, "A family budget", 3000)
-	store.UseTrash(func(string) (string, error) { return "", errTestNoTrash }, errTestNoTrash)
-	if deleted, err := store.Delete(budget.Info.Slug); err != nil || deleted.Trashed {
+	store.UseTrash(func(string) (string, error) { return "", errTestNoTrash }, func() bool { return false })
+	if store.CanTrash() {
+		t.Fatal("a system without a trash says it has one")
+	}
+	if _, err := store.Delete(budget.Info.Slug, budget.Info.Id, false); !errors.Is(err, ErrNeedsRemoveConfirmation) {
+		t.Fatalf("a removal the confirmation did not say: %v", err)
+	}
+	if _, err := os.Stat(budget.Dir); err != nil {
+		t.Fatalf("the folder went without its confirmation: %v", err)
+	}
+	if deleted, err := store.Delete(budget.Info.Slug, budget.Info.Id, true); err != nil || deleted.Trashed {
 		t.Fatalf("a delete without a trash: %+v %v", deleted, err)
 	}
 	if _, err := os.Stat(budget.Dir); !os.IsNotExist(err) {
 		t.Errorf("a folder without a trash is still there")
 	}
 
+	// A move to the trash that fails is never followed by a removal, whatever the confirmation said.
 	notes := saveIdea(t, store, "Forge notes", 4000)
-	store.UseTrash(func(string) (string, error) { return "", errors.New("another volume") }, errTestNoTrash)
-	if _, err := store.Delete(notes.Info.Slug); err == nil {
-		t.Fatal("a failed move was taken as a delete")
+	store.UseTrash(func(string) (string, error) { return "", errors.New("another volume") }, nil)
+	for _, permanent := range []bool{false, true} {
+		if _, err := store.Delete(notes.Info.Slug, notes.Info.Id, permanent); err == nil {
+			t.Fatal("a failed move was taken as a delete")
+		}
 	}
 	if _, err := store.LoadSlug(notes.Info.Slug); err != nil {
 		t.Errorf("a failed move lost the folder: %v", err)
 	}
 	if entries, _ := os.ReadDir(root); len(entries) != 1 {
 		t.Errorf("the brainstorms folder holds %d entries", len(entries))
+	}
+}
+
+// Review of #2248: a rename that fails once the folder moved puts it back where it was, current.json with it.
+func TestAFailedRenameMovesTheFolderBack(t *testing.T) {
+	t.Parallel()
+	store, root := makeTestStore(t)
+	kids := saveIdea(t, store, "A safe video app for children", 2000)
+	if err := store.Remember(kids.Dir); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(store.stateDir, currentFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A state folder that takes no new file: current.json cannot follow the move, after the folder moved.
+	if err := os.Chmod(store.stateDir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(store.stateDir, 0o700) })
+	got, err := store.Rename(kids.Info.Slug, "Kids videos", 5000)
+	if err == nil {
+		t.Fatal("a rename whose current.json could not follow was taken")
+	}
+	if got.Dir != kids.Dir || got.Info.Slug != kids.Info.Slug {
+		t.Errorf("after the failed rename the brainstorm is named %q at %q", got.Info.Slug, got.Dir)
+	}
+	if _, err := os.Stat(filepath.Join(kids.Dir, InfoFile)); err != nil {
+		t.Errorf("the folder is not back where it was: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "kids-videos")); !os.IsNotExist(err) {
+		t.Errorf("the moved folder is still there: %v", err)
+	}
+	if current, _ := os.ReadFile(filepath.Join(store.stateDir, currentFile)); string(current) != string(data) {
+		t.Errorf("current.json changed: %s", current)
 	}
 }
 

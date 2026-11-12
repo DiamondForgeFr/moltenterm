@@ -82,7 +82,7 @@ export {
 export type { BrainstormPrompt, BrainstormState, BrainstormSummary } from "./brainstorm-boot";
 
 // must match the Reason… codes of pkg/molten/brainstorm/service_folders.go
-export type FolderFailure = "unknown" | "notsaved" | "noidea" | "invalid" | "trash" | "failed";
+export type FolderFailure = "unknown" | "notsaved" | "noidea" | "invalid" | "trash" | "notrash" | "failed";
 
 // His fork (AC11): the other project he heard, asked in the widget until the developer answers.
 export type ForkAsk = { key: string; title: string; reason: string };
@@ -137,6 +137,8 @@ export class BrainstormModel {
     private started = false;
     private paused = false;
     private sent = new Set<string>();
+    // The swap each answer began in, by the answer's id (review of #2248).
+    private swapOf = new Map<string, number>();
     private asked = new Set<string>();
     private listRev = -1;
     private seen = new Map<string, number>();
@@ -353,11 +355,20 @@ export class BrainstormModel {
         globalStore.set(this.widgetOpenAtom, false);
         const title = result.state.brainstorm?.title ?? "";
         const session = BrokkSession.getInstance();
+        session.stopFollowing();
         session.showConversation(result.turns ?? []);
         session.addLocalLine(t("boss.brainstorm.resume", { title }));
-        session.setLead(t("boss.brainstorm.resumedLead", { title }));
+        this.leadInto(title, result.resumebrief === true);
         focusTalkField();
         return true;
+    }
+
+    // The next message tells his session it is this brainstorm: to read its resume brief when wavesrv wrote one, else
+    // only that it is a brainstorm (an old brief in his folder is never pointed to).
+    private leadInto(title: string, resumeBrief: boolean): void {
+        BrokkSession.getInstance().setLead(
+            resumeBrief ? t("boss.brainstorm.resumedLead", { title }) : t("boss.brainstorm.lead")
+        );
     }
 
     // A new idea (AC10): the one open stays saved, his talk window starts over with his opening line, and the folder is
@@ -380,6 +391,7 @@ export class BrainstormModel {
         }
         globalStore.set(this.noticeAtom, null);
         globalStore.set(this.widgetOpenAtom, false);
+        BrokkSession.getInstance().stopFollowing();
         BrokkSession.getInstance().showConversation([]);
         this.sayOpening();
         focusTalkField();
@@ -424,14 +436,22 @@ export class BrainstormModel {
     }
 
     // Forgets a brainstorm (AC10d). Called only from the confirm button of a question that showed its title and last
-    // change: Brokk's forget operation, or the widget's Delete, only ask it. Its folder goes to the trash, wavesrv
-    // takes away its resume brief, and its title leaves his brief's list.
-    async forgetFolder(slug: string): Promise<boolean> {
-        if (!this.allowed() || !slug) {
+    // change: Brokk's forget operation, or the widget's Delete, only ask it. It names the brainstorm by its slug and id,
+    // so that a folder renamed meanwhile is never the one taken. Its folder goes to the trash, or, where the system has
+    // none, is removed for good as that question said; wavesrv takes away its resume brief, and its title leaves his
+    // brief's list.
+    async forgetFolder(summary: BrainstormSummary): Promise<boolean> {
+        if (!this.allowed() || !summary?.slug) {
             return false;
         }
         this.dismissPrompt();
-        const result = await this.ask(DeleteCommand, { slug });
+        const state = globalStore.get(this.stateAtom);
+        const wasOpen = state?.brainstorm?.slug === summary.slug;
+        const result = await this.ask(DeleteCommand, {
+            slug: summary.slug,
+            id: summary.id ?? "",
+            permanent: state?.cantrash !== true,
+        });
         if (result?.state == null) {
             this.failed("failed");
             return false;
@@ -440,6 +460,9 @@ export class BrainstormModel {
         if (result.error) {
             this.failed(result.error);
             return false;
+        }
+        if (wasOpen) {
+            BrokkSession.getInstance().stopFollowing();
         }
         const title = result.summary?.title ?? "";
         globalStore.set(this.noticeAtom, { kind: "forgot", title, trashed: result.trashed === true });
@@ -469,9 +492,10 @@ export class BrainstormModel {
         }
         const title = result.state.brainstorm?.title ?? ask.title;
         const session = BrokkSession.getInstance();
+        session.stopFollowing();
         session.showConversation([]);
         session.addLocalLine(t("boss.brainstorm.forked", { title }));
-        session.setLead(t("boss.brainstorm.resumedLead", { title }));
+        this.leadInto(title, result.resumebrief === true);
         focusTalkField();
         return true;
     }
@@ -525,6 +549,11 @@ export class BrainstormModel {
     // Each reading of his answer: the turn goes to wavesrv once, as soon as its graph block is complete, else once his
     // agent is done (a turn of words alone). Outside the mode only an answer that opens a brainstorm goes.
     async onAnswer(answer: AnswerRead): Promise<void> {
+        // The brainstorm this answer began in: wavesrv refuses its turn once the developer moved to another one.
+        const swap = globalStore.get(this.stateAtom)?.swap;
+        if (!this.swapOf.has(answer.id) && swap != null) {
+            this.swapOf.set(answer.id, swap);
+        }
         void this.onQuestions(answer);
         const step = answerStep({
             markdown: answer.markdown,
@@ -548,6 +577,7 @@ export class BrainstormModel {
             brokk: step.text,
             block: step.block,
             at: Date.now(),
+            swap: this.swapOf.get(answer.id),
         });
         this.apply(result?.state);
     }

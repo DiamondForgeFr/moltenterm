@@ -3174,7 +3174,7 @@
             "resumedLead": "Brainstorm repris : « {title} ».",
             "forked": "« {title} » a maintenant son propre dossier. On le commence.",
             "forgotTrash": "Oublié : « {title} » est dans la corbeille.",
-            "forgotRemoved": "Oublié : « {title} » est supprimé.",
+            "forgotRemoved": "Oublié : « {title} » est supprimé définitivement.",
             "newIdea": "Nouvelle idée",
             "lastChange": "Dernière modification {when}",
             "resumeAction": "Reprendre",
@@ -3198,7 +3198,9 @@
                 "label": "Oublier un brainstorm",
                 "ask": "Oublier « {title} » ?",
                 "detail": "Dernière modification {when}. Son dossier part à la corbeille, et il ne le cite plus.",
+                "detailRemove": "Dernière modification {when}. Cet ordinateur n'a pas de corbeille utilisable par MoltenTerm : son dossier est supprimé définitivement, et il ne le cite plus.",
                 "confirm": "L'oublier",
+                "confirmRemove": "Le supprimer définitivement",
                 "cancel": "Le garder"
             },
             "fork": {
@@ -3222,7 +3224,7 @@
                 "show": "Afficher dans le dossier",
                 "delete": "Supprimer",
                 "forgotTrash": "« {title} » est dans la corbeille.",
-                "forgotRemoved": "« {title} » est supprimé."
+                "forgotRemoved": "« {title} » est supprimé définitivement."
             },
             "state": {
                 "open": "ouvert",
@@ -3235,6 +3237,7 @@
                 "noidea": "Aucune idée n'est encore ouverte.",
                 "invalid": "Ce titre ne peut pas servir.",
                 "trash": "Le dossier n'a pas pu aller à la corbeille : il reste où il est.",
+                "notrash": "Cet ordinateur n'a pas de corbeille : rien n'a été supprimé. Redemandez pour le supprimer définitivement.",
                 "failed": "Ça n'a pas marché. Le dossier reste tel qu'il était."
             }
         },

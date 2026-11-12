@@ -199,6 +199,14 @@ export class BrokkSession {
         globalStore.set(this.unseenIdAtom, null);
     }
 
+    // The developer moved to another brainstorm (#2248): the answer still coming in belongs to the one left, so it is no
+    // longer read nor given to the brainstorm, and the next message does not wait for it.
+    stopFollowing(): void {
+        if (this.tracked != null) {
+            this.tracked.stopped = true;
+        }
+    }
+
     // Words the developer's next message starts with; "" for none. The message shows with them, as it is sent.
     setLead(lead: string): void {
         this.lead = lead ?? "";

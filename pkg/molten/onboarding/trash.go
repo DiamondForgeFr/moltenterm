@@ -42,6 +42,12 @@ func MoveToTrash(home string, path string) (string, error) {
 	return moveToTrash(home, path)
 }
 
+// TrashAvailable: this system has a trash MoltenTerm knows how to move into.
+func TrashAvailable(home string) bool {
+	_, err := trashDir(home)
+	return err == nil
+}
+
 // freeName is name, or name with a number, that does not exist in dir yet.
 func freeName(dir string, name string, taken func(string) bool) string {
 	if !taken(name) {

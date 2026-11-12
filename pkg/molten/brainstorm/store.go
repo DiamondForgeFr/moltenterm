@@ -78,23 +78,23 @@ type Saved struct {
 }
 
 // Store reads and writes the folders. root gives the brainstorms folder at each call, so a change of the setting
-// applies to the next idea; stateDir is MoltenTerm's own. trash moves a forgotten folder to the system trash.
+// applies to the next idea; stateDir is MoltenTerm's own. trash moves a forgotten folder to the system trash, and
+// canTrash says whether the system has one.
 type Store struct {
-	root       func() string
-	stateDir   string
-	trash      func(path string) (string, error)
-	errNoTrash error
+	root     func() string
+	stateDir string
+	trash    func(path string) (string, error)
+	canTrash func() bool
 }
 
 func MakeStore(root func() string, stateDir string) *Store {
 	return &Store{root: root, stateDir: stateDir}
 }
 
-// UseTrash sets how a forgotten folder goes to the trash. errNoTrash (or one that wraps it): the system has none, and
-// the folder is removed.
-func (s *Store) UseTrash(trash func(path string) (string, error), errNoTrash error) {
+// UseTrash sets how a forgotten folder goes to the trash, and whether the system has one (nil: it has).
+func (s *Store) UseTrash(trash func(path string) (string, error), canTrash func() bool) {
 	s.trash = trash
-	s.errNoTrash = errNoTrash
+	s.canTrash = canTrash
 }
 
 // slugReplacements spell the accented letters of the languages MoltenTerm speaks the way a folder name can.
@@ -280,7 +280,14 @@ func (s *Store) Load(dir string) (Saved, error) {
 		return Saved{}, fmt.Errorf("%s: %w", InfoFile, err)
 	}
 	saved.Info.Title = cutText(CleanText(saved.Info.Title), MaxText)
-	saved.Info.Slug = Slug(filepath.Base(dir))
+	// The folder's own name: made again with Slug, a long title's "-2" would be cut and two folders share a slug.
+	saved.Info.Slug = filepath.Base(dir)
+	// The developer's folder may have been changed by hand: an id or a state that is not of the patterns MoltenTerm
+	// writes never reaches his resume brief or a reference.
+	saved.Info.Id = checkedId(saved.Info.Id)
+	if !idPattern.MatchString(saved.Info.State) {
+		saved.Info.State = StateOpen
+	}
 	if saved.Info.Siblings == nil {
 		saved.Info.Siblings = []string{}
 	}

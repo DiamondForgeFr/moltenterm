@@ -24,6 +24,7 @@ vi.mock("./brainstorm-store", async () => {
         noticeAtom: atom(null),
         forkAtom: atom(null),
         promptAtom: atom(null),
+        stateAtom: atom({ allowed: true, open: true, version: 1, cantrash: true }),
         refreshList: async () => [],
         end,
         showAll,
@@ -209,5 +210,26 @@ describe("the questions in his talk window (AC10a to AC10d, #2248)", () => {
         expect(html).toContain("Forget it");
         expect(html).toContain("Keep it");
         expect(html).toContain("molten-btn-destructive");
+    });
+
+    // Review of #2248: it never promises the trash where the system has none, or before wavesrv said it has one.
+    it("says the folder is removed for good where there is no trash", () => {
+        const confirm = () =>
+            renderToStaticMarkup(
+                <ForgetConfirm
+                    summary={folder("family-budget", "A family budget", 1)}
+                    busy={false}
+                    onConfirm={() => {}}
+                    onCancel={() => {}}
+                />
+            );
+        for (const known of [{ allowed: true, open: false, version: 1, cantrash: false }, null]) {
+            globalStore.set(model.stateAtom, known);
+            const html = confirm();
+            expect(html).toContain("its folder is removed for good");
+            expect(html).not.toContain("goes to the trash");
+            expect(html).toContain("Remove it for good");
+        }
+        globalStore.set(model.stateAtom, { allowed: true, open: true, version: 1, cantrash: true });
     });
 });

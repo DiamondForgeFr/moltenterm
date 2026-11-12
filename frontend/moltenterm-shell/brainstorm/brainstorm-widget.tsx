@@ -174,7 +174,7 @@ function Row({ entry, current }: { entry: BrainstormSummary; current: boolean })
                     onConfirm={async () => {
                         setBusy(true);
                         try {
-                            await model.forgetFolder(entry.slug);
+                            await model.forgetFolder(entry);
                         } finally {
                             setBusy(false);
                             setMode("idle");
