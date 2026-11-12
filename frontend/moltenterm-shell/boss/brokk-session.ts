@@ -75,6 +75,10 @@ export type AnswerListener = (answer: AnswerRead) => void;
 // shows in the other.
 export type ConversationKey = "main" | "brainstorm";
 
+// A message waiting for him while his prompt is taken (#2284), in the conversation it was written in, with the words it
+// was to start with then (#2285). Each conversation has at most one, and they go in the order they were written.
+type Waiting = { text: string; since: number; conversation: ConversationKey; lead: string };
+
 // A message whose answer is followed.
 type Tracked = {
     // The message's id in the exchange, which its answer carries too.
@@ -110,9 +114,10 @@ export class BrokkSession {
     permissionGoneAtom = atom(false) as PrimitiveAtom<boolean>;
     // What boss:autoapprove let through, each shown once as a line in his talk window.
     approvedAtom = atom([]) as PrimitiveAtom<AutoApproval[]>;
-    // The message waiting for him in his talk window while his turn runs (#2284); null when none waits.
+    // The message waiting for him in his talk window while his turn runs (#2284), the one of the conversation on screen
+    // (#2285); null when none waits there.
     queuedAtom = atom(null) as PrimitiveAtom<QueuedMessage>;
-    // Text a Cancel or a failure gives back to the field, until the field takes it.
+    // Text a Cancel or a failure gives back to the field of the conversation on screen, until the field takes it.
     returnedAtom = atom(null) as PrimitiveAtom<string>;
 
     private call: Call = LiveCall;
@@ -126,15 +131,15 @@ export class BrokkSession {
     private stateOwner: string = null;
     private windowOpen = false;
     private answerListeners = new Set<AnswerListener>();
-    private takenListeners = new Set<(id: string) => void>();
+    private takenListeners = new Set<(id: string, conversation: ConversationKey) => void>();
     private replayed = new Map<string, Tracked>();
     // Words put before the developer's next message, shown in the exchange as sent (the brainstorm's start, #2246).
     private lead = "";
     // The conversations not on screen, as they were left.
     private aside = new Map<ConversationKey, ExchangeItem[]>();
-    // The conversation the waiting message was written in, and the lead it had then (#2285).
-    private queuedIn: ConversationKey = "main";
-    private queuedLead = "";
+    // The messages waiting for him, oldest first (#2285), and the text given back to each conversation's field.
+    private waiting: Waiting[] = [];
+    private returnedText = new Map<ConversationKey, string>();
 
     static getInstance(): BrokkSession {
         if (BrokkSession.instance == null) {
@@ -162,9 +167,9 @@ export class BrokkSession {
         return () => this.answerListeners.delete(listener);
     }
 
-    // Each message his agent took, by the id its answer will carry, before any word of it (the brainstorm notes where it
-    // began, #2284). Returns the stop.
-    listenTaken(listener: (id: string) => void): () => void {
+    // Each message his agent took, by the id its answer will carry and the conversation it was written in, before any
+    // word of it (the brainstorm notes where it began, #2284, #2285). Returns the stop.
+    listenTaken(listener: (id: string, conversation: ConversationKey) => void): () => void {
         this.takenListeners.add(listener);
         return () => this.takenListeners.delete(listener);
     }
@@ -223,8 +228,32 @@ export class BrokkSession {
                 last.actions = [];
             }
         }
-        globalStore.set(this.exchangeAtom, items);
+        // A message of this conversation still answered (#2285): it is not kept yet, and stays after what is, with what he
+        // said of it so far.
+        const live = this.tracked;
+        let shown = items;
+        if (live != null && !live.stopped && live.conversation === this.shownConversation()) {
+            shown = withMessage(shown, live.id, live.text, live.sentAt);
+            if (live.markdown !== "") {
+                shown = withAnswer(shown, live.id, {
+                    markdown: live.markdown,
+                    turn: live.turn,
+                    at: Date.now(),
+                    final: false,
+                });
+            }
+        }
+        globalStore.set(this.exchangeAtom, shown);
         globalStore.set(this.unseenIdAtom, null);
+    }
+
+    // A message of `key`'s conversation waits for him, or is still answered (#2285): that conversation is not to be
+    // started over.
+    hasInFlight(key: ConversationKey): boolean {
+        if (this.waiting.some((w) => w.conversation === key)) {
+            return true;
+        }
+        return this.tracked != null && !this.tracked.stopped && this.tracked.conversation === key;
     }
 
     // The developer moved to another brainstorm (#2248): the answer still coming in belongs to the one left, so it is no
@@ -266,10 +295,54 @@ export class BrokkSession {
         globalStore.set(this.conversationAtom, key);
         globalStore.set(this.exchangeAtom, [...next, ...carried]);
         globalStore.set(this.unseenIdAtom, null);
+        this.publishWaiting();
     }
 
     private shownConversation(): ConversationKey {
         return globalStore.get(this.conversationAtom);
+    }
+
+    // The window shows the waiting message and the given-back text of the conversation on screen alone.
+    private publishWaiting(): void {
+        const shown = this.shownConversation();
+        const mine = this.waiting.find((w) => w.conversation === shown);
+        const queued = globalStore.get(this.queuedAtom);
+        if (mine == null) {
+            globalStore.set(this.queuedAtom, null);
+        } else if (queued?.text !== mine.text || queued?.since !== mine.since) {
+            globalStore.set(this.queuedAtom, { text: mine.text, since: mine.since });
+        }
+        globalStore.set(this.returnedAtom, this.returnedText.get(shown) ?? null);
+    }
+
+    private giveBack(waiting: Waiting): void {
+        const before = this.returnedText.get(waiting.conversation);
+        this.returnedText.set(waiting.conversation, before != null ? `${before}\n${waiting.text}` : waiting.text);
+    }
+
+    // The waiting messages went or were given back: a new wait starts for those left.
+    private restartWait(): void {
+        this.sendGen++;
+        if (this.waiting.length === 0) {
+            if (globalStore.get(this.stateAtom).phase === "queued") {
+                globalStore.set(this.stateAtom, IdleTalk);
+            }
+            return;
+        }
+        void this.drain(this.sendGen, false, globalStore.get(this.stateAtom));
+    }
+
+    // The developer moved to another brainstorm (#2285): a message still waiting from the one left does not go to this
+    // one. It comes back to the field, as a Cancel gives it back.
+    returnWaiting(key: ConversationKey): void {
+        const mine = this.waiting.filter((w) => w.conversation === key);
+        if (mine.length === 0) {
+            return;
+        }
+        this.waiting = this.waiting.filter((w) => w.conversation !== key);
+        mine.forEach((w) => this.giveBack(w));
+        this.restartWait();
+        this.publishWaiting();
     }
 
     // Writes in a message's conversation, on screen or aside. True when it is the one on screen.
@@ -341,16 +414,22 @@ export class BrokkSession {
     // clearPrompt: the developer chose, with his own click, to empty his prompt before the message (#2257).
     async say(typed: string, opts: { clearPrompt?: boolean } = {}): Promise<TalkState> {
         const clearPrompt = opts.clearPrompt === true;
-        // A message already waits for him (#2284): this one joins it, and both go together once he is free.
-        const waiting = globalStore.get(this.queuedAtom);
-        if (waiting != null) {
-            globalStore.set(this.queuedAtom, joinQueued(waiting, typed, Date.now()));
+        // The conversation it is written in (#2285): it joins that one, whichever shows when his agent takes it.
+        const conversation = this.shownConversation();
+        // A message already waits for him (#2284): this one joins the one of its own conversation, and both go together
+        // once he is free; in the other conversation, it waits after it (#2285). It never joins another conversation's.
+        if (this.waiting.length > 0) {
+            const mine = this.waiting.find((w) => w.conversation === conversation);
+            if (mine != null) {
+                mine.text = joinQueued(mine, typed, Date.now()).text;
+            } else {
+                this.waiting.push({ text: typed, since: Date.now(), conversation, lead: this.lead });
+            }
+            this.publishWaiting();
             return globalStore.get(this.stateAtom);
         }
         const lead = this.lead;
         const text = lead !== "" ? `${lead} ${typed}` : typed;
-        // The conversation it is written in (#2285): it joins that one, whichever shows when his agent takes it.
-        const conversation = this.shownConversation();
         const gen = ++this.sendGen;
         this.stateOwner = null;
         globalStore.set(this.stateAtom, SendingTalk);
@@ -374,9 +453,8 @@ export class BrokkSession {
             // His agent was busy (a turn still running, a previous message on its way): the message leaves the field and
             // waits in his talk window, then goes by itself once he is free (#2257, #2284). Never "try again". The lead
             // stays for the try that is taken.
-            globalStore.set(this.queuedAtom, { text: typed, since: Date.now() });
-            this.queuedIn = conversation;
-            this.queuedLead = lead;
+            this.waiting.push({ text: typed, since: Date.now(), conversation, lead });
+            this.publishWaiting();
             const queued = queuedOf(state);
             globalStore.set(this.stateAtom, queued);
             void this.drain(gen, clearPrompt, state);
@@ -394,47 +472,47 @@ export class BrokkSession {
         return state;
     }
 
-    // Tries the waiting message again until his agent takes it. While his own prompt is taken (his turn runs, or he waits
-    // for the developer) it only waits, with no limit; the time he seems free and still refuses it is bounded
-    // (queueBoundMs), and a failure gives the text back to the field with a note that says what happened.
+    // Tries the waiting messages again, oldest first, until his agent takes each. While his own prompt is taken (his turn
+    // runs, or he waits for the developer) it only waits, with no limit; the time he seems free and still refuses one is
+    // bounded (queueBoundMs), and a failure gives the texts back to their fields with a note that says what happened.
+    // A message keeps its conversation (#2285): one written in the brainstorm the developer left goes with the words it
+    // was to start with, and its answer is written in the brainstorm's conversation.
     private async drain(gen: number, clearPrompt: boolean, first: TalkState): Promise<void> {
         let state = first;
         let refused = 0;
-        while (gen === this.sendGen && globalStore.get(this.queuedAtom) != null) {
+        while (gen === this.sendGen && this.waiting.length > 0) {
             await this.wait(QueueEveryMs);
-            if (gen !== this.sendGen || globalStore.get(this.queuedAtom) == null) {
+            if (gen !== this.sendGen || this.waiting.length === 0) {
                 return;
             }
             if (this.busyNow()) {
                 continue;
             }
-            const queued = globalStore.get(this.queuedAtom);
-            // A message waiting from the brainstorm the developer left keeps its lead, and goes into its conversation
-            // (#2285).
-            const lead = this.shownConversation() === this.queuedIn ? this.lead : this.queuedLead;
-            const text = lead !== "" ? `${lead} ${queued.text}` : queued.text;
+            const head = this.waiting[0];
+            const sent = head.text;
+            const lead = head.conversation === this.shownConversation() ? this.lead : head.lead;
+            const text = lead !== "" ? `${lead} ${sent}` : sent;
             const sentAt = Date.now() - SentSlackMs;
             state = await this.give(text, clearPrompt);
             if (gen !== this.sendGen) {
                 return;
             }
-            const now = globalStore.get(this.queuedAtom);
             if (state.phase === "answering") {
                 // What the developer added while this try was on its way waits for the next turn.
-                const later = now != null && now.text !== queued.text ? now.text.slice(queued.text.length).trim() : "";
-                globalStore.set(this.queuedAtom, null);
-                if (this.lead === lead) {
+                const later = head.text !== sent ? head.text.slice(sent.length).trim() : "";
+                if (later !== "") {
+                    head.text = later;
+                    head.since = Date.now();
+                } else {
+                    this.waiting.shift();
+                }
+                if (head.conversation === this.shownConversation() && this.lead === lead) {
                     this.lead = "";
                 }
-                await this.takeOver(text, sentAt, state, gen, this.queuedIn);
-                if (later !== "") {
-                    void this.say(later);
-                }
-                return;
-            }
-            if (now == null) {
-                // Cancelled while the try was on its way, and nothing was typed.
-                return;
+                this.publishWaiting();
+                refused = 0;
+                await this.takeOver(text, sentAt, state, gen, head.conversation);
+                continue;
             }
             if (state.phase === "busy") {
                 refused += QueueEveryMs;
@@ -443,29 +521,33 @@ export class BrokkSession {
                     continue;
                 }
             }
-            // A real failure: the text goes back to the field, and the note says what happened.
-            globalStore.set(this.queuedAtom, null);
-            globalStore.set(this.returnedAtom, now.text);
+            // A real failure: the texts go back to their fields, and the note says what happened.
+            this.waiting.splice(0).forEach((w) => this.giveBack(w));
+            this.publishWaiting();
             globalStore.set(this.stateAtom, state);
             return;
         }
     }
 
-    // The developer's Cancel on the waiting message (#2284): it does not go, and its text goes back to the field.
+    // The developer's Cancel on the waiting message of the conversation on screen (#2284): it does not go, and its text
+    // goes back to the field. A message waiting in the other conversation still goes (#2285).
     cancelQueued(): void {
-        const queued = globalStore.get(this.queuedAtom);
-        if (queued == null) {
+        const shown = this.shownConversation();
+        const at = this.waiting.findIndex((w) => w.conversation === shown);
+        if (at < 0) {
             return;
         }
-        this.sendGen++;
-        globalStore.set(this.queuedAtom, null);
-        globalStore.set(this.returnedAtom, queued.text);
-        globalStore.set(this.stateAtom, IdleTalk);
+        const [mine] = this.waiting.splice(at, 1);
+        this.giveBack(mine);
+        this.restartWait();
+        this.publishWaiting();
     }
 
-    // The field took the text a cancel or a failure gave back.
+    // The field took the text a cancel or a failure gave back to the conversation on screen.
     takeReturned(): string {
-        const text = globalStore.get(this.returnedAtom);
+        const shown = this.shownConversation();
+        const text = this.returnedText.get(shown) ?? null;
+        this.returnedText.delete(shown);
         globalStore.set(this.returnedAtom, null);
         return text;
     }
@@ -528,7 +610,7 @@ export class BrokkSession {
         this.stateOwner = tracked.id;
         this.takenListeners.forEach((listener) => {
             try {
-                listener(tracked.id);
+                listener(tracked.id, tracked.conversation);
             } catch (e) {
                 console.log("brokk session: a listener of his messages failed", e);
             }
@@ -671,7 +753,7 @@ export class BrokkSession {
     // The developer writes again: the note of a failed message goes. An answer that is still coming is not touched, nor
     // a message waiting in his talk window (#2284): the field is free while it waits, and only Cancel stops it.
     clearNote(): void {
-        if (globalStore.get(this.queuedAtom) != null) {
+        if (this.waiting.length > 0) {
             return;
         }
         if (this.stateOwner == null) {

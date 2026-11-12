@@ -409,6 +409,105 @@ describe("the exchange follows each answer (FR-BOSS-009, AC23, #2033)", () => {
         expect(shape()).toEqual(["you:Brainstorm: a garden planner"]);
     });
 
+    // Review of #2285: one waiting message per conversation. A message typed in the ordinary window after leaving never
+    // joins the brainstorm's: each waits in its own conversation, goes in the order written, and lands in its own.
+    it("keeps one waiting message per conversation, and each goes and lands in its own", async () => {
+        const session = BrokkSession.getInstance();
+        const taken: string[] = [];
+        session.listenTaken((_id, conversation) => taken.push(conversation));
+        session.switchConversation("brainstorm", { fresh: true });
+        session.setLead("Brainstorm:");
+        sayAnswers = [{ status: "busy", reason: "notready" }, said, said];
+        globalStore.set(hub.ownPromptBusyAtom, true);
+        await session.say("a garden planner");
+        expect(globalStore.get(session.queuedAtom)).toMatchObject({ text: "a garden planner" });
+
+        // Leave: the ordinary window shows no waiting message of the brainstorm.
+        session.switchConversation("main");
+        session.setLead("");
+        expect(globalStore.get(session.queuedAtom)).toBeNull();
+        expect(session.hasInFlight("brainstorm")).toBe(true);
+        await session.say("what time is it?");
+        expect(globalStore.get(session.queuedAtom)).toMatchObject({ text: "what time is it?" });
+        expect(sayCalls).toBe(1);
+
+        globalStore.set(hub.ownPromptBusyAtom, false);
+        release(QueueEveryMs);
+        await flush();
+        release(QueueEveryMs);
+        await flush();
+        const says = calls.filter((c) => c.command === SayCommand).map((c) => c.data.text);
+        expect(says).toEqual(["Brainstorm: a garden planner", "Brainstorm: a garden planner", "what time is it?"]);
+        expect(taken).toEqual(["brainstorm", "main"]);
+        expect(shape()).toEqual(["you:what time is it?"]);
+        expect(globalStore.get(session.queuedAtom)).toBeNull();
+
+        // Resume: the brainstorm's message is there, in its conversation.
+        session.switchConversation("brainstorm");
+        expect(shape()).toEqual(["you:Brainstorm: a garden planner"]);
+    });
+
+    // Review of #2285: a message waiting from one brainstorm never goes to another; it comes back to the field. One
+    // waiting in the ordinary conversation still goes.
+    it("gives a waiting brainstorm message back to the field when the brainstorm changes", async () => {
+        const session = BrokkSession.getInstance();
+        session.switchConversation("brainstorm", { fresh: true });
+        sayAnswers = [{ status: "busy", reason: "notready" }, said];
+        globalStore.set(hub.ownPromptBusyAtom, true);
+        await session.say("for brainstorm A");
+        session.returnWaiting("brainstorm");
+        expect(globalStore.get(session.queuedAtom)).toBeNull();
+        expect(session.hasInFlight("brainstorm")).toBe(false);
+        expect(globalStore.get(session.returnedAtom)).toBe("for brainstorm A");
+        expect(session.takeReturned()).toBe("for brainstorm A");
+        globalStore.set(hub.ownPromptBusyAtom, false);
+        await flush();
+        for (const wait of waits.filter((w) => w.ms === QueueEveryMs)) {
+            wait.release();
+        }
+        await flush();
+        expect(calls.filter((c) => c.command === SayCommand)).toHaveLength(1);
+        expect(exchange()).toEqual([]);
+        expect(globalStore.get(session.stateAtom).phase).toBe("idle");
+    });
+
+    // A text given back to the brainstorm's field waits for it: the ordinary field never takes it.
+    it("gives a text back to the field of its own conversation", async () => {
+        const session = BrokkSession.getInstance();
+        session.switchConversation("brainstorm", { fresh: true });
+        sayAnswers = [{ status: "busy", reason: "notready" }];
+        globalStore.set(hub.ownPromptBusyAtom, true);
+        await session.say("for the brainstorm");
+        session.switchConversation("main");
+        session.returnWaiting("brainstorm");
+        expect(globalStore.get(session.returnedAtom)).toBeNull();
+        expect(session.takeReturned()).toBeNull();
+        session.switchConversation("brainstorm");
+        expect(globalStore.get(session.returnedAtom)).toBe("for the brainstorm");
+    });
+
+    // Review of #2285: a conversation with a message still answered is not started over, and its saved turns shown
+    // again keep that message and what he said of it so far.
+    it("keeps a message still answered when the brainstorm's saved turns show again", async () => {
+        const session = BrokkSession.getInstance();
+        session.switchConversation("brainstorm", { fresh: true });
+        globalStore.set(hub.ownWorkingAtom, true);
+        read = () => answer(4, "Looking");
+        await session.say("look in my projects");
+        await reading();
+        session.switchConversation("main");
+        expect(session.hasInFlight("brainstorm")).toBe(true);
+        expect(session.hasInFlight("main")).toBe(false);
+        session.switchConversation("brainstorm");
+        session.showConversation([
+            { role: "you", text: "An idea", at: 1 },
+            { role: "brokk", text: "On the anvil.", at: 2 },
+        ]);
+        expect(shape()).toEqual(["you:An idea", "brokk:On the anvil.", "you:look in my projects", "brokk:Looking"]);
+        session.stopFollowing();
+        expect(session.hasInFlight("brainstorm")).toBe(false);
+    });
+
     // #2284: a long turn of his never turns the waiting message into "busy, try again": while his own state says his
     // turn runs, the wait has no limit.
     it("waits with no limit while his turn runs", async () => {

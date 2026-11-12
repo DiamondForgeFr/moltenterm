@@ -86,12 +86,18 @@ vi.mock("../boss/brokk-session", async () => {
             return () => listeners.delete(fn);
         },
         tell: (a: any) => listeners.forEach((fn) => fn(a)),
-        takenListeners: new Set<(id: string) => void>(),
-        listenTaken: (fn: (id: string) => void) => {
+        takenListeners: new Set<(id: string, conversation: string) => void>(),
+        listenTaken: (fn: (id: string, conversation: string) => void) => {
             session.takenListeners.add(fn);
             return () => session.takenListeners.delete(fn);
         },
-        taken: (id: string) => session.takenListeners.forEach((fn) => fn(id)),
+        taken: (id: string, conversation = "main") => session.takenListeners.forEach((fn) => fn(id, conversation)),
+        inFlight: false,
+        hasInFlight: () => session.inFlight,
+        returned: [] as string[],
+        returnWaiting: (key: string) => {
+            session.returned.push(key);
+        },
         addLocalLine: (text: string) => session.lines.push(text),
         setLead: (lead: string) => {
             session.lead = lead;
@@ -280,6 +286,8 @@ beforeEach(async () => {
     session.said.length = 0;
     session.stops = 0;
     session.switches.length = 0;
+    session.inFlight = false;
+    session.returned.length = 0;
     globalStore.set(boss.cardOpenAtom, false);
     globalStore.set(sidebar.hiddenAtom, false);
     globalStore.set(sidebar.windowMetaAtom, {});
@@ -752,6 +760,43 @@ describe("leaving a brainstorm and coming back (FR-BOSS-010 AC2a, AC10e, #2284)"
         session.tell({ id: "m10", you: "What time is it?", markdown: "Ten past two.", turn: 10, final: true });
         await settle();
         expect(calls.filter((c) => c.command === TurnCommand)).toHaveLength(1);
+    });
+
+    // Review of #2285: a message written in the brainstorm, still waiting when the developer left and taken after, is the
+    // brainstorm's: its answer is saved there as a late turn. An ordinary one taken then is not.
+    it("saves in the brainstorm left the answer to a message written there and taken after leaving", async () => {
+        const model = await inBrainstorm();
+        const swap = globalStore.get(model.stateAtom).swap;
+        await model.end();
+        session.taken("m11", "brainstorm");
+        session.taken("m12", "main");
+        const more = graphAnswer("Here.", [{ op: "add", id: "garden", kind: "idea", text: "A garden", from: "c" }]);
+        session.tell({ id: "m11", you: "Brainstorm: a garden planner", markdown: more, turn: 11, final: true });
+        session.tell({ id: "m12", you: "What time is it?", markdown: "Ten past two.", turn: 12, final: true });
+        await settle();
+        const turns = calls.filter((c) => c.command === TurnCommand);
+        expect(turns).toHaveLength(1);
+        expect(turns[0].data).toMatchObject({ you: "Brainstorm: a garden planner", late: true, swap });
+        expect(model.isOpen()).toBe(false);
+    });
+
+    // Review of #2285: coming back to the brainstorm keeps its conversation when a message of it is still in flight;
+    // moving to another brainstorm gives a message still waiting from the one before back to the field.
+    it("keeps a conversation in flight on the way back, and gives a waiting message back when the brainstorm changes", async () => {
+        const model = await inBrainstorm();
+        await model.end();
+        session.inFlight = true;
+        session.switches.length = 0;
+        session.returned.length = 0;
+        server.open = true;
+        server.version += 3;
+        await model.refresh();
+        expect(session.switches).toEqual([{ key: "brainstorm", fresh: false, carry: null }]);
+        expect(session.returned).toEqual([]);
+
+        server.folders = [folder("garden", "A garden planner", 99), ...server.folders];
+        await model.load("garden");
+        expect(session.returned).toEqual(["brainstorm"]);
     });
 
     it("offers the brainstorm left until another starts, first in the picker", async () => {
