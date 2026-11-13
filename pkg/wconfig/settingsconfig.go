@@ -270,6 +270,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#2246): where the brainstorms with Brokk are saved (FR-BOSS-010, DS-BOSS-010, pkg/molten/brainstorm).
 	BossBrainstormsDir string `json:"boss:brainstormsdir,omitempty" jsonschema_description:"The folder where the brainstorms with Brokk are saved, one folder per idea. ~/MoltenTerm/Brainstorms when unset. Gold, dev and local builds only"`
 
+	// MOLTENTERM-PATCH (#2250): the parent folder of the last project a brainstorm became (FR-BOSS-010 AC15, pkg/molten/brainstorm/project.go).
+	BossProjectsDir string `json:"boss:projectsdir,omitempty" jsonschema_description:"The parent folder where a clear brainstorm with Brokk becomes a project, chosen on the project card and then remembered. Each project still asks for its click. Gold, dev and local builds only"`
+
 	// MOLTENTERM-PATCH (#2257): Brokk's agent's permission requests approved without asking (pkg/molten/brokksession/permit.go).
 	BossAutoApprove bool `json:"boss:autoapprove,omitempty" jsonschema_description:"Approve without asking the requests of Brokk's agent that stay in his own folder (reading and editing his files, simple read-only commands, git status, diff, log, show, tests), each one shown as a line in his talk window; everything else still asks. Counts only once confirmed in MoltenTerm's settings. Off when unset"`
 

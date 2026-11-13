@@ -66,21 +66,18 @@ func checkedId(id string) string {
 }
 
 func summaryOf(dir string, info Info, turns int) Summary {
-	state := info.State
-	if !idPattern.MatchString(state) {
-		state = StateOpen
-	}
 	return Summary{
 		Id: checkedId(info.Id),
 		// The folder's own name, never made again from it: Slug cuts at 48 letters, which would drop the "-2" of a second
 		// folder whose title starts like the first (review of #2248).
-		Slug:    filepath.Base(dir),
-		Title:   cutText(CleanText(info.Title), MaxText),
-		Dir:     dir,
-		Created: info.Created,
-		Updated: info.Updated,
-		State:   state,
-		Turns:   turns,
+		Slug:       filepath.Base(dir),
+		Title:      cutText(CleanText(info.Title), MaxText),
+		Dir:        dir,
+		Created:    info.Created,
+		Updated:    info.Updated,
+		State:      checkedState(info.State),
+		Turns:      turns,
+		PromotedTo: checkedPromotion(info.PromotedTo),
 	}
 }
 

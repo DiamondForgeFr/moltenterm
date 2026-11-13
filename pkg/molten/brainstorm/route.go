@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/buildchannel"
+	"github.com/wavetermdev/waveterm/pkg/molten/i18nlang"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/onboarding"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
@@ -173,6 +174,24 @@ func (s *Service) handle(command string, data any) (any, error) {
 			return nil, err
 		}
 		return s.Told(req), nil
+	case ProjectPreviewCommand:
+		var req ProjectRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.ProjectPreview(req), nil
+	case ProjectCreateCommand:
+		var req ProjectRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.ProjectCreate(req), nil
+	case ProjectLinkedCommand:
+		var req LinkedRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return s.ProjectLinked(req), nil
 	}
 	return nil, fmt.Errorf("unknown brainstorm command %q", command)
 }
@@ -181,13 +200,25 @@ func liveTrash(path string) (string, error) {
 	return onboarding.MoveToTrash(wavebase.GetHomeDir(), path)
 }
 
-// Live is wavesrv's service: the folder the setting names, MoltenTerm's own data folder, the system trash, and Brokk's
-// own folder for the resume brief.
+// liveLanguage is the interface's language as wavesrv resolves app:language (DS-I18N-006).
+func liveLanguage() string {
+	return i18nlang.Resolve(wconfig.GetWatcher().GetFullConfig().Settings.AppLanguage, i18nlang.SystemLocale(), nil)
+}
+
+// liveProjectsDir is the parent folder of the last project (boss:projectsdir), "" until the developer chose one.
+func liveProjectsDir() string {
+	return ProjectsDir(wconfig.GetWatcher().GetFullConfig().Settings.BossProjectsDir, wavebase.GetHomeDir())
+}
+
+// Live is wavesrv's service: the folder the setting names, MoltenTerm's own data folder, the system trash, Brokk's own
+// folder for the resume brief, the interface's language and the projects' parent folder.
 func Live() *Service {
 	store := MakeStore(liveRoot, filepath.Join(wavebase.GetWaveDataDir(), stateDirName))
 	store.UseTrash(liveTrash, func() bool { return onboarding.TrashAvailable(wavebase.GetHomeDir()) })
 	svc := MakeService(store, time.Now, livePublish, log.Printf)
 	svc.UseResumeDir(filepath.Join(wavebase.GetWaveDataDir(), BrokkFolderName))
+	svc.UseLanguage(liveLanguage)
+	svc.UseProjects(liveProjectsDir, execGit)
 	return svc
 }
 

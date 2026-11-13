@@ -59,6 +59,8 @@ func cleanOp(op Op) Op {
 	if op.Ids != nil {
 		op.Ids = append([]string{}, op.Ids...)
 	}
+	// A conclusion's brief is brief.json's (#2250): the history keeps the plate alone.
+	op.Brief = nil
 	return op
 }
 
@@ -175,6 +177,11 @@ func applyLiving(g *Graph, op Op, what string) (Change, bool, error) {
 		}
 		was := PatchNode{Index: at, Node: g.Nodes[at]}
 		g.Nodes[at].Kind = op.Kind
+		// A proposal made another kind no longer offers anything (#2250).
+		if g.Nodes[at].Action != "" {
+			g.Nodes[at].Action = ""
+			g.Nodes[at].Status = StatusOpen
+		}
 		return Change{Op: cleanOp(op), Undo: Patch{Nodes: []PatchNode{was}}}, true, nil
 	case OpRemove:
 		return removeNode(g, index, op, what)
