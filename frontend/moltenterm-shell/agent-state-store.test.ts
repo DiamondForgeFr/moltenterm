@@ -83,8 +83,11 @@ function openView(): View {
     return { states, onEvent: m.eventHandlers.at(-1) };
 }
 
+// Sorted: these tests check which agents a view holds, not the sidebar's order (#2296).
 function names(view: View): string[] {
-    return workspaceAgents(globalStore.get(view.states.dataAtom), WorkspaceId).map((s) => `${s.firstname}:${s.state}`);
+    return workspaceAgents(globalStore.get(view.states.dataAtom), WorkspaceId)
+        .map((s) => `${s.firstname}:${s.state}`)
+        .sort();
 }
 
 function bringToFront() {
@@ -115,17 +118,17 @@ describe("agent states of a view cut off from the events (#1950)", () => {
         await settle();
         const securite = openView();
         await settle();
-        expect(names(cadrage)).toEqual(["Arthur:working", "Rose:working", "Lea:idle"]);
+        expect(names(cadrage)).toEqual(["Arthur:working", "Lea:idle", "Rose:working"]);
 
         // Cadrage stays hidden and no longer follows the events.
         publish(agent("b-victoire", "Victoire", "working"), securite);
         publish(agent("b-amelie", "Amelie", "waiting"), securite);
         publish({ blockid: "b-rose", version: ++version, cleared: true }, securite);
-        expect(names(cadrage)).toEqual(["Arthur:working", "Rose:working", "Lea:idle"]);
+        expect(names(cadrage)).toEqual(["Arthur:working", "Lea:idle", "Rose:working"]);
 
         bringToFront();
         await settle();
-        expect(names(cadrage)).toEqual(["Arthur:working", "Victoire:working", "Amelie:waiting", "Lea:idle"]);
+        expect(names(cadrage)).toEqual(["Amelie:waiting", "Arthur:working", "Lea:idle", "Victoire:working"]);
         expect(names(cadrage)).toEqual(names(securite));
     });
 
@@ -141,7 +144,7 @@ describe("agent states of a view cut off from the events (#1950)", () => {
             () => {}
         )();
         await settle();
-        expect(names(view)).toEqual(["Victoire:working", "Arthur:waiting"]);
+        expect(names(view)).toEqual(["Arthur:waiting", "Victoire:working"]);
     });
 
     it("a view recreated by the tab view budget shows the agents of the moment", async () => {
@@ -152,7 +155,7 @@ describe("agent states of a view cut off from the events (#1950)", () => {
 
         const recreated = openView();
         await settle();
-        expect(names(recreated)).toEqual(["Arthur:working", "Amelie:waiting"]);
+        expect(names(recreated)).toEqual(["Amelie:waiting", "Arthur:working"]);
         expect(names(recreated)).toEqual(names(before));
     });
 

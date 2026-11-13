@@ -88,7 +88,11 @@ describe("the data every list of agents reads never holds Brokk's session", () =
         view.onEvent({ data: agent(BrokkBlock, "Fanny", "done", true) });
 
         const data = globalStore.get(view.states.dataAtom);
-        expect(workspaceAgents(data, WorkspaceId).map((a) => a.firstname)).toEqual(["Rose", "Lea"]);
+        expect(
+            workspaceAgents(data, WorkspaceId)
+                .map((a) => a.firstname)
+                .sort()
+        ).toEqual(["Lea", "Rose"]);
         expect(data.states[BrokkBlock]).toBeUndefined();
     });
 
