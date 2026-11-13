@@ -69,6 +69,9 @@ vi.mock("../boss/brokk-session", async () => {
         addLocalLine: () => {},
         showConversation: () => {},
         stopFollowing: () => {},
+        switchConversation: () => {},
+        hasInFlight: () => false,
+        returnWaiting: () => {},
     };
     return { BrokkSession: { getInstance: () => session } };
 });
@@ -465,9 +468,11 @@ describe("Brokk hears of the developer's changes with their next message (AC27)"
         session.lead = "Brainstorm:";
         await model.remove("ages");
         model.startLink("ages");
+        expect(session.lead).toContain("(ages)");
         server.open = false;
         model.apply(changed());
-        expect(session.lead).toBe("Brainstorm:");
+        // Leaving drops the brainstorm's words before the next ordinary message (AC24, #2285), the note with them.
+        expect(session.lead).toBe("");
         expect(globalStore.get(model.linkingAtom)).toBeNull();
         expect(globalStore.get(model.undoBarAtom)).toBeNull();
     });
