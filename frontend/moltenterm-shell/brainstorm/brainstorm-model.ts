@@ -20,18 +20,20 @@ import {
 // How many brainstorms the picker offers to resume on entry (AC10a, #2248).
 export const PickerRecent = 3;
 
-// The states that say a brainstorm is finished: Brokk's finish (#2285). Every other state, an unknown one too, is in
-// progress. must match pkg/molten/brainstorm/store.go (StateDone; StateOpen is in progress)
-export const FinishedStates = ["done"];
+// The states that say a brainstorm is finished: Brokk's finish (#2285), or the project it became (#2250). Every other
+// state, an unknown one too, is in progress: open, or clear once his conclusion is written. must match
+// pkg/molten/brainstorm/store.go (StateOpen, StateDone, StateClear, StatePromoted)
+export const FinishedStates = ["done", "promoted"];
+export const BrainstormStates = ["open", "clear", "done", "promoted"];
 
 // A brainstorm the developer left without Brokk marking it finished (FR-BOSS-010 AC25, #2285).
 export function unfinished(entry: BrainstormSummary): boolean {
     return !FinishedStates.includes(entry?.state ?? "");
 }
 
-// The state a list says (AC25): in progress, or how it was finished.
+// The state a list says (AC25, #2250): in progress or clear, or how it was finished.
 export function stateOf(entry: BrainstormSummary): string {
-    return unfinished(entry) ? "open" : entry.state;
+    return BrainstormStates.includes(entry?.state ?? "") ? entry.state : "open";
 }
 
 // The order the picker and the panel offer them in (AC25): the unfinished ones first, then the finished ones, the one

@@ -597,6 +597,10 @@
                 "label": "Brainstorms folder",
                 "description": "Where your brainstorms with him are saved, one folder per idea, without asking."
             },
+            "boss:projectsdir": {
+                "label": "Projects folder",
+                "description": "Where a clear brainstorm becomes a project folder, once you click to make it."
+            },
             "boss:autoapprove": {
                 "label": "Approve his agent's requests without asking",
                 "description": "Only what stays in his own folder goes without asking, each a line in his window; the rest still asks.",
@@ -3273,7 +3277,47 @@
             },
             "state": {
                 "open": "in progress",
-                "done": "finished"
+                "done": "finished",
+                "clear": "clear",
+                "promoted": "a project"
+            },
+            "project": {
+                "label": "Make the brainstorm a project",
+                "eyebrow": "Make it a project",
+                "fold": "Fold the project card",
+                "unfold": "Show the project card",
+                "waiting": "{name} proposes a project: it waits for his conclusion.",
+                "folder": "Folder",
+                "change": "Change…",
+                "chooseParent": "Choose where projects go…",
+                "chooseTitle": "Where your projects go",
+                "name": "Name",
+                "existing": "The empty folder already there is used as it is.",
+                "git": "git starts in it: a new repository.",
+                "copy": "A copy of the brainstorm goes to {file}: never over a file, and nothing is committed.",
+                "workspace": "Workspace",
+                "newWorkspace": "A new workspace, “{name}”",
+                "create": "Create {name}",
+                "making": "Making the project…",
+                "done": "The project is ready.",
+                "linked": "Linked to the workspace “{workspace}”.",
+                "linkedThere": "Linked to its workspace.",
+                "notLinked": "Its workspace is not linked yet.",
+                "link": "Link it",
+                "show": "Show in folder",
+                "goTo": "Go to “{workspace}”",
+                "goToThere": "Go to the workspace",
+                "goToTitle": "Leaves the brainstorm and shows the workspace",
+                "tryAgain": "Try again",
+                "refused": {
+                    "notempty": "This folder already exists and is not empty. Choose another name.",
+                    "inrepo": "This folder is inside another repository, whose history it would hide. Choose another parent folder.",
+                    "badname": "This name cannot be a folder: start with a letter or a digit, then letters, digits, dots, hyphens or underscores.",
+                    "noparent": "Choose the folder your projects go to first.",
+                    "nobrief": "{name} has not concluded the brainstorm yet.",
+                    "failed": "That did not work: nothing was made.",
+                    "link": "The project is made, but its workspace could not be linked."
+                }
             },
             "failed": {
                 "unknown": "That brainstorm is no longer in the folder.",

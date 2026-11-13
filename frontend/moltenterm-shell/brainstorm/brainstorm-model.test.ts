@@ -9,6 +9,7 @@ import type { MoltentermNotification } from "../notifications-model";
 import {
     answerQuestions,
     answerStep,
+    BrainstormStates,
     breaksThrough,
     EmptyTally,
     FinishedStates,
@@ -64,12 +65,29 @@ describe("the folders' rules (#2248)", () => {
         expect(resumeOrder(null)).toEqual([]);
     });
 
-    // The finished states are the ones wavesrv writes (pkg/molten/brainstorm/store.go): open and done.
+    // The states are the ones wavesrv writes (pkg/molten/brainstorm/store.go): open, done, and since #2250 clear and
+    // promoted; done and promoted are finished.
     it("knows the states wavesrv writes, and those alone", () => {
         const store = readFileSync(join(__dirname, "../../../pkg/molten/brainstorm/store.go"), "utf8");
         const states = [...store.matchAll(/^\s*State\w+\s*=\s*"([a-z]+)"/gm)].map((m) => m[1]).sort();
-        expect(states).toEqual(["done", "open"]);
-        expect(FinishedStates).toEqual(["done"]);
+        expect(states).toEqual(["clear", "done", "open", "promoted"]);
+        expect([...BrainstormStates].sort()).toEqual(states);
+        expect(FinishedStates).toEqual(["done", "promoted"]);
+    });
+
+    // #2250: a clear brainstorm is still in progress, offered first; one that became a project is finished.
+    it("says clear and promoted, and orders them with the in-progress and the finished ones", () => {
+        const clear = { ...folder("clear", 2), state: "clear" };
+        const promoted = { ...folder("promoted", 9), state: "promoted" };
+        expect(stateOf(clear)).toBe("clear");
+        expect(stateOf(promoted)).toBe("promoted");
+        expect(unfinished(clear)).toBe(true);
+        expect(unfinished(promoted)).toBe(false);
+        expect(resumeOrder([promoted, clear, folder("open", 1)]).map((f) => f.slug)).toEqual([
+            "clear",
+            "open",
+            "promoted",
+        ]);
     });
 
     it("asks his questions only once his answer is complete, and only where the gate is open", () => {
