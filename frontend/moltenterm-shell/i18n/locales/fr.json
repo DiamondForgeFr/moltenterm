@@ -7418,8 +7418,6 @@
             "filter": "Filtrer par projet",
             "all": "Tous les projets",
             "count": "{count} projets",
-            "none": "Rien d’ouvert, à venir ni fusionné récemment",
-            "noneHint": "Rien d’ouvert, à venir ni fusionné récemment sur les projets de {name}.",
             "openTitle": "Ouvrir #{number} dans le panneau Intégration de {project}",
             "openProject": "Ouvrir",
             "openProjectTitle": "Ouvrir le panneau Intégration de {project}",

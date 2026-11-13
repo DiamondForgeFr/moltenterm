@@ -7418,8 +7418,6 @@
             "filter": "Filter by project",
             "all": "All projects",
             "count": "{count} projects",
-            "none": "Nothing open, coming or merged lately",
-            "noneHint": "Nothing open, coming or merged lately on {name}'s projects.",
             "openTitle": "Open #{number} in {project}'s Integration panel",
             "openProject": "Open",
             "openProjectTitle": "Open {project}'s Integration panel",

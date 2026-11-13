@@ -54,7 +54,6 @@ import { useLeftoverAsks } from "./reviews-leftover-asks";
 import { LeftoverOwnerCard } from "./reviews-leftover-owner";
 import { leftoverOwnerCard, leftoverTurnRows } from "./reviews-leftover-owner-model";
 import { leftoverRows } from "./reviews-leftovers-model";
-import { MergedSection } from "./reviews-merged";
 import {
     MoltentermReviewsView,
     nextRow,
@@ -67,7 +66,6 @@ import {
     splitReviews,
 } from "./reviews-model";
 import { CardMotion } from "./reviews-motion";
-import { NotesAsk, NotesSection } from "./reviews-notes-view";
 import { SortControl, useReviewsSort } from "./reviews-order";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
 import { LeadGroupHeader, OthersWaitLine, OwnersFilterHost } from "./reviews-owners";
@@ -86,6 +84,7 @@ import {
     waitsForYou,
 } from "./reviews-owners-model";
 import { useViewScope, ViewScope } from "./reviews-owners-store";
+import { NoneOpenLine, ProjectTail } from "./reviews-project-tail";
 import {
     AllProjects,
     followedAgentFolders,
@@ -121,7 +120,6 @@ import {
     withTurnShown,
 } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
-import { UpcomingSection } from "./reviews-upcoming";
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
 import { useOutsideOtherProjects } from "./reviews-workspace";
 
@@ -222,7 +220,12 @@ function ReviewsView({ model }: ViewComponentProps<ReviewsViewModel>) {
                     </Suspense>
                     {shown == null ? (
                         <Suspense fallback={null}>
-                            <AllProjectsList workspace={workspace} projects={projects} filter={model.owners} />
+                            <AllProjectsList
+                                workspace={workspace}
+                                projects={projects}
+                                filter={model.owners}
+                                blockId={model.blockId}
+                            />
                         </Suspense>
                     ) : shown.dir === "" ? (
                         <Suspense fallback={null}>
@@ -385,7 +388,6 @@ function ReviewsList({
     const [selected, setSelected] = useState<number>(null);
     const [marked, setMarked] = useState<number>(null);
     const [hovered, setHovered] = useState<number>(null);
-    const [notesAsk, setNotesAsk] = useState<NotesAsk>(null);
     const [handing, setHanding] = useState(false);
     // Whether the panel's content is longer than the panel, read once on the first render: the bottom sections then
     // start folded (FR-REV-001 AC12).
@@ -628,11 +630,6 @@ function ReviewsList({
         }
         listRef.current?.querySelector<HTMLElement>(`[data-pr="${selected}"]`)?.scrollIntoView?.({ block: "nearest" });
     }, [selected, folds]);
-    useEffect(() => {
-        if (notesAsk != null) {
-            ReviewsFolds.getInstance().openForNow(dir, "notes");
-        }
-    }, [notesAsk, dir]);
     const openReview = (pr: ReviewPr) => fireAndForget(() => model.openPullRequestReview(dir, pr, answer.repo));
     // A queue step brings its card into view, unfolding its section, and focuses it.
     const goToCard = (number: number) => {
@@ -803,20 +800,7 @@ function ReviewsList({
             ) : null}
             {bannerOnTop ? <BatchBanner run={batchRun} ids={shownIds} /> : null}
             {queueTurn == null ? queueBlock : null}
-            {sections.length === 0 ? (
-                <p
-                    className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
-                    data-testid="reviews-none-open"
-                >
-                    {scoped.hidden.length > 0 ? (
-                        t("reviews.owners.noneShown")
-                    ) : (
-                        <>
-                            {t("reviews.sections.none")} <code>{answer.target}</code>.
-                        </>
-                    )}
-                </p>
-            ) : null}
+            {sections.length === 0 ? <NoneOpenLine target={answer.target} hidden={scoped.hidden.length > 0} /> : null}
             <CardMotion dir={dir} layout={motionLayout} merged={mergedNumbers} around={motionAround}>
                 {sections.map((section) => {
                     const text = TurnSectionText[section.turn];
@@ -919,17 +903,7 @@ function ReviewsList({
                 onToggle={() => setRevealed((v) => !v)}
                 onOpenProject={(id) => ReviewsProjectFilter.getInstance().choose(workspaceId, id)}
             />
-            <UpcomingSection dir={dir} reviews={answer} defaultOpen={bottomOpen} names={view.names} />
-            {answer.repo ? (
-                <NotesSection dir={dir} repo={answer.repo} blockId={blockId} ask={notesAsk} defaultOpen={bottomOpen} />
-            ) : null}
-            {answer.repo ? (
-                <MergedSection
-                    answer={answer}
-                    defaultOpen={bottomOpen}
-                    onShowNotes={(filter) => setNotesAsk({ filter, at: Date.now() })}
-                />
-            ) : null}
+            <ProjectTail dir={dir} answer={answer} blockId={blockId} names={view.names} defaultOpen={bottomOpen} />
         </div>
     );
 }
