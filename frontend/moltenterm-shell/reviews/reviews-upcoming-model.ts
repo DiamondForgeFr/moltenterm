@@ -252,7 +252,8 @@ const KindRank: Record<AgentBarFacts["kind"], number> = { panel: 2, subagent: 1,
 // sub-agents, then background agents, each kind in wavesrv's order. A card lists them all, each with its own state.
 // ticket: the branch's own ticket, when the caller knows it (a PR's), else read from the branch name; pr: its PR's
 // number, when it has one. A running sub-agent placed on no branch (a read-only one, without a worktree: #1825) is the
-// branch's when its task names the ticket or the PR.
+// branch's when its task names the ticket or the PR and its lead already works on the branch (#2297: a "#N" in a task
+// alone is no evidence; another lead's tasks number other work).
 export function branchAgents(
     upcoming: UpcomingAnswer,
     states: AgentStatesData,
@@ -264,9 +265,16 @@ export function branchAgents(
         return [];
     }
     const own = { ticket: ticket || branchTicketNumber(branch), pr: pr ?? 0 };
+    const leads = leadsOnBranch(upcoming, branch);
     const found: AgentBarFacts[] = [];
     for (const a of upcoming.agents) {
-        if (a.kind === "subagent" && !a.branch && a.state !== "done" && namesWork(a.description, own)) {
+        if (
+            a.kind === "subagent" &&
+            !a.branch &&
+            a.state !== "done" &&
+            leads.has(a.parentblockid) &&
+            namesWork(a.description, own)
+        ) {
             found.push(subagentFacts(a, states));
             continue;
         }
@@ -346,6 +354,24 @@ export function busyElsewhere(
         return null;
     }
     return { ticket: branchTicketNumber(subs[0].branch) || workNamed(subs[0].description) };
+}
+
+// leadsOnBranch (#2297): the sessions already at work on the branch, their own panel there or one of their sub-agents
+// placed there, in any state; must match leadsOnBranch in pkg/molten/review/owners.go.
+function leadsOnBranch(upcoming: UpcomingAnswer, branch: string): Set<string> {
+    const rtn = new Set<string>();
+    for (const a of upcoming?.agents ?? []) {
+        if (a.branch !== branch || !branch || a.visiting) {
+            continue;
+        }
+        if (a.kind === "panel" && a.blockid) {
+            rtn.add(a.blockid);
+        }
+        if (a.kind === "subagent" && a.parentblockid) {
+            rtn.add(a.parentblockid);
+        }
+    }
+    return rtn;
 }
 
 // namesWork: a sub-agent's task names the ticket ("#1821") or the PR ("PR #1824", "#1824", "PR 1824").

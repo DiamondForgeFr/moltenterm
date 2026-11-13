@@ -65,9 +65,27 @@ func namesWork(text string, ticket int, number int) bool {
 	return false
 }
 
+// leadsOnBranch (#2297): the sessions already at work on the branch, their own panel there or one of their sub-agents
+// placed there; a task naming the PR ties a sub-agent in no worktree only to one of these.
+func leadsOnBranch(agents []mission.BranchAgent, branch string) map[string]bool {
+	rtn := map[string]bool{}
+	for _, a := range agents {
+		if a.Branch != branch || branch == "" || a.Visiting {
+			continue
+		}
+		if a.Kind == mission.UpcomingAgentPanel && a.BlockId != "" {
+			rtn[a.BlockId] = true
+		}
+		if a.Kind == mission.UpcomingAgentSubagent && a.ParentBlockId != "" {
+			rtn[a.ParentBlockId] = true
+		}
+	}
+	return rtn
+}
+
 // gate reads the index for the PR: the agents on its branch, those in a worktree on its head commit (the index ties
-// them), and the sub-agents in no worktree whose task names it. A panel that only passes through, or a review session,
-// is not one.
+// them), and the sub-agents in no worktree whose task names it while their lead already works on the branch (#2297: a
+// "#N" in a task alone ties nothing). A panel that only passes through, or a review session, is not one.
 func (r *Restarter) gate(ctx context.Context, req RestartRequest) ownerGate {
 	if r.env.BranchAgents == nil {
 		return ownerGate{}
@@ -77,6 +95,7 @@ func (r *Restarter) gate(ctx context.Context, req RestartRequest) ownerGate {
 		return ownerGate{}
 	}
 	ticket := restartTicket(req)
+	leads := leadsOnBranch(agents, req.HeadRef)
 	var rows []ownerRow
 	for _, a := range agents {
 		if a.Visiting {
@@ -84,7 +103,7 @@ func (r *Restarter) gate(ctx context.Context, req RestartRequest) ownerGate {
 		}
 		onBranch := a.Branch == req.HeadRef
 		unplaced := a.Branch == "" && a.Kind == mission.UpcomingAgentSubagent && a.State != companion.SubagentDone &&
-			namesWork(a.Description, ticket, req.Number)
+			leads[a.ParentBlockId] && namesWork(a.Description, ticket, req.Number)
 		if !onBranch && !unplaced {
 			continue
 		}
