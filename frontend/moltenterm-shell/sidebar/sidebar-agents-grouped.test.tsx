@@ -51,7 +51,7 @@ function render(agents: AgentStateInfo[], projects: WorkspaceProjectEntry[]) {
 }
 
 describe("agents grouped by project (#1867)", () => {
-    it("opens a separator per project, most recent first, and the agents outside every project last", () => {
+    it("opens a separator per project in the workspace's order, whatever their activity, and the agents outside every project last (#2296)", () => {
         seedFolder("grp-desk", "/Users/x/notulia-desktop");
         seedFolder("grp-web", "/Users/x/notulia-web/src");
         seedFolder("grp-out", "/tmp/scratch/merge-run");
@@ -60,10 +60,10 @@ describe("agents grouped by project (#1867)", () => {
             [Desktop, Website]
         );
         const seps = html.match(/data-testid="sidebar-agent-group-name"[^>]*>[^<]*</g) ?? [];
-        expect(seps.map((s) => s.replace(/.*>([^<]*)</, "$1"))).toEqual(["website", "desktop", "No project"]);
+        expect(seps.map((s) => s.replace(/.*>([^<]*)</, "$1"))).toEqual(["desktop", "website", "No project"]);
         const at = (name: string) => html.indexOf(`>${name}</span>`);
-        expect(at("Suzanne")).toBeLessThan(at("Fanny"));
-        expect(at("Fanny")).toBeLessThan(at("Olivia"));
+        expect(at("Fanny")).toBeLessThan(at("Suzanne"));
+        expect(at("Suzanne")).toBeLessThan(at("Olivia"));
     });
 
     it("drops the project chip from the rows of a group", () => {

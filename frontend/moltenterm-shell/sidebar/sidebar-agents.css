@@ -508,3 +508,13 @@
 .mt-sb-tl > svg {
     flex: none;
 }
+
+/* Reorder by drag (#2296): an accent bar on the side the agent lands on, within its project; the dragged agent dims
+   (.mt-sb-dragged, sidebar.css). */
+.mt-sb-arow.is-drop-before {
+    box-shadow: 0 -2px 0 0 var(--color-accent);
+}
+
+.mt-sb-arow.is-drop-after {
+    box-shadow: 0 2px 0 0 var(--color-accent);
+}
