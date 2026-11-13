@@ -6,7 +6,9 @@
 // then the link to everything about it. Tools, MCP servers, pages and commands stay in that window, not in the tree.
 // Any of these rows can carry the developer's own short note (agent-note-ui.tsx, #2008).
 
+import { ContextMenuModel } from "@/app/store/contextmenu";
 import { getBlockMetaKeyAtom } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useMemo, useRef, useState } from "react";
@@ -29,12 +31,14 @@ import { AgentInfoModel } from "../agent-info/agent-info-store";
 import { agentStateLabel, agentStateMessage, agentToolName, type AgentStateInfo } from "../agent-state-model";
 import { useCompanionFollow } from "../companion/companion-follow";
 import type { CompanionView } from "../companion/companion-model";
-import { useT, useTCount } from "../i18n/i18n";
+import { t, useT, useTCount } from "../i18n/i18n";
 import { DominoLoader } from "../suite/suite";
 import { noteKey } from "./agent-note-model";
+import { AgentNotesModel } from "./agent-note-store";
 import {
     AgentNoteField,
     AgentNoteFull,
+    agentNoteMenuItems,
     AgentNoteTag,
     showAgentNoteMenu,
     useAgentNote,
@@ -43,7 +47,7 @@ import {
     type NoteSubject,
 } from "./agent-note-ui";
 import { projectIdOfAgent } from "./project-activity";
-import { activeProjectOf, agentGroups } from "./sidebar-agents-group";
+import { agentGroups } from "./sidebar-agents-group";
 import {
     agentProjectLabel,
     agentRowLook,
@@ -51,9 +55,14 @@ import {
     type AgentProjectLabel,
     type AgentTreeSection,
 } from "./sidebar-agents-model";
+import { arrivalOrder, canMove, orderAgents } from "./sidebar-agents-order";
+import { AgentOrderModel } from "./sidebar-agents-order-store";
 import "./sidebar-agents.css";
 import { SidebarGlyph } from "./sidebar-icons";
 import { projectLabel, type WorkspaceProjectEntry } from "./workspace-projects";
+
+// The same threshold as the views' drag (sidebar-drag.ts), without loading the views' store.
+const AgentDragThresholdPx = 4;
 
 const AgentPaths = {
     sub: (
@@ -419,16 +428,114 @@ export function AgentNameLine({ name, label }: { name: string; label: AgentProje
     );
 }
 
+// Where an agent row stands in the developer's order (#2296): the ids of the list as shown and of its project group,
+// the drop mark a drag puts on it, and the drag's hooks.
+type AgentRowOrder = {
+    shown: string[];
+    group: string[];
+    drop: "before" | "after" | null;
+    dragged: boolean;
+    startDrag: (e: React.MouseEvent, id: string, group: string[]) => void;
+    takeClick: (id: string) => boolean;
+};
+
+// Move up and Move down first when the project holds other agents, then the note's items (#2008).
+export function agentRowMenuItems(
+    subject: NoteSubject,
+    hasNote: boolean,
+    order: { shown: string[]; group: string[] },
+    blockId: string
+): ContextMenuItem[] {
+    const notes = agentNoteMenuItems(subject, hasNote);
+    if ((order?.group?.length ?? 0) < 2) {
+        return notes;
+    }
+    const model = AgentOrderModel.getInstance();
+    const step = (delta: -1 | 1): ContextMenuItem => ({
+        label: t(delta < 0 ? "sidebar.agents.order.up" : "sidebar.agents.order.down"),
+        icon: delta < 0 ? "arrow-up" : "arrow-down",
+        enabled: canMove(order.group, blockId, delta),
+        click: () => model.moveStep(subject.workspaceId, order.shown, order.group, blockId, delta),
+    });
+    return [step(-1), step(1), { type: "separator" }, ...notes];
+}
+
+function showAgentRowMenu(e: React.MouseEvent, subject: NoteSubject, order: AgentRowOrder, blockId: string) {
+    const hasNote = globalStore.get(AgentNotesModel.getInstance().noteAtom(subject.workspaceId, subject.key)) !== "";
+    ContextMenuModel.getInstance().showContextMenu(agentRowMenuItems(subject, hasNote, order, blockId), e);
+}
+
+// The row under the pointer a drag may land on: one of the dragged agent's own group, never another project's.
+function agentDropAt(x: number, y: number, group: string[], dragged: string): { target: string; after: boolean } {
+    const el = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-agent-drop]");
+    const target = el?.getAttribute("data-block-id");
+    if (target == null || target === dragged || !group.includes(target)) {
+        return null;
+    }
+    const rect = el.getBoundingClientRect();
+    return { target, after: y > rect.top + rect.height / 2 };
+}
+
+type AgentDrag = { id: string; target: string; after: boolean };
+
+// Dragging an agent row within its project group: past a few pixels it follows the pointer; on release it moves the
+// agent, and the click that ends the drag does not open its view.
+function useAgentDrag(workspaceId: string, shown: string[]) {
+    const [drag, setDrag] = useState<AgentDrag>(null);
+    const ended = useRef<string>(null);
+    const startDrag = (e: React.MouseEvent, id: string, group: string[]) => {
+        if (e.button !== 0 || group.length < 2) {
+            return;
+        }
+        const startX = e.clientX;
+        const startY = e.clientY;
+        let started = false;
+        let hit: { target: string; after: boolean } = null;
+        const onMove = (ev: MouseEvent) => {
+            if (!started) {
+                if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < AgentDragThresholdPx) {
+                    return;
+                }
+                started = true;
+            }
+            hit = agentDropAt(ev.clientX, ev.clientY, group, id);
+            setDrag({ id, target: hit?.target ?? null, after: hit?.after ?? false });
+        };
+        const onUp = () => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            setDrag(null);
+            if (!started) {
+                return;
+            }
+            ended.current = id;
+            if (hit != null) {
+                AgentOrderModel.getInstance().moveTo(workspaceId, shown, group, id, hit.target, hit.after);
+            }
+        };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+    };
+    const takeClick = (id: string) => {
+        const taken = ended.current === id;
+        ended.current = null;
+        return taken;
+    };
+    return { drag, startDrag, takeClick };
+}
+
 function AgentBlock({
     info,
     active,
     projects,
     grouped,
+    order,
 }: {
     info: AgentStateInfo;
     active: boolean;
     projects: WorkspaceProjectEntry[];
     grouped: boolean;
+    order: AgentRowOrder;
 }) {
     const t = useT();
     const tree = useAtomValue(AgentInfoModel.getInstance().treeAtom(info.blockid));
@@ -453,15 +560,23 @@ function AgentBlock({
     useNoteRefocus(subject.at, editing, rowRef);
     return (
         <div
-            className={cn("mt-sb-agent", !open && "is-closed")}
+            className={cn("mt-sb-agent", !open && "is-closed", order.dragged && "mt-sb-dragged")}
             data-testid="sidebar-agent"
             data-block-id={info.blockid}
+            data-agent-drop=""
         >
             <div
                 ref={rowRef}
                 role="button"
                 tabIndex={0}
-                className={cn("mt-sb-row mt-sb-arow", `is-${look}`, active && "is-on", editing && "is-noting")}
+                className={cn(
+                    "mt-sb-row mt-sb-arow",
+                    `is-${look}`,
+                    active && "is-on",
+                    editing && "is-noting",
+                    order.drop === "before" && "is-drop-before",
+                    order.drop === "after" && "is-drop-after"
+                )}
                 aria-current={active ? "page" : undefined}
                 title={[
                     t("sidebar.agents.goTo", { name }),
@@ -472,8 +587,13 @@ function AgentBlock({
                     .join("\n")}
                 data-testid="sidebar-agent-row"
                 data-state={look}
-                onClick={go}
-                onContextMenu={(e) => showAgentNoteMenu(e, subject)}
+                onMouseDown={editing ? undefined : (e) => order.startDrag(e, info.blockid, order.group)}
+                onClick={() => {
+                    if (!order.takeClick(info.blockid)) {
+                        go();
+                    }
+                }}
+                onContextMenu={(e) => showAgentRowMenu(e, subject, order, info.blockid)}
                 onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
@@ -563,15 +683,29 @@ export function AgentsSection({
     const t = useT();
     const tc = useTCount();
     const folders = useAgentFolders(agents);
+    const workspaceId = agents[0]?.workspaceid ?? "";
+    const saved = useAtomValue(AgentOrderModel.getInstance().orderAtom(workspaceId));
+    const arrival = useRef<string[]>([]);
+    arrival.current = arrivalOrder(arrival.current, agents);
+    const ordered = orderAgents(agents, saved, arrival.current);
+    const groups = agentGroups(ordered, projects, (info) =>
+        projectIdOfAgent(ws ?? {}, projects, info, folders[info.blockid] ?? "")
+    );
+    const shown =
+        groups == null ? ordered.map((a) => a.blockid) : groups.flatMap((g) => g.agents.map((a) => a.blockid));
+    const { drag, startDrag, takeClick } = useAgentDrag(workspaceId, shown);
     if (agents.length === 0) {
         return null;
     }
-    const groups = agentGroups(
-        agents,
-        projects,
-        (info) => projectIdOfAgent(ws ?? {}, projects, info, folders[info.blockid] ?? ""),
-        activeProjectOf(ws, activeTabId)
-    );
+    const rowOrder = (id: string, group: string[]): AgentRowOrder => ({
+        shown,
+        group,
+        drop: drag?.target === id ? (drag.after ? "after" : "before") : null,
+        dragged: drag?.id === id,
+        startDrag,
+        takeClick,
+    });
+    const flatGroup = ordered.map((a) => a.blockid);
     const live = agents.filter((a) => {
         const look = agentRowLook(a);
         return look === "working" || look === "waiting" || look === "error";
@@ -586,38 +720,43 @@ export function AgentsSection({
             </div>
             {groups == null ? (
                 <div className="flex flex-col gap-px">
-                    {agents.map((a) => (
+                    {ordered.map((a) => (
                         <AgentBlock
                             key={a.blockid}
                             info={a}
                             active={a.tabid === activeTabId}
                             projects={projects}
                             grouped={false}
+                            order={rowOrder(a.blockid, flatGroup)}
                         />
                     ))}
                 </div>
             ) : (
-                groups.map((g) => (
-                    <div
-                        key={g.project?.id ?? "none"}
-                        className="mt-sb-ag-group flex flex-col gap-px"
-                        data-testid="sidebar-agent-group"
-                        data-project={g.project?.id ?? undefined}
-                    >
-                        <AgentGroupSeparator
-                            name={g.project ? projectLabel(g.project) : t("sidebar.agents.noProject")}
-                        />
-                        {g.agents.map((a) => (
-                            <AgentBlock
-                                key={a.blockid}
-                                info={a}
-                                active={a.tabid === activeTabId}
-                                projects={projects}
-                                grouped
+                groups.map((g) => {
+                    const group = g.agents.map((a) => a.blockid);
+                    return (
+                        <div
+                            key={g.project?.id ?? "none"}
+                            className="mt-sb-ag-group flex flex-col gap-px"
+                            data-testid="sidebar-agent-group"
+                            data-project={g.project?.id ?? undefined}
+                        >
+                            <AgentGroupSeparator
+                                name={g.project ? projectLabel(g.project) : t("sidebar.agents.noProject")}
                             />
-                        ))}
-                    </div>
-                ))
+                            {g.agents.map((a) => (
+                                <AgentBlock
+                                    key={a.blockid}
+                                    info={a}
+                                    active={a.tabid === activeTabId}
+                                    projects={projects}
+                                    grouped
+                                    order={rowOrder(a.blockid, group)}
+                                />
+                            ))}
+                        </div>
+                    );
+                })
             )}
         </div>
     );

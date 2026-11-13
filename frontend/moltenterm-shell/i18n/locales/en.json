@@ -11135,6 +11135,10 @@
                 "edit": "Edit note",
                 "remove": "Remove note",
                 "field": "Note for {name}"
+            },
+            "order": {
+                "up": "Move up",
+                "down": "Move down"
             }
         },
         "view": {
