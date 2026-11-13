@@ -18,6 +18,7 @@ import {
     AgentStateInfo,
     agentStateLabel,
     agentStateTitle,
+    stateWithSubagents,
 } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { agentWorkText, batchOriginOf } from "../agent-work-model";
@@ -44,6 +45,7 @@ import {
     MaxSubagentsShown,
     nextReleaseView,
     NowLine,
+    NowSubagents,
     nowSubagents,
     OverviewSection,
     releaseNowLine,
@@ -140,9 +142,15 @@ export function ReleasesCard({ snapshot }: ProjectCardProps) {
     return <ReleaseHistory view={view} />;
 }
 
-function AgentLine({ info, dir }: { info: AgentStateInfo; dir: string }) {
+function AgentLine({ info: reported, dir }: { info: AgentStateInfo; dir: string }) {
     const t = useT();
     useLocale();
+    const view = useCompanionFollow(reported.blockid);
+    const [expanded, setExpanded] = useState(false);
+    const subs = nowSubagents(view, reported, expanded);
+    // A lead idle or done while its sub-agents work is working in the background, as the Integration panel and the
+    // activity indicator say, and not finished (#2294).
+    const info = stateWithSubagents(reported, subs.rows.length + subs.hidden);
     useWorkingBeat(info.state === "working");
     const [block] = useWaveObjectValue<Block>(makeORef("block", info.blockid));
     const meta = block?.meta;
@@ -201,18 +209,33 @@ function AgentLine({ info, dir }: { info: AgentStateInfo; dir: string }) {
                     </span>
                 ) : null}
             </button>
-            <AgentSubagents info={info} onGoTo={goTo} />
+            <AgentSubagents
+                info={info}
+                subs={subs}
+                expanded={expanded}
+                onToggle={() => setExpanded(!expanded)}
+                onGoTo={goTo}
+            />
         </div>
     );
 }
 
 // The agent's running sub-agents, as its companion lists them (#967, FR-MC-024): name, ticket, branch and state.
-function AgentSubagents({ info, onGoTo }: { info: AgentStateInfo; onGoTo: () => void }) {
+function AgentSubagents({
+    info,
+    subs,
+    expanded,
+    onToggle,
+    onGoTo,
+}: {
+    info: AgentStateInfo;
+    subs: NowSubagents;
+    expanded: boolean;
+    onToggle: () => void;
+    onGoTo: () => void;
+}) {
     const t = useT();
     useLocale();
-    const view = useCompanionFollow(info.blockid);
-    const [expanded, setExpanded] = useState(false);
-    const subs = nowSubagents(view, info, expanded);
     if (subs.rows.length === 0) {
         return null;
     }
@@ -248,7 +271,7 @@ function AgentSubagents({ info, onGoTo }: { info: AgentStateInfo; onGoTo: () => 
                 <li>
                     <button
                         type="button"
-                        onClick={() => setExpanded(!expanded)}
+                        onClick={onToggle}
                         className="cursor-pointer pt-0.5 text-11 text-muted hover:text-primary"
                         data-testid="project-subagents-more"
                     >

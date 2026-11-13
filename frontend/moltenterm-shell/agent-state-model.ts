@@ -75,6 +75,16 @@ export function agentPromptState(info: AgentStateInfo): string {
     return info?.state;
 }
 
+// A session idle or done while sub-agents of it work is working in the background (#2294): wavesrv's state says so
+// itself when the session's hooks reported its sub-agents (#1092), and a list that read them from the session's files
+// must say the same, so that one screen never says "finished" over sub-agents at work. running: how many the list found.
+export function stateWithSubagents(info: AgentStateInfo, running: number): AgentStateInfo {
+    if (info == null || !(running > 0) || (info.state !== "idle" && info.state !== "done")) {
+        return info;
+    }
+    return { ...info, state: "working", background: true, subagents: Math.max(info.subagents ?? 0, running) };
+}
+
 export type AgentStatesData = {
     states: Record<string, AgentStateInfo>;
     // The last version seen per block, cleared ones included: an older event must not bring a closed agent back.

@@ -103,6 +103,43 @@ describe("an Upcoming ticket whose sub-agent stopped (#2270)", () => {
         expect(html).toContain("In progress");
     });
 
+    // #2294: wavesrv lists the sub-agents placed in a worktree before the unplaced ones, and the card read the first.
+    it("never says stopped while another sub-agent of the ticket works, whichever order wavesrv lists them in", () => {
+        const placedStopped = (state: BranchAgent["state"]) => sub(state);
+        const unplacedRunning: BranchAgent = { ...sub("running", ""), worktree: "", agentid: "def456" };
+        for (const state of ["done", "quiet"] as const) {
+            for (const list of [
+                [placedStopped(state), unplacedRunning],
+                [unplacedRunning, placedStopped(state)],
+            ]) {
+                const agent = branchAgent(upcoming(list), null, Branch.branch);
+                expect(agent.subState, state).toBe("running");
+                expect(stoppedWithoutPr(agent), state).toBe(false);
+                const html = render(list);
+                expect(html, state).not.toContain("Stopped without a pull request");
+                expect(html, state).not.toMatch(/>Resume</);
+                expect(html, state).toContain("A sub-agent of Flore is on it");
+            }
+        }
+    });
+
+    it("keeps a panel agent ahead of any sub-agent, and a finished sub-agent ahead of a background guess", () => {
+        const panel: BranchAgent = { branch: Branch.branch, worktree: "/w/agent-42", kind: "panel", blockid: "p1" };
+        const background: BranchAgent = {
+            branch: Branch.branch,
+            worktree: "/w/agent-42",
+            kind: "background",
+            activeat: 1,
+        };
+        const states = {
+            states: { p1: { blockid: "p1", agent: "claude", state: "idle", version: 1 } },
+            versions: {},
+        } as any;
+        const first = (list: BranchAgent[]) => branchAgent(upcoming(list), states, Branch.branch);
+        expect(first([sub("running"), panel]).kind).toBe("panel");
+        expect(first([background, sub("done")]).kind).toBe("subagent");
+    });
+
     it("shows no card once the pull request exists", () => {
         const withPr = {
             ready: [],
