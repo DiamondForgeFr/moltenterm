@@ -1,0 +1,251 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The project card (FR-BOSS-010 AC15, #2250): a forged plate in the free space of the brainstorm layer, at its bottom
+   right, where the thought leaves the most room. Modern steampunk in the shell's tokens, light and dark: the panels'
+   surface, a brass rule on Brokk's side, a hairline, the raised shadow; no grid, no pastel, no tilt. The layer takes no
+   pointer: the card does. */
+
+.mt-bsj {
+    position: absolute;
+    right: 20px;
+    bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: min(400px, calc(100% - var(--bs-free-left, 0px) - 40px));
+    max-height: calc(100% - var(--bs-free-top, 0px) - 96px);
+    padding: 12px 14px;
+    overflow-y: auto;
+    border: 1px solid var(--mt-line-2);
+    border-left: 2px solid color-mix(in srgb, var(--mt-action) 55%, transparent);
+    border-radius: var(--mt-radius-panel);
+    background: var(--mt-surface-1);
+    box-shadow: var(--mt-shadow-e2);
+    font-size: var(--mt-text-12);
+    line-height: 1.45;
+    color: var(--mt-text-2);
+    pointer-events: auto;
+    -webkit-app-region: no-drag;
+    cursor: default;
+}
+
+.mt-bsj.is-folded {
+    padding-block: 8px;
+}
+
+.mt-bsj :focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 1px;
+}
+
+.mt-bsj-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mt-text-3);
+}
+
+.mt-bsj-eyebrow > i {
+    color: var(--mt-action-text);
+}
+
+.mt-bsj-eyebrow-text {
+    flex: 1 1 auto;
+}
+
+.mt-bsj-fold {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: transparent;
+    color: var(--mt-text-3);
+    transition: color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-bsj-fold:hover {
+    color: var(--mt-text-1);
+}
+
+.mt-bsj-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mt-bsj-head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.mt-bsj-title {
+    overflow: hidden;
+    font-size: var(--mt-text-15);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--mt-text-1);
+}
+
+.mt-bsj-pitch,
+.mt-bsj-note {
+    margin: 0;
+    color: var(--mt-text-2);
+}
+
+.mt-bsj-line {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mt-bsj-key {
+    font-size: var(--mt-text-11);
+    color: var(--mt-text-3);
+}
+
+.mt-bsj-path-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mt-bsj-path {
+    min-width: 0;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--mt-text-1);
+}
+
+.mt-bsj-input,
+.mt-bsj-select {
+    min-width: 0;
+    padding: 3px 6px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-0);
+    font: inherit;
+    font-size: var(--mt-text-12);
+    color: var(--mt-text-1);
+}
+
+.mt-bsj-input {
+    font-family: var(--font-mono);
+}
+
+.mt-bsj-input.is-bad {
+    border-color: var(--mt-state-error);
+}
+
+.mt-bsj-facts {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0 0 0 16px;
+}
+
+.mt-bsj-facts > li::marker {
+    color: var(--mt-action-text);
+}
+
+.mt-bsj-failure {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    padding: 5px 10px;
+    border-left: 2px solid var(--mt-state-error);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-2);
+    color: var(--mt-danger-text);
+}
+
+.mt-bsj-link {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: var(--mt-text-11);
+    color: var(--mt-text-2);
+    transition: color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-bsj-link:hover {
+    color: var(--mt-action-text);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.mt-bsj-link:disabled {
+    opacity: 0.5;
+}
+
+.mt-bsj-btn {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    justify-self: start;
+    padding: 3px 10px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-2);
+    color: var(--mt-text-1);
+    font: inherit;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-medium);
+    transition: border-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-bsj-btn:hover {
+    border-color: color-mix(in srgb, var(--mt-action) 60%, transparent);
+}
+
+.mt-bsj-create {
+    align-self: flex-start;
+}
+
+.mt-bsj-working {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--mt-text-2);
+}
+
+.mt-bsj-done {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: var(--mt-weight-semibold);
+    color: var(--mt-text-1);
+}
+
+.mt-bsj-done > i {
+    color: var(--mt-state-done);
+}
+
+.mt-bsj-acts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}

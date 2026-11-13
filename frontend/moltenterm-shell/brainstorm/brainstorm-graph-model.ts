@@ -10,6 +10,7 @@
 // It loads with the brainstorm; the fence the window needs up front is brainstorm-fence.ts's.
 
 import { withoutTone } from "../boss/brokk-tone";
+import { BriefDraft, briefProblem } from "./brainstorm-brief-model";
 import { GraphFence } from "./brainstorm-fence";
 
 export { GraphFence, withoutGraphBlocks } from "./brainstorm-fence";
@@ -59,11 +60,19 @@ export const LivingOps = ["edit", "remove", "unlink", "retype", "merge"];
 // What the developer does by hand from a plate's menu (FR-BOSS-010 AC27): merge is Brokk's.
 export const DeveloperOps = ["edit", "retype", "remove", "link", "unlink"];
 
-// The operations of later stories (#2249, #2250): skipped, not a reason to drop the block.
-export const LaterOps = ["propose", "conclude", "remember"];
+// The operations of later stories (#2249): skipped, not a reason to drop the block.
+export const LaterOps = ["remember"];
 // The developer said the brainstorm is done (#2285): wavesrv saves it as finished, the graph does not change.
 export const FinishOp = "finish";
-const KnownOps = ["centre", "add", "link", ...QuestionOps, ...LivingOps, ...LaterOps, FinishOp];
+// A clear brainstorm (#2250): his conclusion carries the project brief, his proposal what MoltenTerm may make of it.
+export const ConcludeOp = "conclude";
+export const ProposeOp = "propose";
+const KnownOps = ["centre", "add", "link", ...QuestionOps, ...LivingOps, ...LaterOps, FinishOp, ConcludeOp, ProposeOp];
+
+// The actions a proposal names (DS-BOSS-009); must match pkg/molten/brainstorm/graph.go. MoltenTerm 1.0.0 draws the
+// project's alone: the setup and the hand-off come with #2251, Geargrim's only once DiamondForge offers it.
+export const ProposalActions = ["project", "saasfoundry", "handoff", "newfolder", "geargrim"];
+export type ProposalAction = "project" | "saasfoundry" | "handoff" | "newfolder" | "geargrim";
 
 export type Talk = "project" | "personal";
 
@@ -82,6 +91,9 @@ export type GraphOp = {
     // merge (#2247): the nodes folded into `into`.
     ids?: string[];
     into?: string;
+    // propose: what it offers; conclude: the project brief (#2250).
+    action?: string;
+    brief?: BriefDraft;
 };
 
 export type GraphBlock = { v: number; talk: Talk; ops: GraphOp[] };
@@ -98,6 +110,8 @@ export type BrainstormNode = {
     pos: [number, number, number];
     // The id of the brainstorm a reference node names.
     ref?: string;
+    // What a proposal offers (#2250).
+    action?: ProposalAction;
 };
 
 export type BrainstormLink = { a: string; b: string; why?: string; turn: number };
@@ -224,6 +238,23 @@ export function blockProblem(value: unknown): string {
             case "merge":
                 problem = livingProblem(op);
                 break;
+            case ProposeOp:
+                problem =
+                    idProblem(op.id) ||
+                    idProblem(op.from) ||
+                    (ProposalActions.includes(op.action) ? "" : "unknown action") ||
+                    textProblem(op.text);
+                break;
+            case ConcludeOp: {
+                const brief = op.brief == null ? "" : briefProblem(op.brief);
+                problem =
+                    idProblem(op.id) ||
+                    (op.from == null || op.from === "" ? "" : idProblem(op.from)) ||
+                    textProblem(op.text) ||
+                    (op.brief == null ? "no brief" : "") ||
+                    (brief === "" ? "" : `brief ${brief}`);
+                break;
+            }
             default:
                 problem = LaterOps.includes(op.op) ? "" : "unknown operation";
         }

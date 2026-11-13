@@ -14,6 +14,7 @@ import { BossBubbleModel } from "../boss/boss-store";
 import { BrokkSession } from "../boss/brokk-session";
 import { getLocale } from "../i18n/i18n";
 import { loadBrainstorm } from "./brainstorm-boot";
+import type { BriefDraft } from "./brainstorm-brief-model";
 import { GraphFence, GraphOp } from "./brainstorm-graph-model";
 import { BrainstormModel, focusTalkField } from "./brainstorm-store";
 
@@ -27,6 +28,48 @@ const fork = (title: string, reason: string): GraphOp => ({ op: "fork", title, r
 // He prunes what the talk made obsolete (#2247): the layer offers Undo for his removal.
 const remove = (id: string, reason: string): GraphOp => ({ op: "remove", id, reason });
 const retype = (id: string, kind: string): GraphOp => ({ op: "retype", id, kind });
+// The first pass is clear (#2250): his conclusion with its brief, and his proposal to make it a project.
+const conclude = (id: string, text: string, brief: BriefDraft): GraphOp => ({ op: "conclude", id, text, brief });
+const propose = (id: string, text: string, from: string): GraphOp => ({
+    op: "propose",
+    id,
+    text,
+    from,
+    action: "project",
+});
+
+const ReplayBriefs: Record<"en" | "fr", BriefDraft> = {
+    en: {
+        name: "Safe Kids Videos",
+        slug: "safe-kids-videos",
+        pitch: "A video app where parents validate every video their child can watch.",
+        problem: "The video apps for children recommend and play what nobody chose.",
+        users: "Parents of children from 3 to 10, on a tablet.",
+        scope: {
+            in: ["A list of videos the parents validate", "Tablet first"],
+            out: ["Ads", "Automatic recommendations"],
+        },
+        stack: [],
+        firststep: "Sketch the parents' validation flow.",
+        openquestions: ["How do parents find the videos to validate?"],
+        language: "en",
+    },
+    fr: {
+        name: "Vidéos sûres pour enfants",
+        slug: "videos-sures-enfants",
+        pitch: "Une app vidéo où les parents valident chaque vidéo que l'enfant peut voir.",
+        problem: "Les apps vidéo pour enfants recommandent et jouent ce que personne n'a choisi.",
+        users: "Les parents d'enfants de 3 à 10 ans, sur tablette.",
+        scope: {
+            in: ["Une liste de vidéos validées par les parents", "La tablette d'abord"],
+            out: ["La pub", "Les recommandations automatiques"],
+        },
+        stack: [],
+        firststep: "Esquisser le parcours de validation des parents.",
+        openquestions: ["Comment les parents trouvent-ils les vidéos à valider ?"],
+        language: "fr",
+    },
+};
 
 export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
     en: [
@@ -84,9 +127,10 @@ export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
         },
         {
             you: "That's it, I think. And games would need parental control too.",
-            line: "The idea is clear: a first pass is ready. Parental control for games is another project: shall I open its own folder?",
+            line: "The idea is clear: a first pass is ready, and we can make it a project. Parental control for games is another project: shall I open its own folder?",
             ops: [
-                add("first-pass", "conclusion", "Clear idea: a first pass is ready", "kids-video"),
+                conclude("first-pass", "Clear idea: a first pass is ready", ReplayBriefs.en),
+                propose("make-it", "Make it a project", "first-pass"),
                 fork("Parental control for games", "games are another product than videos"),
             ],
         },
@@ -149,7 +193,8 @@ export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
             line: "L'idée est claire : une première passe est prête. Le contrôle parental pour les jeux, c'est un autre projet : je lui ouvre son propre dossier ?",
             ops: [
                 fork("Contrôle parental pour les jeux", "les jeux sont un autre produit que les vidéos"),
-                add("premiere-passe", "conclusion", "Idée claire : première passe prête", "app-video-enfants"),
+                conclude("premiere-passe", "Idée claire : première passe prête", ReplayBriefs.fr),
+                propose("en-faire-un-projet", "En faire un projet", "premiere-passe"),
             ],
         },
     ],

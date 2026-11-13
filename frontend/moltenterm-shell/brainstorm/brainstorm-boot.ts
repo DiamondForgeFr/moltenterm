@@ -12,6 +12,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, PrimitiveAtom } from "jotai";
 import { BrokkSession } from "../boss/brokk-session";
 import { currentBrainstormAllowed } from "../build/current-build";
+import type { ProjectBrief } from "./brainstorm-brief-model";
 import { hasGraphFence } from "./brainstorm-fence";
 import type { BrainstormGraph } from "./brainstorm-graph-model";
 
@@ -33,6 +34,10 @@ export const ForkCommand = "moltenbrainstormfork";
 export const EditCommand = "moltenbrainstormedit";
 export const UndoCommand = "moltenbrainstormundo";
 export const ToldCommand = "moltenbrainstormtold";
+// The project of a clear brainstorm (#2250); must match pkg/molten/brainstorm/project.go.
+export const ProjectPreviewCommand = "moltenbrainstormprojectpreview";
+export const ProjectCreateCommand = "moltenbrainstormprojectcreate";
+export const ProjectLinkedCommand = "moltenbrainstormprojectlinked";
 export const BrainstormEvent = "molten:brainstorm";
 
 export const CallTimeoutMs = 8000;
@@ -47,7 +52,12 @@ export type BrainstormSummary = {
     updated: number;
     state?: string;
     turns: number;
+    // The project folder it became, and the workspace that folder was linked to (#2250).
+    promotedto?: Promotion;
 };
+
+// must match pkg/molten/brainstorm/store.go
+export type Promotion = { dir: string; workspace?: string; at: number };
 
 export type BrainstormState = {
     allowed: boolean;
@@ -68,6 +78,10 @@ export type BrainstormState = {
     saveerror?: string;
     // The brainstorm's last operations, who made each, and whether each can be put back (#2247).
     history?: HistoryNote[];
+    // The project brief of Brokk's conclusion (#2250).
+    brief?: ProjectBrief;
+    // DiamondForge offers the hand-off to Geargrim: never in MoltenTerm 1.0.0 (FR-BOSS-010 AC14).
+    geargrim?: boolean;
 };
 
 // must match pkg/molten/brainstorm/history.go

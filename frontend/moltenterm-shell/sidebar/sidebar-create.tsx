@@ -6,57 +6,24 @@
 // it. Its colours are the short version of the edit sheet's palette, and "More colours" opens the sheet's own Colour
 // field. The workspace editor keeps everything else (icon, image, project details) for later.
 
-import { WorkspaceService } from "@/app/store/services";
-import { makeORef } from "@/app/store/wos";
-import { RpcApi } from "@/app/store/wshclientapi";
-import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useId, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { colourChoiceCss, colourChoiceForeground, colourStops } from "../workspace-colour";
+import { createWorkspace } from "../workspace-create";
 import { colourName } from "../workspace-edit-model";
 import { ColourField } from "../workspace-edit-sheet";
 import { folderIconSource, workspaceImageUrl } from "../workspace-icon";
 import { logoPalette } from "../workspace-logo-palette";
-import {
-    chooseMoltentermPath,
-    findProjectLogos,
-    linkWorkspaceProject,
-    resolveProjectDir,
-    setWorkspaceGradient,
-} from "../workspace-project-store";
+import { chooseMoltentermPath, findProjectLogos, resolveProjectDir } from "../workspace-project-store";
 import { CreateDraft, logoDefaultColour, pendingLetter, shortRow, typeSuggestions } from "./sidebar-create-model";
-import { ProjectTypeMetaKey } from "./sidebar-model";
 import { SidebarModel } from "./sidebar-store";
 import { switchFromSidebar } from "./sidebar-switch";
 
 const FieldClass =
     "mt-1 w-full min-w-0 rounded-4 border border-white/15 bg-black/25 px-2 py-1.5 text-12 text-primary outline-none placeholder:text-muted focus:border-white/40";
 const LabelClass = "flex flex-col text-11 text-secondary";
-
-async function createWorkspace(draft: CreateDraft): Promise<string> {
-    // A gradient is stored as the sheet stores it (accent.ts): its first stop as the colour, its stops in the meta.
-    const stops = colourStops(draft.colour);
-    const id = await WorkspaceService.CreateWorkspace(draft.name.trim(), "", stops[0] ?? "", true);
-    if (!id) {
-        throw new Error("no workspace id");
-    }
-    if (stops.length > 1) {
-        await setWorkspaceGradient(id, stops.join(","));
-    }
-    const type = draft.type.trim();
-    if (type) {
-        await RpcApi.SetMetaCommand(TabRpcClient, {
-            oref: makeORef("workspace", id),
-            meta: { [ProjectTypeMetaKey]: type } as MetaType,
-        });
-    }
-    if (draft.folder) {
-        await linkWorkspaceProject({ oid: id } as Workspace, draft.folder);
-    }
-    return id;
-}
 
 // Keys typed in the form stay in it: the window's shortcuts (⌘S, ⌥1…) would act behind it.
 function keepKeys(e: React.KeyboardEvent) {

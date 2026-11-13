@@ -111,8 +111,54 @@ describe("the brokk-graph block", () => {
     });
 
     it("skips the operations of later stories rather than dropping the block", () => {
+        expect(
+            blockProblem({ v: 1, talk: "project", ops: [{ op: "remember", text: "Likes forge-city stories" }] })
+        ).toBe("");
+        expect(
+            blockProblem({
+                v: 1,
+                talk: "project",
+                ops: [{ op: "propose", id: "p", text: "Hand it on", from: "c", action: "handoff" }],
+            })
+        ).toBe("");
+    });
+
+    // FR-BOSS-010 AC14, AC15 (#2250): his conclusion carries a valid brief, his proposal a known action, as wavesrv
+    // checks them (pkg/molten/brainstorm/graph.go); a bad one drops the block, its reason quoting nothing of it.
+    it("checks his conclusion's brief and his proposal's action", () => {
+        const brief = {
+            name: "Forge Notes",
+            slug: "forge-notes",
+            pitch: "A notebook that keeps a workshop's decisions.",
+            problem: "Decisions made at the bench are lost.",
+            users: "A small team of makers.",
+        };
+        const ok = { op: "conclude", id: "first-pass", text: "Clear idea", brief };
+        expect(
+            blockProblem({
+                v: 1,
+                talk: "project",
+                ops: [ok, { op: "propose", id: "p", text: "Make it a project", from: "first-pass", action: "project" }],
+            })
+        ).toBe("");
+        expect(blockProblem({ v: 1, talk: "project", ops: [{ ...ok, brief: undefined }] })).toBe(
+            "operation 1 (conclude): no brief"
+        );
+        expect(
+            blockProblem({ v: 1, talk: "project", ops: [{ ...ok, brief: { ...brief, slug: "My secret slug" } }] })
+        ).toBe("operation 1 (conclude): brief slug: invalid");
+        expect(blockProblem({ v: 1, talk: "project", ops: [{ ...ok, from: "Not An Id" }] })).toBe(
+            "operation 1 (conclude): invalid id"
+        );
+        expect(
+            blockProblem({
+                v: 1,
+                talk: "project",
+                ops: [{ op: "propose", id: "p", text: "x", from: "c", action: "rockets" }],
+            })
+        ).toBe("operation 1 (propose): unknown action");
         expect(blockProblem({ v: 1, talk: "project", ops: [{ op: "propose", id: "p", text: "x", from: "c" }] })).toBe(
-            ""
+            "operation 1 (propose): unknown action"
         );
     });
 

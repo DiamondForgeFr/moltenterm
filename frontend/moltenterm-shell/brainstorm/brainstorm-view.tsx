@@ -5,7 +5,8 @@
 // window under Brokk's group (the group stands above it, in its brainstorm layout), the forge glows at the bottom with
 // its embers, and his thought grows in 3D in the free space. A line at the edge says what was critical enough to break
 // through the pause. Where the brainstorm is saved, the others and Leave are in the brainstorm panel of his group
-// (brainstorm-panel.tsx, AC23, #2285). The app stays visible underneath: it is a layer, not a screen.
+// (brainstorm-panel.tsx, AC23, #2285). Once he concluded, the project card stands at the free space's bottom right
+// (brainstorm-project.tsx, AC15, #2250). The app stays visible underneath: it is a layer, not a screen.
 //
 // It loads on demand, the first time the mode opens (brainstorm-layer.tsx): a window that never brainstorms carries
 // none of it, and the 3D scene comes later still, behind the stage's own import().
@@ -15,6 +16,7 @@ import { cn, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { BossBubbleModel } from "../boss/boss-store";
 import { tCount, useLocale, useT } from "../i18n/i18n";
+import { ProjectCard } from "./brainstorm-project";
 import { BrainstormStage } from "./brainstorm-stage";
 import { BrainstormModel, BrainstormState } from "./brainstorm-store";
 import "./brainstorm.css";
@@ -130,6 +132,7 @@ export function BrainstormView({ state, shown }: { state: BrainstormState; shown
             <BrainstormStage key={state.swap ?? 0} graph={state.graph ?? null} />
             <Header state={state} />
             <Breakthrough />
+            <ProjectCard state={state} />
         </div>
     );
 }

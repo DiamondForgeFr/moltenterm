@@ -787,6 +787,10 @@
                 "label": "Dossier des brainstorms",
                 "description": "Où vos brainstorms avec lui sont enregistrés, un dossier par idée, sans rien demander."
             },
+            "boss:projectsdir": {
+                "label": "Dossier des projets",
+                "description": "Où un brainstorm clair devient un dossier de projet, une fois que vous cliquez pour le créer."
+            },
             "boss:autoapprove": {
                 "label": "Approuver les demandes de son agent sans me demander",
                 "description": "Seul ce qui reste dans son dossier se fait sans demander, chaque action en une ligne ; le reste demande toujours.",
@@ -3273,7 +3277,47 @@
             },
             "state": {
                 "open": "en cours",
-                "done": "terminé"
+                "done": "terminé",
+                "clear": "clair",
+                "promoted": "devenu projet"
+            },
+            "project": {
+                "label": "Faire du brainstorm un projet",
+                "eyebrow": "En faire un projet",
+                "fold": "Replier la carte du projet",
+                "unfold": "Afficher la carte du projet",
+                "waiting": "{name} propose un projet : il attend sa conclusion.",
+                "folder": "Dossier",
+                "change": "Changer…",
+                "chooseParent": "Choisir où vont les projets…",
+                "chooseTitle": "Où vont vos projets",
+                "name": "Nom",
+                "existing": "Le dossier vide déjà présent est utilisé tel quel.",
+                "git": "git y démarre : un nouveau dépôt.",
+                "copy": "Une copie du brainstorm va dans {file} : jamais par-dessus un fichier, et rien n'est commité.",
+                "workspace": "Espace de travail",
+                "newWorkspace": "Un nouvel espace de travail, « {name} »",
+                "create": "Créer {name}",
+                "making": "Création du projet…",
+                "done": "Le projet est prêt.",
+                "linked": "Relié à l'espace de travail « {workspace} ».",
+                "linkedThere": "Relié à son espace de travail.",
+                "notLinked": "Son espace de travail n'est pas encore relié.",
+                "link": "Le relier",
+                "show": "Afficher dans le dossier",
+                "goTo": "Aller à « {workspace} »",
+                "goToThere": "Aller à l'espace de travail",
+                "goToTitle": "Quitte le brainstorm et affiche l'espace de travail",
+                "tryAgain": "Réessayer",
+                "refused": {
+                    "notempty": "Ce dossier existe déjà et n'est pas vide. Choisissez un autre nom.",
+                    "inrepo": "Ce dossier est dans un autre dépôt, dont il cacherait l'historique. Choisissez un autre dossier parent.",
+                    "badname": "Ce nom ne peut pas être un dossier : commencez par une lettre ou un chiffre, puis des lettres, chiffres, points, tirets ou soulignés.",
+                    "noparent": "Choisissez d'abord le dossier où vont vos projets.",
+                    "nobrief": "{name} n'a pas encore conclu le brainstorm.",
+                    "failed": "Ça n'a pas marché : rien n'a été créé.",
+                    "link": "Le projet est créé, mais son espace de travail n'a pas pu être relié."
+                }
             },
             "failed": {
                 "unknown": "Ce brainstorm n'est plus dans le dossier.",
