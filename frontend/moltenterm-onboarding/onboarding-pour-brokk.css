@@ -143,8 +143,9 @@
 .mt-pour-brokk-plate {
     position: absolute;
     transform: translate(-50%, -50%);
-    max-width: 118px;
-    padding: 4px 12px;
+    width: max-content;
+    max-width: 132px;
+    padding: 4px 11px;
     border: 1px solid var(--mt-line-2);
     border-radius: var(--mt-radius-control);
     background: var(--pour-iron-2);
@@ -165,7 +166,7 @@
     height: 3px;
     margin-top: -1.5px;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--pour-temper) 80%, transparent);
+    background: color-mix(in srgb, var(--pour-hot) 75%, transparent);
 }
 
 .mt-pour-brokk-plate::before {
@@ -177,7 +178,7 @@
 }
 
 .mt-pour-brokk-plate[data-centre] {
-    max-width: 140px;
+    max-width: 150px;
     font-size: var(--mt-text-12);
     font-weight: 600;
     border-color: var(--pour-molten);
