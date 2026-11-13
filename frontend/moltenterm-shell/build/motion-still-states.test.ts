@@ -19,6 +19,8 @@ const LoopTokens = new Set(["loop", "spin", "dominoes", "turn", "fade"]);
 // frame a second at most (#473). These loops are the narrow exceptions, each decided by the developer: a smooth loop that
 // is a transform alone on an HTML box (the compositor runs it without a main-thread frame), paused while the window or
 // the view is not active, and stopped under both reduced-motion paths. A loop that is not in this list follows the beat.
+// A loop may name `property` when the one property it animates is not transform: the waiting ring's breathing (#2294),
+// opacity alone like the workspace dot's ring, is proposed with its ticket and waits for the developer's go.
 const SmoothLoops = [
     {
         file: "activity/activity-icon.css",
@@ -28,6 +30,16 @@ const SmoothLoops = [
             "The activity indicator of the title row (FR-BOSS-009 AC85, #2233, decided 2026-11-11): its ring turns like an " +
             "indeterminate download and its flame flickers; at the beat's one step a second they read as ticks, not as " +
             "something running. The flame shares the frames the ring already draws.",
+    },
+    {
+        file: "activity/activity-icon.css",
+        selector: ".mt-act",
+        keyframes: ["mt-act-wait"],
+        property: "opacity",
+        reason:
+            "The same indicator when an agent waits for the developer (#2294): its whole ring breathes in place on the " +
+            "shell's calm loop, opacity alone, as the workspace dot's ring does for the same news (#2265), instead of " +
+            "turning. It shares the pause and the stop of the loops above and never runs together with the turn.",
     },
 ];
 
@@ -109,15 +121,16 @@ describe("reduced motion (NFR-SHELL-027, FR-SHELL-118)", () => {
 });
 
 describe("the smooth loops that are an exception to the working beat", () => {
-    it.each(SmoothLoops)("$file: transform alone, paused when not active, stilled under reduced motion", (loop) => {
+    it.each(SmoothLoops)("$file $keyframes: one property alone, paused when not active, stilled under reduced motion", (loop) => {
         const src = stripCssComments(readFileSync(join(ShellDir, loop.file), "utf8"));
+        const property = loop.property ?? "transform";
         expect(loop.reason.length).toBeGreaterThan(40);
         for (const name of loop.keyframes) {
             const start = src.indexOf(`@keyframes ${name} {`);
             expect(start, name).toBeGreaterThanOrEqual(0);
             const frames = braceBody(src, src.indexOf("{", start));
             const props = [...frames.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]);
-            expect(new Set(props), `${name} animates only transform`).toEqual(new Set(["transform"]));
+            expect(new Set(props), `${name} animates only ${property}`).toEqual(new Set([property]));
             expect(src, name).toMatch(new RegExp(`animation: ${name} [^;]*\\binfinite\\b`));
         }
         expect(src).toMatch(

@@ -11299,14 +11299,17 @@
     },
     "activity": {
         "label": "En cours : {list}",
+        "waitingLabel": "Attend votre réponse : {list}",
         "idle": "Rien ne tourne : les fourneaux sont éteints",
         "popover": {
             "idle": "Les fourneaux sont éteints",
             "one": "En cours",
             "many": "{count} activités en cours",
+            "waiting": "En attente de vous",
             "none": "Aucun agent, build ni CI en cours."
         },
         "group": {
+            "waiting": "Attend votre réponse",
             "agents": {
                 "one": "Agent",
                 "other": "Agents"
@@ -11319,6 +11322,11 @@
         },
         "row": {
             "localCi": "CI locale",
+            "asks": "{name} vous demande quelque chose",
+            "subagents": {
+                "one": "{count} sous-agent",
+                "other": "{count} sous-agents"
+            },
             "pr": "PR #{number}",
             "prChecks": "GitHub · {done}/{total} checks",
             "percent": "{percent} %"
@@ -11326,6 +11334,10 @@
         "agents": {
             "one": "un agent",
             "other": "{count} agents"
+        },
+        "subagents": {
+            "one": "un sous-agent",
+            "other": "{count} sous-agents"
         },
         "builds": {
             "one": "un build",
@@ -11340,6 +11352,7 @@
             "other": "CI des PR {numbers}"
         },
         "open": {
+            "waiting": "Cliquez pour répondre à l'agent",
             "agent": "Cliquez pour aller à l'agent",
             "build": "Cliquez pour ouvrir le projet",
             "localCi": "Cliquez pour ouvrir la CI locale",

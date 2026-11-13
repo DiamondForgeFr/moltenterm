@@ -11299,14 +11299,17 @@
     },
     "activity": {
         "label": "Running now: {list}",
+        "waitingLabel": "Waits for you: {list}",
         "idle": "Nothing is running: the furnaces are out",
         "popover": {
             "idle": "The furnaces are out",
             "one": "Running",
             "many": "{count} things running",
+            "waiting": "Waiting for you",
             "none": "No agent, build or CI is running."
         },
         "group": {
+            "waiting": "Waits for you",
             "agents": {
                 "one": "Agent",
                 "other": "Agents"
@@ -11321,11 +11324,20 @@
             "localCi": "Local CI",
             "pr": "PR #{number}",
             "prChecks": "GitHub · {done}/{total} checks",
-            "percent": "{percent} %"
+            "percent": "{percent} %",
+            "asks": "{name} asks you something",
+            "subagents": {
+                "one": "{count} sub-agent",
+                "other": "{count} sub-agents"
+            }
         },
         "agents": {
             "one": "an agent",
             "other": "{count} agents"
+        },
+        "subagents": {
+            "one": "a sub-agent",
+            "other": "{count} sub-agents"
         },
         "builds": {
             "one": "a build",
@@ -11340,6 +11352,7 @@
             "other": "CI of PRs {numbers}"
         },
         "open": {
+            "waiting": "Click to answer the agent",
             "agent": "Click to go to the agent",
             "build": "Click to open the project",
             "localCi": "Click to open the local CI",

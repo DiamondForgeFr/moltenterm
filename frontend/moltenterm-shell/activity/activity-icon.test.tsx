@@ -57,7 +57,7 @@ function item(id: string, kind: ActivityItem["kind"], more: Partial<ActivityItem
         kind,
         startedat: 1000,
         target: { type: "build", dir: "/work/p" },
-        about: { title: id, detail: "", progress: -1, done: 0, total: 0 },
+        about: { title: id, detail: "", progress: -1, done: 0, total: 0, subagents: 0 },
         ...more,
     };
 }
@@ -157,7 +157,7 @@ describe("the one smooth loop of the title row", () => {
     });
 
     it("animates nothing when idle: no loop outside the running and lit states", () => {
-        expect(css.match(/infinite/g)).toHaveLength(2);
+        expect(css.match(/infinite/g)).toHaveLength(3);
         expect(iconSrc).not.toMatch(/setInterval|requestAnimationFrame|useWorkingBeat/);
     });
 });
@@ -177,7 +177,7 @@ describe("the detail by group", () => {
             item("Flore", "agent", {
                 startedat: 1000,
                 target: { type: "agent", blockid: "b1" },
-                about: { title: "Flore", detail: "fixing #2233", progress: -1, done: 0, total: 0 },
+                about: { title: "Flore", detail: "fixing #2233", progress: -1, done: 0, total: 0, subagents: 0 },
             }),
             item("local", "ci", { startedat: 2000, target: { type: "local-ci", dir: "/work/p" } }),
             item("Gold", "build", { startedat: 3000 }),
@@ -198,6 +198,97 @@ describe("the detail by group", () => {
         expect(iconSrc).toMatch(/uppercase/);
         const groups = activityGroups(summarizeActivity([item("Gold", "build")]), words);
         expect(groups[0].title).toBe("activity.group.builds:1");
+    });
+});
+
+describe("an agent that waits for the developer (#2294)", () => {
+    const waiting = {
+        id: "waiting:b1",
+        name: "Flore",
+        place: "Cadrage",
+        detail: "",
+        since: 1000,
+        target: { type: "agent" as const, blockid: "b1", tabid: "t1", workspaceid: "ws-1" },
+    };
+
+    it("draws the agent's icon in a complete ring, without the running arc, when nothing runs", () => {
+        const html = renderToStaticMarkup(<ActivityMark glyph="wait" waits />);
+        expect(html).toContain("fa-sparkles");
+        expect(html).toContain("mt-act-track");
+        expect(html).not.toContain("mt-act-arc");
+        expect(html).not.toContain("mt-act-pip");
+    });
+
+    it("keeps the running drawing and puts the waiting state's haloed dot on the corner when something runs too", () => {
+        const html = renderToStaticMarkup(<ActivityMark glyph="build" waits />);
+        expect(html).toContain("mt-act-arc");
+        expect(html).toContain("fa-hammer");
+        expect(html).toContain("mt-act-pip");
+        expect(renderToStaticMarkup(<ActivityMark glyph="build" />)).not.toContain("mt-act-pip");
+        const pip = ruleBody(".mt-act-pip");
+        expect(pip).toContain("background: var(--mt-state-waiting)");
+        expect(pip).toMatch(/box-shadow: 0 0 0 2px color-mix\(in srgb, var\(--mt-state-waiting\) 30%, transparent\)/);
+        expect(pip).toContain("pointer-events: none");
+    });
+
+    it("takes the waiting state colour of the heat scale: never the action orange, never the running colour", () => {
+        expect(ruleBody('.mt-act[data-state="waiting"]')).toContain("color: var(--mt-state-waiting)");
+        const track = ruleBody('.mt-act[data-state="waiting"] .mt-act-track');
+        expect(track).toContain("stroke: var(--mt-state-waiting)");
+        for (const selector of [
+            '.mt-act[data-state="waiting"]',
+            '.mt-act[data-state="waiting"] .mt-act-track',
+            ".mt-act-pip",
+        ]) {
+            expect(ruleBody(selector), selector).not.toMatch(/--mt-action|--mt-state-running|--mt-state-blocked/);
+        }
+        const tokens = readFileSync(`${dir}../tokens.css`, "utf8");
+        expect(tokens).toMatch(/--mt-state-waiting: #b59cf5/);
+    });
+
+    it("breathes in place, opacity alone, on the shell's calm loop, as the workspace dot's ring does", () => {
+        const ring = ruleBody('.mt-act[data-state="waiting"] .mt-act-ring');
+        expect(ring).toContain("animation: mt-act-wait var(--mt-duration-loop) ease-in-out infinite");
+        expect(ring).toContain("will-change: opacity");
+        const start = css.indexOf("@keyframes mt-act-wait {");
+        expect(start).toBeGreaterThanOrEqual(0);
+        const frames = css.slice(start, css.indexOf("\n}\n", start));
+        expect(new Set([...frames.matchAll(/^\s+([a-z-]+):/gm)].map((x) => x[1]))).toEqual(new Set(["opacity"]));
+        expect(css).not.toMatch(/mt-act-pip[^}]*animation/);
+        const dot = readFileSync(`${dir}../sidebar/sidebar.css`, "utf8");
+        expect(dot).toMatch(/animation: mt-sb-ring var\(--mt-duration-loop\) ease-in-out infinite/);
+    });
+
+    it("lists the agents that wait first, under their own heading in the waiting colour, and goes to the agent", () => {
+        const summary = summarizeActivity([item("Gold", "build", { startedat: 3000 })], [waiting]);
+        const html = renderToStaticMarkup(<ActivityPopoverBody summary={summary} words={words} onGo={() => {}} />);
+        expect(html.indexOf("activity-group-waiting")).toBeLessThan(html.indexOf("activity-group-builds"));
+        expect(html).toContain("activity.group.waiting");
+        expect(html).toContain("text-[var(--mt-state-waiting)]");
+        expect(html).toContain("activity.row.asks{&quot;name&quot;:&quot;Flore&quot;}");
+        expect(html).toContain(" · Cadrage");
+        expect(html).toContain('title="activity.open.waiting"');
+        expect(html).not.toContain("activity.popover.none");
+    });
+
+    it("says it waits for you, and not that the furnaces are out, when only an agent waits", () => {
+        const summary = summarizeActivity([], [waiting]);
+        const html = renderToStaticMarkup(<ActivityPopoverBody summary={summary} words={words} onGo={() => {}} />);
+        expect(html).toContain("activity.popover.waiting");
+        expect(html).not.toContain("activity.popover.idle");
+        expect(html).not.toContain("activity.popover.none");
+        expect(html.match(/data-testid="activity-row"/g)).toHaveLength(1);
+    });
+
+    it("sets the state of the slot from the glyph, and flags a waiting agent beside a running item", () => {
+        expect(iconSrc).toContain('data-state={glyph === "wait" ? "waiting" : summary.count > 0 ? "running" : "idle"}');
+        expect(iconSrc).toContain('data-waiting={summary.waiting.length > 0 ? "true" : undefined}');
+        expect(iconSrc).toContain("<ActivityMark glyph={glyph} waits={summary.waiting.length > 0} />");
+    });
+
+    it("opens the agent's pane on a click on its row", async () => {
+        await openActivity(waiting.target);
+        expect(m.went).toEqual(["agent:b1"]);
     });
 });
 
