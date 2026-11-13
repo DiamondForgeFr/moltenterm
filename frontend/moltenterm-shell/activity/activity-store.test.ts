@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The activity source over the stores it reads (FR-BOSS-009, AC85; FR-SHELL-122, #2233): it follows the agent states,
-// the running work and the Integration panel's answers for the workspace's projects, keeps the same summary while the
-// same items run, holds the work reading while a reader shows, and starts no timer of its own.
+// The activity source over the stores it reads (FR-BOSS-009, AC85; FR-SHELL-122, #2233, #2294): it follows the agent
+// states, the running work, the Integration panel's answers and its upcoming work (where the sub-agents are listed) for
+// the workspace's projects, keeps the same summary while the same items run, holds the readings while a reader shows,
+// and starts no timer of its own.
 
 import { readFileSync } from "fs";
 import type { PrimitiveAtom } from "jotai";
@@ -17,7 +18,26 @@ const m = vi.hoisted(() => ({
     workspace: null as PrimitiveAtom<unknown>,
     agents: null as PrimitiveAtom<unknown>,
     work: null as PrimitiveAtom<unknown>,
+    tabs: null as PrimitiveAtom<Record<string, unknown>>,
     watching: 0,
+    upcomingWatching: 0,
+}));
+
+vi.mock("@/app/store/wos", async () => {
+    const jotai = await import("jotai");
+    m.tabs = jotai.atom({}) as PrimitiveAtom<Record<string, unknown>>;
+    return {
+        makeORef: (otype: string, oid: string) => `${otype}:${oid}`,
+        getWaveObjectAtom: (oref: string) => jotai.atom((get) => get(m.tabs)[oref]),
+    };
+});
+vi.mock("./activity-upcoming", () => ({
+    watchActivityUpcoming: () => {
+        m.upcomingWatching++;
+        return () => {
+            m.upcomingWatching--;
+        };
+    },
 }));
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
@@ -50,7 +70,8 @@ vi.mock("../running-work", async () => {
 });
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
+import { SharedReviewsAnswersAtom, SharedUpcomingAnswersAtom } from "../reviews/reviews-state-atoms";
+import type { BranchAgent, UpcomingAnswer } from "../reviews/reviews-upcoming-model";
 import { ActivitySource, activityDirs, activityFolders } from "./activity-store";
 
 const src = readFileSync(fileURLToPath(new URL("./activity-store.ts", import.meta.url)), "utf8");
@@ -107,6 +128,23 @@ function setAnswers(answers: Record<string, ReviewsAnswer>) {
     globalStore.set(SharedReviewsAnswersAtom, answers);
 }
 
+function subagent(parent: string, state: BranchAgent["state"], more: Partial<BranchAgent> = {}): BranchAgent {
+    return {
+        branch: "",
+        worktree: "",
+        kind: "subagent",
+        parentblockid: parent,
+        state,
+        agentid: `${parent}-${state}-${more.description ?? ""}`,
+        ...more,
+    };
+}
+
+function setUpcoming(dir: string, ...agents: BranchAgent[]) {
+    const answer: UpcomingAnswer = { dir, branches: [], agents, at: Date.now() };
+    globalStore.set(SharedUpcomingAnswersAtom, { ...globalStore.get(SharedUpcomingAnswersAtom), [dir]: answer });
+}
+
 function summary() {
     return globalStore.get(ActivitySource.getInstance().summaryAtom);
 }
@@ -114,7 +152,10 @@ function summary() {
 beforeEach(() => {
     ActivitySource.resetInstance();
     m.watching = 0;
+    m.upcomingWatching = 0;
     globalStore.set(m.workspace, workspace([Dir]));
+    globalStore.set(m.tabs, {});
+    globalStore.set(SharedUpcomingAnswersAtom, {});
     setAgents();
     setWork();
     setAnswers({});
@@ -205,7 +246,122 @@ describe("the activity source", () => {
         stop();
         expect(m.watching).toBe(0);
     });
+});
 
+describe("the sub-agents of the workspace's agents (#2294)", () => {
+    it("runs while an idle lead's two background sub-agents work, and goes out when they stop", () => {
+        setAgents(agent("lead", "idle", 10));
+        expect(summary().count).toBe(0);
+        setUpcoming(
+            Dir,
+            subagent("lead", "running", { description: "a" }),
+            subagent("lead", "running", { description: "b" })
+        );
+        expect(summary().count).toBe(1);
+        expect(summary().subagents).toBe(2);
+        expect(summary().items[0].id).toBe("agent:lead");
+        expect(globalStore.get(ActivitySource.getInstance().countAtom)).toBe(1);
+        expect(globalStore.get(ActivitySource.getInstance().busyAtom)).toBe(true);
+        setUpcoming(
+            Dir,
+            subagent("lead", "done", { description: "a" }),
+            subagent("lead", "quiet", { description: "b" })
+        );
+        expect(summary().count).toBe(0);
+        expect(globalStore.get(ActivitySource.getInstance().busyAtom)).toBe(false);
+    });
+
+    it("counts the sub-agents of the projects of the workspace only, and one that every project lists once", () => {
+        setAgents(agent("lead", "idle", 10));
+        globalStore.set(m.workspace, workspace([Dir, Other]));
+        const shared = subagent("lead", "running", { agentid: "same", description: "reviewer" });
+        setUpcoming(Dir, shared);
+        setUpcoming(Other, shared);
+        setUpcoming("/work/elsewhere", subagent("lead", "running", { agentid: "far" }));
+        expect(summary().subagents).toBe(1);
+    });
+
+    it("leaves out the sub-agents of another workspace's lead, and of a lead the agent states do not hold", () => {
+        setAgents({ ...agent("far", "idle", 10), workspaceid: "ws-b" });
+        setUpcoming(Dir, subagent("far", "running"), subagent("gone", "running"));
+        expect(summary().count).toBe(0);
+        expect(summary().subagents).toBe(0);
+    });
+
+    it("counts a working lead once, with its sub-agents", () => {
+        setAgents(agent("lead", "working", 10));
+        setUpcoming(
+            Dir,
+            subagent("lead", "running", { description: "a" }),
+            subagent("lead", "running", { description: "b" })
+        );
+        expect(summary().count).toBe(1);
+        expect(summary().subagents).toBe(2);
+    });
+});
+
+describe("what waits for the developer (#2294)", () => {
+    it("holds the waiting agents of the workspace beside what runs, and counts none of them as running", () => {
+        setAgents(
+            { ...agent("ask", "waiting", 5), since: 100, firstname: "Flore", tabid: "t1" },
+            { ...agent("far", "waiting", 5), workspaceid: "ws-b", tabid: "t2" }
+        );
+        globalStore.set(m.tabs, { "tab:t1": { name: "Cadrage" }, "tab:t2": { name: "Elsewhere" } });
+        expect(summary().count).toBe(0);
+        expect(summary().waiting.map((w) => [w.name, w.place])).toEqual([["Flore", "Cadrage"]]);
+        expect(globalStore.get(ActivitySource.getInstance().countAtom)).toBe(0);
+    });
+
+    it("shows both at once: a build runs and an answer is awaited", () => {
+        setAgents({ ...agent("ask", "waiting", 5), tabid: "t1" });
+        setWork({ kind: "build" });
+        expect(summary().count).toBe(1);
+        expect(summary().waiting).toHaveLength(1);
+    });
+
+    it("follows the shown name of the tab when it changes", () => {
+        setAgents({ ...agent("ask", "waiting", 5), tabid: "t1" });
+        globalStore.set(m.tabs, { "tab:t1": { name: "Cadrage" } });
+        expect(summary().waiting[0].place).toBe("Cadrage");
+        globalStore.set(m.tabs, { "tab:t1": { name: "Review" } });
+        expect(summary().waiting[0].place).toBe("Review");
+    });
+});
+
+describe("the upcoming work's reading (#2294)", () => {
+    it("is held once for all the readers, and let go with the last", () => {
+        const source = ActivitySource.getInstance();
+        const first = source.watch();
+        const second = source.watch();
+        expect(m.upcomingWatching).toBe(1);
+        expect(m.watching).toBe(2);
+        first();
+        first();
+        expect(m.upcomingWatching).toBe(1);
+        second();
+        expect(m.upcomingWatching).toBe(0);
+        expect(m.watching).toBe(0);
+    });
+
+    it("depends on the workspace's projects and open agents, and is worth asking only with an agent open", () => {
+        const source = ActivitySource.getInstance();
+        const key = () => globalStore.get(source.upcomingKeyAtom);
+        expect(globalStore.get(source.openAgentAtom)).toBe(false);
+        const empty = key();
+        setAgents(agent("lead", "idle", 10));
+        expect(globalStore.get(source.openAgentAtom)).toBe(true);
+        const withLead = key();
+        expect(withLead).not.toBe(empty);
+        setAgents({ ...agent("lead", "working", 10), version: 5, message: "reading" });
+        expect(key()).toBe(withLead);
+        globalStore.set(m.workspace, workspace([Dir, Other]));
+        expect(key()).not.toBe(withLead);
+        setAgents({ ...agent("lead", "idle", 10), own: true });
+        expect(globalStore.get(source.openAgentAtom)).toBe(false);
+    });
+});
+
+describe("the source's own calls", () => {
     it("asks for nothing: no timer, no interval, no call of its own", () => {
         for (const text of [src, modelSrc]) {
             expect(text).not.toMatch(/setInterval|setTimeout|\.every\(|wshRpcCall|TabActivity/);

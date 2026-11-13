@@ -8,13 +8,14 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
-import { atom, PrimitiveAtom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 import type { AgentStatesData } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { MissionRouteId } from "../mission/mission-client";
 import { useAskWhenShown } from "../shown-ask";
 import type { ReviewsAnswer } from "./reviews-model";
+import { SharedUpcomingAnswersAtom } from "./reviews-state-atoms";
 import { UpcomingAnswer, UpcomingCommand } from "./reviews-upcoming-model";
 
 const UpcomingRpcTimeoutMs = 30000;
@@ -22,7 +23,7 @@ const UpcomingRpcTimeoutMs = 30000;
 export class UpcomingAnswers {
     private static instance: UpcomingAnswers = null;
 
-    answersAtom = atom({}) as PrimitiveAtom<Record<string, UpcomingAnswer>>;
+    answersAtom = SharedUpcomingAnswersAtom;
 
     private constructor() {}
 
@@ -35,6 +36,7 @@ export class UpcomingAnswers {
 
     static resetInstance(): void {
         UpcomingAnswers.instance = null;
+        globalStore.set(SharedUpcomingAnswersAtom, {});
     }
 
     store(answer: UpcomingAnswer) {

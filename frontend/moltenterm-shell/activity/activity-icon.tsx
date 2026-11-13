@@ -1,9 +1,11 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The activity indicator of the title row (FR-BOSS-009, AC85, #2233): a 28 px slot on the left of Brokk's face that says
-// what runs, from the activity source. Nothing runs: the flame put out. One item runs: the icon of its panel in a ring
-// that turns. Several run: the flame lit in the same ring. Hovering it opens the detail by group, a click or Enter
+// The activity indicator of the title row (FR-BOSS-009, AC85, #2233, #2294): a 28 px slot on the left of Brokk's face
+// that says what runs, from the activity source. Nothing runs: the flame put out. One item runs: the icon of its panel
+// in a ring that turns. Several run: the flame lit in the same ring. An agent that waits for the developer is a state of
+// its own: the agent's icon in a complete ring that breathes, in the waiting colour; when something runs too, the
+// running drawing stays and a haloed dot sits on the corner. Hovering it opens the detail by group, a click or Enter
 // holds the detail open, and a click on a row goes to that item's place. The drawing is in activity-icon.css.
 
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
@@ -25,7 +27,6 @@ import {
     ActivitySummary,
     ActivityTarget,
     activityTexts,
-    activityWhereKey,
     ActivityWords,
 } from "./activity-model";
 import { openActivity } from "./activity-open";
@@ -34,9 +35,11 @@ import { useActivity } from "./activity-store";
 export const ActivityOpenDelayMs = 150;
 export const ActivityCloseDelayMs = 250;
 
-// The ring and the glyph: a 28 px box, the ring 24 px across, the glyph centred in it.
-export function ActivityMark({ glyph }: { glyph: ActivityGlyph }) {
-    const running = glyph !== "idle";
+// The ring and the glyph: a 28 px box, the ring 24 px across, the glyph centred in it. An agent that waits while
+// something runs has the waiting state's haloed dot on the corner (waits); with nothing running the ring itself is the
+// mark (the "wait" glyph: a complete ring, no arc).
+export function ActivityMark({ glyph, waits = false }: { glyph: ActivityGlyph; waits?: boolean }) {
+    const running = glyph !== "idle" && glyph !== "wait";
     return (
         <>
             <svg className="mt-act-ring" viewBox="0 0 28 28" aria-hidden data-testid="activity-ring">
@@ -44,6 +47,7 @@ export function ActivityMark({ glyph }: { glyph: ActivityGlyph }) {
                 {running ? <circle className="mt-act-arc" cx="14" cy="14" r="12" /> : null}
             </svg>
             <i className={cn(makeIconClass(ActivityGlyphIcons[glyph], true), "mt-act-glyph")} aria-hidden />
+            {waits && running ? <span className="mt-act-pip" aria-hidden data-testid="activity-pip" /> : null}
         </>
     );
 }
@@ -66,33 +70,33 @@ export function ActivityPopoverBody({
             </div>
             {groups.map((group) => (
                 <div key={group.id} className="mt-2.5 flex flex-col gap-0.5" data-testid={`activity-group-${group.id}`}>
-                    <div className="pb-0.5 text-11 font-medium tracking-[0.06em] text-muted uppercase">
+                    <div
+                        className={cn(
+                            "pb-0.5 text-11 font-medium tracking-[0.06em] uppercase",
+                            group.id === "waiting" ? "text-[var(--mt-state-waiting)]" : "text-muted"
+                        )}
+                    >
                         {group.title}
                     </div>
-                    {group.rows.map((row) => {
-                        const whereKey = activityWhereKey(row.target);
-                        return (
-                            <button
-                                key={row.id}
-                                type="button"
-                                className="-mx-1.5 flex cursor-pointer items-baseline justify-between gap-2.5 rounded-4 px-1.5 py-[3px] text-left text-12 text-primary transition-colors duration-120 ease-mt hover:bg-hover"
-                                title={whereKey ? words.t(whereKey) : undefined}
-                                data-testid="activity-row"
-                                onClick={() => onGo(row)}
-                            >
-                                <span className="min-w-0 truncate">
-                                    {row.what}
-                                    {row.detail ? <span className="text-secondary">{` · ${row.detail}`}</span> : null}
-                                </span>
-                                <span className="shrink-0 whitespace-nowrap text-secondary tabular-nums">
-                                    {row.since}
-                                </span>
-                            </button>
-                        );
-                    })}
+                    {group.rows.map((row) => (
+                        <button
+                            key={row.id}
+                            type="button"
+                            className="-mx-1.5 flex cursor-pointer items-baseline justify-between gap-2.5 rounded-4 px-1.5 py-[3px] text-left text-12 text-primary transition-colors duration-120 ease-mt hover:bg-hover"
+                            title={row.whereKey ? words.t(row.whereKey) : undefined}
+                            data-testid="activity-row"
+                            onClick={() => onGo(row)}
+                        >
+                            <span className="min-w-0 truncate">
+                                {row.what}
+                                {row.detail ? <span className="text-secondary">{` · ${row.detail}`}</span> : null}
+                            </span>
+                            <span className="shrink-0 whitespace-nowrap text-secondary tabular-nums">{row.since}</span>
+                        </button>
+                    ))}
                 </div>
             ))}
-            {summary.count === 0 ? (
+            {summary.count === 0 && summary.waiting.length === 0 ? (
                 <div className="mt-2.5 text-12 text-secondary" data-testid="activity-popover-none">
                     {words.t("activity.popover.none")}
                 </div>
@@ -242,7 +246,8 @@ export function ActivityIcon() {
                 type="button"
                 className="mt-act rounded-6 transition-colors duration-120 ease-mt hover:bg-hover"
                 data-testid="activity-icon"
-                data-state={summary.count > 0 ? "running" : "idle"}
+                data-state={glyph === "wait" ? "waiting" : summary.count > 0 ? "running" : "idle"}
+                data-waiting={summary.waiting.length > 0 ? "true" : undefined}
                 data-glyph={glyph}
                 aria-label={texts.label}
                 aria-haspopup="dialog"
@@ -261,7 +266,7 @@ export function ActivityIcon() {
                 // A press on the slot must not move the focus out of the terminal he types in.
                 onMouseDown={(e) => e.preventDefault()}
             >
-                <ActivityMark glyph={glyph} />
+                <ActivityMark glyph={glyph} waits={summary.waiting.length > 0} />
             </button>
             {open && anchor != null ? (
                 <ActivityPopover

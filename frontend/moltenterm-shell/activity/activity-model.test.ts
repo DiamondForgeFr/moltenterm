@@ -1,14 +1,16 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The activity source's rules (FR-BOSS-009, AC85; FR-SHELL-122, #2233): what counts as running, per kind, which item
-// leads, and the words that list it. Pure, so no window is needed.
+// The activity source's rules (FR-BOSS-009, AC85; FR-SHELL-122, #2233, #2294): what counts as running, per kind, which
+// item leads, the sub-agents that count through their lead, what waits for the developer, and the words that list it.
+// Pure, so no window is needed.
 
 import { describe, expect, it } from "vitest";
 import type { AgentStateInfo } from "../agent-state-model";
 import enLocale from "../i18n/locales/en.json";
 import frLocale from "../i18n/locales/fr.json";
 import type { ReviewCheck, ReviewPr, ReviewsAnswer } from "../reviews/reviews-model";
+import type { BranchAgent, UpcomingAnswer } from "../reviews/reviews-upcoming-model";
 import type { WorkItem } from "../running-work";
 import {
     activityGlyph,
@@ -22,10 +24,13 @@ import {
     ActivityT,
     ActivityTCount,
     activityTexts,
+    activityWaiting,
     activityWhereKey,
     ActivityWords,
     EmptyActivity,
     NamedPrs,
+    openAgentsKey,
+    subagentIsRunning,
     summarizeActivity,
 } from "./activity-model";
 
@@ -514,19 +519,33 @@ describe("the words", () => {
     });
 
     it("has the keys it asks for in both languages, with the same variables", () => {
-        const plural = ["agents", "builds", "localCi", "prCi", "group.agents", "group.builds"];
+        const plural = [
+            "agents",
+            "subagents",
+            "builds",
+            "localCi",
+            "prCi",
+            "group.agents",
+            "group.builds",
+            "row.subagents",
+        ];
         const text = [
             "label",
+            "waitingLabel",
             "idle",
             "popover.idle",
             "popover.one",
             "popover.many",
+            "popover.waiting",
             "popover.none",
             "group.ci",
+            "group.waiting",
             "row.localCi",
             "row.pr",
             "row.prChecks",
             "row.percent",
+            "row.asks",
+            "open.waiting",
             "open.agent",
             "open.build",
             "open.localCi",
@@ -550,11 +569,332 @@ describe("the words", () => {
             }
         }
         expect(get(enLocale, "label")).toContain("{list}");
+        expect(get(enLocale, "waitingLabel")).toContain("{list}");
+        expect(get(enLocale, "row.asks")).toContain("{name}");
+        expect(get(enLocale, "row.subagents.other")).toContain("{count}");
         expect(get(enLocale, "prCi.one")).toContain("{numbers}");
         expect(get(enLocale, "agents.other")).toContain("{count}");
         expect(get(enLocale, "popover.many")).toContain("{count}");
         expect(get(enLocale, "popover.none")).toBe("No agent, build or CI is running.");
         expect(get(frLocale, "popover.none")).toBe("Aucun agent, build ni CI en cours.");
         expect(get(frLocale, "popover.idle")).toBe("Les fourneaux sont éteints");
+    });
+});
+
+function sub(parent: string, state: string, more: Partial<BranchAgent> = {}): BranchAgent {
+    return {
+        branch: "",
+        worktree: "",
+        kind: "subagent",
+        parentblockid: parent,
+        state: state as BranchAgent["state"],
+        agentid: `${parent}:${state}:${more.description ?? ""}`,
+        ...more,
+    };
+}
+
+function upcoming(...list: BranchAgent[]): Record<string, UpcomingAnswer> {
+    return { [Dir]: { dir: Dir, branches: [], agents: list, at: 1 } };
+}
+
+function summaryOf(more: Partial<ActivityInputs>) {
+    const i = inputs(more);
+    return summarizeActivity(activityItems(i), activityWaiting(i));
+}
+
+describe("the sub-agents of an agent of the workspace (#2294)", () => {
+    const lead = (more: Partial<AgentStateInfo> = {}) => agent("idle", { started: 10, firstname: "Flore", ...more });
+
+    it("runs while an idle lead's two background sub-agents work: one item, the lead, with their count", () => {
+        const flore = lead();
+        const summary = summaryOf({
+            agents: agents(flore),
+            upcoming: upcoming(
+                sub(flore.blockid, "running", { description: "a" }),
+                sub(flore.blockid, "running", { description: "b" })
+            ),
+        });
+        expect(summary.count).toBe(1);
+        expect(summary.kinds).toEqual({ agent: 1, build: 0, ci: 0 });
+        expect(summary.subagents).toBe(2);
+        expect(summary.items[0]).toMatchObject({
+            id: `agent:${flore.blockid}`,
+            kind: "agent",
+            startedat: 10,
+            target: { type: "agent", blockid: flore.blockid, workspaceid: "ws-1" },
+            about: { title: "Flore", subagents: 2 },
+        });
+        expect(activityGlyph(summary)).toBe("agent");
+    });
+
+    it("goes out when they stop: quiet and finished sub-agents run nothing", () => {
+        const flore = lead();
+        const stopped = summaryOf({
+            agents: agents(flore),
+            upcoming: upcoming(sub(flore.blockid, "quiet"), sub(flore.blockid, "done", { description: "x" })),
+        });
+        expect(stopped).toBe(EmptyActivity);
+        expect(activityGlyph(stopped)).toBe("idle");
+    });
+
+    it("counts a sub-agent whose state wavesrv does not name, as the Integration panel shows it", () => {
+        const flore = lead();
+        expect(summaryOf({ agents: agents(flore), upcoming: upcoming(sub(flore.blockid, "")) }).subagents).toBe(1);
+        expect(subagentIsRunning("running")).toBe(true);
+        expect(subagentIsRunning("")).toBe(true);
+        expect(subagentIsRunning("quiet")).toBe(false);
+        expect(subagentIsRunning("done")).toBe(false);
+    });
+
+    it("never counts the sub-agents of another workspace's lead, of Brokk's own session, or of a lead it does not know", () => {
+        const far = lead({ workspaceid: "ws-b" });
+        const brokk = lead({ own: true });
+        const unplaced = lead({ workspaceid: undefined });
+        const summary = summaryOf({
+            agents: agents(far, brokk, unplaced),
+            upcoming: upcoming(
+                sub(far.blockid, "running"),
+                sub(brokk.blockid, "running"),
+                sub(unplaced.blockid, "running"),
+                sub("closed-block", "running")
+            ),
+        });
+        expect(summary).toBe(EmptyActivity);
+        expect(
+            summaryOf({ agents: agents(lead()), workspaceid: "ws-b", upcoming: upcoming(sub("x", "running")) })
+        ).toBe(EmptyActivity);
+    });
+
+    it("reads the upcoming work of the workspace's projects only, and counts a sub-agent that every project lists once", () => {
+        const flore = lead();
+        const shared = sub(flore.blockid, "running", { agentid: "same" });
+        const answers = {
+            [Dir]: { dir: Dir, branches: [], agents: [shared], at: 1 },
+            "/work/other": { dir: "/work/other", branches: [], agents: [shared], at: 1 },
+            "/work/far": {
+                dir: "/work/far",
+                branches: [],
+                agents: [sub(flore.blockid, "running", { agentid: "far" })],
+                at: 1,
+            },
+        };
+        const two = summaryOf({ agents: agents(flore), upcoming: answers, dirs: [Dir, "/work/other"] });
+        expect(two.subagents).toBe(1);
+    });
+
+    it("tells two sub-agents without an id apart by their task and place", () => {
+        const flore = lead();
+        const a = sub(flore.blockid, "running", { agentid: "", description: "a", branch: "fix/1-a" });
+        const b = sub(flore.blockid, "running", { agentid: "", description: "b", branch: "fix/2-b" });
+        expect(summaryOf({ agents: agents(flore), upcoming: upcoming(a, b) }).subagents).toBe(2);
+    });
+
+    it("counts a working lead once, with its sub-agents, and takes the larger count its hooks report", () => {
+        const flore = lead({ state: "working", subagents: 3, background: true, message: "3 sub-agents running" });
+        const summary = summaryOf({
+            agents: agents(flore),
+            upcoming: upcoming(sub(flore.blockid, "running", { description: "a" })),
+        });
+        expect(summary.count).toBe(1);
+        expect(summary.subagents).toBe(3);
+        expect(summary.items[0].about.detail).toBe("");
+    });
+
+    it("keeps a working lead's own line when it works by itself", () => {
+        const flore = lead({ state: "working", message: "fixing #2294" });
+        const [item] = activityItems(inputs({ agents: agents(flore) }));
+        expect(item.about).toMatchObject({ detail: "fixing #2294", subagents: 0 });
+    });
+
+    it("words the lead with its sub-agents in the popover, in the agents' group, and in the accessible name", () => {
+        const flore = lead({ state: "working", message: "reading", started: 900_000 });
+        const summary = summaryOf({
+            agents: agents(flore),
+            upcoming: upcoming(
+                sub(flore.blockid, "running", { description: "a" }),
+                sub(flore.blockid, "running", { description: "b" })
+            ),
+        });
+        const words: ActivityWords = {
+            t: fakeT,
+            tc: fakeTc,
+            now: 1_000_000,
+            age: (startedat, now) => `${Math.round((now - startedat) / 1000)}s`,
+            server: (_text, english) => english,
+        };
+        const [agents_] = activityGroups(summary, words);
+        expect(agents_.id).toBe("agents");
+        expect(agents_.rows.map((r) => [r.what, r.detail, r.since, r.whereKey])).toEqual([
+            ["Flore", "reading · activity.row.subagents:2", "100s", "activity.open.agent"],
+        ]);
+        expect(activityLines(summary, fakeTc)).toEqual(["activity.agents:1", "activity.subagents:2"]);
+        expect(activityTexts(summary, fakeT, fakeTc).list).toBe("activity.agents:1, activity.subagents:2");
+    });
+
+    it("has the sub-agents in the key, so a lead that gains one draws again", () => {
+        const flore = lead();
+        const one = summaryOf({
+            agents: agents(flore),
+            upcoming: upcoming(sub(flore.blockid, "running", { description: "a" })),
+        });
+        const two = summaryOf({
+            agents: agents(flore),
+            upcoming: upcoming(
+                sub(flore.blockid, "running", { description: "a" }),
+                sub(flore.blockid, "running", { description: "b" })
+            ),
+        });
+        expect(activityKey(one)).not.toBe(activityKey(two));
+    });
+
+    it("keeps the same summary of agents and key when only an unrelated sub-agent of the list changes state", () => {
+        const flore = lead();
+        const before = summaryOf({
+            agents: agents(flore),
+            upcoming: upcoming(
+                sub(flore.blockid, "running", { description: "a" }),
+                sub(flore.blockid, "done", { description: "b" })
+            ),
+        });
+        const after = summaryOf({
+            agents: agents(flore),
+            upcoming: upcoming(
+                sub(flore.blockid, "running", { description: "a" }),
+                sub(flore.blockid, "quiet", { description: "b" })
+            ),
+        });
+        expect(activityKey(after)).toBe(activityKey(before));
+    });
+});
+
+describe("an agent that waits for the developer (#2294)", () => {
+    const asking = (more: Partial<AgentStateInfo> = {}) =>
+        agent("waiting", { firstname: "Flore", since: 5000, tabid: "tab-x", ...more });
+
+    it("is a state of its own, not running work: no item, no count, the glyph of a waiting agent", () => {
+        const flore = asking();
+        const summary = summaryOf({ agents: agents(flore), tabNames: { "tab-x": "Cadrage" } });
+        expect(summary.count).toBe(0);
+        expect(summary.items).toEqual([]);
+        expect(summary.lead).toBeNull();
+        expect(summary.waiting).toEqual([
+            {
+                id: `waiting:${flore.blockid}`,
+                name: "Flore",
+                place: "Cadrage",
+                detail: "",
+                detailtext: undefined,
+                since: 5000,
+                target: { type: "agent", blockid: flore.blockid, tabid: "tab-x", workspaceid: "ws-1" },
+            },
+        ]);
+        expect(activityGlyph(summary)).toBe("wait");
+        expect(ActivityGlyphIcons.wait).toBe(ActivityGlyphIcons.agent);
+    });
+
+    it("leaves out another workspace's waiting agent, Brokk's own session, and an agent whose workspace is unknown", () => {
+        const summary = summaryOf({
+            agents: agents(
+                asking({ workspaceid: "ws-b" }),
+                asking({ own: true }),
+                asking({ workspaceid: undefined }),
+                agent("waiting", { agent: "", agentname: "" })
+            ),
+        });
+        expect(summary).toBe(EmptyActivity);
+    });
+
+    it("shows work that runs and an answer awaited at the same time", () => {
+        const summary = summaryOf({ agents: agents(asking()), work: [work("build", 9)] });
+        expect(summary.count).toBe(1);
+        expect(summary.waiting).toHaveLength(1);
+        expect(activityGlyph(summary)).toBe("build");
+    });
+
+    it("lists the agent that has waited longest first, one that does not say since last", () => {
+        const late = asking({ firstname: "Late", since: 9000 });
+        const early = asking({ firstname: "Early", since: 1000 });
+        const unknown = asking({ firstname: "Unknown", since: undefined });
+        const summary = summaryOf({ agents: agents(late, unknown, early) });
+        expect(summary.waiting.map((w) => w.name)).toEqual(["Early", "Late", "Unknown"]);
+    });
+
+    it("names the agent by its tool without a first name, and leaves the place empty without a tab name", () => {
+        const [w] = summaryOf({ agents: agents(asking({ firstname: undefined, tabid: undefined })) }).waiting;
+        expect(w.name).toBe("Claude Code");
+        expect(w.place).toBe("");
+    });
+
+    it("words its row 'Flore asks you something · Cadrage', first in the popover, with how long it has waited", () => {
+        const summary = summaryOf({
+            agents: agents(asking()),
+            tabNames: { "tab-x": "Cadrage" },
+            work: [work("build", 940_000)],
+        });
+        const words: ActivityWords = {
+            t: fakeT,
+            tc: fakeTc,
+            now: 1_000_000,
+            age: (startedat, now) => `${Math.round((now - startedat) / 1000)}s`,
+            server: (_text, english) => english,
+        };
+        const groups = activityGroups(summary, words);
+        expect(groups.map((g) => g.id)).toEqual(["waiting", "builds"]);
+        expect(groups[0].title).toBe("activity.group.waiting");
+        expect(groups[0].rows).toEqual([
+            {
+                id: summary.waiting[0].id,
+                what: 'activity.row.asks{"name":"Flore"}',
+                detail: "Cadrage",
+                since: "995s",
+                target: summary.waiting[0].target,
+                whereKey: "activity.open.waiting",
+            },
+        ]);
+    });
+
+    it("titles the popover and names the indicator by what waits when nothing runs, and by both when both", () => {
+        const waiting = summaryOf({ agents: agents(asking(), asking({ firstname: "Berenice" })) });
+        expect(activityPopoverTitle(waiting, fakeT)).toBe("activity.popover.waiting");
+        expect(activityTexts(waiting, fakeT, fakeTc)).toEqual({
+            list: "",
+            label: 'activity.waitingLabel{"list":"Flore, Berenice"}',
+        });
+        const both = summaryOf({ agents: agents(asking()), work: [work("build", 9)] });
+        expect(activityPopoverTitle(both, fakeT)).toBe("activity.popover.one");
+        expect(activityTexts(both, fakeT, fakeTc).label).toBe(
+            'activity.label{"list":"activity.builds:1"}. activity.waitingLabel{"list":"Flore"}'
+        );
+    });
+
+    it("has the waiting agents in the key, so a new question or a moved tab draws again", () => {
+        const flore = asking();
+        const a = summaryOf({ agents: agents(flore), tabNames: { "tab-x": "Cadrage" } });
+        const b = summaryOf({ agents: agents(flore), tabNames: { "tab-x": "Review" } });
+        expect(activityKey(a)).not.toBe(activityKey(b));
+        expect(activityKey(a)).not.toBe(activityKey(EmptyActivity));
+        expect(
+            activityKey(summaryOf({ agents: agents({ ...flore, version: 99 }), tabNames: { "tab-x": "Cadrage" } }))
+        ).toBe(activityKey(a));
+    });
+});
+
+describe("the agents that make the upcoming work worth asking (#2294)", () => {
+    it("is empty with no agent open, and changes when an agent of the workspace opens or closes", () => {
+        const flore = agent("idle", { started: 10 });
+        expect(openAgentsKey({}, "ws-1")).toBe("");
+        const open = openAgentsKey(agents(flore), "ws-1");
+        expect(open).toBe(`${flore.blockid}@10`);
+        expect(openAgentsKey(agents(flore, agent("idle", { started: 20 })), "ws-1")).not.toBe(open);
+    });
+
+    it("ignores the states, the versions, other workspaces' agents, Brokk's session, and every agent without a workspace", () => {
+        const flore = agent("idle", { started: 10 });
+        const open = openAgentsKey(agents(flore), "ws-1");
+        expect(openAgentsKey(agents({ ...flore, state: "working", version: 9 }), "ws-1")).toBe(open);
+        expect(
+            openAgentsKey(agents(agent("idle", { workspaceid: "ws-b" }), agent("idle", { own: true })), "ws-1")
+        ).toBe("");
+        expect(openAgentsKey(agents(flore), "")).toBe("");
     });
 });

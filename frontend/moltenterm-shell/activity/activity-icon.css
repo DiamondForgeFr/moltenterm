@@ -11,7 +11,9 @@
    the ring turns smoothly and the flame flickers, each as a transform alone on an HTML box, which the compositor runs
    without a main-thread frame. Both are paused while the window or the view is not active (data-mt-motion="still") and
    stopped under reduced motion, where the ring shows its quarter arc fixed and the flame is still.
-   build/motion-still-states.test.ts holds this loop in its allow-list, with this reason. */
+   build/motion-still-states.test.ts holds this loop in its allow-list, with this reason.
+   An agent that waits for the developer (#2294) has a third loop, the whole ring's breathing in the waiting colour: the
+   shell's calm loop, opacity alone, with the same pause and the same stop. */
 
 .mt-act {
     position: relative;
@@ -86,6 +88,39 @@
     animation: mt-act-turn 1.1s linear infinite;
 }
 
+/* An agent waits for the developer and nothing runs (#2294): the agent's icon in a complete ring in the waiting state
+   colour, the heat scale's colour for what waits on the developer (never the action orange, never the running colour).
+   The ring is whole where the running one is a quarter arc that turns, so the two differ by shape and not by colour
+   alone (WCAG 1.4.1). It breathes in place on the shell's calm loop, opacity only, as the workspace dot's ring does for
+   the same news (#2265), instead of turning. */
+.mt-act[data-state="waiting"] {
+    color: var(--mt-state-waiting);
+}
+
+.mt-act[data-state="waiting"] .mt-act-track {
+    stroke: var(--mt-state-waiting);
+    stroke-width: 1.8;
+}
+
+.mt-act[data-state="waiting"] .mt-act-ring {
+    will-change: opacity;
+    animation: mt-act-wait var(--mt-duration-loop) ease-in-out infinite;
+}
+
+/* Something runs and an answer is awaited too: the running ring and glyph stay, and the waiting state's mark, a dot with
+   a halo (.mt-state-mark.is-waiting, FR-SHELL-116), sits on the slot's top right corner. It does not move. */
+.mt-act-pip {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: var(--mt-state-waiting);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-state-waiting) 30%, transparent);
+    pointer-events: none;
+}
+
 .mt-act[data-glyph="fire"] .mt-act-glyph {
     transform-origin: 50% 75%;
     will-change: transform;
@@ -95,6 +130,12 @@
 @keyframes mt-act-turn {
     to {
         transform: rotate(360deg);
+    }
+}
+
+@keyframes mt-act-wait {
+    50% {
+        opacity: 0.4;
     }
 }
 
