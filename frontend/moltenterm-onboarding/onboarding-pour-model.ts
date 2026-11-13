@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // What the first launch, "the pour" (FR-ONB-007, DS-ONB-007), decides, kept apart from its components so the rules are
-// tested without a window: the six scenes (#1709), the keys that move between them, what each move records, and the
-// choices of the project, first-view and place scenes (FR-ONB-009).
+// tested without a window: the seven scenes (#1709, Brokk's since #2304), the keys that move between them, what each move
+// records, and the choices of the project, first-view and place scenes (FR-ONB-009).
 
 import {
     DefaultPlace,
@@ -16,7 +16,8 @@ import {
     ViewPlace,
 } from "./onboarding-first-view-model";
 
-export const PourScenes = ["pour", "agents", "project", "view", "place", "start"] as const;
+// Brokk is met once the workshop is set up, before ready (FR-ONB-007 B-1): meeting him is not one of the four gestures.
+export const PourScenes = ["pour", "agents", "project", "view", "place", "brokk", "start"] as const;
 export type PourScene = (typeof PourScenes)[number];
 export const PourSceneCount = PourScenes.length;
 
@@ -158,14 +159,14 @@ function show(state: PourState, scene: number): PourState {
     return rtn;
 }
 
-// Next on the last scene ends the run, which is the view's: the state does not move. Back from the last scene after
-// Later on the view goes to the view scene, its place having been skipped.
+// Next on the last scene ends the run, which is the view's: the state does not move. Later on the view skips its place
+// only, so Back from Brokk's scene after it goes to the view scene (FR-ONB-007 B-1).
 export function pourReduce(state: PourState, action: PourAction): PourState {
     switch (action.type) {
         case "next":
             return show(state, state.scene + 1);
         case "back":
-            if (PourScenes[state.scene] === "start" && state.viewSkipped) {
+            if (PourScenes[state.scene] === "brokk" && state.viewSkipped) {
                 return show(state, sceneIndex("view"));
             }
             return show(state, state.scene - 1);
@@ -192,7 +193,7 @@ export function pourReduce(state: PourState, action: PourAction): PourState {
         case "place":
             return { ...state, place: action.place === "workspace" ? "workspace" : "everywhere" };
         case "laterView": {
-            const rtn = show(state, sceneIndex("start"));
+            const rtn = show(state, sceneIndex("brokk"));
             return { ...rtn, viewSkipped: true };
         }
     }

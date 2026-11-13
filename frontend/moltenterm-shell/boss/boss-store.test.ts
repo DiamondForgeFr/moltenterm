@@ -722,3 +722,23 @@ describe("the face's cup mark follows the real keep-awake state (FR-BOSS-009, AC
         expect(keepAwakeStatus(asleep, 0).awake).toBe(false);
     });
 });
+
+// #2304: the first launch's scene shows his face, and the title-bar face wears his initial meanwhile.
+describe("his face lent to a surface outside the sidebar (FR-ONB-007 B-4)", () => {
+    it("counts each surface that shows it until it gives it back, once, and never below none", () => {
+        globalStore.set(model.faceLentAtom, 0);
+        const first = model.lendFace();
+        const second = model.lendFace();
+        expect(globalStore.get(model.faceLentAtom)).toBe(2);
+        first();
+        first();
+        expect(globalStore.get(model.faceLentAtom)).toBe(1);
+        second();
+        expect(globalStore.get(model.faceLentAtom)).toBe(0);
+        globalStore.set(model.faceLentAtom, 0);
+        const late = model.lendFace();
+        globalStore.set(model.faceLentAtom, 0);
+        late();
+        expect(globalStore.get(model.faceLentAtom)).toBe(0);
+    });
+});

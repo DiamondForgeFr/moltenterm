@@ -1663,7 +1663,8 @@
                 "agents": "Mon projet",
                 "project": "Composer ma vue",
                 "view": "Choisir sa place",
-                "place": "C'est prêt",
+                "place": "Rencontrer {name}",
+                "brokk": "C'est prêt",
                 "start": "Entrer dans l'atelier"
             },
             "scenes": {
@@ -1672,6 +1673,7 @@
                 "project": "Votre projet",
                 "view": "Votre première vue",
                 "place": "Sa place",
+                "brokk": "Votre collègue",
                 "start": "C'est prêt"
             },
             "legal": {
@@ -1792,6 +1794,23 @@
                 "nextTitle": "Vos prochaines vues :",
                 "nextText": "{keys} ou le bouton « + Nouvelle vue ». Une nouvelle vue est temporaire ; épinglez-la pour la garder.",
                 "nextExample": "Pour un projet de développement, épinglez par exemple une vue pour la conception, une pour les tâches de sécurité, une pour le pilotage du projet. Chacun s'organise comme il veut !"
+            },
+            "brokk": {
+                "kicker": "Votre collègue",
+                "titleA": "Voici {name},",
+                "titleB": "votre collègue d'atelier.",
+                "says": "« Bonjour. Je garde un œil sur tout l'atelier, dans tous vos espaces de travail : ce que vos agents terminent, ce qui vous attend. Et quand une idée demande réflexion, on y réfléchit ensemble. »",
+                "where": "Il vit en haut de votre barre latérale : cliquez sur son visage pour lui parler. De n'importe où : {keys}, puis son nom.",
+                "off": "Vous l'avez désactivé sur cet ordinateur : les Préférences de {name} le réactivent.",
+                "ideaLead": "Une idée vous vient, même floue ?",
+                "ideaText": "N'hésitez pas : ouvrez {name} et tapez {brainstorm}. Il la construit avec vous et la range dans un dossier qui vous appartient.",
+                "example": "Exemple",
+                "idea": {
+                    "centre": "Un carnet de bord pour l'atelier",
+                    "who": "Pour qui",
+                    "first": "Une première version",
+                    "risks": "Ce qui peut coincer"
+                }
             },
             "later": "Plus tard",
             "settingUp": "Préparation…",

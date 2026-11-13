@@ -81,6 +81,9 @@ export class BossBubbleModel {
     // The developer writes to him or his session answers (the field of the group): the title-bar face shows the sign of
     // a conversation then, and not merely because the group is open (FR-BOSS-009, AC17, #2032).
     talkingAtom = atom(false) as PrimitiveAtom<boolean>;
+    // The surfaces outside the sidebar that show his animated face (the first launch's scene, FR-ONB-007 B-4, #2304):
+    // while there is one, the title-bar face wears his initial, so one Brokk is animated on screen (FR-BOSS-007 AC8).
+    faceLentAtom = atom(0) as PrimitiveAtom<number>;
     // Something keeps this computer awake: the cup shows as a small mark on the title-bar face while the group is closed.
     keepAwakeAtom: Atom<boolean>;
     // The rows settled or ignored, for the episode they were in, shared by the views and windows of this computer
@@ -166,6 +169,19 @@ export class BossBubbleModel {
         globalStore.set(this.tabRequestAtom, null);
         globalStore.set(this.cardPinnedAtom, options.pinned !== false);
         globalStore.set(this.cardOpenAtom, true);
+    }
+
+    // A surface shows his face elsewhere until the returned function is called, once (FR-ONB-007 B-4).
+    lendFace(): () => void {
+        globalStore.set(this.faceLentAtom, globalStore.get(this.faceLentAtom) + 1);
+        let returned = false;
+        return () => {
+            if (returned) {
+                return;
+            }
+            returned = true;
+            globalStore.set(this.faceLentAtom, Math.max(0, globalStore.get(this.faceLentAtom) - 1));
+        };
     }
 
     // The developer interacted with a group opened by hover: it stays open from now on (FR-BOSS-009, AC54).

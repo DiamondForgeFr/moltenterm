@@ -1,0 +1,209 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Scene 6 of the pour, your colleague (FR-ONB-007 B-1 to B-6, #2304): Brokk's face in a round frame lit like the
+   mould of the welcome, his words, where he lives, and the /brainstorm block with its example drawn on a blueprint. Cast
+   iron and brass in the pour's own colours; under reduced motion the pour's rule puts every animation at its end. */
+
+.mt-pour[data-scene="brokk"] h1 {
+    font-size: var(--mt-text-32);
+}
+
+.mt-pour-brokk-face {
+    position: relative;
+    width: 132px;
+    height: 132px;
+    flex: none;
+    border-radius: 50%;
+    border: 1px solid var(--mt-line-2);
+    background: var(--pour-iron-2);
+    box-shadow: 0 0 28px color-mix(in srgb, var(--pour-molten) 22%, transparent);
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.mt-pour-brokk-mark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--mt-text-48);
+    font-weight: 600;
+    color: var(--mt-text-2);
+    background: var(--pour-iron-2);
+}
+
+.mt-pour-brokk-says {
+    font-style: italic;
+    max-width: 58ch;
+}
+
+.mt-pour-brokk-where kbd {
+    font-family: var(--font-mono);
+    color: var(--mt-action-text);
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    padding: 0 5px;
+    font-size: var(--mt-text-12);
+}
+
+.mt-pour-brokk-idea {
+    width: min(640px, 100%);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: center;
+    gap: 18px;
+    border: 1px solid var(--mt-line-1);
+    border-radius: var(--mt-radius-panel);
+    background: var(--pour-iron-1);
+    padding: 14px 16px;
+    text-align: left;
+    animation: pour-rise 700ms var(--pour-ease) 500ms both;
+}
+
+.mt-pour-brokk-idea-text {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: var(--mt-text-13);
+    line-height: 1.5;
+    color: var(--mt-text-2);
+}
+
+.mt-pour-brokk-idea-text b {
+    color: var(--mt-text-1);
+    font-weight: 600;
+    font-size: var(--mt-text-15);
+}
+
+.mt-pour-brokk-idea-text code {
+    font-family: var(--font-mono);
+    color: var(--mt-action-text);
+}
+
+/* The example, on a blueprint: a faint grid, the links drawn in from the centre, then the plates set down one by one. */
+.mt-pour-brokk-graph {
+    position: relative;
+    width: 300px;
+    max-width: 100%;
+    aspect-ratio: 5 / 3;
+    justify-self: center;
+    border: 1px solid var(--mt-line-1);
+    border-radius: var(--mt-radius-control);
+    background:
+        repeating-linear-gradient(0deg, color-mix(in srgb, var(--pour-temper) 9%, transparent) 0 1px, transparent 1px 20px),
+        repeating-linear-gradient(90deg, color-mix(in srgb, var(--pour-temper) 9%, transparent) 0 1px, transparent 1px 20px),
+        var(--pour-iron-0);
+    overflow: hidden;
+}
+
+.mt-pour-brokk-example {
+    position: absolute;
+    bottom: 6px;
+    left: 8px;
+    font-size: var(--mt-text-11);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mt-text-3);
+    font-weight: 600;
+}
+
+.mt-pour-brokk-graph > svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.mt-pour-brokk-graph line {
+    stroke: color-mix(in srgb, var(--pour-hot) 70%, transparent);
+    stroke-width: 1.5;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: pour-brokk-link 600ms var(--pour-ease) both;
+}
+
+.mt-pour-brokk-graph line[data-i="0"] {
+    animation-delay: 1.1s;
+}
+.mt-pour-brokk-graph line[data-i="1"] {
+    animation-delay: 1.4s;
+}
+.mt-pour-brokk-graph line[data-i="2"] {
+    animation-delay: 1.7s;
+}
+
+@keyframes pour-brokk-link {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+.mt-pour-brokk-plate {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    max-width: 118px;
+    padding: 4px 12px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--pour-iron-2);
+    font-size: var(--mt-text-11);
+    line-height: 1.3;
+    color: var(--mt-text-1);
+    text-align: center;
+    animation: pour-brokk-plate 500ms var(--pour-ease) both;
+}
+
+/* Two rivets on each plate, the brass of the workshop. */
+.mt-pour-brokk-plate::before,
+.mt-pour-brokk-plate::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 3px;
+    height: 3px;
+    margin-top: -1.5px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--pour-temper) 80%, transparent);
+}
+
+.mt-pour-brokk-plate::before {
+    left: 4px;
+}
+
+.mt-pour-brokk-plate::after {
+    right: 4px;
+}
+
+.mt-pour-brokk-plate[data-centre] {
+    max-width: 140px;
+    font-size: var(--mt-text-12);
+    font-weight: 600;
+    border-color: var(--pour-molten);
+    box-shadow: 0 0 14px color-mix(in srgb, var(--pour-molten) 45%, transparent);
+    animation-delay: 800ms;
+}
+
+.mt-pour-brokk-plate[data-i="1"] {
+    animation-delay: 1.5s;
+}
+.mt-pour-brokk-plate[data-i="2"] {
+    animation-delay: 1.8s;
+}
+.mt-pour-brokk-plate[data-i="3"] {
+    animation-delay: 2.1s;
+}
+
+@keyframes pour-brokk-plate {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -30%);
+    }
+}
+
+@container (max-width: 760px) {
+    .mt-pour-brokk-idea {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
