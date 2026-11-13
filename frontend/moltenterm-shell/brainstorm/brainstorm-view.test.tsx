@@ -308,9 +308,17 @@ describe("the questions in his talk window (AC10a to AC10d, #2248)", () => {
         expect(html).toContain("Start fresh");
         globalStore.set(model.promptAtom, { kind: "resume", match: folder("forge-notes", "Forge notes", 3) });
         html = renderToStaticMarkup(<BrainstormPrompts name="Brokk" />);
-        expect(html).toContain("Reopen “Forge notes”?");
-        expect(html).toContain('data-testid="brainstorm-prompt-resume"');
-        expect(html).toContain("Not now");
+        // #2303: his offer is the resume card of the way back: what it is, the title on one line, Resume and Not now.
+        expect(html).toMatch(
+            /^<div role="group" aria-label="Brokk offers to resume a brainstorm" class="mt-brokk-resume" data-testid="brainstorm-offer">/
+        );
+        expect(html).toContain(">Reopen this brainstorm?<");
+        expect(html).toContain('class="mt-brokk-resume-title" title="Forge notes"');
+        expect(html).toMatch(
+            /class="molten-btn [^"]*" data-testid="brainstorm-prompt-resume">Resume<i class="molten-btn-wave"/
+        );
+        expect(html).toMatch(/aria-label="Not now" title="Not now" data-testid="brainstorm-prompt-later"/);
+        expect(html).toContain('class="mt-brokk-resume-detail">Last change ');
     });
 
     // AC10d: the confirmation shows the title and its last change before anything goes.

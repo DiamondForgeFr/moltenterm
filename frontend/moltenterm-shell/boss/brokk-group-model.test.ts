@@ -517,12 +517,18 @@ describe("the conversation window", () => {
 
     it("starts at the field's top, under the block, in the group's own coordinates", () => {
         expect(g.field.y).toBe(g.block.y + g.block.h + 8);
-        // The roomy input of #2285: the rule, the row's padding, two lines of the field and the footer.
-        expect(ConversationChromePx).toBe(121);
+        // The roomy input of #2285 in the inset well of #2303: two lines of the field, the footer and the room under the
+        // well, whose line is drawn inside and takes none.
+        expect(ConversationChromePx).toBe(122);
         const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
         expect(css).toMatch(/\.mt-brokk-convo \{[^}]*padding: 14px 16px 8px;/);
         expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-input \{[^}]*min-height: 52px;/);
         expect(css).toMatch(/\.mt-brokk-field-foot \{[^}]*height: 36px;/);
+        expect(css).toMatch(
+            /\.mt-brokk-field\[data-open="true"\] \.mt-brokk-composer \{[^}]*margin: 0 10px 10px;[^}]*box-shadow: inset 0 0 0 1px var\(--mt-line-2\);/
+        );
+        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-row \{[^}]*padding: 0;/);
+        expect(css).not.toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-row \{[^}]*border-top/);
     });
 });
 

@@ -3234,8 +3234,11 @@
             },
             "offer": {
                 "label": "{name} offers to resume a brainstorm",
-                "ask": "Reopen “{title}”?",
-                "later": "Not now"
+                "lead": "Reopen this brainstorm?"
+            },
+            "card": {
+                "lastLeft": "Last brainstorm",
+                "lastLeftLabel": "Resume the last brainstorm, “{title}”"
             },
             "forget": {
                 "label": "Forget a brainstorm",
