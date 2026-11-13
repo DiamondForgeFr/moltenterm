@@ -151,6 +151,19 @@ describe("agents at work", () => {
         expect(agentsView({ ...view, ended: true }, working, now).rows).toHaveLength(1);
     });
 
+    // #2294: the main session is not finished above sub-agents that work, as the Integration panel says.
+    it("reads an idle or done main session as working while a background sub-agent runs, and as it is when none does", () => {
+        for (const state of ["idle", "done"] as const) {
+            const rows = agentsView(view, { ...working, state }, now).rows;
+            expect(rows.map((r) => r.name)).toContain("Audit the docs");
+            expect(rows[0]).toMatchObject({ main: true, state: "working" });
+        }
+        const none = agentsView({ ...view, subagents: [] }, { ...working, state: "done" }, now).rows;
+        expect(none[0]).toMatchObject({ main: true, state: "done" });
+        const exited = agentsView({ ...view, ended: true }, { ...working, state: "done" }, now).rows;
+        expect(exited[0]).toMatchObject({ state: "exited" });
+    });
+
     // #601: every row's model and effort, the ticket's complexity, and the hint when they are out of proportion.
     it("shows a sub-agent's own model and effort, and its ticket's complexity", () => {
         const sub = {
