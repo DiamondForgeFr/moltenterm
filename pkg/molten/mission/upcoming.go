@@ -689,12 +689,19 @@ func subagentTree(trees []treeEntry, busy map[string]bool, s PaneSubagent) (tree
 }
 
 // UnplacedSubagents (#1825): the sub-agents still at work that SubagentBranchAgents places in no worktree, a
-// read-only reviewer's in the main checkout or in its panel's own worktree among them. They come on no branch and in
-// no worktree: the Integration cards tie one to a PR only when its task names the PR or its ticket.
+// read-only reviewer's in the main checkout or in its panel's own worktree among them. #2297: only this project's: a
+// sub-agent of another project's session, outside every worktree of this one, is left out (its "#N" named another
+// project's work). One in a linked worktree its lead's panel works in is on that worktree's branch (its folder is
+// there); the others come on no branch, and the Integration cards tie one to a PR only when its task names the PR or
+// its ticket and its lead already works on the PR's branch.
 func UnplacedSubagents(trees []treeEntry, panels []BranchAgent, subs []PaneSubagent) []BranchAgent {
 	busy := map[string]bool{}
+	leads := map[string]bool{}
 	for _, a := range panels {
 		busy[a.Worktree] = true
+		if a.Kind == UpcomingAgentPanel && a.BlockId != "" {
+			leads[a.BlockId] = true
+		}
 	}
 	var rtn []BranchAgent
 	for _, s := range subs {
@@ -704,13 +711,33 @@ func UnplacedSubagents(trees []treeEntry, panels []BranchAgent, subs []PaneSubag
 		if _, placed := subagentTree(trees, busy, s); placed {
 			continue
 		}
+		branch, worktree, here := subagentHome(trees, s)
+		if !here && !leads[s.ParentBlockId] {
+			continue
+		}
 		rtn = append(rtn, BranchAgent{
-			Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started, ActiveAt: s.LastWrite,
-			ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model, Effort: s.Effort,
-			Description: s.Description, State: s.State, AgentId: s.AgentId,
+			Branch: branch, Worktree: worktree, Kind: UpcomingAgentSubagent, Agent: s.Agent, Started: s.Started,
+			ActiveAt: s.LastWrite, ParentBlockId: s.ParentBlockId, ParentFirstName: s.ParentFirstName, Model: s.Model,
+			Effort: s.Effort, Description: s.Description, State: s.State, AgentId: s.AgentId,
 		})
 	}
 	return rtn
+}
+
+// subagentHome (#2297): the project's worktree a sub-agent's recorded folder lies in, and its branch when it is a
+// linked worktree (the main checkout's branch is the trunk, never a PR's); here is false outside every worktree.
+func subagentHome(trees []treeEntry, s PaneSubagent) (branch string, worktree string, here bool) {
+	if len(trees) == 0 || s.Worktree == "" || !filepath.IsAbs(s.Worktree) {
+		return "", "", false
+	}
+	tree, ok := treeOf(trees, filepath.Clean(s.Worktree))
+	if !ok {
+		return "", "", false
+	}
+	if tree.path == trees[0].path {
+		return "", "", true
+	}
+	return tree.branch, tree.path, true
 }
 
 // UpcomingCandidates are the ticket branches without an open PR, newest first: a local branch hides its origin twin,
