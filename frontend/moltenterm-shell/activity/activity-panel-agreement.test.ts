@@ -51,10 +51,14 @@ function answerOf(agents: BranchAgent[]): UpcomingAnswer {
 }
 
 describe("the sub-agents the panel shows at work are the ones the indicator counts (#2294)", () => {
+    // A sub-agent in no worktree is the branch's only when its lead already works there (#2297): the lead's panel is on
+    // the fourth branch.
+    const leadPanel: BranchAgent = { branch: "fix/4-unplaced", worktree: "/w/4", kind: "panel", blockid: "lead" };
     const agents = [
         sub("running", { branch: "fix/1-placed", worktree: "/w/1", description: "#1 placed" }),
         sub("quiet", { branch: "fix/2-quiet", worktree: "/w/2", description: "#2 quiet" }),
         sub("done", { branch: "fix/3-done", worktree: "/w/3", description: "#3 done" }),
+        leadPanel,
         sub("running", { description: "#4 reads the ticket" }),
     ];
 
