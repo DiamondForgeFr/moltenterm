@@ -248,6 +248,9 @@ export function branchAgent(upcoming: UpcomingAnswer, states: AgentStatesData, b
 
 const KindRank: Record<AgentBarFacts["kind"], number> = { panel: 2, subagent: 1, background: 0 };
 
+// Below a panel's whole range (20 and up) and above a finished sub-agent's 10.
+const SubagentRunningRank = 5;
+
 // branchAgents (#1057): every agent on the branch, the one branchAgent picks first: panels by urgency, then
 // sub-agents, then background agents, each kind in wavesrv's order. A card lists them all, each with its own state.
 // ticket: the branch's own ticket, when the caller knows it (a PR's), else read from the branch name; pr: its PR's
@@ -318,7 +321,16 @@ export function branchAgents(
             found.push(facts);
         }
     }
-    const rank = (f: AgentBarFacts) => KindRank[f.kind] * 10 + (f.kind === "panel" ? BarUrgency[f.state] : 0);
+    // A sub-agent at work outranks one that went quiet or finished on the same branch or ticket (#2294): wavesrv lists
+    // the sub-agents placed in a worktree before the unplaced ones, and the card must not say "Stopped without a pull
+    // request" with Resume while another sub-agent of the ticket still works.
+    const rank = (f: AgentBarFacts) =>
+        KindRank[f.kind] * 10 +
+        (f.kind === "panel"
+            ? BarUrgency[f.state]
+            : f.kind === "subagent" && f.subState === "running"
+              ? SubagentRunningRank
+              : 0);
     return found
         .map((facts, i) => ({ facts, i }))
         .sort((x, y) => rank(y.facts) - rank(x.facts) || x.i - y.i)

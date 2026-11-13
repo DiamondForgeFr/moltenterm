@@ -14,6 +14,7 @@ import {
     heldAgentVersions,
     mostUrgentAgentState,
     reconcileAgentStates,
+    stateWithSubagents,
 } from "./agent-state-model";
 
 function info(blockid: string, state: AgentStateInfo["state"], version: number, extra?: Partial<AgentStateInfo>) {
@@ -111,5 +112,30 @@ describe("agent states read again after a reconnect", () => {
     it("returns the same object when the snapshot changes nothing", () => {
         const held = applyAgentStates(EmptyAgentStates, [info("a", "idle", 4)]);
         expect(reconcileAgentStates(held, heldAgentVersions(held), [info("a", "idle", 4)])).toBe(held);
+    });
+});
+
+describe("a session whose sub-agents work (#2294)", () => {
+    it("is working in the background while it is idle or done and a list found sub-agents of it", () => {
+        for (const state of ["idle", "done"] as const) {
+            const shown = stateWithSubagents(info("a", state, 1), 2);
+            expect(shown).toMatchObject({ state: "working", background: true, subagents: 2 });
+        }
+    });
+
+    it("keeps the larger count when the hooks reported more, and leaves the session's other facts alone", () => {
+        const shown = stateWithSubagents(info("a", "done", 1, { subagents: 4, firstname: "Flore" }), 2);
+        expect(shown).toMatchObject({ subagents: 4, firstname: "Flore", workspaceid: "ws1" });
+    });
+
+    it("changes nothing for a session that works, waits or failed, with no sub-agent, or with none found", () => {
+        for (const state of ["working", "waiting", "error"] as const) {
+            const given = info("a", state, 1);
+            expect(stateWithSubagents(given, 3)).toBe(given);
+        }
+        const done = info("a", "done", 1);
+        expect(stateWithSubagents(done, 0)).toBe(done);
+        expect(stateWithSubagents(done, undefined)).toBe(done);
+        expect(stateWithSubagents(null, 2)).toBeNull();
     });
 });
