@@ -56,8 +56,9 @@ export function changeLine(note: HistoryNote, t: Translate, kindLabel: (kind: st
 }
 
 // The note before the developer's next message (AC27): their changes not told yet, and the last line it tells. Empty
-// when there are none.
-export type ChangesNote = { text: string; seq: number };
+// when there are none. id and swap name the brainstorm it is of: each folder's history counts from 1, so its Told
+// names them too.
+export type ChangesNote = { text: string; seq: number; id?: string; swap?: number };
 
 export const NoNote: ChangesNote = { text: "", seq: 0 };
 
@@ -99,6 +100,14 @@ export function toldBy(message: string, notes: ChangesNote[]): ChangesNote {
 // The newest history line.
 export function lastSeq(history: HistoryNote[]): number {
     return (history ?? []).reduce((max, note) => Math.max(max, note?.seq ?? 0), 0);
+}
+
+// The lines a new state of the same brainstorm added are all the developer's own (their changes, their undos): the
+// camera stays where it is. A block of Brokk's, even after a change of theirs, moves it.
+export function developerChangeOnly(before: HistoryNote[], after: HistoryNote[]): boolean {
+    const seen = lastSeq(before);
+    const fresh = (after ?? []).filter((note) => note.seq > seen);
+    return fresh.length > 0 && fresh.every((note) => note.by === "you");
 }
 
 // What the layer's Undo bar offers after lines up to `seen`: the newest removal or merge since, still undoable, the

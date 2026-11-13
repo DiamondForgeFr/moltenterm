@@ -44,7 +44,7 @@ import {
     Lens,
     StillSettleMs,
 } from "./brainstorm-camera-model";
-import { editKey } from "./brainstorm-edit-model";
+import { developerChangeOnly, editKey } from "./brainstorm-edit-model";
 import type { BrainstormGraph, BrainstormNode, NodeKind } from "./brainstorm-graph-model";
 import { MaxLinks, MaxNodes } from "./brainstorm-graph-model";
 import {
@@ -335,6 +335,8 @@ export class BrainstormScene {
     // The plates that left the graph and are still leaving (#2247).
     leaving = new Map<string, LeavingEntry>();
     lastLeftAt = 0;
+    // The history of the graph shown: a new one's lines say whose its new plates are.
+    history: HistoryNote[] = null;
     coreTitle: HTMLDivElement;
     // The core's title stands for the centre in the outline: its text edited in place too.
     coreEditing = false;
@@ -624,10 +626,11 @@ export class BrainstormScene {
                 this.host.onFollowPulse?.();
             }
         }
-        // A plate the developer put back is theirs: the camera stays where it is.
-        if (!first && born > 0 && history?.[history.length - 1]?.by !== "you") {
+        // A plate the developer put back is theirs: the camera stays where it is. The lines this state added say whose.
+        if (!first && born > 0 && !developerChangeOnly(this.history, history)) {
             this.talked(now);
         }
+        this.history = history;
         this.crossRev = -1;
         this.relabel();
         this.wake(lastBirth - now + Loops.arrival.ms + StillSettleMs);

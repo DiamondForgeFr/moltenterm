@@ -214,7 +214,8 @@ func TestToldMarksTheDevelopersChanges(t *testing.T) {
 	_, s := editedService(t)
 	first := s.Edit(EditRequest{Ops: []Op{{Op: OpRetype, Id: "parents-list", Kind: KindDecision}}})
 	second := s.Edit(EditRequest{Ops: []Op{{Op: OpEdit, Id: "ages", Text: "Which ages?"}}})
-	state := s.Told(ToldRequest{Seq: first.Seqs[0]})
+	id, swap := first.State.Brainstorm.Id, first.State.Swap
+	state := s.Told(ToldRequest{Seq: first.Seqs[0], Swap: &swap, Id: id})
 	if !noteOf(state, first.Seqs[0]).Told || noteOf(state, second.Seqs[0]).Told {
 		t.Errorf("told %+v and %+v", noteOf(state, first.Seqs[0]), noteOf(state, second.Seqs[0]))
 	}
@@ -224,8 +225,86 @@ func TestToldMarksTheDevelopersChanges(t *testing.T) {
 		}
 	}
 	version := state.Version
-	if again := s.Told(ToldRequest{Seq: first.Seqs[0]}); again.Version != version {
+	if again := s.Told(ToldRequest{Seq: first.Seqs[0], Swap: &swap, Id: id}); again.Version != version {
 		t.Error("told again changed the state")
+	}
+}
+
+// Review of #2247: each folder's history counts from 1, and a new idea of Brokk's starts another folder in the same
+// swap. A Told, an Edit or an Undo made on one brainstorm never reaches another: it names the brainstorm, and a request
+// of another one is refused.
+func TestARequestOfAnotherBrainstormIsRefused(t *testing.T) {
+	t.Parallel()
+	_, s := editedService(t)
+	edited := s.Edit(EditRequest{Ops: []Op{{Op: OpRetype, Id: "parents-list", Kind: KindDecision}}})
+	id, swap := edited.State.Brainstorm.Id, edited.State.Swap
+	other := swap + 1
+	for name, req := range map[string]ToldRequest{
+		"no id":          {Seq: edited.Seqs[0], Swap: &swap},
+		"another id":     {Seq: edited.Seqs[0], Swap: &swap, Id: "another-folder"},
+		"another swap":   {Seq: edited.Seqs[0], Swap: &other, Id: id},
+		"a later swap":   {Seq: 999, Swap: &other, Id: id},
+		"no id, no swap": {Seq: 999},
+	} {
+		if state := s.Told(req); noteOf(state, edited.Seqs[0]).Told {
+			t.Errorf("%s: told", name)
+		}
+	}
+	// His new idea: another folder, the same swap, a history from 1 again.
+	fresh := block(centre("budget", "A family budget"), add("rent", KindQuestion, "How much for rent?", "budget"))
+	if got := s.Turn(TurnRequest{Key: "n1", You: "Another idea.", Brokk: "A new one.", Block: &fresh, At: 9000}); got.State.Brainstorm.Id == id || got.State.Swap != swap {
+		t.Fatalf("the new idea: %+v", got.State.Brainstorm)
+	}
+	if stale := s.Edit(EditRequest{Ops: []Op{{Op: OpRemove, Id: "rent"}}, Swap: &swap, Id: id}); !stale.Stale || !hasNode(stale.State, "rent") {
+		t.Errorf("an edit made on the brainstorm before: %+v", stale)
+	}
+	if stale := s.Undo(UndoRequest{Seq: 1, Swap: &swap, Id: id}); !stale.Stale || stale.State.Graph.Centre != "budget" {
+		t.Errorf("an undo made on the brainstorm before: %+v", stale)
+	}
+	newId := s.State().Brainstorm.Id
+	removed := s.Edit(EditRequest{Ops: []Op{{Op: OpRemove, Id: "rent"}}, Swap: &swap, Id: newId})
+	if s.Told(ToldRequest{Seq: removed.Seqs[0], Swap: &swap, Id: id}); noteOf(s.State(), removed.Seqs[0]).Told {
+		t.Error("a note of the brainstorm before marked the new one's change told")
+	}
+	if state := s.Told(ToldRequest{Seq: removed.Seqs[0], Swap: &swap, Id: newId}); !noteOf(state, removed.Seqs[0]).Told {
+		t.Error("the new brainstorm's own note did not mark its change told")
+	}
+}
+
+// Review of #2247: an add is not put back over a later change that leans on its node, a link tied to it or a child
+// grown from it; the link is never dropped silently.
+func TestAnAddIsNotUndoneUnderALaterLink(t *testing.T) {
+	t.Parallel()
+	_, s := editedService(t)
+	grow := block(add("devices", KindQuestion, "On which devices?", "kids-video"))
+	s.Turn(TurnRequest{Key: "g1", You: "Devices?", Brokk: "Devices.", Block: &grow, At: 3000})
+	state := s.State()
+	addSeq := state.History[len(state.History)-1].Seq
+	if !noteOf(state, addSeq).Undoable {
+		t.Fatalf("a fresh add is not undoable: %+v", noteOf(state, addSeq))
+	}
+	linked := s.Edit(EditRequest{Ops: []Op{{Op: OpLink, A: "devices", B: "ages"}}})
+	if noteOf(linked.State, addSeq).Undoable {
+		t.Error("an add under a later link is offered for undo")
+	}
+	refused := s.Undo(UndoRequest{Seq: addSeq})
+	if refused.Error != ReasonConflict || !hasNode(refused.State, "devices") || !hasLinkIn(refused.State.Graph.Links, "devices", "ages") {
+		t.Errorf("the undo under a later link: %+v", refused.Error)
+	}
+	// The link's own patch, taken on its own, would still take the link silently: applyPatch refuses it.
+	if _, err := applyPatch(*linked.State.Graph, Patch{Added: []string{"devices"}}); err == nil {
+		t.Error("an undo of an add dropped a later link")
+	}
+	phone := block(add("phone", KindIdea, "The phone later", "kids-video"))
+	s.Turn(TurnRequest{Key: "g2", You: "Phone?", Brokk: "Later.", Block: &phone, At: 4000})
+	phoneSeq := s.State().History[len(s.State().History)-1].Seq
+	if !noteOf(s.State(), phoneSeq).Undoable {
+		t.Fatal("a fresh add is not undoable")
+	}
+	child := block(add("android", KindAnswer, "Android first", "phone"))
+	s.Turn(TurnRequest{Key: "g3", You: "Android.", Brokk: "Android.", Block: &child, At: 5000})
+	if noteOf(s.State(), phoneSeq).Undoable {
+		t.Error("an add with a later child is offered for undo")
 	}
 }
 

@@ -61,6 +61,7 @@ import type { CameraMode } from "./brainstorm-camera-model";
 import {
     ChangesNote,
     changesNote,
+    developerChangeOnly,
     lastOwnChange,
     lastSeq,
     NoNote,
@@ -322,8 +323,12 @@ export class BrainstormModel {
             return;
         }
         const wasOpen = current?.open === true;
-        // The developer's own change to the graph never moves the camera (#2247): only Brokk's growth does.
-        const grew = (next.graph?.rev ?? 0) !== (current?.graph?.rev ?? 0) && !byDeveloper(next.history);
+        // The developer's own change to the graph never moves the camera (#2247): only Brokk's growth does, read from the
+        // lines this state added to the same brainstorm.
+        const same = current?.swap === next.swap && current?.brainstorm?.id === next.brainstorm?.id;
+        const grew =
+            (next.graph?.rev ?? 0) !== (current?.graph?.rev ?? 0) &&
+            !(same && developerChangeOnly(current?.history, next.history));
         globalStore.set(this.stateAtom, next);
         // The developer moved to another brainstorm (#2285): a message still waiting from the one before never goes to
         // this one; it comes back to the field.
@@ -367,7 +372,6 @@ export class BrainstormModel {
             return false;
         }
         const boss = BossBubbleModel.getInstance();
-        const session = BrokkSession.getInstance();
         boss.openCard(undefined, { force: true });
         boss.pinCard();
         const wasOpen = this.isOpen();
@@ -385,7 +389,7 @@ export class BrainstormModel {
                 focusTalkField();
                 return false;
             }
-            session.setLead(t("boss.brainstorm.lead"));
+            this.leadKeepingNote(t("boss.brainstorm.lead"));
             return true;
         }
         const picker = pickerOf(await this.refreshList(), lastSlug);
@@ -403,7 +407,13 @@ export class BrainstormModel {
         session.addLocalLine(
             t("boss.brainstorm.opening", { name: globalStore.get(BossBubbleModel.getInstance().nameAtom) })
         );
-        session.setLead(t("boss.brainstorm.lead"));
+        this.leadKeepingNote(t("boss.brainstorm.lead"));
+    }
+
+    // Words the brainstorm puts before the developer's next message (its lead, a resume's): the note of their graph
+    // changes not told yet stays after them (#2247), or a Resume would leave Brokk unaware of them.
+    private leadKeepingNote(lead: string): void {
+        BrokkSession.getInstance().setLead(withNote(lead, "", this.note.text));
     }
 
     dismissPrompt(): void {
@@ -455,9 +465,7 @@ export class BrainstormModel {
     // The next message tells his session it is this brainstorm: to read its resume brief when wavesrv wrote one, else
     // only that it is a brainstorm (an old brief in his folder is never pointed to).
     private leadInto(title: string, resumeBrief: boolean): void {
-        BrokkSession.getInstance().setLead(
-            resumeBrief ? t("boss.brainstorm.resumedLead", { title }) : t("boss.brainstorm.lead")
-        );
+        this.leadKeepingNote(resumeBrief ? t("boss.brainstorm.resumedLead", { title }) : t("boss.brainstorm.lead"));
     }
 
     // A new idea (AC10): the one open stays saved, his talk window starts over with his opening line, and the folder is
@@ -491,9 +499,8 @@ export class BrainstormModel {
         if (!(await this.newIdea())) {
             return;
         }
-        const session = BrokkSession.getInstance();
-        session.setLead(t("boss.brainstorm.lead"));
-        await session.say(idea);
+        this.leadKeepingNote(t("boss.brainstorm.lead"));
+        await BrokkSession.getInstance().say(idea);
     }
 
     // All brainstorms… brings the brainstorm panel's list forward (AC10a, #2285).
@@ -599,7 +606,7 @@ export class BrainstormModel {
         if (!this.allowed() || !this.isOpen() || (ops?.length ?? 0) === 0) {
             return false;
         }
-        const result = await this.ask(EditCommand, { ops, swap: globalStore.get(this.stateAtom)?.swap });
+        const result = await this.ask(EditCommand, { ops, ...this.onScreenBrainstorm() });
         this.apply(result?.state);
         if (result == null || result.stale) {
             return false;
@@ -617,7 +624,7 @@ export class BrainstormModel {
             return false;
         }
         globalStore.set(this.undoBarAtom, null);
-        const result = await this.ask(UndoCommand, { seq, swap: globalStore.get(this.stateAtom)?.swap });
+        const result = await this.ask(UndoCommand, { seq, ...this.onScreenBrainstorm() });
         this.apply(result?.state);
         if (result == null || result.stale) {
             return false;
@@ -637,6 +644,13 @@ export class BrainstormModel {
 
     dismissUndo(): void {
         globalStore.set(this.undoBarAtom, null);
+    }
+
+    // The brainstorm a change is made on: the swap and the folder's id. wavesrv refuses a change of another one, since
+    // a new idea of Brokk's starts another folder in the same swap, with its own history from 1.
+    private onScreenBrainstorm(): { swap: number; id: string } {
+        const state = globalStore.get(this.stateAtom);
+        return { swap: state?.swap, id: state?.brainstorm?.id ?? "" };
     }
 
     private changeFailed(reason: string): void {
@@ -698,11 +712,13 @@ export class BrainstormModel {
     private onHistory(next: BrainstormState): void {
         const history = next.history ?? [];
         const swap = next.swap ?? 0;
-        const of = `${swap}:${next.brainstorm?.id ?? next.brainstorm?.slug ?? ""}`;
+        const id = next.brainstorm?.id ?? "";
+        const of = `${swap}:${id || (next.brainstorm?.slug ?? "")}`;
         if (this.historyOf !== of) {
-            // Another brainstorm: its past is not offered.
+            // Another brainstorm: its past is not offered, and a note of the one before never marks its lines told.
             this.historyOf = of;
             this.historySeen = -1;
+            this.notes = [];
             globalStore.set(this.undoBarAtom, null);
         }
         const bar = globalStore.get(this.undoBarAtom);
@@ -716,12 +732,13 @@ export class BrainstormModel {
             }
         }
         this.historySeen = Math.max(this.historySeen, lastSeq(history), 0);
-        this.followNote(history);
+        this.followNote(history, id, swap);
     }
 
-    // The note of the developer's changes goes before their next message, in place of the one before (AC27).
-    private followNote(history: HistoryNote[]): void {
-        const note = changesNote(history, t, (kind) => t(`boss.brainstorm.kinds.${kind}`));
+    // The note of the developer's changes goes before their next message, in place of the one before (AC27). It keeps
+    // the brainstorm it is of, which its Told names.
+    private followNote(history: HistoryNote[], id: string, swap: number): void {
+        const note = { ...changesNote(history, t, (kind) => t(`boss.brainstorm.kinds.${kind}`)), id, swap };
         if (note.text === this.note.text) {
             this.note = note;
             return;
@@ -744,7 +761,7 @@ export class BrainstormModel {
         if (went == null) {
             return;
         }
-        void this.ask(ToldCommand, { seq: went.seq }).then((state) => this.apply(state));
+        void this.ask(ToldCommand, { seq: went.seq, swap: went.swap, id: went.id }).then((state) => this.apply(state));
     }
 
     // The mode ended: what the living graph held in this view goes with it, and the note leaves the next message.
@@ -1031,11 +1048,6 @@ export class BrainstormModel {
             at: Date.now(),
         });
     }
-}
-
-// The newest line of the history is the developer's own change (or their undo).
-function byDeveloper(history: HistoryNote[]): boolean {
-    return history?.[history.length - 1]?.by === "you";
 }
 
 async function writeWindowMeta(meta: Record<string, any>): Promise<void> {

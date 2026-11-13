@@ -7,6 +7,7 @@ import type { HistoryNote } from "./brainstorm-boot";
 import { CameraNav, FocusRadius, projectPoint } from "./brainstorm-camera-model";
 import {
     changesNote,
+    developerChangeOnly,
     editKey,
     isUndoKey,
     lastOwnChange,
@@ -340,5 +341,18 @@ describe("a node brought into focus", () => {
         expect(nav.goal(graph, 0, lens).glide).toBe(false);
         expect(nav.takeJump()).toBe(true);
         expect(nav.takeJump()).toBe(false);
+    });
+});
+
+// Review of #2247: whose change a new state of the graph is, read from the lines it added.
+describe("whose change a new state is", () => {
+    const before = [note(1, "brokk", "add"), note(2, "you", "remove")];
+
+    it("is the developer's only when every line it added is theirs", () => {
+        expect(developerChangeOnly(before, [...before, note(3, "you", "retype"), note(4, "you", "undo")])).toBe(true);
+        expect(developerChangeOnly(before, [...before, note(3, "you", "retype"), note(4, "brokk", "add")])).toBe(false);
+        // A block of his that added no line (a revision of its own) is his, even after a change of the developer's.
+        expect(developerChangeOnly(before, before)).toBe(false);
+        expect(developerChangeOnly(null, [note(1, "you", "edit")])).toBe(true);
     });
 });

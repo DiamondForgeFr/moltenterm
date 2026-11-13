@@ -76,7 +76,15 @@ vi.mock("../boss/brokk-session", async () => {
 import { globalStore } from "@/app/store/jotaiStore";
 import { BrokkSession } from "../boss/brokk-session";
 import type { HistoryNote } from "./brainstorm-boot";
-import { BrainstormModel, EditCommand, StateCommand, ToldCommand, UndoCommand } from "./brainstorm-store";
+import {
+    BrainstormModel,
+    CloseCommand,
+    EditCommand,
+    LoadCommand,
+    StateCommand,
+    ToldCommand,
+    UndoCommand,
+} from "./brainstorm-store";
 
 const session = BrokkSession.getInstance() as any;
 
@@ -91,7 +99,14 @@ let server: {
     history: HistoryNote[];
     fail?: string;
     id?: string;
+    // The other folders' histories, by id, for a Load.
+    saved?: Record<string, HistoryNote[]>;
 };
+
+const currentId = () => server.id ?? "id-kids-video";
+
+// A change named for another brainstorm than the open one: wavesrv refuses it.
+const otherBrainstorm = (data: any) => data.swap !== server.swap || (data.id !== "" && data.id !== currentId());
 
 const line = (
     seq: number,
@@ -115,7 +130,7 @@ function state(): any {
         open: server.open,
         version: server.version,
         swap: server.swap,
-        brainstorm: { id: server.id ?? "id-kids-video", slug: "kids-video" },
+        brainstorm: { id: currentId(), slug: currentId().replace(/^id-/, ""), title: "A safe video app" },
         graph: {
             schema: 1,
             rev: server.rev,
@@ -136,7 +151,7 @@ function changed(): any {
 async function fakeCall(command: string, data: any): Promise<any> {
     calls.push({ command, data });
     if (command === EditCommand) {
-        if (data.swap !== server.swap) {
+        if (otherBrainstorm(data)) {
             return { state: state(), stale: true };
         }
         if (server.fail) {
@@ -150,6 +165,9 @@ async function fakeCall(command: string, data: any): Promise<any> {
         return { state: changed(), seqs };
     }
     if (command === UndoCommand) {
+        if (otherBrainstorm(data)) {
+            return { state: state(), stale: true };
+        }
         if (server.fail) {
             return { state: state(), error: server.fail };
         }
@@ -169,9 +187,30 @@ async function fakeCall(command: string, data: any): Promise<any> {
         return { state: changed(), seqs: [seq] };
     }
     if (command === ToldCommand) {
+        if (otherBrainstorm(data) || !data.id) {
+            return state();
+        }
         server.history = server.history.map((n) => (n.by === "you" && n.seq <= data.seq ? { ...n, told: true } : n));
         server.version++;
         return state();
+    }
+    if (command === CloseCommand) {
+        server.open = false;
+        server.version++;
+        return state();
+    }
+    if (command === LoadCommand) {
+        const id = `id-${data.slug}`;
+        // The brainstorm just left opens again with no swap (#2284); another one swaps in, its own history with it.
+        if (server.open || id !== currentId()) {
+            server.saved = { ...server.saved, [currentId()]: server.history };
+            server.history = server.saved[id] ?? [];
+            server.id = id;
+            server.swap++;
+        }
+        server.open = true;
+        server.version++;
+        return { state: state(), turns: [], resumebrief: true };
     }
     return state();
 }
@@ -217,12 +256,31 @@ describe("the developer edits the graph (FR-BOSS-010 AC27, #2247)", () => {
         const model = await openModel();
         expect(globalStore.get(model.undoBarAtom)).toBeNull();
         expect(await model.remove("ages")).toBe(true);
-        expect(calls[0]).toEqual({ command: EditCommand, data: { ops: [{ op: "remove", id: "ages" }], swap: 3 } });
+        expect(calls[0]).toEqual({
+            command: EditCommand,
+            data: { ops: [{ op: "remove", id: "ages" }], swap: 3, id: "id-kids-video" },
+        });
         const bar = globalStore.get(model.undoBarAtom);
         expect(bar).toMatchObject({ kind: "offer", note: { seq: 3, by: "you", op: "remove" } });
         expect(await model.undo(3)).toBe(true);
-        expect(calls[1]).toEqual({ command: UndoCommand, data: { seq: 3, swap: 3 } });
+        expect(calls[1]).toEqual({ command: UndoCommand, data: { seq: 3, swap: 3, id: "id-kids-video" } });
         expect(globalStore.get(model.undoBarAtom)).toBeNull();
+    });
+
+    // Review of #2247: a new idea of Brokk's is another folder in the same swap; a change the view made on the one
+    // before is refused, never applied to the new one.
+    it("names the brainstorm a change was made on: one made on a folder since replaced is stale", async () => {
+        const model = await openModel();
+        server.id = "id-budget";
+        server.history = [line(1, "brokk", "centre", "budget"), line(2, "brokk", "remove", "rent")];
+        expect(await model.undo(2)).toBe(false);
+        expect(calls.at(-1)).toMatchObject({ command: UndoCommand, data: { seq: 2, swap: 3, id: "id-kids-video" } });
+        // The refusal brought the view the new brainstorm; another new idea replaces it before the next change.
+        server.id = "id-garden";
+        server.history = [line(1, "brokk", "centre", "garden")];
+        expect(await model.remove("ages")).toBe(false);
+        expect(calls.at(-1)).toMatchObject({ command: EditCommand, data: { swap: 3, id: "id-budget" } });
+        expect(server.history).toHaveLength(1);
     });
 
     it("offers Undo for Brokk's removal or merge, never for his growth, nor for the past of a brainstorm", async () => {
@@ -316,8 +374,23 @@ describe("the developer edits the graph (FR-BOSS-010 AC27, #2247)", () => {
         await model.remove("ages");
         brokk(model, "remove", "approved");
         expect(await model.undoLast()).toBe(true);
-        expect(calls.at(-1)).toEqual({ command: UndoCommand, data: { seq: 3, swap: 3 } });
+        expect(calls.at(-1)).toEqual({ command: UndoCommand, data: { seq: 3, swap: 3, id: "id-kids-video" } });
         expect(await model.undoLast()).toBe(false);
+    });
+
+    // Review of #2247: whose change it was is read from the lines a state added, not from the newest line alone.
+    it("follows a block of Brokk's that changed the graph after a change of the developer's", async () => {
+        const model = await openModel();
+        await model.remove("ages");
+        globalStore.set(model.talkAtAtom, 0);
+        // His block: the graph's revision moves on with no line of its own (a link he unlinked was gone already).
+        model.apply(changed());
+        expect(globalStore.get(model.talkAtAtom)).toBeGreaterThan(0);
+        globalStore.set(model.talkAtAtom, 0);
+        // One state with a change of the developer's and a block of his.
+        server.history = [...server.history, line(4, "you", "retype", "ages"), line(5, "brokk", "add", "devices")];
+        model.apply(changed());
+        expect(globalStore.get(model.talkAtAtom)).toBeGreaterThan(0);
     });
 });
 
@@ -334,8 +407,49 @@ describe("Brokk hears of the developer's changes with their next message (AC27)"
         session.tell({ id: "m7", you: sent, markdown: "Noted.", turn: 9, final: false });
         session.tell({ id: "m7", you: sent, markdown: "Noted, and…", turn: 9, final: false });
         await settle();
-        expect(calls.filter((c) => c.command === ToldCommand)).toEqual([{ command: ToldCommand, data: { seq: 4 } }]);
+        expect(calls.filter((c) => c.command === ToldCommand)).toEqual([
+            { command: ToldCommand, data: { seq: 4, swap: 3, id: "id-kids-video" } },
+        ]);
         expect(session.lead).toBe("");
+    });
+
+    // Review of #2247: Leave, then Resume: the brainstorm's resume lead must not wipe the note of untold changes.
+    it("keeps the note of untold changes through Leave and Resume, after the resume's lead", async () => {
+        const model = await openModel();
+        await model.remove("ages");
+        server.open = false;
+        model.apply(changed());
+        expect(session.lead).toBe("");
+        expect(await model.load("kids-video")).toBe(true);
+        expect(server.swap).toBe(3);
+        expect(session.lead).toBe(
+            "Brainstorm resumed: “A safe video app”. [My changes to the graph: removed “Text of ages” (ages).]"
+        );
+        session.tell({ id: "m8", you: `${session.lead} Go on.`, markdown: "Going on.", turn: 10, final: false });
+        await settle();
+        expect(calls.filter((c) => c.command === ToldCommand).map((c) => c.data)).toEqual([
+            { seq: 3, swap: 3, id: "id-kids-video" },
+        ]);
+    });
+
+    // Review of #2247: a switch to another brainstorm inside the mode takes the note of the one left off the next
+    // message, and an answer to a message sent before the switch marks nothing of the new one told.
+    it("moves the note with a switch, and never tells a change across it", async () => {
+        const model = await openModel();
+        server.saved = { "id-budget": [line(1, "brokk", "centre", "budget"), line(2, "you", "remove", "rent")] };
+        await model.remove("ages");
+        const sent = `${session.lead} Go on.`;
+        expect(sent).toContain("(ages)");
+        expect(await model.load("budget")).toBe(true);
+        expect(server.swap).toBe(4);
+        // The budget's own untold change rides after its resume lead; the kids' one is gone.
+        expect(session.lead).toBe(
+            "Brainstorm resumed: “A safe video app”. [My changes to the graph: removed “Text of rent” (rent).]"
+        );
+        session.tell({ id: "m9", you: sent, markdown: "Going on.", turn: 11, final: false });
+        await settle();
+        expect(calls.filter((c) => c.command === ToldCommand)).toEqual([]);
+        expect(server.history.find((n) => n.seq === 2)?.told).toBeFalsy();
     });
 
     it("tells nothing of a change undone before the message", async () => {
