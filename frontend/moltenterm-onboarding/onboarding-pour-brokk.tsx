@@ -36,9 +36,9 @@ const GraphHeight = 180;
 // percent of the drawing's box.
 export const IdeaPlates = [
     { key: "centre", x: 48, y: 50 },
-    { key: "who", x: 23, y: 18 },
-    { key: "first", x: 77, y: 20 },
-    { key: "risks", x: 72, y: 84 },
+    { key: "who", x: 22, y: 19 },
+    { key: "first", x: 76, y: 22 },
+    { key: "risks", x: 72, y: 82 },
 ] as const;
 
 export function brokkShownName(intro: BrokkIntro): string {
