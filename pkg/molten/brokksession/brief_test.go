@@ -4,6 +4,7 @@
 package brokksession
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,6 +140,41 @@ func TestTheBriefTeachesTheLivingGraph(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("the brief lacks %q", want)
 		}
+	}
+}
+
+// FR-BOSS-010 AC14, AC15 (#2250): he concludes with the project brief and proposes the project, and the example he is
+// taught is a block wavesrv applies. He never prices an idea.
+func TestTheBriefTeachesTheConclusionAndTheProject(t *testing.T) {
+	t.Parallel()
+	text := BriefText(true)
+	blocks := strings.Split(text, "```brokk-graph\n")
+	if len(blocks) < 3 {
+		t.Fatalf("the brief holds %d graph examples, want the conclusion's too", len(blocks)-1)
+	}
+	example, _, _ := strings.Cut(blocks[2], "```")
+	var b brainstorm.Block
+	if err := json.Unmarshal([]byte(example), &b); err != nil {
+		t.Fatalf("the conclusion's example is not JSON: %v", err)
+	}
+	g, err := brainstorm.Apply(brainstorm.EmptyGraph(), brainstorm.Block{V: 1, Talk: brainstorm.TalkProject, Ops: []brainstorm.Op{{Op: brainstorm.OpCentre, Id: "forge", Text: "Forge notes"}}}, 1, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applied, err := brainstorm.Apply(g.Graph, b, 2, 2000)
+	if err != nil {
+		t.Fatalf("the conclusion's example is refused: %v", err)
+	}
+	if applied.Brief == nil || len(applied.Added) != 2 {
+		t.Errorf("the example concludes %+v and adds %v", applied.Brief, applied.Added)
+	}
+	for _, want := range []string{`"action": "project"`, "never prices it", "a market value, a revenue, a valuation or a success", "acts only on their click"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("the brief lacks %q", want)
+		}
+	}
+	if strings.Contains(text, "geargrim") || strings.Contains(text, "Geargrim") || strings.Contains(text, "DiamondForge") {
+		t.Error("the brief offers a hand-off DiamondForge does not offer yet")
 	}
 }
 

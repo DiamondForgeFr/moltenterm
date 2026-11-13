@@ -262,6 +262,8 @@ func (s *Service) Fork(req ForkRequest) LoadResult {
 		return s.loadFailed(ReasonFailed)
 	}
 	old := s.session
+	// The same talk goes on in the fork: it keeps its language (#2250).
+	created.Info.Language = old.Info.Language
 	created.Graph = WithReference(graph, old.Info.Title, old.Info.Id, at)
 	created.Info.Siblings = withSibling(created.Info.Siblings, old.Info.Id)
 	old.Graph = WithReference(old.Graph, created.Info.Title, created.Info.Id, at)

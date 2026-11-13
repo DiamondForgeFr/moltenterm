@@ -1520,6 +1520,7 @@ declare global {
         "boss:nevercome"?: boolean;
         "boss:proximity"?: string;
         "boss:brainstormsdir"?: string;
+        "boss:projectsdir"?: string;
         "boss:autoapprove"?: boolean;
         "moltenterm:settingsreveal"?: boolean;
         "moltenterm:theme"?: string;

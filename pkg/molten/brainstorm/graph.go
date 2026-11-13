@@ -39,9 +39,9 @@ const (
 )
 
 // The operations of a block. centre, add and link grow the graph. fork, resume and forget (#2248) never change it: the
-// window turns each into a question to the developer, and MoltenTerm acts only on the answer. The others belong to the
-// stories that follow (#2247, #2249, #2250) and are skipped until then, so that a block written for a newer brief is not
-// dropped whole.
+// window turns each into a question to the developer, and MoltenTerm acts only on the answer. conclude carries the
+// project brief and propose a proposal (#2250). remember belongs to a story that follows (#2249) and is skipped until
+// then, so that a block written for a newer brief is not dropped whole.
 const (
 	OpCentre   = "centre"
 	OpAdd      = "add"
@@ -68,7 +68,35 @@ const (
 	TalkPersonal = "personal"
 )
 
-const StatusOpen = "open"
+const (
+	StatusOpen = "open"
+	// StatusProposed: a proposal glows like hot metal until the developer acts on it (AC8).
+	StatusProposed = "proposed"
+)
+
+// The actions a proposal names (DS-BOSS-009). MoltenTerm 1.0.0 draws the project's alone (#2250): the setup and the
+// hand-off come with #2251, and Geargrim's only once DiamondForge offers it (GeargrimOffered). The others are skipped,
+// not dropped, so that a block of a newer brief keeps the rest of its graph.
+const (
+	ActionProject     = "project"
+	ActionSaaSFoundry = "saasfoundry"
+	ActionHandoff     = "handoff"
+	ActionNewFolder   = "newfolder"
+	ActionGeargrim    = "geargrim"
+)
+
+var knownActions = map[string]bool{
+	ActionProject:     true,
+	ActionSaaSFoundry: true,
+	ActionHandoff:     true,
+	ActionNewFolder:   true,
+	ActionGeargrim:    true,
+}
+
+// drawnAction: this version shows a proposal of that action.
+func drawnAction(action string) bool {
+	return action == ActionProject || (action == ActionGeargrim && GeargrimOffered())
+}
 
 var idPattern = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
 
@@ -98,8 +126,6 @@ var knownKinds = map[string]bool{
 }
 
 var laterOps = map[string]bool{
-	OpPropose:  true,
-	OpConclude: true,
 	OpRemember: true,
 }
 
@@ -114,6 +140,8 @@ type Node struct {
 	Pos    [3]float64 `json:"pos"`
 	// Ref: the id of the brainstorm a reference node names (#2248).
 	Ref string `json:"ref,omitempty"`
+	// Action: what a proposal offers (#2250).
+	Action string `json:"action,omitempty"`
 }
 
 type Link struct {
@@ -147,6 +175,9 @@ type Op struct {
 	// merge (#2247): the nodes folded into Into.
 	Ids  []string `json:"ids,omitempty"`
 	Into string   `json:"into,omitempty"`
+	// propose (#2250): what the proposal offers; conclude: the project brief it carries.
+	Action string      `json:"action,omitempty"`
+	Brief  *BriefDraft `json:"brief,omitempty"`
 }
 
 // Block is what one answer of his carries: {"v":1,"talk":"project","ops":[…]}.
@@ -280,6 +311,37 @@ func ValidateBlock(b Block) error {
 			if err := checkLivingOp(op, what); err != nil {
 				return err
 			}
+		case OpPropose:
+			if err := checkId(op.Id, what); err != nil {
+				return err
+			}
+			if err := checkId(op.From, what+" from"); err != nil {
+				return err
+			}
+			if !knownActions[op.Action] {
+				return fmt.Errorf("%s: unknown action", what)
+			}
+			if _, err := checkText(op.Text, what); err != nil {
+				return err
+			}
+		case OpConclude:
+			if err := checkId(op.Id, what); err != nil {
+				return err
+			}
+			if op.From != "" {
+				if err := checkId(op.From, what+" from"); err != nil {
+					return err
+				}
+			}
+			if _, err := checkText(op.Text, what); err != nil {
+				return err
+			}
+			if op.Brief == nil {
+				return fmt.Errorf("%s: no brief", what)
+			}
+			if _, err := CleanBrief(*op.Brief); err != nil {
+				return fmt.Errorf("%s: brief %w", what, err)
+			}
 		default:
 			if !laterOps[op.Op] {
 				return fmt.Errorf("%s: unknown operation", what)
@@ -333,6 +395,9 @@ func ValidateGraph(g Graph) (Graph, error) {
 		}
 		if n.Ref != "" && !refPattern.MatchString(n.Ref) {
 			return Graph{}, fmt.Errorf("%s: invalid reference", what)
+		}
+		if n.Action != "" && !knownActions[n.Action] {
+			return Graph{}, fmt.Errorf("%s: unknown action", what)
 		}
 		text, err := checkText(n.Text, what)
 		if err != nil {
@@ -391,12 +456,65 @@ func StartsNewIdea(g Graph, b Block) bool {
 
 // Applied is what a block did: the graph after it, the nodes it added in their order, and the operations of later
 // stories it skipped. Changes are the operations that changed the graph, each with what puts it back (#2247): the
-// history keeps them.
+// history keeps them. Brief is the project brief of its last `conclude`, its texts made plain (#2250).
 type Applied struct {
 	Graph   Graph
 	Added   []string
 	Skipped int
 	Changes []Change
+	Brief   *BriefDraft
+}
+
+// addChild grows node out of its parent (an `add`, a `propose`, a `conclude`): the id is new, the parent is a node, and
+// the graph has room.
+func addChild(next *Graph, index map[string]int, rtn *Applied, op Op, node Node, what string) error {
+	if next.Centre == "" {
+		return fmt.Errorf("%s: no centre yet", what)
+	}
+	if _, taken := index[node.Id]; taken {
+		return fmt.Errorf("%s: id already in the graph", what)
+	}
+	parentAt, ok := index[node.From]
+	if !ok {
+		return fmt.Errorf("%s: unknown parent", what)
+	}
+	if len(next.Nodes) >= MaxNodes {
+		return fmt.Errorf("%s: over %d nodes", what, MaxNodes)
+	}
+	node.Pos = birthPos(*next, next.Nodes[parentAt], node.Id)
+	index[node.Id] = len(next.Nodes)
+	next.Nodes = append(next.Nodes, node)
+	rtn.Added = append(rtn.Added, node.Id)
+	rtn.Changes = append(rtn.Changes, Change{Op: cleanOp(op), Undo: Patch{Added: []string{node.Id}}})
+	return nil
+}
+
+// conclude draws the conclusion plate, from the centre unless it names another parent, or rewrites it when it names
+// the plate of an earlier conclusion; its brief is the one kept.
+func conclude(next *Graph, index map[string]int, rtn *Applied, op Op, turn int, at int64, what string) error {
+	text, _ := checkText(op.Text, what)
+	brief, _ := CleanBrief(*op.Brief)
+	if i, ok := index[op.Id]; ok {
+		if next.Nodes[i].Kind != KindConclusion {
+			return fmt.Errorf("%s: id already in the graph", what)
+		}
+		if next.Nodes[i].Text != text {
+			rtn.Changes = append(rtn.Changes, Change{Op: cleanOp(op), Undo: Patch{Nodes: []PatchNode{{Index: i, Node: next.Nodes[i]}}}})
+			next.Nodes[i].Text = text
+		}
+		rtn.Brief = &brief
+		return nil
+	}
+	from := op.From
+	if from == "" {
+		from = next.Centre
+	}
+	node := Node{Id: op.Id, Kind: KindConclusion, Text: text, From: from, Status: StatusOpen, Turn: turn, At: at}
+	if err := addChild(next, index, rtn, op, node, what); err != nil {
+		return err
+	}
+	rtn.Brief = &brief
+	return nil
 }
 
 // Apply grows g with the block, all or nothing: a block that names an unknown parent, adds an id twice, links an unknown
@@ -444,25 +562,28 @@ func Apply(g Graph, b Block, turn int, at int64) (Applied, error) {
 			next.Nodes[index[op.Id]].Text = text
 		case OpAdd:
 			text, _ := checkText(op.Text, what)
-			if next.Centre == "" {
-				return Applied{}, fmt.Errorf("%s: no centre yet", what)
-			}
-			if _, taken := index[op.Id]; taken {
-				return Applied{}, fmt.Errorf("%s: id already in the graph", what)
-			}
-			parentAt, ok := index[op.From]
-			if !ok {
-				return Applied{}, fmt.Errorf("%s: unknown parent", what)
-			}
-			if len(next.Nodes) >= MaxNodes {
-				return Applied{}, fmt.Errorf("%s: over %d nodes", what, MaxNodes)
-			}
 			node := Node{Id: op.Id, Kind: op.Kind, Text: text, From: op.From, Status: StatusOpen, Turn: turn, At: at}
-			node.Pos = birthPos(next, next.Nodes[parentAt], op.Id)
-			index[op.Id] = len(next.Nodes)
-			next.Nodes = append(next.Nodes, node)
-			rtn.Added = append(rtn.Added, op.Id)
-			rtn.Changes = append(rtn.Changes, Change{Op: cleanOp(op), Undo: Patch{Added: []string{op.Id}}})
+			if err := addChild(&next, index, &rtn, op, node, what); err != nil {
+				return Applied{}, err
+			}
+		case OpPropose:
+			if !drawnAction(op.Action) {
+				rtn.Skipped++
+				continue
+			}
+			// The same proposal written again is the one on the board.
+			if i, ok := index[op.Id]; ok && next.Nodes[i].Kind == KindProposal && next.Nodes[i].Action == op.Action {
+				continue
+			}
+			text, _ := checkText(op.Text, what)
+			node := Node{Id: op.Id, Kind: KindProposal, Text: text, From: op.From, Status: StatusProposed, Turn: turn, At: at, Action: op.Action}
+			if err := addChild(&next, index, &rtn, op, node, what); err != nil {
+				return Applied{}, err
+			}
+		case OpConclude:
+			if err := conclude(&next, index, &rtn, op, turn, at, what); err != nil {
+				return Applied{}, err
+			}
 		case OpLink:
 			if _, ok := index[op.A]; !ok {
 				return Applied{}, fmt.Errorf("%s: unknown node", what)

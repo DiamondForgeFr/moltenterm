@@ -157,18 +157,19 @@ func TestTheCentreIsRenamedByItsOwnId(t *testing.T) {
 	}
 }
 
-// The operations of later stories (#2247 to #2250) are skipped, not dropped with the rest; a link twice is kept once.
+// The operations of later stories (#2249, #2251) are skipped, not dropped with the rest; a link twice is kept once.
 func TestLaterOperationsAreSkippedAndLinksKeptOnce(t *testing.T) {
 	t.Parallel()
 	applied, err := Apply(sampleGraph(t), block(
-		Op{Op: OpPropose, Id: "make-it", Text: "Make it a project", From: "kids-video"},
+		Op{Op: OpRemember, Text: "Likes forge-city stories"},
+		Op{Op: OpPropose, Id: "hand-off", Text: "Hand the first step to an agent", From: "kids-video", Action: ActionHandoff},
 		link("parents-list", "three-ten"),
 		add("devices", KindQuestion, "On which devices?", "kids-video"),
 	), 2, 2000)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if applied.Skipped != 1 || len(applied.Graph.Links) != 1 || !reflect.DeepEqual(applied.Added, []string{"devices"}) {
+	if applied.Skipped != 2 || len(applied.Graph.Links) != 1 || !reflect.DeepEqual(applied.Added, []string{"devices"}) {
 		t.Errorf("skipped %d, %d links, added %v", applied.Skipped, len(applied.Graph.Links), applied.Added)
 	}
 }

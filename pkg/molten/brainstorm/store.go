@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -30,9 +31,13 @@ const (
 
 	InfoSchema  = 1
 	SourceBrokk = "brokk"
-	StateOpen   = "open"
-	// StateDone: Brokk marked it finished on the developer's word (#2285); open is in progress.
-	StateDone = "done"
+	// The states of brainstorm.json (DS-BOSS-010); must match frontend/moltenterm-shell/brainstorm/brainstorm-model.ts.
+	// open is in progress; done: Brokk marked it finished on the developer's word (#2285); clear: his conclusion and its
+	// brief are written, still in progress until it becomes a project; promoted: it became one (#2250).
+	StateOpen     = "open"
+	StateDone     = "done"
+	StateClear    = "clear"
+	StatePromoted = "promoted"
 
 	// DefaultDirName is the brainstorms folder under the home folder when boss:brainstormsdir is unset.
 	DefaultDirName = "MoltenTerm/Brainstorms"
@@ -41,19 +46,59 @@ const (
 	fallbackSlug   = "idea"
 )
 
+var knownStates = map[string]bool{
+	StateOpen:     true,
+	StateDone:     true,
+	StateClear:    true,
+	StatePromoted: true,
+}
+
+// checkedState is a state of DS-BOSS-010; any other one read from a folder is in progress.
+func checkedState(state string) string {
+	if knownStates[state] {
+		return state
+	}
+	return StateOpen
+}
+
+// Promotion is brainstorm.json's promotedto (#2250): the project folder it became, the workspace that folder was linked
+// to (its id, "" until the window linked it), and when.
+type Promotion struct {
+	Dir       string `json:"dir"`
+	Workspace string `json:"workspace,omitempty"`
+	At        int64  `json:"at"`
+}
+
+// workspaceIdPattern: a workspace's id as wavesrv makes one.
+var workspaceIdPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
+
+// checkedPromotion is a promotedto read from the developer's folder as MoltenTerm writes one, nil otherwise: a hand may
+// have changed it, and its folder is shown and revealed.
+func checkedPromotion(p *Promotion) *Promotion {
+	if p == nil || p.Dir == "" || !filepath.IsAbs(p.Dir) {
+		return nil
+	}
+	rtn := Promotion{Dir: filepath.Clean(p.Dir), At: p.At}
+	if workspaceIdPattern.MatchString(p.Workspace) {
+		rtn.Workspace = p.Workspace
+	}
+	return &rtn
+}
+
 // Info is brainstorm.json.
 type Info struct {
-	Schema     int      `json:"schema"`
-	Id         string   `json:"id"`
-	Slug       string   `json:"slug"`
-	Title      string   `json:"title"`
-	Created    int64    `json:"created"`
-	Updated    int64    `json:"updated"`
-	State      string   `json:"state"`
-	Language   string   `json:"language,omitempty"`
-	Source     string   `json:"source"`
-	Siblings   []string `json:"siblings"`
-	PromotedTo any      `json:"promotedto"`
+	Schema  int    `json:"schema"`
+	Id      string `json:"id"`
+	Slug    string `json:"slug"`
+	Title   string `json:"title"`
+	Created int64  `json:"created"`
+	Updated int64  `json:"updated"`
+	State   string `json:"state"`
+	// Language: the BCP-47 tag of the talk (#2250), from what the developer wrote, else the interface's.
+	Language   string     `json:"language,omitempty"`
+	Source     string     `json:"source"`
+	Siblings   []string   `json:"siblings"`
+	PromotedTo *Promotion `json:"promotedto"`
 	// Named: the developer gave the title (Rename, #2248); the centre's text no longer replaces it.
 	Named bool `json:"named,omitempty"`
 }
@@ -79,6 +124,8 @@ type Saved struct {
 	Turns []Turn
 	// History is history.jsonl (#2247): the last operations, who made each and what puts it back.
 	History []HistoryEntry
+	// Brief is brief.json once Brokk concluded (#2250); nil before.
+	Brief *ProjectBrief
 }
 
 // Store reads and writes the folders. root gives the brainstorms folder at each call, so a change of the setting
@@ -298,11 +345,14 @@ func (s *Store) Load(dir string) (Saved, error) {
 	// The developer's folder may have been changed by hand: an id or a state that is not of the patterns MoltenTerm
 	// writes never reaches his resume brief or a reference.
 	saved.Info.Id = checkedId(saved.Info.Id)
-	if !idPattern.MatchString(saved.Info.State) {
-		saved.Info.State = StateOpen
-	}
+	saved.Info.State = checkedState(saved.Info.State)
+	saved.Info.Language = CleanLanguage(saved.Info.Language)
+	saved.Info.PromotedTo = checkedPromotion(saved.Info.PromotedTo)
 	if saved.Info.Siblings == nil {
 		saved.Info.Siblings = []string{}
+	}
+	if brief, ok := ReadBrief(dir); ok {
+		saved.Brief = &brief
 	}
 	data, err = os.ReadFile(filepath.Join(dir, GraphFile))
 	if err != nil {

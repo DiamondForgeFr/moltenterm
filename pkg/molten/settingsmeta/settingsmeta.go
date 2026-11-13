@@ -243,6 +243,9 @@ var settings = []Setting{
 	hidden("boss:collapseontype"),
 	// Brokk's thought in 3D (FR-BOSS-010, DS-BOSS-010, #2246): a folder the developer owns, on the channels that have it.
 	{Key: "boss:brainstormsdir", Section: SectionBoss, Group: "Brainstorms", Label: "Brainstorms folder", Description: "Where your brainstorms with him are saved, one folder per idea, without asking.", Control: ControlPath, Default: "~/MoltenTerm/Brainstorms", Channels: "gold,dev,local"},
+	// A clear brainstorm becomes a project (FR-BOSS-010 AC15, #2250): the parent folder chosen on the project card, a
+	// convenience and never an approval.
+	{Key: "boss:projectsdir", Section: SectionBoss, Group: "Brainstorms", Label: "Projects folder", Description: "Where a clear brainstorm becomes a project folder, once you click to make it.", Control: ControlPath, Channels: "gold,dev,local"},
 	// His agent's permission requests (#2257): off by default, turned on only after one explicit confirmation in the window.
 	{Key: "boss:autoapprove", Section: SectionBoss, Group: "His agent", Label: "Approve his agent's requests without asking", Description: "Only what stays in his own folder goes without asking, each a line in his window; the rest still asks.", Control: ControlToggle},
 	// When Brokk comes to fetch the developer (#2001 keys, #2003 table, FR-BOSS-009 AC4): the screen draws this group as
