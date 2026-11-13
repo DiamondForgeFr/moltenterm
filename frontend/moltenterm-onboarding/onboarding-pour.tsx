@@ -1,10 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The first launch, "the pour" (FR-ONB-007, DS-ONB-007): six full-frame scenes in the first-run panel (#1709), six heat
-// bars, Skip always there, Later on the project and the view, Enter or → to move on and ← to come back, sparks after a
-// pour. The stage takes the detection and the actions as props, so it renders without a window; onboarding-view.tsx
-// wires it to wavesrv.
+// The first launch, "the pour" (FR-ONB-007, DS-ONB-007): seven full-frame scenes in the first-run panel (#1709, Brokk's
+// since #2304), seven heat bars, Skip always there, Later on the project and the view, Enter or → to move on and ← to
+// come back, sparks after a pour. The stage takes the detection and the actions as props, so it renders without a
+// window; onboarding-view.tsx wires it to wavesrv.
 
 import { MoltentermMarkPath } from "@/util/moltenterm-identity";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -34,6 +34,7 @@ import {
     ReadyScene,
     viewParts,
 } from "./onboarding-pour-build";
+import { BrokkIntro, BrokkScene, brokkShownName } from "./onboarding-pour-brokk";
 import {
     heatStates,
     initialPourState,
@@ -91,6 +92,8 @@ export type PourProps = {
     onChooseFolder?: (purpose: "where" | "find", current: string) => Promise<string>;
     // the end: the view to make, or null when it was left for later
     onStart: (plan: FirstViewPlan) => void;
+    // Brokk's scene (FR-ONB-007 B-1 to B-6): his name, his switch, whether the brainstorm is available, and his face
+    brokk?: BrokkIntro;
 };
 
 export function OnboardingPour({
@@ -120,8 +123,10 @@ export function OnboardingPour({
     onLaterProject,
     onChooseFolder,
     onStart,
+    brokk,
 }: PourProps) {
     const t = useT();
+    const brokkName = brokkShownName(brokk);
     const [state, dispatch] = useReducer(pourReduce, initialScene, initialPourState);
     const [readyName, setReadyName] = useState<string>(null);
     const [installedId, setInstalledId] = useState<string>(null);
@@ -438,6 +443,7 @@ export function OnboardingPour({
                         onPlace={(place) => dispatch({ type: "place", place })}
                     />
                 ) : null}
+                {sceneId === "brokk" ? <BrokkScene intro={{ ...brokk, name: brokkName }} /> : null}
                 {sceneId === "start" ? (
                     <ReadyScene
                         markPath={MoltentermMarkPath}
@@ -497,7 +503,7 @@ export function OnboardingPour({
                         ) : null}
                         {working && (isLastScene(state.scene) || sceneId === "project")
                             ? t(isLastScene(state.scene) ? "onboarding.pour.opening" : "onboarding.pour.settingUp")
-                            : t(nextLabelKey(state.scene))}
+                            : t(nextLabelKey(state.scene), { name: brokkName })}
                         <MoltenWave />
                     </button>
                 </div>

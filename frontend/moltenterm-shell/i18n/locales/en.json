@@ -1667,7 +1667,8 @@
                 "agents": "My project",
                 "project": "Compose my view",
                 "view": "Choose its place",
-                "place": "It's ready",
+                "place": "Meet {name}",
+                "brokk": "It's ready",
                 "start": "Enter the workshop"
             },
             "scenes": {
@@ -1676,6 +1677,7 @@
                 "project": "Your project",
                 "view": "Your first view",
                 "place": "Its place",
+                "brokk": "Your colleague",
                 "start": "Ready"
             },
             "legal": {
@@ -1796,6 +1798,23 @@
                 "nextTitle": "Your next views:",
                 "nextText": "{keys} or the “+ New view” button. A new view is temporary; pin it to keep it.",
                 "nextExample": "For a development project, pin for instance one view for design, one for security tasks, one for steering the project. Everyone organises it their own way!"
+            },
+            "brokk": {
+                "kicker": "Your colleague",
+                "titleA": "Meet {name},",
+                "titleB": "your workshop colleague.",
+                "says": "“Hello. I keep an eye on the whole workshop, across your workspaces: what your agents finish, what waits for you. And when an idea needs thinking through, we think it through together.”",
+                "where": "He lives at the top of your sidebar: click his face to talk with him. From anywhere: {keys}, then his name.",
+                "off": "You turned him off on this computer: {name}'s preferences turn him back on.",
+                "ideaLead": "An idea comes to you, even a vague one?",
+                "ideaText": "Don't hesitate: open {name} and type {brainstorm}. He builds it with you and saves it in a folder you own.",
+                "example": "Example",
+                "idea": {
+                    "centre": "A logbook for the workshop",
+                    "who": "Who it is for",
+                    "first": "A first version",
+                    "risks": "What could go wrong"
+                }
             },
             "later": "Later",
             "settingUp": "Setting it up…",

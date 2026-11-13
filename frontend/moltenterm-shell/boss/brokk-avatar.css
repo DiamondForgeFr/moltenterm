@@ -122,6 +122,11 @@
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-action) 65%, transparent);
 }
 
+/* His animated face shows on the first launch's scene (#2304): the open group's ring points at where he lives. */
+.mt-brokk-avatar[data-lent="true"] {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-action) 65%, transparent);
+}
+
 /* Its face is the initial of his name, not a still of him (#2219): the animated Brokk is the group's square, and he is
    animated wherever his face shows. The smallest text size of the scale fits the 14 px avatar that hangs from the edge. */
 .mt-brokk-mark {

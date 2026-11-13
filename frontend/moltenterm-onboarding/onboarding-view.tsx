@@ -18,6 +18,8 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
+import { BossBubbleModel } from "../moltenterm-shell/boss/boss-store";
+import { useBrainstormAllowed } from "../moltenterm-shell/build/use-feature-on";
 import { I18nModel, t, useLocale, useT } from "../moltenterm-shell/i18n/i18n";
 import { serverErrorText } from "../moltenterm-shell/i18n/server-text";
 import { missionGitInit } from "../moltenterm-shell/mission/mission-client";
@@ -32,6 +34,7 @@ import {
 } from "../moltenterm-shell/workspace-project-store";
 import { suggestionConfig } from "../moltenterm-shell/workspace-views/view-suggestions";
 import { ChosenAgentKey, OnboardingAgents } from "./onboarding-agent-model";
+import { OnboardingBrokkFace } from "./onboarding-brokk-face";
 import {
     answerCliInstall,
     cancelCliInstall,
@@ -414,6 +417,11 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
     const scanning = useAtomValue(model.scanningAtom);
     const reduced = useAtomValue(atoms.prefersReducedMotionAtom);
     const ws = useAtomValue(atoms.workspace);
+    const boss = BossBubbleModel.getInstance();
+    const brokkName = useAtomValue(boss.nameAtom, { store: globalStore });
+    const brokkOn = useAtomValue(boss.showAtom, { store: globalStore });
+    // The same answer as his menu and the palette, redrawn when Features in test changes (FR-ONB-007 B-5).
+    const brainstorm = useBrainstormAllowed();
     const locale = useLocale();
     const tr = useT();
     const home = homeDir();
@@ -453,6 +461,7 @@ export function FirstRunPanel({ model }: ViewComponentProps<OnboardingViewModel>
                     onLaterProject={() => model.laterProject()}
                     onChooseFolder={(purpose, current) => model.chooseFolder(purpose, current)}
                     onStart={(plan) => fireAndForget(() => model.start(plan))}
+                    brokk={{ name: brokkName, off: !brokkOn, brainstorm, face: <OnboardingBrokkFace /> }}
                 />
             </ErrorBoundary>
         </div>

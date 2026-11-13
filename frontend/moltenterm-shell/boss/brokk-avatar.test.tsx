@@ -47,6 +47,7 @@ vi.mock("./boss-store", async () => {
         cardPinnedAtom: atom(false),
         talkingAtom: atom(false),
         keepAwakeAtom: atom(false),
+        faceLentAtom: atom(0),
         toHandleAtom: atom({ items: [], info: [], parked: 0 }),
         closeCard: vi.fn(),
         pinCard: vi.fn(),
@@ -185,6 +186,7 @@ beforeEach(() => {
     globalStore.set(boss.cardPinnedAtom, false);
     globalStore.set(boss.talkingAtom, false);
     globalStore.set(boss.keepAwakeAtom, false);
+    globalStore.set(boss.faceLentAtom, 0);
     globalStore.set(hubModel.ownWorkingAtom, false);
     globalStore.set(hubModel.sidebarPlaceAtom, "screen");
     BrokkEdgeModel.getInstance().reset();
@@ -243,6 +245,23 @@ describe("the avatar at rest (FR-BOSS-009, AC1)", () => {
         const closed = render();
         expect(closed).not.toContain("brokk-mark");
         expect(closed).toContain('data-testid="portrait" data-live="true"');
+    });
+
+    it("wears his initial with the open ring while the first launch shows his face, and his face again after (FR-ONB-007 B-4, #2304)", () => {
+        globalStore.set(boss.faceLentAtom, 1);
+        const lent = render();
+        expect(lent).not.toContain('data-testid="portrait"');
+        expect(lent).toMatch(/data-testid="brokk-mark"[^>]*>B</);
+        expect(attr(lent, "brokk-avatar", "data-lent")).toBe("true");
+        expect(attr(lent, "brokk-avatar", "aria-expanded")).toBe("false");
+        const sheet = css("brokk-avatar.css");
+        expect(rule(sheet, '.mt-brokk-avatar[data-lent="true"]')).toBe(rule(sheet, '.mt-brokk-avatar[data-panel="open"]'));
+        expect(rule(sheet, '.mt-brokk-avatar[data-lent="true"]')).toMatch(/box-shadow: 0 0 0 2px/);
+        globalStore.set(boss.cardOpenAtom, true);
+        expect(attr(render(), "brokk-avatar", "data-lent")).toBeUndefined();
+        globalStore.set(boss.cardOpenAtom, false);
+        globalStore.set(boss.faceLentAtom, 0);
+        expect(render()).toContain('data-testid="portrait" data-live="true"');
     });
 
     it("draws the mark in the action colour on the face's own round, with no motion (#2219)", () => {

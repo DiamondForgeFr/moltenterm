@@ -681,7 +681,7 @@ export function ReadyScene({ markPath, recap }: { markPath: string; recap: Ready
 }
 
 // "{keys}" in a sentence, drawn as a key.
-function withKeys(text: string, keys: string) {
+export function withKeys(text: string, keys: string) {
     const parts = text.split("{keys}");
     return parts.map((part, i) => (
         <span key={i}>

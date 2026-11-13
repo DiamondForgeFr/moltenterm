@@ -74,11 +74,14 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     const pinned = useAtomValue(boss.cardPinnedAtom, { store: globalStore });
     const talking = useAtomValue(boss.talkingAtom, { store: globalStore });
     const keepAwake = useAtomValue(boss.keepAwakeAtom, { store: globalStore });
+    // His animated face shows elsewhere (the first launch's scene, #2304): the avatar wears his initial meanwhile, with the
+    // ring of an open group, which also shows where he lives.
+    const lent = useAtomValue(boss.faceLentAtom, { store: globalStore }) > 0;
     const ownWorking = useAtomValue(hubModel.ownWorkingAtom, { store: globalStore });
     const badge = useAvatarBadge();
     const cue = useHubSelect((view) => view.cue);
     const sceneUp = useHubSelect((view) => view.visit != null);
-    const live = useAvatarLive(ownWorking, sceneUp || cardOpen);
+    const live = useAvatarLive(ownWorking, sceneUp || cardOpen || lent);
     const unseen = useAtomValue(BrokkEdgeModel.getInstance().unseenAtom, { store: globalStore });
     const running = useAtomValue(DownloadsModel.getInstance().ringAtom, { store: globalStore });
     const downloadRing = downloadRingOf(running);
@@ -146,6 +149,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             data-cue={cue ? "true" : undefined}
             data-scene={sceneUp ? "up" : undefined}
             data-panel={cardOpen ? "open" : undefined}
+            data-lent={lent && !cardOpen ? "true" : undefined}
             data-news={variant === "edge" && unseen && !motion ? "true" : undefined}
             data-pinned={cardOpen && pinned ? "true" : undefined}
             aria-label={label}
@@ -159,7 +163,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             onMouseDown={(e) => e.preventDefault()}
         >
             <span className="mt-brokk-face" aria-hidden>
-                {cardOpen ? (
+                {cardOpen || lent ? (
                     <span className="mt-brokk-mark" data-testid="brokk-mark">
                         {brokkInitial(name)}
                     </span>

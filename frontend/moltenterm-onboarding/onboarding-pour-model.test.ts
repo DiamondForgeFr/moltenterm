@@ -1,7 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The pour's navigation and records (FR-ONB-007 AC-1, AC-2, AC-9, P-1, P-7, TC-ONB-007), its six scenes since #1709.
+// The pour's navigation and records (FR-ONB-007 AC-1, AC-2, AC-9, P-1, P-7, B-1, B-6, TC-ONB-007, TC-ONB-016), its six
+// scenes since #1709, seven with Brokk's since #2304.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -20,13 +21,14 @@ import {
 } from "./onboarding-pour-model";
 
 describe("the pour's scenes (FR-ONB-007)", () => {
-    it("has six scenes, from the welcome to ready", () => {
-        expect(PourSceneCount).toBe(6);
-        expect([...PourScenes]).toEqual(["pour", "agents", "project", "view", "place", "start"]);
-        expect(isLastScene(5)).toBe(true);
-        expect(isLastScene(4)).toBe(false);
+    it("has seven scenes, from the welcome to ready, Brokk's just before ready (B-1)", () => {
+        expect(PourSceneCount).toBe(7);
+        expect([...PourScenes]).toEqual(["pour", "agents", "project", "view", "place", "brokk", "start"]);
+        expect(isLastScene(6)).toBe(true);
+        expect(isLastScene(5)).toBe(false);
         expect(nextLabelKey(0)).toBe("onboarding.pour.next.pour");
-        expect(nextLabelKey(5)).toBe("onboarding.pour.next.start");
+        expect(nextLabelKey(sceneIndex("brokk"))).toBe("onboarding.pour.next.brokk");
+        expect(nextLabelKey(6)).toBe("onboarding.pour.next.start");
     });
 
     it("moves on and back, and never past either end", () => {
@@ -36,9 +38,11 @@ describe("the pour's scenes (FR-ONB-007)", () => {
         for (let i = 0; i < 9; i++) {
             state = pourReduce(state, { type: "next" });
         }
-        expect(state.scene).toBe(5);
+        expect(state.scene).toBe(6);
         state = pourReduce(state, { type: "back" });
-        expect(state.scene).toBe(4);
+        expect(PourScenes[state.scene]).toBe("brokk");
+        state = pourReduce(state, { type: "back" });
+        expect(PourScenes[state.scene]).toBe("place");
     });
 
     it("replays a scene's animations on each visit, not when nothing moves", () => {
@@ -49,8 +53,8 @@ describe("the pour's scenes (FR-ONB-007)", () => {
     });
 
     it("lights the heat bars up to the current scene", () => {
-        expect(heatStates(0)).toEqual(["now", "cold", "cold", "cold", "cold", "cold"]);
-        expect(heatStates(2)).toEqual(["done", "done", "now", "cold", "cold", "cold"]);
+        expect(heatStates(0)).toEqual(["now", "cold", "cold", "cold", "cold", "cold", "cold"]);
+        expect(heatStates(2)).toEqual(["done", "done", "now", "cold", "cold", "cold", "cold"]);
     });
 
     it("reads Enter and → as next, ← as back, and leaves buttons, fields and shortcuts alone", () => {
@@ -76,7 +80,9 @@ describe("the pour's scenes (FR-ONB-007)", () => {
         expect(recordOnLeaving(0)).toBe("welcome");
         expect(recordOnLeaving(1)).toBe("agents");
         expect(recordOnLeaving(2)).toBeNull();
-        expect(recordOnLeaving(5)).toBeNull();
+        // Brokk's scene records nothing of its own (B-6): the run's end does, so the pour never shows again by itself.
+        expect(recordOnLeaving(sceneIndex("brokk"))).toBeNull();
+        expect(recordOnLeaving(6)).toBeNull();
     });
 
     it("draws no sparks under reduced motion or a hidden document", () => {
@@ -88,17 +94,22 @@ describe("the pour's scenes (FR-ONB-007)", () => {
 
 describe("Later on the project and the view (P-1)", () => {
     it("is offered on the project and the view only", () => {
-        expect(PourScenes.map((_, i) => offersLater(i))).toEqual([false, false, true, true, false, false]);
+        expect(PourScenes.map((_, i) => offersLater(i))).toEqual([false, false, true, true, false, false, false]);
     });
 
-    it("skips the project to the view, and the view with its place to ready", () => {
+    it("skips the project to the view, and the view with its place to Brokk's scene, then ready (B-1)", () => {
         let state = pourReduce(initialPourState(sceneIndex("project")), { type: "laterProject" });
         expect(PourScenes[state.scene]).toBe("view");
         expect(state.projectSkipped).toBe(true);
         expect(state.projectSet).toBeNull();
         state = pourReduce(state, { type: "laterView" });
+        expect(PourScenes[state.scene]).toBe("brokk");
+        expect(state.viewSkipped).toBe(true);
+        state = pourReduce(state, { type: "next" });
         expect(PourScenes[state.scene]).toBe("start");
         expect(state.viewSkipped).toBe(true);
+        state = pourReduce(state, { type: "back" });
+        expect(PourScenes[state.scene]).toBe("brokk");
         state = pourReduce(state, { type: "back" });
         expect(PourScenes[state.scene]).toBe("view");
         expect(state.viewSkipped).toBe(false);
