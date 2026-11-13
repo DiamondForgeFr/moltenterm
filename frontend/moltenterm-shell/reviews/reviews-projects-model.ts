@@ -106,34 +106,6 @@ export function projectLanes(
     return lanes;
 }
 
-// What a project has in its own view's bottom sections (#2280): the work coming (ticket branches without their pull
-// request, delegated agents, leftovers) and the pull requests merged lately.
-export type ProjectSectionCounts = { coming: number; merged: number };
-
-export type ProjectSectionBlock = { project: WorkspaceProjectEntry } & ProjectSectionCounts;
-
-// The projects All projects shows a Coming or Recently merged block for, in the workspace's order: a project with
-// nothing in either shows no block, rather than two empty boxes.
-export function projectSectionBlocks(
-    projects: readonly WorkspaceProjectEntry[],
-    counts: Record<string, ProjectSectionCounts>
-): ProjectSectionBlock[] {
-    const rtn: ProjectSectionBlock[] = [];
-    for (const project of projects) {
-        const c = counts[project.id];
-        if (c == null || (c.coming <= 0 && c.merged <= 0)) {
-            continue;
-        }
-        rtn.push({ project, coming: Math.max(0, c.coming), merged: Math.max(0, c.merged) });
-    }
-    return rtn;
-}
-
-// The big empty state only when nothing is open, coming or merged lately in any project (#2280).
-export function allProjectsEmpty(lanes: readonly ProjectLane[], blocks: readonly ProjectSectionBlock[]): boolean {
-    return lanes.length === 0 && blocks.length === 0;
-}
-
 // The chip a workspace shows: one this page moved to by itself (a PR another surface asked for, a row opened), else
 // the developer's choice saved on the workspace.
 export function storedProjectFilter(filters: Record<string, string>, workspace: Workspace): string {

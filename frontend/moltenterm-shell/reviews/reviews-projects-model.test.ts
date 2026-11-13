@@ -9,13 +9,11 @@ import type { CardState } from "./reviews-card-model";
 import type { ReviewPr } from "./reviews-model";
 import {
     AllProjects,
-    allProjectsEmpty,
     followedAgentFolders,
     projectIdsOfFolders,
     projectLanes,
     projectOfDir,
     ProjectPrRow,
-    projectSectionBlocks,
     resolveProjectFilter,
     ReviewsProjectFilter,
     ReviewsProjectMetaKey,
@@ -138,27 +136,5 @@ describe("the project chip, saved on the workspace (#1758)", () => {
         await vi.waitFor(() => expect(globalStore.get(filter.filtersAtom).w1).toBeUndefined());
         // A new page knows only the workspace.
         expect(storedProjectFilter({}, ws(backend.meta["workspace:w1"]))).toBe("p2");
-    });
-});
-
-describe("All projects' Coming and Recently merged blocks (#2280)", () => {
-    it("keeps the projects with work coming or merged lately, in the workspace's order", () => {
-        const blocks = projectSectionBlocks(Projects, {
-            p2: { coming: 0, merged: 1 },
-            p1: { coming: 1, merged: 0 },
-            p3: { coming: 0, merged: 0 },
-        });
-        expect(blocks.map((b) => [b.project.id, b.coming, b.merged])).toEqual([
-            ["p1", 1, 0],
-            ["p2", 0, 1],
-        ]);
-        expect(projectSectionBlocks(Projects, {})).toEqual([]);
-    });
-
-    it("shows the empty state only when nothing is open, coming or merged in any project", () => {
-        const coming = projectSectionBlocks(Projects, { p1: { coming: 1, merged: 0 } });
-        expect(allProjectsEmpty([], coming)).toBe(false);
-        expect(allProjectsEmpty([], [])).toBe(true);
-        expect(allProjectsEmpty(projectLanes(Projects, {}), [])).toBe(true);
     });
 });
