@@ -9,7 +9,8 @@
 // agent, try again, or open his terminal. He listens while the developer writes (onTyping). Folded, the field is one
 // row as wide as the group, and what it says hangs under it, so the group's geometry never moves. While the window is
 // open the panel beside the group gives way above it (onFocusChange, AC18, #2090), and the field is roomy, with its
-// hint and the send button under it (AC91, #2285).
+// hint and the send button under it (AC91, #2285), in one inset well that shows the focus (AC91a, #2303). The way back
+// to the brainstorm left is the resume card, folded and open (AC92, #2303).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
@@ -23,6 +24,7 @@ import {
     openBrainstorm,
     resumeLastBrainstorm,
 } from "../brainstorm/brainstorm-boot";
+import { ResumeCard } from "../brainstorm/brainstorm-resume-card";
 import { useBrainstormAllowed } from "../build/use-feature-on";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
@@ -278,28 +280,21 @@ export function BrokkTalk({
             {t("boss.panel.talk.commandHint", { name })}
         </div>
     ) : null;
+    // The way back to the brainstorm left (AC10e), as the resume card in both windows (#2303).
     const resumeLine =
         lastLeft != null && brainstormAllowed && !brainstorming ? (
-            <div className="flex flex-wrap items-center gap-x-2 text-11" data-testid="brokk-talk-resume">
-                <button
-                    type="button"
-                    data-testid="brokk-talk-resume-go"
-                    onClick={() => fireAndForget(() => resumeLastBrainstorm())}
-                    className="cursor-pointer rounded-4 border border-border px-1.5 py-0.5 text-11 text-primary hover:bg-hover"
-                >
-                    {t("boss.brainstorm.picker.resume", { title: lastLeft.title })}
-                </button>
-                <button
-                    type="button"
-                    data-testid="brokk-talk-resume-dismiss"
-                    aria-label={t("boss.brainstorm.resumeDismiss")}
-                    title={t("boss.brainstorm.resumeDismiss")}
-                    onClick={dismissLastBrainstorm}
-                    className="cursor-pointer text-11 text-muted hover:text-secondary"
-                >
-                    <i className={makeIconClass("xmark", false)} aria-hidden />
-                </button>
-            </div>
+            <ResumeCard
+                eyebrow={t("boss.brainstorm.card.lastLeft")}
+                title={lastLeft.title}
+                label={t("boss.brainstorm.card.lastLeftLabel", { title: lastLeft.title })}
+                testIds={{
+                    card: "brokk-talk-resume",
+                    resume: "brokk-talk-resume-go",
+                    dismiss: "brokk-talk-resume-dismiss",
+                }}
+                onResume={() => fireAndForget(() => resumeLastBrainstorm())}
+                onDismiss={dismissLastBrainstorm}
+            />
         ) : null;
     const note = showNote ? (
         <div
@@ -340,17 +335,49 @@ export function BrokkTalk({
     ) : null;
 
     // Folded, the field keeps its one row with the button at its end; open, the roomy field has its hint and the button
-    // under it (AC91, #2285).
+    // under it (AC91, #2285). The molten call to action, led by its icon; with nothing to send it is calm, not a dimmed
+    // orange (AC91a, #2303, brokk-group.css).
     const sendButton = (
         <button
             type="submit"
             disabled={!canSend(text, state)}
             data-testid="brokk-talk-send"
-            className="molten-btn inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-0.5 text-11 font-medium"
+            className="molten-btn mt-brokk-send inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-0.5 text-11 font-medium"
         >
+            <i className={makeIconClass("paper-plane", false)} aria-hidden />
             {t("boss.panel.talk.send")}
             <MoltenWave />
         </button>
+    );
+    const fieldRow = (
+        <div className="mt-brokk-field-row">
+            <textarea
+                ref={inputRef}
+                rows={1}
+                value={text}
+                maxLength={MaxMessageLength}
+                placeholder={t("boss.panel.talk.placeholder", { name })}
+                title={brainstormAllowed ? t("boss.panel.talk.keysBrainstorm") : t("boss.panel.talk.keys")}
+                aria-label={t("boss.panel.talk.label", { name })}
+                data-testid="brokk-talk-input"
+                className="mt-brokk-field-input"
+                onChange={(e) => {
+                    setText(e.target.value);
+                    setSlashKept(false);
+                    if (clearsOnTyping(state)) {
+                        session.clearNote();
+                    }
+                }}
+                onKeyDown={(e) => {
+                    if (!sendsOnKey({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing })) {
+                        return;
+                    }
+                    e.preventDefault();
+                    void send();
+                }}
+            />
+            {open ? null : sendButton}
+        </div>
     );
 
     return (
@@ -425,42 +452,20 @@ export function BrokkTalk({
                     </div>
                 </div>
             ) : null}
-            <div className="mt-brokk-field-row">
-                <textarea
-                    ref={inputRef}
-                    rows={1}
-                    value={text}
-                    maxLength={MaxMessageLength}
-                    placeholder={t("boss.panel.talk.placeholder", { name })}
-                    title={brainstormAllowed ? t("boss.panel.talk.keysBrainstorm") : t("boss.panel.talk.keys")}
-                    aria-label={t("boss.panel.talk.label", { name })}
-                    data-testid="brokk-talk-input"
-                    className="mt-brokk-field-input"
-                    onChange={(e) => {
-                        setText(e.target.value);
-                        setSlashKept(false);
-                        if (clearsOnTyping(state)) {
-                            session.clearNote();
-                        }
-                    }}
-                    onKeyDown={(e) => {
-                        if (!sendsOnKey({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing })) {
-                            return;
-                        }
-                        e.preventDefault();
-                        void send();
-                    }}
-                />
-                {open ? null : sendButton}
+            {/* Open, the field and its footer are one inset well that shows the focus (AC91a, #2303). The well is there
+                folded too, laid out as if it were not (brokk-group.css): the field keeps its place in the tree, so
+                opening the window never remounts it and never takes its focus. */}
+            <div className="mt-brokk-composer" data-testid="brokk-talk-composer">
+                {fieldRow}
+                {open ? (
+                    <div className="mt-brokk-field-foot" data-testid="brokk-talk-foot">
+                        <span className="mt-brokk-field-hint" data-testid="brokk-talk-hint">
+                            {t("boss.panel.talk.hint")}
+                        </span>
+                        {sendButton}
+                    </div>
+                ) : null}
             </div>
-            {open ? (
-                <div className="mt-brokk-field-foot" data-testid="brokk-talk-foot">
-                    <span className="mt-brokk-field-hint" data-testid="brokk-talk-hint">
-                        {t("boss.panel.talk.hint")}
-                    </span>
-                    {sendButton}
-                </div>
-            ) : null}
             {!open && (note != null || slashNote != null || commandHint != null || resumeLine != null) ? (
                 <div className="mt-brokk-field-extra">
                     {note}

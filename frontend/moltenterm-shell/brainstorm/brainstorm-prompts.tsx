@@ -3,7 +3,8 @@
 
 // The questions Brokk's talk window asks about the brainstorms (FR-BOSS-010 AC10a to AC10d, #2248): the picker on entry
 // (the unfinished ones first and marked, AC25, #2285),
-// the near-duplicate of `/brainstorm <idea>`, his offer to resume one, and the confirmation of a forget. Each acts only on
+// the near-duplicate of `/brainstorm <idea>`, his offer to resume one (the resume card, #2303), and the confirmation of a
+// forget. Each acts only on
 // the developer's click: his offer never opens anything, and a forget is sent only from the confirm button, after its
 // title and last change were shown. Loaded on demand (brokk-talk.tsx), the first time a question is asked.
 
@@ -13,6 +14,7 @@ import { useState } from "react";
 import { useLocale, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { lastChange, unfinished } from "./brainstorm-model";
+import { ResumeCard } from "./brainstorm-resume-card";
 import { BrainstormModel, BrainstormSummary } from "./brainstorm-store";
 
 const Card = "flex flex-col gap-1.5 rounded-4 border border-border p-2 text-12";
@@ -161,19 +163,33 @@ export function BrainstormPrompts({ name }: { name: string }) {
         );
     }
     const match = prompt.match;
-    const duplicate = prompt.kind === "duplicate";
+    // His offer to reopen one (AC10b) is the resume card of the way back (#2303): the same look folded and open.
+    if (prompt.kind !== "duplicate") {
+        return (
+            <ResumeCard
+                eyebrow={t("boss.brainstorm.offer.lead")}
+                title={match.title}
+                detail={t("boss.brainstorm.lastChange", { when: lastChange(match.updated, locale) })}
+                label={t("boss.brainstorm.offer.label", { name })}
+                busy={busy}
+                testIds={{
+                    card: "brainstorm-offer",
+                    resume: "brainstorm-prompt-resume",
+                    dismiss: "brainstorm-prompt-later",
+                }}
+                onResume={run(() => model.load(match.slug))}
+                onDismiss={() => model.dismissPrompt()}
+            />
+        );
+    }
     return (
         <div
             role="group"
             aria-label={t("boss.brainstorm.offer.label", { name })}
             className={Card}
-            data-testid={duplicate ? "brainstorm-duplicate" : "brainstorm-offer"}
+            data-testid="brainstorm-duplicate"
         >
-            <span className="text-primary">
-                {duplicate
-                    ? t("boss.brainstorm.duplicate.ask", { title: match.title })
-                    : t("boss.brainstorm.offer.ask", { title: match.title })}
-            </span>
+            <span className="text-primary">{t("boss.brainstorm.duplicate.ask", { title: match.title })}</span>
             <span className="text-11 text-secondary">
                 {t("boss.brainstorm.lastChange", { when: lastChange(match.updated, locale) })}
             </span>
@@ -188,27 +204,15 @@ export function BrainstormPrompts({ name }: { name: string }) {
                     {t("boss.brainstorm.resumeAction")}
                     <MoltenWave />
                 </button>
-                {duplicate ? (
-                    <button
-                        type="button"
-                        disabled={busy}
-                        className={Secondary}
-                        data-testid="brainstorm-prompt-fresh"
-                        onClick={run(() => model.startFresh(prompt.idea))}
-                    >
-                        {t("boss.brainstorm.duplicate.fresh")}
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        disabled={busy}
-                        className={Secondary}
-                        data-testid="brainstorm-prompt-later"
-                        onClick={() => model.dismissPrompt()}
-                    >
-                        {t("boss.brainstorm.offer.later")}
-                    </button>
-                )}
+                <button
+                    type="button"
+                    disabled={busy}
+                    className={Secondary}
+                    data-testid="brainstorm-prompt-fresh"
+                    onClick={run(() => model.startFresh(prompt.idea))}
+                >
+                    {t("boss.brainstorm.duplicate.fresh")}
+                </button>
             </span>
         </div>
     );

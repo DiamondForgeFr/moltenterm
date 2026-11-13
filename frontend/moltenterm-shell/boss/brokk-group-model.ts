@@ -123,9 +123,10 @@ export function panelWidth(room: number): number {
 export const ConversationMinPx = 240;
 export const ConversationMaxPx = 460;
 // What the window adds to the exchange's own height (brokk-group.css): its padding (14 above, 8 below), the roomy input
-// of #2285 (its 1 px rule, the row's 8 px above, the field's two lines of 20 px and their 6 px padding above and below,
-// the footer of 36 px with the hint and the send button) and the frame's 2 px border.
-export const ConversationChromePx = 14 + 8 + 1 + 8 + (2 * 20 + 2 * 6) + 36 + 2;
+// of #2285 in its inset well of #2303 (the field's two lines of 20 px and their 6 px padding above and below, the footer
+// of 36 px with the hint and the send button, the 10 px under the well; the well's line is drawn inside and takes no
+// room) and the frame's 2 px border.
+export const ConversationChromePx = 14 + 8 + (2 * 20 + 2 * 6) + 36 + 10 + 2;
 
 // As wide as the group and the panel area together: it reaches the right edge where a panel stands, and covers nothing
 // since the panel gives way above it while it is open (panelRoom, #2090).

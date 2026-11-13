@@ -118,7 +118,9 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         expect(html).toContain('data-testid="brokk-talk-input"');
         expect(html).toContain('placeholder="Write to Brokk…"');
         expect(html).toContain('aria-label="Message to Brokk"');
-        expect(html).toMatch(/data-testid="brokk-talk-send"[^>]*>Send/);
+        expect(html).toMatch(
+            /data-testid="brokk-talk-send"[^>]*><i class="[^"]*fa-paper-plane[^"]*" aria-hidden="true"><\/i>Send</
+        );
         expect(html).toMatch(/<button type="submit" disabled=""/);
         expect(html).not.toContain('data-testid="brokk-talk-note"');
     });
@@ -137,9 +139,60 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
     });
 
     it("wears the Molten call to action", () => {
-        expect(render()).toMatch(/class="molten-btn [^"]*"[^>]*>Send<[^>]*>/);
+        expect(render()).toMatch(
+            /class="molten-btn mt-brokk-send [^"]*"[^>]*><i [^>]*><\/i>Send<i class="molten-btn-wave"/
+        );
         const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
         expect(source).toContain("<MoltenWave />");
+    });
+
+    // #2303: with nothing to send, the molten fill at half opacity read as a flat brown pill. It is calm instead, and the
+    // pointer never turns into the not-allowed one.
+    it("has a calm Send while there is nothing to send, never a dimmed orange", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        const calm = /\.mt-brokk-field \.molten-btn\.mt-brokk-send:disabled \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(calm).toContain("opacity: 1;");
+        expect(calm).toContain("background-color: var(--mt-surface-2);");
+        expect(calm).toContain("color: var(--mt-text-3);");
+        expect(calm).toContain("box-shadow: inset 0 0 0 1px var(--mt-line-2);");
+        const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
+        expect(source).not.toContain("cursor-not-allowed");
+        expect(css).not.toContain("not-allowed");
+        keepDraft("hello");
+        expect(render()).toMatch(
+            /<button type="submit" data-testid="brokk-talk-send" class="molten-btn mt-brokk-send /
+        );
+    });
+
+    // #2303: the field shows its focus. Folded, the one-row frame takes the action line and an ember ring; open, the inset
+    // well holding the field and its footer does, and the frame keeps its calm line.
+    it("shows the focus on the folded frame and on the open window's well", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        expect(css).toMatch(
+            /\.mt-brokk-field\[data-open="false"\]:focus-within \{[^}]*border-color: color-mix\(in srgb, var\(--mt-action\) 60%, transparent\);[^}]*box-shadow: 0 0 0 3px var\(--mt-action-wash\);/
+        );
+        expect(css).toMatch(
+            /\.mt-brokk-field\[data-open="true"\] \.mt-brokk-composer:focus-within \{[^}]*inset 0 0 0 1px color-mix\(in srgb, var\(--mt-action\) 60%, transparent\),\s*0 0 0 3px var\(--mt-action-wash\);/
+        );
+        expect(css).not.toMatch(/\.mt-brokk-field\[data-open="true"\] \{[^}]*border-color/);
+        expect(css).toMatch(
+            /\.mt-brokk-field\[data-open="true"\] \.mt-brokk-composer \{[^}]*background: var\(--mt-surface-0\);/
+        );
+    });
+
+    // #2303: the well is in the tree folded too, laid out as if it were not, so that opening the window (on the field's
+    // focus) never remounts the field and never takes its focus away.
+    it("keeps the field at the same place in the tree, folded and open", () => {
+        const at = /data-testid="brokk-talk-composer"><div class="mt-brokk-field-row"><textarea/;
+        const folded = render();
+        expect(folded).toMatch(at);
+        expect(folded).not.toContain('data-testid="brokk-talk-foot"');
+        keepDraft("hello");
+        const open = render();
+        expect(open).toMatch(at);
+        expect(open).toMatch(/<\/textarea><\/div><div class="mt-brokk-field-foot" data-testid="brokk-talk-foot">/);
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        expect(css).toMatch(/\.mt-brokk-composer \{\s*display: contents;\s*\}/);
     });
 
     const Idle = { phase: "idle", reason: "", agentName: "", started: false, reply: "", where: null };
@@ -369,7 +422,7 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
             gate.allowed = true;
             let html = render();
             expect(html).toContain('data-testid="brokk-talk-resume"');
-            expect(html).toContain("Resume “A safe video app”");
+            expect(html).toContain('aria-label="Resume the last brainstorm, “A safe video app”"');
             globalStore.set(BrainstormStateAtom, { allowed: true, open: true, version: 1 });
             expect(render()).not.toContain('data-testid="brokk-talk-resume"');
             globalStore.set(BrainstormStateAtom, null);
@@ -381,6 +434,62 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
             globalStore.set(BrainstormLastLeftAtom, null);
             globalStore.set(BrainstormStateAtom, null);
         }
+    });
+
+    // #2303: on the gold the way back floated over the terminal with no surface, on three centred lines, and did not read
+    // as clickable; open, it read as a label. It is the resume card in both windows: an opaque plate, the title on one
+    // line, the molten Resume and a quiet × for Not now.
+    it("offers the way back as the resume card, folded under the field and in the open window", () => {
+        const last = {
+            slug: "allotment-ledger",
+            title: "A pocket ledger for allotment gardeners who share tools",
+            dir: "/synthetic",
+            created: 1,
+            updated: 2,
+            turns: 2,
+        };
+        try {
+            globalStore.set(BrainstormLastLeftAtom, last);
+            gate.allowed = true;
+            const folded = render();
+            const hang = folded.slice(folded.indexOf('class="mt-brokk-field-extra"'));
+            expect(hang).toMatch(
+                /^class="mt-brokk-field-extra"><div role="group"[^>]*class="mt-brokk-resume" data-testid="brokk-talk-resume"/
+            );
+            expect(hang).toContain(">Last brainstorm<");
+            expect(hang).toContain(
+                'class="mt-brokk-resume-title" title="A pocket ledger for allotment gardeners who share tools"'
+            );
+            expect(hang).toMatch(
+                /class="molten-btn mt-brokk-resume-go [^"]*" data-testid="brokk-talk-resume-go">Resume<i class="molten-btn-wave"/
+            );
+            expect(hang).toMatch(/aria-label="Not now" title="Not now" data-testid="brokk-talk-resume-dismiss"/);
+            keepDraft("hello");
+            const open = render();
+            const convo = open.slice(
+                open.indexOf('data-testid="brokk-convo"'),
+                open.indexOf('data-testid="brokk-talk-composer"')
+            );
+            expect(convo).toContain('data-testid="brokk-talk-resume"');
+            expect(open).not.toContain('class="mt-brokk-field-extra"');
+            expect(open.match(/data-testid="brokk-talk-resume"/g)).toHaveLength(1);
+        } finally {
+            gate.allowed = false;
+            globalStore.set(BrainstormLastLeftAtom, null);
+        }
+    });
+
+    // #2303: whatever hangs under the folded field stands on its own opaque plate, never as bare text over the terminal.
+    it("puts what hangs under the folded field on opaque plates", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        const plate = /\.mt-brokk-field-extra > :not\(\.mt-brokk-resume\) \{([^}]*)\}/.exec(css)?.[1] ?? "";
+        expect(plate).toContain("background: var(--mt-surface-1);");
+        expect(plate).toContain("border: 1px solid var(--mt-line-2);");
+        expect(plate).toContain("box-shadow: var(--mt-shadow-e2);");
+        const stateAtom = (BrokkSession.getInstance() as any).stateAtom;
+        globalStore.set(stateAtom, { ...Idle, phase: "busy", reason: "notready" });
+        const html = render();
+        expect(html).toMatch(/class="mt-brokk-field-extra"><div role="status" data-testid="brokk-talk-note"/);
     });
 
     // #2257: the field offers its one command while a slash starts, only where the brainstorm exists.

@@ -447,11 +447,16 @@
     border: 1px solid var(--mt-line-2);
     border-radius: var(--mt-radius-panel);
     cursor: text;
+    transition:
+        border-color var(--mt-duration-fast) var(--mt-ease),
+        box-shadow var(--mt-duration-fast) var(--mt-ease);
 }
 
-.mt-brokk-field:focus-within,
-.mt-brokk-field[data-open="true"] {
+/* Folded, the one-row frame shows the focus: the action line and a soft ember ring (AC91a, #2303). Open, the frame
+   keeps its calm line and the inset well inside it shows the focus, so the window never wears two orange edges. */
+.mt-brokk-field[data-open="false"]:focus-within {
     border-color: color-mix(in srgb, var(--mt-action) 60%, transparent);
+    box-shadow: 0 0 0 3px var(--mt-action-wash);
 }
 
 .mt-brokk-field[data-open="true"] {
@@ -468,19 +473,41 @@
 }
 
 /* The open window's input (FR-BOSS-009 AC91, DS-BOSS-013, #2285), Notulia's reading comfort in the shell's tokens: a
-   roomy field at least two lines tall over the whole width, then a footer with the keys' hint and the send button. Its
-   height is ConversationChromePx's part (brokk-group-model.ts): the rule above it (1), the row's 8 px above, the field's
-   two lines (2 × 20 + 2 × 6), the footer (4 + 24 + 8). */
+   roomy field at least two lines tall over the whole width, then a footer with the keys' hint and the send button.
+   Both stand in one inset well (AC91a, #2303): sunk into the frame on surface 0, its line drawn inside so that it takes
+   no room, 10 px from the frame's sides and bottom. Its height is ConversationChromePx's part (brokk-group-model.ts):
+   the field's two lines (2 × 20 + 2 × 6), the footer (36) and the 10 px under the well. */
+.mt-brokk-composer {
+    display: contents;
+}
+
+.mt-brokk-field[data-open="true"] .mt-brokk-composer {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    margin: 0 10px 10px;
+    background: var(--mt-surface-0);
+    border-radius: var(--mt-radius-panel);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    transition: box-shadow var(--mt-duration-fast) var(--mt-ease);
+}
+
+/* The focus of the open window: the well takes the action line and the ember ring the folded frame takes. */
+.mt-brokk-field[data-open="true"] .mt-brokk-composer:focus-within {
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--mt-action) 60%, transparent),
+        0 0 0 3px var(--mt-action-wash);
+}
+
 .mt-brokk-field[data-open="true"] .mt-brokk-field-row {
     height: auto;
     align-items: stretch;
-    padding: 8px 10px 0;
-    border-top: 1px solid var(--mt-line-1);
+    padding: 0;
 }
 
 .mt-brokk-field[data-open="true"] .mt-brokk-field-input {
     min-height: 52px;
-    padding: 6px 4px;
+    padding: 6px 12px;
     font-size: var(--mt-text-13);
     line-height: 20px;
 }
@@ -492,7 +519,17 @@
     justify-content: space-between;
     gap: 10px;
     height: 36px;
-    padding: 4px 10px 8px;
+    padding: 4px 6px 6px 12px;
+}
+
+/* Send with nothing to send (AC91a, #2303): calm, on the raised surface with a hairline and the discreet text, instead of
+   the molten fill at half opacity, which read as a flat brown pill. Still no wave, and the arrow pointer of a disabled
+   molten button (molten-button.css). */
+.mt-brokk-field .molten-btn.mt-brokk-send:disabled {
+    opacity: 1;
+    background-color: var(--mt-surface-2);
+    color: var(--mt-text-3);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
 }
 
 .mt-brokk-field-hint {
@@ -772,6 +809,127 @@
     flex-direction: column;
     gap: 4px;
     z-index: 1;
+    cursor: default;
+}
+
+/* Folded, each thing that hangs under the field stands on its own opaque plate of the group (AC92, #2303): never bare
+   text over the work area, whatever the terminal under it shows. The resume card is such a plate already. */
+.mt-brokk-field-extra > :not(.mt-brokk-resume) {
+    padding: 6px 10px;
+    background: var(--mt-surface-1);
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-panel);
+    box-shadow: var(--mt-shadow-e2);
+}
+
+/* The resume card (FR-BOSS-009 AC92, FR-BOSS-010 AC10b and AC10e, DS-BOSS-013, #2303), brainstorm-resume-card.tsx: the
+   way back to the last brainstorm and his offer to reopen one, the same in the folded and the open window. An opaque
+   plate with the brass rule his answers have on his side, an eyebrow saying what it is, the title on one line, the
+   molten Resume and a quiet × for Not now. */
+.mt-brokk-resume {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding: 7px 8px 8px 12px;
+    background: var(--mt-surface-1);
+    border: 1px solid var(--mt-line-2);
+    border-left: 2px solid color-mix(in srgb, var(--mt-action) 55%, transparent);
+    border-radius: var(--mt-radius-panel);
+    box-shadow: var(--mt-shadow-e2);
+    text-align: left;
+    cursor: default;
+}
+
+.mt-brokk-resume-top,
+.mt-brokk-resume-main {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.mt-brokk-resume-top {
+    gap: 6px;
+}
+
+.mt-brokk-resume-main {
+    gap: 10px;
+}
+
+.mt-brokk-resume-eyebrow {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--mt-text-3);
+}
+
+.mt-brokk-resume-eyebrow > i {
+    flex: none;
+    color: var(--mt-action-text);
+}
+
+.mt-brokk-resume-eyebrow-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mt-brokk-resume-dismiss {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin: -2px -2px 0 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: transparent;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    transition:
+        color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-brokk-resume-dismiss:hover {
+    color: var(--mt-text-1);
+    background: var(--mt-surface-2);
+}
+
+.mt-brokk-resume-dismiss:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 1px;
+}
+
+/* One line, whatever its length: the whole title is in its tooltip. */
+.mt-brokk-resume-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-13);
+    font-weight: var(--mt-weight-semibold);
+    line-height: 18px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-brokk-resume-go {
+    flex: none;
+}
+
+.mt-brokk-resume-detail {
+    font-size: var(--mt-text-11);
+    color: var(--mt-text-3);
 }
 
 /* The panel: beside the rail, joined to its icon by a short ember link, a tether (tether.css) that takes the panel's
