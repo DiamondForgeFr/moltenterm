@@ -95,17 +95,45 @@ func (e HistoryEntry) changed() map[string]bool {
 	return keys
 }
 
+// leansOn: the line tied a link to one of `ids`, or grew a child from one: taking those nodes away would undo it too.
+func (e HistoryEntry) leansOn(ids map[string]bool) bool {
+	if e.Op.Op == OpAdd && ids[e.Op.From] {
+		return true
+	}
+	if e.Undo == nil {
+		return false
+	}
+	for _, l := range e.Undo.Links {
+		if ids[l.A] || ids[l.B] {
+			return true
+		}
+	}
+	for _, l := range e.Undo.LinksAdded {
+		if ids[l.A] || ids[l.B] {
+			return true
+		}
+	}
+	return false
+}
+
 // undoable: the line can be put back: it has what puts it back, it is not an undo nor undone, it did not put the
-// centre, and no later line that still stands changed the same nodes or links.
+// centre, and no later line that still stands changed the same nodes or links, or leans on a node it added.
 func undoable(history []HistoryEntry, i int) bool {
 	e := history[i]
 	if e.Undo == nil || e.Undone || e.Op.Op == OpUndo || (e.Op.Op == OpCentre && len(e.Undo.Added) > 0) {
 		return false
 	}
 	keys := e.changed()
+	added := make(map[string]bool, len(e.Undo.Added))
+	for _, id := range e.Undo.Added {
+		added[id] = true
+	}
 	for _, later := range history[i+1:] {
 		if later.Undone || later.Op.Op == OpUndo {
 			continue
+		}
+		if len(added) > 0 && later.leansOn(added) {
+			return false
 		}
 		for key := range later.changed() {
 			if keys[key] {
@@ -177,17 +205,13 @@ func applyPatch(g Graph, p Patch) (Graph, error) {
 	}
 	links := make([]Link, 0, len(g.Links)+len(p.Links))
 	for _, l := range g.Links {
-		if added[l.A] || added[l.B] {
-			continue
+		own := hasLinkIn(p.LinksAdded, l.A, l.B)
+		// A link of a node the change added goes with it only when the change made it: one a later change tied is
+		// never taken away silently.
+		if (added[l.A] || added[l.B]) && !own {
+			return Graph{}, errors.New("a later link holds a node the change added")
 		}
-		drop := false
-		for _, a := range p.LinksAdded {
-			if sameLink(l, a.A, a.B) {
-				drop = true
-				break
-			}
-		}
-		if !drop {
+		if !own {
 			links = append(links, l)
 		}
 	}
