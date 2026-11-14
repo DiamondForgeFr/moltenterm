@@ -94,6 +94,24 @@ describe("browser agent takeover and input", () => {
             moltenhost: "example.com",
         });
 
+    // #2310 (FR-BRW-022 AC9, DS-BRW-012): the developer's tools and the agent's debugger are separate clients of the page.
+    it("keeps driving a tab whose developer tools are open, and leaves them open when control ends", async () => {
+        wc.isDevToolsOpened = vi.fn(() => true);
+        wc.closeDevTools = vi.fn();
+        const tree = await agent.runBrowserAgentCdp(call("Accessibility.getFullAXTree", {}));
+        expect(tree).toBeDefined();
+        await agent.runBrowserAgentCdp(press(100, 200));
+        expect(wc.debugger.attach).toHaveBeenCalledTimes(1);
+        expect(wc.debugger.sendCommand).toHaveBeenCalledWith(
+            "Input.dispatchMouseEvent",
+            expect.objectContaining({ type: "mousePressed", x: 100, y: 200 })
+        );
+        agent.setBrowserAgentControl({ blockid: "panel", browsertabid: "agent-tab", controlled: false, token: Token });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(wc.debugger.detach).toHaveBeenCalled();
+        expect(wc.closeDevTools).not.toHaveBeenCalled();
+    });
+
     // #971: taking over is explicit; the user's click or key never reaches the page and never stops the agent.
     it("holds back the user's click and key, tells the window, and keeps the agent driving", async () => {
         const click = { preventDefault: vi.fn() };

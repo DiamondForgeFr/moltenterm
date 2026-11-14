@@ -9,10 +9,12 @@
 // The provider reads the panel through BrowserCommandTarget, which the browser's view model implements, so it never
 // imports the view (and its webviews) itself.
 
+import { isMacOS } from "@/util/platformutil";
 import type { AgentControlAction, AgentTab, ControlBarView } from "../../browser/browser-agent";
 import type { BrowserList } from "../../browser/browser-engine";
 import type { BrowserTab } from "../../browser/browser-model";
 import { t } from "../../i18n/i18n";
+import { formatShortcutById } from "../../shortcuts/format";
 import { settingsBinding } from "../bindings";
 import { CommandProvider, PanelContext, PanelItem, PanelSection } from "../panel-types";
 
@@ -36,6 +38,11 @@ export type BrowserCommandState = {
     agentTab: AgentTab;
     agentView: ControlBarView;
     agentTabShown: boolean;
+    // FR-BRW-022: the page can be inspected, its tools are docked, and the origin whose data can be cleared (null for
+    // a page without one).
+    canInspect?: boolean;
+    inspectorOpen?: boolean;
+    clearableOrigin?: string;
 };
 
 export type BrowserCommandTarget = {
@@ -54,7 +61,11 @@ export type BrowserCommandTarget = {
     forgetAgentSite(site: string): void;
     controlAgent(browserTabId: string, action: AgentControlAction): void;
     showTab(id: string): void;
+    // The page's developer tools in their own window.
     openPageDevTools(): void;
+    toggleInspector(): boolean;
+    askClearSiteData(): void;
+    askClearCache(): void;
 };
 
 export const BrowserViewType = "molten-browser";
@@ -324,19 +335,56 @@ export function browserSections(ctx: PanelContext): PanelSection[] {
             id: "developer",
             kind: "developer",
             title: t("cmdpanel.section.developer"),
-            items: [
-                {
-                    id: "browser:devtools",
-                    type: "action",
-                    label: t("cmdpanel.browser.inspect"),
-                    icon: "code",
-                    keywords: ["devtools", "developer tools", "console"],
-                    run: () => bt.openPageDevTools(),
-                },
-            ],
+            items: developerItems(bt, s),
         });
     }
     return sections;
+}
+
+// The page's developer tools docked below it or in their window, and its data (FR-BRW-022, AC6).
+function developerItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
+    const items: PanelItem[] = [];
+    if (s.canInspect !== false) {
+        items.push({
+            id: "browser:devtools",
+            type: "action",
+            label: t(s.inspectorOpen ? "cmdpanel.browser.closeInspector" : "cmdpanel.browser.inspect"),
+            icon: "code",
+            shortcut: formatShortcutById(isMacOS() ? "browser-inspect" : "browser-inspect-other"),
+            keywords: ["devtools", "developer tools", "console", "network", "elements", "cookies"],
+            run: () => void bt.toggleInspector(),
+        });
+    }
+    items.push({
+        id: "browser:devtoolswindow",
+        type: "action",
+        label: t("cmdpanel.browser.devtoolsWindow"),
+        icon: "arrow-up-right-from-square",
+        keywords: ["devtools", "developer tools", "window"],
+        run: () => bt.openPageDevTools(),
+    });
+    if (s.clearableOrigin) {
+        items.push({
+            id: "browser:clearsitedata",
+            type: "action",
+            label: t("browser.siteData.clearSite"),
+            icon: "eraser",
+            detail: s.clearableOrigin,
+            keywords: ["cookies", "storage", "local storage", "indexeddb", "site data"],
+            run: () => bt.askClearSiteData(),
+        });
+    }
+    if (s.canInspect !== false) {
+        items.push({
+            id: "browser:clearcache",
+            type: "action",
+            label: t("browser.siteData.clearCache"),
+            icon: "broom",
+            keywords: ["cache", "clear cache"],
+            run: () => bt.askClearCache(),
+        });
+    }
+    return items;
 }
 
 export const BrowserProvider: CommandProvider = {

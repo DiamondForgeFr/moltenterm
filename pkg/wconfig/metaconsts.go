@@ -179,6 +179,7 @@ const (
 	ConfigKey_MoltentermReviewsFolds         = "moltenterm:reviewsfolds"
 	ConfigKey_MoltentermSettingsTab          = "moltenterm:settingstab"
 	ConfigKey_MoltentermMaterialsSeen        = "moltenterm:materialsseen"
+	ConfigKey_MoltentermBrowserInspectorSize = "moltenterm:browserinspectorsize"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"

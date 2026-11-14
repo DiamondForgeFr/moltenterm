@@ -30,11 +30,12 @@ import { getWaveVersion } from "./emain-wavesrv";
 import { createNewWaveWindow, getWaveWindowByWebContentsId } from "./emain-window";
 import { ElectronWshClient } from "./emain-wsh";
 import { initMoltentermBrowserAgent, isAgentInput } from "./moltenterm-browseragent"; // MOLTENTERM-PATCH (#300, #302)
+import { initMoltentermBrowserInspector } from "./moltenterm-browser-inspector"; // MOLTENTERM-PATCH (#2310)
 import { isFlatFrame } from "./moltenterm-carpet-thumb-store"; // MOLTENTERM-PATCH (#1814)
 import { initMoltentermContextMenu } from "./moltenterm-contextmenu";
 import { initMoltentermDialogs } from "./moltenterm-dialogs"; // MOLTENTERM-PATCH (#30)
 import { expectFileDownload } from "./moltenterm-downloads"; // MOLTENTERM-PATCH (#2163)
-import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
+import { openExternalLink, openLinkInApp } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663, #2310)
 import { initFileClipboardIpc } from "./moltenterm-file-clipboard"; // MOLTENTERM-PATCH (#2115)
 import { initNativePathIpc } from "./moltenterm-native-path"; // MOLTENTERM-PATCH (#1575)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
@@ -241,6 +242,12 @@ export function initIpcHandlers() {
             console.log("molten browser agent: download answer failed", e);
             return false;
         }
+    });
+    // MOLTENTERM-PATCH (#2310): a web page panel's developer tools, docked in the tab view, and its site data
+    initMoltentermBrowserInspector({
+        parentOf: (host) => getWaveTabViewByWebContentsId(host.id),
+        openLink: (url, host) => fireAndForget(() => openLinkInApp(url, host)),
+        mac: unamePlatform === "darwin",
     });
     // MOLTENTERM-PATCH (#663): one scheme rule for every link handed to the system (emain/moltenterm-external-links.ts)
     onAppIpc("open-external", (event, url) => {

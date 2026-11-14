@@ -2201,6 +2201,14 @@
             "order": 171
           }
         },
+        "moltenterm:browserinspectorsize": {
+          "type": "number",
+          "description": "The share of a web page panel's page area its docked developer tools take, from 0.15 to 0.85 (0.4 when unset or out of range). Set by dragging the tools' divider",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 172
+          }
+        },
         "widget:*": {
           "type": "boolean",
           "x-moltenterm": {

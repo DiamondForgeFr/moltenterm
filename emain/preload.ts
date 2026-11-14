@@ -169,6 +169,20 @@ contextBridge.exposeInMainWorld("api", {
         tabId?: string,
         workspaceId?: string
     ) => ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId, tabId, workspaceId),
+    // MOLTENTERM-PATCH (#2310): a web page panel's docked developer tools and site data (emain/moltenterm-browser-inspector.ts)
+    moltentermInspectorOpen: (pageId: number, place: unknown, point: unknown) =>
+        ipcRenderer.invoke("moltenterm-inspector-open", pageId, place, point),
+    moltentermInspectorPlace: (pageId: number, place: unknown) =>
+        ipcRenderer.send("moltenterm-inspector-place", pageId, place),
+    moltentermInspectorClose: (pageId: number) => ipcRenderer.invoke("moltenterm-inspector-close", pageId),
+    moltentermInspectorWindow: (pageId: number) => ipcRenderer.invoke("moltenterm-inspector-window", pageId),
+    onMoltentermInspectorGone: (callback: (pageId: number) => void) => {
+        const listener = (_event, pageId: number) => callback(pageId);
+        ipcRenderer.on("moltenterm-inspector-gone", listener);
+        return () => ipcRenderer.removeListener("moltenterm-inspector-gone", listener);
+    },
+    moltentermBrowserClearData: (pageId: number, kind: string, origin?: string) =>
+        ipcRenderer.invoke("moltenterm-browser-clear-data", pageId, kind, origin),
     // MOLTENTERM-PATCH (#971): an agent's click is about to reach a webview, which must not take the window's focus
     onMoltentermAgentPress: (callback: (webContentsId: number, pressing: boolean) => void) => {
         const listener = (_event, webContentsId: number, pressing: boolean) => callback(webContentsId, pressing);
