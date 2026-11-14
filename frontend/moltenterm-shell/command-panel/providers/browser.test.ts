@@ -211,38 +211,42 @@ describe("Browser provider (FR-SHELL-051 AC1, DS-SHELL-090)", () => {
     });
 });
 
-describe("Developer section: inspector and site data (FR-BRW-022 AC6, TC-BRW-053)", () => {
-    const ids = (sections: PanelSection[]) => section(sections, "developer").items.map((i) => i.id);
+describe("The inspector and the site data in the command panel (FR-BRW-022 AC6, TC-BRW-053)", () => {
+    const ids = (sections: PanelSection[], id: string) => section(sections, id).items.map((i) => i.id);
 
-    it("lists Inspect, the separate window and both clearings on a web page, with the platform's keys", async () => {
+    it("puts Inspect and the separate window under Developer, with the platform's keys", async () => {
         const { target, calls } = makeTarget(
             makeState({ canInspect: true, inspectorOpen: false, clearableOrigin: "https://example.com" })
         );
         const sections = browserSections(makeCtx(target));
-        expect(ids(sections)).toEqual([
-            "browser:devtools",
-            "browser:devtoolswindow",
-            "browser:clearsitedata",
-            "browser:clearcache",
-        ]);
+        expect(ids(sections, "developer")).toEqual(["browser:devtools", "browser:devtoolswindow"]);
         expect(item(sections, "browser:devtools")).toMatchObject({ label: "Inspect the page" });
         expect(["⌥⌘I", "Ctrl+Shift+I"]).toContain((item(sections, "browser:devtools") as PanelAction).shortcut);
+        for (const id of ["browser:devtools", "browser:devtoolswindow"]) {
+            await (item(sections, id) as PanelAction).run();
+        }
+        expect(calls).toEqual(["inspect", "devtools-window"]);
+    });
+
+    it("clears the site's data from This site and the cache from Page, where they show without the Developer key", async () => {
+        const { target, calls } = makeTarget(
+            makeState({ canInspect: true, inspectorOpen: false, clearableOrigin: "https://example.com" })
+        );
+        const sections = browserSections(makeCtx(target));
+        expect(ids(sections, "widget:browser:site")).toContain("browser:clearsitedata");
         expect(item(sections, "browser:clearsitedata")).toMatchObject({
             label: "Clear this site's data…",
             detail: "https://example.com",
         });
-        for (const id of [
-            "browser:devtools",
-            "browser:devtoolswindow",
-            "browser:clearsitedata",
-            "browser:clearcache",
-        ]) {
+        expect(ids(sections, "widget:browser:page")).toContain("browser:clearcache");
+        expect(item(sections, "browser:clearcache").label).toBe("Clear the browser cache…");
+        for (const id of ["browser:clearsitedata", "browser:clearcache"]) {
             await (item(sections, id) as PanelAction).run();
         }
-        expect(calls).toEqual(["inspect", "devtools-window", "clear-site", "clear-cache"]);
+        expect(calls).toEqual(["clear-site", "clear-cache"]);
     });
 
-    it("reads Close the inspector while the tools are docked", () => {
+    it("reads Close the inspector while the tools are docked, and offers no site data on a page without an origin", () => {
         const { target } = makeTarget(makeState({ canInspect: true, inspectorOpen: true, clearableOrigin: null }));
         const sections = browserSections(makeCtx(target));
         expect(item(sections, "browser:devtools").label).toBe("Close the inspector");
@@ -251,6 +255,8 @@ describe("Developer section: inspector and site data (FR-BRW-022 AC6, TC-BRW-053
 
     it("keeps only the separate window on a page not drawn yet", () => {
         const { target } = makeTarget(makeState({ canInspect: false, clearableOrigin: null }));
-        expect(ids(browserSections(makeCtx(target)))).toEqual(["browser:devtoolswindow"]);
+        const sections = browserSections(makeCtx(target));
+        expect(ids(sections, "developer")).toEqual(["browser:devtoolswindow"]);
+        expect(item(sections, "browser:clearcache")).toBeUndefined();
     });
 });

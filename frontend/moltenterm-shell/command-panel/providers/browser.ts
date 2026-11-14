@@ -106,6 +106,17 @@ function pageItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[
                 set: (v) => bt.setZoom(v),
             });
         }
+        // FR-BRW-022 AC6: every site's cached files, asked before anything goes; the page then reloads.
+        if (s.canInspect) {
+            items.push({
+                id: "browser:clearcache",
+                type: "action",
+                label: t("browser.siteData.clearCache"),
+                icon: "broom",
+                keywords: ["cache", "clear cache", "empty cache"],
+                run: () => bt.askClearCache(),
+            });
+        }
     }
     // Unavailable actions are absent, not disabled (FR-SHELL-049), here and in the tab's menu (FR-SHELL-054).
     if (tab.url) {
@@ -227,6 +238,18 @@ function siteItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[
             run: () => bt.forgetAgentSite(s.agentDecision.site),
         });
     }
+    // FR-BRW-022 AC6: the page's site data, asked before anything goes.
+    if (s.clearableOrigin) {
+        items.push({
+            id: "browser:clearsitedata",
+            type: "action",
+            label: t("browser.siteData.clearSite"),
+            icon: "eraser",
+            detail: s.clearableOrigin,
+            keywords: ["cookies", "storage", "local storage", "indexeddb", "site data"],
+            run: () => bt.askClearSiteData(),
+        });
+    }
     return items;
 }
 
@@ -341,7 +364,8 @@ export function browserSections(ctx: PanelContext): PanelSection[] {
     return sections;
 }
 
-// The page's developer tools docked below it or in their window, and its data (FR-BRW-022, AC6).
+// The page's developer tools docked below it or in their window (FR-BRW-022 AC6); its data are cleared from Page and
+// This site.
 function developerItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
     const items: PanelItem[] = [];
     if (s.canInspect !== false) {
@@ -363,27 +387,6 @@ function developerItems(bt: BrowserCommandTarget, s: BrowserCommandState): Panel
         keywords: ["devtools", "developer tools", "window"],
         run: () => bt.openPageDevTools(),
     });
-    if (s.clearableOrigin) {
-        items.push({
-            id: "browser:clearsitedata",
-            type: "action",
-            label: t("browser.siteData.clearSite"),
-            icon: "eraser",
-            detail: s.clearableOrigin,
-            keywords: ["cookies", "storage", "local storage", "indexeddb", "site data"],
-            run: () => bt.askClearSiteData(),
-        });
-    }
-    if (s.canInspect !== false) {
-        items.push({
-            id: "browser:clearcache",
-            type: "action",
-            label: t("browser.siteData.clearCache"),
-            icon: "broom",
-            keywords: ["cache", "clear cache"],
-            run: () => bt.askClearCache(),
-        });
-    }
     return items;
 }
 

@@ -91,8 +91,10 @@ function place(insp: Inspector, raw: unknown): void {
     insp.view.setVisible(placed.visible);
 }
 
-function inspectAt(page: WebContents, raw: unknown): void {
-    const point = inspectPoint(raw, page.getZoomFactor());
+// Chromium hit-tests a guest's point in its embedder's coordinates: the window sends the right-click's point in its own
+// CSS pixels (where it drew the menu), and the window's zoom makes them DIP.
+function inspectAt(page: WebContents, host: WebContents, raw: unknown): void {
+    const point = inspectPoint(raw, host.isDestroyed() ? 1 : host.getZoomFactor());
     if (point != null) {
         page.inspectElement(point.x, point.y);
     }
@@ -190,7 +192,7 @@ async function openInspector(
     const existing = inspectors.get(page.id);
     if (existing != null) {
         place(existing, rawPlace);
-        inspectAt(page, rawPoint);
+        inspectAt(page, host, rawPoint);
         return true;
     }
     if (!(await (closing.get(page.id) ?? Promise.resolve(true)))) {
@@ -203,7 +205,7 @@ async function openInspector(
     const raced = inspectors.get(page.id);
     if (raced != null) {
         place(raced, rawPlace);
-        inspectAt(page, rawPoint);
+        inspectAt(page, host, rawPoint);
         return true;
     }
     // The tools in their own window move into the panel.
@@ -247,7 +249,7 @@ async function openInspector(
     watchTools(page, host, view.webContents);
     page.setDevToolsWebContents(view.webContents);
     page.openDevTools({ mode: "detach", activate: false });
-    inspectAt(page, rawPoint);
+    inspectAt(page, host, rawPoint);
     // Inspect is asked for: the keyboard goes to the tools, as in a browser.
     view.webContents.once("did-finish-load", () => {
         if (inspectors.get(id) === insp && !view.webContents.isDestroyed()) {

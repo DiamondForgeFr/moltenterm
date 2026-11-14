@@ -46,7 +46,7 @@ export function placeBounds(raw: unknown, zoom: number): { bounds: ViewBounds; v
     return { bounds, visible: r.visible === true && bounds.width >= 1 && bounds.height >= 1 };
 }
 
-// The point Inspect selects, in the page's own pixels: the right-click's CSS point times the page's zoom.
+// The point Inspect selects, in DIP: the right-click's point in the window's CSS pixels times the window's zoom.
 export function inspectPoint(raw: unknown, zoom: number): { x: number; y: number } {
     const r = raw as Record<string, unknown>;
     if (r == null || typeof r !== "object" || !finiteIn(r.x, 0, MaxCssPx) || !finiteIn(r.y, 0, MaxCssPx)) {

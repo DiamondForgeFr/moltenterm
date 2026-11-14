@@ -1902,8 +1902,9 @@ function TabWebview({
         const removeContextMenu = getApi().onGuestContextMenu?.((params) => {
             if (params.guestId !== webview.getWebContentsId() || model.state().activeId !== tab.id) return;
             const event = guestMenuEvent(params, webview);
-            // Inspect selects the clicked element (FR-BRW-022): the point in the page's CSS pixels, which emain zooms.
-            const point = { x: params.guestX, y: params.guestY };
+            // Inspect selects the clicked element (FR-BRW-022): Chromium hit-tests a page in the window's coordinates,
+            // so the point is where the menu opens, in the window's CSS pixels.
+            const point = { x: event.clientX, y: event.clientY };
             if (params.linkURL && !params.imageToken && !params.editable && !params.selectionText) {
                 model.showLinkMenu(params.linkURL, event, { tabId: tab.id, point });
                 return;
