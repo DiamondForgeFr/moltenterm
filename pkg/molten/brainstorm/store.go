@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -69,6 +70,19 @@ type Promotion struct {
 	At        int64  `json:"at"`
 }
 
+// UnmarshalJSON reads a promotedto of another shape (a hand or another version changed it) as none, rather than
+// failing the whole brainstorm.json.
+func (p *Promotion) UnmarshalJSON(data []byte) error {
+	type plain Promotion
+	var read plain
+	if json.Unmarshal(data, &read) != nil {
+		*p = Promotion{}
+		return nil
+	}
+	*p = Promotion(read)
+	return nil
+}
+
 // workspaceIdPattern: a workspace's id as wavesrv makes one.
 var workspaceIdPattern = regexp.MustCompile(`^[A-Za-z0-9-]{1,64}$`)
 
@@ -101,6 +115,8 @@ type Info struct {
 	PromotedTo *Promotion `json:"promotedto"`
 	// Named: the developer gave the title (Rename, #2248); the centre's text no longer replaces it.
 	Named bool `json:"named,omitempty"`
+	// Conclusion: the id of the plate that carries the brief (#2250); the brief goes with it.
+	Conclusion string `json:"conclusion,omitempty"`
 }
 
 // Turn is one line of conversation.jsonl: what the developer said or what Brokk answered, without his blocks.
@@ -236,7 +252,24 @@ func (s *Store) Create(title string, now int64) (Saved, error) {
 		}
 		return Saved{Dir: dir, Info: info, Graph: EmptyGraph(), Turns: []Turn{}, History: []HistoryEntry{}}, nil
 	}
-	return Saved{}, fmt.Errorf("no free folder name for %q", base)
+	return Saved{}, errors.New("no free folder name for the idea")
+}
+
+// reasonOf is an error without the paths it names: a brainstorm's folder holds the developer's titles and slugs, which
+// no log line and no state sent to the windows carries.
+func reasonOf(err error) string {
+	if err == nil {
+		return ""
+	}
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return pathErr.Op + ": " + pathErr.Err.Error()
+	}
+	var linkErr *os.LinkError
+	if errors.As(err, &linkErr) {
+		return linkErr.Op + ": " + linkErr.Err.Error()
+	}
+	return err.Error()
 }
 
 // writeAtomic replaces path with data: a crash leaves the old file or the new one, whole.
@@ -348,6 +381,9 @@ func (s *Store) Load(dir string) (Saved, error) {
 	saved.Info.State = checkedState(saved.Info.State)
 	saved.Info.Language = CleanLanguage(saved.Info.Language)
 	saved.Info.PromotedTo = checkedPromotion(saved.Info.PromotedTo)
+	if !idPattern.MatchString(saved.Info.Conclusion) {
+		saved.Info.Conclusion = ""
+	}
 	if saved.Info.Siblings == nil {
 		saved.Info.Siblings = []string{}
 	}

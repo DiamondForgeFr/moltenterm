@@ -12,10 +12,12 @@ import type { BrainstormGraph } from "./brainstorm-graph-model";
 
 // must match pkg/molten/brainstorm/project.go
 export const ProjectNamePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
-export const ProjectRefusals = ["notempty", "inrepo", "badname", "noparent", "nobrief", "failed"] as const;
+export const ProjectRefusals = ["notempty", "inrepo", "badname", "noparent", "nobrief", "promoted", "failed"] as const;
 export type ProjectRefusal = (typeof ProjectRefusals)[number];
-// The window's own: the folder was made, its workspace could not be linked (Try again links it).
-export type ProjectFailure = ProjectRefusal | "link";
+// The window's own: the folder was made, its workspace could not be linked (Try again links it); wavesrv did not answer
+// the click, so whether the project was made is not known (the card offers to look at the folder and to preview again).
+export const WindowFailures = ["link", "unknown"] as const;
+export type ProjectFailure = ProjectRefusal | (typeof WindowFailures)[number];
 
 export type ProjectPreview = {
     parent: string;
@@ -46,7 +48,8 @@ export function hasProjectProposal(graph: BrainstormGraph): boolean {
     return (graph?.nodes ?? []).some((n) => n.kind === "proposal" && n.action === "project" && n.status !== "aside");
 }
 
-// The card follows the open brainstorm: its project once made, else his brief, else his proposal waiting for it.
+// The card follows the open brainstorm: its project once made; else his project proposal, ready once he concluded and
+// waiting for it before. A brief alone shows no card: the proposal is his, and set aside it hides the card.
 export function projectCardOf(state: BrainstormState): ProjectCard {
     if (state?.open !== true || state.brainstorm == null) {
         return { kind: "none" };
@@ -55,10 +58,10 @@ export function projectCardOf(state: BrainstormState): ProjectCard {
     if (promotion?.dir) {
         return { kind: "done", brief: state.brief, promotion };
     }
-    if (state.brief != null) {
-        return { kind: "ready", brief: state.brief };
+    if (!hasProjectProposal(state.graph)) {
+        return { kind: "none" };
     }
-    return hasProjectProposal(state.graph) ? { kind: "waiting" } : { kind: "none" };
+    return state.brief != null ? { kind: "ready", brief: state.brief } : { kind: "waiting" };
 }
 
 // DiamondForge offers the hand-off of a brief to Geargrim (AC14): false in MoltenTerm 1.0.0, so nothing of it shows.
@@ -74,13 +77,30 @@ export function nameProblem(name: string): "" | "badname" {
 
 // The key of the one sentence a refusal says; an unknown code says that it did not work.
 export function refusalKey(code: string): string {
-    const known = (ProjectRefusals as readonly string[]).includes(code) || code === "link";
+    const known =
+        (ProjectRefusals as readonly string[]).includes(code) || (WindowFailures as readonly string[]).includes(code);
     return `boss.brainstorm.project.refused.${known ? code : "failed"}`;
 }
 
-// The workspace the project goes to: a new one named after it, or one the developer has.
+// The workspace the project goes to: a new one named after it, or one the developer has, with the folder it is linked
+// to now ("" for none).
 export type WorkspaceChoice = { kind: "new" } | { kind: "existing"; id: string };
-export type WorkspaceOption = { id: string; name: string; colour?: string };
+export type WorkspaceOption = { id: string; name: string; colour?: string; project?: string };
+
+// The folder an existing workspace's link moves away from (AC15): linking the project replaces it, and the card says so.
+// "" when the workspace has no project yet, or is a new one.
+export function replacedProject(choice: WorkspaceChoice, options: WorkspaceOption[], dir: string): string {
+    if (choice?.kind !== "existing") {
+        return "";
+    }
+    const current = (options ?? []).find((o) => o.id === choice.id)?.project ?? "";
+    return current !== "" && current !== dir ? current : "";
+}
+
+// What the click sends of the preview the developer saw: wavesrv acts only on that path (AC-2).
+export function expectOf(preview: ProjectPreview): { path: string; exists: boolean } {
+    return { path: preview?.path ?? "", exists: preview?.exists === true };
+}
 
 // The choice still standing against the workspaces there are: an existing one that is gone is a new one again.
 export function choiceAmong(choice: WorkspaceChoice, options: WorkspaceOption[]): WorkspaceChoice {

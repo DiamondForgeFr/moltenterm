@@ -39,6 +39,8 @@ const (
 	RefusalBadName  = "badname"
 	RefusalNoParent = "noparent"
 	RefusalNoBrief  = "nobrief"
+	// RefusalPromoted: the brainstorm is a project already.
+	RefusalPromoted = "promoted"
 
 	projectGitTimeout = 30 * time.Second
 )
@@ -63,11 +65,20 @@ func GeargrimOffered() bool {
 
 // ProjectRequest names the project the card shows: the parent folder ("" for boss:projectsdir), the folder's name (""
 // for the brief's slug), and the brainstorm it is made from (the state's swap and the folder's id, as the edits name it).
+// A create also carries what the preview showed (Expect): the click acts only on that path.
 type ProjectRequest struct {
-	Parent string `json:"parent,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Swap   *int64 `json:"swap,omitempty"`
-	Id     string `json:"id,omitempty"`
+	Parent string         `json:"parent,omitempty"`
+	Name   string         `json:"name,omitempty"`
+	Swap   *int64         `json:"swap,omitempty"`
+	Id     string         `json:"id,omitempty"`
+	Expect *ProjectExpect `json:"expect,omitempty"`
+}
+
+// ProjectExpect is the preview the developer saw before the click: the full path, and whether it was an empty folder
+// already there.
+type ProjectExpect struct {
+	Path   string `json:"path"`
+	Exists bool   `json:"exists,omitempty"`
 }
 
 // ProjectPreview is what the card shows before the click: the parent, the name, the full path, whether it is an empty
@@ -242,20 +253,40 @@ func writeExclusive(file string, data []byte) error {
 	return err
 }
 
-// undoProject takes back what a create that failed half-way made: the folder when it made it, else what it put in the
-// empty folder it found (git's folder and the copy's).
-func undoProject(dir string, made bool) {
-	if made {
-		_ = os.RemoveAll(dir)
-		return
+// madeParts are what a create made, and only those: a create that fails half-way takes back these alone.
+type madeParts struct {
+	dir string
+	// folder: this create made the project folder; git: its .git; docs: its docs folder.
+	folder bool
+	git    bool
+	docs   bool
+}
+
+func exists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
+}
+
+// undo takes back what a create that failed half-way made: git's folder when this create made it, the docs folder and
+// the project folder only while empty. A file this create did not write is never removed, and nothing is ever removed
+// whole but the .git it made.
+func (m madeParts) undo() {
+	if m.git {
+		_ = os.RemoveAll(filepath.Join(m.dir, ".git"))
 	}
-	_ = os.RemoveAll(filepath.Join(dir, ".git"))
-	_ = os.RemoveAll(filepath.Join(dir, ProjectDocsDir))
+	if m.docs {
+		_ = os.Remove(filepath.Join(m.dir, ProjectDocsDir))
+	}
+	if m.folder {
+		_ = os.Remove(m.dir)
+	}
 }
 
 // ProjectCreate makes the project on the developer's click (AC15): the folder, git in it, then the copy of the
-// brainstorm. One create runs at a time. The brainstorm becomes promoted, its folder named in promotedto; a create that
-// fails leaves nothing behind and says why.
+// brainstorm. One create runs at a time. It acts only on the path the preview showed: when the path, or whether an
+// empty folder stands there, is no longer what the developer saw, it answers stale and makes nothing, and the card
+// previews again. The brainstorm becomes promoted, its folder named in promotedto; a create that fails takes back what
+// it made and says why.
 func (s *Service) ProjectCreate(req ProjectRequest) ProjectResult {
 	s.projectLock.Lock()
 	defer s.projectLock.Unlock()
@@ -266,16 +297,22 @@ func (s *Service) ProjectCreate(req ProjectRequest) ProjectResult {
 	if snap.Brief == nil {
 		return ProjectResult{State: state, Error: RefusalNoBrief}
 	}
+	if snap.Info.State == StatePromoted {
+		return ProjectResult{State: state, Error: RefusalPromoted}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), projectGitTimeout)
 	defer cancel()
 	preview := checkProject(ctx, run, req, projectsDir(), snap.Brief.Slug)
+	if req.Expect == nil || req.Expect.Path != preview.Path || req.Expect.Exists != preview.Exists {
+		return ProjectResult{State: state, Preview: preview, Stale: true}
+	}
 	failed := func(reason string) ProjectResult {
 		return ProjectResult{State: s.State(), Preview: preview, Error: reason}
 	}
 	if preview.Refusal != "" {
 		return failed(preview.Refusal)
 	}
-	made := false
+	made := madeParts{dir: preview.Path}
 	if !preview.Exists {
 		if err := os.Mkdir(preview.Path, 0o755); err != nil {
 			if errors.Is(err, os.ErrExist) {
@@ -285,10 +322,13 @@ func (s *Service) ProjectCreate(req ProjectRequest) ProjectResult {
 			s.logf("[brainstorm] a project folder could not be made\n")
 			return failed(ReasonFailed)
 		}
-		made = true
+		made.folder = true
 	}
-	if err := mission.InitRepo(ctx, run, preview.Path); err != nil {
-		undoProject(preview.Path, made)
+	gitBefore := exists(filepath.Join(preview.Path, ".git"))
+	err := mission.InitRepo(ctx, run, preview.Path)
+	made.git = !gitBefore && exists(filepath.Join(preview.Path, ".git"))
+	if err != nil {
+		made.undo()
 		if errors.Is(err, mission.ErrInsideRepo) {
 			preview.Refusal = RefusalInRepo
 			return failed(RefusalInRepo)
@@ -299,8 +339,9 @@ func (s *Service) ProjectCreate(req ProjectRequest) ProjectResult {
 	}
 	at := s.now().UnixMilli()
 	copyText := BrainstormCopy(snap, *snap.Brief, at)
+	made.docs = !exists(filepath.Join(preview.Path, ProjectDocsDir))
 	if err := writeExclusive(filepath.Join(preview.Path, ProjectDocsDir, ProjectDocsName), []byte(copyText)); err != nil {
-		undoProject(preview.Path, made)
+		made.undo()
 		s.logf("[brainstorm] the copy of a brainstorm could not be written in its project\n")
 		return failed(ReasonFailed)
 	}
@@ -323,14 +364,14 @@ func (s *Service) promote(snap Saved, dir string, at int64) int64 {
 	}
 	saved, err := s.store.Load(snap.Dir)
 	if err != nil {
-		s.logf("[brainstorm] a promoted brainstorm could not be read back: %v\n", err)
+		s.logf("[brainstorm] a promoted brainstorm could not be read back: %s\n", reasonOf(err))
 		return 0
 	}
 	saved.Info.State = StatePromoted
 	saved.Info.PromotedTo = promotion
 	saved.Info.Updated = at
 	if err := s.store.Save(saved); err != nil {
-		s.logf("[brainstorm] a promoted brainstorm could not be saved: %v\n", err)
+		s.logf("[brainstorm] a promoted brainstorm could not be saved: %s\n", reasonOf(err))
 		return 0
 	}
 	s.listRev++
@@ -390,7 +431,9 @@ func BrainstormCopy(saved Saved, brief ProjectBrief, at int64) string {
 		}
 	}
 	if len(saved.Turns) > 0 {
-		fmt.Fprintf(&b, "\n## %s\n", words.Conversation)
+		// An agent that builds the project reads this file: the talk is data, as in his resume brief, and no line of it
+		// opens an HTML tag.
+		fmt.Fprintf(&b, "\n## %s\n\n_%s_\n", words.Conversation, words.ConversationNote)
 		for _, turn := range saved.Turns {
 			who := words.You
 			if turn.Role == RoleBrokk {
@@ -398,7 +441,7 @@ func BrainstormCopy(saved Saved, brief ProjectBrief, at int64) string {
 			}
 			fmt.Fprintf(&b, "\n**%s**\n\n", who)
 			for _, line := range strings.Split(strings.TrimSpace(turn.Text), "\n") {
-				fmt.Fprintf(&b, "> %s\n", line)
+				fmt.Fprintf(&b, "> %s\n", strings.ReplaceAll(line, "<", "&lt;"))
 			}
 		}
 	}

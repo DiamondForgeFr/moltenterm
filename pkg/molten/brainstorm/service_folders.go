@@ -28,7 +28,7 @@ const (
 func (s *Service) List() ListResult {
 	list, err := s.store.List()
 	if err != nil {
-		s.logf("[brainstorm] the brainstorms could not be listed: %v\n", err)
+		s.logf("[brainstorm] the brainstorms could not be listed: %s\n", reasonOf(err))
 		return ListResult{Brainstorms: []Summary{}}
 	}
 	return ListResult{Brainstorms: list}
@@ -37,7 +37,7 @@ func (s *Service) List() ListResult {
 func (s *Service) Find(req FindRequest) FindResult {
 	match, ok, err := s.store.Find(req.Title)
 	if err != nil {
-		s.logf("[brainstorm] the brainstorms could not be listed: %v\n", err)
+		s.logf("[brainstorm] the brainstorms could not be listed: %s\n", reasonOf(err))
 	}
 	if !ok {
 		return FindResult{}
@@ -51,8 +51,8 @@ func (s *Service) saveCurrentLocked() error {
 		return nil
 	}
 	if err := s.store.Save(*s.session); err != nil {
-		s.logf("[brainstorm] the brainstorm could not be saved: %v\n", err)
-		s.saveErr = err.Error()
+		s.logf("[brainstorm] the brainstorm could not be saved: %s\n", reasonOf(err))
+		s.saveErr = reasonOf(err)
 		return err
 	}
 	return nil
@@ -65,7 +65,7 @@ func (s *Service) writeResumeLocked() bool {
 		return false
 	}
 	if err := WriteResume(s.resumeDir, *s.session); err != nil {
-		s.logf("[brainstorm] the resume brief could not be written: %v\n", err)
+		s.logf("[brainstorm] the resume brief could not be written: %s\n", reasonOf(err))
 		// The brief of the brainstorm left must not stand for this one.
 		s.removeResumeLocked()
 		return false
@@ -75,7 +75,7 @@ func (s *Service) writeResumeLocked() bool {
 
 func (s *Service) removeResumeLocked() {
 	if err := RemoveResume(s.resumeDir); err != nil {
-		s.logf("[brainstorm] the resume brief could not be removed: %v\n", err)
+		s.logf("[brainstorm] the resume brief could not be removed: %s\n", reasonOf(err))
 	}
 }
 
@@ -97,7 +97,7 @@ func (s *Service) switchLocked(saved *Saved) bool {
 		return false
 	}
 	if err := s.store.Remember(saved.Dir); err != nil {
-		s.logf("[brainstorm] the open brainstorm could not be remembered: %v\n", err)
+		s.logf("[brainstorm] the open brainstorm could not be remembered: %s\n", reasonOf(err))
 	}
 	return s.writeResumeLocked()
 }
@@ -131,7 +131,7 @@ func (s *Service) Load(req SlugRequest) LoadResult {
 		return s.loadFailed(ReasonUnknown)
 	}
 	if err != nil {
-		s.logf("[brainstorm] a brainstorm does not load: %v\n", err)
+		s.logf("[brainstorm] a brainstorm does not load: %s\n", reasonOf(err))
 		return s.loadFailed(ReasonFailed)
 	}
 	if s.saveCurrentLocked() != nil {
@@ -181,7 +181,7 @@ func (s *Service) Rename(req RenameRequest) ActionResult {
 		return s.actionFailed(ReasonUnknown)
 	}
 	if err != nil {
-		s.logf("[brainstorm] a brainstorm could not be renamed: %v\n", err)
+		s.logf("[brainstorm] a brainstorm could not be renamed: %s\n", reasonOf(err))
 		// The folder is where the store left it (moved back, or moved when that failed too): the open brainstorm
 		// follows it, so the next turn is written there and not into a folder that is gone.
 		if current && renamed.Dir != "" && renamed.Dir != s.session.Dir {
@@ -217,7 +217,7 @@ func (s *Service) Delete(req DeleteRequest) ActionResult {
 		return s.actionFailed(ReasonNoTrash)
 	}
 	if err != nil {
-		s.logf("[brainstorm] a brainstorm could not be forgotten: %v\n", err)
+		s.logf("[brainstorm] a brainstorm could not be forgotten: %s\n", reasonOf(err))
 		return s.actionFailed(ReasonTrash)
 	}
 	if s.session != nil && s.session.Info.Slug == deleted.Summary.Slug {
@@ -226,7 +226,7 @@ func (s *Service) Delete(req DeleteRequest) ActionResult {
 		s.swap++
 	}
 	if err := ClearResume(s.resumeDir, deleted.Summary.Id); err != nil {
-		s.logf("[brainstorm] the resume brief of a forgotten brainstorm could not be removed: %v\n", err)
+		s.logf("[brainstorm] the resume brief of a forgotten brainstorm could not be removed: %s\n", reasonOf(err))
 	}
 	s.listRev++
 	version := s.changedLocked()
@@ -258,7 +258,7 @@ func (s *Service) Fork(req ForkRequest) LoadResult {
 	}
 	created, err := s.store.Create(graph.Nodes[0].Text, at)
 	if err != nil {
-		s.logf("[brainstorm] the folder of a fork could not be made: %v\n", err)
+		s.logf("[brainstorm] the folder of a fork could not be made: %s\n", reasonOf(err))
 		return s.loadFailed(ReasonFailed)
 	}
 	old := s.session
@@ -275,7 +275,7 @@ func (s *Service) Fork(req ForkRequest) LoadResult {
 		return s.loadFailed(ReasonNotSaved)
 	}
 	if err := s.store.Save(created); err != nil {
-		s.logf("[brainstorm] the folder of a fork could not be saved: %v\n", err)
+		s.logf("[brainstorm] the folder of a fork could not be saved: %s\n", reasonOf(err))
 		return s.loadFailed(ReasonFailed)
 	}
 	resume := s.switchLocked(&created)

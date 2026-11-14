@@ -256,7 +256,7 @@ func (s *Store) moveTo(from string, base string) (string, string, error) {
 		}
 		return dir, slug, nil
 	}
-	return "", "", fmt.Errorf("no free folder name for %q", base)
+	return "", "", errors.New("no free folder name for the title")
 }
 
 // followMove keeps current.json on a brainstorm whose folder moved.

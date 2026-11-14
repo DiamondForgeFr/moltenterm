@@ -3297,6 +3297,8 @@
                 "copy": "A copy of the brainstorm goes to {file}: never over a file, and nothing is committed.",
                 "workspace": "Workspace",
                 "newWorkspace": "A new workspace, “{name}”",
+                "replaces": "This workspace is linked to {folder}: the project replaces that link.",
+                "previewing": "Checking the folder…",
                 "create": "Create {name}",
                 "making": "Making the project…",
                 "done": "The project is ready.",
@@ -3315,8 +3317,10 @@
                     "badname": "This name cannot be a folder: start with a letter or a digit, then letters, digits, dots, hyphens or underscores.",
                     "noparent": "Choose the folder your projects go to first.",
                     "nobrief": "{name} has not concluded the brainstorm yet.",
+                    "promoted": "This brainstorm is a project already.",
                     "failed": "That did not work: nothing was made.",
-                    "link": "The project is made, but its workspace could not be linked."
+                    "link": "The project is made, but its workspace could not be linked.",
+                    "unknown": "MoltenTerm could not tell whether the project was made. Look in the folder, then try again."
                 }
             },
             "failed": {

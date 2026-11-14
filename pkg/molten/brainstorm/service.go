@@ -344,12 +344,13 @@ func (s *Service) Turn(req TurnRequest) TurnResult {
 	recorded := false
 	if req.Block != nil {
 		var brief *BriefDraft
-		rtn, brief = s.applyLocked(*req.Block, at)
+		var briefNode string
+		rtn, brief, briefNode = s.applyLocked(*req.Block, at)
 		if s.session != nil && rtn.Applied {
 			// The developer's words of this turn count for the brainstorm's language, which its brief is written in.
 			s.appendTurnLocked(req, at)
 			recorded = true
-			concluded := brief != nil && s.concludeLocked(*brief, at)
+			concluded := brief != nil && s.concludeLocked(*brief, briefNode, at)
 			s.session.Info.State = stateAfter(s.session.Info.State, *req.Block, len(rtn.Added), concluded, s.session.Brief != nil)
 		}
 	}
@@ -385,8 +386,9 @@ func stateAfter(state string, block Block, added int, concluded bool, hasBrief b
 }
 
 // concludeLocked writes the brief of his conclusion in the open brainstorm's folder (AC14): brief.json, then brief.md,
-// each whole. false when it could not be written: the brainstorm is not clear, and the reason alone is logged.
-func (s *Service) concludeLocked(draft BriefDraft, at int64) bool {
+// each whole, and keeps which plate carries it. false when it could not be written: the brainstorm is not clear, and the
+// reason alone is logged.
+func (s *Service) concludeLocked(draft BriefDraft, node string, at int64) bool {
 	s.ensureLanguageLocked()
 	brief, err := MakeBrief(draft, s.session.Info.Id, s.session.Info.Language, at)
 	if err != nil {
@@ -394,12 +396,34 @@ func (s *Service) concludeLocked(draft BriefDraft, at int64) bool {
 		return false
 	}
 	if err := WriteBrief(s.session.Dir, brief); err != nil {
-		s.logf("[brainstorm] the project brief could not be written: %v\n", err)
-		s.saveErr = err.Error()
+		s.logf("[brainstorm] the project brief could not be written: %s\n", reasonOf(err))
+		s.saveErr = reasonOf(err)
 		return false
 	}
 	s.session.Brief = &brief
+	s.session.Info.Conclusion = node
 	return true
+}
+
+// settleBriefLocked lets the brief go with its conclusion (#2250): once the plate that carries it is removed, merged
+// away, made another kind or undone, brief.json and brief.md go, and a clear brainstorm is in progress again (a finished
+// one stays finished). A promoted brainstorm keeps its brief: the project was made from it.
+func (s *Service) settleBriefLocked() {
+	if s.session == nil || s.session.Brief == nil || s.session.Info.Conclusion == "" || s.session.Info.State == StatePromoted {
+		return
+	}
+	if n, ok := s.session.Graph.node(s.session.Info.Conclusion); ok && n.Kind == KindConclusion {
+		return
+	}
+	if err := RemoveBrief(s.session.Dir); err != nil {
+		s.logf("[brainstorm] the brief of a conclusion taken back could not be removed: %s\n", reasonOf(err))
+		return
+	}
+	s.session.Brief = nil
+	s.session.Info.Conclusion = ""
+	if s.session.Info.State == StateClear {
+		s.session.Info.State = StateOpen
+	}
 }
 
 // ensureLanguageLocked gives the open brainstorm its language once: what the developer wrote, else the interface's.
@@ -410,7 +434,8 @@ func (s *Service) ensureLanguageLocked() {
 	s.session.Info.Language = languageOf(s.session.Turns, s.appLanguage())
 }
 
-func (s *Service) applyLocked(block Block, at int64) (TurnResult, *BriefDraft) {
+// applyLocked grows the brainstorm with his block; it returns the brief of a `conclude` in it, and its plate.
+func (s *Service) applyLocked(block Block, at int64) (TurnResult, *BriefDraft, string) {
 	if s.session != nil && StartsNewIdea(s.session.Graph, block) {
 		// Another idea: the one before stays saved as it is, and this one gets its folder.
 		s.session = nil
@@ -426,19 +451,19 @@ func (s *Service) applyLocked(block Block, at int64) (TurnResult, *BriefDraft) {
 	if err != nil {
 		// Never the content: the model's text stays out of the log (FR-BOSS-010 security rationale).
 		s.logf("[brainstorm] a graph block was dropped: %v\n", err)
-		return TurnResult{Dropped: true}, nil
+		return TurnResult{Dropped: true}, nil, ""
 	}
 	if s.session == nil && applied.Graph.Centre == "" {
 		// Nothing to file yet (a finish or a question before any central idea): no folder is made for it.
-		return TurnResult{}, nil
+		return TurnResult{}, nil, ""
 	}
 	if s.session == nil {
 		centre, _ := applied.Graph.node(applied.Graph.Centre)
 		saved, err := s.store.Create(centre.Text, at)
 		if err != nil {
-			s.logf("[brainstorm] the folder of a new idea could not be made: %v\n", err)
-			s.saveErr = err.Error()
-			return TurnResult{Dropped: true}, nil
+			s.logf("[brainstorm] the folder of a new idea could not be made: %s\n", reasonOf(err))
+			s.saveErr = reasonOf(err)
+			return TurnResult{Dropped: true}, nil, ""
 		}
 		saved.Turns = append(saved.Turns, s.pending...)
 		s.pending = nil
@@ -450,7 +475,7 @@ func (s *Service) applyLocked(block Block, at int64) (TurnResult, *BriefDraft) {
 	if centre, ok := applied.Graph.node(applied.Graph.Centre); ok && !s.session.Info.Named {
 		s.session.Info.Title = centre.Text
 	}
-	return TurnResult{Applied: true, Added: applied.Added}, applied.Brief
+	return TurnResult{Applied: true, Added: applied.Added}, applied.Brief, applied.BriefNode
 }
 
 func (s *Service) recordLocked(req TurnRequest, at int64) {
@@ -484,14 +509,15 @@ func (s *Service) saveLocked(at int64) {
 		return
 	}
 	s.ensureLanguageLocked()
+	s.settleBriefLocked()
 	s.session.Info.Updated = at
 	if err := s.store.Save(*s.session); err != nil {
-		s.logf("[brainstorm] the brainstorm could not be saved: %v\n", err)
-		s.saveErr = err.Error()
+		s.logf("[brainstorm] the brainstorm could not be saved: %s\n", reasonOf(err))
+		s.saveErr = reasonOf(err)
 		return
 	}
 	if err := s.store.Remember(s.session.Dir); err != nil {
-		s.logf("[brainstorm] the open brainstorm could not be remembered: %v\n", err)
+		s.logf("[brainstorm] the open brainstorm could not be remembered: %s\n", reasonOf(err))
 	}
 	s.saveErr = ""
 	s.savedAt = s.now().UnixMilli()

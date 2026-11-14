@@ -396,8 +396,10 @@ func ValidateGraph(g Graph) (Graph, error) {
 		if n.Ref != "" && !refPattern.MatchString(n.Ref) {
 			return Graph{}, fmt.Errorf("%s: invalid reference", what)
 		}
+		// An action of a later version is not a reason to refuse the folder: the plate stays, and offers nothing here.
 		if n.Action != "" && !knownActions[n.Action] {
-			return Graph{}, fmt.Errorf("%s: unknown action", what)
+			n.Action = ""
+			n.Status = StatusOpen
 		}
 		text, err := checkText(n.Text, what)
 		if err != nil {
@@ -463,6 +465,8 @@ type Applied struct {
 	Skipped int
 	Changes []Change
 	Brief   *BriefDraft
+	// BriefNode: the conclusion plate that carries Brief.
+	BriefNode string
 }
 
 // addChild grows node out of its parent (an `add`, a `propose`, a `conclude`): the id is new, the parent is a node, and
@@ -503,6 +507,7 @@ func conclude(next *Graph, index map[string]int, rtn *Applied, op Op, turn int, 
 			next.Nodes[i].Text = text
 		}
 		rtn.Brief = &brief
+		rtn.BriefNode = op.Id
 		return nil
 	}
 	from := op.From
@@ -514,6 +519,7 @@ func conclude(next *Graph, index map[string]int, rtn *Applied, op Op, turn int, 
 		return err
 	}
 	rtn.Brief = &brief
+	rtn.BriefNode = op.Id
 	return nil
 }
 
