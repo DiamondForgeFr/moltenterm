@@ -19,11 +19,14 @@ import { originTime } from "../reviews/agent-origin";
 import { DominoLoader } from "../suite/suite";
 import type { BrainstormState } from "./brainstorm-boot";
 import {
+    briefProblem,
     briefToSend,
     canHandoff,
     canSetup,
     DryRun,
+    DryRunKey,
     dryRunView,
+    fullInTwoSteps,
     installedAgents,
     Launch,
     launchCardOf,
@@ -105,20 +108,20 @@ function Working({ step, text }: { step: LaunchStep; text: string }) {
     );
 }
 
-// What a click opened, and the way to it: the setup's terminal or the agent's.
-function Launched({ step, launch, text }: { step: LaunchStep; launch: Launch; text: string }) {
+// What a click opened, and the way to it: the setup's or the update's terminal, or the agent's.
+function Launched({ id, launch, text }: { id: "setup" | "update" | "handoff"; launch: Launch; text: string }) {
     const t = useT();
     const model = BrainstormLaunchModel.getInstance();
     return (
         <>
-            <div className="mt-bsj-done" data-testid={`brainstorm-${step}-launched`}>
+            <div className="mt-bsj-done" data-testid={`brainstorm-${id}-launched`}>
                 <i className={makeIconClass("check", false)} aria-hidden />
                 <span>{text}</span>
             </div>
             {!launch.typed && launch.command ? (
                 <>
                     <p className="mt-bsj-note">{t("boss.brainstorm.launch.notTyped")}</p>
-                    <code className="mt-bsj-path mt-bsl-command" data-testid={`brainstorm-${step}-untyped`}>
+                    <code className="mt-bsj-path mt-bsl-command" data-testid={`brainstorm-${id}-untyped`}>
                         {launch.command}
                     </code>
                 </>
@@ -128,10 +131,10 @@ function Launched({ step, launch, text }: { step: LaunchStep; launch: Launch; te
                     type="button"
                     className="molten-btn cursor-pointer rounded-4 px-3 py-1.5 text-12"
                     title={t("boss.brainstorm.launch.goTitle")}
-                    data-testid={`brainstorm-${step}-goto`}
+                    data-testid={`brainstorm-${id}-goto`}
                     onClick={() => void model.goTo(launch)}
                 >
-                    {t(step === "setup" ? "boss.brainstorm.setup.goTo" : "boss.brainstorm.handoff.goTo")}
+                    {t(id === "handoff" ? "boss.brainstorm.handoff.goTo" : "boss.brainstorm.setup.goTo")}
                     <MoltenWave />
                 </button>
             </div>
@@ -257,19 +260,36 @@ function DryRunSummary({ dryRun }: { dryRun: DryRun }) {
     );
 }
 
-// A folder set up already: the dry run on the developer's Preview, then the update when it can run.
+// A folder set up already (by the setup's first step, or by hand): the dry run on the developer's Preview, whose exact
+// command the card names, then the update when it can run. While the setup's terminal is still there, the card asks
+// to let it finish first.
 function Managed({ preview, workspace }: { preview: SetupPreview; workspace: string }) {
     const t = useT();
+    const locale = useLocale();
     const model = BrainstormLaunchModel.getInstance();
     const dryRun = useAtomValue(model.dryRunAtom, { store: globalStore });
     const dryBusy = useAtomValue(model.dryRunBusyAtom, { store: globalStore });
     const busy = useAtomValue(model.setupBusyAtom, { store: globalStore });
-    const command = setupCommand(preview, "");
+    const command = setupCommand(preview);
+    if (preview.update != null) {
+        return (
+            <Launched
+                id="update"
+                launch={preview.update}
+                text={t("boss.brainstorm.setup.updateLaunched", { time: originTime(preview.update.at, locale) })}
+            />
+        );
+    }
     return (
         <>
             <p className="mt-bsj-note" data-testid="brainstorm-setup-managed">
                 {t("boss.brainstorm.setup.managed")}
             </p>
+            {preview.launched != null ? (
+                <p className="mt-bsj-note" data-testid="brainstorm-setup-running">
+                    {t("boss.brainstorm.setup.setupRunning")}
+                </p>
+            ) : null}
             {dryBusy ? (
                 <Working step="setup" text={t("boss.brainstorm.setup.dryRunning")} />
             ) : dryRun == null ? (
@@ -283,12 +303,14 @@ function Managed({ preview, workspace }: { preview: SetupPreview; workspace: str
                         <i className={makeIconClass("eye", false)} aria-hidden />
                         {t("boss.brainstorm.setup.previewFull")}
                     </button>
-                    <span className="mt-bsj-key">{t("boss.brainstorm.setup.previewFullNote")}</span>
+                    <span className="mt-bsj-key" data-testid="brainstorm-setup-dryrun-note">
+                        {t("boss.brainstorm.setup.previewFullNote", { command: preview.commands?.[DryRunKey] ?? "" })}
+                    </span>
                 </div>
             ) : (
                 <DryRunSummary dryRun={dryRun} />
             )}
-            {dryRun != null && dryRunView(dryRun) === "adds" && command !== "" ? (
+            {dryRunView(dryRun) === "adds" && command !== "" ? (
                 <>
                     <Command step="setup" command={command} />
                     <p className="mt-bsj-note">
@@ -303,7 +325,7 @@ function Managed({ preview, workspace }: { preview: SetupPreview; workspace: str
                             type="button"
                             className="molten-btn mt-bsj-create cursor-pointer rounded-4 px-3 py-1.5 text-12"
                             title={t("boss.brainstorm.setup.startTitle")}
-                            disabled={!canSetup(preview, "", busy)}
+                            disabled={!canSetup(preview, "", busy, dryRun)}
                             data-testid="brainstorm-setup-start"
                             onClick={() => void model.startSetup(t("boss.brainstorm.setup.tabName"))}
                         >
@@ -330,13 +352,35 @@ function SetupReady({ name }: { name: string }) {
         return <DominoLoader label={t("boss.brainstorm.launch.previewing")} />;
     }
     const retry = () => void model.refreshSetup();
-    if (preview.launched != null) {
-        return (
+    const profile = picked || startingProfile(preview);
+    const twoSteps = fullInTwoSteps(preview, profile);
+    const setupLaunched =
+        preview.launched != null ? (
             <Launched
-                step="setup"
+                id="setup"
                 launch={preview.launched}
                 text={t("boss.brainstorm.setup.launched", { time: originTime(preview.launched.at, locale) })}
             />
+        ) : null;
+    if (preview.managed && preview.refusal !== "nosf") {
+        return (
+            <>
+                {setupLaunched}
+                <Managed preview={preview} workspace={workspace} />
+                <Failure step="setup" failure={failure} name={name} onRetry={retry} />
+            </>
+        );
+    }
+    if (setupLaunched != null) {
+        return (
+            <>
+                {setupLaunched}
+                {twoSteps ? (
+                    <p className="mt-bsj-note" data-testid="brainstorm-setup-step2">
+                        {t("boss.brainstorm.setup.step2Waiting")}
+                    </p>
+                ) : null}
+            </>
         );
     }
     if (preview.refusal === "nosf") {
@@ -345,16 +389,7 @@ function SetupReady({ name }: { name: string }) {
     if (preview.refusal) {
         return <Failure step="setup" failure={preview.refusal as LaunchFailure} name={name} onRetry={retry} />;
     }
-    if (preview.managed) {
-        return (
-            <>
-                <Managed preview={preview} workspace={workspace} />
-                <Failure step="setup" failure={failure} name={name} onRetry={retry} />
-            </>
-        );
-    }
-    const profile = picked || startingProfile(preview);
-    const command = setupCommand(preview, profile);
+    const command = setupCommand(preview);
     return (
         <>
             <ProfileTiles preview={preview} profile={profile} name={name} />
@@ -364,6 +399,11 @@ function SetupReady({ name }: { name: string }) {
                 </p>
             ) : null}
             {command !== "" ? <Command step="setup" command={command} /> : null}
+            {twoSteps ? (
+                <p className="mt-bsj-note" data-testid="brainstorm-setup-two-steps">
+                    {t("boss.brainstorm.setup.fullSteps")}
+                </p>
+            ) : null}
             <p className="mt-bsj-note">
                 {workspace
                     ? t("boss.brainstorm.setup.questions", { workspace })
@@ -381,11 +421,11 @@ function SetupReady({ name }: { name: string }) {
                     data-testid="brainstorm-setup-start"
                     onClick={() => void model.startSetup(t("boss.brainstorm.setup.tabName"))}
                 >
-                    {profile
-                        ? t("boss.brainstorm.setup.start", {
-                              profile: t(`boss.brainstorm.setup.profiles.${profile}.title`),
-                          })
-                        : t("boss.brainstorm.setup.chooseFirst")}
+                    {profile === "full"
+                        ? t("boss.brainstorm.setup.startFull")
+                        : profile === "harness"
+                          ? t("boss.brainstorm.setup.startHarness")
+                          : t("boss.brainstorm.setup.chooseFirst")}
                     <MoltenWave />
                 </button>
             )}
@@ -411,7 +451,7 @@ function HandoffReady({ name }: { name: string }) {
     if (preview.launched != null) {
         return (
             <Launched
-                step="handoff"
+                id="handoff"
                 launch={preview.launched}
                 text={t("boss.brainstorm.handoff.launched", {
                     agent: preview.launched.agentname || preview.launched.agent || "",
@@ -425,6 +465,7 @@ function HandoffReady({ name }: { name: string }) {
     }
     const agents = installedAgents(preview);
     const brief = briefToSend(edited, preview);
+    const problem = briefProblem(brief);
     const agentName = preview.agentname || "";
     return (
         <>
@@ -482,7 +523,20 @@ function HandoffReady({ name }: { name: string }) {
                     onChange={(e) => model.editBrief(e.target.value)}
                     onKeyDown={(e) => e.stopPropagation()}
                 />
-                <p className="mt-bsj-key">{t("boss.brainstorm.handoff.briefNote")}</p>
+                {problem !== "" ? (
+                    <p
+                        className="mt-bsl-problem"
+                        role="status"
+                        data-testid="brainstorm-handoff-problem"
+                        data-problem={problem}
+                    >
+                        {problem === "empty"
+                            ? t("boss.brainstorm.handoff.empty")
+                            : t("boss.brainstorm.handoff.tooLong", { count: brief.length, max: MaxHandoffBrief })}
+                    </p>
+                ) : (
+                    <p className="mt-bsj-key">{t("boss.brainstorm.handoff.briefNote")}</p>
+                )}
             </div>
             {agentName ? (
                 <p className="mt-bsj-note">

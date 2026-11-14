@@ -10,10 +10,12 @@ import { OriginMetaKey, originText, readOrigin } from "../reviews/agent-origin";
 import type { BrainstormState } from "./brainstorm-boot";
 import { readGraphBlock } from "./brainstorm-graph-model";
 import {
+    briefProblem,
     briefToSend,
     canHandoff,
     canSetup,
     dryRunView,
+    fullInTwoSteps,
     handoffExpect,
     hasStepProposal,
     installedAgents,
@@ -78,11 +80,14 @@ const preview = (extra: Partial<SetupPreview> = {}): SetupPreview => ({
     profilereason: "It is a web app.",
     name: "safe-kids-videos",
     commands: {
-        full: "saasfoundryai new --profile full --project-name safe-kids-videos",
-        harness: "saasfoundryai new --profile harness --project-name safe-kids-videos",
+        new: "saasfoundryai new --profile harness --project-name safe-kids-videos",
+        update: "saasfoundryai update --target-profile full",
+        dryrun: "saasfoundryai update --target-profile full --dry-run --json",
     },
     ...extra,
 });
+
+const ready = { status: "ready", add: 3, compatible: 0, conflict: 0, unsupported: 0, canapply: true };
 
 const enT = (key: string, vars?: Record<string, any>) => translate("en", key, vars);
 const frT = (key: string, vars?: Record<string, any>) => translate("fr", key, vars);
@@ -108,31 +113,45 @@ describe("the setup and hand-off cards (#2251)", () => {
         expect(launchCardOf(state({ brief: undefined }), "setup")).toEqual({ kind: "waiting" });
     });
 
-    // AC-1, AC-2: the click sends the command the preview showed, never one of its own.
+    // AC-1, AC-2, review of #2309: the click sends the command the preview showed, never one of its own; the setup is
+    // the harness whichever profile is chosen, and full comes second by the update.
     it("starts on his recommendation and sends exactly the command it showed", () => {
         expect(startingProfile(preview())).toBe("harness");
         expect(startingProfile(preview({ profile: "" }))).toBe("");
         expect(startingProfile(preview({ profile: "stack" }))).toBe("");
-        expect(setupCommand(preview(), "full")).toBe(
-            "saasfoundryai new --profile full --project-name safe-kids-videos"
-        );
-        expect(setupExpect(preview(), "harness")).toEqual({
+        expect(setupCommand(preview())).toBe("saasfoundryai new --profile harness --project-name safe-kids-videos");
+        expect(setupExpect(preview(), ready)).toEqual({
             dir: Dir,
             workspace: "ws-1",
             command: "saasfoundryai new --profile harness --project-name safe-kids-videos",
         });
-        const managed = preview({ managed: true, commands: { update: "saasfoundryai update --target-profile full" } });
-        expect(setupCommand(managed, "full")).toBe("saasfoundryai update --target-profile full");
-        expect(setupCommand(preview(), "stack")).toBe("");
+        const managed = preview({ managed: true });
+        expect(setupCommand(managed)).toBe("saasfoundryai update --target-profile full");
+        expect(setupExpect(managed, ready)).toEqual({
+            dir: Dir,
+            workspace: "ws-1",
+            command: "saasfoundryai update --target-profile full",
+            dryrun: "ready",
+        });
+        expect(fullInTwoSteps(preview(), "full")).toBe(true);
+        expect(fullInTwoSteps(preview(), "harness")).toBe(false);
+        expect(fullInTwoSteps(preview({ launched: { profile: "full" } as any }), "harness")).toBe(true);
     });
 
     it("holds the click while something is in the way", () => {
         expect(canSetup(preview(), "harness", false)).toBe(true);
+        expect(canSetup(preview(), "full", false)).toBe(true);
         expect(canSetup(preview(), "", false)).toBe(false);
         expect(canSetup(preview(), "harness", true)).toBe(false);
         expect(canSetup(preview({ refusal: "nosf", commands: undefined }), "harness", false)).toBe(false);
         expect(canSetup(preview({ launched: { block: "b" } as any }), "harness", false)).toBe(false);
         expect(canSetup(null, "harness", false)).toBe(false);
+        // A folder set up already: the update only after a dry run that says it can add the full profile.
+        const managed = preview({ managed: true });
+        expect(canSetup(managed, "", false)).toBe(false);
+        expect(canSetup(managed, "", false, { ...ready, canapply: false })).toBe(false);
+        expect(canSetup(managed, "", false, ready)).toBe(true);
+        expect(canSetup({ ...managed, update: { block: "u" } as any }, "", false, ready)).toBe(false);
     });
 
     // AC-4: the hand-off sends the agent it showed and the brief as edited.
@@ -155,6 +174,11 @@ describe("the setup and hand-off cards (#2251)", () => {
         expect(briefToSend("mine", hp)).toBe("mine");
         expect(canHandoff(hp, "mine", false)).toBe(true);
         expect(canHandoff(hp, "x".repeat(MaxHandoffBrief + 1), false)).toBe(false);
+        // Review of #2309: an emptied brief holds the click, and says why.
+        expect(canHandoff(hp, "  \n ", false)).toBe(false);
+        expect(briefProblem("  \n ")).toBe("empty");
+        expect(briefProblem("x".repeat(MaxHandoffBrief + 1))).toBe("toolong");
+        expect(briefProblem("mine")).toBe("");
         expect(canHandoff({ ...hp, agent: "" }, "mine", false)).toBe(false);
         expect(canHandoff({ ...hp, refusal: "agentmissing" }, "mine", false)).toBe(false);
     });
@@ -231,6 +255,9 @@ describe("the brainstorm's terminals (#2251)", () => {
         expect(originText({ ...origin, step: "handoff" }, frT, "fr-FR")).toBe(
             "Lancé par vous à 14:05 depuis un brainstorm, pour faire le premier pas de ce projet avec son brief"
         );
+        expect(originText({ ...origin, step: "update" }, enT, "en-GB")).toBe(
+            "Opened by you at 14:05 from a brainstorm, to add SaaSFoundryAI's full profile to this project: its questions are asked here"
+        );
     });
 
     it("names the agent's work in the project panel", () => {
@@ -238,6 +265,7 @@ describe("the brainstorm's terminals (#2251)", () => {
             "first step of a brainstormed project"
         );
         expect(agentWorkText({ [OriginMetaKey]: value })).toBe("SaaSFoundryAI setup");
+        expect(agentWorkText({ [OriginMetaKey]: { ...value, step: "update" } })).toBe("SaaSFoundryAI full profile");
     });
 });
 

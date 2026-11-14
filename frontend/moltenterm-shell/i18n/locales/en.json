@@ -3359,6 +3359,8 @@
                     "agentmissing": "{agent}, chosen for this project, is not installed: pick another one for this hand-off.",
                     "terminal": "The terminal could not be opened: nothing ran.",
                     "notmanaged": "This folder is not set up with SaaSFoundryAI yet.",
+                    "nodryrun": "Preview the full profile first: SaaSFoundryAI has to say it can add it.",
+                    "drymutated": "SaaSFoundryAI says its preview changed the project, which a preview never should. Nothing more ran: look at the project's changes before going on.",
                     "invalid": "The brief is too long: shorten it, then try again.",
                     "failed": "That did not work: nothing ran.",
                     "unknown": "MoltenTerm could not tell whether the terminal opened. It looked again: try again if nothing shows."
@@ -3390,7 +3392,11 @@
                 "command": "Typed",
                 "questions": "SaaSFoundryAI asks its own questions in a terminal of “{workspace}”, and the window takes you there. Your keys stay with you.",
                 "questionsThere": "SaaSFoundryAI asks its own questions in a terminal of the project's workspace, and the window takes you there. Your keys stay with you.",
-                "start": "Set up: {profile}",
+                "fullSteps": "Full comes in two steps. First, this command sets up the AI harness in the project. Once that is done, this card previews what the full profile adds and offers to add it, in a terminal too.",
+                "step2Waiting": "Step 2, the full profile, shows here once SaaSFoundryAI has set up the harness.",
+                "setupRunning": "Let SaaSFoundryAI finish in its terminal before you preview the full profile.",
+                "startFull": "Set up step 1: the AI harness",
+                "startHarness": "Set up: Harness only",
                 "chooseFirst": "Choose what it installs",
                 "startTitle": "Opens the terminal, types the command and takes you there",
                 "startUpdate": "Add the full profile",
@@ -3404,7 +3410,8 @@
                 "checkAgain": "Check again",
                 "managed": "This folder is set up with SaaSFoundryAI already.",
                 "previewFull": "Preview the full profile",
-                "previewFullNote": "SaaSFoundryAI previews it: nothing changes.",
+                "previewFullNote": "SaaSFoundryAI previews it with {command}: nothing changes.",
+                "updateLaunched": "Its terminal opened at {time}: SaaSFoundryAI adds the full profile there and asks its own questions.",
                 "dryRunning": "SaaSFoundryAI is previewing…",
                 "dryFull": "It has the full profile already: nothing to add.",
                 "dryAdds": {
@@ -3429,6 +3436,8 @@
                 "brief": "Brief",
                 "reset": "Back to {name}'s brief",
                 "briefNote": "The agent reads it from a file in MoltenTerm's data folder. Edit it as you like.",
+                "empty": "The brief is empty: say what the agent should do first.",
+                "tooLong": "The brief is too long: {count} characters, {max} at most.",
                 "note": "{agent} starts in a new view of “{workspace}”, in your usual permission mode, and the window takes you there.",
                 "noteThere": "{agent} starts in a new view of the project's workspace, in your usual permission mode, and the window takes you there.",
                 "start": "Hand to {agent}",
@@ -6840,6 +6849,7 @@
                 "review": "review of #{number}",
                 "release": "release {tag}",
                 "brainstormSetup": "SaaSFoundryAI setup",
+                "brainstormUpdate": "SaaSFoundryAI full profile",
                 "brainstormHandoff": "first step of a brainstormed project"
             }
         },
@@ -10758,6 +10768,7 @@
         "release": "Started by you at {time} to analyze and resolve the failed step {step} of the release {tag}",
         "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside",
         "brainstormSetup": "Opened by you at {time} from a brainstorm, to set up SaaSFoundryAI in this project: its questions are asked here",
+        "brainstormUpdate": "Opened by you at {time} from a brainstorm, to add SaaSFoundryAI's full profile to this project: its questions are asked here",
         "brainstormHandoff": "Started by you at {time} from a brainstorm, to take the first step of this project with its brief"
     },
     "agentLinks": {
