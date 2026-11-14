@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
     canCreate,
     choiceAmong,
+    expectOf,
     geargrimOffered,
     hasProjectProposal,
     nameProblem,
@@ -15,6 +16,7 @@ import {
     ProjectRefusals,
     projectRequest,
     refusalKey,
+    replacedProject,
 } from "./brainstorm-project-model";
 
 const GoProject = readFileSync(join(__dirname, "../../../pkg/molten/brainstorm/project.go"), "utf8");
@@ -62,12 +64,16 @@ const state = (extra: Record<string, unknown> = {}) =>
 
 // FR-BOSS-010 AC15 (#2250): what the project card is, from the state wavesrv shares.
 describe("the project card (#2250)", () => {
-    it("shows once he concluded, waits when he proposed first, and says done once the project is made", () => {
+    it("shows once he concluded and proposed, waits when he proposed first, and says done once the project is made", () => {
         expect(projectCardOf(state())).toEqual({ kind: "none" });
         expect(projectCardOf(null)).toEqual({ kind: "none" });
         const graph = { ...state().graph, nodes: [...state().graph.nodes, proposal] };
         expect(projectCardOf(state({ graph }))).toEqual({ kind: "waiting" });
-        expect(projectCardOf(state({ brief }))).toEqual({ kind: "ready", brief });
+        expect(projectCardOf(state({ brief, graph }))).toEqual({ kind: "ready", brief });
+        // A brief alone shows no card, and a proposal set aside hides it (review of #2250).
+        expect(projectCardOf(state({ brief }))).toEqual({ kind: "none" });
+        const aside = { ...state().graph, nodes: [...state().graph.nodes, { ...proposal, status: "aside" }] };
+        expect(projectCardOf(state({ brief, graph: aside }))).toEqual({ kind: "none" });
         const promoted = state({
             brief,
             brainstorm: {
@@ -113,7 +119,34 @@ describe("the project card (#2250)", () => {
             expect(refusalKey(code)).toBe(`boss.brainstorm.project.refused.${code}`);
         }
         expect(refusalKey("link")).toBe("boss.brainstorm.project.refused.link");
+        expect(refusalKey("unknown")).toBe("boss.brainstorm.project.refused.unknown");
         expect(refusalKey("<script>")).toBe("boss.brainstorm.project.refused.failed");
+    });
+
+    // AC15, review of #2250: an existing workspace's link to another folder is replaced, and the card says which.
+    it("names the folder an existing workspace's link moves away from", () => {
+        const options = [
+            { id: "ws-1", name: "Atelier", project: "/synthetic/Projects/old" },
+            { id: "ws-2", name: "Empty" },
+        ];
+        expect(replacedProject({ kind: "existing", id: "ws-1" }, options, "/synthetic/Projects/kids")).toBe(
+            "/synthetic/Projects/old"
+        );
+        expect(replacedProject({ kind: "existing", id: "ws-1" }, options, "/synthetic/Projects/old")).toBe("");
+        expect(replacedProject({ kind: "existing", id: "ws-2" }, options, "/synthetic/Projects/kids")).toBe("");
+        expect(replacedProject({ kind: "new" }, options, "/synthetic/Projects/kids")).toBe("");
+    });
+
+    // AC-2: the click carries the preview the developer saw.
+    it("sends what the preview showed", () => {
+        expect(expectOf({ parent: "/p", name: "kids", path: "/p/kids", docs: "docs/brainstorm.md" })).toEqual({
+            path: "/p/kids",
+            exists: false,
+        });
+        expect(expectOf({ parent: "/p", name: "kids", path: "/p/kids", exists: true, docs: "d" })).toEqual({
+            path: "/p/kids",
+            exists: true,
+        });
     });
 
     it("keeps an existing workspace only while it is there", () => {

@@ -87,6 +87,13 @@ func (p *projectFixture) request(name string) ProjectRequest {
 	return ProjectRequest{Name: name, Swap: &swap, Id: state.Brainstorm.Id}
 }
 
+// seen is req with what its preview shows now, as the card sends it on the click.
+func (p *projectFixture) seen(req ProjectRequest) ProjectRequest {
+	preview := p.s.ProjectPreview(req).Preview
+	req.Expect = &ProjectExpect{Path: preview.Path, Exists: preview.Exists}
+	return req
+}
+
 // AC14, AC-1 (#2250): his conclusion writes brief.json and brief.md in the folder, and the brainstorm becomes clear.
 func TestConcludeWritesTheBriefAndMakesItClear(t *testing.T) {
 	t.Parallel()
@@ -185,7 +192,7 @@ func TestCreateMakesAGitProjectWithTheCopy(t *testing.T) {
 	if _, err := os.Stat(want); !os.IsNotExist(err) {
 		t.Fatalf("the preview made something: %v", err)
 	}
-	got := p.s.ProjectCreate(p.request(""))
+	got := p.s.ProjectCreate(p.seen(p.request("")))
 	if got.Error != "" || got.Dir != want {
 		t.Fatalf("create %+v", got)
 	}
@@ -248,8 +255,92 @@ func TestCreateUsesAnEmptyFolderAndTheDevelopersName(t *testing.T) {
 	if preview.Preview.Refusal != "" || !preview.Preview.Exists || preview.Preview.Path != want {
 		t.Fatalf("preview %+v", preview.Preview)
 	}
-	if got := p.s.ProjectCreate(p.request("Forge.Notes_2")); got.Error != "" || got.Dir != want {
+	if got := p.s.ProjectCreate(p.seen(p.request("Forge.Notes_2"))); got.Error != "" || got.Dir != want {
 		t.Fatalf("create %+v", got)
+	}
+	// A brainstorm made a project is not made one again (#2250).
+	if again := p.s.ProjectCreate(p.seen(p.request("forge-notes"))); again.Error != RefusalPromoted || again.Dir != "" {
+		t.Errorf("a second create: %+v", again)
+	}
+	if _, err := os.Stat(filepath.Join(p.parent, "forge-notes")); !os.IsNotExist(err) {
+		t.Errorf("a second project folder was made: %v", err)
+	}
+}
+
+// AC-2 (#2250): the click acts only on the path the preview showed. When the parent folder changed since, or an empty
+// folder appeared there, the create answers stale and makes nothing; without what the preview showed, it makes nothing.
+func TestCreateActsOnlyOnThePathThePreviewShowed(t *testing.T) {
+	t.Parallel()
+	p := makeProjectFixture(t)
+	p.conclude(t)
+	seen := p.seen(p.request(""))
+	other := filepath.Join(filepath.Dir(p.parent), "Elsewhere")
+	if err := os.Mkdir(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p.s.UseProjects(func() string { return other }, nil)
+	got := p.s.ProjectCreate(seen)
+	if !got.Stale || got.Dir != "" || got.Preview.Path != filepath.Join(other, "forge-notes") {
+		t.Fatalf("a create after the parent changed: %+v", got)
+	}
+	for _, dir := range []string{p.parent, other} {
+		if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+			t.Errorf("%s holds %v", dir, entries)
+		}
+	}
+	p.s.UseProjects(func() string { return p.parent }, nil)
+	if err := os.Mkdir(filepath.Join(p.parent, "forge-notes"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got := p.s.ProjectCreate(seen); !got.Stale || !got.Preview.Exists {
+		t.Errorf("a create after an empty folder appeared: %+v", got)
+	}
+	if got := p.s.ProjectCreate(p.request("")); !got.Stale {
+		t.Errorf("a create without what the preview showed: %+v", got)
+	}
+	if entries, _ := os.ReadDir(filepath.Join(p.parent, "forge-notes")); len(entries) != 0 {
+		t.Errorf("a stale create wrote %v", entries)
+	}
+	if state := p.s.State(); state.Brainstorm.State != StateClear {
+		t.Errorf("a stale create changed the brainstorm: %q", state.Brainstorm.State)
+	}
+}
+
+// A create that fails half-way in an empty folder already there takes back only what it made: git's folder, never a
+// file it did not write nor the folder itself.
+func TestAFailedCreateTakesBackOnlyWhatItMade(t *testing.T) {
+	t.Parallel()
+	p := makeProjectFixture(t)
+	p.conclude(t)
+	dir := filepath.Join(p.parent, "forge-notes")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	seen := p.seen(p.request(""))
+	// While git starts, another program writes docs/brainstorm.md: the copy cannot be written, and that file stays.
+	p.s.UseProjects(func() string { return p.parent }, func(ctx context.Context, d string, name string, args ...string) ([]byte, error) {
+		out, err := testGit(ctx, d, name, args...)
+		if len(args) > 0 && args[0] == "init" {
+			_ = os.MkdirAll(filepath.Join(d, "docs"), 0o755)
+			_ = os.WriteFile(filepath.Join(d, "docs", "brainstorm.md"), []byte("theirs"), 0o644)
+		}
+		return out, err
+	})
+	got := p.s.ProjectCreate(seen)
+	if got.Error != ReasonFailed || got.Dir != "" {
+		t.Fatalf("create %+v", got)
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "docs", "brainstorm.md")); err != nil || string(data) != "theirs" {
+		t.Errorf("their file: %q, %v", data, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); !os.IsNotExist(err) {
+		t.Errorf("the .git this create made is still there: %v", err)
+	}
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		t.Errorf("the folder that was there is gone: %v", err)
+	}
+	if state := p.s.State(); state.Brainstorm.State != StateClear {
+		t.Errorf("a failed create promoted it: %q", state.Brainstorm.State)
 	}
 }
 
@@ -310,7 +401,7 @@ func TestCreateRefusals(t *testing.T) {
 			req := c.prepare(t, p)
 			before := listTree(t, p.parent)
 			preview := p.s.ProjectPreview(req)
-			got := p.s.ProjectCreate(req)
+			got := p.s.ProjectCreate(p.seen(req))
 			if preview.Preview.Refusal != c.refusal || got.Error != c.refusal || got.Dir != "" {
 				t.Fatalf("preview %q, create %q, want %q", preview.Preview.Refusal, got.Error, c.refusal)
 			}
@@ -324,6 +415,76 @@ func TestCreateRefusals(t *testing.T) {
 				t.Errorf("a folder was made outside the parent: %v", err)
 			}
 		})
+	}
+}
+
+// #2250: the brief goes with its conclusion. Removed by the developer, the plate takes brief.json and brief.md with it
+// and the brainstorm is in progress again; undone after a finish, the brief goes and the brainstorm stays finished.
+func TestTheBriefGoesWithItsConclusion(t *testing.T) {
+	t.Parallel()
+	p := makeProjectFixture(t)
+	state := p.conclude(t)
+	dir := state.Brainstorm.Dir
+	swap := state.Swap
+	id := state.Brainstorm.Id
+	removed := p.s.Edit(EditRequest{Ops: []Op{{Op: OpRemove, Id: "first-pass"}}, Swap: &swap, Id: id})
+	if removed.Error != "" || removed.State.Brief != nil || removed.State.Brainstorm.State != StateOpen {
+		t.Fatalf("after the plate was removed: %+v, brief %+v", removed.State.Brainstorm, removed.State.Brief)
+	}
+	for _, name := range []string{BriefFile, BriefMarkdownFile} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Errorf("%s is still there: %v", name, err)
+		}
+	}
+	saved, err := p.store.Load(dir)
+	if err != nil || saved.Brief != nil || saved.Info.Conclusion != "" || saved.Info.State != StateOpen {
+		t.Fatalf("the folder reads back %+v, %v", saved.Info, err)
+	}
+	again := p.s.Turn(concludedTurn("t3", sampleBrief()))
+	if again.State.Brief == nil || again.State.Brainstorm.State != StateClear {
+		t.Fatalf("concluded again: %+v", again.State.Brainstorm)
+	}
+	finish := block(Op{Op: OpFinish})
+	done := p.s.Turn(TurnRequest{Key: "t4", You: "That's all for this idea.", Brokk: "Finished.", Block: &finish, At: 4000})
+	if done.State.Brainstorm.State != StateDone {
+		t.Fatalf("finished: %q", done.State.Brainstorm.State)
+	}
+	var seq int64
+	for _, note := range done.State.History {
+		if note.Op == OpConclude && note.Undoable {
+			seq = note.Seq
+		}
+	}
+	undone := p.s.Undo(UndoRequest{Seq: seq, Swap: &swap, Id: id})
+	if undone.Error != "" || undone.State.Brief != nil || undone.State.Brainstorm.State != StateDone {
+		t.Fatalf("the conclusion undone: %+v, brief %+v", undone, undone.State.Brief)
+	}
+	if _, err := os.Stat(filepath.Join(dir, BriefFile)); !os.IsNotExist(err) {
+		t.Errorf("brief.json is still there: %v", err)
+	}
+}
+
+// The logs and the state sent to the windows never name a brainstorm's folder: it holds the developer's titles.
+func TestFailuresAreLoggedWithoutTheFolder(t *testing.T) {
+	t.Parallel()
+	p := makeProjectFixture(t)
+	dir := p.s.State().Brainstorm.Dir
+	if err := os.RemoveAll(dir); err != nil {
+		t.Fatal(err)
+	}
+	got := p.s.Turn(concludedTurn("t2", sampleBrief()))
+	if got.State.SaveError == "" || strings.Contains(got.State.SaveError, dir) || strings.Contains(got.State.SaveError, "safe-video") {
+		t.Errorf("the save error %q", got.State.SaveError)
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	if len(p.logs) == 0 {
+		t.Fatal("nothing was logged")
+	}
+	for _, line := range p.logs {
+		if strings.Contains(line, dir) || strings.Contains(line, "safe-video") {
+			t.Errorf("a log line names the folder: %q", line)
+		}
 	}
 }
 
@@ -343,7 +504,7 @@ func listTree(t *testing.T, root string) []string {
 func TestCreateNeedsTheBriefAndTheSameBrainstorm(t *testing.T) {
 	t.Parallel()
 	p := makeProjectFixture(t)
-	if got := p.s.ProjectCreate(p.request("")); got.Error != RefusalNoBrief {
+	if got := p.s.ProjectCreate(p.seen(p.request(""))); got.Error != RefusalNoBrief {
 		t.Errorf("before the conclusion: %+v", got)
 	}
 	p.conclude(t)

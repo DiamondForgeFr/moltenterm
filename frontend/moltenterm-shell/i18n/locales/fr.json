@@ -3297,6 +3297,8 @@
                 "copy": "Une copie du brainstorm va dans {file} : jamais par-dessus un fichier, et rien n'est commité.",
                 "workspace": "Espace de travail",
                 "newWorkspace": "Un nouvel espace de travail, « {name} »",
+                "replaces": "Cet espace de travail est relié à {folder} : le projet remplace ce lien.",
+                "previewing": "Vérification du dossier…",
                 "create": "Créer {name}",
                 "making": "Création du projet…",
                 "done": "Le projet est prêt.",
@@ -3315,6 +3317,8 @@
                     "badname": "Ce nom ne peut pas être un dossier : commencez par une lettre ou un chiffre, puis des lettres, chiffres, points, tirets ou soulignés.",
                     "noparent": "Choisissez d'abord le dossier où vont vos projets.",
                     "nobrief": "{name} n'a pas encore conclu le brainstorm.",
+                    "promoted": "Ce brainstorm est déjà un projet.",
+                    "unknown": "MoltenTerm n'a pas pu savoir si le projet a été créé. Regardez dans le dossier, puis réessayez.",
                     "failed": "Ça n'a pas marché : rien n'a été créé.",
                     "link": "Le projet est créé, mais son espace de travail n'a pas pu être relié."
                 }

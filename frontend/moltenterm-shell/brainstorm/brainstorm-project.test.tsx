@@ -69,6 +69,16 @@ const state = (extra: Record<string, unknown> = {}) =>
             turns: 4,
         },
         brief,
+        graph: {
+            schema: 1,
+            rev: 2,
+            centre: "c",
+            nodes: [
+                { id: "c", kind: "topic", text: "Kids", status: "open" },
+                { id: "make-it", kind: "proposal", text: "Make it a project", status: "proposed", action: "project" },
+            ],
+            links: [],
+        },
         ...extra,
     }) as any;
 
@@ -106,6 +116,43 @@ describe("the project card (#2250)", () => {
         // The molten call to action, with its wave.
         expect(html).toMatch(/class="molten-btn[^"]*"[^>]*data-testid="brainstorm-project-create"/);
         expect(html).toContain("molten-btn-wave");
+    });
+
+    // AC-2, review of #2250: while the preview of what was just typed comes, no path shows and the click waits.
+    it("holds the click while the preview comes", () => {
+        globalStore.set(model.previewAtom, null);
+        const html = render(state());
+        expect(html).not.toContain('data-testid="brainstorm-project-path"');
+        expect(html).toContain("df-domino-loader");
+        expect(html).toMatch(/<button[^>]*disabled=""[^>]*data-testid="brainstorm-project-create"/);
+    });
+
+    // AC15, review of #2250: an existing workspace linked elsewhere has its link replaced, and the card says so.
+    it("says when an existing workspace's link is replaced", () => {
+        globalStore.set(model.workspacesAtom, [{ id: "ws-1", name: "Atelier", project: "/synthetic/Projects/old" }]);
+        globalStore.set(model.choiceAtom, { kind: "existing", id: "ws-1" });
+        expect(render(state())).toContain(
+            "This workspace is linked to /synthetic/Projects/old: the project replaces that link."
+        );
+        globalStore.set(model.choiceAtom, { kind: "new" });
+        expect(render(state())).not.toContain('data-testid="brainstorm-project-replaces"');
+    });
+
+    // Review of #2250: when wavesrv did not answer the click, the card never says nothing was made: it offers to look.
+    it("says an unknown result and offers to look in the folder", () => {
+        globalStore.set(model.failureAtom, "unknown");
+        const html = render(state());
+        expect(html).toContain(en.boss.brainstorm.project.refused.unknown);
+        expect(html).not.toContain(en.boss.brainstorm.project.refused.failed);
+        expect(html).toContain('data-testid="brainstorm-project-check-folder"');
+        expect(html).toContain('data-testid="brainstorm-project-retry"');
+    });
+
+    it("shows no card for a brief alone, nor for a proposal set aside", () => {
+        expect(render(state({ graph: { schema: 1, rev: 1, centre: "c", nodes: [], links: [] } }))).toBe("");
+        const aside = state();
+        aside.graph.nodes[1].status = "aside";
+        expect(render(aside)).toBe("");
     });
 
     it("says a refusal in one sentence with Try again, and holds the click", () => {
@@ -189,7 +236,9 @@ describe("the project card (#2250)", () => {
             graph: { schema: 1, rev: 1, centre: "c", nodes: [proposal], links: [] },
         });
         expect(render(waiting)).toContain("Brokk proposes a project: it waits for his conclusion.");
-        expect(render(state({ brief: undefined }))).toBe("");
+        expect(
+            render(state({ brief: undefined, graph: { schema: 1, rev: 1, centre: "c", nodes: [], links: [] } }))
+        ).toBe("");
     });
 
     it("folds to its eyebrow", () => {

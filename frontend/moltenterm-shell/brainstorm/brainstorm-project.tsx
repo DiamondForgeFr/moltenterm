@@ -26,6 +26,7 @@ import {
     ProjectFailure,
     ProjectPreview,
     refusalKey,
+    replacedProject,
     WorkspaceChoice,
     WorkspaceOption,
 } from "./brainstorm-project-model";
@@ -38,56 +39,90 @@ function choiceValue(choice: WorkspaceChoice): string {
     return choice.kind === "existing" ? choice.id : NewValue;
 }
 
+// The workspace the project goes to. An existing one linked to another folder has its link replaced: the card says so.
 function WorkspaceField({
     brief,
     choice,
     workspaces,
     disabled,
+    dir,
 }: {
     brief: ProjectBrief;
     choice: WorkspaceChoice;
     workspaces: WorkspaceOption[];
     disabled: boolean;
+    dir: string;
 }) {
     const t = useT();
     const id = useId();
     const model = BrainstormProjectModel.getInstance();
+    const replaced = replacedProject(choice, workspaces, dir);
     return (
-        <div className="mt-bsj-line">
-            <label className="mt-bsj-key" htmlFor={id}>
-                {t("boss.brainstorm.project.workspace")}
-            </label>
-            <select
-                id={id}
-                className="mt-bsj-select cursor-pointer"
-                value={choiceValue(choice)}
-                disabled={disabled}
-                data-testid="brainstorm-project-workspace"
-                onChange={(e) =>
-                    model.choose(
-                        e.target.value === NewValue ? { kind: "new" } : { kind: "existing", id: e.target.value }
-                    )
-                }
-            >
-                <option value={NewValue}>{t("boss.brainstorm.project.newWorkspace", { name: brief.name })}</option>
-                {workspaces.map((ws) => (
-                    <option key={ws.id} value={ws.id}>
-                        {ws.name}
-                    </option>
-                ))}
-            </select>
-        </div>
+        <>
+            <div className="mt-bsj-line">
+                <label className="mt-bsj-key" htmlFor={id}>
+                    {t("boss.brainstorm.project.workspace")}
+                </label>
+                <select
+                    id={id}
+                    className="mt-bsj-select cursor-pointer"
+                    value={choiceValue(choice)}
+                    disabled={disabled}
+                    data-testid="brainstorm-project-workspace"
+                    onChange={(e) =>
+                        model.choose(
+                            e.target.value === NewValue ? { kind: "new" } : { kind: "existing", id: e.target.value }
+                        )
+                    }
+                >
+                    <option value={NewValue}>{t("boss.brainstorm.project.newWorkspace", { name: brief.name })}</option>
+                    {workspaces.map((ws) => (
+                        <option key={ws.id} value={ws.id}>
+                            {ws.name}
+                        </option>
+                    ))}
+                </select>
+            </div>
+            {replaced !== "" ? (
+                <p className="mt-bsj-note mt-bsj-replaces" data-testid="brainstorm-project-replaces">
+                    {t("boss.brainstorm.project.replaces", { folder: replaced })}
+                </p>
+            ) : null}
+        </>
     );
 }
 
-function Failure({ failure, onRetry, name }: { failure: ProjectFailure; onRetry: () => void; name: string }) {
+// One sentence and Try again. When wavesrv did not answer the click, whether the project was made is not known: the
+// card offers to look at the folder rather than say that nothing was made.
+function Failure({
+    failure,
+    onRetry,
+    name,
+    folder,
+}: {
+    failure: ProjectFailure;
+    onRetry: () => void;
+    name: string;
+    folder?: string;
+}) {
     const t = useT();
     if (failure == null) {
         return null;
     }
+    const model = BrainstormProjectModel.getInstance();
     return (
         <div className="mt-bsj-failure" role="alert" data-testid="brainstorm-project-failure" data-refusal={failure}>
             <span>{t(refusalKey(failure), { name })}</span>
+            {failure === "unknown" && folder ? (
+                <button
+                    type="button"
+                    className="mt-bsj-link cursor-pointer"
+                    data-testid="brainstorm-project-check-folder"
+                    onClick={() => model.showFolder(folder)}
+                >
+                    {t("boss.brainstorm.project.show")}
+                </button>
+            ) : null}
             <button
                 type="button"
                 className="mt-bsj-link cursor-pointer"
@@ -152,9 +187,13 @@ function Ready({
                     </button>
                 ) : (
                     <span className="mt-bsj-path-row">
-                        <code className="mt-bsj-path" title={preview?.path} data-testid="brainstorm-project-path">
-                            {preview?.path ?? ""}
-                        </code>
+                        {preview == null ? (
+                            <DominoLoader label={t("boss.brainstorm.project.previewing")} />
+                        ) : (
+                            <code className="mt-bsj-path" title={preview.path} data-testid="brainstorm-project-path">
+                                {preview.path ?? ""}
+                            </code>
+                        )}
                         <button
                             type="button"
                             className="mt-bsj-link cursor-pointer"
@@ -189,11 +228,18 @@ function Ready({
                 <li>{t("boss.brainstorm.project.git")}</li>
                 <li>{t("boss.brainstorm.project.copy", { file: preview?.docs || "docs/brainstorm.md" })}</li>
             </ul>
-            <WorkspaceField brief={brief} choice={choice} workspaces={workspaces} disabled={busy} />
+            <WorkspaceField
+                brief={brief}
+                choice={choice}
+                workspaces={workspaces}
+                disabled={busy}
+                dir={preview?.path ?? ""}
+            />
             <Failure
                 failure={failure ?? (badName ? "badname" : ((preview?.refusal || null) as ProjectFailure))}
                 name={name}
-                onRetry={() => void model.refreshPreview()}
+                folder={preview?.parent}
+                onRetry={() => void model.recheck()}
             />
             {busy ? (
                 <Working t={t} />
@@ -252,7 +298,13 @@ function Done({
                 <>
                     <p className="mt-bsj-note">{t("boss.brainstorm.project.notLinked")}</p>
                     {state.brief != null ? (
-                        <WorkspaceField brief={state.brief} choice={choice} workspaces={workspaces} disabled={busy} />
+                        <WorkspaceField
+                            brief={state.brief}
+                            choice={choice}
+                            workspaces={workspaces}
+                            disabled={busy}
+                            dir={promotion.dir}
+                        />
                     ) : null}
                 </>
             )}

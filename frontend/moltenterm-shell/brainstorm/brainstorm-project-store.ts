@@ -16,6 +16,7 @@ import { atom, PrimitiveAtom } from "jotai";
 import { freshColour } from "../sidebar/sidebar-create-model";
 import { switchFromSidebar } from "../sidebar/sidebar-switch";
 import { createWorkspace, WorkspaceDraft } from "../workspace-create";
+import { readWorkspaceProject } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject } from "../workspace-project-store";
 import { isSavedWorkspace } from "../workspace-rail-model";
 import {
@@ -29,6 +30,7 @@ import {
 import type { ProjectBrief } from "./brainstorm-brief-model";
 import {
     choiceAmong,
+    expectOf,
     ProjectFailure,
     ProjectPreview,
     projectRequest,
@@ -49,7 +51,7 @@ type Call = (command: string, data: Record<string, unknown>, timeout: number) =>
 
 export type ProjectDeps = {
     call: Call;
-    createWorkspace: (draft: WorkspaceDraft) => Promise<string>;
+    createWorkspace: (draft: WorkspaceDraft, onCreated?: (id: string) => void) => Promise<string>;
     linkWorkspace: (workspaceId: string, dir: string) => Promise<void>;
     listWorkspaces: () => Promise<WorkspaceOption[]>;
     chooseFolder: (title: string, defaultPath: string) => Promise<string>;
@@ -66,7 +68,7 @@ async function liveWorkspaces(): Promise<WorkspaceOption[]> {
         if (ws == null || !isSavedWorkspace(ws)) {
             continue;
         }
-        rtn.push({ id: ws.oid, name: ws.name, colour: ws.color });
+        rtn.push({ id: ws.oid, name: ws.name, colour: ws.color, project: readWorkspaceProject(ws).dir });
     }
     return rtn;
 }
@@ -106,6 +108,8 @@ export class BrainstormProjectModel {
     private deps: ProjectDeps = LiveDeps;
     // The brainstorm the card's inputs are of: another one starts them over.
     private of: string = null;
+    // The workspace made for a project folder whose link did not go through: Try again links that one, never a second.
+    private madeWorkspace: { dir: string; id: string } = null;
     private previewSeq = 0;
     private previewTimer: ReturnType<typeof setTimeout> = null;
 
@@ -195,15 +199,19 @@ export class BrainstormProjectModel {
             return;
         }
         globalStore.set(this.previewAtom, result.preview ?? null);
-        // A new preview says what holds now; a workspace not linked yet is still to link.
+        // A new preview says what holds now (a folder made by a click wavesrv did not answer shows as not empty); a
+        // workspace not linked yet is still to link.
         if (globalStore.get(this.failureAtom) !== "link") {
             globalStore.set(this.failureAtom, null);
         }
     }
 
+    // A name typed: the preview of the name before goes at once, so the click waits for the one of this name (AC-2).
     setName(name: string): void {
         globalStore.set(this.nameAtom, name);
         globalStore.set(this.failureAtom, null);
+        globalStore.set(this.previewAtom, null);
+        this.previewSeq++;
         clearTimeout(this.previewTimer);
         this.previewTimer = setTimeout(() => void this.refreshPreview(), PreviewDelayMs);
     }
@@ -221,6 +229,8 @@ export class BrainstormProjectModel {
         }
         globalStore.set(this.parentAtom, dir);
         globalStore.set(this.failureAtom, null);
+        globalStore.set(this.previewAtom, null);
+        this.previewSeq++;
         try {
             await this.deps.rememberParent(dir);
         } catch (e) {
@@ -229,11 +239,13 @@ export class BrainstormProjectModel {
         await this.refreshPreview();
     }
 
-    // The click (AC15): wavesrv makes the folder, starts git and writes the copy, then the workspace is linked. A
-    // refusal says why and makes nothing; Try again asks the preview again.
+    // The click (AC15): wavesrv makes the folder, starts git and writes the copy, then the workspace is linked. It sends
+    // the preview the developer saw, and wavesrv acts only on that path: when it no longer holds (stale), nothing is made
+    // and the card previews again. A refusal says why and makes nothing; Try again asks the preview again.
     async create(): Promise<boolean> {
         const brief = this.brief();
-        if (brief == null || globalStore.get(this.busyAtom)) {
+        const seen = globalStore.get(this.previewAtom);
+        if (brief == null || seen?.path == null || seen.path === "" || globalStore.get(this.busyAtom)) {
             return false;
         }
         globalStore.set(this.busyAtom, true);
@@ -246,15 +258,19 @@ export class BrainstormProjectModel {
             );
             const result: ProjectResult = await this.ask(
                 ProjectCreateCommand,
-                { ...request, ...this.brainstormOf() },
+                { ...request, ...this.brainstormOf(), expect: expectOf(seen) },
                 CreateTimeoutMs
             );
             if (result == null) {
-                globalStore.set(this.failureAtom, "failed");
+                // No answer: wavesrv may have made it or not. The card never says nothing was made; it offers to look.
+                globalStore.set(this.failureAtom, "unknown");
+                void BrainstormModel.getInstance().refresh();
                 return false;
             }
             BrainstormModel.getInstance().apply(result.state);
             if (result.stale) {
+                globalStore.set(this.previewAtom, null);
+                void this.refreshPreview();
                 return false;
             }
             if (result.error || !result.dir) {
@@ -283,12 +299,19 @@ export class BrainstormProjectModel {
         }
     }
 
+    // Links the project folder to the chosen workspace, then tells wavesrv which. A workspace made for this folder before
+    // a step failed is linked again, never made twice; wavesrv's no or its silence is a failed link too, so that Try
+    // again is offered and promotedto never stays empty without a word.
     private async linkFolder(dir: string, brief: ProjectBrief): Promise<boolean> {
         const workspaces = globalStore.get(this.workspacesAtom);
         const choice = choiceAmong(globalStore.get(this.choiceAtom), workspaces);
+        const made = this.madeWorkspace?.dir === dir ? this.madeWorkspace.id : "";
         let workspaceId: string;
         try {
-            if (choice.kind === "existing") {
+            if (made !== "") {
+                await this.deps.linkWorkspace(made, dir);
+                workspaceId = made;
+            } else if (choice.kind === "existing") {
                 await this.deps.linkWorkspace(choice.id, dir);
                 workspaceId = choice.id;
             } else {
@@ -296,7 +319,9 @@ export class BrainstormProjectModel {
                     workspaces.map((w) => w.colour ?? ""),
                     workspaces.length
                 );
-                workspaceId = await this.deps.createWorkspace({ name: brief.name, colour, folder: dir });
+                workspaceId = await this.deps.createWorkspace({ name: brief.name, colour, folder: dir }, (id) => {
+                    this.madeWorkspace = { dir, id };
+                });
             }
         } catch (e) {
             console.log("brainstorm: the project's workspace could not be linked", e);
@@ -304,9 +329,22 @@ export class BrainstormProjectModel {
             return false;
         }
         const linked = await this.ask(ProjectLinkedCommand, { ...this.brainstormOf(), dir, workspace: workspaceId });
-        BrainstormModel.getInstance().apply(linked?.state);
+        if (linked == null || linked.error) {
+            this.madeWorkspace ??= choice.kind === "new" ? { dir, id: workspaceId } : null;
+            globalStore.set(this.failureAtom, "link");
+            return false;
+        }
+        BrainstormModel.getInstance().apply(linked.state);
+        this.madeWorkspace = null;
         void this.refreshWorkspaces();
         return true;
+    }
+
+    // Try again on the card before the click: wavesrv's state is read again (a click it made but did not answer shows as
+    // done), then the preview.
+    async recheck(): Promise<void> {
+        await BrainstormModel.getInstance().refresh();
+        await this.refreshPreview();
     }
 
     showFolder(dir: string): void {

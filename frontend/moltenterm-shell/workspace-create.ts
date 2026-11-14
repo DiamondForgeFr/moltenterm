@@ -14,14 +14,17 @@ import { linkWorkspaceProject, setWorkspaceGradient } from "./workspace-project-
 
 export type WorkspaceDraft = { name: string; colour: string; type?: string; folder?: string };
 
-// Resolves the new workspace's id. Its folder, when given, is linked as its project (linkWorkspaceProject).
-export async function createWorkspace(draft: WorkspaceDraft): Promise<string> {
+// Resolves the new workspace's id. Its folder, when given, is linked as its project (linkWorkspaceProject). onCreated
+// hears the id as soon as the workspace exists, so a caller whose later step fails can link that one again rather than
+// make a second workspace.
+export async function createWorkspace(draft: WorkspaceDraft, onCreated?: (id: string) => void): Promise<string> {
     // A gradient is stored as the sheet stores it (accent.ts): its first stop as the colour, its stops in the meta.
     const stops = colourStops(draft.colour);
     const id = await WorkspaceService.CreateWorkspace(draft.name.trim(), "", stops[0] ?? "", true);
     if (!id) {
         throw new Error("no workspace id");
     }
+    onCreated?.(id);
     if (stops.length > 1) {
         await setWorkspaceGradient(id, stops.join(","));
     }
