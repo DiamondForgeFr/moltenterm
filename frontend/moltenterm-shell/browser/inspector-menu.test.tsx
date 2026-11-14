@@ -82,10 +82,31 @@ describe("the confirmations of the clearings (FR-BRW-022 AC7, AC8, TC-BRW-054, T
         expect(out).toContain('data-title="Clear this site&#x27;s data?"');
         expect(out).toContain('data-subtitle="http://localhost:5173"');
         expect(out).toContain("MoltenTerm&#x27;s browser removes what http://localhost:5173 keeps on this computer:");
-        expect(out).toContain("the cookies of localhost, which may sign you out of this site");
+        expect(out).toContain("the cookies localhost keeps for itself alone, which may sign you out of this site");
         expect(out).toContain("local storage, IndexedDB databases, service workers");
+        expect(out).toContain("the files this site served itself");
+        expect(out).toContain("the files it loads from other servers stay");
         expect(out).toContain("Other sites keep their data and sign-ins");
+        expect(out).toContain("the cookies shared with the other sites of its domain");
         expect(out).toContain("Clear site data");
+    });
+
+    it("says in French too that only the site's own cookies and files go, and the shared sign-ins stay", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        try {
+            const out = html({
+                kind: "site",
+                tabId: "t1",
+                origin: "https://app.example.test",
+                host: "app.example.test",
+            });
+            // French elides "que" before a vowel: the dictionary's elision rule applies to the host too.
+            expect(out).toContain("les cookies qu&#x27;app.example.test garde pour lui seul");
+            expect(out).toContain("les fichiers que ce site a servis lui-même");
+            expect(out).toContain("les cookies partagés avec les autres sites de son domaine");
+        } finally {
+            I18nModel.getInstance().setLanguageSetting("en");
+        }
     });
 
     it("says the cache goes and the cookies, sign-ins and storage stay", () => {

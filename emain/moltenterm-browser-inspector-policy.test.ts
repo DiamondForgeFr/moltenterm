@@ -84,14 +84,15 @@ describe("the cookies of a site (FR-BRW-022 AC7)", () => {
         ...extra,
     });
 
-    it("takes the host's own cookies and leaves a parent domain's and other hosts'", () => {
+    it("takes only the host-only cookies of the very host: every domain cookie is shared, and stays", () => {
         const all = [
             host("sid"),
             { name: "pref", domain: ".app.example.test", hostOnly: false, path: "/" },
             shared("sso"),
             { name: "other", domain: "www.example.test", hostOnly: true, path: "/" },
+            { name: "loose", domain: "app.example.test", path: "/" },
         ];
-        expect(ownCookies(all, "APP.example.test").map((c) => c.name)).toEqual(["sid", "pref"]);
+        expect(ownCookies(all, "APP.example.test").map((c) => c.name)).toEqual(["sid"]);
     });
 
     it("names a cookie by its own host, path and scheme", () => {
@@ -99,11 +100,12 @@ describe("the cookies of a site (FR-BRW-022 AC7)", () => {
         expect(cookieUrl({ name: "a", domain: "::1", path: "" })).toBe("http://[::1]/");
     });
 
-    it("sets back what the removal took from a parent domain, and nothing it meant to remove", () => {
-        const before = [host("sid"), shared("sid", { value: "keep" }), shared("other")];
+    it("sets back the shared cookies the removal took along, the host's own domain cookie too, and nothing it meant to remove", () => {
+        const ownDomain = { name: "sid", domain: ".app.example.test", hostOnly: false, path: "/", value: "sub" };
+        const before = [host("sid"), shared("sid", { value: "keep" }), ownDomain, shared("other")];
         const after = [shared("other")];
-        expect(cookiesToRestore(before, after, "app.example.test")).toEqual([shared("sid", { value: "keep" })]);
-        expect(cookiesToRestore(before, before, "app.example.test")).toEqual([]);
+        expect(cookiesToRestore(before, after, [host("sid")])).toEqual([shared("sid", { value: "keep" }), ownDomain]);
+        expect(cookiesToRestore(before, before, [host("sid")])).toEqual([]);
     });
 
     it("sets a cookie back as it was: domain, path, flags, expiry", () => {

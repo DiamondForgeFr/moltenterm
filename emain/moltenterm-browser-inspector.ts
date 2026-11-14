@@ -66,6 +66,10 @@ type Inspector = {
 
 const inspectors = new Map<number, Inspector>();
 const closing = new Map<number, Promise<boolean>>();
+// The latest open asked for each page. An open waits for the last view (or the tools' window) to go; a close or a later
+// open that comes meanwhile makes it stale, and it then makes nothing: a view with no pane under it would show.
+const wanted = new Map<number, number>();
+let requests = 0;
 let deps: InspectorDeps = null;
 
 // A page whose developer tools are docked: the hidden-page freeze and discard (#459) leave it alone, as one whose
@@ -82,13 +86,17 @@ function ownedPage(host: WebContents, pageId: unknown): WebContents {
     return page;
 }
 
-function place(insp: Inspector, raw: unknown): void {
+// The rectangle an open carries only sizes the view: it shows on the window's next place, which the pane sends once
+// emain answers, and which a pane gone meanwhile never sends.
+function place(insp: Inspector, raw: unknown, show: boolean): void {
     const placed = placeBounds(raw, insp.host.isDestroyed() ? 1 : insp.host.getZoomFactor());
     if (placed == null) {
         return;
     }
     insp.view.setBounds(placed.bounds);
-    insp.view.setVisible(placed.visible);
+    if (show) {
+        insp.view.setVisible(placed.visible);
+    }
 }
 
 // Chromium hit-tests a guest's point in its embedder's coordinates: the window sends the right-click's point in its own
@@ -150,6 +158,24 @@ function closeInspector(pageId: number, tellWindow: boolean): Promise<boolean> {
     return done;
 }
 
+// The tools in their own window close before the page's DevTools contents change: as with a docked view, Electron lets
+// go of them after the devtools-closed listeners, and setting a view before that crashes the app.
+function closeToolsWindow(page: WebContents): Promise<boolean> {
+    if (page.isDestroyed() || !page.isDevToolsOpened()) {
+        return Promise.resolve(true);
+    }
+    return new Promise<boolean>((resolve) => {
+        const timer = setTimeout(() => resolve(false), ViewGoneMs);
+        page.once("devtools-closed", () =>
+            setTimeout(() => {
+                clearTimeout(timer);
+                resolve(true);
+            }, 0)
+        );
+        page.closeDevTools();
+    });
+}
+
 function watchTools(page: WebContents, host: WebContents, contents: WebContents): void {
     // The tools keep their own keys (⌘F, ⌘R, ⌘[ ⌘], Escape...); only the inspect toggle goes back to the panel.
     contents.on("before-input-event", (e, input) => {
@@ -189,35 +215,37 @@ async function openInspector(
     if (page == null || parent == null) {
         return false;
     }
-    const existing = inspectors.get(page.id);
+    const id = page.id;
+    const request = ++requests;
+    wanted.set(id, request);
+    const existing = inspectors.get(id);
     if (existing != null) {
-        place(existing, rawPlace);
+        place(existing, rawPlace, false);
         inspectAt(page, host, rawPoint);
         return true;
     }
-    if (!(await (closing.get(page.id) ?? Promise.resolve(true)))) {
+    if (!(await (closing.get(id) ?? Promise.resolve(true)))) {
         return false;
+    }
+    // The tools in their own window move into the panel.
+    if (wanted.get(id) === request && !(await closeToolsWindow(page))) {
+        return false;
+    }
+    // A close, or a later open, came while this one waited: this one makes nothing, and nothing failed.
+    if (wanted.get(id) !== request) {
+        return true;
     }
     if (page.isDestroyed() || host.isDestroyed()) {
         return false;
-    }
-    // Two opens raced while a view was going: the first one made the new view.
-    const raced = inspectors.get(page.id);
-    if (raced != null) {
-        place(raced, rawPlace);
-        inspectAt(page, host, rawPoint);
-        return true;
-    }
-    // The tools in their own window move into the panel.
-    if (page.isDevToolsOpened()) {
-        page.closeDevTools();
     }
     const view = new WebContentsView({
         webPreferences: { session: page.session, sandbox: true, contextIsolation: true, nodeIntegration: false },
     });
     view.setVisible(false);
-    const id = page.id;
-    const onPageGone = () => void closeInspector(id, true);
+    const onPageGone = () => {
+        wanted.delete(id);
+        void closeInspector(id, true);
+    };
     const onOpenUrl = (_e: Electron.Event, url: string) => {
         if (/^https?:/i.test(url ?? "")) {
             deps.openLink(url, host);
@@ -245,7 +273,7 @@ async function openInspector(
     page.on("devtools-open-url", onOpenUrl);
     host.once("destroyed", onPageGone);
     parent.addChildView(view);
-    place(insp, rawPlace);
+    place(insp, rawPlace, false);
     watchTools(page, host, view.webContents);
     page.setDevToolsWebContents(view.webContents);
     page.openDevTools({ mode: "detach", activate: false });
@@ -264,6 +292,7 @@ async function openToolsWindow(host: WebContents, pageId: unknown): Promise<bool
     if (page == null) {
         return false;
     }
+    wanted.delete(page.id);
     if (!(await closeInspector(page.id, true)) || page.isDestroyed()) {
         return false;
     }
@@ -282,10 +311,10 @@ async function clearHostCookies(ses: Electron.Session, host: string): Promise<vo
     for (const cookie of own) {
         await ses.cookies.remove(cookieUrl(cookie), cookie.name);
     }
-    for (const cookie of cookiesToRestore(before, await sameNamed(), host)) {
+    for (const cookie of cookiesToRestore(before, await sameNamed(), own)) {
         await ses.cookies
             .set(restoreDetails(cookie))
-            .catch((e) => console.log("molten site data: a parent domain's cookie could not be set back", e));
+            .catch((e) => console.log("molten site data: a shared cookie could not be set back", e));
     }
 }
 
@@ -333,14 +362,16 @@ export function initMoltentermBrowserInspector(d: InspectorDeps): void {
     onAppIpc(InspectorPlaceChannel, (event, pageId, rawPlace) => {
         const insp = inspectors.get(pageId);
         if (insp != null && insp.host.id === event.sender.id) {
-            place(insp, rawPlace);
+            place(insp, rawPlace, true);
         }
     });
     handleAppIpc(InspectorCloseChannel, async (event, pageId) => {
         const insp = inspectors.get(pageId);
-        if (insp != null && insp.host.id !== event.sender.id) {
+        if (insp != null ? insp.host.id !== event.sender.id : ownedPage(event.sender, pageId) == null) {
             return false;
         }
+        // An open still waiting for the last view to go makes nothing now.
+        wanted.delete(pageId);
         return closeInspector(pageId, false);
     });
     handleAppIpc(InspectorWindowChannel, (event, pageId) => openToolsWindow(event.sender, pageId));

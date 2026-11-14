@@ -143,10 +143,19 @@ describe("the web page panel's docked developer tools (FR-BRW-022, DS-BRW-027)",
         expect(page.openDevTools).toHaveBeenCalledWith({ mode: "detach", activate: false });
         expect(page.inspectElement).toHaveBeenCalledWith(1200, 506);
         expect(view.setBounds).toHaveBeenLastCalledWith({ x: 13, y: 375, width: 800, height: 300 });
-        expect(view.setVisible).toHaveBeenLastCalledWith(true);
         expect(inspector.isInspected(42)).toBe(true);
         view.webContents.emit("did-finish-load");
         expect(view.webContents.focus).toHaveBeenCalled();
+    });
+
+    it("keeps the view hidden until the pane places it: a pane gone meanwhile never shows it", async () => {
+        await open();
+        const view = Mocks.views[0];
+        expect(view.setVisible.mock.calls).toEqual([[false]]);
+        listener(inspector.InspectorPlaceChannel)(from(host), 42, Place);
+        expect(view.setVisible).toHaveBeenLastCalledWith(true);
+        await open(42, { ...Place, visible: true }, { x: 1, y: 1 });
+        expect(view.setVisible.mock.calls).toEqual([[false], [true]]);
     });
 
     it("never docks a page of another window, an unknown page or for an unregistered caller", async () => {
@@ -166,13 +175,64 @@ describe("the web page panel's docked developer tools (FR-BRW-022, DS-BRW-027)",
         expect(page.inspectElement).toHaveBeenLastCalledWith(500, 100);
     });
 
-    it("moves the tools from their window into the panel", async () => {
+    it("moves the tools from their window into the panel once Electron let go of the window", async () => {
         page.isDevToolsOpened.mockReturnValue(true);
-        await open();
+        page.closeDevTools.mockImplementation(() => {
+            page.isDevToolsOpened.mockReturnValue(false);
+            page.emit("devtools-closed");
+        });
+        const opened = open();
+        await vi.advanceTimersByTimeAsync(0);
         expect(page.closeDevTools).toHaveBeenCalled();
+        expect(await opened).toBe(true);
         expect(page.closeDevTools.mock.invocationCallOrder[0]).toBeLessThan(
             page.setDevToolsWebContents.mock.invocationCallOrder[0]
         );
+    });
+
+    it("waits for the window's devtools-closed and one more task before setting the view", async () => {
+        page.isDevToolsOpened.mockReturnValue(true);
+        const opened = open();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(page.closeDevTools).toHaveBeenCalled();
+        expect(page.setDevToolsWebContents).not.toHaveBeenCalled();
+        page.isDevToolsOpened.mockReturnValue(false);
+        page.emit("devtools-closed");
+        expect(page.setDevToolsWebContents).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(await opened).toBe(true);
+        expect(page.setDevToolsWebContents).toHaveBeenCalledTimes(1);
+    });
+
+    it("makes nothing for an open a close cancelled while it waited (⌥⌘I three times quickly)", async () => {
+        await open();
+        const first = Mocks.views[0];
+        first.webContents.holdClose = true;
+        void close();
+        const reopened = open();
+        await vi.advanceTimersByTimeAsync(0);
+        const closedAgain = close();
+        first.webContents.finishClose();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(await reopened).toBe(true);
+        expect(await closedAgain).toBe(true);
+        expect(Mocks.views).toHaveLength(1);
+        expect(page.setDevToolsWebContents).toHaveBeenCalledTimes(1);
+        expect(inspector.isInspected(42)).toBe(false);
+    });
+
+    it("makes one view for two opens waiting together, the later one's", async () => {
+        await open();
+        const first = Mocks.views[0];
+        first.webContents.holdClose = true;
+        void close();
+        const a = open(42, Place, { x: 10, y: 10 });
+        const b = open(42, Place, { x: 20, y: 20 });
+        first.webContents.finishClose();
+        await vi.advanceTimersByTimeAsync(0);
+        expect([await a, await b]).toEqual([true, true]);
+        expect(Mocks.views).toHaveLength(2);
+        expect(page.inspectElement).toHaveBeenLastCalledWith(25, 25);
     });
 
     it("places and hides the view as the window says, and only for the window that holds it", async () => {
@@ -367,19 +427,20 @@ describe("clearing a page's data (FR-BRW-022 AC7, AC8)", () => {
         expect(page.reload).toHaveBeenCalled();
     });
 
-    it("sets back a parent domain's cookie the removal took along", async () => {
+    it("removes only the host-only cookies, and sets back the shared ones the removal took along", async () => {
         page.getURL.mockReturnValue("https://app.example.test/");
         const shared = { name: "sid", domain: ".example.test", hostOnly: false, path: "/", value: "sso", secure: true };
-        jar = [{ name: "sid", domain: "app.example.test", hostOnly: true, path: "/", secure: true }, shared];
+        const ownDomain = { name: "sid", domain: ".app.example.test", hostOnly: false, path: "/", value: "sub" };
+        const kept = { name: "theme", domain: ".app.example.test", hostOnly: false, path: "/", value: "dark" };
+        const own = { name: "sid", domain: "app.example.test", hostOnly: true, path: "/", secure: true };
+        jar = [own, shared, ownDomain, kept];
         expect(await clear("site", "https://app.example.test")).toEqual({ ok: true });
-        expect(ses.cookies.set).toHaveBeenCalledWith(
-            expect.objectContaining({
-                name: "sid",
-                domain: ".example.test",
-                value: "sso",
-                url: "https://example.test/",
-            })
-        );
+        expect(ses.cookies.remove.mock.calls).toEqual([["https://app.example.test/", "sid"]]);
+        expect(ses.cookies.set.mock.calls.map(([d]: any[]) => [d.domain, d.value, d.url])).toEqual([
+            [".example.test", "sso", "https://example.test/"],
+            [".app.example.test", "sub", "http://app.example.test/"],
+        ]);
+        expect(jar).toContainEqual(kept);
     });
 
     it("clears nothing when the page moved to another origin, or is not a web page", async () => {

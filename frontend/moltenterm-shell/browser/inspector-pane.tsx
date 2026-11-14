@@ -3,8 +3,8 @@
 
 // The pane of a page's developer tools, docked below the page in the web page panel (FR-BRW-022, DS-BRW-027): a
 // divider, a header (Developer tools, Open in a separate window, Close) and the body the tools cover. The tools are a
-// view emain draws over the body; the pane tells it where the body is and whether the window shows it, every frame
-// the answer changes.
+// view emain draws over the body; the pane tells it where the body is and whether the window shows it, each time the
+// answer changes.
 
 import { getSettingsKeyAtom } from "@/app/store/global";
 import { isMacOS } from "@/util/platformutil";
@@ -14,8 +14,10 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { modalIsOpen } from "../modal-open";
 import { formatShortcutById } from "../shortcuts/format";
+import { TabActivity, whileShown } from "../tab-activity";
 import {
     BrowserInspectorModel,
+    clippingAncestors,
     coveredRect,
     draggedInspectorSize,
     HiddenPlace,
@@ -27,9 +29,10 @@ import {
     InspectorSizeMin,
     keyedInspectorSize,
     shownRect,
+    shownRectWithin,
 } from "./browser-inspector";
 
-// How often the pane asks whether a surface of the window lies over it: a hit test of nine points.
+// How often the pane asks whether a surface of the window lies over it (a hit test of nine points), and where it is.
 const CoverCheckMs = 100;
 
 const HeadButton =
@@ -72,8 +75,10 @@ export function InspectorPane({
     const sentRef = useRef("");
     const shownRef = useRef(shown && active);
     shownRef.current = shown && active;
-    const dragRef = useRef<{ y: number; size: number; height: number }>(null);
+    const dragRef = useRef<{ y: number; size: number; height: number; last: number }>(null);
     const [dragging, setDragging] = useState(false);
+    // Places the tools again now (the pane moved, showed or hid); null until the placement effect runs.
+    const placeNowRef = useRef<() => void>(null);
 
     // The setting came back with the divider's size (or another panel's): this panel follows it again.
     useEffect(() => {
@@ -88,6 +93,7 @@ export function InspectorPane({
             host.inspectorFailed(tabId);
             return;
         }
+        let live = true;
         pageIdRef.current = pageId;
         host.inspector.pageIds.set(tabId, pageId);
         const body = bodyRef.current;
@@ -95,15 +101,23 @@ export function InspectorPane({
             body != null && shownRef.current && !modalIsOpen() ? inspectorPlace(shownRect(body), true) : HiddenPlace;
         api.moltentermInspectorOpen(pageId, place, entry.point ?? null).then(
             (ok) => {
+                // A pane closed (or asked again) meanwhile: its answer is no one's.
+                if (!live) {
+                    return;
+                }
                 if (!ok) {
                     host.inspectorFailed(tabId);
                     return;
                 }
-                // A place sent while emain was still making the view went nowhere: the next frame sends it again.
+                // The view shows on the pane's first place after the answer: one sent before it went nowhere.
                 sentRef.current = "";
+                placeNowRef.current?.();
             },
-            () => host.inspectorFailed(tabId)
+            () => live && host.inspectorFailed(tabId)
         );
+        return () => {
+            live = false;
+        };
     }, [host, tabId, entry.nonce]);
 
     useEffect(
@@ -118,22 +132,26 @@ export function InspectorPane({
         []
     );
 
+    // The tools follow the pane when it changes size, when anything scrolls (the 360 carpet), when the window resizes or
+    // a transition ends, and at the cover check, which also catches a panel moving by a transform. The clipping
+    // ancestors are read again only when the layout changes. Hidden while a dialog is up, the divider is dragged (a
+    // pointer-up lost over the native view would leave the drag stuck) or something lies over the pane.
     useEffect(() => {
-        let frame = 0;
-        let checkedAt = -Infinity;
+        const body = bodyRef.current;
+        if (body == null) {
+            return;
+        }
+        let clippers = clippingAncestors(body);
         let covered = false;
-        const tick = (now: number) => {
-            frame = requestAnimationFrame(tick);
+        const placeNow = (checkCover: boolean) => {
             const pageId = pageIdRef.current;
-            const body = bodyRef.current;
-            if (pageId == null || body == null) {
+            if (pageId == null) {
                 return;
             }
             let place = HiddenPlace;
-            if (shownRef.current && !modalIsOpen()) {
-                const rect = shownRect(body);
-                if (now - checkedAt >= CoverCheckMs) {
-                    checkedAt = now;
+            if (shownRef.current && dragRef.current == null && !modalIsOpen()) {
+                const rect = shownRectWithin(body, clippers);
+                if (checkCover) {
                     covered = rect.right > rect.left && rect.bottom > rect.top && coveredRect(rect, body);
                 }
                 place = inspectorPlace(rect, !covered);
@@ -145,14 +163,49 @@ export function InspectorPane({
             sentRef.current = key;
             inspectorApi()?.moltentermInspectorPlace?.(pageId, place);
         };
-        frame = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(frame);
+        const onLayout = () => {
+            clippers = clippingAncestors(body);
+            placeNow(false);
+        };
+        const onMove = () => placeNow(false);
+        placeNowRef.current = () => placeNow(true);
+        const resize = new ResizeObserver(onLayout);
+        resize.observe(body);
+        window.addEventListener("resize", onLayout);
+        document.addEventListener("scroll", onMove, true);
+        document.addEventListener("transitionend", onLayout, true);
+        document.addEventListener("animationend", onLayout, true);
+        const stopCheck = TabActivity.getInstance().every(
+            whileShown(CoverCheckMs),
+            () => placeNow(true),
+            "browser-inspector"
+        );
+        placeNow(true);
+        return () => {
+            placeNowRef.current = null;
+            stopCheck();
+            resize.disconnect();
+            window.removeEventListener("resize", onLayout);
+            document.removeEventListener("scroll", onMove, true);
+            document.removeEventListener("transitionend", onLayout, true);
+            document.removeEventListener("animationend", onLayout, true);
+        };
     }, []);
 
+    // The page shown or hidden, the view shown or hidden: placed at once rather than at the next check.
+    useEffect(() => {
+        placeNowRef.current?.();
+    }, [shown, active]);
+
     const shortcut = formatShortcutById(isMacOS() ? "browser-inspect" : "browser-inspect-other");
-    const endDrag = () => {
+    const endDrag = (save: boolean) => {
+        const drag = dragRef.current;
         dragRef.current = null;
         setDragging(false);
+        if (drag != null && save && drag.last !== drag.size) {
+            host.inspector.saveSize(drag.last);
+        }
+        placeNowRef.current?.();
     };
     return (
         <div
@@ -177,26 +230,31 @@ export function InspectorPane({
                     }
                     e.preventDefault();
                     e.currentTarget.setPointerCapture?.(e.pointerId);
-                    dragRef.current = { y: e.clientY, size, height: paneRef.current?.parentElement?.clientHeight ?? 0 };
+                    const height = paneRef.current?.parentElement?.clientHeight ?? 0;
+                    dragRef.current = { y: e.clientY, size, height, last: size };
                     setDragging(true);
+                    placeNowRef.current?.();
                 }}
                 onPointerMove={(e) => {
                     const drag = dragRef.current;
                     if (drag == null) {
                         return;
                     }
-                    host.inspector.setDragSize(draggedInspectorSize(drag.size, drag.y, e.clientY, drag.height));
+                    drag.last = draggedInspectorSize(drag.size, drag.y, e.clientY, drag.height);
+                    host.inspector.setDragSize(drag.last);
                 }}
                 onPointerUp={(e) => {
                     const drag = dragRef.current;
-                    endDrag();
-                    if (drag == null || e.clientY === drag.y) {
-                        return;
+                    if (drag != null) {
+                        drag.last = draggedInspectorSize(drag.size, drag.y, e.clientY, drag.height);
                     }
-                    host.inspector.saveSize(draggedInspectorSize(drag.size, drag.y, e.clientY, drag.height));
+                    endDrag(true);
                 }}
+                // The pointer-up may never come (released outside the window): the capture's end closes the drag where
+                // the divider was.
+                onLostPointerCapture={() => endDrag(true)}
                 onPointerCancel={() => {
-                    endDrag();
+                    endDrag(false);
                     host.inspector.setDragSize(null);
                 }}
                 onKeyDown={(e) => {
