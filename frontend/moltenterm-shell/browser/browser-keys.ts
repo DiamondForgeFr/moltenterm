@@ -19,11 +19,14 @@ export const BrowserKeyZoomOut = "zoom-out";
 export const BrowserKeyZoomReset = "zoom-reset";
 export const BrowserKeyAddress = "address";
 export const BrowserKeyStop = "stop";
+export const BrowserKeyInspect = "inspect";
 
 type KeyTable = { action: string; mac: string[]; other: string[] }[];
 
 // Zoom takes "=" and "+" because "+" needs Shift on some layouts and not on others, and the numpad's sends "+".
+// Inspect (FR-BRW-022) also takes ⌥⌘I by key code: Option changes the character the I key types on macOS.
 const BrowserKeyTable: KeyTable = [
+    { action: BrowserKeyInspect, mac: ["Cmd:Alt:i", "Cmd:Alt:c{KeyI}"], other: ["Ctrl:Shift:i"] },
     { action: BrowserKeyHardReload, mac: ["Cmd:Shift:r", "Shift:F5"], other: ["Ctrl:Shift:r", "Ctrl:F5", "Shift:F5"] },
     { action: BrowserKeyReload, mac: ["Cmd:r", "F5"], other: ["Ctrl:r", "F5"] },
     { action: BrowserKeyBack, mac: ["Cmd:[", "Cmd:ArrowLeft"], other: ["Alt:ArrowLeft"] },

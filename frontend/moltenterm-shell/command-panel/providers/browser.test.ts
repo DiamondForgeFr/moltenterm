@@ -67,7 +67,13 @@ function makeTarget(s: BrowserCommandState) {
         forgetAgentSite: record("forgetagent"),
         controlAgent: record("agent"),
         showTab: record("show"),
-        openPageDevTools: record("devtools"),
+        openPageDevTools: record("devtools-window"),
+        toggleInspector: () => {
+            calls.push("inspect");
+            return true;
+        },
+        askClearSiteData: record("clear-site"),
+        askClearCache: record("clear-cache"),
     };
     return { target, calls };
 }
@@ -202,5 +208,49 @@ describe("Browser provider (FR-SHELL-051 AC1, DS-SHELL-090)", () => {
         expect(item(sections, "browser:reload")).toBeUndefined();
         expect(item(sections, "browser:openhere")).toBeDefined();
         expect(section(sections, "developer")).toBeUndefined();
+    });
+});
+
+describe("Developer section: inspector and site data (FR-BRW-022 AC6, TC-BRW-053)", () => {
+    const ids = (sections: PanelSection[]) => section(sections, "developer").items.map((i) => i.id);
+
+    it("lists Inspect, the separate window and both clearings on a web page, with the platform's keys", async () => {
+        const { target, calls } = makeTarget(
+            makeState({ canInspect: true, inspectorOpen: false, clearableOrigin: "https://example.com" })
+        );
+        const sections = browserSections(makeCtx(target));
+        expect(ids(sections)).toEqual([
+            "browser:devtools",
+            "browser:devtoolswindow",
+            "browser:clearsitedata",
+            "browser:clearcache",
+        ]);
+        expect(item(sections, "browser:devtools")).toMatchObject({ label: "Inspect the page" });
+        expect(["⌥⌘I", "Ctrl+Shift+I"]).toContain((item(sections, "browser:devtools") as PanelAction).shortcut);
+        expect(item(sections, "browser:clearsitedata")).toMatchObject({
+            label: "Clear this site's data…",
+            detail: "https://example.com",
+        });
+        for (const id of [
+            "browser:devtools",
+            "browser:devtoolswindow",
+            "browser:clearsitedata",
+            "browser:clearcache",
+        ]) {
+            await (item(sections, id) as PanelAction).run();
+        }
+        expect(calls).toEqual(["inspect", "devtools-window", "clear-site", "clear-cache"]);
+    });
+
+    it("reads Close the inspector while the tools are docked", () => {
+        const { target } = makeTarget(makeState({ canInspect: true, inspectorOpen: true, clearableOrigin: null }));
+        const sections = browserSections(makeCtx(target));
+        expect(item(sections, "browser:devtools").label).toBe("Close the inspector");
+        expect(item(sections, "browser:clearsitedata")).toBeUndefined();
+    });
+
+    it("keeps only the separate window on a page not drawn yet", () => {
+        const { target } = makeTarget(makeState({ canInspect: false, clearableOrigin: null }));
+        expect(ids(browserSections(makeCtx(target)))).toEqual(["browser:devtoolswindow"]);
     });
 });

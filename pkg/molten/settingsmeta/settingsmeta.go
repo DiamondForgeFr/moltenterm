@@ -375,6 +375,8 @@ var settings = []Setting{
 	// The Settings screen's last tab and the materials seen (#1763): the screen's tabs and the materials section set them.
 	hidden("moltenterm:settingstab"),
 	hidden("moltenterm:materialsseen"),
+	// The size of a web page panel's docked developer tools (#2310): their divider sets it.
+	hidden("moltenterm:browserinspectorsize"),
 }
 
 func init() {

@@ -208,3 +208,52 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
 .block.block-frame-default:not(.block-focused) .molten-browser-panel-buttons .molten-browser-close {
     order: 2;
 }
+
+/* The page's developer tools docked below it (FR-BRW-022, DS-BRW-027). The tools are a view the window places over the
+   pane's body; the pane draws the divider and the header around it, and takes the panel's bottom corners from the
+   page. */
+.molten-browser-inspector {
+    min-height: 80px;
+    overflow: hidden;
+    border-radius: 0 0 var(--mt-panel-radius) var(--mt-panel-radius);
+    background: var(--color-panel);
+}
+
+.molten-browser-inspecting .molten-browser-pages,
+.molten-browser-inspecting .molten-browser-page {
+    border-radius: 0;
+}
+
+.molten-browser-inspector-grip {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    height: 7px;
+    border-top: 1px solid color-mix(in srgb, var(--mt-neutral-line) 24%, transparent);
+    cursor: row-resize;
+    outline: none;
+}
+
+.molten-browser-inspector-grip::before {
+    content: "";
+    width: 26px;
+    height: 3px;
+    border-radius: var(--mt-radius-control);
+    background: transparent;
+    transition:
+        width var(--mt-duration-fast) var(--mt-ease),
+        background var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-browser-inspector-grip:hover::before,
+.molten-browser-inspector-grip:focus-visible::before,
+.molten-browser-inspector-grip.is-on::before {
+    width: 44px;
+    background: color-mix(in srgb, var(--mt-veil) 45%, transparent);
+}
+
+/* While the divider is dragged, the pages never take the pointer. */
+.molten-browser:has(.molten-browser-inspector-grip.is-on) webview {
+    pointer-events: none;
+}

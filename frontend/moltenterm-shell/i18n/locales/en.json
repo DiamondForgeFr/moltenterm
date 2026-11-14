@@ -2334,6 +2334,8 @@
             "browser-address-other": "Go to the address bar",
             "browser-stop": "Stop loading the page",
             "browser-stop-other": "Stop loading the page",
+            "browser-inspect": "Inspect the page",
+            "browser-inspect-other": "Inspect the page",
             "companion": "Agent companion",
             "palette": "Command palette",
             "command-panel": "The focused panel's commands",
@@ -2756,6 +2758,34 @@
             "badgeTitle": "Shared with {name}. Click to stop sharing."
         },
         "viewName": "Web page",
+        "inspector": {
+            "inspect": "Inspect",
+            "close": "Close inspector",
+            "title": "Developer tools",
+            "window": "Open in a separate window",
+            "closeTitle": "Close the developer tools ({shortcut})",
+            "resize": "Resize the developer tools",
+            "failed": "The developer tools could not open on this page."
+        },
+        "siteData": {
+            "clearSite": "Clear this site's data…",
+            "clearCache": "Clear the browser cache…",
+            "siteTitle": "Clear this site's data?",
+            "siteIntro": "MoltenTerm's browser removes what {origin} keeps on this computer:",
+            "siteCookies": "the cookies of {host}, which may sign you out of this site",
+            "siteStorage": "its local storage, IndexedDB databases, service workers and their caches",
+            "siteCache": "its files kept in the browser cache",
+            "siteKept": "Other sites keep their data and sign-ins, and so do the cookies a parent domain shares with its other sites. The page reloads afterwards.",
+            "siteConfirm": "Clear site data",
+            "cacheTitle": "Clear the browser cache?",
+            "cacheBody": "The files every site opened in MoltenTerm's browser keeps in the cache are removed: pages download them again.",
+            "cacheKept": "Cookies, sign-ins and the sites' storage are kept. The page reloads afterwards.",
+            "cacheConfirm": "Clear the cache",
+            "siteDone": "{origin}'s data was cleared",
+            "cacheDone": "The browser cache was cleared",
+            "moved": "The page moved to another site: nothing was cleared.",
+            "failed": "The data could not be cleared: {error}"
+        },
         "notice": {
             "siteChoiceNotSaved": "The site choice could not be saved: {error}",
             "decisionNotForgotten": "The agents' decision could not be forgotten: {error}",
@@ -3029,6 +3059,8 @@
             "thisSite": "This site",
             "links": "Links",
             "inspect": "Inspect the page",
+            "closeInspector": "Close the inspector",
+            "devtoolsWindow": "Developer tools in a separate window",
             "newPageBeside": "New page to the right",
             "duplicateBeside": "Duplicate to the right"
         },

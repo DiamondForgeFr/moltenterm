@@ -2334,6 +2334,8 @@
             "browser-address-other": "Aller à la barre d'adresse",
             "browser-stop": "Arrêter le chargement de la page",
             "browser-stop-other": "Arrêter le chargement de la page",
+            "browser-inspect": "Inspecter la page",
+            "browser-inspect-other": "Inspecter la page",
             "companion": "Compagnon de l'agent",
             "palette": "Palette de commandes",
             "command-panel": "Les commandes du panneau actif",
@@ -2756,6 +2758,34 @@
             "badgeTitle": "Partagé avec {name}. Cliquez pour arrêter le partage."
         },
         "viewName": "Page web",
+        "inspector": {
+            "inspect": "Inspecter",
+            "close": "Fermer l'inspecteur",
+            "title": "Outils de développement",
+            "window": "Ouvrir dans une fenêtre à part",
+            "closeTitle": "Fermer les outils de développement ({shortcut})",
+            "resize": "Redimensionner les outils de développement",
+            "failed": "Les outils de développement n'ont pas pu s'ouvrir sur cette page."
+        },
+        "siteData": {
+            "clearSite": "Effacer les données de ce site…",
+            "clearCache": "Vider le cache du navigateur…",
+            "siteTitle": "Effacer les données de ce site ?",
+            "siteIntro": "Le navigateur de MoltenTerm supprime ce que {origin} conserve sur cet ordinateur :",
+            "siteCookies": "les cookies de {host}, ce qui peut vous déconnecter de ce site",
+            "siteStorage": "son stockage local, ses bases IndexedDB, ses service workers et leurs caches",
+            "siteCache": "ses fichiers gardés dans le cache du navigateur",
+            "siteKept": "Les autres sites gardent leurs données et leurs connexions, de même que les cookies qu'un domaine parent partage avec ses autres sites. La page se recharge ensuite.",
+            "siteConfirm": "Effacer les données",
+            "cacheTitle": "Vider le cache du navigateur ?",
+            "cacheBody": "Les fichiers que chaque site ouvert dans le navigateur de MoltenTerm garde en cache sont supprimés : les pages les téléchargent à nouveau.",
+            "cacheKept": "Les cookies, les connexions et le stockage des sites sont conservés. La page se recharge ensuite.",
+            "cacheConfirm": "Vider le cache",
+            "siteDone": "Les données de {origin} ont été effacées",
+            "cacheDone": "Le cache du navigateur a été vidé",
+            "moved": "La page est passée sur un autre site : rien n'a été effacé.",
+            "failed": "Les données n'ont pas pu être effacées : {error}"
+        },
         "notice": {
             "siteChoiceNotSaved": "Le choix pour ce site n'a pas pu être enregistré : {error}",
             "decisionNotForgotten": "La décision des agents n'a pas pu être oubliée : {error}",
@@ -3029,6 +3059,8 @@
             "thisSite": "Ce site",
             "links": "Liens",
             "inspect": "Inspecter la page",
+            "closeInspector": "Fermer l'inspecteur",
+            "devtoolsWindow": "Outils de développement dans une fenêtre à part",
             "newPageBeside": "Nouvelle page à droite",
             "duplicateBeside": "Dupliquer à droite"
         },

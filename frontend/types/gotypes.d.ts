@@ -1532,6 +1532,7 @@ declare global {
         "moltenterm:reviewsfolds"?: {[key: string]: boolean};
         "moltenterm:settingstab"?: string;
         "moltenterm:materialsseen"?: {[key: string]: number};
+        "moltenterm:browserinspectorsize"?: number;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

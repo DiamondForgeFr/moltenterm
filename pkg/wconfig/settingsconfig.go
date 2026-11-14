@@ -302,6 +302,9 @@ type SettingsType struct {
 	MoltentermSettingsTab   string           `json:"moltenterm:settingstab,omitempty" jsonschema_description:"The tab the Settings screen opens on: the one the developer chose last (overview when unset). Set by the screen's tabs"`
 	MoltentermMaterialsSeen map[string]int64 `json:"moltenterm:materialsseen,omitempty" jsonschema_description:"When the developer last saw each project's materials, by project, in milliseconds since 1970: newer materials are counted as new in the library. Set by opening the materials section"`
 
+	// MOLTENTERM-PATCH (#2310): the share of a web page panel its docked developer tools take, the same for every panel and after a restart (frontend/moltenterm-shell/browser/browser-inspector.ts).
+	MoltentermBrowserInspectorSize float64 `json:"moltenterm:browserinspectorsize,omitempty" jsonschema_description:"The share of a web page panel's page area its docked developer tools take, from 0.15 to 0.85 (0.4 when unset or out of range). Set by dragging the tools' divider"`
+
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
 

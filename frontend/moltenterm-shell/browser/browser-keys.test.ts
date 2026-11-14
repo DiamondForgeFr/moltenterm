@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { setKeyUtilPlatform } from "@/util/keyutil";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { formatShortcutById } from "../shortcuts/format";
 import { findShortcut } from "../shortcuts/registry";
 import {
     blockIdOfPage,
@@ -12,6 +15,7 @@ import {
     BrowserKeyFind,
     BrowserKeyForward,
     BrowserKeyHardReload,
+    BrowserKeyInspect,
     BrowserKeyReload,
     BrowserKeyStop,
     BrowserKeyTarget,
@@ -249,5 +253,40 @@ describe("routing a key held back from a page", () => {
         expect(browserKeyAction(alt, false)).toBeNull();
         expect(browserPageKeys(false)).not.toContain("Cmd:t");
         expect(browserPageKeys(true)).not.toContain("Cmd:t");
+    });
+});
+
+describe("the inspect toggle (#2310, FR-BRW-022 AC3, TC-BRW-053)", () => {
+    const KeyModelSource = readFileSync(resolve(__dirname, "../../app/store/keymodel.ts"), "utf8");
+
+    it("is ⌥⌘I on macOS, by its key or, where Option changes the character, by its code", () => {
+        setKeyUtilPlatform("darwin");
+        expect(browserKeyAction(key("i", { meta: true, alt: true }, true), true)).toBe(BrowserKeyInspect);
+        const dead = { ...key("ˆ", { meta: true, alt: true }, true), code: "KeyI" };
+        expect(browserKeyAction(dead, true)).toBe(BrowserKeyInspect);
+        expect(browserKeyAction(key("i", { meta: true }, true), true)).toBeNull();
+        expect(browserKeyAction(key("i", { control: true, shift: true }, true), true)).toBeNull();
+    });
+
+    it("is Ctrl+Shift+I on Windows and Linux, never Alt+Option+I", () => {
+        setKeyUtilPlatform("linux");
+        expect(browserKeyAction(key("I", { control: true, shift: true }, false), false)).toBe(BrowserKeyInspect);
+        expect(browserKeyAction(key("i", { alt: true, meta: true }, false), false)).toBeNull();
+    });
+
+    it("is held back from pages and listed in the shortcuts sheet with the platform's glyphs", () => {
+        expect(browserPageKeys(true)).toEqual(expect.arrayContaining(["Cmd:Alt:i", "Cmd:Alt:c{KeyI}"]));
+        expect(browserPageKeys(false)).toContain("Ctrl:Shift:i");
+        expect(findShortcut("browser-inspect")).toMatchObject({ keys: "Cmd:Alt:i", macOnly: true, scope: "browser" });
+        expect(findShortcut("browser-inspect-other")).toMatchObject({ keys: "Ctrl:Shift:i", notMac: true });
+        expect(formatShortcutById("browser-inspect", true)).toBe("⌥⌘I");
+        expect(formatShortcutById("browser-inspect-other", false)).toBe("Ctrl+Shift+I");
+    });
+
+    it("wins over the terminals' multi-input while a web page panel has the focus, off macOS only", () => {
+        const start = KeyModelSource.indexOf('globalKeyMap.set("Ctrl:Shift:i"');
+        const body = KeyModelSource.slice(start, KeyModelSource.indexOf("\n    });", start));
+        expect(body).toContain("!isMacOS() && focusedBrowserPanelTakes(waveEvent)");
+        expect(body.indexOf("focusedBrowserPanelTakes")).toBeLessThan(body.indexOf("isTermMultiInput"));
     });
 });

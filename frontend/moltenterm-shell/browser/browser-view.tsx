@@ -37,6 +37,8 @@ import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import type { BrowserCommandState } from "../command-panel/providers/browser";
 import { DownloadPill } from "../downloads/download-pill";
+import { captureFavicon, faviconsAtom, noteSiteLoading, requestFavicons } from "../favicon/favicon-store";
+import { originOfAddress } from "../favicon/site";
 import { HeaderCloseButton } from "../header/header-close-button";
 import { contentBoxWidth } from "../header/header-fold";
 import { Pill } from "../header/pill";
@@ -65,11 +67,10 @@ import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
 import { showAgentPage } from "./agent-show";
+import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
 import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
 import { bookmarksMenu } from "./bookmarks-menu";
-import { captureFavicon, faviconsAtom, noteSiteLoading, requestFavicons } from "../favicon/favicon-store";
-import { originOfAddress } from "../favicon/site";
 import {
     AgentControlAction,
     agentName,
@@ -102,13 +103,12 @@ import {
 import { BrowserErrorModel, isPageFailure } from "./browser-error";
 import { BrowserErrorPage } from "./browser-error-page";
 import {
-    BrowserLifecycleModel,
-    PageScroll,
-    reportWebviewShown,
-    scrollScript,
-    shouldRestore,
-} from "./browser-lifecycle";
-import { LinkCopy } from "./browser-link-copy";
+    BrowserInspectorModel,
+    inspectorApi,
+    onInspectorGone,
+    type ClearDataResult,
+    type InspectorPoint,
+} from "./browser-inspector";
 import {
     browserKeyAction,
     BrowserKeyAddress,
@@ -116,6 +116,7 @@ import {
     BrowserKeyFind,
     BrowserKeyForward,
     BrowserKeyHardReload,
+    BrowserKeyInspect,
     BrowserKeyReload,
     BrowserKeyStop,
     BrowserKeyZoomIn,
@@ -123,6 +124,14 @@ import {
     BrowserKeyZoomReset,
     nextZoomStep,
 } from "./browser-keys";
+import {
+    BrowserLifecycleModel,
+    PageScroll,
+    reportWebviewShown,
+    scrollScript,
+    shouldRestore,
+} from "./browser-lifecycle";
+import { LinkCopy } from "./browser-link-copy";
 import {
     BrowserLoadModel,
     reloadAction,
@@ -183,8 +192,12 @@ import {
 import { BrowserStartPage } from "./browser-start-page";
 import { browserTabMenu } from "./browser-tab-menu";
 import "./browser.css";
+import { ClearDataDialog, type ClearDataRequest } from "./clear-data-dialog";
+import { ClientCertificateModel, isCertificateAsk } from "./client-certificate-store";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { blockIdOfORef, focusWhenPlaced } from "./focus-placed";
+import { inspectorMenuItems } from "./inspector-menu";
+import { InspectorPane } from "./inspector-pane";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import {
     allowedWhenNavigated,
@@ -196,8 +209,7 @@ import {
 } from "./local-page";
 import { GatedPage } from "./local-page-ask";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
-import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
-import { ClientCertificateModel, isCertificateAsk } from "./client-certificate-store";
+import { ClearCacheKind, ClearSiteKind, siteOriginOf } from "./site-data";
 import { isSiteAsk, SitePermissionModel } from "./site-permission-store";
 import { TestContextChip } from "./test-context";
 
@@ -288,6 +300,11 @@ export class BrowserViewModel implements ViewModel {
     lifecycle: BrowserLifecycleModel;
     // The add or edit dialog of a bookmark, set by the Bookmarks menu (FR-BRW-019).
     bookmarkDialogAtom = atom(null) as PrimitiveAtom<BookmarkDialogRequest>;
+    // The pages whose developer tools are docked below them (FR-BRW-022).
+    inspector = new BrowserInspectorModel();
+    // The confirmation of Clear this site's data… or Clear the browser cache… (FR-BRW-022).
+    clearDataAtom = atom(null) as PrimitiveAtom<ClearDataRequest>;
+    offInspectorGone: () => void = null;
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
@@ -316,6 +333,13 @@ export class BrowserViewModel implements ViewModel {
         this.agents.start();
         this.lifecycle = new BrowserLifecycleModel(blockId);
         this.lifecycle.start((tabId, webContentsId, scroll) => this.discardTab(tabId, webContentsId, scroll));
+        // A page whose process ended or that closed took its docked tools with it.
+        this.offInspectorGone = onInspectorGone((pageId) => {
+            const tabId = this.inspector.tabOfPage(pageId);
+            if (tabId != null) {
+                this.inspector.close(tabId);
+            }
+        });
         this.takeInitialNotice();
         this.takeInitialAsk();
         this.splitOutSavedTabs();
@@ -833,7 +857,8 @@ export class BrowserViewModel implements ViewModel {
         ContextMenuModel.getInstance().showContextMenu(menu, e);
     }
 
-    showLinkMenu(url: string, event?: React.MouseEvent): void {
+    // A right-click on a page's link; at names the page and the point, for Inspect (FR-BRW-022).
+    showLinkMenu(url: string, event?: React.MouseEvent, at?: { tabId: string; point: InspectorPoint }): void {
         const chosen = this.engines.chosen();
         const menu: ContextMenuItem[] = [];
         // A page's link to a file or a data: page never becomes a tab (#663); Copy link address still works.
@@ -853,6 +878,9 @@ export class BrowserViewModel implements ViewModel {
             click: () => fireAndForget(() => navigator.clipboard.writeText(url)),
         });
         menu.push(...splitMenuItems(this.blockId));
+        if (at != null) {
+            menu.push({ type: "separator" }, ...this.developerMenuItems(at.tabId, at.point));
+        }
         // The webview's event carries no React event: the menu opens at the pointer anyway.
         ContextMenuModel.getInstance().showContextMenu(
             menu,
@@ -1373,12 +1401,156 @@ export class BrowserViewModel implements ViewModel {
         this.agents.control(browserTabId, action);
     }
 
-    openPageDevTools(): void {
+    // The webContents of a tab's page, once its webview had its first dom-ready.
+    pageIdOf(tabId: string): number {
         try {
-            this.activeWebview()?.openDevTools();
-        } catch (e) {
-            console.log("browser devtools failed", e);
+            const id = this.webviews.get(tabId)?.getWebContentsId();
+            return typeof id === "number" ? id : null;
+        } catch {
+            return null;
         }
+    }
+
+    // A page MoltenTerm draws (not handed off to another browser) can be inspected.
+    canInspect(tabId: string): boolean {
+        const tab = this.findTab(tabId);
+        return tab != null && !tab.engine && this.webviews.has(tabId);
+    }
+
+    // Inspect (FR-BRW-022): the tab's developer tools docked below the page, on the element at point when the
+    // right-click gave one.
+    inspect(tabId: string, point?: InspectorPoint): void {
+        if (!this.canInspect(tabId)) {
+            return;
+        }
+        if (tabId !== this.state().activeId) {
+            this.showTab(tabId);
+        }
+        this.inspector.open(tabId, point);
+    }
+
+    closeInspector(tabId: string): void {
+        this.inspector.close(tabId);
+    }
+
+    // ⌥⌘I, Ctrl+Shift+I elsewhere, and the command panel's entry: the shown page's inspector opens or closes.
+    toggleInspector(tabId = this.state().activeId): boolean {
+        if (this.inspector.isOpen(tabId)) {
+            this.closeInspector(tabId);
+            return true;
+        }
+        if (!this.canInspect(tabId)) {
+            return false;
+        }
+        this.inspect(tabId);
+        return true;
+    }
+
+    inspectorFailed(tabId: string): void {
+        this.inspector.close(tabId);
+        this.showNotice(t("browser.inspector.failed"));
+    }
+
+    // Open in a separate window: the docked tools close, then the page's tools open in their own window, as before
+    // FR-BRW-022.
+    openPageDevTools(tabId = this.state().activeId): void {
+        const pageId = this.pageIdOf(tabId);
+        const api = inspectorApi();
+        this.inspector.close(tabId);
+        if (pageId == null) {
+            return;
+        }
+        if (api?.moltentermInspectorWindow == null) {
+            try {
+                this.webviews.get(tabId)?.openDevTools();
+            } catch (e) {
+                console.log("browser devtools failed", e);
+            }
+            return;
+        }
+        api.moltentermInspectorWindow(pageId).then(
+            (ok) => {
+                if (!ok) {
+                    this.showNotice(t("browser.inspector.failed"));
+                }
+            },
+            () => this.showNotice(t("browser.inspector.failed"))
+        );
+    }
+
+    // The page's origin when it has site data to clear: an http or https page MoltenTerm draws.
+    clearableOrigin(tabId: string): ReturnType<typeof siteOriginOf> {
+        const tab = this.findTab(tabId);
+        if (tab == null || tab.engine || !this.webviews.has(tabId)) {
+            return null;
+        }
+        return siteOriginOf(tab.url);
+    }
+
+    askClearSiteData(tabId = this.state().activeId): void {
+        const site = this.clearableOrigin(tabId);
+        if (site == null) {
+            return;
+        }
+        globalStore.set(this.clearDataAtom, { kind: ClearSiteKind, tabId, origin: site.origin, host: site.host });
+    }
+
+    askClearCache(tabId = this.state().activeId): void {
+        if (!this.canInspect(tabId)) {
+            return;
+        }
+        globalStore.set(this.clearDataAtom, { kind: ClearCacheKind, tabId });
+    }
+
+    // The confirmed request: emain clears and reloads the page; the panel says what happened.
+    clearData(request: ClearDataRequest): void {
+        globalStore.set(this.clearDataAtom, null);
+        const pageId = this.pageIdOf(request.tabId);
+        const api = inspectorApi();
+        if (pageId == null || api?.moltentermBrowserClearData == null) {
+            this.showNotice(t("browser.siteData.failed", { error: t("browser.inspector.failed") }));
+            return;
+        }
+        const origin = request.kind === ClearSiteKind ? request.origin : undefined;
+        fireAndForget(async () => {
+            let res: ClearDataResult;
+            try {
+                res = await api.moltentermBrowserClearData(pageId, request.kind, origin);
+            } catch (e) {
+                this.showNotice(t("browser.siteData.failed", { error: errorText(e) }));
+                return;
+            }
+            if (res?.ok) {
+                showToast({
+                    kind: "info",
+                    title:
+                        request.kind === ClearSiteKind
+                            ? t("browser.siteData.siteDone", { origin })
+                            : t("browser.siteData.cacheDone"),
+                });
+                return;
+            }
+            this.showNotice(
+                res?.reason === "moved"
+                    ? t("browser.siteData.moved")
+                    : t("browser.siteData.failed", { error: res?.error ?? "" })
+            );
+        });
+    }
+
+    // The developer's entries of a page's right-click (FR-BRW-022).
+    developerMenuItems(tabId: string, point?: InspectorPoint): ContextMenuItem[] {
+        if (!this.canInspect(tabId)) {
+            return [];
+        }
+        return inspectorMenuItems({
+            open: this.inspector.isOpen(tabId),
+            clearable: this.clearableOrigin(tabId) != null,
+            inspect: () => this.inspect(tabId, point),
+            close: () => this.closeInspector(tabId),
+            clearSite: () => this.askClearSiteData(tabId),
+            clearCache: () => this.askClearCache(tabId),
+        });
     }
 
     // What the command panel's Browser sections read (command-panel/providers/browser.ts).
@@ -1405,6 +1577,9 @@ export class BrowserViewModel implements ViewModel {
             agentTab,
             agentView: agentTab ? controlBarView(agentTab) : null,
             agentTabShown: agentTab != null && agentTab === shownAgent,
+            canInspect: this.canInspect(tab.id),
+            inspectorOpen: this.inspector.isOpen(tab.id),
+            clearableOrigin: this.clearableOrigin(tab.id)?.origin ?? null,
         };
     }
 
@@ -1516,6 +1691,8 @@ export class BrowserViewModel implements ViewModel {
             case BrowserKeyZoomReset:
                 this.setZoom(100);
                 return true;
+            case BrowserKeyInspect:
+                return this.toggleInspector(id);
             case BrowserKeyAddress:
                 return this.focusAddress();
             case BrowserKeyStop:
@@ -1602,6 +1779,8 @@ export class BrowserViewModel implements ViewModel {
         if (current !== webContentsId || this.isTabShown(id) || this.isAgentDriven(id) || isOffCarpet(this.blockId)) {
             return;
         }
+        // A dropped page closes its docked tools; emain keeps a page with its tools open, so this is only a safeguard.
+        this.inspector.close(id);
         this.lifecycle.discard(id, scroll);
     }
 
@@ -1613,6 +1792,7 @@ export class BrowserViewModel implements ViewModel {
         this.agents.dispose();
         this.linkCopy.dispose();
         this.addressHold.stop();
+        this.offInspectorGone?.();
     }
 }
 
@@ -1722,13 +1902,17 @@ function TabWebview({
         const removeContextMenu = getApi().onGuestContextMenu?.((params) => {
             if (params.guestId !== webview.getWebContentsId() || model.state().activeId !== tab.id) return;
             const event = guestMenuEvent(params, webview);
+            // Inspect selects the clicked element (FR-BRW-022): the point in the page's CSS pixels, which emain zooms.
+            const point = { x: params.guestX, y: params.guestY };
             if (params.linkURL && !params.imageToken && !params.editable && !params.selectionText) {
-                model.showLinkMenu(params.linkURL, event);
+                model.showLinkMenu(params.linkURL, event, { tabId: tab.id, point });
                 return;
             }
             const menu = guestEditMenu(params, (token) => getApi().saveContextMenuImage(token));
             if (menu.length) menu.push({ type: "separator" });
             menu.push(...splitMenuItems(model.blockId));
+            const developer = model.developerMenuItems(tab.id, point);
+            if (developer.length) menu.push({ type: "separator" }, ...developer);
             ContextMenuModel.getInstance().showContextMenu(menu, event);
         });
         // A new panel focuses its page before the page's first dom-ready, when getWebContentsId still throws: the focus
@@ -2563,7 +2747,10 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const restoring = useAtomValue(model.lifecycle.restoringAtom);
     const agentTabs = useAtomValue(model.agents.tabsAtom);
     const offCarpet = useAtomValue(offCarpetAtom(model.blockId));
+    const inspectors = useAtomValue(model.inspector.entriesAtom);
     const viewShown = isShowing(activity);
+    const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
+    const inspecting = inspectors[state.activeId] != null && activeTab != null && !activeTab.engine;
     const blockMeta = block?.meta;
     // Find in page (#1722): Wave's find bar over the page, searching the shown page.
     const pagesRef = useRef<HTMLDivElement>(null);
@@ -2628,40 +2815,70 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
             <ClientCertificateHost certificates={model.clientCertificates} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
-            <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">
-                {state.tabs.map((tab) =>
-                    tab.engine ? (
-                        tab.id === state.activeId ? (
-                            <HandoffPage key={tab.id} model={model} tab={tab} />
-                        ) : null
-                    ) : discarded[tab.id] != null ? null : (
-                        <GatedPage
-                            key={tab.id}
-                            model={model}
-                            tab={tab}
-                            active={tab.id === state.activeId}
-                            remembered={localPages}
-                        >
-                            <TabWebview
+            <div className={cn("flex min-h-0 flex-1 flex-col", inspecting && "molten-browser-inspecting")}>
+                <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">
+                    {state.tabs.map((tab) =>
+                        tab.engine ? (
+                            tab.id === state.activeId ? (
+                                <HandoffPage key={tab.id} model={model} tab={tab} />
+                            ) : null
+                        ) : discarded[tab.id] != null ? null : (
+                            <GatedPage
+                                key={tab.id}
                                 model={model}
                                 tab={tab}
                                 active={tab.id === state.activeId}
-                                shown={viewShown && tab.id === state.activeId}
-                                offCarpet={offCarpet}
-                            />
-                        </GatedPage>
-                    )
+                                remembered={localPages}
+                            >
+                                <TabWebview
+                                    model={model}
+                                    tab={tab}
+                                    active={tab.id === state.activeId}
+                                    shown={viewShown && tab.id === state.activeId}
+                                    offCarpet={offCarpet}
+                                />
+                            </GatedPage>
+                        )
+                    )}
+                    {discarded[state.activeId] != null || restoring[state.activeId] != null ? (
+                        <ReloadingPlaceholder model={model} tab={model.findTab(state.activeId)} />
+                    ) : null}
+                    <ActiveStartPage model={model} tabId={state.activeId} />
+                    <ActiveErrorPage model={model} tabId={state.activeId} />
+                    <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
+                </div>
+                {state.tabs.map((tab) =>
+                    inspectors[tab.id] != null && !tab.engine && discarded[tab.id] == null ? (
+                        <InspectorPane
+                            key={tab.id}
+                            host={model}
+                            tabId={tab.id}
+                            entry={inspectors[tab.id]}
+                            active={tab.id === state.activeId}
+                            shown={viewShown}
+                        />
+                    ) : null
                 )}
-                {discarded[state.activeId] != null || restoring[state.activeId] != null ? (
-                    <ReloadingPlaceholder model={model} tab={model.findTab(state.activeId)} />
-                ) : null}
-                <ActiveStartPage model={model} tabId={state.activeId} />
-                <ActiveErrorPage model={model} tabId={state.activeId} />
-                <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
             </div>
             <Search {...searchProps} />
             <BookmarkDialogHost model={model} />
+            <ClearDataDialogHost model={model} />
         </div>
+    );
+}
+
+// The confirmation of Clear this site's data… or Clear the browser cache… (FR-BRW-022).
+function ClearDataDialogHost({ model }: { model: BrowserViewModel }) {
+    const request = useAtomValue(model.clearDataAtom);
+    if (request == null) {
+        return null;
+    }
+    return (
+        <ClearDataDialog
+            request={request}
+            onCancel={() => globalStore.set(model.clearDataAtom, null)}
+            onConfirm={() => model.clearData(request)}
+        />
     );
 }
 
