@@ -46,6 +46,7 @@ var englishFields = map[string]string{
 	"brainstorm.LoadResult.Error":           "a code (Reason…) the Brainstorms widget words under boss.brainstorm.failed.* (#2248)",
 	"brainstorm.ActionResult.Error":         "a code (Reason…) the Brainstorms widget words under boss.brainstorm.failed.* (#2248)",
 	"brainstorm.EditResult.Error":           "a code (Reason…) the layer's Undo bar words under boss.brainstorm.edits.failed.* (#2247)",
+	"brainstorm.ProjectResult.Error":        "a code (Refusal…, Reason…) the project card words under boss.brainstorm.project.refused.* (#2250)",
 	"pipelinesetup.BoardExplain.Note":       "the setup agent's own words beside the highlighted step (#1163)",
 	"pipelinesetup.BoardRefusal.Detail":     "`molten pipeline setup` output, agent-facing (#1163)",
 	"mission.SetupAgentRequest.Why":         "the setup agent's own words, sent by `molten pipeline setup` (#1163)",
