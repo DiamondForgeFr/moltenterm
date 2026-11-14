@@ -88,6 +88,8 @@ func TestMakeBriefSetsTheHeader(t *testing.T) {
 	t.Parallel()
 	b := sampleBrief()
 	b.Language = ""
+	// The optional fields left empty are written all the same: a reader finds the whole shape.
+	b.Profile, b.ProfileReason, b.FirstStep, b.Stack, b.OpenQuestions = "", "", "", nil, nil
 	brief, err := MakeBrief(b, "abc123", "fr", 1_790_000_000_000)
 	if err != nil {
 		t.Fatal(err)
