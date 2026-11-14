@@ -80,11 +80,12 @@ export function cookieHost(cookie: CookieFacts): string {
     return (cookie?.domain ?? "").replace(/^\./, "").toLowerCase();
 }
 
-// The cookies a site's data holds: those set for its very host. A parent domain's cookie is shared with the parent's
-// other sites (a sign-in on every subdomain): it stays.
+// The cookies a site's data holds: the host-only cookies of its very host. A domain cookie (Domain=example.com, or even
+// Domain=app.example.com) is sent to other sites of that domain too (a sign-in on every subdomain): it stays, so the
+// confirmation's promise that the sign-ins elsewhere stay holds.
 export function ownCookies<T extends CookieFacts>(cookies: T[], host: string): T[] {
     const h = (host ?? "").toLowerCase();
-    return (cookies ?? []).filter((c) => cookieHost(c) === h);
+    return (cookies ?? []).filter((c) => c.hostOnly === true && cookieHost(c) === h);
 }
 
 function urlHost(host: string): string {
@@ -101,12 +102,12 @@ function cookieKey(cookie: CookieFacts): string {
     return [cookie.domain ?? "", cookie.path ?? "/", cookie.name].join("\u0000");
 }
 
-// cookies.remove(url, name) takes every cookie of that name sent to the address, a parent domain's too: those of
-// another host that were there before and are gone after go back.
-export function cookiesToRestore<T extends CookieFacts>(before: T[], after: T[], host: string): T[] {
+// cookies.remove(url, name) takes every cookie of that name sent to the address, the shared domain cookies too: those
+// that were there before, were not to go and are gone after go back.
+export function cookiesToRestore<T extends CookieFacts>(before: T[], after: T[], removed: CookieFacts[]): T[] {
     const left = new Set((after ?? []).map(cookieKey));
-    const h = (host ?? "").toLowerCase();
-    return (before ?? []).filter((c) => cookieHost(c) !== h && !left.has(cookieKey(c)));
+    const meant = new Set((removed ?? []).map(cookieKey));
+    return (before ?? []).filter((c) => !meant.has(cookieKey(c)) && !left.has(cookieKey(c)));
 }
 
 // The details that set a cookie back as it was.

@@ -1,6 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
@@ -37,6 +39,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import {
     BrowserInspectorModel,
     clampInspectorSize,
+    clippingAncestors,
     coveredRect,
     draggedInspectorSize,
     inspectorPlace,
@@ -46,6 +49,7 @@ import {
     keyedInspectorSize,
     onInspectorGone,
     shownRect,
+    shownRectWithin,
 } from "./browser-inspector";
 
 beforeEach(() => {
@@ -155,6 +159,31 @@ describe("where the pane shows (FR-BRW-022 AC4, DS-BRW-027)", () => {
         const panel = el({ left: 600, top: 0, right: 1200, bottom: 800 }, "visible", carpet);
         const body = el({ left: 600, top: 500, right: 1200, bottom: 900 }, "visible", panel);
         expect(shownRect(body, win(1000, 850))).toEqual({ left: 600, top: 500, right: 900, bottom: 800 });
+    });
+
+    it("reads the clipping ancestors once, then follows the carpet's scroll with their boxes alone", () => {
+        let carpetLeft = 200;
+        const carpet: any = el({ left: 0, top: 0, right: 0, bottom: 0 }, "hidden");
+        carpet.getBoundingClientRect = () => ({ left: carpetLeft, top: 0, right: carpetLeft + 700, bottom: 800 });
+        const panel = el({ left: 600, top: 0, right: 1200, bottom: 800 }, "visible", carpet);
+        const body = el({ left: 600, top: 500, right: 1200, bottom: 900 }, "visible", panel);
+        const w = win(2000, 1000);
+        const styles = vi.spyOn(w, "getComputedStyle");
+        const clippers = clippingAncestors(body, w);
+        expect(clippers).toEqual([carpet]);
+        expect(styles).toHaveBeenCalledTimes(2);
+        expect(shownRectWithin(body, clippers, w)).toMatchObject({ left: 600, right: 900 });
+        carpetLeft = 500;
+        expect(shownRectWithin(body, clippers, w)).toMatchObject({ left: 600, right: 1200 });
+        expect(styles).toHaveBeenCalledTimes(2);
+    });
+
+    it("places the tools on events and a 100 ms check, never at every frame", () => {
+        const source = readFileSync(resolve(__dirname, "inspector-pane.tsx"), "utf8");
+        expect(source).not.toMatch(/requestAnimationFrame/);
+        expect(source).toMatch(/new ResizeObserver\(/);
+        expect(source).toMatch(/addEventListener\("scroll", onMove, true\)/);
+        expect(source).toMatch(/const CoverCheckMs = 100;/);
     });
 
     it("hides a pane too small to show the tools", () => {

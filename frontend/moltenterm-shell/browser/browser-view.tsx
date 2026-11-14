@@ -1071,6 +1071,7 @@ export class BrowserViewModel implements ViewModel {
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
+        this.inspector.close(id);
         this.setState(closeTab(this.state(), id));
     }
 

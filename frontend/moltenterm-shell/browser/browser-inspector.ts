@@ -91,19 +91,32 @@ function clips(style: CSSStyleDeclaration): boolean {
     return [style.overflow, style.overflowX, style.overflowY].some((v) => v != null && v !== "" && v !== "visible");
 }
 
-// The part of the element the window shows: its box cut by every scrolling or clipping ancestor (the 360 carpet, a
-// panel moved half out of view) and by the window itself. A native view cannot be clipped, only placed.
-export function shownRect(el: Element, win: Window = window): Rect {
+// The scrolling or clipping ancestors of the element (the 360 carpet, the layout's tiles): read once per layout change,
+// not at every placement, since a computed style costs.
+export function clippingAncestors(el: Element, win: Window = window): Element[] {
+    const rtn: Element[] = [];
+    for (let p = el.parentElement; p != null; p = p.parentElement) {
+        if (clips(win.getComputedStyle(p))) {
+            rtn.push(p);
+        }
+    }
+    return rtn;
+}
+
+// The part of the element the window shows: its box cut by its clipping ancestors (a panel moved half out of view) and
+// by the window itself. A native view cannot be clipped, only placed.
+export function shownRectWithin(el: Element, clippers: Element[], win: Window = window): Rect {
     const box = el.getBoundingClientRect();
     let rect: Rect = { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
-    for (let p = el.parentElement; p != null; p = p.parentElement) {
-        if (!clips(win.getComputedStyle(p))) {
-            continue;
-        }
+    for (const p of clippers) {
         const pr = p.getBoundingClientRect();
         rect = intersect(rect, { left: pr.left, top: pr.top, right: pr.right, bottom: pr.bottom });
     }
     return intersect(rect, { left: 0, top: 0, right: win.innerWidth, bottom: win.innerHeight });
+}
+
+export function shownRect(el: Element, win: Window = window): Rect {
+    return shownRectWithin(el, clippingAncestors(el, win), win);
 }
 
 // Whether something of the window (a menu, a popover, the command panel, a toast) lies over the pane: the native view
