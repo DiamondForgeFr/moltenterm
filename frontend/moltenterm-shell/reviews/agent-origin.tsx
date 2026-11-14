@@ -8,7 +8,7 @@
 import { useLocale, useT } from "../i18n/i18n";
 
 // must match OriginMetaKey and AgentOrigin in pkg/molten/review/agentstart.go, and Origin in
-// pkg/molten/brainstorm/launch.go (kind "brainstorm", its step "setup" or "handoff", #2251)
+// pkg/molten/brainstorm/launch.go (kind "brainstorm", its step "setup", "update" or "handoff", #2251)
 export const OriginMetaKey = "molten:origin";
 
 export type AgentOrigin = {
@@ -92,10 +92,13 @@ export function originText(origin: AgentOrigin, translate: Translate, locale?: s
         return translate("agentOrigin.lead", vars);
     }
     if (origin.kind === "brainstorm") {
-        return translate(
-            origin.step === "setup" ? "agentOrigin.brainstormSetup" : "agentOrigin.brainstormHandoff",
-            vars
-        );
+        const key =
+            origin.step === "setup"
+                ? "agentOrigin.brainstormSetup"
+                : origin.step === "update"
+                  ? "agentOrigin.brainstormUpdate"
+                  : "agentOrigin.brainstormHandoff";
+        return translate(key, vars);
     }
     if (origin.mergedpr) {
         return translate("agentOrigin.rebaseAfterMerge", vars);

@@ -32,7 +32,6 @@ import { BrainstormModel } from "./brainstorm-store";
 
 const Dir = "/synthetic/Projects/safe-kids-videos";
 const Harness = "saasfoundryai new --profile harness --project-name safe-kids-videos";
-const Full = "saasfoundryai new --profile full --project-name safe-kids-videos";
 
 const state = () =>
     ({
@@ -51,7 +50,11 @@ const setupPreview = (extra: Partial<SetupPreview> = {}): SetupPreview => ({
     profile: "harness",
     profilereason: "It is a Go tool.",
     name: "safe-kids-videos",
-    commands: { full: Full, harness: Harness },
+    commands: {
+        new: Harness,
+        update: "saasfoundryai update --target-profile full",
+        dryrun: "saasfoundryai update --target-profile full --dry-run --json",
+    },
     ...extra,
 });
 
@@ -130,7 +133,8 @@ describe("the SaaSFoundryAI card's work (#2251)", () => {
         expect(goTo).toHaveBeenCalledWith(launch("setup"));
     });
 
-    it("sends the profile the developer picked, with its own command", async () => {
+    // Review of #2309: the full profile sends its choice, with the harness setup it starts with.
+    it("sends the profile the developer picked, and the harness setup either way", async () => {
         const wavesrv = fakeWavesrv({
             [SetupPreviewCommand]: () => ({ preview: setupPreview() }),
             [SetupStartCommand]: () => ({ preview: setupPreview(), launch: launch("setup") }),
@@ -141,7 +145,8 @@ describe("the SaaSFoundryAI card's work (#2251)", () => {
         await model.startSetup("SaaSFoundryAI");
         const start = wavesrv.calls.find((c) => c.command === SetupStartCommand);
         expect(start.data.profile).toBe("full");
-        expect(start.data.expect.command).toBe(Full);
+        expect(start.data.expect.command).toBe(Harness);
+        expect(start.data.expect.dryrun).toBeUndefined();
     });
 
     // The #2250 lesson: a preview that no longer holds runs nothing; the card previews again.
@@ -213,20 +218,43 @@ describe("the SaaSFoundryAI card's work (#2251)", () => {
         expect(wavesrv.calls.some((c) => c.command === SetupStartCommand)).toBe(false);
     });
 
-    it("reads the dry run only on the developer's Preview", async () => {
-        const managed = setupPreview({
-            managed: true,
-            commands: { update: "saasfoundryai update --target-profile full" },
-        });
+    // Review of #2309: the update goes only after the developer's dry run, with its status; a new preview drops it.
+    it("reads the dry run only on the developer's Preview, and sends its status with the update", async () => {
+        const managed = setupPreview({ managed: true });
         const wavesrv = fakeWavesrv({
             [SetupPreviewCommand]: () => ({ preview: managed }),
             [SetupDryRunCommand]: () => ({ preview: managed, dryrun: { status: "ready", add: 3, canapply: true } }),
+            [SetupStartCommand]: () => ({ preview: managed, launch: { ...launch("setup"), step: "update" } }),
         });
         model.useDeps({ call: wavesrv.call, goTo });
         await model.show("setup");
         expect(wavesrv.calls.some((c) => c.command === SetupDryRunCommand)).toBe(false);
+        expect(await model.startSetup("SaaSFoundryAI")).toBe(false);
         await model.dryRun();
         expect(globalStore.get(model.dryRunAtom)).toMatchObject({ status: "ready", add: 3 });
+        expect(await model.startSetup("SaaSFoundryAI")).toBe(true);
+        const start = wavesrv.calls.find((c) => c.command === SetupStartCommand);
+        expect(start.data.expect).toEqual({
+            dir: Dir,
+            workspace: "ws-1",
+            command: "saasfoundryai update --target-profile full",
+            dryrun: "ready",
+        });
+        await model.refreshSetup();
+        expect(globalStore.get(model.dryRunAtom)).toBeNull();
+    });
+
+    it("says plainly when the CLI's preview says it changed the project", async () => {
+        const managed = setupPreview({ managed: true });
+        const wavesrv = fakeWavesrv({
+            [SetupPreviewCommand]: () => ({ preview: managed }),
+            [SetupDryRunCommand]: () => ({ preview: managed, error: "drymutated" }),
+        });
+        model.useDeps({ call: wavesrv.call, goTo });
+        await model.show("setup");
+        await model.dryRun();
+        expect(globalStore.get(model.setupFailureAtom)).toBe("drymutated");
+        expect(globalStore.get(model.dryRunAtom)).toBeNull();
     });
 });
 
@@ -299,5 +327,18 @@ describe("the hand-off card's work (#2251)", () => {
         });
         await model.show("handoff");
         expect(globalStore.get(model.briefAtom)).toBeNull();
+    });
+
+    // Review of #2309: an emptied brief never goes to wavesrv, nor the preview's in its place.
+    it("sends no emptied brief", async () => {
+        const wavesrv = fakeWavesrv({
+            [HandoffPreviewCommand]: () => ({ preview: handoffPreview() }),
+            [HandoffStartCommand]: () => ({ preview: handoffPreview(), launch: launch("handoff") }),
+        });
+        model.useDeps({ call: wavesrv.call, goTo });
+        await model.show("handoff");
+        model.editBrief("  \n ");
+        expect(await model.startHandoff("First step")).toBe(false);
+        expect(wavesrv.calls.some((c) => c.command === HandoffStartCommand)).toBe(false);
     });
 });

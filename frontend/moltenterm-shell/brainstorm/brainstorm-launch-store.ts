@@ -167,8 +167,10 @@ export class BrainstormLaunchModel {
     }
 
     // The SaaSFoundryAI preview; refresh reads the login PATH again (Check again, once the developer installed it).
+    // A new preview drops the dry run shown before: the update acts only on one the developer asked for since.
     async refreshSetup(refresh = false): Promise<void> {
         const seq = ++this.setupSeq;
+        globalStore.set(this.dryRunAtom, null);
         const result: SetupResult = await this.ask(SetupPreviewCommand, { ...this.brainstormOf(), refresh });
         if (seq !== this.setupSeq || result == null || result.stale) {
             return;
@@ -217,7 +219,8 @@ export class BrainstormLaunchModel {
     async startSetup(tabName: string): Promise<boolean> {
         const preview = globalStore.get(this.setupPreviewAtom);
         const profile = this.profile();
-        if (!canSetup(preview, profile, globalStore.get(this.setupBusyAtom))) {
+        const dryRun = globalStore.get(this.dryRunAtom);
+        if (!canSetup(preview, profile, globalStore.get(this.setupBusyAtom), dryRun)) {
             return false;
         }
         globalStore.set(this.setupBusyAtom, true);
@@ -225,7 +228,7 @@ export class BrainstormLaunchModel {
         try {
             const result: SetupResult = await this.ask(
                 SetupStartCommand,
-                { ...this.brainstormOf(), profile, tabname: tabName, expect: setupExpect(preview, profile) },
+                { ...this.brainstormOf(), profile, tabname: tabName, expect: setupExpect(preview, dryRun) },
                 StartTimeoutMs
             );
             return await this.after(result, "setup");

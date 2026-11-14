@@ -114,6 +114,13 @@
     line-height: 1.45;
 }
 
+/* Why the brief holds the click (empty, too long): said, never a silent grey button. */
+.mt-bsl-problem {
+    margin: 0;
+    font-size: var(--mt-text-11);
+    color: var(--mt-danger-text);
+}
+
 .mt-bsl-nosf {
     display: flex;
     flex-direction: column;

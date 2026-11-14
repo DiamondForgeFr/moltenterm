@@ -43,7 +43,6 @@ const model = BrainstormLaunchModel.getInstance() as any;
 
 const Dir = "/synthetic/Projects/safe-kids-videos";
 const Harness = "saasfoundryai new --profile harness --project-name safe-kids-videos";
-const Full = "saasfoundryai new --profile full --project-name safe-kids-videos";
 
 const proposal = (id: string, action: string, status = "proposed") => ({
     id,
@@ -89,7 +88,11 @@ const setupPreview = (extra: Partial<SetupPreview> = {}): SetupPreview => ({
     profile: "harness",
     profilereason: "It is a Go tool, not a web SaaS.",
     name: "safe-kids-videos",
-    commands: { full: Full, harness: Harness },
+    commands: {
+        new: Harness,
+        update: "saasfoundryai update --target-profile full",
+        dryrun: "saasfoundryai update --target-profile full --dry-run --json",
+    },
     ...extra,
 });
 
@@ -141,25 +144,47 @@ describe("the SaaSFoundryAI card (#2251)", () => {
         expect(html).toContain(`data-testid="brainstorm-setup-command">${Harness}<`);
         expect(html).toContain("in a terminal of “Atelier”");
         expect(html).toContain("Your keys stay with you.");
+        expect(html).not.toContain('data-testid="brainstorm-setup-two-steps"');
         expect(html).toMatch(
             /class="molten-btn[^"]*"[^>]*data-testid="brainstorm-setup-start"[^>]*>Set up: Harness only/
         );
         expect(html).toContain("molten-btn-wave");
     });
 
-    it("follows the developer's pick", () => {
+    // Review of #2309: Full types the harness setup too, and the card says plainly that full comes in two steps.
+    it("types the harness setup for Full too, and says its two steps", () => {
         globalStore.set(model.profileAtom, "full");
         const html = setup(state());
-        expect(html).toContain(`data-testid="brainstorm-setup-command">${Full}<`);
-        expect(html).toMatch(/data-testid="brainstorm-setup-start"[^>]*>Set up: Full/);
+        expect(html).toContain(`data-testid="brainstorm-setup-command">${Harness}<`);
+        expect(html).not.toContain("--profile full");
+        expect(html).toContain(en.boss.brainstorm.setup.fullSteps);
+        expect(html).toMatch(/data-testid="brainstorm-setup-start"[^>]*>Set up step 1: the AI harness/);
+    });
+
+    it("waits for step two while the harness setup runs, when Full was chosen", () => {
+        const launched = { step: "setup", at: 1, dir: Dir, workspace: "ws-1", tab: "t", block: "b", typed: true };
+        globalStore.set(model.setupPreviewAtom, setupPreview({ launched: { ...launched, profile: "full" } } as any));
+        expect(setup(state())).toContain(en.boss.brainstorm.setup.step2Waiting);
+        globalStore.set(model.setupPreviewAtom, setupPreview({ launched: { ...launched, profile: "harness" } } as any));
+        expect(setup(state())).not.toContain('data-testid="brainstorm-setup-step2"');
+        // The harness set up meanwhile: step two shows, asking to let the setup finish first.
+        globalStore.set(
+            model.setupPreviewAtom,
+            setupPreview({ managed: true, launched: { ...launched, profile: "full" } } as any)
+        );
+        const html = setup(state());
+        expect(html).toContain('data-testid="brainstorm-setup-launched"');
+        expect(html).toContain(en.boss.brainstorm.setup.setupRunning);
+        expect(html).toContain('data-testid="brainstorm-setup-dryrun-start"');
     });
 
     it("holds the click until a profile is chosen when he recommended none", () => {
         globalStore.set(model.setupPreviewAtom, setupPreview({ profile: "", profilereason: "" }));
         const html = setup(state());
-        expect(html).not.toContain('data-testid="brainstorm-setup-command"');
         expect(html).not.toContain('data-testid="brainstorm-setup-recommended"');
-        expect(html).toMatch(/<button[^>]*disabled=""[^>]*data-testid="brainstorm-setup-start"/);
+        expect(html).toMatch(
+            /<button[^>]*disabled=""[^>]*data-testid="brainstorm-setup-start"[^>]*>Choose what it installs/
+        );
     });
 
     // AC-3: without the CLI, how to install it, and nothing to click that would run it.
@@ -173,14 +198,15 @@ describe("the SaaSFoundryAI card (#2251)", () => {
     });
 
     it("offers the dry run on a folder set up already, then its summary and the update", () => {
-        const managed = setupPreview({
-            managed: true,
-            commands: { update: "saasfoundryai update --target-profile full" },
-        });
+        const managed = setupPreview({ managed: true });
         globalStore.set(model.setupPreviewAtom, managed);
         let html = setup(state());
         expect(html).toContain(en.boss.brainstorm.setup.managed);
         expect(html).toContain('data-testid="brainstorm-setup-dryrun-start"');
+        // The guardrail: the Preview names the exact read-only command it runs.
+        expect(html).toContain(
+            "SaaSFoundryAI previews it with saasfoundryai update --target-profile full --dry-run --json: nothing changes."
+        );
         expect(html).not.toContain('data-testid="brainstorm-setup-start"');
         globalStore.set(model.dryRunAtom, {
             status: "ready",
@@ -206,6 +232,20 @@ describe("the SaaSFoundryAI card (#2251)", () => {
         html = setup(state());
         expect(html).toContain(en.boss.brainstorm.setup.dryFull);
         expect(html).not.toContain('data-testid="brainstorm-setup-start"');
+        // The update's terminal, once opened.
+        const update = { step: "update", at: 1, dir: Dir, workspace: "ws-1", tab: "t", block: "u", typed: true };
+        globalStore.set(model.setupPreviewAtom, { ...managed, update });
+        html = setup(state());
+        expect(html).toContain('data-testid="brainstorm-update-launched"');
+        expect(html).toMatch(/data-testid="brainstorm-update-goto"[^>]*>Go to the terminal/);
+    });
+
+    it("says plainly when the CLI's preview says it changed the project", () => {
+        globalStore.set(model.setupPreviewAtom, setupPreview({ managed: true }));
+        globalStore.set(model.setupFailureAtom, "drymutated");
+        const html = setup(state());
+        expect(html).toContain('data-refusal="drymutated"');
+        expect(html).toContain("SaaSFoundryAI says its preview changed the project, which a preview never should.");
     });
 
     it("after the click: when the terminal opened, and the way to it", () => {
@@ -274,6 +314,21 @@ describe("the hand-off card (#2251)", () => {
         const html = handoff(state());
         expect(html).toMatch(/<textarea[^>]*>My own first step<\/textarea>/);
         expect(html).toContain('data-testid="brainstorm-handoff-reset"');
+        expect(html).not.toContain('data-testid="brainstorm-handoff-problem"');
+    });
+
+    // Review of #2309: an emptied or oversized brief holds the click and says why.
+    it("says why an emptied or oversized brief holds the click", () => {
+        globalStore.set(model.briefAtom, "   ");
+        let html = handoff(state());
+        expect(html).toContain('data-problem="empty"');
+        expect(html).toContain(en.boss.brainstorm.handoff.empty);
+        expect(html).toMatch(/<button[^>]*disabled=""[^>]*data-testid="brainstorm-handoff-start"/);
+        globalStore.set(model.briefAtom, "x".repeat(12001));
+        html = handoff(state());
+        expect(html).toContain('data-problem="toolong"');
+        expect(html).toContain("The brief is too long: 12001 characters, 12000 at most.");
+        expect(html).toMatch(/<button[^>]*disabled=""[^>]*data-testid="brainstorm-handoff-start"/);
     });
 
     it("says when no agent can start, and offers no button", () => {
