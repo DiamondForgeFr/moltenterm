@@ -175,6 +175,8 @@ type Service struct {
 	run         GitRunner
 	projectsDir func() string
 	projectLock sync.Mutex
+	// The project's SaaSFoundryAI setup and the hand-off to a coding agent (#2251, launch.go).
+	launch launchState
 }
 
 func MakeService(store *Store, now func() time.Time, publish func(int64), logf func(string, ...any)) *Service {
