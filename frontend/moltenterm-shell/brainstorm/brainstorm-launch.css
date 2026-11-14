@@ -1,0 +1,121 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The SaaSFoundryAI and hand-off cards (FR-BOSS-010 AC16, #2251): the project card's forged plate (brainstorm-project.css,
+   .mt-bsj) under it in the free space's column, with what only they hold: the two profile tiles, the exact command,
+   and the brief to edit. Modern steampunk in the shell's tokens, light and dark; the selected tile carries the shared
+   action liseré (mt-selected-action) over its own fill. */
+
+.mt-bsl-tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.mt-bsl-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-0);
+    font: inherit;
+    font-size: var(--mt-text-11);
+    line-height: 1.4;
+    text-align: left;
+    color: var(--mt-text-2);
+    transition: border-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-bsl-tile:hover {
+    border-color: color-mix(in srgb, var(--mt-action) 45%, transparent);
+}
+
+.mt-bsl-tile.is-on {
+    border-color: color-mix(in srgb, var(--mt-action) 60%, transparent);
+    background: var(--mt-surface-2);
+}
+
+.mt-bsl-tile-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+}
+
+.mt-bsl-tile-title {
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-semibold);
+    color: var(--mt-text-1);
+}
+
+.mt-bsl-tile-sub {
+    color: var(--mt-text-3);
+}
+
+.mt-bsl-tile-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 2px;
+}
+
+/* His choice: a small brass mark on the tile he recommends. */
+.mt-bsl-chip {
+    padding: 0 5px;
+    border: 1px solid color-mix(in srgb, var(--mt-action) 45%, transparent);
+    border-radius: var(--mt-radius-control);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-medium);
+    color: var(--mt-action-text);
+}
+
+.mt-bsl-reason {
+    padding-left: 8px;
+    border-left: 2px solid color-mix(in srgb, var(--mt-action) 40%, transparent);
+    font-style: italic;
+}
+
+/* The exact command, whole: it wraps rather than hide a flag. */
+.mt-bsl-command {
+    padding: 3px 6px;
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-0);
+}
+
+.mt-bsl-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--mt-text-1);
+}
+
+.mt-bsl-brief {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mt-bsl-brief-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.mt-bsl-textarea {
+    min-height: 120px;
+    max-height: 240px;
+    resize: vertical;
+    font-size: var(--mt-text-11);
+    line-height: 1.45;
+}
+
+.mt-bsl-nosf {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}

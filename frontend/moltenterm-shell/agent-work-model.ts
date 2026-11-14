@@ -76,6 +76,12 @@ export function agentWorkText(meta: Record<string, any>, run?: BatchRun): string
                 return t("project.agents.work.finish", { number });
             case "rebase":
                 return t("project.agents.work.rebase", { number });
+            case "brainstorm":
+                return t(
+                    origin.step === "setup"
+                        ? "project.agents.work.brainstormSetup"
+                        : "project.agents.work.brainstormHandoff"
+                );
         }
         return "";
     }

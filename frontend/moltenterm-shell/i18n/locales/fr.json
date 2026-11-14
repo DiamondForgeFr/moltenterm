@@ -3342,6 +3342,102 @@
                     "link": "Le projet est créé, mais son espace de travail n'a pas pu être relié."
                 }
             },
+            "launch": {
+                "fold": "Replier la carte",
+                "unfold": "Afficher la carte",
+                "previewing": "Vérification du projet…",
+                "opening": "Ouverture du terminal…",
+                "tryAgain": "Réessayer",
+                "goTitle": "Quitte le brainstorm et affiche le terminal",
+                "notTyped": "Son terminal est ouvert, mais la commande n'a pas pu y être tapée. Tapez-la vous-même :",
+                "refused": {
+                    "noproject": "Le projet n'est pas encore créé : créez-le d'abord ci-dessus.",
+                    "nobrief": "{name} n'a pas encore conclu le brainstorm.",
+                    "nosf": "SaaSFoundryAI n'est pas installé sur cet ordinateur.",
+                    "noprofile": "Choisissez d'abord ce qu'il installe.",
+                    "noagent": "Aucun agent de code que MoltenTerm sait lancer n'est installé sur cet ordinateur.",
+                    "agentmissing": "{agent}, choisi pour ce projet, n'est pas installé : choisissez-en un autre pour ce passage de relais.",
+                    "terminal": "Le terminal n'a pas pu s'ouvrir : rien n'a été lancé.",
+                    "notmanaged": "Ce dossier n'est pas encore installé avec SaaSFoundryAI.",
+                    "invalid": "Le brief est trop long : raccourcissez-le, puis réessayez.",
+                    "failed": "Ça n'a pas marché : rien n'a été lancé.",
+                    "unknown": "MoltenTerm n'a pas pu savoir si le terminal s'est ouvert. Il a regardé à nouveau : réessayez si rien n'apparaît."
+                }
+            },
+            "setup": {
+                "label": "Installer SaaSFoundryAI dans le projet",
+                "eyebrow": "Installer SaaSFoundryAI",
+                "waiting": "{name} le propose pour le projet : il attend que le projet soit créé.",
+                "choose": "Ce qu'installe SaaSFoundryAI",
+                "recommended": "Le choix de {name}",
+                "reason": "{name} : « {reason} »",
+                "profiles": {
+                    "full": {
+                        "title": "Complet",
+                        "subtitle": "La stack et le harness IA",
+                        "line1": "Une base de SaaS web pour démarrer : API, app web, base de données.",
+                        "line2": "Le workflow IA : tickets, branches, pull requests.",
+                        "line3": "Les skills et la SRS pour vos agents de code."
+                    },
+                    "harness": {
+                        "title": "Harness seul",
+                        "subtitle": "Le harness IA sur votre propre stack",
+                        "line1": "Votre code et votre stack restent tels quels.",
+                        "line2": "Le workflow IA : tickets, branches, pull requests.",
+                        "line3": "Les skills et la SRS pour vos agents de code."
+                    }
+                },
+                "command": "Tapé",
+                "questions": "SaaSFoundryAI pose ses propres questions dans un terminal de « {workspace} », et la fenêtre vous y emmène. Vos clés restent chez vous.",
+                "questionsThere": "SaaSFoundryAI pose ses propres questions dans un terminal de l'espace de travail du projet, et la fenêtre vous y emmène. Vos clés restent chez vous.",
+                "start": "Installer : {profile}",
+                "chooseFirst": "Choisir ce qu'il installe",
+                "startTitle": "Ouvre le terminal, tape la commande et vous y emmène",
+                "startUpdate": "Ajouter le profil complet",
+                "tabName": "SaaSFoundryAI",
+                "launched": "Son terminal s'est ouvert à {time} : les questions de SaaSFoundryAI vous y attendent.",
+                "goTo": "Aller au terminal",
+                "nosf": "SaaSFoundryAI n'est pas installé sur cet ordinateur. Installez-le dans un terminal, puis vérifiez à nouveau :",
+                "nosfNote": "Rien ne s'installe tout seul, et rien ne se lance avant votre clic.",
+                "copy": "Copier",
+                "copied": "Copié",
+                "checkAgain": "Vérifier à nouveau",
+                "managed": "Ce dossier est déjà installé avec SaaSFoundryAI.",
+                "previewFull": "Prévisualiser le profil complet",
+                "previewFullNote": "SaaSFoundryAI le prévisualise : rien ne change.",
+                "dryRunning": "SaaSFoundryAI prévisualise…",
+                "dryFull": "Il a déjà le profil complet : rien à ajouter.",
+                "dryAdds": {
+                    "one": "Le profil complet ajoute {count} fichier.",
+                    "other": "Le profil complet ajoute {count} fichiers."
+                },
+                "dryConflicts": {
+                    "one": "{count} d'entre eux diffère du vôtre : SaaSFoundryAI demande quoi en faire.",
+                    "other": "{count} d'entre eux diffèrent des vôtres : SaaSFoundryAI demande quoi faire de chacun."
+                },
+                "dryHarness": "Le profil complet ajoute le harness IA à cette stack.",
+                "dryBlocked": "SaaSFoundryAI ne peut pas ajouter le profil complet ici en l'état du projet : son statut, dans le projet, dit pourquoi."
+            },
+            "handoff": {
+                "label": "Passer le premier pas du projet à un agent de code",
+                "eyebrow": "Passer le premier pas",
+                "waiting": "{name} le propose pour le projet : il attend que le projet soit créé.",
+                "agent": "Agent",
+                "pickAgent": "Choisir un agent",
+                "workspace": "Espace de travail",
+                "thisWorkspace": "L'espace de travail du projet",
+                "brief": "Brief",
+                "reset": "Revenir au brief de {name}",
+                "briefNote": "L'agent le lit dans un fichier du dossier de données de MoltenTerm. Modifiez-le à votre guise.",
+                "note": "{agent} démarre dans une nouvelle vue de « {workspace} », dans votre mode de permissions habituel, et la fenêtre vous y emmène.",
+                "noteThere": "{agent} démarre dans une nouvelle vue de l'espace de travail du projet, dans votre mode de permissions habituel, et la fenêtre vous y emmène.",
+                "start": "Confier à {agent}",
+                "startTitle": "Écrit le brief, lance l'agent et vous y emmène",
+                "starting": "Lancement de {agent}…",
+                "tabName": "Premier pas",
+                "launched": "{agent} a démarré à {time} avec le brief.",
+                "goTo": "Aller à l'agent"
+            },
             "failed": {
                 "unknown": "Ce brainstorm n'est plus dans le dossier.",
                 "notsaved": "Le brainstorm ouvert n'a pas pu être enregistré : rien n'a bougé.",
@@ -6742,7 +6838,9 @@
                 "investigate": "CI de #{number}",
                 "finish": "finition de #{number}",
                 "review": "revue de #{number}",
-                "release": "version {tag}"
+                "release": "version {tag}",
+                "brainstormSetup": "installation de SaaSFoundryAI",
+                "brainstormHandoff": "premier pas d'un projet issu d'un brainstorm"
             }
         },
         "steps": {
@@ -10658,7 +10756,9 @@
         "finish": "Lancé par vous à {time} pour vérifier #{number} et finir ce qui reste",
         "lead": "Lancé par vous à {time} : la session de l'agent principal reprise pour récupérer #{number}",
         "release": "Lancé par vous à {time} pour analyser et résoudre l'étape en échec {step} de la release {tag}",
-        "releaseTogether": "Lancé par vous à {time} pour enquêter avec vous sur l'étape en échec {step} de la release {tag}, ses logs à côté"
+        "releaseTogether": "Lancé par vous à {time} pour enquêter avec vous sur l'étape en échec {step} de la release {tag}, ses logs à côté",
+        "brainstormSetup": "Ouvert par vous à {time} depuis un brainstorm, pour installer SaaSFoundryAI dans ce projet : ses questions sont posées ici",
+        "brainstormHandoff": "Lancé par vous à {time} depuis un brainstorm, pour faire le premier pas de ce projet avec son brief"
     },
     "agentLinks": {
         "title": "Connexions",

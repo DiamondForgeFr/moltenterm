@@ -7,11 +7,12 @@
 
 import { useLocale, useT } from "../i18n/i18n";
 
-// must match OriginMetaKey and AgentOrigin in pkg/molten/review/agentstart.go
+// must match OriginMetaKey and AgentOrigin in pkg/molten/review/agentstart.go, and Origin in
+// pkg/molten/brainstorm/launch.go (kind "brainstorm", its step "setup" or "handoff", #2251)
 export const OriginMetaKey = "molten:origin";
 
 export type AgentOrigin = {
-    kind: "rebase" | "restart" | "batch" | "investigate" | "release" | "finish" | "lead";
+    kind: "rebase" | "restart" | "batch" | "investigate" | "release" | "finish" | "lead" | "brainstorm";
     repo: string;
     number: number;
     branch: string;
@@ -20,7 +21,8 @@ export type AgentOrigin = {
     round?: number;
     // count: the PRs of a batch merge (FR-REV-025).
     count?: number;
-    // tag and step: the failed release step a release agent looks into (#945).
+    // tag and step: the failed release step a release agent looks into (#945); for a brainstorm's terminal, its step
+    // (the SaaSFoundryAI setup or the hand-off, #2251).
     tag?: string;
     phase?: string;
     step?: string;
@@ -28,7 +30,16 @@ export type AgentOrigin = {
     at: number;
 };
 
-const OriginKinds: AgentOrigin["kind"][] = ["rebase", "restart", "batch", "investigate", "release", "finish", "lead"];
+const OriginKinds: AgentOrigin["kind"][] = [
+    "rebase",
+    "restart",
+    "batch",
+    "investigate",
+    "release",
+    "finish",
+    "lead",
+    "brainstorm",
+];
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
@@ -79,6 +90,12 @@ export function originText(origin: AgentOrigin, translate: Translate, locale?: s
     }
     if (origin.kind === "lead") {
         return translate("agentOrigin.lead", vars);
+    }
+    if (origin.kind === "brainstorm") {
+        return translate(
+            origin.step === "setup" ? "agentOrigin.brainstormSetup" : "agentOrigin.brainstormHandoff",
+            vars
+        );
     }
     if (origin.mergedpr) {
         return translate("agentOrigin.rebaseAfterMerge", vars);

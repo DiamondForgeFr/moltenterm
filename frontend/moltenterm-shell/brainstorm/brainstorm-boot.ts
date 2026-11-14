@@ -38,6 +38,12 @@ export const ToldCommand = "moltenbrainstormtold";
 export const ProjectPreviewCommand = "moltenbrainstormprojectpreview";
 export const ProjectCreateCommand = "moltenbrainstormprojectcreate";
 export const ProjectLinkedCommand = "moltenbrainstormprojectlinked";
+// The project's SaaSFoundryAI setup and the hand-off of its first step (#2251); must match pkg/molten/brainstorm/launch.go.
+export const SetupPreviewCommand = "moltenbrainstormsetuppreview";
+export const SetupDryRunCommand = "moltenbrainstormsetupdryrun";
+export const SetupStartCommand = "moltenbrainstormsetupstart";
+export const HandoffPreviewCommand = "moltenbrainstormhandoffpreview";
+export const HandoffStartCommand = "moltenbrainstormhandoffstart";
 export const BrainstormEvent = "molten:brainstorm";
 
 export const CallTimeoutMs = 8000;
