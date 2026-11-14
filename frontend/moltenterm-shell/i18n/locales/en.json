@@ -3342,6 +3342,102 @@
                     "unknown": "MoltenTerm could not tell whether the project was made. Look in the folder, then try again."
                 }
             },
+            "launch": {
+                "fold": "Fold the card",
+                "unfold": "Show the card",
+                "previewing": "Checking the project…",
+                "opening": "Opening the terminal…",
+                "tryAgain": "Try again",
+                "goTitle": "Leaves the brainstorm and shows the terminal",
+                "notTyped": "Its terminal is open, but the command could not be typed there. Type it yourself:",
+                "refused": {
+                    "noproject": "The project is not made yet: create it above first.",
+                    "nobrief": "{name} has not concluded the brainstorm yet.",
+                    "nosf": "SaaSFoundryAI is not installed on this computer.",
+                    "noprofile": "Choose what it installs first.",
+                    "noagent": "No coding agent MoltenTerm can start is installed on this computer.",
+                    "agentmissing": "{agent}, chosen for this project, is not installed: pick another one for this hand-off.",
+                    "terminal": "The terminal could not be opened: nothing ran.",
+                    "notmanaged": "This folder is not set up with SaaSFoundryAI yet.",
+                    "invalid": "The brief is too long: shorten it, then try again.",
+                    "failed": "That did not work: nothing ran.",
+                    "unknown": "MoltenTerm could not tell whether the terminal opened. It looked again: try again if nothing shows."
+                }
+            },
+            "setup": {
+                "label": "Set up SaaSFoundryAI in the project",
+                "eyebrow": "Set up SaaSFoundryAI",
+                "waiting": "{name} proposes it for the project: it waits for the project to be made.",
+                "choose": "What SaaSFoundryAI installs",
+                "recommended": "{name}'s choice",
+                "reason": "{name}: “{reason}”",
+                "profiles": {
+                    "full": {
+                        "title": "Full",
+                        "subtitle": "The stack and the AI harness",
+                        "line1": "A web SaaS base to start from: API, web app, database.",
+                        "line2": "The AI workflow: tickets, branches, pull requests.",
+                        "line3": "Skills and the SRS for your coding agents."
+                    },
+                    "harness": {
+                        "title": "Harness only",
+                        "subtitle": "The AI harness on your own stack",
+                        "line1": "Your code and your stack stay as they are.",
+                        "line2": "The AI workflow: tickets, branches, pull requests.",
+                        "line3": "Skills and the SRS for your coding agents."
+                    }
+                },
+                "command": "Typed",
+                "questions": "SaaSFoundryAI asks its own questions in a terminal of “{workspace}”, and the window takes you there. Your keys stay with you.",
+                "questionsThere": "SaaSFoundryAI asks its own questions in a terminal of the project's workspace, and the window takes you there. Your keys stay with you.",
+                "start": "Set up: {profile}",
+                "chooseFirst": "Choose what it installs",
+                "startTitle": "Opens the terminal, types the command and takes you there",
+                "startUpdate": "Add the full profile",
+                "tabName": "SaaSFoundryAI",
+                "launched": "Its terminal opened at {time}: SaaSFoundryAI's questions wait for you there.",
+                "goTo": "Go to the terminal",
+                "nosf": "SaaSFoundryAI is not installed on this computer. Install it in a terminal, then check again:",
+                "nosfNote": "Nothing installs by itself, and nothing runs until you click.",
+                "copy": "Copy",
+                "copied": "Copied",
+                "checkAgain": "Check again",
+                "managed": "This folder is set up with SaaSFoundryAI already.",
+                "previewFull": "Preview the full profile",
+                "previewFullNote": "SaaSFoundryAI previews it: nothing changes.",
+                "dryRunning": "SaaSFoundryAI is previewing…",
+                "dryFull": "It has the full profile already: nothing to add.",
+                "dryAdds": {
+                    "one": "The full profile adds {count} file.",
+                    "other": "The full profile adds {count} files."
+                },
+                "dryConflicts": {
+                    "one": "{count} of them differs from yours: SaaSFoundryAI asks what to do with it.",
+                    "other": "{count} of them differ from yours: SaaSFoundryAI asks what to do with each."
+                },
+                "dryHarness": "The full profile adds the AI harness to this stack.",
+                "dryBlocked": "SaaSFoundryAI cannot add the full profile here as the project stands: its status, in the project, says why."
+            },
+            "handoff": {
+                "label": "Hand the project's first step to a coding agent",
+                "eyebrow": "Hand the first step",
+                "waiting": "{name} proposes it for the project: it waits for the project to be made.",
+                "agent": "Agent",
+                "pickAgent": "Pick an agent",
+                "workspace": "Workspace",
+                "thisWorkspace": "The project's workspace",
+                "brief": "Brief",
+                "reset": "Back to {name}'s brief",
+                "briefNote": "The agent reads it from a file in MoltenTerm's data folder. Edit it as you like.",
+                "note": "{agent} starts in a new view of “{workspace}”, in your usual permission mode, and the window takes you there.",
+                "noteThere": "{agent} starts in a new view of the project's workspace, in your usual permission mode, and the window takes you there.",
+                "start": "Hand to {agent}",
+                "startTitle": "Writes the brief, starts the agent and takes you there",
+                "starting": "Starting {agent}…",
+                "tabName": "First step",
+                "launched": "{agent} started at {time} with the brief.",
+                "goTo": "Go to the agent"
+            },
             "failed": {
                 "unknown": "That brainstorm is no longer in the folder.",
                 "notsaved": "The open brainstorm could not be saved: nothing moved.",
@@ -6742,7 +6838,9 @@
                 "investigate": "CI of #{number}",
                 "finish": "finishing #{number}",
                 "review": "review of #{number}",
-                "release": "release {tag}"
+                "release": "release {tag}",
+                "brainstormSetup": "SaaSFoundryAI setup",
+                "brainstormHandoff": "first step of a brainstormed project"
             }
         },
         "steps": {
@@ -10658,7 +10756,9 @@
         "finish": "Started by you at {time} to check #{number} and finish what is left",
         "lead": "Started by you at {time}: the lead agent's session resumed to take #{number} back",
         "release": "Started by you at {time} to analyze and resolve the failed step {step} of the release {tag}",
-        "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside"
+        "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside",
+        "brainstormSetup": "Opened by you at {time} from a brainstorm, to set up SaaSFoundryAI in this project: its questions are asked here",
+        "brainstormHandoff": "Started by you at {time} from a brainstorm, to take the first step of this project with its brief"
     },
     "agentLinks": {
         "title": "Connections",

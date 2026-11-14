@@ -6,7 +6,8 @@
 // its embers, and his thought grows in 3D in the free space. A line at the edge says what was critical enough to break
 // through the pause. Where the brainstorm is saved, the others and Leave are in the brainstorm panel of his group
 // (brainstorm-panel.tsx, AC23, #2285). Once he concluded, the project card stands at the free space's bottom right
-// (brainstorm-project.tsx, AC15, #2250). The app stays visible underneath: it is a layer, not a screen.
+// (brainstorm-project.tsx, AC15, #2250), and his SaaSFoundryAI and hand-off cards under it (brainstorm-launch.tsx, AC16,
+// #2251). The app stays visible underneath: it is a layer, not a screen.
 //
 // It loads on demand, the first time the mode opens (brainstorm-layer.tsx): a window that never brainstorms carries
 // none of it, and the 3D scene comes later still, behind the stage's own import().
@@ -16,6 +17,7 @@ import { cn, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { BossBubbleModel } from "../boss/boss-store";
 import { tCount, useLocale, useT } from "../i18n/i18n";
+import { HandoffCard, SetupCard } from "./brainstorm-launch";
 import { ProjectCard } from "./brainstorm-project";
 import { BrainstormStage } from "./brainstorm-stage";
 import { BrainstormModel, BrainstormState } from "./brainstorm-store";
@@ -132,7 +134,11 @@ export function BrainstormView({ state, shown }: { state: BrainstormState; shown
             <BrainstormStage key={state.swap ?? 0} graph={state.graph ?? null} />
             <Header state={state} />
             <Breakthrough />
-            <ProjectCard state={state} />
+            <div className="mt-bsj-stack" data-testid="brainstorm-cards">
+                <ProjectCard state={state} />
+                <SetupCard state={state} />
+                <HandoffCard state={state} />
+            </div>
         </div>
     );
 }

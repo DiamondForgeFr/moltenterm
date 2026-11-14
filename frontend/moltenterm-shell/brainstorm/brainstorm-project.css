@@ -4,22 +4,34 @@
 /* The project card (FR-BOSS-010 AC15, #2250): a forged plate in the free space of the brainstorm layer, at its bottom
    right, where the thought leaves the most room. Modern steampunk in the shell's tokens, light and dark: the panels'
    surface, a brass rule on Brokk's side, a hairline, the raised shadow; no grid, no pastel, no tilt. The layer takes no
-   pointer: the card does. */
+   pointer: the card does. The SaaSFoundryAI and hand-off cards (#2251) stand under it, in the same column. */
 
-.mt-bsj {
+.mt-bsj-stack {
     position: absolute;
     right: 20px;
     bottom: 20px;
     /* Above every plate: the scene orders them by depth up to 10000 (brainstorm-scene.ts), in the layer's own stacking
-       context, so a plate near the camera would otherwise cover the card. */
+       context, so a plate near the camera would otherwise cover the cards. */
     z-index: 10001;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     width: min(400px, calc(100% - var(--bs-free-left, 0px) - 40px));
     max-height: calc(100% - var(--bs-free-top, 0px) - 96px);
-    padding: 12px 14px;
     overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.mt-bsj-stack:empty {
+    display: none;
+}
+
+.mt-bsj {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
     border: 1px solid var(--mt-line-2);
     border-left: 2px solid color-mix(in srgb, var(--mt-action) 55%, transparent);
     border-radius: var(--mt-radius-panel);

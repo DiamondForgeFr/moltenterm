@@ -28,14 +28,15 @@ const fork = (title: string, reason: string): GraphOp => ({ op: "fork", title, r
 // He prunes what the talk made obsolete (#2247): the layer offers Undo for his removal.
 const remove = (id: string, reason: string): GraphOp => ({ op: "remove", id, reason });
 const retype = (id: string, kind: string): GraphOp => ({ op: "retype", id, kind });
-// The first pass is clear (#2250): his conclusion with its brief, and his proposal to make it a project.
+// The first pass is clear (#2250): his conclusion with its brief, and his proposals to make it a project, then to set
+// up SaaSFoundryAI and hand the first step to a coding agent (#2251).
 const conclude = (id: string, text: string, brief: BriefDraft): GraphOp => ({ op: "conclude", id, text, brief });
-const propose = (id: string, text: string, from: string): GraphOp => ({
+const propose = (id: string, text: string, from: string, action = "project"): GraphOp => ({
     op: "propose",
     id,
     text,
     from,
-    action: "project",
+    action,
 });
 
 const ReplayBriefs: Record<"en" | "fr", BriefDraft> = {
@@ -50,6 +51,8 @@ const ReplayBriefs: Record<"en" | "fr", BriefDraft> = {
             out: ["Ads", "Automatic recommendations"],
         },
         stack: [],
+        profile: "full",
+        profilereason: "It is a web app for parents: SaaSFoundryAI's stack fits it.",
         firststep: "Sketch the parents' validation flow.",
         openquestions: ["How do parents find the videos to validate?"],
         language: "en",
@@ -65,6 +68,8 @@ const ReplayBriefs: Record<"en" | "fr", BriefDraft> = {
             out: ["La pub", "Les recommandations automatiques"],
         },
         stack: [],
+        profile: "full",
+        profilereason: "C'est une app web pour les parents : la stack de SaaSFoundryAI lui va.",
         firststep: "Esquisser le parcours de validation des parents.",
         openquestions: ["Comment les parents trouvent-ils les vidéos à valider ?"],
         language: "fr",
@@ -127,10 +132,12 @@ export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
         },
         {
             you: "That's it, I think. And games would need parental control too.",
-            line: "The idea is clear: a first pass is ready, and we can make it a project. Parental control for games is another project: shall I open its own folder?",
+            line: "The idea is clear: a first pass is ready, and we can make it a project, set up SaaSFoundryAI, then hand the first step to your coding agent. Parental control for games is another project: shall I open its own folder?",
             ops: [
                 conclude("first-pass", "Clear idea: a first pass is ready", ReplayBriefs.en),
                 propose("make-it", "Make it a project", "first-pass"),
+                propose("set-it-up", "Set up SaaSFoundryAI: full", "first-pass", "saasfoundry"),
+                propose("hand-it-on", "Hand the first step to a coding agent", "first-pass", "handoff"),
                 fork("Parental control for games", "games are another product than videos"),
             ],
         },
@@ -190,11 +197,13 @@ export const ReplayScripts: Record<"en" | "fr", ReplayStep[]> = {
         },
         {
             you: "C'est tout, je crois. Et les jeux auraient besoin d'un contrôle parental aussi.",
-            line: "L'idée est claire : une première passe est prête. Le contrôle parental pour les jeux, c'est un autre projet : je lui ouvre son propre dossier ?",
+            line: "L'idée est claire : une première passe est prête. On peut en faire un projet, installer SaaSFoundryAI, puis passer le premier pas à votre agent de code. Le contrôle parental pour les jeux, c'est un autre projet : je lui ouvre son propre dossier ?",
             ops: [
                 fork("Contrôle parental pour les jeux", "les jeux sont un autre produit que les vidéos"),
                 conclude("premiere-passe", "Idée claire : première passe prête", ReplayBriefs.fr),
                 propose("en-faire-un-projet", "En faire un projet", "premiere-passe"),
+                propose("l-installer", "Installer SaaSFoundryAI : complet", "premiere-passe", "saasfoundry"),
+                propose("passer-le-relais", "Passer le premier pas à un agent de code", "premiere-passe", "handoff"),
             ],
         },
     ],

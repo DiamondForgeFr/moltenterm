@@ -67,6 +67,7 @@ export const ClassSurfaces: [string, string[]][] = [
     ["frontend/moltenterm-shell/review/review-comments-view.tsx", ["mt-selected-action"]],
     ["frontend/moltenterm-shell/review/review-actions-view.tsx", ["mt-selected-action"]],
     ["frontend/moltenterm-shell/reviews/reviews-order.tsx", ["mt-selected-action"]],
+    ["frontend/moltenterm-shell/brainstorm/brainstorm-launch.tsx", ["mt-selected-action"]],
     ["frontend/builder/builder-apppanel.tsx", ["mt-selected-action"]],
 ];
 
