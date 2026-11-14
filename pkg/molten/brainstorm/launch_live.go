@@ -5,6 +5,7 @@ package brainstorm
 
 import (
 	"context"
+	"slices"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
@@ -41,9 +42,26 @@ func liveResolveAgent(dir string, run string) AgentPick {
 	return pick
 }
 
-func liveBlockExists(ctx context.Context, blockId string) bool {
-	block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
-	return err == nil && block != nil
+// launchPlaced: the launch's terminal is one of its tab's blocks, and that tab one of its workspace's. A terminal moved
+// to another tab, or a tab moved to another workspace, is no longer the one the click opened there.
+func launchPlaced(launch Launch, tabBlocks []string, workspaceTabs []string) bool {
+	return slices.Contains(tabBlocks, launch.Block) && slices.Contains(workspaceTabs, launch.Tab)
+}
+
+func liveLaunchAlive(ctx context.Context, launch Launch) bool {
+	block, err := wstore.DBGet[*waveobj.Block](ctx, launch.Block)
+	if err != nil || block == nil {
+		return false
+	}
+	tab, err := wstore.DBGet[*waveobj.Tab](ctx, launch.Tab)
+	if err != nil || tab == nil {
+		return false
+	}
+	ws, err := wstore.DBGet[*waveobj.Workspace](ctx, launch.Workspace)
+	if err != nil || ws == nil {
+		return false
+	}
+	return launchPlaced(launch, tab.BlockIds, ws.TabIds)
 }
 
 func liveLaunchEnv(handoffDir string) LaunchEnv {
@@ -54,7 +72,7 @@ func liveLaunchEnv(handoffDir string) LaunchEnv {
 		AgentTab:     wcore.CreateAgentTab,
 		CloseTab:     wcore.CloseAgentTab,
 		OpenTerminal: reviewsession.OpenTerminal,
-		BlockExists:  liveBlockExists,
+		LaunchAlive:  liveLaunchAlive,
 		HandoffDir:   handoffDir,
 	}
 }
