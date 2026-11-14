@@ -143,8 +143,9 @@ func TestTheBriefTeachesTheLivingGraph(t *testing.T) {
 	}
 }
 
-// FR-BOSS-010 AC14, AC15 (#2250): he concludes with the project brief and proposes the project, and the example he is
-// taught is a block wavesrv applies. He never prices an idea.
+// FR-BOSS-010 AC14 to AC16 (#2250, #2251): he concludes with the project brief and proposes the project, its
+// SaaSFoundryAI setup and the hand-off, and the example he is taught is a block wavesrv applies. He never prices an idea
+// and never asks for a credential.
 func TestTheBriefTeachesTheConclusionAndTheProject(t *testing.T) {
 	t.Parallel()
 	text := BriefText(true)
@@ -165,10 +166,19 @@ func TestTheBriefTeachesTheConclusionAndTheProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the conclusion's example is refused: %v", err)
 	}
-	if applied.Brief == nil || len(applied.Added) != 2 {
+	if applied.Brief == nil || len(applied.Added) != 4 {
 		t.Errorf("the example concludes %+v and adds %v", applied.Brief, applied.Added)
 	}
-	for _, want := range []string{`"action": "project"`, "never prices it", "a market value, a revenue, a valuation or a success", "acts only on their click"} {
+	actions := map[string]bool{}
+	for _, n := range applied.Graph.Nodes {
+		if n.Kind == brainstorm.KindProposal {
+			actions[n.Action] = true
+		}
+	}
+	if !actions[brainstorm.ActionProject] || !actions[brainstorm.ActionSaaSFoundry] || !actions[brainstorm.ActionHandoff] {
+		t.Errorf("the example proposes %v", actions)
+	}
+	for _, want := range []string{`"action": "project"`, `"action": "saasfoundry"`, `"action": "handoff"`, "never prices it", "a market value, a revenue, a valuation or a success", "acts only on their click", "Never ask the developer for a key"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the brief lacks %q", want)
 		}

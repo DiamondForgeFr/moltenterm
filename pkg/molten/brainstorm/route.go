@@ -192,6 +192,27 @@ func (s *Service) handle(command string, data any) (any, error) {
 			return nil, err
 		}
 		return s.ProjectLinked(req), nil
+	case SetupPreviewCommand, SetupDryRunCommand, SetupStartCommand:
+		var req SetupRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		switch command {
+		case SetupDryRunCommand:
+			return s.SetupDryRun(req), nil
+		case SetupStartCommand:
+			return s.SetupStart(req), nil
+		}
+		return s.SetupPreview(req), nil
+	case HandoffPreviewCommand, HandoffStartCommand:
+		var req HandoffRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		if command == HandoffStartCommand {
+			return s.HandoffStart(req), nil
+		}
+		return s.HandoffPreview(req), nil
 	}
 	return nil, fmt.Errorf("unknown brainstorm command %q", command)
 }
@@ -211,14 +232,17 @@ func liveProjectsDir() string {
 }
 
 // Live is wavesrv's service: the folder the setting names, MoltenTerm's own data folder, the system trash, Brokk's own
-// folder for the resume brief, the interface's language and the projects' parent folder.
+// folder for the resume brief, the interface's language, the projects' parent folder, and what the setup and the
+// hand-off reach (launch_live.go).
 func Live() *Service {
-	store := MakeStore(liveRoot, filepath.Join(wavebase.GetWaveDataDir(), stateDirName))
+	stateDir := filepath.Join(wavebase.GetWaveDataDir(), stateDirName)
+	store := MakeStore(liveRoot, stateDir)
 	store.UseTrash(liveTrash, func() bool { return onboarding.TrashAvailable(wavebase.GetHomeDir()) })
 	svc := MakeService(store, time.Now, livePublish, log.Printf)
 	svc.UseResumeDir(filepath.Join(wavebase.GetWaveDataDir(), BrokkFolderName))
 	svc.UseLanguage(liveLanguage)
 	svc.UseProjects(liveProjectsDir, execGit)
+	svc.UseLaunch(liveLaunchEnv(filepath.Join(stateDir, handoffDirName)))
 	return svc
 }
 

@@ -74,8 +74,8 @@ const (
 	StatusProposed = "proposed"
 )
 
-// The actions a proposal names (DS-BOSS-009). MoltenTerm 1.0.0 draws the project's alone (#2250): the setup and the
-// hand-off come with #2251, and Geargrim's only once DiamondForge offers it (GeargrimOffered). The others are skipped,
+// The actions a proposal names (DS-BOSS-009). MoltenTerm 1.0.0 draws the project's (#2250), the SaaSFoundryAI setup's
+// and the hand-off's (#2251), and Geargrim's only once DiamondForge offers it (GeargrimOffered). The others are skipped,
 // not dropped, so that a block of a newer brief keeps the rest of its graph.
 const (
 	ActionProject     = "project"
@@ -95,7 +95,13 @@ var knownActions = map[string]bool{
 
 // drawnAction: this version shows a proposal of that action.
 func drawnAction(action string) bool {
-	return action == ActionProject || (action == ActionGeargrim && GeargrimOffered())
+	switch action {
+	case ActionProject, ActionSaaSFoundry, ActionHandoff:
+		return true
+	case ActionGeargrim:
+		return GeargrimOffered()
+	}
+	return false
 }
 
 var idPattern = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)

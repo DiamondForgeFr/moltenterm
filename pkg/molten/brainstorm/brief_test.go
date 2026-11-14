@@ -293,8 +293,9 @@ func TestABadBriefDropsTheBlock(t *testing.T) {
 	}
 }
 
-// AC15 (#2250): a project proposal glows; the actions of later stories, and Geargrim's (AC14, AC-5), are not drawn.
-func TestProposeDrawsTheProjectProposalAlone(t *testing.T) {
+// AC15, AC16 (#2250, #2251): the project, setup and hand-off proposals glow; a new folder's and Geargrim's (AC14,
+// AC-5) are not drawn.
+func TestProposeDrawsTheProjectSetupAndHandoffProposals(t *testing.T) {
 	t.Parallel()
 	if GeargrimOffered() {
 		t.Fatal("DiamondForge does not offer the hand-off to Geargrim in MoltenTerm 1.0.0")
@@ -303,13 +304,17 @@ func TestProposeDrawsTheProjectProposalAlone(t *testing.T) {
 		proposeOp("make-it", ActionProject),
 		proposeOp("geargrim", ActionGeargrim),
 		proposeOp("setup", ActionSaaSFoundry),
+		proposeOp("hand-it", ActionHandoff),
+		proposeOp("elsewhere", ActionNewFolder),
 	), 2, 2000)
 	if err != nil {
 		t.Fatal(err)
 	}
-	n, ok := applied.Graph.node("make-it")
-	if !ok || n.Kind != KindProposal || n.Status != StatusProposed || n.Action != ActionProject {
-		t.Fatalf("proposal %+v", n)
+	for id, action := range map[string]string{"make-it": ActionProject, "setup": ActionSaaSFoundry, "hand-it": ActionHandoff} {
+		n, ok := applied.Graph.node(id)
+		if !ok || n.Kind != KindProposal || n.Status != StatusProposed || n.Action != action {
+			t.Fatalf("proposal %s: %+v", id, n)
+		}
 	}
 	if _, drawn := applied.Graph.node("geargrim"); drawn || applied.Skipped != 2 {
 		t.Errorf("skipped %d, Geargrim drawn %v", applied.Skipped, drawn)

@@ -157,12 +157,13 @@ func TestTheCentreIsRenamedByItsOwnId(t *testing.T) {
 	}
 }
 
-// The operations of later stories (#2249, #2251) are skipped, not dropped with the rest; a link twice is kept once.
+// The operations of later stories (#2249) and the proposals this version does not draw are skipped, not dropped with
+// the rest; a link twice is kept once.
 func TestLaterOperationsAreSkippedAndLinksKeptOnce(t *testing.T) {
 	t.Parallel()
 	applied, err := Apply(sampleGraph(t), block(
 		Op{Op: OpRemember, Text: "Likes forge-city stories"},
-		Op{Op: OpPropose, Id: "hand-off", Text: "Hand the first step to an agent", From: "kids-video", Action: ActionHandoff},
+		Op{Op: OpPropose, Id: "elsewhere", Text: "Open its own folder", From: "kids-video", Action: ActionNewFolder},
 		link("parents-list", "three-ten"),
 		add("devices", KindQuestion, "On which devices?", "kids-video"),
 	), 2, 2000)
