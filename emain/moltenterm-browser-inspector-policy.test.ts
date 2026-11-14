@@ -40,7 +40,7 @@ describe("where the docked tools go (FR-BRW-022, DS-BRW-027)", () => {
         });
     });
 
-    it("selects the right-click's point in the page's pixels, and no point without one", () => {
+    it("selects the right-click's window point in DIP, and no point without one", () => {
         expect(inspectPoint({ x: 40, y: 20.2 }, 1.5)).toEqual({ x: 60, y: 30 });
         expect(inspectPoint(null, 1)).toBeNull();
         expect(inspectPoint({ x: -1, y: 0 }, 1)).toBeNull();

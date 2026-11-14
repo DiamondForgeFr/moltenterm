@@ -131,15 +131,17 @@ describe("the web page panel's docked developer tools (FR-BRW-022, DS-BRW-027)",
 
     afterEach(() => vi.useRealTimers());
 
+    // The right-click's point is in the window's CSS pixels: Chromium hit-tests a guest in its embedder's coordinates,
+    // so the window's zoom (1.25), not the page's (2), makes them DIP.
     it("docks the page's tools in a view of the asking window, on the clicked element", async () => {
-        expect(await open(42, Place, { x: 10, y: 5 })).toBe(true);
+        expect(await open(42, Place, { x: 960, y: 405 })).toBe(true);
         expect(Mocks.views).toHaveLength(1);
         const view = Mocks.views[0];
         expect(view.options.webPreferences).toMatchObject({ session: ses, sandbox: true, contextIsolation: true });
         expect(parent.addChildView).toHaveBeenCalledWith(view);
         expect(page.setDevToolsWebContents).toHaveBeenCalledWith(view.webContents);
         expect(page.openDevTools).toHaveBeenCalledWith({ mode: "detach", activate: false });
-        expect(page.inspectElement).toHaveBeenCalledWith(20, 10);
+        expect(page.inspectElement).toHaveBeenCalledWith(1200, 506);
         expect(view.setBounds).toHaveBeenLastCalledWith({ x: 13, y: 375, width: 800, height: 300 });
         expect(view.setVisible).toHaveBeenLastCalledWith(true);
         expect(inspector.isInspected(42)).toBe(true);
@@ -159,9 +161,9 @@ describe("the web page panel's docked developer tools (FR-BRW-022, DS-BRW-027)",
 
     it("selects another element in the tools it has instead of making a second view", async () => {
         await open(42, Place, { x: 1, y: 1 });
-        await open(42, Place, { x: 3, y: 4 });
+        await open(42, Place, { x: 400, y: 80 });
         expect(Mocks.views).toHaveLength(1);
-        expect(page.inspectElement).toHaveBeenLastCalledWith(6, 8);
+        expect(page.inspectElement).toHaveBeenLastCalledWith(500, 100);
     });
 
     it("moves the tools from their window into the panel", async () => {

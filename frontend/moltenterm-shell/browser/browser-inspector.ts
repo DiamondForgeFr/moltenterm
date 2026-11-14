@@ -21,6 +21,7 @@ export const InspectorSizeStep = 0.05;
 // Below this, in CSS pixels, the visible part of the pane is too small to show the tools.
 export const InspectorMinShownPx = 40;
 
+// The element Inspect selects: a point in the window's CSS pixels, where the page's right-click menu opened.
 export type InspectorPoint = { x: number; y: number };
 // The pane's body in CSS pixels of the window, and whether the tools show there.
 export type InspectorPlace = { x: number; y: number; width: number; height: number; visible: boolean };
