@@ -52,7 +52,8 @@ type BriefScope struct {
 	Out []string `json:"out"`
 }
 
-// BriefDraft holds the content fields: what Brokk writes in his `conclude`.
+// BriefDraft holds the content fields: what Brokk writes in his `conclude`. brief.json writes every field, an empty one
+// too, so that a reader always finds the contract's whole shape.
 type BriefDraft struct {
 	Name          string     `json:"name"`
 	Slug          string     `json:"slug"`
@@ -61,11 +62,11 @@ type BriefDraft struct {
 	Users         string     `json:"users"`
 	Scope         BriefScope `json:"scope"`
 	Stack         []string   `json:"stack"`
-	Profile       string     `json:"profile,omitempty"`
-	ProfileReason string     `json:"profilereason,omitempty"`
-	FirstStep     string     `json:"firststep,omitempty"`
+	Profile       string     `json:"profile"`
+	ProfileReason string     `json:"profilereason"`
+	FirstStep     string     `json:"firststep"`
 	OpenQuestions []string   `json:"openquestions"`
-	Language      string     `json:"language,omitempty"`
+	Language      string     `json:"language"`
 }
 
 // ProjectBrief is brief.json: the header MoltenTerm sets, then the content.
