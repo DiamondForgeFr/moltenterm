@@ -94,7 +94,8 @@ func TestBatchUsesTheRememberedMethod(t *testing.T) {
 }
 
 // The method chosen in the batch modal is the one merged with and the repository's next default; a PR that joined
-// earlier keeps the method shown when it joined.
+// earlier keeps the method shown when it joined. A second group merge cannot join the run (#2318): the PR validated
+// later, with another method, does.
 func TestBatchKeepsTheMethodChosenInTheModal(t *testing.T) {
 	t.Parallel()
 	f := newBatchFixture(t, func(prs map[int]*hubPr) { prs[1].pendingForever = true })
@@ -106,7 +107,14 @@ func TestBatchKeepsTheMethodChosenInTheModal(t *testing.T) {
 		t.Fatalf("the modal's choice is kept on start: %q", f.last())
 	}
 	f.waitFor("#1 waiting for its checks", func(run BatchRun) bool { return itemOf(run, 1).State == BatchItemWaitingChecks })
-	run, err := f.batch(MergeMethodMerge, f.prs[4])
+	if _, err := f.batch(MergeMethodMerge, f.prs[4]); err == nil {
+		t.Fatalf("a second group merge is refused while the first runs")
+	}
+	if f.last() != MergeMethodRebase {
+		t.Fatalf("a refused group merge leaves the repository's method alone: %q", f.last())
+	}
+	run, err := f.runner.Add(QueueAddRequest{Dir: f.dir, Repo: testRepo, Base: "develop", Method: MergeMethodMerge, Prs: []BatchPr{f.prs[4]},
+		Order: []int{4}, WorkspaceId: "ws"})
 	if err != nil {
 		t.Fatal(err)
 	}
