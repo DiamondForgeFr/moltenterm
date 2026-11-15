@@ -81,12 +81,14 @@ export type CardActionId =
 
 // An action of the card. disabled: why GitHub refuses it (shown, never hidden); confirm: what the developer confirms
 // before it runs (#943: a soft signal asks, it never blocks); blockId: the agent's terminal it acts on; target: the PR
-// or issue it goes to (#1841).
+// or issue it goes to (#1841). confirmKeys: the keys of the confirmation's two buttons when they are not "Validate
+// anyway" and "Cancel" (#2318).
 export type CardAction = {
     id: CardActionId;
     label: Phrase;
     disabled?: Phrase;
     confirm?: Phrase;
+    confirmKeys?: { yes: string; no: string };
     blockId?: string;
     target?: ReviewDependency;
 };
@@ -315,13 +317,25 @@ export function validateRefusal(pr: ReviewPr): Phrase {
     return null;
 }
 
-// groupHoldRefusal (#2318): why Validate waits while a group merge runs: the PR is one of the run's, or it goes into the
-// run's base. GitHub's own refusal comes first.
+// groupHoldRefusal (#2318): a PR of the running group merge has no merge action of its own, the run owns it. GitHub's
+// own refusal comes first.
 export function groupHoldRefusal(pr: ReviewPr, hold: GroupHold): Phrase {
-    if (hold == null) {
-        return null;
-    }
-    return phrase(hold === "in" ? "reviews.validate.inGroup" : "reviews.validate.groupRunning", { base: pr.base });
+    return hold === "in" ? phrase("reviews.validate.inGroup", { base: pr.base }) : null;
+}
+
+// groupRunNote (#2318, #943): another PR into the run's base is not refused, it asks: merging it now may put the run's
+// next PRs in conflict.
+export function groupRunNote(pr: ReviewPr): Phrase {
+    return phrase("reviews.validate.groupRunning", { base: pr.base });
+}
+
+// The words of the confirmation the card shows for such an action, as keys: "Merge anyway" and "Wait for the run".
+export const GroupRunConfirmKeys = { yes: "reviews.card.confirm.mergeAnyway", no: "reviews.card.confirm.waitForRun" };
+
+// confirmKeysOf: the keys of the two buttons of the card's confirmation: the action's own, else "Validate anyway" and
+// "Cancel".
+export function confirmKeysOf(action: CardAction): { yes: string; no: string } {
+    return action.confirmKeys ?? { yes: "reviews.card.confirm.validateAnyway", no: "common.cancel" };
 }
 
 function ciPending(pr: ReviewPr): boolean {
@@ -523,10 +537,15 @@ function mergeAction(input: CardInput, working: AgentBarFacts): CardAction {
     if (refused != null) {
         return { id: "validate", label: phrase("reviews.validate.button"), disabled: refused };
     }
+    const held = input.groupHold === "held";
+    if (held) {
+        notes.unshift(groupRunNote(pr));
+    }
     return {
         id: "validate",
         label: phrase("reviews.validate.button"),
         confirm: notes.length > 0 ? { join: notes, sep: " " } : undefined,
+        confirmKeys: held ? GroupRunConfirmKeys : undefined,
     };
 }
 

@@ -33,6 +33,7 @@ import {
     cardState,
     CardState,
     CardTone,
+    confirmKeysOf,
     settledPhrase,
 } from "./reviews-card-model";
 import { RerunConfirm, useRerunFailed } from "./reviews-ci-actions";
@@ -669,11 +670,11 @@ export function ReviewRow({
                     >
                         {confirm.action.id === "stop"
                             ? t("reviewsAgents.stop.button")
-                            : t("reviews.card.confirm.validateAnyway")}
+                            : t(confirmKeysOf(confirm.action).yes)}
                         <MoltenWave />
                     </button>
                     <button type="button" onClick={() => setConfirm(null)} className={ConfirmButton}>
-                        {t("common.cancel")}
+                        {t(confirmKeysOf(confirm.action).no)}
                     </button>
                 </div>
             ) : null}

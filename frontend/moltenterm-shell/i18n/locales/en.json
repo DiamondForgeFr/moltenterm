@@ -8299,7 +8299,7 @@
             "conflicts": "Conflicts with {base}: ask for a rebase first.",
             "blocked": "GitHub blocks the merge: a required check or review is missing.",
             "inGroup": "In the group merge that runs into {base}: it merges in its turn. Cancel the merge to take it back.",
-            "groupRunning": "A group merge runs into {base}: validate this one once it ends, or cancel the merge."
+            "groupRunning": "A group merge into {base} is running; merging this now may make the next ones need a rebase."
         },
         "rebase": {
             "button": "Ask for a rebase",
@@ -8513,7 +8513,9 @@
             "confirm": {
                 "agentWorking": "{name} is still working on this branch.",
                 "noReport": "No test report yet.",
-                "validateAnyway": "Validate anyway"
+                "validateAnyway": "Validate anyway",
+                "mergeAnyway": "Merge anyway",
+                "waitForRun": "Wait for the run"
             },
             "state": {
                 "agentWaiting": "{name} is waiting for you",

@@ -183,13 +183,13 @@ describe("the Integration list while a group merge runs (#2318)", () => {
         ]);
     });
 
-    it("disables the Validate of its pull requests and of the other one into its base, saying why", () => {
+    it("takes the merge away from its pull requests, saying why, and leaves the other one into its base askable", () => {
         const idle = count(list(), /aria-disabled="true"/g);
         setRun(run());
         const html = list();
-        expect(count(html, /aria-disabled="true"/g)).toBe(idle + 4);
+        expect(count(html, /aria-disabled="true"/g)).toBe(idle + 3);
         expect(count(html, /In the group merge that runs into develop: it merges in its turn\./g)).toBe(3);
-        expect(count(html, /A group merge runs into develop: validate this one once it ends/g)).toBe(1);
+        expect(html).not.toContain("A group merge into develop is running");
     });
 
     it("keeps it away while Cancel waits for the step under way", () => {
