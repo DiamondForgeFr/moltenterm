@@ -20,7 +20,7 @@ import { pathBaseName } from "../workspace-project";
 import { missionTrust, missionUntrusted } from "./mission-client";
 import { UntrustedInfo } from "./mission-model";
 import { TrustPrompt } from "./runs-view";
-import { trustAskOf, TrustReviewGesture } from "./trust-approval-model";
+import { trustAskDirs, trustAskOf, TrustReviewGesture } from "./trust-approval-model";
 
 type PendingApproval = {
     dir: string;
@@ -98,6 +98,12 @@ export function reviewProjectCommands(dir: string): Promise<NotificationGestureR
 export function useTrustAsk(blockId: string): string {
     const entries = useAtomValue(MoltentermNotifications.getInstance().entriesAtom, { store: globalStore });
     return useMemo(() => trustAskOf(entries, blockId), [entries, blockId]);
+}
+
+// The folders whose commands wait because a run was refused there, whichever agent it was.
+export function useTrustDirs(): string[] {
+    const entries = useAtomValue(MoltentermNotifications.getInstance().entriesAtom, { store: globalStore });
+    return useMemo(() => trustAskDirs(entries), [entries]);
 }
 
 async function trustReviewGesture(args: Record<string, any>): Promise<NotificationGestureResult> {

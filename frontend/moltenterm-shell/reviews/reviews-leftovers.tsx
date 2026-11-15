@@ -5,7 +5,8 @@
 // branch holds nothing new is no upcoming work, it is what the merge left (a worktree, an agent session, the branches).
 // One quiet card per PR names each of them, the agent session with its state, and one Clean up removes them through
 // the cleanup after a merge (FR-REV-013). What would lose something is confirmed first, by name. Since #1121 (AC15) a
-// card may also be a closed PR whose content is in the base, and each part says why it is a leftover.
+// card may also be a closed PR whose content is in the base, and each part says why it is a leftover. In All projects
+// (#2314) one group lists the leftovers of every project, each card marked with its project.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { getApi } from "@/app/store/global";
@@ -22,13 +23,20 @@ import { keptButtonLabel, lossLines, panelLines } from "../review/review-stepper
 import { DominoLoader } from "../suite/suite";
 import { CalmButton, MoltenButton, MoreButton, RailColours, SentenceClasses } from "./reviews-card";
 import { LeftoverAsks, useLeftoverAsks } from "./reviews-leftover-asks";
-import { heldByLiveOwner, leftoverAway, unreachableOwner } from "./reviews-leftover-owner-model";
+import { heldByLiveOwner, unreachableOwner } from "./reviews-leftover-owner-model";
 import { LeftoverConfirm, LeftoversModel, LeftoverState } from "./reviews-leftovers-client";
-import { agentText, leftoverKey, leftoverParts, leftoverRows, leftoverState } from "./reviews-leftovers-model";
+import {
+    agentText,
+    leftoverKey,
+    leftoverParts,
+    leftoverState,
+    LeftoverTarget,
+    leftoverTargets,
+} from "./reviews-leftovers-model";
 import type { ReviewsAnswer } from "./reviews-model";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
 import { SectionHeading } from "./reviews-section-heading";
-import { AgentBarFacts, branchAgents, UpcomingAnswer, UpcomingLeftover } from "./reviews-upcoming-model";
+import type { UpcomingAnswer, UpcomingLeftover } from "./reviews-upcoming-model";
 
 const DestructiveButton =
     "molten-btn molten-btn-destructive flex h-[26px] shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 text-12 disabled:cursor-default disabled:opacity-50";
@@ -42,7 +50,10 @@ const PartIcons: Record<string, string> = {
     remote: "cloud",
 };
 
-type Target = { dir: string; repo: string; leftover: UpcomingLeftover; agents: AgentBarFacts[] };
+type Target = LeftoverTarget;
+
+// A leftover card of the group: its project's repository link, and in All projects the project's mark and name.
+export type LeftoverItem = { target: Target; repoUrl: string; mark?: React.ReactNode; project?: string };
 
 function prUrl(leftover: UpcomingLeftover, repoUrl: string): string {
     if (leftover.url) {
@@ -62,55 +73,82 @@ export function LeftoversSection({
     upcoming: UpcomingAnswer;
     defaultOpen?: boolean;
 }) {
-    const t = useT();
     const model = LeftoversModel.getInstance();
     const states = useAtomValue(AgentStates.getInstance().dataAtom);
     const cleanup = useAtomValue(model.statesAtom);
-    const all = useAtomValue(model.allAtom);
     const folds = useAtomValue(ReviewsFolds.getInstance().foldsAtom);
     const asks = useLeftoverAsks(dir);
-    const targets: Target[] = useMemo(() => {
-        const at = upcoming?.at ?? 0;
-        return leftoverRows(upcoming, reviews)
-            .filter((leftover) => {
-                // Cleaned up since wavesrv's answer: gone until it answers again.
-                const cleanedAt = cleanup[leftoverKey(dir, leftover.pr)]?.cleanedAt ?? 0;
-                // Its owner was asked (#1143): the card is in the section of whose turn it is.
-                return !(cleanedAt > 0 && at <= cleanedAt) && !leftoverAway(leftover, asks, at);
-            })
-            .map((leftover) => ({
+    const targets: Target[] = useMemo(
+        () =>
+            leftoverTargets({
                 dir,
-                repo: reviews?.repo,
-                leftover,
-                agents: branchAgents(upcoming, states, leftover.branch),
-            }));
-    }, [upcoming, reviews, states, cleanup, dir, asks]);
-    // The owner removed the worktree this window asked it to (#1143): the rest of that cleanup goes now, as asked.
+                reviews,
+                upcoming,
+                states,
+                cleanedAt: (leftover) => cleanup[leftoverKey(dir, leftover.pr)]?.cleanedAt ?? 0,
+                asks,
+            }),
+        [upcoming, reviews, states, cleanup, dir, asks]
+    );
+    useLeftoverContinues(targets);
+    const items = useMemo(() => targets.map((target) => ({ target, repoUrl: reviews?.url })), [targets, reviews?.url]);
+    if (targets.length === 0 || !reviews?.repo) {
+        return null;
+    }
+    return (
+        <LeftoversView
+            items={items}
+            open={sectionOpen(folds, dir, "leftovers", defaultOpen)}
+            onToggle={(open) => ReviewsFolds.getInstance().set("leftovers", open)}
+        />
+    );
+}
+
+// The owner removed the worktree this window asked it to (#1143): the rest of that cleanup goes now, as asked.
+export function useLeftoverContinues(targets: Target[]) {
     useEffect(() => {
+        const model = LeftoversModel.getInstance();
         for (const target of targets) {
-            if (heldByLiveOwner(target.leftover) || !LeftoverAsks.getInstance().takeContinue(dir, target.leftover.pr)) {
+            if (
+                heldByLiveOwner(target.leftover) ||
+                !LeftoverAsks.getInstance().takeContinue(target.dir, target.leftover.pr)
+            ) {
                 continue;
             }
             fireAndForget(() => model.cleanUp(target));
         }
-    }, [targets, dir, model]);
-    if (targets.length === 0 || !reviews?.repo) {
-        return null;
-    }
-    const open = sectionOpen(folds, dir, "leftovers", defaultOpen);
-    const confirming = targets.find((x) => cleanup[leftoverKey(dir, x.leftover.pr)]?.confirm != null);
-    const anyBusy = targets.some((x) => cleanup[leftoverKey(dir, x.leftover.pr)]?.busy);
+    }, [targets]);
+}
+
+// The group's heading, cards and confirmations, whichever projects the cards come from.
+export function LeftoversView({
+    items,
+    open,
+    onToggle,
+}: {
+    items: LeftoverItem[];
+    open: boolean;
+    onToggle: (open: boolean) => void;
+}) {
+    const t = useT();
+    const model = LeftoversModel.getInstance();
+    const cleanup = useAtomValue(model.statesAtom);
+    const all = useAtomValue(model.allAtom);
+    const stateOf = (target: Target) => cleanup[leftoverKey(target.dir, target.leftover.pr)] ?? {};
+    const targets = items.map((item) => item.target);
+    const confirming = targets.find((x) => stateOf(x).confirm != null);
+    const anyBusy = targets.some((x) => stateOf(x).busy);
     return (
         <section className="flex flex-col gap-2" aria-label={t("reviewsAgents.leftovers.title")}>
             <SectionHeading
                 title={t("reviewsAgents.leftovers.title")}
-                count={targets.length}
+                count={items.length}
                 hint={t("reviewsAgents.leftovers.hint")}
                 open={open}
-                onToggle={() => ReviewsFolds.getInstance().set("leftovers", !open)}
+                onToggle={() => onToggle(!open)}
                 testId="reviews-leftovers-toggle"
             >
-                {targets.length > 1 ? (
+                {items.length > 1 ? (
                     <button
                         type="button"
                         className={CalmButton}
@@ -128,29 +166,48 @@ export function LeftoversSection({
                     role="list"
                     data-testid="reviews-leftovers"
                 >
-                    {targets.map((target) => (
+                    {items.map((item) => (
                         <LeftoverCard
-                            key={target.leftover.branch}
-                            target={target}
-                            state={cleanup[leftoverKey(dir, target.leftover.pr)] ?? {}}
-                            repoUrl={reviews?.url}
+                            key={`${item.target.dir}:${item.target.leftover.branch}`}
+                            target={item.target}
+                            state={stateOf(item.target)}
+                            repoUrl={item.repoUrl}
+                            mark={item.mark}
                         />
                     ))}
                 </div>
             ) : null}
             {confirming != null ? (
-                <ConfirmDialog
-                    target={confirming}
-                    confirm={cleanup[leftoverKey(dir, confirming.leftover.pr)].confirm}
-                />
+                <ConfirmDialog target={confirming} confirm={stateOf(confirming).confirm} />
             ) : all != null ? (
-                <AllDialog targets={all} />
+                <AllDialog targets={all} projects={projectNames(items)} />
             ) : null}
         </section>
     );
 }
 
-function LeftoverCard({ target, state, repoUrl }: { target: Target; state: LeftoverState; repoUrl: string }) {
+// The project each leftover of the group belongs to, by directory and PR, for the confirmation that lists them.
+function projectNames(items: LeftoverItem[]): Record<string, string> {
+    const rtn: Record<string, string> = {};
+    for (const item of items) {
+        if (item.project) {
+            rtn[leftoverKey(item.target.dir, item.target.leftover.pr)] = item.project;
+        }
+    }
+    return rtn;
+}
+
+function LeftoverCard({
+    target,
+    state,
+    repoUrl,
+    mark,
+}: {
+    target: Target;
+    state: LeftoverState;
+    repoUrl: string;
+    mark?: React.ReactNode;
+}) {
     const t = useT();
     const { leftover, agents } = target;
     const model = LeftoversModel.getInstance();
@@ -200,6 +257,7 @@ function LeftoverCard({ target, state, repoUrl }: { target: Target; state: Lefto
                 <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5 font-medium">
                         <span className="shrink-0 text-muted">#{leftover.pr}</span>
+                        {mark}
                         <span className="min-w-0 truncate" title={leftover.branch}>
                             {leftover.title || leftover.branch}
                         </span>
@@ -329,7 +387,7 @@ function ConfirmDialog({ target, confirm }: { target: Target; confirm: LeftoverC
 }
 
 // AllDialog: Clean up all's one confirmation, listing every leftover and what goes with it.
-function AllDialog({ targets }: { targets: Target[] }) {
+function AllDialog({ targets, projects }: { targets: Target[]; projects: Record<string, string> }) {
     const t = useT();
     const tCount = useTCount();
     const model = LeftoversModel.getInstance();
@@ -360,9 +418,15 @@ function AllDialog({ targets }: { targets: Target[] }) {
         >
             <ul className="flex flex-col gap-2 pt-3 text-12" data-testid="reviews-leftovers-all-list">
                 {targets.map((target) => (
-                    <li key={target.leftover.branch} className="flex flex-col gap-0.5">
+                    <li key={`${target.dir}:${target.leftover.branch}`} className="flex flex-col gap-0.5">
                         <span className="font-medium text-primary">
                             #{target.leftover.pr} {target.leftover.title || target.leftover.branch}
+                            {projects[leftoverKey(target.dir, target.leftover.pr)] ? (
+                                <span className="font-normal text-muted">
+                                    {" "}
+                                    · {projects[leftoverKey(target.dir, target.leftover.pr)]}
+                                </span>
+                            ) : null}
                         </span>
                         <span className="text-11 text-secondary">
                             {leftoverParts(t, target.leftover, target.agents)

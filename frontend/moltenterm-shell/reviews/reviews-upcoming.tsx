@@ -107,8 +107,6 @@ export function UpcomingSection({
     // Folded by default when the panel's content is longer than the panel (#1061), unless an agent here waits.
     defaultOpen?: boolean;
 }) {
-    const t = useT();
-    const tCount = useTCount();
     useUpcomingWatch(dir, reviews);
     const upcoming = useUpcomingAnswer(dir);
     const states = useAtomValue(AgentStates.getInstance().dataAtom);
@@ -129,6 +127,10 @@ export function UpcomingSection({
     const waiting = upcomingWaitingCount(entries);
     const open = sectionOpen(folds, dir, "upcoming", defaultOpen || waiting > 0);
     const setOpen = (value: boolean) => ReviewsFolds.getInstance().set("upcoming", value);
+    const cards = useMemo(
+        () => entries.map((entry) => ({ entry, dir, repoUrl: reviews?.url, base: upcoming?.target })),
+        [entries, dir, reviews?.url, upcoming?.target]
+    );
     const model = ReviewsModel.getInstance();
     const focus = useAtomValue(model.focusAtom);
     const [marked, setMarked] = useState<string>(null);
@@ -163,63 +165,121 @@ export function UpcomingSection({
     }, [marked, open, rows]);
     return (
         <>
-            <section className="flex flex-col gap-2" aria-label={t("reviewsAgents.upcoming.title")}>
-                <SectionHeading
-                    title={t("reviewsAgents.upcoming.title")}
-                    count={upcoming == null ? "" : rows.length}
-                    hint={waiting > 0 ? tCount("reviewsAgents.upcoming.waitingHint", waiting) : undefined}
-                    open={open}
-                    onToggle={() => setOpen(!open)}
-                    testId="reviews-upcoming-toggle"
-                />
-                {!open ? null : upcoming == null ? null : rows.length === 0 ? (
-                    <p
-                        className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
-                        data-testid="reviews-upcoming-empty"
-                        title={serverText(upcoming.errortext, upcoming.error) || undefined}
-                    >
-                        {t("reviewsAgents.upcoming.none")}
-                    </p>
-                ) : (
-                    <div
-                        ref={listRef}
-                        className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
-                        role="list"
-                        data-testid="reviews-upcoming"
-                    >
-                        {entries.map((entry) =>
-                            entry.kind === "session" ? (
-                                <SessionCard
-                                    key={entry.key}
-                                    dir={dir}
-                                    entry={entry}
-                                    repoUrl={reviews?.url}
-                                    base={upcoming.target}
-                                    marked={marked}
-                                />
-                            ) : (
-                                <UpcomingRow
-                                    key={entry.key}
-                                    dir={dir}
-                                    item={entry.item}
-                                    repoUrl={reviews?.url}
-                                    base={upcoming.target}
-                                    marked={marked === entry.item.branch.branch}
-                                />
-                            )
-                        )}
-                    </div>
-                )}
-                {open && upcoming?.ticketserror ? (
-                    <div className="text-11 text-muted" title={upcoming.ticketserror}>
-                        {t("reviewsAgents.upcoming.ticketsError")}
-                    </div>
-                ) : null}
-            </section>
+            <UpcomingView
+                cards={cards}
+                count={upcoming == null ? "" : rows.length}
+                ready={upcoming != null}
+                waiting={waiting}
+                open={open}
+                onToggle={() => setOpen(!open)}
+                marked={marked}
+                listRef={listRef}
+                emptyTitle={serverText(upcoming?.errortext, upcoming?.error)}
+                ticketsError={!!upcoming?.ticketserror}
+                ticketsErrorTitle={upcoming?.ticketserror}
+            />
             <Suspense fallback={null}>
                 <LeftoversSection dir={dir} reviews={reviews} upcoming={upcoming} defaultOpen={defaultOpen} />
             </Suspense>
         </>
+    );
+}
+
+// One card of the section: an entry, the project it belongs to and what its actions act on. In All projects (#2314) the
+// card also carries its project's mark.
+export type UpcomingCard = {
+    entry: UpcomingEntry;
+    dir: string;
+    repoUrl: string;
+    base: string;
+    mark?: React.ReactNode;
+};
+
+// The section's heading, empty text and cards, whichever projects the cards come from.
+export function UpcomingView({
+    cards,
+    count,
+    ready,
+    waiting,
+    open,
+    onToggle,
+    marked,
+    listRef,
+    emptyTitle,
+    ticketsError,
+    ticketsErrorTitle,
+}: {
+    cards: UpcomingCard[];
+    count: number | "";
+    // Whether every answer the section waits for is in: before, it shows no empty text.
+    ready: boolean;
+    waiting: number;
+    open: boolean;
+    onToggle: () => void;
+    marked?: string;
+    listRef?: React.RefObject<HTMLDivElement>;
+    emptyTitle?: string;
+    ticketsError?: boolean;
+    ticketsErrorTitle?: string;
+}) {
+    const t = useT();
+    const tCount = useTCount();
+    return (
+        <section className="flex flex-col gap-2" aria-label={t("reviewsAgents.upcoming.title")}>
+            <SectionHeading
+                title={t("reviewsAgents.upcoming.title")}
+                count={count}
+                hint={waiting > 0 ? tCount("reviewsAgents.upcoming.waitingHint", waiting) : undefined}
+                open={open}
+                onToggle={onToggle}
+                testId="reviews-upcoming-toggle"
+            />
+            {!open || !ready ? null : cards.length === 0 ? (
+                <p
+                    className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
+                    data-testid="reviews-upcoming-empty"
+                    title={emptyTitle || undefined}
+                >
+                    {t("reviewsAgents.upcoming.none")}
+                </p>
+            ) : (
+                <div
+                    ref={listRef}
+                    className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
+                    role="list"
+                    data-testid="reviews-upcoming"
+                >
+                    {cards.map((card) =>
+                        card.entry.kind === "session" ? (
+                            <SessionCard
+                                key={`${card.dir}:${card.entry.key}`}
+                                dir={card.dir}
+                                entry={card.entry}
+                                repoUrl={card.repoUrl}
+                                base={card.base}
+                                marked={marked}
+                                mark={card.mark}
+                            />
+                        ) : (
+                            <UpcomingRow
+                                key={`${card.dir}:${card.entry.key}`}
+                                dir={card.dir}
+                                item={card.entry.item}
+                                repoUrl={card.repoUrl}
+                                base={card.base}
+                                marked={marked === card.entry.item.branch.branch}
+                                mark={card.mark}
+                            />
+                        )
+                    )}
+                </div>
+            )}
+            {open && ticketsError ? (
+                <div className="text-11 text-muted" title={ticketsErrorTitle}>
+                    {t("reviewsAgents.upcoming.ticketsError")}
+                </div>
+            ) : null}
+        </section>
     );
 }
 
@@ -312,12 +372,14 @@ function UpcomingRow({
     repoUrl,
     base,
     marked,
+    mark,
 }: {
     dir: string;
     item: UpcomingItem;
     repoUrl: string;
     base: string;
     marked: boolean;
+    mark?: React.ReactNode;
 }) {
     const t = useT();
     const word = useWordPhrase();
@@ -402,6 +464,7 @@ function UpcomingRow({
                         >
                             #{branch.ticket}
                         </NumberLink>
+                        {mark}
                         <span className="min-w-0 truncate" title={branch.branch}>
                             {branch.title || branch.branch}
                         </span>
@@ -494,12 +557,14 @@ function SessionCard({
     repoUrl,
     base,
     marked,
+    mark,
 }: {
     dir: string;
     entry: Extract<UpcomingEntry, { kind: "session" }>;
     repoUrl: string;
     base: string;
     marked: string;
+    mark?: React.ReactNode;
 }) {
     const t = useT();
     const tCount = useTCount();
@@ -558,6 +623,7 @@ function SessionCard({
                                 ? t("reviewsAgents.upcoming.session.title", { name })
                                 : t("reviewsAgents.upcoming.session.titleUnknown")}
                         </span>
+                        {mark}
                         <span className="shrink-0 rounded-4 border border-border px-1 text-10 leading-[14px] font-semibold tracking-[0.06em] text-muted uppercase">
                             {tCount("reviewsAgents.upcoming.session.agents", entry.items.length)}
                         </span>

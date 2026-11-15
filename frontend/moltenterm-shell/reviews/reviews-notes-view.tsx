@@ -41,14 +41,20 @@ export function NotesSection({
     ask,
     defaultOpen = true,
 }: NotesProps & { ask?: NotesAsk; defaultOpen?: boolean }) {
-    const t = useT();
     const { notes, error, set } = useReviewNotes(repo);
     const folds = useAtomValue(ReviewsFolds.getInstance().foldsAtom);
     const [filter, setFilter] = useState("");
-    const [open, setOpen] = useState<string>(null);
     const sectionRef = useRef<HTMLElement>(null);
-    const all = notes?.notes ?? [];
-    const shown = useMemo(() => newestFirst(filterNotes(notes?.notes, filter)), [notes, filter]);
+    const items = useMemo(
+        () =>
+            newestFirst(filterNotes(notes?.notes, filter)).map((note) => ({
+                note,
+                dir,
+                repo,
+                onNotes: set,
+            })),
+        [notes, filter, dir, repo, set]
+    );
     const sectionIsOpen = sectionOpen(folds, dir, "notes", defaultOpen);
     useEffect(() => {
         if (ask == null) {
@@ -57,8 +63,60 @@ export function NotesSection({
         setFilter(ask.filter);
         sectionRef.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
     }, [ask]);
+    return (
+        <NotesView
+            items={items}
+            total={notes?.notes?.length ?? 0}
+            loaded={notes != null}
+            error={error}
+            blockId={blockId}
+            filter={filter}
+            onFilter={setFilter}
+            open={sectionIsOpen}
+            onToggle={() => ReviewsFolds.getInstance().set("notes", !sectionIsOpen)}
+            sectionRef={sectionRef}
+        />
+    );
+}
+
+// One note of the section: where it was kept, what its actions act on, and in All projects (#2314) its project's mark.
+export type NoteItem = {
+    note: ReviewNote;
+    dir: string;
+    repo: string;
+    onNotes: (notes: ReviewNotes) => void;
+    mark?: React.ReactNode;
+};
+
+// The section's heading, filter and notes, whichever projects the notes come from. items: the notes the filter keeps,
+// newest first; total: how many notes there are before the filter.
+export function NotesView({
+    items,
+    total,
+    loaded,
+    error,
+    blockId,
+    filter,
+    onFilter,
+    open,
+    onToggle,
+    sectionRef,
+}: {
+    items: NoteItem[];
+    total: number;
+    loaded: boolean;
+    error: string;
+    blockId: string;
+    filter: string;
+    onFilter: (filter: string) => void;
+    open: boolean;
+    onToggle: () => void;
+    sectionRef?: React.RefObject<HTMLElement>;
+}) {
+    const t = useT();
+    const [openKey, setOpenKey] = useState<string>(null);
     // Without any note, one quiet line (#1061, FR-REV-027 AC8): the section shows once it has content.
-    if (notes != null && all.length === 0 && !error) {
+    if (loaded && total === 0 && !error) {
         return (
             <section
                 ref={sectionRef}
@@ -82,16 +140,16 @@ export function NotesSection({
         >
             <SectionHeading
                 title={t("review.notes.title")}
-                count={notes == null ? "" : all.length}
-                open={sectionIsOpen}
-                onToggle={() => ReviewsFolds.getInstance().set("notes", !sectionIsOpen)}
+                count={loaded ? total : ""}
+                open={open}
+                onToggle={onToggle}
                 testId="reviews-notes-toggle"
             >
-                {all.length > 0 && sectionIsOpen ? (
+                {total > 0 && open ? (
                     <input
                         type="search"
                         value={filter}
-                        onChange={(e) => setFilter(e.target.value)}
+                        onChange={(e) => onFilter(e.target.value)}
                         onKeyDown={(e) => e.stopPropagation()}
                         placeholder={t("review.notes.filter")}
                         aria-label={t("review.notes.filter")}
@@ -100,26 +158,30 @@ export function NotesSection({
                     />
                 ) : null}
             </SectionHeading>
-            {!sectionIsOpen ? null : error ? (
+            {!open ? null : error ? (
                 <p className="text-12 text-danger">{t("review.notes.readFailed", { error })}</p>
             ) : null}
-            {sectionIsOpen && all.length > 0 && shown.length === 0 ? (
+            {open && total > 0 && items.length === 0 ? (
                 <p className="text-12 text-muted">{t("review.notes.noMatch")}</p>
             ) : null}
-            {sectionIsOpen && shown.length > 0 ? (
+            {open && items.length > 0 ? (
                 <div className="overflow-hidden rounded-4 border border-border" role="list">
-                    {shown.map((n) => (
-                        <NoteRow
-                            key={n.id}
-                            note={n}
-                            open={open === n.id}
-                            onToggle={() => setOpen(open === n.id ? null : n.id)}
-                            dir={dir}
-                            repo={repo}
-                            blockId={blockId}
-                            onNotes={set}
-                        />
-                    ))}
+                    {items.map((item) => {
+                        const key = `${item.dir}:${item.note.id}`;
+                        return (
+                            <NoteRow
+                                key={key}
+                                note={item.note}
+                                open={openKey === key}
+                                onToggle={() => setOpenKey(openKey === key ? null : key)}
+                                dir={item.dir}
+                                repo={item.repo}
+                                blockId={blockId}
+                                onNotes={item.onNotes}
+                                mark={item.mark}
+                            />
+                        );
+                    })}
                 </div>
             ) : null}
         </section>
@@ -134,14 +196,53 @@ function NoteRow({
     repo,
     blockId,
     onNotes,
+    mark,
 }: {
     note: ReviewNote;
     open: boolean;
     onToggle: () => void;
     onNotes: (notes: ReviewNotes) => void;
+    mark?: React.ReactNode;
 } & NotesProps) {
     const t = useT();
     const principles = (note.principles ?? []).filter((p) => p.trim() !== "");
+    const toggle = (
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-expanded={open}
+            className={cn(
+                "flex cursor-pointer items-start gap-2 px-3 py-2 text-left hover:bg-hover",
+                mark != null && "min-w-0 flex-1"
+            )}
+            data-testid="reviews-note-toggle"
+        >
+            <i
+                className={cn(
+                    "fa fa-solid fa-chevron-right mt-1 w-2.5 text-10 text-muted transition-transform duration-120 ease-mt",
+                    open && "rotate-90"
+                )}
+                aria-hidden
+            />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <span className="truncate text-13 leading-5 font-medium" data-testid="reviews-note-title">
+                    {note.title}
+                </span>
+                <span className="flex flex-wrap items-center gap-1.5 text-11 text-muted">
+                    <span>
+                        PR #{note.pr?.number}
+                        {note.pr?.title ? ` · ${note.pr.title}` : ""} ·{" "}
+                        {t("review.notes.keptWhen", { when: timeAgo(new Date(note.keptat).toISOString()) })}
+                    </span>
+                    {principles.map((p) => (
+                        <span key={p} className="rounded-4 bg-accent/10 px-1 text-10 text-accent">
+                            {p}
+                        </span>
+                    ))}
+                </span>
+            </div>
+        </button>
+    );
     return (
         <div
             role="listitem"
@@ -149,38 +250,15 @@ function NoteRow({
             data-testid="reviews-note"
             data-id={note.id}
         >
-            <button
-                type="button"
-                onClick={onToggle}
-                aria-expanded={open}
-                className="flex cursor-pointer items-start gap-2 px-3 py-2 text-left hover:bg-hover"
-                data-testid="reviews-note-toggle"
-            >
-                <i
-                    className={cn(
-                        "fa fa-solid fa-chevron-right mt-1 w-2.5 text-10 text-muted transition-transform duration-120 ease-mt",
-                        open && "rotate-90"
-                    )}
-                    aria-hidden
-                />
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="truncate text-13 leading-5 font-medium" data-testid="reviews-note-title">
-                        {note.title}
-                    </span>
-                    <span className="flex flex-wrap items-center gap-1.5 text-11 text-muted">
-                        <span>
-                            PR #{note.pr?.number}
-                            {note.pr?.title ? ` · ${note.pr.title}` : ""} ·{" "}
-                            {t("review.notes.keptWhen", { when: timeAgo(new Date(note.keptat).toISOString()) })}
-                        </span>
-                        {principles.map((p) => (
-                            <span key={p} className="rounded-4 bg-accent/10 px-1 text-10 text-accent">
-                                {p}
-                            </span>
-                        ))}
-                    </span>
+            {mark != null ? (
+                // The mark is a button of its own: it sits beside the row's button, never inside it.
+                <div className="flex items-start hover:bg-hover">
+                    {toggle}
+                    <div className="shrink-0 py-2 pr-3">{mark}</div>
                 </div>
-            </button>
+            ) : (
+                toggle
+            )}
             {open ? <NoteBody note={note} dir={dir} repo={repo} blockId={blockId} onNotes={onNotes} /> : null}
         </div>
     );

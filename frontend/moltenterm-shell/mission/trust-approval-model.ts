@@ -34,6 +34,22 @@ export function trustAskOf(entries: MoltentermNotification[], blockId: string): 
     return "";
 }
 
+// Every folder whose commands wait for the developer because a run was refused there, once each (#2314: All projects
+// says so on a line of its own at the top).
+export function trustAskDirs(entries: MoltentermNotification[]): string[] {
+    const rtn: string[] = [];
+    for (const entry of entries ?? []) {
+        if (entry.source !== TrustNotificationSource || entry.resolved != null) {
+            continue;
+        }
+        const dir = trustReviewAction(entry)?.args?.dir;
+        if (typeof dir === "string" && dir !== "" && !rtn.includes(dir)) {
+            rtn.push(dir);
+        }
+    }
+    return rtn;
+}
+
 // The review action of a trust notification, which clicking the notification itself runs too.
 export function trustReviewAction(entry: MoltentermNotification) {
     if (entry?.source !== TrustNotificationSource) {
