@@ -6,12 +6,13 @@
 // worktree locked by a session that ended, the PR's local copies and its review worktree; a card names what remains of each (worktree, agent session, branches) and Clean
 // up runs the cleanup after a merge (FR-REV-013) on those only. Kept apart from the components to be tested alone.
 
+import type { AgentStatesData } from "../agent-state-model";
 import type { TFunction } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
 import type { ReviewCleanupResult, ReviewCleanupStepId, ReviewCleanupStepResult } from "../review/review-cleanup";
-import { ownerReachable } from "./reviews-leftover-owner-model";
+import { LeftoverAsksAnswer, leftoverAway, ownerReachable } from "./reviews-leftover-owner-model";
 import type { ReviewsAnswer } from "./reviews-model";
-import type { AgentBarFacts, UpcomingAnswer, UpcomingLeftover } from "./reviews-upcoming-model";
+import { type AgentBarFacts, branchAgents, type UpcomingAnswer, type UpcomingLeftover } from "./reviews-upcoming-model";
 
 // The cleanup's steps a leftover needs: never the ticket, the local trunk or the other PRs, which belong to a merge.
 // Origin's branch goes last, once the agent worktree is gone: deleting it first makes the worktree's commits unpushed,
@@ -47,6 +48,34 @@ export function leftoverRows(upcoming: UpcomingAnswer, reviews: ReviewsAnswer): 
         withPr.add(pr.branch);
     }
     return upcoming.leftovers.filter((l) => !withPr.has(l.branch));
+}
+
+// What Clean up works on: the leftover, the project it belongs to and the agents on its branch.
+export type LeftoverTarget = { dir: string; repo: string; leftover: UpcomingLeftover; agents: AgentBarFacts[] };
+
+// leftoverTargets: the cards of one project's Leftovers group. Cleaned up since wavesrv's answer, a card is gone until
+// it answers again; a leftover whose owner was asked (#1143) is in the section of whose turn it is.
+export function leftoverTargets(args: {
+    dir: string;
+    reviews: ReviewsAnswer;
+    upcoming: UpcomingAnswer;
+    states: AgentStatesData;
+    cleanedAt: (leftover: UpcomingLeftover) => number;
+    asks: LeftoverAsksAnswer;
+}): LeftoverTarget[] {
+    const { dir, reviews, upcoming, states, cleanedAt, asks } = args;
+    const at = upcoming?.at ?? 0;
+    return leftoverRows(upcoming, reviews)
+        .filter((leftover) => {
+            const cleaned = cleanedAt(leftover);
+            return !(cleaned > 0 && at <= cleaned) && !leftoverAway(leftover, asks, at);
+        })
+        .map((leftover) => ({
+            dir,
+            repo: reviews?.repo,
+            leftover,
+            agents: branchAgents(upcoming, states, leftover.branch),
+        }));
 }
 
 // leftoverSteps: the cleanup's steps a leftover's facts need (#1121), origin's branch aside (LeftoverRemoteStep). The

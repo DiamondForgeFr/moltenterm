@@ -2,36 +2,55 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Pilotage across a workspace's projects (FR-SHELL-087): filter chips (All projects, Desktop, Mobile…) above the list.
-// All projects lists every project's open pull requests by whose turn it is, each with its project's tag; a row opens
+// All projects lists every project's open pull requests by whose turn it is, each with its project's mark; a row opens
 // its project's chip on that pull request, where the full Pilotage of that project (cards, merge queue, upcoming,
-// notes, merged) works as before. Under the lanes, each project as its own view shows it under its pull requests: none
-// open, Coming, Notes and Recently merged, empty texts included (#2280, #2291).
+// notes, merged) works as before. Under the lanes, one Upcoming, one Notes and one Recently merged hold the cards of
+// every project, each marked with its project (#2314); what is wrong with a project is one line at the top.
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AgentChain } from "../agent-chain-store";
 import { EmptyState } from "../empty-state";
 import { useT } from "../i18n/i18n";
-import { useWordPhrase } from "../i18n/phrase";
 import { useMissionSnapshot } from "../mission/mission-client";
+import { useTrustDirs } from "../mission/trust-approval";
+import { type ReviewNotes, useReviewNotes } from "../review/review-notes";
 import { ProjectChip } from "../sidebar/project-chips";
 import { projectLabel, projectRepoDir, WorkspaceProjectEntry } from "../sidebar/workspace-projects";
 import { DominoLoader } from "../suite/suite";
 import { openProjectSheet } from "../workspace-edit";
 import { useCardContext } from "./reviews-agent-bar";
-import { TurnTitleKeys } from "./reviews-card-model";
+import { AllSource, markOf, projectProblems, sourceOf } from "./reviews-all-model";
+import {
+    AllLane,
+    AllLaunchDialogs,
+    AllMergedSection,
+    AllNoneOpenLine,
+    AllNotesAsk,
+    AllNotesSection,
+    AllProblemLines,
+    AllUpcomingSection,
+    Marks,
+} from "./reviews-all-sections";
 import { useReviews } from "./reviews-client";
+import { LeftoverAsks, useLeftoverAsks } from "./reviews-leftover-asks";
 import { rebaseAskKey, ReviewsAnswer, reviewsEmptyState, splitReviews } from "./reviews-model";
-import { OthersWaitLine, OwnerChip, OwnersFilterHost } from "./reviews-owners";
+import { ReviewsFolds } from "./reviews-order-store";
+import { OthersWaitLine, OwnersFilterHost } from "./reviews-owners";
 import type { OwnersFilter } from "./reviews-owners-filter";
-import { inScope, ownerFacts, ownersOf, prOwner, ScopeNames, waitsForYou } from "./reviews-owners-model";
+import { inScope, ownersOf, prOwner, waitsForYou } from "./reviews-owners-model";
 import { useViewScope } from "./reviews-owners-store";
-import { NoneOpenLine, ProjectTail } from "./reviews-project-tail";
-import { AllProjects, projectLanes, ProjectPrRow, ReviewsProjectFilter } from "./reviews-projects-model";
+import {
+    AllProjects,
+    projectIdsOfFolders,
+    projectLanes,
+    ProjectPrRow,
+    ReviewsProjectFilter,
+} from "./reviews-projects-model";
 import { cardStates } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
+import { UpcomingAnswers, useUpcomingWatch } from "./reviews-upcoming-client";
 import { useProjectWaiting } from "./reviews-workspace";
 
 export function ProjectChips({
@@ -75,16 +94,21 @@ export function ProjectChips({
     );
 }
 
-// answer (#2280): the project's review answer, so All projects shows what its own view shows under its pull requests.
+// What a project's probe follows and reports to All projects: its pull requests as lanes, and the answers the
+// sections list (its review answer, its notes). The upcoming work and the leftover requests land in their own stores.
 type ProjectReport = {
     rows: ProjectPrRow[];
     loaded: boolean;
     note?: string;
     answer?: ReviewsAnswer;
+    notes?: ReviewNotes;
+    notesError?: string;
+    setNotes?: (notes: ReviewNotes) => void;
 };
 
 // One project's pull requests as Pilotage computes them (the same card states as its full list), told to the merged
-// list; it draws nothing itself.
+// list; it draws nothing itself. It also follows what the sections list for the project: its upcoming work, its notes
+// and the requests made to its leftovers' owners, so a hook per project runs here and not in the sections.
 function ProjectProbe({
     project,
     refreshKey,
@@ -101,6 +125,11 @@ function ProjectProbe({
     const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
     const asks = useAtomValue(ReviewsModel.getInstance().rebaseAsksAtom);
     const ctx = useCardContext(dir);
+    // Only a project whose pull requests were read has work coming, notes or leftovers to follow.
+    const read = answer?.state === "ok";
+    useUpcomingWatch(dir, answer);
+    useLeftoverAsks(read ? dir : "");
+    const { notes, error: notesError, set: setNotes } = useReviewNotes(read ? (answer.repo ?? "") : "");
     const listed = useMemo(() => {
         const split = splitReviews(answer, readied);
         return [...split.ready, ...split.drafts];
@@ -124,12 +153,10 @@ function ProjectProbe({
             card: cards[pr.number],
             owner: prOwner(pr, ctx.upcoming),
         }));
-        onReport(project.id, { rows, loaded: true, note: empty?.title, answer });
-    }, [answer, error, listed, cards, project.id, dir, ctx.upcoming]);
+        onReport(project.id, { rows, loaded: true, note: empty?.title, answer, notes, notesError, setNotes });
+    }, [answer, error, listed, cards, project.id, dir, ctx.upcoming, notes, notesError, setNotes]);
     return null;
 }
-
-const TurnTitle = TurnTitleKeys;
 
 export function AllProjectsList({
     workspace,
@@ -143,18 +170,26 @@ export function AllProjectsList({
     blockId: string;
 }) {
     const t = useT();
-    const word = useWordPhrase();
     const [reports, setReports] = useState<Record<string, ProjectReport>>({});
     const [refreshKey, setRefreshKey] = useState(0);
     const onReport = useCallback((id: string, report: ProjectReport) => {
         setReports((prev) => ({ ...prev, [id]: report }));
     }, []);
-    const linked = projects.filter((p) => p.dir !== "");
+    const linked = useMemo(() => projects.filter((p) => p.dir !== ""), [projects]);
     // The view's filter composes with the project chips (FR-REV-034): the agents of two projects in the view filter
-    // this list on both, and each row keeps its project tag. What it hides is counted, and what waits is signalled.
+    // this list on both, and each row keeps its project's mark. What it hides is counted, and what waits is signalled.
     const view = useViewScope();
     const edges = useAtomValue(AgentChain.getInstance().edgesAtom);
+    const upcomings = useAtomValue(UpcomingAnswers.getInstance().answersAtom);
+    const leftoverAsks = useAtomValue(LeftoverAsks.getInstance().asksAtom);
     const [revealed, setRevealed] = useState(false);
+    const [notesAsk, setNotesAsk] = useState<AllNotesAsk>(null);
+    // "Show notes" on a merged pull request filters the Notes right under it: open for now, as a project's own view does.
+    useEffect(() => {
+        if (notesAsk != null) {
+            ReviewsFolds.getInstance().openForNow("", "notes");
+        }
+    }, [notesAsk]);
     const allRows = useMemo(() => Object.values(reports).flatMap((r) => r.rows), [reports]);
     const hiddenRows = useMemo(
         () => allRows.filter((row) => !inScope(row.owner ?? "", view.names)),
@@ -180,15 +215,56 @@ export function AllProjectsList({
     );
     const lanes = projectLanes(projects, rowsByProject);
     const loading = linked.some((p) => !reports[p.id]?.loaded);
-    const notes = projects
-        .map((p) => ({ project: p, note: p.dir === "" ? t("reviews.projects.noFolder") : reports[p.id]?.note }))
-        .filter((n) => !!n.note);
-    const labels = new Map(projects.map((p) => [p.id, projectLabel(p)]));
+    const trustDirs = useTrustDirs();
+    const problems = useMemo(() => {
+        const trustOf: Record<string, string> = {};
+        for (const dir of trustDirs) {
+            const id = projectIdsOfFolders(projects, [dir])[0];
+            if (id != null && trustOf[id] == null) {
+                trustOf[id] = dir;
+            }
+        }
+        return projectProblems(
+            projects,
+            (id) => reports[id]?.note ?? "",
+            (id) => trustOf[id] ?? ""
+        );
+    }, [projects, reports, trustDirs]);
+    const place = !!workspace?.color;
+    const workspaceId = workspace?.oid;
+    const marks: Marks = useMemo(
+        () => ({
+            place,
+            onChoose: (id: string) => ReviewsProjectFilter.getInstance().choose(workspaceId, id),
+        }),
+        [place, workspaceId]
+    );
+    // The projects whose pull requests were read: the sections list their cards, and only theirs.
+    const sources: AllSource[] = useMemo(
+        () =>
+            linked
+                .filter((p) => reports[p.id]?.answer?.state === "ok")
+                .map((p) => {
+                    const report = reports[p.id];
+                    return sourceOf(p, {
+                        answer: report.answer,
+                        upcoming: upcomings[projectRepoDir(p)],
+                        notes: report.notes,
+                        notesError: report.notesError,
+                        setNotes: report.setNotes,
+                        asks: leftoverAsks[projectRepoDir(p)],
+                    });
+                }),
+        [linked, reports, upcomings, leftoverAsks]
+    );
+    const facts = (id: string) => {
+        const project = projects.find((p) => p.id === id);
+        return markOf({ project, answer: reports[id]?.answer }, place);
+    };
     const open = (row: ProjectPrRow) => {
         ReviewsProjectFilter.getInstance().set(workspace?.oid, row.projectId);
         globalStore.set(ReviewsModel.getInstance().focusAtom, { dir: row.dir, number: row.pr.number, at: Date.now() });
     };
-    const openProject = (id: string) => ReviewsProjectFilter.getInstance().set(workspace?.oid, id);
     return (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="reviews-all-projects">
             {linked.map((p) => (
@@ -218,143 +294,33 @@ export function AllProjectsList({
                     )}
                 </button>
             </div>
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-3">
+                <AllProblemLines problems={problems} marks={marks} />
                 {lanes.map((lane) => (
-                    <section
-                        key={lane.turn}
-                        className="flex flex-col gap-1.5"
-                        aria-label={t(TurnTitle[lane.turn])}
-                        data-testid={`reviews-all-lane-${lane.turn}`}
-                    >
-                        <h4
-                            className={cn(
-                                "m-0 text-11 font-semibold tracking-[0.08em] uppercase",
-                                lane.turn === "yours" ? "text-[var(--mt-state-waiting)]" : "text-muted"
-                            )}
-                        >
-                            {t(TurnTitle[lane.turn])} · {lane.rows.length}
-                        </h4>
-                        {lane.rows.map((row) => (
-                            <button
-                                key={`${row.projectId}:${row.pr.number}`}
-                                type="button"
-                                className="flex min-w-0 cursor-pointer items-center gap-2.5 rounded-6 border-0 bg-white/[0.04] px-3 py-2 text-left text-13 text-primary transition-colors duration-120 ease-mt hover:bg-white/[0.08]"
-                                title={t("reviews.projects.openTitle", {
-                                    project: labels.get(row.projectId),
-                                    number: row.pr.number,
-                                })}
-                                data-testid="reviews-all-row"
-                                data-project={row.projectId}
-                                data-pr={row.pr.number}
-                                onClick={() => open(row)}
-                            >
-                                <span className="shrink-0 font-mono text-12 text-muted">#{row.pr.number}</span>
-                                <span
-                                    className="shrink-0 rounded-full bg-white/[0.08] px-1.5 py-px text-11 whitespace-nowrap text-secondary"
-                                    data-testid="reviews-all-tag"
-                                >
-                                    {labels.get(row.projectId)}
-                                </span>
-                                <span className="min-w-0 truncate">{row.pr.title}</span>
-                                <OwnerChip owner={ownerFacts(row.owner ?? "", edges)} />
-                                {row.card != null ? (
-                                    <span className="ml-auto shrink-0 truncate pl-2 text-11 text-muted">
-                                        {word(row.card.sentence)}
-                                    </span>
-                                ) : null}
-                            </button>
-                        ))}
-                    </section>
+                    <AllLane key={lane.turn} lane={lane} facts={facts} marks={marks} edges={edges} onOpen={open} />
                 ))}
+                {lanes.length === 0 && !loading ? <AllNoneOpenLine hidden={hiddenRows.length > 0} /> : null}
                 <OthersWaitLine
                     local={hiddenWaiting.length}
                     revealed={revealed}
                     onToggle={() => setRevealed((v) => !v)}
                 />
-                {linked.map((p) => (
-                    <ProjectSectionsBlock
-                        key={p.id}
-                        project={p}
-                        answer={reports[p.id]?.answer}
-                        blockId={blockId}
-                        names={view.names}
-                        listed={rowsByProject[p.id]?.length ?? 0}
-                        hidden={(reports[p.id]?.rows.length ?? 0) > (rowsByProject[p.id]?.length ?? 0)}
-                        onOpen={() => openProject(p.id)}
-                    />
-                ))}
-                {notes.length > 0 ? (
-                    <ul className="m-0 flex list-none flex-col gap-1 p-0 text-11 text-muted">
-                        {notes.map((n) => (
-                            <li key={n.project.id}>
-                                <span className="text-secondary">{projectLabel(n.project)}</span> · {n.note}
-                            </li>
-                        ))}
-                    </ul>
+                {sources.length > 0 ? (
+                    <>
+                        <AllUpcomingSection sources={sources} names={view.names} marks={marks} />
+                        <AllNotesSection sources={sources} blockId={blockId} ask={notesAsk} marks={marks} />
+                        <AllMergedSection
+                            sources={sources}
+                            marks={marks}
+                            onShowNotes={(text, source) =>
+                                setNotesAsk({ filter: text, projectId: source.project.id, at: Date.now() })
+                            }
+                        />
+                    </>
                 ) : null}
+                <AllLaunchDialogs sources={sources} />
             </div>
         </div>
-    );
-}
-
-// One project in All projects (#2280, #2291): a header naming the project, its trunk and a link to its own view, then
-// what that view shows under its pull requests, empty texts included, drawn by the same components. The line above a
-// block separates it from what precedes it: the first one draws none, the list's header already has its line.
-export function ProjectSectionsBlock({
-    project,
-    answer,
-    blockId,
-    names,
-    listed,
-    hidden,
-    onOpen,
-}: {
-    project: WorkspaceProjectEntry;
-    answer: ReviewsAnswer;
-    blockId: string;
-    names: ScopeNames;
-    // The project's pull requests the lanes above show, and whether the view's filter hides others.
-    listed: number;
-    hidden: boolean;
-    onOpen: () => void;
-}) {
-    const t = useT();
-    if (answer?.state !== "ok") {
-        return null;
-    }
-    const label = projectLabel(project);
-    return (
-        <section
-            className="flex flex-col gap-4 border-t border-border pt-3 first:border-t-0 first:pt-0"
-            aria-label={label}
-            data-testid="reviews-all-project-sections"
-            data-project={project.id}
-        >
-            <div className="flex min-w-0 items-center gap-2">
-                <h4 className="m-0 min-w-0 truncate text-11 font-semibold tracking-[0.08em] text-muted uppercase">
-                    {label}
-                </h4>
-                {answer.target ? (
-                    <span
-                        className="shrink-0 text-11 text-muted"
-                        title={t("reviews.intoTitle", { target: answer.target, from: answer.targetfrom })}
-                    >
-                        {t("reviews.into")} <code>{answer.target}</code>
-                    </span>
-                ) : null}
-                <button
-                    type="button"
-                    onClick={onOpen}
-                    className="ml-auto shrink-0 cursor-pointer text-11 leading-4 font-normal text-accent hover:underline"
-                    title={t("reviews.projects.openProjectTitle", { project: label })}
-                    data-testid="reviews-all-project-open"
-                >
-                    {t("reviews.projects.openProject")}
-                </button>
-            </div>
-            {listed === 0 ? <NoneOpenLine target={answer.target} hidden={hidden} /> : null}
-            <ProjectTail dir={projectRepoDir(project)} answer={answer} blockId={blockId} names={names} />
-        </section>
     );
 }
 

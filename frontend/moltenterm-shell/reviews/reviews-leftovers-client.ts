@@ -27,10 +27,11 @@ import {
     leftoverKey,
     LeftoverRemoteStep,
     leftoverSteps,
+    LeftoverTarget,
     panelsClosable,
 } from "./reviews-leftovers-model";
 import { upcomingGet } from "./reviews-upcoming-client";
-import type { AgentBarFacts, UpcomingLeftover } from "./reviews-upcoming-model";
+import type { AgentBarFacts } from "./reviews-upcoming-model";
 
 // What a confirmation waits on: agents still at work on the branch (before anything runs), or the worktree wavesrv
 // kept (its loss and its panels).
@@ -49,8 +50,6 @@ export type LeftoverState = {
 
 // A forced ask wavesrv answers from its cache for this long (pkg/molten/mission/upcoming.go upcomingForcedInterval).
 const UpcomingForcedIntervalMs = 5500;
-
-type LeftoverTarget = { dir: string; repo: string; leftover: UpcomingLeftover; agents: AgentBarFacts[] };
 
 export class LeftoversModel {
     private static instance: LeftoversModel = null;

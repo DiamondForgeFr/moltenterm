@@ -280,11 +280,22 @@ export function upcomingEntries(
         }
         entries.push({ kind: "branch", key: item.branch.branch, item, waiting: itemWaits(item.agent) });
     }
-    const rank = (e: UpcomingEntry) => (e.waiting ? 0 : e.kind === "session" || e.item.agent != null ? 1 : 2);
     return entries
         .map((entry, i) => ({ entry, i }))
-        .sort((a, b) => rank(a.entry) - rank(b.entry) || a.i - b.i)
+        .sort((a, b) => upcomingEntryRank(a.entry) - upcomingEntryRank(b.entry) || a.i - b.i)
         .map((x) => x.entry);
+}
+
+// What comes first among the entries: those waiting for the developer, then those with an agent, then the others.
+export function upcomingEntryRank(entry: UpcomingEntry): number {
+    return entry.waiting ? 0 : entry.kind === "session" || entry.item.agent != null ? 1 : 2;
+}
+
+// The time of the entry's last commit, to put the most recent first among entries of the same rank (a session's is
+// its first branch's: wavesrv lists the branches by recency, and the session takes the place of its first one).
+export function upcomingEntryCommitAt(entry: UpcomingEntry): number {
+    const item = entry.kind === "session" ? entry.items[0] : entry.item;
+    return item?.branch.commitat ?? 0;
 }
 
 export function upcomingWaitingCount(entries: readonly UpcomingEntry[]): number {

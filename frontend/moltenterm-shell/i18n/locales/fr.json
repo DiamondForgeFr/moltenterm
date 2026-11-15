@@ -7649,10 +7649,15 @@
             "all": "Tous les projets",
             "count": "{count} projets",
             "openTitle": "Ouvrir #{number} dans le panneau Intégration de {project}",
-            "openProject": "Ouvrir",
-            "openProjectTitle": "Ouvrir le panneau Intégration de {project}",
+            "markTitle": "Afficher seulement {project}",
+            "markTitleInto": "Afficher seulement {project} · pull requests vers {target}",
+            "markInto": "vers {target}",
+            "noneOpen": "Aucune pull request ouverte dans vos projets.",
+            "mergedNone": "Aucune pull request fusionnée dans vos projets ces {days} derniers jours.",
             "noFolderTitle": "{project} n’a pas encore de dossier",
             "noFolder": "Donnez-lui un dossier pour suivre ses pull requests.",
+            "giveFolder": "Lui donner un dossier",
+            "trustTitle": "Un lancement a été refusé dans {project}",
             "waits": {
                 "one": "{count} pull request vous attend",
                 "other": "{count} pull requests vous attendent"

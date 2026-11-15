@@ -25,7 +25,7 @@ import { SectionHeading } from "./reviews-section-heading";
 import { MergedGroup, MergedGroupRows, mergedGroups, mergedTitle, mergedWho } from "./reviews-sections-model";
 
 // The merged history (#960) loads on its first opening: most views never open it.
-const MergedHistoryWindow = lazy(() =>
+export const MergedHistoryWindow = lazy(() =>
     import("./merged-history-window").then((m) => ({ default: m.MergedHistoryWindow }))
 );
 
@@ -149,7 +149,9 @@ function groupTitle(t: TFunction, group: MergedGroup): string {
     return t("reviews.merged.group.unknown");
 }
 
-function MergedGroupView({
+// A version's merged pull requests of one project. In All projects (#2314) the header carries the project's mark: the
+// version, the history it links to and the rows' actions all belong to that project.
+export function MergedGroupView({
     group,
     dir,
     trunk,
@@ -158,6 +160,7 @@ function MergedGroupView({
     onToggle,
     onShowNotes,
     onHistory,
+    mark,
 }: {
     group: MergedGroup;
     dir: string;
@@ -167,6 +170,7 @@ function MergedGroupView({
     onToggle: (number: number) => void;
     onShowNotes: (filter: string) => void;
     onHistory: () => void;
+    mark?: React.ReactNode;
 }) {
     const t = useT();
     const tCount = useTCount();
@@ -182,6 +186,7 @@ function MergedGroupView({
     return (
         <div role="group" aria-label={groupTitle(t, group)} data-testid="reviews-merged-group" data-group={group.key}>
             <div className="flex items-center gap-2 border-b border-border bg-black/10 px-3 py-1 text-11 leading-4">
+                {mark}
                 <b className="min-w-0 truncate font-semibold text-secondary">{groupTitle(t, group)}</b>
                 <span className="shrink-0 text-muted tabular-nums">{group.prs.length}</span>
                 <span className="flex-1" />

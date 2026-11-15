@@ -7649,10 +7649,15 @@
             "all": "All projects",
             "count": "{count} projects",
             "openTitle": "Open #{number} in {project}'s Integration panel",
-            "openProject": "Open",
-            "openProjectTitle": "Open {project}'s Integration panel",
+            "markTitle": "Show only {project}",
+            "markTitleInto": "Show only {project} · pull requests into {target}",
+            "markInto": "to {target}",
+            "noneOpen": "No open pull request in your projects.",
+            "mergedNone": "No pull request merged in your projects in the last {days} days.",
             "noFolderTitle": "{project} has no folder yet",
             "noFolder": "Give it a folder to follow its pull requests.",
+            "giveFolder": "Give it a folder",
+            "trustTitle": "A run was refused in {project}",
             "waits": {
                 "one": "{count} pull request waits for you",
                 "other": "{count} pull requests wait for you"
