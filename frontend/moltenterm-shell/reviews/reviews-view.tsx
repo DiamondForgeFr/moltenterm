@@ -20,7 +20,7 @@ import { AgentChain } from "../agent-chain-store";
 import { AgentStates } from "../agent-state-store";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useLocale, useT } from "../i18n/i18n";
-import { errorPhrase, Phrase, useWordPhrase } from "../i18n/phrase";
+import { errorPhrase, Phrase, phrase, useWordPhrase } from "../i18n/phrase";
 import { ActiveProject, MissionFrame, MissionHeader } from "../mission/mission-frame";
 import { MissionSnapshot } from "../mission/mission-model";
 import type { ReviewMergeMethod } from "../review/review-client";
@@ -39,6 +39,7 @@ import {
     batchRowMark,
     batchShown,
     batchStartRequest,
+    groupMergeRunning,
     queueItem,
     queueOrder,
 } from "./reviews-batch-model";
@@ -101,8 +102,8 @@ import {
     mergeQueue,
     queueCanMerge,
     queueChoice,
+    queueOrderShown,
     queueRanks,
-    queueShown,
     queueWait,
     queueWhy,
     shownNumbersOf,
@@ -447,13 +448,16 @@ function ReviewsList({
     );
     // The number each card shows (#1108), merged PRs included for the banner of the running merge queue.
     const shownIds = useMemo(() => shownNumbersOf(answer.merged ?? [], listed), [answer.merged, listed]);
-    const shown = forecastReq != null && queueShown(queue);
-    // A rank only with an order to follow (#1211): two PRs at least the developer can merge now.
-    const ranks = useMemo(() => (shown ? queueRanks(queue) : {}), [queue, shown]);
     // The batch merge (FR-REV-025): the queue's steps in its order, the confirmation modal, and the merge queue they
     // join (FR-REV-026), which wavesrv publishes. Its banner sits in "In progress" (#1123, #1876), shown even with no card.
     const batchRun = useBatchRun(dir, answer.target);
     const batchVisible = batchShown(batchRun);
+    // While a group merge runs its progress is the banner's and the order is not shown (#2318), by any panel of the
+    // project: the run is wavesrv's.
+    const groupRunning = groupMergeRunning(batchRun);
+    const shown = forecastReq != null && queueOrderShown(queue, batchRun);
+    // A rank only with an order to follow (#1211): two PRs at least the developer can merge now.
+    const ranks = useMemo(() => (shown ? queueRanks(queue) : {}), [queue, shown]);
     // Hidden once ended, the queue keeps a pointer there while its agent's session is open (#1128).
     const batchPointer = batchPointerShown(batchRun, ctx.states);
     // Leftovers whose owner was asked (#1143) join the section of whose turn it is, after its PRs.
@@ -555,6 +559,11 @@ function ReviewsList({
     const queueFree = queuePrs.some((pr) => !takenByQueue(pr.number));
     const check = useCheckAgents(dir, answer.repo, listed);
     const startBatch = async (method: ReviewMergeMethod): Promise<Phrase> => {
+        // Another panel of the project may have started one while this confirmation was open (#2318): said here, and
+        // refused by wavesrv in any case.
+        if (groupRunning) {
+            return phrase("reviews.batch.groupRunning", { base: answer.target });
+        }
         const workspaceId = globalStore.get(atoms.workspace)?.oid;
         try {
             const order = queueOrder(

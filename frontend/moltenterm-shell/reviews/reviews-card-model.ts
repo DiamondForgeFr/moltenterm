@@ -11,7 +11,7 @@
 import { getLocale } from "../i18n/i18n";
 import { phrase, type Phrase } from "../i18n/phrase";
 import { batchStatePhrase } from "./reviews-batch-agent";
-import type { BatchItem, BatchRun } from "./reviews-batch-model";
+import type { BatchItem, BatchRun, GroupHold } from "./reviews-batch-model";
 import { blockedReasons, checkNames, checksOf, LeadFacts, ReviewDependency, ReviewPr } from "./reviews-model";
 import { cardStatus, type CardStatus } from "./reviews-status-model";
 import type { PrTask, PrTaskState } from "./reviews-task-model";
@@ -163,6 +163,8 @@ export type CardInput = {
     now?: number;
     // The merge queue stopped on the PR and says what to do about it (#1871, batchStopHelp): the developer's move.
     batchStopped?: boolean;
+    // What a running group merge holds of the PR (#2318, groupHoldOf): its Validate waits for the run.
+    groupHold?: GroupHold;
 };
 
 // openWaits (#1841): what a PR waits on that is still open, as wavesrv last read it.
@@ -311,6 +313,15 @@ export function validateRefusal(pr: ReviewPr): Phrase {
         return phrase("reviews.merge.blockedWhy", { reasons: blockedReasons(pr).join("; ") });
     }
     return null;
+}
+
+// groupHoldRefusal (#2318): why Validate waits while a group merge runs: the PR is one of the run's, or it goes into the
+// run's base. GitHub's own refusal comes first.
+export function groupHoldRefusal(pr: ReviewPr, hold: GroupHold): Phrase {
+    if (hold == null) {
+        return null;
+    }
+    return phrase(hold === "in" ? "reviews.validate.inGroup" : "reviews.validate.groupRunning", { base: pr.base });
 }
 
 function ciPending(pr: ReviewPr): boolean {
@@ -508,7 +519,7 @@ function mergeAction(input: CardInput, working: AgentBarFacts): CardAction {
             confirm: notes.length > 0 ? { join: notes, sep: " " } : undefined,
         };
     }
-    const refused = validateRefusal(pr);
+    const refused = validateRefusal(pr) ?? groupHoldRefusal(pr, input.groupHold);
     if (refused != null) {
         return { id: "validate", label: phrase("reviews.validate.button"), disabled: refused };
     }

@@ -13,7 +13,14 @@ import { DialogFrame } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { useBatchRun } from "../reviews/reviews-batch-client";
-import { BatchItem, batchRowMark, batchStepText, canWithdraw, queueItem } from "../reviews/reviews-batch-model";
+import {
+    BatchItem,
+    batchRowMark,
+    batchStepText,
+    canWithdraw,
+    groupHoldOf,
+    queueItem,
+} from "../reviews/reviews-batch-model";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { DominoLoader } from "../suite/suite";
 import { MergeMethodPicker } from "./merge-method-picker";
@@ -88,8 +95,14 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
     const baseref = plan?.baseref ?? pr.baseref;
     const method = chosenMethod(plan, v.method);
     const queued = record == null ? queueItem(queueRun, pr.number) : null;
+    // A group merge that runs into this base holds the merge of every other PR of it (#2318, FR-REV-026 AC15).
+    const held = record == null && queued == null ? groupHoldOf(queueRun, pr.number) : null;
     const enabled =
-        canClickMerge(plan, v.override, state?.merge) && record == null && v.clicked == null && queued == null;
+        canClickMerge(plan, v.override, state?.merge) &&
+        record == null &&
+        v.clicked == null &&
+        queued == null &&
+        held == null;
     const disabledReason = mergeDisabledReason(plan, v.override, state?.merge);
     const waitingText = mergeWaitingText(plan, state?.merge);
     const cleanup: ReviewCleanupResult = record != null ? mergeCleanup(record, state?.cleanup) : null;
@@ -199,6 +212,12 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                             })}
                         </span>{" "}
                         {batchStepText(queueRun, queued)}
+                    </div>
+                ) : held != null ? (
+                    <div className="text-secondary" data-testid="validate-group-held">
+                        {t(held === "in" ? "reviews.validate.inGroup" : "reviews.validate.groupRunning", {
+                            base: baseref,
+                        })}
                     </div>
                 ) : record == null && queuesOnClick(plan) ? (
                     <div className="text-secondary" data-testid="validate-whengreen">
