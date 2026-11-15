@@ -9,7 +9,7 @@ import en from "../i18n/locales/en.json";
 import { MoltentermNotification, NotificationKeyPrefix } from "../notifications-model";
 import { AgentBar } from "../reviews/reviews-agent-bar";
 import { TrustPrompt } from "./runs-view";
-import { trustAskOf, trustReviewAction, TrustReviewGesture } from "./trust-approval-model";
+import { trustAskDirs, trustAskOf, trustReviewAction, TrustReviewGesture } from "./trust-approval-model";
 
 function trustEntry(over: Partial<MoltentermNotification> = {}): MoltentermNotification {
     return {
@@ -71,6 +71,24 @@ describe("trust approval (#1017)", () => {
         expect(trustAskOf([trustEntry({ resolved: 10 })], "b1")).toBe("");
         expect(trustAskOf([trustEntry({ source: "ci" })], "b1")).toBe("");
         expect(trustAskOf([trustEntry()], "")).toBe("");
+    });
+
+    it("lists every folder whose commands wait, once each, while the question is open (#2314)", () => {
+        const other = trustEntry({
+            id: "n3",
+            actions: [
+                {
+                    id: "review",
+                    label: "Review the commands",
+                    kind: "gesture",
+                    gesture: TrustReviewGesture,
+                    args: { dir: "/p/Other", blockids: ["b7"] },
+                },
+            ],
+        });
+        expect(trustAskDirs([trustEntry(), other, trustEntry({ id: "n4" })])).toEqual(["/p/App", "/p/Other"]);
+        expect(trustAskDirs([trustEntry({ resolved: 10 }), trustEntry({ source: "ci" })])).toEqual([]);
+        expect(trustAskDirs(null)).toEqual([]);
     });
 
     it("opens the sheet from the notification itself, and only for a trust notification", () => {
