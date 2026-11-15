@@ -9,6 +9,7 @@ import { agentRow, agentRowByCommand, type FeatureMatrix } from "../agent-info/a
 import { agentWorks, pickerSummary } from "../agent-info/agent-works-model";
 import { AiIcon } from "../ai-icon";
 import { addressUrl, looksLikeAddress, typedBlockDef } from "../browser/browser-model";
+import { searchEngineInfo, searchUrl } from "../browser/search-engine-model";
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
 import { getLocale, t } from "../i18n/i18n";
 import { FallbackLanguage, languageText } from "../i18n/i18n-core";
@@ -27,6 +28,7 @@ import {
     PaletteGroupId,
     PickerGroupOrder,
     shortestSelectingPrefix,
+    WebSearchEntryId,
 } from "./palette-model";
 
 // Agent presets live with Wave's presets, under their own prefix: defaults in pkg/wconfig/defaultconfig/presets/
@@ -72,7 +74,8 @@ const PanelNameKeys: Record<string, string> = {
 };
 
 // "Open <address>" when the typed text is an address (#1229): a web page panel on it, read as the top field reads it.
-export function addressEntry(query: string): PaletteEntry {
+// The chooser lists it in its "web" group (#2312), the other palettes among the panels.
+export function addressEntry(query: string, group: PaletteGroupId = "panels"): PaletteEntry {
     const text = (query ?? "").trim();
     if (!looksLikeAddress(text)) {
         return null;
@@ -83,10 +86,29 @@ export function addressEntry(query: string): PaletteEntry {
     }
     return {
         id: AddressEntryId,
-        group: "panels",
+        group,
         label: t("palette.openAddress", { address: text }),
         icon: "globe",
         run: { kind: "widget", blockdef: typedBlockDef(url) },
+    };
+}
+
+// "Search the web for <words>" (#2312): the chooser's way forward for words that are not an address, a web page panel on
+// the engine's results. The engine is the web:defaultsearch setting's, the one every place that searches uses.
+export function webSearchEntry(query: string, template: string): PaletteEntry {
+    const words = (query ?? "").trim();
+    if (words === "" || looksLikeAddress(words)) {
+        return null;
+    }
+    const engine = searchEngineInfo(template);
+    return {
+        id: WebSearchEntryId,
+        group: "web",
+        label: t("palette.webSearch", { query: words }),
+        detail: t("palette.webSearchWith", { engine: engine.name }),
+        icon: "magnifying-glass",
+        mark: engine.letter,
+        run: { kind: "widget", blockdef: typedBlockDef(searchUrl(words, template)) },
     };
 }
 
