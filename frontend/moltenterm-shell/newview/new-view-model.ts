@@ -5,8 +5,23 @@
 // on top, or one type directly when the developer chose so. The rules (which choices exist, the favourites, what a new
 // view starts with, the keys of the chooser) as pure functions, tested without the app; new-view.ts carries them out.
 
-import { fillsPanel, PaletteEntry, PaletteKey, PaletteRun } from "../palette/palette-model";
-import { actionEntries, agentEntries, InstalledAgent, pickerPanelEntries } from "../palette/palette-sources";
+import {
+    fillsPanel,
+    hasVisibleMatch,
+    PaletteEntry,
+    PaletteGroupId,
+    PaletteKey,
+    PaletteRun,
+    webGroupOrder,
+} from "../palette/palette-model";
+import {
+    actionEntries,
+    addressEntry,
+    agentEntries,
+    InstalledAgent,
+    pickerPanelEntries,
+    webSearchEntry,
+} from "../palette/palette-sources";
 import { suggestionPanels, ViewSuggestions } from "../workspace-views/view-suggestions";
 
 export const NewViewOpenKey = "app:newviewopen";
@@ -173,6 +188,43 @@ export function resolveDirect(setting: unknown, choices: PaletteEntry[]): Palett
     }
     const id = currentChoiceId(setting.trim());
     return (choices ?? []).find((c) => c.id === id) ?? null;
+}
+
+export type ChooserListing = {
+    // The entries the chooser filters: its list, then the typed words' web row, or the address row first.
+    listed: PaletteEntry[];
+    order: PaletteGroupId[];
+    // The web row sits first (and is selected): an address, or nothing found through what a row shows (#2312).
+    webFirst: boolean;
+    address: boolean;
+};
+
+// What the chooser lists for what was typed (#2312): text that is an address offers "Open <address>", any other words
+// "Search the web for <words>". The web row ends the list while a result is found through its label or the text shown
+// beside it; when none is, it comes first, and the results found only through a search word or scattered letters stay
+// below it.
+export function chooserListing(
+    base: PaletteEntry[],
+    query: string,
+    searchTemplate: string,
+    baseOrder: PaletteGroupId[]
+): ChooserListing {
+    const typed = (query ?? "").trim() !== "";
+    const address = addressEntry(query, "web");
+    const search = address == null ? webSearchEntry(query, searchTemplate) : null;
+    const listed = address != null ? [address, ...base] : search != null ? [...base, search] : base;
+    const webFirst = typed && (address != null || !hasVisibleMatch(base, query));
+    return { listed, order: webGroupOrder(baseOrder, webFirst), webFirst, address: address != null };
+}
+
+// The favourite shown as the target while the selected row of the list is a web row (#2312): an address to open or words
+// to search both open a web page panel, so the Web page favourite is selected the way the arrows would select it; -1
+// when the row is another or the favourites do not hold it.
+export function webTargetFavorite(favorites: PaletteEntry[], selected: PaletteEntry): number {
+    if (selected?.group !== "web") {
+        return -1;
+    }
+    return (favorites ?? []).findIndex((e) => e.id === WebPageChoiceId);
 }
 
 export const ChooserBlockDef: BlockDef = { meta: { view: "launcher", [NewViewMetaKey]: true } as MetaType };

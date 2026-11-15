@@ -6,7 +6,7 @@
 // Matching reuses the command palette's fuzzy matcher; command-panel.tsx only renders.
 
 import { labelled, t } from "../i18n/i18n";
-import { fuzzyMatch, moveSelection, PaletteKey, paletteKeyCommand } from "../palette/palette-model";
+import { moveSelection, PaletteKey, paletteKeyCommand, strictMatch } from "../palette/palette-model";
 import {
     PanelChoice,
     PanelChoiceOption,
@@ -69,42 +69,13 @@ export function isSelectableRow(row: PanelRow): boolean {
     return row.item.type !== "info" && !row.item.disabled;
 }
 
-function isWordStart(text: string, index: number): boolean {
-    if (index === 0) {
-        return true;
-    }
-    const prev = text[index - 1];
-    const cur = text[index];
-    if (/[\s\-_./\\:@()›]/.test(prev)) {
-        return true;
-    }
-    return prev === prev.toLowerCase() && cur !== cur.toLowerCase();
-}
-
-// Stricter than the palette: the panel holds dozens of short labels, where a loose subsequence ("font" in "Force
-// restart controller") is noise. A match counts when the query is a substring of the text, or when every run of
-// matched characters starts a word ("fs" → "Font size", "cc" → "Claude Code").
+// Stricter than the palette's loose match: the panel holds dozens of short labels, where a loose subsequence ("font" in
+// "Force restart controller") is noise. A match counts when the query is a substring of the text, or when every run of
+// matched characters starts a word ("fs" → "Font size", "cc" → "Claude Code"). The rule is the palette's strictMatch,
+// which the chooser (#2312) ranks by too.
 export function panelMatch(query: string, text: string): { score: number; indices: number[] } {
-    const q = (query ?? "").trim().toLowerCase();
-    if (q === "" || !text) {
-        return null;
-    }
-    const m = fuzzyMatch(q, text);
-    if (m == null) {
-        return null;
-    }
-    const at = text.toLowerCase().indexOf(q);
-    if (at >= 0) {
-        const indices = Array.from({ length: q.length }, (_, i) => at + i).filter((i) => text[i] !== " ");
-        return { score: Math.max(m.score, q.length * 2 + (at === 0 ? 8 : 0)), indices };
-    }
-    for (let i = 0; i < m.indices.length; i++) {
-        const runStart = i === 0 || m.indices[i] !== m.indices[i - 1] + 1;
-        if (runStart && !isWordStart(text, m.indices[i])) {
-            return null;
-        }
-    }
-    return m;
+    const m = strictMatch(query, text);
+    return m == null ? null : { score: m.score, indices: m.indices };
 }
 
 const SecondaryWeight = 0.5;

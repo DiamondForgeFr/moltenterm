@@ -11,7 +11,9 @@ import type { WorkspaceIconSource } from "../workspace-icon-model";
 
 // "panel": the focused panel's command panel items (FR-SHELL-047), listed only while a query is typed. "suggestions":
 // the ready-made combinations a new view's chooser offers above its list (FR-SHELL-138); no other list holds them.
-export type PaletteGroupId = "suggestions" | "agents" | "panels" | "folders" | "actions" | "panel";
+// "web": what the typed words do on the web (#2312): the chooser's "Search the web" row and its address row, which sit
+// first or last in the chooser's order (webGroupOrder), never in the others'.
+export type PaletteGroupId = "suggestions" | "agents" | "panels" | "folders" | "actions" | "panel" | "web";
 
 export const PaletteGroupOrder: PaletteGroupId[] = ["suggestions", "agents", "panels", "folders", "actions", "panel"];
 
@@ -93,17 +95,21 @@ export type PaletteEntry = {
     shortcut?: string;
     // A suggestion's panels, their icons shown before its detail (FR-SHELL-138); a 360 carpet is a cube (#1823).
     panelIcons?: GlyphIcon[];
+    // Letters on a tile in place of the icon: the search engine's mark (#2312), which needs no network call.
+    mark?: string;
     run: PaletteRun;
 };
 
 // The "Open <address>" row (#1229): typed text that is an address; it is not filtered and always ranks first.
 export const AddressEntryId = "address:open";
+// The chooser's "Search the web for <words>" row (#2312): not filtered, never selected over a visible match.
+export const WebSearchEntryId = "web:search";
 
 export type PaletteSection = { group: PaletteGroupId; title: string; entries: PaletteEntry[] };
 
 export type PaletteMatch = { score: number; indices: number[] };
 
-const WordSeparators = /[\s\-_./\\:@()]/;
+const WordSeparators = /[\s\-_./\\:@()›]/;
 const ScoreChar = 1;
 const ScoreConsecutive = 4;
 const ScoreWordStart = 3;
@@ -190,23 +196,116 @@ export function fuzzyMatch(query: string, text: string): PaletteMatch {
     return { score, indices };
 }
 
-// The best match of an entry: its label first, then its secondary texts at a lower weight. indices always refer to
-// the label (empty when only a secondary text matched).
-export function matchEntry(query: string, entry: PaletteEntry): PaletteMatch {
-    const label = fuzzyMatch(query, entry.label);
-    let best: PaletteMatch = label;
-    const secondary = [entry.detail, entry.cli, ...(entry.keywords ?? [])].filter((s) => s);
-    for (const text of secondary) {
-        const m = fuzzyMatch(query, text);
-        if (m == null) {
-            continue;
+// Stricter than fuzzyMatch (#2312): a loose subsequence ("font" in "Force restart controller") is noise, so a match
+// counts when the query is a substring of the text, or when every run of matched characters starts a word ("fs" →
+// "Font size", "cc" → "Claude Code"). contiguous says which of the two it was. The command panel's panelMatch is this.
+export function strictMatch(query: string, text: string): PaletteMatch & { contiguous: boolean } {
+    const q = foldChars((query ?? "").trim());
+    if (q === "" || !text) {
+        return null;
+    }
+    const m = fuzzyMatch(q, text);
+    if (m == null) {
+        return null;
+    }
+    const at = foldChars(text).indexOf(q);
+    if (at >= 0) {
+        const indices = Array.from({ length: q.length }, (_, i) => at + i).filter((i) => text[i] !== " ");
+        return { score: Math.max(m.score, q.length * 2 + (at === 0 ? 8 : 0)), indices, contiguous: true };
+    }
+    for (let i = 0; i < m.indices.length; i++) {
+        const runStart = i === 0 || m.indices[i] !== m.indices[i - 1] + 1;
+        if (runStart && !isWordStart(text, m.indices[i])) {
+            return null;
         }
-        const weighted = m.score * SecondaryWeight;
-        if (best == null || weighted > best.score) {
-            best = { score: weighted, indices: label?.indices ?? [] };
+    }
+    return { ...m, contiguous: false };
+}
+
+// Where the typed letters were found in an entry, best first (#2312): "label" a contiguous match of its label, "word"
+// the letters starting words of the label, "detail" the same in the text shown beside it (its detail, its command
+// line), "keyword" a search word the screen does not show, "loose" scattered letters, ranked last.
+export type MatchKind = "label" | "word" | "detail" | "keyword" | "loose";
+
+// What a match shows: the kinds the developer can see on the row. A "keyword" or "loose" match is not a reason to select
+// the result over a web search (the chooser), since nothing on screen says why it matches.
+export function isVisibleMatch(kind: MatchKind): boolean {
+    return kind === "label" || kind === "word" || kind === "detail";
+}
+
+export type EntryMatch = PaletteMatch & {
+    kind: MatchKind;
+    // The highlights of the detail shown beside the label, when it matched.
+    detailIndices?: number[];
+    // The search word that found an entry the screen does not otherwise explain, with its matched letters.
+    keyword?: string;
+    keywordIndices?: number[];
+};
+
+// A tier outranks every score of the next one: scores of one text stay under 1000.
+const KindBase: Record<MatchKind, number> = { label: 4000, word: 3000, detail: 2000, keyword: 1000, loose: 0 };
+
+function bestStrict(query: string, texts: string[]): { text: string; match: ReturnType<typeof strictMatch> } {
+    let best: { text: string; match: ReturnType<typeof strictMatch> } = null;
+    for (const text of texts) {
+        const match = strictMatch(query, text);
+        if (match != null && (best == null || match.score > best.match.score)) {
+            best = { text, match };
         }
     }
     return best;
+}
+
+// The best match of an entry, with where it was found. indices always refer to the label (empty when it did not match
+// by itself). Null when the query is not even a subsequence of any of its texts.
+export function entryMatch(query: string, entry: PaletteEntry): EntryMatch {
+    if ((query ?? "").trim() === "") {
+        return { score: 0, indices: [], kind: "label" };
+    }
+    const label = strictMatch(query, entry.label);
+    if (label != null) {
+        const kind: MatchKind = label.contiguous ? "label" : "word";
+        return { score: KindBase[kind] + label.score, indices: label.indices, kind };
+    }
+    const detail = strictMatch(query, entry.detail);
+    if (detail != null) {
+        return { score: KindBase.detail + detail.score, indices: [], kind: "detail", detailIndices: detail.indices };
+    }
+    // The command line shows at the right of the row, unless the entry has a key path in its place (a split's picker).
+    const cli = entry.keyPath ? null : strictMatch(query, entry.cli);
+    if (cli != null) {
+        return { score: KindBase.detail + cli.score, indices: [], kind: "detail" };
+    }
+    const words = bestStrict(
+        query,
+        [...(entry.keyPath ? [entry.cli] : []), ...(entry.keywords ?? [])].filter((s) => s)
+    );
+    if (words != null) {
+        const shown = (entry.keywords ?? []).includes(words.text);
+        return {
+            score: KindBase.keyword + words.match.score,
+            indices: [],
+            kind: "keyword",
+            keyword: shown ? words.text : undefined,
+            keywordIndices: shown ? words.match.indices : undefined,
+        };
+    }
+    const loose = fuzzyMatch(query, entry.label);
+    let best: EntryMatch = loose != null ? { score: loose.score, indices: loose.indices, kind: "loose" } : null;
+    for (const text of [entry.detail, entry.cli, ...(entry.keywords ?? [])].filter((s) => s)) {
+        const m = fuzzyMatch(query, text);
+        const weighted = m != null ? m.score * SecondaryWeight : null;
+        if (weighted != null && (best == null || weighted > best.score)) {
+            best = { score: weighted, indices: loose?.indices ?? [], kind: "loose" };
+        }
+    }
+    return best;
+}
+
+// The entry's match as the ranking sees it: its score and the highlights of its label.
+export function matchEntry(query: string, entry: PaletteEntry): PaletteMatch {
+    const m = entryMatch(query, entry);
+    return m == null ? null : { score: m.score, indices: m.indices };
 }
 
 // Groups keep a fixed order (agents, panels, folders, workspace) so the list does not jump while typing; inside a
@@ -229,7 +328,10 @@ export function filterPalette(
                 .map((entry, order) => ({
                     entry,
                     order,
-                    match: entry.id === AddressEntryId ? { score: Infinity, indices: [] } : matchEntry(q, entry),
+                    match:
+                        entry.id === AddressEntryId || entry.group === "web"
+                            ? { score: Infinity, indices: [] }
+                            : matchEntry(q, entry),
                 }))
                 .filter((r) => r.match != null)
                 .sort(
@@ -240,13 +342,36 @@ export function filterPalette(
                 .map((r) => r.entry);
         }
         if (kept.length > 0) {
-            sections.push({ group, title: titles[group] ?? t(DefaultGroupTitleKeys[group]), entries: kept });
+            const key = DefaultGroupTitleKeys[group];
+            sections.push({ group, title: titles[group] ?? (key != null ? t(key) : ""), entries: kept });
         }
     }
     return sections;
 }
 
-export const DefaultGroupTitleKeys: Record<PaletteGroupId, string> = {
+// The chooser's order with its web rows (#2312) first, when nothing matches the typed letters visibly or the text is an
+// address, or last, below the results that do.
+export function webGroupOrder(order: PaletteGroupId[], first: boolean): PaletteGroupId[] {
+    const rest = order.filter((g) => g !== "web");
+    return first ? ["web", ...rest] : [...rest, "web"];
+}
+
+// Whether any entry is found through what its row shows (#2312): its label, or the text beside it. The web rows are not
+// results, and a search word or scattered letters, which nothing on screen explains, are not a reason to choose one.
+export function hasVisibleMatch(entries: PaletteEntry[], query: string): boolean {
+    if ((query ?? "").trim() === "") {
+        return false;
+    }
+    return (entries ?? []).some((e) => {
+        if (e.group === "web" || e.id === AddressEntryId) {
+            return false;
+        }
+        const m = entryMatch(query, e);
+        return m != null && isVisibleMatch(m.kind);
+    });
+}
+
+export const DefaultGroupTitleKeys: Partial<Record<PaletteGroupId, string>> = {
     suggestions: "palette.groups.suggestions",
     agents: "palette.groups.agents",
     panels: "palette.groups.panels",
@@ -275,13 +400,24 @@ export function bestMatchIndex(sections: PaletteSection[], query: string): numbe
     }
     let best = 0;
     let bestScore = -Infinity;
+    let bestKind: MatchKind = null;
     flat.forEach((entry, i) => {
-        const score = matchEntry(query, entry)?.score ?? -Infinity;
+        if (entry.group === "web") {
+            return;
+        }
+        const m = entryMatch(query, entry);
+        const score = m?.score ?? -Infinity;
         if (score > bestScore) {
             best = i;
             bestScore = score;
+            bestKind = m?.kind ?? null;
         }
     });
+    // The words are a web search (#2312) unless a result is found through what its row shows.
+    const search = flat.findIndex((entry) => entry.id === WebSearchEntryId);
+    if (search >= 0 && (bestKind == null || !isVisibleMatch(bestKind))) {
+        return search;
+    }
     return best;
 }
 

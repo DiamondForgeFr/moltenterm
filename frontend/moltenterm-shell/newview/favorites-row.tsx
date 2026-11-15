@@ -15,11 +15,14 @@ type FavoritesRowProps = {
     keys: string[];
     // -1: the selection is in the list below.
     selected: number;
+    // The favourite the selected row of the list opens (#2312): the Web page one while the web row is selected. It shows
+    // as selected, since Enter opens that kind of panel.
+    target?: number;
     onHover: (index: number) => void;
     onOpen: (entry: PaletteEntry) => void;
 };
 
-export function FavoritesRow({ favorites, keys, selected, onHover, onOpen }: FavoritesRowProps) {
+export function FavoritesRow({ favorites, keys, selected, target = -1, onHover, onOpen }: FavoritesRowProps) {
     const t = useT();
     if (!favorites?.length) {
         return null;
@@ -33,7 +36,7 @@ export function FavoritesRow({ favorites, keys, selected, onHover, onOpen }: Fav
             style={{ gridTemplateColumns: `repeat(${favorites.length}, minmax(0, 1fr))` }}
         >
             {favorites.map((entry, i) => {
-                const on = i === selected;
+                const on = i === selected || i === target;
                 return (
                     <div
                         key={entry.id}
@@ -41,6 +44,7 @@ export function FavoritesRow({ favorites, keys, selected, onHover, onOpen }: Fav
                         aria-selected={on}
                         data-testid="new-view-favorite"
                         data-favorite={entry.id}
+                        data-target={i === target ? "" : undefined}
                         data-mt-shortcut={keys[i] ? "new-view-favorite" : undefined}
                         data-mt-shortcut-n={keys[i] ? i + 1 : undefined}
                         onMouseMove={() => onHover(i)}
