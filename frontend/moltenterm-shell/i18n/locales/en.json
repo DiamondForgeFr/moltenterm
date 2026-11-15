@@ -7902,6 +7902,9 @@
             "cancel": "Stop",
             "cancelling": "Cancelling…",
             "cancelTitle": "Cancel every validation not being merged; nothing more is merged",
+            "cancelGroup": "Cancel the merge",
+            "cancelGroupTitle": "Stops after the step under way: a merge or a push already started finishes, and nothing more is merged",
+            "groupRunning": "A group merge already runs into {base}: it cannot be started a second time. Wait for it to end, or cancel it.",
             "dismiss": "Hide",
             "kept": {
                 "changes": "The agent's copy has uncommitted files: it is kept.",
@@ -8294,7 +8297,9 @@
             "title": "Rebase and merge: opens the Validate sheet with the plan",
             "draft": "Draft: mark it ready for review first.",
             "conflicts": "Conflicts with {base}: ask for a rebase first.",
-            "blocked": "GitHub blocks the merge: a required check or review is missing."
+            "blocked": "GitHub blocks the merge: a required check or review is missing.",
+            "inGroup": "In the group merge that runs into {base}: it merges in its turn. Cancel the merge to take it back.",
+            "groupRunning": "A group merge runs into {base}: validate this one once it ends, or cancel the merge."
         },
         "rebase": {
             "button": "Ask for a rebase",
@@ -9925,6 +9930,7 @@
             "batchempty": "Select the pull requests to merge first.",
             "batchmethod": "This merge method is no longer allowed on this repository: pick another one.",
             "batchrunning": "The merge queue of this project is being cancelled; try again in a moment.",
+            "batchgroup": "A group merge already runs into {base}: it cannot be started a second time. Wait for it to end, or cancel it.",
             "batchgone": "This merge queue no longer runs.",
             "batchnotstopped": "The batch merge is not waiting for a decision.",
             "basemissing": "The base branch {branch} was not found in the project or on origin.",

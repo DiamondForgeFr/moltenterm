@@ -332,6 +332,10 @@ type fakeBatchAgent struct {
 	ambiguous map[int]bool
 	// failStarts: how many starts open a terminal where the agent does not start.
 	failStarts int
+	// hold, set before the run starts: the agent stops at the start of each brief until hold is closed, after saying so
+	// on holding (#2318: a Cancel asked while the agent works).
+	hold    chan struct{}
+	holding chan struct{}
 
 	lock    sync.Mutex
 	state   string
@@ -358,6 +362,13 @@ func (a *fakeBatchAgent) setState(state string) {
 func (a *fakeBatchAgent) handle(line string) {
 	a.setState(molten.AgentStateWorking)
 	defer a.setState(molten.AgentStateDone)
+	if a.hold != nil {
+		select {
+		case a.holding <- struct{}{}:
+		default:
+		}
+		<-a.hold
+	}
 	m := batchLinePattern.FindStringSubmatch(line)
 	if m == nil {
 		a.t.Errorf("the agent's prompt names no PR: %s", line)

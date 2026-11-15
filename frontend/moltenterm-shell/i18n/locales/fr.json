@@ -7902,6 +7902,9 @@
             "cancel": "Arrêter",
             "cancelling": "Annulation…",
             "cancelTitle": "Annuler chaque validation qui n'est pas en cours de fusion ; rien de plus n'est fusionné",
+            "cancelGroup": "Annuler la fusion",
+            "cancelGroupTitle": "S'arrête après l'étape en cours : une fusion ou un push déjà commencé se termine, et rien de plus n'est fusionné",
+            "groupRunning": "Une fusion groupée est déjà en cours vers {base} : elle ne peut pas être lancée une seconde fois. Attendez qu'elle se termine, ou annulez-la.",
             "dismiss": "Masquer",
             "kept": {
                 "changes": "La copie de l'agent a des fichiers non commités : elle est gardée.",
@@ -8290,6 +8293,8 @@
             }
         },
         "validate": {
+            "inGroup": "Dans la fusion groupée en cours vers {base} : elle sera fusionnée à son tour. Annulez la fusion pour la reprendre.",
+            "groupRunning": "Une fusion groupée est en cours vers {base} : validez celle-ci quand elle sera terminée, ou annulez la fusion.",
             "button": "Valider",
             "title": "Rebaser et fusionner : ouvre la feuille Valider avec le plan",
             "draft": "Brouillon : passez-le d'abord en prêt pour la revue.",
@@ -9925,6 +9930,7 @@
             "batchempty": "Sélectionnez d'abord les pull requests à fusionner.",
             "batchmethod": "Cette méthode de fusion n'est plus autorisée sur ce dépôt : choisissez-en une autre.",
             "batchrunning": "La file de fusion de ce projet est en cours d'annulation ; réessayez dans un instant.",
+            "batchgroup": "Une fusion groupée est déjà en cours vers {base} : elle ne peut pas être lancée une seconde fois. Attendez qu'elle se termine, ou annulez-la.",
             "batchgone": "Cette file de fusion ne tourne plus.",
             "batchnotstopped": "La fusion groupée n'attend pas de décision.",
             "basemissing": "La branche de base {branch} est introuvable dans le projet comme sur origin.",

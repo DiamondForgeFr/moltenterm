@@ -216,6 +216,34 @@ func (r BatchRun) active() bool {
 	return r.State == BatchRunning || r.State == BatchCancelling
 }
 
+// groupRunning (#2318): a group merge runs in this queue, one the developer started from the suggested order
+// (FR-REV-025): at least one of its PRs is still to merge or in progress. A PR set aside on a failing check waits for the
+// developer, not for the queue, so it does not keep the group running. Mirrors groupMergeRunning in
+// frontend/moltenterm-shell/reviews/reviews-batch-model.ts.
+func (r BatchRun) groupRunning() bool {
+	if !r.active() {
+		return false
+	}
+	return slices.ContainsFunc(r.Items, func(it BatchItem) bool {
+		return it.Source == BatchSourceBatch && itemOpen(it.State) && it.State != BatchItemFailed
+	})
+}
+
+// restartsEnded: every PR asked for is an item of the run that left it or waits for the developer (stopped, voided,
+// withdrawn, skipped, or set aside on a failing check): Try again and Validate again put it back in its own run.
+func (r BatchRun) restartsEnded(prs []BatchPr) bool {
+	for _, pr := range prs {
+		idx := slices.IndexFunc(r.Items, func(it BatchItem) bool { return it.Number == pr.Number })
+		if idx < 0 {
+			return false
+		}
+		if state := r.Items[idx].State; itemOpen(state) && state != BatchItemFailed {
+			return false
+		}
+	}
+	return true
+}
+
 type QueueAddRequest struct {
 	Dir    string    `json:"dir"`
 	Repo   string    `json:"repo"`
@@ -640,11 +668,34 @@ func (b *BatchRunner) goesBefore(ctl *batchCtl) bool {
 	return false
 }
 
+// refusesSecondGroup (#2318): a group merge cannot be started while another runs on the project and base, from this
+// window or another, unless the request only puts back PRs the run itself ended on. A run being cancelled has its own
+// refusal in Add.
+func refusesSecondGroup(run BatchRun, req QueueAddRequest) bool {
+	return req.Source == BatchSourceBatch && !run.CancelAsked && run.groupRunning() && !run.restartsEnded(req.Prs)
+}
+
+func (b *BatchRunner) groupRefused(req QueueAddRequest) bool {
+	ctl := b.ctlOf(req.Dir, req.Base)
+	if ctl == nil {
+		return false
+	}
+	return refusesSecondGroup(b.read(ctl), req)
+}
+
+func groupRunningError(base string) error {
+	return uimsg.Errorf(uimsg.Make("review.batchgroup", "base", base), "a group merge already runs into %s: it cannot be started a second time, wait for it to end or cancel it", base)
+}
+
 // Add puts PRs in the project's queue for their base, on the developer's click in a window only (NFR-REV-003), and
 // returns the queue at once. A PR already in it is bound again to the new validation, unless its merge started.
 func (b *BatchRunner) Add(req QueueAddRequest) (BatchRun, error) {
 	if err := req.check(); err != nil {
 		return BatchRun{}, err
+	}
+	// Before anything is read or saved: a refused start must not change the repository's remembered method.
+	if b.groupRefused(req) {
+		return BatchRun{}, groupRunningError(req.Base)
 	}
 	method, err := b.batchMethod(req)
 	if err != nil {
@@ -666,6 +717,10 @@ func (b *BatchRunner) Add(req QueueAddRequest) (BatchRun, error) {
 	b.lock.Lock()
 	ctl := b.runs[key]
 	if ctl != nil && ctl.run.active() && !ctl.run.CancelAsked {
+		if refusesSecondGroup(ctl.run, req) {
+			b.lock.Unlock()
+			return BatchRun{}, groupRunningError(req.Base)
+		}
 		for _, item := range items {
 			idx := slices.IndexFunc(ctl.run.Items, func(it BatchItem) bool { return it.Number == item.Number })
 			if idx < 0 {

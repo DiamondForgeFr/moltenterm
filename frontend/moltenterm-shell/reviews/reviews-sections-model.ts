@@ -9,7 +9,7 @@
 
 import type { AgentStatesData } from "../agent-state-model";
 import { batchWorkItem, withBatchAgent } from "./reviews-batch-agent";
-import { batchActive, batchRowMark, type BatchRun } from "./reviews-batch-model";
+import { batchActive, batchRowMark, groupHoldOf, type BatchRun } from "./reviews-batch-model";
 import { CardInput, CardState, cardState, CardStateKinds, CardTurn, openWaits } from "./reviews-card-model";
 import type { ReviewMergedPr } from "./reviews-merged-model";
 import { checksOf, RebaseAsk, ReviewPr } from "./reviews-model";
@@ -96,6 +96,7 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
         waitsOn: openWaits(pr),
         now: ctx.now,
         batchStopped: batchStoppedOn(run, pr),
+        groupHold: groupHoldOf(run, pr.number),
     };
 }
 

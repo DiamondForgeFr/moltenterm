@@ -9,6 +9,7 @@
 // is the card's own (#1108): its ticket, else its PR number.
 
 import { joinPhrases, phrase, type Phrase } from "../i18n/phrase";
+import { groupMergeRunning, type BatchRun } from "./reviews-batch-model";
 import { Forecast, impactedBy, impactsOf, pathsText } from "./reviews-forecast-model";
 import type { ReviewPr, ReviewsAnswer } from "./reviews-model";
 import { orderTier, suggestedMergeOrder } from "./reviews-order-model";
@@ -221,6 +222,14 @@ export function queueShown(queue: MergeQueue): boolean {
         return false;
     }
     return queueChosen(queue).length + (queue.out?.length ?? 0) >= QueueShownSteps;
+}
+
+// queueOrderShown (#2318, FR-REV-024, FR-REV-026 AC15): the suggested order is a proposal for the group merge not
+// started yet. While one runs, the block and everything that comes of it (the ranks, the direction words, the wait
+// lines, the cards' group-merge entries) are not shown: the run's progress takes its place. Once the run ends or is
+// cancelled the order is the list's again, computed over what can still merge. run: the queue of the list's base.
+export function queueOrderShown(queue: MergeQueue, run: BatchRun): boolean {
+    return queueShown(queue) && !groupMergeRunning(run);
 }
 
 // queueWait: the one line a waiting card shows (#1211): "Wait for #1191: same files, saves a rebase", "Wait for
