@@ -8294,7 +8294,7 @@
         },
         "validate": {
             "inGroup": "Dans la fusion groupée en cours vers {base} : elle sera fusionnée à son tour. Annulez la fusion pour la reprendre.",
-            "groupRunning": "Une fusion groupée est en cours vers {base} : validez celle-ci quand elle sera terminée, ou annulez la fusion.",
+            "groupRunning": "Une fusion groupée vers {base} est en cours ; fusionner celle-ci maintenant peut obliger les suivantes à être rebasées.",
             "button": "Valider",
             "title": "Rebaser et fusionner : ouvre la feuille Valider avec le plan",
             "draft": "Brouillon : passez-le d'abord en prêt pour la revue.",
@@ -8513,7 +8513,9 @@
             "confirm": {
                 "agentWorking": "{name} travaille encore sur cette branche.",
                 "noReport": "Pas encore de rapport de test.",
-                "validateAnyway": "Valider quand même"
+                "validateAnyway": "Valider quand même",
+                "mergeAnyway": "Fusionner quand même",
+                "waitForRun": "Attendre la fusion groupée"
             },
             "state": {
                 "agentWaiting": "{name} vous attend",

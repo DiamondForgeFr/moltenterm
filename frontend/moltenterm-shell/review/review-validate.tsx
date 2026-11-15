@@ -95,14 +95,16 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
     const baseref = plan?.baseref ?? pr.baseref;
     const method = chosenMethod(plan, v.method);
     const queued = record == null ? queueItem(queueRun, pr.number) : null;
-    // A group merge that runs into this base holds the merge of every other PR of it (#2318, FR-REV-026 AC15).
+    // A group merge that runs into this base: the PRs of the run have no merge here, any other PR asks first (#2318,
+    // FR-REV-026 AC15, #943). From a Reviews row the card has asked already; in a Review tab the sheet asks.
     const held = record == null && queued == null ? groupHoldOf(queueRun, pr.number) : null;
+    const asks = held === "held" && model.host.inTab;
     const enabled =
         canClickMerge(plan, v.override, state?.merge) &&
         record == null &&
         v.clicked == null &&
         queued == null &&
-        held == null;
+        held !== "in";
     const disabledReason = mergeDisabledReason(plan, v.override, state?.merge);
     const waitingText = mergeWaitingText(plan, state?.merge);
     const cleanup: ReviewCleanupResult = record != null ? mergeCleanup(record, state?.cleanup) : null;
@@ -136,6 +138,7 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                     disabledReason={disabledReason}
                     loading={v.loading}
                     queued={queued}
+                    asks={asks}
                 />
             }
         >
@@ -199,6 +202,17 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                         )
                     }
                 />
+                {held != null ? (
+                    <div
+                        className="rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-secondary"
+                        data-testid="validate-group-held"
+                        data-hold={held}
+                    >
+                        {t(held === "in" ? "reviews.validate.inGroup" : "reviews.validate.groupRunning", {
+                            base: baseref,
+                        })}
+                    </div>
+                ) : null}
                 {queued != null ? (
                     <div
                         className="rounded-4 border border-accent/40 bg-accent/5 px-2 py-1.5 text-secondary"
@@ -212,12 +226,6 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                             })}
                         </span>{" "}
                         {batchStepText(queueRun, queued)}
-                    </div>
-                ) : held != null ? (
-                    <div className="text-secondary" data-testid="validate-group-held">
-                        {t(held === "in" ? "reviews.validate.inGroup" : "reviews.validate.groupRunning", {
-                            base: baseref,
-                        })}
                     </div>
                 ) : record == null && queuesOnClick(plan) ? (
                     <div className="text-secondary" data-testid="validate-whengreen">
@@ -243,7 +251,9 @@ function SheetButtons({
     disabledReason,
     loading,
     queued,
+    asks,
 }: {
+    asks: boolean;
     model: ReviewValidateModel;
     plan: ReviewMergePlan;
     record: ReviewMergeRecord;
@@ -341,7 +351,7 @@ function SheetButtons({
                 {t("review.validate.recheck")}
             </button>
             <button type="button" className={PlainButton} onClick={() => model.closeValidate()}>
-                {t("common.cancel")}
+                {asks ? t("reviews.card.confirm.waitForRun") : t("common.cancel")}
             </button>
             <button
                 type="button"
@@ -358,7 +368,7 @@ function SheetButtons({
                 data-testid="validate-merge"
             >
                 <i className="fa fa-solid fa-code-merge text-11" />
-                {mergeButtonLabel(plan, method)}
+                {asks ? t("reviews.card.confirm.mergeAnyway") : mergeButtonLabel(plan, method)}
                 <MoltenWave />
             </button>
         </>

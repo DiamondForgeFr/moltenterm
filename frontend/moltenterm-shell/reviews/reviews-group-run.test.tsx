@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // A group merge that runs (#2318, FR-REV-026 AC15): the suggested order is not shown, its progress with "Cancel the
-// merge" takes its place, the Validate of the PRs it concerns waits, and everything comes back once it stopped.
+// merge" takes its place, its own PRs have no merge action, the merge of another PR into its base asks first (#943),
+// and everything comes back once it stopped.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AgentStatesData } from "../agent-state-model";
-import { I18nModel } from "../i18n/i18n";
-import { wordPhrase } from "../i18n/phrase";
+import { I18nModel, t } from "../i18n/i18n";
+import { phrase, wordPhrase } from "../i18n/phrase";
 import { BatchBanner } from "./reviews-batch";
 import { BatchRuns } from "./reviews-batch-client";
 import {
@@ -20,6 +21,7 @@ import {
     groupHoldOf,
     groupMergeRunning,
 } from "./reviews-batch-model";
+import { confirmKeysOf } from "./reviews-card-model";
 import type { ReviewPr } from "./reviews-model";
 import { MergeQueue, queueOrderShown } from "./reviews-queue-model";
 import { CardContext, cardStates } from "./reviews-sections-model";
@@ -197,36 +199,81 @@ describe("what a running group merge holds of a PR (#2318)", () => {
         return cardStates(prs, {}, (n) => `/shop#${n}`, ctx);
     }
 
-    it("disables the Validate of its PRs and of the others into its base, saying why", () => {
-        const cards = cardsFor([pr(13), pr(99)], halfway());
-        const own = cards[13].primary;
-        expect([own.id, wordPhrase(own.disabled)]).toEqual([
+    it("takes the merge away from the PRs of the run: the run owns them, and says so", () => {
+        const own = cardsFor([pr(13)], halfway())[13];
+        expect([own.primary.id, wordPhrase(own.primary.disabled)]).toEqual([
             "validate",
             "In the group merge that runs into develop: it merges in its turn. Cancel the merge to take it back.",
         ]);
-        const other = cards[99].primary;
-        expect([other.id, wordPhrase(other.disabled)]).toEqual([
-            "validate",
-            "A group merge runs into develop: validate this one once it ends, or cancel the merge.",
-        ]);
-        expect(cards[13].molten).toBe(false);
+        expect(own.molten).toBe(false);
         I18nModel.getInstance().setLanguageSetting("fr");
-        expect(wordPhrase(cards[99].primary.disabled)).toBe(
-            "Une fusion groupée est en cours vers develop : validez celle-ci quand elle sera terminée, ou annulez la fusion."
+        expect(wordPhrase(own.primary.disabled)).toBe(
+            "Dans la fusion groupée en cours vers develop : elle sera fusionnée à son tour. Annulez la fusion pour la reprendre."
         );
+    });
+
+    it("asks before the merge of another PR into its base, and never blocks it (#943)", () => {
+        const other = cardsFor([pr(99)], halfway())[99];
+        expect(other.primary.id).toBe("validate");
+        expect(other.primary.disabled).toBeUndefined();
+        expect(other.molten).toBe(true);
+        expect(wordPhrase(other.primary.confirm)).toBe(
+            "A group merge into develop is running; merging this now may make the next ones need a rebase."
+        );
+        expect(other.primary.confirmKeys).toEqual({
+            yes: "reviews.card.confirm.mergeAnyway",
+            no: "reviews.card.confirm.waitForRun",
+        });
+        expect([t(other.primary.confirmKeys.yes), t(other.primary.confirmKeys.no)]).toEqual([
+            "Merge anyway",
+            "Wait for the run",
+        ]);
+        I18nModel.getInstance().setLanguageSetting("fr");
+        expect(wordPhrase(other.primary.confirm)).toBe(
+            "Une fusion groupée vers develop est en cours ; fusionner celle-ci maintenant peut obliger les suivantes à être rebasées."
+        );
+        expect([t(other.primary.confirmKeys.yes), t(other.primary.confirmKeys.no)]).toEqual([
+            "Fusionner quand même",
+            "Attendre la fusion groupée",
+        ]);
+    });
+
+    it("words the two buttons of the card's confirmation: Merge anyway and Wait for the run, else as before", () => {
+        const held = cardsFor([pr(99)], halfway())[99].primary;
+        expect(confirmKeysOf(held)).toEqual({
+            yes: "reviews.card.confirm.mergeAnyway",
+            no: "reviews.card.confirm.waitForRun",
+        });
+        const plain = { id: "validate", label: phrase("reviews.validate.button"), confirm: phrase("x") } as const;
+        expect(confirmKeysOf(plain)).toEqual({ yes: "reviews.card.confirm.validateAnyway", no: "common.cancel" });
+        expect([t("reviews.card.confirm.validateAnyway"), t("common.cancel")]).toEqual(["Validate anyway", "Cancel"]);
+    });
+
+    it("asks wherever the card offers the merge, its menu too", () => {
+        const review = { ...pr(99), report: { state: "missing" } } as ReviewPr;
+        const card = cardsFor([review], halfway())[99];
+        const merges = [card.primary, ...card.menu].filter((a) => a?.id === "validate");
+        expect(merges.length).toBeGreaterThan(0);
+        for (const merge of merges) {
+            expect([merge.disabled, merge.confirmKeys?.yes]).toEqual([undefined, "reviews.card.confirm.mergeAnyway"]);
+        }
     });
 
     it("leaves a merge into another base alone", () => {
         const card = cardsFor([pr(98, "release")], halfway())[98];
         expect(card.primary.id).toBe("validate");
         expect(card.primary.disabled).toBeUndefined();
+        expect(card.primary.confirm).toBeUndefined();
+        expect(card.primary.confirmKeys).toBeUndefined();
         expect(card.molten).toBe(true);
     });
 
-    it("gives the Validate back once the run stopped", () => {
+    it("gives the merge back, with no question, once the run stopped", () => {
         for (const state of ["cancelled", "done"] as const) {
             const cards = cardsFor([pr(13), pr(99)], halfway({ state }));
-            expect([cards[13].primary.disabled, cards[99].primary.disabled]).toEqual([undefined, undefined]);
+            for (const n of [13, 99]) {
+                expect([cards[n].primary.disabled, cards[n].primary.confirm]).toEqual([undefined, undefined]);
+            }
         }
     });
 
@@ -235,6 +282,7 @@ describe("what a running group merge holds of a PR (#2318)", () => {
         const card = cardsFor([conflicted], halfway())[99];
         const validate = [card.primary, ...card.menu].find((a) => a?.id === "validate");
         expect(wordPhrase(validate.disabled)).toContain("Conflicts with develop");
+        expect(validate.confirm).toBeUndefined();
     });
 });
 
