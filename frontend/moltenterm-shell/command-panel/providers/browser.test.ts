@@ -173,6 +173,49 @@ describe("Browser provider (FR-SHELL-051 AC1, DS-SHELL-090)", () => {
         expect(state.settingsWrites).toEqual([{ "web:openlinksinternally": false }]);
     });
 
+    it("offers the search engines of Settings › Browser in Links, Brave Search recommended (#2312)", () => {
+        const { target } = makeTarget(makeState());
+        const engines = item(browserSections(makeCtx(target)), "browser:searchengine") as any;
+        expect(engines).toMatchObject({
+            type: "choice",
+            label: "Search engine",
+            defaultValue: "https://search.brave.com/search?q={query}",
+        });
+        expect(engines.options.map((o: any) => o.label)).toEqual([
+            "Brave Search",
+            "DuckDuckGo",
+            "Startpage",
+            "Qwant",
+            "Ecosia",
+            "Google",
+            "Bing",
+        ]);
+        expect(engines.options.filter((o: any) => o.detail === "Recommended").map((o: any) => o.label)).toEqual([
+            "Brave Search",
+        ]);
+    });
+
+    it("writes the chosen engine to web:defaultsearch, and reads the user's own value back (#2312)", async () => {
+        state.settings = { "web:defaultsearch": "https://www.google.com/search?q={query}" };
+        const { target } = makeTarget(makeState());
+        const engines = item(browserSections(makeCtx(target)), "browser:searchengine") as any;
+        expect(engines.scopes[0].get()).toBe("https://www.google.com/search?q={query}");
+        await engines.scopes[0].set("https://duckduckgo.com/?q={query}");
+        expect(state.settingsWrites).toEqual([{ "web:defaultsearch": "https://duckduckgo.com/?q={query}" }]);
+    });
+
+    it("keeps a custom search address as an entry named after its site (#2312)", () => {
+        state.settings = { "web:defaultsearch": "https://search.example.dev/?q={query}" };
+        const { target } = makeTarget(makeState());
+        const engines = item(browserSections(makeCtx(target)), "browser:searchengine") as any;
+        const custom = engines.options[engines.options.length - 1];
+        expect(custom).toMatchObject({
+            label: "search.example.dev",
+            value: "https://search.example.dev/?q={query}",
+            detail: "Custom",
+        });
+    });
+
     it("adds an Agent control section, first, while an agent drives a tab", async () => {
         const agentTab = { browsertabid: "t2", agentname: "Claude Code", origin: "o", state: "active" };
         const { target, calls } = makeTarget(

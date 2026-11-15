@@ -402,6 +402,8 @@
         "placeholder": "Open an agent, a panel, a folder…",
         "noMatch": "Nothing matches \"{query}\"",
         "openAddress": "Open {address}",
+        "webSearch": "Search the web for “{query}”",
+        "webSearchWith": "with {engine}",
         "footer": {
             "choose": "choose",
             "open": "open",
@@ -551,6 +553,19 @@
     },
     "settings": {
         "retry": "Retry",
+        "searchEngine": {
+            "aria": "Search engine",
+            "recommended": "Recommended",
+            "custom": "Custom",
+            "customLine": "Your own search address, edited below",
+            "brave": "Its own independent index, no tracking or profiling",
+            "duckduckgo": "Searches without a profile of you",
+            "startpage": "Google results without tracking",
+            "qwant": "A European engine that does not profile you",
+            "ecosia": "Plants trees with its profits",
+            "google": "The most widely used engine",
+            "bing": "Microsoft's engine"
+        },
         "groups": {
             "app": "App",
             "keys": "Keys",
@@ -929,8 +944,8 @@
                 "description": "The page a new Web page panel opens."
             },
             "web:defaultsearch": {
-                "label": "Search engine",
-                "description": "The search URL, with {query} where the words go."
+                "label": "Search address",
+                "description": "What the engines above write; edit it to use another, with {query} where the words go."
             },
             "browser:installed": {
                 "label": "Installed browser",
@@ -2548,6 +2563,10 @@
         }
     },
     "browser": {
+        "searchNote": {
+            "text": "Searches use {engine}",
+            "change": "Change"
+        },
         "start": {
             "title": "Scope the next change",
             "hintProject": "Scoping is where you frame the work with your agent before it writes code. This page shows the project's repository once its folder has a GitHub remote.",
@@ -3048,6 +3067,7 @@
             "agentsAllowed": "Agents allowed",
             "linksInternal": "Links open in MoltenTerm",
             "defaultBrowser": "Default browser",
+            "searchEngine": "Search engine",
             "controllingOther": "{name} is controlling another tab",
             "showAgentTab": "Show the agent's tab",
             "takeOver": "Take over",

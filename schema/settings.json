@@ -815,12 +815,12 @@
         },
         "web:defaultsearch": {
           "type": "string",
-          "description": "The search URL, with {query} where the words go.",
+          "description": "What the engines above write; edit it to use another, with {query} where the words go.",
           "x-moltenterm": {
             "section": "browser",
             "group": "Browser panel",
-            "label": "Search engine",
-            "description": "The search URL, with {query} where the words go.",
+            "label": "Search address",
+            "description": "What the engines above write; edit it to use another, with {query} where the words go.",
             "control": "text",
             "order": 95
           }
@@ -2207,6 +2207,14 @@
           "x-moltenterm": {
             "hidden": true,
             "order": 172
+          }
+        },
+        "moltenterm:searchenginenote": {
+          "type": "boolean",
+          "description": "Whether the one-time note about the default search engine was shown in a web page panel (Searches use Brave Search, with a way to change it). Set by the panel the first time it shows the note",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 173
           }
         },
         "widget:*": {

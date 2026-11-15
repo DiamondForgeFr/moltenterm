@@ -180,6 +180,7 @@ const (
 	ConfigKey_MoltentermSettingsTab          = "moltenterm:settingstab"
 	ConfigKey_MoltentermMaterialsSeen        = "moltenterm:materialsseen"
 	ConfigKey_MoltentermBrowserInspectorSize = "moltenterm:browserinspectorsize"
+	ConfigKey_MoltentermSearchEngineNote     = "moltenterm:searchenginenote"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"
