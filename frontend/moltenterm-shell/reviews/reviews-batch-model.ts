@@ -404,9 +404,8 @@ export function batchShownSteps(run: BatchRun): BatchItem[] {
 // way (#2318); a queue of validated PRs keeps "Stop".
 export function batchCancelKeys(run: BatchRun): { label: string; title: string } {
     const group = batchIsGroup(run);
-    const idle = group ? "reviews.batch.cancelGroup" : "reviews.batch.cancel";
     return {
-        label: run?.cancelasked ? "reviews.batch.cancelling" : idle,
+        label: group ? "reviews.batch.cancelGroup" : "reviews.batch.cancel",
         title: group ? "reviews.batch.cancelGroupTitle" : "reviews.batch.cancelTitle",
     };
 }

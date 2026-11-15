@@ -454,7 +454,7 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
                         data-testid="reviews-batch-cancel"
                     >
                         {busy === "cancel" ? <DominoLoader /> : null}
-                        {t(cancel.label)}
+                        {run.cancelasked ? t("reviews.batch.cancelling") : t(cancel.label)}
                     </button>
                 ) : (
                     <button
