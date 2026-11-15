@@ -86,7 +86,7 @@ export function searchEngineInfo(template: string): SearchEngineInfo {
         return { id: preset.id, name: preset.name, letter: preset.letter };
     }
     const host = hostOfTemplate(effective);
-    return { id: CustomEngineId, name: host, letter: (host[0] ?? "?").toUpperCase() };
+    return { id: CustomEngineId, name: host, letter: /^[a-z]/i.test(host) ? host[0].toUpperCase() : "…" };
 }
 
 // The search URL of words.

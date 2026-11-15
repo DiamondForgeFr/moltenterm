@@ -93,6 +93,14 @@ describe("presetOf and searchEngineInfo", () => {
         });
     });
 
+    it("marks a custom engine by its site's first letter, or a gap for an address of digits", () => {
+        expect(searchEngineInfo("http://127.0.0.1:19312/search?q={query}")).toMatchObject({
+            id: CustomEngineId,
+            name: "127.0.0.1",
+            letter: "…",
+        });
+    });
+
     it("reads an unusable template as the default engine, as the search does", () => {
         expect(searchEngineInfo("").id).toBe("brave");
         expect(searchEngineInfo(null).name).toBe("Brave Search");
