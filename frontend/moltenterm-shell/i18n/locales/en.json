@@ -945,7 +945,7 @@
             },
             "web:defaultsearch": {
                 "label": "Search address",
-                "description": "What the engines above write; edit it to use another, with {query} where the words go."
+                "description": "Search engine address, written by the list above; edit it to use another, with {query} where the words go."
             },
             "browser:installed": {
                 "label": "Installed browser",
