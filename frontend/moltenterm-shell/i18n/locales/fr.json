@@ -1143,7 +1143,7 @@
             },
             "web:defaultsearch": {
                 "label": "Adresse de recherche",
-                "description": "Ce qu'écrivent les moteurs ci-dessus ; modifiez-la pour en utiliser un autre, avec {query} à la place des mots."
+                "description": "Adresse du moteur de recherche, écrite par la liste ci-dessus ; modifiez-la pour en utiliser un autre, avec {query} à la place des mots."
             },
             "browser:installed": {
                 "label": "Navigateur installé",
