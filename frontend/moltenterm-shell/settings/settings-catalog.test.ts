@@ -558,3 +558,16 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
         expect(table.every((e) => e.label !== "" && e.description !== "")).toBe(true);
     });
 });
+
+describe("the search engine setting (#2312)", () => {
+    it("is Brave Search by default, in Browser, and found by a search for search engine", () => {
+        const search = entry("web:defaultsearch");
+        expect(search.defaultValue).toBe("https://search.brave.com/search?q={query}");
+        expect(search.section).toBe("browser");
+        expect(searchSettings(catalog(), "search engine").map((e) => e.key)).toContain("web:defaultsearch");
+    });
+
+    it("keeps the note about the default hidden", () => {
+        expect(catalog().some((e) => e.key === "moltenterm:searchenginenote")).toBe(false);
+    });
+});
