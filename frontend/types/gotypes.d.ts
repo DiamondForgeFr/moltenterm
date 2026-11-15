@@ -1533,6 +1533,7 @@ declare global {
         "moltenterm:settingstab"?: string;
         "moltenterm:materialsseen"?: {[key: string]: number};
         "moltenterm:browserinspectorsize"?: number;
+        "moltenterm:searchenginenote"?: boolean;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

@@ -21,10 +21,11 @@ import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import { addLanguageRequest } from "../../molten/morph-templates";
 import { BrokkComingCard, BrokkTableKey } from "../boss/brokk-coming-card";
 import { useBossName } from "../boss/use-boss-name";
+import { DefaultSearchSettingKey } from "../browser/search-engine-model";
 import { currentBuildIdentity } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
@@ -87,6 +88,7 @@ import { readSettingsKey, readSettingsSection, SettingsKeyMetaKey, SettingsSecti
 import { settingOverriders } from "./settings-overrides";
 import { flowColumnsClass, PageCard, PageColumns, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
 import { OverriddenNotice, ScopeLine } from "./settings-scope";
+import { SearchEnginePicker } from "./settings-search-engine";
 import { SecretsSection } from "./settings-secrets";
 import { SiteList } from "./settings-site-lists";
 import { isSiteListKey } from "./settings-sites";
@@ -892,16 +894,18 @@ export function SettingsSectionPage({
                                 <BrokkComingCard entries={g.entries} settings={data.settings} />
                             ) : (
                                 g.entries.map((entry) => (
-                                    <SettingRow
-                                        key={entry.key}
-                                        entry={entry}
-                                        rowId={rowId(entry.key)}
-                                        value={data.settings?.[entry.key]}
-                                        overriddenIn={data.overriddenIn.get(entry.key)}
-                                        themes={data.themes}
-                                        highlighted={highlight === entry.key}
-                                        onOpenJson={openSettingsJson}
-                                    />
+                                    <Fragment key={entry.key}>
+                                        {entry.key === DefaultSearchSettingKey ? <SearchEnginePicker /> : null}
+                                        <SettingRow
+                                            entry={entry}
+                                            rowId={rowId(entry.key)}
+                                            value={data.settings?.[entry.key]}
+                                            overriddenIn={data.overriddenIn.get(entry.key)}
+                                            themes={data.themes}
+                                            highlighted={highlight === entry.key}
+                                            onOpenJson={openSettingsJson}
+                                        />
+                                    </Fragment>
                                 ))
                             )}
                             {g.entries.some((e) => e.key === IntegrateOffKey) ? <IntegrationRuns /> : null}

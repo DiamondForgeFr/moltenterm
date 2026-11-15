@@ -271,7 +271,7 @@ var settings = []Setting{
 	{Key: "web:openlinksinternally", Section: SectionBrowser, Group: "Opening pages", Label: "Open links in MoltenTerm", Description: "Links clicked in a terminal or a page open in a browser panel.", Control: ControlToggle},
 	{Key: "browser:sites", Section: SectionBrowser, Group: "Opening pages", Label: "Per-site browser", Description: "Sites that always open in MoltenTerm's browser or the installed one.", Control: ControlJSON},
 	{Key: "web:defaulturl", Section: SectionBrowser, Group: "Browser panel", Label: "Home page", Description: "The page a new browser panel opens.", Control: ControlText},
-	{Key: "web:defaultsearch", Section: SectionBrowser, Group: "Browser panel", Label: "Search engine", Description: "The search URL, with {query} where the words go.", Control: ControlText},
+	{Key: "web:defaultsearch", Section: SectionBrowser, Group: "Browser panel", Label: "Search address", Description: "What the engines above write; edit it to use another, with {query} where the words go.", Control: ControlText},
 	{Key: "moltenterm:hiddenpagefreeze", Section: SectionBrowser, Group: "Browser panel", Label: "Pause hidden pages", Description: "A page not on screen stops running until shown, unless an agent drives it or it plays audio.", Control: ControlToggle, Default: true},
 	{Key: "moltenterm:hiddenpagediscardmin", Section: SectionBrowser, Group: "Browser panel", Label: "Unload hidden pages after", Description: "A page not on screen this long is unloaded, then reloads when shown; 0 keeps pages loaded.", Control: ControlNumber, Range: rng(0, 1440, 1), Unit: "min", Default: 10},
 	{Key: "browser:downloadask", Section: SectionBrowser, Group: "Downloads", Label: "Always ask where to save", Description: "Ask for a folder before each download; off saves it straight to your Downloads folder.", Control: ControlToggle},
@@ -377,6 +377,8 @@ var settings = []Setting{
 	hidden("moltenterm:materialsseen"),
 	// The size of a web page panel's docked developer tools (#2310): their divider sets it.
 	hidden("moltenterm:browserinspectorsize"),
+	// The note about the default search engine (#2312): the panel that shows it sets it.
+	hidden("moltenterm:searchenginenote"),
 }
 
 func init() {

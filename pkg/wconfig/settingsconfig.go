@@ -305,6 +305,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#2310): the share of a web page panel its docked developer tools take, the same for every panel and after a restart (frontend/moltenterm-shell/browser/browser-inspector.ts).
 	MoltentermBrowserInspectorSize float64 `json:"moltenterm:browserinspectorsize,omitempty" jsonschema_description:"The share of a web page panel's page area its docked developer tools take, from 0.15 to 0.85 (0.4 when unset or out of range). Set by dragging the tools' divider"`
 
+	// MOLTENTERM-PATCH (#2312): the note about the default search engine, shown once (frontend/moltenterm-shell/browser/search-engine.ts).
+	MoltentermSearchEngineNote bool `json:"moltenterm:searchenginenote,omitempty" jsonschema_description:"Whether the one-time note about the default search engine was shown in a web page panel (Searches use Brave Search, with a way to change it). Set by the panel the first time it shows the note"`
+
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
 

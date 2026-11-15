@@ -17,7 +17,7 @@
     "conn:askbeforewshinstall": true,
     "conn:wshenabled": true,
     "editor:minimapenabled": true,
-    "web:defaultsearch": "https://www.google.com/search?q={query}",
+    "web:defaultsearch": "https://search.brave.com/search?q={query}",
     "web:openlinksinternally": true,
     "window:blur": true,
     "window:opacity": 0.7,

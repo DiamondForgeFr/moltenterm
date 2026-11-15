@@ -47,7 +47,7 @@ import { translate } from "../i18n/i18n-core";
 import { serverErrorText, serverText } from "../i18n/server-text";
 import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
 import { anchoredMenuEvent, buttonMenuAnchor } from "../menu/menu-anchor";
-import { openSettingsSection } from "../settings/settings-open";
+import { openSettingsKey, openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { openTopField } from "../sidebar/top-field-store";
@@ -208,6 +208,14 @@ import {
     withRememberedLocalPage,
 } from "./local-page";
 import { GatedPage } from "./local-page-ask";
+import {
+    DefaultSearchSettingKey,
+    isSearchPage,
+    searchEngineInfo,
+    SearchEngineNoteKey,
+    searchNoteDue,
+    webSearchTemplate,
+} from "./search-engine";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
 import { ClearCacheKind, ClearSiteKind, siteOriginOf } from "./site-data";
 import { isSiteAsk, SitePermissionModel } from "./site-permission-store";
@@ -280,6 +288,8 @@ export class BrowserViewModel implements ViewModel {
     handledOpenIds = new Set<string>();
     // Why a page meant for the installed browser opened here instead (FR-BRW-002).
     noticeAtom = atom(null) as PrimitiveAtom<string>;
+    // The name of the default search engine, while the one-time note about it shows (#2312).
+    searchNoteAtom = atom(null) as PrimitiveAtom<string>;
     linkCopy = new LinkCopy();
     engines = BrowserEngineModel.getInstance();
     // Sign-in refusals per tab (FR-BRW-003).
@@ -526,6 +536,26 @@ export class BrowserViewModel implements ViewModel {
 
     dismissNotice(): void {
         globalStore.set(this.noticeAtom, null);
+    }
+
+    // The first search made with the default engine tells which engine it is, once and calmly (#2312): users who never
+    // chose one now get Brave Search where Google was. Remembered in a hidden setting as soon as it shows, so a restart
+    // or another panel never shows it again.
+    noteSearch(url: string): void {
+        if (globalStore.get(this.searchNoteAtom) != null) {
+            return;
+        }
+        const template = webSearchTemplate();
+        const shown = globalStore.get(getSettingsKeyAtom(SearchEngineNoteKey));
+        if (!searchNoteDue(template, shown) || !isSearchPage(url, template)) {
+            return;
+        }
+        globalStore.set(this.searchNoteAtom, searchEngineInfo(template).name);
+        fireAndForget(() => RpcApi.SetConfigCommand(TabRpcClient, { [SearchEngineNoteKey]: true } as SettingsType));
+    }
+
+    dismissSearchNote(): void {
+        globalStore.set(this.searchNoteAtom, null);
     }
 
     findTab(id: string): BrowserTab {
@@ -2641,6 +2671,43 @@ function BrowserNotice({ model }: { model: BrowserViewModel }) {
     );
 }
 
+// "Searches use Brave Search · Change" (#2312): calm, one line, with the way to Settings › Browser; never a modal.
+function SearchNote({ model }: { model: BrowserViewModel }) {
+    const t = useT();
+    const engine = useAtomValue(model.searchNoteAtom);
+    if (engine == null) {
+        return null;
+    }
+    return (
+        <div
+            role="status"
+            data-testid="browser-search-note"
+            className="molten-browser-notice flex shrink-0 items-center gap-2 border-b border-border px-2 py-1 text-12 text-secondary"
+        >
+            <i className="fa fa-solid fa-magnifying-glass shrink-0 text-[var(--mt-state-info)]" />
+            <span className="min-w-0 flex-1">
+                {t("browser.searchNote.text", { engine })}
+                {" · "}
+                <button
+                    type="button"
+                    onClick={() => fireAndForget(() => openSettingsKey("browser", DefaultSearchSettingKey))}
+                    className="cursor-pointer text-accent hover:underline"
+                >
+                    {t("browser.searchNote.change")}
+                </button>
+            </span>
+            <button
+                type="button"
+                aria-label={t("common.dismiss")}
+                onClick={() => model.dismissSearchNote()}
+                className="shrink-0 cursor-pointer rounded-6 px-1 text-secondary hover:bg-hover hover:text-primary"
+            >
+                <i className="fa fa-solid fa-xmark text-11" />
+            </button>
+        </div>
+    );
+}
+
 // What a handed-off entry shows: the page lives in the installed browser, with the ways back.
 function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const t = useT();
@@ -2781,6 +2848,13 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
         model.handleOpenRequests(blockMeta);
         model.handleCloseRequests(blockMeta);
     }, [model, blockMeta]);
+    // A search shown on screen tells which engine made it, once (#2312).
+    const shownUrl = viewShown && !offCarpet ? activeTab?.url : null;
+    useEffect(() => {
+        if (shownUrl != null) {
+            model.noteSearch(shownUrl);
+        }
+    }, [model, shownUrl]);
     useEffect(() => {
         if (isFocused) {
             noteBrowserPanelFocus(model.blockId);
@@ -2797,6 +2871,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
         <div className="molten-browser flex h-full w-full flex-col">
             <BrowserNavBar model={model} state={state} />
             <BrowserNotice model={model} />
+            <SearchNote model={model} />
             <SignInRefusalBar
                 signIn={model.signIn}
                 tabId={state.activeId}

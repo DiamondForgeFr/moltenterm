@@ -13,9 +13,19 @@ import { isMacOS } from "@/util/platformutil";
 import type { AgentControlAction, AgentTab, ControlBarView } from "../../browser/browser-agent";
 import type { BrowserList } from "../../browser/browser-engine";
 import type { BrowserTab } from "../../browser/browser-model";
+import {
+    CustomEngineId,
+    DefaultSearchSettingKey,
+    DefaultSearchTemplate,
+    presetOf,
+    RecommendedEngineId,
+    searchEngineInfo,
+    SearchEnginePresets,
+    usableTemplate,
+} from "../../browser/search-engine-model";
 import { t } from "../../i18n/i18n";
 import { formatShortcutById } from "../../shortcuts/format";
-import { settingsBinding } from "../bindings";
+import { readSettings, settingsBinding } from "../bindings";
 import { CommandProvider, PanelContext, PanelItem, PanelSection } from "../panel-types";
 
 export const BrowserZoomMin = 30;
@@ -253,6 +263,36 @@ function siteItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[
     return items;
 }
 
+// The engine the words typed in any address field are searched with (#2312, web:defaultsearch): the same presets as
+// Settings › Browser, the recommended one marked. A custom address keeps its own entry, named after its site.
+function searchEngineItem(): PanelItem {
+    const current = readSettings(DefaultSearchSettingKey);
+    const options = SearchEnginePresets.map((p) => ({
+        id: `searchengine:${p.id}`,
+        label: p.name,
+        value: p.template,
+        detail: p.id === RecommendedEngineId ? t("settings.searchEngine.recommended") : undefined,
+    }));
+    if (typeof current === "string" && usableTemplate(current) && presetOf(current) == null) {
+        options.push({
+            id: `searchengine:${CustomEngineId}`,
+            label: searchEngineInfo(current).name,
+            value: current,
+            detail: t("settings.searchEngine.custom"),
+        });
+    }
+    return {
+        id: "browser:searchengine",
+        type: "choice",
+        label: t("cmdpanel.browser.searchEngine"),
+        icon: "magnifying-glass",
+        keywords: [DefaultSearchSettingKey, "search", "address bar", "brave", "duckduckgo", "google", "privacy"],
+        options,
+        defaultValue: DefaultSearchTemplate,
+        scopes: [settingsBinding<string>(DefaultSearchSettingKey, DefaultSearchTemplate, "global")],
+    };
+}
+
 function linkItems(s: BrowserCommandState): PanelItem[] {
     const items: PanelItem[] = [
         {
@@ -265,6 +305,7 @@ function linkItems(s: BrowserCommandState): PanelItem[] {
             scopes: [settingsBinding<boolean>("web:openlinksinternally", true, "global")],
         },
     ];
+    items.push(searchEngineItem());
     const chosen = s.list?.chosen;
     if (chosen != null) {
         items.push({

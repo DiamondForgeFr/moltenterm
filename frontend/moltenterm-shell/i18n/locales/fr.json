@@ -402,6 +402,8 @@
         "placeholder": "Ouvrir un agent, un panneau, un dossier…",
         "noMatch": "Rien ne correspond à « {query} »",
         "openAddress": "Ouvrir {address}",
+        "webSearch": "Chercher « {query} » sur le web",
+        "webSearchWith": "avec {engine}",
         "footer": {
             "choose": "choisir",
             "open": "ouvrir",
@@ -551,6 +553,19 @@
     },
     "settings": {
         "retry": "Réessayer",
+        "searchEngine": {
+            "aria": "Moteur de recherche",
+            "recommended": "Recommandé",
+            "custom": "Personnalisé",
+            "customLine": "Votre propre adresse de recherche, à modifier ci-dessous",
+            "brave": "Son propre index indépendant, sans pistage ni profilage",
+            "duckduckgo": "Cherche sans faire de profil de vous",
+            "startpage": "Les résultats de Google sans pistage",
+            "qwant": "Un moteur européen qui ne fait pas de profil de vous",
+            "ecosia": "Plante des arbres avec ses bénéfices",
+            "google": "Le moteur le plus utilisé",
+            "bing": "Le moteur de Microsoft"
+        },
         "title": "Réglages",
         "default": "Par défaut",
         "auto": "Auto",
@@ -1127,8 +1142,8 @@
                 "description": "La page qu'ouvre un nouveau panneau Page web."
             },
             "web:defaultsearch": {
-                "label": "Moteur de recherche",
-                "description": "L'URL de recherche, avec {query} à la place des mots."
+                "label": "Adresse de recherche",
+                "description": "Ce qu'écrivent les moteurs ci-dessus ; modifiez-la pour en utiliser un autre, avec {query} à la place des mots."
             },
             "browser:installed": {
                 "label": "Navigateur installé",
@@ -2548,6 +2563,10 @@
         }
     },
     "browser": {
+        "searchNote": {
+            "text": "Les recherches utilisent {engine}",
+            "change": "Changer"
+        },
         "start": {
             "title": "Cadrez le prochain changement",
             "hintProject": "Le Cadrage sert à préparer le travail avec votre agent avant qu'il écrive du code. Cette page affiche le dépôt du projet dès que son dossier a un dépôt distant GitHub.",
@@ -3048,6 +3067,7 @@
             "agentsAllowed": "Agents autorisés",
             "linksInternal": "Les liens s'ouvrent dans MoltenTerm",
             "defaultBrowser": "Navigateur par défaut",
+            "searchEngine": "Moteur de recherche",
             "controllingOther": "{name} pilote un autre onglet",
             "showAgentTab": "Afficher l'onglet de l'agent",
             "takeOver": "Prendre la main",
