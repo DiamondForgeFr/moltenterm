@@ -124,7 +124,7 @@ import { ReviewsModel } from "./reviews-store";
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
 import { useOutsideOtherProjects } from "./reviews-workspace";
 
-export { MoltentermReviewsView, ReviewRow };
+export { MoltentermReviewsView, ReviewRow, ReviewsList };
 
 // How long a PR another surface asked for stays marked.
 const FocusMarkMs = 4000;
