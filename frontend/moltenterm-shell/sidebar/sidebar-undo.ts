@@ -56,46 +56,6 @@ export function showUndoToast(
     return entry.toastId;
 }
 
-type CountedUndo = { kind: string; toastId: string; count: number; undos: (() => void | Promise<void>)[] };
-
-let counted: CountedUndo = null;
-
-// A toast that counts what successive gestures of one kind did (#2241): archiving twice while its toast shows gives one
-// toast, "2 notifications archived", whose Undo, or ⌘Z, gives back both, the latest first. A gesture after the toast left
-// starts a new count. `titleOf` words the count.
-export function showCountedUndoToast(
-    kind: string,
-    count: number,
-    titleOf: (count: number) => string,
-    undo: () => void | Promise<void>
-): string {
-    const joined =
-        counted != null && counted.kind === kind && pending != null && pending.toastId === counted.toastId
-            ? counted
-            : null;
-    const undos = [...(joined?.undos ?? []), undo];
-    const total = (joined?.count ?? 0) + count;
-    const runAll = async () => {
-        for (const run of [...undos].reverse()) {
-            await run();
-        }
-    };
-    const entry: CountedUndo = { kind, toastId: null, count: total, undos };
-    entry.toastId = showUndoToast(
-        titleOf(total),
-        runAll,
-        undefined,
-        () => {
-            if (counted === entry) {
-                counted = null;
-            }
-        },
-        joined?.toastId
-    );
-    counted = entry;
-    return entry.toastId;
-}
-
 // ⌘Z from the window: true when it undid the sidebar's latest change.
 export function undoFromKey(e: KeyboardEvent): boolean {
     if (pending == null || !undoKey(e, isMacOS()) || keepsUndoKey(document.activeElement, isMacOS())) {

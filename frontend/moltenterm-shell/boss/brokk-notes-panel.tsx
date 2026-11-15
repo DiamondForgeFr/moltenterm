@@ -35,7 +35,6 @@ import {
 } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
 import { useRunningWork } from "../running-work";
-import { showCountedUndoToast } from "../sidebar/sidebar-undo";
 import { DominoLoader } from "../suite/suite";
 import { toneOf } from "../toast-model";
 import { GhostButton, PrimaryButton, SecondaryButton } from "./boss-card-buttons";
@@ -53,8 +52,6 @@ import {
 import { EmptyLine, HeaderIconButton, PanelFrame, PanelProblem } from "./brokk-panel-frame";
 import { goToWorkspace, labelOfRow, WorkspaceTag } from "./brokk-workspace-tag";
 import { BrokkActions } from "./use-brokk-actions";
-
-const ArchiveUndoKind = "notifications:archive";
 
 // The ordered rows of the two lists carry the same testids as the centre's and the card's rows, so a surface that knows
 // one finds the other.
@@ -134,6 +131,24 @@ function ArchiveButton({ onArchive }: { onArchive: () => void }) {
             className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-6 text-11 text-muted opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-hover hover:text-primary focus-visible:opacity-100"
         >
             <i className="fa fa-solid fa-box-archive" aria-hidden />
+        </button>
+    );
+}
+
+// The Restore of an archived notification (#2316): it goes back to the active list, as it was.
+function RestoreButton({ onRestore }: { onRestore: () => void }) {
+    const t = useT();
+    return (
+        <button
+            type="button"
+            className={SecondaryButton}
+            data-testid="notification-restore"
+            onClick={(e) => {
+                e.stopPropagation();
+                onRestore();
+            }}
+        >
+            {t("notif.center.restore")}
         </button>
     );
 }
@@ -267,6 +282,7 @@ function EntryRowBody({
     onAction,
     onOpen,
     onArchive,
+    onRestore,
     onSilence,
 }: {
     row: NoteRow;
@@ -276,6 +292,7 @@ function EntryRowBody({
     onAction: (action: NotificationAction) => void;
     onOpen: () => void;
     onArchive: () => void;
+    onRestore?: () => void;
     onSilence: (subject: NotificationSubject) => void;
 }) {
     const t = useT();
@@ -310,53 +327,47 @@ function EntryRowBody({
                     ) : null
                 }
             />
-            {archived && actions.length === 0 ? null : (
-                <ActionLine
-                    own={actions.map((action, i) => (
-                        <RowButton
-                            key={action.id}
-                            label={
-                                running[`${entry.id}:${action.id}`]
-                                    ? t("notif.center.running")
-                                    : notificationActionLabel(action)
-                            }
-                            primary={isPrimaryAction(row, i)}
-                            busy={false}
-                            disabled={anyRunning}
-                            testId="notification-action"
-                            onClick={() => onAction(action)}
-                        />
-                    ))}
-                    extra={
-                        silenceable ? (
-                            <button
-                                type="button"
-                                data-testid="notification-silence"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onSilence(subject);
-                                }}
-                                className={cn(
-                                    GhostButton,
-                                    "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
-                                )}
-                            >
-                                {t("notif.center.silence")}
-                            </button>
-                        ) : null
-                    }
-                    goTo={
-                        cardGoTo(row, archived) != null ? (
-                            <GoToButton
-                                title={t("notif.center.goToTitle")}
-                                testId="notification-goto"
-                                onClick={onOpen}
-                            />
-                        ) : null
-                    }
-                    archive={archived ? null : <ArchiveButton onArchive={onArchive} />}
-                />
-            )}
+            <ActionLine
+                own={actions.map((action, i) => (
+                    <RowButton
+                        key={action.id}
+                        label={
+                            running[`${entry.id}:${action.id}`]
+                                ? t("notif.center.running")
+                                : notificationActionLabel(action)
+                        }
+                        primary={isPrimaryAction(row, i)}
+                        busy={false}
+                        disabled={anyRunning}
+                        testId="notification-action"
+                        onClick={() => onAction(action)}
+                    />
+                ))}
+                extra={
+                    silenceable ? (
+                        <button
+                            type="button"
+                            data-testid="notification-silence"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onSilence(subject);
+                            }}
+                            className={cn(
+                                GhostButton,
+                                "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100"
+                            )}
+                        >
+                            {t("notif.center.silence")}
+                        </button>
+                    ) : null
+                }
+                goTo={
+                    cardGoTo(row, archived) != null ? (
+                        <GoToButton title={t("notif.center.goToTitle")} testId="notification-goto" onClick={onOpen} />
+                    ) : null
+                }
+                archive={archived ? <RestoreButton onRestore={onRestore} /> : <ArchiveButton onArchive={onArchive} />}
+            />
             {error ? <div className="mt-1 text-11 text-danger">{error}</div> : null}
         </>
     );
@@ -401,6 +412,7 @@ function NoteRowView({
     onOpen,
     onAction,
     onArchive,
+    onRestore,
     onSilence,
 }: {
     row: NoteRow;
@@ -414,6 +426,7 @@ function NoteRowView({
     onOpen: () => void;
     onAction: (action: NotificationAction) => void;
     onArchive: () => void;
+    onRestore?: () => void;
     onSilence: (subject: NotificationSubject) => void;
 }) {
     const rowRef = useRef<HTMLLIElement>(null);
@@ -505,6 +518,7 @@ function NoteRowView({
                     onAction={onAction}
                     onOpen={onOpen}
                     onArchive={onArchive}
+                    onRestore={onRestore}
                     onSilence={onSilence}
                 />
             ) : (
@@ -561,20 +575,13 @@ export function NotificationsPanel({
         onListed(listedKey === "" ? [] : listedKey.split(","));
     }, [listedKey, onListed]);
 
-    // Archives cards, whatever their kind (FR-MC-019, AC15 and AC16; #2195): the undo toast gives back exactly what was
-    // archived, a notification and the rows that stand for a fact alike.
+    // Archives cards, whatever their kind (FR-MC-019, AC15 and AC16; #2195): no toast (#2316), the archived notifications
+    // wait in the Archived list, where each one can be restored.
     const archiveCards = (cards: NoteRow[]) => {
         if (cards.length === 0) {
             return;
         }
-        const undo = actions.archive(archivePlan(cards, entries));
-        // Successive archives make one toast that counts them all, and its Undo gives them all back (#2241).
-        showCountedUndoToast(
-            ArchiveUndoKind,
-            cards.length,
-            (count) => translateCount("notif.center.archivedCount", count),
-            undo
-        );
+        actions.archive(archivePlan(cards, entries));
     };
     // Takes the developer to what the card is about; going there settles a notification as FR-MC-019 (#2026) says, and an
     // agent that finished leaves when its pane is seen.
@@ -700,6 +707,7 @@ export function NotificationsPanel({
                                             onOpen={() => {}}
                                             onAction={(action) => fireAndForget(() => model.runAction(entry, action))}
                                             onArchive={() => {}}
+                                            onRestore={() => model.restore([entry.id])}
                                             onSilence={() => {}}
                                         />
                                     </RowBoundary>

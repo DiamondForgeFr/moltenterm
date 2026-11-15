@@ -55,6 +55,7 @@ import {
     readAllUpdate,
     readUpdate,
     resolveUpdate,
+    restoreUpdate,
     undoClearUpdate,
     unreadCount,
 } from "./notifications-model";
@@ -229,6 +230,10 @@ export class MoltentermNotifications {
 
     clearArchive(): void {
         this.write(clearArchiveUpdate(this.entries()));
+    }
+
+    restore(ids: string[]): void {
+        this.write(restoreUpdate(this.entries(), ids));
     }
 
     // Goes to a place: its workspace, then its tab, then its block. A block in another tab is focused by the renderer
