@@ -6497,11 +6497,8 @@
             "noPath": "no path to show",
             "archive": "Archive",
             "archiveAll": "Archive all",
-            "archiveAllTitle": "Archives every card of the list. You can undo it for a few seconds.",
-            "archivedCount": {
-                "one": "{count} notification archived",
-                "other": "{count} notifications archived"
-            },
+            "archiveAllTitle": "Archives every card of the list. Archived notifications stay in the Archived list, where you can restore them.",
+            "restore": "Restore",
             "goToTitle": "Show where this comes from",
             "resolved": "Resolved",
             "silence": "Don't tell me again…",

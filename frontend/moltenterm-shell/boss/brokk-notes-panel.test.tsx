@@ -43,7 +43,7 @@ vi.mock("../notification-center", () => ({
     WorkRow: ({ item }: { item: { title: string } }) => <div data-testid="running-work">{item.title}</div>,
 }));
 vi.mock("../notification-settings", () => ({ openNotificationSettings: vi.fn() }));
-vi.mock("../sidebar/sidebar-undo", () => ({ showUndoToast: vi.fn(), showCountedUndoToast: vi.fn() }));
+vi.mock("../sidebar/sidebar-undo", () => ({ showUndoToast: vi.fn() }));
 vi.mock("../project/project-tab", () => ({ showProjectTab: vi.fn() }));
 
 import { globalStore } from "@/app/store/jotaiStore";
@@ -260,7 +260,9 @@ describe("the header keeps what the centre offered, as compact icon buttons (FR-
             expect(tag, id).toMatch(/title="[^"]+"/);
         }
         expect(tags(html, "notification-archive-all")[0]).toContain('aria-label="Archive all"');
-        expect(html).toContain('title="Archives every card of the list. You can undo it for a few seconds."');
+        expect(html).toContain(
+            'title="Archives every card of the list. Archived notifications stay in the Archived list, where you can restore them."'
+        );
     });
 
     it("offers Archive all while the list has a card of any kind, and not on an empty one (#2195)", () => {
@@ -276,12 +278,12 @@ describe("the header keeps what the centre offered, as compact icon buttons (FR-
         ).toContain('data-testid="notification-archive-all"');
     });
 
-    it("archives every card of the list with an undo toast, never a confirmation (#2195)", () => {
+    it("archives every card of the list with no toast and no confirmation (#2195, #2316)", () => {
         const source = readFileSync(join(__dirname, "brokk-notes-panel.tsx"), "utf8");
-        expect(source).toContain("const undo = actions.archive(archivePlan(cards, entries));");
-        // One toast for successive archives, counted, whose Undo gives them all back (#2241).
-        expect(source).toContain("showCountedUndoToast(");
-        expect(source).toContain('(count) => translateCount("notif.center.archivedCount", count)');
+        expect(source).toContain("actions.archive(archivePlan(cards, entries));");
+        expect(source).not.toContain("showCountedUndoToast");
+        expect(source).not.toContain("archivedCount");
+        expect(source).not.toContain("sidebar-undo");
         expect(source).toContain("onClick={() => archiveCards(rows)}");
         expect(source).toContain("onArchive={() => archiveCards([row])}");
         expect(source).not.toContain("window.confirm");
@@ -563,11 +565,14 @@ describe("every card can be archived, and all of them at once (#2195, FR-MC-019 
         }
     });
 
-    it("offers no Archive in the archived list", () => {
+    it("offers Restore, not Archive, in the archived list, and restores the notification there (#2316)", () => {
         globalStore.set(model.entriesAtom, [entry("old", { archived: Date.now() }), entry("n1")]);
         const source = readFileSync(join(__dirname, "brokk-notes-panel.tsx"), "utf8");
         expect(source).toContain("const archiveButton = archived ? null : <ArchiveButton");
-        expect(source).toContain("archive={archived ? null : <ArchiveButton onArchive={onArchive} />}");
+        expect(source).toContain("<RestoreButton onRestore={onRestore} />");
+        expect(source).toContain('data-testid="notification-restore"');
+        expect(source).toContain('{t("notif.center.restore")}');
+        expect(source).toContain("onRestore={() => model.restore([entry.id])}");
     });
 
     it("has no separate × on the first line, nor an Ignorer, any more", () => {

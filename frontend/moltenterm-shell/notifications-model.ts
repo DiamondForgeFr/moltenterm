@@ -540,6 +540,20 @@ export function clearArchiveUpdate(entries: MoltentermNotification[]): MetaUpdat
     return update;
 }
 
+// Puts an archived notification back in the active list (#2316): what it says, and whether it was read or resolved, stay.
+export function restoreUpdate(entries: MoltentermNotification[], ids: string[]): MetaUpdate {
+    const wanted = new Set(ids);
+    const update: MetaUpdate = {};
+    for (const entry of entries) {
+        if (!wanted.has(entry.id) || entry.archived == null) {
+            continue;
+        }
+        const { archived: _archived, ...open } = stored(entry);
+        update[NotificationKeyPrefix + entry.id] = open;
+    }
+    return update;
+}
+
 export type RowKeyAction = "clear" | "open";
 
 // What a key does on a focused row of the active list (#2026): Delete or Backspace clears it, Enter or Space opens it when

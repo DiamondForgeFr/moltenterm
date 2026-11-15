@@ -6497,11 +6497,8 @@
             "noPath": "aucun chemin à afficher",
             "archive": "Archiver",
             "archiveAll": "Tout archiver",
-            "archiveAllTitle": "Archive toutes les cartes de la liste. Vous pouvez annuler pendant quelques secondes.",
-            "archivedCount": {
-                "one": "{count} notification archivée",
-                "other": "{count} notifications archivées"
-            },
+            "archiveAllTitle": "Archive toutes les cartes de la liste. Les notifications archivées restent dans la liste Archivées, où vous pouvez les restaurer.",
+            "restore": "Restaurer",
             "goToTitle": "Afficher d'où cela vient",
             "resolved": "Résolue",
             "silence": "Ne plus me le dire…",

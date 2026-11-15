@@ -8,9 +8,7 @@ vi.mock("@/util/platformutil", () => ({ isMacOS: () => true }));
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { Toasts } from "../toast-store";
-import { showCountedUndoToast, undoFromKey } from "./sidebar-undo";
-
-const title = (count: number) => `${count} archived`;
+import { showUndoToast, undoFromKey } from "./sidebar-undo";
 
 function stack() {
     return globalStore.get(Toasts.getInstance().stackAtom);
@@ -25,57 +23,25 @@ beforeEach(() => {
     stack().forEach((toast) => Toasts.getInstance().dismiss(toast.id, "user"));
 });
 
-describe("successive archives make one counted toast (#2241)", () => {
-    it("counts two archives in one toast, and its Undo gives both back, the latest first", async () => {
+describe("the sidebar's Undo (FR-SHELL-081)", () => {
+    it("⌘Z undoes the latest change while its toast shows", async () => {
         const undone: string[] = [];
-        showCountedUndoToast("archive", 1, title, () => {
-            undone.push("first");
-        });
-        showCountedUndoToast("archive", 1, title, () => {
-            undone.push("second");
+        showUndoToast("Moved", () => {
+            undone.push("moved");
         });
         expect(stack()).toHaveLength(1);
-        expect(stack()[0].title).toBe("2 archived");
-        await stack()[0].actions[0].run();
-        expect(undone).toEqual(["second", "first"]);
-    });
-
-    it("adds the size of each gesture: one card, then Archive all of three, is four", () => {
-        showCountedUndoToast("archive", 1, title, () => {});
-        showCountedUndoToast("archive", 3, title, () => {});
-        expect(stack().map((t) => t.title)).toEqual(["4 archived"]);
-    });
-
-    it("starts a new count once the toast is gone", () => {
-        const id = showCountedUndoToast("archive", 2, title, () => {});
-        Toasts.getInstance().dismiss(id, "timeout");
-        showCountedUndoToast("archive", 1, title, () => {});
-        expect(stack().map((t) => t.title)).toEqual(["1 archived"]);
-    });
-
-    it("keeps another kind of gesture apart", () => {
-        showCountedUndoToast("archive", 1, title, () => {});
-        showCountedUndoToast(
-            "other",
-            1,
-            (n) => `${n} other`,
-            () => {}
-        );
-        expect(stack().map((t) => t.title)).toEqual(["1 archived", "1 other"]);
-    });
-
-    it("undoes them all with the shortcut too", async () => {
-        const undone: number[] = [];
-        showCountedUndoToast("archive", 1, title, () => {
-            undone.push(1);
-        });
-        showCountedUndoToast("archive", 1, title, () => {
-            undone.push(2);
-        });
         vi.stubGlobal("document", { activeElement: null });
         expect(undoFromKey(cmdZ())).toBe(true);
         vi.unstubAllGlobals();
-        await vi.waitFor(() => expect(undone).toEqual([2, 1]), { timeout: 30000 });
+        await vi.waitFor(() => expect(undone).toEqual(["moved"]), { timeout: 30000 });
         expect(stack()).toHaveLength(0);
+    });
+
+    it("has nothing to undo once its toast is gone", () => {
+        const id = showUndoToast("Moved", () => {});
+        Toasts.getInstance().dismiss(id, "timeout");
+        vi.stubGlobal("document", { activeElement: null });
+        expect(undoFromKey(cmdZ())).toBe(false);
+        vi.unstubAllGlobals();
     });
 });
