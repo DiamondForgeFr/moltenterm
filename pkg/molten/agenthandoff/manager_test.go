@@ -40,6 +40,14 @@ type fakeEnv struct {
 	// stops: the status SettleStop answers per block (none when absent); settled records the calls.
 	stops   map[string]string
 	settled []settleCall
+	// locks: the first names locked for a project, in locking order.
+	locks []molten.AgentNameLock
+}
+
+func (e *fakeEnv) NameLocks() []molten.AgentNameLock {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	return append([]molten.AgentNameLock(nil), e.locks...)
 }
 
 type settleCall struct{ blockId, by, note string }

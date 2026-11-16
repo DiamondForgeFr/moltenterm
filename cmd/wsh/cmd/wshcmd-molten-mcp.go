@@ -362,6 +362,9 @@ func moltenMcpAgentList(list handoffwire.ListResult) mcpbrowser.AgentList {
 	for _, e := range list.Agents {
 		rtn.Agents = append(rtn.Agents, entry(e))
 	}
+	for _, l := range list.Locked {
+		rtn.Locked = append(rtn.Locked, mcpbrowser.AgentListLocked{FirstName: l.FirstName, Project: l.Project})
+	}
 	return rtn
 }
 

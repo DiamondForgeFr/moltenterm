@@ -37,6 +37,9 @@ var agentRoute = localroute.Route{
 		Commands: map[string]string{
 			molten.AgentStatesCommand:            localroute.AllowUi,
 			molten.AgentStopSettleCommand:        localroute.AllowUi,
+			molten.AgentNameLocksCommand:         localroute.AllowUi,
+			molten.AgentNameLockCommand:          localroute.AllowUi,
+			molten.AgentNameUnlockCommand:        localroute.AllowUi,
 			molten.AgentStateSetCommand:          localroute.AllowAny,
 			molten.AgentIntegrationReportCommand: localroute.AllowAny,
 			molten.AgentIntegrationStatusCommand: localroute.AllowAny,
@@ -75,6 +78,20 @@ func handleAgentCommand(command string, caller localroute.Caller, data any) (any
 			return nil, err
 		}
 		return molten.AgentStopSettleResult{Status: SettleAgentStop(req.BlockId, "", req.Note)}, nil
+	case molten.AgentNameLocksCommand:
+		return defaultAgentStates.nameLocksResult(), nil
+	case molten.AgentNameLockCommand:
+		var req molten.AgentNameLockRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return defaultAgentStates.lockName(req), nil
+	case molten.AgentNameUnlockCommand:
+		var req molten.AgentNameUnlockRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return defaultAgentStates.unlockName(req), nil
 	case molten.AgentHookOfferCommand:
 		var req molten.AgentHookOfferRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

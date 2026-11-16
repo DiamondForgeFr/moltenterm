@@ -125,3 +125,28 @@ func TestFormatAgentList(t *testing.T) {
 		t.Fatalf("%q", got)
 	}
 }
+
+// #2324: a first name locked for a project that no agent holds is listed as locked, not running, after the agents.
+func TestFormatAgentListNamesTheLockedNamesNoAgentHolds(t *testing.T) {
+	you := AgentListEntry{FirstName: "Camille", AgentName: "Claude Code", You: true}
+	other := AgentListEntry{FirstName: "Jérôme", AgentName: "Codex", Project: "projectb", State: "idle"}
+	locked := []AgentListLocked{{FirstName: "Flore", Project: "projectb"}, {FirstName: "Étienne"}}
+
+	text := FormatAgentList(AgentList{You: &you, Agents: []AgentListEntry{you, other}, Locked: locked})
+	want := "You are Camille (Claude Code).\nAgents you can hand work to (send_to_agent with the first name):\n" +
+		"- Jérôme: Codex, project projectb, idle\n" +
+		"\nLocked names with no agent running (a hand-off to them cannot be delivered, and MoltenTerm does not start an agent for one):\n" +
+		"- Flore: locked for project projectb, not running\n" +
+		"- Étienne: locked, not running"
+	if text != want {
+		t.Fatalf("%q", text)
+	}
+
+	alone := FormatAgentList(AgentList{You: &you, Agents: []AgentListEntry{you}, Locked: locked[:1]})
+	wantAlone := "You are Camille (Claude Code).\nNo other agent is running in MoltenTerm.\n" +
+		"\nLocked names with no agent running (a hand-off to them cannot be delivered, and MoltenTerm does not start an agent for one):\n" +
+		"- Flore: locked for project projectb, not running"
+	if alone != wantAlone {
+		t.Fatalf("%q", alone)
+	}
+}
