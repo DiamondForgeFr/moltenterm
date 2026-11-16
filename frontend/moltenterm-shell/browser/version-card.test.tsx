@@ -141,7 +141,7 @@ describe("the version card (#2326)", () => {
         expect(html).toContain("feature/1-a");
         expect(html).toContain("uncommitted changes");
         expect(html).toContain('data-testid="browser-version-mark"');
-        expect(html).toContain("Open in the Integration panel");
+        expect(html).toContain("Open in Integration");
         expect(html).toContain("molten-btn");
     });
 

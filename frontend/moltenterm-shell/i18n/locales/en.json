@@ -2874,7 +2874,7 @@
             "prUnknown": "Pull requests not read yet for this project",
             "noPr": "No pull request",
             "otherProject": "This app belongs to {name}, not to this workspace's project: the Integration panel shows the workspace's project.",
-            "openInReviews": "Open in the Integration panel",
+            "openInReviews": "Open in Integration",
             "openPr": "Open the pull request",
             "uncommitted": "uncommitted changes",
             "agentTitle": "The agent working on this branch",
