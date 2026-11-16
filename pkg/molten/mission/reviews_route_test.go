@@ -15,6 +15,7 @@ var localCommands = []string{
 	CiLogCommand, CiCancelCommand, CiStatusCommand, BuildsCommand, ReleaseCommand, ReleaseEndCommand, ReleaseFactsCommand,
 	ReleaseNotesCommand, ReleaseMilestoneCommand, BranchesPlanCommand, WorkCommand, SpawnsCommand, JobsCommand, DepsCommand,
 	DepSyncCommand, GroupsCommand, GithubRunLogCommand, PaneCommand, ReviewsCommand, WorktreePlanCommand,
+	ServedVersionsCommand,
 }
 
 // #662: a remote host, forging a window's source or not, runs nothing here: not a project's commands, its CI or a

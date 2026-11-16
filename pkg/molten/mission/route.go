@@ -302,6 +302,9 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return l.testCtx.Get(req)
 	}
+	if command == ServedVersionsCommand || command == ServedStopCommand {
+		return l.handleServed(command, data)
+	}
 	if command == ProjectTabCommand {
 		var req ProjectTabRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -443,6 +446,22 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
+// handleServed: the versions served on this computer and the stop of one (#2326).
+func (l *routeLink) handleServed(command string, data any) (any, error) {
+	if command == ServedVersionsCommand {
+		var req ServedVersionsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.testCtx.Versions(req)
+	}
+	var req ServedStopRequest
+	if err := utilfn.ReUnmarshal(&req, data); err != nil {
+		return nil, err
+	}
+	return l.testCtx.Stop(req)
+}
+
 func (l *routeLink) handleWorktree(command string, data any) (any, error) {
 	if command == WorktreePlanCommand {
 		var req WorktreeRequest
@@ -494,6 +513,8 @@ var windowCommands = map[string]string{
 	LaunchStartCommand:      "a version is launched from a MoltenTerm window",
 	LaunchStopCommand:       "a launched version is stopped from a MoltenTerm window",
 	LaunchRetryCommand:      "a launch is retried from a MoltenTerm window",
+	// The version card's Stop this server (#2326): the developer's confirmed click only.
+	ServedStopCommand: "a served version is stopped from a MoltenTerm window",
 }
 
 func (l *routeLink) handleLaunch(command string, data any) (any, error) {

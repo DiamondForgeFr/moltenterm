@@ -259,6 +259,57 @@ func TestTestContextFuturePr(t *testing.T) {
 	}
 }
 
+// #2326: the version card reads what the PR asks the developer to test from its cached body, no gh call.
+func TestTestContextReadsTheStepsToTest(t *testing.T) {
+	t.Parallel()
+	_, clone := makePaneRepo(t)
+	gitRun(t, clone, "checkout", "-q", "-b", "feature/12-loader")
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
+	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk, Prs: json.RawMessage(
+		`[{"number":110,"title":"Loader","url":"u","headRefName":"feature/12-loader","isDraft":true,
+		  "body":"Resolves #12\n\n## How to verify\n1. Open the page\n2. Click Start\n\n## Behaviour change\n- none"}]`)}})
+	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: clone}}
+	contexts := makeFakeTestContexts(MakePanes(withoutGh, nil, collector), collector, host)
+	answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:5173", WorkspaceDir: clone})
+	if answer.Pr == nil || !slices.Equal(answer.Steps, []string{"Open the page", "Click Start"}) {
+		t.Fatalf("steps: %+v %q", answer.Pr, answer.Steps)
+	}
+}
+
+// #2326: a branch whose PR merged in the collector's window shows that PR as merged, not as a future one; the trunk
+// never takes the release PRs it was the head of.
+func TestTestContextOfABranchWhosePrMerged(t *testing.T) {
+	t.Parallel()
+	_, clone := makePaneRepo(t)
+	collector := testCollector(t, t.TempDir(), withoutGh, nil)
+	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk,
+		Prs: json.RawMessage(`[{"number":7,"title":"Other","url":"u7","headRefName":"feature/7-other"}]`),
+		Merged: json.RawMessage(`[
+			{"number":20,"title":"Loader v1","url":"u20","state":"MERGED","headRefName":"feature/12-loader","mergedAt":"2026-11-01T10:00:00Z"},
+			{"number":21,"title":"Loader v2","url":"u21","state":"MERGED","headRefName":"feature/12-loader","mergedAt":"2026-11-03T10:00:00Z"},
+			{"number":22,"title":"Closed","url":"u22","state":"CLOSED","headRefName":"feature/13-closed"},
+			{"number":23,"title":"Release","url":"u23","state":"MERGED","headRefName":"develop","mergedAt":"2026-11-04T10:00:00Z"}]`)}})
+	panes := MakePanes(withoutGh, nil, collector)
+	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: clone}}
+	contexts := makeFakeTestContexts(panes, collector, host)
+	trunk, _ := contexts.Get(TestContextRequest{Url: "http://localhost:3500"})
+	if trunk.Pr != nil || trunk.FuturePr {
+		t.Fatalf("the trunk took a merged PR: %+v", trunk.Pr)
+	}
+	gitRun(t, clone, "checkout", "-q", "-b", "feature/12-loader")
+	panes.now = func() time.Time { return time.Now().Add(2 * time.Second) }
+	merged, _ := contexts.Get(TestContextRequest{Url: "http://localhost:3500", Fresh: true})
+	if merged.Pr == nil || merged.Pr.Number != 21 || !merged.Pr.Merged || merged.FuturePr || len(merged.Steps) != 0 {
+		t.Fatalf("merged branch: %+v %+v", merged, merged.Pr)
+	}
+	gitRun(t, clone, "checkout", "-q", "-b", "feature/13-closed")
+	panes.now = func() time.Time { return time.Now().Add(4 * time.Second) }
+	closed, _ := contexts.Get(TestContextRequest{Url: "http://localhost:3500", Fresh: true})
+	if closed.Pr != nil || !closed.FuturePr {
+		t.Fatalf("a closed, unmerged PR is no merged one: %+v %+v", closed, closed.Pr)
+	}
+}
+
 func TestTestContextNeverGuesses(t *testing.T) {
 	t.Parallel()
 	panes := MakePanes(withoutGh, nil, nil)
