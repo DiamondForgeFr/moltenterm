@@ -11668,13 +11668,7 @@
         },
         "openOn": "Ouverte sur",
         "ticket": "Ticket n°{number}",
-        "note": "Ces réglages ne font que désactiver des fonctions, sur cet ordinateur. Une fonction ne s'ouvre jamais sur une version dont le canal ne l'a pas, et rien ici n'est synchronisé.",
-        "features": {
-            "brainstorm": {
-                "label": "Brainstorm avec {name}",
-                "description": "Parler d'une idée avec {name} et voir sa pensée grandir en 3D."
-            }
-        }
+        "note": "Ces réglages ne font que désactiver des fonctions, sur cet ordinateur. Une fonction ne s'ouvre jamais sur une version dont le canal ne l'a pas, et rien ici n'est synchronisé."
     },
     "library": {
         "label": "Bibliothèque",

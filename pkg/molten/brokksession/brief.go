@@ -27,8 +27,8 @@ var briefFiles = []string{"AGENTS.md", "CLAUDE.md"}
 //go:embed brief.md
 var brief string
 
-// The brainstorm section (FR-BOSS-010, DS-BOSS-009, #2246): how he writes the graph of his thought. Only a build whose
-// channel allows brainstorms teaches it, so a release never asks him for a block nothing would read.
+// The brainstorm section (FR-BOSS-010, DS-BOSS-009, #2246): how he writes the graph of his thought. Only a wavesrv that
+// knows its channel teaches it, so a hand-started one never asks him for a block nothing would read.
 //
 //go:embed brief-brainstorm.md
 var briefBrainstorm string
@@ -83,7 +83,7 @@ func liveBriefText() string {
 }
 
 // WriteBrief puts his brief in his folder: a file that is missing is written, one MoltenTerm wrote is refreshed when
-// the brief changed, one it did not write stays as it is. The brainstorm section follows the build channel.
+// the brief changed, one it did not write stays as it is. The brainstorm section is in it wherever the channel is known.
 func WriteBrief(dir string) error {
 	return writeBrief(dir, liveBriefText())
 }

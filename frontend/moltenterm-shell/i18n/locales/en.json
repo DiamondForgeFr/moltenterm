@@ -11668,13 +11668,7 @@
         },
         "openOn": "Open on",
         "ticket": "Ticket #{number}",
-        "note": "These switches only turn features off, on this computer. A feature never opens on a build whose channel does not have it, and nothing here is synced.",
-        "features": {
-            "brainstorm": {
-                "label": "Brainstorm with {name}",
-                "description": "Talk an idea through with {name} and watch his thought grow in 3D."
-            }
-        }
+        "note": "These switches only turn features off, on this computer. A feature never opens on a build whose channel does not have it, and nothing here is synced."
     },
     "library": {
         "label": "Library",

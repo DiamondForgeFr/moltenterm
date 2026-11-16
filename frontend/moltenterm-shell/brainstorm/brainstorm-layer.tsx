@@ -4,8 +4,8 @@
 // The brainstorm layer's place in Brokk's host (FR-BOSS-010 AC2, AC19, NFR-BOSS-009, #2246): it starts the watch of the
 // mode in every tab view (its state is wavesrv's, so a tab switch finds it, brainstorm-boot.ts), and shows the layer while
 // the mode is on. What the layer draws (brainstorm-view.tsx) loads behind this one import() the first time the mode
-// opens, and the 3D scene behind the stage's own: a window that never brainstorms carries neither, and a release channel
-// starts nothing.
+// opens, and the 3D scene behind the stage's own: a window that never brainstorms carries neither, and a window whose
+// channel is not known starts nothing.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";

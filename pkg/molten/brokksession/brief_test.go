@@ -57,7 +57,8 @@ func TestTheBriefTeachesTheToneMarker(t *testing.T) {
 	}
 }
 
-// FR-BOSS-010 AC1 and AC21 (#2246): a gold, dev or local build teaches him the graph block; a release never does.
+// FR-BOSS-010 AC1 and AC21 (#2246, #2320): a build that knows its channel teaches him the graph block; one that does not
+// never does.
 func TestTheBrainstormSectionFollowsTheGate(t *testing.T) {
 	t.Parallel()
 	with := BriefText(true)
@@ -71,7 +72,7 @@ func TestTheBrainstormSectionFollowsTheGate(t *testing.T) {
 		}
 	}
 	if strings.Contains(without, "brokk-graph") || strings.Contains(without, "Brainstorm") {
-		t.Error("the brief of a release mentions brainstorms")
+		t.Error("the brief without the section mentions brainstorms")
 	}
 	dir := t.TempDir()
 	if err := writeBrief(dir, with); err != nil {
@@ -80,25 +81,33 @@ func TestTheBrainstormSectionFollowsTheGate(t *testing.T) {
 	if got := readFile(t, filepath.Join(dir, "AGENTS.md")); got != with {
 		t.Errorf("AGENTS.md is %.40q, want the brief with its brainstorm section", got)
 	}
-	// The same folder after a change of channel: the section goes with the refresh.
+	// The same folder after the section goes: the refresh takes it out.
 	if err := writeBrief(dir, without); err != nil {
 		t.Fatal(err)
 	}
 	if got := readFile(t, filepath.Join(dir, "CLAUDE.md")); got != without {
-		t.Errorf("CLAUDE.md still holds the brainstorm section on a release")
+		t.Errorf("CLAUDE.md still holds the brainstorm section")
 	}
 }
 
-// The brief follows the gate: a public build launched as a gold still gets the release's brief.
-func TestTheBriefOfAReleaseHasNoBrainstormSection(t *testing.T) {
+// FR-BOSS-010 AC1 (#2320): the brief follows the gate, and a release teaches the graph block as a gold does, a public
+// build launched as a gold included.
+func TestTheBriefOfAReleaseHasTheBrainstormSection(t *testing.T) {
 	t.Parallel()
-	release := BriefText(buildchannel.BrainstormAllowed(buildchannel.GateChannel(false, buildchannel.Public, buildchannel.Gold)))
-	if strings.Contains(release, "brokk-graph") {
-		t.Error("a public release's brief teaches the graph block")
+	for name, gate := range map[string]string{
+		"a public release":                       buildchannel.GateChannel(false, buildchannel.Public, ""),
+		"a public build launched as a gold":      buildchannel.GateChannel(false, buildchannel.Public, buildchannel.Gold),
+		"a release candidate":                    buildchannel.GateChannel(false, buildchannel.RC, ""),
+		"a gold":                                 buildchannel.GateChannel(false, buildchannel.Gold, ""),
+		"a gold launched as a release candidate": buildchannel.GateChannel(false, buildchannel.Gold, buildchannel.RC),
+	} {
+		if !strings.Contains(BriefText(buildchannel.BrainstormAllowed(gate)), "brokk-graph") {
+			t.Errorf("the brief of %s does not teach the graph block", name)
+		}
 	}
-	gold := BriefText(buildchannel.BrainstormAllowed(buildchannel.GateChannel(false, buildchannel.Gold, "")))
-	if !strings.Contains(gold, "brokk-graph") {
-		t.Error("a gold's brief does not teach the graph block")
+	unknown := BriefText(buildchannel.BrainstormAllowed(buildchannel.GateChannel(false, "nightly", "")))
+	if strings.Contains(unknown, "brokk-graph") {
+		t.Error("the brief of a channel that is not known teaches the graph block")
 	}
 }
 

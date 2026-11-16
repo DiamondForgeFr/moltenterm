@@ -27,7 +27,7 @@ export function brokkMenuItems(name: string, leave?: () => void, first?: BrokkMe
     if (first != null) {
         items.push(first, { type: "separator" });
     }
-    // Brokk's thought in 3D (FR-BOSS-010 AC2, #2246): the developer starts a brainstorm; gold, dev and local builds only.
+    // Brokk's thought in 3D (FR-BOSS-010 AC2, #2246): the developer starts a brainstorm; every channel since #2320.
     if (currentBrainstormAllowed()) {
         // The way back to the brainstorm last left (AC10e, #2284).
         const last = globalStore.get(BrainstormLastLeftAtom);

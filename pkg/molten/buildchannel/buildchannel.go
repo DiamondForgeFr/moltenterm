@@ -30,12 +30,12 @@ const (
 	Unknown = "unknown"
 )
 
-// BrainstormRefusal is the plain reason the brainstorm commands give on a release channel, or when the developer
-// switched the brainstorm off in Features in test.
-const BrainstormRefusal = "brainstorms with Brokk exist only on gold, dev and local builds, and can be switched off in Features in test"
+// BrainstormRefusal is the plain reason the brainstorm commands give when this build cannot say what channel it is: the
+// brainstorm is open on every channel (FR-BOSS-010 AC1, #2320).
+const BrainstormRefusal = "brainstorms with Brokk need a build that knows its channel"
 
-// gateReach is how much of what is gated a channel opens: the brainstorm on gold, its scripted replay too on local and
-// dev.
+// gateReach is how much of what is gated a channel opens: nothing on a release candidate and a public release, a gold's
+// share on a gold, everything on local and dev builds (the brainstorm's scripted replay is on those two only).
 var gateReach = map[string]int{RC: 0, Public: 0, Gold: 1, Local: 2, Dev: 2}
 
 func known(channel string) bool {
@@ -70,10 +70,10 @@ func GateChannel(dev bool, baked string, runtime string) string {
 	return runtime
 }
 
-// BrainstormAllowed: Brokk's thought in 3D exists on the channels the registry lists for it (gold, dev and local
-// builds), never on a release candidate or a public release, and never on a channel that is not known.
+// BrainstormAllowed: Brokk's thought in 3D exists on every channel (dev, local, gold, release candidate and public
+// release), and never on a channel that is not known. It is no longer a feature of the registry: it ships (#2320).
 func BrainstormAllowed(channel string) bool {
-	return FeatureAllowed(FeatureBrainstorm, channel)
+	return known(channel)
 }
 
 // What Electron main said when wavesrv started; "" when it was started without it (tests, a hand-started wavesrv),
@@ -104,8 +104,8 @@ func Current() string {
 	return started.channel
 }
 
-// BrainstormEnabled reads the gate for the channel this wavesrv runs on, narrowed by the developer's switches
-// (FeatureEnabled).
+// BrainstormEnabled reads the gate for the channel this wavesrv runs on: shut where Electron main gave none (tests, a
+// hand-started wavesrv). The developer's switches of Features in test never close it.
 func BrainstormEnabled() bool {
-	return FeatureEnabled(FeatureBrainstorm)
+	return started.given && BrainstormAllowed(started.channel)
 }

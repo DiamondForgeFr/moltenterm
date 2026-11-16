@@ -533,7 +533,8 @@ func TestCreateNeedsTheBriefAndTheSameBrainstorm(t *testing.T) {
 	}
 }
 
-// AC-6 and the security rationale: the project's commands answer MoltenTerm's windows alone, and never on a release.
+// AC-6 and the security rationale: the project's commands answer MoltenTerm's windows alone, and never on a build that
+// does not know its channel.
 func TestProjectCommandsAreForWindowsOnly(t *testing.T) {
 	t.Parallel()
 	e := routetest.Make(t)
@@ -547,7 +548,7 @@ func TestProjectCommandsAreForWindowsOnly(t *testing.T) {
 	for _, command := range []string{ProjectPreviewCommand, ProjectCreateCommand, ProjectLinkedCommand} {
 		routetest.MustRefuseWith(t, link, notUi, command, map[string]any{"name": "forge-notes"}, "MoltenTerm windows only")
 	}
-	for _, channel := range []string{buildchannel.RC, buildchannel.Public} {
+	for _, channel := range []string{buildchannel.Unknown, ""} {
 		e := routetest.Make(t)
 		refused, err := localroute.MakeLink(e.Router, p.s.route(func() bool { return buildchannel.BrainstormAllowed(channel) }))
 		if err != nil {

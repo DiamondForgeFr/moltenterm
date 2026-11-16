@@ -1955,7 +1955,7 @@
         },
         "boss:brainstormsdir": {
           "type": "string",
-          "description": "The folder where the brainstorms with Brokk are saved, one folder per idea. ~/MoltenTerm/Brainstorms when unset. Gold, dev and local builds only",
+          "description": "The folder where the brainstorms with Brokk are saved, one folder per idea. ~/MoltenTerm/Brainstorms when unset",
           "x-moltenterm": {
             "section": "boss",
             "group": "Brainstorms",
@@ -1963,20 +1963,18 @@
             "description": "Where your brainstorms with him are saved, one folder per idea, without asking.",
             "control": "path",
             "default": "~/MoltenTerm/Brainstorms",
-            "channels": "gold,dev,local",
             "order": 73
           }
         },
         "boss:projectsdir": {
           "type": "string",
-          "description": "The parent folder where a clear brainstorm with Brokk becomes a project, chosen on the project card and then remembered. Each project still asks for its click. Gold, dev and local builds only",
+          "description": "The parent folder where a clear brainstorm with Brokk becomes a project, chosen on the project card and then remembered. Each project still asks for its click",
           "x-moltenterm": {
             "section": "boss",
             "group": "Brainstorms",
             "label": "Projects folder",
             "description": "Where a clear brainstorm becomes a project folder, once you click to make it.",
             "control": "path",
-            "channels": "gold,dev,local",
             "order": 74
           }
         },

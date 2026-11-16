@@ -4,9 +4,11 @@
 // The features that ship gated to the build channel while they are tested, and the developer's switches over them
 // (FR-BOSS-011, #2254). One registry declares them: pkg/molten/buildchannel/gated-features.json, which Go embeds too, so
 // the window and wavesrv never disagree on what exists where. A gate names its feature with one of the Feature
-// constants below; gated-features.test.ts fails on any other.
+// constants below, one per feature of the registry (`export const FeatureName = "name";`); gated-features.test.ts fails
+// on any other. No feature is gated since the brainstorm shipped on every channel (#2320): the registry and the
+// constants are empty, and the entry of Features in test shows nowhere.
 //
-// The switches only narrow: the channel decides first (FR-BOSS-010 AC1), and what the developer stored can only remove
+// The switches only narrow: the channel decides first (FR-BOSS-011 AC5), and what the developer stored can only remove
 // from what it opens. Pure, with no store: the stored state is read in features-narrowing.ts.
 
 import Registry from "../../../pkg/molten/buildchannel/gated-features.json";
@@ -15,9 +17,8 @@ import { isBuildChannelName, type BuildChannelName, type GateChannel } from "./b
 // must match pkg/molten/buildchannel/features.go NarrowingMetaKey
 export const FeaturesMetaKey = "molten:featuresintest";
 
-export const FeatureBrainstorm = "brainstorm";
-
-export type GatedFeatureId = typeof FeatureBrainstorm;
+// The id of a feature of the registry; a union of the Feature constants once there are some.
+export type GatedFeatureId = string;
 
 export type GatedFeature = {
     id: GatedFeatureId;

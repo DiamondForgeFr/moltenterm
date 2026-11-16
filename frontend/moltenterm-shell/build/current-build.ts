@@ -6,9 +6,9 @@
 import { getApi } from "@/app/store/global";
 import { GateChannel, gateChannel } from "./build-channel";
 import type { MoltentermBuildInfo } from "./build-info";
-import { brainstormReplayAllowed, BuildIdentity, makeBuildIdentity } from "./build-identity";
+import { brainstormAllowed, brainstormReplayAllowed, BuildIdentity, makeBuildIdentity } from "./build-identity";
 import { currentNarrowing } from "./features-narrowing";
-import { featureOn, FeatureBrainstorm, type GatedFeatureId } from "./gated-features";
+import { featureOn, type GatedFeatureId } from "./gated-features";
 
 export function readBuildInfo(): MoltentermBuildInfo {
     return typeof __MOLTENTERM_BUILD__ === "undefined" ? null : __MOLTENTERM_BUILD__;
@@ -57,11 +57,12 @@ export function currentFeatureOn(id: GatedFeatureId): boolean {
     return now != null && featureOn(id, now, currentNarrowing());
 }
 
-// The window's lock of Brokk's thought in 3D (FR-BOSS-010 AC1), and of its scripted replay: the replay needs the
-// brainstorm itself, so a brainstorm switched off takes it away too.
+// The window's lock of Brokk's thought in 3D (FR-BOSS-010 AC1: every channel, no switch since #2320), and of its scripted
+// replay, a test tool that dev and local builds alone have.
 export function currentBrainstormGates(): { start: boolean; replay: boolean } {
-    const start = currentFeatureOn(FeatureBrainstorm);
-    return { start, replay: start && brainstormReplayAllowed(currentChannel()) };
+    const now = currentChannel();
+    const start = brainstormAllowed(now);
+    return { start, replay: start && brainstormReplayAllowed(now) };
 }
 
 export function currentBrainstormAllowed(): boolean {

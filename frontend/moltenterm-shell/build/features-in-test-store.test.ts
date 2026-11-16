@@ -1,38 +1,29 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { globalStore } from "@/app/store/jotaiStore";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const world = vi.hoisted(() => ({
     log: [] as string[],
-    state: null as any,
     stored: { public: false, off: [] as string[] },
+    running: false,
     endFails: false,
 }));
 
-vi.mock("../brainstorm/brainstorm-boot", async () => {
-    const { atom } = await import("jotai");
-    world.state = atom(null);
-    return {
-        BrainstormStateAtom: world.state,
-        loadBrainstorm: async () => {
-            world.log.push("load");
-            return {
-                BrainstormModel: {
-                    getInstance: () => ({
-                        end: async () => {
-                            world.log.push("end");
-                            if (world.endFails) {
-                                throw new Error("wavesrv did not answer");
-                            }
-                        },
-                    }),
-                },
-            };
-        },
-    };
-});
+// No feature is gated since the brainstorm shipped on every channel (#2320): the switches are proved on a sample one.
+vi.mock("../../../pkg/molten/buildchannel/gated-features.json", () => ({
+    default: {
+        features: [
+            {
+                id: "sample",
+                labelkey: "boss.brainstorm.menu",
+                descriptionkey: "boss.brainstorm.opening",
+                channels: ["dev", "local", "gold"],
+                ticket: 1,
+            },
+        ],
+    },
+}));
 vi.mock("./features-narrowing", () => ({
     narrowingToChange: () => world.stored,
     writeNarrowing: async (next: { public: boolean; off: string[] }) => {
@@ -41,55 +32,72 @@ vi.mock("./features-narrowing", () => ({
     },
 }));
 
-import { FeatureBrainstorm } from "./gated-features";
-import { switchFeature, switchPublicVersion } from "./features-in-test-store";
+import { EndBeforeOff, switchFeature, switchPublicVersion } from "./features-in-test-store";
 
 beforeEach(() => {
     world.log.length = 0;
     world.stored = { public: false, off: [] };
+    world.running = false;
     world.endFails = false;
-    globalStore.set(world.state, null);
+    EndBeforeOff.sample = async () => {
+        if (!world.running) {
+            return;
+        }
+        world.log.push("end");
+        if (world.endFails) {
+            throw new Error("the feature did not answer");
+        }
+    };
 });
 
-// FR-BOSS-011 AC3: a brainstorm open when its switch closes it is ended first, so what it held is let go; the state
-// is written after.
+// FR-BOSS-011 AC3: a feature that is running when its switch closes it is ended first, so what it held is let go; the
+// state is written after.
 describe("switching a feature", () => {
-    it("ends the brainstorm that is open, then switches it off", async () => {
-        globalStore.set(world.state, { open: true });
-        await switchFeature(FeatureBrainstorm, true);
-        expect(world.log).toEqual(["load", "end", 'write {"public":false,"off":["brainstorm"]}']);
+    it("ends the feature that is running, then switches it off", async () => {
+        world.running = true;
+        await switchFeature("sample", true);
+        expect(world.log).toEqual(["end", 'write {"public":false,"off":["sample"]}']);
     });
 
-    it("loads and ends nothing when no brainstorm is open", async () => {
-        globalStore.set(world.state, { open: false });
-        await switchFeature(FeatureBrainstorm, true);
-        expect(world.log).toEqual(['write {"public":false,"off":["brainstorm"]}']);
+    it("ends nothing when the feature is not running", async () => {
+        await switchFeature("sample", true);
+        expect(world.log).toEqual(['write {"public":false,"off":["sample"]}']);
     });
 
     it("ends nothing when it turns a feature on", async () => {
-        globalStore.set(world.state, { open: true });
-        world.stored = { public: false, off: ["brainstorm"] };
-        await switchFeature(FeatureBrainstorm, false);
+        world.running = true;
+        world.stored = { public: false, off: ["sample"] };
+        await switchFeature("sample", false);
         expect(world.log).toEqual(['write {"public":false,"off":[]}']);
     });
 
-    it("switches the feature off even when the brainstorm could not be ended", async () => {
-        globalStore.set(world.state, { open: true });
+    it("switches the feature off even when it could not be ended", async () => {
+        world.running = true;
         world.endFails = true;
-        await switchFeature(FeatureBrainstorm, true);
-        expect(world.log.at(-1)).toBe('write {"public":false,"off":["brainstorm"]}');
+        await switchFeature("sample", true);
+        expect(world.log).toEqual(["end", 'write {"public":false,"off":["sample"]}']);
+    });
+
+    it("has nothing to end for a feature that holds nothing while it runs", async () => {
+        delete EndBeforeOff.sample;
+        await switchFeature("sample", true);
+        expect(world.log).toEqual(['write {"public":false,"off":["sample"]}']);
+    });
+
+    it("keeps the brainstorm out of it: it has no switch since it ships on every channel", () => {
+        expect(Object.keys(EndBeforeOff)).not.toContain("brainstorm");
     });
 });
 
 // FR-BOSS-011 AC4: the public version leaves each switch where it was.
 describe("switching to the public version", () => {
     it("ends what is running, keeps the switches, and gives them back", async () => {
-        globalStore.set(world.state, { open: true });
-        world.stored = { public: false, off: ["brainstorm"] };
+        world.running = true;
+        world.stored = { public: false, off: ["sample"] };
         await switchPublicVersion(true);
-        expect(world.log).toEqual(["load", "end", 'write {"public":true,"off":["brainstorm"]}']);
+        expect(world.log).toEqual(["end", 'write {"public":true,"off":["sample"]}']);
         world.log.length = 0;
         await switchPublicVersion(false);
-        expect(world.log).toEqual(['write {"public":false,"off":["brainstorm"]}']);
+        expect(world.log).toEqual(['write {"public":false,"off":["sample"]}']);
     });
 });

@@ -28,12 +28,36 @@ func registryIds() map[string]bool {
 	return ids
 }
 
+// sampleFeature stands for the next feature gated while it is tested: the registry holds none since the brainstorm
+// shipped on every channel (#2320), and the mechanism is proved on this one.
+var sampleFeature = Feature{
+	Id:             "sample",
+	LabelKey:       "featuresInTest.features.sample.label",
+	DescriptionKey: "featuresInTest.features.sample.description",
+	Channels:       []string{Dev, Local, Gold},
+	Ticket:         1,
+}
+
+// useSampleRegistry makes the registry hold sampleFeature until the end of the test. The tests that use it are not
+// parallel: the registry is read without a lock.
+func useSampleRegistry(t *testing.T) {
+	t.Helper()
+	before := registry
+	registry = []Feature{sampleFeature}
+	t.Cleanup(func() { registry = before })
+}
+
 func TestTheRegistryIsWellFormed(t *testing.T) {
 	t.Parallel()
-	features := Registry()
-	if len(features) == 0 {
-		t.Fatal("the registry lists no feature")
+	checkWellFormed(t, Registry())
+	checkWellFormed(t, []Feature{sampleFeature})
+	if _, ok := FeatureById("brainstorm"); ok {
+		t.Error("the brainstorm is back in the registry: it ships on every channel (FR-BOSS-010 AC1)")
 	}
+}
+
+func checkWellFormed(t *testing.T, features []Feature) {
+	t.Helper()
 	seen := map[string]bool{}
 	for _, feature := range features {
 		if feature.Id == "" || seen[feature.Id] {
@@ -54,21 +78,19 @@ func TestTheRegistryIsWellFormed(t *testing.T) {
 			opened[channel] = true
 		}
 	}
-	if !seen[FeatureBrainstorm] {
-		t.Errorf("the brainstorm (%q) is not in the registry", FeatureBrainstorm)
-	}
 }
 
-// The brainstorm is the registry's first entry (FR-BOSS-011): the same channels as before the registry.
+// FR-BOSS-011: a feature is open on the channels the registry lists for it and nowhere else. The brainstorm is no longer
+// in it (#2320), so nothing opens for it.
 func TestFeatureAllowedFollowsTheRegistry(t *testing.T) {
-	t.Parallel()
+	useSampleRegistry(t)
 	want := map[string]bool{Gold: true, Dev: true, Local: true}
 	for _, channel := range everyChannel {
-		if got := FeatureAllowed(FeatureBrainstorm, channel); got != want[channel] {
-			t.Errorf("FeatureAllowed(brainstorm, %q) = %v, want %v", channel, got, want[channel])
+		if got := FeatureAllowed(sampleFeature.Id, channel); got != want[channel] {
+			t.Errorf("FeatureAllowed(sample, %q) = %v, want %v", channel, got, want[channel])
 		}
 	}
-	for _, id := range []string{"", "nope", "Brainstorm"} {
+	for _, id := range []string{"", "nope", "Sample", "brainstorm"} {
 		for _, channel := range everyChannel {
 			if FeatureAllowed(id, channel) {
 				t.Errorf("FeatureAllowed(%q, %q): a feature outside the registry opened", id, channel)
@@ -80,13 +102,13 @@ func TestFeatureAllowedFollowsTheRegistry(t *testing.T) {
 // FR-BOSS-011 AC5: whatever the developer stored, a feature is never on where its channel does not open it, and the
 // switches only remove from what the channel opens. Must match gated-features.test.ts.
 func TestASwitchOnlyNarrows(t *testing.T) {
-	t.Parallel()
+	useSampleRegistry(t)
 	states := []Narrowing{
 		{},
 		{Public: true},
-		{Off: []string{FeatureBrainstorm}},
+		{Off: []string{sampleFeature.Id}},
 		{Off: []string{"another"}},
-		{Public: true, Off: []string{FeatureBrainstorm}},
+		{Public: true, Off: []string{sampleFeature.Id}},
 		{Off: []string{"", "nope"}},
 	}
 	for _, feature := range Registry() {
@@ -137,6 +159,7 @@ func TestParseNarrowing(t *testing.T) {
 // FR-BOSS-011 AC3, AC5: wavesrv reads the switches at each call, and not at all where its channel does not open the
 // feature.
 func TestFeatureEnabledReadsTheSwitchesAtEachCall(t *testing.T) {
+	useSampleRegistry(t)
 	var reads atomic.Int32
 	state := Narrowing{}
 	restore := StartAsForTest(Gold, Narrowing{})
@@ -145,20 +168,20 @@ func TestFeatureEnabledReadsTheSwitchesAtEachCall(t *testing.T) {
 		reads.Add(1)
 		return state
 	})
-	if !FeatureEnabled(FeatureBrainstorm) || !BrainstormEnabled() {
-		t.Fatal("a gold with nothing switched off has no brainstorm")
+	if !FeatureEnabled(sampleFeature.Id) {
+		t.Fatal("a gold with nothing switched off has no sample feature")
 	}
-	state = Narrowing{Off: []string{FeatureBrainstorm}}
-	if FeatureEnabled(FeatureBrainstorm) || BrainstormEnabled() {
-		t.Error("the brainstorm stays on after the developer switched it off")
+	state = Narrowing{Off: []string{sampleFeature.Id}}
+	if FeatureEnabled(sampleFeature.Id) {
+		t.Error("the feature stays on after the developer switched it off")
 	}
 	state = Narrowing{Public: true}
-	if BrainstormEnabled() {
-		t.Error("the brainstorm stays on in the public version")
+	if FeatureEnabled(sampleFeature.Id) {
+		t.Error("the feature stays on in the public version")
 	}
 	state = Narrowing{}
-	if !BrainstormEnabled() {
-		t.Error("the brainstorm does not come back when the switches are cleared")
+	if !FeatureEnabled(sampleFeature.Id) {
+		t.Error("the feature does not come back when the switches are cleared")
 	}
 	if FeatureEnabled("nope") {
 		t.Error("a feature outside the registry is on")
@@ -171,8 +194,8 @@ func TestFeatureEnabledReadsTheSwitchesAtEachCall(t *testing.T) {
 			reads.Add(1)
 			return Narrowing{}
 		})
-		if BrainstormEnabled() {
-			t.Errorf("the brainstorm is on for a build on %q", channel)
+		if FeatureEnabled(sampleFeature.Id) {
+			t.Errorf("the feature is on for a build on %q", channel)
 		}
 		restoreChannel()
 	}
@@ -182,10 +205,11 @@ func TestFeatureEnabledReadsTheSwitchesAtEachCall(t *testing.T) {
 }
 
 func TestNothingIsOnBeforeElectronMainGivesTheChannel(t *testing.T) {
+	useSampleRegistry(t)
 	restore := StartAsForTest(Gold, Narrowing{})
 	restore()
-	if FeatureEnabled(FeatureBrainstorm) {
-		t.Error("a wavesrv started without a channel has the brainstorm")
+	if FeatureEnabled(sampleFeature.Id) || BrainstormEnabled() {
+		t.Error("a wavesrv started without a channel has a gated feature or the brainstorm")
 	}
 }
 
@@ -306,20 +330,24 @@ func TestEveryGateNamesARegistryFeature(t *testing.T) {
 		}
 	}
 
+	// The guard is proved on a registry that holds the sample feature, as the next gated feature will be declared.
+	sampleIds := map[string]bool{sampleFeature.Id: true}
+	sampleConstants := map[string]string{"FeatureSample": sampleFeature.Id}
 	synthetic := map[string]struct {
 		src      string
 		problems int
 	}{
-		"a constant":   {"package x\nvar _ = buildchannel.FeatureEnabled(buildchannel.FeatureBrainstorm)", 0},
-		"its value":    {"package x\nvar _ = buildchannel.FeatureAllowed(\"brainstorm\", \"gold\")", 0},
-		"a stranger":   {"package x\nvar _ = buildchannel.FeatureEnabled(\"nope\")", 1},
-		"a constant 2": {"package x\nvar _ = buildchannel.FeatureOn(buildchannel.FeatureNope, \"gold\", n)", 1},
-		"a variable":   {"package x\nfunc f(id string) bool { return buildchannel.FeatureEnabled(id) == true }", 1},
-		"a call":       {"package x\nvar _ = buildchannel.FeatureEnabled(name())", 1},
-		"other calls":  {"package x\nvar _ = other.FeatureEnabled(\"nope\")\nvar _ = fmt.Sprint(\"nope\")", 0},
+		"a constant":     {"package x\nvar _ = buildchannel.FeatureEnabled(buildchannel.FeatureSample)", 0},
+		"its value":      {"package x\nvar _ = buildchannel.FeatureAllowed(\"sample\", \"gold\")", 0},
+		"a stranger":     {"package x\nvar _ = buildchannel.FeatureEnabled(\"nope\")", 1},
+		"the brainstorm": {"package x\nvar _ = buildchannel.FeatureEnabled(\"brainstorm\")", 1},
+		"a constant 2":   {"package x\nvar _ = buildchannel.FeatureOn(buildchannel.FeatureNope, \"gold\", n)", 1},
+		"a variable":     {"package x\nfunc f(id string) bool { return buildchannel.FeatureEnabled(id) == true }", 1},
+		"a call":         {"package x\nvar _ = buildchannel.FeatureEnabled(name())", 1},
+		"other calls":    {"package x\nvar _ = other.FeatureEnabled(\"nope\")\nvar _ = fmt.Sprint(\"nope\")", 0},
 	}
 	for name, c := range synthetic {
-		if problems, _ := gateProblems(name, []byte(c.src), constants, ids); len(problems) != c.problems {
+		if problems, _ := gateProblems(name, []byte(c.src), sampleConstants, sampleIds); len(problems) != c.problems {
 			t.Errorf("synthetic %q: %d problems %v, want %d", name, len(problems), problems, c.problems)
 		}
 	}
@@ -358,8 +386,10 @@ func TestEveryGateNamesARegistryFeature(t *testing.T) {
 	for _, problem := range problems {
 		t.Error(problem)
 	}
-	if checked == 0 {
-		t.Error("the scan found no gate to check: BrainstormAllowed names the brainstorm")
+	// No code names a gated feature while the registry holds none (#2320): the scan then has nothing to check, and
+	// fails the day a gate names a feature that was never declared.
+	if checked > 0 && len(ids) == 0 {
+		t.Errorf("%d gates name a feature while the registry holds none", checked)
 	}
 }
 

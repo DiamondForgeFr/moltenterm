@@ -34,26 +34,18 @@ beforeEach(() => {
     world.narrowing = { public: false, off: [] };
 });
 
-// FR-BOSS-011 AC3, AC4, AC5: the window's gate is the channel's answer, narrowed by the developer's switches at each call.
+// FR-BOSS-010 AC1 (#2320): the window's gate of the brainstorm is the channel alone, a release candidate and a public
+// release included. FR-BOSS-011 AC3 to AC5: the gate of a gated feature is the channel's answer, narrowed by the
+// developer's switches at each call.
 describe("the window's gate of the brainstorm", () => {
-    it("is open on a dev build, and closes with the switch, the public version, then opens again", async () => {
+    it("is open on a dev build, with its scripted replay", async () => {
         world.isDev = true;
         const current = await build();
         expect(current.currentBrainstormAllowed()).toBe(true);
         expect(current.currentBrainstormGates()).toEqual({ start: true, replay: true });
-
-        world.narrowing = { public: false, off: ["brainstorm"] };
-        expect(current.currentBrainstormAllowed()).toBe(false);
-        expect(current.currentBrainstormGates()).toEqual({ start: false, replay: false });
-
-        world.narrowing = { public: true, off: [] };
-        expect(current.currentFeatureOn("brainstorm")).toBe(false);
-
-        world.narrowing = { public: false, off: ["another"] };
-        expect(current.currentBrainstormGates()).toEqual({ start: true, replay: true });
     });
 
-    it("never opens on a release launched as a release, whatever is stored", async () => {
+    it("is open on a release candidate and a public release, without the replay, whatever is stored", async () => {
         for (const runtimeChannel of ["public", "rc"]) {
             world.runtimeChannel = runtimeChannel;
             for (const narrowing of [
@@ -63,21 +55,27 @@ describe("the window's gate of the brainstorm", () => {
             ]) {
                 world.narrowing = narrowing;
                 const current = await build();
-                expect(current.currentBrainstormAllowed(), `${runtimeChannel} ${JSON.stringify(narrowing)}`).toBe(false);
-                expect(current.currentBrainstormGates()).toEqual({ start: false, replay: false });
+                expect(current.currentBrainstormAllowed(), `${runtimeChannel} ${JSON.stringify(narrowing)}`).toBe(true);
+                expect(current.currentBrainstormGates()).toEqual({ start: true, replay: false });
             }
         }
     });
 
-    it("keeps its scripted replay to dev and local builds, and takes it away with the brainstorm", async () => {
-        world.isDev = true;
-        const dev = await build();
-        world.narrowing = { public: false, off: ["brainstorm"] };
-        expect(dev.currentBrainstormGates().replay).toBe(false);
-        world.isDev = false;
+    it("ignores what Features in test stored on a gold, and keeps the replay to dev and local builds", async () => {
         world.runtimeChannel = "gold";
-        world.narrowing = { public: false, off: [] };
+        world.narrowing = { public: true, off: ["brainstorm"] };
         const gold = await build();
-        expect(gold.currentBrainstormGates().replay).toBe(false);
+        expect(gold.currentBrainstormGates()).toEqual({ start: true, replay: false });
+        world.isDev = true;
+        world.runtimeChannel = "";
+        const dev = await build();
+        expect(dev.currentBrainstormGates()).toEqual({ start: true, replay: true });
+    });
+
+    it("opens nothing for a gated feature the registry does not list", async () => {
+        world.isDev = true;
+        const current = await build();
+        expect(current.currentFeatureOn("brainstorm")).toBe(false);
+        expect(current.currentFeatureOn("another")).toBe(false);
     });
 });

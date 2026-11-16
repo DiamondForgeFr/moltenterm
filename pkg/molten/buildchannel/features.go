@@ -12,10 +12,9 @@ import (
 
 // The features that ship gated to the build channel while they are tested (FR-BOSS-011, #2254) are declared once, in
 // gated-features.json: the window imports the same file (frontend/moltenterm-shell/build/gated-features.ts). A gate
-// names its feature with one of these constants, and TestEveryGateNamesARegistryFeature fails on any other.
-const (
-	FeatureBrainstorm = "brainstorm"
-)
+// names its feature with a constant declared here, one per feature of the registry (`FeatureName = "name"`), and
+// TestEveryGateNamesARegistryFeature fails on any other. No feature is gated since the brainstorm shipped on every
+// channel (#2320), so the registry and this list are empty.
 
 // NarrowingMetaKey is the key of the client's meta holding the developer's switches ({"public": bool, "off": [ids]}).
 // The client object lives in this computer's database, so the state is never synced, and the metaguard refuses a

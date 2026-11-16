@@ -4,7 +4,7 @@
 // What a tab view carries up front of Brokk's thought in 3D (FR-BOSS-010 AC19, NFR-BOSS-009, #2246): the state the
 // layer reads, and a small watch that loads the brainstorm (brainstorm-store.ts and what it needs) only when it is
 // needed: the mode is on in some view (wavesrv says so at start, or its event comes), the developer starts one, or his
-// answer carries a graph block. A window that never brainstorms loads none of it, and a release channel watches nothing.
+// answer carries a graph block. A window that never brainstorms loads none of it, and a window whose channel is not known watches nothing.
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
@@ -110,7 +110,7 @@ export type HistoryNote = {
     undoable?: boolean;
 };
 
-// The mode as wavesrv last told this view; null before it did (and always on a release channel).
+// The mode as wavesrv last told this view; null before it did (and always where the channel is not known).
 export const BrainstormStateAtom = atom(null) as PrimitiveAtom<BrainstormState>;
 
 // A question his talk window asks the developer about the brainstorms (FR-BOSS-010 AC10a to AC10d, #2248). The window

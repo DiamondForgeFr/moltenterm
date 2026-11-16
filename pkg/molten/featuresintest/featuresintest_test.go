@@ -22,10 +22,10 @@ func clientWith(meta waveobj.MetaMapType) clientReader {
 func TestTheSwitchesAreReadFromTheClientsMeta(t *testing.T) {
 	t.Parallel()
 	got := narrowingFrom(clientWith(waveobj.MetaMapType{
-		buildchannel.NarrowingMetaKey: map[string]any{"public": true, "off": []any{buildchannel.FeatureBrainstorm}},
+		buildchannel.NarrowingMetaKey: map[string]any{"public": true, "off": []any{"sample"}},
 	}))
-	if !got.Public || !got.Closes(buildchannel.FeatureBrainstorm) {
-		t.Errorf("read %+v, want the public version and the brainstorm off", got)
+	if !got.Public || !got.Closes("sample") {
+		t.Errorf("read %+v, want the public version and the sample feature off", got)
 	}
 	if none := narrowingFrom(clientWith(waveobj.MetaMapType{"molten:other": true})); none.Public || len(none.Off) != 0 {
 		t.Errorf("a client with no switches narrows %+v", none)
