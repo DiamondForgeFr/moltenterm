@@ -46,10 +46,12 @@ const (
 	ServedStopRefusedSelf           = "self"
 	ServedStopRefusedAgent          = "agent"
 
-	servedListenTimeout = 5 * time.Second
-	servedArgsTimeout   = 2 * time.Second
-	servedListenMaxAge  = 2 * time.Second
-	servedKnownTimeout  = 5 * time.Second
+	// A busy computer slows lsof down: the list and the stop's own reads wait longer than a navigation's lookup.
+	servedListenTimeout     = 10 * time.Second
+	servedStopListenTimeout = 15 * time.Second
+	servedArgsTimeout       = 2 * time.Second
+	servedListenMaxAge      = 2 * time.Second
+	servedKnownTimeout      = 5 * time.Second
 	// The listening processes resolved per answer: a computer with more servers lists the lowest pids.
 	servedMaxProcesses = 256
 	servedStopGrace    = 5 * time.Second
@@ -478,7 +480,7 @@ func (c *TestContexts) Stop(req ServedStopRequest) (ServedStopResult, error) {
 		rtn.Refused = ServedStopRefusedSelf
 		return rtn, nil
 	}
-	pids, err := c.pidsOn(req.Port, true)
+	pids, err := c.stopListeners(req.Port)
 	if err != nil {
 		return rtn, fmt.Errorf("the processes listening on port %d cannot be read: %w", req.Port, err)
 	}
@@ -512,9 +514,18 @@ func (c *TestContexts) Stop(req ServedStopRequest) (ServedStopResult, error) {
 	}
 	c.awaitStopped(targets)
 	c.storeSockets(socketsAnswer{})
-	after, err := c.pidsOn(req.Port, true)
+	after, err := c.stopListeners(req.Port)
 	rtn.Still = err == nil && len(after) > 0
 	return rtn, nil
+}
+
+// stopListeners reads the port's listeners for a stop: always fresh, and waiting longer than a navigation's lookup.
+func (c *TestContexts) stopListeners(port int) ([]int32, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), servedStopListenTimeout)
+	defer cancel()
+	pids, err := c.listeners(ctx, port)
+	c.storeListen(port, listenAnswer{pids: pids, err: err, readAt: c.now()})
+	return pids, err
 }
 
 // stopTargets: the port's listeners inside the checkout, then what they started inside it, each once, with its start

@@ -39,9 +39,9 @@ import {
     type VersionLine,
 } from "./version-card-model";
 
-const ServedVersionsRpcTimeoutMs = 15000;
-// A stop waits for the server's grace, then for a kill: longer than both.
-const ServedStopRpcTimeoutMs = 30000;
+const ServedVersionsRpcTimeoutMs = 20000;
+// A stop reads the port twice (15 s each at most on a busy computer) and waits for the server's grace, then a kill.
+const ServedStopRpcTimeoutMs = 60000;
 const ServedVersionsPollMs = 5000;
 const ServedVersionsUnfocusedPollMs = 15000;
 
@@ -324,10 +324,13 @@ function WhereYouAre({ data }: { data: VersionCardData }) {
                         {data.agents.join(", ")}
                     </span>
                 ) : null}
-                <span className="inline-flex min-w-0 items-center gap-1 font-mono">
-                    <i className="fa fa-solid fa-code-branch text-10 text-muted" aria-hidden />
-                    <span className="truncate">{data.branch}</span>
-                </span>
+                {/* Without a ticket title the branch is the title: said once. */}
+                {data.title ? (
+                    <span className="inline-flex min-w-0 items-center gap-1 font-mono">
+                        <i className="fa fa-solid fa-code-branch text-10 text-muted" aria-hidden />
+                        <span className="truncate">{data.branch}</span>
+                    </span>
+                ) : null}
                 {data.dirty ? (
                     <span className="inline-flex items-center gap-1 text-[var(--mt-state-warning)]">
                         <span className="h-1.5 w-1.5 rounded-full bg-[var(--mt-state-warning)]" aria-hidden />
