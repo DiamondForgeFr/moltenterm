@@ -6,6 +6,7 @@ package mission
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
@@ -276,19 +277,33 @@ func TestTestContextReadsTheStepsToTest(t *testing.T) {
 	}
 }
 
-// #2326: a branch whose PR merged in the collector's window shows that PR as merged, not as a future one; the trunk
-// never takes the release PRs it was the head of.
+// #2326: a branch whose PR merged in the collector's window shows that PR as merged, not as a future one, when the PR
+// came from this repository and its head is in the checkout's history; the trunk never takes the release PRs it was
+// the head of, a fork's branch of the same name or a branch name used again for other work is no merged PR.
 func TestTestContextOfABranchWhosePrMerged(t *testing.T) {
 	t.Parallel()
 	_, clone := makePaneRepo(t)
+	gitRun(t, clone, "checkout", "-q", "-b", "feature/12-loader")
+	commit(t, clone, "l1.txt", "feat(#12): loader v1")
+	first := headOf(t, clone, "HEAD")
+	commit(t, clone, "l2.txt", "feat(#12): loader v2")
+	second := headOf(t, clone, "HEAD")
+	gitRun(t, clone, "checkout", "-q", "develop")
+	gitRun(t, clone, "checkout", "-q", "-b", "feature/14-reused")
+	commit(t, clone, "r.txt", "feat(#14): other work")
+	gitRun(t, clone, "checkout", "-q", "develop")
+	merged := fmt.Sprintf(`[
+		{"number":20,"title":"Loader v1","url":"u20","state":"MERGED","headRefName":"feature/12-loader","headRefOid":%[1]q,"mergedAt":"2026-11-01T10:00:00Z"},
+		{"number":21,"title":"Loader v2","url":"u21","state":"MERGED","headRefName":"feature/12-loader","headRefOid":%[2]q,"mergedAt":"2026-11-03T10:00:00Z"},
+		{"number":24,"title":"Fork","url":"u24","state":"MERGED","headRefName":"feature/12-loader","headRefOid":%[2]q,"isCrossRepository":true,"mergedAt":"2026-11-05T10:00:00Z"},
+		{"number":25,"title":"Elsewhere","url":"u25","state":"MERGED","headRefName":"feature/12-loader","headRefOid":"0123456789abcdef0123456789abcdef01234567","mergedAt":"2026-11-06T10:00:00Z"},
+		{"number":26,"title":"Old use of the name","url":"u26","state":"MERGED","headRefName":"feature/14-reused","headRefOid":%[1]q,"mergedAt":"2026-11-07T10:00:00Z"},
+		{"number":22,"title":"Closed","url":"u22","state":"CLOSED","headRefName":"feature/13-closed"},
+		{"number":23,"title":"Release","url":"u23","state":"MERGED","headRefName":"develop","headRefOid":%[2]q,"mergedAt":"2026-11-04T10:00:00Z"}]`, first, second)
 	collector := testCollector(t, t.TempDir(), withoutGh, nil)
 	collector.saveCache(Snapshot{Dir: clone, Github: &GithubSnapshot{State: GithubStateOk,
-		Prs: json.RawMessage(`[{"number":7,"title":"Other","url":"u7","headRefName":"feature/7-other"}]`),
-		Merged: json.RawMessage(`[
-			{"number":20,"title":"Loader v1","url":"u20","state":"MERGED","headRefName":"feature/12-loader","mergedAt":"2026-11-01T10:00:00Z"},
-			{"number":21,"title":"Loader v2","url":"u21","state":"MERGED","headRefName":"feature/12-loader","mergedAt":"2026-11-03T10:00:00Z"},
-			{"number":22,"title":"Closed","url":"u22","state":"CLOSED","headRefName":"feature/13-closed"},
-			{"number":23,"title":"Release","url":"u23","state":"MERGED","headRefName":"develop","mergedAt":"2026-11-04T10:00:00Z"}]`)}})
+		Prs:    json.RawMessage(`[{"number":7,"title":"Other","url":"u7","headRefName":"feature/7-other"}]`),
+		Merged: json.RawMessage(merged)}})
 	panes := MakePanes(withoutGh, nil, collector)
 	host := &fakeTestContextHost{pids: []int32{5}, cwds: map[int32]string{5: clone}}
 	contexts := makeFakeTestContexts(panes, collector, host)
@@ -296,16 +311,23 @@ func TestTestContextOfABranchWhosePrMerged(t *testing.T) {
 	if trunk.Pr != nil || trunk.FuturePr {
 		t.Fatalf("the trunk took a merged PR: %+v", trunk.Pr)
 	}
-	gitRun(t, clone, "checkout", "-q", "-b", "feature/12-loader")
-	panes.now = func() time.Time { return time.Now().Add(2 * time.Second) }
-	merged, _ := contexts.Get(TestContextRequest{Url: "http://localhost:3500", Fresh: true})
-	if merged.Pr == nil || merged.Pr.Number != 21 || !merged.Pr.Merged || merged.FuturePr || len(merged.Steps) != 0 {
-		t.Fatalf("merged branch: %+v %+v", merged, merged.Pr)
+	shift := 0
+	on := func(branch string) TestContext {
+		gitRun(t, clone, "checkout", "-q", branch)
+		shift += 2
+		later := time.Duration(shift) * time.Second
+		panes.now = func() time.Time { return time.Now().Add(later) }
+		answer, _ := contexts.Get(TestContextRequest{Url: "http://localhost:3500", Fresh: true})
+		return answer
+	}
+	if loader := on("feature/12-loader"); loader.Pr == nil || loader.Pr.Number != 21 || !loader.Pr.Merged || loader.FuturePr || len(loader.Steps) != 0 {
+		t.Fatalf("merged branch: the last PR of this repository whose head is in the history: %+v %+v", loader, loader.Pr)
+	}
+	if reused := on("feature/14-reused"); reused.Pr != nil || !reused.FuturePr {
+		t.Fatalf("a name used again for other work took the old PR: %+v %+v", reused, reused.Pr)
 	}
 	gitRun(t, clone, "checkout", "-q", "-b", "feature/13-closed")
-	panes.now = func() time.Time { return time.Now().Add(4 * time.Second) }
-	closed, _ := contexts.Get(TestContextRequest{Url: "http://localhost:3500", Fresh: true})
-	if closed.Pr != nil || !closed.FuturePr {
+	if closed := on("feature/13-closed"); closed.Pr != nil || !closed.FuturePr {
 		t.Fatalf("a closed, unmerged PR is no merged one: %+v %+v", closed, closed.Pr)
 	}
 }

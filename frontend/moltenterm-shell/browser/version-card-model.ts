@@ -43,6 +43,8 @@ export type ServedVersion = {
     pr?: TestContextPr;
     futurepr?: boolean;
     projectdir?: string;
+    // A project linked to a workspace: the only ones whose servers a stop reaches.
+    linked?: boolean;
     servers: ServedServer[];
 };
 
@@ -94,6 +96,8 @@ export type VersionLine = {
     dirty: boolean;
     // What the panel loads for it.
     url: string;
+    // Stop this server is offered: a known server of a project linked to a workspace (any other stop is refused).
+    stoppable: boolean;
 };
 
 export type VersionCardData = {
@@ -383,6 +387,7 @@ function lineOf(version: ServedVersion, input: VersionCardInput, here: ServedVer
         agents: versionAgents(project, version, pr),
         dirty: !!version.dirty,
         url: server != null ? switchUrl(answer.url, server.port, samePath) : "",
+        stoppable: server != null && !!version.linked,
     };
 }
 
@@ -450,6 +455,7 @@ const RefusalKeys: Record<string, string> = {
     unknownproject: "browser.testContext.stop.refused.unknownProject",
     self: "browser.testContext.stop.refused.self",
     agent: "browser.testContext.stop.refused.agent",
+    unknown: "browser.testContext.stop.refused.unknown",
 };
 
 // What a stop did: stopped (the shown version: pick another one), refused and why, or served again at once.

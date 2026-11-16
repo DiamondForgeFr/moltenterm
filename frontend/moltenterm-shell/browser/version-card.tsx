@@ -516,7 +516,8 @@ function VersionRow({
                 ) : (
                     <div className="min-w-0 flex-1 px-2 py-1.5">{body}</div>
                 )}
-                {line.server != null ? (
+                {/* A project linked to no workspace: wavesrv would refuse the stop, so none is offered. */}
+                {line.stoppable ? (
                     <button
                         type="button"
                         className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-4 text-muted hover:bg-hover hover:text-primary"
@@ -562,8 +563,7 @@ function StopConfirm({
         >
             <p className="leading-4 text-primary">
                 {t("browser.testContext.stop.confirm", {
-                    process: line.server.process || "?",
-                    pid: line.server.pid,
+                    process: line.server.process || t("browser.testContext.stop.unknownProcess"),
                     branch: line.branch,
                     port: line.server.port,
                 })}

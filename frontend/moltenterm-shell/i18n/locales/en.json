@@ -2901,7 +2901,8 @@
             "stop": {
                 "button": "Stop this server",
                 "buttonFor": "Stop the server of {branch}",
-                "confirm": "Stop {process} (pid {pid}) serving {branch} on port {port}?",
+                "confirm": "Stop {process}, which serves {branch} on port {port}?",
+                "unknownProcess": "a program whose name cannot be read",
                 "scope": "Only this process and the processes it started in that folder stop. Nothing else is touched.",
                 "confirmYes": "Stop the server",
                 "stopping": "Stopping…",
@@ -2916,6 +2917,7 @@
                     "norepo": "The process on port {port} runs outside a git repository ({folder}): only the servers of your projects are stopped from here.",
                     "unknownProject": "{folder} is not in a project linked to MoltenTerm: nothing was stopped.",
                     "self": "This is MoltenTerm itself: it is not stopped from here.",
+                    "unknown": "The programs running on this computer cannot be read, so what the stop would reach cannot be checked: nothing was stopped.",
                     "agent": "{agent} itself listens on port {port}: stop the agent from its terminal. Nothing was stopped.",
                     "other": "Nothing was stopped."
                 }

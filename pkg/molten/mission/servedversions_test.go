@@ -64,6 +64,11 @@ type fakeServedHost struct {
 	stubborn map[int32]bool
 	signals  []string
 	onSignal func(pid int32)
+	// procsErr: the process table cannot be read. reused: from the second read of the table on, these pids are other
+	// processes (another start time).
+	procsErr   error
+	reused     map[int32]int64
+	procsReads int
 }
 
 func (h *fakeServedHost) listening() []listenSocket {
@@ -94,11 +99,19 @@ func makeFakeServed(panes *Panes, host *fakeServedHost) *TestContexts {
 	c.cwd = func(pid int32) string { return host.cwds[pid] }
 	c.exe = func(pid int32) string { return "/opt/bin/node" }
 	c.procs = func() (*proctree.Table, error) {
+		if host.procsErr != nil {
+			return nil, host.procsErr
+		}
+		host.procsReads++
 		live := []proctree.Proc{}
 		for _, p := range host.procs {
-			if !host.dead[p.Pid] {
-				live = append(live, p)
+			if host.dead[p.Pid] {
+				continue
 			}
+			if start, ok := host.reused[p.Pid]; ok && host.procsReads >= 2 {
+				p.StartMs = start
+			}
+			live = append(live, p)
 		}
 		return proctree.MakeTable(live), nil
 	}
@@ -147,27 +160,32 @@ func makeServedFixture(t *testing.T) servedFixture {
 }
 
 // The processes of the fixture: 101 serves wt-a's web folder on two ports with a worker 102 on the first, 103 is what
-// 101 started there, 104 what it started outside, 105 a shell in wt-a it did not start; 201 serves wt-b, 301 the main
-// checkout, 401 another project, 501 a folder outside any repository, 601 is a coding agent's own port in wt-a; 1000 is
-// wavesrv and 999 the window above it.
+// 101 started there, 104 what it started outside, 105 a shell in wt-a it did not start; 107 is a coding agent running
+// in a terminal 101 serves (a code-server's), 108 what that agent runs, 109 a child of 101 whose start time is unknown;
+// 111 is a debugger's port in wt-a; 201 serves wt-b, 301 the main checkout, 401 another project, 501 a folder outside any
+// repository, 601 is a coding agent's own port in wt-a and 602 an MCP server it started in wt-b; 1000 is wavesrv and 999
+// the window above it.
 func servedHost(f servedFixture) *fakeServedHost {
 	return &fakeServedHost{
 		sockets: []listenSocket{
-			{101, 5173}, {101, 5174}, {102, 5173}, {201, 5180}, {301, 3000}, {401, 4000}, {501, 8080}, {601, 7777},
-			{1000, 9000}, {999, 9001},
+			{101, 5173}, {101, 5174}, {102, 5173}, {111, 9229}, {201, 5180}, {301, 3000}, {401, 4000}, {501, 8080},
+			{601, 7777}, {602, 7778}, {1000, 9000}, {999, 9001},
 		},
 		cwds: map[int32]string{
-			101: filepath.Join(f.wtA, "web"), 102: f.wtA, 103: f.wtA, 104: f.plain, 105: f.wtA,
-			201: f.wtB, 301: f.clone, 401: f.other, 501: f.plain, 601: f.wtA, 1000: f.clone, 999: f.clone,
+			101: filepath.Join(f.wtA, "web"), 102: f.wtA, 103: f.wtA, 104: f.plain, 105: f.wtA, 107: f.wtA, 108: f.wtA,
+			109: f.wtA, 111: f.wtA, 201: f.wtB, 301: f.clone, 401: f.other, 501: f.plain, 601: f.wtA, 602: f.wtB,
+			1000: f.clone, 999: f.clone,
 		},
 		procs: []proctree.Proc{
 			{Pid: 999, Ppid: 1, StartMs: 1}, {Pid: 1000, Ppid: 999, StartMs: 2},
 			{Pid: 90, Ppid: 1, StartMs: 3}, {Pid: 101, Ppid: 90, StartMs: 4}, {Pid: 102, Ppid: 101, StartMs: 5},
 			{Pid: 103, Ppid: 101, StartMs: 6}, {Pid: 104, Ppid: 101, StartMs: 7}, {Pid: 105, Ppid: 90, StartMs: 8},
+			{Pid: 107, Ppid: 101, StartMs: 14}, {Pid: 108, Ppid: 107, StartMs: 15}, {Pid: 109, Ppid: 101, StartMs: 0},
+			{Pid: 111, Ppid: 90, StartMs: 16},
 			{Pid: 201, Ppid: 1, StartMs: 9}, {Pid: 301, Ppid: 1, StartMs: 10}, {Pid: 401, Ppid: 1, StartMs: 11},
-			{Pid: 501, Ppid: 1, StartMs: 12}, {Pid: 601, Ppid: 90, StartMs: 13},
+			{Pid: 501, Ppid: 1, StartMs: 12}, {Pid: 601, Ppid: 90, StartMs: 13}, {Pid: 602, Ppid: 601, StartMs: 17},
 		},
-		agents: map[int32]string{601: "claude"},
+		agents: map[int32]string{601: "claude", 107: "codex"},
 		known:  []string{f.clone},
 	}
 }
@@ -202,12 +220,46 @@ func TestServedVersionsGroupsTheCheckouts(t *testing.T) {
 	}
 	a := ours[1]
 	if !a.Worktree || a.Ticket != 1 || a.ProjectDir != linked || !slices.Equal(a.Servers, []ServedServer{{5173, 101, "node"}, {5174, 101, "node"}}) {
-		t.Fatalf("wt-a: one server per port, the parent naming a port its worker shares: %+v", a)
+		t.Fatalf("wt-a: one server per port, the parent naming a port its worker shares, no debugger, no agent: %+v", a)
+	}
+	if b := ours[2]; !slices.Equal(b.Servers, []ServedServer{{5180, 201, "node"}}) {
+		t.Fatalf("wt-b: an MCP server an agent started is not a version's server: %+v", b)
 	}
 	for _, v := range answer.Versions {
-		if v.Root == f.other && v.ProjectDir != "" {
-			t.Fatalf("another project names no workspace project: %+v", v)
+		if v.Root == f.other && (v.ProjectDir != "" || v.Linked) {
+			t.Fatalf("another project names no workspace project and is not linked: %+v", v)
 		}
+		if v.Project == f.clone && !v.Linked {
+			t.Fatalf("a version of a linked project says so, so the card offers its stop: %+v", v)
+		}
+	}
+}
+
+// The card polls every 5 s: a poll reuses a read younger than that, a fresh ask (the card opening) reads again.
+func TestServedVersionsReadTheListenersOncePerPoll(t *testing.T) {
+	t.Parallel()
+	reads := 0
+	contexts := makeFakeServed(MakePanes(withoutGh, nil, nil), &fakeServedHost{})
+	contexts.sockets = func(ctx context.Context) ([]listenSocket, error) {
+		reads++
+		return []listenSocket{}, nil
+	}
+	clock := time.Now()
+	contexts.now = func() time.Time { return clock }
+	contexts.Versions(ServedVersionsRequest{Fresh: true})
+	clock = clock.Add(5 * time.Second)
+	contexts.Versions(ServedVersionsRequest{})
+	if reads != 1 {
+		t.Fatalf("a poll 5 s after a read read again: %d reads", reads)
+	}
+	contexts.Versions(ServedVersionsRequest{Fresh: true})
+	if reads != 2 {
+		t.Fatalf("a fresh ask reused an older read: %d reads", reads)
+	}
+	clock = clock.Add(servedListenMaxAge)
+	contexts.Versions(ServedVersionsRequest{})
+	if reads != 3 {
+		t.Fatalf("a poll after the cache's age did not read: %d reads", reads)
 	}
 }
 
@@ -268,6 +320,8 @@ func TestServedStopTargetsOnlyTheCheckoutsServer(t *testing.T) {
 	if err != nil || result.Refused != "" || result.Still {
 		t.Fatalf("stop: %v %+v", err, result)
 	}
+	// 104 runs outside the checkout, 105 was not started by the server, 107 is an agent in one of its terminals and 108
+	// runs under that agent, 109's start time is unknown.
 	if want := []string{"term:101", "term:102", "term:103"}; !slices.Equal(host.signals, want) {
 		t.Fatalf("signals: %v, want %v: the listeners in the checkout and what they started there, nothing else", host.signals, want)
 	}
@@ -282,6 +336,33 @@ func TestServedStopTargetsOnlyTheCheckoutsServer(t *testing.T) {
 	}
 	if len(after.Versions) != 3 {
 		t.Fatalf("the list updates without the stopped version only: %+v", after.Versions)
+	}
+}
+
+// Without the process table nothing tells wavesrv's ancestors, an agent or a reused pid apart: nothing is stopped.
+func TestServedStopRefusesWithoutTheProcessTable(t *testing.T) {
+	t.Parallel()
+	f := makeServedFixture(t)
+	host := servedHost(f)
+	host.procsErr = proctree.ErrUnsupported
+	contexts := makeFakeServed(MakePanes(withoutGh, nil, nil), host)
+	result, err := contexts.Stop(ServedStopRequest{Port: 5173, Pid: 101, Root: f.wtA})
+	if err != nil || result.Refused != ServedStopRefusedUnknown || len(result.Stopped) != 0 || len(host.signals) != 0 {
+		t.Fatalf("stop without the process table: %v %+v %v", err, result, host.signals)
+	}
+}
+
+// A pid that became another process between the targets' choice and the signal is never signalled.
+func TestServedStopNeverSignalsAReusedPid(t *testing.T) {
+	t.Parallel()
+	f := makeServedFixture(t)
+	host := servedHost(f)
+	// A minute later: start times within a second are the same process (proctree.Table.Same).
+	host.reused = map[int32]int64{103: 60_006}
+	contexts := makeFakeServed(MakePanes(withoutGh, nil, nil), host)
+	result, err := contexts.Stop(ServedStopRequest{Port: 5173, Pid: 101, Root: f.wtA})
+	if err != nil || result.Refused != "" || !slices.Equal(host.signals, []string{"term:101", "term:102"}) {
+		t.Fatalf("a reused pid was signalled: %v %+v %v", err, result, host.signals)
 	}
 }
 
