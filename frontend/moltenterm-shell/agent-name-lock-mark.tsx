@@ -24,7 +24,7 @@ export function AgentNameLockMark({ name, folder, className }: { name: string; f
     return (
         <i
             role="img"
-            className={cn(makeIconClass("lock", false), "shrink-0 text-[10px] text-secondary", className)}
+            className={cn(makeIconClass("lock", false), "shrink-0 text-11 text-secondary", className)}
             title={title}
             aria-label={title}
             data-testid="agent-name-lock"
