@@ -109,10 +109,9 @@ func (a *agentStates) nameLocksResult() molten.AgentNameLocksResult {
 	return rtn
 }
 
-// lockedNamesChanged republishes the agents that hold a name whose lock changed (their lock mark follows) and tells the
-// windows to read the list again.
-func (a *agentStates) lockedNamesChanged(names ...string) {
+func (a *agentStates) markNameHolders(names []string) {
 	a.lock.Lock()
+	defer a.lock.Unlock()
 	for blockId, rec := range a.records {
 		for _, name := range names {
 			if strings.EqualFold(rec.firstName, name) {
@@ -120,22 +119,31 @@ func (a *agentStates) lockedNamesChanged(names ...string) {
 			}
 		}
 	}
-	a.lock.Unlock()
+}
+
+// lockedNamesChanged republishes the agents that hold a name whose lock changed (their lock mark follows) and tells the
+// windows to read the list again.
+func (a *agentStates) lockedNamesChanged(names ...string) {
+	a.markNameHolders(names)
 	if a.onLocks != nil {
 		a.onLocks()
 	}
 }
 
+// nameAndProjectOf is the first name and the project of the agent in a terminal, "" for both when it has none.
+func (a *agentStates) nameAndProjectOf(blockId string) (name string, project string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if rec := a.records[blockId]; rec != nil {
+		return rec.firstName, rec.project
+	}
+	return "", ""
+}
+
 // lockName locks the first name of the agent in a terminal for that agent's project. The name and the project are the
 // ones this process holds for the agent: a window only says which terminal.
 func (a *agentStates) lockName(req molten.AgentNameLockRequest) molten.AgentNameLockResult {
-	a.lock.Lock()
-	rec := a.records[req.BlockId]
-	name, project := "", ""
-	if rec != nil {
-		name, project = rec.firstName, rec.project
-	}
-	a.lock.Unlock()
+	name, project := a.nameAndProjectOf(req.BlockId)
 	if name == "" {
 		return molten.AgentNameLockResult{Status: molten.AgentNameLockNoAgent}
 	}
