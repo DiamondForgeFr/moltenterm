@@ -2393,7 +2393,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                       "mt-focus-only molten-fold-3"
                   )}
             <span className="mt-focus-only molten-fold-2 flex shrink-0 items-center">
-                <TestContextChip url={active?.url ?? ""} />
+                <TestContextChip url={active?.url ?? ""} onSwitch={(url) => model.navigate(url)} />
             </span>
             {topField ? (
                 <PageAddress model={model} tab={active} />

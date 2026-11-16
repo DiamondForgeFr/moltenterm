@@ -15,7 +15,7 @@ const ShellDir = fileURLToPath(new URL(".", import.meta.url));
 
 // Calls inside a panel, which must pass the panel they are in.
 const InPanelFiles = [
-    "browser/test-context.tsx",
+    "browser/version-card.tsx",
     "mission/cicd-open.ts",
     "mission/cicd-panels.tsx",
     "mission/cicd-view.tsx",

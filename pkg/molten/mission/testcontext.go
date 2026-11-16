@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -56,6 +57,8 @@ type TestContextPr struct {
 	Draft  bool   `json:"draft,omitempty"`
 	// The CI summary of the PR's head (ReviewCheck* states), "" when the cached PR list has no checks.
 	Ci string `json:"ci,omitempty"`
+	// Merged (#2326): the branch has no open PR and this one merged in the collector's window.
+	Merged bool `json:"merged,omitempty"`
 }
 
 type TestContext struct {
@@ -86,9 +89,11 @@ type TestContext struct {
 	// FuturePr: a work branch with no PR yet (the Reviews view's Upcoming).
 	FuturePr bool `json:"futurepr,omitempty"`
 	// SameProject: the workspace's project is the checkout's repository, so Reviews can show the PR.
-	SameProject bool   `json:"sameproject,omitempty"`
-	GitError    string `json:"giterror,omitempty"`
-	At          int64  `json:"at,omitempty"`
+	SameProject bool `json:"sameproject,omitempty"`
+	// Steps (#2326): what the open PR's body asks the developer to test (its "How to verify" section).
+	Steps    []string `json:"steps,omitempty"`
+	GitError string   `json:"giterror,omitempty"`
+	At       int64    `json:"at,omitempty"`
 }
 
 type listenAnswer struct {
@@ -106,6 +111,16 @@ type TestContexts struct {
 	exe       func(pid int32) string
 	now       func() time.Time
 	listens   map[int]listenAnswer
+	// The served versions and their stop (#2326, servedversions.go): every listener of this computer, the process
+	// table, the coding agents among them, the signals, the projects linked to MoltenTerm and wavesrv's own process.
+	sockets   func(ctx context.Context) ([]listenSocket, error)
+	socketsAt socketsAnswer
+	procs     func() (*proctree.Table, error)
+	agentOf   func(p *proctree.Proc) string
+	signal    func(pid int32, kill bool) error
+	known     func(ctx context.Context) ([]string, error)
+	self      int32
+	stopGrace time.Duration
 }
 
 func MakeTestContexts(panes *Panes, collector *Collector) *TestContexts {
@@ -117,6 +132,13 @@ func MakeTestContexts(panes *Panes, collector *Collector) *TestContexts {
 		exe:       proctree.Exe,
 		now:       time.Now,
 		listens:   map[int]listenAnswer{},
+		sockets:   listeningSockets,
+		procs:     proctree.Read,
+		agentOf:   agentOfProcess,
+		signal:    signalServed,
+		known:     knownProjectDirs,
+		self:      int32(os.Getpid()),
+		stopGrace: servedStopGrace,
 	}
 }
 
@@ -281,10 +303,60 @@ func (c *TestContexts) describe(answer *TestContext, state PaneState, workspaceD
 		answer.Pr = &TestContextPr{Number: pr.Number, Title: pr.Title, Url: pr.Url, Draft: pr.Draft}
 		if gh != nil {
 			answer.Pr.Ci = cachedPrCi(gh.Prs, pr.Number)
+			answer.Steps = verifySteps(cachedPrBody(gh.Prs, pr.Number))
 		}
 		return
 	}
-	answer.FuturePr = answer.PrKnown && answer.Branch != "" && !isBaseBranch(state.Project, answer.Branch)
+	work := answer.Branch != "" && !isBaseBranch(state.Project, answer.Branch)
+	// A trunk's merged PRs are the release PRs it was the head of: never the trunk's own.
+	if work && gh != nil {
+		if merged := cachedMergedPr(gh.Merged, answer.Branch); merged != nil {
+			answer.Pr = merged
+			return
+		}
+	}
+	answer.FuturePr = answer.PrKnown && work
+}
+
+func cachedPrBody(raw json.RawMessage, number int) string {
+	var prs []struct {
+		Number int    `json:"number"`
+		Body   string `json:"body"`
+	}
+	if json.Unmarshal(raw, &prs) != nil {
+		return ""
+	}
+	for _, pr := range prs {
+		if pr.Number == number {
+			return pr.Body
+		}
+	}
+	return ""
+}
+
+// cachedMergedPr is the branch's last PR merged in the collector's window (#2326), nil when none merged.
+func cachedMergedPr(raw json.RawMessage, branch string) *TestContextPr {
+	var prs []struct {
+		Number      int    `json:"number"`
+		Title       string `json:"title"`
+		Url         string `json:"url"`
+		State       string `json:"state"`
+		HeadRefName string `json:"headRefName"`
+		MergedAt    string `json:"mergedAt"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &prs) != nil {
+		return nil
+	}
+	var rtn *TestContextPr
+	last := ""
+	for _, pr := range prs {
+		if pr.HeadRefName != branch || !strings.EqualFold(pr.State, "MERGED") || (rtn != nil && pr.MergedAt <= last) {
+			continue
+		}
+		rtn = &TestContextPr{Number: pr.Number, Title: pr.Title, Url: pr.Url, Merged: true}
+		last = pr.MergedAt
+	}
+	return rtn
 }
 
 func (c *TestContexts) cachedGithub(project string) *GithubSnapshot {

@@ -11,6 +11,17 @@ import { pathBaseName } from "../workspace-project";
 // must match TestContextCommand in pkg/molten/mission/testcontext.go
 export const TestContextCommand = "moltenmissiontestcontext";
 
+// must match TestContextPr in pkg/molten/mission/testcontext.go
+export type TestContextPr = {
+    number: number;
+    title: string;
+    url: string;
+    draft?: boolean;
+    ci?: string;
+    // #2326: no open PR, this one merged in the collector's window.
+    merged?: boolean;
+};
+
 // must match TestContext in pkg/molten/mission/testcontext.go
 export type TestContextAnswer = {
     url: string;
@@ -31,10 +42,12 @@ export type TestContextAnswer = {
     detached?: boolean;
     dirty?: boolean;
     ticket?: number;
-    pr?: { number: number; title: string; url: string; draft?: boolean; ci?: string };
+    pr?: TestContextPr;
     prknown?: boolean;
     futurepr?: boolean;
     sameproject?: boolean;
+    // #2326: what the open PR's body asks the developer to test.
+    steps?: string[];
     giterror?: string;
     at?: number;
 };
@@ -174,11 +187,8 @@ export function detailRows(answer: TestContextAnswer, t: Translate): DetailRow[]
     return rows;
 }
 
-// The PR line of the popover: its state, or why there is none.
-export function prStateText(answer: TestContextAnswer, t: Translate): string {
-    if (answer.pr != null) {
-        return answer.pr.draft ? t("browser.testContext.prDraft") : t("browser.testContext.prReady");
-    }
+// Why the version card shows no pull request: none yet on a work branch, the project's PRs not read yet, or none.
+export function noPrText(answer: TestContextAnswer, t: Translate): string {
     if (answer.futurepr) {
         return t("browser.testContext.futurePrHint");
     }
@@ -186,21 +196,4 @@ export function prStateText(answer: TestContextAnswer, t: Translate): string {
         return t("browser.testContext.prUnknown");
     }
     return t("browser.testContext.noPr");
-}
-
-// What "Open in Reviews" can do: the PR's card or the future PR's Upcoming entry, in the workspace's project only.
-export type ReviewsTarget = { dir: string; number?: number; branch?: string };
-
-export function reviewsTarget(answer: TestContextAnswer, workspaceDir: string): ReviewsTarget {
-    if (!answer?.known || !answer.sameproject || !workspaceDir) {
-        return null;
-    }
-    if (answer.pr != null) {
-        return { dir: workspaceDir, number: answer.pr.number };
-    }
-    // The Upcoming section lists ticket branches only.
-    if (answer.futurepr && answer.branch && (answer.ticket ?? 0) > 0) {
-        return { dir: workspaceDir, branch: answer.branch };
-    }
-    return null;
 }
