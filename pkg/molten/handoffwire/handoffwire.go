@@ -121,10 +121,21 @@ type AgentEntry struct {
 	ProviderName string `json:"providername,omitempty"`
 }
 
+// LockedEntry is a first name locked for a project that no agent holds now (FR-CONT-014, #2324): a hand-off to it cannot
+// be delivered, and nothing starts an agent for it.
+type LockedEntry struct {
+	FirstName string `json:"firstname"`
+	// Project: the project's name, ProjectDir its folder.
+	Project    string `json:"project,omitempty"`
+	ProjectDir string `json:"projectdir,omitempty"`
+}
+
 type ListResult struct {
 	// You: the caller's own agent, when an agent runs in its pane.
 	You    *AgentEntry  `json:"you,omitempty"`
 	Agents []AgentEntry `json:"agents"`
+	// Locked: the locked names that no agent holds, in the order they were locked.
+	Locked []LockedEntry `json:"locked,omitempty"`
 	// Caller: set when the request sent its folder and a running sub-agent of the caller's pane may have made it;
 	// nil when the call is the session's own.
 	Caller *CallerEntry `json:"caller,omitempty"`

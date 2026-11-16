@@ -60,6 +60,10 @@ func (waveEnv) SettleStop(blockId string, by string, note string) string {
 	return attention.SettleAgentStop(blockId, by, note)
 }
 
+func (waveEnv) NameLocks() []molten.AgentNameLock {
+	return attention.AgentNameLocks()
+}
+
 func (waveEnv) Subagents(blockId string) []companion.SubagentIdentity {
 	return companion.PaneSubagents(blockId)
 }
@@ -101,28 +105,10 @@ func (waveEnv) Locate(ctx context.Context, blockId string) (Location, error) {
 	return rtn, nil
 }
 
-// projectDirOf: the workspace's project when the folder is in it (or unknown), else the folder's git root, else the
-// folder. A linked worktree belongs to its main checkout (#1123): the merge queue's agent works in a tree under
-// MoltenTerm's data folder, and its worktree's name is never its project.
+// projectDirOf is molten.ProjectDirOf, the one definition of an agent's project: the first names locked for a project
+// (#2324) are keyed by it too.
 func projectDirOf(folder string, project string) string {
-	if project != "" && (folder == "" || within(folder, project)) {
-		return project
-	}
-	if folder == "" {
-		return ""
-	}
-	root := molten.FindGitRoot(folder)
-	if root == "" {
-		return folder
-	}
-	main := molten.MainCheckoutOfTree(root)
-	if main == "" {
-		return root
-	}
-	if project != "" && samePath(main, project) {
-		return project
-	}
-	return main
+	return molten.ProjectDirOf(folder, project)
 }
 
 func samePath(a string, b string) bool {

@@ -116,6 +116,24 @@ func formatMoltenActiveAgents(list handoffwire.ListResult) string {
 	return sb.String()
 }
 
+// formatMoltenLockedNames lists the first names locked for a project that no agent holds (FR-CONT-014, #2324): a
+// hand-off to one cannot be delivered, and nothing starts an agent for it. `molten agent list --active` stays the
+// running agents alone, which scripts read.
+func formatMoltenLockedNames(locked []handoffwire.LockedEntry) string {
+	if len(locked) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("\nLocked names with no agent running (a hand-off to them cannot be delivered):\n")
+	tw := tabwriter.NewWriter(&sb, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(tw, "NAME\tPROJECT\n")
+	for _, l := range locked {
+		fmt.Fprintf(tw, "%s\tlocked for %s, not running\n", l.FirstName, moltenDash(l.Project))
+	}
+	tw.Flush()
+	return sb.String()
+}
+
 func moltenDash(s string) string {
 	if s == "" {
 		return "-"

@@ -22,6 +22,7 @@ type (
 	ListRequest       = handoffwire.ListRequest
 	ListResult        = handoffwire.ListResult
 	AgentEntry        = handoffwire.AgentEntry
+	LockedEntry       = handoffwire.LockedEntry
 	CallerEntry       = handoffwire.CallerEntry
 	FileRef           = handoffwire.FileRef
 	LinkRef           = handoffwire.LinkRef

@@ -158,9 +158,32 @@ type AgentListEntry struct {
 	You       bool   `json:"you,omitempty"`
 }
 
+// AgentListLocked mirrors agenthandoff.LockedEntry: a first name locked for a project that no agent holds.
+type AgentListLocked struct {
+	FirstName string `json:"firstname"`
+	Project   string `json:"project,omitempty"`
+}
+
 type AgentList struct {
-	You    *AgentListEntry  `json:"you,omitempty"`
-	Agents []AgentListEntry `json:"agents"`
+	You    *AgentListEntry   `json:"you,omitempty"`
+	Agents []AgentListEntry  `json:"agents"`
+	Locked []AgentListLocked `json:"locked,omitempty"`
+}
+
+// formatLockedNames lists the locked names no agent holds, so a sender knows why a hand-off to one cannot be delivered
+// (FR-CONT-014, #2324).
+func formatLockedNames(sb *strings.Builder, locked []AgentListLocked) {
+	if len(locked) == 0 {
+		return
+	}
+	sb.WriteString("\nLocked names with no agent running (a hand-off to them cannot be delivered, and MoltenTerm does not start an agent for one):\n")
+	for _, l := range locked {
+		if l.Project == "" {
+			fmt.Fprintf(sb, "- %s: locked, not running\n", l.FirstName)
+			continue
+		}
+		fmt.Fprintf(sb, "- %s: locked for project %s, not running\n", l.FirstName, l.Project)
+	}
 }
 
 // FormatAgentList is list_agents' text: one line per agent, yours first.
@@ -178,7 +201,11 @@ func FormatAgentList(list AgentList) string {
 	}
 	if others == 0 {
 		sb.WriteString("No other agent is running in MoltenTerm.")
-		return sb.String()
+		if len(list.Locked) > 0 {
+			sb.WriteString("\n")
+			formatLockedNames(&sb, list.Locked)
+		}
+		return strings.TrimRight(sb.String(), "\n")
 	}
 	sb.WriteString("Agents you can hand work to (send_to_agent with the first name):\n")
 	for _, a := range list.Agents {
@@ -203,6 +230,7 @@ func FormatAgentList(list AgentList) string {
 		}
 		sb.WriteString("\n")
 	}
+	formatLockedNames(&sb, list.Locked)
 	return strings.TrimRight(sb.String(), "\n")
 }
 

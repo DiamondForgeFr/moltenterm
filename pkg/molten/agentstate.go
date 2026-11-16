@@ -348,8 +348,12 @@ type AgentStateInfo struct {
 	AgentName   string `json:"agentname,omitempty"`
 	// FirstName: the session's first name, unique among the app's active agents (FR-CONT-014).
 	FirstName string `json:"firstname,omitempty"`
-	State     string `json:"state,omitempty"`
-	Message   string `json:"message,omitempty"`
+	// Project: the project folder the agent's terminal belongs to (ProjectDirOf), "" when it is in none or its
+	// terminal is not local. NameLockedFor: the project folder FirstName is locked for (#2324), "" when it is not.
+	Project       string `json:"project,omitempty"`
+	NameLockedFor string `json:"namelockedfor,omitempty"`
+	State         string `json:"state,omitempty"`
+	Message       string `json:"message,omitempty"`
 	// MessageText: Message's code when MoltenTerm holds the state (#896), the window words it; nil for the agent's own
 	// words.
 	MessageText *uimsg.Text `json:"messagetext,omitempty"`
