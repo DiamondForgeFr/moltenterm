@@ -178,6 +178,44 @@ describe("settings catalog (FR-SHELL-050)", () => {
         expect(entry("term:gitbashpath", "darwin")).toBeUndefined();
     });
 
+    // FR-BOSS-010 AC1 (#2320): the two folders of the brainstorm show on every channel, a release candidate and a public
+    // release included, and where the channel cannot be read.
+    it("shows the folders of the brainstorm on every channel", () => {
+        for (const channel of ["dev", "local", "gold", "rc", "public", null]) {
+            const keys = buildCatalog(schema, builtinDefaults as Record<string, unknown>, "darwin", channel).map(
+                (e) => e.key
+            );
+            expect(keys, String(channel)).toContain("boss:brainstormsdir");
+            expect(keys, String(channel)).toContain("boss:projectsdir");
+        }
+    });
+
+    // The mechanism stays for the next feature a release does not have yet: no row of the schema uses it today.
+    it("shows a row gated to some channels there only, and nowhere when the channel is not known", () => {
+        const gated: SettingsSchema = {
+            $defs: {
+                SettingsType: {
+                    properties: {
+                        "new:flag": {
+                            type: "boolean",
+                            "x-moltenterm": {
+                                section: "browser",
+                                group: "Test",
+                                label: "Flag",
+                                control: "toggle",
+                                channels: "gold,dev,local",
+                                order: 1,
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const shown = (channel: string) => buildCatalog(gated, {}, "darwin", channel).length === 1;
+        expect(["gold", "dev", "local"].map(shown)).toEqual([true, true, true]);
+        expect(["rc", "public", "unknown", null].map(shown)).toEqual([false, false, false, false]);
+    });
+
     it("keeps the rows of a section in the metadata's order, by group", () => {
         const groups = groupEntries(sectionEntries(catalog(), "terminal")).map((g) => g.group);
         expect(groups).toEqual(["Look", "Behaviour", "Shell", "Connections"]);
@@ -427,9 +465,11 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
     it("holds the name, Show the avatar and his proximity, then the table of when he comes, and no longer the bubble's collapse (FR-BOSS-009, AC4, AC13, AC75)", () => {
         const keys = sectionEntries(catalog(), "boss").map((e) => e.key);
         expect(keys.slice(0, 3)).toEqual(["boss:name", "boss:show", "boss:proximity"]);
+        // The folders of his brainstorms (#2246, #2250), on every channel since #2320.
+        expect(keys.slice(3, 5)).toEqual(["boss:brainstormsdir", "boss:projectsdir"]);
         // His agent's permission requests (#2257), before the table.
-        expect(keys[3]).toBe("boss:autoapprove");
-        expect(keys.slice(4)).toEqual([
+        expect(keys[5]).toBe("boss:autoapprove");
+        expect(keys.slice(6)).toEqual([
             "boss:visitsecurity",
             "boss:visitblocked",
             "boss:visiterror",
@@ -480,6 +520,8 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
                 e.key !== "boss:name" &&
                 e.key !== "boss:show" &&
                 e.key !== "boss:proximity" &&
+                e.key !== "boss:brainstormsdir" &&
+                e.key !== "boss:projectsdir" &&
                 e.key !== "boss:autoapprove"
         );
         expect(new Set(table.map((e) => e.group))).toEqual(new Set([BrokkTableGroup]));
@@ -542,12 +584,16 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
         const localized = localizeCatalog(sectionEntries(catalog(), "boss"), trFr);
         expect(localized.slice(0, 3).map((e) => e.label)).toEqual(["Nom", "Afficher l'avatar", "Proximité"]);
         expect(localized.slice(0, 3).every((e) => e.group === "Avatar")).toBe(true);
-        expect(localized[3]).toMatchObject({
+        expect(localized.slice(3, 5).map((e) => e.key)).toEqual(["boss:brainstormsdir", "boss:projectsdir"]);
+        expect(
+            localized.slice(3, 5).every((e) => e.group === "Brainstorms" && e.label !== "" && e.description !== "")
+        ).toBe(true);
+        expect(localized[5]).toMatchObject({
             key: "boss:autoapprove",
             label: "Approuver les demandes de son agent sans me demander",
             group: "Son agent",
         });
-        const table = localized.slice(4);
+        const table = localized.slice(6);
         expect(table.every((e) => e.group === "Quand il vient me chercher")).toBe(true);
         expect(table.find((e) => e.key === "boss:visitblocked").label).toBe("Un agent attend ma réponse");
         expect(table.find((e) => e.key === "boss:visitci").options.map((o) => o.label)).toEqual([
