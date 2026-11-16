@@ -28,6 +28,7 @@ import {
     type SubagentRow,
 } from "../agent-info/agent-info-model";
 import { AgentInfoModel } from "../agent-info/agent-info-store";
+import { AgentNameLockMark } from "../agent-name-lock-mark";
 import { agentStateLabel, agentStateMessage, agentToolName, type AgentStateInfo } from "../agent-state-model";
 import { useCompanionFollow } from "../companion/companion-follow";
 import type { CompanionView } from "../companion/companion-model";
@@ -405,10 +406,28 @@ export function agentDisplayName(info: AgentStateInfo): string {
 
 // The name line: the first name, then the agent's project as a label chip when the workspace holds several (#1746). The
 // chip takes the ellipsis; the first name stays whole unless it alone outgrows the row.
-export function AgentNameLine({ name, label }: { name: string; label: AgentProjectLabel }) {
+export function AgentNameLine({
+    name,
+    label,
+    lockedFor,
+}: {
+    name: string;
+    label: AgentProjectLabel;
+    // The project folder the first name is locked for (#2324): a small lock follows the name.
+    lockedFor?: string;
+}) {
     const t = useT();
+    const lock = lockedFor ? <AgentNameLockMark name={name} folder={lockedFor} /> : null;
     if (label == null) {
-        return <span className="mt-sb-agent-nm">{name}</span>;
+        if (lock == null) {
+            return <span className="mt-sb-agent-nm">{name}</span>;
+        }
+        return (
+            <span className="mt-sb-agent-nm-line">
+                <span className="mt-sb-agent-nm">{name}</span>
+                {lock}
+            </span>
+        );
     }
     const title = label.outside
         ? t("sidebar.agents.outsideTitle", { folder: label.text })
@@ -416,6 +435,7 @@ export function AgentNameLine({ name, label }: { name: string; label: AgentProje
     return (
         <span className="mt-sb-agent-nm-line">
             <span className="mt-sb-agent-nm">{name}</span>
+            {lock}
             <span
                 className={cn("mt-sb-agent-proj", label.outside && "is-outside")}
                 title={title}
@@ -625,7 +645,7 @@ function AgentBlock({
                 ) : (
                     <>
                         <span className="mt-sb-agent-tx">
-                            <AgentNameLine name={name} label={label} />
+                            <AgentNameLine name={name} label={label} lockedFor={info.namelockedfor} />
                             <span className="mt-sb-agent-ss">{doing}</span>
                         </span>
                         {note !== "" ? <AgentNoteTag text={note} /> : null}

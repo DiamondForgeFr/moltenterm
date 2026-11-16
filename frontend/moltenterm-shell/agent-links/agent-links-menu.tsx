@@ -14,6 +14,9 @@ import { answerAgentHandoff } from "../agent-handoff";
 import { gateMessage, useActionGate } from "../agent-info/agent-action-gate";
 import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import { AgentInfoModel } from "../agent-info/agent-info-store";
+import { AgentNameLockMark, useLockProjectLabel } from "../agent-name-lock-mark";
+import { asksToMove, lockFailureText, nameAction, unlockFailureText } from "../agent-name-locks-model";
+import { lockAgentName, unlockAgentName } from "../agent-name-locks-store";
 import { AgentStates } from "../agent-state-store";
 import { setAgentSite } from "../browser/browser-agent";
 import { AgentInputs } from "../command-panel/agent-input-store";
@@ -454,6 +457,80 @@ function SiteRows({ props }: { props: MenuProps }) {
     );
 }
 
+// The terminal's agent first name (FR-CONT-014, #2324): lock it for the agent's project, so a new agent started there
+// gets it back, or free it. A name locked for another project asks before it moves.
+export function NameLockSection({ props }: { props: MenuProps }) {
+    const t = useT();
+    const agent = useAtomValue(AgentStates.getInstance().blockAtom(props.blockId));
+    const action = nameAction(agent);
+    const project = useLockProjectLabel(action.kind === "none" ? "" : action.project);
+    const from = useLockProjectLabel(action.kind === "lock" ? action.lockedFor : "");
+    if (action.kind === "none") {
+        return null;
+    }
+    const name = action.name;
+    const confirmId = "agentname";
+    const lock = (move: boolean) => async () => {
+        const result = await lockAgentName(props.blockId, move);
+        if (result?.status === "elsewhere") {
+            throw new Error(t("agentNames.moveQuestion", { name, from, project }));
+        }
+        const text = lockFailureText(result, name);
+        if (text) {
+            throw new Error(text);
+        }
+    };
+    const unlock = async () => {
+        const text = unlockFailureText(await unlockAgentName(name), name);
+        if (text) {
+            throw new Error(text);
+        }
+    };
+    const onLock = () => {
+        if (asksToMove(action)) {
+            props.ask({
+                id: confirmId,
+                question: t("agentNames.moveQuestion", { name, from, project }),
+                label: t("agentNames.moveLabel", { project }),
+                run: lock(true),
+            });
+            return;
+        }
+        props.run(lock(false));
+    };
+    return (
+        <section className="flex flex-col gap-1" data-testid="agent-links-name" data-action={action.kind}>
+            <div className="flex min-w-0 items-center gap-2">
+                <span className="text-12 font-medium text-primary">{t("agentNames.section")}</span>
+                <span className="min-w-0 flex-1 truncate text-13 text-primary">{name}</span>
+                {agent?.namelockedfor ? <AgentNameLockMark name={name} folder={agent.namelockedfor} /> : null}
+                <button
+                    type="button"
+                    className={SecondaryClass}
+                    onClick={action.kind === "unlock" ? () => props.run(unlock) : onLock}
+                    disabled={props.busy}
+                    data-testid={action.kind === "unlock" ? "agent-links-name-unlock" : "agent-links-name-lock"}
+                >
+                    {action.kind === "unlock" ? t("agentNames.unlock") : t("agentNames.lock", { project })}
+                </button>
+            </div>
+            <div className="text-11 text-secondary">
+                {action.kind === "unlock"
+                    ? t("agentNames.lockedHint", { name, project })
+                    : t("agentNames.lockHint", { name, project })}
+            </div>
+            {props.confirm?.id === confirmId ? (
+                <ConfirmBox
+                    confirm={props.confirm}
+                    busy={props.busy}
+                    onCancel={props.onCancel}
+                    onConfirm={props.onConfirm}
+                />
+            ) : null}
+        </section>
+    );
+}
+
 function LinksMenuBody(props: MenuProps) {
     const t = useT();
     const agents = props.links?.agents ?? [];
@@ -471,6 +548,7 @@ function LinksMenuBody(props: MenuProps) {
                 </div>
             ) : null}
             {props.note ? <div className="text-12 text-secondary">{props.note}</div> : null}
+            <NameLockSection props={props} />
             {agents.length === 0 ? <div className="text-12 text-secondary">{t("agentLinks.noAgent")}</div> : null}
             {agents.map((agent, idx) => (
                 <AgentSection key={`${agent.pid ?? 0}:${idx}`} agent={agent} props={props} />

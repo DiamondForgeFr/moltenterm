@@ -10833,6 +10833,27 @@
         "brainstormUpdate": "Ouvert par vous à {time} depuis un brainstorm, pour ajouter le profil complet de SaaSFoundryAI à ce projet : ses questions sont posées ici",
         "brainstormHandoff": "Lancé par vous à {time} depuis un brainstorm, pour faire le premier pas de ce projet avec son brief"
     },
+    "agentNames": {
+        "markTitle": "Verrouillé pour {project}",
+        "markTitleNamed": "{name} est verrouillé pour {project} : un nouvel agent de ce projet le retrouve.",
+        "section": "Prénom",
+        "lockedHint": "{name} est verrouillé pour {project} : un nouvel agent lancé dans ce projet le retrouve, et aucun agent d'un autre projet ne l'obtient.",
+        "lockHint": "Verrouillez {name} pour {project} : un nouvel agent lancé dans ce projet le retrouvera.",
+        "lock": "Verrouiller pour {project}",
+        "unlock": "Déverrouiller",
+        "unlockNamed": "Déverrouiller {name}",
+        "moveQuestion": "{name} est verrouillé pour {from}. Le verrouiller plutôt pour {project} ?",
+        "moveLabel": "Verrouiller pour {project}",
+        "running": "En cours",
+        "notRunning": "À l'arrêt",
+        "error": {
+            "noAgent": "Aucun agent n'a de prénom dans ce terminal.",
+            "noProject": "Ce terminal n'est dans aucun dossier de projet : {name} n'a pas de projet pour lequel être verrouillé.",
+            "notLockable": "{name} est un prénom numéroté, donné quand la liste des prénoms est épuisée : il ne peut pas être verrouillé.",
+            "failed": "Le verrouillage n'a pas pu être enregistré dans les données de MoltenTerm : rien n'a changé.",
+            "unlockFailed": "Le changement n'a pas pu être enregistré dans les données de MoltenTerm : {name} reste verrouillé."
+        }
+    },
     "agentLinks": {
         "title": "Connexions",
         "subtitle": "Ce que MoltenTerm donne aux agents de ce terminal, et ce qu'ils ont le droit de faire.",
@@ -11075,6 +11096,9 @@
         "agentDefault": "Par défaut de l'app ({agent})",
         "agentDefaultNone": "Par défaut de l'app",
         "agentHint": "L'agent que MoltenTerm lance pour les revues, les notes de version et le compagnon de ce projet. Le même choix que dans les options des panneaux.",
+        "agentNames": "Prénoms verrouillés",
+        "agentNamesHint": "Un nouvel agent lancé dans ce projet reçoit le premier prénom libre de cette liste, dans cet ordre. Verrouillez un prénom depuis les Connexions d'un agent.",
+        "agentNamesNone": "Aucun prénom n'est verrouillé pour ce projet.",
         "folder": "Dossier du projet",
         "folderHint": "Contient le contexte du projet, par exemple les documents d'un client. Le panneau Fichiers s'ouvre ici."
     },

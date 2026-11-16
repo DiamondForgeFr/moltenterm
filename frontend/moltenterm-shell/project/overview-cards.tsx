@@ -11,6 +11,7 @@ import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useMemo, useState } from "react";
+import { AgentNameLockMark } from "../agent-name-lock-mark";
 import {
     agentCallName,
     agentLabel,
@@ -189,6 +190,9 @@ function AgentLine({ info: reported, dir }: { info: AgentStateInfo; dir: string 
                         aria-hidden
                     />
                     <span className="min-w-0 flex-1 truncate text-primary">{agentLabel(info)}</span>
+                    {info.namelockedfor ? (
+                        <AgentNameLockMark name={info.firstname} folder={info.namelockedfor} />
+                    ) : null}
                     <span
                         className={cn(
                             "max-w-[55%] shrink-0 truncate text-12",

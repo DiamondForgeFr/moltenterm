@@ -27,6 +27,11 @@ and it hands its work to the agent of that first name with a brief (goal, contex
 MoltenTerm's data folder, after you allow it. Its instructions tell the agent its own first name. From a shell, the
 same is `molten agent list --active` and `molten agent send <name> --goal "..."`.
 
+A first name can be locked for a project, from the agent's Connections: a new agent started in that project gets the
+name back, and no agent of another project gets it. `list_agents` lists a locked name no agent holds as "locked for
+<project>, not running", and a hand-off to it is refused with that reason: MoltenTerm never starts an agent for it, so
+ask the developer to start one in that project.
+
 A project can have a folder for its context (a client's documents, mails, specs) and a code repository inside it,
 chosen in the Project sheet. Started from a terminal that sits in the project folder or in a folder inside it, the
 agent gets the project folder as an extra working directory (`--add-dir`, for Claude Code and Codex alike) and a short

@@ -11,6 +11,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentnames"
+	"github.com/wavetermdev/waveterm/pkg/molten/projectviews"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -32,9 +33,8 @@ func isLocalConnection(conn string) bool {
 	return conn == "" || conn == "local" || strings.HasPrefix(conn, "local:")
 }
 
-// projectOfBlock is the project folder of a located terminal: the workspace's project when the terminal's folder is in
-// it, else the folder's git root, else the folder (molten.ProjectDirOf, the rule the hand-offs name an agent's project
-// by). "" for a terminal that is not local: its folder is another machine's.
+// projectOfBlock is the project folder of a located terminal, "" for a terminal that is not local: its folder is
+// another machine's.
 func projectOfBlock(blockId string, wsId string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), agentLocateTimeout)
 	defer cancel()
@@ -46,13 +46,30 @@ func projectOfBlock(blockId string, wsId string) string {
 	if folder != "" {
 		folder = filepath.Clean(wavebase.ExpandHomeDirSafe(folder))
 	}
-	project := ""
+	var wsMeta waveobj.MetaMapType
 	if wsId != "" {
 		if ws, err := wstore.DBGet[*waveobj.Workspace](ctx, wsId); err == nil && ws != nil {
-			project = ws.Meta.GetString(molten.ProjectMetaKey, "")
+			wsMeta = ws.Meta
 		}
 	}
-	return molten.ProjectDirOf(folder, project)
+	return projectKeyOf(folder, wsMeta)
+}
+
+// projectKeyOf is the key a terminal's agent is locked names under: the repository the folder's workspace project works
+// on (its folder when it has none of its own, as the Project sheet keeps the project's agent), so two projects that
+// share a folder stay apart (#1777); else molten.ProjectDirOf, the rule the hand-offs name an agent's project by: the
+// workspace's project when the folder is in it, else the folder's git root, else the folder.
+func projectKeyOf(folder string, wsMeta waveobj.MetaMapType) string {
+	if folder == "" {
+		return molten.WorkspaceRepo(wsMeta)
+	}
+	projects := projectviews.ReadProjects(wsMeta)
+	if id := projectviews.ProjectOfDir(projects, folder); id != "" {
+		if p, ok := projectviews.FindProject(projects, id); ok && p.Dir != "" {
+			return filepath.Clean(molten.ProjectRepoOf(p.Dir, p.Repo))
+		}
+	}
+	return molten.ProjectDirOf(folder, wsMeta.GetString(molten.ProjectMetaKey, ""))
 }
 
 func publishAgentNameLocks() {

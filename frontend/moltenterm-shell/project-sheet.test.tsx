@@ -1,10 +1,14 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { getDefaultStore } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-const { current } = vi.hoisted(() => ({ current: { ws: null as Workspace } }));
+const { current, names } = vi.hoisted(() => ({
+    current: { ws: null as Workspace },
+    names: { locksAtom: null as any, statesAtom: null as any, unlocked: [] as string[] },
+}));
 
 vi.mock("@/app/store/wos", () => ({
     makeORef: (otype: string, oid: string) => `${otype}:${oid}`,
@@ -60,6 +64,22 @@ vi.mock("./workspace-project-store", () => ({
     setWorkspaceGradient: async () => {},
     unlinkWorkspaceProject: async () => {},
 }));
+vi.mock("./agent-name-locks-store", async () => {
+    const { atom } = await import("jotai");
+    names.locksAtom = atom([]);
+    return {
+        AgentNameLocks: { getInstance: () => ({ locksAtom: names.locksAtom }) },
+        unlockAgentName: async (name: string) => {
+            names.unlocked.push(name);
+            return { status: "unlocked" };
+        },
+    };
+});
+vi.mock("./agent-state-store", async () => {
+    const { atom } = await import("jotai");
+    names.statesAtom = atom({ states: {}, versions: {} });
+    return { AgentStates: { getInstance: () => ({ dataAtom: names.statesAtom }) } };
+});
 vi.mock("./workspace-project-section", () => ({
     WorkspaceProjectBlock: () => <div data-stub="project">Link a project…</div>,
     WorkspaceFolderLine: () => <div data-stub="folder">Change…</div>,
@@ -122,8 +142,41 @@ describe("the Project sheet (FR-SHELL-105)", () => {
             { block: "logo", title: "Logo", scope: "project" },
             { block: "pipeline", title: "Pipeline and CI", scope: "project" },
             { block: "agent", title: "Project&#x27;s agent", scope: "project" },
+            { block: "names", title: "Locked first names", scope: "project" },
         ]);
         expect(html).toContain("For this project");
+    });
+
+    it("lists the first names locked for this project, in locking order, with whether an agent holds them (#2324)", () => {
+        const store = getDefaultStore();
+        store.set(names.locksAtom, [
+            { name: "Flore", project: "/code/site" },
+            { name: "Étienne", project: "/code/desk" },
+            { name: "Rose", project: "/code/desk/" },
+        ]);
+        store.set(names.statesAtom, {
+            states: { b1: { blockid: "b1", firstname: "Rose", version: 1 } },
+            versions: { b1: 1 },
+        });
+        const html = render(twoProjects);
+        const rows = [...html.matchAll(/<li [^>]*data-name="([^"]+)"[^>]*>.*?<\/li>/g)].map((m) => [
+            m[1],
+            /Not running/.test(m[0]) ? "not running" : "running",
+        ]);
+        expect(rows).toEqual([
+            ["Étienne", "not running"],
+            ["Rose", "running"],
+        ]);
+        expect(html).toContain('aria-label="Unlock Étienne"');
+        expect(html).not.toContain("Flore");
+        const site = render(twoProjects, "p1");
+        expect(site).toContain('data-name="Flore"');
+        expect(site).not.toContain('data-name="Étienne"');
+    });
+
+    it("says so when no first name is locked for the project (#2324)", () => {
+        getDefaultStore().set(names.locksAtom, []);
+        expect(render(twoProjects)).toContain("No first name is locked for this project.");
     });
 
     it("shows the current project by default, and the asked one otherwise", () => {

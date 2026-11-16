@@ -65,7 +65,7 @@ export function partOfField(field: WorkspaceEditField): WorkspaceEditPart {
 }
 
 // The Project sheet's blocks and fields (FR-SHELL-105): every one is "For this project".
-export type ProjectSheetBlock = "repository" | "details" | "logo" | "pipeline" | "agent";
+export type ProjectSheetBlock = "repository" | "details" | "logo" | "pipeline" | "agent" | "names";
 
 export const ProjectSheetBlocks: Record<ProjectSheetBlock, readonly string[]> = {
     repository: ["folder"],
@@ -73,6 +73,8 @@ export const ProjectSheetBlocks: Record<ProjectSheetBlock, readonly string[]> = 
     logo: ["logo"],
     pipeline: ["pipeline"],
     agent: ["agent"],
+    // The first names locked for the project (FR-CONT-014, #2324).
+    names: ["agentnames"],
 };
 
 // The blocks that show: a project without a folder has no images, pipeline or agent to read yet.
