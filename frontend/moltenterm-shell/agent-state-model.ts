@@ -29,6 +29,10 @@ export type AgentStateInfo = {
     agentname?: string;
     // The session's first name, unique among the app's active agents (FR-CONT-014).
     firstname?: string;
+    // The project folder the agent's terminal belongs to, absent for a terminal in none or a remote one; and the
+    // project folder its first name is locked for (#2324), absent when it is not locked.
+    project?: string;
+    namelockedfor?: string;
     state?: AgentStateName;
     message?: string;
     // message's code when MoltenTerm holds the state (#896): "fixing the CI of #12", "waiting for the CI of #12".

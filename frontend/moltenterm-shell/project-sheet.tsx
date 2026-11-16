@@ -12,6 +12,9 @@ import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useId, useState } from "react";
 import { useFeatureMatrix } from "./agent-info/agent-features-model";
+import { locksOfProject, unlockFailureText } from "./agent-name-locks-model";
+import { AgentNameLocks, unlockAgentName } from "./agent-name-locks-store";
+import { AgentStates } from "./agent-state-store";
 import {
     codingAgentIds,
     CodingAgentModel,
@@ -21,6 +24,7 @@ import {
 } from "./coding-agent/coding-agent";
 import { DialogFrame } from "./dialog-frame";
 import { t as translateNow, useT } from "./i18n/i18n";
+import { serverErrorText } from "./i18n/server-text";
 import { MoltenWave } from "./molten-button";
 import { openMoltentermView } from "./open-view";
 import { RepositoryField } from "./project-repository";
@@ -408,6 +412,67 @@ function AgentBlock({ dir }: { dir: string }) {
     );
 }
 
+// The first names locked for this project (FR-CONT-014, #2324), in the order a new agent takes them. A name is locked
+// from an agent's Connections; the sheet lists them and frees them.
+function AgentNamesBlock({ dir }: { dir: string }) {
+    const t = useT();
+    const locks = useAtomValue(AgentNameLocks.getInstance().locksAtom);
+    const states = useAtomValue(AgentStates.getInstance().dataAtom);
+    const [error, setError] = useState("");
+    const names = locksOfProject(locks, dir);
+    const running = new Set(Object.values(states.states).map((a) => (a.firstname ?? "").toLowerCase()));
+    const unlock = (name: string) =>
+        fireAndForget(async () => {
+            setError("");
+            try {
+                setError(unlockFailureText(await unlockAgentName(name), name));
+            } catch (e) {
+                setError(serverErrorText(e));
+            }
+        });
+    return (
+        <SheetSection title={t("projectSheet.agentNames")} concept="agent" scope="project" block="names">
+            <div className="flex min-w-0 flex-col gap-1.5">
+                {names.length === 0 ? (
+                    <div className="text-12 text-muted" data-role="agent-names-none">
+                        {t("projectSheet.agentNamesNone")}
+                    </div>
+                ) : (
+                    <ul className="m-0 flex list-none flex-col gap-1 p-0" data-role="agent-names">
+                        {names.map((lock) => (
+                            <li key={lock.name} className="flex min-w-0 items-center gap-2" data-name={lock.name}>
+                                <span className="min-w-0 flex-1 truncate text-13">{lock.name}</span>
+                                <span className="shrink-0 text-12 text-muted">
+                                    {running.has(lock.name.toLowerCase())
+                                        ? t("agentNames.running")
+                                        : t("agentNames.notRunning")}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => unlock(lock.name)}
+                                    aria-label={t("agentNames.unlockNamed", { name: lock.name })}
+                                    data-action="unlock-name"
+                                    className={cn(SecondaryButtonClass, FocusRingClass)}
+                                >
+                                    {t("agentNames.unlock")}
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                <div className="text-12 text-muted" data-role="agent-names-hint">
+                    {t("projectSheet.agentNamesHint")}
+                </div>
+                {error ? (
+                    <div role="alert" className="text-12 text-danger">
+                        {error}
+                    </div>
+                ) : null}
+            </div>
+        </SheetSection>
+    );
+}
+
 export function ProjectSheet({
     workspaceId,
     projectId,
@@ -484,6 +549,7 @@ export function ProjectSheet({
                         <PipelineBlock facts={repoFacts} isCurrent={isCurrent} onClose={onClose} />
                     ) : null}
                     {blocks.includes("agent") ? <AgentBlock dir={repoDir} /> : null}
+                    {blocks.includes("names") ? <AgentNamesBlock dir={repoDir} /> : null}
                 </>
             )}
         </DialogFrame>

@@ -10833,6 +10833,27 @@
         "brainstormUpdate": "Opened by you at {time} from a brainstorm, to add SaaSFoundryAI's full profile to this project: its questions are asked here",
         "brainstormHandoff": "Started by you at {time} from a brainstorm, to take the first step of this project with its brief"
     },
+    "agentNames": {
+        "markTitle": "Locked for {project}",
+        "markTitleNamed": "{name} is locked for {project}: a new agent there gets it back.",
+        "section": "First name",
+        "lockedHint": "{name} is locked for {project}: a new agent started there gets it back, and no agent of another project gets it.",
+        "lockHint": "Lock {name} for {project} so a new agent started there gets it back.",
+        "lock": "Lock for {project}",
+        "unlock": "Unlock",
+        "unlockNamed": "Unlock {name}",
+        "moveQuestion": "{name} is locked for {from}. Lock it for {project} instead?",
+        "moveLabel": "Lock for {project}",
+        "running": "Running",
+        "notRunning": "Not running",
+        "error": {
+            "noAgent": "No agent holds a first name in this terminal.",
+            "noProject": "This terminal is in no project folder, so {name} has no project to be locked for.",
+            "notLockable": "{name} is a numbered name, given when the list of names ran out: it cannot be locked.",
+            "failed": "The lock could not be saved in MoltenTerm's data: nothing changed.",
+            "unlockFailed": "The change could not be saved in MoltenTerm's data: {name} stays locked."
+        }
+    },
     "agentLinks": {
         "title": "Connections",
         "subtitle": "What MoltenTerm gives this terminal's agents, and what they are allowed to do.",
@@ -11075,6 +11096,9 @@
         "agentDefault": "App default ({agent})",
         "agentDefaultNone": "App default",
         "agentHint": "The agent MoltenTerm starts for this project's reviews, release notes and companion. The same choice as in the panels' options.",
+        "agentNames": "Locked first names",
+        "agentNamesHint": "A new agent started in this project gets the first free name of this list, in this order. Lock a name from an agent's Connections.",
+        "agentNamesNone": "No first name is locked for this project.",
         "folder": "Project folder",
         "folderHint": "Holds the project's context, for example a client's documents. The Files panel opens here."
     },
