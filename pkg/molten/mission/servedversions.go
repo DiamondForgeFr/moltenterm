@@ -45,18 +45,27 @@ const (
 	ServedStopRefusedUnknownProject = "unknownproject"
 	ServedStopRefusedSelf           = "self"
 	ServedStopRefusedAgent          = "agent"
+	// The process table cannot be read (an unsupported platform, a read error): nothing tells wavesrv's own processes,
+	// the agents or a reused pid apart, so nothing is stopped.
+	ServedStopRefusedUnknown = "unknown"
 
 	// A busy computer slows lsof down: the list and the stop's own reads wait longer than a navigation's lookup.
 	servedListenTimeout     = 10 * time.Second
 	servedStopListenTimeout = 15 * time.Second
 	servedArgsTimeout       = 2 * time.Second
-	servedListenMaxAge      = 2 * time.Second
-	servedKnownTimeout      = 5 * time.Second
+	// Longer than the card's 5 s poll, so a poll reuses the last read; opening the card and a stop read afresh.
+	servedListenMaxAge    = 6 * time.Second
+	servedKnownTimeout    = 5 * time.Second
+	servedAncestorTimeout = 5 * time.Second
+	servedMaxAncestors    = 256
 	// The listening processes resolved per answer: a computer with more servers lists the lowest pids.
 	servedMaxProcesses = 256
 	servedStopGrace    = 5 * time.Second
 	servedStopPoll     = 150 * time.Millisecond
 )
+
+// The debuggers' default ports (node --inspect, Delve, debugpy): a debugger is not a version of the app.
+var servedDebugPorts = map[int]bool{9229: true, 2345: true, 5678: true}
 
 type ServedVersionsRequest struct {
 	// The workspace's projects as linked: each version names the one it belongs to.
@@ -85,6 +94,8 @@ type ServedVersion struct {
 	FuturePr bool           `json:"futurepr,omitempty"`
 	// ProjectDir: the workspace project the checkout belongs to, as linked; "" for another project.
 	ProjectDir string `json:"projectdir,omitempty"`
+	// Linked: a project linked to a workspace (any of them), the only ones whose servers a stop reaches.
+	Linked bool `json:"linked,omitempty"`
 	// Servers, by port.
 	Servers []ServedServer `json:"servers"`
 }
@@ -276,11 +287,14 @@ func (c *TestContexts) storeSockets(answer socketsAnswer) {
 	c.socketsAt = answer
 }
 
+// listenSockets: one read at a time. A caller that waited behind another read takes its answer when that read ended
+// after the caller asked, so several windows' polls and fresh asks arriving together run lsof once.
 func (c *TestContexts) listenSockets(fresh bool) ([]listenSocket, error) {
-	if !fresh {
-		if answer, ok := c.cachedSockets(); ok {
-			return answer.sockets, answer.err
-		}
+	asked := c.now()
+	c.socketsRead.Lock()
+	defer c.socketsRead.Unlock()
+	if answer, ok := c.cachedSockets(); ok && (!fresh || !answer.readAt.Before(asked)) {
+		return answer.sockets, answer.err
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), servedListenTimeout)
 	defer cancel()
@@ -351,11 +365,11 @@ func (c *TestContexts) Versions(req ServedVersionsRequest) (ServedVersions, erro
 	pids := []int32{}
 	agents := map[int32]bool{}
 	for _, s := range sockets {
-		if own[s.pid] || agents[s.pid] {
+		if own[s.pid] || agents[s.pid] || servedDebugPorts[s.port] {
 			continue
 		}
 		if _, seen := ports[s.pid]; !seen {
-			if c.agentOf(table.Get(s.pid)) != "" {
+			if c.agentTooling(table, s.pid) {
 				agents[s.pid] = true
 				continue
 			}
@@ -363,6 +377,7 @@ func (c *TestContexts) Versions(req ServedVersionsRequest) (ServedVersions, erro
 		}
 		ports[s.pid] = append(ports[s.pid], s.port)
 	}
+	known := c.knownDirs()
 	slices.Sort(pids)
 	if len(pids) > servedMaxProcesses {
 		pids = pids[:servedMaxProcesses]
@@ -378,6 +393,7 @@ func (c *TestContexts) Versions(req ServedVersionsRequest) (ServedVersions, erro
 		version := byRoot[key]
 		if version == nil {
 			version = c.servedVersion(state, req.WorkspaceDirs)
+			version.Linked = isKnownProject(state, known)
 			byRoot[key] = version
 			taken[key] = map[int]bool{}
 		}
@@ -434,17 +450,33 @@ func sortServedVersions(versions []ServedVersion) {
 	})
 }
 
-// knownProject: the checkout's repository is a project linked to MoltenTerm, or lies inside a linked project folder.
-func (c *TestContexts) knownProject(state PaneState) bool {
+// agentTooling: the process is a coding agent, or one an agent started itself (its MCP servers, its IDE link): an
+// agent's own tooling is not a version of the app. A server an agent starts runs under the shell of its command tool,
+// not directly under the agent.
+func (c *TestContexts) agentTooling(table *proctree.Table, pid int32) bool {
+	p := table.Get(pid)
+	if c.agentOf(p) != "" {
+		return true
+	}
+	return p != nil && p.Ppid > 1 && p.Ppid != pid && c.agentOf(table.Get(p.Ppid)) != ""
+}
+
+// knownDirs: the folders and repositories of the projects linked to a workspace; nil when they cannot be read.
+func (c *TestContexts) knownDirs() []string {
 	if c.known == nil {
-		return false
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), servedKnownTimeout)
 	defer cancel()
 	dirs, err := c.known(ctx)
 	if err != nil {
-		return false
+		return nil
 	}
+	return dirs
+}
+
+// isKnownProject: the checkout's repository is a project linked to MoltenTerm, or lies inside a linked project folder.
+func isKnownProject(state PaneState, dirs []string) bool {
 	project, root := realPath(state.Project), realPath(state.Root)
 	for _, dir := range dirs {
 		if dir == "" || !filepath.IsAbs(dir) {
@@ -474,15 +506,20 @@ func (c *TestContexts) Stop(req ServedStopRequest) (ServedStopResult, error) {
 	if err := checkDir(req.Root); err != nil {
 		return rtn, err
 	}
+	pids, err := c.stopListeners(req.Port)
+	if err != nil {
+		return rtn, fmt.Errorf("the processes listening on port %d cannot be read: %w", req.Port, err)
+	}
+	// Read after the listeners: a listener the lookup found is in the table, with its start time.
 	table := c.readProcs()
+	if table == nil {
+		rtn.Refused = ServedStopRefusedUnknown
+		return rtn, nil
+	}
 	own := c.ownProcesses(table)
 	if own[req.Pid] {
 		rtn.Refused = ServedStopRefusedSelf
 		return rtn, nil
-	}
-	pids, err := c.stopListeners(req.Port)
-	if err != nil {
-		return rtn, fmt.Errorf("the processes listening on port %d cannot be read: %w", req.Port, err)
 	}
 	if !slices.Contains(pids, req.Pid) {
 		rtn.Refused = ServedStopRefusedGone
@@ -502,11 +539,12 @@ func (c *TestContexts) Stop(req ServedStopRequest) (ServedStopResult, error) {
 		rtn.Refused, rtn.Folder = ServedStopRefusedMoved, state.Root
 		return rtn, nil
 	}
-	if !c.knownProject(state) {
+	if !isKnownProject(state, c.knownDirs()) {
 		rtn.Refused, rtn.Folder = ServedStopRefusedUnknownProject, state.Root
 		return rtn, nil
 	}
-	targets := c.stopTargets(pids, root, own, table)
+	// Each target is checked again just before the signal: the same process (start time), still running.
+	targets := c.running(c.stopTargets(pids, root, own, table))
 	for _, target := range targets {
 		if c.signal(target.pid, false) == nil {
 			rtn.Stopped = append(rtn.Stopped, target.pid)
@@ -529,39 +567,51 @@ func (c *TestContexts) stopListeners(port int) ([]int32, error) {
 }
 
 // stopTargets: the port's listeners inside the checkout, then what they started inside it, each once, with its start
-// time so a reused pid is never signalled later.
+// time so a reused pid is never signalled later. A coding agent and everything below it are left alone (an agent
+// running in a terminal of a code-server or of a test MoltenTerm started from the worktree), so are wavesrv's own
+// processes, and a process whose start time is unknown cannot be told from a reused pid: it is left too.
 func (c *TestContexts) stopTargets(pids []int32, root string, own map[int32]bool, table *proctree.Table) []servedTarget {
 	seen := map[int32]bool{}
+	// pruned: a process whose subtree is never walked into.
+	pruned := map[int32]bool{}
 	targets := []servedTarget{}
-	add := func(pid int32) bool {
-		if seen[pid] || own[pid] || !c.insideRoot(pid, root) {
+	add := func(p *proctree.Proc) bool {
+		if p == nil || seen[p.Pid] {
 			return false
 		}
-		seen[pid] = true
-		target := servedTarget{pid: pid}
-		if p := table.Get(pid); p != nil {
-			target.startMs = p.StartMs
+		seen[p.Pid] = true
+		if own[p.Pid] || c.agentOf(p) != "" {
+			pruned[p.Pid] = true
+			return false
 		}
-		targets = append(targets, target)
+		if p.StartMs <= 0 || !c.insideRoot(p.Pid, root) {
+			return false
+		}
+		targets = append(targets, servedTarget{pid: p.Pid, startMs: p.StartMs})
 		return true
 	}
 	listeners := append([]int32(nil), pids...)
 	slices.Sort(listeners)
+	served := []int32{}
 	for _, pid := range listeners {
-		add(pid)
-	}
-	for _, pid := range listeners {
-		if !seen[pid] {
-			continue
+		if add(table.Get(pid)) {
+			served = append(served, pid)
 		}
+	}
+	for _, pid := range served {
+		// Descendants comes nearest first: a parent is decided before its children.
 		for _, kid := range table.Descendants(pid) {
-			add(kid.Pid)
+			if pruned[kid.Ppid] {
+				pruned[kid.Pid] = true
+				continue
+			}
+			add(kid)
 		}
 	}
 	return targets
 }
 
-// awaitStopped waits for the targets to end, then kills those still there after the grace.
+// awaitStopped waits for the targets to end, then kills those still the same processes after the grace.
 func (c *TestContexts) awaitStopped(targets []servedTarget) {
 	deadline := c.now().Add(c.stopGrace)
 	left := c.running(targets)
@@ -569,11 +619,11 @@ func (c *TestContexts) awaitStopped(targets []servedTarget) {
 		time.Sleep(servedStopPoll)
 		left = c.running(left)
 	}
-	for _, target := range left {
-		c.signal(target.pid, true)
-	}
 	if len(left) == 0 {
 		return
+	}
+	for _, target := range c.running(left) {
+		c.signal(target.pid, true)
 	}
 	deadline = c.now().Add(c.stopGrace)
 	for len(left) > 0 && c.now().Before(deadline) {
@@ -582,18 +632,16 @@ func (c *TestContexts) awaitStopped(targets []servedTarget) {
 	}
 }
 
-// running: the targets still alive, each the same process as when it was found (start time) and no zombie.
+// running: the targets still alive, each the same process as when it was found (start time) and no zombie. Without a
+// readable process table none is known to be the same: none is signalled again.
 func (c *TestContexts) running(targets []servedTarget) []servedTarget {
 	table := c.readProcs()
 	rtn := []servedTarget{}
+	if table == nil {
+		return rtn
+	}
 	for _, target := range targets {
-		if table == nil {
-			if processAlive(int(target.pid)) {
-				rtn = append(rtn, target)
-			}
-			continue
-		}
-		if table.Same(target.pid, target.startMs) {
+		if target.startMs > 0 && table.Same(target.pid, target.startMs) {
 			rtn = append(rtn, target)
 		}
 	}

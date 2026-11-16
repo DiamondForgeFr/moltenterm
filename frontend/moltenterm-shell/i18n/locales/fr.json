@@ -2901,7 +2901,8 @@
             "stop": {
                 "button": "Arrêter ce serveur",
                 "buttonFor": "Arrêter le serveur de {branch}",
-                "confirm": "Arrêter {process} (pid {pid}) qui sert {branch} sur le port {port} ?",
+                "confirm": "Arrêter {process}, qui sert {branch} sur le port {port} ?",
+                "unknownProcess": "un programme dont le nom ne peut pas être lu",
                 "scope": "Seuls ce processus et ceux qu'il a lancés dans ce dossier s'arrêtent. Rien d'autre n'est touché.",
                 "confirmYes": "Arrêter le serveur",
                 "stopping": "Arrêt…",
@@ -2917,6 +2918,7 @@
                     "unknownProject": "{folder} n'est pas dans un projet lié à MoltenTerm : rien n'a été arrêté.",
                     "self": "C'est MoltenTerm lui-même : il ne s'arrête pas d'ici.",
                     "agent": "C'est {agent} lui-même qui écoute sur le port {port} : arrêtez l'agent depuis son terminal. Rien n'a été arrêté.",
+                    "unknown": "Les programmes qui tournent sur cet ordinateur ne peuvent pas être lus, donc ce que l'arrêt toucherait ne peut pas être vérifié : rien n'a été arrêté.",
                     "other": "Rien n'a été arrêté."
                 }
             },

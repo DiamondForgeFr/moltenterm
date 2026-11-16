@@ -67,6 +67,7 @@ const Served: ServedVersions = {
             ticket: 1,
             pr: { number: 110, title: "Loader", url: "u", draft: true },
             projectdir: Dir,
+            linked: true,
             servers: [{ port: 5173, pid: 41, process: "node" }],
         },
         {
@@ -78,6 +79,7 @@ const Served: ServedVersions = {
             ticket: 2,
             futurepr: true,
             projectdir: Dir,
+            linked: true,
             servers: [{ port: 5180, pid: 52, process: "node" }],
         },
         { root: "/w/blog", project: "/w/blog", name: "blog", branch: "main", servers: [{ port: 4000, pid: 70 }] },
@@ -108,11 +110,8 @@ const Answer: TestContextAnswer = {
 
 const Noop = () => {};
 
-function draw(status: string, over: Partial<VersionCardViewProps> = {}): string {
-    const data = versionCardData(
-        { answer: Answer, served: Served, projects: [project(status)], asks: {}, now: Now, t },
-        Dir
-    );
+function draw(status: string, over: Partial<VersionCardViewProps> = {}, served: ServedVersions = Served): string {
+    const data = versionCardData({ answer: Answer, served, projects: [project(status)], asks: {}, now: Now, t }, Dir);
     return renderToStaticMarkup(
         <VersionCardView
             data={data}
@@ -171,10 +170,31 @@ describe("the version card (#2326)", () => {
     it("asks before stopping, naming the process, its pid, the branch and the port", () => {
         const html = draw("Human Testing", { stopAsk: "/w/shop-wt/b" });
         expect(html).toContain('data-testid="browser-version-stop-confirm"');
-        expect(html).toContain("Stop node (pid 52) serving feature/2-b on port 5180?");
+        expect(html).toContain("Stop node, which serves feature/2-b on port 5180?");
         expect(html).toContain("molten-btn-destructive");
         expect(rows(html)[0]).not.toContain("browser-version-stop-confirm");
         expect(draw("Human Testing")).not.toContain("browser-version-stop-confirm");
+    });
+
+    it("offers no stop for a project linked to no workspace, and names a program whose name is unknown in words", () => {
+        const unlinked: ServedVersions = {
+            ...Served,
+            versions: Served.versions.map((v) =>
+                v.branch === "feature/2-b" ? { ...v, linked: false, servers: [{ port: 5180, pid: 52 }] } : v
+            ),
+        };
+        const [current, other] = rows(draw("Human Testing", {}, unlinked));
+        expect(current).toContain('data-testid="browser-version-stop"');
+        expect(other).not.toContain('data-testid="browser-version-stop"');
+        const linked: ServedVersions = {
+            ...Served,
+            versions: Served.versions.map((v) =>
+                v.branch === "feature/2-b" ? { ...v, servers: [{ port: 5180, pid: 52 }] } : v
+            ),
+        };
+        const html = draw("Human Testing", { stopAsk: "/w/shop-wt/b" }, linked);
+        expect(html).toContain("Stop a program whose name cannot be read, which serves feature/2-b on port 5180?");
+        expect(html).not.toContain("pid");
     });
 
     it("folds the other projects and the details", () => {

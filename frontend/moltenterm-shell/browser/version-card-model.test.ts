@@ -87,6 +87,7 @@ const VersionA: ServedVersion = {
     ticket: 1,
     pr: { number: 110, title: "PR 110", url: "u110", draft: true },
     projectdir: Dir,
+    linked: true,
     servers: [
         { port: 5173, pid: 41, process: "node" },
         { port: 5174, pid: 41, process: "node" },
@@ -102,6 +103,7 @@ const VersionB: ServedVersion = {
     ticket: 2,
     futurepr: true,
     projectdir: Dir,
+    linked: true,
     servers: [
         { port: 5180, pid: 52, process: "node" },
         { port: 5181, pid: 52, process: "node" },
@@ -115,6 +117,7 @@ const Main: ServedVersion = {
     name: "shop",
     branch: "develop",
     projectdir: Dir,
+    linked: true,
     servers: [{ port: 3000, pid: 60, process: "python3" }],
 };
 
@@ -172,6 +175,9 @@ describe("the versions of the project (AC7)", () => {
             ["feature/2-b", false, false],
         ]);
         expect(data.others.map((l) => l.branch)).toEqual(["main"]);
+        // Only a linked project's servers can be stopped: the others' stop would be refused, so it is not offered.
+        expect(data.mine.map((l) => l.stoppable)).toEqual([true, true, true]);
+        expect(data.others[0].stoppable).toBe(false);
         const b = data.mine[2];
         expect(b).toMatchObject({ title: "Basket total", agents: ["Arthur"], ticket: 2 });
         expect(b.server.port).toBe(5181);

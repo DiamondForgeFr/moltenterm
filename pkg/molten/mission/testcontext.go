@@ -115,6 +115,10 @@ type TestContexts struct {
 	// table, the coding agents among them, the signals, the projects linked to MoltenTerm and wavesrv's own process.
 	sockets   func(ctx context.Context) ([]listenSocket, error)
 	socketsAt socketsAnswer
+	// Held for a whole read of the listeners: concurrent asks share one lsof.
+	socketsRead sync.Mutex
+	// Whether a merged PR's head is in a checkout's history, by checkout, head and commit (cachedMergedPr).
+	ancestors map[string]bool
 	procs     func() (*proctree.Table, error)
 	agentOf   func(p *proctree.Proc) string
 	signal    func(pid int32, kill bool) error
@@ -132,6 +136,7 @@ func MakeTestContexts(panes *Panes, collector *Collector) *TestContexts {
 		exe:       proctree.Exe,
 		now:       time.Now,
 		listens:   map[int]listenAnswer{},
+		ancestors: map[string]bool{},
 		sockets:   listeningSockets,
 		procs:     proctree.Read,
 		agentOf:   agentOfProcess,
@@ -309,13 +314,54 @@ func (c *TestContexts) describe(answer *TestContext, state PaneState, workspaceD
 	}
 	work := answer.Branch != "" && !isBaseBranch(state.Project, answer.Branch)
 	// A trunk's merged PRs are the release PRs it was the head of: never the trunk's own.
-	if work && gh != nil {
-		if merged := cachedMergedPr(gh.Merged, answer.Branch); merged != nil {
+	if work && gh != nil && answer.Sha != "" {
+		inHistory := func(oid string) bool { return c.inHistory(state.Root, oid, answer.Sha) }
+		if merged := cachedMergedPr(gh.Merged, answer.Branch, inHistory); merged != nil {
 			answer.Pr = merged
 			return
 		}
 	}
 	answer.FuturePr = answer.PrKnown && work
+}
+
+func (c *TestContexts) cachedAncestor(key string) (bool, bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	is, ok := c.ancestors[key]
+	return is, ok
+}
+
+func (c *TestContexts) storeAncestor(key string, is bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if len(c.ancestors) >= servedMaxAncestors {
+		c.ancestors = map[string]bool{}
+	}
+	c.ancestors[key] = is
+}
+
+// inHistory: oid is the checkout's commit or one of its ancestors, asked of git once per checkout, head and commit.
+func (c *TestContexts) inHistory(root string, oid string, sha string) bool {
+	if oid == "" || sha == "" || root == "" {
+		return false
+	}
+	if oid == sha {
+		return true
+	}
+	key := root + "\x00" + oid + "\x00" + sha
+	if is, ok := c.cachedAncestor(key); ok {
+		return is
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), servedAncestorTimeout)
+	defer cancel()
+	_, err := c.panes.run(ctx, root, "git", "merge-base", "--is-ancestor", oid, sha)
+	// A timeout says nothing: it is asked again next time rather than remembered as "no".
+	if ctx.Err() != nil {
+		return false
+	}
+	is := err == nil
+	c.storeAncestor(key, is)
+	return is
 }
 
 func cachedPrBody(raw json.RawMessage, number int) string {
@@ -334,15 +380,19 @@ func cachedPrBody(raw json.RawMessage, number int) string {
 	return ""
 }
 
-// cachedMergedPr is the branch's last PR merged in the collector's window (#2326), nil when none merged.
-func cachedMergedPr(raw json.RawMessage, branch string) *TestContextPr {
+// cachedMergedPr is the branch's last PR merged in the collector's window (#2326), nil when none merged. The name is
+// not enough: a branch name used again, or a fork's branch of the same name, merged other work. The PR must come from
+// this repository and its head must be in the checkout's history (inHistory).
+func cachedMergedPr(raw json.RawMessage, branch string, inHistory func(oid string) bool) *TestContextPr {
 	var prs []struct {
-		Number      int    `json:"number"`
-		Title       string `json:"title"`
-		Url         string `json:"url"`
-		State       string `json:"state"`
-		HeadRefName string `json:"headRefName"`
-		MergedAt    string `json:"mergedAt"`
+		Number            int    `json:"number"`
+		Title             string `json:"title"`
+		Url               string `json:"url"`
+		State             string `json:"state"`
+		HeadRefName       string `json:"headRefName"`
+		HeadRefOid        string `json:"headRefOid"`
+		IsCrossRepository bool   `json:"isCrossRepository"`
+		MergedAt          string `json:"mergedAt"`
 	}
 	if len(raw) == 0 || json.Unmarshal(raw, &prs) != nil {
 		return nil
@@ -350,7 +400,8 @@ func cachedMergedPr(raw json.RawMessage, branch string) *TestContextPr {
 	var rtn *TestContextPr
 	last := ""
 	for _, pr := range prs {
-		if pr.HeadRefName != branch || !strings.EqualFold(pr.State, "MERGED") || (rtn != nil && pr.MergedAt <= last) {
+		if pr.HeadRefName != branch || !strings.EqualFold(pr.State, "MERGED") || pr.IsCrossRepository || pr.HeadRefOid == "" ||
+			(rtn != nil && pr.MergedAt <= last) || !inHistory(pr.HeadRefOid) {
 			continue
 		}
 		rtn = &TestContextPr{Number: pr.Number, Title: pr.Title, Url: pr.Url, Merged: true}
