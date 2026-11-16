@@ -201,7 +201,8 @@ type agentStates struct {
 	// procs: the process-tree watcher (procwatch.go), told when commands start and end; nil in tests.
 	procs *procWatcher
 	// names: the first names of the app's active agents, one per block with a record (FR-CONT-014). onNamed is told,
-	// with the lock held, when a block gets a name it did not have last (to remember it in the block's meta).
+	// with the lock held, when a block gets a name it did not have last (to remember it in the block's meta): once the
+	// block is located when projectOf is set, since its name may settle on a name locked for its project until then.
 	names   *agentnames.Allocator
 	onNamed func(blockId string, name string)
 	// projectOf: the project folder of a located block (agentnamelocks.go); nil in tests that name agents with no
