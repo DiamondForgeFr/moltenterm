@@ -9,17 +9,25 @@ import { gateChannel, resolveBuildChannel } from "./build-channel";
 import type { MoltentermBuildInfo } from "./build-info";
 import { brainstormAllowed, brainstormReplayAllowed, BuildChannel, makeBuildIdentity } from "./build-identity";
 
-// FR-BOSS-010 AC1 (#2246): Brokk's thought in 3D on gold, dev and local builds only; its scripted replay on dev and local.
+// FR-BOSS-010 AC1 (#2320): Brokk's thought in 3D on every channel, a release candidate and a public release included; its
+// scripted replay on dev and local only.
 describe("the brainstorm gate", () => {
     it.each<[BuildChannel, boolean, boolean]>([
         ["gold", true, false],
         ["dev", true, true],
         ["local", true, true],
-        ["rc", false, false],
-        ["public", false, false],
+        ["rc", true, false],
+        ["public", true, false],
     ])("%s: brainstorm %s, replay %s", (channel, start, replay) => {
         expect(brainstormAllowed(channel)).toBe(start);
         expect(brainstormReplayAllowed(channel)).toBe(replay);
+    });
+
+    it("opens nothing on a channel that is not known", () => {
+        for (const channel of ["unknown", "", "Gold", "nightly", null] as any[]) {
+            expect(brainstormAllowed(channel), String(channel)).toBe(false);
+            expect(brainstormReplayAllowed(channel), String(channel)).toBe(false);
+        }
     });
 
     it("names a build after the launcher's channel, as its badge and its updates did", () => {
@@ -30,12 +38,12 @@ describe("the brainstorm gate", () => {
         expect(resolveBuildChannel({ isDev: false })).toBe("local");
     });
 
-    // The gate never widens: a release launched as a gold stays shut, and an unknown name opens nothing. Must match
+    // The gate never widens: a release launched as a gold stays a release, and an unknown name opens nothing. Must match
     // pkg/molten/buildchannel TestGateChannelNeverWidensARelease.
     it.each<[boolean, string, string, string, boolean]>([
-        [false, "public", "gold", "public", false],
-        [false, "rc", "dev", "rc", false],
-        [false, "public", "anything", "public", false],
+        [false, "public", "gold", "public", true],
+        [false, "rc", "dev", "rc", true],
+        [false, "public", "anything", "public", true],
         [false, "nightly", "", "unknown", false],
         [false, "gold", "anything", "unknown", false],
         [false, "gold", "", "gold", true],
@@ -45,8 +53,8 @@ describe("the brainstorm gate", () => {
         [false, "local", "dev", "dev", true],
         [false, "gold", "dev", "gold", true],
         [false, "gold", "local", "gold", true],
-        [false, "gold", "public", "public", false],
-        [false, "gold", "rc", "rc", false],
+        [false, "gold", "public", "public", true],
+        [false, "gold", "rc", "rc", true],
         [true, "public", "", "dev", true],
     ])("gates dev=%s baked %s launcher %s as %s (allowed %s)", (isDev, buildChannel, runtimeChannel, want, allowed) => {
         const gate = gateChannel({ isDev, buildChannel, runtimeChannel });
@@ -54,11 +62,14 @@ describe("the brainstorm gate", () => {
         expect(brainstormAllowed(gate)).toBe(allowed);
     });
 
-    it("never opens the replay of a gold, whatever the launcher says", () => {
-        for (const runtimeChannel of ["", "gold", "dev", "local", "rc", "public", "anything"]) {
-            expect(brainstormReplayAllowed(gateChannel({ isDev: false, buildChannel: "gold", runtimeChannel }))).toBe(
-                false
-            );
+    it("never opens the replay of a gold or of a release, whatever the launcher says", () => {
+        for (const buildChannel of ["gold", "rc", "public"]) {
+            for (const runtimeChannel of ["", "gold", "dev", "local", "rc", "public", "anything"]) {
+                expect(
+                    brainstormReplayAllowed(gateChannel({ isDev: false, buildChannel, runtimeChannel })),
+                    `${buildChannel} launched as ${runtimeChannel}`
+                ).toBe(false);
+            }
         }
     });
 });

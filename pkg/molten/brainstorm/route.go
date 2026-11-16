@@ -27,7 +27,7 @@ import (
 // The windows reach the mode through a leaf of wavesrv's router answering plain command names, like Brokk's session
 // (brokksession/live.go). Any wsh client can publish an event under any name, so molten:brainstorm only says the state
 // changed: the views read it back from this route, which answers MoltenTerm's windows and Electron main only, and only
-// on a channel that has brainstorms (FR-BOSS-010 AC1, the second lock behind the window's own gate).
+// on a build that knows its channel (FR-BOSS-010 AC1, the second lock behind the window's own gate).
 
 const (
 	// RouteId and the commands must match frontend/moltenterm-shell/brainstorm/brainstorm-store.ts.
@@ -56,7 +56,7 @@ const (
 	stateDirName = "brainstorm"
 )
 
-// ErrNotOnThisChannel is the plain reason every command gets on a release candidate or a public release.
+// ErrNotOnThisChannel is the plain reason every command gets on a build that does not know its channel.
 var ErrNotOnThisChannel = errors.New(buildchannel.BrainstormRefusal)
 
 type eventSignal struct {
@@ -90,7 +90,7 @@ func livePublish(version int64) {
 	wps.Broker.Publish(wps.WaveEvent{Event: Event, Data: eventSignal{Version: version}})
 }
 
-// route lets in the windows and Electron main only, and only where the channel has brainstorms.
+// route lets in the windows and Electron main only, and only where the build knows its channel.
 func (s *Service) route(allowed func() bool) localroute.Route {
 	return localroute.Route{
 		Id:     RouteId,
@@ -246,8 +246,8 @@ func Live() *Service {
 	return svc
 }
 
-// LiveTitles are the saved brainstorms' titles Brokk's brief lists, the titles alone (AC10b); none where the channel has
-// no brainstorms.
+// LiveTitles are the saved brainstorms' titles Brokk's brief lists, the titles alone (AC10b); none where wavesrv does not
+// know its channel.
 func LiveTitles() []string {
 	if !buildchannel.BrainstormEnabled() {
 		return nil
@@ -257,8 +257,8 @@ func LiveTitles() []string {
 
 var startOnce sync.Once
 
-// Start registers the route; wavesrv calls it once, with Mission Control's start. On a release channel the route still
-// answers, with the refusal, so a window built for another channel gets a plain reason rather than no route.
+// Start registers the route; wavesrv calls it once, with Mission Control's start. Where wavesrv does not know its channel
+// the route still answers, with the refusal, so a window gets a plain reason rather than no route.
 func Start() {
 	startOnce.Do(func() {
 		if _, err := localroute.Register(wshutil.DefaultRouter, Live().route(buildchannel.BrainstormEnabled)); err != nil {

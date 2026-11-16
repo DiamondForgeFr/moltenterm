@@ -58,28 +58,20 @@ describe("library sections (FR-SHELL-088)", () => {
         expect(librarySectionAt("agents", -1, release)).toBe("settings");
         expect(librarySectionAt("settings", 1, release)).toBe("agents");
         const gold = visibleLibrarySections("gold");
-        expect(librarySectionAt("agents", -1, gold)).toBe("features");
-        expect(librarySectionAt("settings", 1, gold)).toBe("features");
-        expect(librarySectionAt("features", 1, gold)).toBe("agents");
+        expect(librarySectionAt("agents", -1, gold)).toBe("settings");
+        expect(librarySectionAt("settings", 1, gold)).toBe("agents");
     });
 
-    // FR-BOSS-011 AC1: the entry shows on gold, dev and local builds, and never on a release candidate or a public one;
-    // the switches do not hide it (it takes no state), so the page stays there to turn a feature back on.
-    it.each<[GateChannel, boolean]>([
-        ["gold", true],
-        ["dev", true],
-        ["local", true],
-        ["rc", false],
-        ["public", false],
-        ["unknown", false],
-        [null, false],
-    ])("%s: Features in test in the navigation: %s", (channel, shown) => {
-        const ids = visibleLibrarySections(channel).map((s) => s.id);
-        expect(ids.includes("features")).toBe(shown);
-        expect(ids.filter((id) => id !== "features")).toEqual(
-            LibrarySections.map((s) => s.id).filter((id) => id !== "features")
-        );
-    });
+    // FR-BOSS-011 AC1 (#2320): no feature is gated, so Features in test is in the navigation of no channel; with a
+    // feature in the registry it shows on gold, dev and local builds (gated-features-mechanism.test.ts).
+    it.each<[GateChannel]>([["gold"], ["dev"], ["local"], ["rc"], ["public"], ["unknown"], [null]])(
+        "%s: no Features in test in the navigation, and every other section there",
+        (channel) => {
+            const ids = visibleLibrarySections(channel).map((s) => s.id);
+            expect(ids.includes("features")).toBe(false);
+            expect(ids).toEqual(LibrarySections.map((s) => s.id).filter((id) => id !== "features"));
+        }
+    );
 
     it("explains each built-in panel kind in plain words, in both languages", () => {
         for (const view of [

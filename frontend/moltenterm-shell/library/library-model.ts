@@ -49,7 +49,7 @@ export const LibrarySections: LibrarySectionInfo[] = [
 export const DefaultLibrarySection: LibrarySection = "workspaces";
 
 // The sections the navigation shows on this gate channel: Features in test only where the channel opens a gated
-// feature (gold, dev, local), never on a release candidate or a public release, and whatever the switches say, so the
+// feature (gold, dev, local; no feature is gated since #2320, so none shows it), never on a release candidate or a public release, and whatever the switches say, so the
 // page stays there to turn a feature back on.
 export function visibleLibrarySections(channel: GateChannel): LibrarySectionInfo[] {
     return LibrarySections.filter((s) => !s.gated || featuresInTestShown(channel));

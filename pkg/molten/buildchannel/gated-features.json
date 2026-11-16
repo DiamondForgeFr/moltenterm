@@ -1,11 +1,3 @@
 {
-    "features": [
-        {
-            "id": "brainstorm",
-            "labelkey": "featuresInTest.features.brainstorm.label",
-            "descriptionkey": "featuresInTest.features.brainstorm.description",
-            "channels": ["dev", "local", "gold"],
-            "ticket": 2246
-        }
-    ]
+    "features": []
 }

@@ -163,7 +163,7 @@ function BrokkHostLayer({ show }: { show: boolean }) {
 
     return (
         <div ref={layerRef} className="mt-boss-layer" data-testid="boss-layer">
-            {/* His thought in 3D (FR-BOSS-010, #2246): under his group, above the app; nothing on a release channel. */}
+            {/* His thought in 3D (FR-BOSS-010, #2246): under his group, above the app; on every channel since #2320. */}
             <BrainstormLayer />
             {show && place === "none" ? (
                 <BrokkAvatar variant="hanging" style={{ right: hangingRightPx(isMacOS()) }} />

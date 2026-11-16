@@ -1,8 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The library's Features in test section (FR-BOSS-011, #2254), on gold, dev and local builds: every feature that ships
-// gated to the build channel while it is tested, with a switch to turn it off on this computer, and See the public
+// The library's Features in test section (FR-BOSS-011, #2254), on gold, dev and local builds that have a feature in test
+// (none since the brainstorm shipped on every channel, #2320): every feature that ships gated to the build channel while
+// it is tested, with a switch to turn it off on this computer, and See the public
 // version, which turns them all off at once. The switches only narrow; the registry, the rule and the state are in
 // build/gated-features.ts and build/features-narrowing.ts.
 

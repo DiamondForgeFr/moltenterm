@@ -365,7 +365,8 @@ func TestFinishMarksTheBrainstormFinished(t *testing.T) {
 	}
 }
 
-// AC1 and the security rationale: the windows and Electron main only, and never on a release channel.
+// AC1 and the security rationale: the windows and Electron main only, and never on a build that does not know its
+// channel (a release candidate and a public release answer, #2320).
 func TestRouteCallersAndChannels(t *testing.T) {
 	t.Parallel()
 	e := routetest.Make(t)
@@ -386,7 +387,7 @@ func TestRouteCallersAndChannels(t *testing.T) {
 			t.Errorf("the state for %s: %s", from.Name, errStr)
 		}
 	}
-	for _, channel := range []string{buildchannel.RC, buildchannel.Public, ""} {
+	for _, channel := range []string{buildchannel.Unknown, "nightly", ""} {
 		e := routetest.Make(t)
 		refused, err := localroute.MakeLink(e.Router, f.service().route(func() bool { return buildchannel.BrainstormAllowed(channel) }))
 		if err != nil {

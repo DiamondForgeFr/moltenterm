@@ -8,16 +8,16 @@ import (
 	"testing"
 )
 
-// FR-BOSS-010 AC1 (#2246): gold, dev and local builds only; a release candidate, a public release, an unknown channel
-// and no channel at all are refused.
+// FR-BOSS-010 AC1 (#2320): every channel has the brainstorm, a release candidate and a public release included; an
+// unknown channel and no channel at all are refused.
 func TestBrainstormAllowedPerChannel(t *testing.T) {
 	t.Parallel()
 	cases := map[string]bool{
 		Gold:      true,
 		Dev:       true,
 		Local:     true,
-		RC:        false,
-		Public:    false,
+		RC:        true,
+		Public:    true,
 		Unknown:   false,
 		"":        false,
 		"Gold":    false,
@@ -31,7 +31,7 @@ func TestBrainstormAllowedPerChannel(t *testing.T) {
 }
 
 // The launcher's channel may narrow the gate, never widen it; an unknown name opens nothing. Must match
-// build-channel.test.ts.
+// build-channel.test.ts. The brainstorm is open on every channel but an unknown one (#2320).
 func TestGateChannelNeverWidensARelease(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -41,9 +41,9 @@ func TestGateChannelNeverWidensARelease(t *testing.T) {
 		want    string
 		allowed bool
 	}{
-		{false, Public, Gold, Public, false},
-		{false, RC, Dev, RC, false},
-		{false, Public, "anything", Public, false},
+		{false, Public, Gold, Public, true},
+		{false, RC, Dev, RC, true},
+		{false, Public, "anything", Public, true},
 		{false, "nightly", "", Unknown, false},
 		{false, Gold, "anything", Unknown, false},
 		{false, Gold, "", Gold, true},
@@ -53,8 +53,8 @@ func TestGateChannelNeverWidensARelease(t *testing.T) {
 		{false, Local, Dev, Dev, true},
 		{false, Gold, Dev, Gold, true},
 		{false, Gold, Local, Gold, true},
-		{false, Gold, Public, Public, false},
-		{false, Gold, RC, RC, false},
+		{false, Gold, Public, Public, true},
+		{false, Gold, RC, RC, true},
 		{true, Public, "", Dev, true},
 	}
 	for _, c := range cases {
@@ -63,6 +63,26 @@ func TestGateChannelNeverWidensARelease(t *testing.T) {
 			t.Errorf("GateChannel(%v, %q, %q) = %q (allowed %v), want %q (allowed %v)",
 				c.dev, c.baked, c.runtime, got, BrainstormAllowed(got), c.want, c.allowed)
 		}
+	}
+}
+
+// FR-BOSS-010 AC1 (#2320): the gate wavesrv's route and brief read follows the channel Electron main gave and nothing
+// the developer stored in Features in test; wavesrv started without a channel, or on one it does not know, has none.
+// It changes the gate channel by hand, so it is not parallel.
+func TestBrainstormEnabledFollowsTheChannelAlone(t *testing.T) {
+	stale := []Narrowing{{}, {Public: true}, {Off: []string{"brainstorm"}}, {Public: true, Off: []string{"brainstorm"}}}
+	for channel, want := range map[string]bool{Dev: true, Local: true, Gold: true, RC: true, Public: true, Unknown: false, "": false} {
+		for _, state := range stale {
+			restore := StartAsForTest(channel, state)
+			got := BrainstormEnabled()
+			restore()
+			if got != want {
+				t.Errorf("BrainstormEnabled() on %q with %+v = %v, want %v", channel, state, got, want)
+			}
+		}
+	}
+	if BrainstormEnabled() {
+		t.Error("a wavesrv started without a channel has the brainstorm")
 	}
 }
 

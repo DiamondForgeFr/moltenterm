@@ -244,7 +244,7 @@ export class BrainstormModel {
         return globalStore.get(TabActivity.getInstance().onScreenAtom) !== false;
     }
 
-    // Listens while the view lives. Does nothing on a release channel: the layer, the graph and the pause do not exist.
+    // Listens while the view lives. Does nothing where the channel is not known: the layer, the graph and the pause do not exist.
     start(): () => void {
         if (this.started || !this.allowed()) {
             return () => {};

@@ -859,7 +859,7 @@ func TestLaunchesReadBackChecked(t *testing.T) {
 }
 
 // AC-5 and the security rationale: the setup's and the hand-off's commands answer MoltenTerm's windows alone, and never
-// on a release.
+// on a build that does not know its channel.
 func TestLaunchCommandsAreForWindowsOnly(t *testing.T) {
 	t.Parallel()
 	l := makeLaunchFixture(t)
@@ -873,7 +873,7 @@ func TestLaunchCommandsAreForWindowsOnly(t *testing.T) {
 	for _, command := range commands {
 		routetest.MustRefuseWith(t, link, notUi, command, map[string]any{"profile": "full"}, "MoltenTerm windows only")
 	}
-	for _, channel := range []string{buildchannel.RC, buildchannel.Public} {
+	for _, channel := range []string{buildchannel.Unknown, ""} {
 		e := routetest.Make(t)
 		refused, err := localroute.MakeLink(e.Router, l.s.route(func() bool { return buildchannel.BrainstormAllowed(channel) }))
 		if err != nil {

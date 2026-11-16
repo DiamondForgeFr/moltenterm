@@ -106,7 +106,7 @@ type Setting struct {
 	// darwin, linux or windows, comma separated: the row shows on those platforms only.
 	Platform string `json:"platform,omitempty"`
 	// gold, dev, local, rc or public, comma separated: the row shows on those build channels only (FR-REL-001), for a
-	// feature a release does not have yet (FR-BOSS-010, #2246).
+	// feature a release does not have yet (FR-BOSS-010, #2246). No row uses it since the brainstorm shipped (#2320).
 	Channels string `json:"channels,omitempty"`
 	Hidden   bool   `json:"hidden,omitempty"`
 	// Inverted: a multi whose list holds the options turned off, shown ticked when absent from it (#947).
@@ -241,11 +241,11 @@ var settings = []Setting{
 	{Key: "boss:proximity", Section: SectionBoss, Group: "Avatar", Label: "Proximity", Description: "How near he stands to you.", Control: ControlSelect, Options: proximityOptions, Default: "colleague"},
 	// The avatar stays in the title row, never over a terminal: there is nothing left to fold (#2002).
 	hidden("boss:collapseontype"),
-	// Brokk's thought in 3D (FR-BOSS-010, DS-BOSS-010, #2246): a folder the developer owns, on the channels that have it.
-	{Key: "boss:brainstormsdir", Section: SectionBoss, Group: "Brainstorms", Label: "Brainstorms folder", Description: "Where your brainstorms with him are saved, one folder per idea, without asking.", Control: ControlPath, Default: "~/MoltenTerm/Brainstorms", Channels: "gold,dev,local"},
+	// Brokk's thought in 3D (FR-BOSS-010, DS-BOSS-010, #2246): a folder the developer owns, on every channel since #2320.
+	{Key: "boss:brainstormsdir", Section: SectionBoss, Group: "Brainstorms", Label: "Brainstorms folder", Description: "Where your brainstorms with him are saved, one folder per idea, without asking.", Control: ControlPath, Default: "~/MoltenTerm/Brainstorms"},
 	// A clear brainstorm becomes a project (FR-BOSS-010 AC15, #2250): the parent folder chosen on the project card, a
 	// convenience and never an approval.
-	{Key: "boss:projectsdir", Section: SectionBoss, Group: "Brainstorms", Label: "Projects folder", Description: "Where a clear brainstorm becomes a project folder, once you click to make it.", Control: ControlPath, Channels: "gold,dev,local"},
+	{Key: "boss:projectsdir", Section: SectionBoss, Group: "Brainstorms", Label: "Projects folder", Description: "Where a clear brainstorm becomes a project folder, once you click to make it.", Control: ControlPath},
 	// His agent's permission requests (#2257): off by default, turned on only after one explicit confirmation in the window.
 	{Key: "boss:autoapprove", Section: SectionBoss, Group: "His agent", Label: "Approve his agent's requests without asking", Description: "Only what stays in his own folder goes without asking, each a line in his window; the rest still asks.", Control: ControlToggle},
 	// When Brokk comes to fetch the developer (#2001 keys, #2003 table, FR-BOSS-009 AC4): the screen draws this group as
