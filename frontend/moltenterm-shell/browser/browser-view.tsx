@@ -208,6 +208,7 @@ import {
     withRememberedLocalPage,
 } from "./local-page";
 import { GatedPage } from "./local-page-ask";
+import { PageAddressFrame } from "./page-address-frame";
 import {
     DefaultSearchSettingKey,
     isSearchPage,
@@ -2277,7 +2278,18 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     const keys = formatShortcutById("top-field");
     const copyable = addressOfPage(tab.url) !== "";
     return (
-        <div className="group relative flex h-6 min-w-0 shrink">
+        <PageAddressFrame
+            copy={
+                copyable
+                    ? {
+                          copied,
+                          copyLabel: t("browser.address.copy"),
+                          copiedLabel: t("browser.address.copied"),
+                          onCopy: () => model.copyTabLink(tab.id),
+                      }
+                    : null
+            }
+        >
             <button
                 type="button"
                 className="flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
@@ -2303,31 +2315,7 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
                 )}
                 <span className="min-w-0 truncate font-mono text-11">{host}</span>
             </button>
-            {copyable ? (
-                <>
-                    <button
-                        type="button"
-                        aria-label={copied ? t("browser.address.copied") : t("browser.address.copy")}
-                        title={copied ? t("browser.address.copied") : t("browser.address.copy")}
-                        data-testid="browser-address-copy"
-                        data-copied={copied ? "true" : "false"}
-                        onClick={() => model.copyTabLink(tab.id)}
-                        className={cn(
-                            "absolute right-0.5 top-0.5 flex h-5 cursor-pointer items-center gap-1 rounded-4 bg-surface-3 px-1.5 text-11 text-secondary hover:text-primary focus-visible:opacity-100",
-                            copied
-                                ? "opacity-100"
-                                : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
-                        )}
-                    >
-                        <i className={cn("fa fa-solid text-11", copied ? "fa-check" : "fa-copy")} />
-                        {copied ? <span>{t("browser.address.copied")}</span> : null}
-                    </button>
-                    <span role="status" className="sr-only">
-                        {copied ? t("browser.address.copied") : ""}
-                    </span>
-                </>
-            ) : null}
-        </div>
+        </PageAddressFrame>
     );
 }
 
