@@ -26,6 +26,12 @@ export type AnnotateOpen = { tabId: string; url: string; nonce: number };
 export class AnnotateSession {
     openAtom = atom(null) as PrimitiveAtom<AnnotateOpen>;
     nonce = 0;
+    // Set by the layer while it shows: it takes the focus the panel would give to the page.
+    focusLayer: () => boolean = null;
+
+    holdFocus(): boolean {
+        return this.focusLayer != null && this.focusLayer();
+    }
 
     isOpen(): boolean {
         return globalStore.get(this.openAtom) != null;

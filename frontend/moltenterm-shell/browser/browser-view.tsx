@@ -1657,6 +1657,9 @@ export class BrowserViewModel implements ViewModel {
         if (this.addressHold.holds && this.focusAddress()) {
             return true;
         }
+        if (this.annotate.holdFocus()) {
+            return true;
+        }
         // The engine choice's primary button holds the focus while the bar is up (DS-BRW-007).
         const primary = this.choices.primaryRef.current;
         if (primary != null && this.choices.visible(this.state().activeId, globalStore.get(this.engines.listAtom))) {

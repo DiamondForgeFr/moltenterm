@@ -38,6 +38,17 @@ describe("the annotate session of a panel (#2327)", () => {
         expect(session.isOpen()).toBe(false);
     });
 
+    it("takes the focus the panel would give to the page, only while the layer shows", () => {
+        const session = new AnnotateSession();
+        expect(session.holdFocus()).toBe(false);
+        session.focusLayer = () => true;
+        expect(session.holdFocus()).toBe(true);
+        session.focusLayer = () => false;
+        expect(session.holdFocus()).toBe(false);
+        session.focusLayer = null;
+        expect(session.holdFocus()).toBe(false);
+    });
+
     it("keeps the sessions of two panels apart", () => {
         const a = new AnnotateSession();
         const b = new AnnotateSession();
