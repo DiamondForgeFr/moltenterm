@@ -191,8 +191,8 @@ func TestAnnotateReferenceGuards(t *testing.T) {
 		}
 	}
 	if _, err := runAnnotate(context.Background(), f.env, f.requestWithRefs(AnnotateCopy, AnnotateZone{Comment: "x", Images: []string{huge}})); err == nil ||
-		!strings.Contains(err.Error(), "too large") {
-		t.Errorf("a payload over the limit was not refused for its size: %v", err)
+		!strings.HasSuffix(err.Error(), "a reference image is too large") {
+		t.Errorf("a payload over the limit was not refused for its size before decoding: %v", err)
 	}
 	// One bad reference among good ones keeps none of them.
 	req := f.requestWithRefs(AnnotateCopy, AnnotateZone{Comment: "x", Images: []string{
