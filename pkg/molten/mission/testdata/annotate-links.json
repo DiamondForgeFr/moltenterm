@@ -1,0 +1,23 @@
+[
+  { "name": "two addresses and a plain space", "comment": "see https://a.test/x and http://b.test:8080/y", "hosts": ["a.test", "b.test:8080"] },
+  { "name": "a non-breaking space ends an address", "comment": "https://a.test/x https://b.test/y", "hosts": ["a.test", "b.test"] },
+  { "name": "an ideographic space ends an address", "comment": "https://a.test/x　https://b.test/y", "hosts": ["a.test", "b.test"] },
+  { "name": "an em space ends an address", "comment": "https://a.test/x https://b.test/y", "hosts": ["a.test", "b.test"] },
+  { "name": "a narrow no-break space ends an address", "comment": "https://a.test/x https://b.test/y", "hosts": ["a.test", "b.test"] },
+  { "name": "a line separator ends an address", "comment": "https://a.test/x https://b.test/y", "hosts": ["a.test", "b.test"] },
+  { "name": "a vertical tab is a control character, not in the comment, so it does not split an address", "comment": "https://a.test/x\u000bhttps://b.test/y", "hosts": ["a.test"] },
+  { "name": "a tab and a new line end an address", "comment": "https://a.test/x\thttps://b.test/y\nhttps://c.test/z", "hosts": ["a.test", "b.test", "c.test"] },
+  { "name": "a zero-width space is not in the comment, so it does not split an address", "comment": "https://a.test/​path", "hosts": ["a.test"] },
+  { "name": "a byte order mark is not in the comment either", "comment": "https://a.test/x﻿https://b.test/y", "hosts": ["a.test"] },
+  { "name": "a control character is not in the comment", "comment": "https://a.test/x\u0007y", "hosts": ["a.test"] },
+  { "name": "trailing punctuation", "comment": "(like https://a.test/x).", "hosts": ["a.test"] },
+  { "name": "balanced parentheses stay", "comment": "https://en.a.test/wiki/Go_(language) works", "hosts": ["en.a.test"] },
+  { "name": "the same address twice", "comment": "https://a.test/x https://a.test/x", "hosts": ["a.test"] },
+  { "name": "javascript is no link", "comment": "javascript:alert(1)", "hosts": [] },
+  { "name": "file is no link", "comment": "file:///etc/passwd", "hosts": [] },
+  { "name": "data is no link", "comment": "data:text/html,<script>alert(1)</script>", "hosts": [] },
+  { "name": "ftp is no link", "comment": "ftp://a.test/x", "hosts": [] },
+  { "name": "no host is no link", "comment": "http:///nohost https://", "hosts": [] },
+  { "name": "a word before the scheme is no link", "comment": "xhttps://a.test/x", "hosts": [] },
+  { "name": "credentials and a fragment leave the listed address", "comment": "https://user:secret@a.test/p?q=1#frag", "hosts": ["a.test"] }
+]

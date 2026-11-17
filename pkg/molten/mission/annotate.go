@@ -133,6 +133,8 @@ type AnnotateResult struct {
 	MaterialId string `json:"materialid,omitempty"`
 	// References: the kept copies of the zones' reference images, by zone, in order.
 	References [][]string `json:"references,omitempty"`
+	// Links: each zone's links as the brief lists them, so that the review's chips are the brief's.
+	Links [][]string `json:"links,omitempty"`
 	// Delivery: the handoff's delivered, typed or queued; To: the receiver's first name.
 	Delivery  string `json:"delivery,omitempty"`
 	To        string `json:"to,omitempty"`
@@ -181,6 +183,20 @@ type annotateFacts struct {
 	lead          bool
 }
 
+// linkLists: each zone's links, in order, as the report lists them; nil when no zone has one.
+func (f annotateFacts) linkLists() [][]string {
+	out := make([][]string, len(f.zones))
+	found := false
+	for i, zone := range f.zones {
+		out[i] = zone.links
+		found = found || len(zone.links) > 0
+	}
+	if !found {
+		return nil
+	}
+	return out
+}
+
 // hasReferences: some zone holds a reference image or a link, which the report then says are examples, not instructions.
 func (f annotateFacts) hasReferences() bool {
 	for _, zone := range f.zones {
@@ -191,7 +207,10 @@ func (f annotateFacts) hasReferences() bool {
 	return false
 }
 
-var annotateLinkRe = regexp.MustCompile("(?i)\\bhttps?://[^\\s<>\"'/`][^\\s<>\"'`]*")
+// The characters that end an address are those that end a word in the window (JavaScript's \s: the ASCII spaces, the
+// vertical tab, every Unicode space and separator, the byte order mark), so that the window's chips and this listing split
+// a comment the same way.
+var annotateLinkRe = regexp.MustCompile("(?i)\\bhttps?://[^\\s\\v\\p{Z}\\x{FEFF}<>\"'/`][^\\s\\v\\p{Z}\\x{FEFF}<>\"'`]*")
 
 // annotateLinks are the http and https addresses a comment holds, as the agent may read them (the page's address rules:
 // no user, no fragment, no secret parameter), in order, once each. Any other scheme (file:, javascript:, data:) is plain
@@ -619,7 +638,7 @@ func runAnnotate(ctx context.Context, env annotateEnv, req AnnotateRequest) (Ann
 	}
 	if req.Action == AnnotatePreview {
 		goal, body := composeAnnotation(f, "", nil)
-		return AnnotateResult{Status: AnnotateStatusPreview, Text: goal + "\n\n" + body}, nil
+		return AnnotateResult{Status: AnnotateStatusPreview, Text: goal + "\n\n" + body, Links: f.linkLists()}, nil
 	}
 	var found agenthandoff.LeadFound
 	if req.Action == AnnotateSend {
@@ -657,6 +676,7 @@ func runAnnotate(ctx context.Context, env annotateEnv, req AnnotateRequest) (Ann
 	if req.Action == AnnotateCopy {
 		return AnnotateResult{
 			Status: AnnotateStatusCopied, Text: goal + "\n\n" + body, ImagePath: m.CopyPath, MaterialId: m.Id, References: refPaths,
+			Links: f.linkLists(),
 		}, nil
 	}
 	sent, err := env.send(ctx, agenthandoff.AppRequest{ToBlockId: found.BlockId, Goal: goal, Context: body})
