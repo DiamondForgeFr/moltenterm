@@ -35,7 +35,16 @@ describe("Settings › Advanced › Logs (#2335)", () => {
     });
 
     it("says when the size cannot be read", () => {
-        expect(render({ loaded: true })).toContain("could not be read");
+        const html = render({ loaded: true });
+        expect(html).toContain("could not be read");
+        expect(html).not.toContain("df-domino-loader");
+    });
+
+    it("waits with the dominoes, while the size is read and while the clear runs", () => {
+        expect(render({})).toContain("df-domino-loader");
+        const clearing = render({ loaded: true, info: Info, confirming: true, busy: true });
+        expect(clearing).toContain("df-domino-loader");
+        expect(clearing).toContain("Clearing");
     });
 
     it("shows the total size, the number of files and the two actions", () => {

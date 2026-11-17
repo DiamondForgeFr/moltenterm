@@ -10,6 +10,7 @@ import { useEffect, useReducer } from "react";
 import { formatSize } from "../downloads/downloads-format";
 import { useT, useTCount } from "../i18n/i18n";
 import { PageCard, PageRowClass } from "../settings/settings-page";
+import { DominoLoader } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
 import { initialLogsCardState, logsCardReducer, LogsCardState } from "./logs-card-model";
 import { clearLogs, readLogs, showLogs } from "./logs-client";
@@ -55,7 +56,8 @@ export function LogsCardView({ state, onAsk, onCancel, onConfirm, onShow }: Logs
                             </div>
                         </>
                     ) : (
-                        <div className="text-12 text-muted" data-testid="logs-unread">
+                        <div className="flex items-center gap-2 text-12 text-muted" data-testid="logs-unread">
+                            {state.loaded ? null : <DominoLoader className="text-accent" />}
                             {state.loaded ? t("logs.unreadable") : t("logs.reading")}
                         </div>
                     )}
@@ -93,7 +95,14 @@ export function LogsCardView({ state, onAsk, onCancel, onConfirm, onShow }: Logs
                         onClick={onConfirm}
                         disabled={state.busy}
                     >
-                        {state.busy ? t("logs.clearing") : t("logs.confirmYes")}
+                        {state.busy ? (
+                            <>
+                                <DominoLoader />
+                                {t("logs.clearing")}
+                            </>
+                        ) : (
+                            t("logs.confirmYes")
+                        )}
                     </button>
                     <button type="button" className={GhostButton} onClick={onCancel} disabled={state.busy}>
                         {t("common.cancel")}

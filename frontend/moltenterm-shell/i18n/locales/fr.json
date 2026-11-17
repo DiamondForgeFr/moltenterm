@@ -11296,7 +11296,7 @@
         "clearing": "Effacement…",
         "confirm": "Effacer {size} de journaux ? Les fichiers archivés sont supprimés et le fichier en cours est vidé. MoltenTerm continue d'écrire.",
         "confirmYes": "Effacer les journaux",
-        "cleared": "Journaux effacés : {size} libérés.",
+        "cleared": "Journaux effacés : {size} libérés.",
         "partial": "Certains fichiers journaux n'ont pas pu être supprimés.",
         "failed": "Les journaux n'ont pas pu être effacés.",
         "notice": {

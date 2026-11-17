@@ -134,6 +134,7 @@ describe("the window that Electron main tells (#2335)", () => {
             ok: false,
             error: expect.stringContaining("could not be removed"),
         });
+        vi.spyOn(console, "log").mockImplementation(() => {});
         api.moltentermLogsClear.mockRejectedValue(new Error("gone"));
         expect(await gestures.get(LogsClearGesture)()).toMatchObject({
             ok: false,
