@@ -25,7 +25,7 @@ import { releaseAvailableKey, ReleaseUpdateModel } from "../update/release-updat
 import { GoldUpdateModel, updateAvailableKey } from "../update/update-store";
 import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleModel } from "./boss-store";
-import { refreshUsageUse, UsageReadingsAtom, UsageUseAtom } from "./boss-usage";
+import { askUsageUse, UsageReadingsAtom, UsageUseAtom } from "./boss-usage";
 import { FaceHoverIntent } from "./brokk-avatar-model";
 import { SidebarPlace, sidebarPlaceOf } from "./brokk-edge-model";
 import {
@@ -217,7 +217,7 @@ export class BrokkHubModel {
                 ),
             })
         );
-        fireAndForget(() => refreshUsageUse());
+        fireAndForget(() => askUsageUse());
         const stopFeeds = feedBrokkHub(this.hub, {
             store: globalStore,
             agentsAtom: agents.dataAtom,

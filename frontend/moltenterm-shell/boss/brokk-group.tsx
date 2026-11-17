@@ -56,7 +56,7 @@ import { AnchorAttr, cardKeyAction, CardKeyInput, CardTestId, isOutsidePress } f
 import { attentionAgents } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
-import { refreshUsageUse, UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
+import { askUsageUse, UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
 import { BrokkItem, sayLine } from "./brokk-exchange-model";
 import {
     activePanel,
@@ -113,9 +113,7 @@ import { AgentsPanel, DownloadsPanel, SessionsPanel } from "./brokk-rows-panels"
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk } from "./brokk-talk";
 import { talkWaits } from "./brokk-talk-model";
-import { choicesOf, chooseUsage, usageChoiceMenu } from "./brokk-usage-choices";
-import { UsageHidden } from "./brokk-usage-hidden";
-import { choiceOf, UsageChoice, UsageChoices, usageGrid, WeeklyUsage } from "./brokk-usage-model";
+import { choiceOf, choicesOf, UsageChoice, UsageChoices, usageGrid, WeeklyUsage } from "./brokk-usage-model";
 import { useBrokkActions } from "./use-brokk-actions";
 import { useAvatarKeys } from "./use-brokk-hub";
 import { useCardLive } from "./use-brokk-live";
@@ -132,6 +130,19 @@ const UseTickMs = 60000;
 const BrainstormPanel = lazy(() =>
     import("../brainstorm/brainstorm-panel").then((mod) => ({ default: mod.BrainstormPanel }))
 );
+
+// What the developer's choice of which providers show is made of (the menu of a row, the write of the settings) and the
+// list of the providers not used lately load when they are needed, outside the JavaScript every view loads up front
+// (NFR-PERF-003, bundle.initialJsMB). The choices load as soon as the group opens, so a row's menu opens at once, in the
+// event that asked for it (a menu opened from the keyboard is told so while that event is dispatched).
+const UsageHidden = lazy(() => import("./brokk-usage-hidden").then((mod) => ({ default: mod.UsageHidden })));
+
+type UsageChoicesModule = typeof import("./brokk-usage-choices");
+let usageChoices: UsageChoicesModule = null;
+
+function loadUsageChoices(): Promise<UsageChoicesModule> {
+    return import("./brokk-usage-choices").then((mod) => (usageChoices = mod));
+}
 
 // A provider's row in the shared week grid, named with its agent's display name. Its context menu is the developer's
 // choice of showing it always, hiding it, or leaving it to the rules (AC97, #2341).
@@ -150,10 +161,16 @@ export function weekRow(u: WeeklyUsage, choices: UsageChoices): UsageWeekRow {
         onContextMenu: (e) => {
             e.preventDefault();
             e.stopPropagation();
-            ContextMenuModel.getInstance().showContextMenu(
-                usageChoiceMenu(provider, name, choiceOf(choices, provider)),
-                e
-            );
+            const show = (mod: UsageChoicesModule) =>
+                ContextMenuModel.getInstance().showContextMenu(
+                    mod.usageChoiceMenu(provider, name, choiceOf(choices, provider)),
+                    e
+                );
+            if (usageChoices != null) {
+                show(usageChoices);
+                return;
+            }
+            fireAndForget(() => loadUsageChoices().then(show));
         },
     };
 }
@@ -484,7 +501,8 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     );
     const weekRows = useMemo(() => grid.rows.map((u) => weekRow(u, choices)), [grid, choices]);
     const chooseProvider = useCallback(
-        (provider: string, choice: UsageChoice) => fireAndForget(() => chooseUsage(provider, choice)),
+        (provider: string, choice: UsageChoice) =>
+            fireAndForget(() => loadUsageChoices().then((mod) => mod.chooseUsage(provider, choice))),
         []
     );
 
@@ -550,7 +568,10 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     useEffect(() => () => faceHover.groupGone(), [faceHover]);
     useEffect(() => TabActivity.getInstance().every(whileShown(AgeTickMs), () => setNow(Date.now()), "clock"), []);
     useEffect(() => {
-        const ask = () => fireAndForget(() => refreshUsageUse());
+        fireAndForget(() => loadUsageChoices());
+    }, []);
+    useEffect(() => {
+        const ask = () => fireAndForget(() => askUsageUse());
         ask();
         return TabActivity.getInstance().every(whileShown(UseTickMs), ask, "clock");
     }, []);
@@ -969,7 +990,11 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                             ) : (
                                 <UsageWeekGrid rows={weekRows} now={now} />
                             )}
-                            <UsageHidden items={grid.hidden} now={now} onChoose={chooseProvider} />
+                            {grid.hidden.length > 0 ? (
+                                <Suspense fallback={null}>
+                                    <UsageHidden items={grid.hidden} now={now} onChoose={chooseProvider} />
+                                </Suspense>
+                            ) : null}
                         </div>
                     </div>
                 ) : null}

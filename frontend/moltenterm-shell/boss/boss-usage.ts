@@ -9,10 +9,9 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, PrimitiveAtom } from "jotai";
-import { AgentStatesRoute, AgentUseCommand } from "../agent-state-model";
 import type { CompanionUsageInfo, UsageSnapshot } from "../companion/companion-gauges-model";
 import { CompanionRoute, CompanionUsageEvent } from "../companion/companion-model";
-import type { AgentUse, AgentUseSummary } from "./brokk-usage-model";
+import type { AgentUse } from "./brokk-usage-model";
 
 export type UsageReadings = Record<string, UsageSnapshot>;
 // Why an agent's global reading cannot be read, by agent: the weekly usage says so instead of leaving it out.
@@ -25,40 +24,11 @@ export const UsageUseAtom = atom(null) as PrimitiveAtom<Record<string, AgentUse>
 
 export const CompanionUsageGlobalCommand = "moltencompanionusageglobal";
 const GlobalRpcTimeoutMs = 12000;
-const UseRpcTimeoutMs = 5000;
 
-// What wavesrv answered, read for the numbers it should hold; null for an answer that holds none.
-export function readUseSummary(summary: AgentUseSummary): Record<string, AgentUse> {
-    if (summary == null || typeof summary.agents !== "object" || summary.agents == null) {
-        return null;
-    }
-    const positive = (n: number) => (n > 0 ? n : 0);
-    const agents: Record<string, AgentUse> = {};
-    for (const [id, use] of Object.entries(summary.agents)) {
-        agents[id] = {
-            workms: positive(use?.workms),
-            sessions: positive(use?.sessions),
-            lastat: positive(use?.lastat),
-        };
-    }
-    return agents;
-}
-
-// Asks the use of each agent over the last 7 days: when Brokk's group opens, and while it shows.
-export async function refreshUsageUse(): Promise<void> {
-    try {
-        const summary: AgentUseSummary = await TabRpcClient.wshRpcCall(AgentUseCommand, null, {
-            route: AgentStatesRoute,
-            timeout: UseRpcTimeoutMs,
-        });
-        const next = readUseSummary(summary);
-        if (next != null) {
-            globalStore.set(UsageUseAtom, next);
-        }
-    } catch (e) {
-        // The preview server has no agent states route.
-        console.log("boss usage: no use summary", e);
-    }
+// Asks the use of each agent over the last 7 days: when the hub starts, when Brokk's group opens, and while it shows. The
+// code that asks and reads the answer (boss-usage-use.ts) loads on demand, outside the up-front JavaScript.
+export function askUsageUse(): Promise<void> {
+    return import("./boss-usage-use").then((mod) => mod.refreshUsageUse());
 }
 
 function without<T>(current: Record<string, T>, agent: string): Record<string, T> {

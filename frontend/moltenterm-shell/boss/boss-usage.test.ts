@@ -25,14 +25,14 @@ import type { CompanionUsageInfo, UsageSnapshot } from "../companion/companion-g
 import {
     applyUnreadable,
     applyUsageReading,
+    askUsageUse,
     CompanionUsageGlobalCommand,
-    readUseSummary,
-    refreshUsageUse,
     startUsageReadings,
     UsageReadingsAtom,
     UsageUnreadableAtom,
     UsageUseAtom,
 } from "./boss-usage";
+import { readUseSummary, refreshUsageUse } from "./boss-usage-use";
 
 function snapshot(agent: string, readat: number, percent = 10): UsageSnapshot {
     return { agent, source: "test", windows: [{ id: "w", label: "Week", usedpercent: percent }], readat };
@@ -156,7 +156,15 @@ describe("the use of each agent over 7 days (FR-BOSS-009, AC93 and AC94)", () =>
         expect(globalStore.get(UsageUseAtom)).toEqual({ claude: { workms: 5, sessions: 1, lastat: 3 } });
     });
 
-    it("keeps what it held when the answer fails or is empty: the grid then hides nothing it cannot tell is unused", async () => {
+    // The code that asks loads on demand (NFR-PERF-003): the way in loads it, then asks.
+    it("is asked through the way in that loads it on demand", async () => {
+        m.rpc.mockResolvedValue({ at: 9, agents: { codex: { workms: 7, sessions: 2, lastat: 4 } } });
+        await askUsageUse();
+        expect(m.rpc.mock.calls[0][0]).toBe(AgentUseCommand);
+        expect(globalStore.get(UsageUseAtom)).toEqual({ codex: { workms: 7, sessions: 2, lastat: 4 } });
+    });
+
+    it("keeps what it held when the answer fails or is empty", async () => {
         m.rpc.mockResolvedValue({ at: 9, agents: {} });
         await refreshUsageUse();
         expect(globalStore.get(UsageUseAtom)).toEqual({});
