@@ -8841,7 +8841,7 @@
             },
             "tone": {
                 "you": "Un agent s'est arrêté pour vous poser une question, ou une décision vous revient.",
-                "ready": "La CI est verte et rien n'est ouvert : vous pouvez la fusionner.",
+                "ready": "La CI est verte et rien n'est ouvert : vous pouvez la fusionner.",
                 "broken": "La CI a échoué ou elle est en conflit avec sa branche cible, et aucun agent n'y travaille.",
                 "agent": "Un agent y travaille.",
                 "running": "La CI tourne.",
