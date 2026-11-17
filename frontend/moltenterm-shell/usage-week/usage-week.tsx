@@ -10,7 +10,8 @@
 // towards info when much of what the time allowed is left unused (#2106). A row shows no other detail on hover unless
 // its surface gives it a tooltip; each row has an accessible name. A surface that has room for it asks for the legend
 // under the rows (#2123): swatches made of the grid's own blocks, so they follow it. A surface that wants the share of
-// each day asks for the figures under the blocks (#2164): one small muted number a block, in a line of its own.
+// each day asks for the figures under the blocks (#2164): one small muted number a block, in a line of its own. A row
+// whose reading is stale (#2341) is faded, takes no pace colour and tells its age on a line under it.
 
 import ClaudeColorSvg from "@/app/asset/claude-color.svg";
 import { cn, makeIconClass } from "@/util/util";
@@ -48,6 +49,11 @@ export type UsageWeekRow = {
     // When the reading was taken (Unix ms), and whether it is old enough for its age to be told.
     readAt?: number;
     old?: boolean;
+    // The reading is older than its window, or than 7 days (#2341): the row is faded, takes no pace colour and tells its
+    // age under it.
+    stale?: boolean;
+    // The row's own menu, on a surface that has one (Brokk's choice of which providers show).
+    onContextMenu?: (e: React.MouseEvent) => void;
     // The row's window (its id), on a surface that shows one agent: each row is one of its windows.
     window?: string;
     // The window in a short form: it takes the logo's place. Cut with an ellipsis when the space runs out; `name` is the
@@ -249,7 +255,7 @@ export function UsageWeekGrid({
                     );
                 }
                 const day = resetDay(line.resetsAt, locale);
-                const age = row.old ? relativeTime(row.readAt, now) : "";
+                const age = row.old || row.stale ? relativeTime(row.readAt, now) : "";
                 const parts = [
                     day
                         ? t("usageWeek.rowReset", { name, percent: line.percent, day })
@@ -268,9 +274,11 @@ export function UsageWeekGrid({
                         style={{ "--mt-uw-pace": paceColour(line.pace, line.unused) } as CSSProperties}
                         data-pace={paceKind(line)}
                         data-old={row.old ? "true" : undefined}
+                        data-stale={row.stale ? "true" : undefined}
                         data-testid="usage-week-row"
                         data-provider={row.agent}
                         data-window={row.window}
+                        onContextMenu={row.onContextMenu}
                     >
                         <RowLead row={row} />
                         {dayFills(line.percent, line.start).map((fill, i) => (
@@ -291,6 +299,11 @@ export function UsageWeekGrid({
                         {row.note ? (
                             <span className="mt-uw-detail" data-testid="usage-week-note">
                                 {row.note}
+                            </span>
+                        ) : null}
+                        {row.stale && !row.note ? (
+                            <span className="mt-uw-detail" data-testid="usage-week-stale">
+                                {t("usageWeek.stale", { ago: age })}
                             </span>
                         ) : null}
                     </span>

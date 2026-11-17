@@ -14,6 +14,7 @@ export const AgentStatesRoute = "molten:agents";
 export const AgentStatesCommand = "moltenagentstates";
 export const AgentStateSeenCommand = "moltenagentstateseen";
 export const AgentStopSettleCommand = "moltenagentstopsettle";
+export const AgentUseCommand = "moltenagentuse";
 
 // How long a done agent's pane must stay in view, unfocused, before it counts as seen (#784).
 export const AgentSeenDwellMs = 1500;

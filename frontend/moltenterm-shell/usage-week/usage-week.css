@@ -238,6 +238,25 @@
     opacity: 0.6;
 }
 
+/* A stale reading (#2341): older than its window, or than 7 days, it is no news and never looks live. Its blocks and its
+   percent leave the pace colour for a muted one and fade, the reset day's sheen stands still, and a line under the row
+   tells its age. */
+.mt-uw-row[data-stale="true"] .mt-uw-cell i {
+    background: var(--mt-text-3);
+    opacity: 0.45;
+}
+
+.mt-uw-row[data-stale="true"] .mt-uw-pct,
+.mt-uw-row[data-stale="true"] .mt-uw-share {
+    color: var(--mt-text-3);
+    opacity: 0.6;
+}
+
+.mt-uw-row[data-stale="true"] .mt-uw-cell.is-reset::after {
+    animation: none;
+    opacity: 0;
+}
+
 /* Under reduced motion, told by the system or by the app, the reset day's sheen is a still hatch. */
 @media (prefers-reduced-motion: reduce) {
     .mt-uw-cell.is-reset::after {
