@@ -5,7 +5,10 @@
 // a gold, dev or local build; a release candidate and a public release register nothing. The picker loads the first time
 // a pick is needed, never with the window (NFR-BOSS-010).
 
+import { getSettingsKeyAtom } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { bossName, BossNameSettingKey } from "../boss/boss-name";
 import { internalChannel } from "../build/build-channel";
 import { currentChannel, currentLogWatchOn } from "../build/current-build";
 import { t } from "../i18n/i18n";
@@ -45,7 +48,8 @@ async function pick(agents: LogWatchCandidate[]): Promise<string> {
 const LiveDeps: LogWatchDeps = { on: currentLogWatchOn, ask, mute, pick, word: serverErrorText, inflight: new Set() };
 
 export function gestureResult(outcome: LogWatchOutcome): NotificationGestureResult {
-    const error = outcome.errorKey ? t(outcome.errorKey) : outcome.error;
+    const name = bossName(globalStore.get(getSettingsKeyAtom(BossNameSettingKey as keyof SettingsType)));
+    const error = outcome.errorKey ? t(outcome.errorKey, { name }) : outcome.error;
     return { ok: outcome.ok, resolve: outcome.resolve, ...(error ? { error } : {}) };
 }
 

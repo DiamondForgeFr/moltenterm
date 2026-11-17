@@ -11916,8 +11916,8 @@
         "note": "Ces réglages ne font que désactiver des fonctions, sur cet ordinateur. Une fonction ne s'ouvre jamais sur une version dont le canal ne l'a pas, et rien ici n'est synchronisé.",
         "features": {
             "logwatch": {
-                "label": "La veille des journaux de Brokk",
-                "description": "Brokk lit le journal de l'app toutes les 10 minutes et laisse une carte discrète dans ses notes quand un panic, un crash, une boucle ou un journal qui grossit vite apparaît, avec de quoi demander à un agent de regarder. Versions Gold, dev et locales seulement, jamais dans une version publiée."
+                "label": "La veille des journaux de {name}",
+                "description": "{name} lit le journal de l'app toutes les 10 minutes et laisse une carte discrète dans ses notes quand un panic, un crash, une boucle ou un journal qui grossit vite apparaît, avec de quoi demander à un agent de regarder. Versions Gold, dev et locales seulement, jamais dans une version publiée."
             }
         }
     },
@@ -11932,7 +11932,7 @@
         "noAgent": "Aucun agent du dépôt de MoltenTerm ne tourne. Lancez-en un dans l'espace de MoltenTerm, puis redemandez.",
         "gone": "Cet agent s'est arrêté. Redemandez pour en choisir un autre.",
         "refused": "Seul un agent du dépôt de MoltenTerm reçoit le journal. Redemandez pour en choisir un.",
-        "unknown": "Brokk ne garde plus celle-ci dans ses notes.",
+        "unknown": "{name} ne garde plus celle-ci dans ses notes.",
         "unavailable": "La veille des journaux n'est pas disponible sur cette version."
     },
     "library": {

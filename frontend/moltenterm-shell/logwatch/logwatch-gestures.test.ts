@@ -8,6 +8,12 @@ const state = vi.hoisted(() => ({
     registered: new Map<string, (args: any) => Promise<any>>(),
 }));
 
+vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
+vi.mock("@/app/store/global", async () => {
+    const { atom } = await import("jotai");
+    const settings = atom({} as Record<string, unknown>);
+    return { getSettingsKeyAtom: (key: string) => atom((get) => get(settings)[key]), TestSettings: settings };
+});
 vi.mock("../build/current-build", () => ({ currentChannel: () => state.channel, currentLogWatchOn: () => true }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: { wshRpcCall: vi.fn() } }));
 vi.mock("../notifications-store", () => ({
@@ -17,6 +23,8 @@ vi.mock("../notifications-store", () => ({
     },
 }));
 
+import * as globalMock from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
 import { gestureResult, registerLogWatchGestures } from "./logwatch-gestures";
 import { LogWatchAskGesture, LogWatchDeps, LogWatchMuteGesture } from "./logwatch-model";
 
@@ -57,5 +65,16 @@ describe("the log watch's gestures", () => {
         expect(result.error).toMatch(/agent/i);
         expect(gestureResult({ ok: true, resolve: true })).toEqual({ ok: true, resolve: true });
         expect(gestureResult({ ok: false, error: "raw" })).toEqual({ ok: false, resolve: undefined, error: "raw" });
+    });
+
+    // FR-BOSS-001 AC8 (#2355): the reason names the foreman by his current name, never a literal one.
+    it("names the foreman by the name the developer gave him", () => {
+        const settings = (globalMock as unknown as { TestSettings: any }).TestSettings;
+        globalStore.set(settings, {});
+        expect(gestureResult({ ok: false, errorKey: "logwatch.unknown" }).error).toMatch(/^Brokk /);
+        globalStore.set(settings, { "boss:name": "Gaston" });
+        const error = gestureResult({ ok: false, errorKey: "logwatch.unknown" }).error;
+        expect(error).toMatch(/^Gaston /);
+        expect(error).not.toContain("{name}");
     });
 });
