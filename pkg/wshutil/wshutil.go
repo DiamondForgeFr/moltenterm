@@ -15,7 +15,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/wavetermdev/waveterm/pkg/baseds"
@@ -328,9 +327,11 @@ func HandleConnStdIOClient(logName string, connName string, input chan utilfn.Li
 	<-doneCh
 }
 
+// MOLTENTERM-PATCH (#2334): the link is registered before the reader starts, so a connection that closes at once is
+// still unregistered, and it is unregistered before its proxy closes, so the router never keeps a closed link.
 func handleDomainSocketClient(conn net.Conn, connName string, readCallback func()) {
-	var linkIdContainer atomic.Int32
 	proxy := MakeRpcProxy("domain")
+	linkId := DefaultRouter.registerUntrustedConnLink(proxy, connName)
 	go func() {
 		defer func() {
 			panichandler.PanicHandler("handleDomainSocketClient:AdaptOutputChToStream", recover())
@@ -346,18 +347,13 @@ func handleDomainSocketClient(conn net.Conn, connName string, readCallback func(
 			panichandler.PanicHandler("handleDomainSocketClient:AdaptStreamToMsgCh", recover())
 		}()
 		defer func() {
+			DefaultRouter.UnregisterLink(linkId)
 			conn.Close()
 			close(proxy.FromRemoteCh)
-			close(proxy.ToRemoteCh)
-			linkId := linkIdContainer.Load()
-			if linkId != baseds.NoLinkId {
-				DefaultRouter.UnregisterLink(baseds.LinkId(linkId))
-			}
+			proxy.Close()
 		}()
 		AdaptStreamToMsgCh(conn, proxy.FromRemoteCh, readCallback)
 	}()
-	linkId := DefaultRouter.registerUntrustedConnLink(proxy, connName)
-	linkIdContainer.Store(int32(linkId))
 }
 
 // only for use on client
