@@ -1,8 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Who looks at a log watch card (FR-BOSS-012 AC9) when no lead of MoltenTerm's repository stands out: the running agents
-// as wavesrv lists them, MoltenTerm's first, the first one selected. Opened by the developer's click on Ask an agent to
+// Who looks at a log watch card (FR-BOSS-012 AC9) when no lead of MoltenTerm's repository stands out: that repository's
+// running agents as wavesrv lists them (no other project's), the first one selected. Opened by the developer's click on Ask an agent to
 // look, loaded only then (logwatch-gestures.ts), mounted in a root of its own and gone once answered. The arrows and a
 // click only select; Send (or Enter) answers with the selected agent, Cancel and Escape with none.
 
@@ -117,14 +117,7 @@ export function LogWatchPickDialog({
                                 <RadioDot />
                             </span>
                             <span className="min-w-0 flex-1">
-                                <span className="block font-medium text-primary">
-                                    {a.firstname}
-                                    {a.moltenterm ? (
-                                        <span className="ml-2 text-10 font-semibold tracking-[0.08em] text-muted uppercase">
-                                            {t("logwatch.pick.moltenterm")}
-                                        </span>
-                                    ) : null}
-                                </span>
+                                <span className="block font-medium text-primary">{a.firstname}</span>
                                 {details !== "" ? <span className="block truncate text-muted">{details}</span> : null}
                             </span>
                         </button>

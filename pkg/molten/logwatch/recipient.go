@@ -15,7 +15,8 @@ import (
 // Who is asked to look (FR-BOSS-012 AC9): the lead agent of MoltenTerm's own repository, the project whose origin is
 // MoltenTerm's GitHub repository. A running agent that holds a first name locked for that project (FR-CONT-014) is its
 // lead; else the only agent working at that project's root (the others work in worktrees, for their own tickets). With
-// none or several, the developer picks, MoltenTerm's agents listed first.
+// none or several, the developer picks among that repository's agents, its worktrees included. An agent of another
+// project is never offered: MoltenTerm's log, its paths and names, never reaches a client project's agent.
 
 // maxOffered: the agents the developer picks among.
 const maxOffered = 20
@@ -38,8 +39,6 @@ type Candidate struct {
 	AgentName string `json:"agentname,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
 	Project   string `json:"project,omitempty"`
-	// MoltenTerm: the agent works in MoltenTerm's own repository.
-	MoltenTerm bool `json:"moltenterm,omitempty"`
 }
 
 var githubRemoteRe = regexp.MustCompile(`(?i)github\.com[:/]+([^/\s]+)/([^/\s]+?)(?:\.git)?/?$`)
@@ -67,52 +66,43 @@ func projectName(dir string) string {
 	return filepath.Base(filepath.Clean(dir))
 }
 
-func candidateOf(a Agent, moltenterm bool) Candidate {
+func candidateOf(a Agent) Candidate {
 	return Candidate{BlockId: a.BlockId, FirstName: a.FirstName, AgentName: a.AgentName, Workspace: a.Workspace,
-		Project: projectName(a.ProjectDir), MoltenTerm: moltenterm}
+		Project: projectName(a.ProjectDir)}
 }
 
-// chooseRecipient answers the agent to ask, or none and the agents the developer picks among. isMoltenTerm says whether
-// a project folder is MoltenTerm's repository; locks are the locked first names, in the order they were locked.
+// chooseRecipient answers the agent to ask, or none and the agents the developer picks among, all of MoltenTerm's
+// repository; none at all when no agent of that repository runs. isMoltenTerm says whether a project folder is
+// MoltenTerm's repository (a worktree of it is); locks are the locked first names, in the order they were locked.
 func chooseRecipient(agents []Agent, locks []molten.AgentNameLock, isMoltenTerm func(dir string) bool) (*Agent, []Candidate) {
-	ours := map[string]bool{}
+	var ours []Agent
 	for _, a := range agents {
 		if a.ProjectDir != "" && isMoltenTerm(a.ProjectDir) {
-			ours[a.BlockId] = true
+			ours = append(ours, a)
 		}
 	}
 	for _, lock := range locks {
-		for i := range agents {
-			a := agents[i]
-			if ours[a.BlockId] && samePath(lock.Project, a.ProjectDir) && strings.EqualFold(strings.TrimSpace(a.FirstName), strings.TrimSpace(lock.Name)) {
+		for i := range ours {
+			a := ours[i]
+			if samePath(lock.Project, a.ProjectDir) && strings.EqualFold(strings.TrimSpace(a.FirstName), strings.TrimSpace(lock.Name)) {
 				return &a, nil
 			}
 		}
 	}
+	atRoot := func(a Agent) bool { return samePath(a.Folder, a.ProjectDir) }
 	var roots []Agent
-	for _, a := range agents {
-		if ours[a.BlockId] && samePath(a.Folder, a.ProjectDir) {
+	for _, a := range ours {
+		if atRoot(a) {
 			roots = append(roots, a)
 		}
 	}
 	if len(roots) == 1 {
 		return &roots[0], nil
 	}
-	offer := make([]Agent, len(agents))
-	copy(offer, agents)
-	rank := func(a Agent) int {
-		switch {
-		case ours[a.BlockId] && samePath(a.Folder, a.ProjectDir):
-			return 0
-		case ours[a.BlockId]:
-			return 1
-		}
-		return 2
-	}
-	sort.SliceStable(offer, func(i, j int) bool { return rank(offer[i]) < rank(offer[j]) })
+	sort.SliceStable(ours, func(i, j int) bool { return atRoot(ours[i]) && !atRoot(ours[j]) })
 	var out []Candidate
-	for i := 0; i < len(offer) && i < maxOffered; i++ {
-		out = append(out, candidateOf(offer[i], ours[offer[i].BlockId]))
+	for i := 0; i < len(ours) && i < maxOffered; i++ {
+		out = append(out, candidateOf(ours[i]))
 	}
 	return nil, out
 }

@@ -42,7 +42,7 @@ async function pick(agents: LogWatchCandidate[]): Promise<string> {
     return pickAgent(agents);
 }
 
-const LiveDeps: LogWatchDeps = { on: currentLogWatchOn, ask, mute, pick, word: serverErrorText };
+const LiveDeps: LogWatchDeps = { on: currentLogWatchOn, ask, mute, pick, word: serverErrorText, inflight: new Set() };
 
 export function gestureResult(outcome: LogWatchOutcome): NotificationGestureResult {
     const error = outcome.errorKey ? t(outcome.errorKey) : outcome.error;

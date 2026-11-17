@@ -86,6 +86,8 @@ type fakeEnv struct {
 	locks   []molten.AgentNameLock
 	ours    map[string]bool
 	sendErr error
+	// onSend runs when a request is sent, before it is recorded, outside the lock.
+	onSend func()
 }
 
 func (e *fakeEnv) clock() time.Time {
@@ -167,6 +169,9 @@ func makeTestWatcher(t *testing.T) (*Watcher, *fakeEnv, string) {
 			return fe.ours[dir]
 		},
 		Send: func(ctx context.Context, req agenthandoff.AppRequest) (agenthandoff.AppSent, error) {
+			if fe.onSend != nil {
+				fe.onSend()
+			}
 			fe.lock.Lock()
 			defer fe.lock.Unlock()
 			if fe.sendErr != nil {

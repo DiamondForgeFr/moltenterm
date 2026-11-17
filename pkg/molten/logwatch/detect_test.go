@@ -42,7 +42,7 @@ func TestANewPanicRaisesOneCalmCard(t *testing.T) {
 	if card.Title != "A new panic in the log" || card.TitleText.Code != "logwatch.title.newPanic" {
 		t.Fatalf("title %q %+v", card.Title, card.TitleText)
 	}
-	wantMessage := "I spotted it once since 10:01: `[wavesrv] [panic] in molten:fake:loop: runtime error: index out of range [3] " +
+	wantMessage := "I spotted it once since 10:01: `[panic] in molten:fake:loop: runtime error: index out of range [3] " +
 		"with length 3` in `pkg/molten/fake.(*worker).step`"
 	if card.Message != wantMessage || card.MessageText.Code != "logwatch.message.newAt" || card.MessageText.Parts["times"].Code != "logwatch.times.one" {
 		t.Fatalf("message %q\n%+v", card.Message, card.MessageText)
@@ -81,7 +81,7 @@ func TestASpikeOfAKnownErrorRaisesOneCard(t *testing.T) {
 	if len(cards) != 1 || cards[0].RefreshOnly || cards[0].Title != "An error keeps coming back" || cards[0].Kind != "info" {
 		t.Fatalf("cards: %v", cardKeys(cards))
 	}
-	if !strings.HasPrefix(cards[0].Message, "About 2 a minute lately, 11 times since 10:00: `[wavesrv] error syncing the board: timeout after 31s`") ||
+	if !strings.HasPrefix(cards[0].Message, "About 2 a minute lately, 11 times since 10:00: `error syncing the board: timeout after 31s`") ||
 		cards[0].MessageText.Code != "logwatch.message.spike" {
 		t.Fatalf("message %q", cards[0].Message)
 	}
@@ -201,7 +201,7 @@ func TestTenTimesTheUsualRateIsASpike(t *testing.T) {
 	for m := 0; m <= 70; m += 10 {
 		history = append(history, rec(day.Add(time.Duration(m)*time.Minute)))
 	}
-	f := s.ingest(history, fakeHome)
+	f := s.ingest(history, makeMasker(fakeHome))
 	if ops := s.decide(f, day.Add(71*time.Minute)); len(ops) != 0 {
 		t.Fatalf("the history raised %+v", ops)
 	}
@@ -209,7 +209,7 @@ func TestTenTimesTheUsualRateIsASpike(t *testing.T) {
 	for i := 0; i < 12; i++ {
 		burst = append(burst, rec(day.Add(80*time.Minute+time.Duration(i)*time.Second)))
 	}
-	f = s.ingest(burst, fakeHome)
+	f = s.ingest(burst, makeMasker(fakeHome))
 	ops := s.decide(f, day.Add(81*time.Minute))
 	if len(ops) != 1 || !ops[0].raise || s.Signatures[0].Event != EventSpike {
 		t.Fatalf("ops %+v, signature %+v", ops, s.Signatures[0])
@@ -256,7 +256,7 @@ func TestTheStoreIsBounded(t *testing.T) {
 		head := fmt.Sprintf("[wavesrv] error: case %c%c", 'a'+i%26, 'a'+i/26)
 		recs = append(recs, Record{Kind: KindError, At: day.Add(time.Duration(i) * time.Second), Head: head, Pattern: normalise(head)})
 	}
-	s.ingest(recs, fakeHome)
+	s.ingest(recs, makeMasker(fakeHome))
 	s.Muted = map[string]int64{}
 	for i := 0; i < 600; i++ {
 		s.Muted[fmt.Sprintf("id%03d", i)] = int64(i)

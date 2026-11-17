@@ -76,9 +76,11 @@ func sinceOf(ms int64, now time.Time, loc *time.Location) string {
 	return at.Format("2006-01-02 15:04")
 }
 
-// cardQuote is a line as a card quotes it inline: one line, no backticks (they would end the inline code), bounded.
+// cardQuote is a line as a card quotes it inline: one line, without the server's own prefix, no backticks (they would
+// end the inline code), bounded.
 func cardQuote(text string, max int) string {
 	first, _, _ := strings.Cut(text, "\n")
+	first = strings.TrimPrefix(strings.TrimSpace(first), "[wavesrv] ")
 	first = strings.ReplaceAll(strings.TrimSpace(first), "`", "'")
 	return cutRunes(strings.Join(strings.Fields(first), " "), max)
 }

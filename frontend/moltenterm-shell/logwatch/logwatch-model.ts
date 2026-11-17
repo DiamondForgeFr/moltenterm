@@ -15,17 +15,15 @@ export const LogWatchAskGesture = "molten:logwatch:ask";
 export const LogWatchMuteGesture = "molten:logwatch:mute";
 
 // must match the Ask statuses in pkg/molten/logwatch/watch.go
-export type LogWatchAskStatus = "sent" | "pick" | "noagent" | "gone" | "unknown";
+export type LogWatchAskStatus = "sent" | "pick" | "noagent" | "gone" | "refused" | "busy" | "unknown";
 
-// An agent the developer may pick (logwatch.Candidate).
+// An agent the developer may pick (logwatch.Candidate): always one of MoltenTerm's repository, its worktrees included.
 export type LogWatchCandidate = {
     blockid: string;
     firstname: string;
     agentname?: string;
     workspace?: string;
     project?: string;
-    // It works in MoltenTerm's own repository.
-    moltenterm?: boolean;
 };
 
 export type LogWatchAskRequest = { id: string; blockid?: string };
@@ -49,11 +47,14 @@ export type LogWatchDeps = {
     pick: (agents: LogWatchCandidate[]) => Promise<string>;
     // A caught error in the interface language (serverErrorText).
     word: (e: unknown) => string;
+    // The cards whose request this window is sending: a second click on one sends nothing.
+    inflight?: Set<string>;
 };
 
 const FailureKeys: Partial<Record<LogWatchAskStatus, string>> = {
     noagent: "logwatch.noAgent",
     gone: "logwatch.gone",
+    refused: "logwatch.refused",
     unknown: "logwatch.unknown",
 };
 
@@ -68,7 +69,8 @@ export function readCardId(args: Record<string, unknown>): string {
 }
 
 // Ask an agent to look: one request; with no lead that stands out, the developer picks, and a cancelled pick sends
-// nothing and says nothing.
+// nothing and says nothing. A second click while the first is on its way (here or, for wavesrv's "busy", in another
+// window) sends nothing either.
 export async function runAsk(deps: LogWatchDeps, args: Record<string, unknown>): Promise<LogWatchOutcome> {
     if (!deps.on()) {
         return { ok: false, errorKey: "logwatch.unavailable" };
@@ -77,6 +79,18 @@ export async function runAsk(deps: LogWatchDeps, args: Record<string, unknown>):
     if (id === "") {
         return { ok: false, errorKey: "logwatch.unknown" };
     }
+    if (deps.inflight?.has(id)) {
+        return { ok: true };
+    }
+    deps.inflight?.add(id);
+    try {
+        return await askOnce(deps, id);
+    } finally {
+        deps.inflight?.delete(id);
+    }
+}
+
+async function askOnce(deps: LogWatchDeps, id: string): Promise<LogWatchOutcome> {
     try {
         let result = await deps.ask({ id });
         if (result?.status === "pick") {

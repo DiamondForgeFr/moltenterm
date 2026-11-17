@@ -91,8 +91,9 @@ func TestAskPrefersTheLockedName(t *testing.T) {
 	}
 }
 
-// With no lead that stands out, nothing is sent: the developer picks, MoltenTerm's agents first; a pick sends, a pick
-// of an agent that has gone sends nothing.
+// With no lead that stands out, nothing is sent: the developer picks among the agents of MoltenTerm's repository, at its
+// root first, then in its worktrees; another project's agent is never offered. A pick sends, a pick of an agent that has
+// gone sends nothing.
 func TestAskLetsTheDeveloperPick(t *testing.T) {
 	t.Parallel()
 	w, fe, id := raisedPanic(t, "nil map")
@@ -106,17 +107,67 @@ func TestAskLetsTheDeveloperPick(t *testing.T) {
 	for _, c := range res.Agents {
 		order = append(order, c.FirstName)
 	}
-	if strings.Join(order, ",") != "Olivia,Hugo,Paul,Zoé" || !res.Agents[0].MoltenTerm || res.Agents[3].MoltenTerm ||
-		res.Agents[0].Project != "moltenterm" {
+	if strings.Join(order, ",") != "Olivia,Hugo,Paul" || res.Agents[0].Project != "moltenterm" {
 		t.Fatalf("offer: %+v", res.Agents)
 	}
-	res, err = w.Ask(context.Background(), AskRequest{Id: id, BlockId: stranger.BlockId})
-	if err != nil || res.Status != AskSent || res.To != "Zoé" || len(fe.requests()) != 1 {
+	res, err = w.Ask(context.Background(), AskRequest{Id: id, BlockId: worker.BlockId})
+	if err != nil || res.Status != AskSent || res.To != "Paul" || len(fe.requests()) != 1 {
 		t.Fatalf("picked: %+v %v", res, err)
 	}
 	res, err = w.Ask(context.Background(), AskRequest{Id: id, BlockId: "b-gone"})
 	if err != nil || res.Status != AskGone || len(fe.requests()) != 1 {
 		t.Fatalf("gone: %+v %v", res, err)
+	}
+}
+
+// FR-BOSS-012 AC9 (D1 of the review): MoltenTerm's log never reaches another project's agent. One running alone is no
+// recipient (nobody to ask), and one named by its terminal is refused.
+func TestTheLogNeverGoesToAnotherProjectsAgent(t *testing.T) {
+	t.Parallel()
+	w, fe, id := raisedPanic(t, "nil map")
+	fe.agents = []Agent{stranger}
+	if res, err := w.Ask(context.Background(), AskRequest{Id: id}); err != nil || res.Status != AskNoAgent || len(res.Agents) != 0 {
+		t.Fatalf("only a client project's agent runs: %+v %v", res, err)
+	}
+	if res, err := w.Ask(context.Background(), AskRequest{Id: id, BlockId: stranger.BlockId}); err != nil || res.Status != AskRefused {
+		t.Fatalf("a client project's agent named by its terminal: %+v %v", res, err)
+	}
+	noProject := Agent{BlockId: "b-loose", FirstName: "Léa", Folder: "/tmp/somewhere"}
+	fe.agents = []Agent{stranger, noProject, lead}
+	if res, err := w.Ask(context.Background(), AskRequest{Id: id, BlockId: noProject.BlockId}); err != nil || res.Status != AskRefused {
+		t.Fatalf("an agent in no project: %+v %v", res, err)
+	}
+	if len(fe.requests()) != 0 {
+		t.Fatalf("sent: %+v", fe.requests())
+	}
+}
+
+// A second click while the first request is on its way sends nothing.
+func TestASecondClickWhileTheFirstIsOnItsWaySendsNothing(t *testing.T) {
+	t.Parallel()
+	w, fe, id := raisedPanic(t, "nil map")
+	fe.agents = []Agent{lead}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	fe.onSend = func() {
+		close(started)
+		<-release
+	}
+	first := make(chan AskResult, 1)
+	go func() {
+		res, _ := w.Ask(context.Background(), AskRequest{Id: id})
+		first <- res
+	}()
+	<-started
+	if res, err := w.Ask(context.Background(), AskRequest{Id: id}); err != nil || res.Status != AskBusy {
+		t.Fatalf("second click: %+v %v", res, err)
+	}
+	close(release)
+	if res := <-first; res.Status != AskSent {
+		t.Fatalf("first click: %+v", res)
+	}
+	if n := len(fe.requests()); n != 1 {
+		t.Fatalf("%d requests sent", n)
 	}
 }
 
@@ -213,17 +264,17 @@ func TestChooseRecipient(t *testing.T) {
 		t.Fatalf("the only agent at the root: %v", to)
 	}
 	to, offer := chooseRecipient([]Agent{worker, stranger}, nil, ours)
-	if to != nil || len(offer) != 2 || offer[0].FirstName != "Paul" {
-		t.Fatalf("only a worktree agent: %v %+v", to, offer)
+	if to != nil || len(offer) != 1 || offer[0].FirstName != "Paul" {
+		t.Fatalf("only a worktree agent of ours: %v %+v", to, offer)
 	}
-	if to, _ := chooseRecipient([]Agent{stranger}, []molten.AgentNameLock{{Name: "Zoé", Project: otherRepo}}, ours); to != nil {
-		t.Fatal("a name locked for another project chose its agent")
+	if to, offer := chooseRecipient([]Agent{stranger}, []molten.AgentNameLock{{Name: "Zoé", Project: otherRepo}}, ours); to != nil || len(offer) != 0 {
+		t.Fatalf("a name locked for another project chose or offered its agent: %v %+v", to, offer)
 	}
 	many := make([]Agent, 30)
 	for i := range many {
-		many[i] = Agent{BlockId: string(rune('a' + i)), FirstName: "x", ProjectDir: otherRepo, Folder: otherRepo}
+		many[i] = Agent{BlockId: string(rune('a' + i)), FirstName: "x", ProjectDir: ourRepo, Folder: ourRepo + "/.claude/worktrees/w"}
 	}
-	if _, offer := chooseRecipient(many, nil, ours); len(offer) != maxOffered {
+	if _, offer := chooseRecipient(append(many, stranger), nil, ours); len(offer) != maxOffered {
 		t.Fatalf("offered %d", len(offer))
 	}
 }

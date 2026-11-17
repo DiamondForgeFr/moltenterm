@@ -21,15 +21,14 @@ const (
 	// GrowthId stands for the log's growth where a signature's id would be.
 	GrowthId = "growth"
 
-	// A spike: at least SpikeCount occurrences in the SpikeMinutes before the last one, over at least SpikeBusyMinutes of
-	// them (more than one a minute, not one burst), or SpikeFactor times the usual rate with at least SpikeLookCount in
-	// one look, for a signature known for at least an hour.
-	SpikeMinutes     = 5
-	SpikeCount       = 6
-	SpikeBusyMinutes = 3
-	SpikeFactor      = 10
-	SpikeLookCount   = 10
-	usualMinHistory  = time.Hour
+	// A spike (the ticket's rule): more than one a minute (SpikePerMinute or more) in each of SpikeMinutes consecutive
+	// minutes, ending at the minute of its last occurrence or the minute before it (the last one may have just begun), or
+	// SpikeFactor times its usual rate with at least SpikeLookCount in one look, for a signature known for an hour.
+	SpikeMinutes    = 5
+	SpikePerMinute  = 2
+	SpikeFactor     = 10
+	SpikeLookCount  = 10
+	usualMinHistory = time.Hour
 
 	// GrowthLimit: the log's bytes of the last hour past which it grows abnormally.
 	GrowthLimit = 50 << 20
@@ -50,15 +49,14 @@ type lookFacts struct {
 	order   []string
 }
 
-// ingest adds the records to the state's signatures and the bytes to its minutes.
-func (s *State) ingest(recs []Record, home string) lookFacts {
+// ingest adds the records to the state's signatures. Each signature's excerpt is its newest occurrence, masked once per
+// look whatever the number of occurrences.
+func (s *State) ingest(recs []Record, m masker) lookFacts {
 	f := lookFacts{count: map[string]int64{}, first: map[string]int64{}, last: map[string]int64{},
 		before: map[string]Signature{}, created: map[string]bool{}}
-	index := map[string]int{}
-	for i := range s.Signatures {
-		index[s.Signatures[i].Id] = i
-	}
-	for _, rec := range recs {
+	index := s.index()
+	newest := map[string]int{}
+	for r, rec := range recs {
 		id := rec.Id()
 		at := rec.At.UnixMilli()
 		i, ok := index[id]
@@ -81,11 +79,33 @@ func (s *State) ingest(recs []Record, home string) lookFacts {
 		sig.First = min(sig.First, at)
 		if at >= sig.Last || sig.Excerpt == "" {
 			sig.Last = max(sig.Last, at)
-			sig.Excerpt = excerptOf(rec, home)
+			newest[id] = r
 		}
 		sig.Minutes = addMinute(sig.Minutes, minuteOf(at), 1)
 	}
+	for id, r := range newest {
+		s.Signatures[index[id]].Excerpt = excerptOf(recs[r], m)
+	}
 	return f
+}
+
+// index maps each signature's id to its place in the state.
+func (s *State) index() map[string]int {
+	index := make(map[string]int, len(s.Signatures))
+	for i := range s.Signatures {
+		index[s.Signatures[i].Id] = i
+	}
+	return index
+}
+
+// sustained: SpikePerMinute or more in each of the SpikeMinutes minutes that end at last.
+func sustained(minutes []minuteCount, last int64) bool {
+	for m := last - SpikeMinutes + 1; m <= last; m++ {
+		if n, _ := sumMinutes(minutes, m, m); n < SpikePerMinute {
+			return false
+		}
+	}
+	return true
 }
 
 // addBytes counts the log's bytes in the minute of their stamp.
@@ -96,9 +116,11 @@ func (s *State) addBytes(at time.Time, n int64) {
 // spikeRate is the rate a minute of a spiking signature, 0 when it does not spike.
 func spikeRate(sig Signature, f lookFacts) float64 {
 	last := minuteOf(sig.Last)
-	count, busy := sumMinutes(sig.Minutes, last-SpikeMinutes+1, last)
-	if count >= SpikeCount && busy >= SpikeBusyMinutes {
-		return float64(count) / SpikeMinutes
+	for _, end := range []int64{last, last - 1} {
+		if sustained(sig.Minutes, end) {
+			count, _ := sumMinutes(sig.Minutes, end-SpikeMinutes+1, end)
+			return float64(count) / SpikeMinutes
+		}
 	}
 	before, known := f.before[sig.Id], !f.created[sig.Id]
 	n := f.count[sig.Id]
@@ -129,9 +151,10 @@ func raisesNew(kind string) bool {
 func (s *State) decide(f lookFacts, now time.Time) []cardOp {
 	var ops []cardOp
 	nowMs := now.UnixMilli()
+	index := s.index()
 	for _, id := range f.order {
-		i := s.find(id)
-		if i < 0 || s.muted(id) {
+		i, ok := index[id]
+		if !ok || s.muted(id) {
 			continue
 		}
 		sig := &s.Signatures[i]

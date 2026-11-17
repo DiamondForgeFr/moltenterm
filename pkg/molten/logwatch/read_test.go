@@ -25,7 +25,7 @@ func logFiles(t *testing.T) (string, string) {
 
 func readAll(t *testing.T, path string, logs string, mark fileMark) (string, readOut, fileMark) {
 	t.Helper()
-	out, next, err := readNew(path, logs, mark)
+	out, next, err := readNew(path, logs, mark, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
