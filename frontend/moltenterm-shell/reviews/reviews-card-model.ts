@@ -174,7 +174,8 @@ export function openWaits(pr: ReviewPr): ReviewDependency[] {
     return (pr?.waitson ?? []).filter((w) => w.number > 0 && w.number !== pr.number && w.state === "open");
 }
 
-const Tones: Record<CardStateKind, CardTone> = {
+// Exported for the legend of the colours (#2332), which a test checks against every tone a state can take.
+export const CardStateTones: Record<CardStateKind, CardTone> = {
     "agent-waiting": "you",
     "agent-working": "agent",
     "waiting-on": "wait",
@@ -916,7 +917,7 @@ export function cardState(input: CardInput): CardState {
         settled: settled != null ? { by: settled.by, note: settled.note } : undefined,
         motion: cardMotion(input, works),
         kind,
-        tone: Tones[kind],
+        tone: CardStateTones[kind],
         turn: Turns[kind],
         sentence,
         why,

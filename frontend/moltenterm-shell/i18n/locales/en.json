@@ -8828,6 +8828,27 @@
             "stateTitle": "Within each section, what needs you first, in the order of the card states.",
             "merge": "Merge order"
         },
+        "legend": {
+            "button": "What the colours mean",
+            "title": "What the colours mean",
+            "intro": "The edge and the dot of each card say where it stands.",
+            "mark": {
+                "waiting": "Waiting for you",
+                "ready": "Ready to merge",
+                "blocked": "Blocked",
+                "running": "In progress",
+                "draft": "Nothing moving"
+            },
+            "tone": {
+                "you": "An agent stopped to ask you something, or a decision is yours to make.",
+                "ready": "The CI is green and nothing is open: you can merge it.",
+                "broken": "The CI failed or it conflicts with its target branch, and no agent is on it.",
+                "agent": "An agent is working on it.",
+                "running": "The CI is running.",
+                "draft": "Its agent is done or stopped, and nobody is working on it.",
+                "wait": "It waits on something else, such as another pull request."
+            }
+        },
         "sections": {
             "yours": "Needs you",
             "yoursHint": "stuck until you act",

@@ -161,11 +161,14 @@ export function MissionHeader({
     snapshot,
     onRefresh,
     children,
+    trailing,
 }: {
     project: ActiveProject;
     snapshot: MissionSnapshot;
     onRefresh: () => void;
     children?: React.ReactNode;
+    // After the refresh button: a calm control of the panel that does not take room from the others (#2332).
+    trailing?: React.ReactNode;
 }) {
     const t = useT();
     const [now, setNow] = useState(Date.now());
@@ -203,6 +206,7 @@ export function MissionHeader({
                         <i className="fa fa-solid fa-rotate text-11" />
                     )}
                 </button>
+                {trailing}
             </div>
         </div>
     );
