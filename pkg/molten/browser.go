@@ -29,6 +29,10 @@ const (
 	// panel removes what it handled (FR-BRW-008, an agent's tabs_close). Must match BrowserCloseKeyPrefix in
 	// frontend/moltenterm-shell/browser/browser-model.ts.
 	BrowserCloseKeyPrefix = "molten:browser:close:"
+	// block meta: the queue of tabs to bring into view, one key per request (prefix + time-ordered id = the browser tab
+	// id); the panel selects the tab, comes into view and removes what it handled (#2333, `molten open` of a page that is
+	// already open). Must match BrowserShowKeyPrefix in frontend/moltenterm-shell/browser/browser-model.ts.
+	BrowserShowKeyPrefix = "molten:browser:show:"
 	// tab meta: the tab's browser panels, most recently focused first, written by the frontend (#140)
 	BrowserRecentMetaKey = "molten:browser:recent"
 	// block meta: the panel was created for a link whose site may have no engine yet; its first tab asks (FR-BRW-006).
@@ -169,6 +173,11 @@ func BrowserAgentTabRequestMeta(id string, url string, browserTabId string) wave
 // BrowserCloseRequestMeta queues the closing of a panel tab.
 func BrowserCloseRequestMeta(id string, browserTabId string) waveobj.MetaMapType {
 	return waveobj.MetaMapType{BrowserCloseKeyPrefix + id: browserTabId}
+}
+
+// BrowserShowRequestMeta queues the bringing into view of a panel tab that already shows a page (#2333).
+func BrowserShowRequestMeta(id string, browserTabId string) waveobj.MetaMapType {
+	return waveobj.MetaMapType{BrowserShowKeyPrefix + id: browserTabId}
 }
 
 // BrowserPanelTab is one tab of a browser panel as the panel saves it (BrowserTabsMetaKey). Engine is "" for the

@@ -134,6 +134,47 @@ func TestTabsShowToolBringsAPageInFrontOfTheUser(t *testing.T) {
 	}
 }
 
+// tabs_create takes an address and reuses a page that is already open (#2333): one tool of the one server, so Claude Code
+// and Codex learn the same words from the same description and instructions.
+func TestTabsCreateReusesOpenPagesAndTheToolsSayHow(t *testing.T) {
+	byName := map[string]ToolDef{}
+	for _, tool := range Tools() {
+		byName[tool.Name] = tool
+	}
+	create := byName[ToolTabsCreate]
+	props := create.InputSchema["properties"].(map[string]any)
+	if props["url"].(map[string]any)["type"] != "string" || props["reload"].(map[string]any)["type"] != "boolean" || props["newTab"].(map[string]any)["type"] != "boolean" {
+		t.Fatalf("tabs_create takes url, reload and newTab: %v", props)
+	}
+	if required, _ := create.InputSchema["required"].([]string); len(required) != 0 {
+		t.Fatalf("tabs_create still opens an empty tab without arguments: %v", required)
+	}
+	for _, want := range []string{"already open", "reused tab N", "opened tab N", "newTab: true", "reload: true", "waiting for the developer", "asked for on its bar"} {
+		if !strings.Contains(create.Description, want) {
+			t.Fatalf("tabs_create's description lacks %q: %s", want, create.Description)
+		}
+	}
+	for _, want := range []string{"otherPages", "tabs_create with its address", "Call tabs_context before opening a page", "without credentials"} {
+		if !strings.Contains(byName[ToolTabsContext].Description, want) {
+			t.Fatalf("tabs_context's description lacks %q: %s", want, byName[ToolTabsContext].Description)
+		}
+	}
+	if !strings.Contains(byName[ToolNavigate].Description, "reload") || !strings.Contains(byName[ToolNavigate].InputSchema["properties"].(map[string]any)["url"].(map[string]any)["description"].(string), "reload") {
+		t.Fatalf("navigate loads a page again with \"reload\"")
+	}
+	for _, name := range []string{"Claude Code", "Codex", ""} {
+		got := ServerInstructions + AgentInstructions(name)
+		for _, want := range []string{"call tabs_context", "reuses a page that is already open", "newTab: true", "reload", "`molten open`", "--new-tab", "pages.md"} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("the instructions for %q lack %q", name, want)
+			}
+		}
+	}
+	if _, err := json.Marshal(Tools()); err != nil {
+		t.Fatalf("tools must marshal: %v", err)
+	}
+}
+
 func TestImageContentIsMcpShaped(t *testing.T) {
 	result := toMcpResult(CallResult{Content: []ContentItem{
 		{Type: ContentText, Text: "shot"},

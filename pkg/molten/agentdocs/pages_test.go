@@ -37,6 +37,24 @@ func TestPagesGuideSaysLocalPagesAsk(t *testing.T) {
 	}
 }
 
+// pages.md tells an agent to look at what is open before opening a page, and that an open page is reused (#2333).
+func TestPagesGuideExplainsReusingAnOpenPage(t *testing.T) {
+	data, err := fs.ReadFile(Files, "pages.md")
+	if err != nil {
+		t.Fatalf("pages.md is not embedded: %v", err)
+	}
+	text := string(data)
+	for _, want := range []string{
+		"`tabs_context`", "`otherPages`", "Reuse an open page", "reused tab N", "opened tab N", "like to use this page",
+		"Allow and Open another tab", "waiting for the developer", "`newTab: true`", "`reload: true`", "molten open --new-tab",
+		"hands nothing to you",
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("pages.md does not mention %q", want)
+		}
+	}
+}
+
 // pages.md tells an agent how to bring a page it already has back in front of the developer (#1994).
 func TestPagesGuideExplainsShowingAPageAgain(t *testing.T) {
 	data, err := fs.ReadFile(Files, "pages.md")

@@ -52,6 +52,8 @@ func fixedActionText(action string) *uimsg.Text {
 		return uimsg.Make("browser.action.back")
 	case actionForward:
 		return uimsg.Make("browser.action.forward")
+	case actionReload:
+		return uimsg.Make("browser.action.reload")
 	case actionReadPage:
 		return uimsg.Make("browser.action.readpage")
 	case actionPageText:

@@ -793,7 +793,7 @@ func TestBriefFilesLinksAndSnapshots(t *testing.T) {
 		"# Handoff from Camille to Jérôme", "## Goal\n\nPort the parser", "Open question: errors.",
 		"Snapshot: `" + filepath.Join(filepath.Dir(res.BriefPath), SnapshotDirName, "01-parser.go"),
 		"````\n  line2\n  line3 ```\n  ````", "not copied: it may hold secrets", "Not found when the brief was written",
-		"[The doc](https://example.com/doc) (browser page)", "call `tabs_create`, then `navigate`",
+		"[The doc](https://example.com/doc) (browser page)", "call `tabs_create` with its address as `url`",
 		"[https://github.com/o/r/issues/1](https://github.com/o/r/issues/1) (ticket)",
 	} {
 		if !strings.Contains(md, want) {

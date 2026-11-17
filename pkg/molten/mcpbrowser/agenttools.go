@@ -107,9 +107,12 @@ const FilesInstructions = " When the user asks you to find files in the project,
 // PagesInstructions: a page shown to the developer opens in MoltenTerm's browser, whatever agent CLI it is (FR-BRW-008,
 // pkg/molten/agentdocs/pages.md); the 360 carpet then scrolls to it (#1812).
 const PagesInstructions = " To show a page to the user (\"open the doc\", \"show me the page\", a local preview), open it in " +
-	"MoltenTerm's browser: tabs_create then navigate, or `molten open <url>` from a shell. Do not use `open`, " +
+	"MoltenTerm's browser: tabs_create with the page's url, or `molten open <url>` from a shell. Do not use `open`, " +
 	"`xdg-open`, `start` or the system browser, unless the user asks for their own browser (`molten open --browser " +
 	"installed <url>`). The page appears next to this terminal, in view, and the terminal keeps the keyboard focus. " +
+	"Check tabs_context first: a page that is already open in this workspace is reused, not opened again (tabs_create " +
+	"and `molten open` both do it; the user is asked first when the page is theirs; newTab: true, or `--new-tab`, " +
+	"opens a second copy on purpose). " +
 	"To bring a page you already have open back in front of the user, call tabs_show on its tab. " +
 	"Details: pages.md in the folder `molten docs` prints."
 

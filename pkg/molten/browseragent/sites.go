@@ -21,6 +21,8 @@ const (
 
 	urlBack    = "back"
 	urlForward = "forward"
+	// urlReload loads the page the tab shows again, in place (#2333).
+	urlReload = "reload"
 )
 
 var schemeRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9+.-]*:`)

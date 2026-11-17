@@ -66,7 +66,7 @@ import { AddressHold, takeAddressFocus } from "./address-focus";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
-import { showAgentPage } from "./agent-show";
+import { showAgentAsk, showAgentPage, type AgentShowTarget } from "./agent-show";
 import { annotatablePage, annotateLayers, AnnotateSession, closedTabs } from "./annotate-session";
 import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
@@ -82,6 +82,7 @@ import {
     BrowserAgentModel,
     controlBarView,
     permissionBarView,
+    reuseBarView,
     setAgentSite,
     ShareResult,
 } from "./browser-agent";
@@ -159,6 +160,7 @@ import {
     closeTab,
     consumeCloseRequestsMeta,
     consumeOpenRequestsMeta,
+    consumeShowRequestsMeta,
     isAgentTabId,
     isBlankPage,
     isStartPage,
@@ -167,6 +169,7 @@ import {
     readBrowserState,
     readCloseRequests,
     readOpenRequests,
+    readShowRequests,
     setTabEngine,
     shownAddress,
     splitOutTabs,
@@ -313,6 +316,7 @@ export class BrowserViewModel implements ViewModel {
     // The tabs agents drive, and their control bars (FR-BRW-008).
     agents: BrowserAgentModel;
     handledCloseIds = new Set<string>();
+    handledShowIds = new Set<string>();
     // Hidden pages frozen and discarded by the main process (#459).
     lifecycle: BrowserLifecycleModel;
     // The add or edit dialog of a bookmark, set by the Bookmarks menu (FR-BRW-019).
@@ -340,16 +344,8 @@ export class BrowserViewModel implements ViewModel {
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
         this.agents = new BrowserAgentModel(blockId);
-        this.agents.onShown = (shownTabIds) =>
-            showAgentPage(
-                {
-                    blockId,
-                    activeTabId: () => this.state().activeId,
-                    hasTab: (id) => this.findTab(id) != null,
-                    selectTab: (id) => this.showTab(id),
-                },
-                shownTabIds
-            );
+        this.agents.onShown = (shownTabIds) => showAgentPage(this.agentShowTarget(), shownTabIds);
+        this.agents.onAsk = () => showAgentAsk(blockId);
         this.agents.start();
         this.lifecycle = new BrowserLifecycleModel(blockId);
         this.lifecycle.start((tabId, webContentsId, scroll) => this.discardTab(tabId, webContentsId, scroll));
@@ -1081,6 +1077,37 @@ export class BrowserViewModel implements ViewModel {
                 after = (await this.createBeside(def, after, focused)) ?? after;
             }
         });
+    }
+
+    agentShowTarget(): AgentShowTarget {
+        return {
+            blockId: this.blockId,
+            activeTabId: () => this.state().activeId,
+            hasTab: (id) => this.findTab(id) != null,
+            selectTab: (id) => this.showTab(id),
+        };
+    }
+
+    // A page `molten open` found already open here (#2333): its tab is the one shown and the panel comes into view, as for
+    // a page an agent shows. Nothing is loaded again and the focus stays where it is.
+    handleShowRequests(meta: Record<string, any>): void {
+        const requests = readShowRequests(meta);
+        if (requests.length === 0) {
+            return;
+        }
+        const fresh = requests.filter((r) => !this.handledShowIds.has(r.id));
+        for (const request of fresh) {
+            this.handledShowIds.add(request.id);
+            if (this.findTab(request.tabId) != null) {
+                showAgentPage(this.agentShowTarget(), [request.tabId]);
+            }
+        }
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("block", this.blockId),
+                meta: consumeShowRequestsMeta(requests) as MetaType,
+            })
+        );
     }
 
     // Tabs an agent closes (tabs_close); the panel closes with its last tab, as Cmd+W does.
@@ -2163,13 +2190,26 @@ function TabWebview({
 // A page an agent controls carries its mark in the panel's row.
 function AgentTabMarker({ model, agentTabs, tabId }: { model: BrowserViewModel; agentTabs: AgentTabs; tabId: string }) {
     useLocale();
+    const reuseAsks = useAtomValue(model.agents.asksAtom);
     const agentTab = agentTabs[tabId];
     if (isSharedTab(agentTab)) {
         return <SharedTabBadge model={model} agentTab={agentTab} tabId={tabId} />;
     }
     const view = controlBarView(agentTab);
     if (view == null) {
-        return null;
+        // An agent asks to use this page, which is the user's (#2333).
+        const asking = reuseBarView(reuseAsks[tabId]);
+        if (asking == null) {
+            return null;
+        }
+        return (
+            <i
+                role="img"
+                aria-label={asking.title}
+                title={asking.title}
+                className="fa fa-solid fa-circle-question shrink-0 text-11 text-[var(--mt-state-waiting)]"
+            />
+        );
     }
     const asking = permissionBarView(agentTab);
     if (asking != null) {
@@ -2952,6 +2992,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     useEffect(() => {
         model.handleOpenRequests(blockMeta);
         model.handleCloseRequests(blockMeta);
+        model.handleShowRequests(blockMeta);
     }, [model, blockMeta]);
     // A search shown on screen tells which engine made it, once (#2312).
     const shownUrl = viewShown && !offCarpet ? activeTab?.url : null;
