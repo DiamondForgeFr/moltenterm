@@ -680,10 +680,12 @@ function useAnnotateTarget(url: string): AnnotateTarget {
 }
 
 function AnnotateLayer({
+    session,
     open,
     activeTabId,
     onClose,
 }: {
+    session: AnnotateSession;
     open: { tabId: string; url: string };
     activeTabId: string;
     onClose: () => void;
@@ -717,6 +719,23 @@ function AnnotateLayer({
             live = false;
         };
     }, []);
+    const readyRef = useRef(false);
+    readyRef.current = !!capture;
+    useEffect(() => {
+        // The panel gives its focus to the page when it gains it; with the mode on, the keys (Escape, Enter) are the
+        // layer's, the frozen page behind it must not take them.
+        session.focusLayer = () => {
+            const root = rootRef.current;
+            if (root == null || !readyRef.current) {
+                return false;
+            }
+            (root.querySelector("textarea") ?? root).focus();
+            return true;
+        };
+        return () => {
+            session.focusLayer = null;
+        };
+    }, [session]);
     useEffect(() => {
         if (capture) {
             rootRef.current?.focus();
@@ -910,5 +929,13 @@ export function AnnotateHost({ session, activeTabId }: { session: AnnotateSessio
     if (open == null) {
         return null;
     }
-    return <AnnotateLayer key={open.nonce} open={open} activeTabId={activeTabId} onClose={() => session.close()} />;
+    return (
+        <AnnotateLayer
+            key={open.nonce}
+            session={session}
+            open={open}
+            activeTabId={activeTabId}
+            onClose={() => session.close()}
+        />
+    );
 }
