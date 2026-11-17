@@ -19,7 +19,8 @@ import {
 import type { AnnotateTarget, Recipient, Zone } from "./annotate-model";
 
 const Noop = () => {};
-const Zone1: Zone = { id: 1, x: 0.1, y: 0.2, w: 0.3, h: 0.25, comment: "The title is cut." };
+const Zone1: Zone = { id: 1, x: 0.1, y: 0.2, w: 0.3, h: 0.25, comment: "The title is cut.", refs: [] };
+const Thumb = "data:image/png;base64,iVBORw0KGgo=";
 
 function tray(count: number, leaveAsk = false): string {
     return renderToStaticMarkup(
@@ -91,18 +92,70 @@ describe("a zone and its comment field", () => {
         expect(html).not.toContain('<span class="min-w-0 truncate');
     });
 
-    it("opens the field with the comment, its hint and a way to erase the zone", () => {
-        const html = renderToStaticMarkup(
+    function field(zone: Zone, note = ""): string {
+        return renderToStaticMarkup(
             <CommentField
-                zone={Zone1}
+                zone={zone}
                 n={1}
                 stage={{ w: 1000, h: 600 }}
+                note={note}
                 onChange={Noop}
                 onCommit={Noop}
                 onCancel={Noop}
                 onErase={Noop}
+                onAttach={Noop}
+                onRemoveRef={Noop}
             />
         );
+    }
+
+    it("shows the reference images under the comment as thumbnails, each with its remove", () => {
+        const html = field({
+            ...Zone1,
+            refs: [
+                { id: 1, dataUrl: Thumb },
+                { id: 2, dataUrl: Thumb + "A" },
+            ],
+        });
+        expect(html).toContain('data-testid="browser-annotate-refs"');
+        expect(html.match(/data-testid="browser-annotate-ref"/g)).toHaveLength(2);
+        expect(html.match(/data-testid="browser-annotate-ref-remove"/g)).toHaveLength(2);
+        expect(html).toContain('alt="Reference image 2"');
+        expect(html).toContain("Remove this image");
+        expect(html).toContain(`src="${Thumb}"`);
+        expect(field(Zone1)).not.toContain("browser-annotate-refs");
+    });
+
+    it("shows the links of the comment as chips with their host name, and keeps them in the text", () => {
+        const html = field({
+            ...Zone1,
+            comment: "Like https://www.example.test/inspiration/a?b=1 and http://localhost:3000/x",
+        });
+        expect(html.match(/data-testid="browser-annotate-link"/g)).toHaveLength(2);
+        expect(html).toContain("www.example.test");
+        expect(html).toContain("localhost:3000");
+        expect(html).toContain('title="https://www.example.test/inspiration/a?b=1"');
+        expect(html).toContain(
+            "Like https://www.example.test/inspiration/a?b=1 and http://localhost:3000/x</textarea>"
+        );
+    });
+
+    it("makes no chip of an address that is no web link, and none of a comment with no link", () => {
+        const html = field({ ...Zone1, comment: "see javascript:alert(1), file:///etc/passwd and data:text/html,x" });
+        expect(html).not.toContain("browser-annotate-link");
+        expect(field(Zone1)).not.toContain("browser-annotate-links");
+    });
+
+    it("says how to attach an image, and why the last one could not be", () => {
+        const html = field(Zone1, "Only png, jpeg, webp and gif images can be attached.");
+        expect(html).toContain("Paste or drop an image (up to 4)");
+        expect(html).toContain('data-testid="browser-annotate-ref-note"');
+        expect(html).toContain("Only png, jpeg, webp and gif images can be attached.");
+        expect(field(Zone1)).not.toContain("browser-annotate-ref-note");
+    });
+
+    it("opens the field with the comment, its hint and a way to erase the zone", () => {
+        const html = field(Zone1);
         expect(html).toContain("<textarea");
         expect(html).toContain("The title is cut.");
         expect(html).toContain('maxLength="1000"');
@@ -130,6 +183,7 @@ function review(props: Partial<ReviewViewProps> = {}): string {
     return renderToStaticMarkup(
         <ReviewView
             target={Target}
+            zones={[Zone1]}
             recipients={recipients}
             chosen={recipients[0] ?? null}
             lost=""
@@ -149,6 +203,23 @@ function review(props: Partial<ReviewViewProps> = {}): string {
 }
 
 describe("the review (FR-BRW-017 AC14)", () => {
+    it("shows each zone's reference images and links as they will be sent, and nothing when there are none", () => {
+        const zones: Zone[] = [
+            Zone1,
+            { ...Zone1, id: 2, comment: "Like https://example.test/inspiration", refs: [{ id: 7, dataUrl: Thumb }] },
+            { ...Zone1, id: 3, comment: "javascript:alert(1)" },
+        ];
+        const html = review({ zones });
+        expect(html).toContain('data-testid="browser-annotate-review-refs"');
+        expect(html).toContain("References");
+        expect(html.match(/data-testid="browser-annotate-review-zone"/g)).toHaveLength(1);
+        expect(html).toContain("Zone 2");
+        expect(html).toContain(`src="${Thumb}"`);
+        expect(html).toContain("example.test");
+        expect(html).not.toContain("browser-annotate-ref-remove");
+        expect(review()).not.toContain("browser-annotate-review-refs");
+    });
+
     it("shows what will be sent: the address, the branch, the image and the report as wavesrv writes it", () => {
         const html = review();
         expect(html).toContain("What will be sent");

@@ -30,18 +30,28 @@ export type Point = { x: number; y: number };
 export type Size = { w: number; h: number };
 
 // A zone is a rectangle in fractions of the capture's width and height, so it keeps its place when the panel is resized.
-export type Zone = { id: number; x: number; y: number; w: number; h: number; comment: string };
+export type Zone = { id: number; x: number; y: number; w: number; h: number; comment: string; refs: ZoneRef[] };
+
+// A reference image the developer attached to a zone's comment: what the window wrote again from a pasted or dropped
+// image, as a data URL (annotate-refs.ts).
+export type ZoneRef = { id: number; dataUrl: string };
 
 // editing: the zone whose comment field is open; fresh: it was just drawn and its comment never validated.
 export type AnnotateState = {
     zones: Zone[];
     nextId: number;
+    nextRefId: number;
     editing: { id: number; fresh: boolean };
 };
 
 export function emptyState(): AnnotateState {
-    return { zones: [], nextId: 1, editing: null };
+    return { zones: [], nextId: 1, nextRefId: 1, editing: null };
 }
+
+// The reference images of a zone and of a report: wavesrv holds the same limits, so that the websocket's 10 MB carries
+// the capture and the references.
+export const MaxRefsPerZone = 4;
+export const MaxRefs = 8;
 
 function clamp01(n: number): number {
     return Math.min(1, Math.max(0, n));
@@ -71,8 +81,87 @@ export function addZone(state: AnnotateState, rect: Rect): AnnotateState {
     if (rect == null || state.zones.length >= MaxZones) {
         return state;
     }
-    const zone: Zone = { id: state.nextId, ...rect, comment: "" };
-    return { zones: [...state.zones, zone], nextId: state.nextId + 1, editing: { id: zone.id, fresh: true } };
+    const zone: Zone = { id: state.nextId, ...rect, comment: "", refs: [] };
+    return { ...state, zones: [...state.zones, zone], nextId: state.nextId + 1, editing: { id: zone.id, fresh: true } };
+}
+
+export function refCount(state: AnnotateState): number {
+    return state.zones.reduce((n, z) => n + z.refs.length, 0);
+}
+
+// attachRef: a reference image on a zone. A zone holds MaxRefsPerZone and a report MaxRefs: past either nothing is added
+// and the limit says which. Erasing a zone, or clearing all, takes its images with it.
+export function attachRef(
+    state: AnnotateState,
+    zoneId: number,
+    dataUrl: string
+): { state: AnnotateState; refused: "" | "zone" | "report" } {
+    const zone = state.zones.find((z) => z.id === zoneId);
+    if (zone == null || !dataUrl) {
+        return { state, refused: "" };
+    }
+    if (zone.refs.length >= MaxRefsPerZone) {
+        return { state, refused: "zone" };
+    }
+    if (refCount(state) >= MaxRefs) {
+        return { state, refused: "report" };
+    }
+    const ref: ZoneRef = { id: state.nextRefId, dataUrl };
+    return {
+        state: {
+            ...state,
+            nextRefId: state.nextRefId + 1,
+            zones: state.zones.map((z) => (z.id === zoneId ? { ...z, refs: [...z.refs, ref] } : z)),
+        },
+        refused: "",
+    };
+}
+
+export function removeRef(state: AnnotateState, zoneId: number, refId: number): AnnotateState {
+    return {
+        ...state,
+        zones: state.zones.map((z) => (z.id === zoneId ? { ...z, refs: z.refs.filter((r) => r.id !== refId) } : z)),
+    };
+}
+
+// A link in a comment: the http and https addresses it holds, in order, once each, at most MaxLinksPerZone, as wavesrv
+// finds them (annotateLinks): the same words list them in the brief. Any other scheme (file:, javascript:, data:) is
+// plain text, never a link. Nothing is fetched: the chip shows the host name.
+export const MaxLinksPerZone = 5;
+export type ZoneLink = { href: string; host: string };
+
+const LinkPattern = /\bhttps?:\/\/[^\s<>"'`/][^\s<>"'`]*/gi;
+
+export function linksOf(comment: string): ZoneLink[] {
+    const out: ZoneLink[] = [];
+    const seen = new Set<string>();
+    for (const found of (comment ?? "").match(LinkPattern) ?? []) {
+        let raw = found.replace(/[.,;:!?'"]+$/, "");
+        while (raw.endsWith(")") && raw.split("(").length < raw.split(")").length) {
+            raw = raw.slice(0, -1);
+        }
+        let url: URL;
+        try {
+            url = new URL(raw);
+        } catch {
+            continue;
+        }
+        if ((url.protocol !== "http:" && url.protocol !== "https:") || url.hostname === "") {
+            continue;
+        }
+        url.username = "";
+        url.password = "";
+        url.hash = "";
+        if (seen.has(url.href)) {
+            continue;
+        }
+        seen.add(url.href);
+        out.push({ href: url.href, host: url.host });
+        if (out.length === MaxLinksPerZone) {
+            break;
+        }
+    }
+    return out;
 }
 
 export function editZone(state: AnnotateState, id: number): AnnotateState {
@@ -97,14 +186,14 @@ export function commitComment(state: AnnotateState, id: number): AnnotateState {
     return { ...state, editing: null };
 }
 
-// cancelEdit: Escape in a comment field. A new zone with no comment is dropped; any other zone keeps what was typed,
+// cancelEdit: Escape in a comment field. A new zone with no comment and no image is dropped; any other zone keeps what was typed,
 // since nothing the developer wrote is lost to a key.
 export function cancelEdit(state: AnnotateState, id: number): AnnotateState {
     const zone = state.zones.find((z) => z.id === id);
     if (zone == null || state.editing?.id !== id) {
         return state;
     }
-    if (state.editing.fresh && zone.comment.trim() === "") {
+    if (state.editing.fresh && zone.comment.trim() === "" && zone.refs.length === 0) {
         return eraseZone(state, id);
     }
     return commitComment(state, id);
@@ -214,8 +303,22 @@ export function fieldPlacement(zone: Rect, stage: Size, field: Size): Point {
     return keep({ x: box.x, y: box.y - FieldGapPx - field.h });
 }
 
-export function zonesWire(zones: Zone[]): { comment: string }[] {
-    return zones.map((z) => ({ comment: z.comment.trim() }));
+export type ZoneWire = { comment: string; images?: string[]; imagecount?: number };
+
+// zonesWire: the comments in order, trimmed, with the reference images as data URLs; a preview carries only their count,
+// so that the images are not sent twice.
+export function zonesWire(zones: Zone[], preview = false): ZoneWire[] {
+    return zones.map((z) => {
+        const wire: ZoneWire = { comment: z.comment.trim() };
+        if (z.refs.length > 0) {
+            if (preview) {
+                wire.imagecount = z.refs.length;
+            } else {
+                wire.images = z.refs.map((r) => r.dataUrl);
+            }
+        }
+        return wire;
+    });
 }
 
 // The agent the zones are proposed to, and why: it works on the version's worktree; it owns the sub-agent that does (the
@@ -376,7 +479,8 @@ export type AnnotateRequest = {
     workspaceid?: string;
     title?: string;
     image?: string;
-    zones: { comment: string }[];
+    zones: ZoneWire[];
+    reftitle?: string;
     to?: { blockid: string; firstname: string; agent?: string; lead?: boolean };
 };
 
@@ -389,15 +493,16 @@ export type AnnotateResult = {
     delivery?: "delivered" | "typed" | "queued";
     to?: string;
     briefpath?: string;
+    references?: string[][];
 };
 
 export function annotateRequest(
     action: AnnotateAction,
     target: AnnotateTarget,
     zones: Zone[],
-    extra: { title?: string; image?: string; to?: Recipient }
+    extra: { title?: string; refTitle?: string; image?: string; to?: Recipient }
 ): AnnotateRequest {
-    const req: AnnotateRequest = { action, address: target.address, zones: zonesWire(zones) };
+    const req: AnnotateRequest = { action, address: target.address, zones: zonesWire(zones, action === "preview") };
     if (target.root) {
         req.root = target.root;
     } else if (target.dir) {
@@ -412,6 +517,7 @@ export function annotateRequest(
     if (action !== "preview") {
         req.title = extra.title;
         req.image = extra.image;
+        req.reftitle = extra.refTitle;
     }
     // The recipient's role changes the text (a lead is asked to dispatch), so the preview and the copy say it too.
     if (extra.to != null) {

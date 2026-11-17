@@ -13,6 +13,7 @@ import {
     addZone,
     annotateRequest,
     annotateTargetOf,
+    attachRef,
     cancelEdit,
     clearAll,
     commentKeyAction,
@@ -24,10 +25,16 @@ import {
     fieldPlacement,
     gestureOf,
     layerKeyAction,
+    linksOf,
     MaxCommentChars,
+    MaxLinksPerZone,
+    MaxRefs,
+    MaxRefsPerZone,
     MaxZones,
     MinZonePx,
     recipientsOf,
+    refCount,
+    removeRef,
     resolveRecipient,
     setComment,
     zoneAt,
@@ -535,6 +542,135 @@ describe("where the page's zones go from (FR-BRW-017 AC12)", () => {
             locks: [],
         });
         expect(target.recipients).toEqual([]);
+    });
+});
+
+// The images a comment can carry (FR-BRW-017 AC21): attached to a zone, at most four a zone and eight a report.
+describe("reference images", () => {
+    const Img = (n: number) => `data:image/png;base64,AAAA${n}`;
+
+    it("attaches an image to the open zone, each with its own id, and removes only the one asked", () => {
+        let state = addZone(emptyState(), Box);
+        const id = state.zones[0].id;
+        state = attachRef(state, id, Img(1)).state;
+        state = attachRef(state, id, Img(2)).state;
+        const [a, b] = state.zones[0].refs;
+        expect(a.id).not.toBe(b.id);
+        expect(state.zones[0].refs.map((r) => r.dataUrl)).toEqual([Img(1), Img(2)]);
+        state = removeRef(state, id, a.id);
+        expect(state.zones[0].refs).toEqual([b]);
+        expect(removeRef(state, 99, b.id)).toEqual(state);
+    });
+
+    it("holds at most four images in a zone, and says so without adding a fifth", () => {
+        let state = addZone(emptyState(), Box);
+        const id = state.zones[0].id;
+        for (let i = 0; i < MaxRefsPerZone; i++) {
+            state = attachRef(state, id, Img(i)).state;
+        }
+        const fifth = attachRef(state, id, Img(9));
+        expect(fifth.refused).toBe("zone");
+        expect(fifth.state).toBe(state);
+        expect(state.zones[0].refs).toHaveLength(MaxRefsPerZone);
+    });
+
+    it("holds at most eight images in a report, across its zones", () => {
+        let state = emptyState();
+        for (let z = 0; z < 3; z++) {
+            state = commitComment(addZone(state, Box), state.nextId);
+        }
+        const ids = state.zones.map((zone) => zone.id);
+        for (let i = 0; i < MaxRefs; i++) {
+            const attached = attachRef(state, ids[Math.floor(i / MaxRefsPerZone)], Img(i));
+            expect(attached.refused).toBe("");
+            state = attached.state;
+        }
+        expect(refCount(state)).toBe(MaxRefs);
+        const ninth = attachRef(state, ids[2], Img(9));
+        expect(ninth.refused).toBe("report");
+        expect(ninth.state).toBe(state);
+    });
+
+    it("attaches nothing to a zone that is not there, and nothing empty", () => {
+        const state = addZone(emptyState(), Box);
+        expect(attachRef(state, 99, Img(1))).toEqual({ state, refused: "" });
+        expect(attachRef(state, state.zones[0].id, "")).toEqual({ state, refused: "" });
+    });
+
+    it("takes a zone's images with it when the zone is erased or everything is cleared", () => {
+        let state = addZone(emptyState(), Box);
+        state = attachRef(state, state.zones[0].id, Img(1)).state;
+        state = commitComment(state, state.zones[0].id);
+        state = addZone(state, Box);
+        state = attachRef(state, state.zones[1].id, Img(2)).state;
+        expect(refCount(state)).toBe(2);
+        state = eraseZone(state, state.zones[0].id);
+        expect(refCount(state)).toBe(1);
+        expect(refCount(clearAll(state))).toBe(0);
+    });
+
+    it("keeps a new zone that holds an image, though its comment is empty, when Escape closes its field", () => {
+        let state = addZone(emptyState(), Box);
+        const id = state.zones[0].id;
+        state = attachRef(state, id, Img(1)).state;
+        const next = cancelEdit(state, id);
+        expect(next.zones).toHaveLength(1);
+        expect(next.editing).toBeNull();
+        expect(cancelEdit(addZone(emptyState(), Box), 1).zones).toEqual([]);
+    });
+
+    it("sends the images with the comments, and only their count for a preview", () => {
+        let state = drawn("one", "two");
+        state = attachRef(state, state.zones[1].id, Img(1)).state;
+        state = attachRef(state, state.zones[1].id, Img(2)).state;
+        expect(zonesWire(state.zones)).toEqual([{ comment: "one" }, { comment: "two", images: [Img(1), Img(2)] }]);
+        expect(zonesWire(state.zones, true)).toEqual([{ comment: "one" }, { comment: "two", imagecount: 2 }]);
+    });
+});
+
+// A link in a comment (FR-BRW-017 AC22): wavesrv finds the same ones (TestAnnotateLinks) and lists them in the brief.
+describe("links in a comment", () => {
+    const hosts = (comment: string) => linksOf(comment).map((l) => l.host);
+
+    it("recognises http and https addresses, typed or pasted, once each and in order, with their host name", () => {
+        expect(hosts("see https://example.test/a and http://example.test:8080/b")).toEqual([
+            "example.test",
+            "example.test:8080",
+        ]);
+        expect(hosts("twice https://example.test/a https://example.test/a")).toEqual(["example.test"]);
+        expect(hosts("(like https://example.test/a).")).toEqual(["example.test"]);
+        expect(linksOf("https://en.example.test/wiki/Go_(language) works")[0].href).toBe(
+            "https://en.example.test/wiki/Go_(language)"
+        );
+        expect(hosts("HTTPS://Example.test/A, nice!")).toEqual(["example.test"]);
+    });
+
+    it("never makes a link of another scheme, or of an address with no host", () => {
+        for (const comment of [
+            "javascript:alert(1)",
+            "file:///etc/passwd",
+            "data:text/html,<script>alert(1)</script>",
+            "ftp://example.test/a",
+            "mailto:someone@example.test",
+            "chrome://settings",
+            "http:///nohost",
+            "https://",
+            "xhttps://example.test/a",
+            "no link here, only example.test/a",
+        ]) {
+            expect([comment, linksOf(comment)]).toEqual([comment, []]);
+        }
+    });
+
+    it("leaves out the user, the password and the fragment an address carries", () => {
+        expect(linksOf("https://user:secret@example.test/p?q=1#frag")).toEqual([
+            { href: "https://example.test/p?q=1", host: "example.test" },
+        ]);
+    });
+
+    it("holds at most five links a zone", () => {
+        const many = Array.from({ length: 9 }, (_, i) => `https://example.test/${i}`).join(" ");
+        expect(linksOf(many)).toHaveLength(MaxLinksPerZone);
     });
 });
 

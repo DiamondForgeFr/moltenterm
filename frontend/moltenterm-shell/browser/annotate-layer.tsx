@@ -29,6 +29,7 @@ import {
     type AnnotateState,
     type AnnotateTarget,
     annotateTargetOf,
+    attachRef,
     cancelEdit,
     clearAll,
     commentKeyAction,
@@ -39,21 +40,31 @@ import {
     fieldPlacement,
     gestureOf,
     layerKeyAction,
+    linksOf,
     MaxCommentChars,
+    MaxRefs,
+    MaxRefsPerZone,
     MaxZones,
     type Point,
     type Recipient,
+    removeRef,
     resolveRecipient,
     setComment,
     type Size,
     type Zone,
+    type ZoneLink,
     zoneNumber,
+    type ZoneRef,
 } from "./annotate-model";
 import { composeAnnotatedImage } from "./annotate-paint";
+import { imageBlobs, MaxRefSourceBytes, prepareReference, RefError } from "./annotate-refs";
 import type { AnnotateOpen, AnnotateSession } from "./annotate-session";
 import { useTestContext } from "./test-context";
 
-const FieldSize: Size = { w: 288, h: 156 };
+const FieldSize: Size = { w: 288, h: 176 };
+// What a row of thumbnails and a row of link chips add to the comment field's height, for its placement.
+const RefsRowPx = 56;
+const LinksRowPx = 28;
 
 function pct(n: number): string {
     return `${(n * 100).toFixed(3)}%`;
@@ -139,18 +150,25 @@ export function CommentField({
     zone,
     n,
     stage,
+    note,
     onChange,
     onCommit,
     onCancel,
     onErase,
+    onAttach,
+    onRemoveRef,
 }: {
     zone: Zone;
     n: number;
     stage: Size;
+    // Why the last image could not be attached, worded; "" when it could.
+    note: string;
     onChange: (comment: string) => void;
     onCommit: () => void;
     onCancel: () => void;
     onErase: () => void;
+    onAttach: (files: File[]) => void;
+    onRemoveRef: (refId: number) => void;
 }) {
     const t = useT();
     const ref = useRef<HTMLTextAreaElement>(null);
@@ -159,12 +177,28 @@ export function CommentField({
         field?.focus();
         field?.setSelectionRange(field.value.length, field.value.length);
     }, [zone.id]);
-    const at = fieldPlacement(zone, stage, FieldSize);
+    const links = linksOf(zone.comment);
+    const height = FieldSize.h + (zone.refs.length > 0 ? RefsRowPx : 0) + (links.length > 0 ? LinksRowPx : 0);
+    const at = fieldPlacement(zone, stage, { w: FieldSize.w, h: height });
     return (
         <div
             className="absolute z-30 flex flex-col gap-1.5 rounded-4 border border-border bg-surface-3 p-2 shadow-e2"
             style={{ left: at.x, top: at.y, width: FieldSize.w }}
             data-testid="browser-annotate-field"
+            onDragOver={(e) => {
+                if (Array.from(e.dataTransfer?.types ?? []).includes("Files")) {
+                    e.preventDefault();
+                }
+            }}
+            onDrop={(e) => {
+                // Whatever is dropped stays out of the window's own handling (a file would be opened in place of the app);
+                // only the images of this very drop are attached.
+                e.preventDefault();
+                const files = imageBlobs(e.dataTransfer);
+                if (files.length > 0) {
+                    onAttach(files);
+                }
+            }}
         >
             <div className="flex items-center gap-1.5">
                 <NumberBadge n={n} />
@@ -192,6 +226,13 @@ export function CommentField({
                 className="w-full resize-none rounded-4 border border-border bg-surface-2 px-2 py-1.5 text-12 leading-4 text-primary outline-none focus:border-[var(--mt-action)]"
                 data-testid="browser-annotate-comment"
                 onChange={(e) => onChange(e.target.value)}
+                onPaste={(e) => {
+                    const files = imageBlobs(e.clipboardData);
+                    if (files.length > 0) {
+                        e.preventDefault();
+                        onAttach(files);
+                    }
+                }}
                 onKeyDown={(e) => {
                     const action = commentKeyAction({
                         key: e.key,
@@ -210,8 +251,77 @@ export function CommentField({
                     }
                 }}
             />
+            <RefThumbs refs={zone.refs} onRemove={onRemoveRef} />
+            <LinkChips links={links} />
+            {note ? (
+                <p
+                    role="status"
+                    className="text-11 leading-4 text-[var(--mt-state-warning)]"
+                    data-testid="browser-annotate-ref-note"
+                >
+                    {note}
+                </p>
+            ) : null}
             <p className="text-11 leading-4 text-muted">{t("browser.annotate.field.hint")}</p>
+            <p className="text-11 leading-4 text-muted">
+                {t("browser.annotate.field.refsHint", { count: MaxRefsPerZone })}
+            </p>
         </div>
+    );
+}
+
+// The reference images attached to a zone, as small thumbnails, each with its remove.
+export function RefThumbs({ refs, onRemove }: { refs: ZoneRef[]; onRemove?: (refId: number) => void }) {
+    const t = useT();
+    if (refs.length === 0) {
+        return null;
+    }
+    return (
+        <ul className="flex flex-wrap gap-2" data-testid="browser-annotate-refs">
+            {refs.map((r, i) => (
+                <li key={r.id} className="relative" data-testid="browser-annotate-ref">
+                    <img
+                        src={r.dataUrl}
+                        alt={t("browser.annotate.ref.alt", { n: i + 1 })}
+                        className="h-12 w-12 rounded-4 border border-border object-cover"
+                    />
+                    {onRemove != null ? (
+                        <button
+                            type="button"
+                            className="absolute -top-1.5 -right-1.5 flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border border-border bg-surface-3 text-muted hover:text-primary"
+                            title={t("browser.annotate.ref.remove")}
+                            aria-label={t("browser.annotate.ref.remove")}
+                            onClick={() => onRemove(r.id)}
+                            data-testid="browser-annotate-ref-remove"
+                        >
+                            <i className="fa fa-solid fa-xmark text-10" aria-hidden />
+                        </button>
+                    ) : null}
+                </li>
+            ))}
+        </ul>
+    );
+}
+
+// The links of a comment, as chips with the host name: they stay in the text, and nothing opens or fetches them.
+export function LinkChips({ links }: { links: ZoneLink[] }) {
+    if (links.length === 0) {
+        return null;
+    }
+    return (
+        <ul className="flex flex-wrap gap-1.5" data-testid="browser-annotate-links">
+            {links.map((link) => (
+                <li
+                    key={link.href}
+                    title={link.href}
+                    className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-4 border border-border bg-surface-2 px-1.5 py-0.5 text-11 text-secondary"
+                    data-testid="browser-annotate-link"
+                >
+                    <i className="fa fa-solid fa-link shrink-0 text-10 text-muted" aria-hidden />
+                    <span className="truncate">{link.host}</span>
+                </li>
+            ))}
+        </ul>
     );
 }
 
@@ -323,6 +433,8 @@ export type Outcome =
 
 export type ReviewViewProps = {
     target: AnnotateTarget;
+    // The zones as they will be sent: their comments' links and reference images are shown with the report.
+    zones: Zone[];
     recipients: Recipient[];
     chosen: Recipient;
     // The first name of an agent the developer picked that has since gone: nothing is chosen in its place.
@@ -446,6 +558,30 @@ export function ReviewView(props: ReviewViewProps) {
                         <DominoLoader label={t("browser.annotate.review.loading")} />
                     )}
                 </section>
+                {props.zones.some((z) => z.refs.length > 0 || linksOf(z.comment).length > 0) ? (
+                    <section
+                        className="flex flex-col gap-2"
+                        aria-label={t("browser.annotate.review.references")}
+                        data-testid="browser-annotate-review-refs"
+                    >
+                        <h4 className="text-11 font-semibold text-muted">{t("browser.annotate.review.references")}</h4>
+                        {props.zones.map((zone, i) =>
+                            zone.refs.length > 0 || linksOf(zone.comment).length > 0 ? (
+                                <div
+                                    key={zone.id}
+                                    className="flex flex-col gap-1.5"
+                                    data-testid="browser-annotate-review-zone"
+                                >
+                                    <span className="text-11 font-medium text-secondary">
+                                        {t("browser.annotate.review.zone", { n: i + 1 })}
+                                    </span>
+                                    <RefThumbs refs={zone.refs} />
+                                    <LinkChips links={linksOf(zone.comment)} />
+                                </div>
+                            ) : null
+                        )}
+                    </section>
+                ) : null}
                 <section className="flex flex-col gap-1.5" aria-label={t("browser.annotate.review.report")}>
                     <h4 className="text-11 font-semibold text-muted">{t("browser.annotate.review.report")}</h4>
                     {props.report.text != null ? (
@@ -580,7 +716,7 @@ function Review({
     const [busy, setBusy] = useState<"send" | "copy">(null);
     const [outcome, setOutcome] = useState<Outcome>(null);
     const { chosen, lost } = resolveRecipient(target.recipients, picked);
-    const zonesKey = JSON.stringify(zones.map((z) => [z.x, z.y, z.w, z.h, z.comment.trim()]));
+    const zonesKey = JSON.stringify(zones.map((z) => [z.x, z.y, z.w, z.h, z.comment.trim(), z.refs.length]));
     useEffect(() => {
         let live = true;
         setImage("");
@@ -623,6 +759,7 @@ function Review({
             live = false;
         };
     }, [zonesKey, lead, target.address, target.branch, target.root]);
+    const refTitle = t("browser.annotate.refTitle", { zone: "{zone}", n: "{n}" });
     const title = t("browser.annotate.materialTitle", { where: target.branch || hostOf(target.address) });
     const run = (kind: "send" | "copy") => {
         if (busy != null || image === "" || (kind === "send" && chosen == null)) {
@@ -633,7 +770,7 @@ function Review({
         fireAndForget(async () => {
             try {
                 const answer = callAnnotate(
-                    annotateRequest(kind, target, zones, { title, image, to: chosen ?? undefined })
+                    annotateRequest(kind, target, zones, { title, refTitle, image, to: chosen ?? undefined })
                 );
                 if (kind === "copy") {
                     // Started now, inside the click: the clipboard is written when the report is there.
@@ -660,6 +797,7 @@ function Review({
     return (
         <ReviewView
             target={target}
+            zones={zones}
             recipients={target.recipients}
             chosen={chosen}
             lost={lost}
@@ -723,6 +861,10 @@ function AnnotateLayer({
     const stageRef = useRef<HTMLDivElement>(null);
     const [capture, setCapture] = useState<string>(null);
     const [state, setState] = useState<AnnotateState>(emptyState);
+    // The latest state, for what is attached while an earlier image is still being prepared.
+    const stateRef = useRef(state);
+    stateRef.current = state;
+    const [refNote, setRefNote] = useState("");
     const [stage, setStage] = useState<Size>({ w: 0, h: 0 });
     const [drag, setDrag] = useState<{ start: Point; now: Point }>(null);
     const [review, setReview] = useState(false);
@@ -784,6 +926,34 @@ function AnnotateLayer({
     };
     const editing = state.editing != null ? state.zones.find((z) => z.id === state.editing.id) : null;
     const leave = () => (state.zones.length > 0 ? setLeaveAsk(true) : onClose());
+    // The images a paste or a drop gave: each is prepared (checked, decoded, written again) and attached in turn; the
+    // one that cannot be says why, in the field.
+    const attach = (zoneId: number, files: File[]) => {
+        setRefNote("");
+        fireAndForget(async () => {
+            for (const file of files) {
+                try {
+                    const dataUrl = await prepareReference(file);
+                    const attached = attachRef(stateRef.current, zoneId, dataUrl);
+                    if (attached.refused) {
+                        setRefNote(
+                            t(`browser.annotate.ref.refused.${attached.refused}`, {
+                                count: attached.refused === "zone" ? MaxRefsPerZone : MaxRefs,
+                            })
+                        );
+                        return;
+                    }
+                    stateRef.current = attached.state;
+                    setState(attached.state);
+                } catch (e) {
+                    const reason = e instanceof RefError ? e.reason : "decode";
+                    setRefNote(
+                        t(`browser.annotate.ref.refused.${reason}`, { limit: Math.round(MaxRefSourceBytes / 1048576) })
+                    );
+                }
+            }
+        });
+    };
     return (
         <div
             ref={rootRef}
@@ -889,6 +1059,12 @@ function AnnotateLayer({
                             zone={editing}
                             n={zoneNumber(state, editing.id)}
                             stage={stage}
+                            note={refNote}
+                            onAttach={(files) => attach(editing.id, files)}
+                            onRemoveRef={(refId) => {
+                                setRefNote("");
+                                setState((s) => removeRef(s, editing.id, refId));
+                            }}
                             onChange={(comment) => setState((s) => setComment(s, editing.id, comment))}
                             onCommit={() => {
                                 setState((s) => commitComment(s, editing.id));
