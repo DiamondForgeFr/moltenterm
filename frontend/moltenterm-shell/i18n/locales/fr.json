@@ -2895,9 +2895,10 @@
                 "alt": "Image de référence {n}",
                 "remove": "Retirer cette image",
                 "refused": {
+                    "notimage": "Seules des images peuvent être jointes, un fichier qui n'en est pas une a été laissé de côté.",
                     "type": "Seules les images png, jpeg, webp et gif peuvent être jointes.",
                     "size": "Cette image est trop lourde pour être jointe (plus de {limit} Mo).",
-                    "decode": "Cette image n'a pas pu être lue.",
+                    "decode": "Cette image est vide ou n'a pas pu être lue.",
                     "large": "Cette image est trop lourde pour être jointe.",
                     "zone": "Une zone porte au plus {count} images.",
                     "report": "Un rapport porte au plus {count} images."

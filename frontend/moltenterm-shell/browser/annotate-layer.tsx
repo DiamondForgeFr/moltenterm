@@ -29,7 +29,6 @@ import {
     type AnnotateState,
     type AnnotateTarget,
     annotateTargetOf,
-    attachRef,
     cancelEdit,
     clearAll,
     commentKeyAction,
@@ -40,6 +39,7 @@ import {
     fieldPlacement,
     gestureOf,
     layerKeyAction,
+    linkChip,
     linksOf,
     MaxCommentChars,
     MaxRefs,
@@ -47,6 +47,7 @@ import {
     MaxZones,
     type Point,
     type Recipient,
+    refTitleTemplate,
     removeRef,
     resolveRecipient,
     setComment,
@@ -57,7 +58,7 @@ import {
     type ZoneRef,
 } from "./annotate-model";
 import { composeAnnotatedImage } from "./annotate-paint";
-import { imageBlobs, MaxRefSourceBytes, prepareReference, RefError } from "./annotate-refs";
+import { attachReferences, fieldDragOver, fieldDrop, fieldPaste, MaxRefSourceBytes } from "./annotate-refs";
 import type { AnnotateOpen, AnnotateSession } from "./annotate-session";
 import { useTestContext } from "./test-context";
 
@@ -167,7 +168,7 @@ export function CommentField({
     onCommit: () => void;
     onCancel: () => void;
     onErase: () => void;
-    onAttach: (files: File[]) => void;
+    onAttach: (files: File[], others: number) => void;
     onRemoveRef: (refId: number) => void;
 }) {
     const t = useT();
@@ -177,6 +178,7 @@ export function CommentField({
         field?.focus();
         field?.setSelectionRange(field.value.length, field.value.length);
     }, [zone.id]);
+    // While typing, the chips follow the same rule wavesrv applies; the review shows the list wavesrv answers.
     const links = linksOf(zone.comment);
     const height = FieldSize.h + (zone.refs.length > 0 ? RefsRowPx : 0) + (links.length > 0 ? LinksRowPx : 0);
     const at = fieldPlacement(zone, stage, { w: FieldSize.w, h: height });
@@ -185,20 +187,8 @@ export function CommentField({
             className="absolute z-30 flex flex-col gap-1.5 rounded-4 border border-border bg-surface-3 p-2 shadow-e2"
             style={{ left: at.x, top: at.y, width: FieldSize.w }}
             data-testid="browser-annotate-field"
-            onDragOver={(e) => {
-                if (Array.from(e.dataTransfer?.types ?? []).includes("Files")) {
-                    e.preventDefault();
-                }
-            }}
-            onDrop={(e) => {
-                // Whatever is dropped stays out of the window's own handling (a file would be opened in place of the app);
-                // only the images of this very drop are attached.
-                e.preventDefault();
-                const files = imageBlobs(e.dataTransfer);
-                if (files.length > 0) {
-                    onAttach(files);
-                }
-            }}
+            onDragOver={fieldDragOver}
+            onDrop={(e) => fieldDrop(e, onAttach)}
         >
             <div className="flex items-center gap-1.5">
                 <NumberBadge n={n} />
@@ -226,13 +216,7 @@ export function CommentField({
                 className="w-full resize-none rounded-4 border border-border bg-surface-2 px-2 py-1.5 text-12 leading-4 text-primary outline-none focus:border-[var(--mt-action)]"
                 data-testid="browser-annotate-comment"
                 onChange={(e) => onChange(e.target.value)}
-                onPaste={(e) => {
-                    const files = imageBlobs(e.clipboardData);
-                    if (files.length > 0) {
-                        e.preventDefault();
-                        onAttach(files);
-                    }
-                }}
+                onPaste={(e) => fieldPaste(e, onAttach)}
                 onKeyDown={(e) => {
                     const action = commentKeyAction({
                         key: e.key,
@@ -442,7 +426,8 @@ export type ReviewViewProps = {
 
     image: string;
     imageFailed: boolean;
-    report: { text?: string; error?: Phrase };
+    // links: each zone's links as the brief lists them (wavesrv's answer), so that the review's chips are the brief's.
+    report: { text?: string; links?: string[][]; error?: Phrase };
     busy: "send" | "copy" | null;
     outcome: Outcome;
     onPick: (blockId: string) => void;
@@ -558,15 +543,16 @@ export function ReviewView(props: ReviewViewProps) {
                         <DominoLoader label={t("browser.annotate.review.loading")} />
                     )}
                 </section>
-                {props.zones.some((z) => z.refs.length > 0 || linksOf(z.comment).length > 0) ? (
+                {props.zones.some((z, i) => z.refs.length > 0 || (props.report.links?.[i]?.length ?? 0) > 0) ? (
                     <section
                         className="flex flex-col gap-2"
                         aria-label={t("browser.annotate.review.references")}
                         data-testid="browser-annotate-review-refs"
                     >
                         <h4 className="text-11 font-semibold text-muted">{t("browser.annotate.review.references")}</h4>
-                        {props.zones.map((zone, i) =>
-                            zone.refs.length > 0 || linksOf(zone.comment).length > 0 ? (
+                        {props.zones.map((zone, i) => {
+                            const links = (props.report.links?.[i] ?? []).map(linkChip);
+                            return zone.refs.length > 0 || links.length > 0 ? (
                                 <div
                                     key={zone.id}
                                     className="flex flex-col gap-1.5"
@@ -576,10 +562,10 @@ export function ReviewView(props: ReviewViewProps) {
                                         {t("browser.annotate.review.zone", { n: i + 1 })}
                                     </span>
                                     <RefThumbs refs={zone.refs} />
-                                    <LinkChips links={linksOf(zone.comment)} />
+                                    <LinkChips links={links} />
                                 </div>
-                            ) : null
-                        )}
+                            ) : null;
+                        })}
                     </section>
                 ) : null}
                 <section className="flex flex-col gap-1.5" aria-label={t("browser.annotate.review.report")}>
@@ -712,7 +698,7 @@ function Review({
     const [picked, setPicked] = useState<{ blockId: string; name: string }>(null);
     const [image, setImage] = useState<string>("");
     const [imageFailed, setImageFailed] = useState(false);
-    const [report, setReport] = useState<{ text?: string; error?: Phrase }>({});
+    const [report, setReport] = useState<{ text?: string; links?: string[][]; error?: Phrase }>({});
     const [busy, setBusy] = useState<"send" | "copy">(null);
     const [outcome, setOutcome] = useState<Outcome>(null);
     const { chosen, lost } = resolveRecipient(target.recipients, picked);
@@ -747,7 +733,7 @@ function Review({
                     annotateRequest("preview", target, zones, { to: chosen ?? undefined })
                 );
                 if (live) {
-                    setReport({ text: answer.text ?? "" });
+                    setReport({ text: answer.text ?? "", links: answer.links ?? [] });
                 }
             } catch (e) {
                 if (live) {
@@ -759,7 +745,7 @@ function Review({
             live = false;
         };
     }, [zonesKey, lead, target.address, target.branch, target.root]);
-    const refTitle = t("browser.annotate.refTitle", { zone: "{zone}", n: "{n}" });
+    const refTitle = refTitleTemplate(t);
     const title = t("browser.annotate.materialTitle", { where: target.branch || hostOf(target.address) });
     const run = (kind: "send" | "copy") => {
         if (busy != null || image === "" || (kind === "send" && chosen == null)) {
@@ -928,29 +914,23 @@ function AnnotateLayer({
     const leave = () => (state.zones.length > 0 ? setLeaveAsk(true) : onClose());
     // The images a paste or a drop gave: each is prepared (checked, decoded, written again) and attached in turn; the
     // one that cannot be says why, in the field.
-    const attach = (zoneId: number, files: File[]) => {
+    const attach = (zoneId: number, files: File[], others: number) => {
         setRefNote("");
         fireAndForget(async () => {
-            for (const file of files) {
-                try {
-                    const dataUrl = await prepareReference(file);
-                    const attached = attachRef(stateRef.current, zoneId, dataUrl);
-                    if (attached.refused) {
-                        setRefNote(
-                            t(`browser.annotate.ref.refused.${attached.refused}`, {
-                                count: attached.refused === "zone" ? MaxRefsPerZone : MaxRefs,
-                            })
-                        );
-                        return;
-                    }
-                    stateRef.current = attached.state;
-                    setState(attached.state);
-                } catch (e) {
-                    const reason = e instanceof RefError ? e.reason : "decode";
-                    setRefNote(
-                        t(`browser.annotate.ref.refused.${reason}`, { limit: Math.round(MaxRefSourceBytes / 1048576) })
-                    );
-                }
+            const note = await attachReferences(zoneId, files, others, {
+                getState: () => stateRef.current,
+                setState: (next) => {
+                    stateRef.current = next;
+                    setState(next);
+                },
+            });
+            if (note != null) {
+                setRefNote(
+                    t(`browser.annotate.ref.refused.${note}`, {
+                        count: note === "zone" ? MaxRefsPerZone : MaxRefs,
+                        limit: Math.round(MaxRefSourceBytes / 1048576),
+                    })
+                );
             }
         });
     };
@@ -1060,7 +1040,7 @@ function AnnotateLayer({
                             n={zoneNumber(state, editing.id)}
                             stage={stage}
                             note={refNote}
-                            onAttach={(files) => attach(editing.id, files)}
+                            onAttach={(files, others) => attach(editing.id, files, others)}
                             onRemoveRef={(refId) => {
                                 setRefNote("");
                                 setState((s) => removeRef(s, editing.id, refId));

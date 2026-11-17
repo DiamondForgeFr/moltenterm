@@ -209,7 +209,10 @@ describe("the review (FR-BRW-017 AC14)", () => {
             { ...Zone1, id: 2, comment: "Like https://example.test/inspiration", refs: [{ id: 7, dataUrl: Thumb }] },
             { ...Zone1, id: 3, comment: "javascript:alert(1)" },
         ];
-        const html = review({ zones });
+        const html = review({
+            zones,
+            report: { text: "The report's text.", links: [[], ["https://example.test/inspiration"], []] },
+        });
         expect(html).toContain('data-testid="browser-annotate-review-refs"');
         expect(html).toContain("References");
         expect(html.match(/data-testid="browser-annotate-review-zone"/g)).toHaveLength(1);
@@ -218,6 +221,14 @@ describe("the review (FR-BRW-017 AC14)", () => {
         expect(html).toContain("example.test");
         expect(html).not.toContain("browser-annotate-ref-remove");
         expect(review()).not.toContain("browser-annotate-review-refs");
+    });
+
+    it("shows the links the brief lists, not the ones the comment seems to hold", () => {
+        const zones: Zone[] = [{ ...Zone1, comment: "Like https://typed.test/a" }];
+        const listed = review({ zones, report: { text: "x", links: [["https://listed.test/b"]] } });
+        expect(listed).toContain("listed.test");
+        expect(listed).not.toContain("typed.test");
+        expect(review({ zones, report: { text: "x" } })).not.toContain("browser-annotate-review-refs");
     });
 
     it("shows what will be sent: the address, the branch, the image and the report as wavesrv writes it", () => {

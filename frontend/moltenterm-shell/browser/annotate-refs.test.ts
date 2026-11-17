@@ -16,8 +16,18 @@ import {
     RefSides,
 } from "./annotate-refs";
 
-function blob(type: string, size: number): Blob {
-    return { type, size } as Blob;
+// The first bytes of a png that says it is 40 x 30 pixels.
+function pngHeader(w: number, h: number): Uint8Array {
+    const bytes = new Uint8Array(33);
+    bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
+    new DataView(bytes.buffer).setUint32(16, w);
+    new DataView(bytes.buffer).setUint32(20, h);
+    return bytes;
+}
+
+// A file as the event gives it: its type and size, and the first bytes a slice of it reads.
+function blob(type: string, size: number, head: Uint8Array = pngHeader(40, 30)): Blob {
+    return { type, size, slice: () => ({ arrayBuffer: async () => head.buffer }) } as unknown as Blob;
 }
 
 function file(name: string, type: string): File {
@@ -44,8 +54,8 @@ describe("what is checked before an image is decoded", () => {
         }
     });
 
-    it("refuses an image that is empty or over the limit, by its size alone", () => {
-        expect(checkRefSource("image/png", 0)).toBe("size");
+    it("says an empty file holds no image to read, and an image over the limit is too large, by its size alone", () => {
+        expect(checkRefSource("image/png", 0)).toBe("decode");
         expect(checkRefSource("image/png", MaxRefSourceBytes)).toBeNull();
         expect(checkRefSource("image/png", MaxRefSourceBytes + 1)).toBe("size");
     });
