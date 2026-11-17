@@ -8,6 +8,7 @@
 // panel's stores (version-card-model.ts).
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -22,6 +23,7 @@ import { SentenceClasses, ToneMarks } from "../reviews/reviews-card";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { upcomingGet } from "../reviews/reviews-upcoming-client";
 import { useWorkspaceProjectDirs, useWorkspaceReviews } from "../reviews/reviews-workspace";
+import { formatShortcutById } from "../shortcuts/format";
 import { StateMark } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
@@ -95,12 +97,14 @@ export function VersionCard({
     answer,
     workspaceDir,
     onSwitch,
+    onAnnotate,
     onDone,
     onChanged,
 }: {
     answer: TestContextAnswer;
     workspaceDir: string;
     onSwitch?: (url: string) => void;
+    onAnnotate?: () => void;
     onDone: () => void;
     onChanged?: () => void;
 }) {
@@ -168,6 +172,14 @@ export function VersionCard({
                 setStopAsk(line?.key ?? null);
             }}
             onConfirmStop={confirmStop}
+            onAnnotate={
+                onAnnotate == null
+                    ? null
+                    : () => {
+                          onDone();
+                          onAnnotate();
+                      }
+            }
             onOpenReviews={(e, target) => {
                 onDone();
                 fireAndForget(() =>
@@ -192,6 +204,8 @@ export type VersionCardViewProps = {
     onSwitch: (line: VersionLine) => void;
     onAskStop: (line: VersionLine) => void;
     onConfirmStop: (line: VersionLine) => void;
+    // Annotate (#2327): the panel's annotate mode starts on this page; null when it cannot.
+    onAnnotate?: () => void;
     onOpenReviews: (e: React.MouseEvent, target: ReviewsTarget) => void;
     onOpenPr: (url: string) => void;
 };
@@ -342,9 +356,10 @@ function WhereYouAre({ data }: { data: VersionCardData }) {
     );
 }
 
-function PrSection({ data, onOpenReviews, onOpenPr }: VersionCardViewProps) {
+function PrSection({ data, onOpenReviews, onOpenPr, onAnnotate }: VersionCardViewProps) {
     const t = useT();
     const hint = useNewViewHint();
+    const annotateShortcut = formatShortcutById(isMacOS() ? "browser-annotate" : "browser-annotate-other");
     if (!data.known) {
         return null;
     }
@@ -383,8 +398,8 @@ function PrSection({ data, onOpenReviews, onOpenPr }: VersionCardViewProps) {
                     {t("browser.testContext.otherProject", { name: data.projectName })}
                 </p>
             ) : null}
-            {/* Stories 2 and 3 of #2325 add Annotate and Approve to this row. */}
-            {target != null || pr != null ? (
+            {/* Story 3 of #2325 adds Approve to this row. */}
+            {target != null || pr != null || onAnnotate != null ? (
                 <div className="flex flex-wrap items-center gap-2">
                     {target != null ? (
                         <button
@@ -405,6 +420,18 @@ function PrSection({ data, onOpenReviews, onOpenPr }: VersionCardViewProps) {
                             onClick={() => onOpenPr(pr.url)}
                         >
                             {t("browser.testContext.openPr")}
+                        </button>
+                    ) : null}
+                    {onAnnotate != null ? (
+                        <button
+                            type="button"
+                            className="inline-flex cursor-pointer items-center gap-1.5 rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
+                            title={t("browser.annotate.buttonTitle", { shortcut: annotateShortcut })}
+                            onClick={onAnnotate}
+                            data-testid="browser-version-annotate"
+                        >
+                            <i className="fa fa-solid fa-vector-square text-11" aria-hidden />
+                            {t("browser.annotate.button")}
                         </button>
                     ) : null}
                 </div>

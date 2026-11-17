@@ -144,8 +144,17 @@ export function useTestContext(url: string, workspaceDir: string): { answer: Tes
     return { answer: key ? current : null, refresh };
 }
 
-// onSwitch: the panel loads another served version in its shown tab (#2326).
-export function TestContextChip({ url, onSwitch }: { url: string; onSwitch?: (url: string) => void }) {
+// onSwitch: the panel loads another served version in its shown tab (#2326). onAnnotate: the panel starts its annotate
+// mode on the shown page (#2327); absent when the page cannot be annotated.
+export function TestContextChip({
+    url,
+    onSwitch,
+    onAnnotate,
+}: {
+    url: string;
+    onSwitch?: (url: string) => void;
+    onAnnotate?: () => void;
+}) {
     const t = useT();
     const workspace = useAtomValue(atoms.workspace);
     const workspaceDir = readWorkspaceProject(workspace).repo;
@@ -188,6 +197,7 @@ export function TestContextChip({ url, onSwitch }: { url: string; onSwitch?: (ur
                             answer={answer}
                             workspaceDir={workspaceDir}
                             onSwitch={onSwitch}
+                            onAnnotate={onAnnotate}
                             onDone={() => setAnchor(null)}
                             onChanged={refresh}
                         />

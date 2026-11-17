@@ -2351,6 +2351,8 @@
             "browser-stop-other": "Stop loading the page",
             "browser-inspect": "Inspect the page",
             "browser-inspect-other": "Inspect the page",
+            "browser-annotate": "Annotate the page",
+            "browser-annotate-other": "Annotate the page",
             "companion": "Agent companion",
             "palette": "Command palette",
             "command-panel": "The focused panel's commands",
@@ -2854,6 +2856,77 @@
             "reopen": "Reopen the page"
         },
         "reloading": "Reloading the page…",
+        "annotate": {
+            "button": "Annotate",
+            "buttonTitle": "Annotate the page: draw zones on it and send them to an agent ({shortcut})",
+            "menu": "Annotate the page",
+            "layerLabel": "Annotating the page",
+            "capturing": "Capturing the page…",
+            "captureFailed": "The page could not be captured. Show its tab and try again.",
+            "close": "Close",
+            "hint": "Draw a zone around what to change, then type your comment.",
+            "tray": {
+                "zones": {
+                    "one": "{count} zone",
+                    "other": "{count} zones"
+                },
+                "clear": "Clear all",
+                "review": "Review and send",
+                "leaveAsk": {
+                    "one": "Discard {count} zone?",
+                    "other": "Discard {count} zones?"
+                },
+                "discard": "Discard",
+                "keep": "Keep drawing",
+                "full": "That is the most zones one report holds ({count})."
+            },
+            "zone": {
+                "label": "Zone {n}",
+                "labelWith": "Zone {n}: {comment}"
+            },
+            "field": {
+                "title": "Zone {n}",
+                "placeholder": "What is wrong here?",
+                "hint": "Enter validates, Shift+Enter adds a line",
+                "erase": "Erase this zone"
+            },
+            "review": {
+                "title": "What will be sent",
+                "back": "Back to drawing",
+                "to": "To",
+                "page": "Page",
+                "image": "Annotated image",
+                "report": "What the agent reads",
+                "reportNote": "MoltenTerm adds its own header and asks for a one-line outcome.",
+                "loading": "Preparing the report…",
+                "failed": "The report could not be prepared: {error}",
+                "send": "Send to {name}",
+                "sending": "Sending…",
+                "copy": "Copy the report",
+                "copied": "Report copied. The image is kept in this project's materials.",
+                "copyFailed": "The report could not be copied: {error}",
+                "noAgent": "No agent runs for this project right now. Copy the report to give it to one.",
+                "pick": "Send to another agent",
+                "leadNote": "{name} will be asked to hand the zones to the right agents."
+            },
+            "why": {
+                "works": "works on {branch}",
+                "owns": "owns the agent working on {branch}",
+                "pr": "signed the pull request",
+                "locked": "keeps a name locked for this project",
+                "project": "leads this project"
+            },
+            "sent": {
+                "delivered": "{name} has it.",
+                "typed": "The request is typed in {name}'s prompt: press Enter there to send it.",
+                "queued": "{name} is busy: the request is typed when their prompt is free.",
+                "kept": "The image is kept in this project's materials, not in its files.",
+                "done": "Done"
+            },
+            "gone": "{name} no longer runs. Choose another agent or copy the report.",
+            "sendFailed": "Nothing was sent: {error}",
+            "materialTitle": "Annotated page: {where}"
+        },
         "testContext": {
             "cardTitle": "The version you are looking at",
             "unknown": "Source unknown",

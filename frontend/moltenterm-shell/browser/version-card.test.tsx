@@ -205,6 +205,18 @@ describe("the version card (#2326)", () => {
         expect(html).not.toContain('data-testid="browser-test-context-details"');
     });
 
+    it("offers Annotate in the actions beside the pull request's, with its shortcut, when the page can be annotated (#2327)", () => {
+        const html = draw("Human Testing", { onAnnotate: Noop });
+        expect(html).toContain('data-testid="browser-version-annotate"');
+        expect(html).toContain(">Annotate<");
+        expect(html).toContain("draw zones on it and send them to an agent (");
+        expect(html.indexOf("Open in Integration")).toBeLessThan(
+            html.indexOf('data-testid="browser-version-annotate"')
+        );
+        expect(html.indexOf('data-testid="browser-version-annotate"')).toBeLessThan(html.indexOf("What to test"));
+        expect(draw("Human Testing")).not.toContain("browser-version-annotate");
+    });
+
     it("says what a stop did", () => {
         const html = draw("Human Testing", {
             outcome: { text: { key: "browser.testContext.stop.doneCurrent" }, bad: false },
