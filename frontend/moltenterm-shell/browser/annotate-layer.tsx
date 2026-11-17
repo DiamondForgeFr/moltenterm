@@ -17,6 +17,7 @@ import { useT, useTCount } from "../i18n/i18n";
 import { errorPhrase, type Phrase, phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import { ReviewsModel } from "../reviews/reviews-store";
+import { upcomingGet } from "../reviews/reviews-upcoming-client";
 import { useWorkspaceReviews } from "../reviews/reviews-workspace";
 import { DominoLoader } from "../suite/suite";
 import { readWorkspaceProject } from "../workspace-project";
@@ -664,6 +665,14 @@ function useAnnotateTarget(url: string): AnnotateTarget {
     const asks = useAtomValue(ReviewsModel.getInstance().rebaseAsksAtom);
     const states = useAtomValue(AgentStates.getInstance().dataAtom);
     const locks = useAtomValue(AgentNameLocks.getInstance().locksAtom);
+    const sameProject = !!answer?.sameproject;
+    const upcomingKnown = projects.find((p) => p.dir === workspaceDir)?.ctx.upcoming != null;
+    useEffect(() => {
+        // The agents on the branches come with the upcoming work, which the sidebar asks only while PRs are listed.
+        if (workspaceDir && sameProject && !upcomingKnown) {
+            upcomingGet(workspaceDir).catch(() => {});
+        }
+    }, [workspaceDir, sameProject, upcomingKnown]);
     return useMemo(
         () => annotateTargetOf({ url, answer, workspaceDir, projects, asks, states, locks }),
         [url, answer, workspaceDir, projects, asks, states, locks]
@@ -782,7 +791,11 @@ function AnnotateLayer({
                             }
                             setLeaveAsk(false);
                             setState((s) => (s.editing != null ? cancelEdit(s, s.editing.id) : s));
-                            e.currentTarget.setPointerCapture(e.pointerId);
+                            try {
+                                e.currentTarget.setPointerCapture(e.pointerId);
+                            } catch {
+                                // The pointer was released already: the drag still follows the moves the stage gets.
+                            }
                             const p = pointOf(e);
                             setDrag({ start: p, now: p });
                         }}
