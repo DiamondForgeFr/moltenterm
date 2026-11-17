@@ -1,3 +1,11 @@
 {
-    "features": []
+    "features": [
+        {
+            "id": "logwatch",
+            "labelkey": "featuresInTest.features.logwatch.label",
+            "descriptionkey": "featuresInTest.features.logwatch.description",
+            "channels": ["dev", "local", "gold"],
+            "ticket": 2336
+        }
+    ]
 }

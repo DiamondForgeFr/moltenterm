@@ -35,6 +35,14 @@ export function resolveBuildChannel(opts: {
     return isBuildChannelName(named) ? named : "local";
 }
 
+// The channels MoltenTerm's own developers build and run (dev, local and gold), never a release candidate, a public
+// release or a channel that is not known. What exists only for them (the log watch, FR-BOSS-012) checks it on top of the
+// registry of gated features, so a registry that listed rc or public by mistake could still not open it on a release.
+// must match pkg/molten/buildchannel/buildchannel.go InternalChannel.
+export function internalChannel(channel: GateChannel): boolean {
+    return channel === "dev" || channel === "local" || channel === "gold";
+}
+
 // How much of what is gated a channel opens: the brainstorm on gold, its scripted replay too on local and dev.
 const GateReach: Record<BuildChannelName, number> = { rc: 0, public: 0, gold: 1, local: 2, dev: 2 };
 

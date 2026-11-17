@@ -13,8 +13,11 @@ import (
 // The features that ship gated to the build channel while they are tested (FR-BOSS-011, #2254) are declared once, in
 // gated-features.json: the window imports the same file (frontend/moltenterm-shell/build/gated-features.ts). A gate
 // names its feature with a constant declared here, one per feature of the registry (`FeatureName = "name"`), and
-// TestEveryGateNamesARegistryFeature fails on any other. No feature is gated since the brainstorm shipped on every
-// channel (#2320), so the registry and this list are empty.
+// TestEveryGateNamesARegistryFeature fails on any other. The brainstorm left the registry when it shipped on every
+// channel (#2320); the log watch is in it since #2336.
+
+// FeatureLogWatch: Brokk's log watch (FR-BOSS-012, #2336), on gold, dev and local builds only.
+const FeatureLogWatch = "logwatch"
 
 // NarrowingMetaKey is the key of the client's meta holding the developer's switches ({"public": bool, "off": [ids]}).
 // The client object lives in this computer's database, so the state is never synced, and the metaguard refuses a
@@ -163,6 +166,21 @@ func FeatureEnabled(id string) bool {
 		return false
 	}
 	return !currentNarrowing().Closes(id)
+}
+
+// LogWatchAllowed is the log watch's whole rule for a channel and the developer's switches: the registry opens it and
+// the channel is internal, so that it never runs on a release candidate or a public release whatever the registry says.
+func LogWatchAllowed(channel string, narrowing Narrowing) bool {
+	return InternalChannel(channel) && FeatureOn(FeatureLogWatch, channel, narrowing)
+}
+
+// LogWatchEnabled reads the log watch's gate for this wavesrv, at each call: shut where Electron main gave no channel,
+// and the switches are not read on a channel that is not internal.
+func LogWatchEnabled() bool {
+	if !started.given || !InternalChannel(started.channel) {
+		return false
+	}
+	return FeatureEnabled(FeatureLogWatch)
 }
 
 // StartAsForTest makes this wavesrv look as if Electron main started it on a gate channel, with the developer's

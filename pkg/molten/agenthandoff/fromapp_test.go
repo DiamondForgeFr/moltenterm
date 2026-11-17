@@ -77,6 +77,21 @@ func TestSendFromAppClosingReplacesTheOutcomeLine(t *testing.T) {
 	}
 }
 
+// MoltenTerm's own requests list the running local agents with their terminals and where they are (#2336): a remote
+// agent and a terminal without one are not listed.
+func TestAppAgents(t *testing.T) {
+	m, _, projA, projB := makeFixture(t)
+	agents := m.AppAgents(context.Background())
+	got := map[string]LeadFound{}
+	for _, a := range agents {
+		got[a.BlockId] = a
+	}
+	if len(agents) != 2 || got["blockA"].FirstName != "Camille" || got["blockA"].WorkspaceId != "wsA" || got["blockA"].WorkspaceName != "A" ||
+		got["blockA"].ProjectDir != projA || got["blockA"].Folder != projA || got["blockB"].ProjectDir != projB || got["blockB"].AgentName != "Codex" {
+		t.Fatalf("agents: %+v", agents)
+	}
+}
+
 // The lead is found by the sub-agent registry's terminal, or by a signed first name of the same CLI in the same project;
 // a name another CLI or another project holds is not the lead (#1779).
 func TestFindLead(t *testing.T) {

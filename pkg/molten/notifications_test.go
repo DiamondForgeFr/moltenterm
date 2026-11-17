@@ -137,6 +137,38 @@ func TestNotificationKeepDismissed(t *testing.T) {
 	}
 }
 
+// The log watch's cards (FR-BOSS-012, #2336): Quiet publishes them already read, so no toast shows them, new or
+// updated; RefreshOnly brings an open one up to date and never makes one that is archived or missing come back.
+func TestNotificationQuietAndRefreshOnly(t *testing.T) {
+	now := time.UnixMilli(9000)
+	card := NotificationInput{Key: "logwatch:abc", Source: "logwatch", Kind: "error", Title: "A new panic in the log", Message: "once", Quiet: true}
+	update := NotificationPublishUpdate(nil, card, now, "a")
+	value, _ := update["molten:notif:a"].(map[string]any)
+	if value["read"] != true || value["quiet"] != nil || value["refreshonly"] != nil {
+		t.Fatalf("a quiet card: %+v", value)
+	}
+	refresh := card
+	refresh.RefreshOnly = true
+	refresh.Message = "3 times"
+	if update := NotificationPublishUpdate(nil, refresh, now, "b"); update != nil {
+		t.Fatalf("a refresh with no card open published %+v", update)
+	}
+	meta := roundTrip(t, waveobj.MetaMapType(update))
+	changed := NotificationPublishUpdate(meta, refresh, now.Add(time.Second), "b")
+	got, _ := changed["molten:notif:a"].(map[string]any)
+	if len(changed) != 1 || got["message"] != "3 times" || got["read"] != true {
+		t.Fatalf("a refresh of the open card: %+v", changed)
+	}
+	archived := waveobj.MetaMapType{"molten:notif:a": notif(map[string]any{"source": "logwatch", "key": card.Key, "title": card.Title,
+		"message": "once", "updated": float64(5000), "archived": float64(6000)})}
+	if update := NotificationPublishUpdate(archived, refresh, now, "c"); update != nil {
+		t.Fatalf("a refresh brought back an archived card: %+v", update)
+	}
+	if update := NotificationPublishUpdate(archived, card, now, "c"); update["molten:notif:c"] == nil {
+		t.Fatalf("a new card after the archived one: %+v", update)
+	}
+}
+
 func TestNotificationRetention(t *testing.T) {
 	now := time.UnixMilli(NotificationClosedRetention.Milliseconds() + 10000)
 	recent := float64(now.UnixMilli() - 100)
