@@ -4,6 +4,7 @@
 // The zones of the annotate mode and the agent they are proposed to (FR-BRW-017 AC12 to AC14, #2327). Synthetic
 // projects, branches and agents only.
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import { EmptyAgentStates } from "../agent-state-model";
@@ -25,6 +26,7 @@ import {
     fieldPlacement,
     gestureOf,
     layerKeyAction,
+    linkChip,
     linksOf,
     MaxCommentChars,
     MaxLinksPerZone,
@@ -45,6 +47,11 @@ import {
 } from "./annotate-model";
 import type { TestContextAnswer } from "./test-context-model";
 import type { ProjectFacts } from "./version-card-model";
+
+// The fixtures wavesrv's own test reads (TestAnnotateLinksSplitAsTheWindowDoes): read while the file is collected.
+const Fixtures: { name: string; comment: string; hosts: string[] }[] = JSON.parse(
+    readFileSync(new URL("../../../pkg/molten/mission/testdata/annotate-links.json", import.meta.url), "utf8")
+);
 
 const Stage = { w: 1000, h: 600 };
 const Box = { x: 0.1, y: 0.2, w: 0.3, h: 0.25 };
@@ -671,6 +678,23 @@ describe("links in a comment", () => {
     it("holds at most five links a zone", () => {
         const many = Array.from({ length: 9 }, (_, i) => `https://example.test/${i}`).join(" ");
         expect(linksOf(many)).toHaveLength(MaxLinksPerZone);
+    });
+
+    it("splits a comment as wavesrv does, Unicode spaces and invisible characters included (the same fixtures)", () => {
+        expect(Fixtures.length).toBeGreaterThanOrEqual(15);
+        for (const c of Fixtures) {
+            expect([c.name, hosts(c.comment)]).toEqual([c.name, c.hosts]);
+        }
+    });
+});
+
+describe("a link the review shows", () => {
+    it("is a chip of an address wavesrv listed, with its host name, whatever it looks like", () => {
+        expect(linkChip("https://a.test:8080/x?p=1")).toEqual({
+            href: "https://a.test:8080/x?p=1",
+            host: "a.test:8080",
+        });
+        expect(linkChip("not an address")).toEqual({ href: "not an address", host: "not an address" });
     });
 });
 

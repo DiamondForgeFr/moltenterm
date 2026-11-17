@@ -2895,9 +2895,10 @@
                 "alt": "Reference image {n}",
                 "remove": "Remove this image",
                 "refused": {
+                    "notimage": "Only images can be attached: a file that is not one was left out.",
                     "type": "Only png, jpeg, webp and gif images can be attached.",
                     "size": "That image is too large to attach (over {limit} MB).",
-                    "decode": "That image could not be read.",
+                    "decode": "That image is empty or could not be read.",
                     "large": "That image is too large to attach.",
                     "zone": "A zone holds at most {count} images.",
                     "report": "A report holds at most {count} images."

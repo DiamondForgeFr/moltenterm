@@ -89,6 +89,16 @@ export function refCount(state: AnnotateState): number {
     return state.zones.reduce((n, z) => n + z.refs.length, 0);
 }
 
+// refRoom: whether a zone can take another image, "" when it can, else which limit is reached. Asked before an image is
+// prepared, so that none is decoded for nothing.
+export function refRoom(state: AnnotateState, zoneId: number): "" | "zone" | "report" {
+    const zone = state.zones.find((z) => z.id === zoneId);
+    if (zone != null && zone.refs.length >= MaxRefsPerZone) {
+        return "zone";
+    }
+    return refCount(state) >= MaxRefs ? "report" : "";
+}
+
 // attachRef: a reference image on a zone. A zone holds MaxRefsPerZone and a report MaxRefs: past either nothing is added
 // and the limit says which. Erasing a zone, or clearing all, takes its images with it.
 export function attachRef(
@@ -100,11 +110,9 @@ export function attachRef(
     if (zone == null || !dataUrl) {
         return { state, refused: "" };
     }
-    if (zone.refs.length >= MaxRefsPerZone) {
-        return { state, refused: "zone" };
-    }
-    if (refCount(state) >= MaxRefs) {
-        return { state, refused: "report" };
+    const full = refRoom(state, zoneId);
+    if (full) {
+        return { state, refused: full };
     }
     const ref: ZoneRef = { id: state.nextRefId, dataUrl };
     return {
@@ -132,10 +140,30 @@ export type ZoneLink = { href: string; host: string };
 
 const LinkPattern = /\bhttps?:\/\/[^\s<>"'`/][^\s<>"'`]*/gi;
 
+// cleanComment: the comment as wavesrv reads it (annotateBlock): lines and tabs kept, the line and paragraph separators
+// as new lines, any other control or invisible format character dropped, so that an address is the same one in the
+// field's chips and in the brief.
+export function cleanComment(text: string): string {
+    return (text ?? "")
+        .replace(/\r\n?/g, "\n")
+        .replace(new RegExp("[\\u2028\\u2029]", "g"), "\n")
+        .replace(/[\p{Cc}\p{Cf}]/gu, (c) => (c === "\n" || c === "\t" ? c : ""))
+        .trim();
+}
+
+// linkChip: the chip of an address wavesrv listed.
+export function linkChip(href: string): ZoneLink {
+    try {
+        return { href, host: new URL(href).host };
+    } catch {
+        return { href, host: href };
+    }
+}
+
 export function linksOf(comment: string): ZoneLink[] {
     const out: ZoneLink[] = [];
     const seen = new Set<string>();
-    for (const found of (comment ?? "").match(LinkPattern) ?? []) {
+    for (const found of cleanComment(comment).match(LinkPattern) ?? []) {
         let raw = found.replace(/[.,;:!?'"]+$/, "");
         while (raw.endsWith(")") && raw.split("(").length < raw.split(")").length) {
             raw = raw.slice(0, -1);
@@ -494,7 +522,15 @@ export type AnnotateResult = {
     to?: string;
     briefpath?: string;
     references?: string[][];
+    // Each zone's links as the brief lists them: the review's chips are these.
+    links?: string[][];
 };
+
+// refTitleTemplate: the title of a reference image's material, with {zone} and {n} left for wavesrv to fill with the
+// image's place, in the developer's language.
+export function refTitleTemplate(t: (key: string, vars?: Record<string, string | number>) => string): string {
+    return t("browser.annotate.refTitle", { zone: "{zone}", n: "{n}" });
+}
 
 export function annotateRequest(
     action: AnnotateAction,
