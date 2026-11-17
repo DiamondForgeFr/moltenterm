@@ -19,6 +19,10 @@ and the docs boundary (no workflow builds or deploys the docs; `docs/package.jso
 unchanged since the previous review, the pages only gained reviewed repository content) are the same, so each review
 keeps its reason with a new date.
 
+On 2026-11-17 GitHub reviewed GHSA-fc5q-39xc-vjpf (picomatch, no fixed version) and every full scan blocked on its
+seven occurrences (#2348). Each is reviewed below as nonapplicable. The deepmerge advisory was withdrawn the day
+before (below), so the scan on develop (`17f23a0c2`) now reports 19 npm occurrences, all matched by a review.
+
 The 2026-10-17 npm audit reported 61 vulnerable package/meta-vulnerability entries. They resolved to **15 distinct
 GHSA IDs / 18 leaf occurrences**; the full parent graph remains in the raw report. Go reported **GO-2026-5932** at module
 level in the root graph, with no affected-package or called-symbol finding; standalone Tsunami has none on the scanned
@@ -58,7 +62,7 @@ prototype-pollution input, or run in a credential-bearing deploy pipeline, reass
 | Tinypool 1.1.1; [GHSA-5gmw-xhrv-c9v3](https://github.com/advisories/GHSA-5gmw-xhrv-c9v3) | Docusaurus SSG constructs the worker filename from its own __dirname/ssgWorkerThread.js, fixed worker_threads options and site params. Existing Object.prototype execArgv/env pollution could still inject worker options: no identified anonymous pollution source feeds this build-only pool. Vitest 4 does not use this locked Tinypool occurrence. | Retain a low current exposure docs follow-up, with the pollution prerequisite explicit. Qualify Docusaurus/Tinypool >=2.1.2; discovery of an input primitive or credential-bearing docs build requires blocking high-impact review. |
 | Tinypool 1.1.1; [GHSA-85c8-ppgw-ccpr](https://github.com/advisories/GHSA-85c8-ppgw-ccpr) | Docusaurus core/lib/ssg/ssgExecutor.js calls pool.run(task) **without a second options object**. The advisory explicitly excludes this invocation shape; its exploit needs a caller-provided run options object plus inherited filename. | Condition nonapplicable; same owned Tinypool follow-up. A future second run argument cannot inherit this rationale. |
 | uuid 8.3.2 under sockjs; [GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq) | SockJS transport imports only v4 and invokes uuidv4() without a caller buffer/offset. The affected paths are v3/v5/v6 with external output buffers. The app's direct uuid is separately patched. | Condition nonapplicable; update the docs SockJS chain when compatible. |
-| deepmerge 4.3.1 under @rollup/plugin-node-resolve (application tooling) and @svgr/plugin-svgo (docs); [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) (#1209, 2026-10-28) | Prototype poisoning needs an attacker-supplied source object passed to a merge. plugin-node-resolve's only call is `deepMerge({}, defaults)` on its own hardcoded defaults, then frozen; @svgr/plugin-svgo 8.1.0 declares the package but its dist never imports it. No build configuration, docs content or user input reaches a merge. No fixed version exists. | Condition nonapplicable; move to a fixed release when one ships, reassess if a caller starts merging external objects. |
+| picomatch 4.0.4 (root, application build/test tooling) and **six 2.3.2 copies** in the docs workspace (under @docusaurus/core, anymatch, jest-util, micromatch, unified-args and webpack-dev-server); [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf) (#2348, 2026-11-17) | The ReDoS needs an attacker-supplied **pattern**, a single-branch repeated extglob such as `+(*)`, matched against a crafted string; a crafted path matched against a fixed pattern is not the condition. 4.0.4 serves vite 6, @rollup/pluginutils, fdir, tinyglobby, vitest 4 and @parcel/watcher: their patterns are the repository's literals (vite/vitest configuration, `import.meta.glob` calls, plugin include/exclude), none an extglob, and the Vite dev server only matches request paths against fixed patterns. The docs copies compile Docusaurus, webpack-dev-server and chokidar options and the owned content globs; jest-worker 29.7.0 only calls jest-util's `isPromise`, never `globsToMatcher`; remark-cli (unified-args) is declared but no script or workflow runs it. The app bundles import no glob matcher. The shipped Tsunami scaffold installs @tailwindcss/cli outside the lockfile (so the scan does not see it), whose @parcel/watcher depends on picomatch: Tsunami runs the CLI without `--watch`, and the CLI (4.2.1 in the lockfile, 4.3.5 the latest of the scaffold's `^4.2.1`) subscribes to the watcher only in watch mode, with a directory and a callback and no `ignore` option, the only path into picomatch. 4.0.7 and 2.3.2 are the latest releases; no fix exists. | Condition nonapplicable on all seven occurrences; move to a fixed release when one ships, reassess if any caller compiles a pattern from outside input or Tsunami starts the Tailwind watcher. |
 
 These are owned dated reviews, not promises that future dependency graphs or deployments retain the same boundary.
 The policy blocks unknown/new occurrences until reviewed, and expires these reviews even if an advisory disappears.
@@ -72,6 +76,10 @@ must reassess those source/deployment changes even when scanner metadata remains
   withdrawn on 2026-10-23 (#2122). npm no longer reports either, so their dated dispositions are removed. No fixed
   version of either package exists; the two literal-format `sprintf` callers (`emain/emain.ts`,
   `frontend/app/store/ws.ts`) are unchanged. A republished advisory has a new fingerprint and blocks until reviewed.
+- deepmerge 4.3.1; [GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4), reviewed as
+  nonapplicable in #1209 and withdrawn by GitHub on 2026-11-16 (#2348). npm no longer reports it, so its dated
+  disposition is removed. The only caller, `deepMerge({}, defaults)` in @rollup/plugin-node-resolve on its own frozen
+  defaults, is unchanged; a republished advisory blocks until reviewed again.
 
 ## Resolved by upgrade
 
