@@ -11916,8 +11916,8 @@
         "note": "These switches only turn features off, on this computer. A feature never opens on a build whose channel does not have it, and nothing here is synced.",
         "features": {
             "logwatch": {
-                "label": "Brokk's log watch",
-                "description": "Brokk reads the app's log every 10 minutes and leaves a calm card in his notes when a panic, a crash, a loop or a fast-growing log shows up, with a way to ask an agent to look. Gold, dev and local builds only, never in a release."
+                "label": "{name}'s log watch",
+                "description": "{name} reads the app's log every 10 minutes and leaves a calm card in his notes when a panic, a crash, a loop or a fast-growing log shows up, with a way to ask an agent to look. Gold, dev and local builds only, never in a release."
             }
         }
     },
@@ -11932,7 +11932,7 @@
         "noAgent": "No agent of MoltenTerm's repository runs. Start one in MoltenTerm's workspace, then ask again.",
         "gone": "That agent has stopped. Ask again to pick another one.",
         "refused": "Only an agent of MoltenTerm's repository gets the log. Ask again to pick one.",
-        "unknown": "Brokk no longer keeps this one in his notes.",
+        "unknown": "{name} no longer keeps this one in his notes.",
         "unavailable": "The log watch is not available on this build."
     },
     "library": {
