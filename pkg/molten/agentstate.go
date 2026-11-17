@@ -35,6 +35,9 @@ const (
 	AgentStateSeenCommand = "moltenagentstateseen"
 	// A window settles the stop held on a terminal (#1876).
 	AgentStopSettleCommand = "moltenagentstopsettle"
+	// What each agent was used over the last 7 days: Brokk's usage grid orders its providers and hides the unused ones
+	// by it (FR-BOSS-009, AC93 to AC98, #2341).
+	AgentUseCommand = "moltenagentuse"
 
 	// The last first name a pane's agent had (FR-CONT-014), kept in the block's meta so a session that outlives a
 	// restart of MoltenTerm (a durable terminal) gets it back.

@@ -962,6 +962,7 @@ func StartAgentStates() {
 		loadAgentNames(defaultAgentStates)
 		go defaultAgentStates.run()
 		go defaultAgentStates.runSettle()
+		startAgentUse()
 		defaultProcWatcher.locator = getShellLocator()
 		go defaultProcWatcher.run()
 	})

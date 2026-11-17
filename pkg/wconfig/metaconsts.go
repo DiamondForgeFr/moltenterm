@@ -165,6 +165,8 @@ const (
 	ConfigKey_BossQuietTo                    = "boss:quietto"
 	ConfigKey_BossNeverCome                  = "boss:nevercome"
 	ConfigKey_BossProximity                  = "boss:proximity"
+	ConfigKey_BossUsageShow                  = "boss:usageshow"
+	ConfigKey_BossUsageHide                  = "boss:usagehide"
 	ConfigKey_BossBrainstormsDir             = "boss:brainstormsdir"
 	ConfigKey_BossProjectsDir                = "boss:projectsdir"
 	ConfigKey_BossAutoApprove                = "boss:autoapprove"

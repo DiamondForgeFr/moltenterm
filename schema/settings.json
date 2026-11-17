@@ -1953,6 +1953,28 @@
             "order": 71
           }
         },
+        "boss:usageshow": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Coding agents (claude, codex) that Brokk's usage grid always shows, even when they were not used for 7 days and their plan is not paid. Set from a row's menu in the grid and from the Not used lately list",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 174
+          }
+        },
+        "boss:usagehide": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Coding agents (claude, codex) that Brokk's usage grid never shows, even on a paid plan. Set from a row's menu in the grid",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 175
+          }
+        },
         "boss:brainstormsdir": {
           "type": "string",
           "description": "The folder where the brainstorms with Brokk are saved, one folder per idea. ~/MoltenTerm/Brainstorms when unset",
