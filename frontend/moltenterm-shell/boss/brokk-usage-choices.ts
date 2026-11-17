@@ -9,17 +9,12 @@ import { getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { writeSettings } from "../command-panel/bindings";
 import { t } from "../i18n/i18n";
-import { UsageChoice, UsageChoices, withChoice } from "./brokk-usage-model";
+import { choicesOf, UsageChoice, UsageChoices, withChoice } from "./brokk-usage-model";
+
+export { choicesOf };
 
 export const UsageShowKey = "boss:usageshow";
 export const UsageHideKey = "boss:usagehide";
-
-// The lists as the settings hold them: anything that is not a list of ids is no choice.
-export function choicesOf(show: unknown, hide: unknown): UsageChoices {
-    const ids = (value: unknown): string[] =>
-        Array.isArray(value) ? value.filter((id): id is string => typeof id === "string" && id !== "") : [];
-    return { show: ids(show), hide: ids(hide) };
-}
 
 export function readChoices(): UsageChoices {
     return choicesOf(

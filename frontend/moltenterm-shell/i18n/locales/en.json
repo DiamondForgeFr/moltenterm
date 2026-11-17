@@ -12863,6 +12863,7 @@
         "rowUnreadable": "{name}, no reading: {reason}",
         "rowNoReading": "{name}, no reading",
         "choice": {
+            "open": "Show or hide {name}",
             "show": "Always show {name}",
             "hide": "Hide {name}",
             "auto": "Show {name} automatically"
@@ -12874,7 +12875,9 @@
             "lastUse": "Last use {ago}",
             "noUse": "No use seen",
             "chosen": "Hidden by you",
-            "alwaysShow": "Always show"
+            "alwaysShow": "Always show",
+            "auto": "Show automatically",
+            "for": "{action}: {name}"
         },
         "legend": {
             "label": "Colours and marks of the week grid",

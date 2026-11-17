@@ -8,11 +8,12 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
-import { gaugeRows } from "../companion/companion-gauges-model";
+import { gaugeRows, UsageSnapshot } from "../companion/companion-gauges-model";
 import { DownloadRecord } from "../downloads/downloads-model";
 import { checkUnread, MoltentermNotification } from "../notifications-model";
 import { readingStale } from "../usage-week/usage-week-model";
 import type { UsageReadings } from "./boss-usage";
+import { hiddenReason, UsageContext } from "./brokk-usage-model";
 import type { BrokkEvent } from "./brokk-visit-events";
 
 export const DownloadsSource = "downloads";
@@ -110,44 +111,54 @@ export type UsageMemory = { seen: Set<string> };
 
 export const EmptyUsageMemory: UsageMemory = { seen: new Set() };
 
-// The providers whose fullest window is at the line or above it. Several agents of one provider share its plan: the
-// provider takes its latest reading. A reading too old to be current (AC96, #2341) is no news: it never calls him.
-export function hotProviders(readings: UsageReadings, now: number): string[] {
-    const latest = new Map<string, number>();
-    const readAt = new Map<string, number>();
+// The latest reading of each provider that the usage grid shows: several agents of one provider share its plan. A
+// provider the developer chose to hide, or that was not used for 7 days on a plan that is not paid, is not shown, and so
+// is not told of: it never calls him (AC95 and AC97, #2341). `ctx` is what the grid reads (its use and the choices); none
+// leaves every provider shown.
+function shownReadings(readings: UsageReadings, now: number, ctx?: UsageContext): Map<string, UsageSnapshot> {
+    const latest = new Map<string, UsageSnapshot>();
     for (const [agent, snapshot] of Object.entries(readings ?? {})) {
         if (snapshot == null) {
             continue;
         }
         const provider = snapshot.agent || agent;
-        if ((readAt.get(provider) ?? -1) > (snapshot.readat ?? 0)) {
+        if ((latest.get(provider)?.readat ?? -1) > (snapshot.readat ?? 0)) {
             continue;
         }
-        readAt.set(provider, snapshot.readat ?? 0);
-        const bar = readingStale(snapshot, now) ? 0 : Math.max(0, ...gaugeRows(snapshot, now).map((row) => row.bar));
-        latest.set(provider, bar);
+        latest.set(provider, snapshot);
     }
-    return [...latest.entries()].filter(([, bar]) => bar >= UsageThresholdPercent).map(([provider]) => provider);
+    for (const [provider, snapshot] of latest) {
+        if (hiddenReason(provider, snapshot.plan ?? "", snapshot.readat ?? 0, ctx, now) !== "") {
+            latest.delete(provider);
+        }
+    }
+    return latest;
 }
 
-// The providers some reading tells of, hot or not.
-function readProviders(readings: UsageReadings): Set<string> {
-    return new Set(
-        Object.entries(readings ?? {})
-            .filter(([, snapshot]) => snapshot != null)
-            .map(([agent, snapshot]) => snapshot.agent || agent)
-    );
+// The providers whose fullest window is at the line or above it, among those the grid shows. A reading too old to be
+// current (AC96, #2341) is no news: it never calls him.
+export function hotProviders(readings: UsageReadings, now: number, ctx?: UsageContext): string[] {
+    return [...shownReadings(readings, now, ctx).entries()]
+        .filter(([, snapshot]) => {
+            if (readingStale(snapshot, now)) {
+                return false;
+            }
+            return Math.max(0, ...gaugeRows(snapshot, now).map((row) => row.bar)) >= UsageThresholdPercent;
+        })
+        .map(([provider]) => provider);
 }
 
 // A provider leaves `seen` only once a reading says it is below the line: the readings come in a while after a start,
-// and a provider not read yet is not a provider that cooled down (#2223).
+// and a provider not read yet is not a provider that cooled down (#2223). A provider the grid does not show is not read:
+// what he had seen of it stays seen while it is hidden.
 export function usageEventsAfter(
     memory: UsageMemory,
     readings: UsageReadings,
-    now: number
+    now: number,
+    ctx?: UsageContext
 ): { memory: UsageMemory; events: BrokkEvent[] } {
-    const hot = hotProviders(readings, now);
-    const read = readProviders(readings);
+    const hot = hotProviders(readings, now, ctx);
+    const read = shownReadings(readings, now, ctx);
     const seen = new Set([...memory.seen].filter((provider) => hot.includes(provider) || !read.has(provider)));
     const events = hot
         .filter((provider) => !seen.has(provider))
@@ -159,11 +170,12 @@ export function usageEventsAfter(
 export function acknowledgeUsage(
     readings: UsageReadings,
     now: number,
-    memory: UsageMemory = EmptyUsageMemory
+    memory: UsageMemory = EmptyUsageMemory,
+    ctx?: UsageContext
 ): UsageMemory {
-    const read = readProviders(readings);
+    const read = shownReadings(readings, now, ctx);
     const kept = [...memory.seen].filter((provider) => !read.has(provider));
-    return { seen: new Set([...kept, ...hotProviders(readings, now)]) };
+    return { seen: new Set([...kept, ...hotProviders(readings, now, ctx)]) };
 }
 
 // The seen providers survive a restart (#2223): kept in the local storage of this computer.

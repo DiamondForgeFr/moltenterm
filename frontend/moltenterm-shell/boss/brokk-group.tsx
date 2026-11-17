@@ -115,7 +115,7 @@ import { BrokkTalk } from "./brokk-talk";
 import { talkWaits } from "./brokk-talk-model";
 import { choicesOf, chooseUsage, usageChoiceMenu } from "./brokk-usage-choices";
 import { UsageHidden } from "./brokk-usage-hidden";
-import { choiceOf, UsageChoices, usageGrid, WeeklyUsage } from "./brokk-usage-model";
+import { choiceOf, UsageChoice, UsageChoices, usageGrid, WeeklyUsage } from "./brokk-usage-model";
 import { useBrokkActions } from "./use-brokk-actions";
 import { useAvatarKeys } from "./use-brokk-hub";
 import { useCardLive } from "./use-brokk-live";
@@ -135,7 +135,7 @@ const BrainstormPanel = lazy(() =>
 
 // A provider's row in the shared week grid, named with its agent's display name. Its context menu is the developer's
 // choice of showing it always, hiding it, or leaving it to the rules (AC97, #2341).
-function weekRow(u: WeeklyUsage, choices: UsageChoices): UsageWeekRow {
+export function weekRow(u: WeeklyUsage, choices: UsageChoices): UsageWeekRow {
     const { provider, readAt, old, stale, unreadable, ...line } = u;
     const name = agentName(provider);
     return {
@@ -483,7 +483,10 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         [readings, now, unreadable, use, choices]
     );
     const weekRows = useMemo(() => grid.rows.map((u) => weekRow(u, choices)), [grid, choices]);
-    const showUsage = useCallback((provider: string) => fireAndForget(() => chooseUsage(provider, "show")), []);
+    const chooseProvider = useCallback(
+        (provider: string, choice: UsageChoice) => fireAndForget(() => chooseUsage(provider, choice)),
+        []
+    );
 
     // What his face does with the conversation: it listens while the developer writes, thinks only when his answer is
     // slow to come, speaks while it is revealed (AC86, AC87, #2259).
@@ -966,7 +969,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                             ) : (
                                 <UsageWeekGrid rows={weekRows} now={now} />
                             )}
-                            <UsageHidden items={grid.hidden} now={now} onShow={showUsage} />
+                            <UsageHidden items={grid.hidden} now={now} onChoose={chooseProvider} />
                         </div>
                     </div>
                 ) : null}

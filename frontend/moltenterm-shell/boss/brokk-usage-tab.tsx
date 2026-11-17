@@ -18,7 +18,7 @@ import { TabActivity, whileShown } from "../tab-activity";
 import { UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
 import { choicesOf, chooseUsage } from "./brokk-usage-choices";
 import { UsageHiddenList } from "./brokk-usage-hidden";
-import { usageGrid, usageProviders } from "./brokk-usage-model";
+import { UsageChoice, usageGrid, usageProviders } from "./brokk-usage-model";
 
 // How often the reset times are read again while the tab shows.
 const UsageTickMs = 30000;
@@ -41,7 +41,10 @@ export function BrokkUsageTab() {
     const ctx = useMemo(() => ({ use, choices: choicesOf(usageShow, usageHide) }), [use, usageShow, usageHide]);
     const providers = useMemo(() => usageProviders(readings, now, ctx), [readings, now, ctx]);
     const hidden = useMemo(() => usageGrid(readings, now, unreadable, ctx).hidden, [readings, now, unreadable, ctx]);
-    const showUsage = useCallback((provider: string) => fireAndForget(() => chooseUsage(provider, "show")), []);
+    const chooseProvider = useCallback(
+        (provider: string, choice: UsageChoice) => fireAndForget(() => chooseUsage(provider, choice)),
+        []
+    );
     if (providers.length === 0 && hidden.length === 0) {
         return (
             <div className="px-3 py-3 text-12 text-secondary" data-testid="brokk-usage-empty">
@@ -91,7 +94,7 @@ export function BrokkUsageTab() {
             {hidden.length > 0 ? (
                 <section data-testid="brokk-usage-not-used">
                     <h3 className="text-11 font-medium text-muted">{t("usageWeek.hidden.title")}</h3>
-                    <UsageHiddenList items={hidden} now={now} onShow={showUsage} />
+                    <UsageHiddenList items={hidden} now={now} onChoose={chooseProvider} />
                 </section>
             ) : null}
         </div>

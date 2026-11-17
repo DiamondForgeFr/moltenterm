@@ -10,10 +10,11 @@
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { modalsModel } from "@/app/store/modalmodel";
+import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { makeSeenViewAtom } from "../agent-seen";
-import { brainstormHolds } from "../brainstorm/brainstorm-hold";
 import { AgentStates } from "../agent-state-store";
+import { brainstormHolds } from "../brainstorm/brainstorm-hold";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { modalIsOpen } from "../modal-open";
 import { MoltentermNotifications } from "../notifications-store";
@@ -24,7 +25,7 @@ import { releaseAvailableKey, ReleaseUpdateModel } from "../update/release-updat
 import { GoldUpdateModel, updateAvailableKey } from "../update/update-store";
 import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleModel } from "./boss-store";
-import { UsageReadingsAtom } from "./boss-usage";
+import { refreshUsageUse, UsageReadingsAtom, UsageUseAtom } from "./boss-usage";
 import { FaceHoverIntent } from "./brokk-avatar-model";
 import { SidebarPlace, sidebarPlaceOf } from "./brokk-edge-model";
 import {
@@ -38,6 +39,7 @@ import { BrokkHub } from "./brokk-hub";
 import { AvatarBadge, avatarBadgeOf } from "./brokk-hub-feed";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
 import { openDoneBlocks } from "./brokk-notes-model";
+import { choicesOf, UsageContext } from "./brokk-usage-model";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
 import { EmptyShared, readShared, sharedText, VisitShareKey } from "./brokk-visit-share";
 import { brokkPromptBusy, brokkWaiting, brokkWorking } from "./brokk-watch";
@@ -205,6 +207,17 @@ export class BrokkHubModel {
         const handoffs = PendingHandoffs.getInstance();
         const boss = BossBubbleModel.getInstance();
         const loadedAtom = atom((get) => get(agents.loadedAtom) && get(handoffs.loadedAtom));
+        // What the usage grid reads besides the readings: a provider it does not show never brings him (#2341).
+        const usageContextAtom = atom(
+            (get): UsageContext => ({
+                use: get(UsageUseAtom),
+                choices: choicesOf(
+                    get(getSettingsKeyAtom("boss:usageshow")),
+                    get(getSettingsKeyAtom("boss:usagehide"))
+                ),
+            })
+        );
+        fireAndForget(() => refreshUsageUse());
         const stopFeeds = feedBrokkHub(this.hub, {
             store: globalStore,
             agentsAtom: agents.dataAtom,
@@ -221,6 +234,7 @@ export class BrokkHubModel {
             closedDownloadsAtom: this.closedDownloadsAtom,
             updateOfferAtom: this.updateOfferAtom,
             usageAtom: UsageReadingsAtom,
+            usageContextAtom,
             usageMemory: {
                 read: () => readUsageMemory(storage()?.getItem(UsageSeenKey)),
                 write: (memory) => {

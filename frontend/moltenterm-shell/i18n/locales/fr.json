@@ -12861,6 +12861,7 @@
         "rowAsOf": "relevé {ago}",
         "stale": "Relevé {ago}",
         "choice": {
+            "open": "Afficher ou masquer {name}",
             "show": "Toujours afficher {name}",
             "hide": "Masquer {name}",
             "auto": "Afficher {name} automatiquement"
@@ -12872,7 +12873,9 @@
             "lastUse": "Dernier usage {ago}",
             "noUse": "Aucun usage relevé",
             "chosen": "Masqué par vous",
-            "alwaysShow": "Toujours afficher"
+            "alwaysShow": "Toujours afficher",
+            "auto": "Afficher automatiquement",
+            "for": "{action} : {name}"
         },
         "rowUnreadable": "{name}, aucun relevé : {reason}",
         "rowNoReading": "{name}, aucun relevé",

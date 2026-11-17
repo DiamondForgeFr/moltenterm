@@ -75,6 +75,25 @@
     font-size: var(--mt-text-12);
 }
 
+/* A row with a menu (#2341) makes its logo the button that opens it, so the keyboard reaches it: the same size, the
+   logo's colour, no box of its own, and a ring in the action colour while the keyboard is on it. */
+button.mt-uw-logo {
+    padding: 0;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: none;
+    cursor: pointer;
+}
+
+button.mt-uw-logo:hover {
+    color: var(--mt-text-1);
+}
+
+button.mt-uw-logo:focus-visible {
+    outline: 1px solid var(--mt-action);
+    outline-offset: 1px;
+}
+
 .mt-uw-logo svg {
     width: 17px;
     height: 17px;
