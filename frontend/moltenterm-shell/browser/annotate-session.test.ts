@@ -3,9 +3,17 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { describe, expect, it } from "vitest";
-import { AnnotateSession } from "./annotate-session";
+import { annotatablePage, AnnotateSession } from "./annotate-session";
 
 describe("the annotate session of a panel (#2327)", () => {
+    it("annotates only pages of the web", () => {
+        expect(annotatablePage("http://localhost:5173/")).toBe(true);
+        expect(annotatablePage("https://example.test/a?b=1")).toBe(true);
+        for (const url of ["about:blank", "file:///etc/hosts", "javascript:alert(1)", "", "not a url"]) {
+            expect(annotatablePage(url)).toBe(false);
+        }
+    });
+
     it("starts on a page of the web, once, and each start is a new session", () => {
         const session = new AnnotateSession();
         expect(session.isOpen()).toBe(false);

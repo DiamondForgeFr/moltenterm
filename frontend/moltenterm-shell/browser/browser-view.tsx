@@ -28,7 +28,7 @@ import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { loadIntegrationRuns, type AgentIntegrationRun } from "../agent-integration-runs";
 import { AgentLinks } from "../agent-links/agent-links-store";
 import { agentCallName, agentStatesOfWorkspace } from "../agent-state-model";
@@ -67,9 +67,7 @@ import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
 import { showAgentPage } from "./agent-show";
-import { AnnotateHost } from "./annotate-layer";
-import { annotatablePage } from "./annotate-model";
-import { AnnotateSession } from "./annotate-session";
+import { annotatablePage, AnnotateSession } from "./annotate-session";
 import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
 import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
@@ -227,6 +225,10 @@ import { isSiteAsk, SitePermissionModel } from "./site-permission-store";
 import { TestContextChip } from "./test-context";
 
 export { MoltentermBrowserView };
+
+// The annotate mode's layer, its model and its painting load the first time the mode starts, never with the window
+// (NFR-PERF-003, build/on-demand-imports.test.ts).
+const AnnotateHost = lazy(() => import("./annotate-layer").then((m) => ({ default: m.AnnotateHost })));
 
 const PersistDelayMs = 400;
 // Below this row width (#1439) Forward, Reload and Magnify join Share and Open in <browser> in the row's "⋯"; the
@@ -2511,6 +2513,19 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
     );
 }
 
+// The annotate layer over the panel's pages: nothing loads until the mode starts.
+function AnnotateMount({ session, activeTabId }: { session: AnnotateSession; activeTabId: string }) {
+    const open = useAtomValue(session.openAtom);
+    if (open == null) {
+        return null;
+    }
+    return (
+        <Suspense fallback={null}>
+            <AnnotateHost session={session} activeTabId={activeTabId} />
+        </Suspense>
+    );
+}
+
 // The Annotate button (FR-BRW-017, #2327): the page freezes into a capture to draw numbered zones on and send to an agent.
 // The tooltip names the shortcut with the glyphs of the platform.
 function AnnotateButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
@@ -2973,7 +2988,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                     <ActiveStartPage model={model} tabId={state.activeId} />
                     <ActiveErrorPage model={model} tabId={state.activeId} />
                     <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
-                    <AnnotateHost session={model.annotate} activeTabId={state.activeId} />
+                    <AnnotateMount session={model.annotate} activeTabId={state.activeId} />
                 </div>
                 {state.tabs.map((tab) =>
                     inspectors[tab.id] != null && !tab.engine && discarded[tab.id] == null ? (
