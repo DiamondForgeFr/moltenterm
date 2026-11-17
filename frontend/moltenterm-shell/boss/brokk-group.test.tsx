@@ -22,8 +22,10 @@ vi.mock("@/app/store/global", async () => {
     };
 });
 vi.mock("../command-panel/bindings", () => ({ writeSettings: vi.fn(async () => {}) }));
+// The menus the group shows, so a test can read what a row opened (#2341).
+const Menus = vi.hoisted(() => ({ shown: vi.fn() }));
 vi.mock("@/app/store/contextmenu", () => ({
-    ContextMenuModel: { getInstance: () => ({ session: null, showContextMenu: vi.fn() }) },
+    ContextMenuModel: { getInstance: () => ({ session: null, showContextMenu: Menus.shown }) },
 }));
 vi.mock("@/app/store/modalmodel", () => ({ modalsModel: { hasOpenModals: () => false } }));
 vi.mock("../tab-activity", () => ({
@@ -168,12 +170,14 @@ import { DownloadsModel } from "../downloads/downloads-store";
 import { I18nModel } from "../i18n/i18n";
 import { EmptyKeepAwakeState } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
+import { menuOpenedByKeyboard } from "../menu/menu-model";
 import { MoltentermNotifications } from "../notifications-store";
+import { openRowMenu } from "../usage-week/usage-week";
 import { CardTestId } from "./boss-card-model";
 import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
 import { UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
-import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard } from "./brokk-group";
+import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard, weekRow } from "./brokk-group";
 import {
     ArrivalSteps,
     autoPanelIn,
@@ -196,6 +200,7 @@ import {
 } from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
 import { BrokkSpeech } from "./brokk-speech";
+import { usageGrid } from "./brokk-usage-model";
 
 const boss = BossBubbleModel.getInstance() as any;
 const notifications = MoltentermNotifications.getInstance() as any;
@@ -1274,10 +1279,77 @@ describe("the block under the square (AC17 and AC20)", () => {
             expect(cellTag(live, "codex")).not.toContain("data-stale");
         });
 
-        it("gives each row a menu of its own for the developer's choice", () => {
-            const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-            expect(group).toContain("usageChoiceMenu(provider, name, choiceOf(choices, provider))");
-            expect(group).toContain("onContextMenu: (e) => {");
+        // The keyboard reaches the row's menu (#2341): the logo is the row's button, in the row that carries the menu.
+        it("makes each logo a button that opens its row's menu, and each row a group", () => {
+            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
+            const html = render();
+            const logos = [...html.matchAll(/<button [^>]*data-testid="usage-week-logo"[^>]*>/g)].map((m) => m[0]);
+            expect(logos).toHaveLength(2);
+            for (const logo of logos) {
+                expect(logo).toContain('type="button"');
+                expect(logo).toContain('aria-haspopup="menu"');
+                expect(logo).not.toContain("tabindex");
+            }
+            expect(logos.map((tag) => /aria-label="([^"]*)"/.exec(tag)?.[1])).toEqual([
+                "Show or hide Claude",
+                "Show or hide Codex",
+            ]);
+            expect(cellTag(html, "codex")).toContain('role="group"');
+            // The button sits inside the row that carries the menu: the Menu key and Shift+F10 reach the row's handler.
+            const row = html.indexOf(cellTag(html, "codex"));
+            expect(html.indexOf('data-name="Codex"', row)).toBeGreaterThan(row);
+        });
+
+        it("makes a row that cannot be read as reachable as the others", () => {
+            globalStore.set(UsageUnreadableAtom, { codex: "expired" });
+            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40) });
+            const html = render();
+            expect(cellTag(html, "codex")).toContain('role="group"');
+            expect(html).toContain('aria-label="Show or hide Codex"');
+            globalStore.set(UsageUnreadableAtom, {});
+        });
+
+        it("opens the menu of a row with the current choice marked, from a right click as from a key", () => {
+            const grid = usageGrid({ claude: reading("claude", 40) }, Date.now());
+            const event = (extra: object) =>
+                ({
+                    type: "contextmenu",
+                    detail: 0,
+                    clientX: 1,
+                    clientY: 2,
+                    preventDefault: vi.fn(),
+                    stopPropagation: vi.fn(),
+                    ...extra,
+                }) as any;
+            const row = weekRow(grid.rows[0], { show: ["claude"], hide: [] });
+            Menus.shown.mockClear();
+
+            const click = event({});
+            row.onContextMenu(click);
+            expect(click.preventDefault).toHaveBeenCalled();
+            expect(click.stopPropagation).toHaveBeenCalled();
+            expect(Menus.shown).toHaveBeenCalledTimes(1);
+            const [items, shownFor] = Menus.shown.mock.calls[0];
+            expect(shownFor).toBe(click);
+            expect(items.map((i: any) => [i.label, i.type, i.checked])).toEqual([
+                ["Always show Claude", "radio", true],
+                ["Hide Claude", "radio", false],
+                ["Show Claude automatically", "radio", false],
+            ]);
+
+            // Enter or Space on the logo is a click without pointer detail: the menu opens under the button.
+            Menus.shown.mockClear();
+            const press = event({
+                type: "click",
+                clientX: 0,
+                clientY: 0,
+                currentTarget: { closest: () => null, getBoundingClientRect: () => ({ left: 40, bottom: 90 }) },
+            });
+            row.onContextMenu(openRowMenu(press));
+            const opened = Menus.shown.mock.calls[0][1];
+            expect([opened.clientX, opened.clientY]).toEqual([40, 90]);
+            expect(menuOpenedByKeyboard(opened, false)).toBe(true);
+            expect(press.stopPropagation).toHaveBeenCalled();
         });
     });
 
@@ -1285,7 +1357,7 @@ describe("the block under the square (AC17 and AC20)", () => {
     it("names each agent's logo in a small popover on hover", () => {
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
         const html = render();
-        const logos = [...html.matchAll(/<span [^>]*data-testid="usage-week-logo"[^>]*>/g)].map((m) => m[0]);
+        const logos = [...html.matchAll(/<(?:span|button) [^>]*data-testid="usage-week-logo"[^>]*>/g)].map((m) => m[0]);
         expect(logos.map((tag) => /data-name="([^"]*)"/.exec(tag)?.[1])).toEqual(["Claude", "Codex"]);
         expect(logos.every((tag) => !tag.includes("title="))).toBe(true);
         expect(attr(html, "brokk-usage", "title")).toBeUndefined();
@@ -1310,7 +1382,8 @@ describe("the block under the square (AC17 and AC20)", () => {
         const html = render();
         const day = new Date(resetsat).toLocaleDateString("en", { weekday: "long" });
         expect(cellTag(html, "claude")).toContain(`aria-label="Claude, 73 %, resets ${day}"`);
-        expect(cellTag(html, "claude")).toContain('role="img"');
+        // A row with a menu holds the button that opens it, so it is a group, not an image (#2341).
+        expect(cellTag(html, "claude")).toContain('role="group"');
         expect(cellTag(html, "claude")).not.toContain("title=");
         expect(attr(html, "usage-week-day", "aria-hidden")).toBe("true");
     });

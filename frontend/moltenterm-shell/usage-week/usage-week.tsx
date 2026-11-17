@@ -15,13 +15,23 @@
 
 import ClaudeColorSvg from "@/app/asset/claude-color.svg";
 import { cn, makeIconClass } from "@/util/util";
-import { autoUpdate, flip, FloatingPortal, offset, shift, useHover, useInteractions } from "@floating-ui/react";
+import {
+    autoUpdate,
+    flip,
+    FloatingPortal,
+    offset,
+    shift,
+    useFocus,
+    useHover,
+    useInteractions,
+} from "@floating-ui/react";
 import { CSSProperties, useState } from "react";
 import { AiIcon } from "../ai-icon";
 import { usageReasonText } from "../companion/companion-gauges-model";
 import { relativeTime } from "../companion/companion-model";
 import { useFloatingInPlace } from "../floating-in-place";
 import { useLocale, useT } from "../i18n/i18n";
+import { anchoredMenuEvent, buttonMenuAnchor } from "../menu/menu-anchor";
 import {
     dayFills,
     dayShares,
@@ -52,7 +62,9 @@ export type UsageWeekRow = {
     // The reading is older than its window, or than 7 days (#2341): the row is faded, takes no pace colour and tells its
     // age under it.
     stale?: boolean;
-    // The row's own menu, on a surface that has one (Brokk's choice of which providers show).
+    // The row's own menu, on a surface that has one (Brokk's choice of which providers show): the right button on the row
+    // opens it, and so does the logo, now a button, from the keyboard (Enter, Space, the Menu key, Shift+F10). A row with
+    // a menu is a group holding that button, not an image.
     onContextMenu?: (e: React.MouseEvent) => void;
     // The row's window (its id), on a surface that shows one agent: each row is one of its windows.
     window?: string;
@@ -68,11 +80,20 @@ export type UsageWeekRow = {
 // How long the pointer rests on a logo before its name shows.
 const NameDelayMs = 300;
 
+// The event a row's menu gets from its logo's button: Enter or Space is a click at 0, 0, which would put the menu in the
+// window's corner, so it opens under the button and, as a keyboard opening, focuses its first entry (#1439).
+export function openRowMenu(e: React.MouseEvent): React.MouseEvent {
+    return anchoredMenuEvent(e, buttonMenuAnchor(e.currentTarget));
+}
+
 // The agents whose own logo MoltenTerm already ships; the others show the AI icon the launcher gives every agent. A
-// small popover names the agent, since not everyone knows every provider's logo: after a short rest of the pointer. It
-// floats in a portal, so it never moves the layout and no scrolling block clips it. The logo is not clickable on its
-// own.
-function AgentLogo({ agent, name }: { agent: string; name: string }) {
+// small popover names the agent, since not everyone knows every provider's logo: after a short rest of the pointer, or
+// at once when the keyboard reaches the logo. It floats in a portal, so it never moves the layout and no scrolling block
+// clips it. The logo is not clickable on its own. A row with a menu (#2341) makes its logo the button that opens it,
+// so the menu is reached from the keyboard too: Tab to the logo, then Enter or Space, the Menu key or Shift+F10 (which
+// the menu host turns into the row's own context menu); a pointer still opens it with the right button on the row.
+function AgentLogo({ agent, name, onMenu }: { agent: string; name: string; onMenu?: (e: React.MouseEvent) => void }) {
+    const t = useT();
     const claude = agent === "claude";
     const [open, setOpen] = useState(false);
     const { refs, floatingStyles, context } = useFloatingInPlace({
@@ -83,19 +104,33 @@ function AgentLogo({ agent, name }: { agent: string; name: string }) {
         whileElementsMounted: autoUpdate,
     });
     const hover = useHover(context, { delay: { open: NameDelayMs, close: 0 } });
-    const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
+    const focus = useFocus(context);
+    const { getReferenceProps, getFloatingProps } = useInteractions([hover, focus]);
+    const logo = {
+        ref: refs.setReference,
+        className: "mt-uw-logo",
+        "data-testid": "usage-week-logo",
+        "data-logo": claude ? "claude" : "ai",
+        "data-name": name,
+    };
+    const icon = claude ? <ClaudeColorSvg /> : <i className={makeIconClass(AiIcon, true)} />;
     return (
         <>
-            <span
-                ref={refs.setReference}
-                className="mt-uw-logo"
-                data-testid="usage-week-logo"
-                data-logo={claude ? "claude" : "ai"}
-                data-name={name}
-                {...getReferenceProps()}
-            >
-                {claude ? <ClaudeColorSvg /> : <i className={makeIconClass(AiIcon, true)} />}
-            </span>
+            {onMenu == null ? (
+                <span {...logo} {...getReferenceProps()}>
+                    {icon}
+                </span>
+            ) : (
+                <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-label={t("usageWeek.choice.open", { name })}
+                    {...logo}
+                    {...getReferenceProps({ onClick: (e) => onMenu(openRowMenu(e)) })}
+                >
+                    {icon}
+                </button>
+            )}
             {open ? (
                 <FloatingPortal>
                     <span
@@ -128,7 +163,7 @@ function paceKind(line: UsageWeekLine): string {
 // What starts a row: the label of its window when the row has one, else the agent's logo.
 function RowLead({ row }: { row: UsageWeekRow }) {
     if (row.label == null) {
-        return <AgentLogo agent={row.agent} name={row.name} />;
+        return <AgentLogo agent={row.agent} name={row.name} onMenu={row.onContextMenu} />;
     }
     return (
         <span className="mt-uw-label" data-testid="usage-week-label">
@@ -239,13 +274,14 @@ export function UsageWeekGrid({
                         <span
                             key={row.key}
                             className="mt-uw-row"
-                            role="img"
+                            role={row.onContextMenu ? "group" : "img"}
                             aria-label={label}
                             title={row.title}
                             data-testid="usage-week-row"
                             data-provider={row.agent}
                             data-window={row.window}
                             data-unreadable="true"
+                            onContextMenu={row.onContextMenu}
                         >
                             <RowLead row={row} />
                             <span className="mt-uw-note" data-testid="usage-week-unreadable">
@@ -268,7 +304,7 @@ export function UsageWeekGrid({
                     <span
                         key={row.key}
                         className="mt-uw-row"
-                        role="img"
+                        role={row.onContextMenu ? "group" : "img"}
                         aria-label={parts.join(", ")}
                         title={row.title}
                         style={{ "--mt-uw-pace": paceColour(line.pace, line.unused) } as CSSProperties}

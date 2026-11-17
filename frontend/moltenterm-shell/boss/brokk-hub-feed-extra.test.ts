@@ -9,6 +9,7 @@ import type { ToHandleList } from "./boss-to-handle-model";
 import type { UsageReadings } from "./boss-usage";
 import { BrokkHub } from "./brokk-hub";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
+import type { UsageContext } from "./brokk-usage-model";
 import { DefaultVisitSettings, VisitSettings } from "./brokk-visit-events";
 import { EmptyShared } from "./brokk-visit-share";
 
@@ -25,6 +26,7 @@ function window_(settings: VisitSettings = DefaultVisitSettings) {
         downloads: atom([] as DownloadRecord[]) as PrimitiveAtom<DownloadRecord[]>,
         update: atom("") as PrimitiveAtom<string>,
         usage: atom({} as UsageReadings) as PrimitiveAtom<UsageReadings>,
+        usageContext: atom({} as UsageContext) as PrimitiveAtom<UsageContext>,
     };
     const hub = new BrokkHub({
         now: () => T + 1000,
@@ -48,6 +50,7 @@ function window_(settings: VisitSettings = DefaultVisitSettings) {
         downloadsAtom: sources.downloads,
         updateOfferAtom: sources.update,
         usageAtom: sources.usage,
+        usageContextAtom: sources.usageContext,
     });
     return { store, sources, hub };
 }
@@ -105,6 +108,48 @@ describe("the downloads, the update notice and the plan usage reach Brokk (FR-BO
         comes.store.set(comes.sources.usage, hot);
         expect(comes.hub.getView().visit).not.toBeNull();
         expect(comes.hub.getView().badge).toBe(0);
+    });
+
+    // #2341, AC95 and AC97: a provider the usage grid does not show never brings him, and he is called off the moment it
+    // is hidden.
+    it("does not come for a plan usage of a provider the developer hides, and comes when it shows again", () => {
+        const hot: UsageReadings = {
+            claude: {
+                agent: "claude",
+                source: "t",
+                readat: Date.now(),
+                windows: [{ id: "w", label: "w", usedpercent: 96 }],
+            },
+        };
+        const w = window_(vient("usage"));
+        w.store.set(w.sources.usageContext, { use: {}, choices: { show: [], hide: ["claude"] } });
+        w.store.set(w.sources.usage, hot);
+        expect(w.hub.getView().visit).toBeNull();
+        w.store.set(w.sources.usageContext, { use: {}, choices: { show: [], hide: [] } });
+        expect(w.hub.getView().visit).not.toBeNull();
+        w.store.set(w.sources.usageContext, { use: {}, choices: { show: [], hide: ["claude"] } });
+        expect(w.hub.getView().visit).toBeNull();
+    });
+
+    it("does not come for a plan usage of a free provider nobody used for 7 days", () => {
+        const idle: UsageReadings = {
+            codex: {
+                agent: "codex",
+                source: "t",
+                plan: "free",
+                readat: 0,
+                windows: [{ id: "w", label: "w", usedpercent: 99 }],
+            },
+        };
+        const w = window_(vient("usage"));
+        w.store.set(w.sources.usageContext, { use: {}, choices: { show: [], hide: [] } });
+        w.store.set(w.sources.usage, idle);
+        expect(w.hub.getView().visit).toBeNull();
+        w.store.set(w.sources.usageContext, {
+            use: { codex: { workms: 60000, sessions: 1, lastat: Date.now() } },
+            choices: { show: [], hide: [] },
+        });
+        expect(w.hub.getView().visit).not.toBeNull();
     });
 
     it("counts nothing for an event set to Rien", () => {

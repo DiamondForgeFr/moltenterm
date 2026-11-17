@@ -65,7 +65,9 @@ vi.mock("./brokk-session", async () => {
     return { BrokkSession: { getInstance: () => session } };
 });
 
+import { getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import type { PrimitiveAtom } from "jotai";
 import { BrainstormLastLeftAtom, BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
 import { answerPermission } from "./brokk-permission";
@@ -168,6 +170,31 @@ describe("the Usage tab (FR-BOSS-009, AC9; FR-BOSS-006)", () => {
             expect(hidden).toContain("Last use 10 d ago");
             expect(hidden).toContain(">free<");
             expect(hidden).toContain("Always show");
+        });
+
+        // AC97: the choices are buttons, so the keyboard reaches them as the pointer does.
+        it("offers each hidden provider Always show, and Show automatically to one the developer hid", () => {
+            const hide = getSettingsKeyAtom("boss:usagehide") as unknown as PrimitiveAtom<string[]>;
+            globalStore.set(hide, ["claude"]);
+            try {
+                globalStore.set(UsageReadingsAtom, { claude, old });
+                globalStore.set(UsageUseAtom, {});
+                const html = renderToStaticMarkup(<BrokkUsageTab />);
+                const items = html.split('data-testid="brokk-usage-hidden-item"').slice(1);
+                expect(items).toHaveLength(2);
+                const [chosen, unused] = items;
+                expect(chosen).toContain('data-provider="claude"');
+                expect(chosen).toContain("Hidden by you");
+                expect(chosen).toContain('aria-label="Always show: Agent claude"');
+                expect(chosen).toContain('aria-label="Show automatically: Agent claude"');
+                expect(chosen.match(/<button type="button"/g)).toHaveLength(2);
+                expect(unused).toContain('data-provider="old"');
+                expect(unused).toContain('aria-label="Always show: Agent old"');
+                expect(unused).not.toContain("Show automatically");
+                expect(unused.match(/<button type="button"/g)).toHaveLength(1);
+            } finally {
+                globalStore.set(hide, undefined);
+            }
         });
 
         it("says no use was seen for a provider that was neither read nor used", () => {

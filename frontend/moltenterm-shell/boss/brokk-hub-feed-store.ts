@@ -27,6 +27,7 @@ import {
     UsageSource,
 } from "./brokk-extra-feeds";
 import type { BrokkHub } from "./brokk-hub";
+import type { UsageContext } from "./brokk-usage-model";
 import type { VisitSettings } from "./brokk-visit-events";
 
 type Store = Pick<ReturnType<typeof createStore>, "get" | "sub">;
@@ -58,6 +59,10 @@ export type HubSources = {
     closedDownloadsAtom?: Atom<ReadonlySet<string>>;
     updateOfferAtom?: Atom<string>;
     usageAtom?: Atom<UsageReadings>;
+    // What the usage grid reads besides the readings (#2341): the use of each agent over 7 days and the developer's
+    // choices. A provider the grid does not show never brings him for its usage. A window without one leaves it out, and
+    // every provider counts.
+    usageContextAtom?: Atom<UsageContext>;
     // Where the plan usage already seen is kept across restarts (#2223). A window without one starts empty each time.
     usageMemory?: { read: () => UsageMemory; write: (memory: UsageMemory) => void };
     // What this tab view shows the developer (makeSeenViewAtom, #2166): what is in it does not bring him. A window
@@ -105,11 +110,12 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const items = () => (src.downloadsAtom != null ? store.get(src.downloadsAtom) : []);
     const offer = () => (src.updateOfferAtom != null ? store.get(src.updateOfferAtom) : "");
     const readings = () => (src.usageAtom != null ? store.get(src.usageAtom) : {});
+    const usageContext = () => (src.usageContextAtom != null ? store.get(src.usageContextAtom) : undefined);
     const closed = () => (src.closedDownloadsAtom != null ? store.get(src.closedDownloadsAtom) : undefined);
     const feedDownloads = () => hub.feed(DownloadsSource, downloadEventsOf(downloads, items(), closed()));
     const feedUpdate = () => hub.feed(UpdateSource, updateEventsOf(offer(), seenUpdate));
     const feedUsage = () => {
-        const step = usageEventsAfter(usage, readings(), Date.now());
+        const step = usageEventsAfter(usage, readings(), Date.now(), usageContext());
         keepUsage(step.memory);
         hub.feed(UsageSource, step.events);
     };
@@ -121,7 +127,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const acknowledge = () => {
         downloads = acknowledgeDownloads(downloads, items());
         seenUpdate = offer();
-        keepUsage(acknowledgeUsage(readings(), Date.now(), usage));
+        keepUsage(acknowledgeUsage(readings(), Date.now(), usage, usageContext()));
         feedAll();
     };
     const stops = [
@@ -129,6 +135,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
         src.closedDownloadsAtom != null ? store.sub(src.closedDownloadsAtom, feedDownloads) : null,
         src.updateOfferAtom != null ? store.sub(src.updateOfferAtom, feedUpdate) : null,
         src.usageAtom != null ? store.sub(src.usageAtom, feedUsage) : null,
+        src.usageContextAtom != null ? store.sub(src.usageContextAtom, feedUsage) : null,
     ].filter((stop) => stop != null);
     feedAll();
     return { acknowledge, stop: () => stops.forEach((stop) => stop()) };

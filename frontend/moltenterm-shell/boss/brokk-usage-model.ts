@@ -39,6 +39,13 @@ export type UsageContext = { use?: Record<string, AgentUse>; choices?: UsageChoi
 
 const NoUse: AgentUse = { workms: 0, sessions: 0, lastat: 0 };
 
+// The lists as the settings hold them: anything that is not a list of ids is no choice.
+export function choicesOf(show: unknown, hide: unknown): UsageChoices {
+    const ids = (value: unknown): string[] =>
+        Array.isArray(value) ? value.filter((id): id is string => typeof id === "string" && id !== "") : [];
+    return { show: ids(show), hide: ids(hide) };
+}
+
 export function choiceOf(choices: UsageChoices, provider: string): UsageChoice {
     if (choices?.show?.includes(provider)) {
         return "show";
