@@ -12,11 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/wavetermdev/waveterm/pkg/baseds"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/fileshare/wshfs"
 	"github.com/wavetermdev/waveterm/pkg/util/envutil"
@@ -135,33 +133,9 @@ func handleNewListenerConn(conn net.Conn, router *wshutil.WshRouter) {
 	defer func() {
 		panichandler.PanicHandler("handleNewListenerConn", recover())
 	}()
-	var linkIdContainer atomic.Int32
-	proxy := wshutil.MakeRpcProxy(fmt.Sprintf("connserver:%s", conn.RemoteAddr().String()))
-	go func() {
-		defer func() {
-			panichandler.PanicHandler("handleNewListenerConn:AdaptOutputChToStream", recover())
-		}()
-		writeErr := wshutil.AdaptOutputChToStream(proxy.ToRemoteCh, conn)
-		if writeErr != nil {
-			log.Printf("error writing to domain socket: %v\n", writeErr)
-		}
-	}()
-	go func() {
-		// when input is closed, close the connection
-		defer func() {
-			panichandler.PanicHandler("handleNewListenerConn:AdaptStreamToMsgCh", recover())
-		}()
-		defer func() {
-			conn.Close()
-			linkId := linkIdContainer.Load()
-			if linkId != baseds.NoLinkId {
-				router.UnregisterLink(baseds.LinkId(linkId))
-			}
-		}()
-		wshutil.AdaptStreamToMsgCh(conn, proxy.FromRemoteCh, nil)
-	}()
-	linkId := router.RegisterUntrustedLink(proxy)
-	linkIdContainer.Store(int32(linkId))
+	// MOLTENTERM-PATCH (#2340): registered before reading, unregistered then closed through Close() when the
+	// connection ends (the proxy's writer and the router's receive loop no longer outlive it)
+	wshutil.ServeRpcLinkConn(router, conn, fmt.Sprintf("connserver:%s", conn.RemoteAddr().String()), "", nil)
 }
 
 func runListener(listener net.Listener, router *wshutil.WshRouter) {

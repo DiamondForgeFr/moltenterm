@@ -60,6 +60,7 @@ func (impl *ServerImpl) connectToJobManager(ctx context.Context, jobId string, m
 		cleanupOnce.Do(func() {
 			conn.Close()
 			impl.Router.UnregisterLink(linkId)
+			proxy.Close() // MOLTENTERM-PATCH (#2340): after the unregister; ends the writer goroutine with the link
 			impl.removeJobManagerConnection(jobId)
 		})
 	}
