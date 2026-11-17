@@ -161,7 +161,7 @@ export function CommentField({
     const at = fieldPlacement(zone, stage, FieldSize);
     return (
         <div
-            className="absolute z-30 flex flex-col gap-1.5 rounded-6 border border-border bg-surface-3 p-2 shadow-e2"
+            className="absolute z-30 flex flex-col gap-1.5 rounded-4 border border-border bg-surface-3 p-2 shadow-e2"
             style={{ left: at.x, top: at.y, width: FieldSize.w }}
             data-testid="browser-annotate-field"
         >
@@ -235,7 +235,7 @@ export function Tray({
     const tc = useTCount();
     return (
         <div
-            className="absolute bottom-3 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-6 border border-border bg-surface-3 px-3 py-2 text-12 shadow-e2"
+            className="absolute bottom-3 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-4 border border-border bg-surface-3 px-3 py-2 text-12 shadow-e2"
             data-testid="browser-annotate-tray"
             role="toolbar"
             aria-label={t("browser.annotate.layerLabel")}
@@ -347,7 +347,7 @@ export function ReviewView(props: ReviewViewProps) {
     const sent = outcome?.kind === "sent";
     return (
         <aside
-            className="absolute inset-y-2 right-2 z-40 flex w-[26rem] max-w-[calc(100%-1rem)] flex-col rounded-6 border border-border bg-surface-3 shadow-e2"
+            className="absolute inset-y-2 right-2 z-40 flex w-[26rem] max-w-[calc(100%-1rem)] flex-col rounded-4 border border-border bg-surface-3 shadow-e2"
             role="dialog"
             aria-label={t("browser.annotate.review.title")}
             data-testid="browser-annotate-review-panel"
@@ -907,7 +907,7 @@ function AnnotateLayer({
                 </>
             ) : capture === "" ? (
                 <div className="absolute inset-0 flex items-center justify-center bg-surface-2">
-                    <div className="flex max-w-sm flex-col items-center gap-3 rounded-6 border border-border bg-surface-3 p-4 text-center text-12 shadow-e2">
+                    <div className="flex max-w-sm flex-col items-center gap-3 rounded-4 border border-border bg-surface-3 p-4 text-center text-12 shadow-e2">
                         <p className="leading-4 text-primary">{t("browser.annotate.captureFailed")}</p>
                         <button
                             type="button"
