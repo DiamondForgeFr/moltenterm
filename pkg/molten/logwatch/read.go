@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 )
 
 // The look reads only what was written since the last one (FR-BOSS-012 AC2, AC3). Electron main renames waveapp.log to
@@ -47,10 +48,17 @@ type fileMark struct {
 }
 
 // readOut is what a look read: the new bytes in order (the rotated file's end, then the current file's new part),
-// cut at a line's end, and how much was written that it skipped.
+// cut at a line's end, and how much was written that it skipped. unread: the rotated files written since the last
+// look that it did not read (several rotations between two looks), counted in the log's growth at their last write.
 type readOut struct {
 	chunks  [][]byte
 	skipped int64
+	unread  []timedBytes
+}
+
+type timedBytes struct {
+	at time.Time
+	n  int64
 }
 
 func (r readOut) size() int64 {
@@ -159,8 +167,33 @@ func findRotated(logsDir string, mark fileMark) string {
 	return ""
 }
 
-// readNew reads what was written to the log since mark, and answers the mark of the next look.
-func readNew(path string, logsDir string, mark fileMark) (readOut, fileMark, error) {
+// rotatedSince lists the rotated files of logs/ last written after since (Unix ms), except the one already read.
+func rotatedSince(logsDir string, since int64, except string) []timedBytes {
+	if since <= 0 {
+		return nil
+	}
+	entries, err := os.ReadDir(logsDir)
+	if err != nil {
+		return nil
+	}
+	var out []timedBytes
+	for _, e := range entries {
+		if e.IsDir() || !rotatedNameRe.MatchString(e.Name()) {
+			continue
+		}
+		path := filepath.Join(logsDir, e.Name())
+		info, err := e.Info()
+		if err != nil || path == except || info.ModTime().UnixMilli() <= since {
+			continue
+		}
+		out = append(out, timedBytes{at: info.ModTime(), n: info.Size()})
+	}
+	return out
+}
+
+// readNew reads what was written to the log since mark, and answers the mark of the next look. since: when the last
+// look ran (Unix ms, 0 for none).
+func readNew(path string, logsDir string, mark fileMark, since int64) (readOut, fileMark, error) {
 	var out readOut
 	budget := int64(MaxLookBytes)
 	info, err := os.Stat(path)
@@ -197,7 +230,9 @@ func readNew(path string, logsDir string, mark fileMark) (readOut, fileMark, err
 		// The file read last time was rotated away (its end is read in logs/) or emptied in place (nothing left to read).
 		emptiedInPlace := info != nil && mark.Ident != "" && ident == mark.Ident
 		if !emptiedInPlace {
-			if rotated := findRotated(logsDir, mark); rotated != "" {
+			rotated := findRotated(logsDir, mark)
+			out.unread = rotatedSince(logsDir, since, rotated)
+			if rotated != "" {
 				if rinfo, err := os.Stat(rotated); err == nil {
 					chunk, _, skipped, err := readRange(rotated, mark.Offset, rinfo.Size(), budget, true)
 					if err == nil {

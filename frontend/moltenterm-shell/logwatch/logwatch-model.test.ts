@@ -35,7 +35,6 @@ const Olivia: LogWatchCandidate = {
     agentname: "Claude Code",
     workspace: "Shop",
     project: "shop",
-    moltenterm: true,
 };
 const Paul: LogWatchCandidate = { blockid: "b2", firstname: "Paul" };
 
@@ -85,10 +84,35 @@ describe("Ask an agent to look", () => {
     it.each<[LogWatchAskResult["status"], string]>([
         ["noagent", "logwatch.noAgent"],
         ["gone", "logwatch.gone"],
+        ["refused", "logwatch.refused"],
         ["unknown", "logwatch.unknown"],
     ])("%s says why on the card", async (status, key) => {
         const { d } = deps([{ status }]);
         expect(await runAsk(d, { id: "abc" })).toEqual({ ok: false, errorKey: key });
+    });
+
+    // A second click while the first request is on its way sends nothing: here, and for "busy" from wavesrv (another
+    // window's click).
+    it("sends once for two clicks", async () => {
+        let answer: (r: LogWatchAskResult) => void;
+        const { d, asked } = deps([], {
+            inflight: new Set(),
+            ask: vi.fn(
+                (req) =>
+                    new Promise<LogWatchAskResult>((resolve) => {
+                        asked.push(req);
+                        answer = resolve;
+                    })
+            ),
+        });
+        const first = runAsk(d, { id: "abc" });
+        expect(await runAsk(d, { id: "abc" })).toEqual({ ok: true });
+        answer({ status: "sent", to: "Olivia" });
+        expect(await first).toEqual({ ok: true });
+        expect(asked).toHaveLength(1);
+        expect(d.inflight.size).toBe(0);
+        const busy = deps([{ status: "busy" }]);
+        expect(await runAsk(busy.d, { id: "abc" })).toEqual({ ok: true });
     });
 
     it("words a refusal of wavesrv", async () => {
@@ -147,7 +171,7 @@ describe("the wire", () => {
         expect(card).toContain(`AskGesture    = "${LogWatchAskGesture}"`);
         expect(card).toContain(`MuteGesture   = "${LogWatchMuteGesture}"`);
         expect(card).toContain(`NotificationSource = "logwatch"`);
-        for (const status of ["sent", "pick", "noagent", "gone", "unknown"]) {
+        for (const status of ["sent", "pick", "noagent", "gone", "refused", "busy", "unknown"]) {
             expect(watch).toContain(`= "${status}"`);
         }
     });
@@ -158,7 +182,7 @@ describe("the words", () => {
     const keys = [
         "logwatch.pick.title",
         "logwatch.pick.subtitle",
-        "logwatch.pick.moltenterm",
+        "logwatch.refused",
         "logwatch.pick.send",
         "logwatch.pick.cancel",
         "logwatch.pick.agents",

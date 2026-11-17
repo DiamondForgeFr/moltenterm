@@ -31,6 +31,10 @@ const (
 	AskNoAgent = "noagent"
 	// AskGone: the agent the developer picked no longer runs.
 	AskGone = "gone"
+	// AskRefused: the agent named is not one of MoltenTerm's repository: the log never goes to another project's agent.
+	AskRefused = "refused"
+	// AskBusy: a request for this card is on its way already; this click sends nothing.
+	AskBusy = "busy"
 	// AskUnknown: the watch no longer knows that card's signature.
 	AskUnknown = "unknown"
 )
@@ -81,10 +85,14 @@ type MuteRequest struct {
 
 type Watcher struct {
 	env Env
+	// looking: one look at a time; the log is read and parsed under it, without the state's lock.
+	looking sync.Mutex
 
 	lock   sync.Mutex
 	state  State
 	loaded bool
+	// asking: the cards whose request is on its way.
+	asking map[string]bool
 }
 
 func MakeWatcher(env Env) *Watcher {
@@ -97,7 +105,7 @@ func MakeWatcher(env Env) *Watcher {
 	if env.Logf == nil {
 		env.Logf = func(string, ...any) {}
 	}
-	return &Watcher{env: env}
+	return &Watcher{env: env, asking: map[string]bool{}}
 }
 
 func (w *Watcher) logPath() string {
@@ -160,24 +168,51 @@ func (w *Watcher) Look(ctx context.Context) error {
 	return err
 }
 
+// look reads and parses the log under looking alone, so that a click (Ask, Ignore) never waits for a large read, then
+// applies what it found under the state's lock.
 func (w *Watcher) look() ([]molten.NotificationInput, error) {
-	w.lock.Lock()
-	defer w.lock.Unlock()
-	w.loadLocked()
+	w.looking.Lock()
+	defer w.looking.Unlock()
+	mark, since := w.markOf()
 	now := w.env.Now()
-	out, mark, err := readNew(w.logPath(), w.logsDir(), w.state.File)
+	out, next, err := readNew(w.logPath(), w.logsDir(), mark, since)
 	if err != nil {
 		return nil, fmt.Errorf("reading the log: %w", err)
 	}
-	w.state.File = mark
+	byMinute := map[int64]int64{}
+	count := func(at time.Time, n int64) {
+		byMinute[minuteOf(at.UnixMilli())] += n
+	}
 	var recs []Record
 	for _, chunk := range out.chunks {
-		recs = append(recs, recordsOf(entriesOf(chunk, w.env.Location), now, w.state.addBytes)...)
+		recs = append(recs, recordsOf(entriesOf(chunk, w.env.Location), now, count)...)
 	}
 	if out.skipped > 0 {
-		w.state.addBytes(now, out.skipped)
+		count(now, out.skipped)
 	}
-	facts := w.state.ingest(recs, w.env.Home)
+	for _, rotated := range out.unread {
+		count(rotated.at, rotated.n)
+	}
+	return w.apply(next, recs, byMinute, now), nil
+}
+
+func (w *Watcher) markOf() (fileMark, int64) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	w.loadLocked()
+	return w.state.File, w.state.LookedAt
+}
+
+// apply adds what a look found to the state, decides the cards and keeps the state.
+func (w *Watcher) apply(next fileMark, recs []Record, byMinute map[int64]int64, now time.Time) []molten.NotificationInput {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	w.state.File = next
+	w.state.LookedAt = now.UnixMilli()
+	for minute, n := range byMinute {
+		w.state.Bytes = addMinute(w.state.Bytes, minute, n)
+	}
+	facts := w.state.ingest(recs, makeMasker(w.env.Home))
 	ops := w.state.decide(facts, now)
 	w.state.prune(now)
 	var cards []molten.NotificationInput
@@ -187,7 +222,7 @@ func (w *Watcher) look() ([]molten.NotificationInput, error) {
 		}
 	}
 	w.saveLocked()
-	return cards, nil
+	return cards
 }
 
 func (w *Watcher) publish(ctx context.Context, cards []molten.NotificationInput) {
@@ -294,13 +329,36 @@ func (w *Watcher) isMoltenTerm(ctx context.Context) func(dir string) bool {
 	}
 }
 
-// Ask is "Ask an agent to look": one request to the lead of MoltenTerm's repository, or to the agent the developer
-// picked; with no lead that stands out, it answers the agents to pick among and sends nothing.
+// beginAsk marks a card's request on its way; false when one already is.
+func (w *Watcher) beginAsk(id string) bool {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.asking[id] {
+		return false
+	}
+	w.asking[id] = true
+	return true
+}
+
+func (w *Watcher) endAsk(id string) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	delete(w.asking, id)
+}
+
+// Ask is "Ask an agent to look": one request to the lead of MoltenTerm's repository, or to the agent of that repository
+// the developer picked; with no lead that stands out, it answers the agents to pick among and sends nothing. The log
+// never goes to another project's agent (FR-BOSS-012 AC9), and a second click while a request is on its way sends
+// nothing.
 func (w *Watcher) Ask(ctx context.Context, req AskRequest) (AskResult, error) {
 	if !w.env.Enabled() {
 		return AskResult{}, ErrOff
 	}
 	id := strings.TrimSpace(req.Id)
+	if !w.beginAsk(id) {
+		return AskResult{Status: AskBusy}, nil
+	}
+	defer w.endAsk(id)
 	target, ok := w.targetOf(id)
 	if !ok {
 		return AskResult{Status: AskUnknown}, nil
@@ -316,6 +374,9 @@ func (w *Watcher) Ask(ctx context.Context, req AskRequest) (AskResult, error) {
 		}
 		if to == nil {
 			return AskResult{Status: AskGone}, nil
+		}
+		if to.ProjectDir == "" || !w.isMoltenTerm(ctx)(to.ProjectDir) {
+			return AskResult{Status: AskRefused}, nil
 		}
 	} else {
 		var locks []molten.AgentNameLock

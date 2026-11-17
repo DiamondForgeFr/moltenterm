@@ -66,6 +66,8 @@ type growthMark struct {
 type State struct {
 	Version int      `json:"version"`
 	File    fileMark `json:"file"`
+	// LookedAt: when the last look ran (Unix ms); the rotated logs written since then count in the growth.
+	LookedAt int64 `json:"lookedat,omitempty"`
 	// Bytes: the log's bytes per minute of their lines' stamps, over the last hour.
 	Bytes      []minuteCount `json:"bytes,omitempty"`
 	Growth     growthMark    `json:"growth"`
@@ -149,10 +151,29 @@ func (s *State) prune(now time.Time) {
 	for i := range s.Signatures {
 		s.Signatures[i].Minutes = pruneMinutes(s.Signatures[i].Minutes, minuteOf(s.Signatures[i].Last))
 	}
-	sort.SliceStable(s.Signatures, func(i, j int) bool { return s.Signatures[i].Last > s.Signatures[j].Last })
 	if len(s.Signatures) > MaxSignatures {
+		// Past the cap, errors and warnings go first, the one seen longest ago first: a panic or a crash dropped would come
+		// back as new, and one raised today would be raised twice the same day.
+		nowMs := now.UnixMilli()
+		tier := func(sig Signature) int {
+			switch {
+			case sig.Raised != 0 && nowMs-sig.Raised < RaiseEvery.Milliseconds():
+				return 0
+			case raisesNew(sig.Kind):
+				return 1
+			}
+			return 2
+		}
+		sort.SliceStable(s.Signatures, func(i, j int) bool {
+			a, b := tier(s.Signatures[i]), tier(s.Signatures[j])
+			if a != b {
+				return a < b
+			}
+			return s.Signatures[i].Last > s.Signatures[j].Last
+		})
 		s.Signatures = s.Signatures[:MaxSignatures]
 	}
+	sort.SliceStable(s.Signatures, func(i, j int) bool { return s.Signatures[i].Last > s.Signatures[j].Last })
 	if len(s.Muted) > MaxMuted {
 		ids := make([]string, 0, len(s.Muted))
 		for id := range s.Muted {

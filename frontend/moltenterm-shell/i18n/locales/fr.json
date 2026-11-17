@@ -11924,14 +11924,14 @@
     "logwatch": {
         "pick": {
             "title": "Qui doit y regarder ?",
-            "subtitle": "Aucun responsable du dépôt de MoltenTerm ne se détache. Choisissez l'agent qui reçoit l'extrait du journal : il reste sur cet ordinateur.",
-            "moltenterm": "Dépôt de MoltenTerm",
+            "subtitle": "Aucun responsable du dépôt de MoltenTerm ne se détache. Choisissez l'agent de ce dépôt qui reçoit l'extrait du journal : il ne va qu'à cet agent et à son fournisseur de modèle.",
             "send": "Envoyer",
             "cancel": "Annuler",
             "agents": "Agents en cours"
         },
-        "noAgent": "Aucun agent ne tourne sur cet ordinateur. Lancez-en un dans l'espace de MoltenTerm, puis redemandez.",
+        "noAgent": "Aucun agent du dépôt de MoltenTerm ne tourne. Lancez-en un dans l'espace de MoltenTerm, puis redemandez.",
         "gone": "Cet agent s'est arrêté. Redemandez pour en choisir un autre.",
+        "refused": "Seul un agent du dépôt de MoltenTerm reçoit le journal. Redemandez pour en choisir un.",
         "unknown": "Brokk ne garde plus celle-ci dans ses notes.",
         "unavailable": "La veille des journaux n'est pas disponible sur cette version."
     },

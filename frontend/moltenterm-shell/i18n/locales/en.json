@@ -11924,14 +11924,14 @@
     "logwatch": {
         "pick": {
             "title": "Who should look at it?",
-            "subtitle": "No lead of MoltenTerm's repository stands out. Pick the agent that gets the log excerpt: it stays on this computer.",
-            "moltenterm": "MoltenTerm's repository",
+            "subtitle": "No lead of MoltenTerm's repository stands out. Pick the agent of that repository that gets the log excerpt: it goes only to that agent and to its model provider.",
             "send": "Send",
             "cancel": "Cancel",
             "agents": "Running agents"
         },
-        "noAgent": "No agent runs on this computer. Start one in MoltenTerm's workspace, then ask again.",
+        "noAgent": "No agent of MoltenTerm's repository runs. Start one in MoltenTerm's workspace, then ask again.",
         "gone": "That agent has stopped. Ask again to pick another one.",
+        "refused": "Only an agent of MoltenTerm's repository gets the log. Ask again to pick one.",
         "unknown": "Brokk no longer keeps this one in his notes.",
         "unavailable": "The log watch is not available on this build."
     },

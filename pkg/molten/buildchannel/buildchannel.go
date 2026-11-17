@@ -73,7 +73,7 @@ func GateChannel(dev bool, baked string, runtime string) string {
 // InternalChannel: the channels MoltenTerm's own developers build and run (dev, local and gold), never a release
 // candidate, a public release or a channel that is not known. What exists only for them (the log watch, FR-BOSS-012)
 // checks it on top of the registry, so a registry that listed rc or public by mistake could still not open it on a
-// release. Must match internalChannel in frontend/moltenterm-shell/build/build-identity.ts.
+// release. Must match internalChannel in frontend/moltenterm-shell/build/build-channel.ts.
 func InternalChannel(channel string) bool {
 	return channel == Dev || channel == Local || channel == Gold
 }

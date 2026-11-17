@@ -166,7 +166,7 @@ func TestEntriesAndTheirBytes(t *testing.T) {
 func TestTheExcerptHidesTheHomeFolderAndIsBounded(t *testing.T) {
 	t.Parallel()
 	r := recordsOfText(panicLines(day, "boom \x1b[31mred\x1b[0m", "step"))[0]
-	excerpt := excerptOf(r, fakeHome)
+	excerpt := excerptOf(r, makeMasker(fakeHome))
 	if strings.Contains(excerpt, fakeHome) || !strings.Contains(excerpt, "~/src/pkg/molten/fake/worker.go:42") {
 		t.Fatalf("home folder in the excerpt:\n%s", excerpt)
 	}
@@ -177,7 +177,7 @@ func TestTheExcerptHidesTheHomeFolderAndIsBounded(t *testing.T) {
 	for i := range r.Stack {
 		r.Stack[i] = strings.Repeat("x", 500)
 	}
-	if long := excerptOf(r, fakeHome); len(long) > maxExcerptBytes+8 || strings.Count(long, "\n") > maxExcerptLines {
+	if long := excerptOf(r, makeMasker(fakeHome)); len(long) > maxExcerptBytes+8 || strings.Count(long, "\n") > maxExcerptLines {
 		t.Fatalf("excerpt of %d bytes, %d lines", len(long), strings.Count(long, "\n"))
 	}
 }
