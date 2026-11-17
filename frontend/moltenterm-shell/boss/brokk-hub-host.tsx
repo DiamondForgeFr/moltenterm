@@ -14,6 +14,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { isMacOS } from "@/util/platformutil";
+import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
@@ -25,11 +26,14 @@ import { BrokkAvatar } from "./brokk-avatar";
 import { hangingRightPx, Rect as ScreenRect } from "./brokk-avatar-model";
 import type { SidebarPlace } from "./brokk-edge-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
-import { BrokkGroup, GroupFrame } from "./brokk-group";
+import { BrokkGroup, GroupFrame, preloadUsageBlock } from "./brokk-group";
 import { dockedPlace, groupGeometry, groupPlace } from "./brokk-group-model";
 import "./brokk-group.css";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { BrokkSession } from "./brokk-session";
+
+// How long after the window is up the usage block of his group is loaded.
+const UsageBlockLoadDelayMs = 2000;
 
 // The group is kept on screen this long after it was asked to leave, for its leaving motion.
 export const LeaveMs = 560;
@@ -153,6 +157,12 @@ function BrokkHostLayer({ show }: { show: boolean }) {
     useEffect(() => boss.attach(document), [boss]);
     // The feeds run whatever the switch: off, the hub raises nothing but keeps the rail's badge keys current (#2218).
     useEffect(() => hubModel.start(), [hubModel]);
+    // The usage block of his group loads once the window is up, outside the JavaScript it loads up front, so that it is
+    // there when the group opens (#2341).
+    useEffect(() => {
+        const timer = setTimeout(() => fireAndForget(() => preloadUsageBlock()), UsageBlockLoadDelayMs);
+        return () => clearTimeout(timer);
+    }, []);
     useEffect(() => (show ? BrokkExpressionsModel.getInstance().watch(document) : undefined), [show]);
     // The session a restart left, so that the ring turns for it.
     useEffect(() => {

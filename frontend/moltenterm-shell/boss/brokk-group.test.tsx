@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 vi.mock("@/app/store/global", async () => {
@@ -177,7 +177,7 @@ import { CardTestId } from "./boss-card-model";
 import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
 import { UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
-import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard, weekRow } from "./brokk-group";
+import { BrokkGroup, BrokkScrim, GroupFrame, preloadUsageBlock, rememberPanel, SayCard } from "./brokk-group";
 import {
     ArrivalSteps,
     autoPanelIn,
@@ -200,6 +200,7 @@ import {
 } from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
 import { BrokkSpeech } from "./brokk-speech";
+import { weekRow } from "./brokk-usage-block";
 import { usageGrid } from "./brokk-usage-model";
 
 const boss = BossBubbleModel.getInstance() as any;
@@ -284,6 +285,12 @@ function quiet() {
     globalStore.set(BrokkSpeech.getInstance().speakingAtom, false);
     Badge.keys = [];
 }
+
+// The usage block under the square loads on demand (#2341): load it while the file is collected, so that the group draws
+// it at once, as it does once the window has asked for it, and no test pays for the load inside its 5 s.
+beforeAll(async () => {
+    await preloadUsageBlock();
+}, 60000);
 
 beforeEach(() => {
     quiet();
@@ -1233,8 +1240,11 @@ describe("the block under the square (AC17 and AC20)", () => {
             globalStore.set(UsageUseAtom, { claude: use(20) });
             const html = render();
             expect(providers(html)).toEqual(["claude"]);
-            // The line that tells how many wait loads on demand (NFR-PERF-003): its own test renders it.
             expect(html).not.toContain('data-provider="codex"');
+            // The quiet line under the grid tells how many wait, closed: the developer opens the list.
+            expect(attr(html, "brokk-usage-hidden-toggle", "aria-expanded")).toBe("false");
+            expect(html).toContain("Not used lately (1)");
+            expect(html).not.toContain('data-testid="brokk-usage-hidden"');
         });
 
         it("shows no line about it while every provider shows, nor before the use is known", () => {
@@ -1276,6 +1286,16 @@ describe("the block under the square (AC17 and AC20)", () => {
             expect(cellTag(live, "codex")).not.toContain("data-stale");
         });
 
+        // NFR-PERF-003, bundle.initialJsMB: the block loads once the window is up, and the group draws it when it is there.
+        it("asks for the usage block once the window is up, and draws it as soon as it is loaded", () => {
+            const host = readFileSync(join(__dirname, "brokk-hub-host.tsx"), "utf8");
+            expect(host).toContain("fireAndForget(() => preloadUsageBlock())");
+            expect(host).toContain("UsageBlockLoadDelayMs");
+            const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+            expect(group).toContain("useState<UsageBlockModule>(usageBlock)");
+            expect(group).toContain("preloadUsageBlock().then(setBlock)");
+        });
+
         // The keyboard reaches the row's menu (#2341): the logo is the row's button, in the row that carries the menu.
         it("makes each logo a button that opens its row's menu, and each row a group", () => {
             globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
@@ -1306,7 +1326,7 @@ describe("the block under the square (AC17 and AC20)", () => {
             globalStore.set(UsageUnreadableAtom, {});
         });
 
-        it("opens the menu of a row with the current choice marked, from a right click as from a key", async () => {
+        it("opens the menu of a row with the current choice marked, from a right click as from a key", () => {
             const grid = usageGrid({ claude: reading("claude", 40) }, Date.now());
             const event = (extra: object) =>
                 ({
@@ -1321,12 +1341,11 @@ describe("the block under the square (AC17 and AC20)", () => {
             const row = weekRow(grid.rows[0], { show: ["claude"], hide: [] });
             Menus.shown.mockClear();
 
-            // The first menu loads the code of the choices (it is out of the up-front JavaScript): it opens once loaded.
             const click = event({});
             row.onContextMenu(click);
             expect(click.preventDefault).toHaveBeenCalled();
             expect(click.stopPropagation).toHaveBeenCalled();
-            await vi.waitFor(() => expect(Menus.shown).toHaveBeenCalledTimes(1), { timeout: 30000 });
+            expect(Menus.shown).toHaveBeenCalledTimes(1);
             const [items, shownFor] = Menus.shown.mock.calls[0];
             expect(shownFor).toBe(click);
             expect(items.map((i: any) => [i.label, i.type, i.checked])).toEqual([
@@ -1344,7 +1363,7 @@ describe("the block under the square (AC17 and AC20)", () => {
                 currentTarget: { closest: () => null, getBoundingClientRect: () => ({ left: 40, bottom: 90 }) },
             });
             row.onContextMenu(openRowMenu(press));
-            // The code is loaded now: the menu opens in the very event that asked for it, so it is told it came from a key.
+            // The menu opens in the very event that asked for it, so it is told it came from a key.
             expect(Menus.shown).toHaveBeenCalledTimes(1);
             const opened = Menus.shown.mock.calls[0][1];
             expect([opened.clientX, opened.clientY]).toEqual([40, 90]);
@@ -1365,8 +1384,8 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(grid).toContain("useHover(context, { delay: { open: NameDelayMs, close: 0 } })");
         expect(grid).toContain("onOpenChange: setOpen,");
         expect(grid).toMatch(/<FloatingPortal>\s*<span[^>]*className="mt-uw-name"/);
-        const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(group).toContain("const name = agentName(provider);");
+        const block = readFileSync(join(__dirname, "brokk-usage-block.tsx"), "utf8");
+        expect(block).toContain("const name = agentName(provider);");
         const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
             /\/\*[\s\S]*?\*\//g,
             ""
