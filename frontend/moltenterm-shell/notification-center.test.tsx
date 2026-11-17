@@ -24,6 +24,7 @@ describe("the bell is gone, its host is not (FR-BOSS-009, AC9)", () => {
             "<TrustApprovalHost />",
             "startNotificationToasts()",
             "startDownloads()",
+            "startLogsNotice()",
         ]) {
             expect(source, kept).toContain(kept);
         }

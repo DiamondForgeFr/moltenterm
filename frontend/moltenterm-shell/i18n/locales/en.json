@@ -11260,6 +11260,31 @@
         "reloadedMessagePlain": "Its display process was ended. Your sessions kept running.",
         "showLog": "Show log"
     },
+    "logs": {
+        "title": "Logs",
+        "hint": "MoltenTerm's log files on this computer. They rotate by themselves and never grow past a size limit.",
+        "size": "Total size",
+        "files": {
+            "one": "{count} file, the current one included",
+            "other": "{count} files, the current one included"
+        },
+        "reading": "Reading the size…",
+        "unreadable": "The size of the logs could not be read.",
+        "show": "Show in folder",
+        "clear": "Clear logs",
+        "clearing": "Clearing…",
+        "confirm": "Clear {size} of logs? The rotated files are removed and the current file is emptied. MoltenTerm keeps logging.",
+        "confirmYes": "Clear logs",
+        "cleared": "Logs cleared: {size} freed.",
+        "partial": "Some log files could not be removed.",
+        "failed": "The logs could not be cleared.",
+        "notice": {
+            "title": "The logs take {size}",
+            "message": "They grew past {limit} on this computer. Clearing them frees the space and changes nothing else.",
+            "clear": "Clear logs",
+            "show": "Show in folder"
+        }
+    },
     "agentWorks": {
         "follows": "MoltenTerm follows:",
         "uses": "It can use:",

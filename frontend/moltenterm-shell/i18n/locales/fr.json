@@ -11260,6 +11260,31 @@
         "reloadedMessagePlain": "Son processus d'affichage a été arrêté. Vos sessions ont continué de tourner.",
         "showLog": "Afficher le journal"
     },
+    "logs": {
+        "title": "Journaux",
+        "hint": "Les fichiers journaux de MoltenTerm sur cet ordinateur. Ils tournent tout seuls et ne dépassent jamais une taille limite.",
+        "size": "Taille totale",
+        "files": {
+            "one": "{count} fichier, dont le fichier en cours",
+            "other": "{count} fichiers, dont le fichier en cours"
+        },
+        "reading": "Lecture de la taille…",
+        "unreadable": "La taille des journaux n'a pas pu être lue.",
+        "show": "Afficher dans le dossier",
+        "clear": "Effacer les journaux",
+        "clearing": "Effacement…",
+        "confirm": "Effacer {size} de journaux ? Les fichiers archivés sont supprimés et le fichier en cours est vidé. MoltenTerm continue d'écrire.",
+        "confirmYes": "Effacer les journaux",
+        "cleared": "Journaux effacés : {size} libérés.",
+        "partial": "Certains fichiers journaux n'ont pas pu être supprimés.",
+        "failed": "Les journaux n'ont pas pu être effacés.",
+        "notice": {
+            "title": "Les journaux pèsent {size}",
+            "message": "Ils ont dépassé {limit} sur cet ordinateur. Les effacer libère la place et ne change rien d'autre.",
+            "clear": "Effacer les journaux",
+            "show": "Afficher dans le dossier"
+        }
+    },
     "agentWorks": {
         "follows": "MoltenTerm suit :",
         "uses": "Il peut utiliser :",

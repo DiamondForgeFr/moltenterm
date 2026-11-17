@@ -14,12 +14,12 @@
 import { fireAndForget } from "@/util/util";
 import { RenderProcessGoneDetails, shell, WebContents } from "electron";
 import * as os from "node:os";
-import * as path from "node:path";
 import { getGlobalIsQuitting, getGlobalIsRelaunching } from "./emain-activity";
 import { getWaveDataDir } from "./emain-platform";
 import { getWaveTabViewByWebContentsId, WaveTabView } from "./emain-tabview";
 import { getWaveWindowById, WaveBrowserWindow } from "./emain-window";
 import { ShowLogChannel, WindowReloadedChannel } from "./moltenterm-hang-ipc";
+import { currentLogPath } from "./moltenterm-log-files";
 import { handleAppIpc } from "./moltenterm-privileged-ipc";
 import {
     isRecoverableLoss,
@@ -224,6 +224,6 @@ function watchMainSignals(record: Recorder) {
 export function initRendererGoneRecovery(record: Recorder) {
     watchMainSignals(record);
     handleAppIpc(ShowLogChannel, () => {
-        shell.showItemInFolder(path.join(getWaveDataDir(), "waveapp.log"));
+        shell.showItemInFolder(currentLogPath(getWaveDataDir()));
     });
 }

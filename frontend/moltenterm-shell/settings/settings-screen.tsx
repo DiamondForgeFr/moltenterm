@@ -37,6 +37,7 @@ import { I18nModel, useT } from "../i18n/i18n";
 import { languageName } from "../i18n/i18n-core";
 import { AutomaticSetting } from "../keepawake-model";
 import { KeepAwakeDetails } from "../keepawake-ui";
+import { LogsCard } from "../logs/logs-settings";
 import { MoltenWave } from "../molten-button";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
@@ -812,7 +813,7 @@ export function useSettingsPageData(): SettingsPageData {
 function sectionFlowBlocks(section: SettingsSectionId, groups: number): number {
     return (
         groups +
-        (section === "advanced" ? 1 : 0) +
+        (section === "advanced" ? 2 : 0) +
         (section === "mods" ? 1 : 0) +
         (section === "learned" ? 1 : 0) +
         (section === "about" ? 2 : 0) +
@@ -877,6 +878,7 @@ export function SettingsSectionPage({
             {flowBlocks > 0 ? (
                 <PageFlow columns={pageColumns(flowBlocks)}>
                     {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
+                    {section === "advanced" ? <LogsCard /> : null}
                     {groups.map((g) => (
                         <PageCard
                             key={g.group}

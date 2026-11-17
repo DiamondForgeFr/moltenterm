@@ -62,6 +62,7 @@ import { initBusyCloseReplies } from "./moltenterm-busy-close"; // MOLTENTERM-PA
 import { askQuitStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { initMoltentermHangWatch } from "./moltenterm-hang-watch"; // MOLTENTERM-PATCH (#849)
+import { initMoltentermLogs } from "./moltenterm-logs"; // MOLTENTERM-PATCH (#2335)
 import { exportSystemLanguageToEnv, initMoltentermI18n, initMoltentermI18nIpc, mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623)
 import { initMoltentermColleague } from "./moltenterm-colleague"; // MOLTENTERM-PATCH (#2221)
 import { initMoltentermDownloads } from "./moltenterm-downloads"; // MOLTENTERM-PATCH (#1992)
@@ -454,6 +455,7 @@ async function appMain() {
     installMoltentermSitePermissionHandlers(); // MOLTENTERM-PATCH (#663): what pages may use, before any page loads
     installMoltentermClientCertificateHandler(); // MOLTENTERM-PATCH (#1979): no page gets a client certificate the user did not pick
     initMoltentermHangWatch(); // MOLTENTERM-PATCH (#849): windows that stop answering, gone processes, slow sendSync
+    initMoltentermLogs(); // MOLTENTERM-PATCH (#2335): the size and the clear of the logs, and the note past the high mark
 
     await sleep(10); // wait a bit for wavesrv to be ready
     try {
