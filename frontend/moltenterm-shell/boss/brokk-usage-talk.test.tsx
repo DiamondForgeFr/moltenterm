@@ -53,6 +53,7 @@ vi.mock("./brokk-session", async () => {
 import { globalStore } from "@/app/store/jotaiStore";
 import { BrainstormLastLeftAtom, BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { UsageReadingsAtom } from "./boss-usage";
+import { answerPermission } from "./brokk-permission";
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk, keepDraft } from "./brokk-talk";
 import { BrokkUsageTab } from "./brokk-usage-tab";
@@ -592,6 +593,60 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         expect(html).toContain("On its way…");
         expect(html).not.toContain("fa-spin");
         expect(html).not.toContain('data-testid="brokk-talk-wayout"');
+    });
+
+    // #2349: answering an authorisation in his window keeps the developer in it. The clicked button is disabled, then
+    // leaves with its card: the focus it held would drop on the page, and the window, open while its field has the
+    // focus, would fold. The focus goes to his field before the answer goes, whatever the answer and whatever his agent.
+    describe("an answer given in his window keeps it open (#2349)", () => {
+        const Ask = { id: "req-9", blockid: "block-1", tool: "Bash", kind: "command", subject: "npm test", at: 1 };
+
+        for (const decision of ["allow", "always", "deny"] as const) {
+            it(`hands the focus to his field before the ${decision} goes`, async () => {
+                const session = BrokkSession.getInstance() as any;
+                const steps: string[] = [];
+                let finish: (status: string) => void;
+                session.permit.mockImplementationOnce((ask: any, d: string) => {
+                    steps.push(`permit ${ask.id} ${d}`);
+                    return new Promise((resolve) => (finish = resolve));
+                });
+                const answered = answerPermission(Ask as any, decision, () => steps.push("focus field"));
+                expect(steps).toEqual(["focus field", `permit req-9 ${decision}`]);
+                finish("answered");
+                await expect(answered).resolves.toBe("answered");
+                expect(steps).toEqual(["focus field", `permit req-9 ${decision}`]);
+            });
+        }
+
+        it("gives the card the window's own way to keep its focus", () => {
+            const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
+            expect(source).toContain(
+                "const keepConversation = () => inputRef.current?.focus({ preventScroll: true });"
+            );
+            expect(source).toContain("<BrokkPermissions name={name} onAnswer={keepConversation} />");
+            const card = readFileSync(join(__dirname, "brokk-permission.tsx"), "utf8");
+            expect(card).toContain("await answerPermission(ask, decision, onAnswer);");
+            expect(card).toContain("<BrokkPermissionCard ask={ask} name={name} onAnswer={onAnswer} />");
+        });
+
+        // A reply that authorises turns into Confirm and Cancel, so the button clicked leaves too; Confirm goes even
+        // while an earlier message is on its way, and the window still keeps the developer.
+        it("keeps the focus in the window through a reply, its confirmation and its cancel", () => {
+            const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
+            for (const handler of [
+                "const pick = (action: InlineAction) => {",
+                "const confirm = () => {",
+                "const cancel = () => {",
+                "const sendReply = async (reply: string) => {",
+            ]) {
+                expect(source, handler).toContain(`${handler}\n        keepConversation();`);
+            }
+        });
+
+        it("scrolls to what follows once the card is gone", () => {
+            const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
+            expect(source).toContain("}, [open, items, state.phase, confirming, text, asking]);");
+        });
     });
 
     it("gives its messages to his session, and keeps the text unless the agent has it", () => {
