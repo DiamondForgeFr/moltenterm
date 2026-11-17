@@ -8,7 +8,7 @@ import { GateChannel, gateChannel } from "./build-channel";
 import type { MoltentermBuildInfo } from "./build-info";
 import { brainstormAllowed, brainstormReplayAllowed, BuildIdentity, makeBuildIdentity } from "./build-identity";
 import { currentNarrowing } from "./features-narrowing";
-import { featureOn, type GatedFeatureId } from "./gated-features";
+import { featureOn, logWatchOn, type GatedFeatureId } from "./gated-features";
 
 export function readBuildInfo(): MoltentermBuildInfo {
     return typeof __MOLTENTERM_BUILD__ === "undefined" ? null : __MOLTENTERM_BUILD__;
@@ -55,6 +55,13 @@ export function currentChannel(): GateChannel {
 export function currentFeatureOn(id: GatedFeatureId): boolean {
     const now = currentChannel();
     return now != null && featureOn(id, now, currentNarrowing());
+}
+
+// The window's lock of Brokk's log watch (FR-BOSS-012, #2336): an internal channel and its switch on, read at each call.
+// wavesrv holds the second lock (buildchannel.LogWatchEnabled).
+export function currentLogWatchOn(): boolean {
+    const now = currentChannel();
+    return now != null && logWatchOn(now, currentNarrowing());
 }
 
 // The window's lock of Brokk's thought in 3D (FR-BOSS-010 AC1: every channel, no switch since #2320), and of its scripted

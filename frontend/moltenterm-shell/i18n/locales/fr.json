@@ -6710,7 +6710,8 @@
             "download": "téléchargement",
             "trust": "approbation",
             "pr": "pull request",
-            "handoff": "passage de relais"
+            "handoff": "passage de relais",
+            "logwatch": "veille des journaux"
         },
         "goToTerminal": "Aller au terminal",
         "age": {
@@ -10919,6 +10920,37 @@
                 "git": "git ne l'a pas supprimée ({detail})"
             }
         },
+        "logwatch": {
+            "off": "La veille des journaux est désactivée sur cette version.",
+            "sendFailed": "La demande n'a pas pu être envoyée : {detail}",
+            "title": {
+                "newPanic": "Un nouveau panic dans le journal",
+                "newCrash": "Un crash dans le journal",
+                "spikePanic": "Un panic revient sans cesse",
+                "spikeCrash": "Un crash revient sans cesse",
+                "spikeError": "Une erreur revient sans cesse",
+                "spikeWarning": "Un avertissement revient sans cesse",
+                "growth": "Le journal grossit vite"
+            },
+            "message": {
+                "new": "Je l'ai repéré {times} depuis {since} : `{excerpt}`",
+                "newAt": "Je l'ai repéré {times} depuis {since} : `{excerpt}` dans `{frame}`",
+                "spike": "Environ {rate} par minute ces derniers temps, {times} depuis {since} : `{excerpt}`",
+                "spikeAt": "Environ {rate} par minute ces derniers temps, {times} depuis {since} : `{excerpt}` dans `{frame}`",
+                "growth": "{size} écrits dans la dernière heure : quelque chose se répète peut-être.",
+                "asked": "{name} y jette un œil. {rest}"
+            },
+            "times": {
+                "one": "une fois",
+                "other": "{count} fois"
+            },
+            "size": "{mb} Mo",
+            "action": {
+                "ask": "Demander à un agent de regarder",
+                "mute": "Ignorer ce genre",
+                "reveal": "Afficher dans le dossier"
+            }
+        },
         "onboarding": {
             "notDeclined": "{agent} n'a pas été refusé : MoltenTerm installe ses guides au démarrage.",
             "installFailed": "Les guides de {agent} n'ont pas pu être installés : {detail}",
@@ -11881,7 +11913,27 @@
         },
         "openOn": "Ouverte sur",
         "ticket": "Ticket n°{number}",
-        "note": "Ces réglages ne font que désactiver des fonctions, sur cet ordinateur. Une fonction ne s'ouvre jamais sur une version dont le canal ne l'a pas, et rien ici n'est synchronisé."
+        "note": "Ces réglages ne font que désactiver des fonctions, sur cet ordinateur. Une fonction ne s'ouvre jamais sur une version dont le canal ne l'a pas, et rien ici n'est synchronisé.",
+        "features": {
+            "logwatch": {
+                "label": "La veille des journaux de Brokk",
+                "description": "Brokk lit le journal de l'app toutes les 10 minutes et laisse une carte discrète dans ses notes quand un panic, un crash, une boucle ou un journal qui grossit vite apparaît, avec de quoi demander à un agent de regarder. Versions Gold, dev et locales seulement, jamais dans une version publiée."
+            }
+        }
+    },
+    "logwatch": {
+        "pick": {
+            "title": "Qui doit y regarder ?",
+            "subtitle": "Aucun responsable du dépôt de MoltenTerm ne se détache. Choisissez l'agent qui reçoit l'extrait du journal : il reste sur cet ordinateur.",
+            "moltenterm": "Dépôt de MoltenTerm",
+            "send": "Envoyer",
+            "cancel": "Annuler",
+            "agents": "Agents en cours"
+        },
+        "noAgent": "Aucun agent ne tourne sur cet ordinateur. Lancez-en un dans l'espace de MoltenTerm, puis redemandez.",
+        "gone": "Cet agent s'est arrêté. Redemandez pour en choisir un autre.",
+        "unknown": "Brokk ne garde plus celle-ci dans ses notes.",
+        "unavailable": "La veille des journaux n'est pas disponible sur cette version."
     },
     "library": {
         "label": "Bibliothèque",

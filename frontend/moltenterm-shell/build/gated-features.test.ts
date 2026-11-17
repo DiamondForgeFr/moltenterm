@@ -7,15 +7,17 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import en from "../i18n/locales/en.json";
 import fr from "../i18n/locales/fr.json";
-import { BuildChannelNames, isBuildChannelName, type GateChannel } from "./build-channel";
+import { BuildChannelNames, internalChannel, isBuildChannelName, type GateChannel } from "./build-channel";
 import * as Gated from "./gated-features";
 import {
     featureAllowedOn,
     featureOn,
     featuresInTestShown,
+    FeatureLogWatch,
     FeaturesMetaKey,
     gatedFeature,
     GatedFeatures,
+    logWatchOn,
     NoNarrowing,
 } from "./gated-features";
 
@@ -78,6 +80,29 @@ describe("the registry of gated features", () => {
         for (const part of ["on", "off", "publicOff", "closedHere"]) {
             expect(typeof lookup(en, `featuresInTest.state.${part}`), part).toBe("string");
             expect(typeof lookup(fr, `featuresInTest.state.${part}`), part).toBe("string");
+        }
+    });
+});
+
+// FR-BOSS-012 AC1 (#2336): the log watch is the registry's feature on gold, dev and local builds, with its switch, and
+// never opens on a release (logwatch-gate.test.ts proves it with a registry that lists rc and public).
+describe("the log watch", () => {
+    it("is open on gold, dev and local builds only, and its switch turns it off", () => {
+        expect(gatedFeature(FeatureLogWatch)?.ticket).toBe(2336);
+        expect([...gatedFeature(FeatureLogWatch).channels].sort()).toEqual(["dev", "gold", "local"]);
+        for (const channel of EveryChannel) {
+            const internal = channel === "dev" || channel === "local" || channel === "gold";
+            expect(logWatchOn(channel, NoNarrowing), String(channel)).toBe(internal);
+            expect(internalChannel(channel), String(channel)).toBe(internal);
+        }
+        expect(logWatchOn("gold", { public: true, off: [] })).toBe(false);
+        expect(logWatchOn("gold", { public: false, off: [FeatureLogWatch] })).toBe(false);
+        expect(logWatchOn("dev", { public: false, off: ["another"] })).toBe(true);
+    });
+
+    it("shows the Features in test entry on the builds that have it", () => {
+        for (const channel of ["gold", "dev", "local"] as GateChannel[]) {
+            expect(featuresInTestShown(channel), channel).toBe(true);
         }
     });
 });

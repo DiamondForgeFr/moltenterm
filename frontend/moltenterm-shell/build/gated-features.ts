@@ -5,17 +5,21 @@
 // (FR-BOSS-011, #2254). One registry declares them: pkg/molten/buildchannel/gated-features.json, which Go embeds too, so
 // the window and wavesrv never disagree on what exists where. A gate names its feature with one of the Feature
 // constants below, one per feature of the registry (`export const FeatureName = "name";`); gated-features.test.ts fails
-// on any other. No feature is gated since the brainstorm shipped on every channel (#2320): the registry and the
-// constants are empty, and the entry of Features in test shows nowhere.
+// on any other. The brainstorm left the registry when it shipped on every channel (#2320); the log watch is in it since
+// #2336, so the entry of Features in test shows on gold, dev and local builds.
 //
 // The switches only narrow: the channel decides first (FR-BOSS-011 AC5), and what the developer stored can only remove
 // from what it opens. Pure, with no store: the stored state is read in features-narrowing.ts.
 
 import Registry from "../../../pkg/molten/buildchannel/gated-features.json";
-import { isBuildChannelName, type BuildChannelName, type GateChannel } from "./build-channel";
+import { internalChannel, isBuildChannelName, type BuildChannelName, type GateChannel } from "./build-channel";
 
 // must match pkg/molten/buildchannel/features.go NarrowingMetaKey
 export const FeaturesMetaKey = "molten:featuresintest";
+
+// Brokk's log watch (FR-BOSS-012, #2336), on gold, dev and local builds only; must match FeatureLogWatch in
+// pkg/molten/buildchannel/features.go.
+export const FeatureLogWatch = "logwatch";
 
 // The id of a feature of the registry; a union of the Feature constants once there are some.
 export type GatedFeatureId = string;
@@ -68,6 +72,13 @@ export function narrows(narrowing: FeaturesNarrowing, id: string): boolean {
 // The whole rule, for a channel and a state. Whatever the state, it never holds where featureAllowedOn does not.
 export function featureOn(id: GatedFeatureId, channel: GateChannel, narrowing: FeaturesNarrowing): boolean {
     return featureAllowedOn(id, channel) && !narrows(narrowing, id);
+}
+
+// The log watch's whole rule: the registry opens it and the channel is internal, so it never exists on a release
+// candidate or a public release whatever the registry says. must match LogWatchAllowed in
+// pkg/molten/buildchannel/features.go.
+export function logWatchOn(channel: GateChannel, narrowing: FeaturesNarrowing): boolean {
+    return internalChannel(channel) && featureOn(FeatureLogWatch, channel, narrowing);
 }
 
 // The state after the developer switched one feature off or on; the others, and See the public version, stay as they are.

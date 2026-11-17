@@ -71,6 +71,7 @@ const SourceLabels: Record<MoltentermNotificationSource, string> = {
     deps: "notif.source.deps",
     download: "notif.source.download",
     trust: "notif.source.trust",
+    logwatch: "notif.source.logwatch",
 };
 
 // The source as a row shows it; an unknown one as stored.

@@ -29,7 +29,10 @@ export type MoltentermNotificationSource =
     // The downloads of the web pages (#1992, FR-MC-019 AC10): one when a download ends, one when it fails.
     | "download"
     // A refused run waiting for the developer's approval (#1017): tied to no subject, so never silenced.
-    | "trust";
+    | "trust"
+    // Brokk's log watch (FR-BOSS-012, #2336), gold, dev and local builds only: tied to no subject, its own switch in
+    // Features in test turns it off. must match NotificationSource in pkg/molten/logwatch/card.go.
+    | "logwatch";
 export type MoltentermNotificationKind = "info" | "success" | "warning" | "error";
 
 // "open" goes where it points (a workspace, a tab, a block, or a view opened in the active tab); "gesture" runs a

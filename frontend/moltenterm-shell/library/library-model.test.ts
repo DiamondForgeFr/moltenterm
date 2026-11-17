@@ -58,13 +58,17 @@ describe("library sections (FR-SHELL-088)", () => {
         expect(librarySectionAt("agents", -1, release)).toBe("settings");
         expect(librarySectionAt("settings", 1, release)).toBe("agents");
         const gold = visibleLibrarySections("gold");
-        expect(librarySectionAt("agents", -1, gold)).toBe("settings");
-        expect(librarySectionAt("settings", 1, gold)).toBe("agents");
+        expect(librarySectionAt("agents", -1, gold)).toBe("features");
+        expect(librarySectionAt("features", 1, gold)).toBe("agents");
     });
 
-    // FR-BOSS-011 AC1 (#2320): no feature is gated, so Features in test is in the navigation of no channel; with a
-    // feature in the registry it shows on gold, dev and local builds (gated-features-mechanism.test.ts).
-    it.each<[GateChannel]>([["gold"], ["dev"], ["local"], ["rc"], ["public"], ["unknown"], [null]])(
+    // FR-BOSS-011 AC1: the log watch is the registry's feature since #2336, so Features in test is in the navigation of
+    // gold, dev and local builds, and of no release.
+    it.each<[GateChannel]>([["gold"], ["dev"], ["local"]])("%s: Features in test in the navigation", (channel) => {
+        expect(visibleLibrarySections(channel).map((s) => s.id)).toEqual(LibrarySections.map((s) => s.id));
+    });
+
+    it.each<[GateChannel]>([["rc"], ["public"], ["unknown"], [null]])(
         "%s: no Features in test in the navigation, and every other section there",
         (channel) => {
             const ids = visibleLibrarySections(channel).map((s) => s.id);

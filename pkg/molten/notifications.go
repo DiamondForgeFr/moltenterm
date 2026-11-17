@@ -67,6 +67,12 @@ type NotificationInput struct {
 	// A publisher that tells its situations again on every pass (the stale dependencies) leaves one the user archived
 	// alone while it says the same thing.
 	KeepDismissed bool `json:"-"`
+	// Quiet: published already read, whatever its subject's choice, so no toast shows it: a background fact the
+	// developer reads when they look (Brokk's log watch, FR-BOSS-012).
+	Quiet bool `json:"-"`
+	// RefreshOnly: only brings the open notification of its key up to date; with none open (archived, resolved, never
+	// published), nothing is published.
+	RefreshOnly bool `json:"-"`
 }
 
 type storedNotification struct {
@@ -268,7 +274,7 @@ func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput
 	if delivery == NotificationDeliverOff {
 		return nil
 	}
-	read := delivery == NotificationDeliverQuiet
+	read := delivery == NotificationDeliverQuiet || input.Quiet
 	input.Actions = capActions(input.Actions)
 	entries := readStoredNotifications(meta)
 	nowMs := float64(now.UnixMilli())
@@ -298,6 +304,9 @@ func NotificationPublishUpdate(meta waveobj.MetaMapType, input NotificationInput
 			value["read"] = read
 			return waveobj.MetaMapType{NotificationKeyPrefix + n.id: value}
 		}
+	}
+	if input.RefreshOnly {
+		return nil
 	}
 	if input.Key != "" && input.KeepDismissed && dismissedSame(entries, input) {
 		return nil

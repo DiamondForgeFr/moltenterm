@@ -33,6 +33,7 @@ import { startHandoffSystemNotifications } from "./handoff-system-notify";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { serverErrorText, serverText } from "./i18n/server-text";
 import { startLogsNotice } from "./logs/logs-notice";
+import { registerLogWatchGestures } from "./logwatch/logwatch-gestures";
 import { DepSyncHost } from "./mission/dep-sync";
 import { registerSetupPrGestures } from "./mission/release-setup-gestures";
 import { TrustApprovalHost } from "./mission/trust-approval";
@@ -70,6 +71,8 @@ function registerBuiltInGestures(): () => void {
         registerNotificationGesture(AgentHandoffGesture, answerAgentHandoff),
         registerNotificationGesture(AgentLinksGesture, openAgentLinksGesture),
         registerSetupPrGestures(),
+        // Brokk's log watch cards (FR-BOSS-012): gold, dev and local builds only.
+        registerLogWatchGestures(),
     ];
     return () => unregister.forEach((fn) => fn());
 }

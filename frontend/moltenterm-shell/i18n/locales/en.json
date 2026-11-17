@@ -6710,7 +6710,8 @@
             "download": "download",
             "trust": "approval",
             "pr": "pull request",
-            "handoff": "hand-off"
+            "handoff": "hand-off",
+            "logwatch": "log watch"
         },
         "goToTerminal": "Go to the terminal",
         "age": {
@@ -10919,6 +10920,37 @@
                 "git": "git did not delete it ({detail})"
             }
         },
+        "logwatch": {
+            "off": "The log watch is off on this build.",
+            "sendFailed": "The request could not be sent: {detail}",
+            "title": {
+                "newPanic": "A new panic in the log",
+                "newCrash": "A crash in the log",
+                "spikePanic": "A panic keeps coming back",
+                "spikeCrash": "A crash keeps coming back",
+                "spikeError": "An error keeps coming back",
+                "spikeWarning": "A warning keeps coming back",
+                "growth": "The log grows fast"
+            },
+            "message": {
+                "new": "I spotted it {times} since {since}: `{excerpt}`",
+                "newAt": "I spotted it {times} since {since}: `{excerpt}` in `{frame}`",
+                "spike": "About {rate} a minute lately, {times} since {since}: `{excerpt}`",
+                "spikeAt": "About {rate} a minute lately, {times} since {since}: `{excerpt}` in `{frame}`",
+                "growth": "{size} written in the last hour: something may be repeating.",
+                "asked": "{name} is having a look. {rest}"
+            },
+            "times": {
+                "one": "once",
+                "other": "{count} times"
+            },
+            "size": "{mb} MB",
+            "action": {
+                "ask": "Ask an agent to look",
+                "mute": "Ignore this kind",
+                "reveal": "Show in folder"
+            }
+        },
         "onboarding": {
             "notDeclined": "{agent} was not declined: MoltenTerm installs its guides at start.",
             "installFailed": "The guides of {agent} could not be installed: {detail}",
@@ -11881,7 +11913,27 @@
         },
         "openOn": "Open on",
         "ticket": "Ticket #{number}",
-        "note": "These switches only turn features off, on this computer. A feature never opens on a build whose channel does not have it, and nothing here is synced."
+        "note": "These switches only turn features off, on this computer. A feature never opens on a build whose channel does not have it, and nothing here is synced.",
+        "features": {
+            "logwatch": {
+                "label": "Brokk's log watch",
+                "description": "Brokk reads the app's log every 10 minutes and leaves a calm card in his notes when a panic, a crash, a loop or a fast-growing log shows up, with a way to ask an agent to look. Gold, dev and local builds only, never in a release."
+            }
+        }
+    },
+    "logwatch": {
+        "pick": {
+            "title": "Who should look at it?",
+            "subtitle": "No lead of MoltenTerm's repository stands out. Pick the agent that gets the log excerpt: it stays on this computer.",
+            "moltenterm": "MoltenTerm's repository",
+            "send": "Send",
+            "cancel": "Cancel",
+            "agents": "Running agents"
+        },
+        "noAgent": "No agent runs on this computer. Start one in MoltenTerm's workspace, then ask again.",
+        "gone": "That agent has stopped. Ask again to pick another one.",
+        "unknown": "Brokk no longer keeps this one in his notes.",
+        "unavailable": "The log watch is not available on this build."
     },
     "library": {
         "label": "Library",

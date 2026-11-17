@@ -70,6 +70,14 @@ func GateChannel(dev bool, baked string, runtime string) string {
 	return runtime
 }
 
+// InternalChannel: the channels MoltenTerm's own developers build and run (dev, local and gold), never a release
+// candidate, a public release or a channel that is not known. What exists only for them (the log watch, FR-BOSS-012)
+// checks it on top of the registry, so a registry that listed rc or public by mistake could still not open it on a
+// release. Must match internalChannel in frontend/moltenterm-shell/build/build-identity.ts.
+func InternalChannel(channel string) bool {
+	return channel == Dev || channel == Local || channel == Gold
+}
+
 // BrainstormAllowed: Brokk's thought in 3D exists on every channel (dev, local, gold, release candidate and public
 // release), and never on a channel that is not known. It is no longer a feature of the registry: it ships (#2320).
 func BrainstormAllowed(channel string) bool {
