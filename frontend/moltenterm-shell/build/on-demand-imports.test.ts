@@ -37,6 +37,9 @@ describe("on-demand modules stay out of the entry chunk (#2200)", () => {
         ["../palette/palette-actions.ts", "../brainstorm/brainstorm-replay"],
         // The annotate mode of the web page panel (#2327): its layer, model and painting load the first time it starts.
         ["../browser/browser-view.tsx", "./annotate-layer"],
+        // The pick of who looks at a log watch card (FR-BOSS-012, NFR-BOSS-010): the notification host registers the
+        // card's actions, and the picker loads the first time a pick is needed.
+        ["../logwatch/logwatch-gestures.ts", "./logwatch-pick"],
     ])("%s imports %s on demand only", (file, mod) => {
         const text = source(file);
         expect(staticImports(text)).not.toContain(mod);
