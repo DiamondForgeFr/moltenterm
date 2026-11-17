@@ -148,6 +148,53 @@ func (waveEnv) ReadPanel(ctx context.Context, panelId string) (Panel, bool, erro
 	return Panel{BlockId: panelId, TabId: tabId, WorkspaceId: wsId, Tabs: molten.BrowserPanelTabs(block.Meta)}, true, nil
 }
 
+func (waveEnv) WorkspacePanels(ctx context.Context, workspaceId string) ([]WorkspacePanel, error) {
+	ws, err := wstore.DBGet[*waveobj.Workspace](ctx, workspaceId)
+	if err != nil {
+		return nil, err
+	}
+	if ws == nil {
+		return nil, fmt.Errorf("workspace %s not found", workspaceId)
+	}
+	var rtn []WorkspacePanel
+	for _, tabId := range ws.TabIds {
+		tab, err := wstore.DBGet[*waveobj.Tab](ctx, tabId)
+		if err != nil || tab == nil {
+			continue
+		}
+		recent := tab.Meta[molten.BrowserRecentMetaKey]
+		order := 0
+		for _, blockId := range tab.BlockIds {
+			block, err := wstore.DBGet[*waveobj.Block](ctx, blockId)
+			if err != nil || block == nil || block.Meta.GetString(waveobj.MetaKey_View, "") != molten.BrowserView {
+				continue
+			}
+			order++
+			rtn = append(rtn, WorkspacePanel{
+				Panel:   Panel{BlockId: blockId, TabId: tabId, WorkspaceId: workspaceId, Tabs: molten.BrowserPanelTabs(block.Meta)},
+				TabName: tab.Name,
+				Shown:   tabId == ws.ActiveTabId,
+				Active:  block.Meta.GetString(molten.BrowserActiveMetaKey, ""),
+				Recent:  recentRank(recent, blockId),
+				Order:   order,
+			})
+		}
+	}
+	return rtn, nil
+}
+
+// recentRank is the place of a panel in its Wave tab's focus history (molten.BrowserRecentMetaKey), -1 when it is not
+// in it.
+func recentRank(recent any, blockId string) int {
+	ids, _ := recent.([]any)
+	for i, raw := range ids {
+		if id, _ := raw.(string); id == blockId {
+			return i
+		}
+	}
+	return -1
+}
+
 func (waveEnv) AgentName(blockId string) string {
 	run, ok := attention.AgentRun(blockId)
 	if !ok || !run.Running || run.Agent == "" {

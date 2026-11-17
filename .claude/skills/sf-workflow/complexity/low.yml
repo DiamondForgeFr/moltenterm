@@ -58,8 +58,8 @@ aiInstructions: |
   - Delegated, the delivery is a `scoped-edit` delegation (SKILL.md → Delegated ticket delivery)
 
   **Validate Phase:**
-  - Lint + typecheck only
-  - No full test suite
+  - Lint + typecheck, and the tests the change affects
+  - No full test suite here: it runs once, at AI Testing
   - Fix only what you broke
 
   **Examine Phase (SKIP):**

@@ -180,6 +180,8 @@ func makeService() *service {
 		},
 		WatchPrompt: s.prompts.watch,
 		InputState:  s.inputs.state,
+		ExpectOwn:   s.inputs.expectOwn,
+		WatchOwn:    s.inputs.watchOwn,
 		EffortLevels: func(agent string, model string) []string {
 			return agentcontinuity.EffortLevels(agentEnv(), agent, model)
 		},
@@ -415,6 +417,9 @@ func Start() {
 		return
 	}
 	setRunningUpdater(s.updater)
+	for blockId, onForeign := range keptOwnWatches() {
+		s.inputs.watchOwn(blockId, onForeign)
+	}
 	go s.recordLoop()
 	go s.publishLoop()
 	rpcClient := wshclient.GetBareRpcClient()

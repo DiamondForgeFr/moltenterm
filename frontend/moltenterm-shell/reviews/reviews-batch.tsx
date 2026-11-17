@@ -22,10 +22,10 @@ import { DominoLoader } from "../suite/suite";
 import { BatchRuns } from "./reviews-batch-client";
 import {
     batchActive,
+    batchCancelKeys,
     batchConfirmKey,
     batchCurrent,
     batchHeadline,
-    batchItemEnded,
     batchItemId,
     batchMethodShown,
     BatchPlan,
@@ -33,6 +33,7 @@ import {
     BatchRowMark,
     batchRowMark,
     BatchRun,
+    batchShownSteps,
     batchStepText,
     BatchStopAction,
     batchSummary,
@@ -403,7 +404,8 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
           : run.state === "done" && run.items.every((it) => it.state === "merged")
             ? "border-success/40 bg-success/10"
             : "border-border bg-hover/40";
-    const open = active ? run.items.filter((it) => !batchItemEnded(it)) : [];
+    const steps = batchShownSteps(run);
+    const cancel = batchCancelKeys(run);
     return (
         <div
             className={cn("flex flex-col gap-1.5 rounded-4 border px-3 py-2 text-12 leading-5", tone)}
@@ -448,11 +450,11 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
                         className={PlainButton}
                         aria-disabled={run.cancelasked || undefined}
                         onClick={() => !run.cancelasked && act("cancel", () => model.cancel(run))}
-                        title={t("reviews.batch.cancelTitle")}
+                        title={t(cancel.title)}
                         data-testid="reviews-batch-cancel"
                     >
                         {busy === "cancel" ? <DominoLoader /> : null}
-                        {run.cancelasked ? t("reviews.batch.cancelling") : t("reviews.batch.cancel")}
+                        {run.cancelasked ? t("reviews.batch.cancelling") : t(cancel.label)}
                     </button>
                 ) : (
                     <button
@@ -475,9 +477,9 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
                     {t("reviews.batch.resumed")}
                 </div>
             ) : null}
-            {open.length > 0 ? (
+            {steps.length > 0 ? (
                 <ol className="flex flex-col" data-testid="reviews-batch-list">
-                    {open.map((it) => {
+                    {steps.map((it) => {
                         const mark = batchRowMark(run, it.number);
                         return (
                             <li
@@ -487,6 +489,9 @@ export function BatchBanner({ run, ids }: { run: BatchRun; ids?: ShownIds }) {
                                 data-pr={it.number}
                                 data-state={it.state}
                             >
+                                {it.state === "merged" ? (
+                                    <i className="fa fa-solid fa-check shrink-0 text-10 text-success" aria-hidden />
+                                ) : null}
                                 <span className="shrink-0 font-medium text-primary">#{batchItemId(it, ids)}</span>
                                 <span className="min-w-0 grow truncate text-secondary" title={mark?.title}>
                                     {it.title ? `${it.title} · ` : ""}

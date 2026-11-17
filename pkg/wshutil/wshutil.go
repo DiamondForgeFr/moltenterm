@@ -15,7 +15,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/wavetermdev/waveterm/pkg/baseds"
@@ -295,9 +294,13 @@ func HandleConnStdIOClient(logName string, connName string, input chan utilfn.Li
 	var doneOnce sync.Once
 	closeDoneCh := func() {
 		doneOnce.Do(func() {
-			close(doneCh)
+			// MOLTENTERM-PATCH (#2340): the proxy closes after the unregister, so the router never keeps a closed link,
+			// and doneCh last, so the caller returns once both are done. FromRemoteCh is not closed here:
+			// ParseWithLinesChan, its only writer, closes it when the input ends, and a second close panicked before the
+			// proxy could close.
 			DefaultRouter.UnregisterLink(linkId)
-			close(proxy.FromRemoteCh)
+			proxy.Close()
+			close(doneCh)
 		})
 	}
 	go func() {
@@ -328,36 +331,11 @@ func HandleConnStdIOClient(logName string, connName string, input chan utilfn.Li
 	<-doneCh
 }
 
+// MOLTENTERM-PATCH (#2334): the link is registered before the reader starts, so a connection that closes at once is
+// still unregistered, and it is unregistered before its proxy closes, so the router never keeps a closed link.
+// MOLTENTERM-PATCH (#2340): shared with connserver's listener connections (moltenterm_linkconn.go).
 func handleDomainSocketClient(conn net.Conn, connName string, readCallback func()) {
-	var linkIdContainer atomic.Int32
-	proxy := MakeRpcProxy("domain")
-	go func() {
-		defer func() {
-			panichandler.PanicHandler("handleDomainSocketClient:AdaptOutputChToStream", recover())
-		}()
-		writeErr := AdaptOutputChToStream(proxy.ToRemoteCh, conn)
-		if writeErr != nil {
-			log.Printf("error writing to domain socket: %v\n", writeErr)
-		}
-	}()
-	go func() {
-		// when input is closed, close the connection
-		defer func() {
-			panichandler.PanicHandler("handleDomainSocketClient:AdaptStreamToMsgCh", recover())
-		}()
-		defer func() {
-			conn.Close()
-			close(proxy.FromRemoteCh)
-			close(proxy.ToRemoteCh)
-			linkId := linkIdContainer.Load()
-			if linkId != baseds.NoLinkId {
-				DefaultRouter.UnregisterLink(baseds.LinkId(linkId))
-			}
-		}()
-		AdaptStreamToMsgCh(conn, proxy.FromRemoteCh, readCallback)
-	}()
-	linkId := DefaultRouter.registerUntrustedConnLink(proxy, connName)
-	linkIdContainer.Store(int32(linkId))
+	ServeRpcLinkConn(DefaultRouter, conn, "domain", connName, readCallback)
 }
 
 // only for use on client

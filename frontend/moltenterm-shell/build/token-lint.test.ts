@@ -29,15 +29,18 @@ function ownedFiles(): string[] {
 }
 
 describe("design tokens lint (FR-SHELL-044 AC1, TC-SHELL-093)", () => {
+    // Linted here, while the file is collected: collection has no timeout, and a loaded machine stretches this CPU-bound
+    // scan past a test's 5 s (#2274). The tests below only read the results.
+    const files = ownedFiles();
+    const findings = files.flatMap((file) => lintFile(file, readFileSync(join(FrontendDir, file), "utf8")));
+
     it("finds MoltenTerm's CSS and TSX", () => {
-        const files = ownedFiles();
         expect(files).toContain(join("moltenterm-shell", "moltenterm-shell.css"));
         expect(files).toContain(join("moltenterm-shell", "workspace-rail.tsx"));
         expect(files.some((f) => f.startsWith("moltenterm-onboarding"))).toBe(true);
     });
 
     it("passes on every MoltenTerm-owned file", () => {
-        const findings = ownedFiles().flatMap((file) => lintFile(file, readFileSync(join(FrontendDir, file), "utf8")));
         expect(findings.map(formatFinding)).toEqual([]);
     });
 

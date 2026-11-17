@@ -51,10 +51,10 @@ next_status: Done
 
 ## Guard
 
-`workflow-cli.sh update-status <N> "In review"` exits non-zero when no open PR has a head branch matching `feature/<N>-…` or `fix/<N>-…`. Escape hatch (rare, e.g. a PR opened from a differently-named branch): `SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD=1`.
+`workflow-cli.sh update-status <N> "In review"` exits non-zero when no open PR has a head branch matching `feature/<N>-…` or `fix/<N>-…`. A PR opened from a differently-named branch is the one case for an escape hatch, and the hatch is the developer's to apply (`escape-hatches.md`).
 
 > [!note] Convention sanity check
 >
-> This guard — and the `→ Done` PR-merged guard — only match when branches carry the ticket number, exactly the convention declared in `.saasfoundry.json` → `workflow.branchNaming` (`feature/{N}-{description}`, `fix/{N}-{description}`). The two must stay in lock-step. Quick check (should print `ok`): `echo "fix/32-detection-dropdown" | grep -Eq '^(feature|fix)/32(-|$)' && echo ok`. A branch missing the `{N}` ticket prefix (e.g. `fix/some-name`) silently fails the guard and forces `SF_WORKFLOW_BYPASS_*` on every ticket — realign `branchNaming`, never "fix" the regex. A non-regression test locks both sides together: `src/__tests__/unit/skill/branch-naming-pr-regex.spec.ts`.
+> This guard — and the `→ Done` PR-merged guard — only match when branches carry the ticket number, exactly the convention declared in `.saasfoundry.json` → `workflow.branchNaming` (`feature/{N}-{description}`, `fix/{N}-{description}`). The two must stay in lock-step. Quick check (should print `ok`): `echo "fix/32-detection-dropdown" | grep -Eq '^(feature|fix)/32(-|$)' && echo ok`. A branch missing the `{N}` ticket prefix (e.g. `fix/some-name`) silently fails the guard and forces an escape hatch on every ticket — realign `branchNaming`, never "fix" the regex. A non-regression test locks both sides together: `src/__tests__/unit/skill/branch-naming-pr-regex.spec.ts`.
 
 If a draft already exists, use `workflow-cli.sh ready-pr <ticket>` before entering In Review. Draft-skipped CI checks do not count as validation.

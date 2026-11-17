@@ -1,11 +1,14 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
+// MOLTENTERM-PATCH (#2335): the current log rotates while the app runs and the logs stay under a total cap.
 
 import fs from "fs";
 import path from "path";
+import { Writable } from "stream";
 import { format } from "util";
 import winston from "winston";
 import { getWaveDataDir, isDev } from "./emain-platform";
+import { RotatingLogFile } from "./moltenterm-log-files"; // MOLTENTERM-PATCH (#2335)
 
 const oldConsoleLog = console.log;
 
@@ -102,9 +105,27 @@ try {
     logRotateError = e;
 }
 
-const loggerTransports: winston.transport[] = [
-    new winston.transports.File({ filename: path.join(getWaveDataDir(), "waveapp.log"), level: "info" }),
-];
+// MOLTENTERM-PATCH (#2335): winston's File transport never moved the file while the app ran. Every line goes through
+// one writer that rotates it at the cap, so Electron main, wavesrv's output and fe-log keep writing across a rotation.
+let logFiles: RotatingLogFile = null;
+try {
+    logFiles = new RotatingLogFile(getWaveDataDir(), undefined, {
+        onError: (message, error) => oldConsoleLog(message, error),
+    });
+} catch (e) {
+    logRotateError = logRotateError ?? e;
+}
+const loggerTransports: winston.transport[] = [];
+if (logFiles != null) {
+    const logSink = new Writable({
+        decodeStrings: false,
+        write(chunk, _encoding, callback) {
+            logFiles.write(String(chunk));
+            callback();
+        },
+    });
+    loggerTransports.push(new winston.transports.Stream({ stream: logSink, level: "info" }));
+}
 if (isDev) {
     loggerTransports.push(new winston.transports.Console());
 }
@@ -139,4 +160,4 @@ if (pruneError != null) {
     log("error pruning some log files (non-fatal):", pruneError);
 }
 
-export { log };
+export { log, logFiles };

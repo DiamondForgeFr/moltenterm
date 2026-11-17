@@ -5,9 +5,12 @@ import { describe, expect, it } from "vitest";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { AfterActionMs, AfterLeaveMs } from "./brokk-gate";
+import type { PanelId } from "./brokk-group-model";
 import { BrokkHub, HubDeps, OverlayPollMs } from "./brokk-hub";
-import { DefaultVisitSettings, VisitSettings } from "./brokk-visit-events";
-import { EmptyShared, readShared, SharedVisit, sharedText } from "./brokk-visit-share";
+import { visitPanelOf } from "./brokk-visit";
+import { BrokkEvent, DefaultVisitSettings, VisitSettings } from "./brokk-visit-events";
+import { visitLineOf } from "./brokk-visit-line";
+import { EmptyShared, readShared, sharedText, SharedVisit } from "./brokk-visit-share";
 
 // Every test moves the clock by hand and runs the timers the hub set: nothing here waits for real time. 14:00 on the
 // local clock, so that the default quiet hours (22:00 to 08:00) are far away.
@@ -17,7 +20,7 @@ const Min = 60_000;
 type Fixture = {
     hub: BrokkHub;
     clock: { now: number };
-    state: { overlay: boolean; panels: number; stored: SharedVisit; writes: number };
+    state: { overlay: boolean; panels: number; opened: PanelId[]; stored: SharedVisit; writes: number };
     advance: (ms: number) => void;
     timers: () => number;
 };
@@ -26,7 +29,13 @@ function fixture(shared: { stored: SharedVisit } = null, start: number = T): Fix
     const clock = { now: start };
     const pending = new Map<number, { run: () => void; at: number }>();
     let nextId = 1;
-    const state = { overlay: false, panels: 0, stored: shared?.stored ?? EmptyShared, writes: 0 };
+    const state = {
+        overlay: false,
+        panels: 0,
+        opened: [] as PanelId[],
+        stored: shared?.stored ?? EmptyShared,
+        writes: 0,
+    };
     const deps: HubDeps = {
         now: () => clock.now,
         setTimer: (run, ms) => {
@@ -36,8 +45,9 @@ function fixture(shared: { stored: SharedVisit } = null, start: number = T): Fix
         },
         clearTimer: (id) => pending.delete(id as number),
         overlayOpen: () => state.overlay,
-        openPanel: () => {
+        openPanel: (panel) => {
             state.panels++;
+            state.opened.push(panel);
         },
         readShared: () => (shared == null ? state.stored : shared.stored),
         writeShared: (next) => {
@@ -53,7 +63,9 @@ function fixture(shared: { stored: SharedVisit } = null, start: number = T): Fix
     const advance = (ms: number) => {
         const target = clock.now + ms;
         for (;;) {
-            const due = [...pending.entries()].filter(([, timer]) => timer.at <= target).sort((a, b) => a[1].at - b[1].at);
+            const due = [...pending.entries()]
+                .filter(([, timer]) => timer.at <= target)
+                .sort((a, b) => a[1].at - b[1].at);
             if (due.length === 0) {
                 break;
             }
@@ -254,12 +266,29 @@ describe("what the sources raise and cancel", () => {
         expect(hub.getView().badge).toBe(0);
     });
 
-    it("brings a visit with a smile for a finished agent set to Vient", () => {
+    // The defect of #2203: Bérénice finished, the Notifications panel held her Done card and nothing else, yet he came
+    // saying "1 thing to handle" and his panel had nothing to handle. The Done card is already in the notifications: it
+    // counts on the badge, whatever the setting says, and never brings him.
+    it("never brings a visit for a finished agent, even set to Vient: its Done card is in the notifications", () => {
         const { hub } = fixture();
         hub.settings(settings({ finished: "vient" }));
-        hub.agents(states(agent("a", "working")));
-        hub.agents(states(agent("a", "done")));
-        expect(hub.getView().visit?.expression).toBe("smile");
+        hub.agents(states(agent("berenice", "working")));
+        hub.agents(states(agent("berenice", "done")));
+        expect(hub.getView().visit).toBeNull();
+        expect(hub.getView().badge).toBe(1);
+        expect(hub.getView().comingKeys).toEqual([]);
+        expect(hub.getView().cue).toBe(false);
+    });
+
+    it("still brings him for what is graver while a finished agent waits on the badge", () => {
+        const { hub } = fixture();
+        hub.settings(settings({ finished: "vient" }));
+        hub.agents(states(agent("berenice", "working")));
+        hub.agents(states(agent("berenice", "done")));
+        hub.syncRows([BlockedRow()]);
+        expect(hub.getView().visit?.keys).toEqual(["agent:a"]);
+        expect(hub.getView().visit?.count).toBe(1);
+        expect(hub.getView().badge).toBe(2);
     });
 
     it("forgets the finished agents when his panel opens", () => {
@@ -278,6 +307,97 @@ describe("what the sources raise and cancel", () => {
         hub.syncRows([BlockedRow()]);
         expect(hub.getView().badge).toBe(0);
         expect(hub.getView().visit).toBeNull();
+    });
+});
+
+// FR-BOSS-009, AC79 (#2203): every unfold leads to an open panel that names the reason, and the words and the count of the
+// scene are the visit's own, never a count of "things to handle" that no panel holds.
+describe("every unfold names its reason (AC79)", () => {
+    const AllVient = settings({
+        security: "vient",
+        blocked: "vient",
+        error: "vient",
+        ci: "vient",
+        ready: "vient",
+        download: "vient",
+        update: "vient",
+        usage: "vient",
+    });
+    const Quick = (kind: BrokkEvent["kind"], key: string): BrokkEvent => ({ key, kind, since: T - 10 * Min });
+    const sources: { name: string; feed: (hub: BrokkHub) => void; panel: PanelId; rows?: ToHandleItem[] }[] = [
+        { name: "an agent that waits", feed: (hub) => hub.syncRows([BlockedRow()]), panel: "notifications" },
+        { name: "an agent in error", feed: (hub) => hub.syncRows([ErrorRow()]), panel: "notifications" },
+        {
+            name: "a failing CI",
+            feed: (hub) => hub.syncRows([row("ci:/p:12", "error", T - Min)]),
+            panel: "notifications",
+        },
+        {
+            name: "a pull request ready",
+            feed: (hub) => hub.syncRows([row("ready:/p:14", "success", T - Min)]),
+            panel: "notifications",
+        },
+        {
+            name: "a download",
+            feed: (hub) => hub.feed("downloads", [Quick("downloadfailed", "download:1")]),
+            panel: "downloads",
+        },
+        {
+            name: "the update on offer",
+            feed: (hub) => hub.feed("update", [Quick("update", "update:2.0.0")]),
+            panel: "notifications",
+        },
+        { name: "a plan reading", feed: (hub) => hub.feed("usage", [Quick("usage", "usage:claude")]), panel: null },
+    ];
+
+    for (const source of sources) {
+        it(`${source.name}: the scene names it and counts it, and the click opens the panel that holds it`, () => {
+            const { hub, state } = fixture();
+            hub.settings(AllVient);
+            source.feed(hub);
+            const visit = hub.getView().visit;
+            expect(visit, "he unfolds").not.toBeNull();
+            expect(visit.count).toBe(1);
+            expect(visit.keys).toHaveLength(1);
+            // The plan usage has no card to count (#2213): its place is the usage grid of his own block.
+            expect(hub.getView().badge).toBe(source.panel == null ? 0 : visit.count);
+            const words = JSON.stringify(visitLineOf(visit, [BlockedRow(), ErrorRow()], T));
+            expect(words).not.toContain("toHandle");
+            expect(visitPanelOf(visit)).toBe(source.panel);
+            hub.open();
+            expect(state.opened).toEqual([source.panel]);
+        });
+    }
+
+    it("counts the events of the visit, all of them, and no other: the line says the first and, as a sentence of its own, N more", () => {
+        const { hub } = fixture();
+        hub.settings(AllVient);
+        hub.syncRows([BlockedRow()]);
+        hub.feed("downloads", [Quick("downloadfailed", "download:1")]);
+        hub.feed("update", [Quick("update", "update:2.0.0")]);
+        const visit = hub.getView().visit;
+        expect(visit.count).toBe(3);
+        const line = visitLineOf(visit, [BlockedRow()], T);
+        expect(line.text).toMatch(/\. 2 more things wait too\.$/);
+        expect(line.text).not.toMatch(/ and 2 more/);
+    });
+
+    it("never unfolds for a Done card alone, however it is set, and still counts it on the badge", () => {
+        const { hub, state } = fixture();
+        hub.settings(AllVient);
+        hub.agents(states(agent("berenice", "working")));
+        hub.agents(states(agent("berenice", "done")));
+        expect(hub.getView().visit).toBeNull();
+        expect(hub.getView().badge).toBe(1);
+        hub.open();
+        expect(state.opened).toEqual([null]);
+    });
+
+    it("asks no panel of its own for the example, which has no reason in any panel", () => {
+        const { hub, state } = fixture();
+        hub.showExample();
+        hub.open();
+        expect(state.opened).toEqual([null]);
     });
 });
 
@@ -534,5 +654,78 @@ describe("Show a visit: the example of the settings (FR-BOSS-009, AC31 and AC32,
         hub.closeExample();
         hub.closeExample();
         expect(heard).toBe(2);
+    });
+});
+
+describe("Brokk off means off (FR-BOSS-009, #2218)", () => {
+    it("raises no visit for an agent that reaches the threshold after he was turned off", () => {
+        const { hub, advance, timers } = fixture();
+        hub.syncRows([row("agent:a", "waiting", T - 1 * Min)]);
+        expect(timers()).toBeGreaterThan(0);
+        hub.power(false);
+        expect(timers()).toBe(0);
+        advance(10 * Min);
+        expect(hub.getView().visit).toBeNull();
+        expect(hub.getView().cue).toBe(false);
+        expect(hub.getView().comingKeys).toEqual([]);
+    });
+
+    it("raises nothing for an event that comes while he is off, held back or not", () => {
+        const { hub, advance, timers } = fixture();
+        hub.power(false);
+        hub.gate({ type: "enter" });
+        hub.syncRows([BlockedRow(), ErrorRow()]);
+        expect(hub.getView().cue).toBe(false);
+        hub.gate({ type: "leave" });
+        advance(60 * Min);
+        expect(hub.getView().visit).toBeNull();
+        expect(timers()).toBe(0);
+    });
+
+    it("folds the visit that is up and tells the listeners", () => {
+        const { hub } = fixture();
+        hub.syncRows([BlockedRow()]);
+        expect(hub.getView().visit).not.toBeNull();
+        let heard = 0;
+        hub.subscribe(() => heard++);
+        hub.power(false);
+        expect(hub.getView().visit).toBeNull();
+        expect(heard).toBe(1);
+    });
+
+    it("folds the example of the settings too", () => {
+        const { hub } = fixture();
+        hub.showExample();
+        hub.power(false);
+        expect(hub.getView().visit).toBeNull();
+    });
+
+    it("keeps the badge's keys current for the rail while he is off", () => {
+        const { hub } = fixture();
+        hub.power(false);
+        hub.syncRows([BlockedRow(), ErrorRow()]);
+        expect(hub.getView().badgeKeys).toEqual(["agent:a", "agent:b"]);
+        hub.syncRows([ErrorRow()]);
+        expect(hub.getView().badgeKeys).toEqual(["agent:b"]);
+    });
+
+    it("keeps the developer's settings: they apply again once he is back on", () => {
+        const { hub } = fixture();
+        hub.power(false);
+        hub.settings(settings({ blocked: "badge", error: "vient" }));
+        hub.syncRows([BlockedRow(), ErrorRow()]);
+        expect(hub.getView().visit).toBeNull();
+        hub.power(true);
+        expect(hub.getModel().settings.never).toBe(false);
+        expect(hub.getView().visit?.keys).toEqual(["agent:b"]);
+    });
+
+    it("leaves the master switch of the settings as the developer set it", () => {
+        const { hub } = fixture();
+        hub.settings(settings({}, { never: true }));
+        hub.power(false);
+        hub.power(true);
+        hub.syncRows([BlockedRow()]);
+        expect(hub.getView().visit).toBeNull();
     });
 });

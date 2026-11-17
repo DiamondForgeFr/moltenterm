@@ -9,7 +9,7 @@
 // back, and Escape takes the default delay. The content below the title row slides down to make room, which the sidebar
 // does itself (workspace-sidebar.tsx, sidebar.css). In a collapsed sidebar, half open for him or unfolded (AC29, AC30,
 // #2070), the scene is the banner it shows; there and in a docked sidebar (#2155) it says its one line: the sentence of
-// the event that brought him, the very words of his rows (brokk-visit-line.ts). Its accessible name stays the label below.
+// the event that brought him, in his own words (brokk-visit-line.ts). Its accessible name stays the label below.
 //
 // Loaded on the first visit, never with the window: the clips are Brokk's portrait and stay out of the up-front JavaScript.
 
@@ -20,10 +20,9 @@ import "@diamondforge/character/styles.css";
 import { useAtomValue } from "jotai";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
-import { prefersReducedMotion } from "../molten-motion";
 import { TabActivity, whileShown } from "../tab-activity";
-import "./brokk-visit-scene.css";
-import type { BrokkExpression } from "./brokk-ask-model";
+import { BossBubbleModel } from "./boss-store";
+import { BrokkCalm } from "./brokk-calm";
 import { useCaptionText } from "./brokk-caption";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { BrokkPortrait, rhythmProps } from "./brokk-portrait";
@@ -36,33 +35,24 @@ import {
     LaterOption,
     laterOptions,
     sceneActions,
-    sceneClipOf,
     SceneClock,
+    SceneCue,
     sceneEscapes,
-    SceneGestures,
     sceneGestureOf,
+    SceneGestures,
     sceneLabel,
     ScenePhase,
     scenePhase,
     ScenePose,
+    sceneWaitGestureOf,
     startSceneGestures,
     unmountAfterMs,
 } from "./brokk-visit-scene-model";
+import "./brokk-visit-scene.css";
+import { BrokkVisitWords } from "./brokk-visit-words-store";
 import BrokkStill from "./portrait/brokk/brokk.jpg";
-import { BossBubbleModel } from "./boss-store";
 import { useHubSelect } from "./use-brokk-hub";
-import { useFaceVisible, useMotionAllowed } from "./use-brokk-live";
-
-// The four faces: the clips of his listening pose, by the file name the package ships them under. Read as URLs only.
-const Clips = import.meta.glob("./portrait/brokk/listening.*.webm", {
-    query: "?url",
-    import: "default",
-    eager: true,
-}) as unknown as Record<string, string>;
-
-function clipUrl(name: string): string {
-    return Clips[`./portrait/brokk/${name}.webm`];
-}
+import { useFaceVisible, useReducedMotion } from "./use-brokk-live";
 
 // The scene is mounted from the moment a visit is up until it has folded back, and drawn open one frame after it is
 // mounted, so that the movement has a start to play from.
@@ -105,25 +95,23 @@ const BrowserClock: SceneClock = {
     random: () => Math.random(),
 };
 
-// His living face (#2025): the package's portrait that drives him elsewhere, waiting in the listening pose with its
-// blinks at the rhythm of brokk-portrait.ts. The face of the severity plays once as he arrives, then now and then while
-// he waits (startSceneGestures): a clip of it played in a loop read as a machine.
-export function SceneLive({ expression, clock = BrowserClock }: { expression: BrokkExpression; clock?: SceneClock }) {
-    const [cue, setCue] = useState(0);
+// His living face (#2025, #2262): the package's portrait that drives him elsewhere, waiting in the listening pose with
+// the idles it draws by chance at the rhythm of brokk-portrait.ts. The face of the severity plays once as he arrives; a
+// grave visit adds his sigh now and then while he waits (startSceneGestures), never over an idle under way.
+export function SceneLive({ severity, clock = BrowserClock }: { severity: Severity; clock?: SceneClock }) {
+    const arrival = sceneGestureOf(severity);
+    const wait = sceneWaitGestureOf(severity);
+    const [cue, setCue] = useState<SceneCue>(null);
     const gestures = useRef<SceneGestures>(null);
     useEffect(() => {
-        const started = startSceneGestures(clock, reactionCapMs(expression), setCue);
+        const started = startSceneGestures(clock, { arrival, wait }, reactionCapMs, setCue);
         gestures.current = started;
         return () => {
             started.stop();
             gestures.current = null;
         };
-    }, [expression, clock]);
-    const onGesture = (name: string, phase: "start" | "end") => {
-        if (name === expression && phase === "end") {
-            gestures.current?.ended();
-        }
-    };
+    }, [arrival, wait, clock]);
+    const onGesture = (name: string, phase: "start" | "end") => gestures.current?.heard(name, phase);
     return (
         <TransmissionPortrait
             {...BrokkPortrait}
@@ -132,59 +120,25 @@ export function SceneLive({ expression, clock = BrowserClock }: { expression: Br
             className="mt-brokk-scene-portrait"
             alt=""
             state={ScenePose}
-            expression={cue > 0 ? { expression, cue } : null}
+            expression={cue}
             onGesture={onGesture}
         />
     );
 }
 
-// Without motion (the app's setting, the system's, or a window nobody sees) his face is one still frame of the clip of
-// the severity: the package ships no still per expression, so the clip is held at its middle.
-function SceneStill({ clip }: { clip: string }) {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    useEffect(() => {
-        const video = videoRef.current;
-        if (video == null) {
-            return;
-        }
-        video.pause();
-        const hold = () => {
-            if (Number.isFinite(video.duration)) {
-                video.currentTime = video.duration / 2;
-            }
-        };
-        if (video.readyState >= 1) {
-            hold();
-            return;
-        }
-        video.addEventListener("loadedmetadata", hold, { once: true });
-        return () => video.removeEventListener("loadedmetadata", hold);
-    }, [clip]);
-    return (
-        <video
-            key={clip}
-            ref={videoRef}
-            className="mt-brokk-scene-video"
-            src={clipUrl(clip)}
-            poster={BrokkStill}
-            muted
-            playsInline
-            preload="auto"
-            data-testid="brokk-scene-video"
-        />
-    );
-}
-
+// Under reduced motion (the app's setting or the system's, read from its atom) his face is the calm loop of his listening
+// pose with slow blinks, with no gesture of the severity (#2224): the scene's accessible name and, where it shows one,
+// its line carry the severity instead. A window nobody sees mounts nothing.
 function SceneFace({ severity }: { severity: Severity }) {
     const visible = useFaceVisible();
-    const motion = useMotionAllowed();
+    const calm = useReducedMotion();
     if (!visible) {
         return null;
     }
-    if (!motion) {
-        return <SceneStill clip={sceneClipOf(severity)} />;
+    if (calm) {
+        return <BrokkCalm pose={ScenePose} poster={BrokkStill} />;
     }
-    return <SceneLive expression={sceneGestureOf(severity)} />;
+    return <SceneLive severity={severity} />;
 }
 
 // Plus tard (AC7): the delays of the severity, the first being what Escape takes.
@@ -347,11 +301,7 @@ export function BrokkVisitSceneView({
                     {t("boss.visit.later.label")}
                 </button>
                 {options != null ? (
-                    <LaterMenu
-                        menuRef={menuRef}
-                        options={options}
-                        onChoose={(id) => leave(() => actions.choose(id))}
-                    />
+                    <LaterMenu menuRef={menuRef} options={options} onChoose={(id) => leave(() => actions.choose(id))} />
                 ) : null}
             </div>
         </div>
@@ -365,13 +315,21 @@ export function BrokkVisitScene({ rowHeight, line = false }: { rowHeight: string
     const visit = useHubSelect((view) => view.visit);
     const text = useCaptionText();
     useMinuteTick(line && visit != null);
+    const wording = BrokkVisitWords.getInstance();
+    const over = visit == null;
+    useEffect(() => {
+        if (over) {
+            wording.rest();
+        }
+    }, [over, wording]);
     const last = useRef<Visit>(visit);
     const words = useRef("");
     if (visit != null) {
         last.current = visit;
-        words.current = line ? text(visitLineOf(visit, list.items, list.info, Date.now())) : "";
+        words.current = line ? text(visitLineOf(visit, list.items, Date.now(), wording.pick)) : "";
     }
-    const life = useSceneLife(visit != null, unmountAfterMs(prefersReducedMotion()));
+    const reduced = useReducedMotion();
+    const life = useSceneLife(visit != null, unmountAfterMs(reduced));
     if (!life.mounted || last.current == null) {
         return null;
     }

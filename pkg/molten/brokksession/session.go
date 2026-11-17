@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -23,6 +24,13 @@ import (
 const (
 	// BlockMetaKey marks the terminal of Brokk's session; must match frontend/moltenterm-shell/boss/brokk-session.ts.
 	BlockMetaKey = molten.OwnSessionMetaKey
+	// BriefMetaKey: the version of the brief his running agent has read (#2257). A session whose version differs, or a
+	// session started before the key existed, gets the current brief with the next message: an agent reads its
+	// instructions file once, when it starts.
+	BriefMetaKey = "molten:brokkbrief"
+	// HumanDraftMetaKey: a human typed in his terminal's prompt and did not send it (#2257). Kept in the block, so that
+	// a restart, which forgets what the input watch saw, never lets a message clear or send it.
+	HumanDraftMetaKey = "molten:brokkhumandraft"
 	// FolderName is his own folder, under MoltenTerm's data folder.
 	FolderName = "brokk"
 	// DefaultTabName names the hidden tab when the window sent none.
@@ -51,6 +59,15 @@ const (
 	ReasonNoAgent    = "noagent"
 	// ReasonNotSubmitted: the message was typed in his agent's prompt without Enter (#2028).
 	ReasonNotSubmitted = "notsubmitted"
+	// ReasonLookup: looking for his session failed (#2220), which is not "no session" (#2236).
+	ReasonLookup = "lookup"
+	// ReasonHumanDraft: a human's unsent text waits in his prompt; nothing was typed (#2257).
+	ReasonHumanDraft = "humandraft"
+	// ReasonUnknownPrompt: his prompt may hold text from before a restart; nothing was typed, the developer may empty
+	// it (Request.ClearPrompt).
+	ReasonUnknownPrompt = "unknownprompt"
+	// ReasonUnsettled: his agent did not come to rest at its prompt (its turn or a call never ended) (#2257).
+	ReasonUnsettled = "unsettled"
 
 	// Reply…: what Reply answered; must match frontend/moltenterm-shell/boss/brokk-talk-model.ts. ReplyAnswer: his answer
 	// to the message; ReplyWaiting: none newer than the message yet; ReplyUnread: his transcript is not known, so the
@@ -59,7 +76,8 @@ const (
 	ReplyWaiting = "waiting"
 	ReplyUnread  = "unread"
 
-	// A message is one line the agent reads as a prompt.
+	// A message is one prompt the agent reads (its line breaks kept, #2237), of at most this many characters: the window's field
+	// (brokk-talk-model.ts MaxMessageLength) and the typing path (termupdate.MaxTypedMessage) take as many.
 	MaxTextLength = 4000
 
 	// An agent just started shows its prompt after a while; the text waits for it this long, checking this often.
@@ -73,6 +91,8 @@ type Request struct {
 	WorkspaceId string `json:"workspaceid,omitempty"`
 	Name        string `json:"name,omitempty"`
 	Text        string `json:"text,omitempty"`
+	// ClearPrompt: the developer chose, in his layer, to empty his prompt before the message (#2257).
+	ClearPrompt bool `json:"clearprompt,omitempty"`
 }
 
 type Result struct {
@@ -81,19 +101,20 @@ type Result struct {
 	BlockId     string `json:"blockid,omitempty"`
 	TabId       string `json:"tabid,omitempty"`
 	WorkspaceId string `json:"workspaceid,omitempty"`
-	Agent     string `json:"agent,omitempty"`
-	AgentName string `json:"agentname,omitempty"`
+	Agent       string `json:"agent,omitempty"`
+	AgentName   string `json:"agentname,omitempty"`
 	// Started: this call started the session.
 	Started bool `json:"started,omitempty"`
 	// Message stays English: the detail of a refusal or an error, for the log and the tooltip.
 	Message string `json:"message,omitempty"`
 }
 
-// Found is a session that exists.
+// Found is a session that exists. Brief: the version of the brief its agent read ("" before #2257).
 type Found struct {
 	BlockId     string
 	TabId       string
 	WorkspaceId string
+	Brief       string
 }
 
 // ReplyRequest asks for his answer to a message sent at After (Unix milliseconds). With an Index it asks for the answer
@@ -114,6 +135,10 @@ type Reply struct {
 	Rev         int64  `json:"rev,omitempty"`
 	At          int64  `json:"at,omitempty"`
 	Markdown    string `json:"markdown,omitempty"`
+	// Permission: what his agent asks the developer now, answered in his layer (#2257); Approved: what
+	// boss:autoapprove let through since the message.
+	Permission *PermissionAsk `json:"permission,omitempty"`
+	Approved   []AutoApproval `json:"approved,omitempty"`
 }
 
 // Answer is the last answer his transcript holds; Markdown is empty before the first one.
@@ -130,17 +155,31 @@ type TypeOutcome struct {
 	Sent bool
 	// Unsubmitted: typed in the prompt without Enter, since a draft may be there.
 	Unsubmitted bool
-	Retry bool
-	Gone  bool
+	Retry       bool
+	Gone        bool
 	// NoAgent: no coding agent runs in the terminal: the one just started is not up yet, or the one that ran has ended.
 	NoAgent bool
-	Message string
+	// HumanDraft: a human's unsent text is in the prompt: nothing was typed.
+	HumanDraft bool
+	// UnknownPrompt: the prompt may hold text nobody saw (a restart): nothing was typed.
+	UnknownPrompt bool
+	// Unsettled: with Retry, the agent is not known to be at rest (a turn or a call whose end never came).
+	Unsettled bool
+	Message   string
+}
+
+// TypeOptions is what the typing path needs to know of the message: Fresh, this call started the agent; ClearPrompt,
+// the developer chose to empty the prompt first.
+type TypeOptions struct {
+	Fresh       bool
+	ClearPrompt bool
 }
 
 // Env is what the service reaches outside itself; the tests give fakes.
 type Env struct {
-	// Find looks for the terminal that carries BlockMetaKey.
-	Find func(ctx context.Context) (Found, bool)
+	// Find looks for the terminal that carries BlockMetaKey. An error is a lookup that failed, never "not found": a
+	// slow or failing database must not start a second session (#2220).
+	Find func(ctx context.Context) (Found, bool, error)
 	// Folder is his own folder, made when it does not exist.
 	Folder func() (string, error)
 	// PickAgent resolves the developer's coding agent for the folder: its id and display name, or "" when none can
@@ -153,7 +192,11 @@ type Env struct {
 	CloseTab func(ctx context.Context, tabId string) error
 	// OpenTerminal creates the terminal in the tab and types line at its first prompt.
 	OpenTerminal func(ctx context.Context, tabId string, meta waveobj.MetaMapType, line string) (string, error)
-	Type         func(ctx context.Context, blockId string, line string) TypeOutcome
+	Type         func(ctx context.Context, blockId string, line string, opts TypeOptions) TypeOutcome
+	// Brief writes his brief in his folder and returns its version and its text; nil: no brief is followed.
+	Brief func() (version string, text string, err error)
+	// MarkBrief records in his terminal the version of the brief his agent now has.
+	MarkBrief func(ctx context.Context, blockId string, version string) error
 	// Ready tells whether the agent in the block takes a typed line with Enter now (its hooks report, no draft).
 	Ready func(blockId string) bool
 	// Sleep waits d, false when ctx ended first.
@@ -162,17 +205,44 @@ type Env struct {
 	// answer of that turn (empty when it is not there); false: its transcript is not known, the answer is only in the
 	// terminal.
 	ReadAnswer func(blockId string, index int) (Answer, bool)
+	// ChosenAgent is the agent the developer explicitly chose for the folder and that is installed: never the order's
+	// fallback, which would use a subscription nobody pointed at (#2203).
+	ChosenAgent func(dir string) (agent string, ok bool)
+	// RunPrint runs the agent's cheap, read-only, non-interactive form in dir with the prompt on its standard input and
+	// returns what it printed (#2203).
+	RunPrint func(ctx context.Context, dir string, agent string, prompt string) ([]byte, error)
+	// Now is the clock of the limits on phrasings; time.Now when nil.
+	Now func() time.Time
+	// PhrasesPerDay is how many phrasings a local day allows; MaxPhrasesPerDay when zero.
+	PhrasesPerDay int
+	// LoadBudget reads the count of phrasings kept by SaveBudget, so that a restart does not give the day's budget
+	// back; nil keeps the count in memory only.
+	LoadBudget func() PhraseBudget
+	SaveBudget func(budget PhraseBudget)
 }
 
 type Service struct {
 	env Env
+	// permits: his agent's permission requests, answered in his layer (permit.go); nil: none are kept.
+	permits *PermitBroker
 
-	lock    sync.Mutex
-	working bool
+	lock     sync.Mutex
+	working  bool
+	phrasing bool
+	// When each phrasing of the last hour started.
+	phrased []time.Time
+	// The phrasings started on the local day budget.Day; read from the Env at the first one.
+	budget       PhraseBudget
+	budgetLoaded bool
 }
 
 func MakeService(env Env) *Service {
 	return &Service{env: env}
+}
+
+// UsePermits gives the service the broker of his agent's permission requests.
+func (s *Service) UsePermits(b *PermitBroker) {
+	s.permits = b
 }
 
 // claim lets one call start or talk at a time: a second one is told it is busy rather than queued behind a wait of
@@ -193,12 +263,19 @@ func (s *Service) release() {
 	s.working = false
 }
 
+func findFailed(err error) Result {
+	return Result{Status: StatusFailed, Reason: ReasonLookup, Message: fmt.Sprintf("His session could not be looked for: %v", err)}
+}
+
 // Session says whether his session exists, and where. It starts nothing.
 func (s *Service) Session(ctx context.Context) Result {
 	if s.env.Find == nil {
 		return Result{Status: StatusNone}
 	}
-	found, ok := s.env.Find(ctx)
+	found, ok, err := s.env.Find(ctx)
+	if err != nil {
+		return findFailed(err)
+	}
 	if !ok {
 		return Result{Status: StatusNone}
 	}
@@ -211,11 +288,18 @@ func (s *Service) Reply(ctx context.Context, req ReplyRequest) Reply {
 	if s.env.Find == nil {
 		return Reply{Status: StatusNone}
 	}
-	found, ok := s.env.Find(ctx)
+	found, ok, err := s.env.Find(ctx)
+	if err != nil {
+		return Reply{Status: StatusFailed}
+	}
 	if !ok {
 		return Reply{Status: StatusNone}
 	}
 	rtn := Reply{Status: ReplyUnread, BlockId: found.BlockId, TabId: found.TabId, WorkspaceId: found.WorkspaceId}
+	if s.permits != nil {
+		rtn.Permission = s.permits.Pending(found.BlockId)
+		rtn.Approved = s.permits.AutoApproved(req.After)
+	}
 	if s.env.ReadAnswer == nil {
 		return rtn
 	}
@@ -237,33 +321,68 @@ func (s *Service) Reply(ctx context.Context, req ReplyRequest) Reply {
 // Say gives the message to his session, starting it first when it does not exist.
 func (s *Service) Say(ctx context.Context, req Request) Result {
 	text := strings.TrimSpace(req.Text)
-	if text == "" || len(text) > MaxTextLength {
+	if text == "" || utf8.RuneCountInString(text) > MaxTextLength {
 		return Result{Status: StatusFailed, Reason: ReasonNoText, Message: "There is no message to give, or it is too long."}
 	}
 	if !s.claim() {
 		return Result{Status: StatusBusy, Reason: ReasonInProgress, Message: "The previous message is still on its way."}
 	}
 	defer s.release()
-	found, ok := s.env.Find(ctx)
+	found, ok, err := s.env.Find(ctx)
+	if err != nil {
+		return findFailed(err)
+	}
 	result := Result{}
 	fresh := false
+	version, briefText := s.brief()
 	if !ok {
 		var failed bool
-		found, result, failed = s.start(ctx, req)
+		found, result, failed = s.start(ctx, req, version)
 		if failed {
 			return result
 		}
 		fresh = true
 	}
-	out := s.deliver(ctx, found.BlockId, text, fresh)
+	// A session that runs read its brief when it started: a newer one goes with this message, whatever the agent.
+	refresh := !fresh && version != "" && found.Brief != version
+	typed := text
+	if refresh {
+		typed = withBrief(briefText, text)
+	}
+	out := s.deliver(ctx, found.BlockId, typed, fresh, req.ClearPrompt)
 	result.BlockId, result.TabId, result.WorkspaceId = found.BlockId, found.TabId, found.WorkspaceId
 	result.Started = fresh
 	result.Status, result.Reason, result.Message = out.Status, out.Reason, out.Message
+	// Not recorded, the brief goes again with the next message: no harm, only a longer prompt.
+	if refresh && out.Status == StatusSent && s.env.MarkBrief != nil {
+		if err := s.env.MarkBrief(ctx, found.BlockId, version); err != nil {
+			result.Message = fmt.Sprintf("The brief's version could not be recorded: %v", err)
+		}
+	}
 	return result
 }
 
+// brief writes his brief and returns its version and text; "" when none is followed or it could not be written.
+func (s *Service) brief() (string, string) {
+	if s.env.Brief == nil {
+		return "", ""
+	}
+	version, text, err := s.env.Brief()
+	if err != nil {
+		return "", ""
+	}
+	return version, text
+}
+
+// withBrief puts the current brief before the developer's message, for an agent that read an older one at its start.
+func withBrief(brief string, text string) string {
+	return "MoltenTerm updated your brief (CLAUDE.md and AGENTS.md in your folder) after this session started. " +
+		"It replaces the one you read then; follow it from this answer on, and never mention it:\n\n" +
+		strings.TrimSpace(brief) + "\n\nThe developer's message:\n\n" + text
+}
+
 // start makes the hidden tab and the terminal, and starts the agent in it. failed: the answer is final.
-func (s *Service) start(ctx context.Context, req Request) (Found, Result, bool) {
+func (s *Service) start(ctx context.Context, req Request, briefVersion string) (Found, Result, bool) {
 	if req.WorkspaceId == "" {
 		return Found{}, Result{Status: StatusFailed, Reason: ReasonNoSpace, Message: "No workspace to put his tab in."}, true
 	}
@@ -293,6 +412,12 @@ func (s *Service) start(ctx context.Context, req Request) (Found, Result, bool) 
 		waveobj.MetaKey_CmdCwd:     dir,
 		BlockMetaKey:               true,
 	}
+	if briefVersion != "" {
+		meta[BriefMetaKey] = briefVersion
+	}
+	// His agent's permission requests wait for the developer in his layer (#2257): the launcher gives this terminal's
+	// hook, and only this one, the time a human answer takes.
+	meta[waveobj.MetaKey_CmdEnv] = map[string]any{molten.OwnSessionEnvVar: "1"}
 	blockId, err := s.env.OpenTerminal(ctx, tabId, meta, s.env.CommandLine(agent))
 	if blockId == "" {
 		if s.env.CloseTab != nil {
@@ -302,7 +427,7 @@ func (s *Service) start(ctx context.Context, req Request) (Found, Result, bool) 
 	}
 	// A terminal whose agent did not start still exists: the text waits for a prompt that may never come, and the
 	// developer sees the answer in the hidden tab.
-	return Found{BlockId: blockId, TabId: tabId, WorkspaceId: req.WorkspaceId}, Result{Agent: agent, AgentName: name}, false
+	return Found{BlockId: blockId, TabId: tabId, WorkspaceId: req.WorkspaceId, Brief: briefVersion}, Result{Agent: agent, AgentName: name}, false
 }
 
 type delivery struct {
@@ -313,7 +438,8 @@ type delivery struct {
 
 // deliver types the message. A session just started is given until startWait to show its prompt; one that runs is asked
 // once, and a busy agent is told to the developer, whose text stays in the field.
-func (s *Service) deliver(ctx context.Context, blockId string, text string, fresh bool) delivery {
+func (s *Service) deliver(ctx context.Context, blockId string, text string, fresh bool, clearPrompt bool) delivery {
+	opts := TypeOptions{Fresh: fresh, ClearPrompt: clearPrompt}
 	for attempt := 0; ; attempt++ {
 		// A line typed while the agent just started still draws its prompt is lost, or left there without Enter
 		// (#2028): the first message waits until the agent takes it, then is typed anyway once startWait is over.
@@ -323,7 +449,7 @@ func (s *Service) deliver(ctx context.Context, blockId string, text string, fres
 			}
 			continue
 		}
-		out := s.env.Type(ctx, blockId, text)
+		out := s.env.Type(ctx, blockId, text, opts)
 		if out.Sent && out.Unsubmitted {
 			return delivery{Status: StatusFailed, Reason: ReasonNotSubmitted, Message: out.Message}
 		}
@@ -333,6 +459,12 @@ func (s *Service) deliver(ctx context.Context, blockId string, text string, fres
 		if out.Gone {
 			return delivery{Status: StatusFailed, Reason: ReasonGone, Message: out.Message}
 		}
+		if out.HumanDraft {
+			return delivery{Status: StatusFailed, Reason: ReasonHumanDraft, Message: out.Message}
+		}
+		if out.UnknownPrompt {
+			return delivery{Status: StatusFailed, Reason: ReasonUnknownPrompt, Message: out.Message}
+		}
 		// The agent just started shows in the terminal a moment after its command; one that was there and ended does not come back.
 		if out.NoAgent && !fresh {
 			return delivery{Status: StatusFailed, Reason: ReasonNoAgent, Message: out.Message}
@@ -340,11 +472,15 @@ func (s *Service) deliver(ctx context.Context, blockId string, text string, fres
 		if !out.Retry && !out.NoAgent {
 			return delivery{Status: StatusFailed, Reason: ReasonRefused, Message: out.Message}
 		}
+		reason := ReasonNotReady
+		if out.Unsettled {
+			reason = ReasonUnsettled
+		}
 		if !fresh || attempt >= int(startWait/startPoll) {
-			return delivery{Status: StatusBusy, Reason: ReasonNotReady, Message: out.Message}
+			return delivery{Status: StatusBusy, Reason: reason, Message: out.Message}
 		}
 		if !s.env.Sleep(ctx, startPoll) {
-			return delivery{Status: StatusBusy, Reason: ReasonNotReady, Message: out.Message}
+			return delivery{Status: StatusBusy, Reason: reason, Message: out.Message}
 		}
 	}
 }

@@ -94,3 +94,10 @@ export function mergeHandled(a: HandledRows, b: HandledRows, now: number): Handl
 export function markRowHandled(handled: HandledRows, row: HandledRow, now: number): HandledRows {
     return prune({ ...handled, [row.key]: { episode: episodeOf(row), at: now } }, now);
 }
+
+// The mark that gives a row back (the undo of an archive, #2195): it holds for no episode, and it is later than the mark it
+// undoes, so that the windows, which only ever keep the later mark of a row, all agree.
+export function unmarkRowHandled(handled: HandledRows, key: string, now: number): HandledRows {
+    const at = Math.max(now, (handled[key]?.at ?? 0) + 1);
+    return prune({ ...handled, [key]: { episode: "", at } }, now);
+}

@@ -3,22 +3,30 @@
 
 // The Project header's Release menu (FR-MC-015), as Notulia's ReleaseLauncher: the next release candidate and the next
 // public release with their numbers, computed when the menu opens; a click starts the preparation on its own and every
-// later phase waits for its own click in the Project tab. While a release is on its way the button says which.
+// later phase waits for its own click in the Project tab. While a release is on its way the button says which. When
+// the header's next station is a milestone's other number, that planned version comes first and the computed one
+// stays beside it (#2268).
 
 import { cn, fireAndForget } from "@/util/util";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { nextStation } from "../project/next-station-model";
 import { DominoLoader } from "../suite/suite";
 import { ActionRunningClass, ActionSecondaryClass, RunningDot } from "./action-button";
+import { Milestone } from "./github";
 import { MenuPopover } from "./menu-popover";
 import { missionRefresh, missionTrust, PipelineDrift, releaseMilestone, releaseStart } from "./mission-client";
 import { PipelineReleaseStep, toTreeData, UntrustedInfo } from "./mission-model";
 import { openSetupTab } from "./pipeline-tab-open";
 import {
+    computedReasonText,
     milestoneWarning,
     MilestoneWarning,
+    plannedConfirmText,
+    PlannedRelease,
+    plannedRelease,
     releaseBaseOf,
     ReleaseChannel,
     releaseChoiceTag,
@@ -42,6 +50,7 @@ export function ReleaseMenu({
     session,
     rcSteps,
     publicSteps,
+    milestones,
     onStarted,
     onShowRelease,
 }: {
@@ -50,13 +59,23 @@ export function ReleaseMenu({
     session: ReleaseSession;
     rcSteps: PipelineReleaseStep[];
     publicSteps: PipelineReleaseStep[];
+    // The project's open milestones, as the header reads them: the next station's number is offered first (#2268).
+    milestones?: readonly Milestone[];
     onStarted: () => void;
     onShowRelease: () => void;
 }) {
     const t = useT();
     const [open, setOpen] = useState(false);
     const [plan, setPlan] = useState<ReleasePlan>(null);
+    const [planned, setPlanned] = useState<PlannedRelease>(null);
     const [choice, setChoice] = useState<ReleaseChannel>(null);
+    // The choice is the planned version's rather than the computed one's.
+    const [fromPlan, setFromPlan] = useState(false);
+    const [confirming, setConfirming] = useState(false);
+    const [confirmedTag, setConfirmedTag] = useState<string>(null);
+    // Read when the menu opens, not followed: a snapshot refresh must not reset a choice in progress.
+    const milestonesRef = useRef(milestones);
+    milestonesRef.current = milestones;
     const [version, setVersion] = useState("");
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
@@ -73,7 +92,11 @@ export function ReleaseMenu({
             return;
         }
         setPlan(null);
+        setPlanned(null);
         setChoice(null);
+        setFromPlan(false);
+        setConfirming(false);
+        setConfirmedTag(null);
         setError(null);
         setDrift(null);
         let cancelled = false;
@@ -96,6 +119,7 @@ export function ReleaseMenu({
                     rules
                 );
                 setPlan(next);
+                setPlanned(plannedRelease(next, nextStation(snap.git, null, milestonesRef.current)));
                 setVersion(next.publicVersion ?? "");
             } catch (e) {
                 if (!cancelled) {
@@ -133,7 +157,15 @@ export function ReleaseMenu({
         };
     }, [open, dir, missingSetup]);
 
-    const tag = releaseChoiceTag(plan, choice, version);
+    const offered = planned?.refused ? null : planned;
+    const tag =
+        fromPlan && offered
+            ? choice === "rc"
+                ? offered.rc
+                : choice === "public"
+                  ? offered.tag
+                  : null
+            : releaseChoiceTag(plan, choice, version);
     const shipped = releaseBaseOf(plan?.rules, tag);
 
     // The milestone the chosen release ships, read once the choice is made: its open issues are listed, never blocking.
@@ -174,11 +206,25 @@ export function ReleaseMenu({
     }
 
     const steps = choice === "rc" ? rcSteps : publicSteps;
-    const launch = (force?: boolean) =>
+    const pick = (channel: ReleaseChannel, planOffer: boolean) => {
+        setChoice(channel);
+        setFromPlan(planOffer);
+        setConfirming(false);
+    };
+    const launch = (force?: boolean, confirmed?: boolean) =>
         fireAndForget(async () => {
             if (!tag || !choice) {
                 return;
             }
+            // The commits call for a bigger bump than the planned number: said once, never blocking (#2268).
+            if (fromPlan && offered?.confirm && !confirmed && confirmedTag !== tag) {
+                setConfirming(true);
+                return;
+            }
+            if (confirmed) {
+                setConfirmedTag(tag);
+            }
+            setConfirming(false);
             setBusy(true);
             setError(null);
             setDrift(null);
@@ -264,44 +310,70 @@ export function ReleaseMenu({
                     ) : null}
                     {plan != null ? (
                         <>
-                            <button
-                                type="button"
+                            {offered ? (
+                                <>
+                                    <MenuSection testId="release-planned-heading">
+                                        {t("mc.releaseMenu.plannedHeading", { tag: offered.tag })}
+                                    </MenuSection>
+                                    <ChannelButton
+                                        channel="rc"
+                                        selected={choice === "rc" && fromPlan}
+                                        disabled={!offered.rc || rcSteps.length === 0}
+                                        onPick={() => pick("rc", true)}
+                                        title={t("mc.releaseMenu.rcTitle", { tag: offered.rc ?? "" })}
+                                        hint={
+                                            rcSteps.length ? t("mc.releaseMenu.rcHint") : t("mc.releaseMenu.noRcSteps")
+                                        }
+                                        testId="release-planned-rc"
+                                    />
+                                    <ChannelButton
+                                        channel="public"
+                                        selected={choice === "public" && fromPlan}
+                                        disabled={publicSteps.length === 0}
+                                        onPick={() => pick("public", true)}
+                                        title={t("mc.releaseMenu.publicTitle", { tag: offered.tag })}
+                                        hint={
+                                            publicSteps.length === 0
+                                                ? t("mc.releaseMenu.noPublicSteps")
+                                                : t("mc.releaseMenu.publicHint")
+                                        }
+                                        testId="release-planned-public"
+                                    />
+                                    <MenuSection testId="release-computed-heading">
+                                        {t("mc.releaseMenu.computedHeading")}
+                                    </MenuSection>
+                                    <div className="px-1 text-11 text-muted" data-testid="release-computed-reason">
+                                        {computedReasonText(plan)}
+                                    </div>
+                                </>
+                            ) : null}
+                            {planned?.refused ? (
+                                <div className="px-1 text-11 text-muted" data-testid="release-planned-refused">
+                                    {planned.refused}
+                                </div>
+                            ) : null}
+                            <ChannelButton
+                                channel="rc"
+                                selected={choice === "rc" && !fromPlan}
                                 disabled={!plan.rc || rcSteps.length === 0}
-                                onClick={() => setChoice("rc")}
-                                className={cn(
-                                    "w-full cursor-pointer rounded-6 border px-3 py-2 text-left transition-colors duration-120 ease-mt disabled:cursor-default disabled:opacity-50",
-                                    choice === "rc"
-                                        ? "border-accent/60 bg-accent/10"
-                                        : "border-border hover:border-secondary/40"
-                                )}
-                            >
-                                <div className="text-13 leading-5 font-medium text-primary">
-                                    {t("mc.releaseMenu.rcTitle", { tag: plan.rc ?? "" })}
-                                </div>
-                                <div className="text-11 text-muted">
-                                    {rcSteps.length ? t("mc.releaseMenu.rcHint") : t("mc.releaseMenu.noRcSteps")}
-                                </div>
-                            </button>
-                            <button
-                                type="button"
+                                onPick={() => pick("rc", false)}
+                                title={t("mc.releaseMenu.rcTitle", { tag: plan.rc ?? "" })}
+                                hint={rcSteps.length ? t("mc.releaseMenu.rcHint") : t("mc.releaseMenu.noRcSteps")}
+                            />
+                            <ChannelButton
+                                channel="public"
+                                selected={choice === "public" && !fromPlan}
                                 disabled={!plan.publicVersion || publicSteps.length === 0}
-                                onClick={() => setChoice("public")}
-                                className={cn(
-                                    "w-full cursor-pointer rounded-6 border px-3 py-2 text-left transition-colors duration-120 ease-mt disabled:cursor-default disabled:opacity-50",
-                                    choice === "public"
-                                        ? "border-warning/60 bg-warning/10"
-                                        : "border-border hover:border-secondary/40"
-                                )}
-                            >
-                                <div className="text-13 leading-5 font-medium text-primary">{publicTitle}</div>
-                                <div className="text-11 text-muted">
-                                    {publicSteps.length === 0
+                                onPick={() => pick("public", false)}
+                                title={publicTitle}
+                                hint={
+                                    publicSteps.length === 0
                                         ? t("mc.releaseMenu.noPublicSteps")
                                         : plan.publicVersion
                                           ? t("mc.releaseMenu.publicHint")
-                                          : plan.reason}
-                                </div>
-                            </button>
+                                          : plan.reason
+                                }
+                            />
                             {choice === "public" && plan.publicIsDecision ? (
                                 <label className="flex flex-col gap-1 text-11 text-muted">
                                     {t("mc.releaseMenu.firstNumber")}
@@ -327,9 +399,18 @@ export function ReleaseMenu({
                             {drift ? (
                                 <PipelineDriftNote drift={drift} busy={busy} onStart={() => launch(true)} />
                             ) : null}
+                            {confirming && tag ? (
+                                <PlannedConfirm
+                                    text={plannedConfirmText(plan, tag)}
+                                    tag={tag}
+                                    busy={busy}
+                                    onStart={() => launch(false, true)}
+                                    onBack={() => setConfirming(false)}
+                                />
+                            ) : null}
                             <button
                                 type="button"
-                                disabled={!tag || busy}
+                                disabled={!tag || busy || confirming}
                                 onClick={() => launch()}
                                 className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50"
                             >
@@ -359,6 +440,97 @@ export function ReleaseMenu({
                     onCancel={() => setUntrusted(null)}
                 />
             ) : null}
+        </div>
+    );
+}
+
+function MenuSection({ children, testId }: { children: React.ReactNode; testId?: string }) {
+    return (
+        <div className="px-1 pt-1 text-11 font-semibold text-secondary" data-testid={testId}>
+            {children}
+        </div>
+    );
+}
+
+function ChannelButton({
+    channel,
+    selected,
+    disabled,
+    onPick,
+    title,
+    hint,
+    testId,
+}: {
+    channel: ReleaseChannel;
+    selected: boolean;
+    disabled: boolean;
+    onPick: () => void;
+    title: string;
+    hint: string;
+    testId?: string;
+}) {
+    const selectedClass = channel === "rc" ? "border-accent/60 bg-accent/10" : "border-warning/60 bg-warning/10";
+    return (
+        <button
+            type="button"
+            disabled={disabled}
+            onClick={onPick}
+            aria-pressed={selected}
+            className={cn(
+                "w-full cursor-pointer rounded-6 border px-3 py-2 text-left transition-colors duration-120 ease-mt disabled:cursor-default disabled:opacity-50",
+                selected ? selectedClass : "border-border hover:border-secondary/40"
+            )}
+            data-testid={testId}
+        >
+            <div className="text-13 leading-5 font-medium text-primary">{title}</div>
+            <div className="text-11 text-muted">{hint}</div>
+        </button>
+    );
+}
+
+// The planned number is smaller than the commits call for: the reason, then the developer's word (#2268).
+function PlannedConfirm({
+    text,
+    tag,
+    busy,
+    onStart,
+    onBack,
+}: {
+    text: string;
+    tag: string;
+    busy: boolean;
+    onStart: () => void;
+    onBack: () => void;
+}) {
+    const t = useT();
+    return (
+        <div
+            className="flex flex-col gap-2 rounded-4 border border-warning/50 bg-warning/10 p-2 text-11 text-primary"
+            data-testid="release-planned-confirm"
+        >
+            <div className="flex items-start gap-1.5">
+                <i className="fa fa-solid fa-triangle-exclamation mt-[2px] text-11 text-warning" />
+                <span>{text}</span>
+            </div>
+            <div className="flex justify-end gap-2">
+                <button
+                    type="button"
+                    onClick={onBack}
+                    className="cursor-pointer rounded-6 px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary"
+                    data-testid="release-planned-back"
+                >
+                    {t("mc.releaseMenu.plannedBack")}
+                </button>
+                <button
+                    type="button"
+                    disabled={busy}
+                    onClick={onStart}
+                    className="cursor-pointer rounded-6 border border-border px-2 py-1 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50"
+                    data-testid="release-planned-start"
+                >
+                    {t("mc.releaseMenu.start", { tag })}
+                </button>
+            </div>
         </div>
     );
 }

@@ -89,6 +89,35 @@ func TestOrderFollowsTheList(t *testing.T) {
 	}
 }
 
+// #2180: the number of visible panels "Do the same in every view" stores is a setting of the 360 view's group, so the
+// developer can change it, or empty it, where the 360 view setting is.
+func TestView360PlacesIsShownWithTheView360Setting(t *testing.T) {
+	view, ok := Lookup("moltenterm:view360")
+	if !ok {
+		t.Fatalf("moltenterm:view360 has no entry")
+	}
+	places, ok := Lookup("moltenterm:view360places")
+	if !ok || places.Hidden {
+		t.Fatalf("moltenterm:view360places must be a shown setting")
+	}
+	if places.Section != view.Section || places.Group != view.Group {
+		t.Errorf("moltenterm:view360places is in %s/%q, want %s/%q", places.Section, places.Group, view.Section, view.Group)
+	}
+	if places.Control != ControlSelect || places.UnsetLabel == "" {
+		t.Errorf("moltenterm:view360places must be a select that can be empty, got %q %q", places.Control, places.UnsetLabel)
+	}
+	var values []string
+	for _, o := range places.Options {
+		values = append(values, o.Value)
+	}
+	if !slices.Equal(values, []string{"1", "2", "3"}) {
+		t.Errorf("moltenterm:view360places offers %v, want 1, 2 and 3", values)
+	}
+	if places.Order != view.Order+1 {
+		t.Errorf("moltenterm:view360places comes at %d, want right after the 360 view setting (%d)", places.Order, view.Order)
+	}
+}
+
 func TestBossNameDefaultsToBrokk(t *testing.T) {
 	s, ok := Lookup("boss:name")
 	if !ok {
@@ -111,7 +140,7 @@ func TestBrokkVisitKeysAreShown(t *testing.T) {
 		"boss:visitfinished": "badge",
 		"boss:visitdownload": "badge",
 		"boss:visitupdate":   "badge",
-		"boss:visitusage":    "badge",
+		"boss:visitusage":    "rien",
 		"boss:blockedmin":    5,
 		"boss:quiet":         true,
 		"boss:quietfrom":     "22:00",
@@ -132,5 +161,32 @@ func TestBrokkVisitKeysAreShown(t *testing.T) {
 	}
 	if s, ok := Lookup("boss:nevercome"); !ok || s.Hidden {
 		t.Errorf("boss:nevercome must be a shown setting")
+	}
+}
+
+// FR-BOSS-009, AC75 (#2203): Brokk's proximity is a choice on a scale that 1.1.0 extends, never a switch.
+func TestBrokkProximityIsAChoiceThatCanGrow(t *testing.T) {
+	s, ok := Lookup("boss:proximity")
+	if !ok || s.Hidden {
+		t.Fatalf("boss:proximity must be a shown setting")
+	}
+	if s.Section != SectionBoss || s.Group != "Avatar" {
+		t.Errorf("boss:proximity is in %s/%q, want the Brokk section's Avatar group", s.Section, s.Group)
+	}
+	if s.Control != ControlSelect {
+		t.Errorf("boss:proximity is a %s, want a select: 1.1.0 adds Close and Partner", s.Control)
+	}
+	if s.Default != "colleague" {
+		t.Errorf("boss:proximity defaults to %v, want colleague", s.Default)
+	}
+	var values []string
+	for _, option := range s.Options {
+		values = append(values, option.Value)
+	}
+	if strings.Join(values, ",") != "discreet,colleague" {
+		t.Errorf("boss:proximity offers %v, want discreet then colleague", values)
+	}
+	if v, ok := Lookup("boss:visitfinished"); !ok || !strings.Contains(v.Description, "never brings him") {
+		t.Errorf("boss:visitfinished must say that a finished agent never brings him")
 	}
 }

@@ -10,6 +10,7 @@ import { atoms, getApi, globalPrimaryTabStartup } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { useEffect } from "react";
+import { listenOpenLink } from "../moltenterm-shell/browser/open-link-listener";
 import { registerNotificationGesture } from "../moltenterm-shell/notifications-store";
 import { listenSettingsMenu } from "../moltenterm-shell/settings/settings-menu";
 import { clientMeta, findOnboardingPanel } from "./onboarding-client";
@@ -48,6 +49,8 @@ function startOnce() {
     (getApi() as unknown as MoltentermOnboardingApi).onMoltentermGettingStarted?.(() => fireAndForget(openFirstRun));
     // The app menu's Settings… beside Getting Started (#1325): this hook is the one every tab view mounts.
     listenSettingsMenu();
+    // The web pages this tab's interface opens by itself go to its browser panel (#2176).
+    listenOpenLink();
     if (globalPrimaryTabStartup) {
         fireAndForget(dockPendingFirstRun);
     }

@@ -2,30 +2,56 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Pilotage across a workspace's projects (FR-SHELL-087): filter chips (All projects, Desktop, Mobile…) above the list.
-// All projects lists every project's open pull requests by whose turn it is, each with its project's tag; a row opens
+// All projects lists every project's open pull requests by whose turn it is, each with its project's mark; a row opens
 // its project's chip on that pull request, where the full Pilotage of that project (cards, merge queue, upcoming,
-// notes, merged) works as before.
+// notes, merged) works as before. Under the lanes, one Upcoming, one Notes and one Recently merged hold the cards of
+// every project, each marked with its project (#2314); what is wrong with a project is one line at the top.
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { cn } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AgentChain } from "../agent-chain-store";
 import { EmptyState } from "../empty-state";
 import { useT } from "../i18n/i18n";
-import { useWordPhrase } from "../i18n/phrase";
 import { useMissionSnapshot } from "../mission/mission-client";
+import { useTrustDirs } from "../mission/trust-approval";
+import { type ReviewNotes, useReviewNotes } from "../review/review-notes";
 import { ProjectChip } from "../sidebar/project-chips";
 import { projectLabel, projectRepoDir, WorkspaceProjectEntry } from "../sidebar/workspace-projects";
 import { DominoLoader } from "../suite/suite";
-import { workspaceShownName } from "../workspace-default-name";
 import { openProjectSheet } from "../workspace-edit";
 import { useCardContext } from "./reviews-agent-bar";
-import { TurnTitleKeys } from "./reviews-card-model";
+import { AllSource, markOf, projectProblems, sourceOf } from "./reviews-all-model";
+import {
+    AllLane,
+    AllLaunchDialogs,
+    AllMergedSection,
+    AllNoneOpenLine,
+    AllNotesAsk,
+    AllNotesSection,
+    AllProblemLines,
+    AllUpcomingSection,
+    Marks,
+} from "./reviews-all-sections";
 import { useReviews } from "./reviews-client";
-import { rebaseAskKey, reviewsEmptyState, splitReviews } from "./reviews-model";
-import { AllProjects, projectLanes, ProjectPrRow, ReviewsProjectFilter } from "./reviews-projects-model";
+import { LeftoverAsks, useLeftoverAsks } from "./reviews-leftover-asks";
+import { rebaseAskKey, ReviewsAnswer, reviewsEmptyState, splitReviews } from "./reviews-model";
+import { ReviewsFolds } from "./reviews-order-store";
+import { OthersWaitLine, OwnersFilterHost } from "./reviews-owners";
+import type { OwnersFilter } from "./reviews-owners-filter";
+import { inScope, ownersOf, prOwner, waitsForYou } from "./reviews-owners-model";
+import { useViewScope } from "./reviews-owners-store";
+import {
+    AllProjects,
+    projectIdsOfFolders,
+    projectLanes,
+    ProjectPrRow,
+    ReviewsProjectFilter,
+} from "./reviews-projects-model";
 import { cardStates } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
+import { UpcomingAnswers, useUpcomingWatch } from "./reviews-upcoming-client";
+import { useProjectWaiting } from "./reviews-workspace";
 
 export function ProjectChips({
     workspaceId,
@@ -38,11 +64,15 @@ export function ProjectChips({
 }) {
     const t = useT();
     const choose = (id: string) => ReviewsProjectFilter.getInstance().choose(workspaceId, id);
-    const chip = (id: string, label: string) => (
+    // What waits for the developer in each project, so a pull request waiting in another one is never invisible.
+    const waiting = useProjectWaiting();
+    const waitingOf = (p: WorkspaceProjectEntry) => (p.dir === "" ? 0 : (waiting[projectRepoDir(p)] ?? 0));
+    const chip = (id: string, label: string, count: number) => (
         <ProjectChip
             key={id}
             on={filter === id}
             label={label}
+            waiting={count}
             testId={`reviews-project-chip-${id}`}
             onClick={() => choose(id)}
         />
@@ -54,16 +84,31 @@ export function ProjectChips({
             className="flex shrink-0 flex-wrap gap-1.5 border-b border-border px-3 py-2"
             data-testid="reviews-project-chips"
         >
-            {chip(AllProjects, t("reviews.projects.all"))}
-            {projects.map((p) => chip(p.id, projectLabel(p)))}
+            {chip(
+                AllProjects,
+                t("reviews.projects.all"),
+                projects.reduce((sum, p) => sum + waitingOf(p), 0)
+            )}
+            {projects.map((p) => chip(p.id, projectLabel(p), waitingOf(p)))}
         </div>
     );
 }
 
-type ProjectReport = { rows: ProjectPrRow[]; loaded: boolean; note?: string };
+// What a project's probe follows and reports to All projects: its pull requests as lanes, and the answers the
+// sections list (its review answer, its notes). The upcoming work and the leftover requests land in their own stores.
+type ProjectReport = {
+    rows: ProjectPrRow[];
+    loaded: boolean;
+    note?: string;
+    answer?: ReviewsAnswer;
+    notes?: ReviewNotes;
+    notesError?: string;
+    setNotes?: (notes: ReviewNotes) => void;
+};
 
 // One project's pull requests as Pilotage computes them (the same card states as its full list), told to the merged
-// list; it draws nothing itself.
+// list; it draws nothing itself. It also follows what the sections list for the project: its upcoming work, its notes
+// and the requests made to its leftovers' owners, so a hook per project runs here and not in the sections.
 function ProjectProbe({
     project,
     refreshKey,
@@ -80,6 +125,11 @@ function ProjectProbe({
     const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
     const asks = useAtomValue(ReviewsModel.getInstance().rebaseAsksAtom);
     const ctx = useCardContext(dir);
+    // Only a project whose pull requests were read has work coming, notes or leftovers to follow.
+    const read = answer?.state === "ok";
+    useUpcomingWatch(dir, answer);
+    useLeftoverAsks(read ? dir : "");
+    const { notes, error: notesError, set: setNotes } = useReviewNotes(read ? (answer.repo ?? "") : "");
     const listed = useMemo(() => {
         const split = splitReviews(answer, readied);
         return [...split.ready, ...split.drafts];
@@ -96,41 +146,125 @@ function ProjectProbe({
             return;
         }
         const empty = reviewsEmptyState(answer);
-        const rows = listed.map((pr) => ({ projectId: project.id, dir, pr, card: cards[pr.number] }));
-        onReport(project.id, { rows, loaded: true, note: empty?.title });
-    }, [answer, error, listed, cards, project.id, dir]);
+        const rows = listed.map((pr) => ({
+            projectId: project.id,
+            dir,
+            pr,
+            card: cards[pr.number],
+            owner: prOwner(pr, ctx.upcoming),
+        }));
+        onReport(project.id, { rows, loaded: true, note: empty?.title, answer, notes, notesError, setNotes });
+    }, [answer, error, listed, cards, project.id, dir, ctx.upcoming, notes, notesError, setNotes]);
     return null;
 }
 
-const TurnTitle = TurnTitleKeys;
-
-export function AllProjectsList({ workspace, projects }: { workspace: Workspace; projects: WorkspaceProjectEntry[] }) {
+export function AllProjectsList({
+    workspace,
+    projects,
+    filter,
+    blockId,
+}: {
+    workspace: Workspace;
+    projects: WorkspaceProjectEntry[];
+    filter: OwnersFilter;
+    blockId: string;
+}) {
     const t = useT();
-    const word = useWordPhrase();
     const [reports, setReports] = useState<Record<string, ProjectReport>>({});
     const [refreshKey, setRefreshKey] = useState(0);
     const onReport = useCallback((id: string, report: ProjectReport) => {
         setReports((prev) => ({ ...prev, [id]: report }));
     }, []);
-    const linked = projects.filter((p) => p.dir !== "");
+    const linked = useMemo(() => projects.filter((p) => p.dir !== ""), [projects]);
+    // The view's filter composes with the project chips (FR-REV-034): the agents of two projects in the view filter
+    // this list on both, and each row keeps its project's mark. What it hides is counted, and what waits is signalled.
+    const view = useViewScope();
+    const edges = useAtomValue(AgentChain.getInstance().edgesAtom);
+    const upcomings = useAtomValue(UpcomingAnswers.getInstance().answersAtom);
+    const leftoverAsks = useAtomValue(LeftoverAsks.getInstance().asksAtom);
+    const [revealed, setRevealed] = useState(false);
+    const [notesAsk, setNotesAsk] = useState<AllNotesAsk>(null);
+    // "Show notes" on a merged pull request filters the Notes right under it: open for now, as a project's own view does.
+    useEffect(() => {
+        if (notesAsk != null) {
+            ReviewsFolds.getInstance().openForNow("", "notes");
+        }
+    }, [notesAsk]);
+    const allRows = useMemo(() => Object.values(reports).flatMap((r) => r.rows), [reports]);
+    const hiddenRows = useMemo(
+        () => allRows.filter((row) => !inScope(row.owner ?? "", view.names)),
+        [allRows, view.names]
+    );
+    const hiddenWaiting = hiddenRows.filter((row) => waitsForYou(row.card));
     const rowsByProject = useMemo(() => {
         const rtn: Record<string, ProjectPrRow[]> = {};
         for (const [id, report] of Object.entries(reports)) {
-            rtn[id] = report.rows;
+            rtn[id] = report.rows.filter(
+                (row) => inScope(row.owner ?? "", view.names) || (revealed && waitsForYou(row.card))
+            );
         }
         return rtn;
-    }, [reports]);
+    }, [reports, view.names, revealed]);
+    const owners = useMemo(
+        () =>
+            ownersOf(
+                allRows.map((row) => row.owner ?? ""),
+                edges
+            ),
+        [allRows, edges]
+    );
     const lanes = projectLanes(projects, rowsByProject);
     const loading = linked.some((p) => !reports[p.id]?.loaded);
-    const notes = projects
-        .map((p) => ({ project: p, note: p.dir === "" ? t("reviews.projects.noFolder") : reports[p.id]?.note }))
-        .filter((n) => !!n.note);
-    const labels = new Map(projects.map((p) => [p.id, projectLabel(p)]));
+    const trustDirs = useTrustDirs();
+    const problems = useMemo(() => {
+        const trustOf: Record<string, string> = {};
+        for (const dir of trustDirs) {
+            const id = projectIdsOfFolders(projects, [dir])[0];
+            if (id != null && trustOf[id] == null) {
+                trustOf[id] = dir;
+            }
+        }
+        return projectProblems(
+            projects,
+            (id) => reports[id]?.note ?? "",
+            (id) => trustOf[id] ?? ""
+        );
+    }, [projects, reports, trustDirs]);
+    const place = !!workspace?.color;
+    const workspaceId = workspace?.oid;
+    const marks: Marks = useMemo(
+        () => ({
+            place,
+            onChoose: (id: string) => ReviewsProjectFilter.getInstance().choose(workspaceId, id),
+        }),
+        [place, workspaceId]
+    );
+    // The projects whose pull requests were read: the sections list their cards, and only theirs.
+    const sources: AllSource[] = useMemo(
+        () =>
+            linked
+                .filter((p) => reports[p.id]?.answer?.state === "ok")
+                .map((p) => {
+                    const report = reports[p.id];
+                    return sourceOf(p, {
+                        answer: report.answer,
+                        upcoming: upcomings[projectRepoDir(p)],
+                        notes: report.notes,
+                        notesError: report.notesError,
+                        setNotes: report.setNotes,
+                        asks: leftoverAsks[projectRepoDir(p)],
+                    });
+                }),
+        [linked, reports, upcomings, leftoverAsks]
+    );
+    const facts = (id: string) => {
+        const project = projects.find((p) => p.id === id);
+        return markOf({ project, answer: reports[id]?.answer }, place);
+    };
     const open = (row: ProjectPrRow) => {
         ReviewsProjectFilter.getInstance().set(workspace?.oid, row.projectId);
         globalStore.set(ReviewsModel.getInstance().focusAtom, { dir: row.dir, number: row.pr.number, at: Date.now() });
     };
-    const name = workspaceShownName(workspace?.name, t);
     return (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="reviews-all-projects">
             {linked.map((p) => (
@@ -141,6 +275,7 @@ export function AllProjectsList({ workspace, projects }: { workspace: Workspace;
                     onReport={onReport}
                 />
             ))}
+            <OwnersFilterHost filter={filter} view={view} owners={owners} hidden={hiddenRows.length} />
             <div className="flex items-center gap-2 border-b border-border px-3 py-2">
                 <span className="text-12 text-secondary">
                     {t("reviews.projects.count", { count: projects.length })}
@@ -159,70 +294,31 @@ export function AllProjectsList({ workspace, projects }: { workspace: Workspace;
                     )}
                 </button>
             </div>
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
-                {lanes.length === 0 && !loading ? (
-                    <EmptyState
-                        icon="code-pull-request"
-                        title={t("reviews.projects.none")}
-                        hint={t("reviews.projects.noneHint", { name })}
-                        testId="reviews-all-projects-empty"
-                    />
-                ) : null}
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-3">
+                <AllProblemLines problems={problems} marks={marks} />
                 {lanes.map((lane) => (
-                    <section
-                        key={lane.turn}
-                        className="flex flex-col gap-1.5"
-                        aria-label={t(TurnTitle[lane.turn])}
-                        data-testid={`reviews-all-lane-${lane.turn}`}
-                    >
-                        <h4
-                            className={cn(
-                                "m-0 text-11 font-semibold tracking-[0.08em] uppercase",
-                                lane.turn === "yours" ? "text-[var(--mt-state-waiting)]" : "text-muted"
-                            )}
-                        >
-                            {t(TurnTitle[lane.turn])} · {lane.rows.length}
-                        </h4>
-                        {lane.rows.map((row) => (
-                            <button
-                                key={`${row.projectId}:${row.pr.number}`}
-                                type="button"
-                                className="flex min-w-0 cursor-pointer items-center gap-2.5 rounded-6 border-0 bg-white/[0.04] px-3 py-2 text-left text-13 text-primary transition-colors duration-120 ease-mt hover:bg-white/[0.08]"
-                                title={t("reviews.projects.openTitle", {
-                                    project: labels.get(row.projectId),
-                                    number: row.pr.number,
-                                })}
-                                data-testid="reviews-all-row"
-                                data-project={row.projectId}
-                                data-pr={row.pr.number}
-                                onClick={() => open(row)}
-                            >
-                                <span className="shrink-0 font-mono text-12 text-muted">#{row.pr.number}</span>
-                                <span
-                                    className="shrink-0 rounded-full bg-white/[0.08] px-1.5 py-px text-11 whitespace-nowrap text-secondary"
-                                    data-testid="reviews-all-tag"
-                                >
-                                    {labels.get(row.projectId)}
-                                </span>
-                                <span className="min-w-0 truncate">{row.pr.title}</span>
-                                {row.card != null ? (
-                                    <span className="ml-auto shrink-0 truncate pl-2 text-11 text-muted">
-                                        {word(row.card.sentence)}
-                                    </span>
-                                ) : null}
-                            </button>
-                        ))}
-                    </section>
+                    <AllLane key={lane.turn} lane={lane} facts={facts} marks={marks} edges={edges} onOpen={open} />
                 ))}
-                {notes.length > 0 ? (
-                    <ul className="m-0 flex list-none flex-col gap-1 p-0 text-11 text-muted">
-                        {notes.map((n) => (
-                            <li key={n.project.id}>
-                                <span className="text-secondary">{projectLabel(n.project)}</span> · {n.note}
-                            </li>
-                        ))}
-                    </ul>
+                {lanes.length === 0 && !loading ? <AllNoneOpenLine hidden={hiddenRows.length > 0} /> : null}
+                <OthersWaitLine
+                    local={hiddenWaiting.length}
+                    revealed={revealed}
+                    onToggle={() => setRevealed((v) => !v)}
+                />
+                {sources.length > 0 ? (
+                    <>
+                        <AllUpcomingSection sources={sources} names={view.names} marks={marks} />
+                        <AllNotesSection sources={sources} blockId={blockId} ask={notesAsk} marks={marks} />
+                        <AllMergedSection
+                            sources={sources}
+                            marks={marks}
+                            onShowNotes={(text, source) =>
+                                setNotesAsk({ filter: text, projectId: source.project.id, at: Date.now() })
+                            }
+                        />
+                    </>
                 ) : null}
+                <AllLaunchDialogs sources={sources} />
             </div>
         </div>
     );

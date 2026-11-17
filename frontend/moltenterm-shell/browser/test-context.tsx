@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The test context chip at the start of the browser's address bar (FR-BRW-017, #962): on a local tab, the branch and
-// PR the page is served from, with the details and "Open in Reviews" in a popover opened by a click. It asks wavesrv
+// PR the page is served from; a click opens the version card (#2326, version-card.tsx). It asks wavesrv
 // when the tab's server changes, while the tab is shown, and when git changes the served tree; wavesrv answers from
 // local reads and the collector's cache, never a gh call.
 
@@ -11,35 +11,30 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
-import { checkIconState, CiIcon } from "../mission/ci-icon";
-import type { CheckState } from "../mission/github";
 import { MenuPopover } from "../mission/menu-popover";
 import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
-import { MoltenWave } from "../molten-button";
-import { openWebLink } from "../open-web-link";
 import { MissionPaneEvent } from "../pane-status";
-import { useNewViewHint, usePanelOrigin } from "../panel-cta";
 import { LaunchEvent } from "../reviews/reviews-launch-client";
 import type { LaunchState } from "../reviews/reviews-launch-model";
-import { ReviewsModel } from "../reviews/reviews-store";
+import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { readWorkspaceProject } from "../workspace-project";
 import {
     ChipTone,
     chipView,
-    detailRows,
     launchServesTarget,
     localAppTarget,
-    prStateText,
-    reasonText,
-    reviewsTarget,
     targetKey,
     TestContextAnswer,
     TestContextCommand,
 } from "./test-context-model";
+
+// The card loads the first time a chip opens it: it stays out of the JavaScript every view loads up front
+// (NFR-PERF-003, the Perf budgets gate of #2330).
+const VersionCard = lazy(() => import("./version-card").then((m) => ({ default: m.VersionCard })));
 
 const TestContextRpcTimeoutMs = 15000;
 const TestContextPollMs = 5000;
@@ -67,7 +62,7 @@ function askTestContext(url: string, workspaceDir: string, fresh: boolean): Prom
     );
 }
 
-export function useTestContext(url: string, workspaceDir: string): TestContextAnswer {
+export function useTestContext(url: string, workspaceDir: string): { answer: TestContextAnswer; refresh: () => void } {
     const key = targetKey(localAppTarget(url));
     const [answer, setAnswer] = useState<{ key: string; value: TestContextAnswer }>(null);
     const keyRef = useRef(key);
@@ -145,14 +140,25 @@ export function useTestContext(url: string, workspaceDir: string): TestContextAn
         }
         return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
     }, [root, project, ask]);
-    return key ? current : null;
+    const refresh = useCallback(() => ask(true), [ask]);
+    return { answer: key ? current : null, refresh };
 }
 
-export function TestContextChip({ url }: { url: string }) {
+// onSwitch: the panel loads another served version in its shown tab (#2326). onAnnotate: the panel starts its annotate
+// mode on the shown page (#2327); absent when the page cannot be annotated.
+export function TestContextChip({
+    url,
+    onSwitch,
+    onAnnotate,
+}: {
+    url: string;
+    onSwitch?: (url: string) => void;
+    onAnnotate?: () => void;
+}) {
     const t = useT();
     const workspace = useAtomValue(atoms.workspace);
     const workspaceDir = readWorkspaceProject(workspace).repo;
-    const answer = useTestContext(url, workspaceDir);
+    const { answer, refresh } = useTestContext(url, workspaceDir);
     const [anchor, setAnchor] = useState<HTMLElement>(null);
     const view = chipView(answer, t);
     if (view == null) {
@@ -181,113 +187,23 @@ export function TestContextChip({ url }: { url: string }) {
                 <MenuPopover
                     anchor={anchor}
                     onClose={() => setAnchor(null)}
-                    className="flex w-80 flex-col gap-2.5"
+                    className="flex flex-col"
                     role="dialog"
-                    ariaLabel={t("browser.testContext.title")}
+                    ariaLabel={t("browser.testContext.cardTitle")}
+                    focusManaged
                 >
-                    <TestContextDetails answer={answer} workspaceDir={workspaceDir} onDone={() => setAnchor(null)} />
+                    <Suspense fallback={<DominoLoader label={t("browser.testContext.cardTitle")} />}>
+                        <VersionCard
+                            answer={answer}
+                            workspaceDir={workspaceDir}
+                            onSwitch={onSwitch}
+                            onAnnotate={onAnnotate}
+                            onDone={() => setAnchor(null)}
+                            onChanged={refresh}
+                        />
+                    </Suspense>
                 </MenuPopover>
             ) : null}
         </>
-    );
-}
-
-function TestContextDetails({
-    answer,
-    workspaceDir,
-    onDone,
-}: {
-    answer: TestContextAnswer;
-    workspaceDir: string;
-    onDone: () => void;
-}) {
-    const t = useT();
-    const origin = usePanelOrigin();
-    const hint = useNewViewHint();
-    const rows = detailRows(answer, t);
-    const target = reviewsTarget(answer, workspaceDir);
-    const ciState = answer.pr?.ci && answer.pr.ci !== "none" ? checkIconState(answer.pr.ci as CheckState) : null;
-    return (
-        <div className="flex flex-col gap-2.5" data-testid="browser-test-context-details">
-            <div className="text-12 font-semibold text-primary">
-                {answer.known ? t("browser.testContext.title") : t("browser.testContext.unknown")}
-            </div>
-            {!answer.known ? <p className="text-12 leading-5 text-secondary">{reasonText(answer, t)}</p> : null}
-            {rows.length > 0 ? (
-                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-12">
-                    {rows.map((row) => (
-                        <div key={row.label} className="contents">
-                            <dt className="text-muted">{row.label}</dt>
-                            <dd
-                                className="min-w-0 font-mono [overflow-wrap:anywhere] text-primary"
-                                title={row.title ?? row.value}
-                            >
-                                {row.value}
-                            </dd>
-                        </div>
-                    ))}
-                </dl>
-            ) : null}
-            {answer.known ? (
-                <div className="flex flex-col gap-1 rounded-4 border border-border px-2.5 py-2 text-12">
-                    {answer.pr != null ? (
-                        <div className="flex min-w-0 items-center gap-1.5 text-primary">
-                            <i className="fa fa-solid fa-code-pull-request text-11 text-accent" aria-hidden />
-                            <span className="shrink-0 font-medium">#{answer.pr.number}</span>
-                            <span className="truncate" title={answer.pr.title}>
-                                {answer.pr.title}
-                            </span>
-                        </div>
-                    ) : null}
-                    <div className="flex items-center gap-1.5 text-secondary" data-testid="browser-test-context-pr">
-                        {ciState ? <CiIcon state={ciState} /> : null}
-                        <span>{prStateText(answer, t)}</span>
-                    </div>
-                </div>
-            ) : null}
-            {answer.known && !answer.sameproject ? (
-                <p className="text-11 leading-4 text-muted">
-                    {t("browser.testContext.otherProject", { name: answer.name || "" })}
-                </p>
-            ) : null}
-            {target != null || answer.pr != null ? (
-                <div className="flex flex-wrap items-center gap-2">
-                    {target != null ? (
-                        <button
-                            type="button"
-                            className="molten-btn cursor-pointer rounded-4 px-3 py-1.5 text-12"
-                            data-testid="browser-test-context-reviews"
-                            title={hint(t("browser.testContext.openInReviews"))}
-                            onClick={(e) => {
-                                onDone();
-                                fireAndForget(() =>
-                                    ReviewsModel.getInstance().openReviews(
-                                        target.dir,
-                                        target.number,
-                                        target.branch,
-                                        origin(e)
-                                    )
-                                );
-                            }}
-                        >
-                            {t("browser.testContext.openInReviews")}
-                            <MoltenWave />
-                        </button>
-                    ) : null}
-                    {answer.pr != null ? (
-                        <button
-                            type="button"
-                            className="cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
-                            onClick={() => {
-                                onDone();
-                                fireAndForget(() => openWebLink(answer.pr.url));
-                            }}
-                        >
-                            {t("browser.testContext.openPr")}
-                        </button>
-                    ) : null}
-                </div>
-            ) : null}
-        </div>
     );
 }

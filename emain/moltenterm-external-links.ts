@@ -120,6 +120,22 @@ export async function openExternalLink(raw: unknown, sender?: electron.WebConten
     }
 }
 
+// The renderer of a window tab opens the page it gets here through openLink (FR-BRW-007, #2176).
+export const OpenLinkChannel = "moltenterm-open-link";
+
+// A web page MoltenTerm opens by itself (a navigation or window.open of its own interface) goes to the browser panel of
+// the tab whose interface asked, through the same routing as an interface link (FR-BRW-002/006): only an explicit
+// choice of the user opens the installed browser. Anything else, or with no tab to take it, follows the rule above.
+export async function openLinkInApp(raw: unknown, host?: electron.WebContents): Promise<boolean> {
+    const target = externalLinkAction(raw);
+    const web = target.action === ExternalOpen && /^https?:$/.test(new URL(target.url).protocol);
+    if (web && host != null && !host.isDestroyed()) {
+        host.send(OpenLinkChannel, target.url);
+        return true;
+    }
+    return openExternalLink(raw, host);
+}
+
 // A page's request to launch an app (the openExternal permission, e.g. a zoommtg: link): web pages and mail pass,
 // any other scheme asks as above, local files and page-only schemes are refused.
 export async function allowPageExternalLaunch(raw: unknown, sender: electron.WebContents): Promise<boolean> {

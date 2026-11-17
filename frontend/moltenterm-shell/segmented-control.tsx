@@ -60,7 +60,7 @@ export function SegmentedControl<T extends string>({
                         className={cn(
                             "cursor-pointer rounded-6 px-2 py-0.5 text-12 whitespace-nowrap transition-colors duration-120 ease-mt motion-reduce:transition-none",
                             "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--mt-focus-ring)",
-                            checked ? "bg-hover text-primary" : "text-muted hover:text-primary"
+                            checked ? "mt-selected-action bg-hover text-primary" : "text-muted hover:text-primary"
                         )}
                     >
                         {segment.label}

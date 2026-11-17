@@ -18,6 +18,7 @@ import {
     NoShare,
     pageOpener,
     pageShareOf,
+    panelNamesLine,
     reorderColumns,
     rovingColumnId,
     shareAgents,
@@ -87,6 +88,38 @@ describe("the tab model (FR-SHELL-125-AC1, AC3, AC10)", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
         expect(carpetTabName(stored)).toBe("Agent\u00a0: Léon, rangé sur le tapis");
         expect(carpetTabName(waiting)).toBe("Revue\u00a0: Intégration, visible, attend votre réponse");
+    });
+
+    it("names a tab of two panels after both, and lists every panel on its card, in both languages (#2172)", () => {
+        const withMore: Record<string, RadarBlockFacts> = {
+            ...facts,
+            t: { view: "term", agent: false, title: "Terminal", attention: null },
+            f: { view: "preview", agent: false, title: "Files", attention: null },
+        };
+        const columns = [col("c1", "r", "t"), col("c2", "r", "t", "f"), col("c3", "r")];
+        const expected = {
+            en: {
+                three: "Intégration +2 panels",
+                pair: "Panels: Intégration, Terminal",
+                all: "Panels: Intégration, Terminal, Files",
+            },
+            fr: {
+                three: "Intégration +2 panneaux",
+                pair: "Panneaux : Intégration, Terminal",
+                all: "Panneaux : Intégration, Terminal, Files",
+            },
+        };
+        for (const locale of ["en", "fr"] as const) {
+            I18nModel.getInstance().setLanguageSetting(locale);
+            const [pair, three, lone] = buildRadarTicks(columns, withMore, []);
+            expect(pair.title, locale).toBe("Intégration & Terminal");
+            expect(three.title, locale).toBe(expected[locale].three);
+            expect(lone.title, locale).toBe("Intégration");
+            expect(panelNamesLine(pair), locale).toBe(expected[locale].pair);
+            expect(panelNamesLine(three), locale).toBe(expected[locale].all);
+            expect(panelNamesLine(lone), locale).toBe("");
+            expect(carpetTabName(pair), locale).toContain("Intégration & Terminal");
+        }
     });
 
     it("shows the initial of the agent that opened a page, never for a page the developer shared", () => {

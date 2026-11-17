@@ -27,10 +27,11 @@ import (
 const moltenBrowserRpcTimeoutMs = 20000
 
 var moltenOpenBrowser string
+var moltenOpenNewTab bool
 
 var moltenOpenCmd = &cobra.Command{
 	Use:     "open <url>",
-	Short:   "open a page in MoltenTerm's browser panel or in your installed browser (--browser app|installed|<id>)",
+	Short:   "open a page in MoltenTerm's browser panel (brought into view when it is already open: --new-tab opens another) or in your installed browser (--browser app|installed|<id>)",
 	Args:    cobra.ExactArgs(1),
 	RunE:    moltenWrap(moltenOpenRun),
 	PreRunE: preRunSetupRpcClient,
@@ -46,6 +47,7 @@ var moltenBrowsersCmd = &cobra.Command{
 
 func init() {
 	moltenOpenCmd.Flags().StringVar(&moltenOpenBrowser, "browser", "", "engine: app (MoltenTerm), installed (the browser of browser:installed) or a browser id (brave, chrome, ...); default: the site's choice, then browser:default")
+	moltenOpenCmd.Flags().BoolVar(&moltenOpenNewTab, "new-tab", false, "open the page in a new panel even when this tab already shows it (the default brings the open page into view)")
 	for _, cmd := range []*cobra.Command{moltenOpenCmd, moltenBrowsersCmd} {
 		cmd.Flags().BoolVar(&moltenJson, "json", false, "print the result as JSON")
 		moltenCmd.AddCommand(cmd)
@@ -79,6 +81,8 @@ type moltenOpenResult struct {
 	browsers.Route
 	Url   string `json:"url"`
 	Panel string `json:"panel,omitempty"`
+	// Reused: the page was already open in this panel, which was brought into view (#2333).
+	Reused bool `json:"reused,omitempty"`
 }
 
 func moltenOpenRun(cmd *cobra.Command, args []string) error {
@@ -115,6 +119,19 @@ func moltenOpenRun(cmd *cobra.Command, args []string) error {
 	}
 	if tabId == "" {
 		return fmt.Errorf("molten must run in a MoltenTerm terminal to open a page in MoltenTerm (WAVETERM_TABID is not set)")
+	}
+	if !moltenOpenNewTab {
+		// A page this tab already shows is brought into view, not opened a second time; if that cannot be found out, the
+		// page opens as it always did.
+		if shown, err := showOpenPage(tabId, url); err == nil && shown != "" {
+			result.Panel = shown
+			result.Reused = true
+			if moltenJson {
+				return moltenWriteJson(result)
+			}
+			WriteStdout("already open in MoltenTerm (browser panel block:%s): brought it into view; --new-tab opens another\n", shown)
+			return nil
+		}
 	}
 	panel, err := openInBrowserPanel(tabId, url)
 	if err != nil {

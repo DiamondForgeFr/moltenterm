@@ -9,6 +9,7 @@ import { cn } from "@/util/util";
 import {
     autoUpdate,
     flip,
+    FloatingFocusManager,
     FloatingPortal,
     offset,
     type Placement,
@@ -39,6 +40,7 @@ export function MenuPopover({
     onPointerLeave,
     role,
     ariaLabel,
+    focusManaged,
 }: {
     anchor: Element;
     onClose: () => void;
@@ -49,6 +51,9 @@ export function MenuPopover({
     onPointerLeave?: () => void;
     role?: string;
     ariaLabel?: string;
+    // The popover takes the keyboard focus when it opens and gives it back to its button when it closes (#2326): a
+    // card of actions reached with the keyboard, not a hover detail.
+    focusManaged?: boolean;
 }) {
     const boundary = paneOf(anchor);
     const { refs, floatingStyles, context } = useFloatingInPlace({
@@ -77,22 +82,31 @@ export function MenuPopover({
         ],
     });
     const { getFloatingProps } = useInteractions([useDismiss(context)]);
+    const popover = (
+        <div
+            ref={refs.setFloating}
+            style={floatingStyles}
+            {...getFloatingProps({ onPointerEnter, onPointerLeave })}
+            className={cn(
+                "z-[9500] overflow-y-auto rounded-4 border border-border bg-surface-3 p-3 shadow-e2",
+                className
+            )}
+            role={role}
+            aria-label={ariaLabel}
+            data-testid="menu-popover"
+        >
+            {children}
+        </div>
+    );
     return (
         <FloatingPortal>
-            <div
-                ref={refs.setFloating}
-                style={floatingStyles}
-                {...getFloatingProps({ onPointerEnter, onPointerLeave })}
-                className={cn(
-                    "z-[9500] overflow-y-auto rounded-4 border border-border bg-surface-3 p-3 shadow-e2",
-                    className
-                )}
-                role={role}
-                aria-label={ariaLabel}
-                data-testid="menu-popover"
-            >
-                {children}
-            </div>
+            {focusManaged ? (
+                <FloatingFocusManager context={context} modal={false} initialFocus={0} returnFocus>
+                    {popover}
+                </FloatingFocusManager>
+            ) : (
+                popover
+            )}
         </FloatingPortal>
     );
 }

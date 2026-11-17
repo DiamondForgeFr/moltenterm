@@ -66,6 +66,13 @@ export function avatarSituation(ownWorking: boolean): BrokkSituation {
     return { working: ownWorking ? 1 : 0, waiting: 0, cardOpen: false, away: false };
 }
 
+// The mark the avatar wears while his group is open (FR-BOSS-009, AC17, #2219): the first letter of his name, so that no
+// still of his face stands next to the one animated Brokk. An empty name gives the default name's initial.
+export function brokkInitial(name: string): string {
+    const first = Array.from((name ?? "").trim())[0] ?? "B";
+    return first.toLocaleUpperCase();
+}
+
 // The only poses that situation gives: he never speaks (nothing waits) nor sleeps (never away) there. The portrait is
 // declared with the transitions between these two only, so that the sidebar's 26 px face mounts fewer 480 px videos.
 export const AvatarPoses: readonly BrokkPose[] = ["listening", "thinking"];

@@ -91,7 +91,7 @@ wsh editconfig
 | markdown:fixedfontsize               | float64  | font size for the code blocks when rendering markdown in preview (default is 12px)                                                                                                                                                                            |
 | web:openlinksinternally              | bool     | set to false to open web links in external browser                                                                                                                                                                                                            |
 | web:defaulturl                       | string   | default web page to open in the web widget when no url is provided (homepage)                                                                                                                                                                                 |
-| web:defaultsearch                    | string   | search template for web searches. e.g. `https://www.google.com/search?q={query}`. "\{query}" gets replaced by search term                                                                                                                                     |
+| web:defaultsearch                    | string   | search template for web searches (Brave Search when unset). e.g. `https://duckduckgo.com/?q={query}`. "\{query}" gets replaced by search term                                                                                                                                  |
 | autoupdate:enabled                   | bool     | enable/disable checking for updates (requires app restart)                                                                                                                                                                                                    |
 | autoupdate:intervalms                | float64  | time in milliseconds to wait between update checks (requires app restart)                                                                                                                                                                                     |
 | autoupdate:installonquit             | bool     | whether to automatically install updates on quit (requires app restart)                                                                                                                                                                                       |
@@ -143,7 +143,7 @@ For reference, this is the current default configuration (v0.14.0):
     "conn:wshenabled": true,
     "editor:minimapenabled": true,
     "web:defaulturl": "https://github.com/wavetermdev/waveterm",
-    "web:defaultsearch": "https://www.google.com/search?q={query}",
+    "web:defaultsearch": "https://search.brave.com/search?q={query}",
     "window:tilegapsize": 3,
     "window:maxtabcachesize": 10,
     "window:nativetitlebar": true,

@@ -18,6 +18,8 @@ When a workflow step names a task kind, resolve its tier with
 model or an effort yourself. When the route fails or the agent cannot delegate, run the step
 in the session.
 Never bypass CLI guards, required approvals, tests or workflow status exit conditions.
+An escape hatch is the developer's to apply: when a guard refuses, report it and ask; a hook
+refuses an agent call that sets one.
 The project manifest and workflow rules take precedence over generic skill examples,
 including branch names, commit formats, staging, pushing and approval requirements.
 Legacy /task examples name roles: use native delegation if available and authorized,
@@ -219,7 +221,7 @@ sf srs spawn --ticket 42 --epic <feature-url> --dry-run
 an Epic that already exists. The naming convention becomes something the tool guarantees rather than something the agent has to remember.
 
 The drafting ticket is never that parent: `transition-drafting <N> spawning` passes `--drafting-ticket <N>`, and the version Epic's body says `Drafted in #N`. Every ticket spawn creates or reuses
-joins the project board in Backlog — one already on the board keeps its status.
+joins the project board in Backlog — one already on the board keeps its status, and one there with no status gets Backlog. The summary line states the status each ticket holds on the board.
 
 ### `--milestone` — spawning is when the release scope gets declared
 

@@ -627,14 +627,16 @@ describe("the dated milestone due first wins over the derived version (FR-MC-021
         expect(map.terminus).toMatchObject({ tag: "v1.1.1", note: station.note });
     });
 
-    it("says in one line when the commits call for a bigger bump than that milestone", () => {
-        expect(nextStation(Project, null, Both, Nov7).note).toBe(
-            "2 new features on develop: v1.1.1 would be a minor version."
+    it("advises in one line when the commits call for a bigger bump than that milestone (#2268)", () => {
+        const station = nextStation(Project, null, Both, Nov7);
+        expect(station.note).toBe(
+            "2 new features on develop: the changes call for a minor version (v1.2.0). The release planned as v1.1.1 can still go out under that number."
         );
+        expect(station).toMatchObject({ milestonefirst: true, derivedtag: "v1.2.0", bigger: true });
         I18nModel.getInstance().setLanguageSetting("fr");
         try {
             expect(nextStation(Project, null, Both, Nov7).note).toBe(
-                "2 nouvelles fonctionnalités sur develop : v1.1.1 serait une version mineure."
+                "2 nouvelles fonctionnalités sur develop : les changements demandent une version mineure (v1.2.0). La release prévue en v1.1.1 peut quand même sortir sous ce numéro."
             );
         } finally {
             I18nModel.getInstance().setLanguageSetting("en");
@@ -647,6 +649,8 @@ describe("the dated milestone due first wins over the derived version (FR-MC-021
             tag: "v1.3.0",
             chip: "due Nov 14",
             note: "Milestone v1.3.0 is due first; the changes on develop fit in it.",
+            derivedtag: "v1.2.0",
+            bigger: false,
         });
     });
 

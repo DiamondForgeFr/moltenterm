@@ -49,6 +49,24 @@ func (s *session) addNotice(tabId int64, note string, text string) {
 	s.notices = kept
 }
 
+// dropNotice forgets the notice of a tab whose news the session got from a call's own result (#2333: a page the user let
+// it use, which tabs_create answers itself).
+func (m *Manager) dropNotice(sessionId string, tabId int64) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	s := m.sessions[sessionId]
+	if s == nil {
+		return
+	}
+	kept := s.notices[:0]
+	for _, n := range s.notices {
+		if n.tabId != tabId {
+			kept = append(kept, n)
+		}
+	}
+	s.notices = kept
+}
+
 // tabNote is the note tabs_context shows on a tab, "" when there is none.
 func (m *Manager) tabNote(sessionId string, tabId int64) string {
 	m.lock.Lock()

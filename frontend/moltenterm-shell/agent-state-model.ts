@@ -14,6 +14,7 @@ export const AgentStatesRoute = "molten:agents";
 export const AgentStatesCommand = "moltenagentstates";
 export const AgentStateSeenCommand = "moltenagentstateseen";
 export const AgentStopSettleCommand = "moltenagentstopsettle";
+export const AgentUseCommand = "moltenagentuse";
 
 // How long a done agent's pane must stay in view, unfocused, before it counts as seen (#784).
 export const AgentSeenDwellMs = 1500;
@@ -29,6 +30,10 @@ export type AgentStateInfo = {
     agentname?: string;
     // The session's first name, unique among the app's active agents (FR-CONT-014).
     firstname?: string;
+    // The project folder the agent's terminal belongs to, absent for a terminal in none or a remote one; and the
+    // project folder its first name is locked for (#2324), absent when it is not locked.
+    project?: string;
+    namelockedfor?: string;
     state?: AgentStateName;
     message?: string;
     // message's code when MoltenTerm holds the state (#896): "fixing the CI of #12", "waiting for the CI of #12".
@@ -73,6 +78,16 @@ export function agentPromptState(info: AgentStateInfo): string {
         return "idle";
     }
     return info?.state;
+}
+
+// A session idle or done while sub-agents of it work is working in the background (#2294): wavesrv's state says so
+// itself when the session's hooks reported its sub-agents (#1092), and a list that read them from the session's files
+// must say the same, so that one screen never says "finished" over sub-agents at work. running: how many the list found.
+export function stateWithSubagents(info: AgentStateInfo, running: number): AgentStateInfo {
+    if (info == null || !(running > 0) || (info.state !== "idle" && info.state !== "done")) {
+        return info;
+    }
+    return { ...info, state: "working", background: true, subagents: Math.max(info.subagents ?? 0, running) };
 }
 
 export type AgentStatesData = {

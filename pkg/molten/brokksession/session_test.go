@@ -17,11 +17,13 @@ type fake struct {
 	lock sync.Mutex
 
 	found   *Found
+	findErr error
 	agent   string
 	missing bool
 	// typed answers, one per call; the last one repeats.
 	answers []TypeOutcome
 	typed   []string
+	opts    []TypeOptions
 	sleeps  int
 
 	tabs      []string
@@ -41,17 +43,41 @@ type fake struct {
 	// byTurn: the answers of the turns held, by index; readIndexes: the index each read asked for.
 	byTurn      map[int]Answer
 	readIndexes []int
+
+	// brief: the version of the current brief ("" follows none); marked: the versions recorded in his terminal.
+	brief  string
+	marked []string
 }
 
 func (f *fake) env() Env {
-	return Env{
-		Find: func(context.Context) (Found, bool) {
+	env := f.baseEnv()
+	if f.brief != "" {
+		env.Brief = func() (string, string, error) { return f.brief, "BRIEF " + f.brief, nil }
+		env.MarkBrief = func(_ context.Context, blockId string, version string) error {
 			f.lock.Lock()
 			defer f.lock.Unlock()
-			if f.found == nil {
-				return Found{}, false
+			f.marked = append(f.marked, blockId+":"+version)
+			if f.found != nil {
+				f.found.Brief = version
 			}
-			return *f.found, true
+			return nil
+		}
+	}
+	return env
+}
+
+func (f *fake) baseEnv() Env {
+	return Env{
+		Find: func(context.Context) (Found, bool, error) {
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			if f.findErr != nil {
+				return Found{}, false, f.findErr
+			}
+			if f.found == nil {
+				return Found{}, false, nil
+			}
+			return *f.found, true, nil
 		},
 		Folder: func() (string, error) { return f.folder, nil },
 		PickAgent: func(string) (string, string, bool) {
@@ -81,8 +107,9 @@ func (f *fake) env() Env {
 			f.lock.Unlock()
 			return "block-1", f.openErr
 		},
-		Type: func(_ context.Context, blockId string, line string) TypeOutcome {
+		Type: func(_ context.Context, blockId string, line string, opts TypeOptions) TypeOutcome {
 			f.typed = append(f.typed, blockId+":"+line)
+			f.opts = append(f.opts, opts)
 			i := len(f.typed) - 1
 			if i >= len(f.answers) {
 				i = len(f.answers) - 1
@@ -239,7 +266,7 @@ func TestOnlyOneMessageIsOnItsWayAtATime(t *testing.T) {
 	release := make(chan struct{})
 	f := &fake{found: &Found{BlockId: "block-9"}}
 	env := f.env()
-	env.Type = func(context.Context, string, string) TypeOutcome {
+	env.Type = func(context.Context, string, string, TypeOptions) TypeOutcome {
 		close(entered)
 		<-release
 		return TypeOutcome{Sent: true}

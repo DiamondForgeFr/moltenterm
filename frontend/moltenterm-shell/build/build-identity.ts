@@ -7,6 +7,7 @@
 
 import { MoltentermWaveBaseVersion } from "@/util/moltenterm-identity";
 import { t } from "../i18n/i18n";
+import { GateChannel, isBuildChannelName, resolveBuildChannel } from "./build-channel";
 import type { MoltentermBuildInfo } from "./build-info";
 
 export type BuildChannel = "dev" | "local" | "gold" | "rc" | "public";
@@ -45,6 +46,19 @@ export function isReleaseChannel(channel: BuildChannel): boolean {
     return channel === "rc" || channel === "public";
 }
 
+// Brokk's thought in 3D (FR-BOSS-010 AC1, #2320) exists on every channel (dev, local, gold, release candidate and public
+// release), and not on a channel that is not known. `channel` is the gate channel (build-channel.ts gateChannel).
+// wavesrv holds the second lock (pkg/molten/buildchannel/buildchannel.go BrainstormAllowed). It is no longer a feature of
+// the registry of gated features (FR-BOSS-011, gated-features.ts): it ships, so the developer has no switch for it.
+export function brainstormAllowed(channel: GateChannel): boolean {
+    return channel != null && isBuildChannelName(channel);
+}
+
+// Its scripted replay, the instance checks' synthetic brainstorm, exists on dev and local builds only: not even a gold.
+export function brainstormReplayAllowed(channel: GateChannel): boolean {
+    return channel === "dev" || channel === "local";
+}
+
 function changesLine(build: MoltentermBuildInfo): string {
     const count = build?.changesSinceRelease ?? -1;
     if (!build?.releaseTag) {
@@ -67,7 +81,11 @@ export function makeBuildIdentity(
     build: MoltentermBuildInfo,
     opts: { isDev: boolean; runtimeChannel?: string; version?: string }
 ): BuildIdentity {
-    const channel: BuildChannel = opts.isDev ? "dev" : asBuildChannel(opts.runtimeChannel || build?.channel || "local");
+    const channel: BuildChannel = resolveBuildChannel({
+        isDev: opts.isDev,
+        runtimeChannel: opts.runtimeChannel,
+        buildChannel: build?.channel,
+    });
     const version = opts.version || build?.version || "";
     const channelLabel = buildChannelLabel(channel);
     const buildLine = [channelLabel, build?.buildId ? t("build.buildId", { id: build.buildId }) : "", changesLine(build)]

@@ -3,14 +3,18 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    columnsForPlaces,
     defaultColumnThreshold,
     LaptopColumns,
     parseScreenKey,
+    readScreensAsked,
     readScreenThresholds,
     type ScreenInfo,
     screenRows,
+    screenSaveOffered,
     thresholdFor,
     WideColumns,
+    withAsked,
     withoutScreen,
     withThreshold,
 } from "./screen-threshold";
@@ -79,5 +83,41 @@ describe("column threshold per screen (FR-SHELL-066, #1083)", () => {
         // An entry stored without its size reads it from its key.
         expect(screenRows({ "2560x1440@1": { columns: 3 } }, null)[0]).toMatchObject({ widthpx: 2560, heightpx: 1440 });
         expect(screenRows({}, null)).toEqual([]);
+    });
+});
+
+describe("offering to save a screen (FR-SHELL-066-AC12, #2180)", () => {
+    it("asks for a screen the list does not hold, once", () => {
+        expect(screenSaveOffered({}, {}, laptop)).toBe(true);
+        // Held by the list (a threshold was chosen): never asked.
+        expect(screenSaveOffered(withThreshold({}, laptop, 2), {}, laptop)).toBe(false);
+        // Declined: not asked again for that screen, still asked for another.
+        const declined = withAsked({}, laptop);
+        expect(screenSaveOffered({}, declined, laptop)).toBe(false);
+        expect(screenSaveOffered({}, declined, wide)).toBe(true);
+        // No screen known (a preview, an older main process): nothing to save.
+        expect(screenSaveOffered({}, {}, null)).toBe(false);
+    });
+
+    it("remembers the declined screens across a restart, ignoring anything malformed", () => {
+        const asked = withAsked(withAsked({}, laptop), wide);
+        expect(readScreensAsked(JSON.parse(JSON.stringify(asked)))).toEqual({
+            [laptop.key]: true,
+            [wide.key]: true,
+        });
+        expect(readScreensAsked(null)).toEqual({});
+        expect(readScreensAsked([laptop.key])).toEqual({});
+        expect(readScreensAsked({ good: true, no: false, text: "yes", "": true })).toEqual({ good: true });
+        expect(withAsked({ a: true }, null)).toEqual({ a: true });
+    });
+
+    it("saves the threshold of a picked number: the first column and the visible panels beside it", () => {
+        expect(columnsForPlaces(1, 3)).toBe(2);
+        expect(columnsForPlaces(2, 2)).toBe(3);
+        expect(columnsForPlaces(3, 2)).toBe(4);
+        // Without a number, or one the list would not hold, the threshold in effect.
+        expect(columnsForPlaces(null, 3)).toBe(3);
+        expect(columnsForPlaces(40, 3)).toBe(3);
+        expect(columnsForPlaces(1.5, 3)).toBe(3);
     });
 });

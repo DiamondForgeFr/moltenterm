@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import type { ToHandleItem, ToHandleList } from "./boss-to-handle-model";
 import { BrokkHub } from "./brokk-hub";
+import { avatarBadgeOf } from "./brokk-hub-feed";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
 import { DefaultVisitSettings, VisitSettings } from "./brokk-visit-events";
 import { EmptyShared } from "./brokk-visit-share";
@@ -38,17 +39,21 @@ function states(...infos: AgentStateInfo[]): AgentStatesData {
 }
 
 // The window's sources, as primitive atoms in a store of their own; the hub runs on a clock the test sets.
-function window_(over: { loaded?: boolean; onScreen?: boolean; card?: boolean } = {}) {
+function window_(
+    over: { loaded?: boolean; onScreen?: boolean; card?: boolean; on?: boolean; rows?: ToHandleItem[] } = {}
+) {
     const store = createStore();
     const sources = {
         agents: atom(states()) as PrimitiveAtom<AgentStatesData>,
         loaded: atom(over.loaded ?? true) as PrimitiveAtom<boolean>,
-        rows: atom({ items: [], info: [], parked: 0 } as ToHandleList) as PrimitiveAtom<ToHandleList>,
+        rows: atom({ items: over.rows ?? [], info: [], parked: 0 } as ToHandleList) as PrimitiveAtom<ToHandleList>,
         settings: atom(DefaultVisitSettings) as PrimitiveAtom<VisitSettings>,
+        on: atom(over.on ?? true) as PrimitiveAtom<boolean>,
         onScreen: atom(over.onScreen ?? true) as PrimitiveAtom<boolean>,
         search: atom(false) as PrimitiveAtom<boolean>,
         drag: atom(false) as PrimitiveAtom<boolean>,
         card: atom(over.card ?? false) as PrimitiveAtom<boolean>,
+        openDone: atom(null) as PrimitiveAtom<ReadonlySet<string>>,
     };
     const clock = { now: T };
     const state = { panels: 0 };
@@ -70,10 +75,12 @@ function window_(over: { loaded?: boolean; onScreen?: boolean; card?: boolean } 
         agentsLoadedAtom: sources.loaded,
         toHandleAtom: sources.rows,
         settingsAtom: sources.settings,
+        onAtom: sources.on,
         sidebarOnScreenAtom: sources.onScreen,
         searchOpenAtom: sources.search,
         dragAtom: sources.drag,
         cardOpenAtom: sources.card,
+        openDoneAtom: sources.openDone,
     });
     const list = (...items: ToHandleItem[]) => store.set(sources.rows, { items, info: [], parked: 0 });
     return { store, sources, clock, state, hub, stop, list };
@@ -151,10 +158,76 @@ describe("what feeds Brokk's hub (FR-BOSS-009, AC11)", () => {
         expect(w.state.panels).toBe(0);
     });
 
+    describe("the developer's own archive raises nothing (#2210)", () => {
+        // The face's badge, as the avatar draws it (use-brokk-hub.ts useAvatarBadge).
+        function faceBadge(w: ReturnType<typeof window_>): number {
+            return avatarBadgeOf(w.store.get(w.sources.rows).items, w.hub.getView().badge, DefaultVisitSettings).count;
+        }
+
+        it("an agent that finished while the panel was open leaves the face's badge when its Done card is archived", () => {
+            const w = window_({ card: true });
+            w.store.set(w.sources.agents, states(agent("a", "working")));
+            // Its Done card is listed from the moment it finishes (the same reading of the agent states).
+            w.store.set(w.sources.openDone, new Set(["a"]));
+            w.store.set(w.sources.agents, states(agent("a", "done")));
+            expect(faceBadge(w)).toBe(1);
+            // The developer archives the Done card: nothing is left unseen, so the face shows no "1".
+            w.store.set(w.sources.openDone, new Set());
+            expect(faceBadge(w)).toBe(0);
+        });
+
+        it("Archive all leaves the badge at the rows still unseen, never one more", () => {
+            const w = window_({ card: true });
+            w.store.set(w.sources.agents, states(agent("a", "working"), agent("b", "working")));
+            w.store.set(w.sources.openDone, new Set(["a", "b"]));
+            w.store.set(w.sources.agents, states(agent("a", "done"), agent("b", "done")));
+            w.list(item("agent:c", "waiting", T - 1 * Min), item("ci:/p:1", "error", T - 1 * Min));
+            expect(faceBadge(w)).toBe(4);
+            w.list(item("ci:/p:1", "error", T - 1 * Min));
+            w.store.set(w.sources.openDone, new Set());
+            expect(faceBadge(w)).toBe(1);
+        });
+
+        it("the undo gives a row back as heard: he does not come for it", () => {
+            const w = window_();
+            w.list(item("agent:a", "waiting", T - 6 * Min));
+            w.store.set(w.sources.card, true);
+            expect(w.hub.getView().visit).toBeNull();
+            w.list();
+            w.store.set(w.sources.card, false);
+            w.list(item("agent:a", "waiting", T - 6 * Min));
+            w.hub.heard(["agent:a"]);
+            expect(w.hub.getView().visit).toBeNull();
+            expect(w.hub.getView().cue).toBe(false);
+            expect(faceBadge(w)).toBe(1);
+        });
+    });
+
     it("stops listening", () => {
         const w = window_();
         w.stop();
         w.list(item("agent:a", "waiting", T - 6 * Min));
         expect(w.hub.getView().visit).toBeNull();
+    });
+});
+
+describe("Brokk's switch reaches the hub (FR-BOSS-009, #2218)", () => {
+    it("folds the visit that is up when he is turned off, and keeps feeding the badge's keys", () => {
+        const w = window_();
+        w.list(item("agent:a", "waiting", T - 6 * Min));
+        expect(w.hub.getView().visit).not.toBeNull();
+        w.store.set(w.sources.on, false);
+        expect(w.hub.getView().visit).toBeNull();
+        w.list(item("agent:a", "waiting", T - 6 * Min), item("agent:b", "error", T - Min));
+        expect(w.hub.getView().visit).toBeNull();
+        expect(w.hub.getView().badgeKeys).toEqual(["agent:a", "agent:b"]);
+    });
+
+    it("raises nothing for what is already there when the window starts with him off", () => {
+        const w = window_({ on: false, rows: [item("agent:a", "waiting", T - 6 * Min)] });
+        expect(w.hub.getView().visit).toBeNull();
+        expect(w.hub.getView().badgeKeys).toEqual(["agent:a"]);
+        w.store.set(w.sources.on, true);
+        expect(w.hub.getView().visit).not.toBeNull();
     });
 });

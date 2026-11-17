@@ -11,6 +11,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, PrimitiveAtom } from "jotai";
 import type { CompanionUsageInfo, UsageSnapshot } from "../companion/companion-gauges-model";
 import { CompanionRoute, CompanionUsageEvent } from "../companion/companion-model";
+import type { AgentUse } from "./brokk-usage-model";
 
 export type UsageReadings = Record<string, UsageSnapshot>;
 // Why an agent's global reading cannot be read, by agent: the weekly usage says so instead of leaving it out.
@@ -18,9 +19,17 @@ export type UsageUnreadable = Record<string, string>;
 
 export const UsageReadingsAtom = atom({}) as PrimitiveAtom<UsageReadings>;
 export const UsageUnreadableAtom = atom({}) as PrimitiveAtom<UsageUnreadable>;
+// What each agent was used over the last 7 days (#2341); null until wavesrv has told it, when nothing is called unused.
+export const UsageUseAtom = atom(null) as PrimitiveAtom<Record<string, AgentUse>>;
 
 export const CompanionUsageGlobalCommand = "moltencompanionusageglobal";
 const GlobalRpcTimeoutMs = 12000;
+
+// Asks the use of each agent over the last 7 days: when the hub starts, when Brokk's group opens, and while it shows. The
+// code that asks and reads the answer (boss-usage-use.ts) loads on demand, outside the up-front JavaScript.
+export function askUsageUse(): Promise<void> {
+    return import("./boss-usage-use").then((mod) => mod.refreshUsageUse());
+}
 
 function without<T>(current: Record<string, T>, agent: string): Record<string, T> {
     if (current[agent] == null) {

@@ -166,7 +166,7 @@
 
 .molten-cmdpanel-segmented .is-active {
     background: var(--mt-surface-3);
-    box-shadow: var(--mt-shadow-e1);
+    box-shadow: var(--mt-selected-line-action), var(--mt-shadow-e1);
 }
 
 .molten-cmdpanel-back,

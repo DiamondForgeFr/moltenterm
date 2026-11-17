@@ -10,7 +10,9 @@
 // first call: nothing the bubble loads up front may import it (brokk-ask-model.ts is the part that does).
 //
 // The pose never comes from what an agent writes. No `[[expression]]` marker is looked for in output, files or code:
-// the signals are the count of agents working, the count of rows To handle and whether the card is open.
+// the signals are the count of agents working, the count of rows To handle and whether the card is open. The one
+// exception is the tone Brokk's own session tags his answer with (FR-BOSS-009, AC88, #2259): it is read in
+// brokk-tone.ts from a fixed list and only asks a gesture of the queue, like any other signal.
 
 import type { AskedExpression, BrokkExpression, BrokkPose, BrokkSituation } from "./brokk-ask-model";
 import { restingPose, SpeakingMs } from "./brokk-ask-model";
@@ -22,8 +24,8 @@ export const BrokkExpressions = Object.keys(Manifest.expressionMs) as BrokkExpre
 
 export { SpeakingMs };
 
-// What a clip that carries him into the listening pose may add before the gesture starts (the longest is 4 s), and a
-// margin.
+// What the clips that carry him into the listening pose may add before the gesture starts (the longest is 4 s, or 4.25 s
+// when a clip into thinking still plays as the one out of it is asked, #2262), and a margin.
 const TransitionAllowanceMs = 6000;
 
 // The longest a gesture may hold his pose, should its clip never end (a refused autoplay, a window put to sleep). A

@@ -88,7 +88,7 @@ var moltenCiRunCmd = &cobra.Command{
 
 func init() {
 	moltenCiRunCmd.Flags().BoolVar(&moltenCiForce, "force", false, "run every job, even those already green on this code")
-	moltenCiRunCmd.Flags().StringVar(&moltenCiOnly, "only", "", "run only these jobs (comma-separated names)")
+	moltenCiRunCmd.Flags().StringVar(&moltenCiOnly, "only", "", "run only these jobs (comma-separated names), those not already green on this code unless --force")
 	moltenCmd.AddCommand(moltenCiCmd)
 	for _, cmd := range []*cobra.Command{moltenCiStatusCmd, moltenCiRunCmd} {
 		cmd.Flags().BoolVar(&moltenJson, "json", false, "print the result as JSON")

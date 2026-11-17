@@ -3,35 +3,46 @@
 
 // Brokk's hub in a window (FR-BOSS-009, #2002): the one BrokkHub of this view, wired to the window's own stores. The
 // avatar, the scene and his panel read it; nothing else decides when he comes. It starts with the host that mounts the
-// avatar (brokk-hub-host.tsx) and listens only while that host is on screen.
+// avatar (brokk-hub-host.tsx) and listens while that host is on screen, Brokk on or off (#2218).
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { modalsModel } from "@/app/store/modalmodel";
+import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { makeSeenViewAtom } from "../agent-seen";
 import { AgentStates } from "../agent-state-store";
+import { brainstormHolds } from "../brainstorm/brainstorm-hold";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { modalIsOpen } from "../modal-open";
 import { MoltentermNotifications } from "../notifications-store";
 import { sidebarDragAtom } from "../sidebar/sidebar-drag";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { TopFieldModel } from "../sidebar/top-field-store";
-import { ReleaseUpdateModel } from "../update/release-update-store";
-import { GoldUpdateModel } from "../update/update-store";
+import { releaseAvailableKey, ReleaseUpdateModel } from "../update/release-update-store";
+import { GoldUpdateModel, updateAvailableKey } from "../update/update-store";
 import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleModel } from "./boss-store";
-import { UsageReadingsAtom } from "./boss-usage";
+import { askUsageUse, UsageReadingsAtom, UsageUseAtom } from "./boss-usage";
 import { FaceHoverIntent } from "./brokk-avatar-model";
 import { SidebarPlace, sidebarPlaceOf } from "./brokk-edge-model";
-import { closedDownloadIds } from "./brokk-extra-feeds";
+import {
+    closedDownloadIds,
+    listedUpdateCard,
+    readUsageMemory,
+    usageMemoryText,
+    UsageSeenKey,
+} from "./brokk-extra-feeds";
 import { BrokkHub } from "./brokk-hub";
+import { AvatarBadge, avatarBadgeOf } from "./brokk-hub-feed";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
+import { openDoneBlocks } from "./brokk-notes-model";
+import { choicesOf, UsageContext } from "./brokk-usage-model";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
 import { EmptyShared, readShared, sharedText, VisitShareKey } from "./brokk-visit-share";
-import { brokkWaiting, brokkWorking } from "./brokk-watch";
+import { brokkPromptBusy, brokkWaiting, brokkWorking } from "./brokk-watch";
 
 function storage(): Storage {
     try {
@@ -51,6 +62,8 @@ export class BrokkHubModel {
     ownWorkingAtom: Atom<boolean>;
     // His session's agent waits for the developer on a prompt (#2155).
     ownWaitingAtom: Atom<boolean>;
+    // His prompt is taken (his turn runs, or he waits for the developer): a message waiting for him goes once it is free.
+    ownPromptBusyAtom: Atom<boolean>;
     settingsAtom: Atom<VisitSettings>;
     // Where the sidebar stands for Brokk (#2070): on screen (docked, or floating over the content), collapsed at the
     // window's edge with his face on it, or nowhere. With the sidebar turned off altogether (the tab bar is back), Brokk
@@ -58,11 +71,16 @@ export class BrokkHubModel {
     sidebarPlaceAtom: Atom<SidebarPlace>;
     sidebarOnScreenAtom: Atom<boolean>;
     sidebarEdgeAtom: Atom<boolean>;
-    // The update on offer, a gold's build or a release's version; "" for none (FR-BOSS-009, AC11).
+    // The update on offer, as the key of its card while the Notifications panel lists it unread; "" for none (FR-BOSS-009,
+    // AC11, #2213).
     updateOfferAtom: Atom<string>;
     // The downloads whose notification the developer settled or cleared (FR-BOSS-009, AC16), the same set while it holds.
     closedDownloadsAtom: Atom<ReadonlySet<string>>;
+    // The agents whose Done card the Notifications panel still lists (#2210), the same set while it holds.
+    openDoneAtom: Atom<ReadonlySet<string>>;
     hub: BrokkHub;
+    // The face's badge (#2223): the one count the avatar shows, his portrait's pose reads and the call follows.
+    faceBadgeAtom: Atom<AvatarBadge>;
     // The hover of the title-bar face, which opens his group (FR-BOSS-009, AC53 to AC55, #2103): the face and the group
     // both tell it where the pointer is.
     faceHover: FaceHoverIntent;
@@ -74,11 +92,14 @@ export class BrokkHubModel {
         const release = ReleaseUpdateModel.getInstance();
         this.updateOfferAtom = atom((get) => {
             const goldOffer = get(gold.offerAtom);
-            if (goldOffer != null) {
-                return `gold:${goldOffer.buildId}`;
-            }
             const releaseOffer = get(release.offerAtom);
-            return releaseOffer != null ? `release:${releaseOffer.version}` : "";
+            const cardKey =
+                goldOffer != null
+                    ? updateAvailableKey(goldOffer.buildId)
+                    : releaseOffer != null
+                      ? releaseAvailableKey(releaseOffer.tag)
+                      : "";
+            return listedUpdateCard(cardKey, get(MoltentermNotifications.getInstance().shownEntriesAtom));
         });
         let closedDownloads: ReadonlySet<string> = new Set();
         this.closedDownloadsAtom = atom((get) => {
@@ -89,9 +110,22 @@ export class BrokkHubModel {
             closedDownloads = next;
             return next;
         });
+        let openDone: ReadonlySet<string> = new Set();
+        this.openDoneAtom = atom((get) => {
+            const next = openDoneBlocks(
+                get(BossBubbleModel.getInstance().toHandleAtom),
+                get(MoltentermNotifications.getInstance().shownEntriesAtom)
+            );
+            if (next.size === openDone.size && [...next].every((id) => openDone.has(id))) {
+                return openDone;
+            }
+            openDone = next;
+            return next;
+        });
         // His session is in no list of agents (FR-BOSS-009, AC26): its state is kept apart, and only his face shows it.
         this.ownWorkingAtom = atom((get) => brokkWorking(get(agents.ownDataAtom), get(this.sessionBlockAtom)));
         this.ownWaitingAtom = atom((get) => brokkWaiting(get(agents.ownDataAtom), get(this.sessionBlockAtom)));
+        this.ownPromptBusyAtom = atom((get) => brokkPromptBusy(get(agents.ownDataAtom), get(this.sessionBlockAtom)));
         this.settingsAtom = atom((get) => visitSettingsOf((key) => get(getSettingsKeyAtom(key as keyof SettingsType))));
         this.sidebarPlaceAtom = atom((get) =>
             sidebarPlaceOf(
@@ -107,12 +141,21 @@ export class BrokkHubModel {
             now: () => Date.now(),
             setTimer: (run, ms) => setTimeout(run, ms),
             clearTimer: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
+            // The brainstorm mode holds his visits too (FR-BOSS-010 AC3): they come once it ends.
             overlayOpen: () =>
+                brainstormHolds() ||
                 ContextMenuModel.getInstance().session != null ||
                 modalIsOpen() ||
                 modalsModel.hasOpenModals() ||
                 globalStore.get(BossBubbleModel.getInstance().cardOpenAtom),
-            openPanel: () => BossBubbleModel.getInstance().openCard(),
+            openPanel: (panel) => {
+                const boss = BossBubbleModel.getInstance();
+                if (panel == null) {
+                    boss.openCard();
+                    return;
+                }
+                boss.showPanel(panel);
+            },
             readShared: () => readShared(storage()?.getItem(VisitShareKey), Date.now()),
             writeShared: (shared) => {
                 try {
@@ -122,6 +165,16 @@ export class BrokkHubModel {
                 }
             },
         });
+        const hubCount = atom(this.hub.getView().badge) as PrimitiveAtom<number>;
+        this.hub.subscribe(() => {
+            const count = this.hub.getView().badge;
+            if (globalStore.get(hubCount) !== count) {
+                globalStore.set(hubCount, count);
+            }
+        });
+        this.faceBadgeAtom = atom((get) =>
+            avatarBadgeOf(get(BossBubbleModel.getInstance().toHandleAtom).items, get(hubCount), get(this.settingsAtom))
+        );
         const boss = BossBubbleModel.getInstance();
         this.faceHover = new FaceHoverIntent({
             isOpen: () => globalStore.get(boss.cardOpenAtom),
@@ -154,12 +207,24 @@ export class BrokkHubModel {
         const handoffs = PendingHandoffs.getInstance();
         const boss = BossBubbleModel.getInstance();
         const loadedAtom = atom((get) => get(agents.loadedAtom) && get(handoffs.loadedAtom));
+        // What the usage grid reads besides the readings: a provider it does not show never brings him (#2341).
+        const usageContextAtom = atom(
+            (get): UsageContext => ({
+                use: get(UsageUseAtom),
+                choices: choicesOf(
+                    get(getSettingsKeyAtom("boss:usageshow")),
+                    get(getSettingsKeyAtom("boss:usagehide"))
+                ),
+            })
+        );
+        fireAndForget(() => askUsageUse());
         const stopFeeds = feedBrokkHub(this.hub, {
             store: globalStore,
             agentsAtom: agents.dataAtom,
             agentsLoadedAtom: loadedAtom,
             toHandleAtom: boss.toHandleAtom,
             settingsAtom: this.settingsAtom,
+            onAtom: boss.showAtom,
             sidebarOnScreenAtom: this.sidebarOnScreenAtom,
             sidebarEdgeAtom: this.sidebarEdgeAtom,
             searchOpenAtom: TopFieldModel.getInstance().openAtom,
@@ -169,7 +234,19 @@ export class BrokkHubModel {
             closedDownloadsAtom: this.closedDownloadsAtom,
             updateOfferAtom: this.updateOfferAtom,
             usageAtom: UsageReadingsAtom,
+            usageContextAtom,
+            usageMemory: {
+                read: () => readUsageMemory(storage()?.getItem(UsageSeenKey)),
+                write: (memory) => {
+                    try {
+                        storage()?.setItem(UsageSeenKey, usageMemoryText(memory));
+                    } catch {
+                        // A full or missing storage only means the next start may tell it again.
+                    }
+                },
+            },
             inViewAtom: makeSeenViewAtom(),
+            openDoneAtom: this.openDoneAtom,
         });
         const onStorage = (e: StorageEvent) => {
             if (e.key === VisitShareKey) {

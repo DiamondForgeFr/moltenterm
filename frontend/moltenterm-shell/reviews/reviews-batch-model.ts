@@ -192,6 +192,38 @@ export function queueItem(run: BatchRun, number: number): BatchItem {
     return item != null && !batchItemEnded(item) ? item : null;
 }
 
+// batchIsGroup: the queue holds PRs the developer started from the suggested order (FR-REV-025), not only PRs validated
+// one by one.
+export function batchIsGroup(run: BatchRun): boolean {
+    return (run?.items ?? []).some((it) => it.source === "batch");
+}
+
+// groupMergeRunning (#2318, FR-REV-026 AC15): a group merge is confirmed and not ended, failed or cancelled: one of its
+// PRs still waits its turn or is in progress. A PR set aside on a failing check waits for the developer, not for the
+// queue. Mirrors BatchRun.groupRunning in pkg/molten/review/batch.go, which refuses a second one.
+export function groupMergeRunning(run: BatchRun): boolean {
+    return (
+        batchActive(run) &&
+        run.items.some((it) => it.source === "batch" && !batchItemEnded(it) && it.state !== "failed")
+    );
+}
+
+// What a running group merge holds of a PR (#2318): "in" it is one of the run's PRs, still to merge or in progress;
+// "held" it is another PR into the same base, whose merge waits for the run. null when no group merge runs, or for a PR
+// the run ended on or set aside: its own moves (Try again, Validate again) stay. run: the queue of the PR's base.
+export type GroupHold = "in" | "held";
+
+export function groupHoldOf(run: BatchRun, number: number): GroupHold {
+    if (!groupMergeRunning(run)) {
+        return null;
+    }
+    const item = run.items.find((it) => it.number === number);
+    if (item == null) {
+        return "held";
+    }
+    return batchItemEnded(item) || item.state === "failed" ? null : "in";
+}
+
 // canWithdraw: Cancel validation, until the merge starts.
 export function canWithdraw(item: BatchItem): boolean {
     return item != null && !batchItemEnded(item) && item.state !== "merging";
@@ -356,6 +388,26 @@ export function batchCurrent(run: BatchRun): BatchItem {
 
 export function batchMergedCount(run: BatchRun): number {
     return (run?.items ?? []).filter((it) => it.state === "merged").length;
+}
+
+// batchShownSteps (#2318): what the banner of a running queue lists. A group merge shows every step it holds with its
+// state, the merged ones too, as the progress that replaces the suggested order; a queue of validated PRs lists the
+// ones still open.
+export function batchShownSteps(run: BatchRun): BatchItem[] {
+    if (!batchActive(run)) {
+        return [];
+    }
+    return batchIsGroup(run) ? run.items : run.items.filter((it) => !batchItemEnded(it));
+}
+
+// batchCancelKeys: the Cancel button's words. A group merge says what it cancels and that it stops after the step under
+// way (#2318); a queue of validated PRs keeps "Stop".
+export function batchCancelKeys(run: BatchRun): { label: string; title: string } {
+    const group = batchIsGroup(run);
+    return {
+        label: group ? "reviews.batch.cancelGroup" : "reviews.batch.cancel",
+        title: group ? "reviews.batch.cancelGroupTitle" : "reviews.batch.cancelTitle",
+    };
 }
 
 export function batchAgentName(run: BatchRun): string {

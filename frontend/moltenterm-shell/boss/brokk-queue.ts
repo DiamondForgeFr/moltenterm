@@ -10,8 +10,19 @@
 
 import type { AskedExpression, BrokkExpression } from "./brokk-ask-model";
 
-// Most important first: a frown is never given up for a call.
-export const ExpressionRank: Record<BrokkExpression, number> = { frown: 0, doubtful: 1, smile: 2, nod: 3, call: 4 };
+// Most important first: a frown is never given up for a call. The tone gestures of his answer (#2262) come after the
+// concern and before the good news; the sigh, which only a grave visit plays, ranks with the concern.
+export const ExpressionRank: Record<BrokkExpression, number> = {
+    frown: 0,
+    sigh: 1,
+    doubtful: 2,
+    surprised: 3,
+    proud: 4,
+    chuckle: 5,
+    smile: 6,
+    nod: 7,
+    call: 8,
+};
 
 // How grave an event is for the developer (FR-BOSS-009, AC3). The gravest event waiting for a visit sets the face he
 // comes with. It is not the order above: a gesture queue ranks a smile before a call, but in a visit a call (something
@@ -63,9 +74,14 @@ export const ExpressionMs: Record<BrokkExpression, number> = {
     frown: 2625,
     nod: 2750,
     call: 2500,
+    sigh: 2938,
+    proud: 3875,
+    chuckle: 4125,
+    surprised: 2938,
 };
 
-export type QueuedExpression = { expression: BrokkExpression; since: number; reply: boolean };
+// `answer`: the tone that opens his answer to the developer (FR-BOSS-009, AC88, #2259).
+export type QueuedExpression = { expression: BrokkExpression; since: number; reply: boolean; answer?: boolean };
 
 export type QueueState = {
     // The one request that waits for its moment.
@@ -81,8 +97,12 @@ export type QueueState = {
 export const EmptyQueue: QueueState = { slot: null, last: null, startedAt: {}, lastKeyAt: null, cue: 0 };
 
 export type QueueEvent =
-    // `reply`: the expression answers the developer's own action.
-    { type: "ask"; expression: BrokkExpression; reply?: boolean } | { type: "key" } | { type: "tick" };
+    // `reply`: the expression answers the developer's own action. `answer`: it is the tone his answer opens with, which
+    // the keystroke that sent the message does not hold back, and which may come back within the minute: it follows
+    // what he says, not a tic.
+    | { type: "ask"; expression: BrokkExpression; reply?: boolean; answer?: boolean }
+    | { type: "key" }
+    | { type: "tick" };
 
 export type QueueStep = {
     state: QueueState;
@@ -96,12 +116,20 @@ function sinceMs(at: number, now: number): number {
     return at == null ? Infinity : now - at;
 }
 
-function waitLimit(expression: BrokkExpression): number {
-    return expression === "call" ? CallWaitLimitMs : WaitLimitMs;
+// The queue starts the tone of his answer with his first words or not at all (FR-BOSS-009, AC88, #2259): a smile that
+// comes once the developer is already reading means nothing. A clip out of the thinking pose under way does not hold it
+// here: the package plays it as soon as that clip ends (brokk-speech-model.ts toneDelayMs, #2262).
+export const AnswerWaitLimitMs = 500;
+
+function waitLimit(slot: QueuedExpression): number {
+    if (slot.answer === true) {
+        return AnswerWaitLimitMs;
+    }
+    return slot.expression === "call" ? CallWaitLimitMs : WaitLimitMs;
 }
 
 // A request refused outright: folded into a burst, or repeated too soon.
-function refused(state: QueueState, expression: BrokkExpression, reply: boolean, now: number): boolean {
+function refused(state: QueueState, expression: BrokkExpression, again: boolean, now: number): boolean {
     const last = state.last;
     if (
         last != null &&
@@ -110,7 +138,7 @@ function refused(state: QueueState, expression: BrokkExpression, reply: boolean,
     ) {
         return true;
     }
-    return !reply && sinceMs(state.startedAt[expression], now) < RepeatMs;
+    return !again && sinceMs(state.startedAt[expression], now) < RepeatMs;
 }
 
 // An expression that follows another one without waiting for the gap: a smile after the nod of the last answer, because
@@ -133,7 +161,8 @@ function readyAt(state: QueueState, slot: QueuedExpression): number {
     if (state.last != null && !upgradesLast(state, slot.expression, slot.since)) {
         at = Math.max(at, state.last.at + MinGapMs);
     }
-    if (state.lastKeyAt != null) {
+    // The keys that sent the message do not hold back the tone of his answer; the developer writing again does.
+    if (state.lastKeyAt != null && !(slot.answer === true && state.lastKeyAt <= slot.since)) {
         at = Math.max(at, state.lastKeyAt + KeyQuietMs);
     }
     if (slot.reply) {
@@ -142,9 +171,17 @@ function readyAt(state: QueueState, slot: QueuedExpression): number {
     return at;
 }
 
-function admitted(slot: QueuedExpression, request: { expression: BrokkExpression; reply: boolean }, now: number) {
+function admitted(
+    slot: QueuedExpression,
+    request: { expression: BrokkExpression; reply: boolean; answer: boolean },
+    now: number
+): QueuedExpression {
     if (slot == null || ExpressionRank[request.expression] < ExpressionRank[slot.expression]) {
-        return { expression: request.expression, since: now, reply: request.reply };
+        const rtn: QueuedExpression = { expression: request.expression, since: now, reply: request.reply };
+        if (request.answer) {
+            rtn.answer = true;
+        }
+        return rtn;
     }
     return slot;
 }
@@ -154,13 +191,14 @@ export function queueAfter(before: QueueState, event: QueueEvent, now: number): 
     if (event.type === "key") {
         state = { ...state, lastKeyAt: now };
     }
-    if (event.type === "ask" && !refused(state, event.expression, event.reply === true, now)) {
-        state = {
-            ...state,
-            slot: admitted(state.slot, { expression: event.expression, reply: event.reply === true }, now),
-        };
+    if (event.type === "ask") {
+        const reply = event.reply === true;
+        const answer = event.answer === true;
+        if (!refused(state, event.expression, reply || answer, now)) {
+            state = { ...state, slot: admitted(state.slot, { expression: event.expression, reply, answer }, now) };
+        }
     }
-    if (state.slot != null && now - state.slot.since > waitLimit(state.slot.expression)) {
+    if (state.slot != null && now - state.slot.since > waitLimit(state.slot)) {
         state = { ...state, slot: null };
     }
     const slot = state.slot;
@@ -168,7 +206,7 @@ export function queueAfter(before: QueueState, event: QueueEvent, now: number): 
         return { state, play: null, wakeAt: null };
     }
     const ready = readyAt(state, slot);
-    const expires = slot.since + waitLimit(slot.expression);
+    const expires = slot.since + waitLimit(slot);
     if (ready > now) {
         return { state, play: null, wakeAt: Math.min(ready, expires + 1) };
     }

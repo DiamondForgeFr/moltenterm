@@ -288,9 +288,7 @@ func (r *Reviews) readShips(dir string) {
 			panichandler.PanicHandler("molten:mission:reviews:ships", rec)
 		}
 		r.storeShips(dir, found)
-		if snap, ok := r.collector.Cached(dir); ok && r.publish != nil {
-			r.publish(r.answerOf(snap))
-		}
+		r.publishCurrent(dir)
 	}()
 	oids, tagPrefix, release := r.takeShipsQuery(dir)
 	ctx, cancel := context.WithTimeout(context.Background(), reviewShipsTimeout)

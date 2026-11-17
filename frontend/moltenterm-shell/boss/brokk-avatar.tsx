@@ -9,13 +9,14 @@
 // pointer resting on it opens his floating group, unpinned and without the focus, and a click opens it pinned, or pins
 // the one the hover opened (AC52 to AC55, #2103). It never opens anything by itself, takes no focus and plays no sound.
 // While the scene stands in his place it is hidden; while his group is open it keeps its place and its badge, takes a
-// soft ring in the action colour and shows a still frame, so the only animated Brokk is the group's square (#2032).
+// soft ring in the action colour and wears the initial of his name instead of his face, so the only Brokk on screen is the
+// group's animated square (#2032, #2219). Folded, it plays the gestures the app asks of him, the call included.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { downloadRingOf } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { useT } from "../i18n/i18n";
@@ -23,14 +24,16 @@ import { useWorkingBeat } from "../working-beat";
 import { bubbleCueLabel, bubbleLabel } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
-import { AvatarVariant, avatarVariant, faceClickAction } from "./brokk-avatar-model";
+import { AvatarVariant, avatarVariant, brokkInitial, faceClickAction } from "./brokk-avatar-model";
 import "./brokk-avatar.css";
 import { AvatarDownloadRing, useDownloadWords } from "./brokk-download-ring";
 import { BrokkEdgeModel } from "./brokk-edge-store";
+import { HelloBubbleView } from "./brokk-hello-bubble";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { brokkMenuItems } from "./brokk-menu";
+import { useBrokkHello } from "./use-brokk-hello";
 import { useAvatarBadge, useAvatarLive, useHubSelect } from "./use-brokk-hub";
-import { useMotionAllowed } from "./use-brokk-live";
+import { useFaceVisible, useMotionAllowed } from "./use-brokk-live";
 
 // The ring is the bell's (notification-center.tsx): a faint track and an arc that takes a quarter turn on each beat of
 // the working beat, and stands still when the beat does (reduced motion, a window nobody looks at).
@@ -71,16 +74,23 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
     const pinned = useAtomValue(boss.cardPinnedAtom, { store: globalStore });
     const talking = useAtomValue(boss.talkingAtom, { store: globalStore });
     const keepAwake = useAtomValue(boss.keepAwakeAtom, { store: globalStore });
+    // His animated face shows elsewhere (the first launch's scene, #2304): the avatar wears his initial meanwhile, with the
+    // ring of an open group, which also shows where he lives.
+    const lent = useAtomValue(boss.faceLentAtom, { store: globalStore }) > 0;
     const ownWorking = useAtomValue(hubModel.ownWorkingAtom, { store: globalStore });
     const badge = useAvatarBadge();
     const cue = useHubSelect((view) => view.cue);
     const sceneUp = useHubSelect((view) => view.visit != null);
-    const live = useAvatarLive(ownWorking, sceneUp || cardOpen);
+    const live = useAvatarLive(ownWorking, sceneUp || cardOpen || lent);
     const unseen = useAtomValue(BrokkEdgeModel.getInstance().unseenAtom, { store: globalStore });
     const running = useAtomValue(DownloadsModel.getInstance().ringAtom, { store: globalStore });
     const downloadRing = downloadRingOf(running);
     const downloadWords = useDownloadWords(running);
     const motion = useMotionAllowed();
+    const faceVisible = useFaceVisible();
+    // The collapsed strip is out of sight at rest: the hello waits there for the group or another avatar (AC74).
+    const hello = useBrokkHello(faceVisible && variant !== "edge", sceneUp);
+    const buttonRef = useRef<HTMLButtonElement>(null);
     const hover = hubModel.faceHover;
 
     // The face leaves the page (the scene stands in its place, Brokk turned off): the pointer is no longer on it.
@@ -91,8 +101,8 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
         }
     }, [hover, sceneUp]);
 
-    // His animated face lives in the group's square while it is open: the avatar keeps a still frame. Its click closes
-    // only a pinned group; it pins one the hover opened (AC55).
+    // His animated face lives in the group's square while it is open: the avatar wears a mark, never a still of him. Its
+    // click closes only a pinned group; it pins one the hover opened (AC55).
     const base =
         cardOpen && pinned
             ? t("boss.avatar.close", { name })
@@ -128,6 +138,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
 
     return (
         <button
+            ref={buttonRef}
             type="button"
             className={cn("mt-brokk-avatar", variant === "hanging" && "is-hanging", variant === "edge" && "is-edge")}
             style={style}
@@ -138,6 +149,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             data-cue={cue ? "true" : undefined}
             data-scene={sceneUp ? "up" : undefined}
             data-panel={cardOpen ? "open" : undefined}
+            data-lent={lent && !cardOpen ? "true" : undefined}
             data-news={variant === "edge" && unseen && !motion ? "true" : undefined}
             data-pinned={cardOpen && pinned ? "true" : undefined}
             aria-label={label}
@@ -151,7 +163,13 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
             onMouseDown={(e) => e.preventDefault()}
         >
             <span className="mt-brokk-face" aria-hidden>
-                <BossPortrait live={live} />
+                {cardOpen || lent ? (
+                    <span className="mt-brokk-mark" data-testid="brokk-mark">
+                        {brokkInitial(name)}
+                    </span>
+                ) : (
+                    <BossPortrait live={live} />
+                )}
             </span>
             {cardOpen && talking ? (
                 <i
@@ -173,6 +191,7 @@ export function BrokkAvatar({ variant, style }: { variant: AvatarVariant; style?
                     {badge.text}
                 </span>
             ) : null}
+            {hello != null ? <HelloBubbleView text={hello.text} anchor={buttonRef} variant={variant} /> : null}
         </button>
     );
 }

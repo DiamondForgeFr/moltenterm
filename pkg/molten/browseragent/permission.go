@@ -266,7 +266,8 @@ func (m *Manager) endRequestsLocked(sessionId string, tabId int64) {
 func (m *Manager) pendingPromptLocked(key TabKey) *PermissionPrompt {
 	var oldest *permissionRequest
 	for _, req := range m.requests {
-		if req.key != key || req.outcome != "" {
+		// A reuse ask is on a page that is not the session's: the panel lists it apart (PanelState.Asks).
+		if req.key != key || req.outcome != "" || req.kind == PromptReuse {
 			continue
 		}
 		if oldest == nil || req.created.Before(oldest.created) || (req.created.Equal(oldest.created) && req.id < oldest.id) {
@@ -287,12 +288,13 @@ func validDecision(decision string) bool {
 	return false
 }
 
-// decisionFits: a site request takes the site answers, an action request Allow or Deny; Escape (dismiss) refuses both.
+// decisionFits: a site request takes the site answers, an action or a reuse request Allow or Deny; Escape (dismiss)
+// refuses all of them.
 func decisionFits(kind string, decision string) bool {
 	if decision == DecisionDismiss {
 		return true
 	}
-	if kind == PromptAction {
+	if kind == PromptAction || kind == PromptReuse {
 		return decision == DecisionAllow || decision == DecisionDeny
 	}
 	return decision == DecisionOnce || decision == DecisionAlways || decision == DecisionBlock

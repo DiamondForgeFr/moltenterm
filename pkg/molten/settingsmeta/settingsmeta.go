@@ -105,6 +105,9 @@ type Setting struct {
 	Default any `json:"default,omitempty"`
 	// darwin, linux or windows, comma separated: the row shows on those platforms only.
 	Platform string `json:"platform,omitempty"`
+	// gold, dev, local, rc or public, comma separated: the row shows on those build channels only (FR-REL-001), for a
+	// feature a release does not have yet (FR-BOSS-010, #2246). No row uses it since the brainstorm shipped (#2320).
+	Channels string `json:"channels,omitempty"`
 	Hidden   bool   `json:"hidden,omitempty"`
 	// Inverted: a multi whose list holds the options turned off, shown ticked when absent from it (#947).
 	Inverted bool `json:"inverted,omitempty"`
@@ -132,7 +135,11 @@ func codingAgentOptions() []Option {
 // What an event does (FR-BOSS-009, AC4): Brokk comes, only the badge counts it, or nothing.
 var comingOptions = []Option{{Value: "vient", Label: "Comes to fetch me"}, {Value: "badge", Label: "Badge only"}, {Value: "rien", Label: "Nothing"}}
 
-var graceOptions = []Option{{Value: "1", Label: "1 minute"}, {Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
+// How near Brokk stands (FR-BOSS-009, AC75): discreet, only the events that matter; colleague, his moments and their
+// phrasing by his model. The scale grows: 1.1.0 adds close and partner (#2156), so a value is added, never a switch.
+var proximityOptions = []Option{{Value: "discreet", Label: "Discreet"}, {Value: "colleague", Label: "Colleague"}}
+
+var graceOptions =[]Option{{Value: "1", Label: "1 minute"}, {Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
 
 var blockedOptions =[]Option{{Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
 
@@ -182,8 +189,10 @@ var settings = []Setting{
 	// #1341: the interface's theme (FR-SHELL-121), first in Appearance; dark stays the default.
 	{Key: "moltenterm:theme", Section: SectionAppearance, Group: "Theme", Label: "Theme", Description: "The interface's colours. Terminals stay dark unless you pick a light terminal theme.", Control: ControlSelect, Options: []Option{{Value: "dark", Label: "Dark"}, {Value: "light", Label: "Light"}, {Value: "system", Label: "Same as the system"}}, Default: "dark"},
 	{Key: "moltenterm:view360", Section: SectionAppearance, Group: "360 view", Label: "360 view", Description: "When a tab fixes its first column and lays the others on a sideways carpet. Its 360 button turns it on too.", Control: ControlSelect, UnsetLabel: "Automatic (asks the first time)", Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "grid", Label: "Keep the grid"}, {Value: "always", Label: "Always"}}},
+	// #2180: stored by the first-time offer's "Do the same in every view" (FR-SHELL-066 AC11).
+	{Key: "moltenterm:view360places", Section: SectionAppearance, Group: "360 view", Label: "Visible panels when it switches by itself", Description: "With Automatic: how many panels stay visible beside the first column. Empty: the plain 360 view.", Control: ControlSelect, UnsetLabel: "Plain 360 view", Options: []Option{{Value: "1", Label: "1 visible panel"}, {Value: "2", Label: "2 visible panels"}, {Value: "3", Label: "3 visible panels"}}},
 	{Key: "window:reducedmotion", Section: SectionAppearance, Group: "Window", Label: "Reduce motion", Description: "Turn off animations, as the system's reduced motion setting does.", Control: ControlToggle},
-	{Key: "moltenterm:sidebarheat", Section: SectionAppearance, Group: "Window", Label: "Heat in the sidebar", Description: "While agents work, a faint heat rises at the bottom of the sidebar.", Control: ControlToggle, Default: true},
+	{Key: "moltenterm:sidebarheat", Section: SectionAppearance, Group: "Window", Label: "Heat in the sidebar", Description: "While agents work or something builds or runs CI, a faint heat rises at the bottom of the sidebar.", Control: ControlToggle, Default: true},
 	{Key: "moltenterm:settingsreveal", Section: SectionAppearance, Group: "Window", Label: "Molten reveal of settings", Description: "A settings block opened in the library pours, cools and breaks open. Off, or with reduced motion, it fades in.", Control: ControlToggle, Default: true},
 	{Key: "window:tilegapsize", Section: SectionAppearance, Group: "Window", Label: "Gap between panels", Description: "The space between the panels of a tab.", Control: ControlNumber, Range: rng(0, 20, 1), Unit: "px"},
 	{Key: "window:transparent", Section: SectionAppearance, Group: "Window", Label: "Transparent window", Description: "Let the desktop show through the window's background.", Control: ControlToggle},
@@ -228,8 +237,17 @@ var settings = []Setting{
 	// Range, for a text, is its length in characters.
 	{Key: "boss:name", Section: SectionBoss, Group: "Avatar", Label: "Name", Description: "The name the foreman goes by, from 1 to 24 characters. His tooltip, card and menus use it.", Control: ControlText, Range: rng(1, 24, 1), Default: "Brokk"},
 	{Key: "boss:show", Section: SectionBoss, Group: "Avatar", Label: "Show the avatar", Description: "An avatar in the title bar counts what waits and comes to fetch you. Off, it never shows.", Control: ControlToggle, Default: true},
+	// How near he stands (FR-BOSS-009, AC75, #2203): a scale that grows (1.1.0 adds Close and Partner), so a select and not a switch.
+	{Key: "boss:proximity", Section: SectionBoss, Group: "Avatar", Label: "Proximity", Description: "How near he stands to you.", Control: ControlSelect, Options: proximityOptions, Default: "colleague"},
 	// The avatar stays in the title row, never over a terminal: there is nothing left to fold (#2002).
 	hidden("boss:collapseontype"),
+	// Brokk's thought in 3D (FR-BOSS-010, DS-BOSS-010, #2246): a folder the developer owns, on every channel since #2320.
+	{Key: "boss:brainstormsdir", Section: SectionBoss, Group: "Brainstorms", Label: "Brainstorms folder", Description: "Where your brainstorms with him are saved, one folder per idea, without asking.", Control: ControlPath, Default: "~/MoltenTerm/Brainstorms"},
+	// A clear brainstorm becomes a project (FR-BOSS-010 AC15, #2250): the parent folder chosen on the project card, a
+	// convenience and never an approval.
+	{Key: "boss:projectsdir", Section: SectionBoss, Group: "Brainstorms", Label: "Projects folder", Description: "Where a clear brainstorm becomes a project folder, once you click to make it.", Control: ControlPath},
+	// His agent's permission requests (#2257): off by default, turned on only after one explicit confirmation in the window.
+	{Key: "boss:autoapprove", Section: SectionBoss, Group: "His agent", Label: "Approve his agent's requests without asking", Description: "Only what stays in his own folder goes without asking, each a line in his window; the rest still asks.", Control: ControlToggle},
 	// When Brokk comes to fetch the developer (#2001 keys, #2003 table, FR-BOSS-009 AC4): the screen draws this group as
 	// one table, "Quand Brokk vient me chercher", with a choice per event.
 	{Key: "boss:visitsecurity", Section: SectionBoss, Group: BrokkTableGroup, Label: "A security alert on a dependency", Description: "A high or critical alert on a dependency of your projects.", Control: ControlSelect, Options: comingOptions, Default: "vient"},
@@ -237,10 +255,10 @@ var settings = []Setting{
 	{Key: "boss:visiterror", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent stopped on an error", Description: "An agent that stopped on an error.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
 	{Key: "boss:visitci", Section: SectionBoss, Group: BrokkTableGroup, Label: "CI failed on my pull request", Description: "The checks of one of your pull requests failed.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
 	{Key: "boss:visitready", Section: SectionBoss, Group: BrokkTableGroup, Label: "A pull request is ready to merge", Description: "A pull request that is approved and green.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
-	{Key: "boss:visitfinished", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent finished", Description: "An agent that finished its work.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitfinished", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent finished", Description: "An agent that finished its work. It counts on the badge and never brings him.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
 	{Key: "boss:visitdownload", Section: SectionBoss, Group: BrokkTableGroup, Label: "A download finished or failed", Description: "A file downloaded from a web page, finished or interrupted.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
 	{Key: "boss:visitupdate", Section: SectionBoss, Group: BrokkTableGroup, Label: "An update is available", Description: "A new version of MoltenTerm.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
-	{Key: "boss:visitusage", Section: SectionBoss, Group: BrokkTableGroup, Label: "Plan usage above 90 %", Description: "The plan usage of an agent crosses 90 %.", Control: ControlSelect, Options: comingOptions, Default: "badge"},
+	{Key: "boss:visitusage", Section: SectionBoss, Group: BrokkTableGroup, Label: "Plan usage above 90 %", Description: "The plan usage of an agent crosses 90 %. It shows in his own block and never counts on the badge.", Control: ControlSelect, Options: comingOptions, Default: "rien"},
 	{Key: "boss:blockedmin", Section: SectionBoss, Group: BrokkTableGroup, Label: "An agent counts as blocked after", Description: "How long an agent may wait for you before it counts as blocked; three times as long is grave.", Control: ControlSelect, Options: blockedOptions, Default: 5, Unit: "min"},
 	{Key: "boss:quiet", Section: SectionBoss, Group: BrokkTableGroup, Label: "Quiet hours", Description: "During these hours only the badge changes, even for the events that come to fetch you.", Control: ControlToggle, Default: true},
 	{Key: "boss:quietfrom", Section: SectionBoss, Group: BrokkTableGroup, Label: "Quiet hours begin", Description: "The hour the quiet hours begin, as HH:MM.", Control: ControlText, Default: "22:00"},
@@ -253,7 +271,7 @@ var settings = []Setting{
 	{Key: "web:openlinksinternally", Section: SectionBrowser, Group: "Opening pages", Label: "Open links in MoltenTerm", Description: "Links clicked in a terminal or a page open in a browser panel.", Control: ControlToggle},
 	{Key: "browser:sites", Section: SectionBrowser, Group: "Opening pages", Label: "Per-site browser", Description: "Sites that always open in MoltenTerm's browser or the installed one.", Control: ControlJSON},
 	{Key: "web:defaulturl", Section: SectionBrowser, Group: "Browser panel", Label: "Home page", Description: "The page a new browser panel opens.", Control: ControlText},
-	{Key: "web:defaultsearch", Section: SectionBrowser, Group: "Browser panel", Label: "Search engine", Description: "The search URL, with {query} where the words go.", Control: ControlText},
+	{Key: "web:defaultsearch", Section: SectionBrowser, Group: "Browser panel", Label: "Search address", Description: "Search engine address, written by the list above; edit it to use another, with {query} where the words go.", Control: ControlText},
 	{Key: "moltenterm:hiddenpagefreeze", Section: SectionBrowser, Group: "Browser panel", Label: "Pause hidden pages", Description: "A page not on screen stops running until shown, unless an agent drives it or it plays audio.", Control: ControlToggle, Default: true},
 	{Key: "moltenterm:hiddenpagediscardmin", Section: SectionBrowser, Group: "Browser panel", Label: "Unload hidden pages after", Description: "A page not on screen this long is unloaded, then reloads when shown; 0 keeps pages loaded.", Control: ControlNumber, Range: rng(0, 1440, 1), Unit: "min", Default: 10},
 	{Key: "browser:downloadask", Section: SectionBrowser, Group: "Downloads", Label: "Always ask where to save", Description: "Ask for a folder before each download; off saves it straight to your Downloads folder.", Control: ControlToggle},
@@ -357,6 +375,14 @@ var settings = []Setting{
 	// The Settings screen's last tab and the materials seen (#1763): the screen's tabs and the materials section set them.
 	hidden("moltenterm:settingstab"),
 	hidden("moltenterm:materialsseen"),
+	// The size of a web page panel's docked developer tools (#2310): their divider sets it.
+	hidden("moltenterm:browserinspectorsize"),
+	// The note about the default search engine (#2312): the panel that shows it sets it.
+	hidden("moltenterm:searchenginenote"),
+	// The providers Brokk's usage grid always shows or never shows (FR-BOSS-009, AC97, #2341): a row's menu and the
+	// Not used lately list set them, so the screen has no row for them.
+	hidden("boss:usageshow"),
+	hidden("boss:usagehide"),
 }
 
 func init() {

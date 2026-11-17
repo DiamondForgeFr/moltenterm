@@ -9,6 +9,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import type { Atom } from "jotai";
 import { makeSeenViewAtom } from "./agent-seen";
+import { brainstormHolds } from "./brainstorm/brainstorm-hold";
 import type { AgentSeenView } from "./agent-state-model";
 import { trustReviewAction } from "./mission/trust-approval-model";
 import { toastArrivals, ToastCoalesceMs } from "./notification-rules";
@@ -91,6 +92,11 @@ export function startNotificationToasts(viewAtom: Atom<AgentSeenView> = makeSeen
             return;
         }
         if (document.visibilityState !== "visible") {
+            return;
+        }
+        // The brainstorm mode holds them (FR-BOSS-010 AC3): they stay unread in the center, the badge counts them, and the
+        // mode says in one line on exit how many arrived. What is critical breaks through at the mode's edge instead.
+        if (brainstormHolds()) {
             return;
         }
         pending = [...new Set([...pending, ...arrivals])];

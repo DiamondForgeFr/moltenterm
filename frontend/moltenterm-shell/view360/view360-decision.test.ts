@@ -11,12 +11,6 @@ import {
     carpetSlotWidthsPx,
     columnFractions,
     columnMinimumsPx,
-    overThreshold,
-    readFractions,
-    rememberedFixedPx,
-    restoredColumnSizes,
-    sameFractions,
-    slotFraction,
     columnsParent,
     countLeaves,
     decideView360,
@@ -30,8 +24,15 @@ import {
     minimumsPx,
     normalColumnPxs,
     normalizeView360Setting,
+    overThreshold,
+    placesStoreNothing,
+    readFractions,
+    rememberedFixedPx,
+    restoredColumnSizes,
+    sameFractions,
     sharedColumnSizes,
     SideColumnMinPx,
+    slotFraction,
     topColumns,
 } from "./view360-decision";
 
@@ -135,6 +136,91 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
         expect(decideView360({ ...base, columnCount: 1, manual: null, places: 2 }).active).toBe(false);
     });
 
+    describe("a 360 × N that stores nothing rests in the grid (#2175, FR-SHELL-123-AC15)", () => {
+        const resting = {
+            setting: "auto" as const,
+            manual: null as boolean,
+            autoOn: false,
+            columnsOver: false,
+            cannotFit: false,
+            columnCount: 2,
+            places: 1,
+            carpetColumns: 1,
+        };
+
+        it("is drawn as the grid once every carpet column fits in its places, the view still asking for its N", () => {
+            expect(decideView360(resting)).toEqual({ active: false, wanted: true, source: "manual", idle: true });
+            expect(decideView360({ ...resting, columnCount: 4, places: 3, carpetColumns: 3 })).toMatchObject({
+                active: false,
+                wanted: true,
+                idle: true,
+            });
+            expect(decideView360({ ...resting, columnCount: 4, places: 3, carpetColumns: 2 }).active).toBe(false);
+        });
+
+        it("comes back with the same N as soon as a panel would be stored, still without an automatic source", () => {
+            expect(decideView360({ ...resting, columnCount: 3, carpetColumns: 2 })).toEqual({
+                active: true,
+                wanted: true,
+                source: "manual",
+            });
+            expect(decideView360({ ...resting, columnCount: 5, places: 2, carpetColumns: 4 }).active).toBe(true);
+        });
+
+        it("rests whatever the screen's threshold says, and for a view put in 360 view by hand", () => {
+            const three = { ...resting, columnCount: 3, places: 2, carpetColumns: 2 };
+            expect(decideView360({ ...three, columnsOver: true }).active).toBe(false);
+            expect(decideView360({ ...three, manual: true })).toMatchObject({ active: false, idle: true });
+            expect(decideView360({ ...three, manual: false })).toMatchObject({ active: false, idle: true });
+        });
+
+        it("keeps the 360 view when the panels do not fit side by side at their readable minimums (#733)", () => {
+            const three = { ...resting, columnCount: 3, places: 2, carpetColumns: 2 };
+            expect(decideView360({ ...three, autoOn: true })).toMatchObject({ active: true, source: "manual" });
+            expect(decideView360({ ...three, cannotFit: true }).active).toBe(true);
+            expect(decideView360({ ...three, autoOn: true }).idle).toBeUndefined();
+        });
+
+        it("starts that safety net at the same number of columns as the automatic view (#1225, FR-SHELL-109)", () => {
+            expect(decideView360({ ...resting, cannotFit: true, autoOn: true }).active).toBe(false);
+            expect(decideView360({ ...resting, cannotFit: true, autoOn: true, narrowWindow: true }).active).toBe(true);
+        });
+
+        it("keeps the 360 view drawn under the Always setting", () => {
+            expect(decideView360({ ...resting, setting: "always" })).toMatchObject({ active: true, source: "manual" });
+        });
+
+        it("takes a carpet it does not know as storing something, like a view without the count", () => {
+            expect(decideView360({ ...resting, carpetColumns: undefined }).active).toBe(true);
+            expect(decideView360({ ...resting, carpetColumns: null }).active).toBe(true);
+        });
+
+        it("changes nothing for a 360 view without an N, on demand or automatic", () => {
+            expect(decideView360({ ...resting, places: null, manual: true })).toEqual({
+                active: true,
+                wanted: true,
+                source: "manual",
+            });
+            expect(
+                decideView360({ ...resting, places: null, columnCount: 3, carpetColumns: 2, columnsOver: true })
+            ).toMatchObject({ active: true, source: "auto", reason: "columns" });
+        });
+
+        it("never flags a single column as resting", () => {
+            expect(decideView360({ ...resting, columnCount: 1, carpetColumns: 0 })).toEqual({
+                active: false,
+                wanted: true,
+                source: "manual",
+            });
+        });
+
+        it("tells the rule alone", () => {
+            expect(placesStoreNothing(resting)).toBe(true);
+            expect(placesStoreNothing({ ...resting, carpetColumns: 2 })).toBe(false);
+            expect(placesStoreNothing({ ...resting, places: null })).toBe(false);
+        });
+    });
+
     it("never wants 360 view for a single column", () => {
         expect(autoWants(false, 1, 100)).toBe(false);
         expect(autoWants(true, 1, 100)).toBe(false);
@@ -215,6 +301,41 @@ describe("360 view decision (FR-SHELL-066, DS-SHELL-116)", () => {
         expect(decideView360({ ...base, manual: false, columnsOver: true, columnCount: 4 }).active).toBe(false);
         // On demand within the threshold.
         expect(decideView360({ ...base, manual: true, columnsOver: false, columnCount: 2 }).source).toBe("manual");
+    });
+
+    it("does not switch by the threshold a view that is offered the choice first (FR-SHELL-066-AC11, #2180)", () => {
+        const base = { setting: "auto" as const, manual: null as boolean, autoOn: false, offering: true };
+        const asked = decideView360({ ...base, columnsOver: true, columnCount: 3 });
+        expect(asked).toEqual({ active: false, wanted: false, source: "auto", asking: true });
+        // The same view without the offer is switched, as before.
+        expect(decideView360({ ...base, offering: false, columnsOver: true, columnCount: 3 })).toMatchObject({
+            active: true,
+            reason: "columns",
+        });
+        // The safety nets stay: the readable minimums, columns that cannot fit.
+        expect(decideView360({ ...base, autoOn: true, columnsOver: true, columnCount: 3 })).toMatchObject({
+            active: true,
+            reason: "fit",
+        });
+        expect(decideView360({ ...base, columnsOver: true, columnCount: 3, setting: "always" }).active).toBe(true);
+        // Within the threshold it is not "asking" about anything the developer sees: still the same answer.
+        expect(decideView360({ ...base, columnsOver: false, columnCount: 2 }).active).toBe(false);
+    });
+
+    it("a view that kept the grid is not asking, and keeps the panels side by side beyond the threshold (#2180)", () => {
+        const kept = decideView360({
+            setting: "grid",
+            manual: null,
+            autoOn: false,
+            columnsOver: true,
+            columnCount: 5,
+            offering: false,
+        });
+        expect(kept).toEqual({ active: false, wanted: false, source: "setting" });
+        // Only columns that cannot fit at all still go to 360 view.
+        expect(
+            decideView360({ setting: "grid", manual: null, autoOn: false, cannotFit: true, columnCount: 5 }).active
+        ).toBe(true);
     });
 
     it("measures the normal columns and finds the one too tight to read", () => {
@@ -404,9 +525,7 @@ describe("the developer's proportions (#1083)", () => {
         // Laptop 40/60, a third panel opened then closed: 40/60 again, whatever the tree's sizes became.
         expect(restoredColumnSizes([0.4, 0.6], 2)).toEqual([40, 60]);
         // Wide 30/35/35 with one column fewer: the shares kept, scaled to what is left.
-        expect(restoredColumnSizes([0.3, 0.35, 0.35], 2).map((s) => Math.round(s * 100) / 100)).toEqual([
-            46.15, 53.85,
-        ]);
+        expect(restoredColumnSizes([0.3, 0.35, 0.35], 2).map((s) => Math.round(s * 100) / 100)).toEqual([46.15, 53.85]);
         // More columns than remembered (another screen, a lower threshold): the slot's share for each.
         expect(restoredColumnSizes([0.4, 0.6], 3).map((s) => Math.round(s * 100) / 100)).toEqual([25, 37.5, 37.5]);
         expect(restoredColumnSizes(null, 2)).toBeNull();

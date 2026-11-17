@@ -62,6 +62,13 @@ vi.mock("./onboarding-client", () => ({
     onboardingUpdate: store.onboardingUpdate,
 }));
 vi.mock("./onboarding-pour", () => ({ OnboardingPour: () => null }));
+vi.mock("./onboarding-brokk-face", () => ({ OnboardingBrokkFace: () => null }));
+vi.mock("../moltenterm-shell/boss/boss-store", async () => {
+    const { atom } = await import("jotai");
+    const model = { nameAtom: atom("Brokk"), showAtom: atom(true) };
+    return { BossBubbleModel: { getInstance: () => model } };
+});
+vi.mock("../moltenterm-shell/build/use-feature-on", () => ({ useBrainstormAllowed: () => false }));
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { OnboardingViewModel } from "./onboarding-view";

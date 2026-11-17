@@ -27,6 +27,8 @@ import {
     ExternalOpen,
     ExternalShowInFolder,
     openExternalLink,
+    openLinkInApp,
+    OpenLinkChannel,
 } from "./moltenterm-external-links";
 
 beforeEach(() => {
@@ -106,5 +108,37 @@ describe("external link rule (#663)", () => {
         expect(await allowPageExternalLaunch("zoommtg://x", null)).toBe(false);
         Mocks.showMessageBox.mockResolvedValue({ response: 1 });
         expect(await allowPageExternalLaunch("zoommtg://x", null)).toBe(true);
+    });
+});
+
+describe("web pages the app opens by itself (#2176)", () => {
+    function host(destroyed = false) {
+        return { isDestroyed: () => destroyed, send: vi.fn(), hostWebContents: null } as any;
+    }
+
+    it("sends a web page to the tab's renderer, never to the system", async () => {
+        const tab = host();
+        expect(await openLinkInApp("https://example.com/docs", tab)).toBe(true);
+        expect(await openLinkInApp("http://localhost:8123/callback?code=x", tab)).toBe(true);
+        expect(tab.send).toHaveBeenNthCalledWith(1, OpenLinkChannel, "https://example.com/docs");
+        expect(tab.send).toHaveBeenNthCalledWith(2, OpenLinkChannel, "http://localhost:8123/callback?code=x");
+        expect(Mocks.openExternal).not.toHaveBeenCalled();
+    });
+
+    it("keeps the shared rule for anything else", async () => {
+        const tab = host();
+        expect(await openLinkInApp("mailto:someone@example.com", tab)).toBe(true);
+        expect(Mocks.openExternal).toHaveBeenCalledWith("mailto:someone@example.com");
+        expect(await openLinkInApp("file:///tmp/x.app", tab)).toBe(true);
+        expect(Mocks.showItemInFolder).toHaveBeenCalledWith("/tmp/x.app");
+        expect(await openLinkInApp("javascript:alert(1)", tab)).toBe(false);
+        expect(tab.send).not.toHaveBeenCalled();
+    });
+
+    it("falls back to the system when no tab can take the page, so a link is never lost", async () => {
+        expect(await openLinkInApp("https://example.com/", null)).toBe(true);
+        expect(await openLinkInApp("https://example.com/2", host(true))).toBe(true);
+        expect(Mocks.openExternal).toHaveBeenNthCalledWith(1, "https://example.com/");
+        expect(Mocks.openExternal).toHaveBeenNthCalledWith(2, "https://example.com/2");
     });
 });

@@ -2,30 +2,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's agents (FR-SHELL-084, DS of #1181): one row per agent of the workspace, from wavesrv's agent states,
-// those at work first. A view where an agent runs stays listed as a view (#1246).
+// in the order they were created. A view where an agent runs stays listed as a view (#1246).
 
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import { pathBaseName } from "../workspace-project";
 import type { SidebarTabSplit } from "./sidebar-model";
 import { projectLabel, type WorkspaceProjectEntry } from "./workspace-projects";
 
-const RowOrder: Record<string, number> = { working: 0, waiting: 1, error: 2, idle: 3, done: 4 };
-
-// The agents of a workspace: the terminals where MoltenTerm detected an agent, working, waiting, in error, at their
-// prompt, then finished; the longest running first within a state.
+// The agents of a workspace: the terminals where MoltenTerm detected an agent, the first started first. Never by
+// state or activity (#2296): a row that moves while the developer reads the list makes them lose their place.
 export function workspaceAgents(data: AgentStatesData, workspaceId: string): AgentStateInfo[] {
     if (!workspaceId) {
         return [];
     }
     return Object.values(data?.states ?? {})
         .filter((s) => s.workspaceid === workspaceId && !!(s.agent || s.agentname))
-        .sort(
-            (a, b) =>
-                (RowOrder[a.state] ?? 3) - (RowOrder[b.state] ?? 3) ||
-                (a.started ?? Infinity) - (b.started ?? Infinity) ||
-                (a.firstname ?? "").localeCompare(b.firstname ?? "") ||
-                a.blockid.localeCompare(b.blockid)
-        );
+        .sort((a, b) => (a.started ?? Infinity) - (b.started ?? Infinity) || a.blockid.localeCompare(b.blockid));
 }
 
 // The row's look: working shows the dominoes, waiting and error a dot and coloured text, done a green dot on a dimmed

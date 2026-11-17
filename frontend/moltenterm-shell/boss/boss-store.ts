@@ -15,6 +15,7 @@ import { I18nModel } from "../i18n/i18n";
 import { keepAwakeActive } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { MoltentermNotifications } from "../notifications-store";
+import type { ReviewsAnswer } from "../reviews/reviews-model";
 import { SharedReadiedAtom, SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
 import { DurableSessions } from "../sessions/sessions-store";
 import { FocusTarget, focusTargetOf, restoreFocus } from "./boss-card-model";
@@ -28,13 +29,17 @@ import {
     mergeHandled,
     readHandled,
     sameHandled,
+    unmarkRowHandled,
 } from "./boss-handled";
 import { PendingHandoffs } from "./boss-handoffs";
 import { bossName, BossNameSettingKey, bossSettingOn, BossShowSettingKey } from "./boss-name";
 import { Badge, BossPeek, makePeek, workingCount, workspaceNamesOf } from "./boss-overview";
-import { buildToHandle, peekRowOf, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
+import { buildToHandle, keptReviewAnswers, peekRowOf, toHandleBadge, ToHandleList } from "./boss-to-handle-model";
 import { startUsageReadings, UsageReadingsAtom } from "./boss-usage";
 import { PanelId, PanelRequest } from "./brokk-group-model";
+import { faceRowKeys } from "./brokk-hub-feed";
+import type { ArchivePlan } from "./brokk-notes-model";
+import { visitSettingsOf } from "./brokk-visit-events";
 import { arrivalsAfter, EmptyArrivals, unseenItems } from "./brokk-watch";
 
 // The slice of the document the model listens on, so the rules run against a stand-in in the tests.
@@ -76,11 +81,16 @@ export class BossBubbleModel {
     // The developer writes to him or his session answers (the field of the group): the title-bar face shows the sign of
     // a conversation then, and not merely because the group is open (FR-BOSS-009, AC17, #2032).
     talkingAtom = atom(false) as PrimitiveAtom<boolean>;
+    // The surfaces outside the sidebar that show his animated face (the first launch's scene, FR-ONB-007 B-4, #2304):
+    // while there is one, the title-bar face wears his initial, so one Brokk is animated on screen (FR-BOSS-007 AC8).
+    faceLentAtom = atom(0) as PrimitiveAtom<number>;
     // Something keeps this computer awake: the cup shows as a small mark on the title-bar face while the group is closed.
     keepAwakeAtom: Atom<boolean>;
     // The rows settled or ignored, for the episode they were in, shared by the views and windows of this computer
     // (FR-BOSS-009, AC16).
     handledAtom = atom(EmptyHandled) as PrimitiveAtom<HandledRows>;
+    // The rows an undo gives back, until they are listed again: their return is no arrival (#2210).
+    givenBack = new Set<string>();
 
     nameAtom: Atom<string>;
     showAtom: Atom<boolean>;
@@ -98,11 +108,16 @@ export class BossBubbleModel {
     private constructor() {
         this.nameAtom = atom((get) => bossName(get(getSettingsKeyAtom(BossNameSettingKey as keyof SettingsType))));
         this.showAtom = atom((get) => bossSettingOn(get(getSettingsKeyAtom(BossShowSettingKey as keyof SettingsType))));
+        let answers: Record<string, ReviewsAnswer> = {};
+        const answersAtom = atom((get) => {
+            answers = keptReviewAnswers(answers, get(SharedReviewsAnswersAtom));
+            return answers;
+        });
         this.toHandleAtom = atom((get) =>
             buildToHandle({
                 states: get(AgentStates.getInstance().dataAtom),
                 notifications: get(MoltentermNotifications.getInstance().shownEntriesAtom),
-                answers: get(SharedReviewsAnswersAtom),
+                answers: get(answersAtom),
                 readied: get(SharedReadiedAtom),
                 sessions: get(DurableSessions.getInstance().dataAtom)?.sessions,
                 parked: get(this.parkedAtom),
@@ -156,6 +171,19 @@ export class BossBubbleModel {
         globalStore.set(this.cardOpenAtom, true);
     }
 
+    // A surface shows his face elsewhere until the returned function is called, once (FR-ONB-007 B-4).
+    lendFace(): () => void {
+        globalStore.set(this.faceLentAtom, globalStore.get(this.faceLentAtom) + 1);
+        let returned = false;
+        return () => {
+            if (returned) {
+                return;
+            }
+            returned = true;
+            globalStore.set(this.faceLentAtom, Math.max(0, globalStore.get(this.faceLentAtom) - 1));
+        };
+    }
+
     // The developer interacted with a group opened by hover: it stays open from now on (FR-BOSS-009, AC54).
     pinCard(): void {
         if (globalStore.get(this.cardOpenAtom) && !globalStore.get(this.cardPinnedAtom)) {
@@ -192,16 +220,53 @@ export class BossBubbleModel {
     // The developer settled or ignored this row (FR-BOSS-009, AC16): it stays away while the fact it shows stays what it
     // was. The marks other views wrote meanwhile are kept.
     settleRow(row: HandledRow): void {
+        this.settleRows([row]);
+    }
+
+    settleRows(rows: HandledRow[]): void {
+        if (rows.length === 0) {
+            return;
+        }
+        this.changeHandled((handled, now) => rows.reduce((next, row) => markRowHandled(next, row, now), handled));
+    }
+
+    // Gives these rows back, whatever episode they were marked for.
+    unsettleRows(rows: HandledRow[]): void {
+        if (rows.length === 0) {
+            return;
+        }
+        this.changeHandled((handled, now) => rows.reduce((next, row) => unmarkRowHandled(next, row.key, now), handled));
+    }
+
+    private changeHandled(change: (handled: HandledRows, now: number) => HandledRows): void {
         const now = Date.now();
         const store = storage();
         const shared = readHandled(store?.getItem(HandledKey), now);
-        const next = markRowHandled(mergeHandled(globalStore.get(this.handledAtom), shared, now), row, now);
+        const next = change(mergeHandled(globalStore.get(this.handledAtom), shared, now), now);
         globalStore.set(this.handledAtom, next);
         try {
             store?.setItem(HandledKey, handledText(next));
         } catch {
             // A full or missing storage only means this view's marks stay in this view.
         }
+    }
+
+    // Archives cards (#2195): the notifications go to the Archived list and the rows that stand for a fact are marked as
+    // handled. The undo gives back exactly what was archived.
+    // The undo gives the rows back as the developer left them (#2210): no arrival for the badge's call, and `heard` tells
+    // Brokk's hub that the events they bring back are no news. The rows that stand for a fact come back with their mark,
+    // at once; a notification's row comes back with the notification.
+    archiveRows(plan: ArchivePlan, heard: (keys: string[]) => void = () => {}): () => Promise<void> {
+        const undoEntries =
+            plan.entryIds.length > 0 ? MoltentermNotifications.getInstance().clear(plan.entryIds) : null;
+        this.settleRows(plan.marks);
+        const keys = plan.rowKeys ?? [];
+        return async () => {
+            keys.forEach((key) => this.givenBack.add(key));
+            this.unsettleRows(plan.marks);
+            heard(keys);
+            await undoEntries?.();
+        };
     }
 
     // Another view or window wrote the marks.
@@ -254,6 +319,7 @@ export class BossBubbleModel {
         const agents = AgentStates.getInstance();
         const handoffs = PendingHandoffs.getInstance();
         let memory = EmptyArrivals;
+        const readSetting = (key: string) => globalStore.get(getSettingsKeyAtom(key as keyof SettingsType));
         const check = () => {
             const list = globalStore.get(this.toHandleAtom);
             const step = arrivalsAfter(memory, {
@@ -263,7 +329,11 @@ export class BossBubbleModel {
                 reviewDirs: Object.keys(globalStore.get(SharedReviewsAnswersAtom) ?? {}),
             });
             memory = step.memory;
-            if (step.arrived.length > 0) {
+            // Only a row the face's badge counts calls (#2223): one set to Rien moves nothing.
+            const counted = new Set(faceRowKeys(list.items, visitSettingsOf(readSetting)));
+            const arrived = step.arrived.filter((key) => !this.givenBack.has(key) && counted.has(key));
+            list.items.forEach((item) => this.givenBack.delete(item.key));
+            if (arrived.length > 0) {
                 globalStore.set(this.cueAtom, (n) => n + 1);
             }
         };

@@ -131,6 +131,16 @@ export function shareLine(share: PageShare): string {
     return shared ? t("view360.strip.share.shared", { names: shared }) : "";
 }
 
+// The preview card's line that names every panel of a column (FR-SHELL-125 AC17), whatever the tab's title says;
+// empty for a column of one panel, whose title is its name.
+export function panelNamesLine(tick: Pick<RadarTick, "names">): string {
+    const names = tick?.names ?? [];
+    if (names.length < 2) {
+        return "";
+    }
+    return t("view360.strip.panelsList", { names: names.join(", ") });
+}
+
 // A tab's accessible name (AC10): its kind, its title and its state (visible or stored, and what it waits for, who
 // its pages are shared with).
 export function carpetTabName(tick: RadarTick, agentName = "", share: PageShare = NoShare): string {

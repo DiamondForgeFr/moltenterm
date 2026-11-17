@@ -75,13 +75,18 @@
    "Store on the carpet" with them (#1585: kept shown alone, it floated in an empty header). While the pointer is over
    the header they all come back in place and take clicks, so the carpet stays one move away without focusing the
    panel; nothing moves, the faded ones kept their room. The browser panel's row does the same for its panel buttons.
-   The carpet button stays shown while its chooser is open, which hangs from it. */
+   The carpet button stays shown while its chooser is open, which hangs from it. The Integration panel's owners funnel
+   stays shown while a filter is on, so a narrowed list is never an invisible state (FR-REV-034 AC12). */
 .block.block-frame-default:not(.block-focused) .block-frame-default-header .molten-header-context,
 .block.block-frame-default:not(.block-focused) .block-frame-default-header .block-frame-textelems-wrapper,
 .block.block-frame-default:not(.block-focused)
     .block-frame-default-header:not(:hover)
     .block-frame-end-icons
-    :is(button, .wave-iconbutton, .iconbutton):not(.block-frame-default-close, .mt-carpet-button.is-open),
+    :is(button, .wave-iconbutton, .iconbutton):not(
+        .block-frame-default-close,
+        .mt-carpet-button.is-open,
+        .mt-owners-filter.is-on
+    ),
 .block.block-frame-default:not(.block-focused)
     .molten-browser-row:not(:hover)
     .molten-browser-panel-buttons
@@ -150,6 +155,25 @@
     --color-accent-900: color-mix(in srgb, var(--mt-accent) 28%, black);
     --color-accentbg: var(--mt-action-wash);
     --color-accenthover: var(--mt-action-hover);
+}
+
+/* The selected one among siblings (DS-SHELL-156, #2189): a tab, a segment of a track, a section's entry, a view's tile
+   or row. One mark for all, the carpet strip's liseré: an inset line, not a bar, so it follows the element's rounded
+   corners and thins out at both ends. The place colour marks what stands for a place of the workspace (the strip's
+   tabs, the sidebar's and the Library's views), the action colour every other. Defined here and nowhere else: a
+   surface with other shadow layers composes the token into its own box-shadow; the classes serve the ones without,
+   at zero specificity so a surface's own box-shadow wins. The element keeps its own fill. */
+:root {
+    --mt-selected-line: inset 0 -2px 0 var(--mt-place);
+    --mt-selected-line-action: inset 0 -2px 0 var(--mt-action);
+}
+
+:where(.mt-selected) {
+    box-shadow: var(--mt-selected-line);
+}
+
+:where(.mt-selected-action) {
+    box-shadow: var(--mt-selected-line-action);
 }
 
 /* The keyboard focus ring (#751, #1319): the fixed --mt-focus, 2 px with a 2 px offset, reading at 7.56:1 on the

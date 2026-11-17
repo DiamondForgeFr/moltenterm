@@ -72,7 +72,10 @@ type RunRecord struct {
 	State      string   `json:"state"`
 	Exit       *int     `json:"exit,omitempty"`
 	Phases     []string `json:"phases"`
-	Cancelled  bool     `json:"cancelled,omitempty"`
+	// When each phase marker was first seen (Unix ms), in step with Phases: the overview's band measures the phase a
+	// build is in against the same phase of the build before (#2188).
+	PhaseAt   []int64 `json:"phaseat,omitempty"`
+	Cancelled bool    `json:"cancelled,omitempty"`
 	// A build's commit, built in a worktree of its own, and its kind (gold, rc).
 	Commit    string `json:"commit,omitempty"`
 	BuildKind string `json:"buildkind,omitempty"`
@@ -86,6 +89,12 @@ type RunRecord struct {
 	Changed []string `json:"changed,omitempty"`
 	// Still fetching, verifying or preparing in wavesrv: there is no process to follow yet.
 	Preparing bool `json:"preparing,omitempty"`
+	// Why a build stopped when a time limit or the developer stopped it (#2273), for its log, its row and its
+	// notification; empty when its log alone says why.
+	Stopped     string      `json:"stopped,omitempty"`
+	StoppedText *uimsg.Text `json:"stoppedtext,omitempty"`
+	// How a build's commit is verified (#2277), for its row; nil until the Verify phase starts.
+	Verify *BuildVerify `json:"verify,omitempty"`
 	// Its end was told in the notification center (FR-MC-014).
 	Told bool `json:"told,omitempty"`
 	// Closed by the user once it no longer runs: a build's card leaves the Project tab, a step's log stays hidden, until
@@ -126,10 +135,14 @@ type Runs struct {
 	preparing      map[string]bool
 	// Cancels asked while a build is being prepared; the preparation alone writes its record meanwhile.
 	cancelAsked map[string]bool
-	git         Runner
-	ci          *Ci
-	notify      func(RunRecord, molten.NotificationInput)
-	told        map[string]bool
+	// Builds whose developer chose to verify here instead of waiting for GitHub's CI (#2277).
+	verifyHere map[string]bool
+	// The system builds are made for, as Go names it; empty is the running one. Tests set it.
+	goos   string
+	git    Runner
+	ci     *Ci
+	notify func(RunRecord, molten.NotificationInput)
+	told   map[string]bool
 	// agentEnv tells a step the project's coding agent (agentchoice.EnvVar), for the release notes (#845).
 	agentEnv func(dir string) []string
 	// Branch cleaning removes MoltenTerm's worktrees of merged pull requests (#906) through the close-worktree path; the
@@ -144,6 +157,8 @@ type Runs struct {
 	// How often a followed run is read again, and a build reads its local CI run; zero is runPollInterval and
 	// buildCiPoll. Tests shorten it (#2019).
 	pollEvery time.Duration
+	// How long a build's git step or prepare command may take; zero is buildStepTimeout. Tests shorten it.
+	stepTimeout time.Duration
 }
 
 func (r *Runs) pollInterval() time.Duration {
@@ -168,7 +183,7 @@ func (r *Runs) UseWorktrees(w *Worktrees, dataDir string) {
 
 func MakeRuns(baseDir string, trust *TrustStore, publish func(RunRecord)) *Runs {
 	return &Runs{baseDir: baseDir, trust: trust, publish: publish, now: time.Now, watching: map[string]bool{},
-		preparing: map[string]bool{}, cancelAsked: map[string]bool{}, git: ExecRunner, told: map[string]bool{}}
+		preparing: map[string]bool{}, cancelAsked: map[string]bool{}, verifyHere: map[string]bool{}, git: ExecRunner, told: map[string]bool{}}
 }
 
 // UseCi lets builds verify their commit with the local CI first.
@@ -496,6 +511,10 @@ func (r *Runs) update(rec *RunRecord) bool {
 		phases = append(phases, string(m[1]))
 	}
 	if len(phases) != len(rec.Phases) {
+		seen := r.now().UnixMilli()
+		for len(rec.PhaseAt) < len(phases) {
+			rec.PhaseAt = append(rec.PhaseAt, seen)
+		}
 		rec.Phases = phases
 		changed = true
 	}

@@ -4,15 +4,20 @@
 // The Project overview's own cards (FR-MC-020, DS-MC-012), composed from Mission Control's panels, one home for each
 // piece of information: the group strip of a product's member (group-strip.tsx, FR-MC-028), the next station band with
 // the only copy of the actions (next-station-header.tsx: Run CI on develop, Build local, Release, Clean branches, each
-// showing its plan before it runs), the branches on the line map, then the row of four cards (overview-cards.tsx): Next
-// public release, Releases, Now and Project steps. They register like any contribution.
+// showing its plan before it runs), the branches on the line map, the "In progress" band of what runs (running-band.tsx,
+// only while something runs, #2188), then the row of four cards (overview-cards.tsx): Next public release, Releases, Now
+// and Project steps. They register like any contribution.
 
 import { GroupStrip } from "./group-strip";
 import { LineMapCard } from "./line-map-card";
 import { NextStationHeader } from "./next-station-header";
-import { NextReleaseCard, NowCard, ReleasesCard, StepsCard } from "./overview-cards";
+import { NextReleaseCard, NowCard, ReleasesCard, StepsCard, StepsHint } from "./overview-cards";
+import { hasOverviewSteps } from "./overview-cards-model";
 import { ProjectCard } from "./project-cards";
 import { ProjectCardProps } from "./project-context";
+import { RunningBand } from "./running-band";
+
+export const RunningBandCardId = "moltenterm:running";
 
 export const LineMapCardId = "moltenterm:linemap";
 
@@ -29,6 +34,7 @@ export const BuiltinProjectCards: ProjectCard<ProjectCardProps>[] = [
         component: NextStationHeader,
     },
     { id: LineMapCardId, title: "Line map", region: "map", order: 10, bare: true, component: LineMapCard },
+    { id: RunningBandCardId, title: "In progress", region: "band", order: 10, bare: true, component: RunningBand },
     {
         id: "moltenterm:next-release",
         title: "Next public release",
@@ -38,5 +44,20 @@ export const BuiltinProjectCards: ProjectCard<ProjectCardProps>[] = [
     },
     { id: "moltenterm:releases", title: "Releases", region: "cards", order: 20, component: ReleasesCard },
     { id: "moltenterm:now", title: "Now", region: "cards", order: 30, component: NowCard },
-    { id: "moltenterm:steps", title: "Project steps", region: "cards", order: 40, component: StepsCard },
+    {
+        id: "moltenterm:steps",
+        title: "Project steps",
+        region: "cards",
+        order: 40,
+        visible: (props) => hasOverviewSteps(props.pipeline),
+        component: StepsCard,
+    },
+    {
+        id: "moltenterm:steps-hint",
+        title: "Project steps",
+        region: "foot",
+        order: 10,
+        bare: true,
+        component: StepsHint,
+    },
 ];

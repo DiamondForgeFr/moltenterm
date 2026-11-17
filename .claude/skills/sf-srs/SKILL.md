@@ -172,7 +172,7 @@ sf srs spawn --ticket 42 --epic <feature-url> --dry-run
 an Epic that already exists. The naming convention becomes something the tool guarantees rather than something the agent has to remember.
 
 The drafting ticket is never that parent: `transition-drafting <N> spawning` passes `--drafting-ticket <N>`, and the version Epic's body says `Drafted in #N`. Every ticket spawn creates or reuses
-joins the project board in Backlog — one already on the board keeps its status.
+joins the project board in Backlog — one already on the board keeps its status, and one there with no status gets Backlog. The summary line states the status each ticket holds on the board.
 
 ### `--milestone` — spawning is when the release scope gets declared
 

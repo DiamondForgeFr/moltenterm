@@ -107,9 +107,12 @@ const FilesInstructions = " When the user asks you to find files in the project,
 // PagesInstructions: a page shown to the developer opens in MoltenTerm's browser, whatever agent CLI it is (FR-BRW-008,
 // pkg/molten/agentdocs/pages.md); the 360 carpet then scrolls to it (#1812).
 const PagesInstructions = " To show a page to the user (\"open the doc\", \"show me the page\", a local preview), open it in " +
-	"MoltenTerm's browser: tabs_create then navigate, or `molten open <url>` from a shell. Do not use `open`, " +
+	"MoltenTerm's browser: tabs_create with the page's url, or `molten open <url>` from a shell. Do not use `open`, " +
 	"`xdg-open`, `start` or the system browser, unless the user asks for their own browser (`molten open --browser " +
 	"installed <url>`). The page appears next to this terminal, in view, and the terminal keeps the keyboard focus. " +
+	"Check tabs_context first: a page that is already open in this workspace is reused, not opened again (tabs_create " +
+	"and `molten open` both do it; the user is asked first when the page is theirs; newTab: true, or `--new-tab`, " +
+	"opens a second copy on purpose). " +
 	"To bring a page you already have open back in front of the user, call tabs_show on its tab. " +
 	"Details: pages.md in the folder `molten docs` prints."
 
@@ -158,9 +161,32 @@ type AgentListEntry struct {
 	You       bool   `json:"you,omitempty"`
 }
 
+// AgentListLocked mirrors agenthandoff.LockedEntry: a first name locked for a project that no agent holds.
+type AgentListLocked struct {
+	FirstName string `json:"firstname"`
+	Project   string `json:"project,omitempty"`
+}
+
 type AgentList struct {
-	You    *AgentListEntry  `json:"you,omitempty"`
-	Agents []AgentListEntry `json:"agents"`
+	You    *AgentListEntry   `json:"you,omitempty"`
+	Agents []AgentListEntry  `json:"agents"`
+	Locked []AgentListLocked `json:"locked,omitempty"`
+}
+
+// formatLockedNames lists the locked names no agent holds, so a sender knows why a hand-off to one cannot be delivered
+// (FR-CONT-014, #2324).
+func formatLockedNames(sb *strings.Builder, locked []AgentListLocked) {
+	if len(locked) == 0 {
+		return
+	}
+	sb.WriteString("\nLocked names with no agent running (a hand-off to them cannot be delivered, and MoltenTerm does not start an agent for one):\n")
+	for _, l := range locked {
+		if l.Project == "" {
+			fmt.Fprintf(sb, "- %s: locked, not running\n", l.FirstName)
+			continue
+		}
+		fmt.Fprintf(sb, "- %s: locked for project %s, not running\n", l.FirstName, l.Project)
+	}
 }
 
 // FormatAgentList is list_agents' text: one line per agent, yours first.
@@ -178,7 +204,11 @@ func FormatAgentList(list AgentList) string {
 	}
 	if others == 0 {
 		sb.WriteString("No other agent is running in MoltenTerm.")
-		return sb.String()
+		if len(list.Locked) > 0 {
+			sb.WriteString("\n")
+			formatLockedNames(&sb, list.Locked)
+		}
+		return strings.TrimRight(sb.String(), "\n")
 	}
 	sb.WriteString("Agents you can hand work to (send_to_agent with the first name):\n")
 	for _, a := range list.Agents {
@@ -203,6 +233,7 @@ func FormatAgentList(list AgentList) string {
 		}
 		sb.WriteString("\n")
 	}
+	formatLockedNames(&sb, list.Locked)
 	return strings.TrimRight(sb.String(), "\n")
 }
 

@@ -7,12 +7,17 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
-// A reply his answer offers (FR-BOSS-004, AC12): its text is what is sent, so a button cannot hide what it sends. An
-// authorisation (agreeing grants something) asks once more before it is sent.
+import { withoutGraphBlocks } from "../brainstorm/brainstorm-fence";
+import { BrokkTone, readTone } from "./brokk-tone";
+
+// A reply his answer offers (FR-BOSS-004, AC12): its text is what is sent, so a button cannot hide what it sends.
+// authorise: the reply asks once more before it is sent, which every reply does but a short one he marks safe.
 export type InlineAction = { label: string; authorise: boolean };
 
 export const MaxActions = 4;
 export const MaxActionLabel = 80;
+// The longest reply he may mark safe, sent without a confirmation.
+export const MaxSafeLabel = 24;
 
 // The info string of the fenced block that ends an answer; must match pkg/molten/brokksession/brief.md.
 export const ActionsFence = "brokk-actions";
@@ -20,7 +25,7 @@ export const ActionsFence = "brokk-actions";
 const OpenFence = new RegExp("^```" + ActionsFence + "\\s*$");
 const CloseFence = /^```\s*$/;
 
-export type ParsedReply = { text: string; actions: InlineAction[] };
+export type ParsedReply = { text: string; actions: InlineAction[]; tone: BrokkTone };
 
 // Control characters in a reply's text would reach his terminal as typed keys.
 // eslint-disable-next-line no-control-regex
@@ -35,7 +40,17 @@ function actionOf(entry: unknown): InlineAction {
     if (label === "" || label.length > MaxActionLabel) {
         return null;
     }
-    return { label, authorise: typeof entry === "object" && (entry as { authorise?: unknown }).authorise === true };
+    return { label, authorise: !sentAtOnce(entry, label) };
+}
+
+// Every reply asks once more by default (#2220): the model, or a text injected into what it read, decides only which
+// short replies it marks safe, and never lifts the confirmation of an authorisation.
+function sentAtOnce(entry: unknown, label: string): boolean {
+    if (entry == null || typeof entry !== "object" || label.length > MaxSafeLabel) {
+        return false;
+    }
+    const marks = entry as { authorise?: unknown; safe?: unknown };
+    return marks.safe === true && marks.authorise !== true;
 }
 
 // Up to four valid replies, the first of each text.
@@ -56,9 +71,18 @@ function actionsOf(list: unknown[]): InlineAction[] {
 
 // His answer split into what he says and the replies he offers. The block is the last fenced block of the convention; a
 // block that is still being written (no closing fence yet) is left out of the text and offers nothing yet, and a block
-// that is not a JSON list stays in the text as it is.
-export function parseReply(markdown: string): ParsedReply {
-    const text = markdown ?? "";
+// that is not a JSON list stays in the text as it is. The graph of his thought (`brokk-graph`, FR-BOSS-010, #2246) is
+// never part of what he says: the brainstorm reads it (brainstorm-graph-model.ts). Nor is the marker of his tone (AC88,
+// #2259): it is read into `tone`. `final`: his agent is done with the answer, so a marker cut at its end is no longer
+// held back.
+export function parseReply(markdown: string, final = true): ParsedReply {
+    const parsed = splitActions(markdown);
+    const read = readTone(parsed.text, final);
+    return { text: read.text, actions: parsed.actions, tone: read.tone };
+}
+
+function splitActions(markdown: string): { text: string; actions: InlineAction[] } {
+    const text = withoutGraphBlocks(markdown ?? "");
     const lines = text.replace(/\r\n/g, "\n").split("\n");
     let open = -1;
     for (let i = lines.length - 1; i >= 0; i--) {
@@ -97,7 +121,7 @@ export function parseReply(markdown: string): ParsedReply {
     return { text: [before, after].filter((part) => part !== "").join("\n\n"), actions: actionsOf(list) };
 }
 
-// What clicking a reply does: it is sent at once, unless it is an authorisation, which asks once more (AC24).
+// What clicking a reply does: it asks once more, unless he marked it safe (AC24, #2220).
 export type ActionStep = "send" | "confirm";
 
 export function stepOf(action: InlineAction): ActionStep {
@@ -134,6 +158,8 @@ export type BrokkItem = {
     turn: number;
     // His agent is done with the message: the answer will not change.
     final: boolean;
+    // The tone he tagged it with (AC88); neutral when none, or left out.
+    tone?: BrokkTone;
 };
 export type ExchangeItem = YouItem | BrokkItem;
 
@@ -147,7 +173,7 @@ export function withAnswer(
     id: string,
     read: { markdown: string; turn: number; at: number; final: boolean }
 ): ExchangeItem[] {
-    const parsed = parseReply(read.markdown);
+    const parsed = parseReply(read.markdown, read.final);
     const item: BrokkItem = {
         id,
         role: "brokk",
@@ -156,6 +182,7 @@ export function withAnswer(
         at: read.at,
         turn: read.turn,
         final: read.final,
+        tone: parsed.tone,
     };
     const at = items.findIndex((other) => other.role === "brokk" && other.id === id);
     if (at < 0) {
@@ -166,6 +193,7 @@ export function withAnswer(
         same.text === item.text &&
         same.final === item.final &&
         same.turn === item.turn &&
+        same.tone === item.tone &&
         same.actions.length === item.actions.length
     ) {
         return items;
@@ -198,13 +226,29 @@ export function leadOf(text: string, max: number = LeadChars): string {
     return plain.slice(0, max - 1).trimEnd() + "…";
 }
 
-// How long he keeps speaking after his answer last changed (the mockup's 2.4 s, and a margin).
-export const SpeakingHoldMs = 3000;
-
-// The line under the square: his latest answer while the developer has not seen it, else the activity summary.
-export function sayLine(unseen: BrokkItem, caption: string): string {
+// The line under the square: his latest answer while the developer has not seen it, else the moment he has to say
+// (brokk-colleague.ts), else nothing: "" hides the line.
+export function sayLine(unseen: BrokkItem, moment: string): string {
     const lead = unseen != null ? leadOf(unseen.text) : "";
-    return lead !== "" ? lead : caption;
+    return lead !== "" ? lead : (moment ?? "");
+}
+
+// The part of his answer said so far, as Markdown (FR-BOSS-009 AC87, AC89, #2285): an inline code or a strong emphasis
+// the cut leaves open is closed, so that his words never show their marks while he speaks. A code block left open stays
+// open: it is a code block to the end, as it will be.
+export function revealedMarkdown(text: string, count: number): string {
+    const said = (text ?? "").slice(0, Math.max(0, count));
+    if (((said.match(/^\s*```/gm) ?? []).length & 1) === 1) {
+        return said;
+    }
+    const outside = said.replace(/^\s*```[^\n]*\n[\s\S]*?^\s*```[^\n]*$/gm, "");
+    if (((outside.match(/`/g) ?? []).length & 1) === 1) {
+        return said.trimEnd() + "`";
+    }
+    if (((outside.replace(/`[^`]*`/g, "").match(/\*\*/g) ?? []).length & 1) === 1) {
+        return said.trimEnd() + "**";
+    }
+    return said;
 }
 
 // The conversation window is open while the field has the focus, and stays open while text is left in it (AC22).

@@ -242,8 +242,8 @@ func (r *Reviews) readPushed(key headKey, f headFollow) bool {
 		return false
 	}
 	open := strings.EqualFold(pr.State, "OPEN")
-	if updated, ok := r.collector.ReplacePr(key.dir, key.number, json.RawMessage(out), open); ok && r.publish != nil {
-		r.publish(r.answerOf(updated))
+	if _, ok := r.collector.ReplacePr(key.dir, key.number, json.RawMessage(out), open); ok {
+		r.publishCurrent(key.dir)
 	}
 	if !open {
 		return true

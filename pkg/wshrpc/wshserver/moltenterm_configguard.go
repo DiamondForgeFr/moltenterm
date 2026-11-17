@@ -19,11 +19,13 @@ import (
 // browser:clientcertificates is the same kind of answer (#1979, FR-BRW-016): the certificate that identifies the user to
 // a site, which an agent must never choose. Only the MoltenTerm window and Electron main, where the user answers, write
 // them. browser:localpages lists the files the user let a terminal open in the panel without a question (#1978).
+// boss:autoapprove lets Brokk's agent act without asking (#2257): an agent must never give it to itself.
 var moltenConsentConfigKeys = map[string]bool{
 	wconfig.ConfigKey_BrowserAgentSites:         true,
 	wconfig.ConfigKey_BrowserSitePermissions:    true,
 	wconfig.ConfigKey_BrowserClientCertificates: true,
 	wconfig.ConfigKey_BrowserLocalPages:         true,
+	wconfig.ConfigKey_BossAutoApprove:           true,
 }
 
 func moltenCheckConfigWrite(ctx context.Context, meta waveobj.MetaMapType) error {

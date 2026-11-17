@@ -305,6 +305,53 @@ announce_bypasses() {
     echo -e "${YELLOW}  The bypass could not be recorded on #${ticket}; record it by hand.${NC}" >&2
 }
 
+# A refusal never teaches how to get past its guard. An escape hatch is the developer's to apply
+# (escape-hatches.md, ground rule 2), and a guard hook refuses an agent call that sets one. Every
+# refusal that used to print the hatch ends with this line instead: it names the guard, so that the
+# matching section of the catalogue is easy to find, and sends the agent back to the developer. The
+# next legitimate command of the refusal stays above it.
+ESCAPE_HATCHES_DOC="$(cd "$SKILL_DIR" && pwd -P)/escape-hatches.md"
+ESCAPE_HATCHES_DOC="${ESCAPE_HATCHES_DOC#"$(pwd -P)"/}"
+developer_hatch_line() {
+  echo "  If this guard cannot be satisfied, stop and ask the developer: an escape hatch is theirs to apply (${ESCAPE_HATCHES_DOC}, \"$1\")." >&2
+}
+
+# A delegated agent works in a worktree under .claude/worktrees/ or .codex/worktrees/ (#1106). It never applies
+# an escape hatch and never marks a pull request ready: the developer, or the coordinating session, runs those
+# from the primary checkout. The guard hook refuses the Bash calls that say so; this refusal holds against what a
+# hook cannot read (a script, a variable, an encoded command) and on every host, as long as the command runs in
+# the worktree. The SRS hatch is the one transition-drafting sets itself, and the reason switches nothing off.
+in_delegated_worktree() {
+  local where
+  for where in "$(pwd -P)" "$(git rev-parse --show-toplevel 2>/dev/null)"; do
+    case "$where/" in
+      */.claude/worktrees/* | */.codex/worktrees/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# refuse_in_delegated_worktree <command> [argument...]: exits 2 when the command applies a hatch or marks a pull
+# request ready from a delegated worktree; returns 0 otherwise.
+refuse_in_delegated_worktree() {
+  local command=$1 var arg why=""
+  shift
+  in_delegated_worktree || return 0
+  for var in $(compgen -v SF_WORKFLOW_BYPASS_); do
+    [[ "$var" == "SF_WORKFLOW_BYPASS_REASON" || "$var" == "SF_WORKFLOW_BYPASS_SRS_GUARD" ]] && continue
+    [[ "${!var}" == "1" ]] && why="an escape hatch is set in the environment"
+  done
+  for arg in "$@"; do
+    [[ "$arg" == "--skip-local-ci" || "$arg" == "--skip-local-ci="* ]] && why="the local CI gate is skipped"
+  done
+  [[ "$command" == "ready-pr" ]] && why="the pull request is marked ready"
+  [[ -z "$why" ]] && return 0
+  echo -e "${RED}✗ ${command} refused: ${why}, and a delegated worktree never does that.${NC}" >&2
+  echo "  This checkout is the worktree of a delegated agent. An escape hatch, and taking a pull request out of draft, belong to the developer or the coordinating session: they run it from the primary checkout." >&2
+  echo "  Stop with the ticket in AI Testing, report this refusal and ask the developer." >&2
+  exit 2
+}
+
 check_srs_guard() {
   # Returns 0 if the caller may proceed, 1 if blocked (message already printed).
   local ticket=$1
@@ -390,7 +437,7 @@ check_complexity_guard() {
     echo "    .claude/skills/sf-workflow/workflow-cli.sh retag ${ticket} <level>" >&2
     echo "" >&2
     echo "  See .claude/skills/sf-workflow/complexity/README.md for level guidance." >&2
-    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_COMPLEXITY_GUARD=1" >&2
+    developer_hatch_line "Complexity guard"
     return 1
   fi
   return 0
@@ -477,19 +524,21 @@ check_nature_guard() {
       echo "  Move to Done instead:" >&2
       echo "    .claude/skills/sf-workflow/workflow-cli.sh update-status ${ticket} Done" >&2
       echo "" >&2
-      echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_NATURE_GUARD=1" >&2
+      developer_hatch_line "Nature guard"
       return 1
     fi
     echo -e "${RED}✗ Ticket #${ticket} is in 'AI Testing' and lacks 'nature:internal' — cannot skip Human Testing.${NC}" >&2
     echo "" >&2
     echo "  Default workflow requires AI Testing → Human Testing → In Review." >&2
-    echo "  To allow skipping Human Testing, tag the ticket as internal:" >&2
-    echo "    gh issue edit ${ticket} --add-label 'nature:internal'" >&2
+    echo "  Next: open the draft PR if there is none, then move the ticket to Human testing:" >&2
+    echo "    .claude/skills/sf-workflow/workflow-cli.sh create-pr ${ticket} --draft" >&2
+    echo "    .claude/skills/sf-workflow/workflow-cli.sh update-status ${ticket} \"Human testing\"" >&2
     echo "" >&2
-    echo "  Use 'nature:internal' for refactors, scaffolding, internal tooling, or" >&2
-    echo "  non-terminal stories of a multi-step Epic that ship their own PR." >&2
-    echo "  Use 'nature:bundled-pr' for native children delivered by their parent PR." >&2
-    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_NATURE_GUARD=1" >&2
+    echo "  If the ticket has no user-visible surface, ask the developer whether it is internal:" >&2
+    echo "  only the developer labels a ticket 'nature:internal' (refactors, scaffolding, internal" >&2
+    echo "  tooling, non-terminal stories of a multi-step Epic that ship their own PR) or" >&2
+    echo "  'nature:bundled-pr' (native children delivered by their parent PR)." >&2
+    developer_hatch_line "Nature guard"
     return 1
   fi
 
@@ -502,10 +551,12 @@ check_nature_guard() {
     echo "  Default workflow goes through 'In Review' (where the PR is opened, reviewed," >&2
     echo "  and merged). Only 'nature:bundled-pr' subs may go AI Testing → Done directly." >&2
     echo "" >&2
-    echo "  Either open a PR and move to In Review, or tag the ticket bundled-pr:" >&2
-    echo "    gh issue edit ${ticket} --add-label 'nature:bundled-pr'" >&2
+    echo "  Next: open the PR, then follow AI Testing → Human testing → In Review:" >&2
+    echo "    .claude/skills/sf-workflow/workflow-cli.sh create-pr ${ticket} --draft" >&2
     echo "" >&2
-    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_NATURE_GUARD=1" >&2
+    echo "  Whether this ticket is delivered by its parent's PR ('nature:bundled-pr') is the" >&2
+    echo "  developer's call: ask the developer." >&2
+    developer_hatch_line "Nature guard"
     return 1
   fi
 
@@ -540,7 +591,7 @@ check_incomplete_children_guard() {
   echo -e "${RED}✗ Ticket #${ticket} has ${count} native child issue(s) not verified Done — cannot transition to 'Done'.${NC}" >&2
   printf '%s' "$children" | jq -r '.[] | "  #\(.number) \(.title // "untitled"): \(.status // "status unavailable")"' >&2
   echo "  Move every child to Done on the project board before completing its parent." >&2
-  echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_CHILDREN_GUARD=1" >&2
+  developer_hatch_line "Children guard"
   return 1
 }
 
@@ -582,24 +633,339 @@ check_bundled_pr_parent_guard() {
 
   nature=$(get_ticket_nature_label "$ticket") || {
     echo "Error: unable to verify ticket nature for bundled-PR transition." >&2
-    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_BUNDLED_PARENT_GUARD=1" >&2
+    echo "  Retry once the labels can be read." >&2
+    developer_hatch_line "Bundled-PR parent guard"
     return 1
   }
   [[ "$nature" == "bundled-pr" ]] || return 0
 
   parent_number=$(get_native_parent_number "$ticket") || {
     echo "Error: unable to verify that bundled-PR ticket #${ticket} is a native child issue." >&2
-    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_BUNDLED_PARENT_GUARD=1" >&2
+    echo "  If it has no parent yet, link it to its delivery parent:" >&2
+    echo "    .claude/skills/sf-workflow/workflow-cli.sh link-subtask <parent> ${ticket}" >&2
+    developer_hatch_line "Bundled-PR parent guard"
     return 1
   }
   parent_type=$(get_ticket_issue_type "$parent_number") || {
     echo "Error: unable to verify native parent #${parent_number} for bundled-PR ticket #${ticket}." >&2
-    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_BUNDLED_PARENT_GUARD=1" >&2
+    echo "  Retry once the issue type of #${parent_number} can be read." >&2
+    developer_hatch_line "Bundled-PR parent guard"
     return 1
   }
   if [[ "$parent_type" == "sf-epic" ]]; then
     echo "Error: bundled-PR ticket #${ticket} cannot use an aggregate sf-epic as its delivery parent." >&2
-    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_BUNDLED_PARENT_GUARD=1" >&2
+    echo "  Link it to a Story, Task or Issue that owns the branch and PR instead." >&2
+    developer_hatch_line "Bundled-PR parent guard"
+    return 1
+  fi
+  return 0
+}
+
+# ───────────────────────────────────────────────────────────────────────────
+# Pushed-commits guard — AI Testing starts from work that is on the remote (#1104)
+# ───────────────────────────────────────────────────────────────────────────
+#
+# "Commit and push before AI Testing" was an instruction, and instructions get skipped: a ticket reached
+# AI Testing with its work uncommitted, or committed and never pushed, and its test report then described
+# code that nobody else could fetch. The guard reads it from git alone, so it holds for every tool. It
+# fires on `→ AI testing` from any status, which covers the Human Testing loop "fix, commit, push, return
+# to AI Testing". Escape hatch: SF_WORKFLOW_BYPASS_PUSHED_GUARD=1.
+
+# The jq definitions that turn workflow.branchNaming into branch regexes, as the PR guards read them: the
+# ticket placeholder is replaced by the ticket's number, `{description}` by `.+`, and everything else is
+# literal text. `any_ticket_pattern` matches a branch of any ticket.
+DELIVERY_BRANCH_JQ_DEFS='
+  def literal: explode | map(. as $c | if [92,46,94,36,124,63,42,43,40,41,91,93,123,125] | index($c)
+    then [92,$c] else [$c] end) | flatten | implode;
+  def usable: select(type == "string")
+    | select(([scan("\\{(?:N|ticket|number|issue-number)\\}")] | length) == 1)
+    | select(([scan("\\{(?:description|name)\\}")] | length) <= 1);
+  def ticket_pattern($ticket): usable
+    | gsub("\\{(?:N|ticket|number|issue-number)\\}"; $ticket)
+    | gsub("\\{(?:description|name)\\}"; "\u0000")
+    | split("\u0000") | map(literal) | join(".+") | "^" + . + "$";
+  def any_ticket_pattern: usable
+    | gsub("\\{(?:N|ticket|number|issue-number)\\}"; "\u0001")
+    | gsub("\\{(?:description|name)\\}"; "\u0000")
+    | split("\u0000") | map(split("\u0001") | map(literal) | join("[1-9][0-9]*")) | join(".+") | "^" + . + "$";
+  def ticket_capture_pattern: usable
+    | gsub("\\{(?:N|ticket|number|issue-number)\\}"; "\u0001")
+    | gsub("\\{(?:description|name)\\}"; "\u0000")
+    | split("\u0000") | map(split("\u0001") | map(literal) | join("(?<ticket>[1-9][0-9]*)")) | join(".+") | "^" + . + "$";
+  def release_pattern: select(type == "string") | select((split("{version}") | length) == 2)
+    | split("{version}") | map(literal) | join(".+") | "^" + . + "$";
+'
+
+# The tickets a pull request resolves (#1093): a PR that delivers several tickets carries one body line per
+# ticket that reads exactly `Resolves #<ticket>`, and GitHub links the tickets of a PR into the default branch
+# in closingIssuesReferences. Read on a PR object of `gh pr list|view --json body,closingIssuesReferences`.
+PR_RESOLVES_JQ_DEFS='
+  def body_resolved_tickets: [(.body // "") | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]];
+  def resolved_tickets: (body_resolved_tickets
+    + [(.closingIssuesReferences // [])[] | .number | select(type == "number") | tostring]) | unique;
+  def resolves_ticket($t): resolved_tickets | index($t) != null;
+'
+
+# One branch regex per line: the branches that deliver ticket $1 (feature, fix), "any" for a delivery branch
+# of any ticket, "release" for the release branches. Nothing when the naming has no usable pattern.
+delivery_branch_patterns() {
+  local which=$1
+  [[ -f .saasfoundry.json ]] || return 0
+  jq -r --arg t "$which" "${DELIVERY_BRANCH_JQ_DEFS}"'
+    if $t == "release" then (.workflow.branchNaming.release // "rc-{version}" | release_pattern)
+    else [(.workflow.branchNaming.feature // "feature/{N}-{description}"), (.workflow.branchNaming.fix // "fix/{N}-{description}")]
+      | .[] | if $t == "any" then any_ticket_pattern else ticket_pattern($t) end
+    end' .saasfoundry.json 2>/dev/null
+}
+
+# Whether branch $1 matches one of the regexes in $2 (one per line).
+branch_follows() {
+  local branch=$1 patterns=$2 re
+  while IFS= read -r re; do
+    if [[ -n "$re" && "$branch" =~ $re ]]; then return 0; fi
+  done <<<"$patterns"
+  return 1
+}
+
+# The ticket whose delivery branch carries ticket $1's work when $1 has no open PR of its own and one
+# same-repository open PR into the delivery branch resolves it from another ticket's branch (#1093),
+# as "<owner>\t<pr>". Nothing otherwise, an unreadable PR list included: the guard then checks $1's own branch.
+resolving_pr_owner() {
+  local ticket=$1 payload
+  payload=$(gh pr list --state open --limit 1000 --json number,headRefName,baseRefName,isCrossRepository,body,closingIssuesReferences 2>/dev/null) || return 0
+  printf '%s' "$payload" | jq -r --arg t "$ticket" --slurpfile manifest .saasfoundry.json "${DELIVERY_BRANCH_JQ_DEFS}${PR_RESOLVES_JQ_DEFS}"'
+    ($manifest[0].workflow.prTargetBranch // $manifest[0].workflow.workingBranch // "develop") as $delivery_branch
+    | [$manifest[0].workflow.branchNaming.feature // "feature/{N}-{description}",
+       $manifest[0].workflow.branchNaming.fix // "fix/{N}-{description}"] as $naming
+    | [$naming[] | ticket_pattern($t)] as $own_patterns
+    | [$naming[] | ticket_capture_pattern] as $capture_patterns
+    | if type != "array" then empty
+      elif any(.[]; (.headRefName | type) == "string" and (.headRefName as $b | any($own_patterns[]; . as $p | $b | test($p)))) then empty
+      else [.[] | select(.baseRefName == $delivery_branch and .isCrossRepository == false and (.headRefName | type) == "string" and resolves_ticket($t))
+          | . as $pr | [$capture_patterns[] as $p | $pr.headRefName | try capture($p).ticket catch empty] | unique
+          | select(length == 1 and .[0] != $t) | "\(.[0])\t\($pr.number)"]
+        | if length == 1 then .[0] else empty end
+      end' 2>/dev/null || true
+}
+
+check_pushed_commits_guard() {
+  local ticket=$1 target=$2 normalized
+  [[ "${SF_WORKFLOW_BYPASS_PUSHED_GUARD:-}" == "1" ]] && return 0
+  normalized=$(echo "$target" | tr '[:upper:]' '[:lower:]' | awk '{$1=$1;print}')
+  [[ "$normalized" == "ai testing" ]] || return 0
+
+  local hatch
+  hatch=$(developer_hatch_line "Pushed-commits guard" 2>&1)
+  local refusal="✗ Ticket #${ticket} cannot enter 'AI Testing'"
+  local nature owner=$ticket parent patterns any_patterns current origin_heads
+  local target_branch release_branch mode dir branch=""
+
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo -e "${RED}${refusal}: this directory is not a git repository, so the push of its work cannot be checked.${NC}" >&2
+    echo "$hatch" >&2
+    return 1
+  fi
+
+  # The branch that carries the ticket's commits: its own, or its delivery parent's for a bundled child.
+  # Labels that cannot be read (offline, auth) do not block ordinary tickets, as in the other label guards.
+  nature=$(get_ticket_nature_label "$ticket" 2>/dev/null) || nature=""
+  if [[ "$nature" == "bundled-pr" ]]; then
+    parent=$(get_native_parent_number "$ticket") || {
+      echo "Error: unable to find the delivery parent of bundled-PR ticket #${ticket}, whose branch carries its commit." >&2
+      echo "$hatch" >&2
+      return 1
+    }
+    owner=$parent
+  else
+    # One PR that delivers several tickets: the work of this one is on the branch of the PR that resolves it (#1093)
+    local resolver
+    resolver=$(resolving_pr_owner "$ticket")
+    if [[ -n "$resolver" ]]; then
+      owner=${resolver%%$'\t'*}
+      echo "→ Ticket #${ticket} is delivered by pull request #${resolver#*$'\t'}, which resolves it from the branch of #${owner}: checking that branch." >&2
+    fi
+  fi
+  patterns=$(delivery_branch_patterns "$owner")
+  if [[ -z "$patterns" ]]; then
+    echo -e "${RED}${refusal}: no branch can be matched to #${owner}.${NC}" >&2
+    report_unusable_delivery_patterns
+    echo "$hatch" >&2
+    return 1
+  fi
+  patterns+=$'\n'$(delivery_branch_patterns release)
+  any_patterns=$(delivery_branch_patterns any)
+
+  current=$(git symbolic-ref --short -q HEAD) || current=""
+  if [[ -z "$current" ]]; then
+    echo -e "${RED}${refusal}: HEAD is detached, so no branch holds the work.${NC}" >&2
+    echo "  Check out the ticket branch (or create it with git switch -c <branch>), commit and push, then retry." >&2
+    echo "$hatch" >&2
+    return 1
+  fi
+  origin_heads=$(git ls-remote --heads origin 2>/dev/null) || {
+    echo -e "${RED}${refusal}: origin could not be read, so the push of the work cannot be verified.${NC}" >&2
+    echo "  Retry once origin is reachable." >&2
+    echo "$hatch" >&2
+    return 1
+  }
+
+  # Which checkout holds the work (this one, or the worktree of the ticket branch) and which branch of origin it is
+  target_branch=$(jq -r '.workflow.prTargetBranch // empty' .saasfoundry.json 2>/dev/null)
+  release_branch=$(jq -r '.workflow.releaseBranch // .mainBranch // "master"' .saasfoundry.json 2>/dev/null)
+  dir=$(pwd)
+  if branch_follows "$current" "$patterns"; then
+    mode=branch
+    branch=$current
+  elif branch_follows "$current" "$any_patterns"; then
+    echo -e "${RED}${refusal}: this checkout is on ${current}, which delivers another ticket (the commits of #${owner} are on its own branch).${NC}" >&2
+    echo "  Switch to the branch of #${owner}, or run the command from the checkout that holds it." >&2
+    echo "$hatch" >&2
+    return 1
+  elif [[ "$current" == "$WORKING_BRANCH" || "$current" == "$target_branch" || "$current" == "$release_branch" ]]; then
+    mode=primary
+  else
+    mode=host
+  fi
+
+  local line name sha
+  local -a names=() shas=()
+  while IFS= read -r line; do
+    sha=${line%%$'\t'*}
+    name=${line#*refs/heads/}
+    [[ -n "$sha" && "$line" == *refs/heads/* ]] || continue
+    if branch_follows "$name" "$patterns"; then
+      names+=("$name")
+      shas+=("$sha")
+    fi
+  done <<<"$origin_heads"
+
+  if [[ "$mode" == primary ]]; then
+    # The working branch holds no ticket work: look for the worktree on the ticket's branch
+    local wt_path="" wt_branch="" found_path="" found_branch="" found=0
+    while IFS= read -r line; do
+      case "$line" in
+        "worktree "*) wt_path=${line#worktree } ;;
+        "branch refs/heads/"*)
+          wt_branch=${line#branch refs/heads/}
+          if branch_follows "$wt_branch" "$patterns"; then
+            found=$((found + 1))
+            found_path=$wt_path
+            found_branch=$wt_branch
+          fi
+          ;;
+      esac
+    done < <(git worktree list --porcelain 2>/dev/null)
+    if [[ "$found" -gt 1 ]]; then
+      echo -e "${RED}${refusal}: several worktrees hold a branch of #${owner}; run the command from the one that has the work.${NC}" >&2
+      echo "$hatch" >&2
+      return 1
+    elif [[ "$found" -eq 1 ]]; then
+      mode=worktree
+      dir=$found_path
+      branch=$found_branch
+    elif [[ ${#names[@]} -eq 1 ]]; then
+      echo -e "${YELLOW}⚠ Pushed-commits check for #${ticket}: this checkout is on ${current} and no worktree holds a branch of #${owner}; only origin was checked, and origin has ${names[0]} (${shas[0]:0:8}). The work itself is not in this checkout.${NC}" >&2
+      return 0
+    elif [[ ${#names[@]} -eq 0 ]]; then
+      echo -e "${RED}${refusal}: origin holds no branch of #${owner}, and no worktree of this repository holds one.${NC}" >&2
+      echo "  Push the ticket branch first: git push -u origin <branch>   (pattern: workflow.branchNaming.feature / .fix)" >&2
+      echo "$hatch" >&2
+      return 1
+    else
+      echo -e "${RED}${refusal}: origin holds several branches of #${owner} (${names[*]}) and no worktree here says which one has the work.${NC}" >&2
+      echo "  Run the command from the checkout that holds the work." >&2
+      echo "$hatch" >&2
+      return 1
+    fi
+  elif [[ "$mode" == host ]]; then
+    # A branch the host named (worktree-agent-<id>): its work is pushed to the ticket's branch with HEAD:<branch>
+    local head_sha idx pick=-1 at_head=0
+    head_sha=$(git rev-parse HEAD 2>/dev/null)
+    if [[ ${#names[@]} -eq 0 ]]; then
+      echo -e "${RED}${refusal}: this checkout is on ${current} and origin holds no branch of #${owner}.${NC}" >&2
+      echo "  Push the work to the ticket branch: git push origin HEAD:<branch>   (pattern: workflow.branchNaming.feature / .fix)" >&2
+      echo "$hatch" >&2
+      return 1
+    fi
+    for idx in "${!names[@]}"; do
+      if [[ "${shas[$idx]}" == "$head_sha" ]]; then
+        at_head=$((at_head + 1))
+        pick=$idx
+      fi
+    done
+    if [[ "$at_head" -eq 0 && ${#names[@]} -eq 1 ]]; then
+      pick=0
+    elif [[ "$at_head" -ne 1 ]]; then
+      echo -e "${RED}${refusal}: origin holds several branches of #${owner} (${names[*]}) and none is the only one at HEAD.${NC}" >&2
+      echo "  Push the work to the right one: git push origin HEAD:<branch>" >&2
+      echo "$hatch" >&2
+      return 1
+    fi
+    branch=${names[$pick]}
+  fi
+
+  # What to run to publish the work, by checkout: a branch of this checkout, a worktree, or a host-named branch
+  local head remote git_dir_arg="" push_cmd push_new_cmd pull_cmd
+  [[ "$mode" == worktree ]] && git_dir_arg="-C ${dir} "
+  case "$mode" in
+    host)
+      push_cmd="git push origin HEAD:${branch}"
+      push_new_cmd=$push_cmd
+      pull_cmd="git pull --rebase origin ${branch}"
+      ;;
+    *)
+      push_cmd="git ${git_dir_arg}push"
+      push_new_cmd="git ${git_dir_arg}push -u origin ${branch}"
+      pull_cmd="git ${git_dir_arg}pull --rebase"
+      ;;
+  esac
+  remote=$(awk -v ref="refs/heads/${branch}" '$2 == ref {print $1; exit}' <<<"$origin_heads")
+
+  # Tracked changes, staged or not, are work that is not committed. Untracked files only warn: a primary checkout
+  # carries output folders and scratch files that are not part of any ticket.
+  local dirty untracked paths shown
+  dirty=$(git -C "$dir" status --porcelain --untracked-files=no 2>/dev/null) || {
+    echo -e "${RED}${refusal}: the state of ${dir} could not be read.${NC}" >&2
+    echo "$hatch" >&2
+    return 1
+  }
+  if [[ -n "$dirty" ]]; then
+    paths=$(printf '%s\n' "$dirty" | cut -c4-)
+    shown=$(printf '%s\n' "$paths" | head -n 5 | sed 's/^/    /')
+    echo -e "${RED}${refusal}: $(printf '%s\n' "$dirty" | grep -c .) tracked file(s) of ${dir} are modified and not committed:${NC}" >&2
+    echo "$shown" >&2
+    [[ "$(printf '%s\n' "$paths" | grep -c .)" -gt 5 ]] && echo "    ..." >&2
+    echo "  Commit them, then push:" >&2
+    echo "    git ${git_dir_arg}add <paths> && git ${git_dir_arg}commit -m \"<type>(#${ticket}): <description>\" && $([[ -n "$remote" ]] && echo "$push_cmd" || echo "$push_new_cmd")" >&2
+    echo "$hatch" >&2
+    return 1
+  fi
+  untracked=$(git -C "$dir" status --porcelain 2>/dev/null | grep '^??' | cut -c4- | head -n 3 || true)
+  if [[ -n "$untracked" ]]; then
+    echo -e "${YELLOW}⚠ Untracked files in ${dir} are not committed (not blocking): $(printf '%s\n' "$untracked" | paste -sd ',' - | sed 's/,/, /g')${NC}" >&2
+  fi
+
+  # The committed work against origin
+  head=$(git -C "$dir" rev-parse HEAD 2>/dev/null) || {
+    echo -e "${RED}${refusal}: the HEAD commit of ${dir} could not be read.${NC}" >&2
+    echo "$hatch" >&2
+    return 1
+  }
+  if [[ -z "$remote" ]]; then
+    echo -e "${RED}${refusal}: ${branch} is not on origin.${NC}" >&2
+    echo "  Push it: ${push_new_cmd}" >&2
+    echo "$hatch" >&2
+    return 1
+  fi
+  if [[ "$remote" != "$head" ]]; then
+    if git -C "$dir" merge-base --is-ancestor "$remote" "$head" 2>/dev/null; then
+      echo -e "${RED}${refusal}: $(git -C "$dir" rev-list --count "${remote}..${head}" 2>/dev/null || echo some) commit(s) of ${branch} (${head:0:8}) are not on origin (${remote:0:8}).${NC}" >&2
+      echo "  Push them: ${push_cmd}" >&2
+    else
+      echo -e "${RED}${refusal}: origin/${branch} is at ${remote:0:8}, which this checkout (${head:0:8}) does not contain.${NC}" >&2
+      echo "  Integrate origin first, then push: ${pull_cmd} && ${push_cmd}" >&2
+    fi
+    echo "$hatch" >&2
     return 1
   fi
   return 0
@@ -638,11 +1004,15 @@ rollup_parent_status() {
     case "$(echo "$parent_status" | tr '[:upper:]' '[:lower:]' | awk '{$1=$1;print}')" in
       backlog)
         # Walk the statuses this board declares: the Solo preset has no Ready (#838).
+        # Ready is only a waypoint: a board that refuses it (a manifest listing no
+        # statuses assumes the Team set) must not leave the Epic in Backlog (#965).
         if manifest_declares_status "Ready"; then
-          route_to_tool "$WORKFLOW_TOOL" update-status "$parent" "Ready" || {
-            echo "Warning: could not roll parent Epic #${parent} from Backlog to Ready." >&2; return 0;
-          }
-          echo "Derived rollup: Epic #${parent} → Ready (child #${child} entered In progress)."
+          if route_to_tool "$WORKFLOW_TOOL" update-status "$parent" "Ready"; then
+            echo "Derived rollup: Epic #${parent} → Ready (child #${child} entered In progress)."
+          else
+            echo "Notice: Epic #${parent} skipped Ready, which the board refused; rolling it straight to In progress." >&2
+            echo "  Declare the board's statuses in .saasfoundry.json → workflow.statuses to skip this attempt." >&2
+          fi
         fi
         route_to_tool "$WORKFLOW_TOOL" update-status "$parent" "In progress" || {
           echo "Warning: could not roll parent Epic #${parent} to In progress." >&2; return 0;
@@ -693,13 +1063,16 @@ is_done_target() {
 # PRs must target the working branch. Release tickets use the configured RC
 # pattern, target the release branch, and carry exactly one explicit `Closes #N`
 # directive because GitHub omits native closing references for non-default bases.
+#
+# A ticket with no PR of its own matches the same-repository PR into the delivery branch that resolves it
+# (PR_RESOLVES_JQ_DEFS): one PR that delivers several tickets (#1093). Its own branch always wins.
 get_pr_for_ticket() {
   local ticket=$1 state=$2 payload
   payload=$(gh pr list --state "$state" --limit 1000 \
-    --json number,title,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,baseRefName,body,mergedAt,mergeCommit 2>/dev/null) || return 1
+    --json number,title,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,baseRefName,body,mergedAt,mergeCommit,closingIssuesReferences 2>/dev/null) || return 1
   echo "$payload" | jq -r \
     --arg t "$ticket" --arg working "$WORKING_BRANCH" --arg state "$state" \
-    --slurpfile manifest .saasfoundry.json '
+    --slurpfile manifest .saasfoundry.json "${PR_RESOLVES_JQ_DEFS}"'
       def literal:
         explode | map(. as $c | if [92,46,94,36,124,63,42,43,40,41,91,93,123,125] | index($c)
           then [92,$c] else [$c] end) | flatten | implode;
@@ -736,7 +1109,12 @@ get_pr_for_ticket() {
                  and .baseRefName == $delivery_branch
                ) or $is_release
              )
-           | {pr: ., is_release: $is_release}] as $matches
+           | {pr: ., is_release: $is_release}] as $own
+          | (if ($own | length) > 0 then $own
+             else [$payload[]
+               | select(.baseRefName == $delivery_branch and .isCrossRepository == false
+                 and (.headRefName | type) == "string" and (.headRefName | test($release_pattern) | not) and resolves_ticket($t))
+               | {pr: ., is_release: false}] end) as $matches
           | if $state == "merged" then
               ($matches | map(select(.is_release))) as $release_matches
               | if ($release_matches | length) > 0 then
@@ -852,7 +1230,7 @@ check_pr_merged_guard() {
     echo "  Current ticket should stay in 'In review'. After PR merge:" >&2
     echo "    .claude/skills/sf-workflow/workflow-cli.sh update-status ${ticket} Done" >&2
     echo "" >&2
-    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_PR_MERGED_GUARD=1" >&2
+    developer_hatch_line "PR merged guard"
     return 1
   fi
 
@@ -864,7 +1242,7 @@ check_pr_merged_guard() {
   if [[ -z "$merged_pr" ]]; then
     echo -e "${RED}✗ Ticket #${ticket} has no verified merged PR into its configured working or release branch — cannot transition to 'Done'.${NC}" >&2
     echo "  Open and merge the ticket PR before marking the ticket Done." >&2
-    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_PR_MERGED_GUARD=1" >&2
+    developer_hatch_line "PR merged guard"
     report_unusable_delivery_patterns
     return 1
   fi
@@ -991,8 +1369,15 @@ report_unusable_delivery_patterns() {
 # are rejected earlier by check_epic_derived_status_guard and never reach this
 # PR lifecycle. Escape hatch: SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD=1.
 
+# The one pull request this guard matched, for the guards that follow (the local CI guard reads its
+# head): empty when the guard did not run to a match, bypass included.
+GUARD_PR_NUMBER=""
+# `update-status … --skip-local-ci "<reason>"`: the explicit hatch of the local CI guard
+LOCAL_CI_SKIP_REASON=""
+
 check_pr_existence_guard() {
   local ticket=$1 target=$2 normalized
+  GUARD_PR_NUMBER=""
   [[ "${SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD:-}" == "1" ]] && return 0
   normalized=$(echo "$target" | tr '[:upper:]' '[:lower:]' | awk '{$1=$1;print}')
   [[ "$normalized" == "in review" || "$normalized" == "human testing" ]] || return 0
@@ -1004,10 +1389,11 @@ check_pr_existence_guard() {
     echo "Error: nature:bundled-pr tickets cannot enter Human Testing or In Review; use AI Testing → Done." >&2
     return 1
   fi
-  payload=$(gh pr list --state open --limit 1000 --json number,headRefName,baseRefName,isDraft,body,closingIssuesReferences 2>/dev/null) || {
+  payload=$(gh pr list --state open --limit 1000 --json number,headRefName,baseRefName,isDraft,isCrossRepository,body,closingIssuesReferences 2>/dev/null) || {
     echo "Error: unable to verify PR state; no status transition was made." >&2; return 1;
   }
-  matches=$(echo "$payload" | jq -ce --arg t "$ticket" --slurpfile manifest .saasfoundry.json '
+  # The ticket's own branch, or else the PR that resolves it among others (#1093)
+  matches=$(echo "$payload" | jq -ce --arg t "$ticket" --slurpfile manifest .saasfoundry.json "${PR_RESOLVES_JQ_DEFS}"'
     def literal:
       explode | map(. as $c | if [92,46,94,36,124,63,42,43,40,41,91,93,123,125] | index($c)
         then [92,$c] else [$c] end) | flatten | implode;
@@ -1039,7 +1425,10 @@ check_pr_existence_guard() {
             and (.headRefName | test($release_pattern))
             and .baseRefName == $release_branch
             and [.body // "" | scan("(?im)^\\s*closes\\s+#([1-9][0-9]*)\\s*$") | .[0]] == [$t])
-        )]
+        )] as $own
+        | if ($own | length) > 0 then $own
+          else [$payload[] | select(.baseRefName == $delivery_branch and .isCrossRepository == false
+              and (.headRefName | type) == "string" and (.headRefName | test($release_pattern) | not) and resolves_ticket($t))] end
       else error("Expected PR array") end') || {
     echo "Error: invalid PR response; no status transition was made." >&2; return 1;
   }
@@ -1047,8 +1436,9 @@ check_pr_existence_guard() {
   if [[ "$count" -eq 0 ]]; then
     echo "✗ Ticket #${ticket} has no open PR — cannot transition to '$(if [[ "$normalized" == 'in review' ]]; then echo 'In Review'; else echo 'Human Testing'; fi)'." >&2
     echo "  Open a draft with workflow-cli.sh create-pr ${ticket} --draft for Human Testing." >&2
-    echo "  After approval, use workflow-cli.sh ready-pr ${ticket} before In Review." >&2
-    echo "  Escape hatch (rare): SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD=1" >&2
+    echo "  Delivered by another ticket's PR: add a body line to that PR that reads exactly 'Resolves #${ticket}'." >&2
+    echo "  After the developer's approval (Ready for review, or workflow-cli.sh ready-pr ${ticket} from the session on a route without Human Testing), the PR is ready for In Review." >&2
+    developer_hatch_line "PR existence guard"
     report_unusable_delivery_patterns
     return 1
   fi
@@ -1063,10 +1453,54 @@ check_pr_existence_guard() {
     return 1
   fi
   if [[ "$normalized" == "in review" && "$draft" != false ]]; then
-    echo "Error: In Review requires a non-draft PR. After human approval run workflow-cli.sh ready-pr ${ticket}." >&2
+    echo "Error: In Review requires a non-draft PR. The developer takes it out of draft after Human Testing (Ready for review); on a route without Human Testing the session runs workflow-cli.sh ready-pr ${ticket}." >&2
     return 1
   fi
+  GUARD_PR_NUMBER=$(echo "$matches" | jq -r '.[0].number | select(type == "number")')
   return 0
+}
+
+# Local CI guard (#1104) — Human Testing is where a person starts to test, so the project's local CI
+# must be green on the exact head commit of the ticket's draft pull request before it. Which statuses
+# are required, and where that list comes from, is the tool's `local-ci-gate` command (the manifest list,
+# the jobs of the Molten pipeline, or the status the agent publishes after the project's suite ran): the
+# same gate `ready-pr` applies, run on its own. Fires on `→ Human testing` from any status, so a PR
+# returned to draft with `draft-pr` is gated again. The one hatch is `--skip-local-ci "<reason>"` on
+# `update-status`, recorded on the pull request. A pull request that cannot be read, or statuses that
+# cannot be read, refuse: an unverified gate is not a green one.
+check_local_ci_guard() {
+  local ticket=$1 target=$2 normalized
+  normalized=$(echo "$target" | tr '[:upper:]' '[:lower:]' | awk '{$1=$1;print}')
+  if [[ "$normalized" != "human testing" ]]; then
+    if [[ -n "$LOCAL_CI_SKIP_REASON" ]]; then
+      echo -e "${YELLOW}⚠ --skip-local-ci only applies to a move to Human testing; it is ignored for '${target}'.${NC}" >&2
+    fi
+    return 0
+  fi
+  if [[ "$WORKFLOW_TOOL" != "github-projects" ]]; then
+    echo -e "${YELLOW}⚠ The local CI gate is not available for ${WORKFLOW_TOOL} (it reads the pull request of github-projects): run the project's heavy validation as statuses/4-ai-testing.md says.${NC}" >&2
+    return 0
+  fi
+  local -a args=("$ticket") skip_args=()
+  [[ -n "$GUARD_PR_NUMBER" ]] && args+=(--pr "$GUARD_PR_NUMBER")
+  [[ -n "$LOCAL_CI_SKIP_REASON" ]] && skip_args=(--skip-local-ci "$LOCAL_CI_SKIP_REASON")
+  if route_to_tool "$WORKFLOW_TOOL" local-ci-gate "${args[@]}" ${skip_args[@]+"${skip_args[@]}"}; then
+    return 0
+  fi
+  # The PR existence guard was bypassed, so no pull request is known to carry the skip: record it on the ticket
+  if [[ -n "$LOCAL_CI_SKIP_REASON" && -z "$GUARD_PR_NUMBER" ]]; then
+    echo -e "${YELLOW}⚠ No pull request could be resolved for #${ticket}; the skip is recorded on the ticket.${NC}" >&2
+    printf 'Local CI gate skipped: %s\n\nThe move to Human testing could not read a pull request head (the PR existence guard was bypassed).\n' "$LOCAL_CI_SKIP_REASON" |
+      route_to_tool "$WORKFLOW_TOOL" comment "$ticket" - >/dev/null 2>&1 ||
+      echo -e "${YELLOW}  The skip could not be recorded on #${ticket}; record it by hand.${NC}" >&2
+    return 0
+  fi
+  echo -e "${RED}✗ Ticket #${ticket} cannot enter 'Human testing': its local CI is not green on the pull request head.${NC}" >&2
+  if [[ -z "$LOCAL_CI_SKIP_REASON" ]]; then
+    echo "  Make the statuses green (the gate above names the command), then retry." >&2
+    developer_hatch_line "Local CI guard"
+  fi
+  return 1
 }
 
 # Function to show next status
@@ -1140,8 +1574,10 @@ explain_pr_event_rejection() {
     | ($manifest[0].workflow.prTargetBranch // $working) as $target
     | ($manifest[0].workflow.releaseBranch // $manifest[0].mainBranch // "master") as $release
     | .pull_request as $pr
-    | ([$pr.body // "" | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$")] | length) as $resolves
+    | [$pr.body // "" | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]] as $resolved
+    | ($resolved | length) as $resolves
     | ([$pr.body // "" | scan("(?im)^\\s*closes\\s+#([1-9][0-9]*)\\s*$")] | length) as $closes
+    | ([$pr.body // "" | scan("(?im)^\\s*part\\s+of\\s+#([1-9][0-9]*)\\s*$")] | length) as $parts
     | if ((.action // "") | IN("ready_for_review", "opened", "reopened") | not) then
         "event action \"\(.action)\" is not opened, reopened or ready_for_review"
       elif .number != $n or .repository.full_name != $repo then "the event belongs to another pull request or repository"
@@ -1152,8 +1588,10 @@ explain_pr_event_rejection() {
         "pull request #\($n) targets \"\($pr.base.ref)\", which is neither the PR target \"\($target)\" nor the release branch \"\($release)\""
       elif $pr.base.ref == $release and $closes != 1 then
         "a release pull request body must contain exactly one line that reads `Closes #<ticket>` (found \($closes))"
-      elif $pr.base.ref != .repository.default_branch and $pr.base.ref == $target and $resolves != 1 then
-        "pull request #\($n) targets \"\($pr.base.ref)\", not the default branch, so GitHub links no ticket: its body must contain exactly one line that reads `Resolves #<ticket>` and nothing else (found \($resolves)); a line such as `Resolves #7 — summary` does not count"
+      elif $pr.base.ref != .repository.default_branch and $pr.base.ref == $target and $resolves == 0 and $parts == 0 then
+        "pull request #\($n) targets \"\($pr.base.ref)\", not the default branch, so GitHub links no ticket: its body must contain one line per ticket that reads exactly `Resolves #<ticket>` and nothing else (found 0); a line such as `Resolves #7 — summary` does not count. A pull request that delivers only part of the ticket, which stays open, has no `Resolves` line and a line that reads `Part of #<ticket>` instead"
+      elif $pr.base.ref != .repository.default_branch and $pr.base.ref == $target and ($resolved | unique | length) != $resolves then
+        "pull request #\($n) names the same ticket on several `Resolves #<ticket>` lines (\([$resolved | group_by(.)[] | select(length > 1) | "#" + .[0]] | join(", "))): keep one line per ticket"
       else "the event could not be validated (malformed or stale payload)" end
   ' "$event_path" 2>/dev/null || echo "the event payload could not be read"
 }
@@ -1203,6 +1641,23 @@ ai_status() {
   echo "AI testing / ${step}: ${state} — ${description} (PR #${pr})"
 }
 
+# A pull request that delivers only part of its ticket, which must stay open,
+# has no `Resolves` line and a `Part of #N` line naming the branch ticket: the
+# listener leaves the ticket where it is with a notice instead of a red check
+# that developers learned to distrust (#1065).
+pr_declares_partial_delivery() {
+  local live=$1 ticket=$2
+  echo "$live" | jq -e --arg t "$ticket" '
+    ([.body | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$")] | length) == 0
+    and any(.body | scan("(?im)^\\s*part\\s+of\\s+#([1-9][0-9]*)\\s*$") | .[0]; . == $t)
+  ' >/dev/null 2>&1
+}
+
+partial_delivery_notice() {
+  local pr_number=$1 ticket=$2 when=$3
+  echo "::notice::Pull request #${pr_number} delivers part of ticket #${ticket} (\`Part of #${ticket}\`, no \`Resolves\` line): ${when}; no ticket changed. The pull request that completes the ticket carries \`Resolves #${ticket}\`."
+}
+
 # A pull request merged into the configured PR target moves its delivery ticket
 # to Done through the same guarded update-status — which also closes the issue
 # and rolls an Epic up. The Solo In Review banner promised "your merge triggers
@@ -1214,11 +1669,12 @@ sync_pr_merge() {
     ($manifest[0].workflow.workingBranch // "develop") as $working
     | ($manifest[0].workflow.prTargetBranch // $working) as $target
     | select(.action == "closed" and .number == $n and .repository.full_name == $repo)
+    | (.repository.default_branch // null) as $default_branch
     | .pull_request
     | select(.number == $n and .merged == true
       and .base.repo.full_name == $repo and .head.repo.full_name == $repo and .base.ref == $target
       and (.head.ref | type) == "string" and ((.merge_commit_sha // "") | test("^[0-9a-f]{40}$")))
-    | {number, head: .head.ref, base: .base.ref, mergeSha: .merge_commit_sha}
+    | {number, head: .head.ref, base: .base.ref, mergeSha: .merge_commit_sha, defaultBranch: $default_branch}
   ' "$event_path" 2>/dev/null) || {
     echo "Pull request #${pr_number} was not merged into the configured PR target; nothing to synchronize."
     return 0
@@ -1260,13 +1716,32 @@ sync_pr_merge() {
     return 2
   }
   if ! echo "$live" | jq -e --arg t "$ticket" '
-    [.body | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]] == [$t]
+    ([.body | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]] | index($t) != null)
     or any(.closingIssuesReferences[]; (.number | tostring) == $t)
   ' >/dev/null 2>&1; then
-    echo "Error: the merged pull request has no verified closing association to ticket #${ticket}; no ticket changed." >&2
+    if pr_declares_partial_delivery "$live" "$ticket"; then
+      partial_delivery_notice "$pr_number" "$ticket" "the merge leaves the ticket open at its status"
+      return 0
+    fi
+    echo "Error: the merged pull request has no verified closing association to ticket #${ticket}; no ticket changed. A pull request that delivers only part of it says \`Part of #${ticket}\`." >&2
     return 2
   fi
-  local GH_REPO="$repo"
+  # The other tickets it delivers (#1093), read as the ready sync reads them: GitHub's closing references
+  # to this repository's issues into the default branch, the exact `Resolves #<ticket>` lines elsewhere.
+  local server=${GITHUB_SERVER_URL:-https://github.com} t
+  local -a tickets=()
+  while IFS= read -r t; do [[ "$t" =~ ^[1-9][0-9]*$ ]] && tickets+=("$t"); done < <(echo "$live" | jq -r --argjson event "$event" --arg t "$ticket" --arg prefix "${server%/}/${repo}/issues/" '
+    ([$t] + (if $event.defaultBranch != null and $event.base != $event.defaultBranch
+        then [.body | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]]
+        else [.closingIssuesReferences[] | select((.number | type) == "number" and .url == $prefix + (.number | tostring)) | .number | tostring] end))
+    | reduce .[] as $x ([]; if index($x) then . else . + [$x] end) | .[]' 2>/dev/null)
+  [[ ${#tickets[@]} -gt 0 ]] || tickets=("$ticket")
+  sync_pr_tickets "$repo" "$pr_number" "Done" sync_ticket_merge "${tickets[@]}"
+}
+
+# The merge sync of one ticket: an In Review delivery ticket goes to Done through the guarded update-status.
+sync_ticket_merge() {
+  local repo=$1 ticket=$2 labels status GH_REPO="$1"
   export GH_REPO
   labels=$(route_to_tool "$WORKFLOW_TOOL" get-labels "$ticket") || {
     echo "Error: unable to verify ticket labels; no ticket changed." >&2; return 2;
@@ -1342,15 +1817,25 @@ sync_pr_review() {
     | {number, title, kind: $kind, head: .head.ref, headSha: .head.sha, base: .base.ref, baseSha: .base.sha,
        defaultBranch: $default_branch,
        body: (if $kind == "sync" then (.body // "") else null end),
+       # A partial delivery (#1065) has no Resolves line and a `Part of #N` one instead.
        bodyVerb: (if $kind == "release" then "closes"
-         elif .base.ref != $default_branch then "resolves" else null end),
+         elif .base.ref != $default_branch then
+           (if ([.body // "" | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$")] | length) == 0
+              and ([.body // "" | scan("(?im)^\\s*part\\s+of\\s+#([1-9][0-9]*)\\s*$")] | length) > 0
+            then "part-of" else "resolves" end)
+         else null end),
        bodyTicket: (if $kind == "release" then
          ([.body // "" | scan("(?im)^\\s*closes\\s+#([1-9][0-9]*)\\s*$") | .[0]]
           | if length == 1 then .[0] else error("Invalid release ticket association") end)
-       elif $kind == "sync" then null
-       elif .base.ref != $default_branch then
-         ([.body // "" | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]]
-          | if length == 1 then .[0] else error("Invalid non-default delivery ticket association") end)
+       else null end),
+       # One line per ticket the PR delivers (#1093); one ticket twice is refused, and none only
+       # passes as a partial delivery (#1065), which names its ticket on a `Part of #N` line instead
+       bodyTickets: (if $kind == "delivery" and .base.ref != $default_branch then
+         ([.body // "" | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]] as $resolved
+          | ([.body // "" | scan("(?im)^\\s*part\\s+of\\s+#([1-9][0-9]*)\\s*$")] | length) as $parts
+          | if ($resolved | length) > 0 and ($resolved | unique | length) == ($resolved | length) then $resolved
+            elif ($resolved | length) == 0 and $parts > 0 then null
+            else error("Invalid non-default delivery ticket association") end)
        else null end)}
   ' "$event_path" 2>/dev/null) || {
     echo "Error: $(explain_pr_event_rejection "$repo" "$pr_number" "$event_path"); no ticket changed." >&2
@@ -1382,7 +1867,10 @@ sync_pr_review() {
       elif $event.bodyVerb == "closes" then
         [.body | scan("(?im)^\\s*closes\\s+#([1-9][0-9]*)\\s*$") | .[0]] == [$event.bodyTicket]
       elif $event.bodyVerb == "resolves" then
-        [.body | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]] == [$event.bodyTicket]
+        [.body | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]] == $event.bodyTickets
+      elif $event.bodyVerb == "part-of" then
+        ([.body | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$")] | length) == 0
+        and ([.body | scan("(?im)^\\s*part\\s+of\\s+#([1-9][0-9]*)\\s*$")] | length) > 0
       else false end)
     and ((.headRepositoryOwner.login + "/" + .headRepository.name) == $repo)
     and (.closingIssuesReferences | type) == "array"
@@ -1451,12 +1939,68 @@ sync_pr_review() {
         (.title | test("^\\[#" + ($n | tostring) + "\\](?:\\s|$)|^[[:alnum:]_.-]+\\(#" + ($n | tostring) + "\\)(?:!)?:"))
         and [.body | scan("(?im)^\\s*closes\\s+#([1-9][0-9]*)\\s*$") | .[0]] == [($n | tostring)]
       else (any(.closingIssuesReferences[]; .number == $n and .url == $url)
-        or [.body | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]] == [($n | tostring)]) end
+        or ([.body | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]] | index($n | tostring) != null)) end
   ' >/dev/null 2>&1; then
-    echo "Error: PR has no verified closing association to ticket #${ticket}; no ticket changed." >&2
+    if [[ "$(echo "$event" | jq -r .kind)" != release ]] && pr_declares_partial_delivery "$live" "$ticket"; then
+      partial_delivery_notice "$pr_number" "$ticket" "the ticket stays open and does not move to review"
+      return 0
+    fi
+    echo "Error: PR has no verified closing association to ticket #${ticket}; no ticket changed. A pull request that delivers only part of it says \`Part of #${ticket}\` and has no \`Resolves\` line." >&2
     return 2
   fi
-  local status labels nature GH_REPO="$repo"
+  # The other tickets the PR delivers (#1093): GitHub's closing references to this repository's issues on
+  # the default branch, the exact `Resolves #<ticket>` lines elsewhere. A release PR keeps its one ticket.
+  local -a tickets=()
+  local t
+  while IFS= read -r t; do [[ "$t" =~ ^[1-9][0-9]*$ ]] && tickets+=("$t"); done < <(echo "$live" | jq -r --argjson event "$event" --arg t "$ticket" --arg prefix "${server%/}/${repo}/issues/" '
+    ([$t] + (if $event.kind != "delivery" then []
+      elif $event.bodyTickets != null then $event.bodyTickets
+      else [.closingIssuesReferences[] | select((.number | type) == "number" and .url == $prefix + (.number | tostring)) | .number | tostring] end))
+    | reduce .[] as $x ([]; if index($x) then . else . + [$x] end) | .[]' 2>/dev/null)
+  [[ ${#tickets[@]} -gt 0 ]] || tickets=("$ticket")
+  sync_pr_tickets "$repo" "$pr_number" "In review" sync_ticket_review "${tickets[@]}"
+}
+
+# Run one ticket sync per ticket a pull request resolves (#1093), and say what became of each. One ticket
+# keeps the plain output; several end with one line per ticket that names the cause of any it did not move.
+# Exit 2 when any ticket failed, 0 otherwise. $4 is the per-ticket function: <fn> <repo> <ticket>.
+sync_pr_tickets() {
+  local repo=$1 pr_number=$2 target=$3 fn=$4 t rc failed=0 output plain line esc=$'\033'
+  shift 4
+  if [[ "$#" -eq 1 ]]; then
+    "$fn" "$repo" "$1"
+    return $?
+  fi
+  echo "Pull request #${pr_number} resolves $# tickets: $(printf '#%s ' "$@")"
+  local -a summary=()
+  for t in "$@"; do
+    echo "── Ticket #${t}"
+    output=$("$fn" "$repo" "$t" 2>&1)
+    rc=$?
+    printf '%s\n' "$output"
+    plain=$(printf '%s\n' "$output" | sed -E "s/${esc}\\[[0-9;]*m//g; s/^::notice:://; s/^[[:space:]]+//" | grep -v '^$')
+    if [[ "$rc" -ne 0 ]]; then
+      failed=1
+      line=$(printf '%s\n' "$plain" | grep -E '^(Error|✗)' | head -n 1)
+      [[ -n "$line" ]] || line=$(printf '%s\n' "$plain" | tail -n 1)
+      summary+=("  #${t}: not synchronized — ${line:-no output}")
+    else
+      summary+=("  #${t}: $(printf '%s\n' "$plain" | grep -Ev '^(▶|⏳)' | tail -n 1)")
+    fi
+  done
+  echo "Summary of pull request #${pr_number} (${target}):"
+  printf '%s\n' "${summary[@]}"
+  if [[ "$failed" -ne 0 ]]; then
+    echo "Error: pull request #${pr_number} could not synchronize every ticket it resolves; see the summary above." >&2
+    return 2
+  fi
+  return 0
+}
+
+# The ready-for-review sync of one ticket: its board status and labels decide, then the guarded
+# update-status moves it to In review.
+sync_ticket_review() {
+  local repo=$1 ticket=$2 status labels nature GH_REPO="$1"
   export GH_REPO
   status=$(get_current_status "$ticket") || return 2
   case "$(status_slug "$status")" in
@@ -1705,12 +2249,30 @@ case "$COMMAND" in
 
   update-status)
     load_config
-    TICKET=$1
-    TARGET=$2
+    # `--skip-local-ci "<reason>"` belongs to this script's local CI guard: it is read here, wherever it
+    # stands after the ticket, and never reaches the tool's update-status
+    UPDATE_STATUS_ARGS=()
+    while [[ "$#" -gt 0 ]]; do
+      if [[ "$1" == "--skip-local-ci" ]]; then
+        if [[ -z "${2:-}" || "${2:-}" == --* ]]; then
+          echo "Error: --skip-local-ci requires a reason" >&2
+          exit 1
+        fi
+        LOCAL_CI_SKIP_REASON=$2
+        shift 2
+      else
+        UPDATE_STATUS_ARGS+=("$1")
+        shift
+      fi
+    done
+    set -- ${UPDATE_STATUS_ARGS[@]+"${UPDATE_STATUS_ARGS[@]}"}
+    TICKET=${1:-}
+    TARGET=${2:-}
     if [[ -z "$TICKET" || -z "$TARGET" ]]; then
-      echo "Usage: workflow-cli.sh update-status <ticket> <status-name>" >&2
+      echo "Usage: workflow-cli.sh update-status <ticket> <status-name> [--skip-local-ci \"<reason>\"]" >&2
       exit 1
     fi
+    refuse_in_delegated_worktree update-status ${LOCAL_CI_SKIP_REASON:+--skip-local-ci}
     announce_bypasses "$TICKET" "$TARGET"
     if ! check_srs_guard "$TICKET" "$TARGET"; then
       exit 2
@@ -1730,7 +2292,13 @@ case "$COMMAND" in
     if ! check_bundled_pr_parent_guard "$TICKET" "$TARGET"; then
       exit 2
     fi
+    if ! check_pushed_commits_guard "$TICKET" "$TARGET"; then
+      exit 2
+    fi
     if ! check_pr_existence_guard "$TICKET" "$TARGET"; then
+      exit 2
+    fi
+    if ! check_local_ci_guard "$TICKET" "$TARGET"; then
       exit 2
     fi
     if ! check_pr_merged_guard "$TICKET" "$TARGET"; then
@@ -1859,8 +2427,9 @@ case "$COMMAND" in
     route_to_tool "$WORKFLOW_TOOL" milestone "$SUB" "$@"
     ;;
 
-  create-pr|ready-pr|draft-pr)
+  create-pr|ready-pr|draft-pr|local-ci-gate)
     load_config
+    refuse_in_delegated_worktree "$COMMAND" "$@"
     TICKET=$1
     ISSUE_TYPE=$(get_ticket_issue_type "$TICKET" 2>/dev/null || true)
     if [[ "$ISSUE_TYPE" == "sf-epic" ]]; then
@@ -2105,15 +2674,21 @@ case "$COMMAND" in
     echo "                               Create a top-level ticket on the board in Backlog, typed and labelled"
     echo "  create-subtask ...           Create a sub-issue/task"
     echo "  create-epic <title> [body]   Create a top-level Epic (no parent)"
-    echo "  update-status ...            Update ticket status (SRS-label guarded)"
+    echo "  update-status <ticket> <status> [--skip-local-ci \"<reason>\"]"
+    echo "                               Update ticket status (guarded); a move to Human testing needs the required local CI"
+    echo "                               statuses green on the pull request head, --skip-local-ci being the recorded hatch"
+    echo "  local-ci-gate <ticket> [--head <branch> | --pr <number>] [--skip-local-ci \"<reason>\"]"
+    echo "                               Check the required local CI statuses on the ticket's pull request head (changes nothing)"
     echo "  create-pr <ticket> [--draft] [--head <branch>]  Create pull request"
-    echo "  ready-pr <ticket> [--head <branch>]  Mark pull request ready for review"
+    echo "                               --head: the ticket branch pushed to origin, when the checkout is on another branch"
+    echo "                               (a worktree agent's host branch); origin must hold it at the local HEAD"
+    echo "  ready-pr <ticket> [--head <branch>] [--pr <number>]  Mark pull request ready for review"
     echo "  sync-pr-review <pr>          Sync a verified GitHub ready event to In review"
     echo "  ai-status <ticket> <step> <pending|success|failure> \"<description>\""
     echo "                               Publish an AI Testing step on the ticket's pull request"
-    echo "  draft-pr <ticket> [--head <branch>]  Return pull request to draft"
-    echo "                               --head: the ticket branch pushed to origin, when the checkout is on another branch"
-    echo "                               (a worktree agent's host branch); origin must hold it at the local HEAD"
+    echo "  draft-pr <ticket> [--head <branch>] [--pr <number>]  Return pull request to draft"
+    echo "                               ready-pr/draft-pr off the ticket branch (the primary checkout): the ticket's one open"
+    echo "                               PR is found on GitHub from the branch naming, at origin's commit; --pr picks one"
     echo "  list ...                     List tickets"
     echo "  get-labels <ticket>          List every label on a ticket"
     exit 1
@@ -2122,7 +2697,7 @@ case "$COMMAND" in
   *)
     echo -e "${RED}Error: Unknown command '${COMMAND}'${NC}"
     echo ""
-    echo "Available commands: status, next, validate, help, detect-complexity, retag, prepare, test, bootstrap, create-ticket, create-subtask, create-epic, add-to-project, update-status, create-pr, ready-pr, draft-pr, sync-pr-review, ai-status, list, get-labels, inspect-srs-tickets, link-subtask, unlink-subtask, transition-drafting"
+    echo "Available commands: status, next, validate, help, detect-complexity, retag, prepare, test, bootstrap, create-ticket, create-subtask, create-epic, add-to-project, update-status, create-pr, ready-pr, draft-pr, local-ci-gate, sync-pr-review, ai-status, list, get-labels, inspect-srs-tickets, link-subtask, unlink-subtask, transition-drafting"
     echo "Run 'workflow-cli.sh help' for usage details"
     exit 1
     ;;

@@ -74,6 +74,8 @@ const GroupConcepts: Record<string, SuiteIconName> = {
     agents: "agent",
     avatar: "boss",
     whenHeComesToFetchMe: "boss",
+    hisAgent: "boss",
+    brainstorms: "boss",
     codingAgent: "agent",
     browserPanel: "web",
     openingPages: "openExternal",

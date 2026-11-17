@@ -8,6 +8,9 @@
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
+import { attachMiddle, TetherLine, tetherLine } from "../tether/tether-model";
+import type { SidebarPlace } from "./brokk-edge-model";
+
 // The group's panels are the rail's: the usage block under the square opens none (FR-BOSS-009, AC58, #2106).
 export type PanelId = "notifications" | "agents" | "sessions" | "downloads" | "keepawake";
 
@@ -26,6 +29,12 @@ export const RailInsetPx = 6;
 export const EdgePx = 8;
 // From the rail to the panel; the ember link crosses it.
 export const LinkPx = 16;
+// The panel comes out of the rail's edge (FR-BOSS-009, AC66, #2196): it starts the whole gap back, and its tether is as long
+// as what is left between the button and the panel's edge at every moment of the slide.
+export const PanelSlidePx = LinkPx;
+// The rail's own 1 px border (brokk-group.css) puts its icons that far in from the rail's corner, so the tether is tied
+// that much further than the icons' rectangles say.
+export const RailBorderPx = 1;
 export const PanelWidthPx = 420;
 export const MinPanelWidthPx = 280;
 // The card under the square is never shorter than this; past it, it is as tall as its content (blockHeight, #2106).
@@ -33,12 +42,21 @@ export const BlockHeightPx = 96;
 // What the card holds besides the usage grid, at rest (brokk-group.css): its padding (10 above and below) and 1 px
 // border, Brokk's line (34) and the 9 px gap above the grid.
 export const BlockChromePx = 65;
+// With no line from Brokk (AC71, #2203) the card holds the usage grid alone: its padding and border, no line and no gap.
+export const BlockBareChromePx = 22;
+// What the card with no line is never shorter than: the grid's empty message and the card's chrome.
+export const BlockBareHeightPx = 44;
 export const FieldHeightPx = 36;
 
 // The card's height at rest (FR-BOSS-009, AC57, #2106): its chrome and the usage grid as measured, one row per provider,
-// so the field and what follows stand below the last row whatever the number of providers.
-export function blockHeight(usageHeight: number): number {
-    return Math.max(BlockHeightPx, BlockChromePx + Math.max(0, Math.ceil(usageHeight || 0)));
+// so the field and what follows stand below the last row whatever the number of providers. `withLine`: Brokk has a line
+// to say (AC71).
+export function blockHeight(usageHeight: number, withLine = true): number {
+    const grid = Math.max(0, Math.ceil(usageHeight || 0));
+    if (!withLine) {
+        return Math.max(BlockBareHeightPx, BlockBareChromePx + grid);
+    }
+    return Math.max(BlockHeightPx, BlockChromePx + grid);
 }
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -60,8 +78,13 @@ export type GroupGeometry = {
 
 // The gap between the icons is worked out so that the rail is exactly as tall as the square: (square - 12 - 5 tiles) / 4.
 // `usageHeight` is the usage grid's measured height: the card and the field below it follow it.
-export function groupGeometry(square: number = SquarePx, tile: number = TilePx, usageHeight = 0): GroupGeometry {
-    const blockH = blockHeight(usageHeight);
+export function groupGeometry(
+    square: number = SquarePx,
+    tile: number = TilePx,
+    usageHeight = 0,
+    withLine = true
+): GroupGeometry {
+    const blockH = blockHeight(usageHeight, withLine);
     const count = RailPanels.length;
     const gap = Math.max(0, (square - RailPaddingPx - count * tile) / (count - 1));
     const railWidth = tile + RailPaddingPx;
@@ -99,14 +122,94 @@ export function panelWidth(room: number): number {
 // short and grows with it up to the most, or the window's room, then scrolls inside.
 export const ConversationMinPx = 240;
 export const ConversationMaxPx = 460;
-// What the window adds to the exchange's own height: its padding (10 above, 4 below), the field's row (36 and its
-// 1 px rule) and the frame's 2 px border (brokk-group.css).
-export const ConversationChromePx = 53;
+// What the window adds to the exchange's own height (brokk-group.css): its padding (14 above, 8 below), the roomy input
+// of #2285 in its inset well of #2303 (the field's two lines of 20 px and their 6 px padding above and below, the footer
+// of 36 px with the hint and the send button, the 10 px under the well; the well's line is drawn inside and takes no
+// room) and the frame's 2 px border.
+export const ConversationChromePx = 14 + 8 + (2 * 20 + 2 * 6) + 36 + 10 + 2;
 
 // As wide as the group and the panel area together: it reaches the right edge where a panel stands, and covers nothing
 // since the panel gives way above it while it is open (panelRoom, #2090).
 export function conversationWidth(g: GroupGeometry, panelRoom: number): number {
     return g.panelLeft + panelWidth(panelRoom);
+}
+
+// The brainstorm layout of his group (FR-BOSS-010 AC23, DS-BOSS-013, #2285), for the whole mode: his square; the
+// brainstorm panel in the rail's place, from the square's edge to the group's width, as tall as the square; and under
+// both his talk window, as tall as the window allows. No block under the square, no rail: the 3D graph has the rest of
+// the window, to the right.
+export type BrainstormLayout = { width: number; square: number; panel: Rect; talk: Rect; height: number };
+
+// The talk window is never shorter than this, even in a short window.
+export const BrainstormTalkMinPx = 160;
+// Its width (decided on #2285): about 45 % of the window, at most the width it has beside an open rail panel (the
+// group and a 420 px panel: 764 px), at least what keeps the input usable, and never past the window's room. The graph
+// keeps the rest.
+export const BrainstormTalkShare = 0.45;
+export const BrainstormTalkMaxPx = SquarePx + EdgePx + TilePx + RailPaddingPx + LinkPx + PanelWidthPx;
+export const BrainstormTalkFloorPx = 420;
+// His square gives some of its size to a narrow window, so that the panel beside it keeps a usable width.
+export const BrainstormPanelMinPx = 220;
+export const BrainstormSquareMinPx = 184;
+
+// The talk window's width for a window `windowWidth` px wide, with `available` px from the group's left edge.
+export function brainstormWidth(windowWidth: number, available: number): number {
+    const share = Math.round(Math.max(0, windowWidth) * BrainstormTalkShare);
+    const wanted = Math.min(BrainstormTalkMaxPx, Math.max(BrainstormTalkFloorPx, share));
+    return Math.max(BrainstormSquareMinPx + EdgePx + BrainstormPanelMinPx, Math.min(wanted, available));
+}
+
+export function brainstormLayout(g: GroupGeometry, place: GroupPlace): BrainstormLayout {
+    // What is left from the group's left edge to the window's right margin.
+    const available = g.panelLeft + place.panelRoom;
+    const windowWidth = place.layerWidth ?? place.left + available + EdgePx;
+    const width = brainstormWidth(windowWidth, available);
+    const square = Math.max(BrainstormSquareMinPx, Math.min(g.square, width - EdgePx - BrainstormPanelMinPx));
+    const left = square + EdgePx;
+    const top = square + EdgePx;
+    const talkHeight = Math.max(BrainstormTalkMinPx, place.heightRoom - top);
+    return {
+        width,
+        square,
+        panel: { x: left, y: 0, w: width - left, h: square },
+        talk: { x: 0, y: top, w: width, h: talkHeight },
+        height: top + talkHeight,
+    };
+}
+
+// The panel the group shows by itself: none during a brainstorm, whose graph takes the space.
+export function autoPanelIn(auto: PanelId, brainstorming: boolean): PanelId {
+    return brainstorming ? null : auto;
+}
+
+// Where the group measures the sidebar from: during a brainstorm, nowhere, so it docks at the window's top left
+// instead of staying beside the sidebar's strip (#2257).
+export function dockedPlace(place: SidebarPlace, brainstorming: boolean): SidebarPlace {
+    return brainstorming ? "none" : place;
+}
+
+// During a brainstorm no rail panel shows (#2285): the brainstorm panel stands in the rail's place, and the notifications
+// are held (#2257). A panel a surface asked for meanwhile shows once the mode ends.
+export function brainstormPanel(active: PanelId, brainstorming: boolean): PanelId {
+    return brainstorming ? null : active;
+}
+
+// What closes his group (#2257): outside a brainstorm, a press outside or Escape; during one, only Escape while no
+// field has the keyboard (the layer's Leave button ends it too). A click on the dim never ends a brainstorm.
+export function closesCardIn(brainstorming: boolean, event: "outside" | "escape", typing = false): boolean {
+    if (!brainstorming) {
+        return true;
+    }
+    return event === "escape" && !typing;
+}
+
+// The element takes typed text: Escape there belongs to it.
+export function typingTarget(element: { tagName?: string; isContentEditable?: boolean }): boolean {
+    if (element == null) {
+        return false;
+    }
+    const tag = (element.tagName ?? "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || element.isContentEditable === true;
 }
 
 // `contentHeight`: what the exchange needs, the field's row included. `room`: the window's height from the top of the
@@ -123,6 +226,8 @@ export type GroupPlace = {
     // The width left to the right of the rail for the panel, and the height the window area offers.
     panelRoom: number;
     heightRoom: number;
+    // The host layer's width: the brainstorm's talk window takes a share of it (#2285).
+    layerWidth?: number;
 };
 
 // 8 px to the right of the sidebar and 8 px from the top of the window area; with no sidebar on screen, 8 px from the
@@ -144,6 +249,7 @@ export function groupPlace(
         top,
         panelRoom: layer.width - left - g.panelLeft - inset - EdgePx,
         heightRoom: layer.height - top - inset - EdgePx,
+        layerWidth: layer.width,
     };
 }
 
@@ -208,6 +314,14 @@ export function inRect(r: Rect, x: number, y: number): boolean {
 export function linkRect(g: GroupGeometry, id: PanelId): Rect {
     const icon = g.icons[id];
     return { x: icon.x + icon.w, y: icon.y, w: g.panelLeft - (icon.x + icon.w), h: icon.h };
+}
+
+// The tether from an icon to the panel (AC65 to AC68): tied on the icon's edge at its middle, kept within the panel's
+// height, reaching the panel's edge once it is in place.
+export function plinkLine(g: GroupGeometry, id: PanelId, panelHeight: number): TetherLine {
+    const icon = g.icons[id];
+    const middle = attachMiddle(icon.y + icon.h / 2 + RailBorderPx, panelHeight);
+    return tetherLine(icon.x + icon.w + RailBorderPx, g.panelLeft, middle, PanelSlidePx);
 }
 
 // The hover zone of an icon: the icon, its link and the panel itself, so that the pointer can cross from one to the
@@ -383,6 +497,9 @@ export function reportCut(textHeight: number, shownHeight: number): boolean {
 // read from the text itself, never from its current box, so they do not move while the card grows or folds.
 export type ReportSize = { full: number; shown: number };
 
+// The size of a report that is not there: Brokk has no line to say (AC71).
+export const EmptyReportSize: ReportSize = { full: 0, shown: 0 };
+
 // The room the window leaves under the group at rest: the most the report's card can grow by (FR-BOSS-009, AC43, #2097).
 export function reportRoom(g: GroupGeometry, heightRoom: number): number {
     return Math.max(0, heightRoom - (g.field.y + g.field.h));
@@ -507,7 +624,7 @@ export type RailMark = {
     dot: boolean;
     // A progress ring around the icon: 0 to 1, -1 when the size is unknown, null for none.
     ring: number;
-    // The ember dot of keep-awake.
+    // Keep-awake is on: the cup turns orange and its steam rises, never a dot (AC80, #2206).
     ember: boolean;
 };
 

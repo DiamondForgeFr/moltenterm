@@ -713,7 +713,9 @@ function WindowChoice({
                     aria-pressed={d === days}
                     className={cn(
                         "cursor-pointer px-1.5 py-0.5 text-11 tabular-nums transition-colors duration-120 ease-mt",
-                        d === days ? "bg-hover text-primary" : "text-muted hover:bg-hover hover:text-secondary"
+                        d === days
+                            ? "mt-selected-action bg-hover text-primary"
+                            : "text-muted hover:bg-hover hover:text-secondary"
                     )}
                     title={t("mc.lineMap.showLastDays", { days: d })}
                 >

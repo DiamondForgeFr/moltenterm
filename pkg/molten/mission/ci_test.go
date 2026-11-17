@@ -110,8 +110,14 @@ func TestSelectCiJobsAndLanes(t *testing.T) {
 	if got := names(selectCiJobs(jobs, verdicts, true, nil)); len(got) != 4 {
 		t.Fatalf("Run all again: %v", got)
 	}
-	if got := names(selectCiJobs(jobs, verdicts, false, []string{"check"})); !reflect.DeepEqual(got, []string{"check"}) {
-		t.Fatalf("only: %v", got)
+	if got := names(selectCiJobs(jobs, verdicts, false, []string{"check"})); len(got) != 0 {
+		t.Fatalf("a green job asked for is not redone: %v", got)
+	}
+	if got := names(selectCiJobs(jobs, verdicts, false, []string{"check", "e2e", "rust"})); !reflect.DeepEqual(got, []string{"e2e", "rust"}) {
+		t.Fatalf("only the jobs asked for that are not green: %v", got)
+	}
+	if got := names(selectCiJobs(jobs, verdicts, true, []string{"check"})); !reflect.DeepEqual(got, []string{"check"}) {
+		t.Fatalf("forced, a green job asked for runs again: %v", got)
 	}
 	lanes := ciLanes(jobs)
 	if len(lanes) != 3 || len(lanes[0]) != 2 || lanes[1][0].Name != "rust" || lanes[2][0].Name != "solo" {
@@ -160,9 +166,85 @@ func TestCiRunKeepsVerdictsPerTree(t *testing.T) {
 	if status, _ := c.Status(dir, "HEAD"); status.Status != CiStateSuccess {
 		t.Fatalf("same tree, same verdicts: %+v", status)
 	}
+	// Acceptance 5 (#2277): a run limited to jobs already green on this code runs none of them, like a full run.
+	if _, err := c.Start(CiRunRequest{Dir: dir, Only: []string{"rust", "check"}}); err == nil || !strings.Contains(err.Error(), "already green") {
+		t.Fatalf("jobs asked for that are green are not redone: %v", err)
+	}
+	if _, err := c.Start(CiRunRequest{Dir: dir, Only: []string{"nonesuch"}}); err == nil || !strings.Contains(err.Error(), "declares none of the jobs") {
+		t.Fatalf("a job the pipeline does not declare is told as such: %v", err)
+	}
 	forced := startCi(t, c, dir, CiRunRequest{Force: true, Only: []string{"rust"}})
 	if !reflect.DeepEqual(jobStatuses(forced), map[string]string{"rust": "success"}) {
 		t.Fatalf("only rust: %+v", forced)
+	}
+}
+
+// #2277: a verdict is the job's only while its command, folder and environment are the pipeline's. The tree is the same
+// but the pipeline is read from the project folder, so a command changed there (a branch, an edit not committed yet) must
+// run again, with or without --only.
+func TestAJobWhoseCommandChangedRunsAgain(t *testing.T) {
+	t.Parallel()
+	mark := filepath.Join(t.TempDir(), "runs")
+	job := func(command string, env string) string {
+		return `{"jobs":[{"name":"check","run":` + jsonString(command+" >> "+mark) + env + `},{"name":"other","run":"true"}]}`
+	}
+	c, dir := makeCiFixture(t, job("echo one", ""))
+	runs := func() int {
+		data, _ := os.ReadFile(mark)
+		return strings.Count(string(data), "\n")
+	}
+	change := func(command string, env string) {
+		path := filepath.Join(dir, ".molten", "project.json")
+		os.WriteFile(path, []byte(`{"schema":1,"name":"P","ci":`+job(command, env)+`}`), 0644)
+		report := molten.ValidatePipeline(dir)
+		if !report.Valid {
+			t.Fatalf("pipeline: %v", report.Errors)
+		}
+		if err := c.trust.Trust(dir, CommandsHash(PipelineCommands(report.Pipeline))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	startCi(t, c, dir, CiRunRequest{})
+	if runs() != 1 {
+		t.Fatalf("the first run runs the job: %d", runs())
+	}
+	if _, err := c.Start(CiRunRequest{Dir: dir, Only: []string{"check"}}); err == nil || !strings.Contains(err.Error(), "already green") {
+		t.Fatalf("the same job on the same code is not redone: %v", err)
+	}
+	if status, _ := c.Status(dir, "HEAD"); status.Status != CiStateSuccess {
+		t.Fatalf("green until the command changes: %+v", status)
+	}
+
+	change("echo two", "")
+	if status, _ := c.Status(dir, "HEAD"); status.Status != CiVerdictMissing || strings.Join(status.Missing, ",") != "check" {
+		t.Fatalf("a changed command has no verdict yet, the other job keeps its own: %+v", status)
+	}
+	if state, _ := c.State(dir); len(state.Branches) != 1 || state.Branches[0].Verdict != CiVerdictMissing {
+		t.Fatalf("the branch list agrees: %+v", state.Branches)
+	}
+	rec := startCi(t, c, dir, CiRunRequest{Only: []string{"check"}})
+	if runs() != 2 || !reflect.DeepEqual(jobStatuses(rec), map[string]string{"check": "success"}) {
+		t.Fatalf("a changed command runs again with --only, and only that job: %d %+v", runs(), rec)
+	}
+
+	change("echo two", `,"env":{"MODE":"strict"}`)
+	rec = startCi(t, c, dir, CiRunRequest{})
+	if runs() != 3 || !reflect.DeepEqual(jobStatuses(rec), map[string]string{"check": "success"}) {
+		t.Fatalf("a changed environment runs again: %d %+v", runs(), rec)
+	}
+
+	// A verdict kept before the hash existed proves nothing about the command.
+	tree := gitIn(t, dir, "rev-parse", "HEAD^{tree}")
+	c.writeVerdict(dir, gitIn(t, dir, "rev-parse", "HEAD"), tree, "check", CiVerdict{Status: CiStateSuccess})
+	if status, _ := c.Status(dir, "HEAD"); status.Status != CiVerdictMissing {
+		t.Fatalf("an unhashed verdict is not trusted: %+v", status)
+	}
+	startCi(t, c, dir, CiRunRequest{})
+	if runs() != 4 {
+		t.Fatalf("it runs once more and is kept with its hash: %d", runs())
+	}
+	if _, err := c.Start(CiRunRequest{Dir: dir}); err == nil || !strings.Contains(err.Error(), "already green") {
+		t.Fatalf("then it is reused: %v", err)
 	}
 }
 

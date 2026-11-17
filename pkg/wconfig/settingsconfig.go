@@ -257,12 +257,28 @@ type SettingsType struct {
 	BossVisitFinished string `json:"boss:visitfinished,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What an agent that finished its work does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
 	BossVisitDownload string `json:"boss:visitdownload,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What a download that finished or failed does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
 	BossVisitUpdate   string `json:"boss:visitupdate,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What an update that is available does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
-	BossVisitUsage    string `json:"boss:visitusage,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What a plan usage above 90 % does: vient, Brokk comes to fetch you; badge, only the badge counts it; rien, it is ignored. Badge when unset"`
+	BossVisitUsage    string `json:"boss:visitusage,omitempty" jsonschema:"enum=vient,enum=badge,enum=rien" jsonschema_description:"What a plan usage above 90 % does: vient, Brokk comes to fetch you; rien, it is ignored. It has no card to count, so badge reads as rien (#2213). Rien when unset"`
 	BossBlockedMin    *int64 `json:"boss:blockedmin,omitempty" jsonschema:"enum=2,enum=5,enum=10,enum=15" jsonschema_description:"Minutes an agent may wait for you before it counts as blocked and Brokk may come (2, 5, 10 or 15). 5 when unset; after three times as long it is a grave visit"`
 	BossQuiet         *bool  `json:"boss:quiet,omitempty" jsonschema_description:"Quiet hours: between boss:quietfrom and boss:quietto Brokk does not come, only the badge changes. On when unset"`
 	BossQuietFrom     string `json:"boss:quietfrom,omitempty" jsonschema_description:"When the quiet hours begin, as HH:MM on the local clock. 22:00 when unset or invalid"`
 	BossQuietTo       string `json:"boss:quietto,omitempty" jsonschema_description:"When the quiet hours end, as HH:MM on the local clock. 08:00 when unset or invalid"`
 	BossNeverCome     bool   `json:"boss:nevercome,omitempty" jsonschema_description:"Brokk never comes to fetch you, whatever the events are set to: only the badge counts. Off when unset"`
+
+	// MOLTENTERM-PATCH (#2203): how near Brokk stands (FR-BOSS-009, AC75, frontend/moltenterm-shell/boss/brokk-colleague.ts).
+	BossProximity string `json:"boss:proximity,omitempty" jsonschema:"enum=discreet,enum=colleague" jsonschema_description:"How near Brokk stands. discreet: only the events that matter, no moments and no model call; colleague: he says hello, suggests breaks and lets you know in the evening, and his model may phrase them. Colleague when unset"`
+
+	// MOLTENTERM-PATCH (#2341): the developer's choice over which providers Brokk's usage grid shows (FR-BOSS-009, AC97, frontend/moltenterm-shell/boss/brokk-usage-model.ts).
+	BossUsageShow []string `json:"boss:usageshow,omitempty" jsonschema_description:"Coding agents (claude, codex) that Brokk's usage grid always shows, even when they were not used for 7 days and their plan is not paid. Set from a row's menu in the grid and from the Not used lately list"`
+	BossUsageHide []string `json:"boss:usagehide,omitempty" jsonschema_description:"Coding agents (claude, codex) that Brokk's usage grid never shows, even on a paid plan. Set from a row's menu in the grid"`
+
+	// MOLTENTERM-PATCH (#2246, #2320): where the brainstorms with Brokk are saved (FR-BOSS-010, DS-BOSS-010, pkg/molten/brainstorm).
+	BossBrainstormsDir string `json:"boss:brainstormsdir,omitempty" jsonschema_description:"The folder where the brainstorms with Brokk are saved, one folder per idea. ~/MoltenTerm/Brainstorms when unset"`
+
+	// MOLTENTERM-PATCH (#2250, #2320): the parent folder of the last project a brainstorm became (FR-BOSS-010 AC15, pkg/molten/brainstorm/project.go).
+	BossProjectsDir string `json:"boss:projectsdir,omitempty" jsonschema_description:"The parent folder where a clear brainstorm with Brokk becomes a project, chosen on the project card and then remembered. Each project still asks for its click"`
+
+	// MOLTENTERM-PATCH (#2257): Brokk's agent's permission requests approved without asking (pkg/molten/brokksession/permit.go).
+	BossAutoApprove bool `json:"boss:autoapprove,omitempty" jsonschema_description:"Approve without asking the requests of Brokk's agent that stay in his own folder (reading and editing his files, simple read-only commands, git status, diff, log, show, tests), each one shown as a line in his talk window; everything else still asks. Counts only once confirmed in MoltenTerm's settings. Off when unset"`
 
 	// MOLTENTERM-PATCH (#1407): the molten reveal of a settings block opened in the library (FR-SHELL-088, frontend/moltenterm-shell/library/settings-reveal.ts).
 	MoltentermSettingsReveal *bool `json:"moltenterm:settingsreveal,omitempty" jsonschema_description:"A settings block opened in the library is revealed by molten flows that cool and break open, under 700 ms; false, or reduced motion, fades it in instead"`
@@ -271,7 +287,10 @@ type SettingsType struct {
 	MoltentermTheme string `json:"moltenterm:theme,omitempty" jsonschema:"enum=dark,enum=light,enum=system" jsonschema_description:"The interface's theme. dark (the default when unset), light, or system to follow the computer's light or dark setting. Terminals keep their own terminal theme, dark by default, in every interface theme"`
 
 	// MOLTENTERM-PATCH (#615, #733, #1654): when a tab switches to 360 view (FR-SHELL-066, frontend/moltenterm-shell/view360/view360-decision.ts).
-	MoltentermView360 string `json:"moltenterm:view360,omitempty" jsonschema:"enum=auto,enum=grid,enum=always" jsonschema_description:"When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: beyond the screen's column threshold or when a panel would fall under its readable width, back when everything fits again. grid (Keep the grid): the panels stay side by side, only columns that cannot fit even at their readable widths still switch. always: every tab with several columns. Unset behaves as auto and asks once, at the first automatic switch, which to keep; a stored never reads as auto. A tab's own 360 button also turns it on on demand"`
+	MoltentermView360 string `json:"moltenterm:view360,omitempty" jsonschema:"enum=auto,enum=grid,enum=always" jsonschema_description:"When a tab with several columns shows in 360 view (its first column fixed, the other panels on a carpet that scrolls sideways). auto: beyond the screen's column threshold or when a panel would fall under its readable width, back when everything fits again. grid (Keep the grid): the panels stay side by side, only columns that cannot fit even at their readable widths still switch. always: every tab with several columns. Unset behaves as auto and asks once which to keep: a view that never was in 360 view is offered the choice, with a number of visible panels, when it first goes beyond the threshold (#2180), and any other view at its first automatic switch; a stored never reads as auto. A tab's own 360 button also turns it on on demand"`
+
+	// MOLTENTERM-PATCH (#2180): the number of visible panels a view gets when it switches by itself under auto (FR-SHELL-066 AC11, frontend/moltenterm-shell/view360/view360-offer.ts).
+	MoltentermView360Places string `json:"moltenterm:view360places,omitempty" jsonschema:"enum=1,enum=2,enum=3" jsonschema_description:"With the 360 view setting on auto: how many panels stay visible on the right of the first column (360 × N) when a view goes beyond the screen's column threshold (1, 2 or 3; a string, as the settings choices are). Unset: the plain 360 view. The first-time offer's check, Do the same in every view, stores it"`
 
 	// MOLTENTERM-PATCH (#808): outside term:* so live accessibility never reconstructs a terminal.
 	MoltentermTerminalScreenReader string `json:"moltenterm:terminalscreenreader,omitempty" jsonschema:"enum=auto,enum=on,enum=off" jsonschema_description:"Terminal screen reader support: auto follows system detection on macOS and Windows; on or off overrides detection. Applies immediately to existing terminals without restarting sessions. On is available when automatic detection is unavailable"`
@@ -286,6 +305,12 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#1763): the Settings screen's last tab and the materials seen per project, kept after a restart (frontend/moltenterm-shell/library/library-prefs.ts).
 	MoltentermSettingsTab   string           `json:"moltenterm:settingstab,omitempty" jsonschema_description:"The tab the Settings screen opens on: the one the developer chose last (overview when unset). Set by the screen's tabs"`
 	MoltentermMaterialsSeen map[string]int64 `json:"moltenterm:materialsseen,omitempty" jsonschema_description:"When the developer last saw each project's materials, by project, in milliseconds since 1970: newer materials are counted as new in the library. Set by opening the materials section"`
+
+	// MOLTENTERM-PATCH (#2310): the share of a web page panel its docked developer tools take, the same for every panel and after a restart (frontend/moltenterm-shell/browser/browser-inspector.ts).
+	MoltentermBrowserInspectorSize float64 `json:"moltenterm:browserinspectorsize,omitempty" jsonschema_description:"The share of a web page panel's page area its docked developer tools take, from 0.15 to 0.85 (0.4 when unset or out of range). Set by dragging the tools' divider"`
+
+	// MOLTENTERM-PATCH (#2312): the note about the default search engine, shown once (frontend/moltenterm-shell/browser/search-engine.ts).
+	MoltentermSearchEngineNote bool `json:"moltenterm:searchenginenote,omitempty" jsonschema_description:"Whether the one-time note about the default search engine was shown in a web page panel (Searches use Brave Search, with a way to change it). Set by the panel the first time it shows the note"`
 
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`

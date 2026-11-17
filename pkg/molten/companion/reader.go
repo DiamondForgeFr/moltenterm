@@ -89,6 +89,18 @@ func (r *SessionReader) AnswerAt(index int) (AnswerView, bool) {
 	return r.session.Answer(index)
 }
 
+// PendingCalls is how many calls of the agent read by Poll wait for their result: a running tool, or a question to the
+// user (a permission). None: the agent sits at its prompt (Brokk's session, #2257).
+func (r *SessionReader) PendingCalls() int {
+	return len(r.session.Pending())
+}
+
+// TurnOpen: a turn read by Poll started, or the agent wrote in it, and its end is not recorded: the agent may be
+// generating between two calls, so it is not at its prompt (#2257).
+func (r *SessionReader) TurnOpen() bool {
+	return r.session.turnOpen
+}
+
 func (r *SessionReader) Close() {
 	if r.follower != nil {
 		r.follower.close()

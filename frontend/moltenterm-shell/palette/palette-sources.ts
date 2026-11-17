@@ -9,6 +9,7 @@ import { agentRow, agentRowByCommand, type FeatureMatrix } from "../agent-info/a
 import { agentWorks, pickerSummary } from "../agent-info/agent-works-model";
 import { AiIcon } from "../ai-icon";
 import { addressUrl, looksLikeAddress, typedBlockDef } from "../browser/browser-model";
+import { searchEngineInfo, searchUrl } from "../browser/search-engine-model";
 import { CompanionTargetMetaKey, MoltentermCompanionView } from "../companion/companion-model";
 import { getLocale, t } from "../i18n/i18n";
 import { FallbackLanguage, languageText } from "../i18n/i18n-core";
@@ -27,6 +28,7 @@ import {
     PaletteGroupId,
     PickerGroupOrder,
     shortestSelectingPrefix,
+    WebSearchEntryId,
 } from "./palette-model";
 
 // Agent presets live with Wave's presets, under their own prefix: defaults in pkg/wconfig/defaultconfig/presets/
@@ -72,7 +74,8 @@ const PanelNameKeys: Record<string, string> = {
 };
 
 // "Open <address>" when the typed text is an address (#1229): a web page panel on it, read as the top field reads it.
-export function addressEntry(query: string): PaletteEntry {
+// The chooser lists it in its "web" group (#2312), the other palettes among the panels.
+export function addressEntry(query: string, group: PaletteGroupId = "panels"): PaletteEntry {
     const text = (query ?? "").trim();
     if (!looksLikeAddress(text)) {
         return null;
@@ -83,10 +86,29 @@ export function addressEntry(query: string): PaletteEntry {
     }
     return {
         id: AddressEntryId,
-        group: "panels",
+        group,
         label: t("palette.openAddress", { address: text }),
         icon: "globe",
         run: { kind: "widget", blockdef: typedBlockDef(url) },
+    };
+}
+
+// "Search the web for <words>" (#2312): the chooser's way forward for words that are not an address, a web page panel on
+// the engine's results. The engine is the web:defaultsearch setting's, the one every place that searches uses.
+export function webSearchEntry(query: string, template: string): PaletteEntry {
+    const words = (query ?? "").trim();
+    if (words === "" || looksLikeAddress(words)) {
+        return null;
+    }
+    const engine = searchEngineInfo(template);
+    return {
+        id: WebSearchEntryId,
+        group: "web",
+        label: t("palette.webSearch", { query: words }),
+        detail: t("palette.webSearchWith", { engine: engine.name }),
+        icon: "magnifying-glass",
+        mark: engine.letter,
+        run: { kind: "widget", blockdef: typedBlockDef(searchUrl(words, template)) },
     };
 }
 
@@ -128,6 +150,9 @@ export type PaletteSourceInput = {
     shortcutsHint?: string;
     // The foreman's name while his bubble shows (FR-BOSS-002): the palette offers his card. Absent, no card to show.
     bossName?: string;
+    // What the build's channel allows of a brainstorm with him (FR-BOSS-010, #2246): starting one, and its scripted
+    // replay (dev and local builds). Absent, neither.
+    brainstorm?: { start: boolean; replay: boolean; resume?: string };
     // The pin moves of the view on screen, as its menu offers them, and the move the keep shortcut makes (#1652).
     viewPin?: { moves: PinMove[]; keepMove: PinMove; keepHint: string };
 };
@@ -450,6 +475,53 @@ export function bossCardEntries(name: string): PaletteEntry[] {
     ];
 }
 
+// "Brainstorm with {name}" (FR-BOSS-010 AC2, #2246) on the channels that have it, and on dev and local builds the
+// scripted replay that every instance check plays (synthetic data, no agent).
+// `resume`: the title of the brainstorm last left, offered first to resume (AC10e, #2284); "" for none.
+export function brainstormEntries(
+    name: string,
+    gates: { start: boolean; replay: boolean; resume?: string }
+): PaletteEntry[] {
+    const rtn: PaletteEntry[] = [];
+    if (!name || gates == null) {
+        return rtn;
+    }
+    if (gates.start && gates.resume) {
+        rtn.push({
+            id: "action:brainstormresume",
+            group: "actions",
+            label: t("palette.actions.brainstormResume", { title: gates.resume }),
+            detail: t("palette.actions.brainstormResumeDetail", { name }),
+            icon: "diagram-project",
+            keywords: paletteKeywords("brainstormResume", name),
+            run: { kind: "brainstormresume" },
+        });
+    }
+    if (gates.start) {
+        rtn.push({
+            id: "action:brainstorm",
+            group: "actions",
+            label: t("palette.actions.brainstorm", { name }),
+            detail: t("palette.actions.brainstormDetail"),
+            icon: "diagram-project",
+            keywords: paletteKeywords("brainstorm", name),
+            run: { kind: "brainstorm" },
+        });
+    }
+    if (gates.replay) {
+        rtn.push({
+            id: "action:brainstormreplay",
+            group: "actions",
+            label: t("palette.actions.brainstormReplay"),
+            detail: t("palette.actions.brainstormReplayDetail"),
+            icon: "film",
+            keywords: paletteKeywords("brainstormReplay", "replay", "brainstorm"),
+            run: { kind: "brainstormreplay" },
+        });
+    }
+    return rtn;
+}
+
 // The shortcuts sheet (FR-SHELL-042-AC8): the palette names it, with its keys.
 export function shortcutsEntry(hint?: string): PaletteEntry {
     return {
@@ -660,6 +732,7 @@ export function buildPaletteEntries(input: PaletteSourceInput): PaletteEntry[] {
         ...folderEntries(folders, input.home),
         ...actions,
         ...bossCardEntries(input.bossName),
+        ...brainstormEntries(input.bossName, input.brainstorm),
         ...(input.picker == null ? viewPinEntries(input.viewPin) : []),
         ...browserEntries(input.installedBrowser, input.hasBrowserPanel),
         ...termUpdateEntries(input.outdatedTerminals),

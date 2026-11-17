@@ -26,7 +26,6 @@ import { MoltenManifestFileName, parseMoltenManifest } from "./molten-manifest";
 import { mountMoltenNotifications } from "./molten-notifications";
 import { MoltenPageGuard, MoltenPageNode } from "./molten-page";
 import { MoltenTrustModel } from "./molten-trust";
-import { validateMoltenMod } from "./molten-validate";
 
 // The RPC commands `molten` sends to this tab (cmd/wsh/cmd/wshcmd-molten.go). The tab client dispatches incoming
 // commands on `handle_<command>`, so the handlers are added here and pkg/wshrpc stays untouched.
@@ -176,6 +175,9 @@ export function startMoltenHost(): void {
                 .map((entry) => entry.name)
                 .sort();
         }
+        // Loaded on demand: the validator brings a JavaScript parser (acorn) that only `molten mod validate` needs, so it
+        // stays out of the JS every tab view loads up front (NFR-PERF-003, bundle.initialJsMB, #2200).
+        const { validateMoltenMod } = await import("./molten-validate");
         const results = [];
         for (const id of ids) {
             results.push(await validateMoltenMod(env.modsDir, id, env.readTextFile));

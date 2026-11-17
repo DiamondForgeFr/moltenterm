@@ -269,7 +269,9 @@ export function AnalyseStep({
                             onClick={() => setChannel(c)}
                             className={cn(
                                 "cursor-pointer rounded-4 border px-3 py-1 text-11 disabled:cursor-default disabled:opacity-50",
-                                shown === c ? "border-accent/60 text-primary" : "border-border text-secondary"
+                                shown === c
+                                    ? "mt-selected-action border-border text-primary"
+                                    : "border-border text-secondary"
                             )}
                             data-testid={`setup-analyse-channel-${c}`}
                         >

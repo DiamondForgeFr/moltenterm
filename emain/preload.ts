@@ -2,6 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { contextBridge, ipcRenderer, Rectangle, webUtils, WebviewTag } from "electron";
+// MOLTENTERM-PATCH (#2221): the channels of Brokk's kind colleague
+import {
+    ColleagueFactsChannel,
+    ColleagueInputChannel,
+    ColleagueMomentsChannel,
+    ColleagueSeenChannel,
+    ColleagueShownChannel,
+    ColleagueStartChannel,
+    ColleagueStopChannel,
+} from "./moltenterm-colleague-ipc";
 // MOLTENTERM-PATCH (#849, #973): every sendSync is timed, and the page answers Electron main's heartbeat
 import {
     HangCopyChannel,
@@ -14,6 +24,8 @@ import {
     WindowReloadedChannel,
 } from "./moltenterm-hang-ipc";
 import { SlowSyncIpcMs } from "./moltenterm-hang-model";
+// MOLTENTERM-PATCH (#2335): the log files' size and clear, and the note past the high mark
+import { LogsClearChannel, LogsHighChannel, LogsInfoChannel, LogsListenChannel } from "./moltenterm-logs-ipc";
 import { webBlockWebviewSelector } from "./moltenterm-webselector-policy"; // MOLTENTERM-PATCH (#1961)
 
 function sendSync(channel: string, ...args: any[]): any {
@@ -159,6 +171,20 @@ contextBridge.exposeInMainWorld("api", {
         tabId?: string,
         workspaceId?: string
     ) => ipcRenderer.send("moltenterm-webview-registered", blockId, browserTabId, webContentsId, tabId, workspaceId),
+    // MOLTENTERM-PATCH (#2310): a web page panel's docked developer tools and site data (emain/moltenterm-browser-inspector.ts)
+    moltentermInspectorOpen: (pageId: number, place: unknown, point: unknown) =>
+        ipcRenderer.invoke("moltenterm-inspector-open", pageId, place, point),
+    moltentermInspectorPlace: (pageId: number, place: unknown) =>
+        ipcRenderer.send("moltenterm-inspector-place", pageId, place),
+    moltentermInspectorClose: (pageId: number) => ipcRenderer.invoke("moltenterm-inspector-close", pageId),
+    moltentermInspectorWindow: (pageId: number) => ipcRenderer.invoke("moltenterm-inspector-window", pageId),
+    onMoltentermInspectorGone: (callback: (pageId: number) => void) => {
+        const listener = (_event, pageId: number) => callback(pageId);
+        ipcRenderer.on("moltenterm-inspector-gone", listener);
+        return () => ipcRenderer.removeListener("moltenterm-inspector-gone", listener);
+    },
+    moltentermBrowserClearData: (pageId: number, kind: string, origin?: string) =>
+        ipcRenderer.invoke("moltenterm-browser-clear-data", pageId, kind, origin),
     // MOLTENTERM-PATCH (#971): an agent's click is about to reach a webview, which must not take the window's focus
     onMoltentermAgentPress: (callback: (webContentsId: number, pressing: boolean) => void) => {
         const listener = (_event, webContentsId: number, pressing: boolean) => callback(webContentsId, pressing);
@@ -183,6 +209,9 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#1350): the app menu's View and Help items (emain/moltenterm-view-menu.ts)
     onMoltentermAppMenuCommand: (callback: (command: string) => void) =>
         ipcRenderer.on("moltenterm-app-menu-command", (_event, command) => callback(command)),
+    // MOLTENTERM-PATCH (#2176): a web page this tab's interface opened by itself (emain/moltenterm-external-links.ts)
+    onMoltentermOpenLink: (callback: (url: string) => void) =>
+        ipcRenderer.on("moltenterm-open-link", (_event, url) => callback(url)),
     // MOLTENTERM-PATCH (#1325): the app menu's Settings… (emain/moltenterm-app-menu.ts)
     onMoltentermOpenSettings: (callback: () => void) => ipcRenderer.on("moltenterm-open-settings", () => callback()),
     // MOLTENTERM-PATCH (#294, #743): the app menu's Edit Workspace…, or a workspace just created (emain/moltenterm-workspace-menu.ts)
@@ -207,6 +236,19 @@ contextBridge.exposeInMainWorld("api", {
     onMoltentermScreen: (callback) => ipcRenderer.on("moltenterm-screen", (_event, info) => callback(info)),
     // MOLTENTERM-PATCH (#1958): this computer's idle time, so Brokk sleeps while you are away (emain/moltenterm-system-idle.ts)
     moltentermGetSystemIdleSec: () => ipcRenderer.invoke("moltenterm-system-idle-get"),
+    // MOLTENTERM-PATCH (#2221): Brokk's kind colleague runs once for every tab and window, in Electron main
+    // (emain/moltenterm-colleague.ts); the page tells it what the developer does and shows the moments it raises
+    moltentermBrokkStart: (facts: any) => ipcRenderer.invoke(ColleagueStartChannel, facts),
+    moltentermBrokkStop: () => ipcRenderer.send(ColleagueStopChannel),
+    moltentermBrokkFacts: (facts: any) => ipcRenderer.send(ColleagueFactsChannel, facts),
+    moltentermBrokkInput: (facts: any) => ipcRenderer.send(ColleagueInputChannel, facts),
+    moltentermBrokkShown: (id: string) => sendSync(ColleagueShownChannel, id),
+    moltentermBrokkSeen: (id: string) => ipcRenderer.send(ColleagueSeenChannel, id),
+    onMoltentermBrokkMoments: (callback: (update: any) => void) => {
+        const listener = (_event, update) => callback(update);
+        ipcRenderer.on(ColleagueMomentsChannel, listener);
+        return () => ipcRenderer.removeListener(ColleagueMomentsChannel, listener);
+    },
     // MOLTENTERM-PATCH (#459, #618): hidden browser pages frozen and discarded (emain/moltenterm-webview-lifecycle.ts)
     moltentermWebviewShown: (
         blockId: string,
@@ -232,6 +274,8 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#605): a system notification while no window is in front (emain/moltenterm-system-notify.ts)
     moltentermSystemNotify: (req: any) => ipcRenderer.invoke("moltenterm-system-notify", req),
     moltentermSystemNotifyClose: (id: string) => ipcRenderer.send("moltenterm-system-notify-close", id),
+    // MOLTENTERM-PATCH (#2246): the brainstorm mode holds the system notifications while it is on (FR-BOSS-010 AC3)
+    moltentermSystemNotifyHold: (held: boolean) => ipcRenderer.send("moltenterm-system-notify-hold", held === true),
     onMoltentermSystemNotifyClick: (callback: (id: string) => void) => {
         const listener = (_event, id) => callback(id);
         ipcRenderer.on("moltenterm-system-notify-click", listener);
@@ -289,6 +333,16 @@ contextBridge.exposeInMainWorld("api", {
         return () => ipcRenderer.removeListener(WindowReloadedChannel, listener);
     },
     moltentermShowLog: () => ipcRenderer.invoke(ShowLogChannel),
+    // MOLTENTERM-PATCH (#2335): the log files weigh this much, clear them, and tell me when they pass the high mark
+    // (emain/moltenterm-logs.ts)
+    moltentermLogsInfo: () => ipcRenderer.invoke(LogsInfoChannel),
+    moltentermLogsClear: () => ipcRenderer.invoke(LogsClearChannel),
+    moltentermLogsListen: () => ipcRenderer.invoke(LogsListenChannel),
+    onMoltentermLogsHigh: (callback: (edge: any) => void) => {
+        const listener = (_event, edge) => callback(edge);
+        ipcRenderer.on(LogsHighChannel, listener);
+        return () => ipcRenderer.removeListener(LogsHighChannel, listener);
+    },
 });
 
 // Custom event for "new-window"

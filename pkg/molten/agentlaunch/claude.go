@@ -455,6 +455,7 @@ func (claudeAdapter) Plan(ctx LaunchContext) (LaunchPlan, error) {
 		return plan, nil
 	}
 	hooks := planClaudeHooks(managed, sources, isReviewSession(ctx), &plan)
+	ownSessionHookBudget(ctx, hooks)
 	statusLine := planClaudeStatusLine(managed, sources, &plan)
 	if len(hooks) > 0 || statusLine != nil {
 		data, err := claudeSettingsJSON(flag, hooks, statusLine)

@@ -406,7 +406,22 @@ func (l *routeLink) route() localroute.Route {
 	}
 }
 
-func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Caller, data any) (any, error) {
+func (l *routeLink) handle(ctx context.Context, command string, caller localroute.Caller, data any) (any, error) {
+	if command == PermissionCommand {
+		var req PermissionRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		// A terminal speaks for its own block only (#2257): its token names it, whatever the request says.
+		if caller.BlockId != "" && req.BlockId != caller.BlockId {
+			return PermissionAnswer{}, nil
+		}
+		req.FromBlock = caller.BlockId != ""
+		// Brokk's own session may wait for the developer's answer (its HoldMs); everything else answers at once.
+		ctx, cancel := context.WithTimeout(ctx, permissionTimeout(req))
+		defer cancel()
+		return l.s.permission(ctx, req), nil
+	}
 	ctx, cancel := context.WithTimeout(ctx, storeTimeout)
 	defer cancel()
 	switch command {
@@ -436,14 +451,19 @@ func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Cal
 			return nil, err
 		}
 		return l.s.keeper.Shim(ctx, req)
-	case PermissionCommand:
-		var req PermissionRequest
-		if err := utilfn.ReUnmarshal(&req, data); err != nil {
-			return nil, err
-		}
-		return l.s.permission(ctx, req), nil
 	}
 	return nil, fmt.Errorf("unknown keep-awake command %q", command)
+}
+
+// MaxPermissionHold bounds how long a permission request may wait in wavesrv for the developer (#2257).
+const MaxPermissionHold = 10 * time.Minute
+
+func permissionTimeout(req PermissionRequest) time.Duration {
+	hold := time.Duration(req.HoldMs) * time.Millisecond
+	if hold <= storeTimeout {
+		return storeTimeout
+	}
+	return min(hold, MaxPermissionHold)
 }
 
 var startOnce sync.Once

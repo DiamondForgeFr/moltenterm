@@ -90,6 +90,38 @@ func TestPrintArgv(t *testing.T) {
 	}
 }
 
+// #2203: the line Brokk's model phrases needs no reasoning, so it takes the cheapest model or effort the read-only form
+// allows, and keeps every guard of that form.
+func TestQuickPrintArgv(t *testing.T) {
+	claude := []string{"claude", "-p", "--model", "haiku", "--no-session-persistence", "--setting-sources", "user",
+		"--strict-mcp-config", "--disallowed-tools", "Bash", "Edit", "Write", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch"}
+	if got := QuickPrintArgv("claude", "/p"); !reflect.DeepEqual(got, claude) {
+		t.Errorf("claude: %v", got)
+	}
+	codex := []string{"codex", "exec", "--ephemeral", "--skip-git-repo-check", "-c", `model_reasoning_effort="low"`,
+		"--sandbox", "read-only", "-c", "mcp_servers={}", "-c", `projects={"/p"={trust_level="untrusted"}}`, "-"}
+	if got := QuickPrintArgv("codex", "/p"); !reflect.DeepEqual(got, codex) {
+		t.Errorf("codex: %v", got)
+	}
+	if QuickPrintArgv("gemini", "/p") != nil {
+		t.Errorf("an agent without a read-only form is never started")
+	}
+}
+
+func TestQuickPrintArgvKeepsEveryGuardOfThePrintForm(t *testing.T) {
+	for _, id := range Supported {
+		plain, quick := PrintArgv(id, "/p"), QuickPrintArgv(id, "/p")
+		if len(quick) <= len(plain) {
+			t.Fatalf("%s: the quick form %v adds nothing to %v", id, quick, plain)
+		}
+		rest := append([]string{}, quick[:2]...)
+		rest = append(rest, quick[len(quick)-(len(plain)-2):]...)
+		if !reflect.DeepEqual(rest, plain) {
+			t.Errorf("%s: the quick form %v changes the print form %v beyond what it adds before its flags", id, quick, plain)
+		}
+	}
+}
+
 // A linked worktree takes the trust of its main checkout in Codex: both are untrusted for the run.
 func TestPrintArgvCodexUntrustsTheMainCheckout(t *testing.T) {
 	root, err := filepath.EvalSymlinks(t.TempDir())

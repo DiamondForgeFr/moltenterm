@@ -10,7 +10,7 @@ import { agentDisplayName, currentFeatureMatrix } from "../agent-info/agent-feat
 import { agentToolName, type AgentStateInfo, type AgentStatesData } from "../agent-state-model";
 import { branchTicketNumber } from "../agent-work-model";
 import { TFunction } from "../i18n/i18n";
-import type { Phrase } from "../i18n/phrase";
+import { phrase, serverPhrase, type Phrase } from "../i18n/phrase";
 import type { ServerText } from "../i18n/server-text";
 import { dateLocale } from "../mission/time-format";
 import type { LeftoverOwner } from "./reviews-leftover-owner-model";
@@ -248,11 +248,15 @@ export function branchAgent(upcoming: UpcomingAnswer, states: AgentStatesData, b
 
 const KindRank: Record<AgentBarFacts["kind"], number> = { panel: 2, subagent: 1, background: 0 };
 
+// Below a panel's whole range (20 and up) and above a finished sub-agent's 10.
+const SubagentRunningRank = 5;
+
 // branchAgents (#1057): every agent on the branch, the one branchAgent picks first: panels by urgency, then
 // sub-agents, then background agents, each kind in wavesrv's order. A card lists them all, each with its own state.
 // ticket: the branch's own ticket, when the caller knows it (a PR's), else read from the branch name; pr: its PR's
 // number, when it has one. A running sub-agent placed on no branch (a read-only one, without a worktree: #1825) is the
-// branch's when its task names the ticket or the PR.
+// branch's when its task names the ticket or the PR and its lead already works on the branch (#2297: a "#N" in a task
+// alone is no evidence; another lead's tasks number other work).
 export function branchAgents(
     upcoming: UpcomingAnswer,
     states: AgentStatesData,
@@ -264,9 +268,16 @@ export function branchAgents(
         return [];
     }
     const own = { ticket: ticket || branchTicketNumber(branch), pr: pr ?? 0 };
+    const leads = leadsOnBranch(upcoming, branch);
     const found: AgentBarFacts[] = [];
     for (const a of upcoming.agents) {
-        if (a.kind === "subagent" && !a.branch && a.state !== "done" && namesWork(a.description, own)) {
+        if (
+            a.kind === "subagent" &&
+            !a.branch &&
+            a.state !== "done" &&
+            leads.has(a.parentblockid) &&
+            namesWork(a.description, own)
+        ) {
             found.push(subagentFacts(a, states));
             continue;
         }
@@ -310,7 +321,16 @@ export function branchAgents(
             found.push(facts);
         }
     }
-    const rank = (f: AgentBarFacts) => KindRank[f.kind] * 10 + (f.kind === "panel" ? BarUrgency[f.state] : 0);
+    // A sub-agent at work outranks one that went quiet or finished on the same branch or ticket (#2294): wavesrv lists
+    // the sub-agents placed in a worktree before the unplaced ones, and the card must not say "Stopped without a pull
+    // request" with Resume while another sub-agent of the ticket still works.
+    const rank = (f: AgentBarFacts) =>
+        KindRank[f.kind] * 10 +
+        (f.kind === "panel"
+            ? BarUrgency[f.state]
+            : f.kind === "subagent" && f.subState === "running"
+              ? SubagentRunningRank
+              : 0);
     return found
         .map((facts, i) => ({ facts, i }))
         .sort((x, y) => rank(y.facts) - rank(x.facts) || x.i - y.i)
@@ -346,6 +366,24 @@ export function busyElsewhere(
         return null;
     }
     return { ticket: branchTicketNumber(subs[0].branch) || workNamed(subs[0].description) };
+}
+
+// leadsOnBranch (#2297): the sessions already at work on the branch, their own panel there or one of their sub-agents
+// placed there, in any state; must match leadsOnBranch in pkg/molten/review/owners.go.
+function leadsOnBranch(upcoming: UpcomingAnswer, branch: string): Set<string> {
+    const rtn = new Set<string>();
+    for (const a of upcoming?.agents ?? []) {
+        if (a.branch !== branch || !branch || a.visiting) {
+            continue;
+        }
+        if (a.kind === "panel" && a.blockid) {
+            rtn.add(a.blockid);
+        }
+        if (a.kind === "subagent" && a.parentblockid) {
+            rtn.add(a.parentblockid);
+        }
+    }
+    return rtn;
 }
 
 // namesWork: a sub-agent's task names the ticket ("#1821") or the PR ("PR #1824", "#1824", "PR 1824").
@@ -600,6 +638,65 @@ export function afterPrText(t: TFunction, branch: UpcomingBranch): string {
         return t(`reviewsAgents.upcoming.after.${state}Unknown`, { number });
     }
     return state === "closed" ? t("reviewsAgents.upcoming.after.closedNothing", { number }) : "";
+}
+
+// stoppedWithoutPr (#2270, FR-REV-022 AC23): the delegated agent of an Upcoming branch (which has no PR) is a sub-agent
+// that finished or went quiet: nothing works on the branch any more. The states are those wavesrv already reads (AC9).
+export function stoppedWithoutPr(agent: AgentBarFacts): boolean {
+    return agent?.kind === "subagent" && (agent.subState === "done" || agent.subState === "quiet");
+}
+
+// must match RestartResult in pkg/molten/review/restart.go (the fields Resume reads)
+export type UpcomingResumeResult = {
+    status: string;
+    reason?: string;
+    firstname?: string;
+    agentname?: string;
+    message?: string;
+    messagetext?: ServerText;
+};
+
+// upcomingResumeOutcome: the card's line for what wavesrv answered to Resume (#2270).
+export function upcomingResumeOutcome(result: UpcomingResumeResult, error?: Phrase): Phrase {
+    if (error != null) {
+        return phrase("reviewsAgents.upcoming.resume.failed", { message: error });
+    }
+    if (result == null) {
+        return null;
+    }
+    const name = result.firstname || result.agentname || "";
+    const vars = { name };
+    switch (result.status) {
+        case "sent":
+            return phrase("reviewsAgents.upcoming.resume.sent", vars);
+        case "typed":
+            return phrase("reviewsAgents.upcoming.resume.typed", vars);
+        case "queued":
+            return phrase("reviewsAgents.upcoming.resume.queued", vars);
+        case "busy":
+            if (result.reason === "alreadyhanded") {
+                return phrase(
+                    name ? "reviewsAgents.upcoming.resume.already" : "reviewsAgents.upcoming.resume.alreadyAnon",
+                    vars
+                );
+            }
+            return phrase(
+                name ? "reviewsAgents.upcoming.resume.working" : "reviewsAgents.upcoming.resume.workingAnon",
+                vars
+            );
+    }
+    switch (result.reason) {
+        case "leadnotrunning":
+            return phrase(
+                name ? "reviewsAgents.upcoming.resume.leadGone" : "reviewsAgents.upcoming.resume.nothing",
+                vars
+            );
+        case "nothingtoresume":
+            return phrase("reviewsAgents.upcoming.resume.nothing");
+    }
+    return phrase("reviewsAgents.upcoming.resume.failed", {
+        message: serverPhrase(result.messagetext, result.message ?? ""),
+    });
 }
 
 export function aheadText(t: TFunction, ahead: number): string {

@@ -24,6 +24,48 @@ export function dotPopoverProject(ws: { meta?: Record<string, any> }): DotPopove
     return { name, type: project.type };
 }
 
+export type DotAttentionFacts = {
+    unread: number;
+    // The waiting agent's call name ("" when it has none), null when no agent waits.
+    waitingAgent: string;
+    // What the waiting agent asks, "" when it says nothing.
+    waitingMessage: string;
+    working: number;
+    // The keep-awake condition, null when the workspace is not kept awake.
+    keptAwake: string;
+};
+
+export type DotAttentionText = {
+    t: (key: string, vars?: Record<string, string | number>) => string;
+    tc: (key: string, count: number) => string;
+};
+
+// What needs attention on a dot, for its popover and its accessible name (#2265). The reasons for the ring come first,
+// an agent waiting before unread notifications, so hovering a ringing dot says why it rings in its first line.
+export function dotAttention(facts: DotAttentionFacts, text: DotAttentionText): string[] {
+    const lines: string[] = [];
+    if (facts.waitingAgent != null) {
+        lines.push(
+            facts.waitingAgent
+                ? text.t("rail.dot.waiting", { name: facts.waitingAgent })
+                : text.t("rail.dot.waitingAgent")
+        );
+        if (facts.waitingMessage) {
+            lines.push(facts.waitingMessage);
+        }
+    }
+    if (facts.unread > 0) {
+        lines.push(text.tc("rail.dot.unread", facts.unread));
+    }
+    if (facts.working > 0) {
+        lines.push(text.tc("rail.working", facts.working));
+    }
+    if (facts.keptAwake != null) {
+        lines.push(text.t("rail.keptAwake", { condition: facts.keptAwake }));
+    }
+    return lines;
+}
+
 // The current workspace's dot says nothing new about where it leads: it shows the popover only with something to
 // report. A dot being dragged never shows it.
 export function dotShowsPopover(opts: { hovered: boolean; dragging: boolean; current: boolean; attention: number }) {

@@ -34,6 +34,10 @@ export const BrowserKeepFocusMetaKey = "molten:browser:keepfocus";
 // Must match BrowserCloseKeyPrefix in pkg/molten/browser.go.
 export const BrowserCloseKeyPrefix = "molten:browser:close:";
 
+// Block meta: the queue of tabs to bring into view (#2333, `molten open` of a page that is already open),
+// "molten:browser:show:<id>" = tab id. Must match BrowserShowKeyPrefix in pkg/molten/browser.go.
+export const BrowserShowKeyPrefix = "molten:browser:show:";
+
 // engine: a handed-off entry, a page wsh already opened in that installed browser (FR-BRW-002). ask and keepFocus: a
 // page a terminal program opened through BROWSER (FR-BRW-007, BrowserEnvRequestMeta in pkg/molten/browser.go) asks
 // which engine its site uses when nothing is decided yet, and leaves the focus in the terminal. tabId and agent: a tab
@@ -50,6 +54,8 @@ export type BrowserOpenRequest = {
 };
 
 export type BrowserCloseRequest = { id: string; tabId: string };
+
+export type BrowserShowRequest = { id: string; tabId: string };
 
 // must match agentTabIdPrefix in pkg/molten/browseragent/tools.go
 export const AgentTabIdPrefix = "agent-";
@@ -301,6 +307,26 @@ export function consumeCloseRequestsMeta(consumed: BrowserCloseRequest[]): Recor
     const rtn: Record<string, null> = {};
     for (const request of consumed) {
         rtn[BrowserCloseKeyPrefix + request.id] = null;
+    }
+    return rtn;
+}
+
+// The tabs queued for bringing into view, in queue order.
+export function readShowRequests(meta: Record<string, any>): BrowserShowRequest[] {
+    const rtn: BrowserShowRequest[] = [];
+    for (const [key, value] of Object.entries(meta ?? {})) {
+        const id = key.startsWith(BrowserShowKeyPrefix) ? key.slice(BrowserShowKeyPrefix.length) : "";
+        if (id !== "" && typeof value === "string" && value !== "" && value.length <= MaxTabIdLength) {
+            rtn.push({ id, tabId: value });
+        }
+    }
+    return rtn.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+export function consumeShowRequestsMeta(consumed: BrowserShowRequest[]): Record<string, null> {
+    const rtn: Record<string, null> = {};
+    for (const request of consumed) {
+        rtn[BrowserShowKeyPrefix + request.id] = null;
     }
     return rtn;
 }

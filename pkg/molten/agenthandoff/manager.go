@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentchain"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -92,6 +93,8 @@ type Env interface {
 	// SettleStop settles the stop MoltenTerm holds on a terminal (#1876): one of molten.AgentSettleDone, AgentSettleNone
 	// and AgentSettleOwnPrompt. by is the settler's first name.
 	SettleStop(blockId string, by string, note string) string
+	// NameLocks lists the first names locked for a project, in the order they were locked (FR-CONT-014, #2324).
+	NameLocks() []molten.AgentNameLock
 }
 
 // pendingAnswer is a request waiting for the developer. late: the sender stopped waiting, so the answer, whenever it
@@ -137,6 +140,10 @@ type Manager struct {
 	sleep           func(time.Duration)
 	// pendingChanged tells the windows the requests waiting for the developer changed (PendingEvent); outside the lock.
 	pendingChanged func()
+	// chain keeps which agents each lead handed work to (FR-REV-035); chainChanged tells the windows a link was added.
+	// nil chain: no link is kept (the tests that do not look at it).
+	chain        *agentchain.Registry
+	chainChanged func()
 
 	lock sync.Mutex
 	// pairs: always or block, for a pair of panes, until MoltenTerm restarts (NFR-CONT-005).
@@ -339,7 +346,38 @@ func (m *Manager) List(ctx context.Context, req ListRequest) (ListResult, error)
 	if rtn.You != nil {
 		rtn.Caller = m.callerOf(blockId, req.Folder, rtn.You.Folder)
 	}
+	rtn.Locked = m.lockedNotRunning()
 	return rtn, nil
+}
+
+// lockedNotRunning: the first names locked for a project that no running agent holds, in the order they were locked
+// (FR-CONT-014, #2324). A sender sees why a hand-off to such a name cannot be delivered; nothing starts the agent.
+func (m *Manager) lockedNotRunning() []LockedEntry {
+	held := map[string]bool{}
+	for _, run := range m.env.Runs() {
+		if run.Running && run.FirstName != "" {
+			held[foldName(run.FirstName)] = true
+		}
+	}
+	var rtn []LockedEntry
+	for _, l := range m.env.NameLocks() {
+		if held[foldName(l.Name)] {
+			continue
+		}
+		rtn = append(rtn, LockedEntry{FirstName: l.Name, Project: projectName(l.Project), ProjectDir: l.Project})
+	}
+	return rtn
+}
+
+// lockedRefusal is the answer to a hand-off to a locked name no agent holds, "" for any other name.
+func (m *Manager) lockedRefusal(name string) string {
+	for _, l := range m.lockedNotRunning() {
+		if foldName(l.FirstName) == foldName(name) {
+			return fmt.Sprintf("%s is locked for project %s and no agent holds that name now (not running): nothing was sent. MoltenTerm "+
+				"does not start an agent for a hand-off: ask the developer to start one in that project, then send again.", l.FirstName, orDash(l.Project))
+		}
+	}
+	return ""
 }
 
 func activeNames(entries []activeAgent, except string) string {
@@ -413,6 +451,9 @@ func (m *Manager) send(ctx context.Context, req SendRequest, fromName *string) (
 	active := m.activeParties(ctx)
 	target, ok := resolve(active, name)
 	if !ok {
+		if refusal := m.lockedRefusal(name); refusal != "" {
+			return SendResult{}, errors.New(refusal)
+		}
 		return SendResult{}, fmt.Errorf("No active agent is named %q: %s. A subagent has no first name and cannot be addressed.", name, activeNames(active, senderId))
 	}
 	if target.blockId == senderId {
@@ -455,6 +496,7 @@ func (m *Manager) complete(ctx context.Context, from Party, to Party, brief Brie
 	d := &delivery{from: from, to: to, line: promptLine(from, brief, path), briefPath: path, queuedAt: m.now(), brief: brief}
 	m.addHistory(from, to, brief)
 	m.env.RecordHandoff(ctx, from.BlockId, to.BlockId)
+	m.recordChain(from, to)
 	return m.deliver(ctx, d)
 }
 

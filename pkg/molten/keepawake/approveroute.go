@@ -62,6 +62,12 @@ func (s *service) permission(ctx context.Context, req PermissionRequest) Permiss
 	}
 	// The hook ran, so the agent runs it: Codex only does once the developer trusted it.
 	s.hooks.mark(req.Agent)
+	// Brokk's own session asks the developer in his layer, and is never approved by a coffee (#2257).
+	if asker := getOwnSessionAsker(); asker != nil {
+		if answer, handled := asker(ctx, req); handled {
+			return answer
+		}
+	}
 	home, _ := os.UserHomeDir()
 	check := PermissionCheck{
 		Tool: req.ToolName, Input: req.ToolInput, Cwd: req.Cwd, Home: home, TempDirs: tempDirs(), Branch: gitBranch,

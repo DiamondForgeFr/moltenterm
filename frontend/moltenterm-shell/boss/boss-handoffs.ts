@@ -18,9 +18,17 @@ import {
     readPendingHandoffs,
 } from "../agent-handoff";
 
-// The window may start before wavesrv answers: the read is tried again a few times, then left to the next event.
-const ReadRetryMs = 2000;
-const ReadMaxTries = 10;
+// The window may start before wavesrv answers: the read is tried again soon a few times, then more slowly for as long as
+// the list is used (#2223). After the quick tries the list counts as read, so that the other feeds of Brokk are not held
+// back by this one: it is empty until a read succeeds.
+export const ReadRetryMs = 2000;
+export const ReadSlowRetryMs = 30000;
+export const ReadQuickTries = 10;
+
+// How long to wait before the next try, after `tries` failed ones.
+export function readRetryDelay(tries: number): number {
+    return tries < ReadQuickTries ? ReadRetryMs : ReadSlowRetryMs;
+}
 
 export class PendingHandoffs {
     private static instance: PendingHandoffs = null;
@@ -122,7 +130,9 @@ export class PendingHandoffs {
                 }
             } catch (e) {
                 failed = true;
-                console.log("boss handoffs: could not read the requests", e);
+                if (tries + 1 === ReadQuickTries) {
+                    console.warn("boss handoffs: could not read the requests, trying again more slowly", e);
+                }
             } finally {
                 this.inFlight = false;
                 this.afterRead(failed, tries);
@@ -139,12 +149,19 @@ export class PendingHandoffs {
             this.read(0);
             return;
         }
-        if (failed && tries + 1 < ReadMaxTries) {
-            this.retryTimer = setTimeout(() => {
+        if (!failed) {
+            return;
+        }
+        if (tries + 1 >= ReadQuickTries && !globalStore.get(this.loadedAtom)) {
+            globalStore.set(this.loadedAtom, true);
+        }
+        this.retryTimer = setTimeout(
+            () => {
                 this.retryTimer = null;
                 this.read(tries + 1);
-            }, ReadRetryMs);
-        }
+            },
+            readRetryDelay(tries + 1)
+        );
     }
 
     // The developer's answer, through the route the notification's buttons use. An answer that wavesrv did not take

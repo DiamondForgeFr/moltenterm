@@ -83,9 +83,12 @@ Lock resolution initially hit npm 10.9.2's internal Arborist `edgesOut` null err
 An isolated npm 11.16.0 resolved the peers; npm 10.9.2 then reconciled the lock and reproduced clean `npm ci`.
 The project and security scanner retain npm 10.9.2. No global npm or another worktree's installation was changed.
 
-Go and standalone Tsunami now pin Go 1.26.10 (#941: GO-2026-6809, crypto/x509, fixed in 1.26.10). The SSH, image, HTTP, module, text, telemetry, gRPC and fuzzy-search
+Go and standalone Tsunami pinned Go 1.26.10 (#941: GO-2026-6809, crypto/x509, fixed in 1.26.10). The SSH, image, HTTP, module, text, telemetry, gRPC and fuzzy-search
 updates eliminate the host's reachable findings. gRPC 1.83.1 was rejected by the fresh scanner and replaced by
 1.83.2. Cross-target source scans and native release builds remain necessary; a host result is not all-platform evidence.
+
+Both now pin Go 1.26.11 (#2225: GO-2026-6859, net/http MaxBytesReader header race that can crash an HTTP/1 server,
+fixed in 1.26.11). Only the toolchain moved: no module requirement changed.
 
 golang.org/x/crypto is pinned to the untagged `v0.58.1-0.20261009181718-2f1f834330b2` (#2122), the fixed version of
 GO-2026-5932. No release is tagged past v0.58.0 (2026-11-09). That commit, 2f1f834330b2, is the only one on top of

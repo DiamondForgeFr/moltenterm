@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -659,6 +660,10 @@ type Reviews struct {
 	followedWant map[headKey]string
 	followCount  int
 	followEvery  time.Duration
+	// publishLock orders the answers that reach the views (publishCurrent); publishWaiting counts the publishers
+	// queued behind it, which the tests wait for.
+	publishLock    sync.Mutex
+	publishWaiting atomic.Int32
 }
 
 func MakeReviews(collector *Collector, run Runner, publish func(ReviewsAnswer)) *Reviews {
@@ -859,12 +864,29 @@ func (r *Reviews) readReports(dir string) {
 		}
 	}
 	again := r.storeReports(dir, facts.reports, facts.tickets, msg)
-	if snap, ok := r.collector.Cached(dir); ok && r.publish != nil {
-		r.publish(r.answerOf(snap))
-	}
+	r.publishCurrent(dir)
 	if again {
 		r.Get(ReviewsRequest{Dir: dir})
 	}
+}
+
+// publishCurrent tells the views the project's list as the collector holds it when this publisher's turn comes: the
+// snapshot is taken and the answer published under one lock. Publishers that took their snapshot first and published
+// later (the reports, the ships, the CI) could land after the answer of a PR read on its own, and bring a merged PR
+// back into the views' list until their next ask (#2343).
+func (r *Reviews) publishCurrent(dir string) {
+	if r == nil || r.publish == nil || r.collector == nil {
+		return
+	}
+	r.publishWaiting.Add(1)
+	r.publishLock.Lock()
+	r.publishWaiting.Add(-1)
+	defer r.publishLock.Unlock()
+	snap, ok := r.collector.Cached(dir)
+	if !ok {
+		return
+	}
+	r.publish(r.answerOf(snap))
 }
 
 func (r *Reviews) answerOf(snap Snapshot) ReviewsAnswer {

@@ -20,9 +20,8 @@ export const ReliefMs = 60 * 1000;
 export const NewsMs = 2 * 60 * 1000;
 export const HandledMs = 3000;
 export const BackMs = 60 * 1000;
-// A greeting nod when the screen or the card opens this soon after the developer is back, and no longer.
-export const GreetWithinMs = 2 * 60 * 1000;
-// Away from the page for this long: coming back is worth a greeting.
+// Away from the page for this long: coming back is a return, with its summary. The greeting itself is the kind
+// colleague's hello, which owns the nod (FR-BOSS-009, AC74, #2217).
 export const ReturnAfterMs = 30 * 60 * 1000;
 // A mood plays its expression on opening at most this often.
 export const ReplayEveryMs = 5 * 60 * 1000;
@@ -52,7 +51,7 @@ export type MoodMemory = {
     news: MoodNews;
     handled: { at: number; kind: HandledKind };
     // The developer came back after a long absence.
-    back: { at: number; summary: BackSummary; greeted: boolean };
+    back: { at: number; summary: BackSummary };
     // The longest wait already told with a doubtful look, by row.
     told: Record<string, number>;
     // When a mood last played its expression on opening.
@@ -86,7 +85,6 @@ export type MoodEvent =
     | { type: "handled"; kind: HandledKind }
     // The developer is back; `since` is when they last were there.
     | { type: "returned"; since: number }
-    | { type: "greeted" }
     | { type: "told"; key: string; afterMs: number }
     // The rows still waiting: the others are forgotten, so that a row that waits again is told again.
     | { type: "still"; keys: string[] }
@@ -134,13 +132,9 @@ export function moodAfter(memory: MoodMemory, event: MoodEvent, now: number): Mo
         case "returned":
             return {
                 ...memory,
-                back: { at: now, summary: summaryOf(memory, event.since), greeted: false },
+                back: { at: now, summary: summaryOf(memory, event.since) },
                 log: [],
             };
-        case "greeted":
-            return memory.back == null || memory.back.greeted
-                ? memory
-                : { ...memory, back: { ...memory.back, greeted: true } };
         case "told":
             if ((memory.told[event.key] ?? 0) >= event.afterMs) {
                 return memory;
@@ -289,11 +283,6 @@ export function replayOf(memory: MoodMemory, view: MoodView, now: number): Brokk
         return "doubtful";
     }
     return view.satisfiedMention ? "smile" : null;
-}
-
-// The greeting when the developer opens the screen or the card soon after coming back from a long absence.
-export function greetingDue(memory: MoodMemory, now: number): boolean {
-    return memory.back != null && !memory.back.greeted && within(memory.back.at, now, GreetWithinMs);
 }
 
 export type WaitRow = { key: string; since: number };

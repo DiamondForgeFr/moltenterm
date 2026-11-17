@@ -36,6 +36,23 @@
         "onDemand": true
       },
       {
+        "name": "glance",
+        "weight": 2
+      },
+      {
+        "name": "breath",
+        "weight": 2
+      },
+      {
+        "name": "lookaround"
+      },
+      {
+        "name": "beard"
+      },
+      {
+        "name": "scratch"
+      },
+      {
         "name": "doubtful",
         "onDemand": true
       },
@@ -49,6 +66,22 @@
       },
       {
         "name": "call",
+        "onDemand": true
+      },
+      {
+        "name": "sigh",
+        "onDemand": true
+      },
+      {
+        "name": "proud",
+        "onDemand": true
+      },
+      {
+        "name": "chuckle",
+        "onDemand": true
+      },
+      {
+        "name": "surprised",
         "onDemand": true
       }
     ],
@@ -69,7 +102,11 @@
     "doubtful": 4625,
     "frown": 2625,
     "nod": 2750,
-    "call": 2500
+    "call": 2500,
+    "sigh": 2938,
+    "proud": 3875,
+    "chuckle": 4125,
+    "surprised": 2938
   },
   "head": {
     "x": 0.5,

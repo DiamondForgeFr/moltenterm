@@ -15,11 +15,13 @@ import { MoltentermNotifications } from "./notifications-store";
 // must match NotificationKeyPrefix in pkg/molten/handoffwire/handoffwire.go
 export const HandoffNotificationKeyPrefix = "agenthandoff:";
 
-export type SystemNotifyOutcome = "shown" | "focused" | "duplicate" | "invalid" | "unsupported";
+// held: the brainstorm mode holds it (FR-BOSS-010 AC3); it stays in the center.
+export type SystemNotifyOutcome = "shown" | "focused" | "duplicate" | "invalid" | "unsupported" | "held";
 
 export type SystemNotifyApi = {
     moltentermSystemNotify?: (req: { id: string; title: string; body: string }) => Promise<SystemNotifyOutcome>;
     moltentermSystemNotifyClose?: (id: string) => void;
+    moltentermSystemNotifyHold?: (held: boolean) => void;
     onMoltentermSystemNotifyClick?: (callback: (id: string) => void) => () => void;
 };
 

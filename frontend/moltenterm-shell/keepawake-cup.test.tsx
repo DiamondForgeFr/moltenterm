@@ -114,7 +114,8 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
     it("keeps the steam's motion cheap and still under reduced motion (DS-SHELL-151, #1470)", () => {
         const css = readFileSync(join(__dirname, "keepawake-cup.css"), "utf8");
         expect(css).toMatch(/\.mt-cup\[data-on\] \{\s*color: var\(--mt-state-running\);/);
-        expect(css).not.toContain("--mt-action");
+        expect(css.match(/--mt-action\b/g)).toHaveLength(1);
+        expect(css).toMatch(/\.mt-cup\[data-on\]\[data-tone="action"\] \{\s*color: var\(--mt-action\);/);
         expect(css).not.toMatch(/@container|container-type/);
         const motion = css.match(/@media \(prefers-reduced-motion: no-preference\) \{([\s\S]*?)\n\}\n/)?.[1] ?? "";
         expect(motion).toContain("animation-duration: 4s;");
@@ -125,6 +126,14 @@ describe("keep-awake cup (FR-SHELL-103, #1408)", () => {
             expect(css).toContain(`@keyframes mt-cup-steam-${i} {`);
         }
         expect(css).toMatch(/\.prefers-reduced-motion \.mt-cup\[data-on\] \.mt-cup-steam,[^{]*\{\s*animation: none;/);
+        // Brokk's rail (AC80, #2206): the rising steam runs only under no-preference, and the still rules come after it
+        // with the same specificity, so reduced motion leaves an orange cup with still steam.
+        expect(motion).toMatch(/\[data-steam="rise"\] \.mt-cup-steam-1,[^{]*\{\s*animation-name: mt-cup-rise;/);
+        expect(motion).toMatch(/\[data-steam="rise"\] \.mt-cup-steam-2 \{\s*animation-name: mt-cup-rise-half;/);
+        expect(css.replace(/@media[\s\S]*?\n\}\n/, "")).not.toContain("mt-cup-rise;");
+        expect(css.indexOf(".prefers-reduced-motion .mt-cup")).toBeGreaterThan(css.indexOf("mt-cup-rise-half;"));
+        expect(css).toContain("@keyframes mt-cup-rise {");
+        expect(css).toContain("@keyframes mt-cup-rise-half {");
         const keyframes = css.slice(css.indexOf("@keyframes"));
         expect(keyframes.replace(/transform|opacity/g, "")).not.toMatch(/\b(top|left|width|height|margin|filter)\s*:/);
     });

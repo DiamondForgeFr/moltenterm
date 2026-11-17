@@ -28,7 +28,7 @@ import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { loadIntegrationRuns, type AgentIntegrationRun } from "../agent-integration-runs";
 import { AgentLinks } from "../agent-links/agent-links-store";
 import { agentCallName, agentStatesOfWorkspace } from "../agent-state-model";
@@ -37,6 +37,8 @@ import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import type { BrowserCommandState } from "../command-panel/providers/browser";
 import { DownloadPill } from "../downloads/download-pill";
+import { captureFavicon, faviconsAtom, noteSiteLoading, requestFavicons } from "../favicon/favicon-store";
+import { originOfAddress } from "../favicon/site";
 import { HeaderCloseButton } from "../header/header-close-button";
 import { contentBoxWidth } from "../header/header-fold";
 import { Pill } from "../header/pill";
@@ -45,7 +47,7 @@ import { translate } from "../i18n/i18n-core";
 import { serverErrorText, serverText } from "../i18n/server-text";
 import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
 import { anchoredMenuEvent, buttonMenuAnchor } from "../menu/menu-anchor";
-import { openSettingsSection } from "../settings/settings-open";
+import { openSettingsKey, openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { openTopField } from "../sidebar/top-field-store";
@@ -64,12 +66,12 @@ import { AddressHold, takeAddressFocus } from "./address-focus";
 import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
-import { showAgentPage } from "./agent-show";
+import { showAgentAsk, showAgentPage, type AgentShowTarget } from "./agent-show";
+import { annotatablePage, annotateLayers, AnnotateSession, closedTabs } from "./annotate-session";
+import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
 import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
 import { bookmarksMenu } from "./bookmarks-menu";
-import { captureFavicon, faviconsAtom, noteSiteLoading, requestFavicons } from "../favicon/favicon-store";
-import { originOfAddress } from "../favicon/site";
 import {
     AgentControlAction,
     agentName,
@@ -80,6 +82,7 @@ import {
     BrowserAgentModel,
     controlBarView,
     permissionBarView,
+    reuseBarView,
     setAgentSite,
     ShareResult,
 } from "./browser-agent";
@@ -102,20 +105,21 @@ import {
 import { BrowserErrorModel, isPageFailure } from "./browser-error";
 import { BrowserErrorPage } from "./browser-error-page";
 import {
-    BrowserLifecycleModel,
-    PageScroll,
-    reportWebviewShown,
-    scrollScript,
-    shouldRestore,
-} from "./browser-lifecycle";
-import { LinkCopy } from "./browser-link-copy";
+    BrowserInspectorModel,
+    inspectorApi,
+    onInspectorGone,
+    type ClearDataResult,
+    type InspectorPoint,
+} from "./browser-inspector";
 import {
     browserKeyAction,
     BrowserKeyAddress,
+    BrowserKeyAnnotate,
     BrowserKeyBack,
     BrowserKeyFind,
     BrowserKeyForward,
     BrowserKeyHardReload,
+    BrowserKeyInspect,
     BrowserKeyReload,
     BrowserKeyStop,
     BrowserKeyZoomIn,
@@ -123,6 +127,14 @@ import {
     BrowserKeyZoomReset,
     nextZoomStep,
 } from "./browser-keys";
+import {
+    BrowserLifecycleModel,
+    PageScroll,
+    reportWebviewShown,
+    scrollScript,
+    shouldRestore,
+} from "./browser-lifecycle";
+import { LinkCopy } from "./browser-link-copy";
 import {
     BrowserLoadModel,
     reloadAction,
@@ -148,6 +160,7 @@ import {
     closeTab,
     consumeCloseRequestsMeta,
     consumeOpenRequestsMeta,
+    consumeShowRequestsMeta,
     isAgentTabId,
     isBlankPage,
     isStartPage,
@@ -156,6 +169,7 @@ import {
     readBrowserState,
     readCloseRequests,
     readOpenRequests,
+    readShowRequests,
     setTabEngine,
     shownAddress,
     splitOutTabs,
@@ -183,8 +197,12 @@ import {
 import { BrowserStartPage } from "./browser-start-page";
 import { browserTabMenu } from "./browser-tab-menu";
 import "./browser.css";
+import { ClearDataDialog, type ClearDataRequest } from "./clear-data-dialog";
+import { ClientCertificateModel, isCertificateAsk } from "./client-certificate-store";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { blockIdOfORef, focusWhenPlaced } from "./focus-placed";
+import { inspectorMenuItems } from "./inspector-menu";
+import { InspectorPane } from "./inspector-pane";
 import { choiceEngineId, EngineChoice } from "./link-choice";
 import {
     allowedWhenNavigated,
@@ -195,13 +213,25 @@ import {
     withRememberedLocalPage,
 } from "./local-page";
 import { GatedPage } from "./local-page-ask";
+import { PageAddressFrame } from "./page-address-frame";
+import {
+    DefaultSearchSettingKey,
+    isSearchPage,
+    searchEngineInfo,
+    SearchEngineNoteKey,
+    searchNoteDue,
+    webSearchTemplate,
+} from "./search-engine";
 import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
-import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
-import { ClientCertificateModel, isCertificateAsk } from "./client-certificate-store";
+import { ClearCacheKind, ClearSiteKind, siteOriginOf } from "./site-data";
 import { isSiteAsk, SitePermissionModel } from "./site-permission-store";
 import { TestContextChip } from "./test-context";
 
 export { MoltentermBrowserView };
+
+// The annotate mode's layer, its model and its painting load the first time the mode starts, never with the window
+// (NFR-PERF-003, build/on-demand-imports.test.ts).
+const AnnotateHost = lazy(() => import("./annotate-layer").then((m) => ({ default: m.AnnotateHost })));
 
 const PersistDelayMs = 400;
 // Below this row width (#1439) Forward, Reload and Magnify join Share and Open in <browser> in the row's "⋯"; the
@@ -268,6 +298,8 @@ export class BrowserViewModel implements ViewModel {
     handledOpenIds = new Set<string>();
     // Why a page meant for the installed browser opened here instead (FR-BRW-002).
     noticeAtom = atom(null) as PrimitiveAtom<string>;
+    // The name of the default search engine, while the one-time note about it shows (#2312).
+    searchNoteAtom = atom(null) as PrimitiveAtom<string>;
     linkCopy = new LinkCopy();
     engines = BrowserEngineModel.getInstance();
     // Sign-in refusals per tab (FR-BRW-003).
@@ -284,13 +316,22 @@ export class BrowserViewModel implements ViewModel {
     // The tabs agents drive, and their control bars (FR-BRW-008).
     agents: BrowserAgentModel;
     handledCloseIds = new Set<string>();
+    handledShowIds = new Set<string>();
     // Hidden pages frozen and discarded by the main process (#459).
     lifecycle: BrowserLifecycleModel;
     // The add or edit dialog of a bookmark, set by the Bookmarks menu (FR-BRW-019).
     bookmarkDialogAtom = atom(null) as PrimitiveAtom<BookmarkDialogRequest>;
+    // The pages whose developer tools are docked below them (FR-BRW-022).
+    inspector = new BrowserInspectorModel();
+    // The confirmation of Clear this site's data… or Clear the browser cache… (FR-BRW-022).
+    clearDataAtom = atom(null) as PrimitiveAtom<ClearDataRequest>;
+    // Annotate mode (#2327): the page frozen into a capture to draw numbered zones on.
+    annotate = new AnnotateSession();
+    offInspectorGone: () => void = null;
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
+        this.annotate.pageCapture = (tabId) => this.capturePageImage(tabId);
         if (takeAddressFocus(blockId)) {
             this.addressHold.start();
         }
@@ -303,19 +344,18 @@ export class BrowserViewModel implements ViewModel {
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
         this.agents = new BrowserAgentModel(blockId);
-        this.agents.onShown = (shownTabIds) =>
-            showAgentPage(
-                {
-                    blockId,
-                    activeTabId: () => this.state().activeId,
-                    hasTab: (id) => this.findTab(id) != null,
-                    selectTab: (id) => this.showTab(id),
-                },
-                shownTabIds
-            );
+        this.agents.onShown = (shownTabIds) => showAgentPage(this.agentShowTarget(), shownTabIds);
+        this.agents.onAsk = () => showAgentAsk(blockId);
         this.agents.start();
         this.lifecycle = new BrowserLifecycleModel(blockId);
         this.lifecycle.start((tabId, webContentsId, scroll) => this.discardTab(tabId, webContentsId, scroll));
+        // A page whose process ended or that closed took its docked tools with it.
+        this.offInspectorGone = onInspectorGone((pageId) => {
+            const tabId = this.inspector.tabOfPage(pageId);
+            if (tabId != null) {
+                this.inspector.close(tabId);
+            }
+        });
         this.takeInitialNotice();
         this.takeInitialAsk();
         this.splitOutSavedTabs();
@@ -502,6 +542,26 @@ export class BrowserViewModel implements ViewModel {
 
     dismissNotice(): void {
         globalStore.set(this.noticeAtom, null);
+    }
+
+    // The first search made with the default engine tells which engine it is, once and calmly (#2312): users who never
+    // chose one now get Brave Search where Google was. Remembered in a hidden setting as soon as it shows, so a restart
+    // or another panel never shows it again.
+    noteSearch(url: string): void {
+        if (globalStore.get(this.searchNoteAtom) != null) {
+            return;
+        }
+        const template = webSearchTemplate();
+        const shown = globalStore.get(getSettingsKeyAtom(SearchEngineNoteKey));
+        if (!searchNoteDue(template, shown) || !isSearchPage(url, template)) {
+            return;
+        }
+        globalStore.set(this.searchNoteAtom, searchEngineInfo(template).name);
+        fireAndForget(() => RpcApi.SetConfigCommand(TabRpcClient, { [SearchEngineNoteKey]: true } as SettingsType));
+    }
+
+    dismissSearchNote(): void {
+        globalStore.set(this.searchNoteAtom, null);
     }
 
     findTab(id: string): BrowserTab {
@@ -790,6 +850,13 @@ export class BrowserViewModel implements ViewModel {
                     submenu: this.bookmarkMenuItems(tab),
                 });
             }
+            if (tab != null && this.canAnnotate(tab.id)) {
+                menu.push({
+                    label: t("browser.annotate.menu"),
+                    icon: "vector-square",
+                    click: () => this.startAnnotate(tab.id),
+                });
+            }
             menu.push(...(await this.shareItems(tab)));
             const engine = this.engineMenuItems(tab);
             if (engine.length > 0) {
@@ -833,7 +900,8 @@ export class BrowserViewModel implements ViewModel {
         ContextMenuModel.getInstance().showContextMenu(menu, e);
     }
 
-    showLinkMenu(url: string, event?: React.MouseEvent): void {
+    // A right-click on a page's link; at names the page and the point, for Inspect (FR-BRW-022).
+    showLinkMenu(url: string, event?: React.MouseEvent, at?: { tabId: string; point: InspectorPoint }): void {
         const chosen = this.engines.chosen();
         const menu: ContextMenuItem[] = [];
         // A page's link to a file or a data: page never becomes a tab (#663); Copy link address still works.
@@ -853,6 +921,9 @@ export class BrowserViewModel implements ViewModel {
             click: () => fireAndForget(() => navigator.clipboard.writeText(url)),
         });
         menu.push(...splitMenuItems(this.blockId));
+        if (at != null) {
+            menu.push({ type: "separator" }, ...this.developerMenuItems(at.tabId, at.point));
+        }
         // The webview's event carries no React event: the menu opens at the pointer anyway.
         ContextMenuModel.getInstance().showContextMenu(
             menu,
@@ -1008,6 +1079,37 @@ export class BrowserViewModel implements ViewModel {
         });
     }
 
+    agentShowTarget(): AgentShowTarget {
+        return {
+            blockId: this.blockId,
+            activeTabId: () => this.state().activeId,
+            hasTab: (id) => this.findTab(id) != null,
+            selectTab: (id) => this.showTab(id),
+        };
+    }
+
+    // A page `molten open` found already open here (#2333): its tab is the one shown and the panel comes into view, as for
+    // a page an agent shows. Nothing is loaded again and the focus stays where it is.
+    handleShowRequests(meta: Record<string, any>): void {
+        const requests = readShowRequests(meta);
+        if (requests.length === 0) {
+            return;
+        }
+        const fresh = requests.filter((r) => !this.handledShowIds.has(r.id));
+        for (const request of fresh) {
+            this.handledShowIds.add(request.id);
+            if (this.findTab(request.tabId) != null) {
+                showAgentPage(this.agentShowTarget(), [request.tabId]);
+            }
+        }
+        fireAndForget(() =>
+            RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("block", this.blockId),
+                meta: consumeShowRequestsMeta(requests) as MetaType,
+            })
+        );
+    }
+
     // Tabs an agent closes (tabs_close); the panel closes with its last tab, as Cmd+W does.
     handleCloseRequests(meta: Record<string, any>): void {
         const requests = readCloseRequests(meta);
@@ -1043,6 +1145,7 @@ export class BrowserViewModel implements ViewModel {
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
+        this.inspector.close(id);
         this.setState(closeTab(this.state(), id));
     }
 
@@ -1373,12 +1476,187 @@ export class BrowserViewModel implements ViewModel {
         this.agents.control(browserTabId, action);
     }
 
-    openPageDevTools(): void {
+    // The webContents of a tab's page, once its webview had its first dom-ready.
+    pageIdOf(tabId: string): number {
         try {
-            this.activeWebview()?.openDevTools();
-        } catch (e) {
-            console.log("browser devtools failed", e);
+            const id = this.webviews.get(tabId)?.getWebContentsId();
+            return typeof id === "number" ? id : null;
+        } catch {
+            return null;
         }
+    }
+
+    // A page MoltenTerm draws (not handed off to another browser) can be inspected.
+    canInspect(tabId: string): boolean {
+        const tab = this.findTab(tabId);
+        return tab != null && !tab.engine && this.webviews.has(tabId);
+    }
+
+    // Inspect (FR-BRW-022): the tab's developer tools docked below the page, on the element at point when the
+    // right-click gave one.
+    inspect(tabId: string, point?: InspectorPoint): void {
+        if (!this.canInspect(tabId)) {
+            return;
+        }
+        if (tabId !== this.state().activeId) {
+            this.showTab(tabId);
+        }
+        this.inspector.open(tabId, point);
+    }
+
+    closeInspector(tabId: string): void {
+        this.inspector.close(tabId);
+    }
+
+    // ⌥⌘I, Ctrl+Shift+I elsewhere, and the command panel's entry: the shown page's inspector opens or closes.
+    toggleInspector(tabId = this.state().activeId): boolean {
+        if (this.inspector.isOpen(tabId)) {
+            this.closeInspector(tabId);
+            return true;
+        }
+        if (!this.canInspect(tabId)) {
+            return false;
+        }
+        this.inspect(tabId);
+        return true;
+    }
+
+    // The page's own picture, without anything the window draws over it (the layer, a popover, a toast), as the page
+    // shows it in the panel; "" when the page cannot be captured (not loaded yet): the annotate mode then takes the
+    // window's picture of the panel's area.
+    async capturePageImage(tabId: string): Promise<string> {
+        const webview = this.webviews.get(tabId);
+        if (webview == null) {
+            return "";
+        }
+        try {
+            const image = await webview.capturePage();
+            return image == null || image.isEmpty() ? "" : image.toDataURL();
+        } catch (e) {
+            console.log("browser page capture failed", e);
+            return "";
+        }
+    }
+
+    canAnnotate(tabId = this.state().activeId): boolean {
+        const tab = this.findTab(tabId);
+        return tab != null && !tab.engine && annotatablePage(tab.url);
+    }
+
+    // The header's button, the version card's Annotate and ⌘⇧A (Ctrl+Shift+A elsewhere): the shown page freezes into a
+    // capture and the developer draws zones on it. The key never starts it on a page that cannot be captured.
+    startAnnotate(tabId = this.state().activeId): boolean {
+        if (!this.canAnnotate(tabId)) {
+            return false;
+        }
+        return this.annotate.start(tabId, this.findTab(tabId).url);
+    }
+
+    inspectorFailed(tabId: string): void {
+        this.inspector.close(tabId);
+        this.showNotice(t("browser.inspector.failed"));
+    }
+
+    // Open in a separate window: the docked tools close, then the page's tools open in their own window, as before
+    // FR-BRW-022.
+    openPageDevTools(tabId = this.state().activeId): void {
+        const pageId = this.pageIdOf(tabId);
+        const api = inspectorApi();
+        this.inspector.close(tabId);
+        if (pageId == null) {
+            return;
+        }
+        if (api?.moltentermInspectorWindow == null) {
+            try {
+                this.webviews.get(tabId)?.openDevTools();
+            } catch (e) {
+                console.log("browser devtools failed", e);
+            }
+            return;
+        }
+        api.moltentermInspectorWindow(pageId).then(
+            (ok) => {
+                if (!ok) {
+                    this.showNotice(t("browser.inspector.failed"));
+                }
+            },
+            () => this.showNotice(t("browser.inspector.failed"))
+        );
+    }
+
+    // The page's origin when it has site data to clear: an http or https page MoltenTerm draws.
+    clearableOrigin(tabId: string): ReturnType<typeof siteOriginOf> {
+        const tab = this.findTab(tabId);
+        if (tab == null || tab.engine || !this.webviews.has(tabId)) {
+            return null;
+        }
+        return siteOriginOf(tab.url);
+    }
+
+    askClearSiteData(tabId = this.state().activeId): void {
+        const site = this.clearableOrigin(tabId);
+        if (site == null) {
+            return;
+        }
+        globalStore.set(this.clearDataAtom, { kind: ClearSiteKind, tabId, origin: site.origin, host: site.host });
+    }
+
+    askClearCache(tabId = this.state().activeId): void {
+        if (!this.canInspect(tabId)) {
+            return;
+        }
+        globalStore.set(this.clearDataAtom, { kind: ClearCacheKind, tabId });
+    }
+
+    // The confirmed request: emain clears and reloads the page; the panel says what happened.
+    clearData(request: ClearDataRequest): void {
+        globalStore.set(this.clearDataAtom, null);
+        const pageId = this.pageIdOf(request.tabId);
+        const api = inspectorApi();
+        if (pageId == null || api?.moltentermBrowserClearData == null) {
+            this.showNotice(t("browser.siteData.failed", { error: t("browser.inspector.failed") }));
+            return;
+        }
+        const origin = request.kind === ClearSiteKind ? request.origin : undefined;
+        fireAndForget(async () => {
+            let res: ClearDataResult;
+            try {
+                res = await api.moltentermBrowserClearData(pageId, request.kind, origin);
+            } catch (e) {
+                this.showNotice(t("browser.siteData.failed", { error: errorText(e) }));
+                return;
+            }
+            if (res?.ok) {
+                showToast({
+                    kind: "info",
+                    title:
+                        request.kind === ClearSiteKind
+                            ? t("browser.siteData.siteDone", { origin })
+                            : t("browser.siteData.cacheDone"),
+                });
+                return;
+            }
+            this.showNotice(
+                res?.reason === "moved"
+                    ? t("browser.siteData.moved")
+                    : t("browser.siteData.failed", { error: res?.error ?? "" })
+            );
+        });
+    }
+
+    // The developer's entries of a page's right-click (FR-BRW-022).
+    developerMenuItems(tabId: string, point?: InspectorPoint): ContextMenuItem[] {
+        if (!this.canInspect(tabId)) {
+            return [];
+        }
+        return inspectorMenuItems({
+            open: this.inspector.isOpen(tabId),
+            clearable: this.clearableOrigin(tabId) != null,
+            inspect: () => this.inspect(tabId, point),
+            close: () => this.closeInspector(tabId),
+            clearSite: () => this.askClearSiteData(tabId),
+            clearCache: () => this.askClearCache(tabId),
+        });
     }
 
     // What the command panel's Browser sections read (command-panel/providers/browser.ts).
@@ -1405,6 +1683,9 @@ export class BrowserViewModel implements ViewModel {
             agentTab,
             agentView: agentTab ? controlBarView(agentTab) : null,
             agentTabShown: agentTab != null && agentTab === shownAgent,
+            canInspect: this.canInspect(tab.id),
+            inspectorOpen: this.inspector.isOpen(tab.id),
+            clearableOrigin: this.clearableOrigin(tab.id)?.origin ?? null,
         };
     }
 
@@ -1419,6 +1700,9 @@ export class BrowserViewModel implements ViewModel {
     // no: handing the page the focus then would take it back from the address field.
     giveFocus(): boolean {
         if (this.addressHold.holds && this.focusAddress()) {
+            return true;
+        }
+        if (this.annotate.holdFocus(this.state().activeId)) {
             return true;
         }
         // The engine choice's primary button holds the focus while the bar is up (DS-BRW-007).
@@ -1516,6 +1800,10 @@ export class BrowserViewModel implements ViewModel {
             case BrowserKeyZoomReset:
                 this.setZoom(100);
                 return true;
+            case BrowserKeyInspect:
+                return this.toggleInspector(id);
+            case BrowserKeyAnnotate:
+                return this.annotate.isOpen(id) || this.startAnnotate(id);
             case BrowserKeyAddress:
                 return this.focusAddress();
             case BrowserKeyStop:
@@ -1602,6 +1890,8 @@ export class BrowserViewModel implements ViewModel {
         if (current !== webContentsId || this.isTabShown(id) || this.isAgentDriven(id) || isOffCarpet(this.blockId)) {
             return;
         }
+        // A dropped page closes its docked tools; emain keeps a page with its tools open, so this is only a safeguard.
+        this.inspector.close(id);
         this.lifecycle.discard(id, scroll);
     }
 
@@ -1613,6 +1903,7 @@ export class BrowserViewModel implements ViewModel {
         this.agents.dispose();
         this.linkCopy.dispose();
         this.addressHold.stop();
+        this.offInspectorGone?.();
     }
 }
 
@@ -1722,13 +2013,18 @@ function TabWebview({
         const removeContextMenu = getApi().onGuestContextMenu?.((params) => {
             if (params.guestId !== webview.getWebContentsId() || model.state().activeId !== tab.id) return;
             const event = guestMenuEvent(params, webview);
+            // Inspect selects the clicked element (FR-BRW-022): Chromium hit-tests a page in the window's coordinates,
+            // so the point is where the menu opens, in the window's CSS pixels.
+            const point = { x: event.clientX, y: event.clientY };
             if (params.linkURL && !params.imageToken && !params.editable && !params.selectionText) {
-                model.showLinkMenu(params.linkURL, event);
+                model.showLinkMenu(params.linkURL, event, { tabId: tab.id, point });
                 return;
             }
             const menu = guestEditMenu(params, (token) => getApi().saveContextMenuImage(token));
             if (menu.length) menu.push({ type: "separator" });
             menu.push(...splitMenuItems(model.blockId));
+            const developer = model.developerMenuItems(tab.id, point);
+            if (developer.length) menu.push({ type: "separator" }, ...developer);
             ContextMenuModel.getInstance().showContextMenu(menu, event);
         });
         // A new panel focuses its page before the page's first dom-ready, when getWebContentsId still throws: the focus
@@ -1894,13 +2190,26 @@ function TabWebview({
 // A page an agent controls carries its mark in the panel's row.
 function AgentTabMarker({ model, agentTabs, tabId }: { model: BrowserViewModel; agentTabs: AgentTabs; tabId: string }) {
     useLocale();
+    const reuseAsks = useAtomValue(model.agents.asksAtom);
     const agentTab = agentTabs[tabId];
     if (isSharedTab(agentTab)) {
         return <SharedTabBadge model={model} agentTab={agentTab} tabId={tabId} />;
     }
     const view = controlBarView(agentTab);
     if (view == null) {
-        return null;
+        // An agent asks to use this page, which is the user's (#2333).
+        const asking = reuseBarView(reuseAsks[tabId]);
+        if (asking == null) {
+            return null;
+        }
+        return (
+            <i
+                role="img"
+                aria-label={asking.title}
+                title={asking.title}
+                className="fa fa-solid fa-circle-question shrink-0 text-11 text-[var(--mt-state-waiting)]"
+            />
+        );
     }
     const asking = permissionBarView(agentTab);
     if (asking != null) {
@@ -2061,7 +2370,18 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     const keys = formatShortcutById("top-field");
     const copyable = addressOfPage(tab.url) !== "";
     return (
-        <div className="group relative flex h-6 min-w-0 shrink">
+        <PageAddressFrame
+            copy={
+                copyable
+                    ? {
+                          copied,
+                          copyLabel: t("browser.address.copy"),
+                          copiedLabel: t("browser.address.copied"),
+                          onCopy: () => model.copyTabLink(tab.id),
+                      }
+                    : null
+            }
+        >
             <button
                 type="button"
                 className="flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
@@ -2087,31 +2407,7 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
                 )}
                 <span className="min-w-0 truncate font-mono text-11">{host}</span>
             </button>
-            {copyable ? (
-                <>
-                    <button
-                        type="button"
-                        aria-label={copied ? t("browser.address.copied") : t("browser.address.copy")}
-                        title={copied ? t("browser.address.copied") : t("browser.address.copy")}
-                        data-testid="browser-address-copy"
-                        data-copied={copied ? "true" : "false"}
-                        onClick={() => model.copyTabLink(tab.id)}
-                        className={cn(
-                            "absolute right-0.5 top-0.5 flex h-5 cursor-pointer items-center gap-1 rounded-4 bg-surface-3 px-1.5 text-11 text-secondary hover:text-primary focus-visible:opacity-100",
-                            copied
-                                ? "opacity-100"
-                                : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100"
-                        )}
-                    >
-                        <i className={cn("fa fa-solid text-11", copied ? "fa-check" : "fa-copy")} />
-                        {copied ? <span>{t("browser.address.copied")}</span> : null}
-                    </button>
-                    <span role="status" className="sr-only">
-                        {copied ? t("browser.address.copied") : ""}
-                    </span>
-                </>
-            ) : null}
-        </div>
+        </PageAddressFrame>
     );
 }
 
@@ -2189,7 +2485,11 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                       "mt-focus-only molten-fold-3"
                   )}
             <span className="mt-focus-only molten-fold-2 flex shrink-0 items-center">
-                <TestContextChip url={active?.url ?? ""} />
+                <TestContextChip
+                    url={active?.url ?? ""}
+                    onSwitch={(url) => model.navigate(url)}
+                    onAnnotate={model.canAnnotate(active?.id) ? () => model.startAnnotate(active.id) : undefined}
+                />
             </span>
             {topField ? (
                 <PageAddress model={model} tab={active} />
@@ -2245,6 +2545,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 className={cn("molten-browser-drag h-full min-w-6", topField && "flex-1")}
             />
             <span className="mt-focus-only molten-fold-2 flex min-w-0 shrink items-center gap-1">
+                <AnnotateButton model={model} tab={active} />
                 <BookmarksButton model={model} tab={active} />
                 <ShareButton model={model} tab={active} />
                 <EngineButton model={model} tab={active} />
@@ -2270,6 +2571,66 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 </div>
             ) : null}
         </div>
+    );
+}
+
+// The annotate layers over the panel's pages: nothing loads until the mode starts. A tab's layer stays mounted, hidden,
+// while another tab is shown, so its zones are there when the tab is back; the session of a tab that is closed ends.
+function AnnotateMount({
+    session,
+    activeTabId,
+    tabIds,
+}: {
+    session: AnnotateSession;
+    activeTabId: string;
+    tabIds: string[];
+}) {
+    const opens = useAtomValue(session.openAtom);
+    const tabKey = tabIds.join("\n");
+    useEffect(() => {
+        for (const tabId of closedTabs(opens, tabKey ? tabKey.split("\n") : [])) {
+            session.close(tabId);
+        }
+    }, [session, opens, tabKey]);
+    const layers = annotateLayers(opens, activeTabId, tabIds);
+    if (layers.length === 0) {
+        return null;
+    }
+    return (
+        <Suspense fallback={null}>
+            {layers.map((layer) => (
+                <AnnotateHost key={layer.open.nonce} session={session} open={layer.open} shown={layer.shown} />
+            ))}
+        </Suspense>
+    );
+}
+
+// The Annotate button (FR-BRW-017, #2327): the page freezes into a capture to draw numbered zones on and send to an agent.
+// The tooltip names the shortcut with the glyphs of the platform.
+function AnnotateButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const t = useT();
+    const opens = useAtomValue(model.annotate.openAtom);
+    if (tab == null || tab.engine || !annotatablePage(tab.url)) {
+        return null;
+    }
+    const on = opens.some((open) => open.tabId === tab.id);
+    const shortcut = formatShortcutById(isMacOS() ? "browser-annotate" : "browser-annotate-other");
+    const label = t("browser.annotate.button");
+    return (
+        <button
+            type="button"
+            aria-label={label}
+            aria-pressed={on}
+            title={t("browser.annotate.buttonTitle", { shortcut })}
+            onClick={() => model.startAnnotate(tab.id)}
+            data-testid="browser-annotate-button"
+            className={cn(
+                "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary",
+                on && "bg-hover text-primary"
+            )}
+        >
+            <i className="fa fa-solid fa-vector-square text-12" />
+        </button>
     );
 }
 
@@ -2455,6 +2816,43 @@ function BrowserNotice({ model }: { model: BrowserViewModel }) {
     );
 }
 
+// "Searches use Brave Search · Change" (#2312): calm, one line, with the way to Settings › Browser; never a modal.
+function SearchNote({ model }: { model: BrowserViewModel }) {
+    const t = useT();
+    const engine = useAtomValue(model.searchNoteAtom);
+    if (engine == null) {
+        return null;
+    }
+    return (
+        <div
+            role="status"
+            data-testid="browser-search-note"
+            className="molten-browser-notice flex shrink-0 items-center gap-2 border-b border-border px-2 py-1 text-12 text-secondary"
+        >
+            <i className="fa fa-solid fa-magnifying-glass shrink-0 text-[var(--mt-state-info)]" />
+            <span className="min-w-0 flex-1">
+                {t("browser.searchNote.text", { engine })}
+                {" · "}
+                <button
+                    type="button"
+                    onClick={() => fireAndForget(() => openSettingsKey("browser", DefaultSearchSettingKey))}
+                    className="cursor-pointer text-accent hover:underline"
+                >
+                    {t("browser.searchNote.change")}
+                </button>
+            </span>
+            <button
+                type="button"
+                aria-label={t("common.dismiss")}
+                onClick={() => model.dismissSearchNote()}
+                className="shrink-0 cursor-pointer rounded-6 px-1 text-secondary hover:bg-hover hover:text-primary"
+            >
+                <i className="fa fa-solid fa-xmark text-11" />
+            </button>
+        </div>
+    );
+}
+
 // What a handed-off entry shows: the page lives in the installed browser, with the ways back.
 function HandoffPage({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const t = useT();
@@ -2563,7 +2961,10 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const restoring = useAtomValue(model.lifecycle.restoringAtom);
     const agentTabs = useAtomValue(model.agents.tabsAtom);
     const offCarpet = useAtomValue(offCarpetAtom(model.blockId));
+    const inspectors = useAtomValue(model.inspector.entriesAtom);
     const viewShown = isShowing(activity);
+    const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
+    const inspecting = inspectors[state.activeId] != null && activeTab != null && !activeTab.engine;
     const blockMeta = block?.meta;
     // Find in page (#1722): Wave's find bar over the page, searching the shown page.
     const pagesRef = useRef<HTMLDivElement>(null);
@@ -2591,7 +2992,15 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     useEffect(() => {
         model.handleOpenRequests(blockMeta);
         model.handleCloseRequests(blockMeta);
+        model.handleShowRequests(blockMeta);
     }, [model, blockMeta]);
+    // A search shown on screen tells which engine made it, once (#2312).
+    const shownUrl = viewShown && !offCarpet ? activeTab?.url : null;
+    useEffect(() => {
+        if (shownUrl != null) {
+            model.noteSearch(shownUrl);
+        }
+    }, [model, shownUrl]);
     useEffect(() => {
         if (isFocused) {
             noteBrowserPanelFocus(model.blockId);
@@ -2608,6 +3017,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
         <div className="molten-browser flex h-full w-full flex-col">
             <BrowserNavBar model={model} state={state} />
             <BrowserNotice model={model} />
+            <SearchNote model={model} />
             <SignInRefusalBar
                 signIn={model.signIn}
                 tabId={state.activeId}
@@ -2628,40 +3038,75 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
             <ClientCertificateHost certificates={model.clientCertificates} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
-            <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">
-                {state.tabs.map((tab) =>
-                    tab.engine ? (
-                        tab.id === state.activeId ? (
-                            <HandoffPage key={tab.id} model={model} tab={tab} />
-                        ) : null
-                    ) : discarded[tab.id] != null ? null : (
-                        <GatedPage
-                            key={tab.id}
-                            model={model}
-                            tab={tab}
-                            active={tab.id === state.activeId}
-                            remembered={localPages}
-                        >
-                            <TabWebview
+            <div className={cn("flex min-h-0 flex-1 flex-col", inspecting && "molten-browser-inspecting")}>
+                <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">
+                    {state.tabs.map((tab) =>
+                        tab.engine ? (
+                            tab.id === state.activeId ? (
+                                <HandoffPage key={tab.id} model={model} tab={tab} />
+                            ) : null
+                        ) : discarded[tab.id] != null ? null : (
+                            <GatedPage
+                                key={tab.id}
                                 model={model}
                                 tab={tab}
                                 active={tab.id === state.activeId}
-                                shown={viewShown && tab.id === state.activeId}
-                                offCarpet={offCarpet}
-                            />
-                        </GatedPage>
-                    )
+                                remembered={localPages}
+                            >
+                                <TabWebview
+                                    model={model}
+                                    tab={tab}
+                                    active={tab.id === state.activeId}
+                                    shown={viewShown && tab.id === state.activeId}
+                                    offCarpet={offCarpet}
+                                />
+                            </GatedPage>
+                        )
+                    )}
+                    {discarded[state.activeId] != null || restoring[state.activeId] != null ? (
+                        <ReloadingPlaceholder model={model} tab={model.findTab(state.activeId)} />
+                    ) : null}
+                    <ActiveStartPage model={model} tabId={state.activeId} />
+                    <ActiveErrorPage model={model} tabId={state.activeId} />
+                    <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
+                    <AnnotateMount
+                        session={model.annotate}
+                        activeTabId={state.activeId}
+                        tabIds={state.tabs.map((tab) => tab.id)}
+                    />
+                </div>
+                {state.tabs.map((tab) =>
+                    inspectors[tab.id] != null && !tab.engine && discarded[tab.id] == null ? (
+                        <InspectorPane
+                            key={tab.id}
+                            host={model}
+                            tabId={tab.id}
+                            entry={inspectors[tab.id]}
+                            active={tab.id === state.activeId}
+                            shown={viewShown}
+                        />
+                    ) : null
                 )}
-                {discarded[state.activeId] != null || restoring[state.activeId] != null ? (
-                    <ReloadingPlaceholder model={model} tab={model.findTab(state.activeId)} />
-                ) : null}
-                <ActiveStartPage model={model} tabId={state.activeId} />
-                <ActiveErrorPage model={model} tabId={state.activeId} />
-                <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
             </div>
             <Search {...searchProps} />
             <BookmarkDialogHost model={model} />
+            <ClearDataDialogHost model={model} />
         </div>
+    );
+}
+
+// The confirmation of Clear this site's data… or Clear the browser cache… (FR-BRW-022).
+function ClearDataDialogHost({ model }: { model: BrowserViewModel }) {
+    const request = useAtomValue(model.clearDataAtom);
+    if (request == null) {
+        return null;
+    }
+    return (
+        <ClearDataDialog
+            request={request}
+            onCancel={() => globalStore.set(model.clearDataAtom, null)}
+            onConfirm={() => model.clearData(request)}
+        />
     );
 }
 

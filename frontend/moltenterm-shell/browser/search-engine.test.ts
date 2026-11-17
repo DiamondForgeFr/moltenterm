@@ -25,8 +25,8 @@ describe("one search engine everywhere, from web:defaultsearch (#1748)", () => {
 
     it("searches with the default engine while the setting is unset", () => {
         expect(webSearchTemplate()).toBeNull();
-        expect(toBrowserUrl("some words")).toBe("https://www.google.com/search?q=some%20words");
-        expect(topFieldSearch("some words")).toMatchObject({ url: "https://www.google.com/search?q=some%20words" });
+        expect(toBrowserUrl("some words")).toBe("https://search.brave.com/search?q=some%20words");
+        expect(topFieldSearch("some words")).toMatchObject({ url: "https://search.brave.com/search?q=some%20words" });
     });
 
     it("the address bar and the top field follow the setting", () => {
@@ -42,7 +42,7 @@ describe("one search engine everywhere, from web:defaultsearch (#1748)", () => {
         expect(toBrowserUrl("a b")).toBe("https://www.bing.com/search?q=a%20b");
         expect(topFieldSearch("a b")).toMatchObject({ url: "https://www.bing.com/search?q=a%20b" });
         globalStore.set(settings(), {});
-        expect(toBrowserUrl("a b")).toBe("https://www.google.com/search?q=a%20b");
+        expect(toBrowserUrl("a b")).toBe("https://search.brave.com/search?q=a%20b");
     });
 
     it("an address is never searched, whatever the engine", () => {
@@ -54,7 +54,7 @@ describe("one search engine everywhere, from web:defaultsearch (#1748)", () => {
     it("an unusable template falls back to the default engine", () => {
         for (const template of ["", "   ", "https://search.example/", null]) {
             setSearch(template);
-            expect(toBrowserUrl("x y")).toBe("https://www.google.com/search?q=x%20y");
+            expect(toBrowserUrl("x y")).toBe("https://search.brave.com/search?q=x%20y");
         }
     });
 });

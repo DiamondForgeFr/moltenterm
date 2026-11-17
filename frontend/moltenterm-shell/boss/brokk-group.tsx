@@ -12,7 +12,11 @@
 //
 // His square is his living portrait, not a plain video: it takes the pose and the mood the #2003 panel took
 // (use-brokk-live.ts useCardLive: listening while the developer writes, thinking, speaking, the severity gestures, the
-// expression queue, the blink rhythm, #2025's waiting), and the line under it is the caption of the same scene.
+// expression queue, the blink rhythm, #2025's waiting), and the line under it is his own answer or a moment of a kind
+// colleague (brokk-colleague.ts), else nothing (#2203).
+//
+// During a brainstorm the group takes the brainstorm layout (FR-BOSS-010 AC23, #2285, brainstormLayout): the rail and
+// the block give way to the brainstorm panel beside the square, and the talk window under both is wide and open.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms } from "@/app/store/global";
@@ -20,25 +24,37 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { modalsModel } from "@/app/store/modalmodel";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+    CSSProperties,
+    lazy,
+    Suspense,
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { AgentStates } from "../agent-state-store";
 import { AiIcon } from "../ai-icon";
-import { agentName } from "../companion/companion-task-model";
+import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { isActive, overallDownloadProgress } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { useLocale, useT } from "../i18n/i18n";
+import { CupIcon } from "../keepawake-cup-icon";
 import { keepAwakeActive } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
 import { modalIsOpen } from "../modal-open";
 import { MoltentermNotifications } from "../notifications-store";
 import { TabActivity, whileShown } from "../tab-activity";
-import { UsageWeekGrid, UsageWeekRow } from "../usage-week/usage-week";
+import { Tether } from "../tether/tether";
+import { RopePx, tetherLine } from "../tether/tether-model";
 import { loadWorkspaceSources } from "../workspace-rail";
 import { AnchorAttr, cardKeyAction, CardKeyInput, CardTestId, isOutsidePress } from "./boss-card-model";
 import { attentionAgents } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
-import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
+import { askUsageUse } from "./boss-usage";
 import { BrokkItem, sayLine } from "./brokk-exchange-model";
 import {
     activePanel,
@@ -48,9 +64,14 @@ import {
     afterRequest,
     arrivalOffset,
     ArrivalStepMs,
+    autoPanelIn,
+    brainstormLayout,
+    brainstormPanel,
+    closesCardIn,
     ConversationChromePx,
     conversationHeight,
     conversationWidth,
+    EmptyReportSize,
     groupFlow,
     groupGeometry,
     groupOpeningPanel,
@@ -64,6 +85,7 @@ import {
     panelRoom,
     PanelState,
     panelWidth,
+    plinkLine,
     priorityFactsOf,
     RailInput,
     RailMark,
@@ -76,6 +98,7 @@ import {
     reportView,
     SquarePx,
     TilePx,
+    typingTarget,
 } from "./brokk-group-model";
 import "./brokk-group.css";
 import { BrokkHubModel } from "./brokk-hub-store";
@@ -87,28 +110,32 @@ import { PanelContentAttr, PanelHeadAttr } from "./brokk-panel-frame";
 import { AgentsPanel, DownloadsPanel, SessionsPanel } from "./brokk-rows-panels";
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk } from "./brokk-talk";
-import { talkPose, talkWaits } from "./brokk-talk-model";
-import { WeeklyUsage, weeklyUsage } from "./brokk-usage-model";
+import { talkWaits } from "./brokk-talk-model";
 import { useBrokkActions } from "./use-brokk-actions";
-import { useGroupCaption } from "./use-brokk-caption";
 import { useAvatarKeys } from "./use-brokk-hub";
 import { useCardLive } from "./use-brokk-live";
+import { useBrokkMoment } from "./use-brokk-moment";
+import { useTalkFace } from "./use-brokk-talk-face";
 
 // How often "up 12 min" and the ages are read again while the group shows.
 const AgeTickMs = 15000;
+// How often the use of each agent over the last 7 days is asked again while the group shows (#2341).
+const UseTickMs = 60000;
 
-// A provider's row in the shared week grid, named with its agent's display name.
-function weekRow(u: WeeklyUsage): UsageWeekRow {
-    const { provider, readAt, old, unreadable, ...line } = u;
-    return {
-        key: provider,
-        agent: provider,
-        name: agentName(provider),
-        line: unreadable ? undefined : line,
-        unreadable,
-        readAt,
-        old,
-    };
+// The brainstorm panel (FR-BOSS-010 AC23, #2285) loads with the brainstorm, the first time the mode opens: the group
+// draws its frame at once.
+const BrainstormPanel = lazy(() =>
+    import("../brainstorm/brainstorm-panel").then((mod) => ({ default: mod.BrainstormPanel }))
+);
+
+// The usage block under the square (the week grid and the providers not used lately, brokk-usage-block.tsx) loads on
+// demand, outside the JavaScript every view loads up front (NFR-PERF-003, bundle.initialJsMB, #2341). The host asks for it
+// once the window is up, so it is there when the group opens; a group that opens before it came draws it when it does.
+type UsageBlockModule = typeof import("./brokk-usage-block");
+let usageBlock: UsageBlockModule = null;
+
+export function preloadUsageBlock(): Promise<UsageBlockModule> {
+    return import("./brokk-usage-block").then((mod) => (usageBlock = mod));
 }
 
 // When the developer last looked at the Téléchargements panel: a download that failed or finished since is news, until he
@@ -171,11 +198,17 @@ function RailMarkView({ mark }: { mark: RailMark }) {
                 </span>
             ) : null}
             {mark.dot ? <span className="mt-brokk-dot" aria-hidden data-testid="brokk-rail-dot" /> : null}
-            {mark.ember ? (
-                <span className="mt-brokk-dot" data-ember="true" aria-hidden data-testid="brokk-rail-ember" />
-            ) : null}
         </>
     );
+}
+
+// Keep awake says "on" with the cup itself, orange with rising steam, never with a dot: a dot on the rail means
+// something to look at (FR-BOSS-009 AC80, #2206).
+function RailIcon({ id, mark }: { id: PanelId; mark: RailMark }) {
+    if (id === "keepawake") {
+        return <CupIcon on={mark.ember} tone="action" steam="rise" />;
+    }
+    return <i className={makeIconClass(RailIcons[id], true)} aria-hidden />;
 }
 
 // The light scrim over the work area while the group is open (FR-BOSS-009, AC39, #2082). It fills the host's layer, which
@@ -302,7 +335,6 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const answering = useAtomValue(hubModel.ownWorkingAtom, { store: globalStore });
     const session = BrokkSession.getInstance();
     const talk = useAtomValue(session.stateAtom, { store: globalStore });
-    const speaking = useAtomValue(session.speakingAtom, { store: globalStore });
     const exchange = useAtomValue(session.exchangeAtom, { store: globalStore });
     const unseenId = useAtomValue(session.unseenIdAtom, { store: globalStore });
     const agentStates = useAtomValue(AgentStates.getInstance().dataAtom, { store: globalStore });
@@ -310,10 +342,15 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const running = useAtomValue(downloads.ringAtom, { store: globalStore });
     const transfers = useAtomValue(downloads.transfersAtom, { store: globalStore });
     const badgeKeys = useAvatarKeys();
-    const readings = useAtomValue(UsageReadingsAtom, { store: globalStore });
-    const unreadable = useAtomValue(UsageUnreadableAtom, { store: globalStore });
     const keepState = useAtomValue(KeepAwakeModel.getInstance().stateAtom, { store: globalStore });
     const currentWorkspace = useAtomValue(atoms.workspace, { store: globalStore });
+    // The brainstorm takes the screen (FR-BOSS-010, #2257): his group takes the brainstorm layout (AC23, #2285), with his
+    // portrait, the brainstorm panel in the rail's place and his wide talk window under both, and the graph in the space
+    // beside. No rail panel shows (the notifications are held), and only Escape or the panel's Leave button ends it,
+    // never a click outside.
+    const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
+    const brainstormingRef = useRef(brainstorming);
+    brainstormingRef.current = brainstorming;
     const rootRef = useRef<HTMLDivElement>(null);
     const panelRef = useRef<HTMLDivElement>(null);
     const [now, setNow] = useState(Date.now());
@@ -335,7 +372,8 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const [reportHovered, setReportHovered] = useState(false);
     const [reportFocused, setReportFocused] = useState(false);
     // The usage grid's height, measured: the card under the square is as tall as its rows, and the field and the
-    // layout under it follow (AC57, #2106).
+    // layout under it follow (AC57, #2106). The card is not drawn during a brainstorm (#2285): the grid is measured
+    // again when the mode ends.
     const usageRef = useRef<HTMLDivElement>(null);
     const [usageHeight, setUsageHeight] = useState(0);
     useLayoutEffect(() => {
@@ -351,9 +389,22 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         const observer = new ResizeObserver(measure);
         observer.observe(usage);
         return () => observer.disconnect();
-    }, []);
-    const g = useMemo(() => groupGeometry(SquarePx, TilePx, usageHeight), [usageHeight]);
-    const report = reportView(g, reportSize, reportHovered || reportFocused, frame.place.heightRoom);
+    }, [brainstorming]);
+    // His line under the square is his own when his session has something the developer has not seen (AC25), else the
+    // moment of a kind colleague (AC72), else nothing: the line is hidden and the card holds the usage grid alone (AC71).
+    const unseen = exchange.find((item) => item.role === "brokk" && item.id === unseenId) as BrokkItem;
+    const answerHoldsLine = sayLine(unseen, "") !== "";
+    const moment = useBrokkMoment(shown && !answerHoldsLine);
+    const line = sayLine(unseen, moment?.text ?? "");
+    const hasLine = line !== "";
+    const g = useMemo(() => groupGeometry(SquarePx, TilePx, usageHeight, hasLine), [usageHeight, hasLine]);
+    const bs = brainstorming ? brainstormLayout(g, frame.place) : null;
+    const report = reportView(
+        g,
+        hasLine ? reportSize : EmptyReportSize,
+        reportHovered || reportFocused,
+        frame.place.heightRoom
+    );
     const flow = groupFlow(g, report.growth);
     const onReportSize = useCallback(
         (next: ReportSize) =>
@@ -389,24 +440,23 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     };
     // The panel the group opens with is read once, when it opens: nothing changes under the developer's eyes after.
     const [auto] = useState<PanelId>(() => groupOpeningPanel(priorityFactsOf(railInput), rememberedPanel));
-    const active: PanelId = activePanel(panels, auto);
+    useEffect(() => {
+        if (brainstorming) {
+            setPanels(InitialPanels);
+        }
+    }, [brainstorming]);
+    const active: PanelId = brainstormPanel(activePanel(panels, autoPanelIn(auto, brainstorming)), brainstorming);
     useEffect(() => {
         if (panels.pinned != null) {
             rememberPanel(panels.pinned);
         }
     }, [panels.pinned]);
     const marks = railMarks(railInput);
-    const weekly = useMemo(() => weeklyUsage(readings, now, unreadable), [readings, now, unreadable]);
-    const weekRows = useMemo(() => weekly.map(weekRow), [weekly]);
 
-    // What his face does with the conversation: it listens while the developer writes, thinks while his session works on
-    // a message, speaks while his answer comes in (AC25).
-    const pose = talkPose({ typing, awaiting: talkWaits(talk), working: answering, speaking });
+    // What his face does with the conversation: it listens while the developer writes, thinks only when his answer is
+    // slow to come, speaks while it is revealed (AC86, AC87, #2259).
+    const pose = useTalkFace({ typing, awaiting: talkWaits(talk), working: answering });
     const live = useCardLive(pose);
-    const caption = useGroupCaption(pose);
-    // His line under the square is his own when his session has something the developer has not seen (AC25).
-    const unseen = exchange.find((item) => item.role === "brokk" && item.id === unseenId) as BrokkItem;
-    const line = sayLine(unseen, caption);
     // The sign of a conversation on the title-bar face: the developer writes to him or his session answers.
     useEffect(() => {
         globalStore.set(boss.talkingAtom, pose != null);
@@ -425,13 +475,18 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     }, []);
     const onFocusChange = useCallback((open: boolean) => setConversation(open), []);
     // The window is as wide as the group and the panel area together, as tall as the exchange needs, from the field's top
-    // wherever the grown report card has pushed it (it gives way when the window's room runs out).
-    const fieldSize = conversation
-        ? {
-              w: conversationWidth(g, frame.place.panelRoom),
-              h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - flow.field.y),
-          }
-        : { w: g.field.w, h: g.field.h };
+    // wherever the grown report card has pushed it (it gives way when the window's room runs out). During a brainstorm
+    // it is the layout's, wide and as tall as the window allows from the start (AC23, #2285).
+    const fieldTop = bs != null ? bs.talk.y : flow.field.y;
+    const fieldSize =
+        bs != null
+            ? { w: bs.talk.w, h: bs.talk.h }
+            : conversation
+              ? {
+                    w: conversationWidth(g, frame.place.panelRoom),
+                    h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - flow.field.y),
+                }
+              : { w: g.field.w, h: g.field.h };
 
     // A surface asks for a panel while the group is open (a toast's Open, the downloads pill, a notification).
     const seenRequest = useRef(request?.seq ?? 0);
@@ -459,6 +514,17 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const pin = useCallback(() => boss.pinCard(), [boss]);
     useEffect(() => () => faceHover.groupGone(), [faceHover]);
     useEffect(() => TabActivity.getInstance().every(whileShown(AgeTickMs), () => setNow(Date.now()), "clock"), []);
+    const [block, setBlock] = useState<UsageBlockModule>(usageBlock);
+    useEffect(() => {
+        if (block == null) {
+            fireAndForget(() => preloadUsageBlock().then(setBlock));
+        }
+    }, [block]);
+    useEffect(() => {
+        const ask = () => fireAndForget(() => askUsageUse());
+        ask();
+        return TabActivity.getInstance().every(whileShown(UseTickMs), ask, "clock");
+    }, []);
     useEffect(() => {
         let live = true;
         fireAndForget(async () => {
@@ -527,9 +593,10 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         return () => observer.disconnect();
     }, [active, panelW, heightRoom, g, rows.length]);
 
-    // Hover: the zone decides, 80 ms to open and 250 ms to close (brokk-group-model.ts HoverIntent).
+    // Hover: the zone decides, 80 ms to open and 250 ms to close (brokk-group-model.ts HoverIntent). There is no rail
+    // during a brainstorm (#2285): nothing previews, and no sheet catches the pointer over the graph.
     useEffect(() => {
-        if (!shown) {
+        if (!shown || brainstorming) {
             return;
         }
         const intent = new HoverIntent({
@@ -555,7 +622,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
             document.documentElement.removeEventListener("pointerleave", onLeave);
             intent.stop();
         };
-    }, [shown, g]);
+    }, [shown, g, brainstorming]);
 
     // Escape and a press outside close it; a press on the face is the face's own toggle.
     useEffect(() => {
@@ -563,7 +630,10 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
             if (ContextMenuModel.getInstance().session != null) {
                 return;
             }
-            if (isOutsidePress(e.target as Element, rootRef.current)) {
+            if (
+                isOutsidePress(e.target as Element, rootRef.current) &&
+                closesCardIn(brainstormingRef.current, "outside")
+            ) {
                 boss.closeCard();
             }
         };
@@ -580,7 +650,10 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
             }
             const input: CardKeyInput = { key: e.key, focusAtHome: focusIsAtHome(root) };
             const action = cardKeyAction(input);
-            if (!action.hide) {
+            if (
+                !action.hide ||
+                !closesCardIn(brainstormingRef.current, "escape", typingTarget(document.activeElement))
+            ) {
                 return;
             }
             if (action.consume) {
@@ -623,7 +696,9 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         return { ["--dx" as string]: `${dx}px`, ["--dy" as string]: `${dy}px` };
     };
     const delay = (i: number): CSSProperties => ({ ["--i" as string]: i * (ArrivalStepMs / 50) });
-    const square: Rect = { x: 0, y: 0, w: g.square, h: g.square };
+    // A narrow window takes some of his square's size during a brainstorm (#2285), so that the panel keeps its width.
+    const squareSize = bs != null ? bs.square : g.square;
+    const square: Rect = { x: 0, y: 0, w: squareSize, h: squareSize };
     const bodyLabel = (id: PanelId) => t(`boss.group.panels.${id}`);
     const railLabel = (id: PanelId): string => {
         const mark = marks[id];
@@ -642,8 +717,8 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         if (id === "downloads" && (mark.dot || mark.count > 0)) {
             return t("boss.group.rail.news", { name: label });
         }
-        if (id === "keepawake" && mark.ember) {
-            return t("boss.group.rail.awake", { name: label });
+        if (id === "keepawake") {
+            return t(mark.ember ? "boss.group.rail.awake" : "boss.group.rail.awakeOff", { name: label });
         }
         return label;
     };
@@ -676,7 +751,13 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                     />
                 );
             case "downloads":
-                return <DownloadsPanel count={downloadItems.length + transfers.length} onLeave={leave} onClose={closePanel} />;
+                return (
+                    <DownloadsPanel
+                        count={downloadItems.length + transfers.length}
+                        onLeave={leave}
+                        onClose={closePanel}
+                    />
+                );
             case "keepawake":
                 return <BrokkKeepAwakePanel onLeave={leave} onClose={closePanel} />;
             default:
@@ -684,19 +765,28 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         }
     };
     const activeIcon: PanelId = RailPanels.includes(active as PanelId) ? (active as PanelId) : null;
-    const link = activeIcon != null ? g.icons[activeIcon] : null;
+    const plink = activeIcon != null ? plinkLine(g, activeIcon, Math.min(height, heightRoom)) : null;
+    // The square comes out of the face, so the thread starts with nothing out.
+    const thread =
+        frame.thread != null
+            ? tetherLine(frame.thread.x, frame.thread.x + frame.thread.w, frame.thread.y + RopePx / 2, frame.thread.w)
+            : null;
 
     return (
         <>
-            <BrokkScrim shown={shown} onClose={() => boss.closeCard()} />
-            {holdsHover(panels) ? <div className="mt-brokk-catch" aria-hidden data-testid="brokk-hover-catch" /> : null}
+            <BrokkScrim
+                shown={shown}
+                onClose={() => {
+                    if (closesCardIn(brainstorming, "outside")) {
+                        boss.closeCard();
+                    }
+                }}
+            />
+            {holdsHover(panels) && !brainstorming ? (
+                <div className="mt-brokk-catch" aria-hidden data-testid="brokk-hover-catch" />
+            ) : null}
             {frame.thread != null ? (
-                <div
-                    className={cn("mt-brokk-thread", shown && "is-in")}
-                    style={{ left: frame.thread.x, top: frame.thread.y, width: frame.thread.w }}
-                    aria-hidden
-                    data-testid="brokk-thread"
-                />
+                <Tether line={thread} open={shown} className="mt-brokk-thread" testId="brokk-thread" />
             ) : null}
             <div
                 ref={rootRef}
@@ -709,8 +799,14 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                 data-shown={shown ? "true" : "false"}
                 data-conversation={conversation ? "true" : undefined}
                 data-pinned={pinned ? "true" : "false"}
+                data-layout={bs != null ? "brainstorm" : undefined}
                 className={cn("mt-brokk-group", shown && "is-in")}
-                style={{ left: frame.place.left, top: frame.place.top, width: g.width, height: flow.height }}
+                style={{
+                    left: frame.place.left,
+                    top: frame.place.top,
+                    width: bs != null ? bs.width : g.width,
+                    height: bs != null ? bs.height : flow.height,
+                }}
                 onPointerDownCapture={pin}
                 onFocusCapture={pin}
                 onPointerEnter={() => faceHover.enterGroup()}
@@ -718,7 +814,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
             >
                 <div
                     className="mt-brokk-sq"
-                    style={{ width: g.square, height: g.square, ...offsetOf(square), ...delay(0) }}
+                    style={{ width: squareSize, height: squareSize, ...offsetOf(square), ...delay(0) }}
                     data-testid="brokk-square"
                     onContextMenu={showMenu}
                 >
@@ -750,12 +846,33 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                         <i className={makeIconClass("ellipsis", true)} aria-hidden />
                     </button>
                 </div>
+                {bs != null ? (
+                    <div
+                        className="mt-brokk-bspanel"
+                        role="region"
+                        aria-label={t("boss.brainstorm.panel.label")}
+                        data-testid="brokk-brainstorm-panel"
+                        style={{
+                            left: bs.panel.x,
+                            top: bs.panel.y,
+                            width: bs.panel.w,
+                            height: bs.panel.h,
+                            ...offsetOf(bs.panel),
+                            ...delay(1),
+                        }}
+                    >
+                        <Suspense fallback={null}>
+                            <BrainstormPanel />
+                        </Suspense>
+                    </div>
+                ) : null}
                 <div
                     className="mt-brokk-rail"
                     role="tablist"
                     aria-orientation="vertical"
                     aria-label={t("boss.group.rail.label", { name })}
                     data-testid="brokk-rail"
+                    hidden={bs != null || undefined}
                     style={{
                         left: g.rail.x,
                         top: g.rail.y,
@@ -787,71 +904,58 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                                 onClick={() => clickIcon(id)}
                                 onKeyDown={(e) => onRailKeyDown(e, id)}
                             >
-                                <i className={makeIconClass(RailIcons[id], true)} aria-hidden />
+                                <RailIcon id={id} mark={marks[id]} />
                                 <RailMarkView mark={marks[id]} />
                             </button>
                         );
                     })}
                 </div>
-                <div
-                    className="mt-brokk-block"
-                    data-testid="brokk-block"
-                    style={{
-                        top: g.block.y,
-                        width: g.block.w,
-                        minHeight: flow.block.h,
-                        ...offsetOf(g.block),
-                        ...delay(1),
-                    }}
-                >
-                    <BrokkSay
-                        line={line}
-                        source={unseen != null && line !== caption ? "session" : "activity"}
-                        view={report}
-                        onSize={onReportSize}
-                        onHover={setReportHovered}
-                        onFocusVisible={setReportFocused}
-                    />
-                    <div ref={usageRef} className="mt-brokk-usage" data-testid="brokk-usage">
-                        {weekly.length === 0 ? (
-                            <span className="mt-brokk-usage-empty" data-testid="brokk-usage-empty">
-                                {t("boss.panel.usage.empty")}
-                            </span>
-                        ) : (
-                            <UsageWeekGrid rows={weekRows} now={now} />
-                        )}
+                {bs == null ? (
+                    <div
+                        className="mt-brokk-block"
+                        data-testid="brokk-block"
+                        style={{
+                            top: g.block.y,
+                            width: g.block.w,
+                            minHeight: flow.block.h,
+                            ...offsetOf(g.block),
+                            ...delay(1),
+                        }}
+                    >
+                        {hasLine ? (
+                            <BrokkSay
+                                line={line}
+                                source={unseen != null && line !== moment?.text ? "session" : "moment"}
+                                view={report}
+                                onSize={onReportSize}
+                                onHover={setReportHovered}
+                                onFocusVisible={setReportFocused}
+                            />
+                        ) : null}
+                        <div ref={usageRef} className="mt-brokk-usage" data-testid="brokk-usage">
+                            {block != null ? <block.UsageBlock now={now} /> : null}
+                        </div>
                     </div>
-                </div>
+                ) : null}
                 <div
                     className="mt-brokk-fieldbox"
                     style={{
-                        top: flow.field.y,
+                        top: fieldTop,
                         width: fieldSize.w,
                         height: fieldSize.h,
-                        ...offsetOf(g.field),
+                        ...offsetOf(bs != null ? bs.talk : g.field),
                         ...delay(0),
                     }}
                     data-testid="brokk-fieldbox"
-                    data-open={conversation ? "true" : "false"}
+                    data-open={conversation || bs != null ? "true" : "false"}
                 >
                     <BrokkTalk onTyping={setTyping} onFocusChange={onFocusChange} onContentHeight={setExchangeHeight} />
                 </div>
                 {active != null ? (
                     <>
-                        <div
-                            className="mt-brokk-plink"
-                            data-testid="brokk-plink"
-                            aria-hidden
-                            style={
-                                link != null
-                                    ? {
-                                          left: link.x + link.w,
-                                          top: link.y + link.h / 2 - 1,
-                                          width: g.panelLeft - (link.x + link.w),
-                                      }
-                                    : { display: "none" }
-                            }
-                        />
+                        {plink != null ? (
+                            <Tether line={plink} open={shown} className="mt-brokk-plink" testId="brokk-plink" />
+                        ) : null}
                         <div
                             ref={panelRef}
                             id="brokk-panel"

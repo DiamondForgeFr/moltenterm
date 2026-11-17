@@ -94,13 +94,14 @@ func TestNamesWork(t *testing.T) {
 	}
 }
 
-// The agents tied to the PR: those on its branch, and a sub-agent in no worktree whose task names it; not a visitor, a
-// review session, a finished unplaced sub-agent or another branch's agent.
+// The agents tied to the PR: those on its branch, and a sub-agent in no worktree whose task names it while its lead is
+// on the branch; not a visitor, a review session, a finished unplaced sub-agent, another branch's agent, or (#2297) a
+// sub-agent whose task names the PR but whose lead works elsewhere.
 func TestGateTiesTheAgentsToThePr(t *testing.T) {
 	t.Parallel()
 	f := makeRestartFixture(t)
 	f.review["review-term"] = true
-	f.runs["panel"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateIdle, FirstName: "Rita"}
+	f.runs["lead-block"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateIdle, FirstName: "Rita"}
 	f.runs["visitor"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateWorking}
 	f.runs["review-term"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateWorking}
 	f.runs["other"] = molten.AgentRunInfo{Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateWorking}
@@ -109,9 +110,11 @@ func TestGateTiesTheAgentsToThePr(t *testing.T) {
 	other := panelOn("/t", "other")
 	other.Branch = "feature/10-other"
 	f.index(
-		panelOn("/t", "panel"), visitor, panelOn("/t", "review-term"), other,
+		panelOn("/t", "lead-block"), visitor, panelOn("/t", "review-term"), other,
 		panelOn("/t", "closed"),
 		mission.BranchAgent{Kind: mission.UpcomingAgentSubagent, State: companion.SubagentRunning, Description: "Review PR #9 meta", ParentBlockId: "lead-block"},
+		mission.BranchAgent{Kind: mission.UpcomingAgentSubagent, State: companion.SubagentRunning, Description: "Deliver #9 another topic", ParentBlockId: "stranger"},
+		mission.BranchAgent{Kind: mission.UpcomingAgentSubagent, State: companion.SubagentRunning, Description: "Deliver #9 elsewhere", ParentBlockId: "other"},
 		mission.BranchAgent{Kind: mission.UpcomingAgentSubagent, State: companion.SubagentQuiet, Description: "Review #77 meta", ParentBlockId: "lead-block"},
 		mission.BranchAgent{Kind: mission.UpcomingAgentSubagent, State: companion.SubagentDone, Description: "Review PR #9, finished", ParentBlockId: "lead-block"},
 		mission.BranchAgent{Kind: mission.UpcomingAgentBackground, Branch: "feature/9-fix-x", Worktree: "/b"},
@@ -121,7 +124,7 @@ func TestGateTiesTheAgentsToThePr(t *testing.T) {
 	for _, row := range g.rows {
 		got = append(got, row.agent.Kind+":"+row.agent.BlockId+":"+row.state)
 	}
-	want := []string{"panel:panel:asleep", "subagent::working", "background::working"}
+	want := []string{"panel:lead-block:asleep", "subagent::working", "background::working"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("tied agents %v, want %v", got, want)
 	}

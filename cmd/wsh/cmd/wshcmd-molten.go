@@ -356,6 +356,9 @@ func moltenRewriteArgs(args []string) []string {
 	if base == MoltenOpenProgramName {
 		return moltenBrowserEnvArgs(args)
 	}
+	if shim := moltenOpenerShimArgs(args, base); shim != nil {
+		return shim
+	}
 	if adapter := agentlaunch.AdapterForProgram(strings.TrimSuffix(strings.ToLower(base), ".exe")); adapter != nil {
 		return moltenAgentLaunchArgs(args, adapter.Id())
 	}
@@ -1088,7 +1091,7 @@ func moltenAgentListRun(cmd *cobra.Command, args []string) error {
 	}
 	activeText := ""
 	if activeErr == nil {
-		activeText = "Running now:\n" + formatMoltenActiveAgents(active) + "\n"
+		activeText = "Running now:\n" + formatMoltenActiveAgents(active) + formatMoltenLockedNames(active.Locked) + "\n"
 	}
 	WriteStdout("%s%s\nMolten guides:\n%s", activeText, formatMoltenAgentListings(listings), formatMoltenAgents(statuses))
 	return nil

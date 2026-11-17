@@ -13,7 +13,8 @@
 import type { AgentSeenView, AgentStatesData } from "../agent-state-model";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { GateEvent, gateHold } from "./brokk-gate";
-import { finishedSetAfter } from "./brokk-hub-feed";
+import type { PanelId } from "./brokk-group-model";
+import { finishedSetAfter, finishedStillListed } from "./brokk-hub-feed";
 import {
     brokkAfter,
     BrokkInput,
@@ -24,6 +25,7 @@ import {
     InitialBrokk,
     SnoozeChoiceId,
     Visit,
+    visitPanelOf,
     VisitState,
 } from "./brokk-visit";
 import type { BrokkEvent, VisitSettings } from "./brokk-visit-events";
@@ -45,8 +47,8 @@ export type HubDeps = {
     clearTimer: (timer: unknown) => void;
     // A menu or a dialog is open, or his panel is: he does not come then.
     overlayOpen: () => boolean;
-    // Shows his panel.
-    openPanel: () => void;
+    // Shows his panel, on the one that names the reason of the visit that is up (visitPanelOf), null for his own choice.
+    openPanel: (panel: PanelId) => void;
     readShared: () => SharedVisit;
     writeShared: (shared: SharedVisit) => void;
 };
@@ -119,6 +121,9 @@ export class BrokkHub {
     private shared: SharedVisit;
     private finished: BrokkEvent[] = [];
     private agentsBefore: AgentStatesData = null;
+    // The settings as the developer set them, and Brokk's switch (boss:show): the model reads both as one (#2218).
+    private chosen: VisitSettings;
+    private on = true;
     private wakeTimer: unknown = null;
     private pollTimer: unknown = null;
     private listeners = new Set<() => void>();
@@ -127,6 +132,7 @@ export class BrokkHub {
 
     constructor(deps: HubDeps) {
         this.deps = deps;
+        this.chosen = InitialBrokk.settings;
         this.shared = deps.readShared();
         this.answer = brokkAfter(InitialBrokk, { type: "tick" }, deps.now()).view;
         this.view = { ...this.answer, ready: false };
@@ -164,7 +170,23 @@ export class BrokkHub {
     };
 
     settings(settings: VisitSettings): void {
-        this.run({ type: "settings", settings });
+        this.chosen = settings;
+        this.run({ type: "settings", settings: this.settingsRead() });
+    }
+
+    // Brokk turned on or off (boss:show, #2218). Off, he raises nothing: the model reads "never come" whatever the
+    // developer chose, so a visit that is up folds at once, none comes, no cue and no coming key move the avatar or the
+    // collapsed sidebar, and no timer is left to wake him. The sources keep feeding the hub, so the badge's keys stay
+    // current for the rail of his group, which a toast can still open.
+    power(on: boolean): void {
+        if (on === this.on || this.stopped) {
+            return;
+        }
+        this.on = on;
+        if (!on) {
+            this.example = null;
+        }
+        this.run({ type: "settings", settings: this.settingsRead() });
     }
 
     // The rows To handle that can bring him: the whole set, whatever changed (an event that is gone is cancelled).
@@ -178,9 +200,13 @@ export class BrokkHub {
         this.run({ type: "sync", source, events });
     }
 
-    // The agent states, read once the first reading is in: who finished stays a good news for the badge.
-    agents(data: AgentStatesData): void {
-        const finished = finishedSetAfter(this.finished, this.agentsBefore, data, this.deps.now());
+    // The agent states, read once the first reading is in: who finished stays a good news for the badge, while its Done
+    // card is listed (`openDone`, the blocks whose card the developer has not archived, #2210).
+    agents(data: AgentStatesData, openDone?: ReadonlySet<string>): void {
+        const finished = finishedStillListed(
+            finishedSetAfter(this.finished, this.agentsBefore, data, this.deps.now()),
+            openDone
+        );
         this.agentsBefore = data;
         if (finished === this.finished) {
             return;
@@ -212,10 +238,19 @@ export class BrokkHub {
         this.run({ type: "sync", source: FinishedSource, events: [] });
     }
 
+    // The developer gave these rows back by an undo (#2210): what they bring is no news, so he does not come for it.
+    heard(keys: string[]): void {
+        if (keys.length === 0) {
+            return;
+        }
+        this.run({ type: "heard", keys });
+    }
+
     // A click on the scene or the avatar, or Enter or Space on them: he folds back and his panel opens in one gesture.
     open(): void {
+        const panel = visitPanelOf(this.view.visit);
         this.panelOpened();
-        this.deps.openPanel();
+        this.deps.openPanel(panel);
     }
 
     // Another view or window changed what is shared.
@@ -262,6 +297,10 @@ export class BrokkHub {
             this.deps.writeShared(published);
         }
         this.commit(step, now);
+    }
+
+    private settingsRead(): VisitSettings {
+        return this.on ? this.chosen : { ...this.chosen, never: true };
     }
 
     private setExample(visit: Visit): void {

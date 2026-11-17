@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { AttachMarginPx, farEnd, RopePx } from "../tether/tether-model";
 import {
     activePanel,
     afterClick,
@@ -16,6 +17,12 @@ import {
     badgeShares,
     BlockChromePx,
     BlockHeightPx,
+    brainstormLayout,
+    BrainstormPanelMinPx,
+    BrainstormSquareMinPx,
+    BrainstormTalkFloorPx,
+    BrainstormTalkMaxPx,
+    brainstormWidth,
     ConversationChromePx,
     conversationHeight,
     ConversationMaxPx,
@@ -37,15 +44,20 @@ import {
     HoverOpenMs,
     InitialPanels,
     inZone,
+    LinkPx,
     neighbourPanel,
     openingPanel,
     panelHeight,
     PanelId,
     panelRoom,
+    PanelSlidePx,
     panelWidth,
+    PanelWidthPx,
     partMotion,
+    plinkLine,
     PriorityFacts,
     priorityFactsOf,
+    RailBorderPx,
     railCountTotal,
     RailInput,
     railMarks,
@@ -505,7 +517,65 @@ describe("the conversation window", () => {
 
     it("starts at the field's top, under the block, in the group's own coordinates", () => {
         expect(g.field.y).toBe(g.block.y + g.block.h + 8);
-        expect(ConversationChromePx).toBe(10 + 4 + 36 + 1 + 2);
+        // The roomy input of #2285 in the inset well of #2303: two lines of the field, the footer and the room under the
+        // well, whose line is drawn inside and takes none.
+        expect(ConversationChromePx).toBe(122);
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
+        expect(css).toMatch(/\.mt-brokk-convo \{[^}]*padding: 14px 16px 8px;/);
+        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-input \{[^}]*min-height: 52px;/);
+        expect(css).toMatch(/\.mt-brokk-field-foot \{[^}]*height: 36px;/);
+        expect(css).toMatch(
+            /\.mt-brokk-field\[data-open="true"\] \.mt-brokk-composer \{[^}]*margin: 0 10px 10px;[^}]*box-shadow: inset 0 0 0 1px var\(--mt-line-2\);/
+        );
+        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-row \{[^}]*padding: 0;/);
+        expect(css).not.toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-row \{[^}]*border-top/);
+    });
+});
+
+// FR-BOSS-010 AC23 (#2285, decided on the PR): in a brainstorm the talk window takes about 45 % of the window, at most
+// 764 px, at least what keeps the input usable (about 420 px), never past the window's room; the graph keeps the rest.
+describe("the brainstorm's talk window width", () => {
+    const g = groupGeometry();
+    const placeIn = (windowWidth: number, heightRoom = 900) => groupPlace(null, { width: windowWidth, height: 980 }, g);
+
+    it("takes 45 % of the window, at most 764 px and at least about 420 px", () => {
+        expect(BrainstormTalkMaxPx).toBe(764);
+        expect(BrainstormTalkMaxPx).toBe(conversationWidth(g, PanelWidthPx));
+        expect(brainstormWidth(2560, 5000)).toBe(764);
+        expect(brainstormWidth(1440, 5000)).toBe(648);
+        expect(brainstormWidth(1200, 5000)).toBe(540);
+        expect(brainstormWidth(800, 5000)).toBe(BrainstormTalkFloorPx);
+        expect(brainstormWidth(1440, 500)).toBe(500);
+        // Never so narrow that his square and a usable panel no longer fit side by side.
+        expect(brainstormWidth(300, 200)).toBe(BrainstormSquareMinPx + 8 + BrainstormPanelMinPx);
+    });
+
+    it("leaves the rest of the window to the graph, whatever its width", () => {
+        for (const width of [900, 1100, 1280, 1440, 1728, 2560]) {
+            const place = placeIn(width);
+            const bs = brainstormLayout(g, place);
+            expect(bs.width, `${width}`).toBeLessThanOrEqual(Math.max(BrainstormTalkFloorPx, Math.round(width * 0.45)));
+            expect(bs.width, `${width}`).toBeLessThanOrEqual(764);
+            expect(place.left + bs.width, `${width}`).toBeLessThan(width);
+            expect(width - place.left - bs.width, `${width}`).toBeGreaterThanOrEqual(width * 0.5);
+        }
+    });
+
+    it("gives some of his square to a narrow window, so that the panel beside it stays usable", () => {
+        const wide = brainstormLayout(g, placeIn(1440));
+        expect(wide.square).toBe(SquarePx);
+        expect(wide.panel.w).toBe(648 - SquarePx - 8);
+        const narrow = brainstormLayout(g, placeIn(1000));
+        expect(narrow.width).toBe(450);
+        expect(narrow.square).toBe(450 - 8 - BrainstormPanelMinPx);
+        expect(narrow.panel).toEqual({ x: narrow.square + 8, y: 0, w: BrainstormPanelMinPx, h: narrow.square });
+        expect(narrow.talk.y).toBe(narrow.square + 8);
+        const floor = brainstormLayout(g, placeIn(700));
+        expect(floor.width).toBe(BrainstormTalkFloorPx);
+        expect(floor.square).toBe(BrainstormTalkFloorPx - 8 - BrainstormPanelMinPx);
+        const smallest = brainstormLayout(g, placeIn(420));
+        expect(smallest.square).toBe(BrainstormSquareMinPx);
+        expect(smallest.panel.w).toBe(BrainstormPanelMinPx);
     });
 });
 
@@ -818,18 +888,22 @@ describe("the panel moves with the group (FR-BOSS-009, #2082)", () => {
         const square = rule(".mt-brokk-sq");
         expect(square).toMatch(/transform var\(--mt-duration-drop\) cubic-bezier\(0\.2, 1\.15, 0\.4, 1\),/);
         expect(square).toMatch(/opacity var\(--mt-duration-show\) linear;/);
-        const parts = rule(".mt-brokk-sq,\n.mt-brokk-rail,\n.mt-brokk-block,\n.mt-brokk-fieldbox");
+        // The brainstorm panel in the rail's place (#2285) arrives as the rail does.
+        const parts = rule(".mt-brokk-sq,\n.mt-brokk-rail,\n.mt-brokk-bspanel,\n.mt-brokk-block,\n.mt-brokk-fieldbox");
         expect(parts).toMatch(/transform var\(--mt-duration-snap\) cubic-bezier\(0\.3, 1\.12, 0\.4, 1\),/);
         expect(parts).toMatch(/opacity var\(--mt-duration-show\) linear;/);
-        const stepped = rule(".mt-brokk-group.is-in > .mt-brokk-rail,\n.mt-brokk-group.is-in > .mt-brokk-block");
+        const stepped = rule(
+            ".mt-brokk-group.is-in > .mt-brokk-rail,\n.mt-brokk-group.is-in > .mt-brokk-bspanel,\n.mt-brokk-group.is-in > .mt-brokk-block"
+        );
         expect(stepped).toMatch(
             /transform var\(--mt-duration-snap\) cubic-bezier\(0\.3, 1\.12, 0\.4, 1\) calc\(var\(--i, 0\) \* 50ms\)/
         );
         expect(stepped).toMatch(/opacity var\(--mt-duration-show\) linear calc\(var\(--i, 0\) \* 50ms\)/);
         const panel = rule(".mt-brokk-gpanel");
         expect(panel).toMatch(/opacity: 0;/);
-        expect(panel).toMatch(/transform: translateX\(-8px\);/);
-        expect(panel).toMatch(/transform var\(--mt-duration-settle\) cubic-bezier\(0\.3, 1\.12, 0\.4, 1\),/);
+        // It comes out of the rail's edge, the whole gap back (#2196, AC66), on the curve of its tether (AC67).
+        expect(panel).toMatch(new RegExp(`transform: translateX\\(-${PanelSlidePx}px\\);`));
+        expect(panel).toMatch(/transform var\(--mt-duration-settle\) var\(--mt-ease-tether\),/);
         expect(panel).toMatch(/opacity var\(--mt-duration-base\) linear,/);
         expect(panel).not.toMatch(/animation:/);
         const panelIn = rule(".mt-brokk-group.is-in > .mt-brokk-gpanel");
@@ -837,14 +911,73 @@ describe("the panel moves with the group (FR-BOSS-009, #2082)", () => {
         // A keyframe animation on the panel would keep the leaving transition from starting: it would vanish at once.
         expect(css).not.toMatch(/\.mt-brokk-(gpanel|plink)[^{]*\{[^}]*animation: (?!none)/);
         expect(css).toMatch(
-            /@starting-style \{\s*\.mt-brokk-group\.is-in > \.mt-brokk-gpanel \{\s*opacity: 0;\s*transform: translateX\(-8px\);/
+            new RegExp(
+                `@starting-style \\{\\s*\\.mt-brokk-group\\.is-in > \\.mt-brokk-gpanel \\{\\s*opacity: 0;\\s*transform: translateX\\(-${PanelSlidePx}px\\);`
+            )
         );
-        const link = rule(".mt-brokk-plink");
-        expect(link).toMatch(/opacity: 0;/);
-        expect(link).toMatch(/transition: opacity var\(--mt-duration-base\) linear;/);
+        // Its link is the tether's (tether.css), which plays the panel's time and curve by default and the square's for the
+        // thread: nothing of it is left in this sheet but that choice.
+        expect(css).not.toMatch(/\.mt-brokk-plink/);
+        const thread = rule(".mt-tether.mt-brokk-thread");
+        expect(thread).toMatch(/--mt-tether-time: var\(--mt-duration-drop\);/);
+        expect(thread).toMatch(/--mt-tether-ease: cubic-bezier\(0\.2, 1\.15, 0\.4, 1\);/);
+        expect(thread).toMatch(/--mt-tether-fade: var\(--mt-duration-show\);/);
+        const tether = readFileSync(join(__dirname, "..", "tether", "tether.css"), "utf8").replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+        );
+        const tetherDefaults = new RegExp("\\n\\.mt-tether \\{([^}]*)\\}").exec(tether)?.[1] ?? "";
+        expect(tetherDefaults).toMatch(/--mt-tether-time: var\(--mt-duration-settle\);/);
+        expect(tetherDefaults).toMatch(/--mt-tether-ease: var\(--mt-ease-tether\);/);
+        expect(tetherDefaults).toMatch(/--mt-tether-fade: var\(--mt-duration-base\);/);
+        expect(tokens).toContain("--mt-ease-tether: cubic-bezier(0.25, 1.5, 0.4, 1);");
         // Nothing waits on the way out: only the arriving rules carry a step.
-        for (const leaving of [square, parts, panel, link, rule(".mt-brokk-fieldbox")]) {
+        for (const leaving of [square, parts, panel, thread, rule(".mt-brokk-fieldbox")]) {
             expect(leaving).not.toMatch(/calc\(var\(--i/);
         }
+    });
+});
+
+describe("the tether of the open panel's icon (FR-BOSS-009, AC65 to AC68, #2196)", () => {
+    const g = groupGeometry();
+
+    it("comes out of the rail's edge: the panel starts the whole gap back", () => {
+        expect(PanelSlidePx).toBe(LinkPx);
+        expect(g.panelLeft - PanelSlidePx).toBe(g.width);
+    });
+
+    it("is tied on each icon's edge at its middle and reaches the panel's edge, the rail's border counted", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        expect(/\n\.mt-brokk-rail \{([^}]*)\}/.exec(css)?.[1]).toMatch(new RegExp(`border: ${RailBorderPx}px solid`));
+        for (const id of RailPanels) {
+            const icon = g.icons[id];
+            const line = plinkLine(g, id, SquarePx);
+            expect(line.left, id).toBe(icon.x + icon.w + RailBorderPx);
+            expect(line.top + RopePx / 2, id).toBe(icon.y + icon.h / 2 + RailBorderPx);
+            expect(line.left + line.width, id).toBe(g.panelLeft);
+        }
+    });
+
+    it("keeps its far end on the panel's edge at every moment of the slide, the give included", () => {
+        const line = plinkLine(g, "notifications", SquarePx);
+        for (const progress of [0, 0.1, 0.25, 0.5, 0.75, 1, 1.08]) {
+            const panelEdge = g.panelLeft - PanelSlidePx * (1 - progress);
+            expect(farEnd(line, progress)).toBeCloseTo(panelEdge, 9);
+        }
+    });
+
+    it("starts at the rail's edge and is whole once the panel is in", () => {
+        const line = plinkLine(g, "agents", SquarePx);
+        expect(line.from).toBeGreaterThan(0);
+        expect(line.from).toBeLessThan(1);
+        expect(farEnd(line, 0)).toBe(g.width);
+        expect(farEnd(line, 1)).toBe(g.panelLeft);
+    });
+
+    it("is held on the panel's edge when the window leaves the panel less height than the icon's level", () => {
+        const icon = g.icons.sessions;
+        expect(icon.y + icon.h / 2).toBeGreaterThan(120);
+        const line = plinkLine(g, "sessions", 120);
+        expect(line.top + RopePx / 2).toBe(120 - AttachMarginPx);
     });
 });

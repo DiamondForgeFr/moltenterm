@@ -57,7 +57,14 @@ function load(...sessions: DurableSession[]) {
     globalStore.set(sessionsAtom, { sessions, runningagents: sessions.filter((s) => s.agent).length, version: 1 });
 }
 
-const Actions: BrokkActions = { busyId: null, problem: "", goToSession: vi.fn(), runTodo: vi.fn(), reconnect: vi.fn() };
+const Actions: BrokkActions = {
+    busyId: null,
+    problem: "",
+    goToSession: vi.fn(),
+    runTodo: vi.fn(),
+    reconnect: vi.fn(),
+    archive: vi.fn(() => async () => {}),
+};
 
 function workspaces(): Map<string, Workspace> {
     return new Map<string, Workspace>([

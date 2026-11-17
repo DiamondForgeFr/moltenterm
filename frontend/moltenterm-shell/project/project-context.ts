@@ -10,6 +10,7 @@ import { ProjectGroup } from "../mission/group-model";
 import { ActiveProject } from "../mission/mission-frame";
 import { MissionSnapshot, PipelineDef, RunRecord } from "../mission/mission-model";
 import { ReleaseSession } from "../mission/release-model";
+import type { ReleaseFollow } from "../mission/release-run-panel";
 import { ProjectCard, ProjectCardRegistry } from "./project-cards";
 
 export type ProjectCardProps = {
@@ -23,6 +24,8 @@ export type ProjectCardProps = {
     reloadCi: () => void;
     release: ReleaseSession;
     reloadRelease: () => void;
+    // The release in flight, followed once by the Project view for the "In progress" band and the Now card (#2188).
+    releaseFollow?: ReleaseFollow;
     // Starts a declared build (the trust prompt opens when needed); resolves to the error, if any.
     startBuild: (buildId: string) => Promise<string>;
     // Starts a declared adapter step as the CD tab's Run button does (the trust prompt opens when needed).

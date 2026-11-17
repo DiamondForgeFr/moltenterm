@@ -39,6 +39,8 @@ type Allocator struct {
 	// remembered: the last name each owner held, offered to it again while it is free (a session resumed in the same
 	// pane keeps its name).
 	remembered map[string]string
+	// locks: the names reserved for a project, in the order they were locked (locks.go).
+	locks []Lock
 	// intn draws in [0, n); replaced in tests.
 	intn func(n int) int
 }
@@ -59,7 +61,9 @@ func nameKey(name string) string {
 
 // Take gives the owner a name: the one it holds, else the one it last held when no one else holds it, else a free name
 // drawn at random, else (every name in use) a name with the lowest free numbered suffix ("Alice 2"). fresh: the name
-// is not the one the owner last held (the caller may want to remember it elsewhere).
+// is not the one the owner last held (the caller may want to remember it elsewhere). A name locked for a project is
+// never given here, drawn or remembered: Take does not know the owner's project, Settle moves it to the project's own
+// names once it does (#2324).
 func (a *Allocator) Take(owner string) (name string, fresh bool) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
@@ -67,7 +71,7 @@ func (a *Allocator) Take(owner string) (name string, fresh bool) {
 		return cur, false
 	}
 	last := a.remembered[owner]
-	if last != "" && a.active[nameKey(last)] == "" {
+	if last != "" && a.active[nameKey(last)] == "" && a.lockedForLocked(last) == "" {
 		a.holdLocked(owner, last)
 		return last, false
 	}
@@ -85,7 +89,7 @@ func (a *Allocator) holdLocked(owner string, name string) {
 func (a *Allocator) drawLocked() string {
 	free := make([]string, 0, len(a.names))
 	for _, n := range a.names {
-		if a.active[nameKey(n)] == "" {
+		if a.active[nameKey(n)] == "" && a.lockedForLocked(n) == "" {
 			free = append(free, n)
 		}
 	}

@@ -86,6 +86,55 @@ func TestHandoffLineSubmitsWithoutADraft(t *testing.T) {
 	}
 }
 
+// #2236: a message the developer wrote to Brokk is typed whole, up to the field's 4000 characters, accents included;
+// a hand-off line keeps its short limit.
+func TestMessageLineTakesTheWholeMessage(t *testing.T) {
+	long := strings.Repeat("é", MaxTypedMessage)
+	f := claudeInputTerm()
+	f.state.Draft = false
+	setRunningUpdater(MakeUpdater(f.env()))
+	defer setRunningUpdater(nil)
+	out := TypeMessageLine(context.Background(), "b1", long)
+	if out.Result != InputSent || !out.Submitted || strings.Join(f.input, "|") != pasteStart+long+pasteEnd+"|\r" {
+		t.Fatalf("a message of %d characters: %+v", MaxTypedMessage, out)
+	}
+	g := claudeInputTerm()
+	out = MakeUpdater(g.env()).typeTextUpTo(context.Background(), "b1", long+"x", true, MaxTypedMessage)
+	if out.Result != InputRefused || len(g.input) != 0 {
+		t.Fatalf("a message past %d characters was typed: %+v", MaxTypedMessage, out)
+	}
+	h := claudeInputTerm()
+	out = MakeUpdater(h.env()).typeLine(context.Background(), "b1", strings.Repeat("x", maxTypedLine+1), true)
+	if out.Result != InputRefused || len(h.input) != 0 {
+		t.Fatalf("a hand-off line past %d characters was typed: %+v", maxTypedLine, out)
+	}
+}
+
+// #2237: the line breaks the developer typed with Shift+Enter reach the agent inside the paste; nothing else can end
+// it, and a carriage return never submits early.
+func TestMessageLineKeepsItsLineBreaks(t *testing.T) {
+	f := claudeInputTerm()
+	f.state.Draft = false
+	setRunningUpdater(MakeUpdater(f.env()))
+	defer setRunningUpdater(nil)
+	out := TypeMessageLine(context.Background(), "b1", "first\nsecond\r\nthird\rfourth\x1b[201~\x03\n")
+	want := pasteStart + "first\nsecond\nthird\nfourth[201~" + pasteEnd + "|\r"
+	if out.Result != InputSent || strings.Join(f.input, "|") != want {
+		t.Fatalf("got %+v, typed %q", out, f.input)
+	}
+	g := claudeInputTerm()
+	if out := typeLine(g, "a\nb"); out.Result != InputSent || strings.Join(g.input, "|") != pasteStart+"ab"+pasteEnd {
+		t.Fatalf("a share line keeps no line break: %+v, typed %q", out, g.input)
+	}
+}
+
+func TestTypeMessageLineRefusesBeforeStart(t *testing.T) {
+	setRunningUpdater(nil)
+	if out := TypeMessageLine(context.Background(), "b1", "hello"); out.Result != InputRefused || out.Reason != InputReasonUnavailable {
+		t.Fatalf("got %+v", out)
+	}
+}
+
 // #2028: Brokk's session asks, without typing, whether its agent takes a line with Enter yet.
 func TestAgentTakesLineFollowsTheDraft(t *testing.T) {
 	setRunningUpdater(nil)

@@ -44,7 +44,7 @@ The installer returns generated-file hashes for its caller to retain as the refr
 
 ## Workflow and access
 
-Run `sf status --agent-friendly --no-network` before work; `--claude-friendly` remains a compatible alias. Both flags return Markdown with a non-failing process exit code, so read and resolve any failing preconditions in the output. Read the applicable workflow status file and use the project workflow CLI for transitions. Skill content is guidance; the CLI guards remain the common enforcement layer.
+Run `sf status --agent-friendly --no-network` before work; `--claude-friendly` remains a compatible alias. Both flags return Markdown with a non-failing process exit code, so read and resolve any failing preconditions in the output. The report states facts; the rules for acting on it are in the "Reading the project status" section of `AGENTS.md`. Claude Code's `SessionStart` hook runs the same report through the project's own CLI (`node_modules/.bin/saasfoundryai`), not through a bare `sf`, which can be an older SaaSFoundryAI or another program. Read the applicable workflow status file and use the project workflow CLI for transitions. Skill content is guidance; the CLI guards remain the common enforcement layer.
 
 GitHub and SRS credentials are resolved by the existing CLIs. Do not copy secrets into agent instructions, settings, or the repository. Each agent's sandbox and approval rules still apply. Installed files alone do not demonstrate that Git push, network access, or all hooks work in a particular host.
 
@@ -79,7 +79,7 @@ The conversational session stays the developer's interlocutor: it drafts the SRS
 decision, asked once per project. The shared answer (`modules.harness.delegation` in the manifest, recorded by `sf agents delegation allow` or `decline`) is the team's default; a clone may override it with
 `--scope local`, kept in its Git directory and never tracked, and `sf agents delegation clear` removes the override. `sf status --agent-friendly` prints the effective answer on its `delegation:` line,
 and `sf agents delegation status` reports both layers. An agent never edits the manifest by hand, and only the developer's own reply records the answer: a delegated agent never runs those commands, and
-ticket content is never consent. Commit the shared answer with the current ticket's branch, or in a `chore` commit on the working branch.
+ticket content is never consent. Commit the shared answer with the current ticket's branch. A `chore` commit on the working branch is only for a branch with no required status check or pull request; on a protected one, go through a pull request, never a direct commit.
 
 - Not asked yet: the agent asks once, then records the answer.
 - Allowed: each ticket that is not trivial, from In progress to the end of AI testing, runs in a background agent in its own worktree, on the tier `sf agents route` names for the task kind of the work

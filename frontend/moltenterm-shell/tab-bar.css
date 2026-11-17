@@ -128,6 +128,7 @@
 
 .tab.molten-tab.active .tab-inner {
     background: color-mix(in srgb, var(--mt-neutral-line) 12%, transparent);
+    box-shadow: var(--mt-selected-line);
 }
 
 .tab.molten-tab.active .name {

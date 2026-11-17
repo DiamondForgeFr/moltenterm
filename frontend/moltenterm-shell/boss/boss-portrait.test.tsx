@@ -4,8 +4,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-import { BossPortrait } from "./boss-portrait";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BossPortrait, LiveBoundary } from "./boss-portrait";
+import { RetryDelaysMs } from "./boss-portrait-retry";
 import type { BrokkLiveProps } from "./brokk-live";
 
 // A stylesheet without its comments, which explain the rules in words the patterns below would catch.
@@ -44,6 +45,98 @@ describe("his portrait (FR-BOSS-001, AC1; FR-BOSS-007, AC5)", () => {
             expect(user, file).not.toMatch(/^import (?!type).* from "\.\/(brokk-live|brokk-portrait)"/m);
             expect(user, file).not.toContain("@diamondforge/character");
         }
+    });
+});
+
+// The boundary is driven by hand, as React would: the tests run in a plain Node environment, which mounts nothing.
+describe("a portrait that failed to load is tried again (FR-BOSS-009, AC1, #2219, AC-3)", () => {
+    function makeBoundary() {
+        const boundary = new LiveBoundary({ live: Live });
+        const setState = vi.fn((state: { failed: boolean }) => {
+            boundary.state = { ...boundary.state, ...state };
+        });
+        boundary.setState = setState as any;
+        return { boundary, setState };
+    }
+
+    // What React does when a child throws.
+    function fail(boundary: LiveBoundary) {
+        boundary.state = LiveBoundary.getDerivedStateFromError();
+        boundary.componentDidCatch(new Error("clip chunk failed"));
+    }
+
+    // The lazy component the boundary draws now.
+    function lazyOf(boundary: LiveBoundary): unknown {
+        const drawn = boundary.render() as any;
+        return drawn?.props?.children?.type;
+    }
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.spyOn(console, "log").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+    });
+
+    it("draws nothing over the still while it waits, then draws the portrait again by itself", () => {
+        const { boundary, setState } = makeBoundary();
+        expect(lazyOf(boundary)).toBeDefined();
+        fail(boundary);
+        expect(boundary.render()).toBeNull();
+        vi.advanceTimersByTime(RetryDelaysMs[0] - 1);
+        expect(setState).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(setState).toHaveBeenCalledWith({ failed: false });
+        expect(boundary.render()).not.toBeNull();
+    });
+
+    it("makes the lazy import again, since one that failed stays failed for good", () => {
+        const { boundary } = makeBoundary();
+        const before = lazyOf(boundary);
+        fail(boundary);
+        vi.advanceTimersByTime(RetryDelaysMs[0]);
+        const after = lazyOf(boundary);
+        expect(after).toBeDefined();
+        expect(after).not.toBe(before);
+        // A face that comes back in view mounts a boundary of its own and finds the new one at once.
+        expect(lazyOf(makeBoundary().boundary)).toBe(after);
+    });
+
+    it("renews the lazy once for the lazy that failed, however many faces drew it", () => {
+        const first = makeBoundary().boundary;
+        const second = makeBoundary().boundary;
+        const old = lazyOf(first);
+        expect(lazyOf(second)).toBe(old);
+        fail(first);
+        const renewed = lazyOf(makeBoundary().boundary);
+        expect(renewed).not.toBe(old);
+        fail(second);
+        expect(lazyOf(makeBoundary().boundary)).toBe(renewed);
+    });
+
+    it("waits longer when the retry fails again, and stops when the face leaves the page", () => {
+        const { boundary, setState } = makeBoundary();
+        fail(boundary);
+        vi.advanceTimersByTime(RetryDelaysMs[0]);
+        expect(setState).toHaveBeenCalledTimes(1);
+        fail(boundary);
+        vi.advanceTimersByTime(RetryDelaysMs[1] - 1);
+        expect(setState).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(1);
+        expect(setState).toHaveBeenCalledTimes(2);
+        fail(boundary);
+        boundary.componentWillUnmount();
+        vi.advanceTimersByTime(10 * RetryDelaysMs[2]);
+        expect(setState).toHaveBeenCalledTimes(2);
+    });
+
+    it("is not drawn again for what the surface around it draws: the live props are what it depends on", () => {
+        const source = readFileSync(join(__dirname, "boss-portrait.tsx"), "utf8");
+        expect(source).toMatch(/export const BossPortrait = memo\(function BossPortrait\(/);
+        expect(source).toContain("{live != null ? <LiveBoundary live={live} /> : null}");
     });
 });
 

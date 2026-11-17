@@ -10,6 +10,7 @@ import { webContents, type WebContents } from "electron";
 import { onAppIpc } from "./moltenterm-privileged-ipc";
 import { liveWebContentsFromId } from "./moltenterm-webcontents-id";
 import { isAgentControlledContents, onBrowserAgentControl } from "./moltenterm-browseragent";
+import { isInspected } from "./moltenterm-browser-inspector";
 import { CdpProtocolVersion } from "./moltenterm-browseragent-policy";
 import {
     PageCheck,
@@ -165,7 +166,8 @@ function protection(wcId: number): PageProtection {
         gone: false,
         controlled: isAgentControlledContents(wcId),
         audible: wc.isCurrentlyAudible(),
-        devtools: wc.isDevToolsOpened(),
+        // Docked developer tools (FR-BRW-022) are not Electron's DevTools window, which isDevToolsOpened reports.
+        devtools: wc.isDevToolsOpened() || isInspected(wcId),
     };
 }
 

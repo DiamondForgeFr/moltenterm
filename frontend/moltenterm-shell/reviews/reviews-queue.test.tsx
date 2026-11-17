@@ -99,6 +99,34 @@ describe("merge queue views (#1062)", () => {
         expect(html).toContain("molten-btn");
     });
 
+    it("names whose pull requests it merges when the view follows an agent, and the others it leaves alone (FR-REV-034)", () => {
+        const merge = (scope: { names: string[]; others: number } | undefined) =>
+            renderToStaticMarkup(
+                <MergeQueueBlock
+                    queue={Queue}
+                    prs={[pr(1201), pr(1202), pr(1205)]}
+                    base="develop"
+                    status={{ kind: "ready", text: "", title: "" }}
+                    hot={[]}
+                    canMerge
+                    free
+                    onChoose={() => {}}
+                    onStep={() => {}}
+                    onMerge={() => {}}
+                    scope={scope}
+                />
+            );
+        const one = merge({ names: ["Flore"], others: 14 });
+        expect(one).toContain("Merge Flore&#x27;s 3");
+        expect(one).toContain('data-testid="reviews-queue-scope"');
+        expect(one).toContain("The merge covers the shown list only. The 14 others do not move.");
+        expect(merge({ names: ["Flore", "Jérôme"], others: 1 })).toContain("Merge the 3 of Flore, Jérôme");
+        const unfiltered = merge(undefined);
+        expect(unfiltered).toContain("Merge these 3 in this order…");
+        expect(unfiltered).not.toContain("reviews-queue-scope");
+        expect(merge({ names: ["Flore"], others: 0 })).not.toContain("reviews-queue-scope");
+    });
+
     it("offers no CTA while the running queue already holds every step", () => {
         const html = renderToStaticMarkup(
             <MergeQueueBlock

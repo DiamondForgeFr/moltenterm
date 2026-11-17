@@ -142,6 +142,30 @@ func TestClaudePassThrough(t *testing.T) {
 	}
 }
 
+// #2257, review: only Brokk's own session (MOLTENTERM_OWN_SESSION in its terminal) gets the long PermissionRequest
+// budget a human answer in his layer needs; every other terminal keeps the short one, so no hook waits for long.
+func TestOnlyHisOwnSessionWaitsLongForAPermission(t *testing.T) {
+	tree := makeFakeTree(t)
+	ctx := tree.ctx("-p", "hi")
+	ctx.Env.Getenv = func(name string) string {
+		if name == molten.OwnSessionEnvVar {
+			return "1"
+		}
+		return ""
+	}
+	_, gen, _ := planOf(t, ctx)
+	if h := gen.Hooks[molten.ClaudePermissionHookEvent][0].Hooks[0]; h.Timeout != molten.ClaudeOwnSessionPermissionHookTimeout {
+		t.Fatalf("his session's handler %+v", h)
+	}
+	if h := gen.Hooks["Stop"][0].Hooks[0]; h.Timeout == molten.ClaudeOwnSessionPermissionHookTimeout {
+		t.Fatalf("a state hook got the permission's budget: %+v", h)
+	}
+	_, gen, _ = planOf(t, tree.ctx("-p", "hi"))
+	if h := gen.Hooks[molten.ClaudePermissionHookEvent][0].Hooks[0]; h.Timeout != molten.ClaudePermissionHookTimeout || h.Timeout > 15 {
+		t.Fatalf("another terminal's handler %+v", h)
+	}
+}
+
 // FR-SHELL-036 AC1, AC3: with no settings at all, a run gets the state hooks and the session link, every one running
 // the shared handler of agent-states.md (#988), and a status line that is the relay alone (it prints nothing).
 func TestClaudePlanEmptySettings(t *testing.T) {

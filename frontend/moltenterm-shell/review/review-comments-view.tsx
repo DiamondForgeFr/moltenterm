@@ -111,7 +111,9 @@ export function KindToggle({
                     data-kind={kind}
                     className={cn(
                         "h-6 cursor-pointer border-r border-border px-2 text-11 last:border-r-0 disabled:cursor-default",
-                        value === kind ? "bg-hover text-primary" : "text-secondary hover:text-primary"
+                        value === kind
+                            ? "mt-selected-action bg-hover text-primary"
+                            : "text-secondary hover:text-primary"
                     )}
                 >
                     {CommentKindLabels[kind]}

@@ -36,7 +36,7 @@ import {
 } from "../reviews/reviews-model";
 import { DurableSession } from "../sessions/sessions-model";
 import { workspaceShownName } from "../workspace-default-name";
-import { checkRowHandled, HandledRows } from "./boss-handled";
+import { checkRowHandled, HandledRow, HandledRows } from "./boss-handled";
 import type { Badge, PeekWaitingRow } from "./boss-overview";
 import { attentionAgents } from "./boss-overview";
 
@@ -121,7 +121,26 @@ export type ToHandleItem = {
     handoff?: HandoffRow;
 };
 
-export type InfoItem = { key: string; name: string; place: string; workspaceid?: string; line: TextRef };
+// An agent that finished. blockid, tabid and sessionid are where its view and terminal are, for the card's Go to (#2195);
+// since is when it finished (Unix ms, 0 when unknown), the episode an archived card holds for.
+export type InfoItem = {
+    key: string;
+    name: string;
+    place: string;
+    workspaceid?: string;
+    tabid?: string;
+    blockid?: string;
+    sessionid?: string;
+    since?: number;
+    line: TextRef;
+};
+
+// The mark of an agent that finished, once archived: the episode is the finish, so a new finish brings the card back.
+export const InfoTone = "done";
+
+export function infoHandledRow(info: Pick<InfoItem, "key" | "since">): HandledRow {
+    return { key: info.key, since: info.since ?? 0, tone: InfoTone };
+}
 
 export type ToHandleList = {
     items: ToHandleItem[];
@@ -313,6 +332,37 @@ function prItems(answer: ReviewsAnswer, readied: ReadiedPrs): ToHandleItem[] {
     return rtn;
 }
 
+// The review answers the rows are built from (#2223): a project whose last reading failed keeps its last good answer, so
+// that its pull requests do not leave and come back as news at every transient error. Other states (signed out, no
+// repository) are answers of their own and replace it. The very same record when nothing changes.
+export function keptReviewAnswers(
+    kept: Record<string, ReviewsAnswer>,
+    latest: Record<string, ReviewsAnswer>
+): Record<string, ReviewsAnswer> {
+    const next: Record<string, ReviewsAnswer> = {};
+    let changed = Object.keys(kept ?? {}).length !== Object.keys(latest ?? {}).length;
+    for (const [dir, answer] of Object.entries(latest ?? {})) {
+        const before = kept?.[dir];
+        next[dir] = answer?.state === "error" && before?.state === "ok" ? before : answer;
+        changed ||= next[dir] !== before;
+    }
+    return changed ? next : kept;
+}
+
+// When the CI failed (#2223): the last end of a failing check, else the pull request's last update. A "Re-run CI" pushes
+// no commit, so the update does not move: a second failure must still be a new episode, which the row's mark of the first
+// one does not hold back.
+export function ciFailureSince(pr: ReviewPr): number {
+    let last = 0;
+    for (const check of checksOf(pr.ci, "failure")) {
+        const ms = Date.parse(check.completedat ?? "");
+        if (Number.isFinite(ms) && ms > last) {
+            last = ms;
+        }
+    }
+    return last > 0 ? last : prSince(pr);
+}
+
 function failedCiItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
     const checks = checkNames(checksOf(pr.ci, "failure"));
     return {
@@ -324,7 +374,7 @@ function failedCiItem(dir: string, pr: ReviewPr, place: string): ToHandleItem {
         line: { key: "boss.todo.ciFailed", vars: { checks } },
         place,
         dir,
-        since: prSince(pr),
+        since: ciFailureSince(pr),
         rank: RankError,
         seen: false,
         actions: markPrimary([
@@ -477,8 +527,13 @@ export function buildToHandle(input: ToHandleInput): ToHandleList {
             name: agentCallName(state),
             place: workspaceShownName(sessionOf(input.sessions, state.blockid)?.workspacename ?? "", t),
             workspaceid: sessionOf(input.sessions, state.blockid)?.workspaceid ?? "",
+            tabid: state.tabid ?? "",
+            blockid: state.blockid,
+            sessionid: sessionOf(input.sessions, state.blockid)?.id ?? "",
+            since: sinceOf(state.since),
             line: { key: "boss.todo.infoDone" },
-        }));
+        }))
+        .filter((item) => !checkRowHandled(input.handled, infoHandledRow(item)));
     return {
         items,
         info,

@@ -18,6 +18,8 @@ When a workflow step names a task kind, resolve its tier with
 model or an effort yourself. When the route fails or the agent cannot delegate, run the step
 in the session.
 Never bypass CLI guards, required approvals, tests or workflow status exit conditions.
+An escape hatch is the developer's to apply: when a guard refuses, report it and ask; a hook
+refuses an agent call that sets one.
 The project manifest and workflow rules take precedence over generic skill examples,
 including branch names, commit formats, staging, pushing and approval requirements.
 Legacy /task examples name roles: use native delegation if available and authorized,

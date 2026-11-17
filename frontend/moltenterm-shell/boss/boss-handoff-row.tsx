@@ -6,10 +6,9 @@
 // says who asks whom, from which workspace, the goal in a line, what is attached and what the receiver would find, and
 // offers Allow once, Always for this pair, Refuse and Read the brief (the full brief, nothing sent).
 
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { formatAge } from "../notifications-model";
 import { DominoLoader } from "../suite/suite";
 import { workspaceShownName } from "../workspace-default-name";
 import { GhostButton, PrimaryButton, RefuseButton, SecondaryButton } from "./boss-card-buttons";
@@ -31,7 +30,7 @@ function Party({ name, place, testId }: { name: string; place: string; testId: s
             >
                 {initialOf(name)}
             </span>
-            <span className="min-w-0 truncate text-12 font-semibold text-primary" data-testid={testId}>
+            <span className="min-w-0 truncate text-12 font-medium text-primary" data-testid={testId}>
                 {name}
             </span>
             {place ? <span className="min-w-0 truncate text-11 text-muted">{place}</span> : null}
@@ -167,14 +166,15 @@ function attachedNames(row: HandoffRow): string[] {
 
 export function HandoffRowView({
     item,
-    now,
     busyId,
     onRun,
+    end,
 }: {
     item: ToHandleItem;
-    now: number;
     busyId: string;
     onRun: (item: ToHandleItem, action: ToHandleAction) => void;
+    // What the card's action line ends with (its Archive, #2195).
+    end?: ReactNode;
 }) {
     const t = useT();
     const tCount = useTCount();
@@ -206,35 +206,25 @@ export function HandoffRowView({
         refuse: t("boss.todo.handoff.refuseTitle", { from, to }),
     };
     return (
-        <li
-            className="flex items-start gap-2 rounded-4 px-3 py-2 hover:bg-hover"
-            data-testid="boss-card-todo-row"
+        <div
+            className="flex min-w-0 flex-col"
+            data-testid="boss-card-handoff"
             data-todo={item.key}
             data-tone={item.tone}
             data-handoff={row.requestid}
         >
-            <span className="mt-[6px] inline-block h-2 w-2 shrink-0 rounded-full bg-accent" aria-hidden />
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <div className="flex min-w-0 flex-col gap-1 rounded-4 border-l-2 border-accent bg-surface-2 px-2.5 py-2">
-                    <div
-                        className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
-                        data-testid="boss-card-handoff-parties"
-                    >
-                        <Party
-                            name={from}
-                            place={workspaceShownName(row.fromPlace, t)}
-                            testId="boss-card-handoff-from"
-                        />
-                        <span className="text-12 text-muted" aria-hidden>
-                            →
-                        </span>
-                        <Party name={to} place={workspaceShownName(row.toPlace, t)} testId="boss-card-handoff-to" />
-                        {item.since > 0 ? (
-                            <span className="ml-auto shrink-0 text-11 whitespace-nowrap text-muted">
-                                {formatAge(item.since, now)}
-                            </span>
-                        ) : null}
-                    </div>
+            <div className="mt-brokk-rt flex min-w-0 flex-col gap-1.5">
+                <div
+                    className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
+                    data-testid="boss-card-handoff-parties"
+                >
+                    <Party name={from} place={workspaceShownName(row.fromPlace, t)} testId="boss-card-handoff-from" />
+                    <span className="text-12 text-muted" aria-hidden>
+                        →
+                    </span>
+                    <Party name={to} place={workspaceShownName(row.toPlace, t)} testId="boss-card-handoff-to" />
+                </div>
+                <div className="flex min-w-0 flex-col gap-1 rounded-4 border-l-2 border-accent bg-surface-2 px-2.5 py-1.5">
                     <div className="text-12 break-words text-primary" data-testid="boss-card-handoff-goal">
                         {t("boss.todo.handoff.goal", { goal: row.goal })}
                     </div>
@@ -244,39 +234,40 @@ export function HandoffRowView({
                         </div>
                     ) : null}
                 </div>
-                <div className="text-11 break-words text-secondary" data-testid="boss-card-handoff-sees">
+                <div className="text-11 font-normal break-words text-secondary" data-testid="boss-card-handoff-sees">
                     {sees}
                 </div>
-                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    {item.actions.map((action) => {
-                        if (action.run.kind === "brief") {
-                            return (
-                                <HandoffButton
-                                    key={action.id}
-                                    item={item}
-                                    action={action}
-                                    label={t(open ? "boss.todo.handoff.hideBrief" : action.labelKey)}
-                                    busy={false}
-                                    expanded={open}
-                                    onClick={() => setOpen(!open)}
-                                />
-                            );
-                        }
+            </div>
+            <div className="mt-brokk-ra" data-testid="brokk-card-actions">
+                {item.actions.map((action) => {
+                    if (action.run.kind === "brief") {
                         return (
                             <HandoffButton
                                 key={action.id}
                                 item={item}
                                 action={action}
-                                label={t(action.labelKey, action.labelVars)}
-                                title={titles[action.id]}
-                                busy={busyId === `${item.key}|${action.id}`}
-                                onClick={() => onRun(item, action)}
+                                label={t(open ? "boss.todo.handoff.hideBrief" : action.labelKey)}
+                                busy={false}
+                                expanded={open}
+                                onClick={() => setOpen(!open)}
                             />
                         );
-                    })}
-                </div>
-                {open ? <HandoffBriefView item={item} from={from} to={to} /> : null}
+                    }
+                    return (
+                        <HandoffButton
+                            key={action.id}
+                            item={item}
+                            action={action}
+                            label={t(action.labelKey, action.labelVars)}
+                            title={titles[action.id]}
+                            busy={busyId === `${item.key}|${action.id}`}
+                            onClick={() => onRun(item, action)}
+                        />
+                    );
+                })}
+                <span className="mt-brokk-ra-end">{end}</span>
             </div>
-        </li>
+            {open ? <HandoffBriefView item={item} from={from} to={to} /> : null}
+        </div>
     );
 }

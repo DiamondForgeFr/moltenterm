@@ -344,3 +344,32 @@ func TestValidatePipelineVersions(t *testing.T) {
 		}
 	}
 }
+
+// A build's verify is "ci" (a green GitHub run of the same commit is reused, else the local CI runs) or "ci-local" (the
+// local CI always runs); both need ci.jobs, and anything else is refused (#2277).
+func TestValidatePipelineBuildVerify(t *testing.T) {
+	t.Parallel()
+	pipeline := func(verify string, ci string) PipelineReport {
+		return validateWith(t, map[string]string{".molten/project.json": `{"schema": 1, "name": "x",` + ci +
+			`"builds": [{"id": "gold", "artifact": "out", "run": "true", "verify": ` + verify + `}]}`})
+	}
+	ci := `"ci": {"jobs": [{"name": "a", "run": "true"}]},`
+	for _, verify := range []string{`"ci"`, `"ci-local"`} {
+		report := pipeline(verify, ci)
+		if !report.Valid || len(report.Errors) != 0 {
+			t.Errorf("verify %s: %v", verify, report.Errors)
+		}
+		if !report.Pipeline.Builds[0].VerifiesWithCi() {
+			t.Errorf("verify %s waits for a green CI", verify)
+		}
+		if report = pipeline(verify, ""); !hasMessage(report.Errors, "but the pipeline declares no ci.jobs") {
+			t.Errorf("verify %s without ci.jobs: %v", verify, report.Errors)
+		}
+	}
+	if report := pipeline(`"always"`, ci); !hasMessage(report.Errors, `verify must be "ci", "ci-local" or left out (got "always")`) {
+		t.Errorf("an unknown verify: %v", report.Errors)
+	}
+	if (PipelineBuild{}).VerifiesWithCi() {
+		t.Errorf("a build with no verify is not gated")
+	}
+}

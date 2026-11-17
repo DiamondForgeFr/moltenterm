@@ -31,6 +31,7 @@ import {
     readAllUpdate,
     readUpdate,
     resolveUpdate,
+    restoreUpdate,
     rowKeyAction,
     undoClearUpdate,
     unreadByWorkspace,
@@ -231,6 +232,26 @@ describe("situations (FR-MC-010)", () => {
         expect(undoClearUpdate(cleared as MoltentermNotification[], marks, 8)).toEqual({});
         const changed = cleared.map((e) => (e.id === "b" ? { ...e, archived: 12 } : e)) as MoltentermNotification[];
         expect(Object.keys(undoClearUpdate(changed, marks, 9)).sort()).toEqual(["molten:notif:a", "molten:notif:c"]);
+    });
+
+    it("restores an archived notification to the active list, as it was (#2316)", () => {
+        const list = [
+            entry("a", 1),
+            entry("b", 2, { archived: 5, read: true }),
+            entry("c", 3, { archived: 6, resolved: 4 }),
+        ];
+        const update = restoreUpdate(list, ["a", "b", "c", "gone"]);
+        expect(Object.keys(update).sort()).toEqual(["molten:notif:b", "molten:notif:c"]);
+        expect(update["molten:notif:b"]).not.toHaveProperty("archived");
+        expect(update["molten:notif:b"]).toMatchObject({ read: true });
+        expect(update["molten:notif:c"]).toMatchObject({ resolved: 4 });
+        const restored = list.map((e) =>
+            update["molten:notif:" + e.id]
+                ? ({ id: e.id, ...update["molten:notif:" + e.id] } as MoltentermNotification)
+                : e
+        );
+        expect(activeEntries(restored).map((e) => e.id)).toEqual(["a", "b", "c"]);
+        expect(archivedEntries(restored)).toEqual([]);
     });
 
     it("answers a key on the focused row: Delete and Backspace clear, Enter and Space open, nothing from a button inside", () => {

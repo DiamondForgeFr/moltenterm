@@ -614,6 +614,23 @@ export const Shortcuts: Shortcut[] = [
     ...browserShortcuts("browser-zoom-reset", "Actual size of the page", ["Cmd:0"], ["Ctrl:0"], ["zoom", "100"]),
     ...browserShortcuts("browser-address", "Go to the address bar", ["Cmd:l"], ["Ctrl:l"], ["url"]),
     ...browserShortcuts("browser-stop", "Stop loading the page", ["Escape"], ["Escape"], ["stop"]),
+    // #2310 (FR-BRW-022): the page's developer tools, docked below it; Ctrl+Shift+I off macOS wins over the terminals'
+    // multi-input while a web page panel has the focus.
+    ...browserShortcuts(
+        "browser-inspect",
+        "Inspect the page",
+        ["Cmd:Alt:i"],
+        ["Ctrl:Shift:i"],
+        ["devtools", "developer tools", "inspector", "console", "network"]
+    ),
+    // #2327 (FR-BRW-017): the version's page frozen into a capture to draw numbered zones on and send to an agent.
+    ...browserShortcuts(
+        "browser-annotate",
+        "Annotate the page",
+        ["Cmd:Shift:a"],
+        ["Ctrl:Shift:a"],
+        ["annotate", "zones", "comment", "capture", "feedback", "draw", "markup"]
+    ),
     // Agents
     {
         id: "companion",

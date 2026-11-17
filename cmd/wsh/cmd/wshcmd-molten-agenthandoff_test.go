@@ -59,3 +59,19 @@ func TestFormatMoltenActiveAgents(t *testing.T) {
 		t.Fatal("empty list")
 	}
 }
+
+// #2324: `molten agent list` names the locked first names no agent holds; `--active` stays the running agents alone.
+func TestFormatMoltenLockedNames(t *testing.T) {
+	locked := []handoffwire.LockedEntry{{FirstName: "Flore", Project: "projectb"}, {FirstName: "Étienne"}}
+	text := formatMoltenLockedNames(locked)
+	if !strings.Contains(text, "Flore") || !strings.Contains(text, "locked for projectb, not running") || !strings.Contains(text, "locked for -, not running") {
+		t.Fatalf("%s", text)
+	}
+	if formatMoltenLockedNames(nil) != "" {
+		t.Fatal("no locked name, no section")
+	}
+	running := formatMoltenActiveAgents(handoffwire.ListResult{Agents: []handoffwire.AgentEntry{{FirstName: "Camille", AgentName: "Claude Code"}}, Locked: locked})
+	if strings.Contains(running, "Flore") {
+		t.Fatalf("the running agents list is read by scripts: %s", running)
+	}
+}

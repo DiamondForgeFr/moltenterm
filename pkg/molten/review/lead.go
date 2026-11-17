@@ -166,9 +166,14 @@ func (r *Restarter) sendToLead(ctx context.Context, req FinishRequest, found age
 
 // deliverToLead gives the running lead MoltenTerm's own brief through the handoffs.
 func (r *Restarter) deliverToLead(ctx context.Context, found agenthandoff.LeadFound, branch string, goal string, text string, closing string) RestartResult {
+	return r.deliverRequest(ctx, found, branch, r.appRequest(ctx, found, goal, text, closing))
+}
+
+// deliverRequest sends the running lead a request MoltenTerm wrote, and says what became of it.
+func (r *Restarter) deliverRequest(ctx context.Context, found agenthandoff.LeadFound, branch string, req agenthandoff.AppRequest) RestartResult {
 	result := RestartResult{Lead: true, Branch: branch, BlockId: found.BlockId, TabId: found.TabId, Agent: found.Agent,
 		AgentName: found.AgentName, FirstName: found.FirstName}
-	sent, err := r.env.SendLead(ctx, r.appRequest(ctx, found, goal, text, closing))
+	sent, err := r.env.SendLead(ctx, req)
 	if err != nil {
 		result.Status, result.Reason, result.Message = RestartFailed, RestartReasonNotTyped, err.Error()
 		return result

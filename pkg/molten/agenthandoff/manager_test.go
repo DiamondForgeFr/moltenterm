@@ -40,6 +40,14 @@ type fakeEnv struct {
 	// stops: the status SettleStop answers per block (none when absent); settled records the calls.
 	stops   map[string]string
 	settled []settleCall
+	// locks: the first names locked for a project, in locking order.
+	locks []molten.AgentNameLock
+}
+
+func (e *fakeEnv) NameLocks() []molten.AgentNameLock {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	return append([]molten.AgentNameLock(nil), e.locks...)
 }
 
 type settleCall struct{ blockId, by, note string }
@@ -785,7 +793,7 @@ func TestBriefFilesLinksAndSnapshots(t *testing.T) {
 		"# Handoff from Camille to Jérôme", "## Goal\n\nPort the parser", "Open question: errors.",
 		"Snapshot: `" + filepath.Join(filepath.Dir(res.BriefPath), SnapshotDirName, "01-parser.go"),
 		"````\n  line2\n  line3 ```\n  ````", "not copied: it may hold secrets", "Not found when the brief was written",
-		"[The doc](https://example.com/doc) (browser page)", "call `tabs_create`, then `navigate`",
+		"[The doc](https://example.com/doc) (browser page)", "call `tabs_create` with its address as `url`",
 		"[https://github.com/o/r/issues/1](https://github.com/o/r/issues/1) (ticket)",
 	} {
 		if !strings.Contains(md, want) {

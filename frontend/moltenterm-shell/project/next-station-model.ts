@@ -36,6 +36,11 @@ export type NextStation = {
     reason?: string;
     // The station is the dated milestone due first rather than the derived version (#2069): its note is final.
     milestonefirst?: boolean;
+    // The number the commits give, when the station is a milestone's instead (#2268): the Release menu keeps it as an
+    // alternative.
+    derivedtag?: string;
+    // The commits call for a bigger bump than the station's number: starting it asks for a confirmation (#2268).
+    bigger?: boolean;
 };
 
 export type WaitingCounts = {
@@ -132,7 +137,7 @@ function plainStation(git: MissionGit, session: ReleaseSession, milestones?: rea
     const floor = last ? parseBase(tagVersion(last.name.trim(), prefix)) : null;
     const first = dueFirstMilestone(milestones, floor);
     if (first != null && milestoneKey(first.title) !== next.version) {
-        return milestoneFirstStation(git, prefix, first, floor, next.level, next.reason);
+        return milestoneFirstStation(git, prefix, first, floor, prefix + next.version, next.level, next.reason);
     }
     return {
         tag: prefix + next.version,
@@ -175,13 +180,14 @@ function plannedStation(
 const BumpRank: Record<string, number> = { patch: 1, minor: 2, major: 3 };
 
 // A derived release goes to the dated milestone due first (FR-MC-021, #2069), not to the later milestone its derived
-// number happens to match. When the commits call for a bigger bump than that milestone, the note says so; the number
-// stays the developer's choice in the Release menu.
+// number happens to match. When the commits call for a bigger bump than that milestone, the note says so as advice;
+// the Release menu offers the milestone's number first and the computed one beside it (#2268).
 function milestoneFirstStation(
     git: MissionGit,
     prefix: string,
     milestone: Milestone,
     floor: Version,
+    derivedTag: string,
     derivedLevel: string,
     reason: string
 ): NextStation {
@@ -189,8 +195,9 @@ function milestoneFirstStation(
     const level = bumpLevel(floor, parseBase(milestoneKey(milestone.title)));
     const trunk = git.trunk || t("project.theTrunk");
     let note = t("project.station.milestoneFirst", { milestone: milestone.title, trunk });
-    if ((BumpRank[derivedLevel] ?? 0) > (BumpRank[level] ?? 0)) {
-        const vars = { tag, level: levelLabel(derivedLevel), trunk, reason };
+    const bigger = (BumpRank[derivedLevel] ?? 0) > (BumpRank[level] ?? 0);
+    if (bigger) {
+        const vars = { tag, derived: derivedTag, level: levelLabel(derivedLevel), trunk, reason };
         note = reason ? t("project.station.biggerBump", vars) : t("project.station.biggerBumpPlain", vars);
     }
     return {
@@ -201,6 +208,8 @@ function milestoneFirstStation(
         level,
         reason,
         milestonefirst: true,
+        derivedtag: derivedTag,
+        bigger,
     };
 }
 

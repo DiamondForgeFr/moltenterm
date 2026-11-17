@@ -9,11 +9,23 @@
 // The provider reads the panel through BrowserCommandTarget, which the browser's view model implements, so it never
 // imports the view (and its webviews) itself.
 
+import { isMacOS } from "@/util/platformutil";
 import type { AgentControlAction, AgentTab, ControlBarView } from "../../browser/browser-agent";
 import type { BrowserList } from "../../browser/browser-engine";
 import type { BrowserTab } from "../../browser/browser-model";
+import {
+    CustomEngineId,
+    DefaultSearchSettingKey,
+    DefaultSearchTemplate,
+    presetOf,
+    RecommendedEngineId,
+    searchEngineInfo,
+    SearchEnginePresets,
+    usableTemplate,
+} from "../../browser/search-engine-model";
 import { t } from "../../i18n/i18n";
-import { settingsBinding } from "../bindings";
+import { formatShortcutById } from "../../shortcuts/format";
+import { readSettings, settingsBinding } from "../bindings";
 import { CommandProvider, PanelContext, PanelItem, PanelSection } from "../panel-types";
 
 export const BrowserZoomMin = 30;
@@ -36,6 +48,11 @@ export type BrowserCommandState = {
     agentTab: AgentTab;
     agentView: ControlBarView;
     agentTabShown: boolean;
+    // FR-BRW-022: the page can be inspected, its tools are docked, and the origin whose data can be cleared (null for
+    // a page without one).
+    canInspect?: boolean;
+    inspectorOpen?: boolean;
+    clearableOrigin?: string;
 };
 
 export type BrowserCommandTarget = {
@@ -54,7 +71,11 @@ export type BrowserCommandTarget = {
     forgetAgentSite(site: string): void;
     controlAgent(browserTabId: string, action: AgentControlAction): void;
     showTab(id: string): void;
+    // The page's developer tools in their own window.
     openPageDevTools(): void;
+    toggleInspector(): boolean;
+    askClearSiteData(): void;
+    askClearCache(): void;
 };
 
 export const BrowserViewType = "molten-browser";
@@ -93,6 +114,17 @@ function pageItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[
                 format: (v) => `${v} %`,
                 value: s.zoom,
                 set: (v) => bt.setZoom(v),
+            });
+        }
+        // FR-BRW-022 AC6: every site's cached files, asked before anything goes; the page then reloads.
+        if (s.canInspect) {
+            items.push({
+                id: "browser:clearcache",
+                type: "action",
+                label: t("browser.siteData.clearCache"),
+                icon: "broom",
+                keywords: ["cache", "clear cache", "empty cache"],
+                run: () => bt.askClearCache(),
             });
         }
     }
@@ -216,7 +248,49 @@ function siteItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[
             run: () => bt.forgetAgentSite(s.agentDecision.site),
         });
     }
+    // FR-BRW-022 AC6: the page's site data, asked before anything goes.
+    if (s.clearableOrigin) {
+        items.push({
+            id: "browser:clearsitedata",
+            type: "action",
+            label: t("browser.siteData.clearSite"),
+            icon: "eraser",
+            detail: s.clearableOrigin,
+            keywords: ["cookies", "storage", "local storage", "indexeddb", "site data"],
+            run: () => bt.askClearSiteData(),
+        });
+    }
     return items;
+}
+
+// The engine the words typed in any address field are searched with (#2312, web:defaultsearch): the same presets as
+// Settings › Browser, the recommended one marked. A custom address keeps its own entry, named after its site.
+function searchEngineItem(): PanelItem {
+    const current = readSettings(DefaultSearchSettingKey);
+    const options = SearchEnginePresets.map((p) => ({
+        id: `searchengine:${p.id}`,
+        label: p.name,
+        value: p.template,
+        detail: p.id === RecommendedEngineId ? t("settings.searchEngine.recommended") : undefined,
+    }));
+    if (typeof current === "string" && usableTemplate(current) && presetOf(current) == null) {
+        options.push({
+            id: `searchengine:${CustomEngineId}`,
+            label: searchEngineInfo(current).name,
+            value: current,
+            detail: t("settings.searchEngine.custom"),
+        });
+    }
+    return {
+        id: "browser:searchengine",
+        type: "choice",
+        label: t("cmdpanel.browser.searchEngine"),
+        icon: "magnifying-glass",
+        keywords: [DefaultSearchSettingKey, "search", "address bar", "brave", "duckduckgo", "google", "privacy"],
+        options,
+        defaultValue: DefaultSearchTemplate,
+        scopes: [settingsBinding<string>(DefaultSearchSettingKey, DefaultSearchTemplate, "global")],
+    };
 }
 
 function linkItems(s: BrowserCommandState): PanelItem[] {
@@ -231,6 +305,7 @@ function linkItems(s: BrowserCommandState): PanelItem[] {
             scopes: [settingsBinding<boolean>("web:openlinksinternally", true, "global")],
         },
     ];
+    items.push(searchEngineItem());
     const chosen = s.list?.chosen;
     if (chosen != null) {
         items.push({
@@ -324,19 +399,36 @@ export function browserSections(ctx: PanelContext): PanelSection[] {
             id: "developer",
             kind: "developer",
             title: t("cmdpanel.section.developer"),
-            items: [
-                {
-                    id: "browser:devtools",
-                    type: "action",
-                    label: t("cmdpanel.browser.inspect"),
-                    icon: "code",
-                    keywords: ["devtools", "developer tools", "console"],
-                    run: () => bt.openPageDevTools(),
-                },
-            ],
+            items: developerItems(bt, s),
         });
     }
     return sections;
+}
+
+// The page's developer tools docked below it or in their window (FR-BRW-022 AC6); its data are cleared from Page and
+// This site.
+function developerItems(bt: BrowserCommandTarget, s: BrowserCommandState): PanelItem[] {
+    const items: PanelItem[] = [];
+    if (s.canInspect !== false) {
+        items.push({
+            id: "browser:devtools",
+            type: "action",
+            label: t(s.inspectorOpen ? "cmdpanel.browser.closeInspector" : "cmdpanel.browser.inspect"),
+            icon: "code",
+            shortcut: formatShortcutById(isMacOS() ? "browser-inspect" : "browser-inspect-other"),
+            keywords: ["devtools", "developer tools", "console", "network", "elements", "cookies"],
+            run: () => void bt.toggleInspector(),
+        });
+    }
+    items.push({
+        id: "browser:devtoolswindow",
+        type: "action",
+        label: t("cmdpanel.browser.devtoolsWindow"),
+        icon: "arrow-up-right-from-square",
+        keywords: ["devtools", "developer tools", "window"],
+        run: () => bt.openPageDevTools(),
+    });
+    return items;
 }
 
 export const BrowserProvider: CommandProvider = {

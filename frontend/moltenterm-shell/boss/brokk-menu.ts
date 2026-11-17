@@ -6,7 +6,10 @@
 // title-bar face and of the square, and the ⋯ at the square's top right opens it. One list for the three, so no door of
 // the old panel is lost.
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
+import { BrainstormLastLeftAtom, openBrainstorm, resumeLastBrainstorm } from "../brainstorm/brainstorm-boot";
+import { currentBrainstormAllowed } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import { t } from "../i18n/i18n";
 import { openSettingsKey, openSettingsSection } from "../settings/settings-open";
@@ -23,6 +26,24 @@ export function brokkMenuItems(name: string, leave?: () => void, first?: BrokkMe
     const items: BrokkMenuEntry[] = [];
     if (first != null) {
         items.push(first, { type: "separator" });
+    }
+    // Brokk's thought in 3D (FR-BOSS-010 AC2, #2246): the developer starts a brainstorm; every channel since #2320.
+    if (currentBrainstormAllowed()) {
+        // The way back to the brainstorm last left (AC10e, #2284).
+        const last = globalStore.get(BrainstormLastLeftAtom);
+        if (last != null) {
+            items.push({
+                label: t("boss.brainstorm.picker.resume", { title: last.title }),
+                click: () => fireAndForget(() => resumeLastBrainstorm()),
+            });
+        }
+        items.push(
+            {
+                label: t("boss.brainstorm.menu", { name }),
+                click: () => fireAndForget(() => openBrainstorm()),
+            },
+            { type: "separator" }
+        );
     }
     items.push(
         {

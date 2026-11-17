@@ -28,6 +28,11 @@ const (
 	// started; HistoryEvent tells the windows a new one was added. Windows only.
 	HistoryCommand = "moltenagenthandoffhistory"
 	HistoryEvent   = "molten:agenthandoffs"
+	// The responsibility chain (FR-REV-035, #2174): which agents each lead handed work to, kept across restarts. The
+	// Integration panel reads it to follow a view's agents and their sub-agents; ChainEvent tells the windows a link
+	// was added, ChainCommand reads the list. Windows only.
+	ChainCommand = "moltenagenthandoffchain"
+	ChainEvent   = "molten:agentchain"
 	// Every request waiting for the developer, in every workspace (#1926): PendingEvent tells the windows the list
 	// changed, PendingCommand reads it, AnswerCommand answers an entry, as its notification's buttons do. Windows only.
 	PendingCommand = "moltenagenthandoffpending"
@@ -116,10 +121,21 @@ type AgentEntry struct {
 	ProviderName string `json:"providername,omitempty"`
 }
 
+// LockedEntry is a first name locked for a project that no agent holds now (FR-CONT-014, #2324): a hand-off to it cannot
+// be delivered, and nothing starts an agent for it.
+type LockedEntry struct {
+	FirstName string `json:"firstname"`
+	// Project: the project's name, ProjectDir its folder.
+	Project    string `json:"project,omitempty"`
+	ProjectDir string `json:"projectdir,omitempty"`
+}
+
 type ListResult struct {
 	// You: the caller's own agent, when an agent runs in its pane.
 	You    *AgentEntry  `json:"you,omitempty"`
 	Agents []AgentEntry `json:"agents"`
+	// Locked: the locked names that no agent holds, in the order they were locked.
+	Locked []LockedEntry `json:"locked,omitempty"`
 	// Caller: set when the request sent its folder and a running sub-agent of the caller's pane may have made it;
 	// nil when the call is the session's own.
 	Caller *CallerEntry `json:"caller,omitempty"`
@@ -298,6 +314,18 @@ type HistoryEntry struct {
 
 type HistoryResult struct {
 	Entries []HistoryEntry `json:"entries"`
+}
+
+// ChainEdge is one delegation: Lead handed work to Sub, both by first name. At: Unix milliseconds.
+type ChainEdge struct {
+	Lead string `json:"lead"`
+	Sub  string `json:"sub"`
+	Via  string `json:"via"`
+	At   int64  `json:"at"`
+}
+
+type ChainResult struct {
+	Edges []ChainEdge `json:"edges"`
 }
 
 // ForgetRequest forgets the decision of the pair of two panes: the next send between them asks again.

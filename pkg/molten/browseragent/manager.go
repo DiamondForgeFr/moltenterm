@@ -118,7 +118,9 @@ type Manager struct {
 
 	permissionTimeout time.Duration
 	permissionPoll    time.Duration
-	parkGrace         time.Duration
+	// reuseTimeout: how long tabs_create waits for the user's answer about a page they opened (#2333).
+	reuseTimeout time.Duration
+	parkGrace    time.Duration
 
 	lock         sync.Mutex
 	controlLocks [64]sync.Mutex
@@ -142,6 +144,7 @@ func MakeManager(env Env) *Manager {
 
 		permissionTimeout: defaultPermissionTimeout,
 		permissionPoll:    defaultPermissionPoll,
+		reuseTimeout:      defaultReuseTimeout,
 		parkGrace:         defaultParkGrace,
 	}
 }
@@ -545,7 +548,7 @@ func (m *Manager) PanelSnapshot(source string, panelId string) (PanelState, erro
 func (m *Manager) panelState(panelId string) PanelState {
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	rtn := PanelState{BlockId: panelId, Tabs: []PanelAgentTab{}}
+	rtn := PanelState{BlockId: panelId, Tabs: []PanelAgentTab{}, Asks: m.reuseAsksLocked(panelId)}
 	for key, sessionId := range m.owners {
 		if key.PanelId != panelId {
 			continue

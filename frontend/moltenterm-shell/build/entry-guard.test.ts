@@ -29,6 +29,7 @@ describe("heavyPackageOf", () => {
         ["/repo/node_modules/@mermaid-js/parser/dist/mermaid-parser.core.mjs", "@mermaid-js"],
         ["C:\\repo\\node_modules\\katex\\dist\\katex.mjs", "katex"],
         ["/repo/node_modules/streamdown/dist/index.js", "streamdown"],
+        ["/repo/node_modules/acorn/dist/acorn.mjs", "acorn"],
         ["/repo/node_modules/react/index.js", null],
         ["/repo/node_modules/shikimori/index.js", null],
         [App, null],

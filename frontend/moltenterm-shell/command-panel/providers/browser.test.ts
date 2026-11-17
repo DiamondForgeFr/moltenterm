@@ -67,7 +67,13 @@ function makeTarget(s: BrowserCommandState) {
         forgetAgentSite: record("forgetagent"),
         controlAgent: record("agent"),
         showTab: record("show"),
-        openPageDevTools: record("devtools"),
+        openPageDevTools: record("devtools-window"),
+        toggleInspector: () => {
+            calls.push("inspect");
+            return true;
+        },
+        askClearSiteData: record("clear-site"),
+        askClearCache: record("clear-cache"),
     };
     return { target, calls };
 }
@@ -167,6 +173,49 @@ describe("Browser provider (FR-SHELL-051 AC1, DS-SHELL-090)", () => {
         expect(state.settingsWrites).toEqual([{ "web:openlinksinternally": false }]);
     });
 
+    it("offers the search engines of Settings › Browser in Links, Brave Search recommended (#2312)", () => {
+        const { target } = makeTarget(makeState());
+        const engines = item(browserSections(makeCtx(target)), "browser:searchengine") as any;
+        expect(engines).toMatchObject({
+            type: "choice",
+            label: "Search engine",
+            defaultValue: "https://search.brave.com/search?q={query}",
+        });
+        expect(engines.options.map((o: any) => o.label)).toEqual([
+            "Brave Search",
+            "DuckDuckGo",
+            "Startpage",
+            "Qwant",
+            "Ecosia",
+            "Google",
+            "Bing",
+        ]);
+        expect(engines.options.filter((o: any) => o.detail === "Recommended").map((o: any) => o.label)).toEqual([
+            "Brave Search",
+        ]);
+    });
+
+    it("writes the chosen engine to web:defaultsearch, and reads the user's own value back (#2312)", async () => {
+        state.settings = { "web:defaultsearch": "https://www.google.com/search?q={query}" };
+        const { target } = makeTarget(makeState());
+        const engines = item(browserSections(makeCtx(target)), "browser:searchengine") as any;
+        expect(engines.scopes[0].get()).toBe("https://www.google.com/search?q={query}");
+        await engines.scopes[0].set("https://duckduckgo.com/?q={query}");
+        expect(state.settingsWrites).toEqual([{ "web:defaultsearch": "https://duckduckgo.com/?q={query}" }]);
+    });
+
+    it("keeps a custom search address as an entry named after its site (#2312)", () => {
+        state.settings = { "web:defaultsearch": "https://search.example.dev/?q={query}" };
+        const { target } = makeTarget(makeState());
+        const engines = item(browserSections(makeCtx(target)), "browser:searchengine") as any;
+        const custom = engines.options[engines.options.length - 1];
+        expect(custom).toMatchObject({
+            label: "search.example.dev",
+            value: "https://search.example.dev/?q={query}",
+            detail: "Custom",
+        });
+    });
+
     it("adds an Agent control section, first, while an agent drives a tab", async () => {
         const agentTab = { browsertabid: "t2", agentname: "Claude Code", origin: "o", state: "active" };
         const { target, calls } = makeTarget(
@@ -202,5 +251,55 @@ describe("Browser provider (FR-SHELL-051 AC1, DS-SHELL-090)", () => {
         expect(item(sections, "browser:reload")).toBeUndefined();
         expect(item(sections, "browser:openhere")).toBeDefined();
         expect(section(sections, "developer")).toBeUndefined();
+    });
+});
+
+describe("The inspector and the site data in the command panel (FR-BRW-022 AC6, TC-BRW-053)", () => {
+    const ids = (sections: PanelSection[], id: string) => section(sections, id).items.map((i) => i.id);
+
+    it("puts Inspect and the separate window under Developer, with the platform's keys", async () => {
+        const { target, calls } = makeTarget(
+            makeState({ canInspect: true, inspectorOpen: false, clearableOrigin: "https://example.com" })
+        );
+        const sections = browserSections(makeCtx(target));
+        expect(ids(sections, "developer")).toEqual(["browser:devtools", "browser:devtoolswindow"]);
+        expect(item(sections, "browser:devtools")).toMatchObject({ label: "Inspect the page" });
+        expect(["⌥⌘I", "Ctrl+Shift+I"]).toContain((item(sections, "browser:devtools") as PanelAction).shortcut);
+        for (const id of ["browser:devtools", "browser:devtoolswindow"]) {
+            await (item(sections, id) as PanelAction).run();
+        }
+        expect(calls).toEqual(["inspect", "devtools-window"]);
+    });
+
+    it("clears the site's data from This site and the cache from Page, where they show without the Developer key", async () => {
+        const { target, calls } = makeTarget(
+            makeState({ canInspect: true, inspectorOpen: false, clearableOrigin: "https://example.com" })
+        );
+        const sections = browserSections(makeCtx(target));
+        expect(ids(sections, "widget:browser:site")).toContain("browser:clearsitedata");
+        expect(item(sections, "browser:clearsitedata")).toMatchObject({
+            label: "Clear this site's data…",
+            detail: "https://example.com",
+        });
+        expect(ids(sections, "widget:browser:page")).toContain("browser:clearcache");
+        expect(item(sections, "browser:clearcache").label).toBe("Clear the browser cache…");
+        for (const id of ["browser:clearsitedata", "browser:clearcache"]) {
+            await (item(sections, id) as PanelAction).run();
+        }
+        expect(calls).toEqual(["clear-site", "clear-cache"]);
+    });
+
+    it("reads Close the inspector while the tools are docked, and offers no site data on a page without an origin", () => {
+        const { target } = makeTarget(makeState({ canInspect: true, inspectorOpen: true, clearableOrigin: null }));
+        const sections = browserSections(makeCtx(target));
+        expect(item(sections, "browser:devtools").label).toBe("Close the inspector");
+        expect(item(sections, "browser:clearsitedata")).toBeUndefined();
+    });
+
+    it("keeps only the separate window on a page not drawn yet", () => {
+        const { target } = makeTarget(makeState({ canInspect: false, clearableOrigin: null }));
+        const sections = browserSections(makeCtx(target));
+        expect(ids(sections, "developer")).toEqual(["browser:devtoolswindow"]);
+        expect(item(sections, "browser:clearcache")).toBeUndefined();
     });
 });

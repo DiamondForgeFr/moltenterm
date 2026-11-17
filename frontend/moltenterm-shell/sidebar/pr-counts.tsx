@@ -8,20 +8,19 @@
 // haloed dot, ready a filled dot, running an arc, the agents' a hollow dot). Dots showing up fade in once, a dot whose
 // count changes glows once; only the running arc moves, on the working beat.
 
-import { atoms } from "@/app/store/global";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
 import { cn } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 import { useT, useTCount } from "../i18n/i18n";
-import { useCardContext } from "../reviews/reviews-agent-bar";
-import { useListedReviewsAnswer } from "../reviews/reviews-client";
+import { useListedReviewsAnswer, watchReviewsRail } from "../reviews/reviews-client";
 import { rebaseAskKey, splitReviews } from "../reviews/reviews-model";
 import { cardStates } from "../reviews/reviews-sections-model";
 import { ReviewsModel } from "../reviews/reviews-store";
 import { useUpcomingWatch } from "../reviews/reviews-upcoming-client";
+import { useWorkspaceProjectDirs, useWorkspaceReviews } from "../reviews/reviews-workspace";
+import { sumPrCounts } from "../reviews/reviews-workspace-model";
 import { useWorkingBeat } from "../working-beat";
-import { readWorkspaceProject } from "../workspace-project";
 import {
     firstPilotageTab,
     hasPrCounts,
@@ -45,22 +44,46 @@ export type AreaBlock = { key: string; tabId: string; configViews?: string[] };
 // The current workspace's counts, from the Integration panel's answer for the workspace's project and its cards'
 // states (the agents on each branch), so a PR counts in the state its card shows. The sidebar's library keeps the
 // answers fresh (useReviewsRailWatch, useWorkspacePrStatesWatch): no poll of its own.
+// Every project of the workspace adds up (FR-SHELL-087, #2174): a pull request waiting in another project than the
+// current one is never invisible.
 export function useWorkspacePrCounts(): PrCounts {
-    const workspace = useAtomValue(atoms.workspace);
-    const dir = readWorkspaceProject(workspace).repo;
-    const answer = useListedReviewsAnswer(dir);
+    const projects = useWorkspaceReviews();
     const model = ReviewsModel.getInstance();
     const readied = useAtomValue(model.readiedAtom);
     const asks = useAtomValue(model.rebaseAsksAtom);
-    const ctx = useCardContext(dir);
-    return useMemo(() => {
-        if (answer?.state !== "ok") {
-            return prCounts(answer, readied);
-        }
-        const split = splitReviews(answer, readied);
-        const cards = cardStates([...split.ready, ...split.drafts], asks, (n) => rebaseAskKey(dir, n), ctx);
-        return prCounts(answer, readied, cards);
-    }, [answer, readied, asks, ctx, dir]);
+    return useMemo(
+        () =>
+            sumPrCounts(
+                projects.map(({ dir, answer, ctx }) => {
+                    if (answer?.state !== "ok") {
+                        return prCounts(answer, readied);
+                    }
+                    const split = splitReviews(answer, readied);
+                    const cards = cardStates([...split.ready, ...split.drafts], asks, (n) => rebaseAskKey(dir, n), ctx);
+                    return prCounts(answer, readied, cards);
+                })
+            ),
+        [projects, readied, asks]
+    );
+}
+
+function OtherProjectWatch({ dir }: { dir: string }) {
+    useEffect(() => watchReviewsRail(dir), [dir]);
+    useWorkspacePrStatesWatch(dir);
+    return null;
+}
+
+// Keeps the other projects' pull requests and agents fresh while the window shows, so their counts are true without
+// their panel open: one passive read each, as the rail makes for the current project.
+export function OtherProjectsWatch() {
+    const dirs = useWorkspaceProjectDirs();
+    return (
+        <>
+            {dirs.slice(1).map((dir) => (
+                <OtherProjectWatch key={dir} dir={dir} />
+            ))}
+        </>
+    );
 }
 
 // Where the agents of the project's branches are, for the dots' blocked state (an agent waiting on a question, a

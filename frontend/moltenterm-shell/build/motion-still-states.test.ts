@@ -15,6 +15,34 @@ const ShellDir = resolve(__dirname, "..");
 // the reduced form of a flow.
 const LoopTokens = new Set(["loop", "spin", "dominoes", "turn", "fade"]);
 
+// The working beat (working-beat.ts) is the rule for an indicator: it runs no animation of its own, so a view draws a
+// frame a second at most (#473). These loops are the narrow exceptions, each decided by the developer: a smooth loop that
+// is a transform alone on an HTML box (the compositor runs it without a main-thread frame), paused while the window or
+// the view is not active, and stopped under both reduced-motion paths. A loop that is not in this list follows the beat.
+// A loop may name `property` when the one property it animates is not transform: the waiting ring's breathing (#2294),
+// opacity alone like the workspace dot's ring, is proposed with its ticket and waits for the developer's go.
+const SmoothLoops = [
+    {
+        file: "activity/activity-icon.css",
+        selector: ".mt-act",
+        keyframes: ["mt-act-turn", "mt-act-flicker"],
+        reason:
+            "The activity indicator of the title row (FR-BOSS-009 AC85, #2233, decided 2026-11-11): its ring turns like an " +
+            "indeterminate download and its flame flickers; at the beat's one step a second they read as ticks, not as " +
+            "something running. The flame shares the frames the ring already draws.",
+    },
+    {
+        file: "activity/activity-icon.css",
+        selector: ".mt-act",
+        keyframes: ["mt-act-wait"],
+        property: "opacity",
+        reason:
+            "The same indicator when an agent waits for the developer (#2294): its whole ring breathes in place on the " +
+            "shell's calm loop, opacity alone, as the workspace dot's ring does for the same news (#2265), instead of " +
+            "turning. It shares the pause and the stop of the loops above and never runs together with the turn.",
+    },
+];
+
 function cssFiles(): string[] {
     const files: string[] = [];
     for (const rel of readdirSync(ShellDir, { recursive: true }) as string[]) {
@@ -45,6 +73,28 @@ function reducedMotionText(src: string): string {
     return text;
 }
 
+function loopsWithoutStill(files: string[]): string[] {
+    const missing: string[] = [];
+    for (const file of files) {
+        const src = stripCssComments(readFileSync(file, "utf8"));
+        const stilled = reducedMotionText(src);
+        const rule = /([^{}]+)\{[^{}]*animation:[^;{}]*\binfinite\b[^;{}]*;/g;
+        for (let m = rule.exec(src); m != null; m = rule.exec(src)) {
+            const cls = /\.([\w-]+)/.exec(m[1]);
+            if (cls == null || !new RegExp(`\\.${cls[1]}(?![\\w-])`).test(stilled)) {
+                missing.push(`${file.slice(ShellDir.length + 1)}: ${m[1].trim().split("\n").pop()}`);
+            }
+        }
+    }
+    return missing;
+}
+
+// The whole tree is scanned here, while the file is collected: collection has no timeout, and a loaded machine stretches
+// this CPU-bound work past a test's 5 s (#2274). The tests below only read the results.
+const Stylesheets = cssFiles();
+const LoopsWithoutStill = loopsWithoutStill(Stylesheets);
+const TitleRowLoops = Stylesheets.filter((f) => /[\\/]activity[\\/]/.test(f) && /infinite/.test(readFileSync(f, "utf8")));
+
 describe("reduced motion (NFR-SHELL-027, FR-SHELL-118)", () => {
     const tokens = stripCssComments(readFileSync(join(ShellDir, "tokens.css"), "utf8"));
     const durations = [...tokens.matchAll(/^\s*--mt-duration-([a-z]+):/gm)].map((m) => m[1]);
@@ -66,18 +116,32 @@ describe("reduced motion (NFR-SHELL-027, FR-SHELL-118)", () => {
     });
 
     it("stills every infinite animation of MoltenTerm's CSS under the system preference", () => {
-        const missing: string[] = [];
-        for (const file of cssFiles()) {
-            const src = stripCssComments(readFileSync(file, "utf8"));
-            const stilled = reducedMotionText(src);
-            const rule = /([^{}]+)\{[^{}]*animation:[^;{}]*\binfinite\b[^;{}]*;/g;
-            for (let m = rule.exec(src); m != null; m = rule.exec(src)) {
-                const cls = /\.([\w-]+)/.exec(m[1]);
-                if (cls == null || !new RegExp(`\\.${cls[1]}(?![\\w-])`).test(stilled)) {
-                    missing.push(`${file.slice(ShellDir.length + 1)}: ${m[1].trim().split("\n").pop()}`);
-                }
-            }
+        expect(LoopsWithoutStill).toEqual([]);
+    });
+});
+
+describe("the smooth loops that are an exception to the working beat", () => {
+    it.each(SmoothLoops)("$file $keyframes: one property alone, paused when not active, stilled under reduced motion", (loop) => {
+        const src = stripCssComments(readFileSync(join(ShellDir, loop.file), "utf8"));
+        const property = loop.property ?? "transform";
+        expect(loop.reason.length).toBeGreaterThan(40);
+        for (const name of loop.keyframes) {
+            const start = src.indexOf(`@keyframes ${name} {`);
+            expect(start, name).toBeGreaterThanOrEqual(0);
+            const frames = braceBody(src, src.indexOf("{", start));
+            const props = [...frames.matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]);
+            expect(new Set(props), `${name} animates only ${property}`).toEqual(new Set([property]));
+            expect(src, name).toMatch(new RegExp(`animation: ${name} [^;]*\\binfinite\\b`));
         }
-        expect(missing).toEqual([]);
+        expect(src).toMatch(
+            new RegExp(`:root\\[data-mt-motion="still"\\] ${loop.selector.replace(".", "\\.")}[^{]*\\{\\s*animation-play-state: paused;`)
+        );
+        expect(reducedMotionText(src)).toMatch(new RegExp(`${loop.selector.replace(".", "\\.")}[^{]*\\{\\s*animation: none;`));
+        expect(src.slice(src.indexOf("\n.prefers-reduced-motion"))).toMatch(/animation: none;/);
+    });
+
+    it("lets no other file's infinite animation off the beat unless it is in the list", () => {
+        const listed = new Set(SmoothLoops.map((l) => join(ShellDir, l.file)));
+        expect(TitleRowLoops.filter((f) => !listed.has(f))).toEqual([]);
     });
 });

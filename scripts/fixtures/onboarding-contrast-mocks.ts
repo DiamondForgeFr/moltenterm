@@ -89,6 +89,7 @@ export const uxCloseBlock = () => {};
 export const getActiveTabModel = () => null;
 export const getLayoutModelForStaticTab = () => null;
 export const getApi = () => ({});
+export const openLink = async () => {};
 const modsAtom = atom([]);
 export const MoltenHost = { getInstance: () => ({ modsAtom }) };
 export const openSettingsSection = () => {};

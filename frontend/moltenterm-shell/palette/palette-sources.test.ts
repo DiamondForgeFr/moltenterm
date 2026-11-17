@@ -12,6 +12,7 @@ import {
     agentCopyEntries,
     agentEntries,
     bossCardEntries,
+    brainstormEntries,
     browserEntries,
     buildPaletteEntries,
     folderEntries,
@@ -430,5 +431,19 @@ describe("the address row (#1229)", () => {
         expect(addressEntry("terminal")).toBeNull();
         expect(addressEntry("open the files")).toBeNull();
         expect(firstRow("term").first.label).toBe("Terminal");
+    });
+});
+
+// FR-BOSS-010 AC10e (#2284): the way back to the brainstorm last left, first, only where brainstorms exist.
+describe("Resume the brainstorm (#2284)", () => {
+    it("offers the brainstorm last left before a new one, and nothing without one", () => {
+        const ids = (resume: string, start = true) =>
+            brainstormEntries("Brokk", { start, replay: false, resume }).map((e) => e.id);
+        expect(ids("A garden planner")).toEqual(["action:brainstormresume", "action:brainstorm"]);
+        expect(ids("")).toEqual(["action:brainstorm"]);
+        expect(ids("A garden planner", false)).toEqual([]);
+        const entry = brainstormEntries("Brokk", { start: true, replay: false, resume: "A garden planner" })[0];
+        expect(entry.label).toContain("A garden planner");
+        expect(entry.run).toEqual({ kind: "brainstormresume" });
     });
 });

@@ -19,11 +19,17 @@ export const BrowserKeyZoomOut = "zoom-out";
 export const BrowserKeyZoomReset = "zoom-reset";
 export const BrowserKeyAddress = "address";
 export const BrowserKeyStop = "stop";
+export const BrowserKeyInspect = "inspect";
+export const BrowserKeyAnnotate = "annotate";
 
 type KeyTable = { action: string; mac: string[]; other: string[] }[];
 
 // Zoom takes "=" and "+" because "+" needs Shift on some layouts and not on others, and the numpad's sends "+".
+// Inspect (FR-BRW-022) also takes ⌥⌘I by key code: Option changes the character the I key types on macOS.
 const BrowserKeyTable: KeyTable = [
+    { action: BrowserKeyInspect, mac: ["Cmd:Alt:i", "Cmd:Alt:c{KeyI}"], other: ["Ctrl:Shift:i"] },
+    // Annotate (#2327, FR-BRW-017): no global, browser or inspector key uses it. Wave's ⌘⇧A (the AI panel) is never bound here.
+    { action: BrowserKeyAnnotate, mac: ["Cmd:Shift:a"], other: ["Ctrl:Shift:a"] },
     { action: BrowserKeyHardReload, mac: ["Cmd:Shift:r", "Shift:F5"], other: ["Ctrl:Shift:r", "Ctrl:F5", "Shift:F5"] },
     { action: BrowserKeyReload, mac: ["Cmd:r", "F5"], other: ["Ctrl:r", "F5"] },
     { action: BrowserKeyBack, mac: ["Cmd:[", "Cmd:ArrowLeft"], other: ["Alt:ArrowLeft"] },

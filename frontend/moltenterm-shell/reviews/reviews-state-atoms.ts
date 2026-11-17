@@ -7,7 +7,12 @@
 
 import { atom, PrimitiveAtom } from "jotai";
 import type { ReadiedPrs, ReviewsAnswer } from "./reviews-model";
+import type { UpcomingAnswer } from "./reviews-upcoming-model";
 
 export const SharedReviewsAnswersAtom = atom({}) as PrimitiveAtom<Record<string, ReviewsAnswer>>;
+
+// The upcoming work of each project, where the Integration panel lists the sub-agents (#2294): the activity source reads
+// it from here, as it reads the pull requests above.
+export const SharedUpcomingAnswersAtom = atom({}) as PrimitiveAtom<Record<string, UpcomingAnswer>>;
 
 export const SharedReadiedAtom = atom({}) as PrimitiveAtom<ReadiedPrs>;

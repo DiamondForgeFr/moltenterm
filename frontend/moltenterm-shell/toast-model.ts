@@ -128,6 +128,59 @@ export function toastStackPlace(frame: ToastStackFrame): ToastStackPlace {
     return { top, left, width: Math.max(ToastMinWidthPx, Math.min(ToastWidthPx, frame.windowWidth - left - right)) };
 }
 
+export type ToastFlight = { x: number; y: number };
+
+// Where a notification's toast that times out flies (#1403), as a shift of its top-left corner: under Brokk's face, which
+// stands where the bell was, never onto it (#2213). The toast shrinks from that corner and spreads right and down of it,
+// so a corner that never rises above the face's bottom edge keeps the whole flight clear of his face.
+export function toastFlightTarget(
+    face: { left: number; width: number; bottom: number },
+    own: { left: number; top: number }
+): ToastFlight {
+    return { x: face.left + face.width / 2 - own.left, y: face.bottom + ToastBellGapPx - own.top };
+}
+
+export type PlaceRect = { left: number; top: number; right: number; bottom: number };
+
+// A stack whose height is not measured yet stands for one toast.
+export const ToastStackMinHeightPx = 64;
+
+function overlaps(a: PlaceRect, b: PlaceRect): boolean {
+    return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
+// The stack kept clear of what Brokk stands on (#2241): his face, his open group (the square, the rail, the block, the
+// field and the panel) and his visit. Starting from where the stack comes from, it moves right of what it would cover
+// while the window has room for a toast there, and below it otherwise, so a toast for a gesture made in his panel shows
+// beside that panel. `height` is the stack's own, measured.
+export function toastStackClear(
+    place: ToastStackPlace,
+    height: number,
+    avoid: PlaceRect[],
+    frame: Pick<ToastStackFrame, "windowWidth" | "frameGap">
+): ToastStackPlace {
+    const gap = Math.max(ToastBellGapPx, frame.frameGap);
+    const rightMargin = Math.max(frame.frameGap, ToastMinRightPx);
+    const tall = Math.max(height, ToastStackMinHeightPx);
+    const rects = (avoid ?? []).filter((r) => r != null && r.right > r.left && r.bottom > r.top);
+    let p = place;
+    for (let step = 0; step <= rects.length; step++) {
+        const box = { left: p.left, top: p.top, right: p.left + p.width, bottom: p.top + tall };
+        const hit = rects.filter((r) => overlaps(box, r));
+        if (hit.length === 0) {
+            return p;
+        }
+        const left = Math.max(...hit.map((r) => r.right)) + gap;
+        const room = frame.windowWidth - left - rightMargin;
+        p =
+            room >= ToastMinWidthPx
+                ? { top: p.top, left, width: Math.min(ToastWidthPx, room) }
+                : { ...p, top: Math.max(...hit.map((r) => r.bottom)) + gap };
+    }
+    // Still in the way after every move: below all of them.
+    return { ...p, top: Math.max(p.top, ...rects.map((r) => r.bottom + gap)) };
+}
+
 // The stack shows the newest toast first, nearest the bell.
 export function bellOrder(stack: Toast[]): Toast[] {
     return [...stack].reverse();

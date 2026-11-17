@@ -11,6 +11,7 @@ import { rovingColumnId, stripLayout, stripWidthPx } from "./carpet-tabs-model";
 import { buildRadarTicks, RadarBlockFacts, RadarColumnInput, radarPitchPx, RadarTick } from "./radar-model";
 
 const radarCss = readFileSync(new URL("./radar.css", import.meta.url), "utf8");
+const shellCss = readFileSync(new URL("../moltenterm-shell.css", import.meta.url), "utf8");
 const noop = () => {};
 const handlers: StripHandlers = {
     go: noop,
@@ -170,9 +171,15 @@ describe("the carpet's tab strip (FR-SHELL-125-AC8, AC12)", () => {
         expect(tags[1]).toContain("--mt-radar-color:var(--mt-kind-term)");
         const rule = (selector: string) =>
             new RegExp(`\\n${selector.replace(/[.()[\]>:-]/g, "\\$&")} \\{([^}]*)\\}`).exec(radarCss)?.[1] ?? "";
-        const placed = [...radarCss.matchAll(/\n([^\n{]+) \{[^}]*var\(--mt-place\)/g)].map((m) => m[1]);
-        expect(placed).toEqual([".mt-strip-tab[data-focus]"]);
-        expect(rule(".mt-strip-tab[data-focus]")).toContain("--mt-strip-line: inset 0 -2px 0 var(--mt-place);");
+        // The line is the interface's shared one (DS-SHELL-156): the strip takes it for the focused tab only and holds
+        // no colour of its own, while the shared definition is the place's liseré along the bottom edge.
+        const lined = [...radarCss.matchAll(/\n([^\n{]+) \{[^}]*--mt-strip-line:\s*var\(--mt-selected-line\)/g)].map(
+            (m) => m[1]
+        );
+        expect(lined).toEqual([".mt-strip-tab[data-focus]"]);
+        expect(radarCss).not.toMatch(/var\(--mt-place\)|inset 0 -2px/);
+        expect(shellCss).toContain("--mt-selected-line: inset 0 -2px 0 var(--mt-place);");
+        expect(rule(".mt-strip-tab[data-focus]")).toContain("--mt-strip-line: var(--mt-selected-line);");
         expect(rule(".mt-strip-tab")).toContain(
             "box-shadow: var(--mt-strip-line), var(--mt-strip-rim), var(--mt-strip-cast);"
         );

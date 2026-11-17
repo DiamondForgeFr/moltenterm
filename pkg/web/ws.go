@@ -278,7 +278,7 @@ func HandleWsInternal(w http.ResponseWriter, r *http.Request) error {
 	eventbus.RegisterWSChannel(wsConnId, stableId, outputCh)
 	defer eventbus.UnregisterWSChannel(wsConnId)
 	wproxy := wshutil.MakeRpcProxyWithSize(fmt.Sprintf("ws:%s", stableId), WebSocketChannelSize, WebSocketChannelSize)
-	defer close(wproxy.ToRemoteCh)
+	defer wproxy.Close() // MOLTENTERM-PATCH (#2334): a router send racing this close finds the proxy closed instead of panicking
 	registerConn(wsConnId, stableId, wproxy)
 	defer unregisterConn(wsConnId, stableId)
 	wg := &sync.WaitGroup{}

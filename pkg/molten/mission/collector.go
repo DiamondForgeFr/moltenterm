@@ -49,6 +49,7 @@ const (
 	LogCommand              = "moltenmissionlog"
 	CancelCommand           = "moltenmissioncancel"
 	CloseCommand            = "moltenmissionclose"
+	VerifyHereCommand       = "moltenmissionverifyhere"
 	TrustCommand            = "moltenmissiontrust"
 	CiStateCommand          = "moltenmissioncistate"
 	CiRunCommand            = "moltenmissioncirun"

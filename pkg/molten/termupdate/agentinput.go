@@ -131,6 +131,13 @@ type AgentInputState struct {
 	Modes []string
 	// Draft: the user may have typed a message not sent yet (always, for an agent without precise states).
 	Draft bool
+	// Foreign: text typed by someone other than MoltenTerm is in the prompt; Own: the prompt holds text, all of it typed
+	// by MoltenTerm; Known: the watch followed the prompt since it was last empty, so neither can be from before it
+	// started; Precise: the agent's hooks report its states (#2257).
+	Foreign bool
+	Own     bool
+	Known   bool
+	Precise bool
 }
 
 // AgentInputInfo is what the panel shows before a command: the mode and whether a draft may be cleared.
@@ -423,6 +430,13 @@ func (u *Updater) unreadable(blockId string, out *Outcome) AgentInputResult {
 // program; false: it is not, and nothing was typed. Shared by StopAgent and moltenagentinput, so both keep the same
 // guarantee. Claude Code takes text followed at once by Enter for a paste: each step goes on its own.
 func (u *Updater) sendToForegroundAgent(blockId string, agent molten.AgentProcess, shellPid int32, steps []string) (bool, error) {
+	return u.sendSteps(blockId, agent, shellPid, steps, false)
+}
+
+// sendSteps is sendToForegroundAgent; own: the bytes are MoltenTerm's own text in its own session (#2257), told to the
+// input watch so that a leftover of them may be cleared. Only that path is own: anything else MoltenTerm types (a
+// hand-off, a share line) is never cleared.
+func (u *Updater) sendSteps(blockId string, agent molten.AgentProcess, shellPid int32, steps []string, own bool) (bool, error) {
 	if u.foregroundBlocker(agent, shellPid) != "" {
 		return false, nil
 	}
@@ -434,7 +448,13 @@ func (u *Updater) sendToForegroundAgent(blockId string, agent molten.AgentProces
 		return false, nil
 	}
 	for _, step := range steps {
-		if err := u.env.SendInput(blockId, []byte(step)); err != nil {
+		data := []byte(step)
+		takeBack := func() {}
+		if own && u.env.ExpectOwn != nil {
+			takeBack = u.env.ExpectOwn(blockId, data)
+		}
+		if err := u.env.SendInput(blockId, data); err != nil {
+			takeBack()
 			return true, err
 		}
 		u.env.Sleep(exitEnterDelay)

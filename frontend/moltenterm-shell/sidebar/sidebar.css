@@ -256,9 +256,11 @@
 }
 
 /* Out of sight, and out of the keyboard's way, all of the sidebar but his face and, while it is half open, his banner.
-   They hide after the slide that folds them, and show at once when it unfolds. */
+   The activity indicator (FR-BOSS-009, AC85, #2233) stays with his face: it shows wherever the row does, half open and
+   unfolded; the 30 px strip that peeks out for news holds his face alone. They hide after the slide that folds them, and
+   show at once when it unfolds. */
 .mt-sb[data-edge] > :not(.mt-sb-window-row, .mt-brokk-scene-layer),
-.mt-sb[data-edge] .mt-sb-window-row > :not(.mt-brokk-avatar) {
+.mt-sb[data-edge] .mt-sb-window-row > :not(.mt-brokk-avatar, .mt-act) {
     visibility: hidden;
     transition: visibility 0s linear var(--mt-duration-base);
 }
@@ -390,13 +392,28 @@
     opacity: 1;
 }
 
+/* The ring (#2265): another workspace where an agent waits for the developer or where notifications are unread. It is
+   the dot's own box, laid out on the dot's top left corner as the ripple is (#1993), with the line drawn as an outline
+   at a fixed distance from it, so it is rounded exactly as the dot is and stays on its centre at every zoom and in
+   both row sizes. Never an inset from the 24 px slot: (24 - 15) / 2 is a half pixel, which rounds on its own. It
+   breathes in place on the shell's calm loop (opacity only, the radar's waiting pulse), where the ripple grows. Sizes
+   are unitless pixels, as the ripple's. */
+.mt-sb-dot.has-ring {
+    --mt-sb-ring-dot: 9;
+    --mt-sb-ring-gap: 3px;
+}
+
 .mt-sb-dot.has-ring::after {
     content: "";
     position: absolute;
-    inset: 4.5px;
+    top: calc(50% - var(--mt-sb-ring-dot) * 0.5px);
+    left: calc(50% - var(--mt-sb-ring-dot) * 0.5px);
+    width: calc(var(--mt-sb-ring-dot) * 1px);
+    height: calc(var(--mt-sb-ring-dot) * 1px);
     border-radius: 9999px;
     pointer-events: none;
-    box-shadow: 0 0 0 1.5px var(--mt-sb-dot-colour);
+    outline: 1.5px solid var(--mt-sb-dot-colour);
+    outline-offset: var(--mt-sb-ring-gap);
     animation: mt-sb-ring var(--mt-duration-loop) ease-in-out infinite;
 }
 
@@ -926,8 +943,9 @@
     height: 18px;
 }
 
-.mt-sb-dots.is-many .mt-sb-dot.has-ring::after {
-    inset: 5px;
+.mt-sb-dots.is-many .mt-sb-dot.has-ring {
+    --mt-sb-ring-dot: 7;
+    --mt-sb-ring-gap: 3.5px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1129,8 +1147,8 @@
 }
 
 /* The place cues (FR-SHELL-004, theme "Coulée" #1319): the workspace colour shows only here in the sidebar, as a 2 px
-   strip down its left edge, a bar beside the workspace's name and the line under the active view's tile, besides the
-   workspace dots. Everything that acts stays molten (--mt-action), whatever the workspace. A gradient workspace paints
+   strip down its left edge, a bar beside the workspace's name and the liseré of the selected view (.mt-sb-selected,
+   --mt-selected-line), besides the workspace dots. Everything that acts stays molten (--mt-action), whatever the workspace. A gradient workspace paints
    the strip and the bar with its stops, top to bottom. The docked sidebar's left edge is the window's: the strip runs
    from the window's top to its bottom and the window's rounded corners clip it (#1630). The floating sidebar has its
    own rounded corners, which nothing clips, so its strip stops short of them. */
@@ -1169,13 +1187,83 @@
     );
 }
 
-.mt-sb-tile-place {
-    position: absolute;
-    right: 10px;
-    bottom: -1px;
-    left: 10px;
-    height: 2px;
-    border-radius: var(--mt-radius-control);
-    background: var(--mt-place);
-    pointer-events: none;
+/* The selected tile and top block (DS-SHELL-156): the shared liseré over the surface's own ring, in one box-shadow
+   since a tile keeps its ring. The temporary and agent rows take the line alone (mt-selected, sidebar-agents.css). */
+.mt-sb-selected {
+    box-shadow:
+        var(--mt-selected-line),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+/* The pinned tiles always fill their rows (FR-SHELL-079, #2173, #2184). The area is a wrapping flex row and each tile
+   sits in a cell that grows from PinnedTileMinWidth (sidebar-model.ts, 108 px): a line holds as many cells as fit at
+   that width, never more than there are tiles, and they share it equally, the last line's included, so no row ends on
+   a hole. A grid's tracks could not stretch a short last row. */
+.mt-sb-tilegrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* The cell is the tile's size container, since a container cannot restyle itself: the tile's shape follows its own
+   width. From PinnedRowMinWidth (140 px) it lays its icon on the left and its name on the right like the temporary
+   views' rows; narrower its icon stands above its name. The selected liseré, the lights and the corner's marks stay
+   on the tile, the marks turning from a column into a line at the row's end. */
+.mt-sb-tilecell {
+    container: mttile / inline-size;
+    display: flex;
+    flex: 1 1 108px;
+    min-width: 0;
+}
+
+.mt-sb-tilecell > .mt-sb-tile {
+    flex: 1 1 auto;
+}
+
+/* A tile that fills its row stands above or below its neighbours: the bar of a drop shows above or below it, not on a
+   side (sidebar-drag.ts reads the pointer's height there). */
+.mt-sb-tile.mt-sb-dropy.mt-sb-dropb {
+    box-shadow: 0 -3px 0 0 var(--color-accent) !important;
+}
+
+.mt-sb-tile.mt-sb-dropy.mt-sb-dropa {
+    box-shadow: 0 3px 0 0 var(--color-accent) !important;
+}
+
+@container mttile (min-width: 140px) {
+    .mt-sb-tile {
+        height: 36px;
+        flex-direction: row;
+        justify-content: flex-start;
+        gap: 8px;
+        padding: 0 8px;
+        font-size: var(--mt-text-12);
+    }
+
+    .mt-sb-tile .mt-sb-tile-name {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: none;
+        text-align: left;
+    }
+
+    .mt-sb-tile .mt-sb-corner {
+        position: static;
+        width: auto;
+        flex: none;
+        flex-direction: row;
+        gap: 6px;
+    }
+
+    .mt-sb-tile .mt-sb-prdots {
+        flex-direction: row;
+        gap: 3px;
+    }
+
+    .mt-sb-tile .mt-sb-revert {
+        top: 50%;
+        right: 6px;
+        bottom: auto;
+        transform: translateY(-50%);
+    }
 }

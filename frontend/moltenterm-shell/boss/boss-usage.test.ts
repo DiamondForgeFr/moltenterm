@@ -20,15 +20,19 @@ vi.mock("@/app/store/wps", () => ({
 }));
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { AgentStatesRoute, AgentUseCommand } from "../agent-state-model";
 import type { CompanionUsageInfo, UsageSnapshot } from "../companion/companion-gauges-model";
 import {
     applyUnreadable,
     applyUsageReading,
+    askUsageUse,
     CompanionUsageGlobalCommand,
     startUsageReadings,
     UsageReadingsAtom,
     UsageUnreadableAtom,
+    UsageUseAtom,
 } from "./boss-usage";
+import { readUseSummary, refreshUsageUse } from "./boss-usage-use";
 
 function snapshot(agent: string, readat: number, percent = 10): UsageSnapshot {
     return { agent, source: "test", windows: [{ id: "w", label: "Week", usedpercent: percent }], readat };
@@ -48,6 +52,7 @@ afterEach(() => {
     m.rpc.mockReset();
     globalStore.set(UsageReadingsAtom, {});
     globalStore.set(UsageUnreadableAtom, {});
+    globalStore.set(UsageUseAtom, null);
 });
 
 describe("the plan usage readings the peek tells (FR-BOSS-001, AC7)", () => {
@@ -115,5 +120,66 @@ describe("the plan usage readings the peek tells (FR-BOSS-001, AC7)", () => {
         expect(m.unsubscribe).not.toHaveBeenCalled();
         stopB();
         expect(m.unsubscribe).toHaveBeenCalledOnce();
+    });
+});
+
+// #2341: what each agent was used over the last 7 days comes from wavesrv, over the agent states route.
+describe("the use of each agent over 7 days (FR-BOSS-009, AC93 and AC94)", () => {
+    it("keeps the numbers wavesrv gave, and drops what is not a number", () => {
+        const use = readUseSummary({
+            at: 5,
+            agents: {
+                claude: { workms: 90000, sessions: 2, lastat: 1700 },
+                codex: { workms: -4, sessions: "x", lastat: null } as any,
+            },
+        });
+        expect(use).toEqual({
+            claude: { workms: 90000, sessions: 2, lastat: 1700 },
+            codex: { workms: 0, sessions: 0, lastat: 0 },
+        });
+    });
+
+    it("says nothing for an answer that holds no agents", () => {
+        expect(readUseSummary(null)).toBeNull();
+        expect(readUseSummary({ at: 1 } as any)).toBeNull();
+        expect(readUseSummary({ at: 1, agents: null } as any)).toBeNull();
+        expect(readUseSummary({ at: 1, agents: {} })).toEqual({});
+    });
+
+    it("asks the agent states route and keeps the answer", async () => {
+        expect(globalStore.get(UsageUseAtom)).toBeNull();
+        m.rpc.mockResolvedValue({ at: 9, agents: { claude: { workms: 5, sessions: 1, lastat: 3 } } });
+        await refreshUsageUse();
+        expect(m.rpc).toHaveBeenCalledOnce();
+        expect(m.rpc.mock.calls[0][0]).toBe(AgentUseCommand);
+        expect(m.rpc.mock.calls[0][2].route).toBe(AgentStatesRoute);
+        expect(globalStore.get(UsageUseAtom)).toEqual({ claude: { workms: 5, sessions: 1, lastat: 3 } });
+    });
+
+    // The code that asks loads on demand (NFR-PERF-003): the way in loads it, then asks.
+    it("is asked through the way in that loads it on demand", async () => {
+        m.rpc.mockResolvedValue({ at: 9, agents: { codex: { workms: 7, sessions: 2, lastat: 4 } } });
+        await askUsageUse();
+        expect(m.rpc.mock.calls[0][0]).toBe(AgentUseCommand);
+        expect(globalStore.get(UsageUseAtom)).toEqual({ codex: { workms: 7, sessions: 2, lastat: 4 } });
+    });
+
+    it("keeps what it held when the answer fails or is empty", async () => {
+        m.rpc.mockResolvedValue({ at: 9, agents: {} });
+        await refreshUsageUse();
+        expect(globalStore.get(UsageUseAtom)).toEqual({});
+        m.rpc.mockRejectedValue(new Error("no route"));
+        await refreshUsageUse();
+        expect(globalStore.get(UsageUseAtom)).toEqual({});
+        m.rpc.mockResolvedValue(undefined);
+        await refreshUsageUse();
+        expect(globalStore.get(UsageUseAtom)).toEqual({});
+    });
+
+    it("is not asked when the readings start: the group asks when it opens", () => {
+        m.rpc.mockResolvedValue([]);
+        const stop = startUsageReadings();
+        expect(m.rpc.mock.calls.map((c) => c[0])).toEqual([CompanionUsageGlobalCommand]);
+        stop();
     });
 });

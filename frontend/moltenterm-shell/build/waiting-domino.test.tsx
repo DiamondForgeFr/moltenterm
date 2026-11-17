@@ -41,6 +41,8 @@ export const BusyLabelAllowed: Record<string, string> = {
     "frontend/moltenterm-shell/companion/companion-model.ts":
         "statusMessage: companion-view's EmptyState draws the card dominoes while the session loads",
     "frontend/moltenterm-shell/mission/dep-sync-model.ts": "the syncing note: group-strip shows RunningDot while it syncs",
+    "frontend/moltenterm-shell/mission/release-run-row.tsx":
+        "the abandon button is a PendingLabel (release-run-panel), which draws the dominoes while it works",
     "frontend/moltenterm-shell/mission/release-run.ts":
         "phase actions and lines: release-run-panel draws PendingLabel and the running step's dominoes",
     "frontend/moltenterm-shell/review/review-merge.ts":

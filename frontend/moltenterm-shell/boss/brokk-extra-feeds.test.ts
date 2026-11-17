@@ -6,14 +6,12 @@ import type { DownloadRecord } from "../downloads/downloads-model";
 import type { UsageReadings } from "./boss-usage";
 import {
     acknowledgeDownloads,
-    acknowledgeUsage,
     downloadEventsOf,
-    hotProviders,
     makeDownloadsMemory,
     updateEventsOf,
-    usageEventsAfter,
     UsageThresholdPercent,
 } from "./brokk-extra-feeds";
+import { acknowledgeUsage, hotProviders, usageEventsAfter } from "./brokk-usage-visit";
 
 const Now = new Date(2026, 10, 6, 10, 0, 0).getTime();
 
@@ -116,6 +114,69 @@ describe("the plan usage feeds the visit model", () => {
             },
         };
         expect(hotProviders(readings, Now)).toEqual([]);
+    });
+
+    // #2341, AC96: a reading older than its window is no news, a full one least of all.
+    it("ignores a reading older than its window or than 7 days", () => {
+        const Day = 24 * 60 * 60 * 1000;
+        const monthly = (readat: number): UsageReadings[string] => ({
+            agent: "codex",
+            source: "test",
+            readat,
+            windows: [
+                { id: "window:43200", label: "30-day", usedpercent: 100, resetsat: Now + 20 * Day, windowmins: 43200 },
+            ],
+        });
+        expect(hotProviders({ codex: monthly(Now - Day) }, Now)).toEqual(["codex"]);
+        expect(hotProviders({ codex: monthly(Now - 8 * Day) }, Now)).toEqual([]);
+        expect(usageEventsAfter({ seen: new Set() }, { codex: monthly(Now - 8 * Day) }, Now).events).toEqual([]);
+    });
+
+    // #2341, AC95 and AC97: what the grid does not show never calls him.
+    describe("a provider the grid does not show", () => {
+        const none = { show: [], hide: [] };
+        const hot = (agent: string) => ({ [agent]: reading(agent, [95]) });
+
+        it("never brings him once the developer chose to hide it, and brings him again when it shows", () => {
+            const readings = hot("claude");
+            expect(hotProviders(readings, Now, { use: {}, choices: none })).toEqual(["claude"]);
+            expect(hotProviders(readings, Now, { use: {}, choices: { show: [], hide: ["claude"] } })).toEqual([]);
+            expect(hotProviders(readings, Now, { use: null, choices: { show: [], hide: ["claude"] } })).toEqual([]);
+            expect(hotProviders(readings, Now, { choices: { show: ["claude"], hide: [] } })).toEqual(["claude"]);
+            const hidden = usageEventsAfter({ seen: new Set() }, readings, Now, {
+                choices: { show: [], hide: ["claude"] },
+            });
+            expect(hidden.events).toEqual([]);
+        });
+
+        it("never brings him when it was not used for 7 days and its plan is not paid", () => {
+            // A reading with no time: it is not stale, but nothing was read in the last 7 days and nobody used it.
+            const readings = { codex: reading("codex", [99], 0) };
+            expect(hotProviders(readings, Now)).toEqual(["codex"]);
+            expect(hotProviders(readings, Now, { use: {}, choices: none })).toEqual([]);
+            const used = { use: { codex: { workms: 0, sessions: 1, lastat: Now } }, choices: none };
+            expect(hotProviders(readings, Now, used)).toEqual(["codex"]);
+            const paid = { codex: { ...reading("codex", [99], 0), plan: "plus" } };
+            expect(hotProviders(paid, Now, { use: {}, choices: none })).toEqual(["codex"]);
+        });
+
+        it("keeps what he had seen of it while it is hidden, so showing it again is no news", () => {
+            const readings = hot("claude");
+            const seen = acknowledgeUsage(readings, Now);
+            const hide = { choices: { show: [], hide: ["claude"] } };
+            const step = usageEventsAfter(seen, readings, Now, hide);
+            expect(step.memory).toBe(seen);
+            expect(usageEventsAfter(step.memory, readings, Now).events).toEqual([]);
+            expect(acknowledgeUsage(readings, Now, seen, hide).seen.has("claude")).toBe(true);
+        });
+
+        it("leaves the others to call him", () => {
+            const readings = { ...hot("claude"), ...hot("codex") };
+            const step = usageEventsAfter({ seen: new Set() }, readings, Now, {
+                choices: { show: [], hide: ["claude"] },
+            });
+            expect(step.events.map((e) => e.key)).toEqual(["usage:codex"]);
+        });
     });
 
     it("raises a provider that crosses the line, once the developer has not seen it", () => {

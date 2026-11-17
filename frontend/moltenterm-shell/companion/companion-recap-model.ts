@@ -5,7 +5,13 @@
 // the transcript (pkg/molten/companion/topics.go) and the pane's agent state. Nothing here is written by a model: a
 // line the data cannot support is left out. Pure, so it is tested without a window.
 
-import { agentLabel, AgentStateInfo, agentStateLabel, agentStateMessage } from "../agent-state-model";
+import {
+    agentLabel,
+    AgentStateInfo,
+    agentStateLabel,
+    agentStateMessage,
+    stateWithSubagents,
+} from "../agent-state-model";
 import { t } from "../i18n/i18n";
 import { CompanionSubagent, CompanionTopic, CompanionView, relativeTime } from "./companion-model";
 import { modelDisplayName, ProportionHint, proportionHint } from "./companion-proportion";
@@ -212,8 +218,9 @@ export function agentsView(view: CompanionView, agentState: AgentStateInfo, now:
         .filter((s) => stillRunning(s, view, agentState))
         .sort((a, b) => (b.started ?? 0) - (a.started ?? 0))
         .map((s) => subagentRow(s, now, parent));
+    // The main session reads as working in the background while its sub-agents work, not as finished above them (#2294).
     return {
-        rows: [mainAgentRow(view, agentState), ...running],
+        rows: [mainAgentRow(view, stateWithSubagents(agentState, running.length)), ...running],
         finished: subs.filter((s) => s.state === "done").length,
         failed: subs.filter((s) => s.state === "failed").length,
     };

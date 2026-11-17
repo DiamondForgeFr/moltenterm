@@ -11,8 +11,8 @@ import type { AgentStatesData } from "../agent-state-model";
 import { badgeCount } from "../notification-rules";
 import type { Badge } from "./boss-overview";
 import type { ToHandleItem } from "./boss-to-handle-model";
+import { BrokkEvent, comingOf, countsOnBadge, VisitSettings } from "./brokk-visit-events";
 import { finishedEvents, unseenItems, visitEventsOfRows } from "./brokk-watch";
-import { BrokkEvent, comingOf, VisitSettings } from "./brokk-visit-events";
 
 const FinishedPrefix = "finished:";
 
@@ -35,6 +35,16 @@ export function finishedSetAfter(
     return fresh.length === 0 && kept.length === previous.length ? previous : [...kept, ...fresh];
 }
 
+// The finished agents whose Done card is still listed (#2210): the developer archived the others, and their own gesture is
+// no news. Without the list (a window that does not tell it), all of them. The very same array when none goes.
+export function finishedStillListed(events: BrokkEvent[], openDone: ReadonlySet<string>): BrokkEvent[] {
+    if (openDone == null) {
+        return events;
+    }
+    const kept = events.filter((event) => openDone.has(blockOfFinished(event)));
+    return kept.length === events.length ? events : kept;
+}
+
 // The rows the avatar's badge counts that are no event of the table (a question that is no agent's, a hand-off
 // request): they feed no visit, and still count, as they did on the bubble (FR-BOSS-001, AC5).
 export function unmappedRowCount(items: ToHandleItem[]): number {
@@ -46,6 +56,20 @@ export function unmappedRowKeys(items: ToHandleItem[]): string[] {
     return items
         .filter((item) => !item.seen && visitEventsOfRows([item]).length === 0)
         .map((item) => `row:${item.key}`);
+}
+
+// The rows To handle the face's badge counts (#2223): an unseen row whose event is not set to Rien, or that raises no
+// event. The call the badge's rise asks for reads the same, so a row the badge leaves out never makes him call.
+export function faceRowKeys(items: ToHandleItem[], settings: VisitSettings): string[] {
+    return items
+        .filter((item) => {
+            if (item.seen) {
+                return false;
+            }
+            const [event] = visitEventsOfRows([item]);
+            return event == null || countsOnBadge(event.kind, settings);
+        })
+        .map((item) => item.key);
 }
 
 export type AvatarBadge = Badge;

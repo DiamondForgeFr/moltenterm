@@ -14,8 +14,11 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { isMacOS } from "@/util/platformutil";
+import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
+import { BrainstormLayer } from "../brainstorm/brainstorm-layer";
 import { prefersReducedMotion } from "../molten-motion";
 import { NotificationHost } from "../notification-center";
 import { BossBubbleModel } from "./boss-store";
@@ -23,11 +26,14 @@ import { BrokkAvatar } from "./brokk-avatar";
 import { hangingRightPx, Rect as ScreenRect } from "./brokk-avatar-model";
 import type { SidebarPlace } from "./brokk-edge-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
-import { BrokkGroup, GroupFrame } from "./brokk-group";
-import { groupGeometry, groupPlace } from "./brokk-group-model";
+import { BrokkGroup, GroupFrame, preloadUsageBlock } from "./brokk-group";
+import { dockedPlace, groupGeometry, groupPlace } from "./brokk-group-model";
 import "./brokk-group.css";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { BrokkSession } from "./brokk-session";
+
+// How long after the window is up the usage block of his group is loaded.
+const UsageBlockLoadDelayMs = 2000;
 
 // The group is kept on screen this long after it was asked to leave, for its leaving motion.
 export const LeaveMs = 560;
@@ -47,7 +53,14 @@ export function frameInset(layer: Element): number {
 
 // Where the group stands and where it arrives from, in the layer's coordinates: 8 px right of the sidebar and 8 px from
 // the top of the window area; from the title-bar face that opened it. It follows the window's size while it is open.
-function useGroupFrame(layerRef: React.RefObject<HTMLDivElement>, open: boolean, sidebarAt: SidebarPlace): GroupFrame {
+// During a brainstorm the group docks at the window's top left, whatever the sidebar's strip (#2257).
+function useGroupFrame(
+    layerRef: React.RefObject<HTMLDivElement>,
+    open: boolean,
+    sidebarPlace: SidebarPlace,
+    brainstorming: boolean
+): GroupFrame {
+    const sidebarAt = dockedPlace(sidebarPlace, brainstorming);
     const [frame, setFrame] = useState<GroupFrame>(null);
     useLayoutEffect(() => {
         const layer = layerRef.current;
@@ -137,11 +150,19 @@ function BrokkHostLayer({ show }: { show: boolean }) {
     const cardOpen = useAtomValue(boss.cardOpenAtom, { store: globalStore });
     const place = useAtomValue(hubModel.sidebarPlaceAtom, { store: globalStore });
     const layerRef = useRef<HTMLDivElement>(null);
-    const frame = useGroupFrame(layerRef, cardOpen, place);
+    const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
+    const frame = useGroupFrame(layerRef, cardOpen, place, brainstorming);
     const life = useGroupLife(cardOpen);
 
     useEffect(() => boss.attach(document), [boss]);
-    useEffect(() => (show ? hubModel.start() : undefined), [hubModel, show]);
+    // The feeds run whatever the switch: off, the hub raises nothing but keeps the rail's badge keys current (#2218).
+    useEffect(() => hubModel.start(), [hubModel]);
+    // The usage block of his group loads once the window is up, outside the JavaScript it loads up front, so that it is
+    // there when the group opens (#2341).
+    useEffect(() => {
+        const timer = setTimeout(() => fireAndForget(() => preloadUsageBlock()), UsageBlockLoadDelayMs);
+        return () => clearTimeout(timer);
+    }, []);
     useEffect(() => (show ? BrokkExpressionsModel.getInstance().watch(document) : undefined), [show]);
     // The session a restart left, so that the ring turns for it.
     useEffect(() => {
@@ -152,6 +173,8 @@ function BrokkHostLayer({ show }: { show: boolean }) {
 
     return (
         <div ref={layerRef} className="mt-boss-layer" data-testid="boss-layer">
+            {/* His thought in 3D (FR-BOSS-010, #2246): under his group, above the app; on every channel since #2320. */}
+            <BrainstormLayer />
             {show && place === "none" ? (
                 <BrokkAvatar variant="hanging" style={{ right: hangingRightPx(isMacOS()) }} />
             ) : null}

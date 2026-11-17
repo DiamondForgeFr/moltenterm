@@ -4,8 +4,8 @@
 // The notification center (FR-SHELL-002, FR-MC-010, FR-MC-019): what needs the user's attention in every workspace,
 // newest first. A notification opens where it comes from, carries up to two actions, shows when its situation is
 // resolved, and is settled by acting on it or going to its source (notification-settle.ts, #2026): it then moves to the
-// Archived list, as it does when cleared by hand (the ×, Clear all with its undo); the Archived list keeps them until
-// cleared for good. What arrives shows as a toast
+// Archived list, as it does when archived by hand (Archive on each card, Archive all with its undo, #2195); the Archived list
+// keeps them until cleared for good. What arrives shows as a toast
 // (FR-SHELL-055), each subject says only what the user chose, and the work running in every project shows on top. What
 // each subject may say is set in Preferences › Notifications, which the center links to (FR-SHELL-106,
 // notification-settings.tsx).
@@ -32,6 +32,8 @@ import { DownloadsModel } from "./downloads/downloads-store";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { serverErrorText, serverText } from "./i18n/server-text";
+import { startLogsNotice } from "./logs/logs-notice";
+import { registerLogWatchGestures } from "./logwatch/logwatch-gestures";
 import { DepSyncHost } from "./mission/dep-sync";
 import { registerSetupPrGestures } from "./mission/release-setup-gestures";
 import { TrustApprovalHost } from "./mission/trust-approval";
@@ -69,6 +71,8 @@ function registerBuiltInGestures(): () => void {
         registerNotificationGesture(AgentHandoffGesture, answerAgentHandoff),
         registerNotificationGesture(AgentLinksGesture, openAgentLinksGesture),
         registerSetupPrGestures(),
+        // Brokk's log watch cards (FR-BOSS-012): gold, dev and local builds only.
+        registerLogWatchGestures(),
     ];
     return () => unregister.forEach((fn) => fn());
 }
@@ -210,6 +214,7 @@ export function NotificationHost() {
     useEffect(() => startNotificationToasts(), []);
     useEffect(() => startHandoffSystemNotifications(), []);
     useEffect(() => startDownloads(), []);
+    useEffect(() => startLogsNotice(), []);
     useEffect(() => {
         if (panelRequest != null && panelRequest.ids.length > 0) {
             boss.showInOpenPanel("notifications", panelRequest.ids);

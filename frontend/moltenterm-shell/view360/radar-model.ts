@@ -90,6 +90,7 @@ export const RadarText = {
     },
     morePanels: (n: number) =>
         n === 1 ? t("view360.radar.morePanelsOne") : t("view360.radar.morePanels", { count: n }),
+    pair: (first: string, second: string) => t("view360.radar.pairTitle", { first, second }),
 };
 
 // What the radar needs to know of one block.
@@ -98,6 +99,8 @@ export type RadarBlockFacts = {
     // A coding agent runs in the terminal.
     agent: boolean;
     title: string;
+    // The developer typed the title (the panel's rename), as opposed to a name the app derives.
+    renamed?: boolean;
     attention: RadarAttention;
     // The panel's icon (tab-identity.ts panelIcon), shown on its tab of the strip (FR-SHELL-125).
     icon?: string;
@@ -125,6 +128,8 @@ export type RadarTick = {
     kind: RadarKind;
     color: string;
     title: string;
+    // Every panel's own title, in the column's order: the preview card lists them when the column holds several.
+    names: string[];
     visible: boolean;
     // Where an off-screen column lies, null for one in view.
     side: "left" | "right";
@@ -177,6 +182,20 @@ function moreUrgent(a: RadarAttention, b: RadarAttention): boolean {
     return (AttentionRank[a] ?? 0) > (AttentionRank[b] ?? 0);
 }
 
+// The title of a tab that holds a column of panels (FR-SHELL-125 AC17): a pair is named by both panels, three or more
+// by the first and the count of the others, since three names never fit a tab (it is 190 px at most). A name the
+// developer typed on the first panel stays the tab's name with the count, as before, rather than joining a pair.
+export function columnTitle(names: string[], leadRenamed: boolean): string {
+    const first = names[0] ?? RadarText.untitled;
+    if (names.length <= 1) {
+        return first;
+    }
+    if (names.length === 2 && !leadRenamed) {
+        return RadarText.pair(first, names[1]);
+    }
+    return `${first} ${RadarText.morePanels(names.length - 1)}`;
+}
+
 export function buildRadarTicks(
     columns: RadarColumnInput[],
     facts: Record<string, RadarBlockFacts>,
@@ -200,8 +219,7 @@ export function buildRadarTicks(
             }
         }
         const kind = radarKind(leadFacts?.view, !!leadFacts?.agent);
-        const more = column.leaves.length - 1;
-        const baseTitle = leadFacts?.title || RadarText.untitled;
+        const names = column.leaves.map((leaf) => facts?.[leaf.blockId]?.title || RadarText.untitled);
         const isVisible = visible.has(column.columnId);
         return {
             columnId: column.columnId,
@@ -211,7 +229,8 @@ export function buildRadarTicks(
             page: leadFacts?.view === MoltentermBrowserView,
             kind,
             color: RadarKindColors[kind],
-            title: more > 0 ? `${baseTitle} ${RadarText.morePanels(more)}` : baseTitle,
+            title: columnTitle(names, !!leadFacts?.renamed),
+            names,
             visible: isVisible,
             side: isVisible ? null : firstVisible === -1 || i < firstVisible ? "left" : "right",
             attention,

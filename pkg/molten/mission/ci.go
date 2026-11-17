@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -87,6 +88,14 @@ type CiVerdict struct {
 	Status     string `json:"status"`
 	RunId      string `json:"runid,omitempty"`
 	FinishedAt int64  `json:"finishedat,omitempty"`
+	// What the job was when it ran (jobHash, #2277): a verdict is the job's on that code only while its command, folder
+	// and environment are still the pipeline's. A verdict from before the hash was kept has none, and is not trusted.
+	Hash string `json:"hash,omitempty"`
+}
+
+// jobHash identifies a job as it runs: the same code under another command is another verification.
+func jobHash(job molten.PipelineJob) string {
+	return CommandsHash([]TrustedCommand{{Kind: "ci", Id: job.Name, Run: job.Run, Cwd: job.Cwd, Env: job.Env}})
 }
 
 type ciTreeVerdicts struct {
@@ -179,7 +188,8 @@ func (c *Ci) git(ctx context.Context, dir string, args ...string) (string, error
 	return strings.TrimSpace(string(out)), err
 }
 
-// The jobs a run starts with: the ones asked for, all of them, or those not green yet on that tree, in pipeline order.
+// The jobs a run starts with, in pipeline order: those not green yet on that tree, or all of them when forced; limited to
+// the ones asked for when some are. A green verdict is never redone unless forced, whichever jobs are asked for (#2277).
 func selectCiJobs(jobs []molten.PipelineJob, verdicts map[string]CiVerdict, force bool, only []string) []molten.PipelineJob {
 	var rtn []molten.PipelineJob
 	wanted := map[string]bool{}
@@ -187,19 +197,24 @@ func selectCiJobs(jobs []molten.PipelineJob, verdicts map[string]CiVerdict, forc
 		wanted[name] = true
 	}
 	for _, job := range jobs {
-		switch {
-		case len(only) > 0:
-			if !wanted[job.Name] {
-				continue
-			}
-		case !force:
-			if verdicts[job.Name].Status == CiStateSuccess {
-				continue
-			}
+		if len(only) > 0 && !wanted[job.Name] {
+			continue
+		}
+		if !force && verdicts[job.Name].Status == CiStateSuccess {
+			continue
 		}
 		rtn = append(rtn, job)
 	}
 	return rtn
+}
+
+func declaresAnyJob(jobs []molten.PipelineJob, names []string) bool {
+	for _, job := range jobs {
+		if slices.Contains(names, job.Name) {
+			return true
+		}
+	}
+	return false
 }
 
 // Lanes in the order their first job is declared; a job without a lane is a lane of its own.
@@ -251,6 +266,19 @@ func (c *Ci) readVerdicts(dir string, tree string) map[string]CiVerdict {
 		return map[string]CiVerdict{}
 	}
 	return tv.Jobs
+}
+
+// readVerdictsOf reads the verdicts kept for a code tree that belong to the jobs as the pipeline declares them now: a
+// job whose command, folder or environment changed since has none, so it runs again (#2277).
+func (c *Ci) readVerdictsOf(dir string, tree string, jobs []molten.PipelineJob) map[string]CiVerdict {
+	kept := c.readVerdicts(dir, tree)
+	rtn := map[string]CiVerdict{}
+	for _, job := range jobs {
+		if verdict, ok := kept[job.Name]; ok && verdict.Hash == jobHash(job) {
+			rtn[job.Name] = verdict
+		}
+	}
+	return rtn
 }
 
 func (c *Ci) writeVerdict(dir string, sha string, tree string, job string, verdict CiVerdict) {
@@ -491,7 +519,7 @@ func (c *Ci) Status(dir string, rev string) (CiCodeVerdict, error) {
 	if err != nil {
 		return CiCodeVerdict{}, err
 	}
-	verdicts := c.readVerdicts(dir, tree)
+	verdicts := c.readVerdictsOf(dir, tree, pipeline.Ci.Jobs)
 	status, failed, missing := codeVerdict(pipeline.Ci.Jobs, verdicts)
 	if active := c.activeRun(dir); active != nil {
 		if rec, err := c.readRecord(dir, active.runId); err == nil && rec.Tree == tree && status != CiStateFailure {
@@ -534,7 +562,7 @@ func (c *Ci) State(dir string) (CiState, error) {
 		date, _ := strconv.ParseInt(parts[3], 10, 64)
 		branch := CiBranch{Name: parts[0], Sha: parts[1], Date: date * 1000, Verdict: CiVerdictMissing}
 		if pipeline != nil {
-			branch.Verdict, _, _ = codeVerdict(pipeline.Ci.Jobs, c.readVerdicts(dir, parts[2]))
+			branch.Verdict, _, _ = codeVerdict(pipeline.Ci.Jobs, c.readVerdictsOf(dir, parts[2], pipeline.Ci.Jobs))
 		}
 		if parts[2] == runningTree && branch.Verdict != CiStateFailure {
 			branch.Verdict = CiStateRunning
@@ -571,9 +599,9 @@ func (c *Ci) startAt(req CiRunRequest, project string) (CiRunResult, error) {
 	if err != nil {
 		return CiRunResult{}, err
 	}
-	jobs := selectCiJobs(pipeline.Ci.Jobs, c.readVerdicts(dir, target.tree), req.Force, req.Only)
+	jobs := selectCiJobs(pipeline.Ci.Jobs, c.readVerdictsOf(dir, target.tree, pipeline.Ci.Jobs), req.Force, req.Only)
 	if len(jobs) == 0 {
-		if len(req.Only) > 0 {
+		if len(req.Only) > 0 && !declaresAnyJob(pipeline.Ci.Jobs, req.Only) {
 			only := strings.Join(req.Only, ", ")
 			return CiRunResult{}, uimsg.Errorf(uimsg.Make("mission.ci.noneOfJobs", "jobs", only), "the pipeline declares none of the jobs %s", only)
 		}
@@ -952,7 +980,7 @@ func (c *Ci) runJob(progress *ciRunProgress, rec CiRunRecord, tree string, job m
 		j.Exit = exitCode
 	})
 	if status != CiStateCancelled {
-		c.writeVerdict(rec.Dir, rec.Sha, rec.Tree, job.Name, CiVerdict{Status: status, RunId: rec.Id, FinishedAt: finished.UnixMilli()})
+		c.writeVerdict(rec.Dir, rec.Sha, rec.Tree, job.Name, CiVerdict{Status: status, RunId: rec.Id, FinishedAt: finished.UnixMilli(), Hash: jobHash(job)})
 	}
 	if statuses && status != CiStateCancelled {
 		took := finished.Sub(started).Round(time.Second)

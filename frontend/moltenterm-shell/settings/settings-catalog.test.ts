@@ -14,6 +14,9 @@ import { SuiteIcons } from "../suite/suite-icons";
 import {
     buildCatalog,
     clampSetting,
+    confirmedOn,
+    ConfirmOnKeys,
+    consentMeta,
     groupEntries,
     groupSlug,
     isChanged,
@@ -173,6 +176,44 @@ describe("settings catalog (FR-SHELL-050)", () => {
         expect(entry("term:macoptionismeta", "linux")).toBeUndefined();
         expect(entry("term:gitbashpath", "windows")).toBeDefined();
         expect(entry("term:gitbashpath", "darwin")).toBeUndefined();
+    });
+
+    // FR-BOSS-010 AC1 (#2320): the two folders of the brainstorm show on every channel, a release candidate and a public
+    // release included, and where the channel cannot be read.
+    it("shows the folders of the brainstorm on every channel", () => {
+        for (const channel of ["dev", "local", "gold", "rc", "public", null]) {
+            const keys = buildCatalog(schema, builtinDefaults as Record<string, unknown>, "darwin", channel).map(
+                (e) => e.key
+            );
+            expect(keys, String(channel)).toContain("boss:brainstormsdir");
+            expect(keys, String(channel)).toContain("boss:projectsdir");
+        }
+    });
+
+    // The mechanism stays for the next feature a release does not have yet: no row of the schema uses it today.
+    it("shows a row gated to some channels there only, and nowhere when the channel is not known", () => {
+        const gated: SettingsSchema = {
+            $defs: {
+                SettingsType: {
+                    properties: {
+                        "new:flag": {
+                            type: "boolean",
+                            "x-moltenterm": {
+                                section: "browser",
+                                group: "Test",
+                                label: "Flag",
+                                control: "toggle",
+                                channels: "gold,dev,local",
+                                order: 1,
+                            },
+                        },
+                    },
+                },
+            },
+        };
+        const shown = (channel: string) => buildCatalog(gated, {}, "darwin", channel).length === 1;
+        expect(["gold", "dev", "local"].map(shown)).toEqual([true, true, true]);
+        expect(["rc", "public", "unknown", null].map(shown)).toEqual([false, false, false, false]);
     });
 
     it("keeps the rows of a section in the metadata's order, by group", () => {
@@ -421,10 +462,14 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
     const tr = (key: string, vars?: Record<string, string | number>) => translate("en", key, vars);
     const trFr = (key: string, vars?: Record<string, string | number>) => translate("fr", key, vars);
 
-    it("holds the name and Show the avatar, then the table of when he comes, and no longer the bubble's collapse (FR-BOSS-009, AC4, AC13)", () => {
+    it("holds the name, Show the avatar and his proximity, then the table of when he comes, and no longer the bubble's collapse (FR-BOSS-009, AC4, AC13, AC75)", () => {
         const keys = sectionEntries(catalog(), "boss").map((e) => e.key);
-        expect(keys.slice(0, 2)).toEqual(["boss:name", "boss:show"]);
-        expect(keys.slice(2)).toEqual([
+        expect(keys.slice(0, 3)).toEqual(["boss:name", "boss:show", "boss:proximity"]);
+        // The folders of his brainstorms (#2246, #2250), on every channel since #2320.
+        expect(keys.slice(3, 5)).toEqual(["boss:brainstormsdir", "boss:projectsdir"]);
+        // His agent's permission requests (#2257), before the table.
+        expect(keys[5]).toBe("boss:autoapprove");
+        expect(keys.slice(6)).toEqual([
             "boss:visitsecurity",
             "boss:visitblocked",
             "boss:visiterror",
@@ -443,10 +488,69 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
         expect(entry("boss:collapseontype")).toBeUndefined();
     });
 
+    // #2257: approving his agent's requests without asking is never on unless the developer set it, and turning it on
+    // asks one explicit confirmation that says what it allows, in both languages.
+    it("keeps his agent's auto-approval off by default, behind an explicit confirmation", () => {
+        const auto = entry("boss:autoapprove");
+        expect(auto).toMatchObject({ control: "toggle", group: "His agent" });
+        expect(auto.defaultValue ?? false).toBe(false);
+        expect(ConfirmOnKeys.has("boss:autoapprove")).toBe(true);
+        for (const translateTo of [tr, trFr]) {
+            for (const part of ["confirm", "confirmOn", "confirmCancel"]) {
+                const key = `settings.items.boss:autoapprove.${part}`;
+                expect(translateTo(key), key).not.toBe(key);
+            }
+        }
+        expect(tr("settings.items.boss:autoapprove.confirm")).toMatch(/without asking/);
+        expect(tr("settings.items.boss:autoapprove.confirm")).toMatch(/still asks/);
+        // Review: the confirmation is recorded in the client's meta, which a terminal cannot write; a setting an agent
+        // wrote in settings.json by hand shows (and counts) as off.
+        expect(consentMeta("boss:autoapprove", true, 1234)).toEqual({ "molten:brokkautoapprove": 1234 });
+        expect(consentMeta("boss:autoapprove", false, 1234)).toEqual({ "molten:brokkautoapprove": null });
+        expect(consentMeta("term:fontsize", true, 1234)).toBeNull();
+        expect(confirmedOn("boss:autoapprove", true, { "molten:brokkautoapprove": 1234 })).toBe(true);
+        expect(confirmedOn("boss:autoapprove", true, {})).toBe(false);
+        expect(confirmedOn("boss:autoapprove", true, { "molten:brokkautoapprove": true })).toBe(false);
+        expect(confirmedOn("boss:autoapprove", false, { "molten:brokkautoapprove": 1234 })).toBe(false);
+    });
+
     it("draws the keys of the table as one group, the one the card of Preferences replaces the rows of", () => {
-        const table = sectionEntries(catalog(), "boss").filter((e) => e.key !== "boss:name" && e.key !== "boss:show");
+        const table = sectionEntries(catalog(), "boss").filter(
+            (e) =>
+                e.key !== "boss:name" &&
+                e.key !== "boss:show" &&
+                e.key !== "boss:proximity" &&
+                e.key !== "boss:brainstormsdir" &&
+                e.key !== "boss:projectsdir" &&
+                e.key !== "boss:autoapprove"
+        );
         expect(new Set(table.map((e) => e.group))).toEqual(new Set([BrokkTableGroup]));
         expect(table[0].key).toBe(BrokkTableKey);
+    });
+
+    // FR-BOSS-009, AC75 (#2203): a scale that grows (1.1.0 adds Close and Partner), so a choice and not a switch.
+    it("holds Brokk's proximity as a choice of two levels, Colleague by default, each with a line saying what it does", () => {
+        const proximity = entry("boss:proximity");
+        expect(proximity).toMatchObject({ control: "select", defaultValue: "colleague", group: "Avatar" });
+        expect(proximity.options.map((o) => o.value)).toEqual(["discreet", "colleague"]);
+        for (const [code, translateTo] of [
+            ["en", tr],
+            ["fr", trFr],
+        ] as const) {
+            const localized = localizeSettingEntry(proximity, translateTo);
+            const choices = settingChoices(localized, [], "");
+            expect(
+                choices.map((c) => c.value),
+                code
+            ).toEqual(["discreet", "colleague"]);
+            for (const choice of choices) {
+                expect(choice.hint, `${code} ${choice.value}`).toMatch(/\S/);
+                expect(choice.hint).not.toMatch(/\n/);
+            }
+        }
+        const english = settingChoices(localizeSettingEntry(proximity, tr), [], "");
+        expect(english.find((c) => c.value === "colleague").hint).toContain("only gets the time of day");
+        expect(english.find((c) => c.value === "discreet").hint).toContain("nothing goes to his model");
     });
 
     it("shows the avatar by default, as a toggle", () => {
@@ -478,9 +582,18 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
 
     it("speaks French for its settings and the table's rows", () => {
         const localized = localizeCatalog(sectionEntries(catalog(), "boss"), trFr);
-        expect(localized.slice(0, 2).map((e) => e.label)).toEqual(["Nom", "Afficher l'avatar"]);
-        expect(localized.slice(0, 2).every((e) => e.group === "Avatar")).toBe(true);
-        const table = localized.slice(2);
+        expect(localized.slice(0, 3).map((e) => e.label)).toEqual(["Nom", "Afficher l'avatar", "Proximité"]);
+        expect(localized.slice(0, 3).every((e) => e.group === "Avatar")).toBe(true);
+        expect(localized.slice(3, 5).map((e) => e.key)).toEqual(["boss:brainstormsdir", "boss:projectsdir"]);
+        expect(
+            localized.slice(3, 5).every((e) => e.group === "Brainstorms" && e.label !== "" && e.description !== "")
+        ).toBe(true);
+        expect(localized[5]).toMatchObject({
+            key: "boss:autoapprove",
+            label: "Approuver les demandes de son agent sans me demander",
+            group: "Son agent",
+        });
+        const table = localized.slice(6);
         expect(table.every((e) => e.group === "Quand il vient me chercher")).toBe(true);
         expect(table.find((e) => e.key === "boss:visitblocked").label).toBe("Un agent attend ma réponse");
         expect(table.find((e) => e.key === "boss:visitci").options.map((o) => o.label)).toEqual([
@@ -489,5 +602,18 @@ describe("the foreman's section (FR-BOSS-001, AC4, AC8, AC9)", () => {
             "Rien",
         ]);
         expect(table.every((e) => e.label !== "" && e.description !== "")).toBe(true);
+    });
+});
+
+describe("the search engine setting (#2312)", () => {
+    it("is Brave Search by default, in Browser, and found by a search for search engine", () => {
+        const search = entry("web:defaultsearch");
+        expect(search.defaultValue).toBe("https://search.brave.com/search?q={query}");
+        expect(search.section).toBe("browser");
+        expect(searchSettings(catalog(), "search engine").map((e) => e.key)).toContain("web:defaultsearch");
+    });
+
+    it("keeps the note about the default hidden", () => {
+        expect(catalog().some((e) => e.key === "moltenterm:searchenginenote")).toBe(false);
     });
 });

@@ -181,7 +181,9 @@ function CicdContent({
                             onClick={() => setTab(entry.id)}
                             className={cn(
                                 "flex cursor-pointer items-center gap-1.5 rounded-6 px-2 py-0.5 text-12 whitespace-nowrap transition-colors duration-120 ease-mt",
-                                tab === entry.id ? "bg-hover text-primary" : "text-muted hover:text-primary"
+                                tab === entry.id
+                                    ? "mt-selected-action bg-hover text-primary"
+                                    : "text-muted hover:text-primary"
                             )}
                         >
                             <i className={cn("fa fa-solid text-11", `fa-${entry.icon}`)} />

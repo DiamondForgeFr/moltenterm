@@ -15,7 +15,8 @@ import { atom, Atom, createStore, PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { BossBubbleModel } from "./boss-store";
 import { AskedExpression, BrokkExpression, rose } from "./brokk-ask-model";
-import { EmptyMood, greetingDue, moodAfter, MoodEvent, MoodMemory, moodOf, replayOf } from "./brokk-mood";
+import { BrokkColleagueModel } from "./brokk-colleague-store";
+import { EmptyMood, moodAfter, MoodEvent, MoodMemory, moodOf, replayOf } from "./brokk-mood";
 import { EmptyQueue, queueAfter, QueueEvent, QueueState } from "./brokk-queue";
 import { moodFactsOf, presenceAfter, unseenItems, watchBrokk } from "./brokk-watch";
 import { InputEvents } from "./developer-away";
@@ -85,9 +86,9 @@ export class BrokkExpressionsModel {
     }
 
     // Asks for an expression: the queue decides when it starts, if it does. `reply`: it answers the developer's own
-    // action.
-    ask(expression: BrokkExpression, options: { reply?: boolean } = {}): void {
-        this.step({ type: "ask", expression, reply: options.reply === true });
+    // action. `answer`: it is the tone his answer opens with (FR-BOSS-009, AC88, brokk-speech.ts).
+    ask(expression: BrokkExpression, options: { reply?: boolean; answer?: boolean } = {}): void {
+        this.step({ type: "ask", expression, reply: options.reply === true, answer: options.answer === true });
     }
 
     note(event: MoodEvent): void {
@@ -116,15 +117,11 @@ export class BrokkExpressionsModel {
         this.ask("smile");
     }
 
-    // The screen or the card opened and his portrait is showing: he greets a developer who is back, and his mood plays
-    // its expression once, at most every five minutes.
+    // The screen or the card opened and his portrait is showing: his mood plays its expression once, at most every five
+    // minutes. The greeting nod is the kind colleague's hello (use-brokk-hello.ts, #2217).
     noteOpen(): void {
         const now = Date.now();
         const memory = globalStore.get(this.moodAtom);
-        if (greetingDue(memory, now)) {
-            this.note({ type: "greeted" });
-            this.ask("nod");
-        }
         const items = unseenItems(globalStore.get(BossBubbleModel.getInstance().toHandleAtom));
         const expression = replayOf(memory, moodOf(memory, moodFactsOf(items), now), now);
         if (expression == null) {
@@ -163,6 +160,10 @@ export class BrokkExpressionsModel {
                 memory: () => globalStore.get(this.moodAtom),
             }
         );
+        // The kind colleague's moments (brokk-colleague.ts) count stretches of activity from these very inputs: Brokk has
+        // one tracker of the developer's presence, not two.
+        const colleague = BrokkColleagueModel.getInstance();
+        const stopColleague = colleague.start();
         let last = Date.now();
         const onInput = () => {
             const seen = presenceAfter(last, Date.now());
@@ -170,6 +171,7 @@ export class BrokkExpressionsModel {
             if (seen.returnedSince != null) {
                 this.note({ type: "returned", since: seen.returnedSince });
             }
+            colleague.noteInput();
         };
         const onKey = () => this.noteKey();
         const options = { capture: true, passive: true };
@@ -178,6 +180,7 @@ export class BrokkExpressionsModel {
         return () => {
             stopCalls();
             stopForge();
+            stopColleague();
             InputEvents.forEach((name) => target.removeEventListener(name, onInput, options));
             target.removeEventListener("keydown", onKey, options);
         };

@@ -598,9 +598,9 @@ func renderBrief(from Party, to Party, b Brief, files []fileFacts, now time.Time
 			browser = browser || l.Kind == LinkKindBrowser
 		}
 		if browser {
-			sb.WriteString("\nOpen a browser page in your own MoltenTerm browser panel, next to your terminal: call `tabs_create`, then " +
-				"`navigate` to its address (molten-browser MCP tools). The sender's tab is not shared with you, and the first " +
-				"action on a site asks the developer as usual.\n")
+			sb.WriteString("\nOpen a browser page in your own MoltenTerm browser panel, next to your terminal: call `tabs_create` with its " +
+				"address as `url` (molten-browser MCP tools: a page already open in this workspace is reused, not opened again). " +
+				"The sender's tab is not shared with you, and the first action on a site asks the developer as usual.\n")
 		}
 	}
 	return sb.String()

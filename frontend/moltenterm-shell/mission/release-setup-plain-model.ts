@@ -114,6 +114,26 @@ export function declaredRelease(current: string): Partial<Record<SetupChannel, P
     }
 }
 
+// A build the pipeline gates with the CI (#2277, FR-MC-044 AC8): always is a build that opts out of GitHub's CI and is
+// checked on this computer every time.
+export type PlainBuildCheck = { id: string; name: string; always: boolean };
+
+// The builds of the pipeline about to be written, else of the committed one, that wait for a green CI.
+export function plainBuildChecks(draft: SetupDraft): PlainBuildCheck[] {
+    const text = draft.proposed?.trim() ? draft.proposed : draft.current;
+    try {
+        const builds = JSON.parse(text ?? "")?.builds;
+        if (!Array.isArray(builds)) {
+            return [];
+        }
+        return builds
+            .filter((b) => b?.verify === "ci" || b?.verify === "ci-local")
+            .map((b) => ({ id: String(b.id), name: String(b.title || b.id), always: b.verify === "ci-local" }));
+    } catch {
+        return [];
+    }
+}
+
 function declaredVersions(current: string): { rcformat?: string; firstpublic?: string; tagprefix?: string } {
     try {
         return JSON.parse(current ?? "")?.versions ?? {};

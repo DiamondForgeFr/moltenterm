@@ -223,7 +223,7 @@ func localCatalogue(path string, text string, pipeline *molten.Pipeline) *Catalo
 		})
 	}
 	for _, build := range pipeline.Builds {
-		if build.Verify != molten.PipelineBuildVerifyCi {
+		if !build.VerifiesWithCi() {
 			continue
 		}
 		title := build.Title

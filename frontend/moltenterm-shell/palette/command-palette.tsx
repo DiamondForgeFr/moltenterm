@@ -4,11 +4,11 @@
 // The command palette (FR-SHELL-013, DS-SHELL-013): one component for the empty pane (Wave's launcher view) and for
 // the global modal. A grouped, fuzzy-filtered list driven by the keyboard; the mouse works too.
 
-import { atoms, getApi } from "@/app/store/global";
+import { atoms, getApi, getSettingsKeyAtom } from "@/app/store/global";
 import { WorkspaceService } from "@/app/store/services";
 import * as WOS from "@/app/store/wos";
 import { getLayoutModelForStaticTab, LayoutNode } from "@/layout/index";
-import { cn, fireAndForget, makeIconClass } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -16,11 +16,13 @@ import { useFeatureMatrix } from "../agent-info/agent-features-model";
 import type { AgentStateInfo } from "../agent-state-model";
 import { BossBubbleModel } from "../boss/boss-store";
 import { useBossName } from "../boss/use-boss-name";
+import { BrainstormLastLeftAtom } from "../brainstorm/brainstorm-boot";
 import { BrowserEngineModel } from "../browser/browser-engine";
 import { MoltentermBrowserView } from "../browser/browser-model";
+import { DefaultSearchSettingKey } from "../browser/search-engine-model";
+import { useBrainstormGates } from "../build/use-feature-on";
 import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
-import { FaviconMark } from "../favicon/favicon-mark";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
 import {
@@ -28,14 +30,15 @@ import {
     chooserFooterKey,
     chooserKey,
     chooserListEntries,
+    chooserListing,
     chooserPreselect,
     firstAgentIndex,
     suggestionEntries,
+    webTargetFavorite,
 } from "../newview/new-view-model";
 import { NewViewMorphHint } from "../newview/new-view-morph-hint";
 import { formatShortcutById } from "../shortcuts/format";
-import { ViewCube } from "../sidebar/view-cube";
-import { isGlyphCube, isGlyphFavicon, keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
+import { keepToggleMove, pinMoves, viewMenuPlan } from "../sidebar/view-menu-model";
 import { keepViewKeysLabel } from "../sidebar/view-pin-actions";
 import { isProjectTab } from "../sidebar/view-pins-model";
 import { ViewPins } from "../sidebar/view-pins-store";
@@ -49,7 +52,6 @@ import {
     SplitNewPanelMetaKey,
 } from "../split/split-model";
 import { TermUpdates } from "../termupdate/termupdate-store";
-import { WorkspaceIcon } from "../workspace-icon";
 import { workspaceIconSource } from "../workspace-icon-model";
 import { effectiveWorkspaceFolder, readRecentFolders, readWorkspaceProject } from "../workspace-project";
 import { isSavedWorkspace } from "../workspace-rail-model";
@@ -59,14 +61,13 @@ import {
     fillsPanel,
     filterPalette,
     flattenSections,
-    highlightRuns,
-    matchEntry,
     moveSelection,
     PaletteEntry,
     PaletteGroupOrder,
     paletteKeyCommand,
     PickerGroupOrder,
 } from "./palette-model";
+import { PaletteRow } from "./palette-row";
 import {
     addressEntry,
     buildPaletteEntries,
@@ -232,6 +233,10 @@ export function usePaletteEntries(picker: PickerSource) {
     // A fresh array on every render: its content, joined, is what the memo depends on.
     const recentKey = readRecentFolders(ws).join("\n");
     const home = getHome();
+    const gates = useBrainstormGates();
+    // The brainstorm last left is offered to resume (#2284).
+    const lastLeft = useAtomValue(BrainstormLastLeftAtom);
+    const brainstorm = useMemo(() => ({ ...gates, resume: lastLeft?.title ?? "" }), [gates, lastLeft]);
     const entries = useMemo(
         () =>
             buildPaletteEntries({
@@ -253,6 +258,7 @@ export function usePaletteEntries(picker: PickerSource) {
                 shortcutsHint: formatShortcutById("shortcuts"),
                 viewPin,
                 bossName: bossShown ? bossName : undefined,
+                brainstorm,
             }),
         [
             fullConfig,
@@ -272,39 +278,12 @@ export function usePaletteEntries(picker: PickerSource) {
             matrix,
             bossShown,
             bossName,
+            brainstorm,
         ]
     );
     const titles = useMemo(() => paletteGroupTitles(folder, home), [folder, home, locale]);
     return { entries, titles };
 }
-
-function Highlighted({ text, indices }: { text: string; indices: number[] }) {
-    if (!indices?.length) {
-        return <>{text}</>;
-    }
-    return (
-        <>
-            {highlightRuns(text, indices).map((run, i) =>
-                run.hit ? (
-                    <span key={i} className="text-accent">
-                        {run.text}
-                    </span>
-                ) : (
-                    <React.Fragment key={i}>{run.text}</React.Fragment>
-                )
-            )}
-        </>
-    );
-}
-
-type PaletteRowProps = {
-    entry: PaletteEntry;
-    index: number;
-    selected: boolean;
-    query: string;
-    onHover: (index: number) => void;
-    onOpen: (entry: PaletteEntry, right: boolean) => void;
-};
 
 type PopoverRect = { left: number; top: number; width: number; height: number };
 
@@ -350,68 +329,6 @@ function usePickerPopover(enabled: boolean, anchorRef: React.RefObject<HTMLEleme
     return rect;
 }
 
-function PaletteRow({ entry, index, selected, query, onHover, onOpen }: PaletteRowProps) {
-    const indices = query ? (matchEntry(query, entry)?.indices ?? []) : [];
-    const aside = [entry.keyPath ?? entry.cli ?? entry.hint, entry.shortcut].filter((s) => s).join("  ·  ");
-    return (
-        <div
-            role="option"
-            aria-selected={selected}
-            data-index={index}
-            onMouseMove={() => onHover(index)}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={(e) => onOpen(entry, e.altKey || e.metaKey)}
-            title={entry.cli && !entry.keyPath ? `${entry.label} — ${entry.cli}` : entry.label}
-            className={cn(
-                "flex cursor-pointer items-center gap-2.5 px-3.5 py-1.5 text-13",
-                selected ? "molten-palette-selected text-primary" : "text-secondary"
-            )}
-        >
-            {entry.badge?.image || entry.badge?.logo ? (
-                <span className="flex w-4 shrink-0 items-center justify-center" data-role="palette-workspace-badge">
-                    <WorkspaceIcon source={entry.badge} className="text-11" />
-                </span>
-            ) : (
-                <i
-                    className={cn(
-                        makeIconClass(entry.icon, true, { defaultIcon: "browser" }),
-                        "w-4 shrink-0 text-center",
-                        entry.color && "molten-glyph-tone"
-                    )}
-                    style={entry.color ? ({ "--mt-glyph-color": entry.color } as React.CSSProperties) : undefined}
-                />
-            )}
-            <span className="shrink-0 whitespace-nowrap">
-                <Highlighted text={entry.label} indices={indices} />
-            </span>
-            {entry.panelIcons?.length ? (
-                <span className="flex shrink-0 items-center gap-1 text-11 text-muted" aria-hidden>
-                    {entry.panelIcons.map((icon, i) =>
-                        isGlyphCube(icon) ? (
-                            <ViewCube key="cube" cube={icon} small />
-                        ) : isGlyphFavicon(icon) ? (
-                            <FaviconMark key={i} url={icon.url} dark={icon.dark} />
-                        ) : (
-                            <i key={i} className={makeIconClass(icon, true)} />
-                        )
-                    )}
-                </span>
-            ) : null}
-            {entry.detail && <span className="min-w-0 truncate text-12 text-muted">{entry.detail}</span>}
-            {aside && (
-                <span
-                    className={cn(
-                        "ml-auto max-w-[45%] shrink-0 truncate pl-3 font-mono text-11",
-                        selected ? "text-secondary" : "text-muted"
-                    )}
-                >
-                    {aside}
-                </span>
-            )}
-        </div>
-    );
-}
-
 export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, onClose, newView }: CommandPaletteProps) {
     const t = useT();
     const picker = usePickerSource(host, blockId);
@@ -427,10 +344,11 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
     const morphAction = useRef<() => void>(null);
     const ownInputRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
-    const order = picker != null ? PickerGroupOrder : PaletteGroupOrder;
+    const baseOrder = picker != null ? PickerGroupOrder : PaletteGroupOrder;
     // The origin pane's command panel items join the list once something is typed (FR-SHELL-047), built then and
     // not on the palette's open path.
     const searching = query.trim() !== "";
+    const searchTemplate = useAtomValue(getSettingsKeyAtom(DefaultSearchSettingKey));
     const panelEntries = useMemo(
         () =>
             searching && host === "modal" && blockId
@@ -439,12 +357,22 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         [host, blockId, searching]
     );
     const locale = useLocale();
-    const listed = useMemo(() => {
+    // In the chooser (#2312) the typed words always have a way forward: an address opens, any other words are a web
+    // search, last when a result is found through what its row shows, first and selected when none is.
+    const inChooser = newView != null;
+    const listing = useMemo(() => {
         const all = searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries;
-        const base = newView != null ? [...suggestionEntries(t), ...chooserListEntries(all)] : all;
+        if (inChooser) {
+            const base = [...suggestionEntries(t), ...chooserListEntries(all)];
+            return chooserListing(base, query, searchTemplate, baseOrder);
+        }
         const address = addressEntry(query);
-        return address != null ? [address, ...base] : base;
-    }, [entries, panelEntries, searching, query, newView, locale]);
+        return { listed: address != null ? [address, ...all] : all, order: baseOrder, webFirst: false, address: false };
+    }, [entries, panelEntries, searching, query, inChooser, searchTemplate, baseOrder, locale]);
+    const { listed, order, webFirst } = listing;
+    // The way forward of an empty result (#1672) stays under the web row: asking the agent for a tool when no result
+    // matches what was typed, which a web search does not replace.
+    const morphOffered = inChooser && webFirst && !listing.address;
     const sections = useMemo(() => filterPalette(listed, query, titles, order), [listed, query, titles, order]);
     const flat = useMemo(() => flattenSections(sections), [sections]);
     const input = inputRef ?? ownInputRef;
@@ -655,6 +583,7 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                     favorites={newView.favorites}
                     keys={newView.favoriteKeys}
                     selected={fav}
+                    target={fav < 0 ? webTargetFavorite(newView.favorites, flat[selected]) : -1}
                     onHover={setFav}
                     onOpen={newView.onOpen}
                 />
@@ -678,20 +607,17 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                 {flat.length === 0 && (
                     <div className="px-3.5 py-3 text-12 text-muted">{t("palette.noMatch", { query })}</div>
                 )}
-                {flat.length === 0 && newView != null && query.trim() !== "" && (
-                    <NewViewMorphHint
-                        query={query}
-                        onAsk={newView.onAskAgent}
-                        onStartAgent={startAgent}
-                        actionRef={morphAction}
-                    />
-                )}
                 {sections.map((section) => (
-                    <div key={section.group}>
+                    <div
+                        key={section.group}
+                        className={cn(section.group === "web" && !webFirst && "mt-1 border-t border-border pt-1")}
+                    >
                         {/* Not uppercased: a title can hold a path, and paths are case-sensitive. */}
-                        <div className="truncate px-3.5 pt-2 pb-0.5 text-11 font-semibold tracking-wide text-muted">
-                            {section.title}
-                        </div>
+                        {section.title !== "" && (
+                            <div className="truncate px-3.5 pt-2 pb-0.5 text-11 font-semibold tracking-wide text-muted">
+                                {section.title}
+                            </div>
+                        )}
                         {section.entries.map((entry) => {
                             const i = index++;
                             return (
@@ -708,6 +634,14 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
                         })}
                     </div>
                 ))}
+                {morphOffered && newView != null && (
+                    <NewViewMorphHint
+                        query={query}
+                        onAsk={newView.onAskAgent}
+                        onStartAgent={startAgent}
+                        actionRef={morphAction}
+                    />
+                )}
             </div>
             {newView != null ? (
                 <div

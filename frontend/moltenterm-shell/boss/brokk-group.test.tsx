@@ -4,15 +4,28 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 vi.mock("@/app/store/global", async () => {
     const { atom } = await import("jotai");
-    return { atoms: { workspace: atom({ oid: "wsA", name: "Alpha" }) } };
+    const settings = new Map<string, ReturnType<typeof atom>>();
+    return {
+        atoms: { workspace: atom({ oid: "wsA", name: "Alpha" }) },
+        // One atom per key, so a test sets what the settings hold: the usage grid's choices (#2341).
+        getSettingsKeyAtom: (key: string) => {
+            if (!settings.has(key)) {
+                settings.set(key, atom(undefined as unknown));
+            }
+            return settings.get(key);
+        },
+    };
 });
+vi.mock("../command-panel/bindings", () => ({ writeSettings: vi.fn(async () => {}) }));
+// The menus the group shows, so a test can read what a row opened (#2341).
+const Menus = vi.hoisted(() => ({ shown: vi.fn() }));
 vi.mock("@/app/store/contextmenu", () => ({
-    ContextMenuModel: { getInstance: () => ({ session: null, showContextMenu: vi.fn() }) },
+    ContextMenuModel: { getInstance: () => ({ session: null, showContextMenu: Menus.shown }) },
 }));
 vi.mock("@/app/store/modalmodel", () => ({ modalsModel: { hasOpenModals: () => false } }));
 vi.mock("../tab-activity", () => ({
@@ -72,20 +85,28 @@ vi.mock("./brokk-hub-store", async () => {
 });
 vi.mock("./boss-usage", async () => {
     const { atom } = await import("jotai");
-    return { UsageReadingsAtom: atom({} as any), UsageUnreadableAtom: atom({} as any) };
+    return {
+        UsageReadingsAtom: atom({} as any),
+        UsageUnreadableAtom: atom({} as any),
+        UsageUseAtom: atom(null as any),
+        askUsageUse: vi.fn(async () => {}),
+    };
 });
 // His animated portrait and its models have their own tests (use-brokk-live): here the group only asks for them.
-const Calls = vi.hoisted(() => ({ live: [] as unknown[], caption: [] as unknown[] }));
+const Calls = vi.hoisted(() => ({ live: [] as unknown[], moment: [] as boolean[] }));
 vi.mock("./use-brokk-live", () => ({
     useCardLive: (talk?: string) => {
         Calls.live.push(talk ?? null);
         return { situation: { talk }, rhythm: "normal" };
     },
 }));
-vi.mock("./use-brokk-caption", () => ({
-    useGroupCaption: (talk?: string) => {
-        Calls.caption.push(talk ?? null);
-        return "He says something";
+// The moment of a kind colleague has its own tests (brokk-colleague, use-brokk-moment): here the group draws what it gives,
+// or hides the line when it gives none (#2203).
+const Said = vi.hoisted(() => ({ text: "He says something" as string }));
+vi.mock("./use-brokk-moment", () => ({
+    useBrokkMoment: (shown: boolean) => {
+        Calls.moment.push(shown);
+        return Said.text == null ? null : { id: "moment:1", text: Said.text };
     },
 }));
 vi.mock("./boss-portrait", () => ({
@@ -117,8 +138,9 @@ vi.mock("./brokk-session", async () => {
     const session = {
         stateAtom: atom({ phase: "idle", reason: "", agentName: "", started: false, reply: "", where: null } as any),
         exchangeAtom: atom([] as any[]),
-        speakingAtom: atom(false),
         unseenIdAtom: atom(null as string),
+        queuedAtom: atom(null as any),
+        returnedAtom: atom(null as string),
     };
     return { BrokkSession: { getInstance: () => session } };
 });
@@ -130,6 +152,8 @@ vi.mock("./use-brokk-actions", () => ({
     useBrokkActions: () => ({ busyId: null, problem: "", goToSession: vi.fn(), runTodo: vi.fn(), reconnect: vi.fn() }),
 }));
 vi.mock("./brokk-notes-panel", () => ({ NotificationsPanel: () => <div data-testid="mock-notifications" /> }));
+// The brainstorm panel's content has its own tests (brainstorm-view.test): here the group draws its frame.
+vi.mock("../brainstorm/brainstorm-panel", () => ({ BrainstormPanel: () => <div data-testid="mock-bspanel" /> }));
 vi.mock("./brokk-keepawake-panel", () => ({ BrokkKeepAwakePanel: () => <div data-testid="mock-keepawake" /> }));
 vi.mock("./brokk-rows-panels", () => ({
     AgentsPanel: () => <div data-testid="mock-agents" />,
@@ -137,19 +161,47 @@ vi.mock("./brokk-rows-panels", () => ({
     DownloadsPanel: () => <div data-testid="mock-downloads" />,
 }));
 
+import { getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import type { PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
+import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { I18nModel } from "../i18n/i18n";
 import { EmptyKeepAwakeState } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
+import { menuOpenedByKeyboard } from "../menu/menu-model";
 import { MoltentermNotifications } from "../notifications-store";
+import { openRowMenu } from "../usage-week/usage-week";
+import { CardTestId } from "./boss-card-model";
 import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
-import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
-import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard } from "./brokk-group";
-import { ArrivalSteps, groupGeometry, PanelId, ReportSize, ReportView, reportView } from "./brokk-group-model";
+import { UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
+import { BrokkGroup, BrokkScrim, GroupFrame, preloadUsageBlock, rememberPanel, SayCard } from "./brokk-group";
+import {
+    ArrivalSteps,
+    autoPanelIn,
+    brainstormLayout,
+    brainstormPanel,
+    BrainstormTalkMinPx,
+    closesCardIn,
+    conversationWidth,
+    dockedPlace,
+    groupGeometry,
+    PanelId,
+    PanelSlidePx,
+    RailBorderPx,
+    ReportSize,
+    ReportView,
+    reportView,
+    SquarePx,
+    TilePx,
+    typingTarget,
+} from "./brokk-group-model";
 import { BrokkSession } from "./brokk-session";
+import { BrokkSpeech } from "./brokk-speech";
+import { weekRow } from "./brokk-usage-block";
+import { usageGrid } from "./brokk-usage-model";
 
 const boss = BossBubbleModel.getInstance() as any;
 const notifications = MoltentermNotifications.getInstance() as any;
@@ -210,6 +262,11 @@ function download(id: string, state: string, endedAt = 0, extra: Record<string, 
     return { id, state, endedAt, received: 0, total: 0, name: id, ...extra };
 }
 
+// The settings of this test are writable atoms (the mock above); the real ones are read-only.
+function setSetting(key: "boss:usageshow" | "boss:usagehide", value: string[]) {
+    globalStore.set(getSettingsKeyAtom(key) as unknown as PrimitiveAtom<string[]>, value);
+}
+
 function quiet() {
     globalStore.set(boss.nameAtom, "Brokk");
     globalStore.set(boss.tabRequestAtom, null);
@@ -219,18 +276,28 @@ function quiet() {
     globalStore.set(agents.dataAtom, { states: {}, versions: {} });
     globalStore.set(keep.stateAtom, EmptyKeepAwakeState);
     globalStore.set(UsageReadingsAtom, {});
+    globalStore.set(UsageUseAtom, null);
+    setSetting("boss:usageshow", undefined);
+    setSetting("boss:usagehide", undefined);
     const session = BrokkSession.getInstance() as any;
     globalStore.set(session.exchangeAtom, []);
     globalStore.set(session.unseenIdAtom, null);
-    globalStore.set(session.speakingAtom, false);
+    globalStore.set(BrokkSpeech.getInstance().speakingAtom, false);
     Badge.keys = [];
 }
+
+// The usage block under the square loads on demand (#2341): load it while the file is collected, so that the group draws
+// it at once, as it does once the window has asked for it, and no test pays for the load inside its 5 s.
+beforeAll(async () => {
+    await preloadUsageBlock();
+}, 60000);
 
 beforeEach(() => {
     quiet();
     rememberPanel(null);
     Calls.live.length = 0;
-    Calls.caption.length = 0;
+    Calls.moment.length = 0;
+    Said.text = "He says something";
 });
 
 describe("the group (FR-BOSS-009, AC17)", () => {
@@ -335,8 +402,9 @@ describe("the sheet that catches the pointer during a preview", () => {
 
     it("is drawn from the hover state alone, under the group, catching the pointer over the whole window", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        // No rail previews during a brainstorm (#2285): no sheet catches the pointer over the graph.
         expect(source).toMatch(
-            /\{holdsHover\(panels\) \? <div className="mt-brokk-catch" aria-hidden data-testid="brokk-hover-catch" \/> : null\}\s*\{frame\.thread != null/
+            /\{holdsHover\(panels\) && !brainstorming \? \(\s*<div className="mt-brokk-catch" aria-hidden data-testid="brokk-hover-catch" \/>\s*\) : null\}\s*\{frame\.thread != null/
         );
         const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
         const rule = /\.mt-brokk-catch \{([^}]*)\}/.exec(css)?.[1] ?? "";
@@ -372,27 +440,35 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
         expect(attr(html, "portrait", "data-live")).toContain("&quot;rhythm&quot;:&quot;normal&quot;");
     });
 
-    it("is driven by the same pose and mood models as the panel was: the talk pose goes to the portrait and to the caption", () => {
+    it("is driven by the same pose and mood models as the panel was: the talk pose goes to the portrait", () => {
         render();
         expect(Calls.live).toEqual([null]);
-        expect(Calls.caption).toEqual([null]);
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain(
-            "const pose = talkPose({ typing, awaiting: talkWaits(talk), working: answering, speaking });"
+            "const pose = useTalkFace({ typing, awaiting: talkWaits(talk), working: answering });"
         );
         expect(source).toContain("useCardLive(pose)");
-        expect(source).toContain("useGroupCaption(pose)");
         expect(source).toContain('<BossPortrait live={live} framing="banner" />');
     });
 
-    // FR-BOSS-009, AC25: listens while he is written to, thinks while his session works, speaks while his answer comes in.
-    describe("his face with the conversation (AC25)", () => {
+    // #2203: the line under the square is no longer the caption of his scene (it repeated the notifications).
+    it("asks for the moment he has to say when the group shows, not for a caption of his scene", () => {
+        render();
+        expect(Calls.moment).toEqual([true]);
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).toContain("useBrokkMoment(shown && !answerHoldsLine)");
+        expect(source).not.toContain("useGroupCaption");
+    });
+
+    // FR-BOSS-009, AC86 and AC87 (#2259): listens while he is written to and while his answer is on its way, thinks only
+    // once that lasts (use-brokk-talk-face.ts, brokk-speech-model.test.ts), speaks while his answer is said.
+    describe("his face with the conversation (AC86, AC87)", () => {
         const session = BrokkSession.getInstance() as any;
 
         afterEach(async () => {
             const { BrokkHubModel } = await import("./brokk-hub-store");
             globalStore.set((BrokkHubModel.getInstance() as any).ownWorkingAtom, false);
-            globalStore.set(session.speakingAtom, false);
+            globalStore.set(BrokkSpeech.getInstance().speakingAtom, false);
             globalStore.set(session.stateAtom, {
                 phase: "idle",
                 reason: "",
@@ -403,15 +479,14 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
             });
         });
 
-        it("thinks while his own session works", async () => {
+        it("listens, rather than thinks, the moment his own session starts to work", async () => {
             const { BrokkHubModel } = await import("./brokk-hub-store");
             globalStore.set((BrokkHubModel.getInstance() as any).ownWorkingAtom, true);
             render();
-            expect(Calls.live).toEqual(["thinking"]);
-            expect(Calls.caption).toEqual(["thinking"]);
+            expect(Calls.live).toEqual(["typing"]);
         });
 
-        it("thinks from the moment his agent has a message, before his session shows work", () => {
+        it("listens, rather than thinks, the moment his agent has a message", () => {
             globalStore.set(session.stateAtom, {
                 phase: "answering",
                 reason: "",
@@ -421,16 +496,15 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
                 where: null,
             });
             render();
-            expect(Calls.live).toEqual(["thinking"]);
+            expect(Calls.live).toEqual(["typing"]);
         });
 
-        it("speaks while his answer comes in, over thinking", async () => {
+        it("speaks while his answer is said, over his session's work", async () => {
             const { BrokkHubModel } = await import("./brokk-hub-store");
             globalStore.set((BrokkHubModel.getInstance() as any).ownWorkingAtom, true);
-            globalStore.set(session.speakingAtom, true);
+            globalStore.set(BrokkSpeech.getInstance().speakingAtom, true);
             render();
             expect(Calls.live).toEqual(["answering"]);
-            expect(Calls.caption).toEqual(["answering"]);
         });
     });
 
@@ -462,9 +536,9 @@ describe("the square: his living portrait, with the screen effect (AC17)", () =>
             expect(scope).toMatch(/transition: opacity var\(--mt-duration-fade\) linear !important/);
             expect(scope).toMatch(/\.mt-brokk-scan \{\s*animation: none;/);
             expect(scope).toMatch(/\.mt-brokk-gpanel/);
-            // The panel and its link fade with the group, the same short fade (#2082).
+            // The panel fades with the group, the same short fade (#2082); its link is the tether's, which does the same.
             expect(scope).toMatch(
-                /\.mt-brokk-gpanel,\s*(\.prefers-reduced-motion )?\.mt-brokk-plink \{\s*animation: none !important;\s*transform: none !important;\s*transition: opacity var\(--mt-duration-fade\) linear !important;/
+                /\.mt-brokk-gpanel \{\s*animation: none !important;\s*transform: none !important;\s*transition: opacity var\(--mt-duration-fade\) linear !important;/
             );
         }
     });
@@ -477,7 +551,7 @@ describe("the rail (AC17)", () => {
         expect(attr(html, "brokk-rail", "aria-orientation")).toBe("vertical");
         expect(attr(html, "brokk-rail-agents", "role")).toBe("tab");
         expect(attr(html, "brokk-rail-agents", "aria-label")).toBe("Agents");
-        expect(attr(html, "brokk-rail-keepawake", "aria-label")).toBe("Keep awake");
+        expect(attr(html, "brokk-rail-keepawake", "aria-label")).toBe("Keep awake, off");
         expect(attr(html, "brokk-rail-agents", "aria-controls")).toBe("brokk-panel");
     });
 
@@ -536,14 +610,36 @@ describe("the rail (AC17)", () => {
         expect(attr(html, "brokk-rail-downloads", "aria-label")).toBe("Downloads, 62 % downloaded");
     });
 
-    it("shows the cup's ember on Garder éveillé while the computer is kept awake", () => {
-        expect(render()).not.toContain('data-testid="brokk-rail-ember"');
+    it("says keep-awake is on with an orange cup and rising steam, never a dot (AC80, #2206)", () => {
+        const button = (html: string) => {
+            const start = html.indexOf('data-testid="brokk-rail-keepawake"');
+            return html.slice(start, html.indexOf("</button>", start));
+        };
+        const off = button(render());
+        expect(off).toMatch(/<span class="mt-cup"[^>]*data-testid="keepawake-cup-icon"/);
+        expect(off).not.toContain("data-on");
+        expect(off).not.toContain("mt-brokk-dot");
+        expect(off).not.toContain("fa-mug-hot");
         globalStore.set(keep.stateAtom, {
             ...EmptyKeepAwakeState,
             version: 1,
             coffees: [{ workspaceid: "wsA", since: 1, reason: "work", untilidle: true }],
         });
-        expect(render()).toContain('data-testid="brokk-rail-ember"');
+        const html = render();
+        const on = button(html);
+        expect(on).toMatch(/data-on=""[^>]*data-tone="action"[^>]*data-steam="rise"/);
+        expect(on).not.toContain("mt-brokk-dot");
+        expect(attr(html, "brokk-rail-keepawake", "aria-label")).toBe("Keep awake, on");
+        expect(attr(html, "brokk-rail-keepawake", "title")).toBe("Keep awake, on");
+        const i18n = I18nModel.getInstance();
+        try {
+            globalStore.set(i18n.languageSettingAtom, "fr");
+            expect(attr(render(), "brokk-rail-keepawake", "aria-label")).toBe("Garder éveillé, activé");
+            globalStore.set(keep.stateAtom, EmptyKeepAwakeState);
+            expect(attr(render(), "brokk-rail-keepawake", "title")).toBe("Garder éveillé, désactivé");
+        } finally {
+            globalStore.set(i18n.languageSettingAtom, "");
+        }
     });
 });
 
@@ -667,7 +763,9 @@ describe("the panel that opens by priority, through the group (AC18)", () => {
 describe("the windows never overlap (AC18)", () => {
     it("keeps the panel while the conversation is open, giving way above the field, and grows back when it folds (#2090)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(source).toContain("const active: PanelId = activePanel(panels, auto);");
+        expect(source).toContain(
+            "const active: PanelId = brainstormPanel(activePanel(panels, autoPanelIn(auto, brainstorming)), brainstorming);"
+        );
         expect(source).toContain("const heightRoom = panelRoom(g, frame.place.heightRoom, conversation);");
         expect(source).toContain("panelHeight(head + content + 16, heightRoom, Math.min(g.square, heightRoom))");
         expect(source).toContain("height: Math.min(height, heightRoom)");
@@ -684,11 +782,117 @@ describe("the windows never overlap (AC18)", () => {
 
     it("opens with the focus and stays open with text in the field, and folds only when it is empty and unfocused", () => {
         const talk = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
-        expect(talk).toContain("const open = conversationOpen(focused, text);");
+        // During a brainstorm, while his agent asks a permission (#2257), or while a question about the brainstorms waits
+        // (#2248), it stays open whatever has the focus.
+        // A message waiting for him (#2284) too.
+        expect(talk).toContain(
+            "const open = conversationOpen(focused, text) || brainstorming || asking || prompted || queued != null;"
+        );
         expect(talk).toContain("onFocus={() => setFocused(true)}");
         // The focus moving from the field to a button of the window is still the conversation.
         expect(talk).toContain("onBlur={(e) => setFocused(e.currentTarget.contains(e.relatedTarget as Node))}");
         expect(talk).toContain("onFocusChange?.(open);");
+    });
+
+    // FR-BOSS-010 AC23 (#2285, the developer on the gold): for the whole brainstorm his group is his square, the
+    // brainstorm panel in the rail's place, and under both his talk window, wide from the start and as tall as the
+    // window allows. No strip under the square, no rail and no rail panel; the graph has the space to the right.
+    it("lays the brainstorm out: the square, the brainstorm panel in the rail's place, the wide talk window under both", () => {
+        // A 1,920 px window: the talk window takes its most, the width it has beside an open rail panel.
+        const place = { ...Frame.place, layerWidth: 1920 };
+        const bs = brainstormLayout(g, place);
+        expect(bs.width).toBe(conversationWidth(g, place.panelRoom));
+        expect(bs.width).toBe(g.panelLeft + 420);
+        expect(bs.square).toBe(SquarePx);
+        expect(bs.panel).toEqual({ x: SquarePx + 8, y: 0, w: bs.width - SquarePx - 8, h: SquarePx });
+        expect(bs.talk).toEqual({ x: 0, y: SquarePx + 8, w: bs.width, h: place.heightRoom - SquarePx - 8 });
+        expect(bs.height).toBe(place.heightRoom);
+        // A short window keeps a usable talk window.
+        expect(brainstormLayout(g, { ...place, heightRoom: 300 }).talk.h).toBe(BrainstormTalkMinPx);
+
+        globalStore.set(BrainstormStateAtom, { allowed: true, open: true, version: 1 });
+        try {
+            const html = render({ ...Frame, place });
+            expect(attr(html, CardTestId, "data-layout")).toBe("brainstorm");
+            expect(attr(html, CardTestId, "style")).toContain(`width:${bs.width}px;height:${bs.height}px`);
+            expect(attr(html, "brokk-brainstorm-panel", "style")).toContain(
+                `left:${bs.panel.x}px;top:0;width:${bs.panel.w}px;height:${bs.panel.h}px`
+            );
+            expect(attr(html, "brokk-brainstorm-panel", "aria-label")).toBe("The brainstorm");
+            expect(attr(html, "brokk-rail", "hidden")).toBe("");
+            expect(html).not.toContain('data-testid="brokk-block"');
+            expect(html).not.toContain('data-testid="brokk-usage"');
+            expect(attr(html, "brokk-fieldbox", "style")).toContain(
+                `top:${bs.talk.y}px;width:${bs.talk.w}px;height:${bs.talk.h}px`
+            );
+            expect(attr(html, "brokk-fieldbox", "data-open")).toBe("true");
+            expect(html).not.toContain('data-testid="brokk-panel"');
+            expect(html).not.toContain('data-testid="brokk-hover-catch"');
+        } finally {
+            globalStore.set(BrainstormStateAtom, null);
+        }
+        const after = render();
+        expect(attr(after, "brokk-panel", "data-panel")).toBe("notifications");
+        expect(after).not.toContain('data-testid="brokk-brainstorm-panel"');
+        expect(attr(after, "brokk-rail", "hidden")).toBeUndefined();
+        expect(after).toContain('data-testid="brokk-block"');
+        expect(attr(after, CardTestId, "data-layout")).toBeUndefined();
+    });
+
+    // #2257, #2285: no rail panel shows during the mode, the notifications included (they are held), even asked for;
+    // a panel a surface asked for meanwhile shows once the mode ends.
+    it("shows no rail panel during a brainstorm, and the one asked for once it ends", () => {
+        expect(autoPanelIn("notifications", true)).toBeNull();
+        expect(autoPanelIn("notifications", false)).toBe("notifications");
+        expect(brainstormPanel("notifications", true)).toBeNull();
+        expect(brainstormPanel("downloads", true)).toBeNull();
+        expect(brainstormPanel("notifications", false)).toBe("notifications");
+        const panel = (html: string) => attr(html, "brokk-panel", "data-panel");
+        globalStore.set(boss.tabRequestAtom, { tab: "downloads", seq: 1, highlight: [] });
+        globalStore.set(BrainstormStateAtom, { allowed: true, open: true, version: 1 });
+        try {
+            expect(panel(render()) ?? null).toBeNull();
+        } finally {
+            globalStore.set(BrainstormStateAtom, null);
+        }
+        expect(panel(render())).toBe("downloads");
+        globalStore.set(boss.tabRequestAtom, null);
+    });
+
+    // The panel's content loads with the brainstorm: the group draws its frame at once (build/on-demand-imports).
+    it("loads the brainstorm panel's content on demand", () => {
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).toContain('import("../brainstorm/brainstorm-panel")');
+        expect(source).not.toMatch(/^import [^;]*"\.\.\/brainstorm\/brainstorm-(panel|store)";/m);
+    });
+
+    // #2257: a click outside (the dim) never ends a brainstorm; Escape does, only while no field has the keyboard.
+    it("ends a brainstorm only with Escape outside a field, never with a click outside", () => {
+        expect(closesCardIn(false, "outside")).toBe(true);
+        expect(closesCardIn(false, "escape", true)).toBe(true);
+        expect(closesCardIn(true, "outside")).toBe(false);
+        expect(closesCardIn(true, "escape", true)).toBe(false);
+        expect(closesCardIn(true, "escape", false)).toBe(true);
+        expect(typingTarget({ tagName: "TEXTAREA" })).toBe(true);
+        expect(typingTarget({ tagName: "INPUT" })).toBe(true);
+        expect(typingTarget({ tagName: "DIV", isContentEditable: true })).toBe(true);
+        expect(typingTarget({ tagName: "BUTTON" })).toBe(false);
+        expect(typingTarget(null)).toBe(false);
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source).toContain('closesCardIn(brainstormingRef.current, "outside")');
+        expect(source).toContain(
+            'closesCardIn(brainstormingRef.current, "escape", typingTarget(document.activeElement))'
+        );
+        expect(source).toContain('if (closesCardIn(brainstorming, "outside")) {');
+    });
+
+    // #2257: with the sidebar slid away, his group docks at the window's top left during a brainstorm.
+    it("docks his group at the top left during a brainstorm", () => {
+        expect(dockedPlace("edge", true)).toBe("none");
+        expect(dockedPlace("screen", true)).toBe("none");
+        expect(dockedPlace("edge", false)).toBe("edge");
+        const host = readFileSync(join(__dirname, "brokk-hub-host.tsx"), "utf8");
+        expect(host).toContain("const sidebarAt = dockedPlace(sidebarPlace, brainstorming);");
     });
 
     it("keeps the field in its place when the window is folded, the size of the group", () => {
@@ -703,6 +907,7 @@ describe("the windows never overlap (AC18)", () => {
         expect(source).toContain(
             "h: conversationHeight(exchangeHeight + ConversationChromePx, frame.place.heightRoom - flow.field.y),"
         );
+        expect(source).toContain("? { w: bs.talk.w, h: bs.talk.h }");
         expect(source).toContain("width: fieldSize.w,");
         expect(source).toContain("height: fieldSize.h,");
     });
@@ -716,10 +921,82 @@ describe("the block under the square (AC17 and AC20)", () => {
         windows: [{ id: "week", label: "This week", usedpercent: percent, resetsat }],
     });
 
-    it("says one line, the caption of his scene", () => {
+    it("says one line, the moment of a kind colleague (#2203)", () => {
         expect(attr(render(), "brokk-say", "class")).toBe("mt-brokk-say");
         expect(render()).toMatch(/data-testid="brokk-say"[^>]*><span>He says something<\/span>/);
-        expect(attr(render(), "brokk-say", "data-source")).toBe("activity");
+        expect(attr(render(), "brokk-say", "data-source")).toBe("moment");
+    });
+
+    // FR-BOSS-009, AC71 (#2203): when he has nothing worth saying the line is hidden, never a filler, and the card holds
+    // the usage grid alone, so the field comes up to it.
+    describe("when he has nothing to say (AC71)", () => {
+        const bare = groupGeometry(SquarePx, TilePx, 0, false);
+
+        it("draws no line at all, not an empty one", () => {
+            Said.text = null;
+            const html = render();
+            expect(html).not.toContain('data-testid="brokk-say"');
+            expect(html).not.toContain("mt-brokk-say");
+            expect(html).toContain('data-testid="brokk-usage"');
+        });
+
+        it("takes the line's room back: the card is shorter and the field comes up under it", () => {
+            Said.text = null;
+            const html = render();
+            expect(attr(html, "brokk-block", "style")).toContain(`min-height:${bare.block.h}px`);
+            expect(attr(html, "brokk-fieldbox", "style")).toContain(`top:${bare.field.y}px`);
+            expect(bare.block.h).toBeLessThan(g.block.h);
+            expect(bare.field.y).toBe(264 + 8 + bare.block.h + 8);
+        });
+
+        it("shows the line again, in the card of its full size, once he has something to say", () => {
+            Said.text = null;
+            expect(render()).not.toContain('data-testid="brokk-say"');
+            Said.text = "Good morning";
+            const html = render();
+            expect(html).toContain('data-testid="brokk-say"');
+            expect(attr(html, "brokk-block", "style")).toContain(`min-height:${g.block.h}px`);
+        });
+
+        it("keeps his session's answer in the line while the developer has not seen it, moment or none", () => {
+            Said.text = null;
+            const session = BrokkSession.getInstance() as any;
+            globalStore.set(session.exchangeAtom, [
+                {
+                    id: "m1",
+                    role: "brokk",
+                    text: "I looked at the failing build.",
+                    actions: [],
+                    at: 1,
+                    turn: 1,
+                    final: true,
+                },
+            ]);
+            globalStore.set(session.unseenIdAtom, "m1");
+            const html = render();
+            expect(html).toContain("I looked at the failing build.");
+            expect(attr(html, "brokk-say", "data-source")).toBe("session");
+        });
+
+        // #2216 (audit #2214, C3): the hello hidden behind his answer was marked shown, then seen, and never displayed.
+        it("does not use up a moment his session's answer hides", () => {
+            const session = BrokkSession.getInstance() as any;
+            globalStore.set(session.exchangeAtom, [
+                {
+                    id: "m1",
+                    role: "brokk",
+                    text: "I looked at the failing build.",
+                    actions: [],
+                    at: 1,
+                    turn: 1,
+                    final: true,
+                },
+            ]);
+            globalStore.set(session.unseenIdAtom, "m1");
+            const html = render();
+            expect(attr(html, "brokk-say", "data-source")).toBe("session");
+            expect(Calls.moment).toEqual([false]);
+        });
     });
 
     // #2090, #2097: the card keeps two lines; a report that needs more makes the card itself taller while it is pointed
@@ -784,8 +1061,8 @@ describe("the block under the square (AC17 and AC20)", () => {
 
         it("is open for the pointer over the card or the keyboard on it, and a click's focus does not keep it open", () => {
             const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-            expect(source).toContain(
-                "reportView(g, reportSize, reportHovered || reportFocused, frame.place.heightRoom)"
+            expect(source).toMatch(
+                /reportView\(\s*g,\s*hasLine \? reportSize : EmptyReportSize,\s*reportHovered \|\| reportFocused,\s*frame\.place\.heightRoom\s*\)/
             );
             expect(source).toContain("onHover={setReportHovered}");
             expect(source).toContain("onFocusVisible={setReportFocused}");
@@ -798,8 +1075,9 @@ describe("the block under the square (AC17 and AC20)", () => {
             const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
             expect(source).toContain("const flow = groupFlow(g, report.growth);");
             expect(source).toContain("minHeight: flow.block.h,");
-            expect(source).toContain("top: flow.field.y,");
-            expect(source).toContain("height: flow.height }}");
+            expect(source).toContain("const fieldTop = bs != null ? bs.talk.y : flow.field.y;");
+            expect(source).toContain("top: fieldTop,");
+            expect(source).toContain("height: bs != null ? bs.height : flow.height,");
             expect(source).toContain("frame.place.heightRoom - flow.field.y),");
         });
 
@@ -857,7 +1135,7 @@ describe("the block under the square (AC17 and AC20)", () => {
             expect(attr(html, "brokk-say", "data-source")).toBe("session");
         });
 
-        it("goes back to the activity summary once the developer has seen it", () => {
+        it("goes back to the moment he has to say once the developer has seen it", () => {
             globalStore.set(session.exchangeAtom, [
                 { id: "m1", role: "you", text: "any news?", at: 1 },
                 answer("Olivia waits."),
@@ -923,11 +1201,182 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(html).not.toContain("brokk-usage-bar");
     });
 
+    // #2341: FR-BOSS-009, AC93 to AC97.
+    describe("the order of use, the providers not used lately and the stale readings", () => {
+        const Day = 24 * 60 * Min;
+        const use = (workMinutes: number) => ({ workms: workMinutes * Min, sessions: 1, lastat: Date.now() - Day });
+        // A paid 30-day window read some days ago: it still runs, so the reading shows, however old.
+        const monthly = (agent: string, percent: number, daysAgo: number, plan: string) => ({
+            agent,
+            source: "t",
+            plan,
+            readat: Date.now() - daysAgo * Day,
+            windows: [
+                {
+                    id: "window:43200",
+                    label: "30-day",
+                    usedpercent: percent,
+                    resetsat: Date.now() + 20 * Day,
+                    windowmins: 43200,
+                },
+            ],
+        });
+        const providers = (html: string) =>
+            [...html.matchAll(/data-testid="usage-week-row"[^>]*data-provider="([a-z]+)"/g)].map((m) => m[1]);
+
+        it("orders the rows by the use of the last 7 days, not by how full a window is", () => {
+            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 100), codex: reading("codex", 20) });
+            globalStore.set(UsageUseAtom, { claude: use(10), codex: use(90) });
+            expect(providers(render())).toEqual(["codex", "claude"]);
+            globalStore.set(UsageUseAtom, { claude: use(100), codex: use(90) });
+            expect(providers(render())).toEqual(["claude", "codex"]);
+        });
+
+        it("leaves a free plan nobody used out of the grid", () => {
+            globalStore.set(UsageReadingsAtom, {
+                claude: reading("claude", 30),
+                codex: monthly("codex", 100, 10, "free"),
+            });
+            globalStore.set(UsageUseAtom, { claude: use(20) });
+            const html = render();
+            expect(providers(html)).toEqual(["claude"]);
+            expect(html).not.toContain('data-provider="codex"');
+            // The quiet line under the grid tells how many wait, closed: the developer opens the list.
+            expect(attr(html, "brokk-usage-hidden-toggle", "aria-expanded")).toBe("false");
+            expect(html).toContain("Not used lately (1)");
+            expect(html).not.toContain('data-testid="brokk-usage-hidden"');
+        });
+
+        it("shows no line about it while every provider shows, nor before the use is known", () => {
+            globalStore.set(UsageReadingsAtom, {
+                claude: reading("claude", 30),
+                codex: monthly("codex", 100, 10, "free"),
+            });
+            expect(render()).not.toContain("brokk-usage-hidden-block");
+            globalStore.set(UsageUseAtom, { claude: use(20) });
+            setSetting("boss:usageshow", ["codex"]);
+            const html = render();
+            expect(providers(html)).toEqual(["claude", "codex"]);
+            expect(html).not.toContain("brokk-usage-hidden-block");
+        });
+
+        it("keeps a paid plan nobody used, and hides a paid one the developer chose to hide", () => {
+            globalStore.set(UsageReadingsAtom, {
+                claude: reading("claude", 30),
+                codex: monthly("codex", 5, 12, "plus"),
+            });
+            globalStore.set(UsageUseAtom, { claude: use(20) });
+            expect(providers(render())).toEqual(["claude", "codex"]);
+            setSetting("boss:usagehide", ["codex"]);
+            const html = render();
+            expect(providers(html)).toEqual(["claude"]);
+        });
+
+        it("draws a reading older than its window faded, with its age, and no pace colour", () => {
+            globalStore.set(UsageReadingsAtom, { codex: monthly("codex", 100, 10, "plus") });
+            globalStore.set(UsageUseAtom, {});
+            const html = render();
+            const tag = cellTag(html, "codex");
+            expect(tag).toContain('data-stale="true"');
+            expect(tag).toContain("read 10 d ago");
+            expect(/data-testid="usage-week-stale">([^<]*)</.exec(html)?.[1]).toBe("Read 10 d ago");
+            globalStore.set(UsageReadingsAtom, { codex: reading("codex", 100) });
+            const live = render();
+            expect(live).not.toContain("usage-week-stale");
+            expect(cellTag(live, "codex")).not.toContain("data-stale");
+        });
+
+        // NFR-PERF-003, bundle.initialJsMB: the block loads once the window is up, and the group draws it when it is there.
+        it("asks for the usage block once the window is up, and draws it as soon as it is loaded", () => {
+            const host = readFileSync(join(__dirname, "brokk-hub-host.tsx"), "utf8");
+            expect(host).toContain("fireAndForget(() => preloadUsageBlock())");
+            expect(host).toContain("UsageBlockLoadDelayMs");
+            const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+            expect(group).toContain("useState<UsageBlockModule>(usageBlock)");
+            expect(group).toContain("preloadUsageBlock().then(setBlock)");
+        });
+
+        // The keyboard reaches the row's menu (#2341): the logo is the row's button, in the row that carries the menu.
+        it("makes each logo a button that opens its row's menu, and each row a group", () => {
+            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
+            const html = render();
+            const logos = [...html.matchAll(/<button [^>]*data-testid="usage-week-logo"[^>]*>/g)].map((m) => m[0]);
+            expect(logos).toHaveLength(2);
+            for (const logo of logos) {
+                expect(logo).toContain('type="button"');
+                expect(logo).toContain('aria-haspopup="menu"');
+                expect(logo).not.toContain("tabindex");
+            }
+            expect(logos.map((tag) => /aria-label="([^"]*)"/.exec(tag)?.[1])).toEqual([
+                "Show or hide Claude",
+                "Show or hide Codex",
+            ]);
+            expect(cellTag(html, "codex")).toContain('role="group"');
+            // The button sits inside the row that carries the menu: the Menu key and Shift+F10 reach the row's handler.
+            const row = html.indexOf(cellTag(html, "codex"));
+            expect(html.indexOf('data-name="Codex"', row)).toBeGreaterThan(row);
+        });
+
+        it("makes a row that cannot be read as reachable as the others", () => {
+            globalStore.set(UsageUnreadableAtom, { codex: "expired" });
+            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40) });
+            const html = render();
+            expect(cellTag(html, "codex")).toContain('role="group"');
+            expect(html).toContain('aria-label="Show or hide Codex"');
+            globalStore.set(UsageUnreadableAtom, {});
+        });
+
+        it("opens the menu of a row with the current choice marked, from a right click as from a key", () => {
+            const grid = usageGrid({ claude: reading("claude", 40) }, Date.now());
+            const event = (extra: object) =>
+                ({
+                    type: "contextmenu",
+                    detail: 0,
+                    clientX: 1,
+                    clientY: 2,
+                    preventDefault: vi.fn(),
+                    stopPropagation: vi.fn(),
+                    ...extra,
+                }) as any;
+            const row = weekRow(grid.rows[0], { show: ["claude"], hide: [] });
+            Menus.shown.mockClear();
+
+            const click = event({});
+            row.onContextMenu(click);
+            expect(click.preventDefault).toHaveBeenCalled();
+            expect(click.stopPropagation).toHaveBeenCalled();
+            expect(Menus.shown).toHaveBeenCalledTimes(1);
+            const [items, shownFor] = Menus.shown.mock.calls[0];
+            expect(shownFor).toBe(click);
+            expect(items.map((i: any) => [i.label, i.type, i.checked])).toEqual([
+                ["Always show Claude", "radio", true],
+                ["Hide Claude", "radio", false],
+                ["Show Claude automatically", "radio", false],
+            ]);
+
+            // Enter or Space on the logo is a click without pointer detail: the menu opens under the button.
+            Menus.shown.mockClear();
+            const press = event({
+                type: "click",
+                clientX: 0,
+                clientY: 0,
+                currentTarget: { closest: () => null, getBoundingClientRect: () => ({ left: 40, bottom: 90 }) },
+            });
+            row.onContextMenu(openRowMenu(press));
+            // The menu opens in the very event that asked for it, so it is told it came from a key.
+            expect(Menus.shown).toHaveBeenCalledTimes(1);
+            const opened = Menus.shown.mock.calls[0][1];
+            expect([opened.clientX, opened.clientY]).toEqual([40, 90]);
+            expect(menuOpenedByKeyboard(opened, false)).toBe(true);
+            expect(press.stopPropagation).toHaveBeenCalled();
+        });
+    });
+
     // The tests run without a DOM: the popover itself (a floating portal) is checked through its source and its style.
     it("names each agent's logo in a small popover on hover", () => {
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
         const html = render();
-        const logos = [...html.matchAll(/<span [^>]*data-testid="usage-week-logo"[^>]*>/g)].map((m) => m[0]);
+        const logos = [...html.matchAll(/<(?:span|button) [^>]*data-testid="usage-week-logo"[^>]*>/g)].map((m) => m[0]);
         expect(logos.map((tag) => /data-name="([^"]*)"/.exec(tag)?.[1])).toEqual(["Claude", "Codex"]);
         expect(logos.every((tag) => !tag.includes("title="))).toBe(true);
         expect(attr(html, "brokk-usage", "title")).toBeUndefined();
@@ -935,8 +1384,8 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(grid).toContain("useHover(context, { delay: { open: NameDelayMs, close: 0 } })");
         expect(grid).toContain("onOpenChange: setOpen,");
         expect(grid).toMatch(/<FloatingPortal>\s*<span[^>]*className="mt-uw-name"/);
-        const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(group).toContain("name: agentName(provider)");
+        const block = readFileSync(join(__dirname, "brokk-usage-block.tsx"), "utf8");
+        expect(block).toContain("const name = agentName(provider);");
         const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
             /\/\*[\s\S]*?\*\//g,
             ""
@@ -952,7 +1401,8 @@ describe("the block under the square (AC17 and AC20)", () => {
         const html = render();
         const day = new Date(resetsat).toLocaleDateString("en", { weekday: "long" });
         expect(cellTag(html, "claude")).toContain(`aria-label="Claude, 73 %, resets ${day}"`);
-        expect(cellTag(html, "claude")).toContain('role="img"');
+        // A row with a menu holds the button that opens it, so it is a group, not an image (#2341).
+        expect(cellTag(html, "claude")).toContain('role="group"');
         expect(cellTag(html, "claude")).not.toContain("title=");
         expect(attr(html, "usage-week-day", "aria-hidden")).toBe("true");
     });
@@ -1159,8 +1609,9 @@ describe("the block under the square (AC17 and AC20)", () => {
         const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
         expect(source).toContain("const measure = () => setUsageHeight(usage.offsetHeight);");
         expect(source).toContain("observer.observe(usage);");
-        expect(source).toContain("groupGeometry(SquarePx, TilePx, usageHeight)");
-        expect(source).toContain('<div ref={usageRef} className="mt-brokk-usage" data-testid="brokk-usage">');
+        expect(source).toContain("groupGeometry(SquarePx, TilePx, usageHeight, hasLine)");
+        // The card is not drawn during a brainstorm (#2285): the grid is measured again when the mode ends.
+        expect(source).toContain("}, [brainstorming]);");
     });
 
     it("keeps no 5-hour or per-model window in the block: they are in the detail", () => {
@@ -1230,5 +1681,84 @@ describe("the scrim over the work area (AC39, #2082)", () => {
         expect(css).toMatch(
             /\.prefers-reduced-motion \.mt-brokk-scrim \{\s*transition: opacity var\(--mt-duration-fade\) linear;/
         );
+    });
+});
+
+describe("the tethers of the group (AC65 to AC68, #2196)", () => {
+    const rule = (css: string, selector: string) =>
+        new RegExp(`\\n${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[1] ?? "";
+    const number = (style: string, name: string) => parseFloat(new RegExp(`${name}:([\\d.]+)`).exec(style)?.[1]);
+
+    it("ties the open panel to its icon with the shared tether, from the icon's edge to the panel's edge", () => {
+        const html = render();
+        const icon = g.icons.notifications;
+        const tiedAt = icon.x + icon.w + RailBorderPx;
+        const width = g.panelLeft - tiedAt;
+        const classes = attr(html, "brokk-plink", "class").split(" ");
+        expect(classes).toEqual(expect.arrayContaining(["mt-tether", "mt-brokk-plink", "is-in"]));
+        const style = attr(html, "brokk-plink", "style");
+        expect(style).toContain(`left:${tiedAt}px;top:${icon.y + icon.h / 2 + RailBorderPx - 1}px;width:${width}px`);
+        expect(number(style, "--mt-tether-w")).toBe(width);
+        expect(number(style, "--mt-tether-from")).toBeCloseTo((width - PanelSlidePx) / width, 3);
+        expect(attr(html, "brokk-plink", "aria-hidden")).toBe("true");
+        expect(html.match(/class="mt-tether-(rope|anchor|knot)"/g)).toHaveLength(6);
+    });
+
+    it("is tied to the icon of the panel that is open, and the panel's edge is its end", () => {
+        globalStore.set(boss.tabRequestAtom, { tab: "keepawake", seq: 1, highlight: [] });
+        const icon = g.icons.keepawake;
+        expect(attr(render(), "brokk-plink", "style")).toContain(`top:${icon.y + icon.h / 2 + RailBorderPx - 1}px`);
+        globalStore.set(boss.tabRequestAtom, { tab: "sessions", seq: 2, highlight: [] });
+        const last = g.icons.sessions;
+        expect(attr(render(), "brokk-plink", "style")).toContain(`top:${last.y + last.h / 2 + RailBorderPx - 1}px`);
+        expect(attr(render(), "brokk-panel", "style")).toContain(`left:${g.panelLeft}px`);
+    });
+
+    it("is open with the group and closed without it, so that it leaves with the panel", () => {
+        expect(attr(render(Frame, true), "brokk-plink", "data-open")).toBe("true");
+        const closed = render(Frame, false);
+        expect(attr(closed, "brokk-plink", "data-open")).toBe("false");
+        expect(attr(closed, "brokk-plink", "class").split(" ")).not.toContain("is-in");
+        expect(attr(closed, "brokk-thread", "data-open")).toBe("false");
+    });
+
+    it("draws the thread from the face to the square with the same tether, as long as the gap it is given", () => {
+        const html = render();
+        expect(attr(html, "brokk-thread", "class").split(" ")).toEqual(
+            expect.arrayContaining(["mt-tether", "mt-brokk-thread", "is-in"])
+        );
+        const style = attr(html, "brokk-thread", "style");
+        expect(style).toContain("left:252px;top:19px;width:20px");
+        expect(number(style, "--mt-tether-from")).toBe(0);
+    });
+
+    it("has no other link: two tethers in the group, no style of its own for them and no dashes", () => {
+        const source = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+        expect(source.match(/<Tether /g)).toHaveLength(2);
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        expect(css).not.toMatch(/dashed|dotted|dasharray|\.mt-brokk-plink/);
+        expect(rule(css, ".mt-tether.mt-brokk-thread")).toMatch(/--mt-tether-time: var\(--mt-duration-drop\);/);
+    });
+
+    it("plays the panel's slide and its tether's growth on the same time and curve, so the rope's end rides on the panel's edge", () => {
+        const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        const tether = readFileSync(join(__dirname, "..", "tether", "tether.css"), "utf8").replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+        );
+        const panel = /transform (var\(--mt-duration-[a-z]+\) var\(--mt-ease-[a-z]+\))/.exec(
+            rule(css, ".mt-brokk-gpanel")
+        )?.[1];
+        const defaults = rule(tether, ".mt-tether");
+        const time = /--mt-tether-time: (var\(--mt-duration-[a-z]+\));/.exec(defaults)?.[1];
+        const ease = /--mt-tether-ease: (var\(--mt-ease-[a-z]+\));/.exec(defaults)?.[1];
+        expect(panel).toBeDefined();
+        expect(`${time} ${ease}`).toBe(panel);
+        const square = /transform (var\(--mt-duration-[a-z]+\)) (cubic-bezier\([^)]*\))/.exec(
+            rule(css, ".mt-brokk-sq")
+        );
+        const thread = rule(css, ".mt-tether.mt-brokk-thread");
+        expect(thread).toContain(`--mt-tether-time: ${square?.[1]};`);
+        expect(thread).toContain(`--mt-tether-ease: ${square?.[2]};`);
     });
 });

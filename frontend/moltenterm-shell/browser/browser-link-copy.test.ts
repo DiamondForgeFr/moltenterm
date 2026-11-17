@@ -52,12 +52,24 @@ describe("the header's wiring (#1544)", () => {
     const view = readFileSync(resolve(root, "frontend/moltenterm-shell/browser/browser-view.tsx"), "utf8");
     const css = readFileSync(resolve(root, "frontend/moltenterm-shell/browser/browser.css"), "utf8");
 
-    it("puts the copy button beside the address chip, in the tab order, not inside the chip's button", () => {
-        const chip = view.indexOf('data-testid="browser-address"');
-        const copy = view.indexOf('data-testid="browser-address-copy"');
-        expect(chip).toBeGreaterThan(0);
-        expect(copy).toBeGreaterThan(chip);
-        expect(view.slice(chip, copy)).toContain("</button>");
+    // The frame's own markup is tested on rendered output in page-address-frame.test.tsx; this guards the wiring (#2322).
+    it("puts the copy button after the address button, in the tab order and in a frame of its own, not over it", () => {
+        const address = view.slice(view.indexOf("function PageAddress("), view.indexOf("function BrowserNavBar("));
+        const frame = readFileSync(resolve(root, "frontend/moltenterm-shell/browser/page-address-frame.tsx"), "utf8");
+        expect(address).toContain("<PageAddressFrame");
+        expect(address).toContain('data-testid="browser-address"');
+        expect(address).not.toContain("browser-address-copy");
+        expect(address).not.toMatch(/\babsolute\b/);
+        expect(address).toMatch(/<\/button>\s*<\/PageAddressFrame>/);
+        const children = frame.indexOf("{children}");
+        expect(children).toBeGreaterThan(0);
+        expect(frame.indexOf('data-testid="browser-address-copy"')).toBeGreaterThan(children);
+    });
+
+    it("lets the address button shrink and truncate first in a narrow panel", () => {
+        const address = view.slice(view.indexOf("function PageAddress("), view.indexOf("function BrowserNavBar("));
+        expect(address).toMatch(/className="flex h-6 min-w-0 flex-1 [^"]*"\s+title=/);
+        expect(address).toContain('className="min-w-0 truncate font-mono text-11"');
     });
 
     it("offers Copy link in the header's overflow menu", () => {

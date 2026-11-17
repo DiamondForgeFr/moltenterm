@@ -15,18 +15,27 @@ import type { ToHandleList } from "./boss-to-handle-model";
 import type { UsageReadings } from "./boss-usage";
 import {
     acknowledgeDownloads,
-    acknowledgeUsage,
     downloadEventsOf,
     DownloadsSource,
     EmptyUsageMemory,
     makeDownloadsMemory,
     updateEventsOf,
     UpdateSource,
-    usageEventsAfter,
+    type UsageMemory,
     UsageSource,
 } from "./brokk-extra-feeds";
 import type { BrokkHub } from "./brokk-hub";
+import type { UsageContext } from "./brokk-usage-model";
 import type { VisitSettings } from "./brokk-visit-events";
+
+// The rules that tell which plan usage calls him load when a reading first comes: until then there is nothing to tell
+// (NFR-PERF-003, bundle.initialJsMB, #2341). A test loads them first, so that a change is told in the event that brought it.
+type UsageVisit = typeof import("./brokk-usage-visit");
+let usageVisit: UsageVisit = null;
+
+export function loadUsageVisit(): Promise<UsageVisit> {
+    return import("./brokk-usage-visit").then((mod) => (usageVisit = mod));
+}
 
 type Store = Pick<ReturnType<typeof createStore>, "get" | "sub">;
 
@@ -36,6 +45,9 @@ export type HubSources = {
     agentsLoadedAtom: Atom<boolean>;
     toHandleAtom: Atom<ToHandleList>;
     settingsAtom: Atom<VisitSettings>;
+    // Brokk is turned on (boss:show, #2218): off, he raises nothing, and the sources still feed the badge's keys. A window
+    // without one leaves it out.
+    onAtom?: Atom<boolean>;
     // The sidebar is on screen: docked, or floating over the content. Hidden, there is no scene to stand on.
     sidebarOnScreenAtom: Atom<boolean>;
     // The sidebar is collapsed at the window's edge with his face on it (#2070): the visit stands there, half open, and
@@ -54,9 +66,18 @@ export type HubSources = {
     closedDownloadsAtom?: Atom<ReadonlySet<string>>;
     updateOfferAtom?: Atom<string>;
     usageAtom?: Atom<UsageReadings>;
+    // What the usage grid reads besides the readings (#2341): the use of each agent over 7 days and the developer's
+    // choices. A provider the grid does not show never brings him for its usage. A window without one leaves it out, and
+    // every provider counts.
+    usageContextAtom?: Atom<UsageContext>;
+    // Where the plan usage already seen is kept across restarts (#2223). A window without one starts empty each time.
+    usageMemory?: { read: () => UsageMemory; write: (memory: UsageMemory) => void };
     // What this tab view shows the developer (makeSeenViewAtom, #2166): what is in it does not bring him. A window
     // without one leaves it out.
     inViewAtom?: Atom<AgentSeenView>;
+    // The agents whose Done card the Notifications panel still lists (#2210): a finish whose card the developer archived
+    // leaves the badge. A window without one leaves it out.
+    openDoneAtom?: Atom<ReadonlySet<string>>;
 };
 
 // Reads `atom` now and at every change, and calls `tell` with the new value each time it differs from the last. The
@@ -86,18 +107,37 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const { store } = src;
     let downloads = makeDownloadsMemory(Date.now());
     let seenUpdate = "";
-    let usage = EmptyUsageMemory;
+    let usage = src.usageMemory?.read() ?? EmptyUsageMemory;
+    const keepUsage = (next: UsageMemory) => {
+        if (next !== usage) {
+            usage = next;
+            src.usageMemory?.write(next);
+        }
+    };
     const items = () => (src.downloadsAtom != null ? store.get(src.downloadsAtom) : []);
     const offer = () => (src.updateOfferAtom != null ? store.get(src.updateOfferAtom) : "");
     const readings = () => (src.usageAtom != null ? store.get(src.usageAtom) : {});
+    const usageContext = () => (src.usageContextAtom != null ? store.get(src.usageContextAtom) : undefined);
     const closed = () => (src.closedDownloadsAtom != null ? store.get(src.closedDownloadsAtom) : undefined);
     const feedDownloads = () => hub.feed(DownloadsSource, downloadEventsOf(downloads, items(), closed()));
     const feedUpdate = () => hub.feed(UpdateSource, updateEventsOf(offer(), seenUpdate));
-    const feedUsage = () => {
-        const step = usageEventsAfter(usage, readings(), Date.now());
-        usage = step.memory;
-        hub.feed(UsageSource, step.events);
+    // Runs `run` with the rules at hand: at once when they are loaded, else when they are, and never for no reading at all,
+    // which has nothing to tell.
+    const withVisit = (run: (visit: UsageVisit) => void) => {
+        if (usageVisit != null) {
+            run(usageVisit);
+        } else if (Object.keys(readings() ?? {}).length > 0) {
+            loadUsageVisit().then(run, () => {});
+        }
     };
+    const feedUsage = () =>
+        withVisit((visit) => {
+            const step = visit.usageEventsAfter(usage, readings(), Date.now(), usageContext());
+            keepUsage(step.memory);
+            hub.feed(UsageSource, step.events);
+        });
+    const acknowledgeUsageSeen = () =>
+        withVisit((visit) => keepUsage(visit.acknowledgeUsage(readings(), Date.now(), usage, usageContext())));
     const feedAll = () => {
         feedDownloads();
         feedUpdate();
@@ -106,7 +146,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const acknowledge = () => {
         downloads = acknowledgeDownloads(downloads, items());
         seenUpdate = offer();
-        usage = acknowledgeUsage(readings(), Date.now());
+        acknowledgeUsageSeen();
         feedAll();
     };
     const stops = [
@@ -114,6 +154,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
         src.closedDownloadsAtom != null ? store.sub(src.closedDownloadsAtom, feedDownloads) : null,
         src.updateOfferAtom != null ? store.sub(src.updateOfferAtom, feedUpdate) : null,
         src.usageAtom != null ? store.sub(src.usageAtom, feedUsage) : null,
+        src.usageContextAtom != null ? store.sub(src.usageContextAtom, feedUsage) : null,
     ].filter((stop) => stop != null);
     feedAll();
     return { acknowledge, stop: () => stops.forEach((stop) => stop()) };
@@ -125,12 +166,15 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         if (!store.get(src.agentsLoadedAtom)) {
             return;
         }
-        hub.agents(store.get(src.agentsAtom));
+        hub.agents(store.get(src.agentsAtom), src.openDoneAtom != null ? store.get(src.openDoneAtom) : undefined);
         hub.syncRows(store.get(src.toHandleAtom).items);
         hub.markReady();
     };
+    // The switch comes first: an event read before it would bring him for a moment while he is off.
+    const stopPower = src.onAtom != null ? follow(store, src.onAtom, (on) => hub.power(on)) : () => {};
     const extra = extraFeeds(hub, src);
     const stops = [
+        stopPower,
         extra.stop,
         follow(store, src.settingsAtom, (settings) => hub.settings(settings)),
         follow(store, src.sidebarOnScreenAtom, (onScreen) => hub.gate({ type: "hidden", hidden: !onScreen })),
@@ -161,6 +205,7 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         store.sub(src.agentsAtom, readings),
         store.sub(src.agentsLoadedAtom, readings),
         store.sub(src.toHandleAtom, readings),
+        src.openDoneAtom != null ? store.sub(src.openDoneAtom, readings) : () => {},
     ];
     readings();
     return () => stops.forEach((stop) => stop());

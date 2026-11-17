@@ -5,6 +5,7 @@ package mission
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -14,8 +15,28 @@ import (
 
 const gitInitTimeout = 30 * time.Second
 
+// ErrInsideRepo: the folder is inside a git repository already.
+var ErrInsideRepo = errors.New("already inside a git repository")
+
 type GitInitRequest struct {
 	Dir string `json:"dir"`
+}
+
+// InsideRepo: dir is inside a git repository, as git itself sees it.
+func InsideRepo(ctx context.Context, run Runner, dir string) bool {
+	_, err := run(ctx, dir, "git", "rev-parse", "--git-dir")
+	return err == nil
+}
+
+// InitRepo runs `git init` in dir, unless dir is inside a repository already (ErrInsideRepo): a nested repository would
+// hide the project's own history. It is the rule of InitGit (FR-SHELL-053), which a brainstorm's new project folder
+// follows too (FR-BOSS-010 AC15, #2250).
+func InitRepo(ctx context.Context, run Runner, dir string) error {
+	if InsideRepo(ctx, run, dir) {
+		return ErrInsideRepo
+	}
+	_, err := run(ctx, dir, "git", "init", "--quiet")
+	return err
 }
 
 // InitGit runs `git init` in a linked project folder that is not inside a repository yet (FR-SHELL-053: "Initialize
@@ -32,10 +53,11 @@ func (c *Collector) InitGit(req GitInitRequest) (Snapshot, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), gitInitTimeout)
 	defer cancel()
-	if _, err := c.run(ctx, dir, "git", "rev-parse", "--git-dir"); err == nil {
+	err = InitRepo(ctx, c.run, dir)
+	if errors.Is(err, ErrInsideRepo) {
 		return Snapshot{}, uimsg.Errorf(uimsg.Make("mission.git.alreadyRepo", "dir", dir), "%s is already inside a git repository", dir)
 	}
-	if _, err := c.run(ctx, dir, "git", "init", "--quiet"); err != nil {
+	if err != nil {
 		return Snapshot{}, err
 	}
 	c.forgetGithub(dir)

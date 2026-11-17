@@ -63,9 +63,10 @@ const TabButton = memo(({ label, tabType, isActive, isAppFocused, onClick, showS
         <button
             className={cn(
                 "px-4 py-2 text-sm font-medium transition-colors cursor-pointer",
+                // MOLTENTERM-PATCH (#2189): the selected tab's liseré (DS-SHELL-156), while the window has the focus.
                 isActive
-                    ? `text-primary border-b-2 ${isAppFocused ? "border-accent" : "border-gray-500"}`
-                    : "text-secondary hover:text-primary border-b-2 border-transparent"
+                    ? cn("text-primary", isAppFocused && "mt-selected-action")
+                    : "text-secondary hover:text-primary"
             )}
             onClick={onClick}
         >

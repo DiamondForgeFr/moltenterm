@@ -67,8 +67,10 @@ type LeadFound struct {
 	State       string
 	TabId       string
 	WorkspaceId string
-	Folder      string
-	ProjectDir  string
+	// WorkspaceName: filled by AppAgents, for a list the developer picks from.
+	WorkspaceName string
+	Folder        string
+	ProjectDir    string
 }
 
 // AppSent is where a request went: its delivery status (StatusDelivered, StatusTyped or StatusQueued), the receiver's
@@ -115,6 +117,43 @@ func FindLead(ctx context.Context, q LeadQuery) (LeadFound, bool) {
 		return LeadFound{}, false
 	}
 	return m.FindLead(ctx, q)
+}
+
+// AppAgents lists the running local agents MoltenTerm's own requests may go to, with their terminals and where they
+// are (#2336), through the running handoffs.
+func AppAgents(ctx context.Context) []LeadFound {
+	Start()
+	m := sharedManager()
+	if m == nil {
+		return nil
+	}
+	return m.AppAgents(ctx)
+}
+
+// NameLocks lists the first names locked for a project, in the order they were locked (FR-CONT-014), through the
+// running handoffs.
+func NameLocks() []molten.AgentNameLock {
+	Start()
+	m := sharedManager()
+	if m == nil {
+		return nil
+	}
+	return m.env.NameLocks()
+}
+
+// AppAgents: the running local agents with a first name, each with its terminal and where it is.
+func (m *Manager) AppAgents(ctx context.Context) []LeadFound {
+	var rtn []LeadFound
+	for _, e := range m.activeParties(ctx) {
+		loc, err := m.env.Locate(ctx, e.blockId)
+		if err != nil || !loc.Local {
+			continue
+		}
+		rtn = append(rtn, LeadFound{BlockId: e.blockId, FirstName: e.FirstName, Agent: e.Agent, AgentName: e.AgentName,
+			State: e.State, TabId: loc.TabId, WorkspaceId: loc.WorkspaceId, WorkspaceName: loc.WorkspaceName, Folder: loc.Folder,
+			ProjectDir: loc.ProjectDir})
+	}
+	return rtn
 }
 
 // FindLead resolves the lead among the running local agents. A session whose terminal the registry names is the lead

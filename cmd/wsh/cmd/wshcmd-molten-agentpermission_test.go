@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/keepawake"
 )
 
@@ -92,6 +93,48 @@ func TestAgentPermissionReportsWaiting(t *testing.T) {
 	runAgentPermission(strings.NewReader("nope"), &out, "block-1", "codex", answer("", nil))
 	if strings.Join(waits, ",") != "block-1/codex,block-1/claude" {
 		t.Fatalf("waiting reports %v", waits)
+	}
+}
+
+// #2257: Brokk's own session answers in his layer: a deny with its reason, an "always allow" with the agent's own
+// suggested rules, and the hook may wait for the developer as long as its budget allows.
+func TestAgentPermissionPrintsTheDevelopersAnswer(t *testing.T) {
+	var sent keepawake.PermissionRequest
+	var out bytes.Buffer
+	runAgentPermission(strings.NewReader(recordedPermissionInput), &out, "block-1", "claude", func(req keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
+		sent = req
+		return keepawake.PermissionAnswer{Decision: keepawake.PermissionDeny, Message: "denied in MoltenTerm"}, nil
+	})
+	if out.String() != `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"denied in MoltenTerm"}}}`+"\n" {
+		t.Fatalf("deny printed %q", out.String())
+	}
+	if len(sent.Suggestions) != 1 {
+		t.Fatalf("the agent's suggestions were not sent: %+v", sent.Suggestions)
+	}
+	// Review: outside Brokk's own session nothing waits for a human (this terminal is not his).
+	if sent.HoldMs != 0 {
+		t.Fatalf("a terminal that is not his own session asked to be held %d ms", sent.HoldMs)
+	}
+	out.Reset()
+	runAgentPermission(strings.NewReader(recordedPermissionInput), &out, "block-1", "claude", func(req keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
+		return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow, Updated: req.Suggestions}, nil
+	})
+	if !strings.Contains(out.String(), `"behavior":"allow","updatedPermissions":[{"behavior":"allow","destination":"localSettings","rules":[{"ruleContent":"cat:*","toolName":"Bash"}],"type":"addRules"}]`) {
+		t.Fatalf("always allow printed %q", out.String())
+	}
+	// His own session may wait for the developer; the hold always leaves the hook time to print before its agent kills
+	// it. Any other terminal is answered at once.
+	if h := permissionHoldMs("claude", true); h < 60_000 || h >= int64(molten.ClaudeOwnSessionPermissionHookTimeout)*1000 {
+		t.Fatalf("his Claude Code session holds %d ms", h)
+	}
+	if h := permissionHoldMs("codex", true); h <= 0 || h >= int64(molten.CodexPermissionHookTimeout)*1000 {
+		t.Fatalf("his Codex session holds %d ms", h)
+	}
+	if permissionHoldMs("claude", false) != 0 || permissionHoldMs("codex", false) != 0 {
+		t.Fatal("another terminal's request is held")
+	}
+	if molten.ClaudePermissionHookTimeout != 15 {
+		t.Fatalf("every terminal's hook budget is %d s", molten.ClaudePermissionHookTimeout)
 	}
 }
 

@@ -75,6 +75,25 @@
     font-size: var(--mt-text-12);
 }
 
+/* A row with a menu (#2341) makes its logo the button that opens it, so the keyboard reaches it: the same size, the
+   logo's colour, no box of its own, and a ring in the action colour while the keyboard is on it. */
+button.mt-uw-logo {
+    padding: 0;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: none;
+    cursor: pointer;
+}
+
+button.mt-uw-logo:hover {
+    color: var(--mt-text-1);
+}
+
+button.mt-uw-logo:focus-visible {
+    outline: 1px solid var(--mt-action);
+    outline-offset: 1px;
+}
+
 .mt-uw-logo svg {
     width: 17px;
     height: 17px;
@@ -236,6 +255,25 @@
 .mt-uw-row[data-old="true"] .mt-uw-share,
 .mt-uw-row[data-old="true"] .mt-uw-cell i {
     opacity: 0.6;
+}
+
+/* A stale reading (#2341): older than its window, or than 7 days, it is no news and never looks live. Its blocks and its
+   percent leave the pace colour for a muted one and fade, the reset day's sheen stands still, and a line under the row
+   tells its age. */
+.mt-uw-row[data-stale="true"] .mt-uw-cell i {
+    background: var(--mt-text-3);
+    opacity: 0.45;
+}
+
+.mt-uw-row[data-stale="true"] .mt-uw-pct,
+.mt-uw-row[data-stale="true"] .mt-uw-share {
+    color: var(--mt-text-3);
+    opacity: 0.6;
+}
+
+.mt-uw-row[data-stale="true"] .mt-uw-cell.is-reset::after {
+    animation: none;
+    opacity: 0;
 }
 
 /* Under reduced motion, told by the system or by the app, the reset day's sheen is a still hatch. */

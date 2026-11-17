@@ -36,12 +36,26 @@ vi.mock("../agent-state-store", async () => {
     };
 });
 vi.mock("./developer-away", () => ({ InputEvents: ["pointermove", "keydown"] }));
+// The kind colleague (brokk-colleague-store.ts) is fed by the one input listener of this watch; its own rules are tested
+// in its own file.
+const Colleague = vi.hoisted(() => ({ start: vi.fn(), stop: vi.fn(), noteInput: vi.fn() }));
+vi.mock("./brokk-colleague-store", () => ({
+    BrokkColleagueModel: {
+        getInstance: () => ({
+            start: () => {
+                Colleague.start();
+                return Colleague.stop;
+            },
+            noteInput: Colleague.noteInput,
+        }),
+    },
+}));
 
 import { globalStore } from "@/app/store/jotaiStore";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import type { BrokkExpression } from "./brokk-ask-model";
 import { BrokkExpressionsModel, watchCalls } from "./brokk-expressions";
-import { BackMs, GreetWithinMs, ReplayEveryMs, ReturnAfterMs } from "./brokk-mood";
+import { ReplayEveryMs, ReturnAfterMs } from "./brokk-mood";
 import { KeyQuietMs, MinGapMs, RepeatMs, ReplySettleMs } from "./brokk-queue";
 
 const Min = 60_000;
@@ -210,23 +224,12 @@ describe("what his mood plays when the screen or the card opens (FR-BOSS-007, AC
     });
 });
 
-describe("his greeting when the developer is back (FR-BOSS-007, AC14)", () => {
-    it("nods once, when the screen opens soon after a long absence", () => {
+describe("his greeting when the developer is back (FR-BOSS-007, AC14; FR-BOSS-009, AC74, #2217)", () => {
+    // The kind colleague's hello owns the nod (use-brokk-hello.ts): opening asks none of its own.
+    it("does not nod on opening after a long absence", () => {
         model().note({ type: "returned", since: Start.getTime() - 40 * Min });
-        model().noteOpen();
-        expect(asked()).toMatchObject({ expression: "nod" });
-        expect(globalStore.get(model().moodAtom).back.greeted).toBe(true);
-        vi.advanceTimersByTime(RepeatMs + 1);
-        model().noteOpen();
-        expect(asked()).toMatchObject({ cue: 1 });
-    });
-
-    it("does not greet someone who opens it later than two minutes after coming back", () => {
-        model().note({ type: "returned", since: Start.getTime() - 40 * Min });
-        vi.advanceTimersByTime(GreetWithinMs + 1);
         model().noteOpen();
         expect(asked()).toBeNull();
-        expect(BackMs).toBeLessThan(GreetWithinMs);
     });
 });
 
@@ -279,8 +282,24 @@ describe("what a bubble on screen listens to (FR-BOSS-007, AC3 and AC14)", () =>
         expect(globalStore.get(model().moodAtom).back).toBeNull();
         vi.advanceTimersByTime(ReturnAfterMs);
         target.dispatch("pointermove");
-        expect(globalStore.get(model().moodAtom).back).toMatchObject({ greeted: false });
+        expect(globalStore.get(model().moodAtom).back).toMatchObject({ at: expect.any(Number) });
         stop();
+    });
+
+    // #2203: Brokk has one tracker of the developer's presence, and the moments of a kind colleague read it.
+    it("feeds the kind colleague from its one input listener, and stops it with the bubble", () => {
+        Colleague.start.mockClear();
+        Colleague.stop.mockClear();
+        Colleague.noteInput.mockClear();
+        const target = fakeTarget();
+        const stop = model().watch(target);
+        expect(Colleague.start).toHaveBeenCalledTimes(1);
+        target.dispatch("pointermove");
+        target.dispatch("keydown");
+        expect(Colleague.noteInput).toHaveBeenCalledTimes(2);
+        stop();
+        expect(Colleague.stop).toHaveBeenCalledTimes(1);
+        expect(target.count()).toBe(0);
     });
 
     it("frowns at a failure that appears, and stops listening when the bubble goes", () => {

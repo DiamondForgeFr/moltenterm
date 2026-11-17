@@ -17,11 +17,13 @@ import type { AgentSeenView } from "../agent-state-model";
 import { eventSourceInView, NothingInView } from "../source-in-view";
 import type { BrokkExpression } from "./brokk-ask-model";
 import { EmptyGate, gateAfter, GateEvent, gateHold, gateOpensAt, GateState, mayArriveNow } from "./brokk-gate";
+import type { PanelId } from "./brokk-group-model";
 import { inQuietHours, nextClockTime, nextQuietChange } from "./brokk-mood";
 import { severest, Severity, SeverityExpression, SeverityRank } from "./brokk-queue";
 import {
     BrokkEvent,
     comingOf,
+    countsOnBadge,
     DefaultVisitSettings,
     eventMoments,
     isRaised,
@@ -182,6 +184,17 @@ export type Visit = {
     example?: boolean;
 };
 
+// The panel his click opens on, so that it names the reason (FR-BOSS-009, AC79, #2203): a download is in Downloads, a plan
+// reading is the week grid that always stands under his square, and everything else is a card of the Notifications. null:
+// no panel is asked, the group opens as it does for the avatar.
+export function visitPanelOf(visit: Visit): PanelId {
+    const key = visit?.keys[0];
+    if (key == null || visit.example === true || key.startsWith("usage:")) {
+        return null;
+    }
+    return key.startsWith("download:") ? "downloads" : "notifications";
+}
+
 // The visit of the settings' "Show a visit" (FR-BOSS-009, AC31 and AC32, #2079): the scene as a real one plays it, for an
 // example event. It is never raised, counted, told or recorded, and the hub shows it on its own, past quiet hours.
 export const ExampleVisit: Visit = {
@@ -226,11 +239,11 @@ export function visitOf(events: StoredEvent[], settings: VisitSettings, now: num
     };
 }
 
-// What the badge counts: every event not set to Rien, told or not. Its keys are how the collapsed sidebar tells a new
-// notification from one it already told (brokk-edge-model.ts).
+// What the badge counts: every event not set to Rien that a panel lists as a card (#2213), told or not. Its keys are how
+// the collapsed sidebar tells a new notification from one it already told (brokk-edge-model.ts).
 export function badgeKeys(visits: VisitState, settings: VisitSettings): string[] {
     return Object.values(visits.events)
-        .filter(({ event }) => comingOf(event.kind, settings) !== "rien")
+        .filter(({ event }) => countsOnBadge(event.kind, settings))
         .map(({ event }) => event.key)
         .sort();
 }
@@ -262,6 +275,8 @@ export type BrokkInput =
     | { type: "later"; choice: SnoozeChoiceId | "escape" }
     // The developer opened Brokk's panel, from the scene or from the avatar: what was waiting is told.
     | { type: "open" }
+    // The developer gave these events back themselves (the undo of an archive, #2210): they are heard, as on opening.
+    | { type: "heard"; keys: string[] }
     | { type: "settings"; settings: VisitSettings }
     | { type: "gate"; event: GateEvent }
     // What this tab view shows changed (source-in-view.ts).
@@ -329,6 +344,21 @@ function visitsAfter(visits: VisitState, input: BrokkInput, settings: VisitSetti
                 told[event.key] = SeverityRank[severityOf(event, settings, now)];
             }
             return { ...visits, told, shown: false };
+        }
+        case "heard": {
+            let told = visits.told;
+            for (const key of input.keys) {
+                const known = visits.events[key];
+                if (known == null) {
+                    continue;
+                }
+                const rank = SeverityRank[severityOf(known.event, settings, now)];
+                if ((told[key] ?? -1) < rank) {
+                    told = told === visits.told ? { ...told } : told;
+                    told[key] = rank;
+                }
+            }
+            return told === visits.told ? visits : { ...visits, told };
         }
         default:
             return visits;

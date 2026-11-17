@@ -4,7 +4,7 @@
 import * as electron from "electron";
 import { getWebServerEndpoint } from "../frontend/util/endpoints";
 import { isPDFPreviewDestination } from "./moltenterm-app-auth-policy"; // MOLTENTERM-PATCH (#805)
-import { openExternalLink } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663)
+import { openLinkInApp } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663, #2176)
 
 export const WaveAppPathVarName = "WAVETERM_APP_PATH";
 export const WaveAppResourcesPathVarName = "WAVETERM_RESOURCES_PATH";
@@ -113,7 +113,12 @@ export function isDevServerReload(url: string, rendererUrl: string): boolean {
     }
 }
 
-export function shNavHandler(event: Electron.Event<Electron.WebContentsWillNavigateEventParams>, url: string) {
+// MOLTENTERM-PATCH (#2176): host is the tab view whose interface navigated; a web page goes to its browser panel.
+export function shNavHandler(
+    event: Electron.Event<Electron.WebContentsWillNavigateEventParams>,
+    url: string,
+    host?: Electron.WebContents
+) {
     if (isPDFPreviewDestination(url, getWebServerEndpoint())) {
         event.preventDefault();
         return; // Resource capabilities stay in their PDF frame; never log or hand them to an external browser.
@@ -137,7 +142,7 @@ export function shNavHandler(event: Electron.Event<Electron.WebContentsWillNavig
     if (url.startsWith("https://") || url.startsWith("http://") || url.startsWith("file://")) {
         console.log("open external, shNav", url);
         // MOLTENTERM-PATCH (#663): the shared scheme rule (a file: link is shown in its folder, never opened)
-        void openExternalLink(url);
+        void openLinkInApp(url, host); // MOLTENTERM-PATCH (#2176)
     } else {
         console.log("navigation canceled", url);
     }
@@ -154,7 +159,10 @@ function frameOrAncestorHasName(frame: Electron.WebFrameMain, name: string): boo
     return false;
 }
 
-export function shFrameNavHandler(event: Electron.Event<Electron.WebContentsWillFrameNavigateEventParams>) {
+export function shFrameNavHandler(
+    event: Electron.Event<Electron.WebContentsWillFrameNavigateEventParams>,
+    host?: Electron.WebContents // MOLTENTERM-PATCH (#2176)
+) {
     if (!event.frame?.parent) {
         // only use this handler to process iframe events (non-iframe events go to shNavHandler)
         return;
@@ -171,7 +179,7 @@ export function shFrameNavHandler(event: Electron.Event<Electron.WebContentsWill
         // this will *not* effect the initial load because srcdoc does not count as an electron navigation
         console.log("open external, frameNav", url);
         event.preventDefault();
-        void openExternalLink(url); // MOLTENTERM-PATCH (#663)
+        void openLinkInApp(url, host); // MOLTENTERM-PATCH (#663, #2176)
         return;
     }
     if (
@@ -203,7 +211,7 @@ export function shFrameNavHandler(event: Electron.Event<Electron.WebContentsWill
             }
             // If navigation is not to expected port, open externally
             event.preventDefault();
-            void openExternalLink(url); // MOLTENTERM-PATCH (#663)
+            void openLinkInApp(url, host); // MOLTENTERM-PATCH (#663, #2176)
             return;
         } catch (e) {
             // Invalid URL, fall through to prevent navigation

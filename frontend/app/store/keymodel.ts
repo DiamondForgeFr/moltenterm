@@ -534,6 +534,15 @@ function tryReinjectKey(event: WaveKeyboardEvent): boolean {
     return appHandleKeyDown(event);
 }
 
+// MOLTENTERM-PATCH (#2310): a key a web page panel answers before the window's binding of the same keys
+function focusedBrowserPanelTakes(waveEvent: WaveKeyboardEvent): boolean {
+    const viewModel = getBlockComponentModel(getFocusedBlockInStaticTab())?.viewModel;
+    if (viewModel?.viewType !== "molten-browser" || viewModel.keyDownHandler == null) {
+        return false;
+    }
+    return viewModel.keyDownHandler(waveEvent);
+}
+
 function countTermBlocks(): number {
     const allBCMs = getAllBlockComponentModels();
     let count = 0;
@@ -754,7 +763,12 @@ function registerGlobalKeys() {
             return true;
         }
     });
-    globalKeyMap.set("Ctrl:Shift:i", () => {
+    globalKeyMap.set("Ctrl:Shift:i", (waveEvent) => {
+        // MOLTENTERM-PATCH (#2310): off macOS, Ctrl+Shift+I is a web page panel's inspector while it has the focus, as
+        // in a browser (FR-BRW-022); multi-input everywhere else
+        if (!isMacOS() && focusedBrowserPanelTakes(waveEvent)) {
+            return true;
+        }
         const tabModel = getActiveTabModel();
         if (tabModel == null) {
             return true;

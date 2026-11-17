@@ -6,7 +6,8 @@ import { describe, expect, it } from "vitest";
 import { ManualCheckFailure, PipelineReleaseStep } from "./mission-model";
 import { PendingGate, PendingLock } from "./pending-action";
 import { PhaseAction, ReleaseFacts, releaseRun } from "./release-run";
-import { ReleasePanelActions, ReleaseRunPanel, sendAction } from "./release-run-panel";
+import { ReleasePanelActions, sendAction } from "./release-run-panel";
+import { ReleaseRunPanel } from "./release-run-row";
 
 // A manual step's check and the formatter's word on the release card (#1095).
 

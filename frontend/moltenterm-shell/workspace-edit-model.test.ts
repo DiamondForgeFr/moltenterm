@@ -152,11 +152,12 @@ describe("Identity, Appearance and Projects, then the Project sheet (FR-SHELL-10
             "logo",
             "pipeline",
             "agent",
+            "agentnames",
         ]);
     });
 
     it("keeps the folder, type and branch for a project without a folder, the rest once it has one", () => {
-        expect(projectSheetBlocks(true)).toEqual(["repository", "details", "logo", "pipeline", "agent"]);
+        expect(projectSheetBlocks(true)).toEqual(["repository", "details", "logo", "pipeline", "agent", "names"]);
         expect(projectSheetBlocks(false)).toEqual(["repository", "details"]);
     });
 });

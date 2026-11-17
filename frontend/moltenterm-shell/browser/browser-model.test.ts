@@ -114,7 +114,7 @@ describe("toBrowserUrl", () => {
         ["github.com/DiamondForgeFr", "https://github.com/DiamondForgeFr"],
         ["localhost:5173", "http://localhost:5173"],
         ["about:blank", "about:blank"],
-        ["wave terminal tabs", "https://www.google.com/search?q=wave%20terminal%20tabs"],
+        ["wave terminal tabs", "https://search.brave.com/search?q=wave%20terminal%20tabs"],
         ["   ", null],
     ])("turns %j into %j", (input, want) => {
         expect(toBrowserUrl(input)).toBe(want);
@@ -143,7 +143,7 @@ describe("toBrowserUrl", () => {
     it.each(["wave terminal", "how to use example.com", "readme.m", "e.g.", "v1.2.3", "localhost is down", "12:30"])(
         "searches the words %j",
         (input) => {
-            expect(toBrowserUrl(input)).toMatch(/^https:\/\/www\.google\.com\/search\?q=/);
+            expect(toBrowserUrl(input)).toMatch(/^https:\/\/search\.brave\.com\/search\?q=/);
         }
     );
 

@@ -10,8 +10,18 @@
 
 import type { HandledKind } from "./brokk-mood";
 
-// The gestures the app asks of him; the manifest holds the length of each one.
-export type BrokkExpression = "smile" | "doubtful" | "frown" | "nod" | "call";
+// The gestures the app asks of him; the manifest holds the length of each one. The tone of his answer asks proud, chuckle
+// and surprised, and only a grave visit asks the sigh (#2262).
+export type BrokkExpression =
+    | "smile"
+    | "doubtful"
+    | "frown"
+    | "nod"
+    | "call"
+    | "sigh"
+    | "proud"
+    | "chuckle"
+    | "surprised";
 
 export type BrokkSituation = {
     // Agents working, in every workspace.
@@ -21,8 +31,8 @@ export type BrokkSituation = {
     cardOpen: boolean;
     // The developer is away from this computer: no input on it for a long while (developer-away.ts).
     away?: boolean;
-    // The conversation (FR-BOSS-009, AC9 and AC25): he listens while the developer writes to him, thinks while his own
-    // session works on a message, and speaks while its answer comes in.
+    // The conversation (FR-BOSS-009, AC9, AC86 and AC87): he listens while the developer writes to him and while his
+    // answer is on its way, thinks once it is slow to come, and speaks while it is said (brokk-speech-model.ts).
     talk?: "typing" | "thinking" | "answering";
 };
 

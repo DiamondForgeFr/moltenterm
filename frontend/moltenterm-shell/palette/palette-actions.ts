@@ -18,6 +18,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { Atom } from "jotai";
 import { openFirstRun } from "../../moltenterm-onboarding/onboarding-open";
 import { BossBubbleModel } from "../boss/boss-store";
+import { openBrainstorm, resumeLastBrainstorm } from "../brainstorm/brainstorm-boot";
 import { handOffActivePage } from "../browser/browser-routing";
 import { openPanelFromPalette, runPanelPaletteEntry } from "../command-panel/command-panel-palette";
 import { equalizeCurrentTab } from "../equalize/equalize-actions";
@@ -146,6 +147,18 @@ export async function runPaletteEntry(run: PaletteRun, target: PaletteTarget): P
             BossBubbleModel.getInstance().openCard(
                 origin ? { isConnected: true, focus: () => refocusNode(origin) } : undefined
             );
+            return;
+        }
+        case "brainstorm":
+            await openBrainstorm();
+            return;
+        case "brainstormresume":
+            await resumeLastBrainstorm();
+            return;
+        case "brainstormreplay": {
+            // The script and its player load only when asked (dev and local builds).
+            const { playReplay } = await import("../brainstorm/brainstorm-replay");
+            void playReplay();
             return;
         }
         case "focusorigin":

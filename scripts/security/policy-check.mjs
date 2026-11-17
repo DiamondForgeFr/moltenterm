@@ -40,12 +40,14 @@ function disposition(finding, extra = {}) {
 const now = new Date("2026-10-17T00:00:00Z");
 const evaluate = (findings, dispositions = [], exceptions = []) => evaluatePolicy(findings, { ...policy(), dispositions, exceptions }, now);
 const scope = { module: ".", target: "linux/amd64", cgo: 0, packages: ["./cmd/...", "./pkg/..."] };
-const config = { protocol_version: "v1.0.0", scanner_name: "govulncheck", scanner_version: "v1.9.0", go_version: "go1.26.10", scan_mode: "source", scan_level: "symbol", db: "https://vuln.go.dev", db_last_modified: "2026-10-08T00:00:00Z" };
+// The orchestrator checks `go env` and the scanner's config against go.mod's pin, so the fixtures follow the pin (#2225).
+const goPin = spawnSync(process.execPath, ["scripts/moltenterm-go-toolchain.mjs"], { cwd: new URL("../../", import.meta.url), encoding: "utf8" }).stdout.trim();
+const config = { protocol_version: "v1.0.0", scanner_name: "govulncheck", scanner_version: "v1.9.0", go_version: goPin, scan_mode: "source", scan_level: "symbol", db: "https://vuln.go.dev", db_last_modified: "2026-10-08T00:00:00Z" };
 const osv = { id: "GO-2026-1234", aliases: ["CVE-2026-1234"], summary: "fixture", affected: [{ package: { name: "example.test/module" }, ranges: [{ type: "SEMVER", events: [{ introduced: "0" }, { fixed: "1.2.0" }] }] }] };
 const trace = { module: "example.test/module", version: "v1.0.0" };
-const records = () => [{ config: clone(config) }, { SBOM: { go_version: "go1.26.10", roots: ["example.test/module/app"], modules: [{ path: "example.test/module", version: "v1.0.0" }] } }, { osv: clone(osv) }, { finding: { osv: osv.id, trace: [clone(trace)] } }];
+const records = () => [{ config: clone(config) }, { SBOM: { go_version: goPin, roots: ["example.test/module/app"], modules: [{ path: "example.test/module", version: "v1.0.0" }] } }, { osv: clone(osv) }, { finding: { osv: osv.id, trace: [clone(trace)] } }];
 const stream = (r) => r.map((entry) => JSON.stringify(entry, null, 2)).join("\n");
-const go = (r = records(), code = 0) => normalizeGo(stream(r), code, scope, policy(), "go1.26.10");
+const go = (r = records(), code = 0) => normalizeGo(stream(r), code, scope, policy(), goPin);
 
 test("Electron review binds the exact pin and fails closed at its UTC deadline", () => {
     const review = policy();
@@ -227,9 +229,17 @@ test("actual Required gate jq expression rejects failed, cancelled, unexplained 
     const draftLine = gate.split("\n").find((line) => line.includes('"$DRAFT" = "true"'));
     const lists = { false: { heavy: assigned(gate, "heavy"), selected: assigned(gate, "selected") }, true: { heavy: assigned(draftLine, "heavy"), selected: assigned(draftLine, "selected") } };
     const wantLine = gate.split("\n").find((line) => line.trim().startsWith('want="'));
-    for (const draft of [true, false]) {
-        const want = JSON.parse(wantLine.trim().slice(6, -1).replaceAll('\\"', '"').replaceAll("$heavy", lists[draft].heavy).replaceAll("$selected", lists[draft].selected));
-        assert.deepEqual(Object.keys(want).sort(), ["Affected tests", "Backend", "Dependency security", "Frontend", "Perf budgets", "Quick checks"]);
+    // #2277: the macOS suites run on every event but a pull request's, and the gate requires them there only.
+    const pushOnly = gate.match(/if \[ "\$EVENT" != pull_request \]; then want=\$\(echo "\$want" \| jq -c '([^']*)'\); fi/)?.[1];
+    assert.ok(pushOnly, "read the gate's push-only job");
+    for (const [event, draft] of [["pull_request", true], ["pull_request", false], ["push", false]]) {
+        let want = JSON.parse(wantLine.trim().slice(6, -1).replaceAll('\\"', '"').replaceAll("$heavy", lists[draft].heavy).replaceAll("$selected", lists[draft].selected));
+        if (event === "push") {
+            const added = spawnSync("jq", ["-c", pushOnly], { input: JSON.stringify(want), encoding: "utf8" });
+            assert.equal(added.status, 0, added.stderr); want = JSON.parse(added.stdout);
+            assert.deepEqual(want["macOS tests"], ["success"]);
+        }
+        assert.deepEqual(Object.keys(want).sort(), ["Affected tests", "Backend", "Dependency security", "Frontend", "Perf budgets", "Quick checks", ...(event === "push" ? ["macOS tests"] : [])].sort());
         assert.deepEqual(want["Affected tests"], ["success"]); assert.deepEqual(want["Quick checks"], ["success"]);
         assert.deepEqual(want["Dependency security"], ["success", "skipped"]);
         const verdict = (entries) => {
@@ -244,7 +254,7 @@ test("actual Required gate jq expression rejects failed, cancelled, unexplained 
         for (const conclusion of ["failure", "cancelled", "timed_out", "neutral", "action_required"]) {
             for (const name of Object.keys(want)) assert.equal(verdict(set(name, { conclusion })), "fail", `${name} ${conclusion}`);
         }
-        for (const name of ["Affected tests", "Quick checks", ...(draft ? [] : ["Frontend"])]) assert.equal(verdict(set(name, { conclusion: "skipped" })), "fail", `${name} skipped`);
+        for (const name of ["Affected tests", "Quick checks", ...(draft ? [] : ["Frontend"]), ...(event === "push" ? ["macOS tests"] : [])]) assert.equal(verdict(set(name, { conclusion: "skipped" })), "fail", `${name} skipped`);
         assert.equal(verdict(set("Dependency security", { status: "in_progress", conclusion: null })), "wait");
     }
     // Their skip is the selection's only because these jobs skip on nothing but Affected tests' outputs (or a draft).
@@ -290,7 +300,7 @@ test("scanner orchestration keeps raw evidence and separates scanner failure, po
 const fs=require("node:fs"),path=require("node:path");
 const name=path.basename(process.argv[1]),args=process.argv.slice(2);
 if(name==="go"){
- if(args[0]==="env") console.log(JSON.stringify({GOVERSION:"go1.26.10",GOHOSTOS:"linux",GOHOSTARCH:"amd64"}));
+ if(args[0]==="env") console.log(JSON.stringify({GOVERSION:${JSON.stringify(goPin)},GOHOSTOS:"linux",GOHOSTARCH:"amd64"}));
  else if(args[0]==="install"){fs.copyFileSync(process.argv[1],path.join(process.env.GOBIN,"govulncheck"));fs.chmodSync(path.join(process.env.GOBIN,"govulncheck"),0o755);}
  else process.exit(2);
 } else if(name==="npm"){

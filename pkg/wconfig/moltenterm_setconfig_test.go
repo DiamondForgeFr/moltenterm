@@ -87,3 +87,40 @@ func TestSetBaseConfigValueKeepsLibraryPrefs(t *testing.T) {
 		t.Fatalf("a seen time that is not a number was accepted")
 	}
 }
+
+// #2180: "Do the same in every view" stores Automatic and the number of visible panels in one write; the number is a
+// string, as the choices of the settings screen are.
+func TestSetBaseConfigValueStoresTheOfferAnswerForEveryView(t *testing.T) {
+	configDir := t.TempDir()
+	previous := wavebase.ConfigHome_VarCache
+	wavebase.ConfigHome_VarCache = configDir
+	t.Cleanup(func() { wavebase.ConfigHome_VarCache = previous })
+
+	if err := WriteWaveHomeConfigFile(SettingsFile, waveobj.MetaMapType{}); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	if err := SetBaseConfigValue(waveobj.MetaMapType{"moltenterm:view360": "auto", "moltenterm:view360places": "2"}); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	m, cerrs := ReadWaveHomeConfigFile(SettingsFile)
+	if len(cerrs) > 0 {
+		t.Fatalf("read: %v", cerrs[0])
+	}
+	if m["moltenterm:view360"] != "auto" || m["moltenterm:view360places"] != "2" {
+		t.Fatalf("view360: %v, places: %v", m["moltenterm:view360"], m["moltenterm:view360places"])
+	}
+	if err := SetBaseConfigValue(waveobj.MetaMapType{"moltenterm:view360places": nil}); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	m, _ = ReadWaveHomeConfigFile(SettingsFile)
+	if _, ok := m["moltenterm:view360places"]; ok {
+		t.Fatalf("the number of visible panels was not cleared: %v", m)
+	}
+}
+
+func TestView360PlacesIsAStringSetting(t *testing.T) {
+	ctype := getConfigKeyType("moltenterm:view360places")
+	if ctype == nil || ctype.Kind().String() != "string" {
+		t.Fatalf("moltenterm:view360places has type %v, want a string", ctype)
+	}
+}

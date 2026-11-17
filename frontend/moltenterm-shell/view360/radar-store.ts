@@ -74,6 +74,7 @@ function sameFacts(a: Record<string, RadarBlockFacts>, b: Record<string, RadarBl
             x.view === y.view &&
             x.agent === y.agent &&
             x.title === y.title &&
+            x.renamed === y.renamed &&
             x.attention === y.attention &&
             x.icon === y.icon
         );
@@ -93,13 +94,14 @@ export function makeRadarFactsAtom(blockIds: string[]): Atom<Record<string, Rada
             const block = get(getWaveObjectAtom<Block>(makeORef("block", blockId)));
             const meta = (block?.meta ?? {}) as PanelMeta & { "frame:title"?: string };
             const agent = agents[blockId];
+            const typed = (meta["frame:title"] ?? "").trim();
             const title =
-                (meta["frame:title"] ?? "").trim() ||
-                (agent != null ? agentCallName(agent) : pageTitle(meta) || panelTitle(meta, getHomeDir()));
+                typed || (agent != null ? agentCallName(agent) : pageTitle(meta) || panelTitle(meta, getHomeDir()));
             next[blockId] = {
                 view: meta.view ?? null,
                 agent: agent != null,
                 title,
+                renamed: typed !== "",
                 attention: attention[blockId] ?? null,
                 icon: panelIcon(meta, agent != null),
             };

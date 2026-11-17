@@ -6,11 +6,12 @@
 // the fact holds and the developer has not opened Brokk since; opening him acknowledges what he saw. The security alert
 // is #2004's. Pure, so the rules are tested without a window.
 //
-// It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
+// It is part of the bubble's up-front JavaScript: it imports nothing of the portrait. What tells which plan usage calls
+// him (the providers his grid shows, the readings too old to be current) loads when a reading first comes
+// (brokk-usage-visit.ts, #2341): what is seen is kept here.
 
-import { gaugeRows } from "../companion/companion-gauges-model";
 import { DownloadRecord } from "../downloads/downloads-model";
-import type { UsageReadings } from "./boss-usage";
+import { checkUnread, MoltentermNotification } from "../notifications-model";
 import type { BrokkEvent } from "./brokk-visit-events";
 
 export const DownloadsSource = "downloads";
@@ -81,7 +82,17 @@ export function acknowledgeDownloads(memory: DownloadsMemory, items: DownloadRec
 
 // ---- the update notice ------------------------------------------------------------------------------------------------
 
-// `offer` names the update on offer ("" for none): a gold's build, a release's version. `seen` is the one the developer
+// The update's card in the Notifications panel (#2213): the badge counts the offer only while that card is listed and
+// unread, whatever the view, so that the badge never leads to a panel without it. `cardKey` is the key of the offer's
+// notification; "" when no card stands for it.
+export function listedUpdateCard(cardKey: string, entries: MoltentermNotification[]): string {
+    if (!cardKey) {
+        return "";
+    }
+    return (entries ?? []).some((entry) => entry.key === cardKey && checkUnread(entry)) ? cardKey : "";
+}
+
+// `offer` names the update on offer ("" for none): its card's key (listedUpdateCard). `seen` is the one the developer
 // has been shown by opening Brokk; a newer offer is news again.
 export function updateEventsOf(offer: string, seen: string): BrokkEvent[] {
     if (offer === "" || offer === seen) {
@@ -98,38 +109,18 @@ export type UsageMemory = { seen: Set<string> };
 
 export const EmptyUsageMemory: UsageMemory = { seen: new Set() };
 
-// The providers whose fullest window is at the line or above it. Several agents of one provider share its plan: the
-// provider takes its latest reading.
-export function hotProviders(readings: UsageReadings, now: number): string[] {
-    const latest = new Map<string, number>();
-    const readAt = new Map<string, number>();
-    for (const [agent, snapshot] of Object.entries(readings ?? {})) {
-        if (snapshot == null) {
-            continue;
-        }
-        const provider = snapshot.agent || agent;
-        if ((readAt.get(provider) ?? -1) > (snapshot.readat ?? 0)) {
-            continue;
-        }
-        readAt.set(provider, snapshot.readat ?? 0);
-        latest.set(provider, Math.max(0, ...gaugeRows(snapshot, now).map((row) => row.bar)));
+// The seen providers survive a restart (#2223): kept in the local storage of this computer.
+export const UsageSeenKey = "moltenterm:brokk-usage-seen";
+
+export function readUsageMemory(raw: string): UsageMemory {
+    try {
+        const value = JSON.parse(raw ?? "");
+        return Array.isArray(value) ? { seen: new Set(value.filter((p) => typeof p === "string")) } : EmptyUsageMemory;
+    } catch {
+        return EmptyUsageMemory;
     }
-    return [...latest.entries()].filter(([, bar]) => bar >= UsageThresholdPercent).map(([provider]) => provider);
 }
 
-export function usageEventsAfter(
-    memory: UsageMemory,
-    readings: UsageReadings,
-    now: number
-): { memory: UsageMemory; events: BrokkEvent[] } {
-    const hot = hotProviders(readings, now);
-    const seen = new Set([...memory.seen].filter((provider) => hot.includes(provider)));
-    const events = hot
-        .filter((provider) => !seen.has(provider))
-        .map((provider) => ({ key: `usage:${provider}`, kind: "usage" as const, since: 0 }));
-    return { memory: seen.size === memory.seen.size ? memory : { seen }, events };
-}
-
-export function acknowledgeUsage(readings: UsageReadings, now: number): UsageMemory {
-    return { seen: new Set(hotProviders(readings, now)) };
+export function usageMemoryText(memory: UsageMemory): string {
+    return JSON.stringify([...memory.seen].sort());
 }

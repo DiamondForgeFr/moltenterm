@@ -152,6 +152,11 @@ type agentRecord struct {
 	settings molten.AgentSettings
 	// firstName: the pane's agent name (FR-CONT-014), held from the names allocator while the record lives.
 	firstName string
+	// project: the project folder of the pane, read with its location (agentnamelocks.go); firstName settles on a name
+	// locked for it then. nameUnsaved: firstName is new and still to be kept in the block's meta, which waits for that
+	// settling.
+	project     string
+	nameUnsaved bool
 	// subagents: the sub-agents of the session its hooks reported running (subagents.go, #1092).
 	subagents map[string]bool
 	// commands: the commands the session left running in the background, by id, with their words; their ends are
@@ -196,9 +201,17 @@ type agentStates struct {
 	// procs: the process-tree watcher (procwatch.go), told when commands start and end; nil in tests.
 	procs *procWatcher
 	// names: the first names of the app's active agents, one per block with a record (FR-CONT-014). onNamed is told,
-	// with the lock held, when a block gets a name it did not have last (to remember it in the block's meta).
+	// with the lock held, when a block gets a name it did not have last (to remember it in the block's meta): once the
+	// block is located when projectOf is set, since its name may settle on a name locked for its project until then.
 	names   *agentnames.Allocator
 	onNamed func(blockId string, name string)
+	// projectOf: the project folder of a located block (agentnamelocks.go); nil in tests that name agents with no
+	// project. nameStore keeps the locked names, nil when they are not kept (tests); locksLock serializes the changes
+	// of the locks with their writing, and onLocks tells the windows.
+	projectOf func(blockId string, wsId string) string
+	nameStore *agentnames.LockStore
+	locksLock sync.Mutex
+	onLocks   func()
 }
 
 func makeAgentStates() *agentStates {
@@ -235,6 +248,8 @@ func makeDefaultAgentStates() *agentStates {
 	a.onNamed = func(blockId string, name string) {
 		go rememberAgentName(a, blockId)
 	}
+	a.projectOf = projectOfBlock
+	a.onLocks = publishAgentNameLocks
 	a.integratedRun = func(blockId string, run agentRunRecord) bool {
 		rep, ok := defaultIntegrationReports.current(blockId, run, true)
 		return ok && rep.ReportsStates()
@@ -280,14 +295,21 @@ func (a *agentStates) setStateLocked(blockId string, rec *agentRecord, state str
 }
 
 // putRecordLocked stores a block's new agent record with the block's first name: the one its agent holds when the
-// record replaces another (a new run in the same pane keeps it), else one from the allocator.
+// record replaces another (a new run in the same pane keeps it), else one from the allocator. The project of the pane
+// is read off this path, with its location: the name is settled and kept in the block's meta then (storeLocation),
+// before the record is first published.
 func (a *agentStates) putRecordLocked(blockId string, rec *agentRecord) {
 	name, fresh := a.names.Take(blockId)
 	rec.firstName = name
 	a.records[blockId] = rec
-	if fresh && a.onNamed != nil {
-		a.onNamed(blockId, name)
+	if !fresh || a.onNamed == nil {
+		return
 	}
+	if a.projectOf != nil {
+		rec.nameUnsaved = true
+		return
+	}
+	a.onNamed(blockId, name)
 }
 
 func (a *agentStates) removeLocked(blockId string) {
@@ -573,6 +595,8 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		Agent:            rec.agent,
 		AgentName:        molten.AgentDisplayName(rec.agent),
 		FirstName:        rec.firstName,
+		Project:          rec.project,
+		NameLockedFor:    a.names.LockedFor(rec.firstName),
 		State:            rec.state,
 		Message:          rec.message,
 		MessageText:      rec.messageText,
@@ -698,15 +722,26 @@ func (a *agentStates) takeDirty() []pendingState {
 }
 
 // storeLocation keeps where the block is for the rest of its agent's run (a new run looks again: the pane may have
-// moved to another tab).
-func (a *agentStates) storeLocation(blockId string, tabId string, wsId string, own bool) {
+// moved to another tab), with the project of its pane. The agent's name settles on a name locked for that project when
+// one is free (#2324), and a new name is kept in the block's meta now that it is final. It gives the name and the
+// project its name is locked for back, "" for a record that ended meanwhile.
+func (a *agentStates) storeLocation(blockId string, tabId string, wsId string, own bool, project string) (name string, lockedFor string) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	rec := a.records[blockId]
 	if rec == nil {
-		return
+		return "", ""
 	}
-	rec.tabId, rec.wsId, rec.own, rec.located = tabId, wsId, own, true
+	rec.tabId, rec.wsId, rec.own, rec.located, rec.project = tabId, wsId, own, true, project
+	settled, changed := a.names.Settle(blockId, project)
+	if settled != "" {
+		rec.firstName = settled
+	}
+	if (changed || rec.nameUnsaved) && a.onNamed != nil {
+		a.onNamed(blockId, rec.firstName)
+	}
+	rec.nameUnsaved = false
+	return rec.firstName, a.names.LockedFor(rec.firstName)
 }
 
 // flush publishes the blocks that changed, in the order they changed. The location is looked up once per agent run,
@@ -717,8 +752,15 @@ func (a *agentStates) flush() {
 			tabId, wsId, err := a.locate(p.blockId)
 			if err == nil {
 				own := a.ownBlock != nil && a.ownBlock(p.blockId)
-				a.storeLocation(p.blockId, tabId, wsId, own)
-				p.info.TabId, p.info.WorkspaceId, p.info.Own = tabId, wsId, own
+				project := ""
+				if a.projectOf != nil {
+					project = a.projectOf(p.blockId, wsId)
+				}
+				name, lockedFor := a.storeLocation(p.blockId, tabId, wsId, own, project)
+				p.info.TabId, p.info.WorkspaceId, p.info.Own, p.info.Project = tabId, wsId, own, project
+				if name != "" {
+					p.info.FirstName, p.info.NameLockedFor = name, lockedFor
+				}
 			}
 		}
 		a.publish(p.info)
@@ -916,9 +958,11 @@ var startOnce sync.Once
 // StartAgentStates starts the publisher; wavesrv calls it once at startup.
 func StartAgentStates() {
 	startOnce.Do(func() {
+		loadAgentNameLocks(defaultAgentStates)
 		loadAgentNames(defaultAgentStates)
 		go defaultAgentStates.run()
 		go defaultAgentStates.runSettle()
+		startAgentUse()
 		defaultProcWatcher.locator = getShellLocator()
 		go defaultProcWatcher.run()
 	})

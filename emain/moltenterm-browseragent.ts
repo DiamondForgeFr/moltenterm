@@ -492,10 +492,9 @@ function notePress(wc: WebContents, pressing: boolean): void {
     host.send(AgentPressChannel, wc.id, pressing);
 }
 
+// The developer's own developer tools may be open on the tab, docked or in their window (FR-BRW-022): the DevTools
+// frontend and this debugger are separate clients of the page, and neither stops the other (DS-BRW-012).
 function attachDebugger(wc: WebContents): void {
-    if (wc.isDevToolsOpened()) {
-        throw new Error("Close DevTools on this tab to let the agent use it");
-    }
     if (!wc.debugger.isAttached()) {
         wc.debugger.attach(CdpProtocolVersion);
         // The page acts as focused although the window's focus stays with the user (#971): menus and fields the agent

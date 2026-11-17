@@ -33,6 +33,7 @@ import {
 import { FlowDiagram } from "./release-setup-diagram";
 import { flowModel, SetupChannel, SetupCheck, SetupDraft } from "./release-setup-model";
 import {
+    plainBuildChecks,
     PlainChange,
     plainChanges,
     PlainChannel,
@@ -559,6 +560,7 @@ export function PlainFlowScreen({
         [survey, draft, boardState]
     );
     const changes = useMemo(() => plainChanges(check, survey, draft), [check, survey, draft]);
+    const buildChecks = useMemo(() => plainBuildChecks(draft), [draft]);
     const trunk = draft.facts?.branches?.trunk ?? "";
     const has = (c: SetupChannel) => channels.some((p) => p.channel === c);
     const intro = has("rc") && has("public") ? "introTwo" : has("rc") ? "introRc" : "introPublic";
@@ -609,6 +611,23 @@ export function PlainFlowScreen({
                     />
                 ))
             )}
+            {buildChecks.length > 0 ? (
+                <SectionBlock
+                    title={t("mc.setup.plain.builds.title")}
+                    icon={suiteIcon("ci")}
+                    data-testid="plain-builds"
+                >
+                    <ul className="flex list-disc flex-col gap-1 pt-1 pl-4">
+                        {buildChecks.map((b) => (
+                            <li key={b.id} className="text-12 text-primary" data-testid={`plain-build-${b.id}`}>
+                                {t(b.always ? "mc.setup.plain.builds.always" : "mc.setup.plain.builds.shared", {
+                                    build: b.name,
+                                })}
+                            </li>
+                        ))}
+                    </ul>
+                </SectionBlock>
+            ) : null}
             {board ? <BoardSection board={board} items={general} /> : null}
             <TechnicalDetails channels={channels} draft={draft}>
                 {allChoices}

@@ -25,10 +25,12 @@ export function showUndoToast(
     title: string,
     undo: () => void | Promise<void>,
     message?: string,
-    onEnd?: (reason: ToastDismissReason) => void
+    onEnd?: (reason: ToastDismissReason) => void,
+    id?: string
 ): string {
     const entry: PendingUndo = { toastId: null, run: undo };
     entry.toastId = showToast({
+        id,
         title,
         message,
         actions: [

@@ -4,6 +4,7 @@
 import { describe, expect, it } from "vitest";
 import type { BrokkExpression } from "./brokk-ask-model";
 import {
+    AnswerWaitLimitMs,
     BurstMs,
     CallWaitLimitMs,
     EmptyQueue,
@@ -57,11 +58,20 @@ describe("the expression queue (FR-BOSS-007, AC13)", () => {
         expect(ExpressionMs).toEqual(Manifest.expressionMs);
     });
 
-    it("ranks the expressions: frown, doubtful, smile, nod, call", () => {
+    it("ranks the expressions: frown, sigh, doubtful, the tone gestures, smile, nod, call (#2262)", () => {
         const order = Object.keys(ExpressionRank).sort(
             (a, b) => ExpressionRank[a as BrokkExpression] - ExpressionRank[b as BrokkExpression]
         );
-        expect(order).toEqual(["frown", "doubtful", "smile", "nod", "call"]);
+        expect(order).toEqual(["frown", "sigh", "doubtful", "surprised", "proud", "chuckle", "smile", "nod", "call"]);
+        expect(new Set(Object.values(ExpressionRank)).size).toBe(order.length);
+    });
+
+    it("gives an answer's tone gesture its own place, like the smile it stands beside (#2262)", () => {
+        for (const expression of ["chuckle", "proud", "surprised"] as BrokkExpression[]) {
+            const q = drive();
+            const step = q.step({ type: "ask", expression, answer: true }, 1000);
+            expect(step.play, expression).toEqual({ expression, cue: 1, at: 1000 });
+        }
     });
 
     it("starts the first request at once, with a cue of its own", () => {
@@ -253,6 +263,50 @@ describe("the expression queue (FR-BOSS-007, AC13)", () => {
         expect(q.step({ type: "tick" }, 5000).play).toBeNull();
         expect(q.step({ type: "key" }, 5000).play).toBeNull();
         expect(q.wakeAt).toBeNull();
+    });
+});
+
+// FR-BOSS-009, AC88 (#2259): the tone his answer opens with.
+describe("the tone of his answer in the queue (AC88)", () => {
+    const answer = (expression: BrokkExpression): QueueEvent => ({ type: "ask", expression, answer: true });
+
+    it("is not held back by the keys that sent the message", () => {
+        const q = drive();
+        q.step({ type: "key" }, 0);
+        const step = q.step(answer("smile"), 3000);
+        expect(step.play).toMatchObject({ expression: "smile", at: 3000 });
+    });
+
+    it("is given up when the developer writes while it waits: it starts with his first words or not at all", () => {
+        const q = drive();
+        q.ask("nod", 0);
+        q.step(answer("frown"), 1000);
+        q.step({ type: "key" }, 1200);
+        q.wake();
+        expect(q.state.slot).toBeNull();
+        expect(q.names()).toEqual(["nod"]);
+        expect(KeyQuietMs).toBeGreaterThan(AnswerWaitLimitMs);
+    });
+
+    it("may smile again within the minute: it follows what he says", () => {
+        const q = drive();
+        q.step(answer("smile"), 0);
+        q.step(answer("smile"), BurstMs + MinGapMs);
+        expect(q.names()).toEqual(["smile", "smile"]);
+        const plain = drive();
+        plain.ask("smile", 0);
+        plain.ask("smile", BurstMs + MinGapMs);
+        expect(plain.names()).toEqual(["smile"]);
+    });
+
+    it("is still one expression at a time: within the gap after another gesture, it is given up rather than late", () => {
+        const q = drive();
+        q.ask("nod", 0);
+        expect(q.step(answer("frown"), 2000).play).toBeNull();
+        expect(q.wakeAt).toBe(2000 + AnswerWaitLimitMs + 1);
+        q.wake();
+        expect(q.names()).toEqual(["nod"]);
+        expect(q.step(answer("frown"), MinGapMs).play).toMatchObject({ expression: "frown" });
     });
 });
 

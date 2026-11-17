@@ -18,6 +18,7 @@ type WshRpcProxy struct {
 	ToRemoteCh   chan []byte
 	FromRemoteCh chan baseds.RpcInputChType
 	PeerInfo     string
+	closed       bool // MOLTENTERM-PATCH (#2334): set under Lock by Close, so a send never hits a closed ToRemoteCh
 }
 
 func MakeRpcProxy(peerInfo string) *WshRpcProxy {
@@ -43,14 +44,40 @@ func (p *WshRpcProxy) SetPeerInfo(peerInfo string) {
 	p.PeerInfo = peerInfo
 }
 
+// MOLTENTERM-PATCH (#2334): Close closes ToRemoteCh once, under the lock SendRpcMessage takes; IsClosed tells the
+// router the link is gone, so it drops the link's backlog instead of retrying a send that can never succeed.
+func (p *WshRpcProxy) Close() {
+	p.Lock.Lock()
+	defer p.Lock.Unlock()
+	if p.closed {
+		return
+	}
+	p.closed = true
+	close(p.ToRemoteCh)
+}
+
+func (p *WshRpcProxy) IsClosed() bool {
+	p.Lock.Lock()
+	defer p.Lock.Unlock()
+	return p.closed
+}
+
 func (p *WshRpcProxy) SendRpcMessage(msg []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
+	p.Lock.Lock() // MOLTENTERM-PATCH (#2334)
+	defer p.Lock.Unlock()
 	defer func() {
 		panicCtx := "WshRpcProxy.SendRpcMessage"
 		if debugStr != "" {
 			panicCtx = fmt.Sprintf("%s:%s", panicCtx, debugStr)
 		}
-		panichandler.PanicHandler(panicCtx, recover())
+		// MOLTENTERM-PATCH (#2334): a channel closed without Close panics once, then reads as closed.
+		if panichandler.PanicHandler(panicCtx, recover()) != nil {
+			p.closed = true
+		}
 	}()
+	if p.closed {
+		return false
+	}
 	select {
 	case p.ToRemoteCh <- msg:
 		return true

@@ -24,6 +24,7 @@ import { agentCallName, agentStateMessage } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { useBossName } from "../boss/use-boss-name";
 import { BrowserActiveMetaKey } from "../browser/browser-model";
+import { currentChannel } from "../build/current-build";
 import { tCount as tCountNow, t as tNow, useLocale, useT, useTCount } from "../i18n/i18n";
 import { typeMorphCall } from "../morph/morph-call";
 import { morphCall, workspaceMorphChoice } from "../morph/morph-call-model";
@@ -34,9 +35,8 @@ import { pickerPanelEntries } from "../palette/palette-sources";
 import { ProjectTabMetaKey } from "../project/project-model";
 import { type PutAwayView } from "../reopen/reopen-model";
 import { listPutAwayViews, reopenPutAwayView } from "../reopen/reopen-store";
-import { useListedReviewsAnswer } from "../reviews/reviews-client";
-import { MoltentermReviewsView, reviewCounts, reviewsRailLabel } from "../reviews/reviews-model";
-import { ReviewsModel } from "../reviews/reviews-store";
+import { MoltentermReviewsView, reviewsRailLabel } from "../reviews/reviews-model";
+import { useWorkspaceReviewCounts } from "../reviews/reviews-workspace";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { localizeSection, SettingsSectionId, SettingsSections } from "../settings/settings-catalog";
@@ -60,13 +60,13 @@ import { readWorkspaceProject } from "../workspace-project";
 import type { WorkspaceRailEntry } from "../workspace-rail-model";
 import { viewNameText } from "../workspace-views/workspace-views-model";
 import { AgentsSection } from "./agents-section";
+import { FeaturesInTestSection } from "./features-in-test-section";
 import {
     lastSettingsTab,
     libraryAddAsk,
     libraryEscapeStep,
     LibrarySection,
     librarySectionAt,
-    LibrarySections,
     liveAgents,
     matchesQuery,
     navFocusFollows,
@@ -76,6 +76,7 @@ import {
     SettingsOverviewTab,
     sharedAgentGroups,
     suggestClipboardText,
+    visibleLibrarySections,
     whenText,
     workspaceAgents,
 } from "./library-model";
@@ -437,8 +438,6 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
     const identity = useTabIdentity(tabId, tab?.name ?? "");
     const sessions = useAtomValue(DurableSessions.getInstance().badgeAtom);
     const dir = readWorkspaceProject(workspace).repo;
-    const answer = useListedReviewsAnswer(dir);
-    const readied = useAtomValue(ReviewsModel.getInstance().readiedAtom);
     const reviewsShown = useAtomValue(makeViewInActiveTabAtom(MoltentermReviewsView));
     const sessionsShown = useAtomValue(makeViewInActiveTabAtom(MoltentermSessionsView));
     const showApps = getApi().getIsDev() || (fullConfig?.settings?.["feature:waveappbuilder"] ?? false);
@@ -449,7 +448,7 @@ function PanelsSection({ onApps }: { onApps: () => void }) {
     const viewState = useAtomValue(ViewPins.getInstance().stateAtom(tabId));
     const [asking, setAsking] = useState<string>(null);
     const viewName = identity.name || t("library.panels.thisView");
-    const counts = reviewCounts(answer, readied);
+    const counts = useWorkspaceReviewCounts();
     const hasReviews = counts.toreview + counts.mergeable + counts.drafts > 0;
     // A pinned view changes only when the developer says so (FR-SHELL-094): Add to names it and asks first.
     const askKey = libraryAddAsk(viewState, isProjectTab(tab));
@@ -1162,7 +1161,10 @@ export function Library({
     const settingsBlock = lastSettingsTab(savedSettingsTab, SettingsSectionIds);
     const setSettingsBlock = (block: SettingsSectionId) => prefs.setSettingsTab(block);
     const rootRef = useRef<HTMLDivElement>(null);
-    const info = LibrarySections.find((s) => s.id === section) ?? LibrarySections[0];
+    // Features in test (FR-BOSS-011) is in the navigation of a gold, a dev and a local build only; the channel does not
+    // change while the app runs.
+    const sections = useMemo(() => visibleLibrarySections(currentChannel()), []);
+    const info = sections.find((s) => s.id === section) ?? sections[0];
     const reopenKeys = formatShortcutById("reopen-closed");
     const workspaceId = useAtomValue(atoms.workspaceId);
     const workspace = useAtomValue(atoms.workspace);
@@ -1254,14 +1256,14 @@ export function Library({
                             return;
                         }
                         e.preventDefault();
-                        const next = librarySectionAt(section, step);
+                        const next = librarySectionAt(section, step, sections);
                         SidebarModel.getInstance().openLibrary(next);
                         requestAnimationFrame(() =>
                             rootRef.current?.querySelector<HTMLElement>(`[data-lib="${next}"]`)?.focus()
                         );
                     }}
                 >
-                    {LibrarySections.map((s) => (
+                    {sections.map((s) => (
                         <button
                             key={s.id}
                             type="button"
@@ -1343,6 +1345,7 @@ export function Library({
                     {section === "settings" ? (
                         <SettingsSection block={settingsBlock} onOpen={setSettingsBlock} />
                     ) : null}
+                    {info.id === "features" ? <FeaturesInTestSection /> : null}
                 </div>
             </section>
         </div>

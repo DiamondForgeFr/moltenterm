@@ -31,6 +31,8 @@ export type ReleasePlan = {
     publicVersion: string;
     publicIsDecision: boolean;
     reason: string;
+    // The bump the commits call for (major, minor, patch); empty for a decision.
+    level?: string;
     // The project's tag prefix (versions.tagprefix).
     prefix: string;
     // The rules and tags an explicit version is checked against.
@@ -45,6 +47,7 @@ export function releasePlan(state: ReleaseState, tagNames: readonly string[], ru
         publicVersion: state?.next?.version ?? null,
         publicIsDecision: state?.next?.how === "decision",
         reason: state?.next?.reason ?? "",
+        level: state?.next?.level ?? "",
         prefix: rules.tagprefix || DefaultTagPrefix,
         rules,
         tags: tagNames,
@@ -65,6 +68,72 @@ export function releaseChoiceTag(plan: ReleasePlan, choice: ReleaseChannel, vers
     }
     const chosen = planRelease(plan.rules, plan.tags, [], "public", version);
     return chosen.how === "refused" ? null : chosen.tag;
+}
+
+// What the Release menu needs of the Project header's next station (NextStation in ../project/next-station-model.ts).
+export type StationOffer = { tag: string; milestonefirst?: boolean; bigger?: boolean };
+
+export type PlannedRelease = {
+    // "1.1.1"
+    version: string;
+    // "v1.1.1"
+    tag: string;
+    // "v1.1.1-1"; null when the candidates of that version are used up.
+    rc: string;
+    // Why the station's number is not offered (its tag is cut); null when it is.
+    refused: string;
+    // The commits call for a bigger bump than the station's number: starting it is confirmed once.
+    confirm: boolean;
+};
+
+// The planned next version the menu offers first (#2268): the station when it is a milestone's number other than the
+// computed one. Null, and the menu as before, when the station is the computed number, without a dated milestone, for
+// a first public release and when nothing is to release.
+export function plannedRelease(plan: ReleasePlan, station: StationOffer): PlannedRelease {
+    if (plan == null || plan.publicIsDecision || !plan.publicVersion || !station?.milestonefirst || !station.tag) {
+        return null;
+    }
+    const version = releaseBaseOf(plan.rules, station.tag);
+    if (!version || version === plan.publicVersion) {
+        return null;
+    }
+    const tag = tagOf(plan.rules, parseBase(version));
+    if (plan.tags.some((name) => name.trim() === tag)) {
+        return { version, tag, rc: null, refused: t("mc.releaseMenu.plannedTagged", { tag }), confirm: false };
+    }
+    const chosen = planRelease(plan.rules, plan.tags, [], "public", version);
+    if (chosen.how === "refused") {
+        return null;
+    }
+    const candidate = planRelease(plan.rules, plan.tags, [], "rc", version);
+    return {
+        version,
+        tag,
+        rc: candidate.how === "refused" ? null : candidate.tag,
+        refused: null,
+        confirm: !!station.bigger,
+    };
+}
+
+function levelWord(level: string): string {
+    return level ? t(`project.station.levels.${level}`) : "";
+}
+
+// Why the computed number is what it is, under the planned one (#2268).
+export function computedReasonText(plan: ReleasePlan): string {
+    const vars = { tag: plan.prefix + plan.publicVersion, level: levelWord(plan.level), reason: plan.reason };
+    return plan.reason ? t("mc.releaseMenu.computedReason", vars) : t("mc.releaseMenu.computedReasonPlain", vars);
+}
+
+// The one confirmation before a planned number smaller than the commits call for (#2268).
+export function plannedConfirmText(plan: ReleasePlan, tag: string): string {
+    const vars = {
+        tag,
+        derived: plan.prefix + plan.publicVersion,
+        level: levelWord(plan.level),
+        reason: plan.reason,
+    };
+    return plan.reason ? t("mc.releaseMenu.plannedConfirm", vars) : t("mc.releaseMenu.plannedConfirmPlain", vars);
 }
 
 // must match Milestone in pkg/molten/release/milestone.go

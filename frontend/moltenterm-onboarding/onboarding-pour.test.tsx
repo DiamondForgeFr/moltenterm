@@ -1,15 +1,17 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The pour's stage and scenes, rendered without a window (FR-ONB-007 AC-1 to AC-5, P-1 to P-6, FR-ONB-009,
-// TC-ONB-007, TC-ONB-012 to TC-ONB-014).
+// The pour's stage and scenes, rendered without a window (FR-ONB-007 AC-1 to AC-5, P-1 to P-6, B-1 to B-5, FR-ONB-009,
+// TC-ONB-007, TC-ONB-012 to TC-ONB-014, TC-ONB-016).
 
 import { MoltentermMarkPath } from "@/util/moltenterm-identity";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { setTestMatrix } from "../moltenterm-shell/agent-info/agent-features-fixture";
+import { formatShortcutById } from "../moltenterm-shell/shortcuts/format";
 import type { OnboardingAgent, OnboardingAgents } from "./onboarding-agent-model";
 import { OnboardingPour, PourProps } from "./onboarding-pour";
+import { BrokkIntro, BrokkScene } from "./onboarding-pour-brokk";
 import { FirstViewScene, PlaceScene, ProjectScene, ReadyScene } from "./onboarding-pour-build";
 
 // The interface reads wavesrv's real compatibility matrix (FR-AGC-003).
@@ -63,9 +65,9 @@ function render(props: Partial<PourProps> = {}): string {
 }
 
 describe("OnboardingPour (FR-ONB-007)", () => {
-    it("frames the scene: six heat bars, Skip always there, no Back on the first scene", () => {
+    it("frames the scene: seven heat bars, Skip always there, no Back on the first scene", () => {
         const html = render();
-        expect(html.match(/data-heat="/g)).toHaveLength(6);
+        expect(html.match(/data-heat="/g)).toHaveLength(7);
         expect(html).toContain('data-heat="now"');
         expect(html).toContain('data-testid="first-run-skip"');
         expect(html).toContain("Skip, I&#x27;ll explore on my own");
@@ -95,7 +97,18 @@ describe("OnboardingPour (FR-ONB-007)", () => {
         expect(project.match(/data-heat="done"/g)).toHaveLength(2);
         expect(render({ initialScene: 3 })).toContain('data-testid="first-run-later"');
         expect(render({ initialScene: 4 })).not.toContain('data-testid="first-run-later"');
+        expect(render({ initialScene: 5 })).not.toContain('data-testid="first-run-later"');
         expect(render({ initialScene: 1 })).toMatch(/data-testid="first-run-next"[^>]*>My project/);
+    });
+
+    it("leads from its place to Brokk by his name, and from Brokk to ready (B-1)", () => {
+        expect(render({ initialScene: 4 })).toMatch(/data-testid="first-run-next"[^>]*>Meet Brokk/);
+        expect(render({ initialScene: 4, brokk: { name: "Léa" } })).toMatch(/data-testid="first-run-next"[^>]*>Meet Léa/);
+        const brokk = render({ initialScene: 5 });
+        expect(brokk).toMatch(/data-testid="first-run-next"[^>]*>It&#x27;s ready/);
+        expect(brokk).toContain('data-testid="first-run-skip"');
+        expect(brokk).toContain('data-testid="first-run-back"');
+        expect(brokk).toContain("Scene 6 of 7: Your colleague");
     });
 
     it("marks reduced motion on the stage, so every scene shows at once", () => {
@@ -108,8 +121,8 @@ describe("OnboardingPour (FR-ONB-007)", () => {
     });
 
     it("ends on Enter the workshop, and says it opens it", () => {
-        expect(render({ initialScene: 5 })).toMatch(/data-testid="first-run-next"[^>]*>Enter the workshop/);
-        expect(render({ initialScene: 5, busy: true })).toContain("Opening your workshop…");
+        expect(render({ initialScene: 6 })).toMatch(/data-testid="first-run-next"[^>]*>Enter the workshop/);
+        expect(render({ initialScene: 6, busy: true })).toContain("Opening your workshop…");
     });
 
     it("lists the agents from the detection, ready or not installed, with the plan recipes to configure", () => {
@@ -265,6 +278,66 @@ describe("its place (FR-ONB-009)", () => {
         expect(html).toMatch(/aria-pressed="true"[^>]*data-place="workspace"/);
         expect(html.match(/mt-pb-mine/g)).toHaveLength(1);
         expect(html).toContain("Scoping becomes a tile of Atlas.");
+    });
+});
+
+describe("your colleague (FR-ONB-007 B-2 to B-5, TC-ONB-016)", () => {
+    const scene = (intro: BrokkIntro) => renderToStaticMarkup(<BrokkScene intro={intro} />);
+    const Face = <span data-testid="stand-in-face" />;
+
+    it("lets Brokk introduce himself in his own words, in his animated frame", () => {
+        const html = scene({ name: "Brokk", brainstorm: true, face: Face });
+        expect(html).toMatch(/data-testid="pour-brokk-face"><span data-testid="stand-in-face"><\/span>/);
+        expect(html).toContain("Your colleague");
+        expect(html).toContain("Meet Brokk,");
+        expect(html).toContain("your workshop colleague.");
+        expect(html).toMatch(/data-testid="pour-brokk-says">“Hello\. I keep an eye on the whole workshop/);
+        expect(html).not.toContain("<img");
+    });
+
+    it("says where he lives and the palette's key that reaches him from anywhere (B-3)", () => {
+        const html = scene({ name: "Brokk", face: Face });
+        const keys = formatShortcutById("palette");
+        expect(keys).not.toBe("");
+        expect(html).toContain("He lives at the top of your sidebar: click his face to talk with him.");
+        expect(html).toContain(`<kbd>${keys}</kbd>`);
+        expect(html).toContain(", then his name.");
+    });
+
+    it("teaches /brainstorm beside an example on a synthetic idea, where the brainstorm is available (B-5)", () => {
+        const html = scene({ name: "Brokk", brainstorm: true, face: Face });
+        expect(html).toContain('data-testid="pour-brokk-brainstorm"');
+        expect(html).toContain("An idea comes to you, even a vague one?");
+        expect(html).toMatch(/Don&#x27;t hesitate: open Brokk and type <code[^>]*>\/brainstorm<\/code>\. He builds it with you/);
+        expect(html).toContain("saves it in a folder you own.");
+        expect(html).toMatch(/data-testid="pour-brokk-graph"/);
+        expect(html).toMatch(/aria-hidden="true" data-testid="pour-brokk-graph"/);
+        expect(html).toContain("Example");
+        expect(html.match(/class="mt-pour-brokk-plate"/g)).toHaveLength(4);
+        expect(html.match(/<line /g)).toHaveLength(3);
+        expect(html).toContain("A logbook for the workshop");
+    });
+
+    it("names no /brainstorm where the brainstorm is not available", () => {
+        const html = scene({ name: "Brokk", brainstorm: false, face: Face });
+        expect(html).not.toMatch(/brainstorm/i);
+        expect(html).not.toContain("pour-brokk-graph");
+        expect(html).toContain("He lives at the top of your sidebar");
+    });
+
+    it("uses the name the developer chose, and wears his initial when no face is handed in, never a still", () => {
+        const html = scene({ name: "Léa", brainstorm: true });
+        expect(html).toContain("Meet Léa,");
+        expect(html).toContain("open Léa and type");
+        expect(html).toMatch(/data-testid="pour-brokk-mark">L</);
+        expect(html).not.toContain("<img");
+        expect(scene({})).toContain("Meet Brokk,");
+    });
+
+    it("says he is turned off and how to bring him back, instead of where he lives (B-3)", () => {
+        const html = scene({ name: "Brokk", off: true, face: Face });
+        expect(html).toContain("You turned him off on this computer: Brokk&#x27;s preferences turn him back on.");
+        expect(html).not.toContain("He lives at the top of your sidebar");
     });
 });
 

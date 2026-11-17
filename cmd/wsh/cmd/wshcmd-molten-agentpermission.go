@@ -26,6 +26,10 @@ import (
 const (
 	moltenAgentPermissionTimeoutMs = 5000
 	moltenAgentPermissionMaxStdin  = 256 * 1024
+	// The hold leaves this much of the hook's budget for the reply and the print; the call waits that much longer
+	// than the hold for wavesrv's answer.
+	moltenAgentPermissionMarginMs = 3000
+	moltenAgentPermissionReplyMs  = 1500
 )
 
 var moltenAgentPermissionAgent string
@@ -53,10 +57,14 @@ type permissionHookInput struct {
 	PermissionMode string         `json:"permission_mode"`
 	ToolName       string         `json:"tool_name"`
 	ToolInput      map[string]any `json:"tool_input"`
+	// The rules the agent offers for "always allow" (Claude Code), kept as it sent them.
+	PermissionSuggestions []any `json:"permission_suggestions"`
 }
 
 type permissionHookDecision struct {
-	Behavior string `json:"behavior"`
+	Behavior           string `json:"behavior"`
+	UpdatedPermissions []any  `json:"updatedPermissions,omitempty"`
+	Message            string `json:"message,omitempty"`
 }
 
 type permissionHookSpecific struct {
@@ -80,8 +88,23 @@ func readPermissionRequest(r io.Reader, blockId string, agent string) (keepawake
 	}
 	return keepawake.PermissionRequest{
 		BlockId: blockId, Agent: agent, SessionId: input.SessionId, Cwd: input.Cwd, PermissionMode: input.PermissionMode,
-		ToolName: input.ToolName, ToolInput: input.ToolInput,
+		ToolName: input.ToolName, ToolInput: input.ToolInput, Suggestions: input.PermissionSuggestions,
+		HoldMs: permissionHoldMs(agent, os.Getenv(molten.OwnSessionEnvVar) == "1"),
 	}, true
+}
+
+// permissionHoldMs is how long wavesrv may keep the request for the developer's answer: 0 (an answer at once) in any
+// terminal but Brokk's own session, which asks in his layer (#2257); there, the hook's budget less a margin, so the
+// hook always prints before the agent kills it.
+func permissionHoldMs(agent string, ownSession bool) int64 {
+	if !ownSession {
+		return 0
+	}
+	budget := int64(molten.CodexPermissionHookTimeout)
+	if agent == molten.AgentIdClaude {
+		budget = int64(molten.ClaudeOwnSessionPermissionHookTimeout)
+	}
+	return max(budget*1000-moltenAgentPermissionMarginMs, 0)
 }
 
 // reportPermissionWaiting tells the pane its agent now waits on its own prompt (#988): Codex has no Notification
@@ -103,12 +126,13 @@ func runAgentPermission(r io.Reader, w io.Writer, blockId string, agent string, 
 		return
 	}
 	answer, err := send(req)
-	if err != nil || answer.Decision != keepawake.PermissionAllow {
+	if err != nil || (answer.Decision != keepawake.PermissionAllow && answer.Decision != keepawake.PermissionDeny) {
 		reportPermissionWaiting(blockId, agent)
 		return
 	}
+	decision := permissionHookDecision{Behavior: answer.Decision, UpdatedPermissions: answer.Updated, Message: answer.Message}
 	out, err := json.Marshal(permissionHookOutput{HookSpecificOutput: permissionHookSpecific{
-		HookEventName: molten.ClaudePermissionHookEvent, Decision: permissionHookDecision{Behavior: keepawake.PermissionAllow},
+		HookEventName: molten.ClaudePermissionHookEvent, Decision: decision,
 	}})
 	if err != nil {
 		return
@@ -125,7 +149,11 @@ func sendPermissionRequest(req keepawake.PermissionRequest) (keepawake.Permissio
 	if err := setupHookRpcClient(jwtToken); err != nil {
 		return answer, err
 	}
-	opts := &wshrpc.RpcOpts{Route: keepawake.Route, Timeout: moltenAgentPermissionTimeoutMs}
+	timeout := int64(moltenAgentPermissionTimeoutMs)
+	if req.HoldMs > 0 {
+		timeout = max(req.HoldMs+moltenAgentPermissionReplyMs, timeout)
+	}
+	opts := &wshrpc.RpcOpts{Route: keepawake.Route, Timeout: timeout}
 	out, err := RpcClient.SendRpcRequest(keepawake.PermissionCommand, req, opts)
 	if err != nil {
 		return answer, err

@@ -21,10 +21,11 @@ import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from "react";
 import { addLanguageRequest } from "../../molten/morph-templates";
 import { BrokkComingCard, BrokkTableKey } from "../boss/brokk-coming-card";
 import { useBossName } from "../boss/use-boss-name";
+import { DefaultSearchSettingKey } from "../browser/search-engine-model";
 import { currentBuildIdentity } from "../build/current-build";
 import { writeSettings } from "../command-panel/bindings";
 import "../command-panel/command-panel.css";
@@ -36,6 +37,8 @@ import { I18nModel, useT } from "../i18n/i18n";
 import { languageName } from "../i18n/i18n-core";
 import { AutomaticSetting } from "../keepawake-model";
 import { KeepAwakeDetails } from "../keepawake-ui";
+import { LogsCard } from "../logs/logs-settings";
+import { MoltenWave } from "../molten-button";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { NewViewChoicesOptions, NewViewFavorites, useNewViewChoices } from "../newview/new-view-settings";
 import { NotificationSubjectsCard } from "../notification-settings";
@@ -53,6 +56,9 @@ import { AboutBuildCard, AboutUpdatesCard } from "./settings-about";
 import { BookmarksCard } from "./settings-bookmarks";
 import {
     clampSetting,
+    confirmedOn,
+    ConfirmOnKeys,
+    consentMeta,
     effectiveSetting,
     groupEntries,
     groupSlug,
@@ -83,6 +89,7 @@ import { readSettingsKey, readSettingsSection, SettingsKeyMetaKey, SettingsSecti
 import { settingOverriders } from "./settings-overrides";
 import { flowColumnsClass, PageCard, PageColumns, pageColumns, PageFill, PageFlow, PageHeader } from "./settings-page";
 import { OverriddenNotice, ScopeLine } from "./settings-scope";
+import { SearchEnginePicker } from "./settings-search-engine";
 import { SecretsSection } from "./settings-secrets";
 import { SiteList } from "./settings-site-lists";
 import { isSiteListKey } from "./settings-sites";
@@ -199,6 +206,87 @@ function Toggle({ entry, on, onSet }: { entry: SettingEntry; on: boolean; onSet:
         >
             <span className={cn("molten-cmdpanel-switch", on && "is-on")} aria-hidden />
         </button>
+    );
+}
+
+const NoClientAtom = jotai.atom(null) as jotai.Atom<Client>;
+
+// The developer's confirmation in the client's meta, which wavesrv requires with the setting (#2257).
+function writeConsent(key: string, on: boolean): void {
+    const meta = consentMeta(key, on, Date.now());
+    const clientId = ClientModel.getInstance().clientId;
+    if (meta == null || clientId == null) {
+        return;
+    }
+    fireAndForget(() =>
+        RpcApi.SetMetaCommand(TabRpcClient, { oref: WOS.makeORef("client", clientId), meta: meta as MetaType })
+    );
+}
+
+// A switch that turns on only after the developer read what it allows and confirmed it, once (#2257); turning it off
+// asks nothing.
+function ConfirmedToggle({
+    entry,
+    on: setting,
+    onSet,
+}: {
+    entry: SettingEntry;
+    on: boolean;
+    onSet: (v: unknown) => void;
+}) {
+    const t = useT();
+    const [asking, setAsking] = useState(false);
+    const client = useAtomValue(ClientModel.getInstance().clientAtom ?? NoClientAtom);
+    const on = confirmedOn(entry.key, setting, client?.meta as Record<string, unknown>);
+    const base = `settings.items.${entry.key}`;
+    return (
+        <span className="inline-flex flex-col items-end gap-1.5">
+            <Toggle
+                entry={entry}
+                on={on}
+                onSet={(next) => {
+                    if (next === true) {
+                        setAsking(true);
+                        return;
+                    }
+                    setAsking(false);
+                    writeConsent(entry.key, false);
+                    onSet(next);
+                }}
+            />
+            {asking ? (
+                <span
+                    role="alertdialog"
+                    aria-label={entry.label}
+                    data-testid="settings-confirm-on"
+                    className="flex max-w-[420px] flex-col gap-2 rounded-4 border border-border p-2 text-12 text-secondary"
+                >
+                    <span>{t(`${base}.confirm`)}</span>
+                    <span className="inline-flex justify-end gap-2">
+                        <button
+                            type="button"
+                            className="cursor-pointer rounded-4 px-2 py-1 text-12 text-secondary hover:bg-hover"
+                            onClick={() => setAsking(false)}
+                        >
+                            {t(`${base}.confirmCancel`)}
+                        </button>
+                        <button
+                            type="button"
+                            data-testid="settings-confirm-on-yes"
+                            className="molten-btn molten-btn-warning cursor-pointer rounded-4 px-2 py-1 text-12"
+                            onClick={() => {
+                                setAsking(false);
+                                writeConsent(entry.key, true);
+                                onSet(true);
+                            }}
+                        >
+                            {t(`${base}.confirmOn`)}
+                            <MoltenWave />
+                        </button>
+                    </span>
+                </span>
+            ) : null}
+        </span>
     );
 }
 
@@ -391,6 +479,9 @@ function Control({
     const shown = effectiveSetting(entry, value);
     switch (entry.control) {
         case "toggle":
+            if (ConfirmOnKeys.has(entry.key)) {
+                return <ConfirmedToggle entry={entry} on={!!shown} onSet={onSet} />;
+            }
             return <Toggle entry={entry} on={!!shown} onSet={onSet} />;
         case "select": {
             if (entry.optionsFrom === LanguagesOptions) {
@@ -722,7 +813,7 @@ export function useSettingsPageData(): SettingsPageData {
 function sectionFlowBlocks(section: SettingsSectionId, groups: number): number {
     return (
         groups +
-        (section === "advanced" ? 1 : 0) +
+        (section === "advanced" ? 2 : 0) +
         (section === "mods" ? 1 : 0) +
         (section === "learned" ? 1 : 0) +
         (section === "about" ? 2 : 0) +
@@ -787,6 +878,7 @@ export function SettingsSectionPage({
             {flowBlocks > 0 ? (
                 <PageFlow columns={pageColumns(flowBlocks)}>
                     {section === "advanced" ? <FileRows files={files} onOpenFile={onOpenFile} /> : null}
+                    {section === "advanced" ? <LogsCard /> : null}
                     {groups.map((g) => (
                         <PageCard
                             key={g.group}
@@ -804,16 +896,18 @@ export function SettingsSectionPage({
                                 <BrokkComingCard entries={g.entries} settings={data.settings} />
                             ) : (
                                 g.entries.map((entry) => (
-                                    <SettingRow
-                                        key={entry.key}
-                                        entry={entry}
-                                        rowId={rowId(entry.key)}
-                                        value={data.settings?.[entry.key]}
-                                        overriddenIn={data.overriddenIn.get(entry.key)}
-                                        themes={data.themes}
-                                        highlighted={highlight === entry.key}
-                                        onOpenJson={openSettingsJson}
-                                    />
+                                    <Fragment key={entry.key}>
+                                        {entry.key === DefaultSearchSettingKey ? <SearchEnginePicker /> : null}
+                                        <SettingRow
+                                            entry={entry}
+                                            rowId={rowId(entry.key)}
+                                            value={data.settings?.[entry.key]}
+                                            overriddenIn={data.overriddenIn.get(entry.key)}
+                                            themes={data.themes}
+                                            highlighted={highlight === entry.key}
+                                            onOpenJson={openSettingsJson}
+                                        />
+                                    </Fragment>
                                 ))
                             )}
                             {g.entries.some((e) => e.key === IntegrateOffKey) ? <IntegrationRuns /> : null}
@@ -1006,7 +1100,7 @@ export function SettingsScreen({ blockId, files, onOpenFile, model, initialSecti
                                 className={cn(
                                     "relative flex h-row w-full cursor-pointer items-center gap-2 rounded-4 px-2 text-left text-12 transition-colors duration-120 ease-mt",
                                     current
-                                        ? "bg-surface-2 font-medium text-primary before:absolute before:top-1.5 before:bottom-1.5 before:-left-2 before:w-0.5 before:rounded-full before:bg-accent"
+                                        ? "mt-selected-action bg-surface-2 font-medium text-primary"
                                         : "text-secondary hover:bg-surface-2 hover:text-primary"
                                 )}
                             >

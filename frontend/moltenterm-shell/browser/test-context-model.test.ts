@@ -9,9 +9,8 @@ import {
     detailRows,
     launchServesTarget,
     localAppTarget,
-    prStateText,
+    noPrText,
     reasonText,
-    reviewsTarget,
     targetKey,
     TestContextAnswer,
 } from "./test-context-model";
@@ -110,14 +109,11 @@ describe("details", () => {
         expect(rows[2].value).toBe('browser.testContext.commitDirty{"sha":"4f2a9c0"}');
     });
 
-    it("says the PR's state, or why there is none", () => {
-        expect(prStateText(prBranch, t)).toBe("browser.testContext.prDraft");
-        expect(prStateText({ ...prBranch, pr: { ...prBranch.pr, draft: false } }, t)).toBe(
-            "browser.testContext.prReady"
-        );
-        expect(prStateText({ ...prBranch, pr: undefined, futurepr: true }, t)).toBe("browser.testContext.futurePrHint");
-        expect(prStateText({ ...prBranch, pr: undefined, prknown: false }, t)).toBe("browser.testContext.prUnknown");
-        expect(prStateText({ ...prBranch, pr: undefined }, t)).toBe("browser.testContext.noPr");
+    it("says why there is no pull request", () => {
+        const none = { ...prBranch, pr: undefined };
+        expect(noPrText({ ...none, futurepr: true }, t)).toBe("browser.testContext.futurePrHint");
+        expect(noPrText({ ...none, prknown: false }, t)).toBe("browser.testContext.prUnknown");
+        expect(noPrText(none, t)).toBe("browser.testContext.noPr");
     });
 
     it("explains each unknown source", () => {
@@ -125,19 +121,6 @@ describe("details", () => {
         expect(reasonText({ ...base, unknown: "notlocal" }, t)).toBe("browser.testContext.reason.notLocal");
         expect(reasonText({ ...base, unknown: "nofolder", pid: 3 }, t)).toContain('"process":"3"');
         expect(reasonText({ ...base, unknown: "norepo", cwd: "/srv" }, t)).toContain("/srv");
-    });
-});
-
-describe("reviewsTarget", () => {
-    it("opens the PR's card, or a future PR's Upcoming entry, in the workspace's project only", () => {
-        expect(reviewsTarget(prBranch, "/w/diamondforge")).toEqual({ dir: "/w/diamondforge", number: 110 });
-        expect(reviewsTarget({ ...prBranch, pr: undefined, futurepr: true }, "/w/diamondforge")).toEqual({
-            dir: "/w/diamondforge",
-            branch: "feature/109-suite-domino-loader",
-        });
-        expect(reviewsTarget({ ...prBranch, pr: undefined, futurepr: true, ticket: 0 }, "/w/diamondforge")).toBeNull();
-        expect(reviewsTarget({ ...prBranch, sameproject: false }, "/w/other")).toBeNull();
-        expect(reviewsTarget({ ...prBranch, pr: undefined }, "/w/diamondforge")).toBeNull();
     });
 });
 

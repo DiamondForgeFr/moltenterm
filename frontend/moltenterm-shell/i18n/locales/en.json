@@ -402,6 +402,8 @@
         "placeholder": "Open an agent, a panel, a folder…",
         "noMatch": "Nothing matches \"{query}\"",
         "openAddress": "Open {address}",
+        "webSearch": "Search the web for “{query}”",
+        "webSearchWith": "with {engine}",
         "footer": {
             "choose": "choose",
             "open": "open",
@@ -451,6 +453,12 @@
             "sessionsDetail": "terminals and agents still running, local and SSH",
             "bossCard": "Show {name}'s card",
             "bossCardDetail": "the sessions of every workspace, over the app",
+            "brainstorm": "Brainstorm with {name}",
+            "brainstormDetail": "talk an idea through, his thought grows in 3D",
+            "brainstormReplay": "Replay a scripted brainstorm",
+            "brainstormReplayDetail": "development builds: synthetic data, no agent",
+            "brainstormResume": "Resume the brainstorm “{title}”",
+            "brainstormResumeDetail": "where you left it with {name}: its graph and its conversation",
             "checkUpdates": "Check for updates now",
             "checkUpdatesDetail": "asks GitHub now, even when it was asked today",
             "settings": "Settings",
@@ -484,6 +492,9 @@
             "checkUpdates": "check for updates, update, upgrade, release, new version",
             "sessions": "sessions, durable, running, agents, ssh, detached, jobs, processes",
             "bossCard": "boss, foreman, avatar, bubble, pennant, card, overview, sessions, agents, waiting",
+            "brainstorm": "brainstorm, idea, project, think, mind map, 3D",
+            "brainstormReplay": "brainstorm, replay, demo, script, synthetic",
+            "brainstormResume": "brainstorm, resume, back, continue, idea",
             "settings": "config, preferences",
             "shortcuts": "keys, keybindings, hotkeys, help, cheat sheet",
             "viewPin": "pin, unpin, keep, temporary, view, tab",
@@ -542,6 +553,19 @@
     },
     "settings": {
         "retry": "Retry",
+        "searchEngine": {
+            "aria": "Search engine",
+            "recommended": "Recommended",
+            "custom": "Custom",
+            "customLine": "Your own search address, edited below",
+            "brave": "Its own independent index, no tracking or profiling",
+            "duckduckgo": "Searches without a profile of you",
+            "startpage": "Google results without tracking",
+            "qwant": "A European engine that does not profile you",
+            "ecosia": "Plants trees with its profits",
+            "google": "The most widely used engine",
+            "bing": "Microsoft's engine"
+        },
         "groups": {
             "app": "App",
             "keys": "Keys",
@@ -579,9 +603,26 @@
             "sidebar": "Sidebar",
             "theme": "Theme",
             "avatar": "Avatar",
-            "whenHeComesToFetchMe": "When he comes to fetch me"
+            "whenHeComesToFetchMe": "When he comes to fetch me",
+            "brainstorms": "Brainstorms",
+            "hisAgent": "His agent"
         },
         "items": {
+            "boss:brainstormsdir": {
+                "label": "Brainstorms folder",
+                "description": "Where your brainstorms with him are saved, one folder per idea, without asking."
+            },
+            "boss:projectsdir": {
+                "label": "Projects folder",
+                "description": "Where a clear brainstorm becomes a project folder, once you click to make it."
+            },
+            "boss:autoapprove": {
+                "label": "Approve his agent's requests without asking",
+                "description": "Only what stays in his own folder goes without asking, each a line in his window; the rest still asks.",
+                "confirm": "Turned on, his agent reads, edits and writes the files of his own folder, and runs simple read-only commands there (git status, diff, log, show, the tests), all without asking you first, until you turn it off. Each action shows as a line in his talk window. Everything else still asks you: any other file or folder, other commands, web pages and searches.",
+                "confirmOn": "Turn it on",
+                "confirmCancel": "Keep asking me"
+            },
             "boss:name": {
                 "label": "Name",
                 "description": "The name the foreman goes by, from 1 to 24 characters. His tooltip, card and menus use it."
@@ -589,6 +630,18 @@
             "boss:show": {
                 "label": "Show the avatar",
                 "description": "An avatar in the title bar counts what waits and comes to fetch you. Off, it never shows."
+            },
+            "boss:proximity": {
+                "label": "Proximity",
+                "description": "How near he stands to you.",
+                "options": {
+                    "discreet": "Discreet",
+                    "colleague": "Colleague"
+                },
+                "hints": {
+                    "discreet": "He only comes for what matters. No hello, no break reminder, and nothing goes to his model.",
+                    "colleague": "He says hello, suggests breaks and lets you know in the evening. His model, if you have one, only gets the time of day, how long you have worked and how many agents run."
+                }
             },
             "boss:visitsecurity": {
                 "label": "A security alert on a dependency",
@@ -617,7 +670,7 @@
             },
             "boss:visitfinished": {
                 "label": "An agent finished",
-                "description": "An agent that finished its work.",
+                "description": "An agent that finished its work. It counts on the badge and never brings him.",
                 "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
             },
             "boss:visitdownload": {
@@ -632,7 +685,7 @@
             },
             "boss:visitusage": {
                 "label": "Plan usage above 90 %",
-                "description": "The plan usage of an agent crosses 90 %.",
+                "description": "The plan usage of an agent crosses 90 %. It shows in his own block and never counts on the badge.",
                 "options": { "vient": "Comes to fetch me", "badge": "Badge only", "rien": "Nothing" }
             },
             "boss:blockedmin": {
@@ -891,8 +944,8 @@
                 "description": "The page a new Web page panel opens."
             },
             "web:defaultsearch": {
-                "label": "Search engine",
-                "description": "The search URL, with {query} where the words go."
+                "label": "Search address",
+                "description": "Search engine address, written by the list above; edit it to use another, with {query} where the words go."
             },
             "browser:installed": {
                 "label": "Installed browser",
@@ -985,7 +1038,13 @@
             "power:graceminutes": {
                 "label": "Stay awake after the work ends",
                 "description": "How long it stays awake after the last work stopped, so a pause between two turns is not a sleep.",
-                "options": { "1": "1 minute", "2": "2 minutes", "5": "5 minutes", "10": "10 minutes", "15": "15 minutes" }
+                "options": {
+                    "1": "1 minute",
+                    "2": "2 minutes",
+                    "5": "5 minutes",
+                    "10": "10 minutes",
+                    "15": "15 minutes"
+                }
             },
             "power:workagents": {
                 "label": "Agents at work count",
@@ -1089,7 +1148,7 @@
             },
             "moltenterm:sidebarheat": {
                 "label": "Heat in the sidebar",
-                "description": "While agents work, a faint heat rises at the bottom of the sidebar."
+                "description": "While agents work or something builds or runs CI, a faint heat rises at the bottom of the sidebar."
             },
             "moltenterm:settingsreveal": {
                 "label": "Molten reveal of settings",
@@ -1203,6 +1262,16 @@
                     "auto": "Automatic",
                     "grid": "Keep the grid",
                     "always": "Always"
+                }
+            },
+            "moltenterm:view360places": {
+                "label": "Visible panels when it switches by itself",
+                "description": "With Automatic: how many panels stay visible beside the first column. Empty: the plain 360 view.",
+                "unset": "Plain 360 view",
+                "options": {
+                    "1": "1 visible panel",
+                    "2": "2 visible panels",
+                    "3": "3 visible panels"
                 }
             },
             "review:publishlanguage": {
@@ -1613,7 +1682,8 @@
                 "agents": "My project",
                 "project": "Compose my view",
                 "view": "Choose its place",
-                "place": "It's ready",
+                "place": "Meet {name}",
+                "brokk": "It's ready",
                 "start": "Enter the workshop"
             },
             "scenes": {
@@ -1622,6 +1692,7 @@
                 "project": "Your project",
                 "view": "Your first view",
                 "place": "Its place",
+                "brokk": "Your colleague",
                 "start": "Ready"
             },
             "legal": {
@@ -1742,6 +1813,23 @@
                 "nextTitle": "Your next views:",
                 "nextText": "{keys} or the “+ New view” button. A new view is temporary; pin it to keep it.",
                 "nextExample": "For a development project, pin for instance one view for design, one for security tasks, one for steering the project. Everyone organises it their own way!"
+            },
+            "brokk": {
+                "kicker": "Your colleague",
+                "titleA": "Meet {name},",
+                "titleB": "your workshop colleague.",
+                "says": "“Hello. I keep an eye on the whole workshop, across your workspaces: what your agents finish, what waits for you. And when an idea needs thinking through, we think it through together.”",
+                "where": "He lives at the top of your sidebar: click his face to talk with him. From anywhere: {keys}, then his name.",
+                "off": "You turned him off on this computer: {name}'s preferences turn him back on.",
+                "ideaLead": "An idea comes to you, even a vague one?",
+                "ideaText": "Don't hesitate: open {name} and type {brainstorm}. He builds it with you and saves it in a folder you own.",
+                "example": "Example",
+                "idea": {
+                    "centre": "A logbook for the workshop",
+                    "who": "Who it is for",
+                    "first": "A first version",
+                    "risks": "What could go wrong"
+                }
             },
             "later": "Later",
             "settingUp": "Setting it up…",
@@ -2261,6 +2349,10 @@
             "browser-address-other": "Go to the address bar",
             "browser-stop": "Stop loading the page",
             "browser-stop-other": "Stop loading the page",
+            "browser-inspect": "Inspect the page",
+            "browser-inspect-other": "Inspect the page",
+            "browser-annotate": "Annotate the page",
+            "browser-annotate-other": "Annotate the page",
             "companion": "Agent companion",
             "palette": "Command palette",
             "command-panel": "The focused panel's commands",
@@ -2473,6 +2565,10 @@
         }
     },
     "browser": {
+        "searchNote": {
+            "text": "Searches use {engine}",
+            "change": "Change"
+        },
         "start": {
             "title": "Scope the next change",
             "hintProject": "Scoping is where you frame the work with your agent before it writes code. This page shows the project's repository once its folder has a GitHub remote.",
@@ -2569,7 +2665,11 @@
             "siteDetail": "It can read and act on this site's pages, with your sign-ins.",
             "allowOnce": "Allow once",
             "always": "Always for this site",
-            "block": "Block"
+            "block": "Block",
+            "reuseAria": "Request to use this page",
+            "reuseTitle": "{name} would like to use this page",
+            "reuseDetail": "Allow lets it work in this tab. Otherwise it opens another one.",
+            "reuseOther": "Open another tab"
         },
         "sitePermission": {
             "aria": "Site permission request",
@@ -2683,6 +2783,34 @@
             "badgeTitle": "Shared with {name}. Click to stop sharing."
         },
         "viewName": "Web page",
+        "inspector": {
+            "inspect": "Inspect",
+            "close": "Close inspector",
+            "title": "Developer tools",
+            "window": "Open in a separate window",
+            "closeTitle": "Close the developer tools ({shortcut})",
+            "resize": "Resize the developer tools",
+            "failed": "The developer tools could not open on this page."
+        },
+        "siteData": {
+            "clearSite": "Clear this site's data…",
+            "clearCache": "Clear the browser cache…",
+            "siteTitle": "Clear this site's data?",
+            "siteIntro": "MoltenTerm's browser removes what {origin} keeps on this computer:",
+            "siteCookies": "the cookies {host} keeps for itself alone, which may sign you out of this site",
+            "siteStorage": "its local storage, IndexedDB databases, service workers and their caches",
+            "siteCache": "the files this site served itself, kept in the browser cache (the files it loads from other servers stay)",
+            "siteKept": "Other sites keep their data and sign-ins, and so do the cookies shared with the other sites of its domain, such as a sign-in common to its subdomains. The page reloads afterwards.",
+            "siteConfirm": "Clear site data",
+            "cacheTitle": "Clear the browser cache?",
+            "cacheBody": "The files every site opened in MoltenTerm's browser keeps in the cache are removed: pages download them again.",
+            "cacheKept": "Cookies, sign-ins and the sites' storage are kept. The page reloads afterwards.",
+            "cacheConfirm": "Clear the cache",
+            "siteDone": "{origin}'s data was cleared",
+            "cacheDone": "The browser cache was cleared",
+            "moved": "The page moved to another site: nothing was cleared.",
+            "failed": "The data could not be cleared: {error}"
+        },
         "notice": {
             "siteChoiceNotSaved": "The site choice could not be saved: {error}",
             "decisionNotForgotten": "The agents' decision could not be forgotten: {error}",
@@ -2732,8 +2860,100 @@
             "reopen": "Reopen the page"
         },
         "reloading": "Reloading the page…",
+        "annotate": {
+            "button": "Annotate",
+            "buttonTitle": "Annotate the page: draw zones on it and send them to an agent ({shortcut})",
+            "menu": "Annotate the page",
+            "layerLabel": "Annotating the page",
+            "capturing": "Capturing the page…",
+            "captureFailed": "The page could not be captured. Show its tab and try again.",
+            "close": "Close",
+            "hint": "Draw a zone around what to change, then type your comment.",
+            "tray": {
+                "zones": {
+                    "one": "{count} zone",
+                    "other": "{count} zones"
+                },
+                "clear": "Clear all",
+                "review": "Review and send",
+                "leaveAsk": {
+                    "one": "Discard {count} zone?",
+                    "other": "Discard {count} zones?"
+                },
+                "discard": "Discard",
+                "keep": "Keep drawing",
+                "full": "That is the most zones one report holds ({count})."
+            },
+            "zone": {
+                "label": "Zone {n}",
+                "labelWith": "Zone {n}: {comment}"
+            },
+            "field": {
+                "title": "Zone {n}",
+                "placeholder": "What is wrong here?",
+                "hint": "Enter validates, Shift+Enter adds a line",
+                "erase": "Erase this zone",
+                "refsHint": "Paste or drop an image (up to {count}) to show what you have in mind. A link stays a link."
+            },
+            "ref": {
+                "alt": "Reference image {n}",
+                "remove": "Remove this image",
+                "refused": {
+                    "notimage": "Only images can be attached: a file that is not one was left out.",
+                    "type": "Only png, jpeg, webp and gif images can be attached.",
+                    "size": "That image is too large to attach (over {limit} MB).",
+                    "decode": "That image is empty or could not be read.",
+                    "large": "That image is too large to attach.",
+                    "zone": "A zone holds at most {count} images.",
+                    "report": "A report holds at most {count} images."
+                }
+            },
+            "review": {
+                "references": "References",
+                "zone": "Zone {n}",
+                "title": "What will be sent",
+                "back": "Back to drawing",
+                "to": "To",
+                "page": "Page",
+                "image": "Annotated image",
+                "report": "What the agent reads",
+                "reportNote": "MoltenTerm adds its own header and asks for a one-line outcome.",
+                "loading": "Preparing the report…",
+                "failed": "The report could not be prepared: {error}",
+                "send": "Send to {name}",
+                "sending": "Sending…",
+                "copy": "Copy the report",
+                "copied": "Report copied. The image is kept in this project's materials.",
+                "copyFailed": "The report could not be copied: {error}",
+                "noAgent": "No agent runs for this project right now. Copy the report to give it to one.",
+                "pick": "Send to another agent",
+                "leadNote": "{name} will be asked to hand the zones to the right agents."
+            },
+            "why": {
+                "works": "works on {branch}",
+                "owns": "owns the agent working on {branch}",
+                "pr": "signed the pull request",
+                "locked": "keeps a name locked for this project",
+                "project": "leads this project"
+            },
+            "sent": {
+                "delivered": "{name} has it.",
+                "typed": "The request is typed in {name}'s prompt: press Enter there to send it.",
+                "queued": "{name} is busy: the request is typed when their prompt is free.",
+                "kept": "The image is kept in this project's materials, not in its files.",
+                "done": "Done"
+            },
+            "gone": "{name} no longer runs. Choose another agent or copy the report.",
+            "refused": {
+                "workspace": "{name} works in another workspace: nothing was sent.",
+                "project": "{name} works on another project: nothing was sent."
+            },
+            "sendFailed": "Nothing was sent: {error}",
+            "materialTitle": "Annotated page: {where}",
+            "refTitle": "Annotated page, zone {zone}: reference {n}"
+        },
         "testContext": {
-            "title": "Served from",
+            "cardTitle": "The version you are looking at",
             "unknown": "Source unknown",
             "chipTitle": "This page is served from {where} (port {port}). Click for details",
             "chipTitleUnknown": "Source unknown: {reason}",
@@ -2749,13 +2969,57 @@
             "commitDirty": "{sha} + uncommitted changes",
             "served": "Served by",
             "servedBy": "{process} (pid {pid}) on port {port}",
-            "prDraft": "Draft, in testing",
-            "prReady": "Ready for review",
             "prUnknown": "Pull requests not read yet for this project",
             "noPr": "No pull request",
             "otherProject": "This app belongs to {name}, not to this workspace's project: the Integration panel shows the workspace's project.",
             "openInReviews": "Open in Integration",
             "openPr": "Open the pull request",
+            "uncommitted": "uncommitted changes",
+            "agentTitle": "The agent working on this branch",
+            "whatToTest": "What to test",
+            "testNoSteps": "Your test is asked, and the pull request lists no steps: see its description.",
+            "details": "Details",
+            "state": {
+                "merged": "Merged",
+                "ciFailing": "CI failing",
+                "draft": "Draft",
+                "ready": "Ready for review"
+            },
+            "versions": {
+                "title": "Versions served now",
+                "titleOf": "Versions of {name} served now",
+                "others": "Other projects · {count}",
+                "noOther": "No other version of {name} is served right now.",
+                "unreadable": "The servers of this computer cannot be listed.",
+                "port": "port {port}",
+                "main": "main checkout",
+                "here": "you are here",
+                "openTitle": "Load {branch} in this panel (port {port})"
+            },
+            "stop": {
+                "button": "Stop this server",
+                "buttonFor": "Stop the server of {branch}",
+                "confirm": "Stop {process}, which serves {branch} on port {port}?",
+                "unknownProcess": "a program whose name cannot be read",
+                "scope": "Only this process and the processes it started in that folder stop. Nothing else is touched.",
+                "confirmYes": "Stop the server",
+                "stopping": "Stopping…",
+                "cancel": "Cancel",
+                "done": "{branch} is stopped (port {port}).",
+                "doneCurrent": "This version is stopped. Open another one below.",
+                "still": "Port {port} is served again: the program that started the server restarts it. Stop it where it was started.",
+                "failed": "The server could not be stopped.",
+                "refused": {
+                    "gone": "Nothing listens on port {port} any more: nothing was stopped.",
+                    "moved": "The process on port {port} no longer runs in this folder ({folder}): nothing was stopped.",
+                    "norepo": "The process on port {port} runs outside a git repository ({folder}): only the servers of your projects are stopped from here.",
+                    "unknownProject": "{folder} is not in a project linked to MoltenTerm: nothing was stopped.",
+                    "self": "This is MoltenTerm itself: it is not stopped from here.",
+                    "unknown": "The programs running on this computer cannot be read, so what the stop would reach cannot be checked: nothing was stopped.",
+                    "agent": "{agent} itself listens on port {port}: stop the agent from its terminal. Nothing was stopped.",
+                    "other": "Nothing was stopped."
+                }
+            },
             "reason": {
                 "notLocal": "this page is not served from this computer.",
                 "noProcess": "nothing on this computer listens on port {port}.",
@@ -2788,6 +3052,8 @@
             "rename": "Rename conversation",
             "agent": "Agent",
             "savedDefault": "Saved as your default",
+            "defaultModel": "Your default model",
+            "latestModel": "{name} (latest)",
             "nativeModel": "{native} model: {provider} may swap it for one of its own",
             "nativeLevel": "{native} level: {provider} may ignore it",
             "chooseIn": "Choose in {agent}",
@@ -2943,6 +3209,7 @@
             "agentsAllowed": "Agents allowed",
             "linksInternal": "Links open in MoltenTerm",
             "defaultBrowser": "Default browser",
+            "searchEngine": "Search engine",
             "controllingOther": "{name} is controlling another tab",
             "showAgentTab": "Show the agent's tab",
             "takeOver": "Take over",
@@ -2954,6 +3221,8 @@
             "thisSite": "This site",
             "links": "Links",
             "inspect": "Inspect the page",
+            "closeInspector": "Close the inspector",
+            "devtoolsWindow": "Developer tools in a separate window",
             "newPageBeside": "New page to the right",
             "duplicateBeside": "Duplicate to the right"
         },
@@ -3075,6 +3344,313 @@
         }
     },
     "boss": {
+        "brainstorm": {
+            "menu": "Brainstorm with {name}",
+            "opening": "An idea? Let's put it on the anvil. Tell me what it is, and who it is for.",
+            "resume": "Back to “{title}”. Where were we?",
+            "lead": "Brainstorm:",
+            "header": "{name}'s thought · {nodes} · {links} · {camera}",
+            "camera": {
+                "follow": "camera on the topic",
+                "overview": "overview",
+                "free": "your view"
+            },
+            "recentre": "Recentre",
+            "recentreTitle": "Frame the whole graph (0, or a double click on the background)",
+            "follow": "Follow {name}",
+            "followTitle": "The camera follows {name}'s new plates again",
+            "stageLabel": "The brainstorm's graph: drag or scroll to move it, pinch or + and − to zoom, 0 to recentre",
+            "headerWaiting": "{name} is listening",
+            "nodes": {
+                "one": "{count} element",
+                "other": "{count} elements"
+            },
+            "links": {
+                "one": "{count} link",
+                "other": "{count} links"
+            },
+            "graphLabel": "The ideas of the brainstorm: arrows to walk them, Enter to focus one, the menu key or a right-click for its actions",
+            "plate": {
+                "menu": "Actions for “{text}”",
+                "editText": "Edit text",
+                "changeKind": "Change kind",
+                "linkTo": "Link to…",
+                "remove": "Remove"
+            },
+            "edits": {
+                "note": "[My changes to the graph: {changes}.]",
+                "join": "; ",
+                "node": "“{text}” ({id})",
+                "remove": "removed {node}",
+                "edit": "rewrote {id} as “{text}”",
+                "retype": "{node} is now: {kind}",
+                "link": "linked {a} and {b}",
+                "unlink": "unlinked {a} and {b}",
+                "restore": "put back {node}",
+                "revert": "undid the change to {node}",
+                "linking": "Link “{text}” to another plate: click it, or Esc to cancel",
+                "linkCancel": "Cancel",
+                "bar": {
+                    "youRemoved": "You removed “{text}”",
+                    "brokkRemoved": "{name} removed “{text}”",
+                    "brokkMerged": "{name} folded plates into “{text}”",
+                    "undo": "Undo",
+                    "dismiss": "Dismiss"
+                },
+                "failed": {
+                    "conflict": "A later change touched it: nothing was put back.",
+                    "invalid": "That change cannot be made.",
+                    "unknown": "That change is no longer in the history.",
+                    "noidea": "No brainstorm is open.",
+                    "failed": "That did not work: the graph stays as it was."
+                }
+            },
+            "kinds": {
+                "topic": "Topic",
+                "question": "Question",
+                "answer": "Answer",
+                "idea": "Idea",
+                "theme": "Theme",
+                "decision": "Decision",
+                "proposal": "Proposal",
+                "conclusion": "Conclusion",
+                "reference": "Other folder"
+            },
+            "saved": {
+                "at": "Saved automatically · {time}",
+                "nothing": "Saved as soon as the idea is set",
+                "failed": "Not saved: the folder could not be written"
+            },
+            "leaveHint": "Escape outside a field leaves the brainstorm too",
+            "leave": "Leave the brainstorm",
+            "summary": {
+                "one": "1 notification arrived during the brainstorm",
+                "other": "{count} notifications arrived during the brainstorm"
+            },
+            "summaryShow": "Show",
+            "edgeShow": "See",
+            "crashed": "An agent stopped on an error",
+            "crashedNamed": "{name} stopped on an error",
+            "resumedLead": "Brainstorm resumed: “{title}”.",
+            "forked": "“{title}” has its own folder now. Let's start it.",
+            "forgotTrash": "Forgotten: “{title}” is in the trash.",
+            "forgotRemoved": "Forgotten: “{title}” is removed for good.",
+            "newIdea": "New idea",
+            "lastChange": "Last change {when}",
+            "resumeAction": "Resume",
+            "resumeDismiss": "Not now",
+            "picker": {
+                "label": "Brainstorms with {name}",
+                "ask": "Where do we start?",
+                "resume": "Resume “{title}”",
+                "all": "All brainstorms ({count})…"
+            },
+            "duplicate": {
+                "ask": "We already have “{title}”: resume it, or start fresh?",
+                "fresh": "Start fresh"
+            },
+            "offer": {
+                "label": "{name} offers to resume a brainstorm",
+                "lead": "Reopen this brainstorm?"
+            },
+            "card": {
+                "lastLeft": "Last brainstorm",
+                "lastLeftLabel": "Resume the last brainstorm, “{title}”"
+            },
+            "forget": {
+                "label": "Forget a brainstorm",
+                "ask": "Forget “{title}”?",
+                "detail": "Last change {when}. Its folder goes to the trash, and he stops listing it.",
+                "detailRemove": "Last change {when}. This computer has no trash MoltenTerm can use: its folder is removed for good, and he stops listing it.",
+                "confirm": "Forget it",
+                "confirmRemove": "Remove it for good",
+                "cancel": "Keep it"
+            },
+            "fork": {
+                "label": "Another project",
+                "ask": "{name}: “{title}” is another project. Open its own folder?",
+                "yes": "Yes",
+                "no": "No, we stay here"
+            },
+            "panel": {
+                "label": "The brainstorm",
+                "eyebrow": "Brainstorm",
+                "untitled": "A new idea",
+                "others": "Other brainstorms",
+                "none": "No other brainstorm yet",
+                "resumeOne": "Resume “{title}”",
+                "more": "More for “{title}”",
+                "rename": "Rename",
+                "renameLabel": "The brainstorm's new title",
+                "renameSave": "Save",
+                "show": "Show in folder",
+                "delete": "Delete",
+                "forgotTrash": "“{title}” is in the trash.",
+                "forgotRemoved": "“{title}” is removed for good."
+            },
+            "state": {
+                "open": "in progress",
+                "done": "finished",
+                "clear": "clear",
+                "promoted": "a project"
+            },
+            "project": {
+                "label": "Make the brainstorm a project",
+                "eyebrow": "Make it a project",
+                "fold": "Fold the project card",
+                "unfold": "Show the project card",
+                "waiting": "{name} proposes a project: it waits for his conclusion.",
+                "folder": "Folder",
+                "change": "Change…",
+                "chooseParent": "Choose where projects go…",
+                "chooseTitle": "Where your projects go",
+                "name": "Name",
+                "existing": "The empty folder already there is used as it is.",
+                "git": "git starts in it: a new repository.",
+                "copy": "A copy of the brainstorm goes to {file}: never over a file, and nothing is committed.",
+                "workspace": "Workspace",
+                "newWorkspace": "A new workspace, “{name}”",
+                "replaces": "This workspace is linked to {folder}: the project replaces that link.",
+                "previewing": "Checking the folder…",
+                "create": "Create {name}",
+                "making": "Making the project…",
+                "done": "The project is ready.",
+                "linked": "Linked to the workspace “{workspace}”.",
+                "linkedThere": "Linked to its workspace.",
+                "notLinked": "Its workspace is not linked yet.",
+                "link": "Link it",
+                "show": "Show in folder",
+                "goTo": "Go to “{workspace}”",
+                "goToThere": "Go to the workspace",
+                "goToTitle": "Leaves the brainstorm and shows the workspace",
+                "tryAgain": "Try again",
+                "refused": {
+                    "notempty": "This folder already exists and is not empty. Choose another name.",
+                    "inrepo": "This folder is inside another repository, whose history it would hide. Choose another parent folder.",
+                    "badname": "This name cannot be a folder: start with a letter or a digit, then letters, digits, dots, hyphens or underscores.",
+                    "noparent": "Choose the folder your projects go to first.",
+                    "nobrief": "{name} has not concluded the brainstorm yet.",
+                    "promoted": "This brainstorm is a project already.",
+                    "failed": "That did not work: nothing was made.",
+                    "link": "The project is made, but its workspace could not be linked.",
+                    "unknown": "MoltenTerm could not tell whether the project was made. Look in the folder, then try again."
+                }
+            },
+            "launch": {
+                "fold": "Fold the card",
+                "unfold": "Show the card",
+                "previewing": "Checking the project…",
+                "opening": "Opening the terminal…",
+                "tryAgain": "Try again",
+                "goTitle": "Leaves the brainstorm and shows the terminal",
+                "notTyped": "Its terminal is open, but the command could not be typed there. Type it yourself:",
+                "refused": {
+                    "noproject": "The project is not made yet: create it above first.",
+                    "nobrief": "{name} has not concluded the brainstorm yet.",
+                    "nosf": "SaaSFoundryAI is not installed on this computer.",
+                    "noprofile": "Choose what it installs first.",
+                    "noagent": "No coding agent MoltenTerm can start is installed on this computer.",
+                    "agentmissing": "{agent}, chosen for this project, is not installed: pick another one for this hand-off.",
+                    "terminal": "The terminal could not be opened: nothing ran.",
+                    "notmanaged": "This folder is not set up with SaaSFoundryAI yet.",
+                    "nodryrun": "Preview the full profile first: SaaSFoundryAI has to say it can add it.",
+                    "drymutated": "SaaSFoundryAI says its preview changed the project, which a preview never should. Nothing more ran: look at the project's changes before going on.",
+                    "invalid": "The brief is too long: shorten it, then try again.",
+                    "failed": "That did not work: nothing ran.",
+                    "unknown": "MoltenTerm could not tell whether the terminal opened. It looked again: try again if nothing shows."
+                }
+            },
+            "setup": {
+                "label": "Set up SaaSFoundryAI in the project",
+                "eyebrow": "Set up SaaSFoundryAI",
+                "waiting": "{name} proposes it for the project: it waits for the project to be made.",
+                "choose": "What SaaSFoundryAI installs",
+                "recommended": "{name}'s choice",
+                "reason": "{name}: “{reason}”",
+                "profiles": {
+                    "full": {
+                        "title": "Full",
+                        "subtitle": "The stack and the AI harness",
+                        "line1": "A web SaaS base to start from: API, web app, database.",
+                        "line2": "The AI workflow: tickets, branches, pull requests.",
+                        "line3": "Skills and the SRS for your coding agents."
+                    },
+                    "harness": {
+                        "title": "Harness only",
+                        "subtitle": "The AI harness on your own stack",
+                        "line1": "Your code and your stack stay as they are.",
+                        "line2": "The AI workflow: tickets, branches, pull requests.",
+                        "line3": "Skills and the SRS for your coding agents."
+                    }
+                },
+                "command": "Typed",
+                "questions": "SaaSFoundryAI asks its own questions in a terminal of “{workspace}”, and the window takes you there. Your keys stay with you.",
+                "questionsThere": "SaaSFoundryAI asks its own questions in a terminal of the project's workspace, and the window takes you there. Your keys stay with you.",
+                "fullSteps": "Full comes in two steps. First, this command sets up the AI harness in the project. Once that is done, this card previews what the full profile adds and offers to add it, in a terminal too.",
+                "step2Waiting": "Step 2, the full profile, shows here once SaaSFoundryAI has set up the harness.",
+                "setupRunning": "Let SaaSFoundryAI finish in its terminal before you preview the full profile.",
+                "startFull": "Set up step 1: the AI harness",
+                "startHarness": "Set up: Harness only",
+                "chooseFirst": "Choose what it installs",
+                "startTitle": "Opens the terminal, types the command and takes you there",
+                "startUpdate": "Add the full profile",
+                "tabName": "SaaSFoundryAI",
+                "launched": "Its terminal opened at {time}: SaaSFoundryAI's questions wait for you there.",
+                "goTo": "Go to the terminal",
+                "nosf": "SaaSFoundryAI is not installed on this computer. Install it in a terminal, then check again:",
+                "nosfNote": "Nothing installs by itself, and nothing runs until you click.",
+                "copy": "Copy",
+                "copied": "Copied",
+                "checkAgain": "Check again",
+                "managed": "This folder is set up with SaaSFoundryAI already.",
+                "previewFull": "Preview the full profile",
+                "previewFullNote": "SaaSFoundryAI previews it with {command}: nothing changes.",
+                "updateLaunched": "Its terminal opened at {time}: SaaSFoundryAI adds the full profile there and asks its own questions.",
+                "dryRunning": "SaaSFoundryAI is previewing…",
+                "dryFull": "It has the full profile already: nothing to add.",
+                "dryAdds": {
+                    "one": "The full profile adds {count} file.",
+                    "other": "The full profile adds {count} files."
+                },
+                "dryConflicts": {
+                    "one": "{count} of them differs from yours: SaaSFoundryAI asks what to do with it.",
+                    "other": "{count} of them differ from yours: SaaSFoundryAI asks what to do with each."
+                },
+                "dryHarness": "The full profile adds the AI harness to this stack.",
+                "dryBlocked": "SaaSFoundryAI cannot add the full profile here as the project stands: its status, in the project, says why."
+            },
+            "handoff": {
+                "label": "Hand the project's first step to a coding agent",
+                "eyebrow": "Hand the first step",
+                "waiting": "{name} proposes it for the project: it waits for the project to be made.",
+                "agent": "Agent",
+                "pickAgent": "Pick an agent",
+                "workspace": "Workspace",
+                "thisWorkspace": "The project's workspace",
+                "brief": "Brief",
+                "reset": "Back to {name}'s brief",
+                "briefNote": "The agent reads it from a file in MoltenTerm's data folder. Edit it as you like.",
+                "empty": "The brief is empty: say what the agent should do first.",
+                "tooLong": "The brief is too long: {count} characters, {max} at most.",
+                "note": "{agent} starts in a new view of “{workspace}”, in your usual permission mode, and the window takes you there.",
+                "noteThere": "{agent} starts in a new view of the project's workspace, in your usual permission mode, and the window takes you there.",
+                "start": "Hand to {agent}",
+                "startTitle": "Writes the brief, starts the agent and takes you there",
+                "starting": "Starting {agent}…",
+                "tabName": "First step",
+                "launched": "{agent} started at {time} with the brief.",
+                "goTo": "Go to the agent"
+            },
+            "failed": {
+                "unknown": "That brainstorm is no longer in the folder.",
+                "notsaved": "The open brainstorm could not be saved: nothing moved.",
+                "noidea": "No idea is open yet.",
+                "invalid": "That title cannot be used.",
+                "trash": "The folder could not go to the trash: it stays where it is.",
+                "notrash": "This computer has no trash: nothing was removed. Ask again to remove it for good.",
+                "failed": "That did not work. The folder stays as it was."
+            }
+        },
         "label": "{name}, {count} waiting",
         "avatar": {
             "labelCue": "{name}, {count} waiting: has something to tell you",
@@ -3107,7 +3683,8 @@
                 "running": "{name}, {percent} % downloaded",
                 "runningUnknown": "{name}, a download is running",
                 "news": "{name}, a download has news",
-                "awake": "{name}, on"
+                "awake": "{name}, on",
+                "awakeOff": "{name}, off"
             },
             "priority": {
                 "urgent": "Urgent",
@@ -3129,6 +3706,90 @@
             "label": "{name} would like a word ({severity})",
             "example": "Example: {name} would like a word ({severity}). An agent has been waiting for you for 6 min.",
             "exampleLine": "An agent has waited 6 min",
+            "reason": {
+                "waitedFor": {
+                    "p1": "{name} has been waiting for you for {minutes} min.",
+                    "p2": "{name} is still waiting on you, {minutes} min now.",
+                    "p3": "{name} has stood idle {minutes} min. A word would help.",
+                    "p4": "Your turn: {name} has waited {minutes} min.",
+                    "p5": "{name} could use you: {minutes} min so far."
+                },
+                "waiting": {
+                    "p1": "{name} is waiting for you.",
+                    "p2": "{name} could use a word from you.",
+                    "p3": "{name} has stopped and looks your way.",
+                    "p4": "Your turn: {name} is waiting on you."
+                },
+                "asks": {
+                    "p1": "{name} has a question for you.",
+                    "p2": "{name} would like your opinion.",
+                    "p3": "{name} needs an answer to go on.",
+                    "p4": "{name} asks for you. A quick answer will do.",
+                    "p5": "{name} wants to check something with you."
+                },
+                "goAhead": {
+                    "p1": "{name} needs your go-ahead.",
+                    "p2": "{name} wants your nod before going on.",
+                    "p3": "{name} will not move without your say-so.",
+                    "p4": "Your go-ahead, please: {name} holds still.",
+                    "p5": "{name} waits at the door for you to open it."
+                },
+                "error": {
+                    "p1": "{name} hit a snag and stopped.",
+                    "p2": "{name} ran into trouble and halted.",
+                    "p3": "{name} stopped on an error. Come and see.",
+                    "p4": "{name} stumbled on an error. Help wanted.",
+                    "p5": "The hammer slipped for {name}. Come and see."
+                },
+                "ciFailed": {
+                    "p1": "The checks on PR #{number} came back red. Shall we look?",
+                    "p2": "PR #{number} tripped the CI. Nothing we cannot fix.",
+                    "p3": "Bad news from the CI: PR #{number} did not pass.",
+                    "p4": "The CI is unhappy with PR #{number}. Let us see why.",
+                    "p5": "PR #{number} cracked under the CI. Take a look."
+                },
+                "ready": {
+                    "p1": "PR #{number} is good to go. Merge when you like.",
+                    "p2": "Good news: PR #{number} passed. The merge is yours.",
+                    "p3": "PR #{number} came out clean. Ready when you are.",
+                    "p4": "PR #{number} is cooled and sound. Your call.",
+                    "p5": "All green on PR #{number}. Merge whenever you want."
+                },
+                "download": {
+                    "p1": "A download has news for you.",
+                    "p2": "Something moved in the downloads. Come and see.",
+                    "p3": "The downloads have something to tell you.",
+                    "p4": "Heads up, a download changed. Look when you can."
+                },
+                "update": {
+                    "p1": "An update is waiting for you.",
+                    "p2": "A new version is here. Update when it suits you.",
+                    "p3": "The forge has a fresh build for you.",
+                    "p4": "No hurry, but a new version is out."
+                },
+                "usage": {
+                    "p1": "One of your plans is running low.",
+                    "p2": "Careful, a plan is nearly used up.",
+                    "p3": "Mind the fuel: a plan is almost gone.",
+                    "p4": "A plan is nearly empty. Spend the rest with care."
+                },
+                "security": {
+                    "p1": "A security alert just came in on a dependency.",
+                    "p2": "A dependency has a flaw that needs your eye.",
+                    "p3": "A security alert is up on a dependency. Look soon.",
+                    "p4": "Trouble in the supply chain: a dependency is flagged."
+                },
+                "other": {
+                    "p1": "Something needs you.",
+                    "p2": "I need you for a moment.",
+                    "p3": "Something is waiting for your eye.",
+                    "p4": "Come by when you can, something needs you."
+                }
+            },
+            "more": {
+                "one": "One more thing waits too.",
+                "other": "{count} more things wait too."
+            },
             "severity": {
                 "grave": "grave",
                 "important": "important",
@@ -3190,13 +3851,46 @@
                 "chooseAgent": "Choose an agent",
                 "retry": "Try again",
                 "openTerminal": "Open his terminal",
-                "busy": "{name}'s agent is busy: your message stays here, try again in a moment.",
+                "refusedWhileFree": "{name}'s agent refused your message for 10 minutes although it seemed free: it is back in the field.",
+                "queuedRow": "Sent when {name} is done",
+                "cancelQueued": "Cancel",
                 "noAgent": "No coding agent is installed to start {name}'s session.",
                 "agentMissing": "The coding agent you chose is not installed: {name} cannot start.",
                 "gone": "{name}'s terminal was closed: send your message again to start a new one.",
                 "notSubmitted": "Your message waits in {name}'s terminal: open it and press Enter.",
+                "humanDraft": "Text typed in {name}'s terminal waits in his prompt, so nothing was sent: MoltenTerm never sends nor erases it. Send or clear it there, then try again.",
+                "queued": "{name} is busy: your message goes by itself as soon as he is free.",
+                "unknownPrompt": "{name}'s prompt may still hold text from before MoltenTerm restarted, so nothing was sent. Clearing it erases that text for good.",
+                "clearAndSend": "Clear his prompt and send",
+                "permission": {
+                    "kind": {
+                        "command": "{name}'s agent asks to run this command:",
+                        "edit": "{name}'s agent asks to edit this file:",
+                        "write": "{name}'s agent asks to write this file:",
+                        "read": "{name}'s agent asks to read this file:",
+                        "fetch": "{name}'s agent asks to open this web page:",
+                        "search": "{name}'s agent asks to search the web for:",
+                        "patch": "{name}'s agent asks to change these files:"
+                    },
+                    "allow": "Allow once",
+                    "always": "Always allow",
+                    "deny": "Deny",
+                    "gone": "That request is over: it was answered in his terminal, or his agent stopped asking.",
+                    "autoApproved": "Approved without asking:"
+                },
+                "unsettled": "{name}'s agent never came back to its prompt (a step that never ended), so nothing was sent. Try again in a moment.",
+                "slashKept": "A message starting with / stays here: {name}'s agent would run it as one of its own commands. Write it without the slash.",
                 "agentStopped": "{name}'s agent is no longer running in his terminal. Close that terminal, then send your message again.",
-                "failed": "The message did not go: {name}'s session could not be reached.",
+                "keys": "Enter to send, Shift+Enter for a new line",
+                "keysBrainstorm": "Enter to send, Shift+Enter for a new line, /brainstorm [idea] to brainstorm",
+                "hint": "↵ to send · ⇧↵ for a new line",
+                "commandHint": "/brainstorm [idea]: brainstorm with {name}, on your idea if you give one",
+                "unreachable": "The message did not go: MoltenTerm got no answer from {name}'s session. Try again in a moment.",
+                "lookupFailed": "The message did not go: MoltenTerm could not look for {name}'s session just now. Try again in a moment.",
+                "refused": "The message did not go: {name}'s terminal did not take it. Open his terminal to see what is there.",
+                "noTerminal": "The message did not go: {name}'s terminal could not be opened. Try again.",
+                "noSpace": "The message did not go: {name} has no workspace to open his terminal in. Open a workspace, then try again.",
+                "noText": "The message did not go: it is empty or longer than 4,000 characters. Shorten it, then try again.",
                 "window": "Conversation with {name}",
                 "empty": "Tell {name} what you need.",
                 "you": "You",
@@ -3264,48 +3958,80 @@
                 "other": "and {count} more"
             }
         },
-        "screen": {
-            "quiet": "Nothing to handle",
-            "toHandle": {
-                "one": "{count} thing to handle",
-                "other": "{count} things to handle"
+        "moment": {
+            "hello": {
+                "early": {
+                    "p1": "Up before the forge is even hot. Coffee first, then we pour.",
+                    "p2": "Early start. The anvil is still cold, so ease into it.",
+                    "p3": "Hello, early bird. The quiet hours are the best ones for thinking.",
+                    "p4": "You beat the sun to it. I will keep the fire low until you are awake.",
+                    "p5": "Good to see you. A gentle start makes for a sturdy day."
+                },
+                "morning": {
+                    "p1": "Good morning. Fire is lit, tools are laid out. Where do we start?",
+                    "p2": "Morning! Fresh day, clean anvil. I like it already.",
+                    "p3": "There you are. I kept your corner of the forge warm.",
+                    "p4": "Hello, hello. A breath, a coffee, and then we hammer.",
+                    "p5": "Good morning. Whatever today throws at us, we have handled worse."
+                },
+                "lateMorning": {
+                    "p1": "Good morning, or nearly noon. The forge kept your spot.",
+                    "p2": "Hello. Better a late start than a cold forge.",
+                    "p3": "Half the morning is gone, the best half of the day is still ahead.",
+                    "p4": "Welcome. I touched nothing while you were gone, promise.",
+                    "p5": "Pull up a stool. There is time before lunch."
+                },
+                "back": {
+                    "p1": "Welcome back. I kept an eye on the place while you were away.",
+                    "p2": "There you are again. The workshop is still standing, as promised.",
+                    "p3": "Back at the bench. Good, I was starting to talk to the anvil.",
+                    "p4": "Hello again, stranger. The coffee is cold, the welcome is warm.",
+                    "p5": "You made it. Whatever the day was, the forge is yours now."
+                }
             },
-            "working": "{name} is working",
-            "workingCount": {
-                "one": "{count} agent at work",
-                "other": "{count} agents at work"
+            "break": {
+                "p1": "We have been at it a good while. Step away and let the iron cool for a bit.",
+                "p2": "Careful, you are running hot. Water, a stretch, then back at it.",
+                "p3": "Eyes off the screen for a few minutes. The code will still be here, I will make sure.",
+                "p4": "A smith who never quenches ends up with brittle steel. Take a break.",
+                "p5": "Go and take a short walk. Nothing good was ever hammered by a tired arm.",
+                "p6": "That is a long stretch without a pause. Stand up, I will watch the fire.",
+                "p7": "Hey, time to rest. Not a suggestion, a colleague's friendly order.",
+                "p8": "Look out of the window for a minute. Far away, not at a screen.",
+                "p9": "You have earned a pause. Come back with a fresh head, the work will be better.",
+                "p10": "Shoulders down, jaw loose. Yes, you. Breathe, then carry on.",
+                "p11": "Even the forge goes quiet between two pours. Rest a moment.",
+                "p12": "A glass of water and a little while of nothing. That is my prescription.",
+                "p13": "Long session. I am proud of you, now go and stretch your legs.",
+                "p14": "Your best idea of the day often turns up away from the desk. Go and fetch it.",
+                "p15": "Tired hands make crooked welds. Pause, then we straighten things out.",
+                "p16": "I will keep guard. Take a real break, away from the keyboard.",
+                "p17": "Remember to blink. And to stand up. And to eat something, if it has been a while.",
+                "p18": "The work will hold. You, on the other hand, need a pause.",
+                "p19": "Time to put the hammer down for a little while. The anvil is not going anywhere.",
+                "p20": "A short rest now saves a long mistake later. Off you go."
             },
-            "nothingForYou": "Nothing for you",
-            "asleep": "Asleep while you are away",
-            "speech": {
-                "one": "A thing for you: {line}",
-                "other": "{count} things for you: {line}"
-            },
-            "finished": "{name} finished",
-            "finishedAll": "Everyone finished",
-            "merged": "PR #{number} merged",
-            "cleared": "All handled",
-            "thanks": "Thank you",
-            "niceWork": "Nice work",
-            "lateNight": "It is getting late",
-            "relieved": "Sorted out",
-            "welcomeBack": "Welcome back",
-            "backNothing": "Nothing new",
-            "backFinished": {
-                "one": "{names} finished while you were away",
-                "other": "{names} finished while you were away"
-            },
-            "backArrived": {
-                "one": "{count} thing arrived while you were away",
-                "other": "{count} things arrived while you were away"
-            },
-            "waitedFor": "{name} has waited {minutes} min",
-            "waitedLine": "{line} · {minutes} min",
-            "handled": {
-                "answer": "Noted",
-                "rerun": "Rerunning the CI",
-                "handoff": "Handoff allowed",
-                "done": "Noted"
+            "handover": {
+                "p1": "Your agents are still at it. I will keep an eye on them, you can rest.",
+                "p2": "Good evening. The team keeps working and I keep watching. Go home when you are ready.",
+                "p3": "Still hammering over there. Whatever they finish will be waiting in your notifications.",
+                "p4": "Let them work, you have done your share.",
+                "p5": "Dinner time, I think. The agents will not miss you for a while.",
+                "p6": "Quiet evening at the forge. The agents are busy and I am watching. Go and live a little.",
+                "p7": "Leave them to it. Their results will be here when you come back.",
+                "p8": "The workshop is still lit and the agents are still working. No shame in calling it a day.",
+                "p9": "I will stay on watch while they finish. See you tomorrow, rested and fresh.",
+                "p10": "Your day is done, theirs is not. They will leave their results in your notifications.",
+                "p11": "Quiet now. I keep the embers going, you keep your evening.",
+                "p12": "They are not done, but you are allowed to be. What they finish will be there tomorrow.",
+                "p13": "You have done enough for today. The agents carry on, and I look in on them now and then.",
+                "p14": "Good evening, colleague. The agents are still busy and I am keeping watch.",
+                "p15": "Unplug your head for the evening. I am on the lookout, the rest can wait for tomorrow.",
+                "p16": "Still some hammering going on out there. I will listen for it, you go and rest your ears.",
+                "p17": "Another good day of work. The agents wrap up, I watch, and tomorrow you read the results.",
+                "p18": "The tidiest way to end the day is to leave them at it. Come back tomorrow, I will be here.",
+                "p19": "The lamps are low and the agents are still busy. Enjoy your evening, I have the watch.",
+                "p20": "Home time, whenever you are ready. They keep working and I stay alert."
             }
         }
     },
@@ -3968,7 +4694,15 @@
             "driftUncommitted": "The pipeline (.molten/project.json) has changes that are not committed: the release would follow them while its branch carries the committed pipeline.",
             "driftBase": "The pipeline (.molten/project.json) differs from {base}, which the release branch is made from.",
             "driftHint": "Commit and push it, or bring this checkout up to date, then start again. Nothing started yet.",
-            "startAnyway": "Start anyway"
+            "startAnyway": "Start anyway",
+            "plannedHeading": "Planned: next station {tag}",
+            "computedHeading": "Or the number computed from the commits",
+            "computedReason": "{tag} follows the commits: {reason}, a {level} version.",
+            "computedReasonPlain": "{tag} follows the commits: a {level} version.",
+            "plannedTagged": "{tag}, the next station, is already tagged: only the computed number is offered.",
+            "plannedConfirm": "The commits call for a {level} version ({derived}): {reason}. Start {tag} as planned all the same?",
+            "plannedConfirmPlain": "The commits call for a {level} version ({derived}). Start {tag} as planned all the same?",
+            "plannedBack": "Back"
         },
         "builds": {
             "neverBuilt": "Never built",
@@ -3979,12 +4713,13 @@
             "ciRed": "CI red on {trunk} ({jobs}): it runs again first, and the build stops if it fails.",
             "ciRunning": "The local CI is running on {trunk}.",
             "ciFirst": "The local CI will run first on {trunk}.",
+            "ciFirstGithub": "The CI will run first on {trunk}: GitHub's if it already checked this commit in full, else the local one.",
             "theBuild": "the build",
             "delivered": "Delivered: {product} {version}, commit {commit}, {count} commit(s) since the previous one.",
             "built": "Built.",
             "failedDuring": "Failed during “{phase}”. The end of the log says why.",
             "lostDuring": "Interrupted during “{phase}”: its process is gone without an exit code.",
-            "cancelledDuring": "Cancelled during “{phase}”.",
+            "cancelledDuring": "Cancelled by you during “{phase}”.",
             "flavor": {
                 "gold": "Gold",
                 "rc": "RC local"
@@ -4000,7 +4735,17 @@
             "fetchFailed": "Fetching failed: building the last fetched trunk.",
             "phasesLabel": "Phases of the local build",
             "noLocalBuild": "No local build yet: start one from Project › Build local.",
-            "builtFromCommit": "Built from {commit}"
+            "builtFromCommit": "Built from {commit}",
+            "verify": {
+                "github": {
+                    "one": "Verified by GitHub CI · run {run} · {count} job green on {sha}",
+                    "other": "Verified by GitHub CI · run {run} · {count} jobs green on {sha}"
+                },
+                "waiting": "Waiting for GitHub CI · run {run} · {done} of {total} jobs done",
+                "waitingStart": "Waiting for GitHub CI · run {run}",
+                "notUsed": "GitHub CI not used: {reason}. The local CI runs.",
+                "here": "Verify here instead"
+            }
         },
         "depSync": {
             "howExit": "{state} (exit {exit})",
@@ -4591,6 +5336,11 @@
             "plain": {
                 "title": "Your way of publishing",
                 "headline": "Here is how this project publishes a version.",
+                "builds": {
+                    "title": "How your builds are checked",
+                    "shared": "{build} is not checked again on this computer when GitHub already checked the same version in full, on this kind of system. It only runs the checks here when GitHub's are missing, still running, failed, made on another kind of system or not usable.",
+                    "always": "{build} is always checked on this computer, even when GitHub already checked the same version."
+                },
                 "workBranch": "You work on {trunk}, your working branch.",
                 "introTwo": "To ship a version there are two paths: a release candidate to test, then the public version.",
                 "introRc": "To ship a version, this project makes a release candidate to test.",
@@ -5887,13 +6637,11 @@
     "notif": {
         "center": {
             "noPath": "no path to show",
-            "clearOne": "Clear",
-            "clearAll": "Clear all",
-            "clearAllTitle": "Moves every notification of the list to the archive. You can undo it for a few seconds.",
-            "cleared": {
-                "one": "{count} notification cleared",
-                "other": "{count} notifications cleared"
-            },
+            "archive": "Archive",
+            "archiveAll": "Archive all",
+            "archiveAllTitle": "Archives every card of the list. Archived notifications stay in the Archived list, where you can restore them.",
+            "restore": "Restore",
+            "goToTitle": "Show where this comes from",
             "resolved": "Resolved",
             "silence": "Don't tell me again…",
             "running": "Running…",
@@ -5960,7 +6708,10 @@
             "release": "release",
             "deps": "dependencies",
             "download": "download",
-            "trust": "approval"
+            "trust": "approval",
+            "pr": "pull request",
+            "handoff": "hand-off",
+            "logwatch": "log watch"
         },
         "goToTerminal": "Go to the terminal",
         "age": {
@@ -5993,6 +6744,14 @@
     "rail": {
         "keepAwakeWhileWorking": "Keep this computer awake while it works",
         "keptAwake": "kept awake {condition}",
+        "dot": {
+            "waiting": "{name} waits for you",
+            "waitingAgent": "An agent waits for you",
+            "unread": {
+                "one": "{count} unread notification",
+                "other": "{count} unread notifications"
+            }
+        },
         "unread": {
             "one": "{count} unread",
             "other": "{count} unread"
@@ -6178,10 +6937,12 @@
             "moltenterm:group-strip": "Product",
             "moltenterm:next-station": "Next station",
             "moltenterm:linemap": "Line map",
+            "moltenterm:running": "In progress",
             "moltenterm:next-release": "Next public release",
             "moltenterm:releases": "Releases",
             "moltenterm:now": "Now",
-            "moltenterm:steps": "Project steps"
+            "moltenterm:steps": "Project steps",
+            "moltenterm:steps-hint": "Project steps"
         },
         "overview": {
             "bars": {
@@ -6212,7 +6973,13 @@
             "lastRun": "Last run, on {sha}: {text}",
             "notRun": "not run",
             "noBuild": "No local build yet",
-            "commit": "Commit {sha}"
+            "commit": "Commit {sha}",
+            "runningAbove": "running, see above",
+            "failedAbove": "failed, see above",
+            "rebuild": "Rebuild",
+            "release": "Release {tag}",
+            "published": "published {ago}",
+            "publishedUndated": "published"
         },
         "work": {
             "jobs": "{done}/{total} jobs",
@@ -6220,6 +6987,31 @@
             "release": "Release {tag}",
             "candidate": "candidate",
             "public": "public"
+        },
+        "band": {
+            "title": "In progress",
+            "hint": "Nothing blocks while this runs, you can keep working.",
+            "actionsOf": "Actions of {name}",
+            "logOf": "Last lines of the log",
+            "logFollows": "The last lines scroll by themselves",
+            "copyLog": "Copy",
+            "ofEstimate": "/ ~{estimate}",
+            "percent": "{percent}%",
+            "buildLocal": "local build",
+            "buildOn": "local build · {branch}",
+            "buildFrom": "local build · {branch} @ {sha}",
+            "release": "Release {tag}",
+            "releaseCandidate": "release candidate",
+            "releasePublic": "public release",
+            "releaseTagged": "{channel} · tag pushed",
+            "seeOnGithub": "See on GitHub",
+            "details": "Details",
+            "duration": {
+                "seconds": "{seconds} s",
+                "minutesSeconds": "{minutes} min {seconds}",
+                "minutes": "{minutes} min",
+                "hoursMinutes": "{hours} h {minutes}"
+            }
         },
         "agents": {
             "heading": "Agents",
@@ -6247,12 +7039,17 @@
                 "investigate": "CI of #{number}",
                 "finish": "finishing #{number}",
                 "review": "review of #{number}",
-                "release": "release {tag}"
+                "release": "release {tag}",
+                "brainstormSetup": "SaaSFoundryAI setup",
+                "brainstormUpdate": "SaaSFoundryAI full profile",
+                "brainstormHandoff": "first step of a brainstormed project"
             }
         },
         "steps": {
             "none": "No project step for the overview: the pipeline declares none in its \"{section}\" section.",
-            "noPipeline": "The project's own steps show here once the pipeline is connected."
+            "noPipeline": "The project's own steps show here once the pipeline is connected.",
+            "add": "Add steps",
+            "comesBack": "The card comes back by itself once there are some."
         },
         "station": {
             "heading": "Next station",
@@ -6269,8 +7066,8 @@
             "nothing": "Nothing to release yet.",
             "planned": "Planned — milestone {milestone}, {open}, nothing on {trunk} yet",
             "milestoneFirst": "Milestone {milestone} is due first; the changes on {trunk} fit in it.",
-            "biggerBump": "{reason} on {trunk}: {tag} would be a {level} version.",
-            "biggerBumpPlain": "The changes on {trunk} call for a {level} version: {tag} would be one.",
+            "biggerBump": "{reason} on {trunk}: the changes call for a {level} version ({derived}). The release planned as {tag} can still go out under that number.",
+            "biggerBumpPlain": "The changes on {trunk} call for a {level} version ({derived}). The release planned as {tag} can still go out under that number.",
             "open": {
                 "one": "{count} open",
                 "other": "{count} open"
@@ -6558,8 +7355,10 @@
             "heldSetting": "From the 360 view setting (Always).",
             "heldColumns": "Automatic: more than {count} columns on this screen.",
             "offManual": "Turned off for this view until it is back to this screen's number of columns. It still turns on by itself if the panels no longer fit side by side at all.",
+            "offPlaces": "This view keeps its 360 × N. Every panel is visible and the panels share the width. The carpet comes back by itself when a panel would be stored.",
             "offColumns": "Automatic: turns on by itself beyond {count} columns on this screen, or when the panels no longer fit side by side.",
             "offGrid": "Keep the grid: the panels stay side by side. It turns on by itself only if they no longer fit side by side at all.",
+            "offAsking": "Automatic: asks before it turns on beyond {count} columns on this screen.",
             "clickOn": "Click to turn it on.",
             "clickOff": "Click to leave it: the panels get back the proportions you gave them.",
             "tooltipSingle": "360 view needs a second panel beside the first one.",
@@ -6577,6 +7376,16 @@
             "message": "The first column stays fixed and the other panels line up on a carpet that scrolls sideways. You can change this in Settings.",
             "keepGrid": "Keep the grid",
             "use360": "Use 360"
+        },
+        "offer": {
+            "title": "Switch to the 360 view?",
+            "message": "The first column stays fixed. Pick how many panels stay visible on the right; the others are stored on the carpet, still active.",
+            "everyView": "Do the same in every view",
+            "everyViewHint": "No other view asks again. You can change it in Settings.",
+            "saveTitle": "Save for this {width} × {height} screen?",
+            "saveText": "On this screen, 360 view beyond {count} columns. Listed in Settings, under Columns per screen.",
+            "save": "Save",
+            "notNow": "Not now"
         },
         "screens": {
             "title": "Columns per screen",
@@ -6603,6 +7412,7 @@
             "untitled": "Panel",
             "morePanelsOne": "+1 panel",
             "morePanels": "+{count} panels",
+            "pairTitle": "{first} & {second}",
             "window": "Visible area",
             "windowHint": "drag to move, click a panel to jump to it"
         },
@@ -6612,6 +7422,7 @@
             "moveLeft": "Move left",
             "moveRight": "Move right",
             "tabName": "{kind}: {title}, {state}",
+            "panelsList": "Panels: {names}",
             "visible": "visible",
             "stored": "stored on the carpet",
             "openedBy": "opened by {name}",
@@ -6810,7 +7621,23 @@
                 "subagent": "A sub-agent of {name} is on it",
                 "subagentDone": "A sub-agent of {name} has finished",
                 "background": "An agent is probably on it",
-                "signed": "{name} is probably on it"
+                "signed": "{name} is probably on it",
+                "stopped": "Stopped without a pull request"
+            },
+            "stoppedLine": "stopped without a pull request",
+            "resume": {
+                "action": "Resume",
+                "title": "Ask {name} to continue its sub-agent in its worktree: finish the checks, push and open the draft pull request",
+                "sent": "Handed to {name}, which continues its sub-agent: it finishes the work and opens the draft pull request.",
+                "typed": "Typed in {name}'s prompt, after what was already there: press Enter in its terminal to send it.",
+                "queued": "{name} is busy: the brief is typed in its terminal when its prompt is idle, and it continues its sub-agent.",
+                "already": "{name} already has this request: nothing more was sent.",
+                "alreadyAnon": "The lead already has this request: nothing more was sent.",
+                "working": "A sub-agent of {name} is working on it again: nothing was sent.",
+                "workingAnon": "An agent is working on it again: nothing was sent.",
+                "leadGone": "{name} no longer runs: nothing was sent.",
+                "nothing": "No sub-agent can be continued on this branch: nothing was sent.",
+                "failed": "Resume did not go through: {message}"
             },
             "session": {
                 "title": "{name}'s session",
@@ -6824,6 +7651,11 @@
                     "other": "{name} orchestrates {count} tickets"
                 },
                 "launch": "Launch #{ticket}",
+                "resume": "Resume #{ticket}",
+                "stopped": {
+                    "one": "{count} ticket stopped without a pull request",
+                    "other": "{count} tickets stopped without a pull request"
+                },
                 "background": "in the background"
             },
             "after": {
@@ -6956,11 +7788,52 @@
             "filter": "Filter by project",
             "all": "All projects",
             "count": "{count} projects",
-            "none": "No pull request open",
-            "noneHint": "Nothing waits for you on {name}.",
             "openTitle": "Open #{number} in {project}'s Integration panel",
+            "markTitle": "Show only {project}",
+            "markTitleInto": "Show only {project} · pull requests into {target}",
+            "markInto": "to {target}",
+            "noneOpen": "No open pull request in your projects.",
+            "mergedNone": "No pull request merged in your projects in the last {days} days.",
             "noFolderTitle": "{project} has no folder yet",
-            "noFolder": "Give it a folder to follow its pull requests."
+            "noFolder": "Give it a folder to follow its pull requests.",
+            "giveFolder": "Give it a folder",
+            "trustTitle": "A run was refused in {project}",
+            "waits": {
+                "one": "{count} pull request waits for you",
+                "other": "{count} pull requests wait for you"
+            }
+        },
+        "owners": {
+            "inProject": "{count} in {project}",
+            "openProject": "Show {project}'s pull requests",
+            "label": "Owners",
+            "menuAria": "Choose whose work to show",
+            "menuEmpty": "No agent owns work here yet.",
+            "menuItemSubs": "+ {count} sub-agents",
+            "hidden": {
+                "one": "{count} other hidden",
+                "other": "{count} others hidden"
+            },
+            "showAll": "Show all",
+            "waits": {
+                "one": "{count} other waits for you",
+                "other": "{count} others wait for you"
+            },
+            "waitsShow": "Show",
+            "waitsHide": "Hide",
+            "propose": "+ {name} ?",
+            "proposeTitle": "{name} joined this view. Nothing changes until you add them; ignoring them removes this for good in this view.",
+            "add": "Add",
+            "ignore": "Ignore {name}",
+            "noneShown": "Nothing of the followed agents is open.",
+            "byHand": "by hand",
+            "byHandTitle": "No agent signed this work",
+            "subOf": "{name} · sub-agent of {lead}",
+            "groupSubs": "+ {names}",
+            "filterOn": "Filter on {name}",
+            "filterButton": "Filter by owner",
+            "noAgentGroup": "No agent",
+            "noAgentHint": "made by hand or by an agent that closed"
         },
         "launch": {
             "button": "Launch",
@@ -7172,6 +8045,9 @@
             "cancel": "Stop",
             "cancelling": "Cancelling…",
             "cancelTitle": "Cancel every validation not being merged; nothing more is merged",
+            "cancelGroup": "Cancel the merge",
+            "cancelGroupTitle": "Stops after the step under way: a merge or a push already started finishes, and nothing more is merged",
+            "groupRunning": "A group merge already runs into {base}: it cannot be started a second time. Wait for it to end, or cancel it.",
             "dismiss": "Hide",
             "kept": {
                 "changes": "The agent's copy has uncommitted files: it is kept.",
@@ -7403,6 +8279,18 @@
             "stepAdd": "Add #{number} to the group merge",
             "mergeCount": "Merge these {count} in this order…",
             "mergeOne": "Merge this 1",
+            "mergeScoped": {
+                "one": "Merge {name}'s 1",
+                "other": "Merge {name}'s {count}"
+            },
+            "mergeScopedMany": {
+                "one": "Merge the 1 of {names}",
+                "other": "Merge the {count} of {names}"
+            },
+            "scopeNote": {
+                "one": "The merge covers the shown list only. The {count} other does not move.",
+                "other": "The merge covers the shown list only. The {count} others do not move."
+            },
             "chooseNone": "No pull request chosen for the group merge.",
             "wait": {
                 "agent": "Wait for {name}, still working on it",
@@ -7552,7 +8440,9 @@
             "title": "Rebase and merge: opens the Validate sheet with the plan",
             "draft": "Draft: mark it ready for review first.",
             "conflicts": "Conflicts with {base}: ask for a rebase first.",
-            "blocked": "GitHub blocks the merge: a required check or review is missing."
+            "blocked": "GitHub blocks the merge: a required check or review is missing.",
+            "inGroup": "In the group merge that runs into {base}: it merges in its turn. Cancel the merge to take it back.",
+            "groupRunning": "A group merge into {base} is running; merging this now may make the next ones need a rebase."
         },
         "rebase": {
             "button": "Ask for a rebase",
@@ -7706,6 +8596,10 @@
         },
         "check": {
             "button": "Check the agents",
+            "buttonScoped": {
+                "one": "Check the agent of {names} ({count})",
+                "other": "Check the agents of {names} ({count})"
+            },
             "buttonTitle": "Ask the agent on each pull request with something left (conflicts, red CI, requested changes, no test report) to check it against its ticket and finish it. The others are skipped; nothing starts without your confirmation.",
             "checking": "Checking…",
             "checked": {
@@ -7762,7 +8656,9 @@
             "confirm": {
                 "agentWorking": "{name} is still working on this branch.",
                 "noReport": "No test report yet.",
-                "validateAnyway": "Validate anyway"
+                "validateAnyway": "Validate anyway",
+                "mergeAnyway": "Merge anyway",
+                "waitForRun": "Wait for the run"
             },
             "state": {
                 "agentWaiting": "{name} is waiting for you",
@@ -7936,6 +8832,27 @@
             "state": "By state",
             "stateTitle": "Within each section, what needs you first, in the order of the card states.",
             "merge": "Merge order"
+        },
+        "legend": {
+            "button": "What the colours mean",
+            "title": "What the colours mean",
+            "intro": "The edge and the dot of each card say where it stands.",
+            "mark": {
+                "waiting": "Waiting for you",
+                "ready": "Ready to merge",
+                "blocked": "Blocked",
+                "running": "In progress",
+                "draft": "Nothing moving"
+            },
+            "tone": {
+                "you": "An agent stopped to ask you something, or a decision is yours to make.",
+                "ready": "The CI is green and nothing is open: you can merge it.",
+                "broken": "The CI failed or it conflicts with its target branch, and no agent is on it.",
+                "agent": "An agent is working on it.",
+                "running": "The CI is running.",
+                "draft": "Its agent is done or stopped, and nobody is working on it.",
+                "wait": "It waits on something else, such as another pull request."
+            }
         },
         "sections": {
             "yours": "Needs you",
@@ -9179,6 +10096,7 @@
             "batchempty": "Select the pull requests to merge first.",
             "batchmethod": "This merge method is no longer allowed on this repository: pick another one.",
             "batchrunning": "The merge queue of this project is being cancelled; try again in a moment.",
+            "batchgroup": "A group merge already runs into {base}: it cannot be started a second time. Wait for it to end, or cancel it.",
             "batchgone": "This merge queue no longer runs.",
             "batchnotstopped": "The batch merge is not waiting for a decision.",
             "basemissing": "The base branch {branch} was not found in the project or on origin.",
@@ -9392,6 +10310,9 @@
                 "working": "{agent} is working: wait for its turn to end.",
                 "sent": "Sent to {agent}.",
                 "typeddraft": "Typed in {agent}'s prompt without Enter: you may have an unsent message there.",
+                "humandraft": "Text typed in {agent}'s terminal waits in its prompt: nothing was typed.",
+                "unsettled": "{agent}'s state is not known yet: nothing was typed.",
+                "unknownprompt": "{agent}'s prompt may hold text MoltenTerm did not see: nothing was typed.",
                 "typed": "Typed in {agent}'s prompt: add what to do and press Enter."
             },
             "update": {
@@ -9448,6 +10369,36 @@
             },
             "noPipeline": "The project has no pipeline (.molten/project.json).",
             "pipelineProblems": "The pipeline has problems: {detail}",
+            "build": {
+                "stalled": "Stopped: the local CI made no progress for {minutes} minutes ({jobs}). Relaunch the build: the jobs already green are reused.",
+                "ciCancelled": "Stopped: its local CI run was cancelled.",
+                "worktreeTimeout": "Stopped: preparing the build's worktree took longer than {minutes} minutes.",
+                "prepareTimeout": "Stopped: the build's prepare command took longer than {minutes} minutes.",
+                "cancelled": "Cancelled by you.",
+                "notWaiting": "{title} is not waiting for GitHub's CI.",
+                "github": {
+                    "badSha": "the commit is not a full commit id",
+                    "noRepo": "origin is not a GitHub repository",
+                    "noGh": "gh is not installed",
+                    "loggedOut": "you are not signed in to GitHub (gh auth login)",
+                    "rateLimited": "GitHub's rate limit is reached",
+                    "unreachable": "GitHub could not be reached",
+                    "noRun": "GitHub has no CI run on {sha}",
+                    "partialOnly": "GitHub's runs on {sha} are not the full suites (pull request runs, or runs of other branches)",
+                    "failed": "GitHub's CI run {run} ended in {conclusion} on {sha}",
+                    "cancelled": "GitHub's CI run {run} was cancelled on {sha}",
+                    "noRequired": "{branch} declares no required check, so no GitHub run can stand for its full CI",
+                    "rulesUnreadable": "the checks {branch} requires could not be read",
+                    "jobsUnreadable": "the jobs of GitHub's run {run} could not be read",
+                    "requiredMissing": "the required check {check} is not a job of GitHub's run {run}",
+                    "requiredSkipped": "the required check {check} was skipped in GitHub's run {run}",
+                    "requiredNotGreen": "the required check {check} ended in {conclusion} in GitHub's run {run}",
+                    "platformNotCovered": "GitHub's run did not test this computer's kind of system",
+                    "localChosen": "the pipeline asks for the local CI",
+                    "hereChosen": "you chose to verify here instead",
+                    "stalled": "its run made no progress for {minutes} minutes"
+                }
+            },
             "ci": {
                 "noJobs": "The pipeline declares no CI job (ci.jobs).",
                 "notACommit": "{rev} is not a commit of this project.",
@@ -9887,6 +10838,7 @@
             "action": {
                 "back": "Went back",
                 "forward": "Went forward",
+                "reload": "Loaded the page again",
                 "navigate": "Went to {site}",
                 "readpage": "Read the page",
                 "pagetext": "Read the page's text",
@@ -9968,6 +10920,37 @@
                 "git": "git did not delete it ({detail})"
             }
         },
+        "logwatch": {
+            "off": "The log watch is off on this build.",
+            "sendFailed": "The request could not be sent: {detail}",
+            "title": {
+                "newPanic": "A new panic in the log",
+                "newCrash": "A crash in the log",
+                "spikePanic": "A panic keeps coming back",
+                "spikeCrash": "A crash keeps coming back",
+                "spikeError": "An error keeps coming back",
+                "spikeWarning": "A warning keeps coming back",
+                "growth": "The log grows fast"
+            },
+            "message": {
+                "new": "I spotted it {times} since {since}: `{excerpt}`",
+                "newAt": "I spotted it {times} since {since}: `{excerpt}` in `{frame}`",
+                "spike": "About {rate} a minute lately, {times} since {since}: `{excerpt}`",
+                "spikeAt": "About {rate} a minute lately, {times} since {since}: `{excerpt}` in `{frame}`",
+                "growth": "{size} written in the last hour: something may be repeating.",
+                "asked": "{name} is having a look. {rest}"
+            },
+            "times": {
+                "one": "once",
+                "other": "{count} times"
+            },
+            "size": "{mb} MB",
+            "action": {
+                "ask": "Ask an agent to look",
+                "mute": "Ignore this kind",
+                "reveal": "Show in folder"
+            }
+        },
         "onboarding": {
             "notDeclined": "{agent} was not declined: MoltenTerm installs its guides at start.",
             "installFailed": "The guides of {agent} could not be installed: {detail}",
@@ -10041,7 +11024,31 @@
         "finish": "Started by you at {time} to check #{number} and finish what is left",
         "lead": "Started by you at {time}: the lead agent's session resumed to take #{number} back",
         "release": "Started by you at {time} to analyze and resolve the failed step {step} of the release {tag}",
-        "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside"
+        "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside",
+        "brainstormSetup": "Opened by you at {time} from a brainstorm, to set up SaaSFoundryAI in this project: its questions are asked here",
+        "brainstormUpdate": "Opened by you at {time} from a brainstorm, to add SaaSFoundryAI's full profile to this project: its questions are asked here",
+        "brainstormHandoff": "Started by you at {time} from a brainstorm, to take the first step of this project with its brief"
+    },
+    "agentNames": {
+        "markTitle": "Locked for {project}",
+        "markTitleNamed": "{name} is locked for {project}: a new agent there gets it back.",
+        "section": "First name",
+        "lockedHint": "{name} is locked for {project}: a new agent started there gets it back, and no agent of another project gets it.",
+        "lockHint": "Lock {name} for {project} so a new agent started there gets it back.",
+        "lock": "Lock for {project}",
+        "unlock": "Unlock",
+        "unlockNamed": "Unlock {name}",
+        "moveQuestion": "{name} is locked for {from}. Lock it for {project} instead?",
+        "moveLabel": "Lock for {project}",
+        "running": "Running",
+        "notRunning": "Not running",
+        "error": {
+            "noAgent": "No agent holds a first name in this terminal.",
+            "noProject": "This terminal is in no project folder, so {name} has no project to be locked for.",
+            "notLockable": "{name} is a numbered name, given when the list of names ran out: it cannot be locked.",
+            "failed": "The lock could not be saved in MoltenTerm's data: nothing changed.",
+            "unlockFailed": "The change could not be saved in MoltenTerm's data: {name} stays locked."
+        }
     },
     "agentLinks": {
         "title": "Connections",
@@ -10285,6 +11292,9 @@
         "agentDefault": "App default ({agent})",
         "agentDefaultNone": "App default",
         "agentHint": "The agent MoltenTerm starts for this project's reviews, release notes and companion. The same choice as in the panels' options.",
+        "agentNames": "Locked first names",
+        "agentNamesHint": "A new agent started in this project gets the first free name of this list, in this order. Lock a name from an agent's Connections.",
+        "agentNamesNone": "No first name is locked for this project.",
         "folder": "Project folder",
         "folderHint": "Holds the project's context, for example a client's documents. The Files panel opens here."
     },
@@ -10307,6 +11317,31 @@
         "reloadedMessage": "Its display process was ended ({cause}). Your sessions kept running.",
         "reloadedMessagePlain": "Its display process was ended. Your sessions kept running.",
         "showLog": "Show log"
+    },
+    "logs": {
+        "title": "Logs",
+        "hint": "MoltenTerm's log files on this computer. They rotate by themselves and never grow past a size limit.",
+        "size": "Total size",
+        "files": {
+            "one": "{count} file, the current one included",
+            "other": "{count} files, the current one included"
+        },
+        "reading": "Reading the size…",
+        "unreadable": "The size of the logs could not be read.",
+        "show": "Show in folder",
+        "clear": "Clear logs",
+        "clearing": "Clearing…",
+        "confirm": "Clear {size} of logs? The rotated files are removed and the current file is emptied. MoltenTerm keeps logging.",
+        "confirmYes": "Clear logs",
+        "cleared": "Logs cleared: {size} freed.",
+        "partial": "Some log files could not be removed.",
+        "failed": "The logs could not be cleared.",
+        "notice": {
+            "title": "The logs take {size}",
+            "message": "They grew past {limit} on this computer. Clearing them frees the space and changes nothing else.",
+            "clear": "Clear logs",
+            "show": "Show in folder"
+        }
     },
     "agentWorks": {
         "follows": "MoltenTerm follows:",
@@ -10588,6 +11623,10 @@
                 "edit": "Edit note",
                 "remove": "Remove note",
                 "field": "Note for {name}"
+            },
+            "order": {
+                "up": "Move up",
+                "down": "Move down"
             }
         },
         "view": {
@@ -10746,6 +11785,68 @@
             "failed": "The workspace could not be created: {error}"
         }
     },
+    "activity": {
+        "label": "Running now: {list}",
+        "waitingLabel": "Waits for you: {list}",
+        "idle": "Nothing is running: the furnaces are out",
+        "popover": {
+            "idle": "The furnaces are out",
+            "one": "Running",
+            "many": "{count} things running",
+            "waiting": "Waiting for you",
+            "none": "No agent, build or CI is running."
+        },
+        "group": {
+            "waiting": "Waits for you",
+            "agents": {
+                "one": "Agent",
+                "other": "Agents"
+            },
+            "ci": "CI",
+            "builds": {
+                "one": "Build",
+                "other": "Builds"
+            }
+        },
+        "row": {
+            "localCi": "Local CI",
+            "pr": "PR #{number}",
+            "prChecks": "GitHub · {done}/{total} checks",
+            "percent": "{percent} %",
+            "asks": "{name} asks you something",
+            "subagents": {
+                "one": "{count} sub-agent",
+                "other": "{count} sub-agents"
+            }
+        },
+        "agents": {
+            "one": "an agent",
+            "other": "{count} agents"
+        },
+        "subagents": {
+            "one": "a sub-agent",
+            "other": "{count} sub-agents"
+        },
+        "builds": {
+            "one": "a build",
+            "other": "{count} builds"
+        },
+        "localCi": {
+            "one": "a local CI run",
+            "other": "{count} local CI runs"
+        },
+        "prCi": {
+            "one": "CI of PR {numbers}",
+            "other": "CI of PRs {numbers}"
+        },
+        "open": {
+            "waiting": "Click to answer the agent",
+            "agent": "Click to go to the agent",
+            "build": "Click to open the project",
+            "localCi": "Click to open the local CI",
+            "prCi": "Click to open Integration"
+        }
+    },
     "topField": {
         "placeholder": "View, agent, panel, action or address…",
         "inputLabel": "Search or go to…",
@@ -10797,6 +11898,43 @@
             "clearTerminal": "Clear the terminal"
         }
     },
+    "featuresInTest": {
+        "publicVersion": {
+            "label": "See the public version",
+            "description": "Turns every feature below off, so the app shows what release candidates and public releases show. Your own switches stay as they are."
+        },
+        "list": "Features in test",
+        "switchLabel": "{name}, on this computer",
+        "state": {
+            "on": "On",
+            "off": "Off",
+            "publicOff": "Off in the public version",
+            "closedHere": "Not open on this build"
+        },
+        "openOn": "Open on",
+        "ticket": "Ticket #{number}",
+        "note": "These switches only turn features off, on this computer. A feature never opens on a build whose channel does not have it, and nothing here is synced.",
+        "features": {
+            "logwatch": {
+                "label": "{name}'s log watch",
+                "description": "{name} reads the app's log every 10 minutes and leaves a calm card in his notes when a panic, a crash, a loop or a fast-growing log shows up, with a way to ask an agent to look. Gold, dev and local builds only, never in a release."
+            }
+        }
+    },
+    "logwatch": {
+        "pick": {
+            "title": "Who should look at it?",
+            "subtitle": "No lead of MoltenTerm's repository stands out. Pick the agent of that repository that gets the log excerpt: it goes only to that agent and to its model provider.",
+            "send": "Send",
+            "cancel": "Cancel",
+            "agents": "Running agents"
+        },
+        "noAgent": "No agent of MoltenTerm's repository runs. Start one in MoltenTerm's workspace, then ask again.",
+        "gone": "That agent has stopped. Ask again to pick another one.",
+        "refused": "Only an agent of MoltenTerm's repository gets the log. Ask again to pick one.",
+        "unknown": "{name} no longer keeps this one in his notes.",
+        "unavailable": "The log watch is not available on this build."
+    },
     "library": {
         "label": "Library",
         "navLabel": "Library sections",
@@ -10844,6 +11982,11 @@
                 "label": "Settings",
                 "title": "Settings",
                 "sub": "What applies to all of MoltenTerm."
+            },
+            "features": {
+                "label": "Features in test",
+                "title": "Features in test",
+                "sub": "What only this build has while it is tested. Switch a feature off to see the app without it."
             }
         },
         "workspaces": {
@@ -11716,8 +12859,26 @@
         "row": "{name}, {percent} %",
         "rowReset": "{name}, {percent} %, resets {day}",
         "rowAsOf": "read {ago}",
+        "stale": "Read {ago}",
         "rowUnreadable": "{name}, no reading: {reason}",
         "rowNoReading": "{name}, no reading",
+        "choice": {
+            "open": "Show or hide {name}",
+            "show": "Always show {name}",
+            "hide": "Hide {name}",
+            "auto": "Show {name} automatically"
+        },
+        "hidden": {
+            "toggle": "Not used lately ({count})",
+            "label": "Providers not used lately",
+            "title": "Not used lately",
+            "lastUse": "Last use {ago}",
+            "noUse": "No use seen",
+            "chosen": "Hidden by you",
+            "alwaysShow": "Always show",
+            "auto": "Show automatically",
+            "for": "{action}: {name}"
+        },
         "legend": {
             "label": "Colours and marks of the week grid",
             "today": "Today",

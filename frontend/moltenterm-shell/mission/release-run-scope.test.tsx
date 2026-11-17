@@ -5,7 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { ManualCheckFailure, PipelineReleaseStep } from "./mission-model";
 import { ReleaseFacts, releaseRun } from "./release-run";
-import { ReleaseRunPanel, UncoveredNote } from "./release-run-panel";
+import { UncoveredNote } from "./release-run-panel";
+import { ReleaseRunPanel } from "./release-run-row";
 
 // The scope of a changelog section written by hand, and what a public one leaves out (#1142).
 

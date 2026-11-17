@@ -93,6 +93,8 @@ export const ColourDataFiles: Record<string, string> = {
     "moltenterm-shell/accent.ts": "the default workspace colour and the black or white text computed over a workspace colour",
     "moltenterm-shell/window-texture.ts": "the black or white ink a texture tile is drawn with",
     "moltenterm-shell/mission/ci-model.ts": "the ANSI palette of a CI log's own colour codes",
+    "moltenterm-shell/brainstorm/brainstorm-scene-model.ts":
+        "the colours of Brokk's thought in 3D: WebGL reads no CSS token, and its plates take the same table (#2246)",
     "moltenterm-onboarding/onboarding-project-model.ts": "the workspace colours offered at onboarding",
 };
 

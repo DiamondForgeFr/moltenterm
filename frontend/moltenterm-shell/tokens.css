@@ -220,6 +220,9 @@
     --mt-ease: cubic-bezier(0.2, 0, 0, 1);
     --mt-ease-cool: cubic-bezier(0.3, 0, 0.1, 1);
     --mt-ease-cube: cubic-bezier(0.45, 0, 0.2, 1);
+    /* A rail panel and its tether come out together on this curve (FR-BOSS-009, AC66, AC67, #2196): it goes about 8 % past
+       its end once and comes back, so the panel lands with a give of about 1 px and then stands still. */
+    --mt-ease-tether: cubic-bezier(0.25, 1.5, 0.4, 1);
 }
 
 /* The light theme (theme "Coulée" step 8, FR-SHELL-121, #1341): opt-in, dark stays the default. app-theme.ts puts

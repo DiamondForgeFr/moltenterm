@@ -51,7 +51,9 @@ function DeliveryChoice({
                     onClick={() => onChoose(delivery)}
                     className={cn(
                         "cursor-pointer rounded-4 px-2 py-0.5 text-12 transition-colors duration-120 ease-mt",
-                        chosen === delivery ? "bg-surface-2 text-primary" : "text-muted hover:text-primary"
+                        chosen === delivery
+                            ? "mt-selected-action bg-surface-2 text-primary"
+                            : "text-muted hover:text-primary"
                     )}
                 >
                     {t(DeliveryLabels[delivery])}

@@ -1,0 +1,2 @@
+# Raised by SaaSFoundry: the AGENTS.md files Codex loads exceed its 32 KiB default.
+project_doc_max_bytes = 65536

@@ -1,0 +1,131 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The tether (FR-BOSS-009, AC65 to AC69, #2196): a continuous ember rope tied at both ends, with a round anchor on the
+   button's edge and a knot on the panel's edge. It is made of transitions, never a keyframe animation: a finished
+   animation on the panel's side keeps Chromium from starting the leaving transition (brokk-group.css), and a rope
+   that outlived its panel would hang in the air.
+
+   The rope is scaled from --mt-tether-from to 1 with the duration and the curve of what it holds, so its far end is on the
+   panel's edge at every frame: the consumer sets --mt-tether-time, --mt-tether-ease and --mt-tether-fade to the ones of the
+   panel (the defaults) or of the square (brokk-group.css). The root is the rope's top-left corner with no height of its
+   own: its top follows the button when the panel changes icon. */
+.mt-tether {
+    --mt-tether-time: var(--mt-duration-settle);
+    --mt-tether-ease: var(--mt-ease-tether);
+    --mt-tether-fade: var(--mt-duration-base);
+}
+
+/* Two classes: a group's own "its children take the pointer" must not catch the rope. */
+.mt-tether.mt-tether {
+    position: absolute;
+    height: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition:
+        opacity var(--mt-tether-fade) linear,
+        top var(--mt-tether-time) var(--mt-ease);
+}
+
+.mt-tether.is-in {
+    opacity: 1;
+}
+
+.mt-tether-rope {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 2px;
+    background: var(--mt-action);
+    transform-origin: 0 50%;
+    transform: scaleX(var(--mt-tether-from, 0));
+    transition: transform var(--mt-tether-time) var(--mt-tether-ease);
+}
+
+.mt-tether-anchor {
+    position: absolute;
+    left: -3px;
+    top: -2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--mt-action);
+    transform: scale(0);
+    transition: transform var(--mt-tether-time) var(--mt-tether-ease);
+}
+
+.mt-tether-knot {
+    position: absolute;
+    left: -2px;
+    top: -1px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--mt-action);
+    transform: translateX(calc(var(--mt-tether-w) * var(--mt-tether-from, 0)));
+    transition: transform var(--mt-tether-time) var(--mt-tether-ease);
+}
+
+.mt-tether.is-in .mt-tether-rope,
+.mt-tether.is-in .mt-tether-anchor {
+    transform: none;
+}
+
+.mt-tether.is-in .mt-tether-knot {
+    transform: translateX(var(--mt-tether-w));
+}
+
+/* A tether that mounts while its panel is already in (a panel opened by a click or a hover while the group shows) has no
+   style to pass from: it starts from the closed one and grows the same way. */
+@starting-style {
+    .mt-tether.is-in {
+        opacity: 0;
+    }
+
+    .mt-tether.is-in .mt-tether-rope {
+        transform: scaleX(var(--mt-tether-from, 0));
+    }
+
+    .mt-tether.is-in .mt-tether-anchor {
+        transform: scale(0);
+    }
+
+    .mt-tether.is-in .mt-tether-knot {
+        transform: translateX(calc(var(--mt-tether-w) * var(--mt-tether-from, 0)));
+    }
+}
+
+/* Reduced motion (the system's or MoltenTerm's own setting): nothing grows, travels or gives. The rope stands at its full
+   length in every state and the root's short fade, the group's, is the only motion, so it never shows before its panel. */
+@media (prefers-reduced-motion: reduce) {
+    .mt-tether.mt-tether {
+        transition: opacity var(--mt-duration-fade) linear !important;
+    }
+
+    .mt-tether .mt-tether-rope,
+    .mt-tether .mt-tether-anchor {
+        transform: none !important;
+        transition: none !important;
+    }
+
+    .mt-tether .mt-tether-knot {
+        transform: translateX(var(--mt-tether-w)) !important;
+        transition: none !important;
+    }
+}
+
+.prefers-reduced-motion .mt-tether.mt-tether {
+    transition: opacity var(--mt-duration-fade) linear !important;
+}
+
+.prefers-reduced-motion .mt-tether .mt-tether-rope,
+.prefers-reduced-motion .mt-tether .mt-tether-anchor {
+    transform: none !important;
+    transition: none !important;
+}
+
+.prefers-reduced-motion .mt-tether .mt-tether-knot {
+    transform: translateX(var(--mt-tether-w)) !important;
+    transition: none !important;
+}

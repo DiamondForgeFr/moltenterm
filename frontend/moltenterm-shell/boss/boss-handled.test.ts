@@ -12,6 +12,7 @@ import {
     mergeHandled,
     readHandled,
     sameHandled,
+    unmarkRowHandled,
 } from "./boss-handled";
 
 const T = new Date(2026, 10, 6, 14, 0, 0).getTime();
@@ -62,5 +63,31 @@ describe("the rows settled or ignored (FR-BOSS-009, AC16, #2026)", () => {
         const newer = markRowHandled(EmptyHandled, { ...wait, since: 1500 }, T + 10);
         expect(mergeHandled(both, newer, T + 11)["agent:b1"].episode).toBe("1500:waiting");
         expect(sameHandled(both, { ...both })).toBe(true);
+    });
+});
+
+describe("giving a row back, the undo of an archive (#2195)", () => {
+    it("shows the row again, whatever episode it was marked for", () => {
+        const marked = markRowHandled(EmptyHandled, wait, T);
+        const back = unmarkRowHandled(marked, wait.key, T + 5);
+        expect(checkRowHandled(back, wait)).toBe(false);
+        expect(checkRowHandled(back, { ...wait, since: 2000 })).toBe(false);
+        // A later wait is marked as any other.
+        expect(checkRowHandled(markRowHandled(back, wait, T + 6), wait)).toBe(true);
+    });
+
+    it("wins over the mark it undoes in every window, even in the very same millisecond", () => {
+        const marked = markRowHandled(EmptyHandled, wait, T);
+        const back = unmarkRowHandled(marked, wait.key, T);
+        expect(back[wait.key].at).toBeGreaterThan(marked[wait.key].at);
+        const merged = mergeHandled(marked, back, T + 1);
+        expect(checkRowHandled(merged, wait)).toBe(false);
+        expect(checkRowHandled(mergeHandled(back, marked, T + 1), wait)).toBe(false);
+    });
+
+    it("survives the storage and is forgotten after a month like any mark", () => {
+        const back = unmarkRowHandled(markRowHandled(EmptyHandled, wait, T), wait.key, T + 1);
+        expect(readHandled(handledText(back), T + 2)).toEqual(back);
+        expect(readHandled(handledText(back), T + 1 + HandledKeepMs)).toEqual({});
     });
 });

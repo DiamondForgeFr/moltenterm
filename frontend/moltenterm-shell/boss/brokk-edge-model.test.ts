@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
     AjarPx,
-    BounceMs,
     bounceKeyframes,
+    BounceMs,
     edgeAttributes,
     EdgeFacePx,
     edgeFaceShiftPx,
@@ -355,9 +355,14 @@ describe("the edge, in the model and in the style sheets (AC40, AC44 to AC46)", 
     it("hides all of the sidebar but his face and his banner while it is out, out of the keyboard's way", () => {
         const hidden = rule(
             sidebar,
-            ".mt-sb[data-edge] > :not(.mt-sb-window-row, .mt-brokk-scene-layer),\n.mt-sb[data-edge] .mt-sb-window-row > :not(.mt-brokk-avatar)"
+            ".mt-sb[data-edge] > :not(.mt-sb-window-row, .mt-brokk-scene-layer),\n.mt-sb[data-edge] .mt-sb-window-row > :not(.mt-brokk-avatar, .mt-act)"
         );
         expect(hidden).toContain("visibility: hidden");
+    });
+
+    it("keeps the activity indicator (FR-BOSS-009 AC85) with his face in the row, hidden with nothing but the sidebar", () => {
+        expect(sidebar).toContain(".mt-sb[data-edge] .mt-sb-window-row > :not(.mt-brokk-avatar, .mt-act)");
+        expect(sidebar).toContain('.mt-sb.is-hidden[data-edge="rest"]');
     });
 
     it("puts the face in the middle of the strip: the title row's right end, moved by the model's shift", () => {
@@ -406,4 +411,3 @@ describe("hover and click (AC30, AC47)", () => {
         expect(edgeShapeOf(sidebarPlaceOf(true, true, false, true), view)).toBe("ajar");
     });
 });
-

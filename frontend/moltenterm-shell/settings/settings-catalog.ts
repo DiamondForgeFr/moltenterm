@@ -10,6 +10,7 @@
 import builtinDefaults from "../../../pkg/wconfig/defaultconfig/settings.json";
 import settingsSchema from "../../../schema/settings.json";
 import { DefaultBossName } from "../boss/boss-name";
+import { currentChannel } from "../build/current-build";
 import { t, TFunction } from "../i18n/i18n";
 import { hasKey } from "../i18n/i18n-core";
 import { ProjectMetaKey, WorkspaceFolderMetaKey } from "../workspace-project";
@@ -130,7 +131,8 @@ export const SettingsSections: SettingsSection[] = [
     },
 ];
 
-export type SettingOption = { value: string; label: string };
+// `hint`: one line saying what the choice does, shown beside it when the choices are option rows (settings.items.<key>.hints.<value>).
+export type SettingOption = { value: string; label: string; hint?: string };
 
 // "global": settings.json. "workspace": the current workspace's meta, the setting applies to that workspace only.
 export type SettingScope = "global" | "workspace";
@@ -169,6 +171,8 @@ type SchemaMeta = {
     unit?: string;
     default?: unknown;
     platform?: string;
+    // The build channels the row shows on, comma separated (pkg/molten/settingsmeta Setting.Channels, #2246).
+    channels?: string;
     hidden?: boolean;
     inverted?: boolean;
     order?: number;
@@ -184,6 +188,35 @@ type SchemaProperty = {
 export type SettingsSchema = { $defs?: { SettingsType?: { properties?: Record<string, SchemaProperty> } } };
 
 export const UnknownGroup = "Other settings";
+
+// The switches that turn on only after one explicit confirmation of what they allow (#2257): a security choice of the
+// developer's, never on unless he set it. Each has settings.items.<key>.confirm, confirmOn and confirmCancel.
+export const ConfirmOnKeys = new Set<string>(["boss:autoapprove"]);
+
+// The confirmation each of them records in the client's meta, which wavesrv requires with the setting: a terminal
+// cannot write it, so an agent that sets the key in settings.json by hand gets nothing. Must match
+// pkg/molten/brokksession/permit.go AutoApproveConsentKey.
+export const ConfirmConsentKeys: Record<string, string> = { "boss:autoapprove": "molten:brokkautoapprove" };
+
+// The switch shows on only when the setting and its confirmation agree, as wavesrv reads it: a setting an agent wrote
+// by hand shows off.
+export function confirmedOn(key: string, setting: boolean, clientMeta: Record<string, unknown>): boolean {
+    const consentKey = ConfirmConsentKeys[key];
+    if (consentKey == null) {
+        return setting;
+    }
+    const at = clientMeta?.[consentKey];
+    return setting && typeof at === "number" && at > 0;
+}
+
+// What the confirmation writes: when the developer confirmed, or nothing once he turns it off.
+export function consentMeta(key: string, on: boolean, now: number): Record<string, number | null> {
+    const consentKey = ConfirmConsentKeys[key];
+    if (consentKey == null) {
+        return null;
+    }
+    return { [consentKey]: on ? now : null };
+}
 
 // The control of a key without metadata, from its JSON type.
 function controlForType(prop: SchemaProperty): SettingsControl {
@@ -208,10 +241,12 @@ const SectionIds = new Set<string>(SettingsSections.map((s) => s.id));
 // Unknown keys come after every described one, in the schema's order (the struct's).
 const UnknownOrderBase = 10000;
 
+// `channel` is the build's (FR-REL-001): a row gated to some channels shows only there, and nowhere when it is unknown.
 export function buildCatalog(
     schema: SettingsSchema,
     defaults: Record<string, unknown>,
-    platform: string
+    platform: string,
+    channel: string = null
 ): SettingEntry[] {
     const props = schema?.$defs?.SettingsType?.properties ?? {};
     const entries: SettingEntry[] = [];
@@ -221,6 +256,9 @@ export function buildCatalog(
             return;
         }
         if (meta?.platform && !meta.platform.split(",").includes(platform)) {
+            return;
+        }
+        if (meta?.channels && (channel == null || !meta.channels.split(",").includes(channel))) {
             return;
         }
         if (meta == null || !SectionIds.has(meta.section)) {
@@ -292,7 +330,12 @@ export function settingsCatalog(platform: string): SettingEntry[] {
     if (cached == null) {
         cached = [
             ...WorkspaceSettings,
-            ...buildCatalog(settingsSchema as SettingsSchema, builtinDefaults as Record<string, unknown>, platform),
+            ...buildCatalog(
+                settingsSchema as SettingsSchema,
+                builtinDefaults as Record<string, unknown>,
+                platform,
+                currentChannel()
+            ),
         ];
     }
     return cached;
@@ -328,6 +371,7 @@ export function localizeSettingEntry(entry: SettingEntry, tr: TFunction): Settin
         options: entry.options?.map((o) => ({
             value: o.value,
             label: translatedOr(tr, `${base}.options.${o.value}`, o.label),
+            hint: hasKey(`${base}.hints.${o.value}`) ? tr(`${base}.hints.${o.value}`) : undefined,
         })),
     };
 }
@@ -485,7 +529,7 @@ export function jsonSummary(value: unknown, tr: TFunction = t): string {
 // "Selected". A longer list (terminal themes, the installed browsers) stays a menu.
 export const MaxChoiceRows = 4;
 
-export type SettingChoice = { value: string; label: string };
+export type SettingChoice = { value: string; label: string; hint?: string };
 
 // The choices a setting shows as option rows, or null for a menu. The empty value is the unset choice (the system's
 // language, a setting's own "unset" label).
@@ -506,7 +550,7 @@ export function settingChoices(
     if (entry.optionsFrom != null || entry.options == null) {
         return null;
     }
-    const list = entry.options.map((o) => ({ value: o.value, label: o.label }));
+    const list: SettingChoice[] = entry.options.map((o) => ({ value: o.value, label: o.label, hint: o.hint }));
     if (entry.unsetLabel != null) {
         list.unshift({ value: "", label: entry.unsetLabel });
     }

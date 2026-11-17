@@ -402,6 +402,8 @@
         "placeholder": "Ouvrir un agent, un panneau, un dossier…",
         "noMatch": "Rien ne correspond à « {query} »",
         "openAddress": "Ouvrir {address}",
+        "webSearch": "Chercher « {query} » sur le web",
+        "webSearchWith": "avec {engine}",
         "footer": {
             "choose": "choisir",
             "open": "ouvrir",
@@ -451,6 +453,12 @@
             "sessionsDetail": "terminaux et agents encore en cours, locaux et SSH",
             "bossCard": "Afficher la fiche de {name}",
             "bossCardDetail": "les sessions de tous les espaces de travail, par-dessus l'app",
+            "brainstorm": "Brainstorm avec {name}",
+            "brainstormDetail": "parler d'une idée, sa pensée se construit en 3D",
+            "brainstormReplay": "Rejouer un brainstorm scripté",
+            "brainstormResume": "Reprendre le brainstorm « {title} »",
+            "brainstormResumeDetail": "là où vous l'avez laissé avec {name} : son graphe et sa conversation",
+            "brainstormReplayDetail": "versions de développement : données synthétiques, sans agent",
             "checkUpdates": "Rechercher une mise à jour maintenant",
             "checkUpdatesDetail": "interroge GitHub maintenant, même si elle a été faite aujourd'hui",
             "settings": "Réglages",
@@ -484,6 +492,9 @@
             "checkUpdates": "mise à jour, mettre à jour, rechercher, version, nouvelle version, publication",
             "sessions": "sessions, durables, en cours, agents, ssh, détachées, tâches, processus",
             "bossCard": "chef, contremaître, avatar, bulle, fanion, fiche, carte, vue d'ensemble, sessions, agents, en attente",
+            "brainstorm": "brainstorm, idée, projet, réfléchir, carte mentale, 3D",
+            "brainstormReplay": "brainstorm, rejouer, démo, script, synthétique",
+            "brainstormResume": "brainstorm, reprendre, retour, continuer, idée",
             "settings": "configuration, préférences, paramètres, options",
             "shortcuts": "touches, raccourcis, aide, aide-mémoire",
             "viewPin": "épingler, désépingler, garder, temporaire, vue, onglet",
@@ -542,6 +553,19 @@
     },
     "settings": {
         "retry": "Réessayer",
+        "searchEngine": {
+            "aria": "Moteur de recherche",
+            "recommended": "Recommandé",
+            "custom": "Personnalisé",
+            "customLine": "Votre propre adresse de recherche, à modifier ci-dessous",
+            "brave": "Son propre index indépendant, sans pistage ni profilage",
+            "duckduckgo": "Cherche sans faire de profil de vous",
+            "startpage": "Les résultats de Google sans pistage",
+            "qwant": "Un moteur européen qui ne fait pas de profil de vous",
+            "ecosia": "Plante des arbres avec ses bénéfices",
+            "google": "Le moteur le plus utilisé",
+            "bing": "Le moteur de Microsoft"
+        },
         "title": "Réglages",
         "default": "Par défaut",
         "auto": "Auto",
@@ -769,9 +793,26 @@
             "sidebar": "Barre latérale",
             "theme": "Thème",
             "avatar": "Avatar",
-            "whenHeComesToFetchMe": "Quand il vient me chercher"
+            "whenHeComesToFetchMe": "Quand il vient me chercher",
+            "brainstorms": "Brainstorms",
+            "hisAgent": "Son agent"
         },
         "items": {
+            "boss:brainstormsdir": {
+                "label": "Dossier des brainstorms",
+                "description": "Où vos brainstorms avec lui sont enregistrés, un dossier par idée, sans rien demander."
+            },
+            "boss:projectsdir": {
+                "label": "Dossier des projets",
+                "description": "Où un brainstorm clair devient un dossier de projet, une fois que vous cliquez pour le créer."
+            },
+            "boss:autoapprove": {
+                "label": "Approuver les demandes de son agent sans me demander",
+                "description": "Seul ce qui reste dans son dossier se fait sans demander, chaque action en une ligne ; le reste demande toujours.",
+                "confirm": "Activé, son agent lit, modifie et écrit les fichiers de son propre dossier, et y lance des commandes simples en lecture seule (git status, diff, log, show, les tests), sans vous demander, jusqu'à ce que vous le désactiviez. Chaque action s'affiche en une ligne dans sa fenêtre de discussion. Tout le reste vous demande toujours : tout autre fichier ou dossier, les autres commandes, les pages et recherches web.",
+                "confirmOn": "L'activer",
+                "confirmCancel": "Continuer à me demander"
+            },
             "boss:name": {
                 "label": "Nom",
                 "description": "Le nom du contremaître, de 1 à 24 caractères. Son info-bulle, sa fiche et ses menus le reprennent."
@@ -779,6 +820,18 @@
             "boss:show": {
                 "label": "Afficher l'avatar",
                 "description": "Un avatar dans la barre de titre compte ce qui attend et vient vous chercher. Désactivé, il ne s'affiche jamais."
+            },
+            "boss:proximity": {
+                "label": "Proximité",
+                "description": "À quelle distance il se tient de vous.",
+                "options": {
+                    "discreet": "Discrète",
+                    "colleague": "Collègue"
+                },
+                "hints": {
+                    "discreet": "Il ne vient que pour l'essentiel. Pas de bonjour, pas de rappel de pause, et rien n'est envoyé à son modèle.",
+                    "colleague": "Il vous dit bonjour, vous suggère des pauses et vous prévient le soir. Son modèle, si vous en avez un, ne reçoit que l'heure, votre durée de travail et le nombre d'agents en cours."
+                }
             },
             "boss:visitsecurity": {
                 "label": "Une alerte de sécurité sur une dépendance",
@@ -807,7 +860,7 @@
             },
             "boss:visitfinished": {
                 "label": "Un agent a terminé",
-                "description": "Un agent qui a fini son travail.",
+                "description": "Un agent qui a fini son travail. Il compte sur le badge et ne le fait jamais venir.",
                 "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
             },
             "boss:visitdownload": {
@@ -822,7 +875,7 @@
             },
             "boss:visitusage": {
                 "label": "Usage du forfait au-delà de 90 %",
-                "description": "L'usage du forfait d'un agent dépasse 90 %.",
+                "description": "L'usage du forfait d'un agent dépasse 90 %. Il s'affiche dans son propre bloc et ne compte jamais sur le badge.",
                 "options": { "vient": "Vient me chercher", "badge": "Badge seulement", "rien": "Rien" }
             },
             "boss:blockedmin": {
@@ -1089,8 +1142,8 @@
                 "description": "La page qu'ouvre un nouveau panneau Page web."
             },
             "web:defaultsearch": {
-                "label": "Moteur de recherche",
-                "description": "L'URL de recherche, avec {query} à la place des mots."
+                "label": "Adresse de recherche",
+                "description": "Adresse du moteur de recherche, écrite par la liste ci-dessus ; modifiez-la pour en utiliser un autre, avec {query} à la place des mots."
             },
             "browser:installed": {
                 "label": "Navigateur installé",
@@ -1183,7 +1236,13 @@
             "power:graceminutes": {
                 "label": "Rester éveillé après la fin du travail",
                 "description": "Combien de temps il reste éveillé après le dernier travail, pour qu'une pause entre deux tours ne soit pas une veille.",
-                "options": { "1": "1 minute", "2": "2 minutes", "5": "5 minutes", "10": "10 minutes", "15": "15 minutes" }
+                "options": {
+                    "1": "1 minute",
+                    "2": "2 minutes",
+                    "5": "5 minutes",
+                    "10": "10 minutes",
+                    "15": "15 minutes"
+                }
             },
             "power:workagents": {
                 "label": "Les agents au travail comptent",
@@ -1287,7 +1346,7 @@
             },
             "moltenterm:sidebarheat": {
                 "label": "Chaleur dans la barre latérale",
-                "description": "Quand des agents travaillent, une légère chaleur monte au bas de la barre latérale."
+                "description": "Quand des agents travaillent ou que quelque chose se construit ou passe en CI, une légère chaleur monte au bas de la barre latérale."
             },
             "moltenterm:settingsreveal": {
                 "label": "Révélation en fusion des réglages",
@@ -1393,6 +1452,16 @@
                     "auto": "Automatique",
                     "grid": "Garder la grille",
                     "always": "Toujours"
+                }
+            },
+            "moltenterm:view360places": {
+                "label": "Panneaux visibles quand elle s'active seule",
+                "description": "Avec Automatique : combien de panneaux restent visibles à côté de la première colonne. Vide : la vue 360 simple.",
+                "unset": "Vue 360 simple",
+                "options": {
+                    "1": "1 panneau visible",
+                    "2": "2 panneaux visibles",
+                    "3": "3 panneaux visibles"
                 }
             },
             "review:publishlanguage": {
@@ -1613,7 +1682,8 @@
                 "agents": "Mon projet",
                 "project": "Composer ma vue",
                 "view": "Choisir sa place",
-                "place": "C'est prêt",
+                "place": "Rencontrer {name}",
+                "brokk": "C'est prêt",
                 "start": "Entrer dans l'atelier"
             },
             "scenes": {
@@ -1622,6 +1692,7 @@
                 "project": "Votre projet",
                 "view": "Votre première vue",
                 "place": "Sa place",
+                "brokk": "Votre collègue",
                 "start": "C'est prêt"
             },
             "legal": {
@@ -1742,6 +1813,23 @@
                 "nextTitle": "Vos prochaines vues :",
                 "nextText": "{keys} ou le bouton « + Nouvelle vue ». Une nouvelle vue est temporaire ; épinglez-la pour la garder.",
                 "nextExample": "Pour un projet de développement, épinglez par exemple une vue pour la conception, une pour les tâches de sécurité, une pour le pilotage du projet. Chacun s'organise comme il veut !"
+            },
+            "brokk": {
+                "kicker": "Votre collègue",
+                "titleA": "Voici {name},",
+                "titleB": "votre collègue d'atelier.",
+                "says": "« Bonjour. Je garde un œil sur tout l'atelier, dans tous vos espaces de travail : ce que vos agents terminent, ce qui vous attend. Et quand une idée demande réflexion, on y réfléchit ensemble. »",
+                "where": "Il vit en haut de votre barre latérale : cliquez sur son visage pour lui parler. De n'importe où : {keys}, puis son nom.",
+                "off": "Vous l'avez désactivé sur cet ordinateur : les Préférences de {name} le réactivent.",
+                "ideaLead": "Une idée vous vient, même floue ?",
+                "ideaText": "N'hésitez pas : ouvrez {name} et tapez {brainstorm}. Il la construit avec vous et la range dans un dossier qui vous appartient.",
+                "example": "Exemple",
+                "idea": {
+                    "centre": "Un carnet de bord pour l'atelier",
+                    "who": "Pour qui",
+                    "first": "Une première version",
+                    "risks": "Ce qui peut coincer"
+                }
             },
             "later": "Plus tard",
             "settingUp": "Préparation…",
@@ -2261,6 +2349,10 @@
             "browser-address-other": "Aller à la barre d'adresse",
             "browser-stop": "Arrêter le chargement de la page",
             "browser-stop-other": "Arrêter le chargement de la page",
+            "browser-inspect": "Inspecter la page",
+            "browser-inspect-other": "Inspecter la page",
+            "browser-annotate": "Annoter la page",
+            "browser-annotate-other": "Annoter la page",
             "companion": "Compagnon de l'agent",
             "palette": "Palette de commandes",
             "command-panel": "Les commandes du panneau actif",
@@ -2473,6 +2565,10 @@
         }
     },
     "browser": {
+        "searchNote": {
+            "text": "Les recherches utilisent {engine}",
+            "change": "Changer"
+        },
         "start": {
             "title": "Cadrez le prochain changement",
             "hintProject": "Le Cadrage sert à préparer le travail avec votre agent avant qu'il écrive du code. Cette page affiche le dépôt du projet dès que son dossier a un dépôt distant GitHub.",
@@ -2569,7 +2665,11 @@
             "siteDetail": "Il pourra lire les pages de ce site et y agir, avec vos connexions.",
             "allowOnce": "Autoriser une fois",
             "always": "Toujours pour ce site",
-            "block": "Bloquer"
+            "block": "Bloquer",
+            "reuseAria": "Demande d'utilisation de cette page",
+            "reuseTitle": "{name} voudrait utiliser cette page",
+            "reuseDetail": "Autoriser lui laisse travailler dans cet onglet. Sinon, il en ouvre un autre.",
+            "reuseOther": "Ouvrir un autre onglet"
         },
         "sitePermission": {
             "aria": "Demande d'autorisation d'un site",
@@ -2683,6 +2783,34 @@
             "badgeTitle": "Partagé avec {name}. Cliquez pour arrêter le partage."
         },
         "viewName": "Page web",
+        "inspector": {
+            "inspect": "Inspecter",
+            "close": "Fermer l'inspecteur",
+            "title": "Outils de développement",
+            "window": "Ouvrir dans une fenêtre à part",
+            "closeTitle": "Fermer les outils de développement ({shortcut})",
+            "resize": "Redimensionner les outils de développement",
+            "failed": "Les outils de développement n'ont pas pu s'ouvrir sur cette page."
+        },
+        "siteData": {
+            "clearSite": "Effacer les données de ce site…",
+            "clearCache": "Vider le cache du navigateur…",
+            "siteTitle": "Effacer les données de ce site ?",
+            "siteIntro": "Le navigateur de MoltenTerm supprime ce que {origin} conserve sur cet ordinateur :",
+            "siteCookies": "les cookies que {host} garde pour lui seul, ce qui peut vous déconnecter de ce site",
+            "siteStorage": "son stockage local, ses bases IndexedDB, ses service workers et leurs caches",
+            "siteCache": "les fichiers que ce site a servis lui-même, gardés dans le cache du navigateur (ceux qu'il charge depuis d'autres serveurs restent)",
+            "siteKept": "Les autres sites gardent leurs données et leurs connexions, de même que les cookies partagés avec les autres sites de son domaine, comme une connexion commune à ses sous-domaines. La page se recharge ensuite.",
+            "siteConfirm": "Effacer les données",
+            "cacheTitle": "Vider le cache du navigateur ?",
+            "cacheBody": "Les fichiers que chaque site ouvert dans le navigateur de MoltenTerm garde en cache sont supprimés : les pages les téléchargent à nouveau.",
+            "cacheKept": "Les cookies, les connexions et le stockage des sites sont conservés. La page se recharge ensuite.",
+            "cacheConfirm": "Vider le cache",
+            "siteDone": "Les données de {origin} ont été effacées",
+            "cacheDone": "Le cache du navigateur a été vidé",
+            "moved": "La page est passée sur un autre site : rien n'a été effacé.",
+            "failed": "Les données n'ont pas pu être effacées : {error}"
+        },
         "notice": {
             "siteChoiceNotSaved": "Le choix pour ce site n'a pas pu être enregistré : {error}",
             "decisionNotForgotten": "La décision des agents n'a pas pu être oubliée : {error}",
@@ -2732,8 +2860,100 @@
             "reopen": "Rouvrir la page"
         },
         "reloading": "Rechargement de la page…",
+        "annotate": {
+            "button": "Annoter",
+            "buttonTitle": "Annoter la page : y dessiner des zones et les envoyer à un agent ({shortcut})",
+            "menu": "Annoter la page",
+            "layerLabel": "Annotation de la page",
+            "capturing": "Capture de la page…",
+            "captureFailed": "La page n'a pas pu être capturée. Affichez son onglet et réessayez.",
+            "close": "Fermer",
+            "hint": "Dessinez une zone autour de ce qu'il faut changer, puis écrivez votre commentaire.",
+            "tray": {
+                "zones": {
+                    "one": "{count} zone",
+                    "other": "{count} zones"
+                },
+                "clear": "Tout effacer",
+                "review": "Relire et envoyer",
+                "leaveAsk": {
+                    "one": "Abandonner {count} zone ?",
+                    "other": "Abandonner {count} zones ?"
+                },
+                "discard": "Abandonner",
+                "keep": "Continuer à dessiner",
+                "full": "C'est le maximum de zones d'un rapport ({count})."
+            },
+            "zone": {
+                "label": "Zone {n}",
+                "labelWith": "Zone {n} : {comment}"
+            },
+            "field": {
+                "title": "Zone {n}",
+                "placeholder": "Qu'est-ce qui ne va pas ici ?",
+                "hint": "Entrée valide, Maj+Entrée ajoute une ligne",
+                "erase": "Effacer cette zone",
+                "refsHint": "Collez ou déposez une image (jusqu'à {count}) pour montrer ce que vous avez en tête. Un lien reste un lien."
+            },
+            "ref": {
+                "alt": "Image de référence {n}",
+                "remove": "Retirer cette image",
+                "refused": {
+                    "notimage": "Seules des images peuvent être jointes, un fichier qui n'en est pas une a été laissé de côté.",
+                    "type": "Seules les images png, jpeg, webp et gif peuvent être jointes.",
+                    "size": "Cette image est trop lourde pour être jointe (plus de {limit} Mo).",
+                    "decode": "Cette image est vide ou n'a pas pu être lue.",
+                    "large": "Cette image est trop lourde pour être jointe.",
+                    "zone": "Une zone porte au plus {count} images.",
+                    "report": "Un rapport porte au plus {count} images."
+                }
+            },
+            "review": {
+                "references": "Références",
+                "zone": "Zone {n}",
+                "title": "Ce qui sera envoyé",
+                "back": "Retour au dessin",
+                "to": "À",
+                "page": "Page",
+                "image": "Image annotée",
+                "report": "Ce que l'agent lit",
+                "reportNote": "MoltenTerm ajoute son propre en-tête et demande une ligne de résultat.",
+                "loading": "Préparation du rapport…",
+                "failed": "Le rapport n'a pas pu être préparé : {error}",
+                "send": "Envoyer à {name}",
+                "sending": "Envoi…",
+                "copy": "Copier le rapport",
+                "copied": "Rapport copié. L'image est conservée dans les matériaux de ce projet.",
+                "copyFailed": "Le rapport n'a pas pu être copié : {error}",
+                "noAgent": "Aucun agent ne tourne pour ce projet en ce moment. Copiez le rapport pour le donner à l'un d'eux.",
+                "pick": "Envoyer à un autre agent",
+                "leadNote": "{name} devra confier les zones aux bons agents."
+            },
+            "why": {
+                "works": "travaille sur {branch}",
+                "owns": "dirige l'agent qui travaille sur {branch}",
+                "pr": "a signé la pull request",
+                "locked": "garde un nom verrouillé pour ce projet",
+                "project": "dirige ce projet"
+            },
+            "sent": {
+                "delivered": "{name} l'a reçu.",
+                "typed": "La demande est saisie dans l'invite de {name} : appuyez sur Entrée là-bas pour l'envoyer.",
+                "queued": "{name} est occupé : la demande sera saisie quand son invite sera libre.",
+                "kept": "L'image est conservée dans les matériaux de ce projet, pas dans ses fichiers.",
+                "done": "Terminé"
+            },
+            "gone": "{name} ne tourne plus. Choisissez un autre agent ou copiez le rapport.",
+            "refused": {
+                "workspace": "{name} travaille dans un autre espace de travail : rien n'a été envoyé.",
+                "project": "{name} travaille sur un autre projet : rien n'a été envoyé."
+            },
+            "sendFailed": "Rien n'a été envoyé : {error}",
+            "materialTitle": "Page annotée : {where}",
+            "refTitle": "Page annotée, zone {zone} : référence {n}"
+        },
         "testContext": {
-            "title": "Servie depuis",
+            "cardTitle": "La version que vous regardez",
             "unknown": "Source inconnue",
             "chipTitle": "Cette page est servie depuis {where} (port {port}). Cliquer pour le détail",
             "chipTitleUnknown": "Source inconnue : {reason}",
@@ -2749,13 +2969,57 @@
             "commitDirty": "{sha} + modifications non commitées",
             "served": "Servie par",
             "servedBy": "{process} (pid {pid}) sur le port {port}",
-            "prDraft": "Brouillon, en test",
-            "prReady": "Prête pour la revue",
             "prUnknown": "Pull requests pas encore lues pour ce projet",
             "noPr": "Aucune pull request",
             "otherProject": "Cette app appartient à {name}, pas au projet de cet espace de travail : le panneau Intégration montre le projet de l'espace de travail.",
             "openInReviews": "Ouvrir dans le panneau Intégration",
             "openPr": "Ouvrir la pull request",
+            "uncommitted": "modifications non commitées",
+            "agentTitle": "L'agent qui travaille sur cette branche",
+            "whatToTest": "À tester",
+            "testNoSteps": "Votre test est demandé, et la pull request ne liste aucune étape : voir sa description.",
+            "details": "Détails",
+            "state": {
+                "merged": "Fusionnée",
+                "ciFailing": "CI en échec",
+                "draft": "Brouillon",
+                "ready": "Prête pour la revue"
+            },
+            "versions": {
+                "title": "Versions servies en ce moment",
+                "titleOf": "Versions de {name} servies en ce moment",
+                "others": "Autres projets · {count}",
+                "noOther": "Aucune autre version de {name} n'est servie en ce moment.",
+                "unreadable": "Les serveurs de cet ordinateur ne peuvent pas être listés.",
+                "port": "port {port}",
+                "main": "dépôt principal",
+                "here": "vous êtes ici",
+                "openTitle": "Charger {branch} dans ce panneau (port {port})"
+            },
+            "stop": {
+                "button": "Arrêter ce serveur",
+                "buttonFor": "Arrêter le serveur de {branch}",
+                "confirm": "Arrêter {process}, qui sert {branch} sur le port {port} ?",
+                "unknownProcess": "un programme dont le nom ne peut pas être lu",
+                "scope": "Seuls ce processus et ceux qu'il a lancés dans ce dossier s'arrêtent. Rien d'autre n'est touché.",
+                "confirmYes": "Arrêter le serveur",
+                "stopping": "Arrêt…",
+                "cancel": "Annuler",
+                "done": "{branch} est arrêtée (port {port}).",
+                "doneCurrent": "Cette version est arrêtée. Ouvrez-en une autre ci-dessous.",
+                "still": "Le port {port} est de nouveau servi : le programme qui a lancé le serveur le relance. Arrêtez-le là où il a été lancé.",
+                "failed": "Le serveur n'a pas pu être arrêté.",
+                "refused": {
+                    "gone": "Plus rien n'écoute sur le port {port} : rien n'a été arrêté.",
+                    "moved": "Le processus du port {port} ne tourne plus dans ce dossier ({folder}) : rien n'a été arrêté.",
+                    "norepo": "Le processus du port {port} tourne hors d'un dépôt git ({folder}) : seuls les serveurs de vos projets s'arrêtent d'ici.",
+                    "unknownProject": "{folder} n'est pas dans un projet lié à MoltenTerm : rien n'a été arrêté.",
+                    "self": "C'est MoltenTerm lui-même : il ne s'arrête pas d'ici.",
+                    "agent": "C'est {agent} lui-même qui écoute sur le port {port} : arrêtez l'agent depuis son terminal. Rien n'a été arrêté.",
+                    "unknown": "Les programmes qui tournent sur cet ordinateur ne peuvent pas être lus, donc ce que l'arrêt toucherait ne peut pas être vérifié : rien n'a été arrêté.",
+                    "other": "Rien n'a été arrêté."
+                }
+            },
             "reason": {
                 "notLocal": "cette page n'est pas servie depuis cet ordinateur.",
                 "noProcess": "rien n'écoute sur le port {port} de cet ordinateur.",
@@ -2788,6 +3052,8 @@
             "rename": "Renommer la conversation",
             "agent": "Agent",
             "savedDefault": "Enregistré par défaut",
+            "defaultModel": "Votre modèle par défaut",
+            "latestModel": "{name} (dernier)",
             "nativeModel": "Modèle {native} : {provider} peut le remplacer par l'un des siens",
             "nativeLevel": "Niveau {native} : {provider} peut l'ignorer",
             "chooseIn": "Choisir dans {agent}",
@@ -2943,6 +3209,7 @@
             "agentsAllowed": "Agents autorisés",
             "linksInternal": "Les liens s'ouvrent dans MoltenTerm",
             "defaultBrowser": "Navigateur par défaut",
+            "searchEngine": "Moteur de recherche",
             "controllingOther": "{name} pilote un autre onglet",
             "showAgentTab": "Afficher l'onglet de l'agent",
             "takeOver": "Prendre la main",
@@ -2954,6 +3221,8 @@
             "thisSite": "Ce site",
             "links": "Liens",
             "inspect": "Inspecter la page",
+            "closeInspector": "Fermer l'inspecteur",
+            "devtoolsWindow": "Outils de développement dans une fenêtre à part",
             "newPageBeside": "Nouvelle page à droite",
             "duplicateBeside": "Dupliquer à droite"
         },
@@ -3075,10 +3344,317 @@
         }
     },
     "boss": {
+        "brainstorm": {
+            "menu": "Brainstorm avec {name}",
+            "opening": "Une idée ? On la met sur l'enclume. Dites-moi ce que c'est, et pour qui.",
+            "resume": "On reprend « {title} ». Où en étions-nous ?",
+            "lead": "Brainstorm :",
+            "header": "La pensée de {name} · {nodes} · {links} · {camera}",
+            "camera": {
+                "follow": "caméra sur le sujet",
+                "overview": "vue d'ensemble",
+                "free": "votre vue"
+            },
+            "recentre": "Recentrer",
+            "recentreTitle": "Cadrer tout le graphe (0, ou un double clic sur le fond)",
+            "follow": "Suivre {name}",
+            "followTitle": "La caméra suit de nouveau les nouvelles plaques de {name}",
+            "stageLabel": "Le graphe du brainstorm : glissez ou faites défiler pour le déplacer, pincez ou + et − pour zoomer, 0 pour recentrer",
+            "headerWaiting": "{name} écoute",
+            "nodes": {
+                "one": "{count} élément",
+                "other": "{count} éléments"
+            },
+            "links": {
+                "one": "{count} lien",
+                "other": "{count} liens"
+            },
+            "graphLabel": "Les idées du brainstorm : les flèches pour les parcourir, Entrée pour en cadrer une, la touche menu ou un clic droit pour ses actions",
+            "plate": {
+                "menu": "Actions pour « {text} »",
+                "editText": "Modifier le texte",
+                "changeKind": "Changer le type",
+                "linkTo": "Relier à…",
+                "remove": "Retirer"
+            },
+            "edits": {
+                "note": "[Mes changements dans le graphe : {changes}.]",
+                "join": " ; ",
+                "node": "« {text} » ({id})",
+                "remove": "retiré {node}",
+                "edit": "réécrit {id} en « {text} »",
+                "retype": "{node} est maintenant : {kind}",
+                "link": "relié {a} et {b}",
+                "unlink": "délié {a} et {b}",
+                "restore": "remis {node}",
+                "revert": "annulé le changement de {node}",
+                "linking": "Relier « {text} » à une autre plaque : cliquez-la, ou Échap pour annuler",
+                "linkCancel": "Annuler",
+                "bar": {
+                    "youRemoved": "Vous avez retiré « {text} »",
+                    "brokkRemoved": "{name} a retiré « {text} »",
+                    "brokkMerged": "{name} a fondu des plaques dans « {text} »",
+                    "undo": "Annuler",
+                    "dismiss": "Fermer"
+                },
+                "failed": {
+                    "conflict": "Un changement plus récent l'a touché : rien n'a été remis.",
+                    "invalid": "Ce changement n'est pas possible.",
+                    "unknown": "Ce changement n'est plus dans l'historique.",
+                    "noidea": "Aucun brainstorm n'est ouvert.",
+                    "failed": "Cela n'a pas marché : le graphe reste tel qu'il était."
+                }
+            },
+            "kinds": {
+                "topic": "Sujet",
+                "question": "Question",
+                "answer": "Réponse",
+                "idea": "Idée",
+                "theme": "Thème",
+                "decision": "Décision",
+                "proposal": "Proposition",
+                "conclusion": "Conclusion",
+                "reference": "Autre dossier"
+            },
+            "saved": {
+                "at": "Enregistré automatiquement · {time}",
+                "nothing": "Enregistré dès que l'idée est posée",
+                "failed": "Non enregistré : le dossier n'a pas pu être écrit"
+            },
+            "leaveHint": "Échap hors d'un champ quitte aussi le brainstorm",
+            "leave": "Quitter le brainstorm",
+            "summary": {
+                "one": "1 notification est arrivée pendant le brainstorm",
+                "other": "{count} notifications sont arrivées pendant le brainstorm"
+            },
+            "summaryShow": "Voir",
+            "edgeShow": "Voir",
+            "crashed": "Un agent s'est arrêté sur une erreur",
+            "crashedNamed": "{name} s'est arrêté sur une erreur",
+            "resumedLead": "Brainstorm repris : « {title} ».",
+            "forked": "« {title} » a maintenant son propre dossier. On le commence.",
+            "forgotTrash": "Oublié : « {title} » est dans la corbeille.",
+            "forgotRemoved": "Oublié : « {title} » est supprimé définitivement.",
+            "newIdea": "Nouvelle idée",
+            "lastChange": "Dernière modification {when}",
+            "resumeAction": "Reprendre",
+            "resumeDismiss": "Pas maintenant",
+            "picker": {
+                "label": "Brainstorms avec {name}",
+                "ask": "On commence par quoi ?",
+                "resume": "Reprendre « {title} »",
+                "all": "Tous les brainstorms ({count})…"
+            },
+            "duplicate": {
+                "ask": "On a déjà « {title} » : on le reprend, ou on repart de zéro ?",
+                "fresh": "Repartir de zéro"
+            },
+            "offer": {
+                "label": "{name} propose de reprendre un brainstorm",
+                "lead": "On rouvre ce brainstorm ?"
+            },
+            "card": {
+                "lastLeft": "Dernier brainstorm",
+                "lastLeftLabel": "Reprendre le dernier brainstorm, « {title} »"
+            },
+            "forget": {
+                "label": "Oublier un brainstorm",
+                "ask": "Oublier « {title} » ?",
+                "detail": "Dernière modification {when}. Son dossier part à la corbeille, et il ne le cite plus.",
+                "detailRemove": "Dernière modification {when}. Cet ordinateur n'a pas de corbeille utilisable par MoltenTerm : son dossier est supprimé définitivement, et il ne le cite plus.",
+                "confirm": "L'oublier",
+                "confirmRemove": "Le supprimer définitivement",
+                "cancel": "Le garder"
+            },
+            "fork": {
+                "label": "Un autre projet",
+                "ask": "{name} : « {title} », c'est un autre projet. Je lui ouvre son propre dossier ?",
+                "yes": "Oui",
+                "no": "Non, on reste ici"
+            },
+            "panel": {
+                "label": "Le brainstorm",
+                "eyebrow": "Brainstorm",
+                "untitled": "Une nouvelle idée",
+                "others": "Autres brainstorms",
+                "none": "Aucun autre brainstorm pour l'instant",
+                "resumeOne": "Reprendre « {title} »",
+                "more": "Plus pour « {title} »",
+                "rename": "Renommer",
+                "renameLabel": "Le nouveau titre du brainstorm",
+                "renameSave": "Enregistrer",
+                "show": "Afficher dans le dossier",
+                "delete": "Supprimer",
+                "forgotTrash": "« {title} » est dans la corbeille.",
+                "forgotRemoved": "« {title} » est supprimé définitivement."
+            },
+            "state": {
+                "open": "en cours",
+                "done": "terminé",
+                "clear": "clair",
+                "promoted": "devenu projet"
+            },
+            "project": {
+                "label": "Faire du brainstorm un projet",
+                "eyebrow": "En faire un projet",
+                "fold": "Replier la carte du projet",
+                "unfold": "Afficher la carte du projet",
+                "waiting": "{name} propose un projet : il attend sa conclusion.",
+                "folder": "Dossier",
+                "change": "Changer…",
+                "chooseParent": "Choisir où vont les projets…",
+                "chooseTitle": "Où vont vos projets",
+                "name": "Nom",
+                "existing": "Le dossier vide déjà présent est utilisé tel quel.",
+                "git": "git y démarre : un nouveau dépôt.",
+                "copy": "Une copie du brainstorm va dans {file} : jamais par-dessus un fichier, et rien n'est commité.",
+                "workspace": "Espace de travail",
+                "newWorkspace": "Un nouvel espace de travail, « {name} »",
+                "replaces": "Cet espace de travail est relié à {folder} : le projet remplace ce lien.",
+                "previewing": "Vérification du dossier…",
+                "create": "Créer {name}",
+                "making": "Création du projet…",
+                "done": "Le projet est prêt.",
+                "linked": "Relié à l'espace de travail « {workspace} ».",
+                "linkedThere": "Relié à son espace de travail.",
+                "notLinked": "Son espace de travail n'est pas encore relié.",
+                "link": "Le relier",
+                "show": "Afficher dans le dossier",
+                "goTo": "Aller à « {workspace} »",
+                "goToThere": "Aller à l'espace de travail",
+                "goToTitle": "Quitte le brainstorm et affiche l'espace de travail",
+                "tryAgain": "Réessayer",
+                "refused": {
+                    "notempty": "Ce dossier existe déjà et n'est pas vide. Choisissez un autre nom.",
+                    "inrepo": "Ce dossier est dans un autre dépôt, dont il cacherait l'historique. Choisissez un autre dossier parent.",
+                    "badname": "Ce nom ne peut pas être un dossier : commencez par une lettre ou un chiffre, puis des lettres, chiffres, points, tirets ou soulignés.",
+                    "noparent": "Choisissez d'abord le dossier où vont vos projets.",
+                    "nobrief": "{name} n'a pas encore conclu le brainstorm.",
+                    "promoted": "Ce brainstorm est déjà un projet.",
+                    "unknown": "MoltenTerm n'a pas pu savoir si le projet a été créé. Regardez dans le dossier, puis réessayez.",
+                    "failed": "Ça n'a pas marché : rien n'a été créé.",
+                    "link": "Le projet est créé, mais son espace de travail n'a pas pu être relié."
+                }
+            },
+            "launch": {
+                "fold": "Replier la carte",
+                "unfold": "Afficher la carte",
+                "previewing": "Vérification du projet…",
+                "opening": "Ouverture du terminal…",
+                "tryAgain": "Réessayer",
+                "goTitle": "Quitte le brainstorm et affiche le terminal",
+                "notTyped": "Son terminal est ouvert, mais la commande n'a pas pu y être tapée. Tapez-la vous-même :",
+                "refused": {
+                    "noproject": "Le projet n'est pas encore créé : créez-le d'abord ci-dessus.",
+                    "nobrief": "{name} n'a pas encore conclu le brainstorm.",
+                    "nosf": "SaaSFoundryAI n'est pas installé sur cet ordinateur.",
+                    "noprofile": "Choisissez d'abord ce qu'il installe.",
+                    "noagent": "Aucun agent de code que MoltenTerm sait lancer n'est installé sur cet ordinateur.",
+                    "agentmissing": "{agent}, choisi pour ce projet, n'est pas installé : choisissez-en un autre pour ce passage de relais.",
+                    "terminal": "Le terminal n'a pas pu s'ouvrir : rien n'a été lancé.",
+                    "notmanaged": "Ce dossier n'est pas encore installé avec SaaSFoundryAI.",
+                    "nodryrun": "Prévisualisez d'abord le profil complet : SaaSFoundryAI doit dire qu'il peut l'ajouter.",
+                    "drymutated": "SaaSFoundryAI dit que sa prévisualisation a modifié le projet, ce qu'une prévisualisation ne devrait jamais faire. Rien d'autre n'a été lancé : regardez les changements du projet avant de continuer.",
+                    "invalid": "Le brief est trop long : raccourcissez-le, puis réessayez.",
+                    "failed": "Ça n'a pas marché : rien n'a été lancé.",
+                    "unknown": "MoltenTerm n'a pas pu savoir si le terminal s'est ouvert. Il a regardé à nouveau : réessayez si rien n'apparaît."
+                }
+            },
+            "setup": {
+                "label": "Installer SaaSFoundryAI dans le projet",
+                "eyebrow": "Installer SaaSFoundryAI",
+                "waiting": "{name} le propose pour le projet : il attend que le projet soit créé.",
+                "choose": "Ce qu'installe SaaSFoundryAI",
+                "recommended": "Le choix de {name}",
+                "reason": "{name} : « {reason} »",
+                "profiles": {
+                    "full": {
+                        "title": "Complet",
+                        "subtitle": "La stack et le harness IA",
+                        "line1": "Une base de SaaS web pour démarrer : API, app web, base de données.",
+                        "line2": "Le workflow IA : tickets, branches, pull requests.",
+                        "line3": "Les skills et la SRS pour vos agents de code."
+                    },
+                    "harness": {
+                        "title": "Harness seul",
+                        "subtitle": "Le harness IA sur votre propre stack",
+                        "line1": "Votre code et votre stack restent tels quels.",
+                        "line2": "Le workflow IA : tickets, branches, pull requests.",
+                        "line3": "Les skills et la SRS pour vos agents de code."
+                    }
+                },
+                "command": "Tapé",
+                "questions": "SaaSFoundryAI pose ses propres questions dans un terminal de « {workspace} », et la fenêtre vous y emmène. Vos clés restent chez vous.",
+                "questionsThere": "SaaSFoundryAI pose ses propres questions dans un terminal de l'espace de travail du projet, et la fenêtre vous y emmène. Vos clés restent chez vous.",
+                "fullSteps": "Le profil complet se fait en deux étapes. D'abord, cette commande installe le harness IA dans le projet. Une fois fait, cette carte prévisualise ce que le profil complet ajoute et propose de l'ajouter, dans un terminal aussi.",
+                "step2Waiting": "L'étape 2, le profil complet, s'affiche ici une fois que SaaSFoundryAI a installé le harness.",
+                "setupRunning": "Laissez SaaSFoundryAI finir dans son terminal avant de prévisualiser le profil complet.",
+                "startFull": "Installer l'étape 1 : le harness IA",
+                "startHarness": "Installer : Harness seul",
+                "chooseFirst": "Choisir ce qu'il installe",
+                "startTitle": "Ouvre le terminal, tape la commande et vous y emmène",
+                "startUpdate": "Ajouter le profil complet",
+                "tabName": "SaaSFoundryAI",
+                "launched": "Son terminal s'est ouvert à {time} : les questions de SaaSFoundryAI vous y attendent.",
+                "goTo": "Aller au terminal",
+                "nosf": "SaaSFoundryAI n'est pas installé sur cet ordinateur. Installez-le dans un terminal, puis vérifiez à nouveau :",
+                "nosfNote": "Rien ne s'installe tout seul, et rien ne se lance avant votre clic.",
+                "copy": "Copier",
+                "copied": "Copié",
+                "checkAgain": "Vérifier à nouveau",
+                "managed": "Ce dossier est déjà installé avec SaaSFoundryAI.",
+                "previewFull": "Prévisualiser le profil complet",
+                "previewFullNote": "SaaSFoundryAI le prévisualise avec {command} : rien ne change.",
+                "updateLaunched": "Son terminal s'est ouvert à {time} : SaaSFoundryAI y ajoute le profil complet et pose ses propres questions.",
+                "dryRunning": "SaaSFoundryAI prévisualise…",
+                "dryFull": "Il a déjà le profil complet : rien à ajouter.",
+                "dryAdds": {
+                    "one": "Le profil complet ajoute {count} fichier.",
+                    "other": "Le profil complet ajoute {count} fichiers."
+                },
+                "dryConflicts": {
+                    "one": "{count} d'entre eux diffère du vôtre : SaaSFoundryAI demande quoi en faire.",
+                    "other": "{count} d'entre eux diffèrent des vôtres : SaaSFoundryAI demande quoi faire de chacun."
+                },
+                "dryHarness": "Le profil complet ajoute le harness IA à cette stack.",
+                "dryBlocked": "SaaSFoundryAI ne peut pas ajouter le profil complet ici en l'état du projet : son statut, dans le projet, dit pourquoi."
+            },
+            "handoff": {
+                "label": "Passer le premier pas du projet à un agent de code",
+                "eyebrow": "Passer le premier pas",
+                "waiting": "{name} le propose pour le projet : il attend que le projet soit créé.",
+                "agent": "Agent",
+                "pickAgent": "Choisir un agent",
+                "workspace": "Espace de travail",
+                "thisWorkspace": "L'espace de travail du projet",
+                "brief": "Brief",
+                "reset": "Revenir au brief de {name}",
+                "briefNote": "L'agent le lit dans un fichier du dossier de données de MoltenTerm. Modifiez-le à votre guise.",
+                "empty": "Le brief est vide : dites ce que l'agent doit faire d'abord.",
+                "tooLong": "Le brief est trop long : {count} caractères, {max} au plus.",
+                "note": "{agent} démarre dans une nouvelle vue de « {workspace} », dans votre mode de permissions habituel, et la fenêtre vous y emmène.",
+                "noteThere": "{agent} démarre dans une nouvelle vue de l'espace de travail du projet, dans votre mode de permissions habituel, et la fenêtre vous y emmène.",
+                "start": "Confier à {agent}",
+                "startTitle": "Écrit le brief, lance l'agent et vous y emmène",
+                "starting": "Lancement de {agent}…",
+                "tabName": "Premier pas",
+                "launched": "{agent} a démarré à {time} avec le brief.",
+                "goTo": "Aller à l'agent"
+            },
+            "failed": {
+                "unknown": "Ce brainstorm n'est plus dans le dossier.",
+                "notsaved": "Le brainstorm ouvert n'a pas pu être enregistré : rien n'a bougé.",
+                "noidea": "Aucune idée n'est encore ouverte.",
+                "invalid": "Ce titre ne peut pas servir.",
+                "trash": "Le dossier n'a pas pu aller à la corbeille : il reste où il est.",
+                "notrash": "Cet ordinateur n'a pas de corbeille : rien n'a été supprimé. Redemandez pour le supprimer définitivement.",
+                "failed": "Ça n'a pas marché. Le dossier reste tel qu'il était."
+            }
+        },
         "label": "{name}, {count} en attente",
         "avatar": {
             "labelCueAlone": "{name} a quelque chose à vous dire",
-            "labelCue":"{name}, {count} en attente : a quelque chose à vous dire",
+            "labelCue": "{name}, {count} en attente : a quelque chose à vous dire",
             "close": "Fermer {name}",
             "downloadKnown": {
                 "one": "{count} téléchargement en cours, {percent} %",
@@ -3107,7 +3683,8 @@
                 "running": "{name}, {percent} % téléchargé",
                 "runningUnknown": "{name}, un téléchargement est en cours",
                 "news": "{name}, un téléchargement a du nouveau",
-                "awake": "{name}, activé"
+                "awake": "{name}, activé",
+                "awakeOff": "{name}, désactivé"
             },
             "priority": {
                 "urgent": "Urgent",
@@ -3128,6 +3705,90 @@
         "visit": {
             "label": "{name} voudrait vous parler ({severity})",
             "exampleLine": "Un agent attend depuis 6 min",
+            "reason": {
+                "waitedFor": {
+                    "p1": "{name} vous attend depuis {minutes} min.",
+                    "p2": "{name} attend toujours, ça fait {minutes} min.",
+                    "p3": "{name} patiente depuis {minutes} min. Un mot suffirait.",
+                    "p4": "À vous de jouer. {name} patiente depuis {minutes} min.",
+                    "p5": "{name} a besoin de vous. Déjà {minutes} min d'attente."
+                },
+                "waiting": {
+                    "p1": "{name} vous attend.",
+                    "p2": "{name} aurait besoin d'un mot de vous.",
+                    "p3": "{name} a fait halte et regarde vers vous.",
+                    "p4": "{name} attend un signe de votre part."
+                },
+                "asks": {
+                    "p1": "{name} a une question pour vous.",
+                    "p2": "{name} voudrait votre avis.",
+                    "p3": "{name} a besoin d'une réponse pour continuer.",
+                    "p4": "{name} vous demande. Une réponse suffira.",
+                    "p5": "{name} voudrait vérifier un point avec vous."
+                },
+                "goAhead": {
+                    "p1": "{name} attend votre feu vert.",
+                    "p2": "{name} veut votre accord avant de continuer.",
+                    "p3": "{name} ne bougera pas sans votre accord.",
+                    "p4": "{name} attend. Un feu vert, s'il vous plaît.",
+                    "p5": "{name} attend à la porte que vous l'ouvriez."
+                },
+                "error": {
+                    "p1": "{name} a buté sur un os et a fait halte.",
+                    "p2": "{name} a eu un souci et a dû s'arrêter.",
+                    "p3": "Une erreur a stoppé le travail de {name}.",
+                    "p4": "{name} a trébuché sur une erreur. Un coup d'œil ?",
+                    "p5": "Le marteau a glissé pour {name}. Venez voir."
+                },
+                "ciFailed": {
+                    "p1": "La CI de la PR #{number} est au rouge. On regarde ?",
+                    "p2": "La PR #{number} a fait trébucher la CI. On répare ?",
+                    "p3": "La PR #{number} coince à la CI. Mauvaise nouvelle.",
+                    "p4": "La CI fait grise mine devant la PR #{number}. Voyons.",
+                    "p5": "La PR #{number} s'est fissurée à la CI. Venez voir."
+                },
+                "ready": {
+                    "p1": "La PR #{number} est bonne pour la fusion.",
+                    "p2": "Bonne nouvelle, la PR #{number} a tout passé.",
+                    "p3": "La PR #{number} est ressortie propre. À vous de jouer.",
+                    "p4": "La PR #{number} a refroidi sans fissure. À vous.",
+                    "p5": "Tout est au vert sur la PR #{number}. À fusionner."
+                },
+                "download": {
+                    "p1": "Un téléchargement a du nouveau pour vous.",
+                    "p2": "Du mouvement côté téléchargements. Venez voir.",
+                    "p3": "Les téléchargements ont quelque chose à vous dire.",
+                    "p4": "Petit signe des téléchargements. Un coup d'œil ?"
+                },
+                "update": {
+                    "p1": "Une mise à jour vous attend.",
+                    "p2": "Une nouvelle version est là. Quand vous voulez.",
+                    "p3": "La forge a une version fraîche pour vous.",
+                    "p4": "Rien ne presse, mais une nouvelle version est sortie."
+                },
+                "usage": {
+                    "p1": "Un de vos forfaits touche à sa fin.",
+                    "p2": "Attention, un forfait est presque épuisé.",
+                    "p3": "Surveillez la jauge, un forfait est presque à sec.",
+                    "p4": "Un forfait est presque vide. Ménagez le reste."
+                },
+                "security": {
+                    "p1": "Une alerte de sécurité vise une dépendance.",
+                    "p2": "Une dépendance a un défaut. Un coup d'œil s'impose.",
+                    "p3": "Alerte de sécurité sur une dépendance. À voir vite.",
+                    "p4": "Une dépendance est signalée pour un souci de sécurité."
+                },
+                "other": {
+                    "p1": "Quelque chose vous attend.",
+                    "p2": "J'ai besoin de vous un instant.",
+                    "p3": "Quelque chose attend votre regard.",
+                    "p4": "Passez quand vous pouvez, on vous attend."
+                }
+            },
+            "more": {
+                "one": "Une autre chose vous attend aussi.",
+                "other": "{count} autres choses vous attendent aussi."
+            },
             "example": "Exemple : {name} voudrait vous parler ({severity}). Un agent vous attend depuis 6 min.",
             "severity": {
                 "grave": "grave",
@@ -3190,13 +3851,46 @@
                 "chooseAgent": "Choisir un agent",
                 "retry": "Réessayer",
                 "openTerminal": "Ouvrir son terminal",
-                "busy": "L'agent de {name} est occupé : votre message reste ici, réessayez dans un instant.",
+                "humanDraft": "Un texte tapé dans le terminal de {name} attend dans son invite, donc rien n'est parti : MoltenTerm ne l'envoie ni ne l'efface jamais. Envoyez-le ou effacez-le là-bas, puis réessayez.",
+                "queued": "{name} est occupé : votre message part tout seul dès qu'il est libre.",
+                "unknownPrompt": "L'invite de {name} contient peut-être encore un texte d'avant le redémarrage de MoltenTerm, donc rien n'est parti. L'effacer le supprime définitivement.",
+                "clearAndSend": "Effacer son invite et envoyer",
+                "permission": {
+                    "kind": {
+                        "command": "L'agent de {name} demande à lancer cette commande :",
+                        "edit": "L'agent de {name} demande à modifier ce fichier :",
+                        "write": "L'agent de {name} demande à écrire ce fichier :",
+                        "read": "L'agent de {name} demande à lire ce fichier :",
+                        "fetch": "L'agent de {name} demande à ouvrir cette page web :",
+                        "search": "L'agent de {name} demande à chercher sur le web :",
+                        "patch": "L'agent de {name} demande à modifier ces fichiers :"
+                    },
+                    "allow": "Autoriser une fois",
+                    "always": "Toujours autoriser",
+                    "deny": "Refuser",
+                    "gone": "Cette demande est terminée : elle a reçu sa réponse dans son terminal, ou son agent ne la pose plus.",
+                    "autoApproved": "Approuvé sans demander :"
+                },
+                "unsettled": "L'agent de {name} n'est jamais revenu à son invite (une étape qui ne s'est pas terminée), donc rien n'est parti. Réessayez dans un instant.",
+                "slashKept": "Un message qui commence par / reste ici : l'agent de {name} l'exécuterait comme une de ses commandes. Écrivez-le sans la barre oblique.",
+                "refusedWhileFree": "L'agent de {name} a refusé votre message pendant 10 minutes alors qu'il semblait libre : il revient dans le champ.",
+                "queuedRow": "Part quand {name} a fini",
+                "cancelQueued": "Annuler",
                 "noAgent": "Aucun agent de code n'est installé pour démarrer la session de {name}.",
                 "agentMissing": "L'agent de code choisi n'est pas installé : {name} ne peut pas démarrer.",
                 "gone": "Le terminal de {name} a été fermé : renvoyez votre message pour en démarrer un nouveau.",
                 "notSubmitted": "Votre message attend dans le terminal de {name} : ouvrez-le et appuyez sur Entrée.",
                 "agentStopped": "L'agent de {name} ne tourne plus dans son terminal. Fermez ce terminal, puis renvoyez votre message.",
-                "failed": "Le message n'est pas parti : la session de {name} est injoignable.",
+                "keys": "Entrée pour envoyer, Maj+Entrée pour un retour à la ligne",
+                "keysBrainstorm": "Entrée pour envoyer, Maj+Entrée pour un retour à la ligne, /brainstorm [idée] pour un brainstorm",
+                "hint": "↵ pour envoyer · ⇧↵ pour un retour à la ligne",
+                "commandHint": "/brainstorm [idée] : un brainstorm avec {name}, sur votre idée si vous la donnez",
+                "unreachable": "Le message n'est pas parti : la session de {name} n'a pas répondu à MoltenTerm. Réessayez dans un instant.",
+                "lookupFailed": "Le message n'est pas parti : MoltenTerm n'a pas pu chercher la session de {name} à l'instant. Réessayez dans un instant.",
+                "refused": "Le message n'est pas parti : le terminal de {name} ne l'a pas pris. Ouvrez son terminal pour voir ce qui s'y passe.",
+                "noTerminal": "Le message n'est pas parti : le terminal de {name} n'a pas pu s'ouvrir. Réessayez.",
+                "noSpace": "Le message n'est pas parti : {name} n'a pas d'espace de travail où ouvrir son terminal. Ouvrez-en un, puis réessayez.",
+                "noText": "Le message n'est pas parti : il est vide ou dépasse 4 000 caractères. Raccourcissez-le, puis réessayez.",
                 "window": "Conversation avec {name}",
                 "empty": "Dites à {name} ce dont vous avez besoin.",
                 "you": "Vous",
@@ -3264,48 +3958,80 @@
                 "other": "et {count} autres"
             }
         },
-        "screen": {
-            "quiet": "Rien à traiter",
-            "toHandle": {
-                "one": "{count} chose à traiter",
-                "other": "{count} choses à traiter"
+        "moment": {
+            "hello": {
+                "early": {
+                    "p1": "Déjà debout avant que la forge soit chaude. Le café d'abord, on coule ensuite.",
+                    "p2": "Départ matinal. L'enclume est encore froide, prenez le temps de chauffer.",
+                    "p3": "Salut, lève-tôt. Le calme du matin, c'est le meilleur moment pour réfléchir.",
+                    "p4": "Vous avez devancé le soleil. Je garde le feu doux le temps que vous vous réveilliez.",
+                    "p5": "Content de vous voir. Un début tranquille fait une solide journée."
+                },
+                "morning": {
+                    "p1": "Bonjour. Le feu est allumé, les outils sont sortis. On commence par quoi ?",
+                    "p2": "Bonjour ! Journée neuve, enclume propre. Ça me plaît déjà.",
+                    "p3": "Vous voilà. J'ai gardé votre coin de forge au chaud.",
+                    "p4": "Salut, salut. Un souffle, un café, et on tape sur le fer.",
+                    "p5": "Bonjour. Quoi que la journée nous envoie, on a vu pire."
+                },
+                "lateMorning": {
+                    "p1": "Bonjour, ou presque midi. La forge vous a gardé votre place.",
+                    "p2": "Salut. Mieux vaut un départ tardif qu'une forge froide.",
+                    "p3": "La moitié de la matinée est partie, la meilleure moitié du jour reste devant nous.",
+                    "p4": "Bienvenue. Je n'ai touché à rien en votre absence, promis.",
+                    "p5": "Prenez un tabouret. On a le temps avant le déjeuner."
+                },
+                "back": {
+                    "p1": "Content de vous revoir. J'ai gardé un œil sur la maison pendant votre absence.",
+                    "p2": "Vous revoilà. L'atelier tient toujours debout, comme promis.",
+                    "p3": "De retour à l'établi. Tant mieux, je commençais à parler à l'enclume.",
+                    "p4": "Re-bonjour, l'étranger. Le café est froid, mais l'accueil est chaud.",
+                    "p5": "Vous voilà. Quelle qu'ait été la journée, la forge est à vous maintenant."
+                }
             },
-            "working": "{name} travaille",
-            "workingCount": {
-                "one": "{count} agent au travail",
-                "other": "{count} agents au travail"
+            "break": {
+                "p1": "On y est depuis un bon moment. Levez le nez, laissez le fer refroidir un peu.",
+                "p2": "Attention, vous chauffez. Un verre d'eau, on s'étire, et on repart.",
+                "p3": "Quelques minutes sans écran. Le code sera toujours là, je m'en porte garant.",
+                "p4": "Un forgeron qui ne trempe jamais son acier le rend cassant. Faites une pause.",
+                "p5": "Allez faire quelques pas dehors. Aucun bon ouvrage n'est sorti d'un bras fatigué.",
+                "p6": "Ça fait une longue série sans respirer. Debout, je surveille le feu.",
+                "p7": "Hé, c'est l'heure de souffler. Ce n'est pas une suggestion, c'est un ordre amical de collègue.",
+                "p8": "Regardez par la fenêtre une minute. Au loin, pas sur un écran.",
+                "p9": "Vous avez bien mérité une pause. Revenez la tête fraîche, l'ouvrage n'en sera que meilleur.",
+                "p10": "Épaules basses, mâchoire détendue. Oui, vous. Respirez, puis reprenez.",
+                "p11": "Même la forge se tait entre deux coulées. Reposez-vous un moment.",
+                "p12": "Un verre d'eau et un petit moment à ne rien faire. C'est mon ordonnance.",
+                "p13": "Longue séance. Je suis fier de vous, maintenant allez dégourdir vos jambes.",
+                "p14": "La meilleure idée de la journée arrive souvent loin du bureau. Allez la chercher.",
+                "p15": "Mains fatiguées, soudures de travers. Pause, puis on redresse tout ça.",
+                "p16": "Je monte la garde. Faites une vraie pause, loin du clavier.",
+                "p17": "Pensez à cligner des yeux. À vous lever. Et à manger quelque chose, s'il y a longtemps.",
+                "p18": "L'ouvrage tiendra le coup. Vous, en revanche, avez besoin de souffler.",
+                "p19": "C'est le moment de poser le marteau un instant. L'enclume ne va nulle part.",
+                "p20": "Un petit repos maintenant évite une grosse erreur plus tard. Allez, ouste."
             },
-            "nothingForYou": "Rien pour vous",
-            "asleep": "Endormi pendant votre absence",
-            "speech": {
-                "one": "Une chose pour vous : {line}",
-                "other": "{count} choses pour vous : {line}"
-            },
-            "finished": "{name} a terminé",
-            "finishedAll": "Tout le monde a terminé",
-            "merged": "PR #{number} fusionnée",
-            "cleared": "Tout est traité",
-            "thanks": "Merci",
-            "niceWork": "Beau travail",
-            "lateNight": "Il se fait tard",
-            "relieved": "Réglé",
-            "welcomeBack": "Re-bonjour",
-            "backNothing": "Rien de neuf",
-            "backFinished": {
-                "one": "{names} a terminé pendant votre absence",
-                "other": "{names} ont terminé pendant votre absence"
-            },
-            "backArrived": {
-                "one": "{count} chose est arrivée pendant votre absence",
-                "other": "{count} choses sont arrivées pendant votre absence"
-            },
-            "waitedFor": "{name} attend depuis {minutes} min",
-            "waitedLine": "{line} · depuis {minutes} min",
-            "handled": {
-                "answer": "C'est noté",
-                "rerun": "Je relance la CI",
-                "handoff": "Mise en relation autorisée",
-                "done": "C'est noté"
+            "handover": {
+                "p1": "Vos agents sont toujours à l'ouvrage. Je garde un œil dessus, vous pouvez souffler.",
+                "p2": "Bonsoir. L'équipe continue et moi je veille. Rentrez quand vous voulez.",
+                "p3": "Ça cogne encore là-bas. Ce qu'ils finiront vous attendra dans les notifications.",
+                "p4": "Laissez-les travailler, vous avez fait votre part.",
+                "p5": "C'est l'heure du dîner, je crois. Les agents ne vont pas vous regretter de sitôt.",
+                "p6": "Soirée calme à la forge. Les agents sont occupés et je surveille. Allez vivre un peu.",
+                "p7": "Laissez-les faire. Leurs résultats seront là quand vous reviendrez.",
+                "p8": "L'atelier est encore éclairé et les agents travaillent toujours. Il n'y a aucun mal à arrêter là.",
+                "p9": "Je reste de garde pendant qu'ils terminent. À demain, reposé et frais.",
+                "p10": "Pour vous, la journée est finie, pas pour eux. Ils laisseront leurs résultats dans vos notifications.",
+                "p11": "Chut, maintenant. Je garde les braises, vous gardez votre soirée.",
+                "p12": "Ils n'ont pas fini, mais vous en avez le droit. Ce qu'ils terminent sera là demain.",
+                "p13": "Vous en avez assez fait pour aujourd'hui. Les agents continuent et je passe les voir de temps en temps.",
+                "p14": "Bonsoir, collègue. Les agents s'activent encore et je fais le guet.",
+                "p15": "Débranchez-vous la tête pour ce soir. Je guette, le reste peut attendre demain.",
+                "p16": "Ça martèle encore dehors. J'écoute, vous, reposez vos oreilles.",
+                "p17": "Encore une bonne journée de travail. Les agents finissent, je surveille, et demain vous lirez les résultats.",
+                "p18": "Le plus propre pour finir la journée, c'est de les laisser faire. Revenez demain, je serai là.",
+                "p19": "Les lampes sont basses et les agents toujours occupés. Profitez de votre soirée, j'ai la veille.",
+                "p20": "L'heure de rentrer, quand vous voulez. Ils continuent et moi je reste aux aguets."
             }
         }
     },
@@ -3968,7 +4694,15 @@
             "driftUncommitted": "Le pipeline (.molten/project.json) a des modifications non commitées : la release les suivrait alors que sa branche porte le pipeline commité.",
             "driftBase": "Le pipeline (.molten/project.json) diffère de {base}, dont la branche de release est issue.",
             "driftHint": "Commitez-le et poussez-le, ou mettez ce checkout à jour, puis relancez. Rien n’a encore démarré.",
-            "startAnyway": "Démarrer quand même"
+            "startAnyway": "Démarrer quand même",
+            "plannedHeading": "Prévu : prochaine station {tag}",
+            "computedHeading": "Ou le numéro calculé depuis les commits",
+            "computedReason": "{tag} suit les commits : {reason}, une version {level}.",
+            "computedReasonPlain": "{tag} suit les commits : une version {level}.",
+            "plannedTagged": "{tag}, la prochaine station, est déjà taguée : seul le numéro calculé est proposé.",
+            "plannedConfirm": "Les commits demandent une version {level} ({derived}) : {reason}. Démarrer quand même {tag} comme prévu ?",
+            "plannedConfirmPlain": "Les commits demandent une version {level} ({derived}). Démarrer quand même {tag} comme prévu ?",
+            "plannedBack": "Retour"
         },
         "builds": {
             "neverBuilt": "Jamais compilé",
@@ -3979,12 +4713,13 @@
             "ciRed": "CI au rouge sur {trunk} ({jobs}) : elle repasse d'abord, et le build s'arrête si elle échoue.",
             "ciRunning": "La CI locale tourne sur {trunk}.",
             "ciFirst": "La CI locale passera d'abord sur {trunk}.",
+            "ciFirstGithub": "La CI passera d'abord sur {trunk}, celle de GitHub si elle a déjà vérifié ce commit en entier, sinon la locale.",
             "theBuild": "le build",
             "delivered": "Livré : {product} {version}, commit {commit}, {count} commit(s) depuis le précédent.",
             "built": "Compilé.",
             "failedDuring": "Échec pendant « {phase} ». La fin du journal dit pourquoi.",
             "lostDuring": "Interrompu pendant « {phase} » : son processus a disparu sans code de sortie.",
-            "cancelledDuring": "Annulé pendant « {phase} ».",
+            "cancelledDuring": "Annulé par vous pendant « {phase} ».",
             "flavor": {
                 "gold": "Gold",
                 "rc": "RC locale"
@@ -4000,7 +4735,17 @@
             "fetchFailed": "Échec de la récupération : compilation du dernier tronc récupéré.",
             "phasesLabel": "Phases du build local",
             "noLocalBuild": "Aucun build local pour l'instant : lancez-en un depuis Projet › Build local.",
-            "builtFromCommit": "Compilé depuis {commit}"
+            "builtFromCommit": "Compilé depuis {commit}",
+            "verify": {
+                "github": {
+                    "one": "Vérifié par la CI de GitHub · passage {run} · {count} job vert sur {sha}",
+                    "other": "Vérifié par la CI de GitHub · passage {run} · {count} jobs verts sur {sha}"
+                },
+                "waiting": "En attente de la CI de GitHub · passage {run} · {done} jobs sur {total} terminés",
+                "waitingStart": "En attente de la CI de GitHub · passage {run}",
+                "notUsed": "CI de GitHub non utilisée ({reason}). La CI locale s'exécute.",
+                "here": "Vérifier ici plutôt"
+            }
         },
         "depSync": {
             "howExit": "{state} (code {exit})",
@@ -4591,6 +5336,11 @@
             "plain": {
                 "title": "Votre façon de publier",
                 "headline": "Voici comment ce projet publie une version.",
+                "builds": {
+                    "title": "Comment vos builds sont vérifiés",
+                    "shared": "{build} n'est pas revérifié sur cet ordinateur quand GitHub a déjà vérifié la même version en entier, sur ce type de système. Il ne lance les contrôles ici que si ceux de GitHub manquent, tournent encore, ont échoué, ont eu lieu sur un autre type de système ou sont inutilisables.",
+                    "always": "{build} est toujours vérifié sur cet ordinateur, même quand GitHub a déjà vérifié la même version."
+                },
                 "workBranch": "Vous travaillez sur {trunk}, votre branche de travail.",
                 "introTwo": "Pour sortir une version, il y a deux chemins : une version candidate pour tester, puis la version publique.",
                 "introRc": "Pour sortir une version, ce projet fait une version candidate pour tester.",
@@ -5887,13 +6637,11 @@
     "notif": {
         "center": {
             "noPath": "aucun chemin à afficher",
-            "clearOne": "Effacer",
-            "clearAll": "Tout effacer",
-            "clearAllTitle": "Déplace toutes les notifications de la liste vers les archives. Vous pouvez annuler pendant quelques secondes.",
-            "cleared": {
-                "one": "{count} notification effacée",
-                "other": "{count} notifications effacées"
-            },
+            "archive": "Archiver",
+            "archiveAll": "Tout archiver",
+            "archiveAllTitle": "Archive toutes les cartes de la liste. Les notifications archivées restent dans la liste Archivées, où vous pouvez les restaurer.",
+            "restore": "Restaurer",
+            "goToTitle": "Afficher d'où cela vient",
             "resolved": "Résolue",
             "silence": "Ne plus me le dire…",
             "running": "En cours…",
@@ -5960,7 +6708,10 @@
             "release": "release",
             "deps": "dépendances",
             "download": "téléchargement",
-            "trust": "approbation"
+            "trust": "approbation",
+            "pr": "pull request",
+            "handoff": "passage de relais",
+            "logwatch": "veille des journaux"
         },
         "goToTerminal": "Aller au terminal",
         "age": {
@@ -5993,6 +6744,14 @@
     "rail": {
         "keepAwakeWhileWorking": "Garder cet ordinateur éveillé pendant le travail",
         "keptAwake": "gardé éveillé {condition}",
+        "dot": {
+            "waiting": "{name} vous attend",
+            "waitingAgent": "Un agent vous attend",
+            "unread": {
+                "one": "{count} notification non lue",
+                "other": "{count} notifications non lues"
+            }
+        },
         "unread": {
             "one": "{count} non lue",
             "other": "{count} non lues"
@@ -6178,10 +6937,12 @@
             "moltenterm:group-strip": "Produit",
             "moltenterm:next-station": "Prochaine station",
             "moltenterm:linemap": "Plan de lignes",
+            "moltenterm:running": "En cours",
             "moltenterm:next-release": "Prochaine version publique",
             "moltenterm:releases": "Versions",
             "moltenterm:now": "En ce moment",
-            "moltenterm:steps": "Étapes du projet"
+            "moltenterm:steps": "Étapes du projet",
+            "moltenterm:steps-hint": "Étapes du projet"
         },
         "overview": {
             "bars": {
@@ -6212,7 +6973,13 @@
             "lastRun": "Dernière exécution, sur {sha} : {text}",
             "notRun": "pas lancée",
             "noBuild": "Pas encore de build local",
-            "commit": "Commit {sha}"
+            "commit": "Commit {sha}",
+            "runningAbove": "en cours, voir au-dessus",
+            "failedAbove": "échec, voir au-dessus",
+            "rebuild": "Relancer",
+            "release": "Release {tag}",
+            "published": "publiée {ago}",
+            "publishedUndated": "publiée"
         },
         "work": {
             "jobs": "{done}/{total} jobs",
@@ -6220,6 +6987,31 @@
             "release": "Release {tag}",
             "candidate": "candidate",
             "public": "publique"
+        },
+        "band": {
+            "title": "En cours",
+            "hint": "Rien ne bloque pendant ce temps, vous pouvez continuer à travailler.",
+            "actionsOf": "Actions de {name}",
+            "logOf": "Dernières lignes du journal",
+            "logFollows": "Les dernières lignes défilent toutes seules",
+            "copyLog": "Copier",
+            "ofEstimate": "/ ~{estimate}",
+            "percent": "{percent} %",
+            "buildLocal": "build local",
+            "buildOn": "build local · {branch}",
+            "buildFrom": "build local · {branch} @ {sha}",
+            "release": "Release {tag}",
+            "releaseCandidate": "release candidate",
+            "releasePublic": "release publique",
+            "releaseTagged": "{channel} · tag poussé",
+            "seeOnGithub": "Voir sur GitHub",
+            "details": "Détails",
+            "duration": {
+                "seconds": "{seconds} s",
+                "minutesSeconds": "{minutes} min {seconds}",
+                "minutes": "{minutes} min",
+                "hoursMinutes": "{hours} h {minutes}"
+            }
         },
         "agents": {
             "heading": "Agents",
@@ -6247,12 +7039,17 @@
                 "investigate": "CI de #{number}",
                 "finish": "finition de #{number}",
                 "review": "revue de #{number}",
-                "release": "version {tag}"
+                "release": "version {tag}",
+                "brainstormSetup": "installation de SaaSFoundryAI",
+                "brainstormUpdate": "profil complet de SaaSFoundryAI",
+                "brainstormHandoff": "premier pas d'un projet issu d'un brainstorm"
             }
         },
         "steps": {
             "none": "Aucune étape de projet pour la vue d'ensemble : le pipeline n'en déclare aucune dans sa section « {section} ».",
-            "noPipeline": "Les étapes propres au projet s'affichent ici une fois le pipeline connecté."
+            "noPipeline": "Les étapes propres au projet s'affichent ici une fois le pipeline connecté.",
+            "add": "Ajouter des étapes",
+            "comesBack": "La carte revient d'elle-même quand il y en a."
         },
         "station": {
             "heading": "Prochaine station",
@@ -6269,8 +7066,8 @@
             "nothing": "Rien à publier pour l'instant.",
             "planned": "Prévue — jalon {milestone}, {open}, rien encore sur {trunk}",
             "milestoneFirst": "Le jalon {milestone} arrive en premier ; les changements sur {trunk} y entrent.",
-            "biggerBump": "{reason} sur {trunk} : {tag} serait une version {level}.",
-            "biggerBumpPlain": "Les changements sur {trunk} demandent une version {level} : {tag} en serait une.",
+            "biggerBump": "{reason} sur {trunk} : les changements demandent une version {level} ({derived}). La release prévue en {tag} peut quand même sortir sous ce numéro.",
+            "biggerBumpPlain": "Les changements sur {trunk} demandent une version {level} ({derived}). La release prévue en {tag} peut quand même sortir sous ce numéro.",
             "open": {
                 "one": "{count} ouvert",
                 "other": "{count} ouverts"
@@ -6558,8 +7355,10 @@
             "heldSetting": "D'après le réglage Vue 360 (Toujours).",
             "heldColumns": "Automatique : plus de {count} colonnes sur cet écran.",
             "offManual": "Désactivée pour cette vue jusqu'à ce qu'elle revienne au nombre de colonnes de cet écran. Elle s'active encore d'elle-même si les panneaux ne tiennent plus du tout côte à côte.",
+            "offPlaces": "Cette vue garde son 360 × N. Tous les panneaux sont visibles et se partagent la largeur. Le tapis revient de lui-même quand un panneau serait rangé.",
             "offColumns": "Automatique : s'active d'elle-même au-delà de {count} colonnes sur cet écran, ou quand les panneaux ne tiennent plus côte à côte.",
             "offGrid": "Garder la grille : les panneaux restent côte à côte. Elle s'active d'elle-même seulement s'ils ne tiennent plus du tout côte à côte.",
+            "offAsking": "Automatique : demande avant de s'activer au-delà de {count} colonnes sur cet écran.",
             "clickOn": "Cliquer pour l'activer.",
             "clickOff": "Cliquer pour la quitter : les panneaux retrouvent les proportions que vous leur avez données.",
             "tooltipSingle": "La vue 360 demande un deuxième panneau à côté du premier.",
@@ -6577,6 +7376,16 @@
             "message": "La première colonne reste fixe et les autres panneaux s'alignent sur un tapis qui défile sur le côté. Modifiable dans les Réglages.",
             "keepGrid": "Garder la grille",
             "use360": "Utiliser la 360"
+        },
+        "offer": {
+            "title": "Passer en vue 360 ?",
+            "message": "La première colonne reste fixe. Choisissez combien de panneaux restent visibles à droite ; les autres sont rangés sur le tapis, toujours actifs.",
+            "everyView": "Faire pareil dans toutes les vues",
+            "everyViewHint": "Aucune autre vue ne redemande. Modifiable dans les Réglages.",
+            "saveTitle": "Enregistrer pour cet écran de {width} × {height} ?",
+            "saveText": "Sur cet écran, vue 360 au-delà de {count} colonnes. Visible dans les Réglages, sous Colonnes par écran.",
+            "save": "Enregistrer",
+            "notNow": "Pas maintenant"
         },
         "screens": {
             "title": "Colonnes par écran",
@@ -6603,6 +7412,7 @@
             "untitled": "Panneau",
             "morePanelsOne": "+1 panneau",
             "morePanels": "+{count} panneaux",
+            "pairTitle": "{first} & {second}",
             "window": "Zone visible",
             "windowHint": "faites glisser pour la déplacer, cliquez sur un panneau pour y aller"
         },
@@ -6612,6 +7422,7 @@
             "moveLeft": "Déplacer à gauche",
             "moveRight": "Déplacer à droite",
             "tabName": "{kind}\u00a0: {title}, {state}",
+            "panelsList": "Panneaux\u00a0: {names}",
             "visible": "visible",
             "stored": "rangé sur le tapis",
             "openedBy": "ouvert par {name}",
@@ -6810,7 +7621,23 @@
                 "subagent": "Un sous-agent de {name} s'en occupe",
                 "subagentDone": "Un sous-agent de {name} a terminé",
                 "background": "Un agent s'en occupe probablement",
-                "signed": "{name} s'en occupe probablement"
+                "signed": "{name} s'en occupe probablement",
+                "stopped": "Arrêté sans pull request"
+            },
+            "stoppedLine": "arrêté sans pull request",
+            "resume": {
+                "action": "Reprendre",
+                "title": "Demander à {name} de reprendre son sous-agent dans son worktree : finir les vérifications, pousser et ouvrir la pull request en brouillon",
+                "sent": "Confié à {name}, qui reprend son sous-agent : il termine le travail et ouvre la pull request en brouillon.",
+                "typed": "Tapé dans l'invite de {name}, après ce qui s'y trouvait : appuyez sur Entrée dans son terminal pour l'envoyer.",
+                "queued": "{name} est occupé : le brief est tapé dans son terminal quand son invite est libre, et il reprend son sous-agent.",
+                "already": "{name} a déjà cette demande : rien de plus n'a été envoyé.",
+                "alreadyAnon": "L'agent principal a déjà cette demande : rien de plus n'a été envoyé.",
+                "working": "Un sous-agent de {name} y travaille de nouveau : rien n'a été envoyé.",
+                "workingAnon": "Un agent y travaille de nouveau : rien n'a été envoyé.",
+                "leadGone": "{name} ne tourne plus : rien n'a été envoyé.",
+                "nothing": "Aucun sous-agent ne peut être repris sur cette branche : rien n'a été envoyé.",
+                "failed": "La reprise n'a pas abouti : {message}"
             },
             "session": {
                 "title": "Session de {name}",
@@ -6824,6 +7651,11 @@
                     "other": "{name} orchestre {count} tickets"
                 },
                 "launch": "Lancer #{ticket}",
+                "resume": "Reprendre #{ticket}",
+                "stopped": {
+                    "one": "{count} ticket arrêté sans pull request",
+                    "other": "{count} tickets arrêtés sans pull request"
+                },
                 "background": "arrière-plan"
             },
             "after": {
@@ -6956,11 +7788,52 @@
             "filter": "Filtrer par projet",
             "all": "Tous les projets",
             "count": "{count} projets",
-            "none": "Aucune pull request ouverte",
-            "noneHint": "Rien ne vous attend sur {name}.",
             "openTitle": "Ouvrir #{number} dans le panneau Intégration de {project}",
+            "markTitle": "Afficher seulement {project}",
+            "markTitleInto": "Afficher seulement {project} · pull requests vers {target}",
+            "markInto": "vers {target}",
+            "noneOpen": "Aucune pull request ouverte dans vos projets.",
+            "mergedNone": "Aucune pull request fusionnée dans vos projets ces {days} derniers jours.",
             "noFolderTitle": "{project} n’a pas encore de dossier",
-            "noFolder": "Donnez-lui un dossier pour suivre ses pull requests."
+            "noFolder": "Donnez-lui un dossier pour suivre ses pull requests.",
+            "giveFolder": "Lui donner un dossier",
+            "trustTitle": "Un lancement a été refusé dans {project}",
+            "waits": {
+                "one": "{count} pull request vous attend",
+                "other": "{count} pull requests vous attendent"
+            }
+        },
+        "owners": {
+            "inProject": "{count} dans {project}",
+            "openProject": "Afficher les pull requests de {project}",
+            "label": "Responsables",
+            "menuAria": "Choisir le travail à montrer",
+            "menuEmpty": "Aucun agent n’est encore responsable de travail ici.",
+            "menuItemSubs": "+ {count} sous-agents",
+            "hidden": {
+                "one": "{count} autre masquée",
+                "other": "{count} autres masquées"
+            },
+            "showAll": "Tout afficher",
+            "waits": {
+                "one": "{count} autre vous attend",
+                "other": "{count} autres vous attendent"
+            },
+            "waitsShow": "Voir",
+            "waitsHide": "Masquer",
+            "propose": "+ {name} ?",
+            "proposeTitle": "{name} est arrivé dans cette vue. Rien ne change tant que vous ne l’ajoutez pas ; l’ignorer retire cette proposition pour de bon dans cette vue.",
+            "add": "Ajouter",
+            "ignore": "Ignorer {name}",
+            "noneShown": "Aucun travail des agents suivis n’est ouvert.",
+            "byHand": "à la main",
+            "byHandTitle": "Aucun agent n’a signé ce travail",
+            "subOf": "{name} · sous-agent de {lead}",
+            "groupSubs": "+ {names}",
+            "filterOn": "Filtrer sur {name}",
+            "filterButton": "Filtrer par responsable",
+            "noAgentGroup": "Sans agent",
+            "noAgentHint": "faites à la main ou par un agent fermé"
         },
         "launch": {
             "button": "Lancer",
@@ -7172,6 +8045,9 @@
             "cancel": "Arrêter",
             "cancelling": "Annulation…",
             "cancelTitle": "Annuler chaque validation qui n'est pas en cours de fusion ; rien de plus n'est fusionné",
+            "cancelGroup": "Annuler la fusion",
+            "cancelGroupTitle": "S'arrête après l'étape en cours : une fusion ou un push déjà commencé se termine, et rien de plus n'est fusionné",
+            "groupRunning": "Une fusion groupée est déjà en cours vers {base} : elle ne peut pas être lancée une seconde fois. Attendez qu'elle se termine, ou annulez-la.",
             "dismiss": "Masquer",
             "kept": {
                 "changes": "La copie de l'agent a des fichiers non commités : elle est gardée.",
@@ -7403,6 +8279,18 @@
             "stepAdd": "Ajouter #{number} à la fusion groupée",
             "mergeCount": "Fusionner ces {count} dans cet ordre…",
             "mergeOne": "Fusionner celle-ci",
+            "mergeScoped": {
+                "one": "Fusionner celle de {name}",
+                "other": "Fusionner les {count} de {name}"
+            },
+            "mergeScopedMany": {
+                "one": "Fusionner celle de {names}",
+                "other": "Fusionner les {count} de {names}"
+            },
+            "scopeNote": {
+                "one": "La fusion ne porte que sur la liste affichée. {count} autre ne bouge pas.",
+                "other": "La fusion ne porte que sur la liste affichée. Les {count} autres ne bougent pas."
+            },
             "chooseNone": "Aucune pull request choisie pour la fusion groupée.",
             "wait": {
                 "agent": "Attendre {name}, qui y travaille encore",
@@ -7548,6 +8436,8 @@
             }
         },
         "validate": {
+            "inGroup": "Dans la fusion groupée en cours vers {base} : elle sera fusionnée à son tour. Annulez la fusion pour la reprendre.",
+            "groupRunning": "Une fusion groupée vers {base} est en cours ; fusionner celle-ci maintenant peut obliger les suivantes à être rebasées.",
             "button": "Valider",
             "title": "Rebaser et fusionner : ouvre la feuille Valider avec le plan",
             "draft": "Brouillon : passez-le d'abord en prêt pour la revue.",
@@ -7706,6 +8596,10 @@
         },
         "check": {
             "button": "Vérifier les agents",
+            "buttonScoped": {
+                "one": "Vérifier l’agent de {names} ({count})",
+                "other": "Vérifier les agents de {names} ({count})"
+            },
             "buttonTitle": "Demander à l'agent de chaque pull request où il reste quelque chose (conflits, CI rouge, changements demandés, pas de rapport de test) de la vérifier par rapport à son ticket et de la finir. Les autres sont ignorées ; rien ne démarre sans votre confirmation.",
             "checking": "Vérification…",
             "checked": {
@@ -7762,7 +8656,9 @@
             "confirm": {
                 "agentWorking": "{name} travaille encore sur cette branche.",
                 "noReport": "Pas encore de rapport de test.",
-                "validateAnyway": "Valider quand même"
+                "validateAnyway": "Valider quand même",
+                "mergeAnyway": "Fusionner quand même",
+                "waitForRun": "Attendre la fusion groupée"
             },
             "state": {
                 "agentWaiting": "{name} vous attend",
@@ -7936,6 +8832,27 @@
             "state": "Par état",
             "stateTitle": "Dans chaque section, ce qui vous attend d'abord, dans l'ordre des états des cartes.",
             "merge": "Ordre de fusion"
+        },
+        "legend": {
+            "button": "Ce que veulent dire les couleurs",
+            "title": "Ce que veulent dire les couleurs",
+            "intro": "Le bord et le point de chaque carte disent où elle en est.",
+            "mark": {
+                "waiting": "Vous attend",
+                "ready": "Prête à fusionner",
+                "blocked": "Bloquée",
+                "running": "En cours",
+                "draft": "Rien ne bouge"
+            },
+            "tone": {
+                "you": "Un agent s'est arrêté pour vous poser une question, ou une décision vous revient.",
+                "ready": "La CI est verte et rien n'est ouvert : vous pouvez la fusionner.",
+                "broken": "La CI a échoué ou elle est en conflit avec sa branche cible, et aucun agent n'y travaille.",
+                "agent": "Un agent y travaille.",
+                "running": "La CI tourne.",
+                "draft": "Son agent a fini ou s'est arrêté, et personne n'y travaille.",
+                "wait": "Elle attend autre chose, par exemple une autre pull request."
+            }
         },
         "sections": {
             "yours": "Intervention requise",
@@ -9179,6 +10096,7 @@
             "batchempty": "Sélectionnez d'abord les pull requests à fusionner.",
             "batchmethod": "Cette méthode de fusion n'est plus autorisée sur ce dépôt : choisissez-en une autre.",
             "batchrunning": "La file de fusion de ce projet est en cours d'annulation ; réessayez dans un instant.",
+            "batchgroup": "Une fusion groupée est déjà en cours vers {base} : elle ne peut pas être lancée une seconde fois. Attendez qu'elle se termine, ou annulez-la.",
             "batchgone": "Cette file de fusion ne tourne plus.",
             "batchnotstopped": "La fusion groupée n'attend pas de décision.",
             "basemissing": "La branche de base {branch} est introuvable dans le projet comme sur origin.",
@@ -9391,6 +10309,9 @@
                 "none": "Il n'y a pas de ligne à taper : rien n'a été tapé.",
                 "working": "{agent} travaille : attendez la fin de son tour.",
                 "sent": "Envoyé à {agent}.",
+                "humandraft": "Un texte tapé dans le terminal de {agent} attend dans son invite : rien n'a été tapé.",
+                "unsettled": "L'état de {agent} n'est pas encore connu : rien n'a été tapé.",
+                "unknownprompt": "L'invite de {agent} contient peut-être un texte que MoltenTerm n'a pas vu : rien n'a été tapé.",
                 "typeddraft": "Tapé dans l'invite de {agent} sans Entrée : vous y avez peut-être un message non envoyé.",
                 "typed": "Tapé dans l'invite de {agent} : ajoutez ce qu'il faut faire et appuyez sur Entrée."
             },
@@ -9447,6 +10368,36 @@
                 "notReady": "Le port {port} n'a pas répondu en {seconds} s."
             },
             "noPipeline": "Le projet n'a pas de pipeline (.molten/project.json).",
+            "build": {
+                "stalled": "Arrêté : la CI locale n'a pas avancé pendant {minutes} minutes ({jobs}). Relancez le build : les jobs déjà verts sont repris.",
+                "ciCancelled": "Arrêté : son passage de CI locale a été annulé.",
+                "worktreeTimeout": "Arrêté : la préparation du worktree du build a pris plus de {minutes} minutes.",
+                "prepareTimeout": "Arrêté : la commande de préparation du build a pris plus de {minutes} minutes.",
+                "cancelled": "Annulé par vous.",
+                "notWaiting": "{title} n'attend pas la CI de GitHub.",
+                "github": {
+                    "badSha": "le commit n'est pas un identifiant complet",
+                    "noRepo": "origin n'est pas un dépôt GitHub",
+                    "noGh": "gh n'est pas installé",
+                    "loggedOut": "vous n'êtes pas connecté à GitHub (gh auth login)",
+                    "rateLimited": "la limite de requêtes de GitHub est atteinte",
+                    "unreachable": "GitHub est injoignable",
+                    "noRun": "GitHub n'a aucun passage de CI sur {sha}",
+                    "partialOnly": "les passages de GitHub sur {sha} ne sont pas les suites complètes (passages de pull request, ou d'autres branches)",
+                    "failed": "le passage de CI {run} de GitHub s'est terminé en {conclusion} sur {sha}",
+                    "cancelled": "le passage de CI {run} de GitHub a été annulé sur {sha}",
+                    "noRequired": "{branch} ne déclare aucun contrôle requis, donc aucun passage de GitHub ne peut tenir lieu de sa CI complète",
+                    "rulesUnreadable": "les contrôles requis sur {branch} n'ont pas pu être lus",
+                    "jobsUnreadable": "les jobs du passage {run} de GitHub n'ont pas pu être lus",
+                    "requiredMissing": "le contrôle requis {check} n'est pas un job du passage {run} de GitHub",
+                    "requiredSkipped": "le contrôle requis {check} a été ignoré dans le passage {run} de GitHub",
+                    "requiredNotGreen": "le contrôle requis {check} s'est terminé en {conclusion} dans le passage {run} de GitHub",
+                    "platformNotCovered": "le passage de GitHub n'a pas testé le type de système de cet ordinateur",
+                    "localChosen": "le pipeline demande la CI locale",
+                    "hereChosen": "vous avez choisi de vérifier ici",
+                    "stalled": "son passage n'a pas avancé pendant {minutes} minutes"
+                }
+            },
             "pipelineProblems": "Le pipeline a des problèmes : {detail}",
             "ci": {
                 "noJobs": "Le pipeline ne déclare aucun job de CI (ci.jobs).",
@@ -9887,6 +10838,7 @@
             "action": {
                 "back": "Est revenu en arrière",
                 "forward": "Est allé en avant",
+                "reload": "A rechargé la page",
                 "navigate": "Est allé sur {site}",
                 "readpage": "A lu la page",
                 "pagetext": "A lu le texte de la page",
@@ -9968,6 +10920,37 @@
                 "git": "git ne l'a pas supprimée ({detail})"
             }
         },
+        "logwatch": {
+            "off": "La veille des journaux est désactivée sur cette version.",
+            "sendFailed": "La demande n'a pas pu être envoyée : {detail}",
+            "title": {
+                "newPanic": "Un nouveau panic dans le journal",
+                "newCrash": "Un crash dans le journal",
+                "spikePanic": "Un panic revient sans cesse",
+                "spikeCrash": "Un crash revient sans cesse",
+                "spikeError": "Une erreur revient sans cesse",
+                "spikeWarning": "Un avertissement revient sans cesse",
+                "growth": "Le journal grossit vite"
+            },
+            "message": {
+                "new": "Je l'ai repéré {times} depuis {since} : `{excerpt}`",
+                "newAt": "Je l'ai repéré {times} depuis {since} : `{excerpt}` dans `{frame}`",
+                "spike": "Environ {rate} par minute ces derniers temps, {times} depuis {since} : `{excerpt}`",
+                "spikeAt": "Environ {rate} par minute ces derniers temps, {times} depuis {since} : `{excerpt}` dans `{frame}`",
+                "growth": "{size} écrits dans la dernière heure : quelque chose se répète peut-être.",
+                "asked": "{name} y jette un œil. {rest}"
+            },
+            "times": {
+                "one": "une fois",
+                "other": "{count} fois"
+            },
+            "size": "{mb} Mo",
+            "action": {
+                "ask": "Demander à un agent de regarder",
+                "mute": "Ignorer ce genre",
+                "reveal": "Afficher dans le dossier"
+            }
+        },
         "onboarding": {
             "notDeclined": "{agent} n'a pas été refusé : MoltenTerm installe ses guides au démarrage.",
             "installFailed": "Les guides de {agent} n'ont pas pu être installés : {detail}",
@@ -10041,7 +11024,31 @@
         "finish": "Lancé par vous à {time} pour vérifier #{number} et finir ce qui reste",
         "lead": "Lancé par vous à {time} : la session de l'agent principal reprise pour récupérer #{number}",
         "release": "Lancé par vous à {time} pour analyser et résoudre l'étape en échec {step} de la release {tag}",
-        "releaseTogether": "Lancé par vous à {time} pour enquêter avec vous sur l'étape en échec {step} de la release {tag}, ses logs à côté"
+        "releaseTogether": "Lancé par vous à {time} pour enquêter avec vous sur l'étape en échec {step} de la release {tag}, ses logs à côté",
+        "brainstormSetup": "Ouvert par vous à {time} depuis un brainstorm, pour installer SaaSFoundryAI dans ce projet : ses questions sont posées ici",
+        "brainstormUpdate": "Ouvert par vous à {time} depuis un brainstorm, pour ajouter le profil complet de SaaSFoundryAI à ce projet : ses questions sont posées ici",
+        "brainstormHandoff": "Lancé par vous à {time} depuis un brainstorm, pour faire le premier pas de ce projet avec son brief"
+    },
+    "agentNames": {
+        "markTitle": "Verrouillé pour {project}",
+        "markTitleNamed": "{name} est verrouillé pour {project} : un nouvel agent de ce projet le retrouve.",
+        "section": "Prénom",
+        "lockedHint": "{name} est verrouillé pour {project} : un nouvel agent lancé dans ce projet le retrouve, et aucun agent d'un autre projet ne l'obtient.",
+        "lockHint": "Verrouillez {name} pour {project} : un nouvel agent lancé dans ce projet le retrouvera.",
+        "lock": "Verrouiller pour {project}",
+        "unlock": "Déverrouiller",
+        "unlockNamed": "Déverrouiller {name}",
+        "moveQuestion": "{name} est verrouillé pour {from}. Le verrouiller plutôt pour {project} ?",
+        "moveLabel": "Verrouiller pour {project}",
+        "running": "En cours",
+        "notRunning": "À l'arrêt",
+        "error": {
+            "noAgent": "Aucun agent n'a de prénom dans ce terminal.",
+            "noProject": "Ce terminal n'est dans aucun dossier de projet : {name} n'a pas de projet pour lequel être verrouillé.",
+            "notLockable": "{name} est un prénom numéroté, donné quand la liste des prénoms est épuisée : il ne peut pas être verrouillé.",
+            "failed": "Le verrouillage n'a pas pu être enregistré dans les données de MoltenTerm : rien n'a changé.",
+            "unlockFailed": "Le changement n'a pas pu être enregistré dans les données de MoltenTerm : {name} reste verrouillé."
+        }
     },
     "agentLinks": {
         "title": "Connexions",
@@ -10285,6 +11292,9 @@
         "agentDefault": "Par défaut de l'app ({agent})",
         "agentDefaultNone": "Par défaut de l'app",
         "agentHint": "L'agent que MoltenTerm lance pour les revues, les notes de version et le compagnon de ce projet. Le même choix que dans les options des panneaux.",
+        "agentNames": "Prénoms verrouillés",
+        "agentNamesHint": "Un nouvel agent lancé dans ce projet reçoit le premier prénom libre de cette liste, dans cet ordre. Verrouillez un prénom depuis les Connexions d'un agent.",
+        "agentNamesNone": "Aucun prénom n'est verrouillé pour ce projet.",
         "folder": "Dossier du projet",
         "folderHint": "Contient le contexte du projet, par exemple les documents d'un client. Le panneau Fichiers s'ouvre ici."
     },
@@ -10307,6 +11317,31 @@
         "reloadedMessage": "Son processus d'affichage a été arrêté ({cause}). Vos sessions ont continué de tourner.",
         "reloadedMessagePlain": "Son processus d'affichage a été arrêté. Vos sessions ont continué de tourner.",
         "showLog": "Afficher le journal"
+    },
+    "logs": {
+        "title": "Journaux",
+        "hint": "Les fichiers journaux de MoltenTerm sur cet ordinateur. Ils tournent tout seuls et ne dépassent jamais une taille limite.",
+        "size": "Taille totale",
+        "files": {
+            "one": "{count} fichier, dont le fichier en cours",
+            "other": "{count} fichiers, dont le fichier en cours"
+        },
+        "reading": "Lecture de la taille…",
+        "unreadable": "La taille des journaux n'a pas pu être lue.",
+        "show": "Afficher dans le dossier",
+        "clear": "Effacer les journaux",
+        "clearing": "Effacement…",
+        "confirm": "Effacer {size} de journaux ? Les fichiers archivés sont supprimés et le fichier en cours est vidé. MoltenTerm continue d'écrire.",
+        "confirmYes": "Effacer les journaux",
+        "cleared": "Journaux effacés : {size} libérés.",
+        "partial": "Certains fichiers journaux n'ont pas pu être supprimés.",
+        "failed": "Les journaux n'ont pas pu être effacés.",
+        "notice": {
+            "title": "Les journaux pèsent {size}",
+            "message": "Ils ont dépassé {limit} sur cet ordinateur. Les effacer libère la place et ne change rien d'autre.",
+            "clear": "Effacer les journaux",
+            "show": "Afficher dans le dossier"
+        }
     },
     "agentWorks": {
         "follows": "MoltenTerm suit :",
@@ -10588,6 +11623,10 @@
                 "edit": "Modifier la note",
                 "remove": "Retirer la note",
                 "field": "Note pour {name}"
+            },
+            "order": {
+                "up": "Monter",
+                "down": "Descendre"
             }
         },
         "view": {
@@ -10746,6 +11785,68 @@
             "failed": "L'espace de travail n'a pas pu être créé : {error}"
         }
     },
+    "activity": {
+        "label": "En cours : {list}",
+        "waitingLabel": "Attend votre réponse : {list}",
+        "idle": "Rien ne tourne : les fourneaux sont éteints",
+        "popover": {
+            "idle": "Les fourneaux sont éteints",
+            "one": "En cours",
+            "many": "{count} activités en cours",
+            "waiting": "En attente de vous",
+            "none": "Aucun agent, build ni CI en cours."
+        },
+        "group": {
+            "waiting": "Attend votre réponse",
+            "agents": {
+                "one": "Agent",
+                "other": "Agents"
+            },
+            "ci": "CI",
+            "builds": {
+                "one": "Build",
+                "other": "Builds"
+            }
+        },
+        "row": {
+            "localCi": "CI locale",
+            "asks": "{name} vous demande quelque chose",
+            "subagents": {
+                "one": "{count} sous-agent",
+                "other": "{count} sous-agents"
+            },
+            "pr": "PR #{number}",
+            "prChecks": "GitHub · {done}/{total} checks",
+            "percent": "{percent} %"
+        },
+        "agents": {
+            "one": "un agent",
+            "other": "{count} agents"
+        },
+        "subagents": {
+            "one": "un sous-agent",
+            "other": "{count} sous-agents"
+        },
+        "builds": {
+            "one": "un build",
+            "other": "{count} builds"
+        },
+        "localCi": {
+            "one": "une CI locale",
+            "other": "{count} CI locales"
+        },
+        "prCi": {
+            "one": "CI de la PR {numbers}",
+            "other": "CI des PR {numbers}"
+        },
+        "open": {
+            "waiting": "Cliquez pour répondre à l'agent",
+            "agent": "Cliquez pour aller à l'agent",
+            "build": "Cliquez pour ouvrir le projet",
+            "localCi": "Cliquez pour ouvrir la CI locale",
+            "prCi": "Cliquez pour ouvrir Intégration"
+        }
+    },
     "topField": {
         "placeholder": "Vue, agent, panneau, action ou adresse…",
         "inputLabel": "Chercher ou aller à…",
@@ -10797,6 +11898,43 @@
             "clearTerminal": "Effacer le terminal"
         }
     },
+    "featuresInTest": {
+        "publicVersion": {
+            "label": "Voir la version publique",
+            "description": "Désactive toutes les fonctions ci-dessous, pour que l'app montre ce que voient les versions candidates et les versions publiques. Vos propres réglages restent tels quels."
+        },
+        "list": "Fonctions à l'essai",
+        "switchLabel": "{name}, sur cet ordinateur",
+        "state": {
+            "on": "Activée",
+            "off": "Désactivée",
+            "publicOff": "Désactivée dans la version publique",
+            "closedHere": "Fermée sur cette version"
+        },
+        "openOn": "Ouverte sur",
+        "ticket": "Ticket n°{number}",
+        "note": "Ces réglages ne font que désactiver des fonctions, sur cet ordinateur. Une fonction ne s'ouvre jamais sur une version dont le canal ne l'a pas, et rien ici n'est synchronisé.",
+        "features": {
+            "logwatch": {
+                "label": "La veille des journaux de {name}",
+                "description": "{name} lit le journal de l'app toutes les 10 minutes et laisse une carte discrète dans ses notes quand un panic, un crash, une boucle ou un journal qui grossit vite apparaît, avec de quoi demander à un agent de regarder. Versions Gold, dev et locales seulement, jamais dans une version publiée."
+            }
+        }
+    },
+    "logwatch": {
+        "pick": {
+            "title": "Qui doit y regarder ?",
+            "subtitle": "Aucun responsable du dépôt de MoltenTerm ne se détache. Choisissez l'agent de ce dépôt qui reçoit l'extrait du journal : il ne va qu'à cet agent et à son fournisseur de modèle.",
+            "send": "Envoyer",
+            "cancel": "Annuler",
+            "agents": "Agents en cours"
+        },
+        "noAgent": "Aucun agent du dépôt de MoltenTerm ne tourne. Lancez-en un dans l'espace de MoltenTerm, puis redemandez.",
+        "gone": "Cet agent s'est arrêté. Redemandez pour en choisir un autre.",
+        "refused": "Seul un agent du dépôt de MoltenTerm reçoit le journal. Redemandez pour en choisir un.",
+        "unknown": "{name} ne garde plus celle-ci dans ses notes.",
+        "unavailable": "La veille des journaux n'est pas disponible sur cette version."
+    },
     "library": {
         "label": "Bibliothèque",
         "navLabel": "Sections de la bibliothèque",
@@ -10844,6 +11982,11 @@
                 "label": "Réglages",
                 "title": "Réglages",
                 "sub": "Ce qui vaut pour tout MoltenTerm."
+            },
+            "features": {
+                "label": "Fonctions à l'essai",
+                "title": "Fonctions à l'essai",
+                "sub": "Ce que seule cette version possède pendant qu'elle est testée. Désactivez une fonction pour voir l'app sans elle."
             }
         },
         "workspaces": {
@@ -11716,6 +12859,24 @@
         "row": "{name}, {percent} %",
         "rowReset": "{name}, {percent} %, remise à zéro {day}",
         "rowAsOf": "relevé {ago}",
+        "stale": "Relevé {ago}",
+        "choice": {
+            "open": "Afficher ou masquer {name}",
+            "show": "Toujours afficher {name}",
+            "hide": "Masquer {name}",
+            "auto": "Afficher {name} automatiquement"
+        },
+        "hidden": {
+            "toggle": "Non utilisés récemment ({count})",
+            "label": "Fournisseurs non utilisés récemment",
+            "title": "Non utilisés récemment",
+            "lastUse": "Dernier usage {ago}",
+            "noUse": "Aucun usage relevé",
+            "chosen": "Masqué par vous",
+            "alwaysShow": "Toujours afficher",
+            "auto": "Afficher automatiquement",
+            "for": "{action} : {name}"
+        },
         "rowUnreadable": "{name}, aucun relevé : {reason}",
         "rowNoReading": "{name}, aucun relevé",
         "legend": {

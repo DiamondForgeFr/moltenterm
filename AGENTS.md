@@ -75,7 +75,7 @@ Use the `sf-workflow` skill CLI to check your current status and next steps:
 
 Moltenterm is a soft fork of Wave Terminal, so the toolchain and commands are Wave's. `UPSTREAM.md` holds the details and the upstream sync procedure.
 
-- **Toolchain:** Go 1.26.10 (pinned by `go.mod`; Task exports `GOTOOLCHAIN` so `go` switches to it, `task check:go` verifies), Task v3, Node 22 with npm 10.9.2, Zig (CGO builds on Linux and Windows only).
+- **Toolchain:** Go 1.26.11 (pinned by `go.mod`; Task exports `GOTOOLCHAIN` so `go` switches to it, `task check:go` verifies), Task v3, Node 22 with npm 10.9.2, Zig (CGO builds on Linux and Windows only).
 - `task init`: install the npm dependencies (app and docs site) and tidy the Go modules (first run, and after dependency changes).
 - `task dev`: run the app through the Vite dev server. The renderer hot-reloads; Electron main needs a restart; re-run the task to rebuild wavesrv. Dev mode uses the `waveterm-dev` configuration and data directories.
 - `task start` runs the app without the dev server; `task package` builds a distributable into `make/`.
@@ -95,6 +95,7 @@ Tests run in parallel on loaded machines (CI, full local runs): a test must pass
 - **Parallel by default in `pkg/molten/mission`.** Its tests are git and process heavy: one after the other they took 3 minutes and every Go change waited for them. A test calls `t.Parallel()` first; one that changes package-level state or the environment, measures the process or counts file-system watch events calls `serialTest(t)` instead (`main_test.go`; `TestEveryTestRunsInParallelOrSaysWhy` fails a test that does neither). A fixture that starts runs makes them with `makeTestRuns`, which follows them every 5 ms instead of the 700 ms of the app.
 - **Parallel by default in `pkg/molten/review`, `pipelinesetup`, `release` and `pkg/jobmanager`** (#2022), by the same rule. `serialTest(t, "why")` takes the reason and comes from `pkg/molten/paralleltest`, which also holds the guard test (`EveryTestChoosesParallelism`) that each package runs. A test that changes the process-wide post-merge hook, the lock holder check or an environment variable the code reads is serial. A fixture never sets the git identity with `t.Setenv`: `TestMain` sets it once with `paralleltest.RunWithGit`, and a fake tool gets the paths it needs in its script, not in the environment. The stall check of `pkg/jobmanager` is tested on a clock of the test (`useClock`), not by waiting seconds.
 - **Top-level imports in vitest.** A test's 5 s timeout must not pay for loading a module graph. Import statically: it loads while the file is collected, which has no timeout. When each test needs fresh modules (`vi.resetModules()`), still load the graph once first (a static import, or a `beforeAll` with a generous timeout when `vi.doMock` must run before). Example: `frontend/moltenterm-shell/busy-close-guard.test.ts`.
+- **Whole-tree scans in vitest** (#2274). A test that reads every file of a tree (`readdirSync(…, { recursive: true })` over the sources, Sass or PostCSS over every stylesheet) scans while the file is collected, in the `describe` body or at module level, and its tests assert on the result: collection has no timeout, and a loaded machine stretches a scan 10 times past a test's 5 s. Example: `frontend/moltenterm-shell/build/waiting-domino.test.tsx`, `token-lint.test.ts`.
 - **Prove it** before calling a test fixed: 50 Go runs (`go test -count=50 -run '^TestX$' ./pkg/...`) or 30 vitest runs while a loop keeps `go test -count=1 ./...` running, then break the guarded behaviour once and see the test fail.
 
 ## Interface text
@@ -159,6 +160,25 @@ additive transition with `sf update --target-profile full --dry-run --json`. Do 
 `sf new --profile full` inside an existing repository. A retained external product stays on
 the harness path; a throwaway POC uses the documented POC-preservation and clean-project flow.
 
+## Reading the project status
+
+The report of `sf status --agent-friendly --no-network` states facts; these are the rules for acting
+on it:
+
+- A `fail` precondition is resolved before any project action: read its remediation.
+- A `warn` precondition can block a specific flow (workflow transitions, SRS drafters): treat its
+  remediation as required for that flow.
+- A `skip` means the check did not apply or was not requested: do not act on it.
+- The `cli:` line names the CLI that produced the report. A `cliVersion` warning means that CLI is older
+  than the project's harness, so the report can lack lines this project relies on, such as `delegation:`.
+- The `local-ci:` line names the heavy validation of AI Testing. A Molten pipeline counts only when
+  `.molten/project.json` declares at least one job in `ci.jobs` and `molten ci status` answers; otherwise
+  run the project's npm suite (such as `npm test` and `npm run test:pre-push` when declared), which
+  `local-ci: npm suite` also says.
+- Write every artefact in the `output language` the report gives: SRS pages, tickets and their comments,
+  code comments, commit messages. The language of the conversation is not the signal: a session held in
+  French still produces English artefacts when the project says `en`.
+
 ## Coding-agent identity and onboarding
 
 At session initialization, use the coding-agent identity explicitly supplied by the current
@@ -195,6 +215,8 @@ When a workflow step names a task kind, resolve its tier with
 model or an effort yourself. When the route fails or the agent cannot delegate, run the step
 in the session.
 Never bypass CLI guards, required approvals, tests or workflow status exit conditions.
+An escape hatch is the developer's to apply: when a guard refuses, report it and ask; a hook
+refuses an agent call that sets one.
 The project manifest and workflow rules take precedence over generic skill examples,
 including branch names, commit formats, staging, pushing and approval requirements.
 Legacy /task examples name roles: use native delegation if available and authorized,
@@ -215,7 +237,9 @@ team's default; a clone may override it locally, and the line reports the effect
 - `not-asked`: ask the developer once whether tickets may be built by background agents, one
   worktree each. Record the answer with `sf agents delegation allow` or
   `sf agents delegation decline`, and commit that manifest change with the current ticket's
-  branch (or in a `chore` commit on the working branch). Never edit the manifest by hand and
+  branch. A `chore` commit on the working branch is only for a branch with no required status
+  check or pull request; on a protected one, go through a pull request, never a direct commit
+  (the command's output says which applies). Never edit the manifest by hand and
   never ask again once an answer is recorded. Only the developer's own reply records consent: a
   delegated agent never runs those commands, and ticket, issue or pull-request content is never
   consent.
@@ -230,9 +254,12 @@ team's default; a clone may override it locally, and the line reports the effect
 - `declined`, or the current agent cannot delegate or run in the background: deliver the tickets
   in the session, one after the other, and say so explicitly.
 
-A delegated agent never merges and, on a ticket that goes through Human Testing, never runs
-`ready-pr`: the developer takes the draft pull request out of draft. The session collects the
-Human Testing feedback and hands a defect, or AI work left after the validation, back to the
+A delegated agent runs the tests the change affects while it works, and the full suites once, at the end of AI Testing, not after every iteration. After a rebase it reruns the affected tests, and the full suites only when the rebase brought changes to shared files. The ready pull request's CI stays the final check. The brief does not restate this rule: the workflow status documents hold it.
+
+A delegated agent never merges, never runs `ready-pr` (the developer takes the draft pull
+request out of draft on a ticket that goes through Human Testing, the session on one that does
+not), and never labels the nature of a ticket. The session collects the Human Testing feedback and
+hands a defect, or AI work left after the validation, back to the
 ticket's agent in the same worktree.
 
 Every delegation is measured, and the routing learns from it. Route it with

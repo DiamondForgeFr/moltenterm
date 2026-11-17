@@ -109,30 +109,35 @@ function data(...infos: AgentStateInfo[]): AgentStatesData {
 }
 
 describe("workspaceAgents", () => {
-    it("lists the workspace's agents, working first, then waiting, error, idle, done", () => {
+    it("lists the workspace's agents in the order they started, whatever their state (#2296)", () => {
         const d = data(
-            info("done", "done"),
-            info("idle", "idle"),
-            info("wait", "waiting"),
-            info("work2", "working", { started: 20 }),
-            info("work1", "working", { started: 10 }),
-            info("err", "error"),
-            info("other", "working", { workspaceid: "ws2" }),
+            info("done", "done", { started: 10 }),
+            info("idle", "idle", { started: 20 }),
+            info("wait", "waiting", { started: 30 }),
+            info("work", "working", { started: 40 }),
+            info("err", "error", { started: 50 }),
+            info("other", "working", { workspaceid: "ws2", started: 1 }),
             info("shell", "idle", { agent: "", agentname: "" })
         );
-        expect(workspaceAgents(d, "ws1").map((a) => a.blockid)).toEqual([
-            "work1",
-            "work2",
-            "wait",
-            "err",
-            "idle",
-            "done",
-        ]);
+        expect(workspaceAgents(d, "ws1").map((a) => a.blockid)).toEqual(["done", "idle", "wait", "work", "err"]);
         expect(workspaceAgents(d, "")).toEqual([]);
     });
 
+    it("keeps an agent's place when its state or message changes (#2296)", () => {
+        const before = data(info("a", "idle", { started: 10 }), info("b", "idle", { started: 20 }));
+        const after = data(
+            info("a", "idle", { started: 10 }),
+            info("b", "working", { started: 20, since: 99, message: "editing" })
+        );
+        expect(workspaceAgents(before, "ws1").map((a) => a.blockid)).toEqual(["a", "b"]);
+        expect(workspaceAgents(after, "ws1").map((a) => a.blockid)).toEqual(["a", "b"]);
+    });
+
     it("lists Claude Code and Codex alike", () => {
-        const d = data(info("a", "working", { agent: "codex", agentname: "Codex" }), info("b", "waiting"));
+        const d = data(
+            info("a", "working", { agent: "codex", agentname: "Codex", started: 1 }),
+            info("b", "waiting", { started: 2 })
+        );
         expect(workspaceAgents(d, "ws1").map((a) => a.agent)).toEqual(["codex", "claude"]);
     });
 });

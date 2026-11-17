@@ -29,6 +29,60 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# A refusal never teaches how to get past its guard. An escape hatch is the developer's to apply
+# (the workflow skill's escape-hatches.md, ground rule 2), and a guard hook refuses an agent call that
+# sets one. A refusal that used to print the hatch ends with this line instead: it names the guard, so
+# that the matching section of the catalogue is easy to find, and sends the agent back to the developer.
+# The workflow skill sits next to this tool skill; a project that runs this CLI without it gets the
+# file's name only.
+ESCAPE_HATCHES_DOC="the workflow skill's escape-hatches.md"
+_sf_tool_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)"
+if [[ -n "$_sf_tool_dir" && -f "${_sf_tool_dir}/../sf-workflow/escape-hatches.md" ]]; then
+  ESCAPE_HATCHES_DOC="$(cd "${_sf_tool_dir}/../sf-workflow" && pwd -P)/escape-hatches.md"
+  ESCAPE_HATCHES_DOC="${ESCAPE_HATCHES_DOC#"$(pwd -P)"/}"
+fi
+unset _sf_tool_dir
+developer_hatch_line() {
+  echo "  If this guard cannot be satisfied, stop and ask the developer: an escape hatch is theirs to apply (${ESCAPE_HATCHES_DOC}, \"$1\")." >&2
+}
+
+# A delegated agent works in a worktree under .claude/worktrees/ or .codex/worktrees/ (#1106). It never applies
+# an escape hatch and never marks a pull request ready: the developer, or the coordinating session, runs those
+# from the primary checkout. The guard hook refuses the Bash calls that say so; this refusal holds against what a
+# hook cannot read (a script, a variable, an encoded command) and on every host, as long as the command runs in
+# the worktree. The same refusal is in workflow-cli.sh, which routes to this CLI.
+in_delegated_worktree() {
+  local where
+  for where in "$(pwd -P)" "$(git rev-parse --show-toplevel 2>/dev/null || true)"; do
+    case "$where/" in
+      */.claude/worktrees/* | */.codex/worktrees/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# refuse_in_delegated_worktree <command> [argument...]: exits 2 when the command applies a hatch or marks a pull
+# request ready from a delegated worktree; returns 0 otherwise. The SRS hatch is the one transition-drafting sets
+# itself, and the reason switches nothing off.
+refuse_in_delegated_worktree() {
+  local command=$1 var arg why=""
+  shift
+  in_delegated_worktree || return 0
+  for var in $(compgen -v SF_WORKFLOW_BYPASS_); do
+    [[ "$var" == "SF_WORKFLOW_BYPASS_REASON" || "$var" == "SF_WORKFLOW_BYPASS_SRS_GUARD" ]] && continue
+    [[ "${!var}" == "1" ]] && why="an escape hatch is set in the environment"
+  done
+  for arg in "$@"; do
+    [[ "$arg" == "--skip-local-ci" || "$arg" == "--skip-local-ci="* ]] && why="the local CI gate is skipped"
+  done
+  [[ "$command" == "ready-pr" ]] && why="the pull request is marked ready"
+  [[ -z "$why" ]] && return 0
+  echo -e "${RED}✗ ${command} refused: ${why}, and a delegated worktree never does that.${NC}" >&2
+  echo "  This checkout is the worktree of a delegated agent. An escape hatch, and taking a pull request out of draft, belong to the developer or the coordinating session: they run it from the primary checkout." >&2
+  echo "  Stop with the ticket in AI Testing, report this refusal and ask the developer." >&2
+  exit 2
+}
+
 COMMAND=$1
 shift || true
 
@@ -848,6 +902,7 @@ cmd_create_ticket() {
   # Each step below is reported; the ticket exists whatever happens next, so a failed
   # step names the command that finishes it rather than pretending nothing was done
   local -a MISSING=()
+  local NATURE_FAILED=""
   "$0" add-to-project "$TICKET_NUMBER" || MISSING+=("$0 add-to-project ${TICKET_NUMBER}")
 
   local declared_types
@@ -863,16 +918,24 @@ cmd_create_ticket() {
     if gh issue edit "$TICKET_NUMBER" --add-label "nature:${NATURE}" >/dev/null; then
       echo -e "${GREEN}✓ Ticket #${TICKET_NUMBER} nature → ${NATURE}${NC}"
     else
-      MISSING+=("gh issue edit ${TICKET_NUMBER} --add-label nature:${NATURE}")
+      NATURE_FAILED=$NATURE
     fi
   fi
   if [ -n "$MILESTONE" ]; then
     "$0" milestone assign "$TICKET_NUMBER" "$MILESTONE" || MISSING+=("$0 milestone assign ${TICKET_NUMBER} \"${MILESTONE}\"")
   fi
 
-  if [ "${#MISSING[@]}" -gt 0 ]; then
-    echo -e "${RED}✗ Ticket #${TICKET_NUMBER} exists, but these steps failed — finish them with:${NC}" >&2
-    printf '    %s\n' "${MISSING[@]}" >&2
+  if [ "${#MISSING[@]}" -gt 0 ] || [ -n "$NATURE_FAILED" ]; then
+    if [ "${#MISSING[@]}" -gt 0 ]; then
+      echo -e "${RED}✗ Ticket #${TICKET_NUMBER} exists, but these steps failed — finish them with:${NC}" >&2
+      printf '    %s\n' "${MISSING[@]}" >&2
+    else
+      echo -e "${RED}✗ Ticket #${TICKET_NUMBER} exists, but one step failed:${NC}" >&2
+    fi
+    # A nature label decides whether the ticket goes through Human Testing: it is the developer's to apply
+    if [ -n "$NATURE_FAILED" ]; then
+      echo "    nature:${NATURE_FAILED} could not be applied to #${TICKET_NUMBER}: ask the developer to add the label." >&2
+    fi
     exit 1
   fi
 }
@@ -977,17 +1040,23 @@ cmd_status() {
 # ───────────────────────────────────────────────────────────────────────────
 
 # Put an issue on the board in its starting status (Backlog unless --status says otherwise).
-# An issue already there keeps its status, so a reused Story is never sent back to Backlog.
-# Spawned tickets reached the milestone and their Epic but never the board, and every later
-# `update-status` on them failed (#836).
+# An issue already there with a status keeps it, so a reused Story is never sent back to
+# Backlog. Spawned tickets reached the milestone and their Epic but never the board, and every
+# later `update-status` on them failed (#836).
+# An issue already there with no status gets the starting status: the board's auto-add and
+# `create-subtask` put items there with an empty Status, and keeping that empty value left
+# spawned Stories in no column at all (#1118).
+# --json prints {"ticket","action":"added"|"status-set"|"kept","status"}: the status the board
+# holds afterwards, so a caller reports the board and not the status it asked for.
 cmd_add_to_project() {
   if [ "$#" -lt 1 ]; then
-    echo "Usage: $0 add-to-project <ticket-number> [--status <status-name>]" >&2
+    echo "Usage: $0 add-to-project <ticket-number> [--status <status-name>] [--json]" >&2
     exit 1
   fi
   local ticket=$1
   shift
   local status_name="Backlog"
+  local json_mode=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --status)
@@ -998,6 +1067,10 @@ cmd_add_to_project() {
         fi
         shift 2
         ;;
+      --json)
+        json_mode=1
+        shift
+        ;;
       *)
         echo "Error: unknown add-to-project option '$1'" >&2
         exit 1
@@ -1006,8 +1079,17 @@ cmd_add_to_project() {
   done
   load_project_schema
 
-  if [ -n "$(get_project_item_id "$ticket")" ]; then
-    echo -e "${GREEN}✓ Ticket #${ticket} is already on project board ${PROJECT_NUMBER} (status kept)${NC}"
+  local info item_id current_status
+  info=$(query_project_item "$ticket") || true
+  item_id=$(echo "$info" | jq -r '.itemId // ""')
+  current_status=$(echo "$info" | jq -r '.status // ""')
+
+  if [ -n "$item_id" ] && [ -n "$current_status" ]; then
+    if [ "$json_mode" = 1 ]; then
+      jq -nc --argjson t "$ticket" --arg s "$current_status" '{ticket:$t, action:"kept", status:$s}'
+    else
+      echo -e "${GREEN}✓ Ticket #${ticket} is already on project board ${PROJECT_NUMBER} (status kept: ${current_status})${NC}"
+    fi
     return 0
   fi
 
@@ -1020,21 +1102,36 @@ cmd_add_to_project() {
     echo "$STATUS_OPTIONS_JSON" | jq -r '.[].name' | sed 's/^/  - /' >&2
     exit 1
   fi
+  # The board's own spelling, whatever the case of --status
+  status_name=$(echo "$STATUS_OPTIONS_JSON" | jq -r --arg id "$option_id" '[.[] | select(.id == $id) | .name][0] // empty')
 
-  local url item_id
-  url=$(gh issue view "$ticket" --json url --jq .url) || exit 1
-  item_id=$(gh project item-add "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --url "$url" --format json --jq .id)
+  local action="status-set"
   if [ -z "$item_id" ]; then
-    echo -e "${RED}Error: could not add #${ticket} to project board ${PROJECT_NUMBER}${NC}" >&2
-    exit 1
+    action="added"
+    local url
+    url=$(gh issue view "$ticket" --json url --jq .url) || exit 1
+    item_id=$(gh project item-add "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --url "$url" --format json --jq .id)
+    if [ -z "$item_id" ]; then
+      echo -e "${RED}Error: could not add #${ticket} to project board ${PROJECT_NUMBER}${NC}" >&2
+      exit 1
+    fi
   fi
-  gh project item-edit \
+  if ! gh project item-edit \
     --id "$item_id" \
     --project-id "$PROJECT_ID" \
     --field-id "$STATUS_FIELD_ID" \
-    --single-select-option-id "$option_id" >/dev/null
+    --single-select-option-id "$option_id" >/dev/null; then
+    echo -e "${RED}Error: #${ticket} is on project board ${PROJECT_NUMBER} but its status could not be set to ${status_name}${NC}" >&2
+    exit 1
+  fi
 
-  echo -e "${GREEN}✓ Ticket #${ticket} added to project board ${PROJECT_NUMBER} → ${status_name}${NC}"
+  if [ "$json_mode" = 1 ]; then
+    jq -nc --argjson t "$ticket" --arg a "$action" --arg s "$status_name" '{ticket:$t, action:$a, status:$s}'
+  elif [ "$action" = "added" ]; then
+    echo -e "${GREEN}✓ Ticket #${ticket} added to project board ${PROJECT_NUMBER} → ${status_name}${NC}"
+  else
+    echo -e "${GREEN}✓ Ticket #${ticket} was on project board ${PROJECT_NUMBER} with no status → ${status_name}${NC}"
+  fi
 }
 
 cmd_update_status() {
@@ -1683,11 +1780,120 @@ resolve_remote_ticket_branch() {
   echo -e "${BLUE}→ This checkout is on ${host_branch}: using origin/${CURRENT_BRANCH} as ticket #${ticket}'s branch, it holds the same commit as HEAD (${short}).${NC}"
 }
 
+# ready-pr and draft-pr from a checkout that is not on the ticket branch (#1125). With delegated
+# delivery, the session takes a ticket's draft pull request out of draft from the primary checkout,
+# on the working branch: the ticket branch lives in the agent's worktree, and the local HEAD says
+# nothing about it. The pull request is looked up on GitHub instead: the one open pull request of
+# this repository whose head branch follows the ticket's delivery naming (feature, fix), or the
+# one --head names (release convention allowed) or --pr picks. Several candidates are refused and
+# listed. verify_pr_head_on_origin then checks its head commit against origin, and the local CI
+# gate reads that commit. Another ticket's pull request is accepted only when it resolves this ticket
+# (#1093): one pull request into the delivery branch that delivers several tickets, with one body line
+# per ticket that reads exactly `Resolves #<ticket>` or GitHub's closing reference to it. The ticket's
+# own branch always wins over such a pull request.
+# Sets CURRENT_BRANCH to the PR's head branch, PR_RESOLVED_NUMBER and PR_ORIGIN_RESOLVED=true.
+resolve_ticket_pr_on_origin() {
+  local ticket=$1 allow_release=$2 feature=$3 fix=$4 release=$5 host_branch=$CURRENT_BRANCH
+  local payload number branch resolves found_number="" found_branch="" found_resolves=false head_own=false
+  local -a candidates=() resolving=() resolving_numbers=() resolving_branches=()
+  if [[ -n "${PR_HEAD_OPTION:-}" ]] && classify_pr_branch "$PR_HEAD_OPTION" "$allow_release" "$feature" "$fix" "$release"; then
+    head_own=true
+  fi
+  payload=$(gh pr list --state open --limit 200 --json number,headRefName,baseRefName,isCrossRepository,body,closingIssuesReferences 2>/dev/null) || {
+    echo "Error: unable to read open PRs. Retry after restoring GitHub access." >&2; return 1;
+  }
+  echo "$payload" | jq -e 'type == "array"' >/dev/null 2>&1 || {
+    echo "Error: unreadable open PR list; no pull request was changed." >&2; return 1;
+  }
+  while IFS=$'\t' read -r number branch resolves; do
+    [[ -n "$number" && -n "$branch" ]] || continue
+    if [[ -n "${PR_NUMBER_OPTION:-}" ]]; then
+      [[ "$number" == "$PR_NUMBER_OPTION" ]] || continue
+    elif [[ -n "${PR_HEAD_OPTION:-}" ]]; then
+      [[ "$branch" == "$PR_HEAD_OPTION" ]] || continue
+    elif ! [[ "$branch" =~ $feature || "$branch" =~ $fix ]]; then
+      if [[ "$resolves" == true ]]; then
+        resolving+=("#${number} (${branch})")
+        resolving_numbers+=("$number")
+        resolving_branches+=("$branch")
+      fi
+      continue
+    fi
+    candidates+=("#${number} (${branch})")
+    found_number=$number
+    found_branch=$branch
+    found_resolves=$resolves
+  done < <(echo "$payload" | jq -r --arg t "$ticket" --arg base "$DELIVERY_TARGET_BRANCH" '
+    .[] | select(.isCrossRepository == false and (.number | type) == "number" and (.headRefName | type) == "string")
+    | (.baseRefName == $base
+       and ((([(.body // "") | scan("(?im)^\\s*resolves\\s+#([1-9][0-9]*)\\s*$") | .[0]]
+             + [(.closingIssuesReferences // [])[] | .number | select(type == "number") | tostring]) | index($t)) != null)) as $resolves
+    | "\(.number)\t\(.headRefName)\t\($resolves)"')
+  # No pull request of its own: the one that resolves it among other tickets
+  if [[ ${#candidates[@]} -eq 0 && ${#resolving[@]} -gt 0 ]]; then
+    candidates=("${resolving[@]}")
+    found_number=${resolving_numbers[${#resolving_numbers[@]}-1]}
+    found_branch=${resolving_branches[${#resolving_branches[@]}-1]}
+    found_resolves=true
+  fi
+  if [[ ${#candidates[@]} -eq 0 ]]; then
+    if [[ -n "${PR_NUMBER_OPTION:-}" ]]; then
+      echo "Error: --pr ${PR_NUMBER_OPTION}: no open pull request of this repository has that number." >&2
+    elif [[ -n "${PR_HEAD_OPTION:-}" ]]; then
+      echo "Error: --head ${PR_HEAD_OPTION}: no open pull request of this repository has that head branch. Open it first with create-pr ${ticket} --draft." >&2
+    else
+      echo "Error: this checkout is on ${host_branch}, and no open pull request of this repository has a head branch that follows ticket #${ticket}'s configured branch naming. Open it first with create-pr ${ticket} --draft, or name it with --pr <number>." >&2
+    fi
+    return 1
+  fi
+  if [[ ${#candidates[@]} -gt 1 ]]; then
+    local list
+    list=$(printf '%s\n' "${candidates[@]}" | paste -sd ',' - | sed 's/,/, /g')
+    echo "Error: several open pull requests match ticket #${ticket}: ${list}. Name the one to use with --pr <number>." >&2
+    return 1
+  fi
+  local via_resolves=false
+  if [[ -n "${PR_NUMBER_OPTION:-}" ]]; then
+    if ! classify_pr_branch "$found_branch" "$allow_release" "$feature" "$fix" "$release"; then
+      [[ "$found_resolves" == true ]] || {
+        echo "Error: --pr ${PR_NUMBER_OPTION}: its head branch ${found_branch} does not match ticket #${ticket}'s configured branch naming, and its body has no line that reads exactly 'Resolves #${ticket}'." >&2
+        return 1
+      }
+      via_resolves=true
+    fi
+  elif [[ -n "${PR_HEAD_OPTION:-}" ]]; then
+    if [[ "$head_own" != true ]]; then
+      [[ "$found_resolves" == true ]] || {
+        echo "Error: --head ${PR_HEAD_OPTION} does not match ticket #${ticket}'s configured branch naming, and its pull request #${found_number} does not resolve #${ticket}." >&2
+        return 1
+      }
+      via_resolves=true
+    fi
+  elif ! classify_pr_branch "$found_branch" false "$feature" "$fix" "$release"; then
+    [[ "$found_resolves" == true ]] || return 1
+    via_resolves=true
+  fi
+  # A pull request of another ticket branch that resolves this one is an ordinary delivery PR
+  [[ "$via_resolves" == true ]] && PR_CONTEXT_KIND=delivery PR_TARGET_BRANCH=$DELIVERY_TARGET_BRANCH
+  CURRENT_BRANCH=$found_branch
+  PR_RESOLVED_NUMBER=$found_number
+  PR_ORIGIN_RESOLVED=true
+  if [[ "$via_resolves" == true ]]; then
+    echo -e "${BLUE}→ This checkout is on ${host_branch}: using origin/${CURRENT_BRANCH}, the head of open pull request #${found_number}, which resolves ticket #${ticket}.${NC}"
+  else
+    echo -e "${BLUE}→ This checkout is on ${host_branch}: using origin/${CURRENT_BRANCH}, the head of ticket #${ticket}'s open pull request #${found_number}.${NC}"
+  fi
+}
+
 # Resolve only the ticket's own branch. Never promote another developer's PR.
-# The current branch when it follows the ticket's naming; otherwise the branch pushed from this
-# checkout (resolve_remote_ticket_branch), named by --head (PR_HEAD_OPTION) or found on origin.
+# The current branch when it follows the ticket's naming; otherwise, for create-pr, the branch
+# pushed from this checkout (resolve_remote_ticket_branch), named by --head (PR_HEAD_OPTION) or
+# found on origin at HEAD; for ready-pr and draft-pr (mode `origin`), the ticket's open pull
+# request found on GitHub (resolve_ticket_pr_on_origin), which --pr may name.
 pr_branch_context() {
-  local ticket=$1 allow_release=${2:-false}
+  local ticket=$1 allow_release=${2:-false} mode=${3:-local}
+  PR_ORIGIN_RESOLVED=false
+  PR_RESOLVED_NUMBER=""
   [[ "$ticket" =~ ^[1-9][0-9]*$ ]] || { echo "Error: ticket must be a positive issue number." >&2; return 1; }
   load_config
   CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD) || return 1
@@ -1729,6 +1935,15 @@ pr_branch_context() {
   PR_TICKET=$ticket
   PR_CONTEXT_KIND=""
   PR_TARGET_BRANCH=$DELIVERY_TARGET_BRANCH
+  if [[ "$mode" == origin ]]; then
+    # On the ticket branch itself, with nothing named: the checkout is the work, checked as before
+    if [[ -z "${PR_NUMBER_OPTION:-}" && ( -z "${PR_HEAD_OPTION:-}" || "$PR_HEAD_OPTION" == "$CURRENT_BRANCH" ) ]] \
+        && classify_pr_branch "$CURRENT_BRANCH" "$allow_release" "$feature" "$fix" "$release"; then
+      return 0
+    fi
+    resolve_ticket_pr_on_origin "$ticket" "$allow_release" "$feature" "$fix" "$release" || return 1
+    return 0
+  fi
   if [[ -z "${PR_HEAD_OPTION:-}" || "$PR_HEAD_OPTION" == "$CURRENT_BRANCH" ]]; then
     if ! classify_pr_branch "$CURRENT_BRANCH" "$allow_release" "$feature" "$fix" "$release"; then
       if [[ -n "${PR_HEAD_OPTION:-}" ]]; then
@@ -1786,27 +2001,182 @@ verify_pr_head() {
     echo "Error: PR, local branch and remote head do not match. Push and retry before marking ready." >&2
     return 1
   fi
+  PR_HEAD_COMMIT=$LOCAL_HEAD
 }
 
-# The project's local CI gate (#918). A project that verifies pull requests locally declares
-# the commit statuses its local CI publishes in `workflow.localCi.requiredStatuses`. An agent
-# once ran a narrower check, judged a one-file diff did not need more, and opened a PR that
-# waited forever for statuses nobody would publish. No diff is too small: a PR opened for
-# review, or marked ready, needs every declared status green on its exact head commit. A draft
-# is allowed — it is opened early and waits for them. `--skip-local-ci "<reason>"` is the
-# explicit escape hatch, recorded on the pull request.
-LOCAL_CI_SKIP_REASON=""
+# ready-pr and draft-pr on a pull request found on GitHub (#1125): this checkout holds another
+# branch, so the local HEAD is not compared. The PR's head commit must be the commit origin holds
+# for its head branch, and that commit is the one the local CI gate checks (PR_HEAD_COMMIT).
+verify_pr_head_on_origin() {
+  local pr_head pr_number
+  pr_head=$(echo "$BRANCH_PRS" | jq -r '.[0].headRefOid')
+  pr_number=$(echo "$BRANCH_PRS" | jq -r '.[0].number')
+  if [[ -n "${PR_RESOLVED_NUMBER:-}" && "$pr_number" != "$PR_RESOLVED_NUMBER" ]]; then
+    echo "Error: the open pull request of ${CURRENT_BRANCH} is #${pr_number}, not #${PR_RESOLVED_NUMBER}. Retry after checking GitHub." >&2
+    return 1
+  fi
+  REMOTE_HEAD=$(remote_branch_tip "$CURRENT_BRANCH") || {
+    echo "Error: could not read origin to check origin/${CURRENT_BRANCH}. Retry once origin is reachable." >&2
+    return 1
+  }
+  if [[ -z "$REMOTE_HEAD" ]]; then
+    echo "Error: origin has no branch ${CURRENT_BRANCH}, the head of pull request #${pr_number}." >&2
+    return 1
+  fi
+  if [[ "$pr_head" != "$REMOTE_HEAD" ]]; then
+    echo "Error: pull request #${pr_number} is at ${pr_head:0:8}, but origin/${CURRENT_BRANCH} is at ${REMOTE_HEAD:0:8}. Retry once GitHub has the last push." >&2
+    return 1
+  fi
+  PR_HEAD_COMMIT=$pr_head
+}
 
+# The project's local CI gate (#918, #1104). A project that verifies pull requests locally has
+# its local CI publish commit statuses, and a pull request opened for review, marked ready or
+# moved to Human Testing needs every required one green on its exact head commit. An agent once
+# ran a narrower check, judged a one-file diff did not need more, and opened a PR that waited
+# forever for statuses nobody would publish. No diff is too small. A draft is allowed — it is
+# opened early and waits for them. `--skip-local-ci "<reason>"` is the explicit escape hatch,
+# recorded on the pull request.
+#
+# Which statuses are required comes from one place, resolve_local_ci_required, in this order:
+#   manifest  workflow.localCi.requiredStatuses (a list; an empty list is a deliberate "no local CI")
+#   molten    the jobs of .molten/project.json, published as `local-<job>` ("ci.statuses": "github")
+#   agent     neither: the status `AI testing / Local CI` the agent publishes with
+#             `workflow-cli.sh ai-status <ticket> "Local CI" success` after the project's suite ran
+# The gate never passes silently for a project that declares nothing: it asks for the agent status.
+LOCAL_CI_SKIP_REASON=""
+LOCAL_CI_SKIPPED=false
+LOCAL_CI_REQUIRED=""
+LOCAL_CI_SOURCE=""
+LOCAL_CI_MOLTEN_NOTE=""
+LOCAL_CI_AGENT_CONTEXT="AI testing / Local CI"
+MOLTEN_PROJECT_FILE=".molten/project.json"
+
+# The CI jobs `.molten/project.json` declares, one name per line: the entries of `ci.jobs` that carry
+# a non-blank name, the reading of src/molten-pipeline.ts (a pipeline with no job is no pipeline, #1155).
+molten_job_names() {
+  jq -r '(.ci // {}) as $ci
+    | if ($ci | type) == "object" and ($ci.jobs | type) == "array"
+      then $ci.jobs[] | select(type == "object" and (.name | type) == "string" and (.name | gsub("\\s"; "") | length) > 0) | .name
+      else empty end' "$MOLTEN_PROJECT_FILE"
+}
+
+# Sets LOCAL_CI_REQUIRED (one status context per line), LOCAL_CI_SOURCE (manifest | manifest-none |
+# molten | agent) and, when a Molten pipeline exists that the gate cannot read, LOCAL_CI_MOLTEN_NOTE.
+# Returns 1 with the reason on stderr when a declaration cannot be read: a broken file never
+# silently weakens the gate.
+resolve_local_ci_required() {
+  local kind jobs err
+  LOCAL_CI_REQUIRED=""
+  LOCAL_CI_SOURCE=""
+  LOCAL_CI_MOLTEN_NOTE=""
+  kind=$(jq -r '.workflow.localCi.requiredStatuses
+    | if . == null then "absent"
+      elif type == "array" and all(.[]; type == "string" and length > 0) then "list"
+      else "invalid" end' .saasfoundry.json 2>/dev/null) || {
+    echo -e "${RED}✗ Could not read workflow.localCi.requiredStatuses from .saasfoundry.json.${NC}" >&2
+    return 1
+  }
+  case "$kind" in
+    list)
+      LOCAL_CI_REQUIRED=$(jq -r '.workflow.localCi.requiredStatuses[]' .saasfoundry.json)
+      if [[ -n "$LOCAL_CI_REQUIRED" ]]; then LOCAL_CI_SOURCE=manifest; else LOCAL_CI_SOURCE=manifest-none; fi
+      return 0
+      ;;
+    invalid)
+      echo -e "${RED}✗ workflow.localCi.requiredStatuses in .saasfoundry.json must be a list of commit status contexts (strings).${NC}" >&2
+      echo "  Record it with: sf workflow set-local-ci <context...>   (or --from-molten, --none, --clear)" >&2
+      return 1
+      ;;
+  esac
+  if [[ -f "$MOLTEN_PROJECT_FILE" ]]; then
+    err=$(jq -e 'type == "object"' "$MOLTEN_PROJECT_FILE" 2>&1 >/dev/null) || {
+      echo -e "${RED}✗ Could not read ${MOLTEN_PROJECT_FILE}: ${err:-it is not a JSON object}${NC}" >&2
+      echo "  Fix the file, or record the required statuses with: sf workflow set-local-ci <context...>" >&2
+      return 1
+    }
+    jobs=$(molten_job_names) || {
+      echo -e "${RED}✗ Could not read the CI jobs of ${MOLTEN_PROJECT_FILE}.${NC}" >&2
+      return 1
+    }
+    if [[ -n "$jobs" ]]; then
+      if [[ "$(jq -r '.ci.statuses // ""' "$MOLTEN_PROJECT_FILE")" == github ]]; then
+        LOCAL_CI_REQUIRED=$(printf '%s\n' "$jobs" | sed 's/^/local-/')
+        LOCAL_CI_SOURCE=molten
+        return 0
+      fi
+      LOCAL_CI_MOLTEN_NOTE="${MOLTEN_PROJECT_FILE} declares a pipeline but not \"ci\": { \"statuses\": \"github\" }, so its verdicts are not published as commit statuses the gate can read. Adding it would make the gate require local-<job> instead."
+    fi
+  fi
+  LOCAL_CI_REQUIRED=$LOCAL_CI_AGENT_CONTEXT
+  LOCAL_CI_SOURCE=agent
+}
+
+# Where the required statuses come from, for the refusal and the success line.
+local_ci_source_label() {
+  local count
+  count=$(grep -c . <<<"$LOCAL_CI_REQUIRED" || true)
+  case "$LOCAL_CI_SOURCE" in
+    manifest) echo "${count} status(es) of workflow.localCi.requiredStatuses (.saasfoundry.json)" ;;
+    molten) echo "${count} job(s) of ${MOLTEN_PROJECT_FILE} (local-<job>; workflow.localCi.requiredStatuses is not set)" ;;
+    agent) echo "${LOCAL_CI_AGENT_CONTEXT} (no workflow.localCi.requiredStatuses and no Molten pipeline publishing to GitHub)" ;;
+  esac
+}
+
+# The suite the project declares in package.json, for the agent source's refusal.
+local_ci_declared_suite() {
+  local suite=""
+  if [[ -f package.json ]]; then
+    if jq -e '.scripts.test // empty' package.json >/dev/null 2>&1; then suite="npm test"; fi
+    if jq -e '.scripts["test:pre-push"] // empty' package.json >/dev/null 2>&1; then
+      suite="${suite:+${suite} and }npm run test:pre-push"
+    fi
+  fi
+  printf '%s' "${suite:-the build and test suite the project declares}"
+}
+
+# What to do about a gate that is not green: the command that produces the statuses.
+print_local_ci_remedy() {
+  local ticket=$1 branch=$2 pr=$3
+  case "$LOCAL_CI_SOURCE" in
+    molten)
+      echo "  Run: molten ci run ${branch:-<branch>}   (or \`molten ci run\` in the worktree that holds it), then retry." >&2
+      ;;
+    manifest)
+      if [[ -f "$MOLTEN_PROJECT_FILE" ]] && [[ -n "$(molten_job_names 2>/dev/null)" ]]; then
+        echo "  Run: molten ci run ${branch:-<branch>}   (or \`molten ci run\` in the worktree that holds it), then retry." >&2
+      else
+        echo "  Run the project's local CI on this exact commit so that it publishes these statuses, then retry." >&2
+      fi
+      ;;
+    agent)
+      echo "  Run $(local_ci_declared_suite) on this exact commit, then publish the verdict and retry:" >&2
+      echo "    workflow-cli.sh ai-status ${ticket:-<ticket>} \"Local CI\" success \"<command, commit, result>\"" >&2
+      [[ -z "$pr" ]] && echo "  A pull request must exist to carry that status: open it first with workflow-cli.sh create-pr ${ticket:-<ticket>} --draft." >&2
+      [[ -n "$LOCAL_CI_MOLTEN_NOTE" ]] && echo "  Note: ${LOCAL_CI_MOLTEN_NOTE}" >&2
+      echo "  A project with no local CI records that with: sf workflow set-local-ci --none" >&2
+      ;;
+  esac
+  developer_hatch_line "Local CI guard"
+}
+
+# local_ci_gate <head-sha> [<ticket> <branch> [<pr-number>]]: 0 when the gate is green, skipped or
+# not applicable, 1 when it refuses. Sets LOCAL_CI_SKIPPED when --skip-local-ci bypassed a real gate.
 local_ci_gate() {
-  local head=$1 required statuses name state
+  local head=$1 ticket=${2:-} branch=${3:-} pr=${4:-} statuses name state
   local -a failing=()
-  required=$(jq -r '.workflow.localCi.requiredStatuses // [] | .[]' .saasfoundry.json 2>/dev/null)
-  [[ -z "$required" ]] && return 0
-  if [[ -n "$LOCAL_CI_SKIP_REASON" ]]; then
-    echo -e "${YELLOW}⚠ Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}${NC}" >&2
+  LOCAL_CI_SKIPPED=false
+  resolve_local_ci_required || return 1
+  if [[ "$LOCAL_CI_SOURCE" == manifest-none ]]; then
+    echo -e "${YELLOW}⚠ Local CI gate: workflow.localCi.requiredStatuses is an empty list, so this project declares no local CI and nothing is checked.${NC}" >&2
     return 0
   fi
-  statuses=$(gh api "repos/$(get_repo_owner_name)/commits/${head}/status" --jq '[.statuses[] | {context, state}]' 2>/dev/null) || {
+  if [[ -n "$LOCAL_CI_SKIP_REASON" ]]; then
+    echo -e "${YELLOW}⚠ Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}${NC}" >&2
+    LOCAL_CI_SKIPPED=true
+    return 0
+  fi
+  statuses=$(gh api "repos/$(get_repo_owner_name)/commits/${head}/status?per_page=100" --jq '[.statuses[] | {context, state}]' 2>/dev/null) || {
     echo -e "${RED}✗ Could not read the commit statuses of ${head:0:8}, so the local CI gate cannot be checked.${NC}" >&2
     return 1
   }
@@ -1814,23 +2184,34 @@ local_ci_gate() {
     [[ -z "$name" ]] && continue
     state=$(echo "$statuses" | jq -r --arg c "$name" 'map(select(.context == $c))[0].state // "missing"')
     [[ "$state" == success ]] || failing+=("${name}: ${state}")
-  done <<<"$required"
+  done <<<"$LOCAL_CI_REQUIRED"
   if [[ ${#failing[@]} -gt 0 ]]; then
-    echo -e "${RED}✗ The project's local CI is not green on ${head:0:8}:${NC}" >&2
+    local where=""
+    [[ -n "$branch" ]] && where=" (${branch}"
+    [[ -n "$where" && -n "$pr" ]] && where+=", PR #${pr}"
+    [[ -n "$where" ]] && where+=")"
+    echo -e "${RED}✗ The project's local CI is not green on ${head:0:8}${where}:${NC}" >&2
     printf '    %s\n' "${failing[@]}" >&2
-    echo "  Run the local CI on this exact commit (no diff is too small), or pass --skip-local-ci \"<reason>\"." >&2
+    echo "  Required statuses: $(local_ci_source_label)." >&2
+    print_local_ci_remedy "$ticket" "$branch" "$pr"
     return 1
   fi
-  echo -e "${GREEN}✓ Local CI green on ${head:0:8}: $(echo "$required" | paste -sd ',' - | sed 's/,/, /g')${NC}"
+  echo -e "${GREEN}✓ Local CI green on ${head:0:8}: $(local_ci_source_label)${NC}"
 }
 
-# `--skip-local-ci "<reason>"`, `--head <branch>` (#1036) and the remaining positional arguments,
-# for create-pr, ready-pr and draft-pr.
+# `--skip-local-ci "<reason>"`, `--head <branch>` (#1036), `--pr <number>` (#1125, ready-pr and
+# draft-pr only) and the remaining positional arguments, for create-pr, ready-pr and draft-pr.
 parse_local_ci_args() {
   PR_ARGS=()
   PR_HEAD_OPTION=""
+  PR_NUMBER_OPTION=""
   while [[ "$#" -gt 0 ]]; do
-    if [[ "$1" == "--skip-local-ci" ]]; then
+    if [[ "$1" == "--pr" ]]; then
+      [[ "${2:-}" =~ ^[1-9][0-9]*$ ]] || { echo "Error: --pr requires the number of the ticket's open pull request" >&2; return 1; }
+      [[ -z "$PR_NUMBER_OPTION" ]] || { echo "Error: --pr can be given only once" >&2; return 1; }
+      PR_NUMBER_OPTION=$2
+      shift 2
+    elif [[ "$1" == "--skip-local-ci" ]]; then
       [[ -n "${2:-}" && "${2:-}" != --* ]] || { echo "Error: --skip-local-ci requires a reason" >&2; return 1; }
       LOCAL_CI_SKIP_REASON=$2
       shift 2
@@ -1851,6 +2232,10 @@ cmd_create_pr() {
   set -- ${PR_ARGS[@]+"${PR_ARGS[@]}"}
   if [[ "$#" -lt 1 || "$#" -gt 2 || ( "$#" -eq 2 && "$2" != "--draft" ) ]]; then
     echo "Usage: $0 create-pr <ticket-number> [--draft] [--head <branch>] [--skip-local-ci \"<reason>\"]" >&2
+    return 1
+  fi
+  if [[ -n "$PR_NUMBER_OPTION" ]]; then
+    echo "Error: --pr applies to ready-pr and draft-pr; create-pr opens the pull request of the ticket branch (--head <branch>)." >&2
     return 1
   fi
   local TICKET_NUMBER=$1
@@ -1903,13 +2288,13 @@ cmd_create_pr() {
 
   # A PR opened for review needs the local CI verdict; a draft waits for it
   if [[ ${#draft_args[@]} -eq 0 ]]; then
-    local_ci_gate "$LOCAL_HEAD" || { echo "  No pull request was created." >&2; return 1; }
+    local_ci_gate "$LOCAL_HEAD" "$TICKET_NUMBER" "$CURRENT_BRANCH" || { echo "  No pull request was created." >&2; return 1; }
   fi
 
   local PR_CREATE_STATUS=0 PR_OUTPUT PR_URL PR_BODY
   PR_BODY="Resolves #${TICKET_NUMBER}"
   [[ "$PR_CONTEXT_KIND" == release ]] && PR_BODY="Closes #${TICKET_NUMBER}"
-  [[ -n "$LOCAL_CI_SKIP_REASON" && ${#draft_args[@]} -eq 0 ]] && PR_BODY+=$'\n\n'"Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}"
+  [[ "$LOCAL_CI_SKIPPED" == true ]] && PR_BODY+=$'\n\n'"Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}"
   PR_OUTPUT=$(gh pr create --title "[#${TICKET_NUMBER}] $ISSUE_TITLE" \
     --body "$PR_BODY" --base "$PR_TARGET_BRANCH" ${head_args[@]+"${head_args[@]}"} "${draft_args[@]}" 2>&1) || PR_CREATE_STATUS=$?
   PR_URL=$(echo "$PR_OUTPUT" | grep -oE 'https://[^[:space:]]+/pull/[0-9]+' | head -n 1 || true)
@@ -1923,25 +2308,67 @@ cmd_create_pr() {
   fi
 }
 
+# The ticket's one open pull request and its verified head commit, for ready-pr, draft-pr and
+# local-ci-gate (#1125): from the ticket branch itself, or from any other checkout through the
+# pull request found on GitHub. Sets CURRENT_BRANCH, BRANCH_PRS and PR_HEAD_COMMIT.
+resolve_ticket_pr_with_head() {
+  pr_branch_context "$1" true origin || return 1
+  read_branch_pr || return 1
+  [[ $(echo "$BRANCH_PRS" | jq length) -eq 1 ]] || { echo "Error: no open PR for ticket #$1 on ${CURRENT_BRANCH}." >&2; return 1; }
+  if [[ "$PR_ORIGIN_RESOLVED" == true ]]; then
+    verify_pr_head_on_origin || return 1
+  else
+    verify_pr_head || return 1
+  fi
+}
+
+# local-ci-gate <ticket> [--head <branch> | --pr <number>] [--skip-local-ci "<reason>"] (#1104):
+# the local CI gate of ready-pr, run on its own. It reads the head commit of the ticket's open pull
+# request the way ready-pr does, from the ticket worktree or from the primary checkout, and changes
+# no pull request state. `update-status <ticket> "Human testing"` calls it. Exit 0 when the required
+# statuses are green on that head, or the gate was skipped with a recorded reason; 1 when it refuses.
+cmd_local_ci_gate() {
+  parse_local_ci_args "$@" || return 1
+  set -- ${PR_ARGS[@]+"${PR_ARGS[@]}"}
+  if [[ "$#" -ne 1 ]]; then
+    echo "Usage: $0 local-ci-gate <ticket-number> [--head <branch> | --pr <number>] [--skip-local-ci \"<reason>\"]" >&2
+    return 1
+  fi
+  if [[ -n "$PR_NUMBER_OPTION" && -n "$PR_HEAD_OPTION" ]]; then
+    echo "Error: name the pull request with --pr <number> or its branch with --head <branch>, not both." >&2
+    return 1
+  fi
+  resolve_ticket_pr_with_head "$1" || return 1
+  local pr_number
+  pr_number=$(echo "$BRANCH_PRS" | jq -r '.[0].number')
+  local_ci_gate "$PR_HEAD_COMMIT" "$1" "$CURRENT_BRANCH" "$pr_number" || { echo "  Pull request #${pr_number} has not passed the local CI gate." >&2; return 1; }
+  if [[ "$LOCAL_CI_SKIPPED" == true ]]; then
+    gh pr comment "$pr_number" --body "Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}" >/dev/null || {
+      echo -e "${YELLOW}⚠ The skip could not be recorded on pull request #${pr_number}; add the comment by hand.${NC}" >&2
+    }
+  fi
+}
+
 cmd_set_pr_draft() {
   local desired_draft=$1 action=$2
   shift 2
   parse_local_ci_args "$@" || return 1
   set -- ${PR_ARGS[@]+"${PR_ARGS[@]}"}
   if [[ "$#" -ne 1 ]]; then
-    echo "Usage: $0 ${action}-pr <ticket-number> [--head <branch>]$([[ "$action" == ready ]] && echo ' [--skip-local-ci "<reason>"]')" >&2
+    echo "Usage: $0 ${action}-pr <ticket-number> [--head <branch> | --pr <number>]$([[ "$action" == ready ]] && echo ' [--skip-local-ci "<reason>"]')" >&2
     return 1
   fi
-  pr_branch_context "$1" true || return 1
-  read_branch_pr || return 1
-  [[ $(echo "$BRANCH_PRS" | jq length) -eq 1 ]] || { echo "Error: no open PR for ticket #$1 on ${CURRENT_BRANCH}." >&2; return 1; }
-  verify_pr_head || return 1
+  if [[ -n "$PR_NUMBER_OPTION" && -n "$PR_HEAD_OPTION" ]]; then
+    echo "Error: name the pull request with --pr <number> or its branch with --head <branch>, not both." >&2
+    return 1
+  fi
+  resolve_ticket_pr_with_head "$1" || return 1
   local pr_number state_args=()
   pr_number=$(echo "$BRANCH_PRS" | jq -r '.[0].number')
   # Marking ready asks for review: the local CI verdict must be on the head first (#918)
   if [[ "$desired_draft" == false ]]; then
-    local_ci_gate "$LOCAL_HEAD" || { echo "  Pull request #${pr_number} stays a draft." >&2; return 1; }
-    [[ -n "$LOCAL_CI_SKIP_REASON" ]] && gh pr comment "$pr_number" --body "Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}" >/dev/null
+    local_ci_gate "$PR_HEAD_COMMIT" "$1" "$CURRENT_BRANCH" "$pr_number" || { echo "  Pull request #${pr_number} stays a draft." >&2; return 1; }
+    [[ "$LOCAL_CI_SKIPPED" == true ]] && gh pr comment "$pr_number" --body "Local CI gate skipped: ${LOCAL_CI_SKIP_REASON}" >/dev/null
   fi
   [[ "$desired_draft" == true ]] && state_args=(--undo)
   if [[ $(echo "$BRANCH_PRS" | jq -r '.[0].isDraft') != "$desired_draft" ]]; then
@@ -1951,7 +2378,11 @@ cmd_set_pr_draft() {
       echo "Error: PR draft state could not be confirmed. Retry after checking GitHub." >&2
       return 1
     fi
-    verify_pr_head || return 1
+    if [[ "$PR_ORIGIN_RESOLVED" == true ]]; then
+      verify_pr_head_on_origin || return 1
+    else
+      verify_pr_head || return 1
+    fi
   fi
   if [[ "$desired_draft" == true ]]; then
     echo "✓ Pull request #${pr_number} is a draft for Human Testing."
@@ -2658,6 +3089,10 @@ ${MILESTONE_ACK_MARKER} released with ${open} open — ${acknowledge}" >/dev/nul
 # ───────────────────────────────────────────────────────────────────────────
 
 case "$COMMAND" in
+  create-pr | ready-pr | local-ci-gate) refuse_in_delegated_worktree "$COMMAND" "$@" ;;
+esac
+
+case "$COMMAND" in
   create-subtask)     cmd_create_subtask "$@" ;;
   create-epic)        cmd_create_epic "$@" ;;
   create-ticket)      cmd_create_ticket "$@" ;;
@@ -2678,6 +3113,7 @@ case "$COMMAND" in
   create-pr)          cmd_create_pr "$@" ;;
   ready-pr)           cmd_ready_pr "$@" ;;
   draft-pr)           cmd_draft_pr "$@" ;;
+  local-ci-gate)      cmd_local_ci_gate "$@" ;;
   list)               cmd_list "$@" ;;
   cache-clear)        cmd_cache_clear "$@" ;;
   ensure-issue-types) cmd_ensure_issue_types "$@" ;;
@@ -2698,7 +3134,9 @@ case "$COMMAND" in
     echo "  comment <ticket> <body-file|->           Record a note on the ticket"
     echo "  status <ticket>                          Read status from the project board"
     echo "  update-status <ticket> <status-name>     Write status on the project board"
-    echo "  add-to-project <ticket> [--status <s>]   Put an issue on the board (default Backlog; one already there keeps its status)"
+    echo "  add-to-project <ticket> [--status <s>] [--json]"
+    echo "                                           Put an issue on the board (default Backlog; one already there keeps its status,"
+    echo "                                           one there with no status gets it; --json prints the resulting board status)"
     echo "  set-complexity <ticket> <level>          bug | low | medium | complex"
     echo "  get-complexity <ticket>                  Read current complexity label"
     echo "  get-labels <ticket>                      Print every label name (one per line)"
@@ -2711,10 +3149,16 @@ case "$COMMAND" in
     echo "  get-ticket <ticket>                      Print title + body (for scripting)"
     echo "  create-pr <ticket> [--draft] [--head <branch>]"
     echo "                                           Open PR for the ticket branch (current branch, else the ticket branch pushed at HEAD)"
-    echo "  ready-pr <ticket> [--head <branch>]      Mark the ticket PR ready for review"
-    echo "  draft-pr <ticket> [--head <branch>]      Return the ticket PR to draft"
     echo "                                           --head names the ticket branch pushed to origin when the checkout is on another"
     echo "                                           branch (a worktree agent's host branch); origin must hold it at the local HEAD"
+    echo "  ready-pr <ticket> [--head <branch> | --pr <number>]"
+    echo "                                           Mark the ticket PR ready for review"
+    echo "  draft-pr <ticket> [--head <branch> | --pr <number>]"
+    echo "                                           Return the ticket PR to draft"
+    echo "                                           Off the ticket branch (the primary checkout), the ticket's one open PR is found"
+    echo "                                           on GitHub from the branch naming; its head must be origin's commit for that branch"
+    echo "  local-ci-gate <ticket> [--head <branch> | --pr <number>] [--skip-local-ci \"<reason>\"]"
+    echo "                                           Check the required local CI statuses on the ticket PR head (changes nothing)"
     echo "  list [status]                            List project items (optionally filtered)"
     echo "  milestone <sub> [args]                   create|list|show|scope|assign|associate|readiness"
     echo "  cache-clear                              Drop the on-disk schema cache"
@@ -2725,7 +3169,7 @@ case "$COMMAND" in
     ;;
   *)
     echo -e "${RED}Error: Unknown command '${COMMAND}'${NC}"
-    echo "Available: create-ticket, create-subtask, create-epic, comment, status, update-status, add-to-project, set-complexity, get-complexity, get-labels, list-incomplete-children, inspect-srs-tickets, link-subtask, unlink-subtask, get-parent, get-issue-type, get-ticket, create-pr, ready-pr, draft-pr, list, cache-clear, ensure-issue-types, assign-type, delete-issue-type, milestone"
+    echo "Available: create-ticket, create-subtask, create-epic, comment, status, update-status, add-to-project, set-complexity, get-complexity, get-labels, list-incomplete-children, inspect-srs-tickets, link-subtask, unlink-subtask, get-parent, get-issue-type, get-ticket, create-pr, ready-pr, draft-pr, local-ci-gate, list, cache-clear, ensure-issue-types, assign-type, delete-issue-type, milestone"
     exit 1
     ;;
 esac

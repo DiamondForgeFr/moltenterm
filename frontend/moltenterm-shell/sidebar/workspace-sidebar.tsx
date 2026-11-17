@@ -5,8 +5,8 @@
 // of the tab bar, the workspace rail and the status bar. Top to bottom: the window row (sidebar toggle; keep-awake and
 // notifications), the top field (FR-SHELL-083, top-field.tsx), the top row (views pinned everywhere, FR-SHELL-080),
 // the workspace header (name, project type, its menu on hover), the tiles (pinned tabs), the temporary views (the
-// other tabs, New view), the heat in the free space while agents work (sidebar-heat.tsx), the branch and build line, and
-// the bottom bar (library, workspace dots, +).
+// other tabs, New view), the heat in the free space while anything runs (sidebar-heat.tsx), the branch and build line,
+// and the bottom bar (library, workspace dots, +).
 // Everything the replaced bars offered keeps a home here or in these menus (see the PR of #1183 for the mapping).
 
 import { getTabBadgeAtom } from "@/app/store/badge";
@@ -27,8 +27,10 @@ import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ActivityIcon } from "../activity/activity-icon";
+import { useActivityCount } from "../activity/activity-store";
 import { AgentInfoHost } from "../agent-info/agent-info-host";
-import { AgentStateDotClasses, agentStateTitle } from "../agent-state-model";
+import { agentCallName, AgentStateDotClasses, agentStateMessage, agentStateTitle } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { BossBubbleModel } from "../boss/boss-store";
 import { BrokkAvatarSlot } from "../boss/brokk-avatar";
@@ -104,6 +106,7 @@ import { EmptyWorkspace } from "./empty-workspace";
 import { useFoundLogos } from "./header-logo";
 import { plusMenuItems } from "./plus-menu-model";
 import {
+    OtherProjectsWatch,
     PrDots,
     useCountsMotion,
     usePilotageBlock,
@@ -156,7 +159,6 @@ import {
     SidebarDefaultWidth,
     SidebarMaxWidth,
     SidebarMinWidth,
-    TileGridColumns,
     type SidebarTabSplit,
 } from "./sidebar-model";
 import { pruneSnapshots, sidebarAtRest, SnapshotSource, useSidebarCapture } from "./sidebar-snapshot";
@@ -189,7 +191,7 @@ import {
     WindowRowPx,
 } from "./window-corner-model";
 import { WorkspaceDotPopover } from "./workspace-dot-popover";
-import { DotPopoverHover, dotPopoverProject, dotShowsPopover } from "./workspace-dot-popover-model";
+import { dotAttention, DotPopoverHover, dotPopoverProject, dotShowsPopover } from "./workspace-dot-popover-model";
 import { snapRipplesOf, workspaceDotLook } from "./workspace-dot-ripple";
 import { filterEntries, WorkspaceLetterFilter } from "./workspace-letter-filter";
 import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
@@ -450,8 +452,8 @@ function ToggleButton() {
     );
 }
 
-// The window's own row: the room the window buttons take, then the toggle; Brokk's avatar on the right (FR-BOSS-009):
-// the bell and the keep-awake cup are in his panel (#2003). Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
+// The window's own row: the room the window buttons take, then the toggle; the activity indicator and Brokk's avatar on
+// the right (FR-BOSS-009, AC85): the bell and the keep-awake cup are in his panel (#2003). Docked, it spans the whole band from the window's top edge to the top field (#1279), no sidebar gap below it. In the
 // floating panel (#1293) it is exactly as tall as the window buttons, which Electron main places at the panel's inner
 // margin from its top and left edges (macButtonsPosition), so the row starts where they do and its icons share their
 // centre line.
@@ -474,6 +476,7 @@ function WindowRow({ peeked, standIns }: { peeked: boolean; standIns: boolean })
             <AppMenuButton />
             <ToggleButton />
             <div className="h-full flex-1" />
+            <ActivityIcon />
             <BrokkAvatarSlot />
         </div>
     );
@@ -828,7 +831,7 @@ function dropSideClass(drag: SidebarDrag, zone: DropZone, key: string): string {
     if (dropAction(drag.kind, zone) !== (zone === "tiles" ? "reorder-tiles" : "reorder-top")) {
         return null;
     }
-    return drag.after ? "mt-sb-dropa" : "mt-sb-dropb";
+    return cn(drag.after ? "mt-sb-dropa" : "mt-sb-dropb", drag.stacked && "mt-sb-dropy");
 }
 
 function Tile({ tabId, active, counts }: { tabId: string; active: boolean; counts?: PrCounts }) {
@@ -891,9 +894,7 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
             tabIndex={0}
             className={cn(
                 "mt-sb-tile relative flex h-[52px] min-w-0 cursor-pointer flex-col items-center justify-center gap-[5px] rounded-6 px-1 text-11 text-primary transition-colors duration-120 ease-mt",
-                active
-                    ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
-                    : "bg-white/[0.09] hover:bg-white/15",
+                active ? "mt-sb-selected bg-white/20" : "bg-white/[0.09] hover:bg-white/15",
                 // The dots' column sits on the right: the glyph and the name keep clear of it (centred in what is left,
                 // so a three-panel glyph still fits); a wider glyph takes its small size and is clipped rather than
                 // run under the dots.
@@ -928,12 +929,12 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                 <ViewGlyph icons={glyph} />
             )}
             {renaming ? (
-                <span className="flex w-full px-0.5">
+                <span className="mt-sb-tile-name flex w-full px-0.5">
                     <RenameInput initial={identity.name} onDone={rename} />
                 </span>
             ) : (
                 <span
-                    className="name max-w-full truncate"
+                    className="name mt-sb-tile-name max-w-full truncate"
                     onDoubleClick={(e) => {
                         e.stopPropagation();
                         setRenaming(true);
@@ -950,7 +951,6 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                 )}
                 {hasCounts ? <PrDots counts={counts} motionKey={`tile:${tabId}`} calm={!fresh} /> : null}
             </span>
-            {active ? <span className="mt-sb-tile-place" data-testid="sidebar-tile-place" aria-hidden /> : null}
             <WorkingLight on={working} />
             <PourLight active={active} />
             {modified ? (
@@ -1007,25 +1007,29 @@ function TileGrid({ tileIds, activeTabId, label }: { tileIds: string[]; activeTa
         <div
             ref={ref}
             className={cn(
-                "mt-sb-zone grid shrink-0 gap-1.5 px-1 pt-[7px] pb-0.5",
+                "mt-sb-zone mt-sb-tiles shrink-0 px-1 pt-[7px] pb-0.5",
                 target && "is-target",
                 over && "is-over",
                 tileIds.length === 0 && "mt-sb-zone-empty"
             )}
-            style={{ gridTemplateColumns: TileGridColumns }}
             aria-label={label}
             data-testid="sidebar-tiles"
             data-cap={caption}
             {...zoneProps("tiles")}
         >
-            {tileIds.map((id) => (
-                <Tile
-                    key={id}
-                    tabId={id}
-                    active={id === activeTabId}
-                    counts={id === pilotageTile ? counts : undefined}
-                />
-            ))}
+            {/* The tiles fill their rows, and each tile's cell is the size container of its shape (sidebar.css,
+                PinnedTileMinWidth, PinnedRowMinWidth): a container cannot restyle itself, so the tile is its child. */}
+            <div className="mt-sb-tilegrid">
+                {tileIds.map((id) => (
+                    <div key={id} className="mt-sb-tilecell">
+                        <Tile
+                            tabId={id}
+                            active={id === activeTabId}
+                            counts={id === pilotageTile ? counts : undefined}
+                        />
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -1110,7 +1114,9 @@ function ViewRow({
             tabIndex={0}
             className={cn(
                 "mt-sb-row relative flex min-h-[30px] w-full shrink-0 cursor-pointer items-center gap-2 rounded-6 px-2 text-left text-12 transition-colors duration-120 ease-mt",
-                active ? "bg-white/15 text-primary" : "text-secondary hover:bg-white/[0.08] hover:text-primary",
+                active
+                    ? "mt-selected bg-white/15 text-primary"
+                    : "text-secondary hover:bg-white/[0.08] hover:text-primary",
                 dragging && "mt-sb-dragged"
             )}
             aria-current={active ? "page" : undefined}
@@ -1324,6 +1330,13 @@ function useSidebarSections(split: SidebarTabSplit) {
     const data = useAtomValue(AgentStates.getInstance().dataAtom);
     const agents = useMemo(() => workspaceAgents(data, ws?.oid), [data, ws?.oid]);
     return useMemo(() => sidebarSections(split, agents), [split, agents]);
+}
+
+// The floor follows the activity source (agents, builds and CI that run, #2233), apart from the sidebar so that a run
+// starting or ending draws the heat and not the page.
+function ActivityHeat({ shown }: { shown: boolean }) {
+    const running = useActivityCount();
+    return <SidebarHeat running={running} shown={shown} />;
 }
 
 // The room the line gives up on hover is "↓ Clear"'s own width, which follows the interface language (#1268).
@@ -1567,9 +1580,7 @@ function TopRowBlock({
             className={cn(
                 "relative flex min-w-0 cursor-pointer items-center justify-center rounded-6 px-1 text-primary transition-colors duration-120 ease-mt",
                 fit === "beside" ? "h-[34px]" : "h-[44px]",
-                active
-                    ? "bg-white/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.2)]"
-                    : "bg-white/[0.07] hover:bg-white/[0.14]",
+                active ? "mt-sb-selected bg-white/20" : "bg-white/[0.07] hover:bg-white/[0.14]",
                 // The dots' column sits on the right: the glyph keeps clear of it, still centred.
                 hasCounts && "px-[10px]",
                 // A name keeps clear of the corner column on both sides, so the icon and name stay centred (#1651):
@@ -1888,19 +1899,16 @@ function WorkspaceDot({
     const waiting = agent?.state === "waiting";
     const { ring, ripple } = workspaceDotLook({ active: entry.active, unread, waiting, working });
     const letter = (Array.from(entry.name ?? "")[0] ?? "").toUpperCase();
-    const attention: string[] = [];
-    if (unread > 0) {
-        attention.push(tc("rail.unread", unread));
-    }
-    if (waiting) {
-        attention.push(agentStateTitle(agent));
-    }
-    if (working > 0) {
-        attention.push(tc("rail.working", working));
-    }
-    if (coffee != null) {
-        attention.push(t("rail.keptAwake", { condition: coffeeCondition() }));
-    }
+    const attention = dotAttention(
+        {
+            unread,
+            waitingAgent: waiting ? agentCallName(agent, "") : null,
+            waitingMessage: waiting ? agentStateMessage(agent) : "",
+            working,
+            keptAwake: coffee != null ? coffeeCondition() : null,
+        },
+        { t, tc }
+    );
     const label = [entry.name, ...attention].join(" · ");
     const showPopover = dotShowsPopover({
         hovered: hover.shown,
@@ -2260,6 +2268,7 @@ function LibraryButton() {
                     placement="right-end"
                 />
             ) : null}
+            <OtherProjectsWatch />
         </>
     );
 }
@@ -2803,7 +2812,7 @@ export function WorkspaceSidebar() {
                                     activeTabId={activeTabId}
                                     asideRef={asideRef}
                                 />
-                                <SidebarHeat agents={sections.agents} shown={!hidden || peek} />
+                                <ActivityHeat shown={!hidden || peek} />
                             </>
                         )}
                     </div>

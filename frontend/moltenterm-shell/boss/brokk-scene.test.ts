@@ -5,19 +5,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { BrokkSituation } from "./brokk-ask-model";
-import {
-    EmptyMood,
-    HandledMs,
-    moodAfter,
-    MoodEvent,
-    MoodFacts,
-    MoodMemory,
-    NewsMs,
-    ReliefMs,
-    SatisfiedMentionMs,
-} from "./brokk-mood";
+import { EmptyMood, moodAfter, MoodEvent, MoodFacts, MoodMemory, ReliefMs, SatisfiedMs } from "./brokk-mood";
 import { ExpressionMs, KeyQuietMs } from "./brokk-queue";
-import { brokkScene, BrokkScene, CaptionLine, LongThoughtMs, SceneInput, TypingCalmMs } from "./brokk-scene";
+import { brokkScene, BrokkScene, LongThoughtMs, SceneInput, TypingCalmMs } from "./brokk-scene";
 
 const Min = 60_000;
 // Ten in the morning, local time: not the night.
@@ -42,8 +32,6 @@ function scene(partial: Partial<SceneInput> = {}): BrokkScene {
         now: Day,
         memory: EmptyMood,
         facts: facts(),
-        top: null,
-        worker: "",
         badge: { count: 0, tone: "waiting", text: "" },
         asked: null,
         speaking: false,
@@ -51,7 +39,6 @@ function scene(partial: Partial<SceneInput> = {}): BrokkScene {
         pinned: false,
         lastKeyAt: null,
         workingSince: 0,
-        usage: null,
         ...partial,
     };
     // The badge counts what waits: the two agree unless the test says otherwise.
@@ -61,40 +48,30 @@ function scene(partial: Partial<SceneInput> = {}): BrokkScene {
     return brokkScene(input);
 }
 
-const Status = (s: BrokkScene) => s.caption.status;
-const Detail = (s: BrokkScene) => s.caption.detail;
-const Line = (text: string): CaptionLine => ({ text });
-
-// One test per row of the behaviour matrix of #1959. The face, the gesture, the caption, the loader, the round and the
-// hover card are all read from the one scene.
-describe("the scene, row by row (FR-BOSS-007, AC10 and AC11, #1959)", () => {
+// One test per row of the behaviour matrix of #1959. The face, the gesture, the loader, the round and the card's header
+// are all read from the one scene. It has no caption: the line under his square is his own answer or a moment of a kind
+// colleague (brokk-colleague.ts, #2203).
+describe("the scene, row by row (FR-BOSS-007, AC10, #1959)", () => {
     it("calm: nothing works, nothing waits, you are there", () => {
         const s = scene();
         expect(s.face).toBe("listening");
         expect(s.gesture).toBeNull();
-        expect(Status(s)).toEqual({ key: "boss.screen.quiet" });
-        expect(Detail(s)).toBeUndefined();
         expect(s.loader).toBe(false);
         expect(s.round).toMatchObject({ count: 0, calling: false });
-        expect(s.card.status).toEqual(Status(s));
         expect(s.mood.mood).toBe("neutral");
         expect(s.rhythm).toBe("normal");
     });
 
-    it("one agent works: he thinks, says who works, then that nothing is for you, and the domino turns", () => {
-        const s = scene({ situation: situation({ working: 1 }), worker: "Arthur" });
+    it("one agent works: he thinks and the domino turns", () => {
+        const s = scene({ situation: situation({ working: 1 }) });
         expect(s.face).toBe("thinking");
-        expect(Status(s)).toEqual({ key: "boss.screen.working", vars: { name: "Arthur" } });
-        expect(Detail(s)).toEqual({ key: "boss.screen.nothingForYou" });
         expect(s.loader).toBe(true);
-        expect(s.card.status).toEqual(Status(s));
         expect(s.round.count).toBe(0);
     });
 
-    it("several agents work: the count, and a calmer blink after five minutes of thought", () => {
+    it("several agents work: a calmer blink after five minutes of thought", () => {
         const working = situation({ working: 3 });
         const fresh = scene({ situation: working, workingSince: Day - Min });
-        expect(Status(fresh)).toEqual({ key: "boss.screen.workingCount", count: 3 });
         expect(fresh.loader).toBe(true);
         expect(fresh.rhythm).toBe("normal");
         const long = scene({ situation: working, workingSince: Day - LongThoughtMs });
@@ -102,18 +79,13 @@ describe("the scene, row by row (FR-BOSS-007, AC10 and AC11, #1959)", () => {
         expect(scene({ situation: situation(), workingSince: Day - LongThoughtMs }).rhythm).toBe("normal");
     });
 
-    it("an agent finishes while others work: no gesture, he says it for two minutes", () => {
+    it("an agent finishes while others work: no gesture, he keeps thinking", () => {
         const memory = memoryAfter([[{ type: "finished", name: "Arthur", all: false }, Day - Min]]);
         const s = scene({ situation: situation({ working: 2 }), memory });
         expect(s.face).toBe("thinking");
         expect(s.gesture).toBeNull();
-        expect(Status(s)).toEqual({ key: "boss.screen.finished", vars: { name: "Arthur" } });
-        expect(Detail(s)).toEqual({ key: "boss.screen.workingCount", count: 2 });
         expect(s.loader).toBe(true);
         expect(s.round.count).toBe(0);
-        expect(s.card.status).toEqual(Status(s));
-        const later = scene({ situation: situation({ working: 2 }), memory, now: Day - Min + NewsMs });
-        expect(Status(later)).toEqual({ key: "boss.screen.workingCount", count: 2 });
     });
 
     it("the wave of work ends: he looks up, nods once and is satisfied", () => {
@@ -121,49 +93,32 @@ describe("the scene, row by row (FR-BOSS-007, AC10 and AC11, #1959)", () => {
         const s = scene({ memory, asked: { expression: "nod", cue: 1, at: Day } });
         expect(s.face).toBe("listening");
         expect(s.gesture).toBe("nod");
-        expect(Status(s)).toEqual({ key: "boss.screen.finishedAll" });
-        expect(Detail(s)).toEqual({ key: "boss.screen.nothingForYou" });
         expect(s.loader).toBe(false);
         expect(s.mood.mood).toBe("satisfied");
-        expect(s.card.status).toEqual(Status(s));
     });
 
-    it("something arrives: he looks at you and calls once, the round and the screen say the row's own words", () => {
+    it("something arrives: he looks at you and calls once, the round carries the badge", () => {
         const s = scene({
             situation: situation({ waiting: 1 }),
             facts: facts({ waiting: 1 }),
-            top: Line("Olivia waits for you"),
             asked: { expression: "call", cue: 1, at: Day },
             badge: { count: 1, tone: "waiting", text: "1" },
         });
         expect(s.face).toBe("listening");
         expect(s.gesture).toBe("call");
         expect(s.round).toEqual({ count: 1, tone: "waiting", text: "1", calling: true });
-        expect(Status(s)).toEqual(Line("Olivia waits for you"));
-        expect(s.card.status).toEqual(Status(s));
         expect(s.mood.mood).toBe("attentive");
         expect(s.loader).toBe(false);
-    });
-
-    it("several arrive: the count, then who works", () => {
-        const s = scene({ situation: situation({ waiting: 3, working: 2 }), top: Line("Olivia waits for you") });
-        expect(Status(s)).toEqual({ key: "boss.screen.toHandle", count: 3 });
-        expect(Detail(s)).toEqual({ key: "boss.screen.workingCount", count: 2 });
-        expect(s.loader).toBe(true);
-        expect(s.card.status).toEqual(Status(s));
     });
 
     it("something waits while agents work: a waiting human beats background work, he listens and the domino still turns", () => {
         const s = scene({
             situation: situation({ waiting: 1, working: 2 }),
             facts: facts({ waiting: 1 }),
-            top: Line("Olivia waits for you"),
             asked: { expression: "call", cue: 1, at: Day },
         });
         expect(s.face).toBe("listening");
         expect(s.gesture).toBe("call");
-        expect(Status(s)).toEqual(Line("Olivia waits for you"));
-        expect(Detail(s)).toEqual({ key: "boss.screen.workingCount", count: 2 });
         expect(s.loader).toBe(true);
         expect(s.mood.mood).toBe("attentive");
         // Thinking leads only when nothing waits.
@@ -179,15 +134,12 @@ describe("the scene, row by row (FR-BOSS-007, AC10 and AC11, #1959)", () => {
         const failing = {
             situation: situation({ waiting: 2, working: 1 }),
             facts: facts({ failing: true, waiting: 2 }),
-            top: Line("Arthur stopped on an error"),
-            worker: "Jérôme",
             badge: { count: 2, tone: "error" as const, text: "2" },
         };
         const arriving = scene({ ...failing, asked: { expression: "frown", cue: 1, at: Day } });
         expect(arriving.face).toBe("listening");
         expect(arriving.gesture).toBe("frown");
         expect(arriving.mood.mood).toBe("concerned");
-        expect(Status(arriving)).toEqual(Line("Arthur stopped on an error"));
         expect(arriving.round.tone).toBe("error");
         expect(arriving.loader).toBe(true);
         const settled = scene({
@@ -200,127 +152,66 @@ describe("the scene, row by row (FR-BOSS-007, AC10 and AC11, #1959)", () => {
         expect(settled.mood.mood).toBe("concerned");
     });
 
-    it("a row waits long: he is impatient, and says how long", () => {
+    it("a row waits long: he is impatient", () => {
         const oldest = { key: "agent:a", name: "Olivia", since: Day - 12 * Min, agent: true };
-        const s = scene({ situation: situation({ waiting: 1 }), facts: facts({ waiting: 1, oldest }), top: Line("x") });
+        const s = scene({ situation: situation({ waiting: 1 }), facts: facts({ waiting: 1, oldest }) });
         expect(s.mood.mood).toBe("impatient");
-        expect(Status(s)).toEqual({ key: "boss.screen.waitedFor", vars: { name: "Olivia", minutes: 12 } });
-        expect(s.card.status).toEqual(Status(s));
+        expect(s.mood.waitedMin).toBe(12);
         expect(s.round.tone).toBe("waiting");
-        const other = scene({
-            situation: situation({ waiting: 1 }),
-            facts: facts({ waiting: 1, oldest: { ...oldest, name: "Chloé: Fix the login", agent: false } }),
-            top: Line("x"),
-        });
-        expect(Status(other)).toEqual({
-            key: "boss.screen.waitedLine",
-            vars: { line: "Chloé: Fix the login", minutes: 12 },
-        });
     });
 
     it("a failure: he is concerned, frowns, and the badge is red", () => {
         const s = scene({
             situation: situation({ waiting: 1 }),
             facts: facts({ failing: true, waiting: 1 }),
-            top: Line("CI failing: build (#1955)"),
             asked: { expression: "frown", cue: 1, at: Day },
             badge: { count: 1, tone: "error", text: "1" },
         });
         expect(s.mood.mood).toBe("concerned");
         expect(s.gesture).toBe("frown");
-        expect(Status(s)).toEqual(Line("CI failing: build (#1955)"));
         expect(s.round.tone).toBe("error");
-        expect(s.card.status).toEqual(Status(s));
-    });
-
-    it("a failure among others: the failure first, then the count", () => {
-        const s = scene({
-            situation: situation({ waiting: 3 }),
-            facts: facts({ failing: true, waiting: 3 }),
-            top: Line("Arthur stopped on an error"),
-        });
-        expect(Status(s)).toEqual(Line("Arthur stopped on an error"));
-        expect(Detail(s)).toEqual({ key: "boss.screen.toHandle", count: 3 });
     });
 
     it("the failure is settled: relieved for a minute, then calm", () => {
         const memory = memoryAfter([[{ type: "settled" }, Day]]);
-        const s = scene({ memory, now: Day + 1000 });
-        expect(Status(s)).toEqual({ key: "boss.screen.relieved" });
-        expect(s.card.status).toEqual(Status(s));
-        expect(Status(scene({ memory, now: Day + ReliefMs }))).toEqual({ key: "boss.screen.quiet" });
+        expect(scene({ memory, now: Day + 1000 }).mood.relieved).toBe(true);
+        expect(scene({ memory, now: Day + ReliefMs }).mood.relieved).toBe(false);
     });
 
-    it("you open the card on rows to handle: he looks at you and says them for a moment, then the count", () => {
+    it("you open the card on rows to handle: he looks at you and speaks for a moment, then listens", () => {
         const base = {
             situation: situation({ waiting: 2, cardOpen: true }),
-            top: Line("Olivia waits for your approval"),
             badge: { count: 2, tone: "waiting" as const, text: "2" },
         };
-        const speaking = scene({ ...base, speaking: true });
-        expect(speaking.face).toBe("speaking");
-        expect(Status(speaking)).toEqual({
-            key: "boss.screen.speech",
-            count: 2,
-            vars: { line: "Olivia waits for your approval" },
-        });
-        expect(Detail(speaking)).toBeUndefined();
-        // The hover card is hidden while the card is open: it keeps the plain headline.
-        expect(speaking.card.status).toEqual({ key: "boss.screen.toHandle", count: 2 });
-        const after = scene({ ...base, speaking: false });
-        expect(after.face).toBe("listening");
-        expect(Status(after)).toEqual({ key: "boss.screen.toHandle", count: 2 });
+        expect(scene({ ...base, speaking: true }).face).toBe("speaking");
+        expect(scene({ ...base, speaking: false }).face).toBe("listening");
     });
 
-    it("you open the card while agents work and nothing waits: he looks up, and the screen still says they work", () => {
+    it("you open the card while agents work and nothing waits: he looks up", () => {
         const s = scene({ situation: situation({ working: 2, cardOpen: true }), speaking: true });
         expect(s.face).toBe("listening");
-        expect(Status(s)).toEqual({ key: "boss.screen.workingCount", count: 2 });
-        expect(Detail(s)).toEqual({ key: "boss.screen.nothingForYou" });
         expect(s.loader).toBe(true);
     });
 
-    it("a hover is no visit: he keeps to his work, whatever the screen shows", () => {
+    it("a hover is no visit: he keeps to his work", () => {
         const s = scene({ situation: situation({ working: 2, cardOpen: false }) });
         expect(s.face).toBe("thinking");
     });
 
-    it("you answer a row: the screen says it was noted for three seconds, the hover card does not", () => {
-        for (const kind of ["answer", "rerun", "handoff", "done"] as const) {
-            const memory = memoryAfter([[{ type: "handled", kind }, Day]]);
-            const s = scene({ memory, now: Day + 1000, situation: situation({ waiting: 1, cardOpen: true }) });
-            expect(Status(s)).toEqual({ key: `boss.screen.handled.${kind}` });
-            expect(s.card.status.key).not.toContain("handled");
-        }
-        const memory = memoryAfter([[{ type: "handled", kind: "answer" }, Day]]);
-        const gone = scene({ memory, now: Day + HandledMs, situation: situation({ waiting: 1, cardOpen: true }) });
-        expect(Status(gone).key).toBe("boss.screen.toHandle");
-    });
-
-    it("the list is cleared: a smile, 'all handled', then 'nice work' for five minutes, satisfied for ten", () => {
+    it("the list is cleared: a smile, and satisfied for ten minutes", () => {
         const memory = memoryAfter([[{ type: "cleared" }, Day]]);
         const s = scene({ memory, asked: { expression: "smile", cue: 1, at: Day } });
         expect(s.gesture).toBe("smile");
-        expect(Status(s)).toEqual({ key: "boss.screen.cleared" });
-        expect(Detail(s)).toEqual({ key: "boss.screen.thanks" });
         expect(s.round.count).toBe(0);
         expect(s.mood.mood).toBe("satisfied");
-        const later = scene({ memory, now: Day + NewsMs });
-        expect(Status(later)).toEqual({ key: "boss.screen.quiet" });
-        expect(Detail(later)).toEqual({ key: "boss.screen.niceWork" });
-        const faded = scene({ memory, now: Day + SatisfiedMentionMs });
-        expect(Detail(faded)).toBeUndefined();
-        expect(faded.mood.mood).toBe("satisfied");
+        expect(scene({ memory, now: Day + SatisfiedMs }).mood.mood).toBe("neutral");
     });
 
-    it("a pull request merges: a smile, and he says which for two minutes", () => {
+    it("a pull request merges: a smile", () => {
         const memory = memoryAfter([[{ type: "merged", number: 1955 }, Day]]);
         const s = scene({ memory, asked: { expression: "smile", cue: 1, at: Day } });
         expect(s.gesture).toBe("smile");
-        expect(Status(s)).toEqual({ key: "boss.screen.merged", vars: { number: 1955 } });
-        expect(s.card.status).toEqual(Status(s));
-        const busy = scene({ memory, situation: situation({ working: 2 }) });
-        expect(Detail(busy)).toEqual({ key: "boss.screen.workingCount", count: 2 });
+        expect(s.mood.mood).toBe("satisfied");
     });
 
     it("you type: the pose holds, the badge is up to date at once, and the blinks calm down for a moment", () => {
@@ -353,72 +244,22 @@ describe("the scene, row by row (FR-BOSS-007, AC10 and AC11, #1959)", () => {
     it("you are away and nothing goes on: he sleeps; with work or a row, he stays awake", () => {
         const asleep = scene({ situation: situation({ away: true }) });
         expect(asleep.face).toBe("rest");
-        expect(Status(asleep)).toEqual({ key: "boss.screen.asleep" });
-        expect(asleep.card.status).toEqual(Status(asleep));
         expect(asleep.loader).toBe(false);
-        expect(scene({ situation: situation({ away: true, working: 1 }), worker: "A" }).face).toBe("thinking");
+        expect(scene({ situation: situation({ away: true, working: 1 }) }).face).toBe("thinking");
         expect(scene({ situation: situation({ away: true, waiting: 1 }) }).face).toBe("listening");
     });
 
-    it("you come back after a long absence: the welcome and what happened, for a minute", () => {
-        const finished = memoryAfter([
-            [{ type: "finished", name: "Arthur", all: false }, Day - 20 * Min],
-            [{ type: "returned", since: Day - 40 * Min }, Day],
-        ]);
-        const s = scene({ memory: finished, now: Day + 1000 });
-        expect(Status(s)).toEqual({ key: "boss.screen.welcomeBack" });
-        expect(Detail(s)).toEqual({
-            key: "boss.screen.backFinished",
-            count: 1,
-            vars: { names: "Arthur" },
-        });
-        // The hover card carries the two lines too: a return is worth them.
-        expect(s.card).toEqual(s.caption);
-
-        const arrived = memoryAfter([
-            [{ type: "arrived" }, Day - 20 * Min],
-            [{ type: "arrived" }, Day - 10 * Min],
-            [{ type: "returned", since: Day - 40 * Min }, Day],
-        ]);
-        expect(Detail(scene({ memory: arrived, now: Day + 1000 }))).toEqual({
-            key: "boss.screen.backArrived",
-            count: 2,
-        });
-
-        const nothing = memoryAfter([[{ type: "returned", since: Day - 40 * Min }, Day]]);
-        expect(Detail(scene({ memory: nothing, now: Day + 1000 }))).toEqual({ key: "boss.screen.backNothing" });
-        expect(Status(scene({ memory: nothing, now: Day + Min }))).toEqual({ key: "boss.screen.quiet" });
-    });
-
-    it("it is night: a mention in the caption and a calmer blink, with no other change", () => {
+    it("it is night: a calmer blink, with no other change", () => {
         const working = scene({ situation: situation({ working: 2 }), now: Night });
         expect(working.face).toBe("thinking");
-        expect(Status(working)).toEqual({ key: "boss.screen.workingCount", count: 2 });
-        expect(Detail(working)).toEqual({ key: "boss.screen.lateNight" });
         expect(working.mood.tired).toBe(true);
         expect(working.rhythm).toBe("calm");
-        const calm = scene({ now: Night });
-        expect(Status(calm)).toEqual({ key: "boss.screen.quiet" });
-        expect(Detail(calm)).toEqual({ key: "boss.screen.lateNight" });
         expect(scene({ now: Day }).mood.tired).toBe(false);
     });
 
-    it("the plan is nearly used up: a mention, only when nothing more important takes the place, and no gesture", () => {
-        const usage = { key: "boss.peek.usage", vars: { agent: "Claude Code", label: "5-hour", used: "86 %" } };
-        const calm = scene({ usage });
-        expect(Detail(calm)).toEqual(usage);
-        expect(calm.gesture).toBeNull();
-        expect(Detail(scene({ usage, situation: situation({ working: 1 }), worker: "A" }))).toEqual({
-            key: "boss.screen.nothingForYou",
-        });
-        expect(Detail(scene({ usage, situation: situation({ waiting: 1 }) }))).toBeUndefined();
-        expect(Detail(scene({ usage, now: Night }))).toEqual({ key: "boss.screen.lateNight" });
-    });
-
-    it("reduced motion: the same words and loader, no gesture, the still everywhere", () => {
+    it("reduced motion: the same loader, no gesture, the still everywhere", () => {
         const input = {
             situation: situation({ waiting: 2, working: 1 }),
-            worker: "Arthur",
             asked: { expression: "call" as const, cue: 3, at: Day },
         };
         const moving = scene(input);
@@ -426,14 +267,68 @@ describe("the scene, row by row (FR-BOSS-007, AC10 and AC11, #1959)", () => {
         expect(moving.gesture).toBe("call");
         expect(still.gesture).toBeNull();
         expect(still.round.calling).toBe(false);
-        expect(still.caption).toEqual(moving.caption);
         expect(still.loader).toBe(true);
-        expect(still.card).toEqual(moving.card);
     });
 
     it("the card's header shows the still while the screen stands beside it", () => {
         expect(scene({ pinned: true }).headerStill).toBe(true);
         expect(scene({ pinned: false }).headerStill).toBe(false);
+    });
+});
+
+// #2203: the line under his square used to repeat the Notifications panel and the rail's badges, so the scene no longer
+// has a caption, a card headline or the inputs that only fed them.
+describe("the scene says nothing in words (FR-BOSS-009, AC71, #2203)", () => {
+    it("has no caption and no card headline, whatever the situation", () => {
+        const cases: Partial<SceneInput>[] = [
+            {},
+            { situation: situation({ working: 2 }) },
+            { situation: situation({ waiting: 1 }) },
+            { situation: situation({ waiting: 4, working: 1 }) },
+            { situation: situation({ away: true }) },
+            { memory: memoryAfter([[{ type: "finished", name: "Arthur", all: true }, Day]]) },
+            { memory: memoryAfter([[{ type: "returned", since: Day - 40 * Min }, Day]]) },
+            { now: Night },
+        ];
+        for (const partial of cases) {
+            const s = scene(partial) as Record<string, unknown>;
+            expect(Object.keys(s)).not.toContain("caption");
+            expect(Object.keys(s)).not.toContain("card");
+        }
+    });
+
+    it("takes no sentence, no name of an agent and no plan reading as input", () => {
+        const input: SceneInput = {
+            situation: situation(),
+            now: Day,
+            memory: EmptyMood,
+            facts: facts(),
+            badge: { count: 0, tone: "waiting", text: "" },
+            asked: null,
+            speaking: false,
+            motion: true,
+            pinned: false,
+            lastKeyAt: null,
+            workingSince: 0,
+        };
+        expect(Object.keys(input).sort()).toEqual(
+            [
+                "situation",
+                "now",
+                "memory",
+                "facts",
+                "badge",
+                "asked",
+                "speaking",
+                "motion",
+                "pinned",
+                "lastKeyAt",
+                "workingSince",
+            ].sort()
+        );
+        const source = readFileSync(join(__dirname, "brokk-scene.ts"), "utf8").replace(/\/\/.*$/gm, "");
+        expect(source).not.toContain("boss.screen.");
+        expect(source).not.toContain("ScreenCaption");
     });
 });
 
@@ -463,43 +358,6 @@ describe("the models are surface-agnostic (#1959, for #1995)", () => {
             );
         }
     });
-
-    it("take the surface's own facts as inputs, so that any surface can give them", () => {
-        const fields = Object.keys({
-            situation: 0,
-            now: 0,
-            memory: 0,
-            facts: 0,
-            top: 0,
-            worker: 0,
-            badge: 0,
-            asked: 0,
-            speaking: 0,
-            motion: 0,
-            pinned: 0,
-            lastKeyAt: 0,
-            workingSince: 0,
-            usage: 0,
-        });
-        const input: SceneInput = {
-            situation: situation(),
-            now: Day,
-            memory: EmptyMood,
-            facts: facts(),
-            top: null,
-            worker: "",
-            badge: { count: 0, tone: "waiting", text: "" },
-            asked: null,
-            speaking: false,
-            motion: true,
-            pinned: false,
-            lastKeyAt: null,
-            workingSince: 0,
-            usage: null,
-        };
-        expect(Object.keys(input).sort()).toEqual(fields.sort());
-        expect(brokkScene(input).caption.status).toEqual({ key: "boss.screen.quiet" });
-    });
 });
 
 describe("the scene, in general (#1959)", () => {
@@ -509,48 +367,14 @@ describe("the scene, in general (#1959)", () => {
         expect(scene({ asked, now: Day + ExpressionMs.smile }).gesture).toBeNull();
     });
 
-    it("never says there is nothing to handle while an agent works or something waits", () => {
-        for (const working of [0, 1, 4]) {
-            for (const waiting of [0, 1, 4]) {
-                if (working === 0 && waiting === 0) {
-                    continue;
-                }
-                const s = scene({ situation: situation({ working, waiting }), worker: "Arthur", top: Line("x") });
-                expect(Status(s).key).not.toBe("boss.screen.quiet");
-                expect(Detail(s)?.key).not.toBe("boss.screen.quiet");
-            }
-        }
-    });
-
     it("shows the domino exactly while agents work", () => {
         for (const working of [0, 1, 3]) {
             expect(scene({ situation: situation({ working }) }).loader).toBe(working > 0);
         }
     });
 
-    it("gives the same sentence to the screen and to the hover card, whatever the situation", () => {
-        const memory = memoryAfter([[{ type: "finished", name: "Arthur", all: true }, Day]]);
-        const cases: Partial<SceneInput>[] = [
-            {},
-            { situation: situation({ working: 2 }), worker: "A" },
-            { situation: situation({ waiting: 1 }), top: Line("Olivia waits for you") },
-            { situation: situation({ waiting: 4, working: 1 }) },
-            { situation: situation({ away: true }) },
-            { memory },
-            { now: Night },
-        ];
-        for (const partial of cases) {
-            const s = scene(partial);
-            expect(s.card.status).toEqual(s.caption.status);
-        }
-    });
-
-    it("says when it changes by itself: a mention that runs out, a wait that crosses a limit, the night", () => {
+    it("says when it changes by itself: a wait that crosses a limit, a gesture that ends, the night", () => {
         expect(scene().until).toBe(new Date(2026, 10, 6, 23, 0, 0).getTime());
-        const handled = memoryAfter([[{ type: "handled", kind: "answer" }, Day]]);
-        expect(scene({ memory: handled }).until).toBe(Day + HandledMs);
-        const cleared = memoryAfter([[{ type: "cleared" }, Day]]);
-        expect(scene({ memory: cleared }).until).toBe(Day + NewsMs);
         const waiting = scene({
             situation: situation({ waiting: 1 }),
             facts: facts({ waiting: 1, oldest: { key: "agent:a", name: "O", since: Day - 3 * Min, agent: true } }),
@@ -558,14 +382,13 @@ describe("the scene, in general (#1959)", () => {
         expect(waiting.until).toBe(Day - 3 * Min + 10 * Min);
         const gesture = scene({ asked: { expression: "nod", cue: 1, at: Day } });
         expect(gesture.until).toBe(Day + ExpressionMs.nod);
-        // While impatient, the minutes counted in the caption move on.
-        const impatient = scene({
-            situation: situation({ waiting: 1 }),
-            facts: facts({
-                waiting: 1,
-                oldest: { key: "agent:a", name: "O", since: Day - 12 * Min - 5000, agent: true },
-            }),
-        });
-        expect(impatient.until).toBe(Day - 12 * Min - 5000 + 13 * Min);
+    });
+
+    it("does not wake itself for a mention it no longer makes", () => {
+        const handled = memoryAfter([[{ type: "handled", kind: "answer" }, Day]]);
+        const cleared = memoryAfter([[{ type: "cleared" }, Day]]);
+        const nightFall = new Date(2026, 10, 6, 23, 0, 0).getTime();
+        expect(scene({ memory: handled }).until).toBe(nightFall);
+        expect(scene({ memory: cleared }).until).toBe(Day + SatisfiedMs);
     });
 });

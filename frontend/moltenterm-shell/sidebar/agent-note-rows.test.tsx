@@ -301,7 +301,11 @@ describe("the rows' wiring", () => {
     const source = fs.readFileSync(path.resolve(__dirname, "sidebar-agents.tsx"), "utf8");
 
     it("opens the note menu from the contextmenu event of an agent row, a sub-agent row and a linked-agent row", () => {
-        expect(source.match(/onContextMenu=\{\(e\) => showAgentNoteMenu\(e, subject\)\}/g)).toHaveLength(3);
+        expect(source.match(/onContextMenu=\{\(e\) => showAgentNoteMenu\(e, subject\)\}/g)).toHaveLength(2);
+        // The agent row's menu adds Move up / Move down (#2296) before the note's items.
+        expect(
+            source.match(/onContextMenu=\{\(e\) => showAgentRowMenu\(e, subject, order, info\.blockid\)\}/g)
+        ).toHaveLength(1);
         for (const kind of ["agent", "sub", "linked"]) {
             expect(source).toContain(`kind: "${kind}",`);
         }

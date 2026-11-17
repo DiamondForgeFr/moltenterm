@@ -4,20 +4,36 @@
 // The site permission bar (FR-BRW-009, DS-BRW-013): the first action of an agent on a site asks here, in the control
 // bar's slot and style. Allow once lasts for the agent's session, Always for this site and Block are remembered for
 // every agent; Escape refuses this time only. A sensitive action (FR-BRW-010, DS-BRW-016) asks here too, with Allow or
-// Deny for that one action. The bar never takes the keyboard focus: the user is typing in the terminal, where an Enter
-// must not answer for them.
+// Deny for that one action. An agent that asks to use a page the user opened (#2333) asks here as well: Allow hands the
+// tab over as Share does, Open another tab (also Escape) leaves it alone. The bar never takes the keyboard focus: the
+// user is typing in the terminal, where an Enter must not answer for them.
 
 import { Button } from "@/app/element/button";
 import { useAtomValue } from "jotai";
 import { useRef } from "react";
 import { useT } from "../i18n/i18n";
-import { answerTooSoon, BrowserAgentModel, permissionBarView, PermissionDecision } from "./browser-agent";
+import {
+    answerTooSoon,
+    BrowserAgentModel,
+    permissionBarView,
+    PermissionBarView,
+    PermissionDecision,
+    reuseBarView,
+} from "./browser-agent";
+
+function barAria(view: PermissionBarView, t: (key: string) => string): string {
+    if (view.reuse) {
+        return t("browser.permission.reuseAria");
+    }
+    return view.escape === "deny" ? t("browser.permission.confirmAria") : t("browser.permission.siteAria");
+}
 
 export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentModel; tabId: string }) {
     const t = useT();
     const tabs = useAtomValue(agents.tabsAtom);
+    const asks = useAtomValue(agents.asksAtom);
     const shown = useRef({ requestId: "", at: 0 });
-    const view = permissionBarView(tabs[tabId]);
+    const view = permissionBarView(tabs[tabId]) ?? reuseBarView(asks[tabId]);
     if (view != null && shown.current.requestId !== view.requestId) {
         shown.current = { requestId: view.requestId, at: Date.now() };
     }
@@ -33,7 +49,7 @@ export function AgentPermissionBar({ agents, tabId }: { agents: BrowserAgentMode
     return (
         <div
             role="region"
-            aria-label={view.escape === "deny" ? t("browser.permission.confirmAria") : t("browser.permission.siteAria")}
+            aria-label={barAria(view, t)}
             onKeyDown={(e) => {
                 if (e.key !== "Escape") {
                     return;

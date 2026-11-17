@@ -83,6 +83,8 @@ func (l *routeLink) handle(ctx context.Context, command string, caller localrout
 		return l.manager.History(caller.Source)
 	case PendingCommand:
 		return l.manager.Pending(caller.Source)
+	case ChainCommand:
+		return l.manager.Chain(caller.Source)
 	case ListCommand:
 		var req ListRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -122,9 +124,12 @@ var startOnce sync.Once
 // Start registers the handoffs on wavesrv's router; Mission Control's Start calls it once.
 func Start() {
 	startOnce.Do(func() {
-		link := &routeLink{manager: MakeManager(MakeWaveEnv())}
+		env := MakeWaveEnv()
+		link := &routeLink{manager: MakeManager(env)}
 		// The event carries no data: a window reads the list again with PendingCommand.
 		link.manager.pendingChanged = func() { wps.Broker.Publish(wps.WaveEvent{Event: PendingEvent}) }
+		link.manager.chain = OpenChain(env.DataDir())
+		link.manager.chainChanged = func() { wps.Broker.Publish(wps.WaveEvent{Event: ChainEvent}) }
 		setShared(link.manager)
 		if _, err := localroute.Register(wshutil.DefaultRouter, link.route()); err != nil {
 			log.Printf("molten: agent handoff route not started: %v\n", err)

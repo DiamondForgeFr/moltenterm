@@ -14,6 +14,7 @@ import { Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import type { ReactElement, RefObject } from "react";
 import { useEffect } from "react";
 import { AgentHookOfferHost } from "../agent-hooks-ui";
+import { AgentNameLockMark } from "../agent-name-lock-mark";
 import {
     agentEffortPart,
     agentEffortTitle,
@@ -80,6 +81,9 @@ export type MoltenHeaderState = {
     title: string;
     titleHint: string;
     agentTitle: boolean;
+    // The agent's first name is locked for a project (#2324): the folder of that project, "" when it is not locked.
+    lockedFor: string;
+    lockedName: string;
     local: boolean;
     remoteConnection: string;
     remoteTitle: string;
@@ -181,6 +185,8 @@ export function useMoltenHeader(input: MoltenHeaderInput): MoltenHeaderState {
         title,
         titleHint,
         agentTitle: agent != null,
+        lockedFor: agent?.namelockedfor ?? "",
+        lockedName: agent?.firstname ?? "",
         local,
         remoteConnection: manageConnection && !local ? connection : "",
         remoteTitle:
@@ -290,6 +296,13 @@ export function MoltenHeaderLead({
                         data-testid="agent-header-label"
                     >
                         {state.title}
+                        {state.lockedFor ? (
+                            <AgentNameLockMark
+                                name={state.lockedName}
+                                folder={state.lockedFor}
+                                className="ml-1 align-middle"
+                            />
+                        ) : null}
                     </button>
                 ) : (
                     <div className="block-frame-view-type molten-header-title">{state.title}</div>

@@ -61,6 +61,14 @@ func (s *Service) AskFinish(ctx context.Context, req FinishRequest) (RestartResu
 	return s.restarter.AskFinish(ctx, req)
 }
 
+// ResumeUpcoming is the developer's click on Resume on an Upcoming ticket whose sub-agent stopped (#2270).
+func (s *Service) ResumeUpcoming(ctx context.Context, req UpcomingResumeRequest) (RestartResult, error) {
+	if s.restarter == nil {
+		return RestartResult{}, rebaseUnavailableError()
+	}
+	return s.restarter.ResumeUpcoming(ctx, req)
+}
+
 // AskReleaseResolve is the developer's click on Analyze and resolve or Investigate together on a failed release step
 // (#945).
 func (s *Service) AskReleaseResolve(ctx context.Context, req ReleaseResolveRequest) (RestartResult, error) {

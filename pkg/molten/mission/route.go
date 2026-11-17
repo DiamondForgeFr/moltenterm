@@ -222,7 +222,7 @@ func (l *routeLink) handleRun(command string, data any) (any, error) {
 			return nil, err
 		}
 		return l.runs.List(req.Dir), nil
-	case LogCommand, CancelCommand, CloseCommand:
+	case LogCommand, CancelCommand, CloseCommand, VerifyHereCommand:
 		var req runIdRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
@@ -232,6 +232,9 @@ func (l *routeLink) handleRun(command string, data any) (any, error) {
 		}
 		if command == CancelCommand {
 			return nil, l.runs.Cancel(req.Dir, req.RunId)
+		}
+		if command == VerifyHereCommand {
+			return nil, l.runs.VerifyHere(req.Dir, req.RunId)
 		}
 		if command == CloseCommand {
 			return nil, l.runs.Close(req.Dir, req.RunId)
@@ -299,6 +302,9 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return l.testCtx.Get(req)
 	}
+	if command == ServedVersionsCommand || command == ServedStopCommand {
+		return l.handleServed(command, data)
+	}
 	if command == ProjectTabCommand {
 		var req ProjectTabRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -312,6 +318,15 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 			return nil, err
 		}
 		return openPipelineTab(req)
+	}
+	if command == AnnotateCommand {
+		var req AnnotateRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), annotateTimeout)
+		defer cancel()
+		return runAnnotate(ctx, defaultAnnotateEnv(), req)
 	}
 	if command == PipelineAskCommand {
 		var req PipelineAskRequest
@@ -440,6 +455,22 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 	return nil, fmt.Errorf("unknown mission control command %q", command)
 }
 
+// handleServed: the versions served on this computer and the stop of one (#2326).
+func (l *routeLink) handleServed(command string, data any) (any, error) {
+	if command == ServedVersionsCommand {
+		var req ServedVersionsRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.testCtx.Versions(req)
+	}
+	var req ServedStopRequest
+	if err := utilfn.ReUnmarshal(&req, data); err != nil {
+		return nil, err
+	}
+	return l.testCtx.Stop(req)
+}
+
 func (l *routeLink) handleWorktree(command string, data any) (any, error) {
 	if command == WorktreePlanCommand {
 		var req WorktreeRequest
@@ -476,6 +507,7 @@ var windowCommands = map[string]string{
 	ReleaseRerunCommand:    "a release's jobs are run again from a MoltenTerm window",
 	ReleaseDispatchCommand: "a release's workflow is started by hand from a MoltenTerm window",
 	ReleaseSaveCommand:     "release notes are saved from a MoltenTerm window",
+	VerifyHereCommand:      "a build is verified here instead of by GitHub's CI from a MoltenTerm window",
 	// The release setup writes in the project and starts a coding agent (FR-MC-036): the developer's click only.
 	SetupRefineCommand: "a release setup is refined from a MoltenTerm window",
 	SetupWriteCommand:  "a release setup is written from a MoltenTerm window",
@@ -490,6 +522,10 @@ var windowCommands = map[string]string{
 	LaunchStartCommand:      "a version is launched from a MoltenTerm window",
 	LaunchStopCommand:       "a launched version is stopped from a MoltenTerm window",
 	LaunchRetryCommand:      "a launch is retried from a MoltenTerm window",
+	// The version card's Stop this server (#2326): the developer's confirmed click only.
+	ServedStopCommand: "a served version is stopped from a MoltenTerm window",
+	// The version's annotated page (#2327) is kept as a material and handed to an agent on the developer's click only.
+	AnnotateCommand: "an annotated page is previewed, copied or sent from a MoltenTerm window",
 }
 
 func (l *routeLink) handleLaunch(command string, data any) (any, error) {

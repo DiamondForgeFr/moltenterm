@@ -16,9 +16,11 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { agentFactsLine } from "../agent-facts";
 import { AgentStates } from "../agent-state-store";
 import { TFunction, useT, useTCount } from "../i18n/i18n";
+import { errorPhrase, useWordPhrase, type Phrase } from "../i18n/phrase";
 import { serverText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { openWebLink } from "../open-web-link";
+import { resumeUpcoming } from "../review/review-client";
 import { showPanel } from "../review/review-panels";
 import { StateMark } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
@@ -31,6 +33,7 @@ import { launchTargetOfBranch } from "./reviews-launch-model";
 import type { ReviewsAnswer } from "./reviews-model";
 import { NumberLink } from "./reviews-number-link";
 import { ReviewsFolds, sectionOpen } from "./reviews-order-store";
+import { branchOwner, inScope, type ScopeNames } from "./reviews-owners-model";
 import { SectionHeading } from "./reviews-section-heading";
 import { upcomingEntries, UpcomingEntry, UpcomingItem, upcomingWaitingCount } from "./reviews-sections-model";
 import { ReviewsModel } from "./reviews-store";
@@ -43,9 +46,11 @@ import {
     boardStatusText,
     branchAgent,
     durationText,
+    stoppedWithoutPr,
     UpcomingBranch,
     upcomingFocusBranch,
     UpcomingFocusMarkMs,
+    upcomingResumeOutcome,
     upcomingRows,
 } from "./reviews-upcoming-model";
 
@@ -93,19 +98,23 @@ export function UpcomingSection({
     dir,
     reviews,
     defaultOpen = true,
+    names = null,
 }: {
     dir: string;
     reviews: ReviewsAnswer;
+    // The view's filter (FR-REV-034): only the tickets whose branch belongs to a followed agent; null shows them all.
+    names?: ScopeNames;
     // Folded by default when the panel's content is longer than the panel (#1061), unless an agent here waits.
     defaultOpen?: boolean;
 }) {
-    const t = useT();
-    const tCount = useTCount();
     useUpcomingWatch(dir, reviews);
     const upcoming = useUpcomingAnswer(dir);
     const states = useAtomValue(AgentStates.getInstance().dataAtom);
     const folds = useAtomValue(ReviewsFolds.getInstance().foldsAtom);
-    const rows = useMemo(() => upcomingRows(upcoming, reviews), [upcoming, reviews]);
+    const rows = useMemo(
+        () => upcomingRows(upcoming, reviews).filter((b) => inScope(branchOwner(upcoming, b.branch), names)),
+        [upcoming, reviews, names]
+    );
     const entries = useMemo(
         () =>
             upcomingEntries(
@@ -118,6 +127,10 @@ export function UpcomingSection({
     const waiting = upcomingWaitingCount(entries);
     const open = sectionOpen(folds, dir, "upcoming", defaultOpen || waiting > 0);
     const setOpen = (value: boolean) => ReviewsFolds.getInstance().set("upcoming", value);
+    const cards = useMemo(
+        () => entries.map((entry) => ({ entry, dir, repoUrl: reviews?.url, base: upcoming?.target })),
+        [entries, dir, reviews?.url, upcoming?.target]
+    );
     const model = ReviewsModel.getInstance();
     const focus = useAtomValue(model.focusAtom);
     const [marked, setMarked] = useState<string>(null);
@@ -152,57 +165,19 @@ export function UpcomingSection({
     }, [marked, open, rows]);
     return (
         <>
-            <section className="flex flex-col gap-2" aria-label={t("reviewsAgents.upcoming.title")}>
-                <SectionHeading
-                    title={t("reviewsAgents.upcoming.title")}
-                    count={upcoming == null ? "" : rows.length}
-                    hint={waiting > 0 ? tCount("reviewsAgents.upcoming.waitingHint", waiting) : undefined}
-                    open={open}
-                    onToggle={() => setOpen(!open)}
-                    testId="reviews-upcoming-toggle"
-                />
-                {!open ? null : upcoming == null ? null : rows.length === 0 ? (
-                    <p
-                        className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
-                        data-testid="reviews-upcoming-empty"
-                        title={serverText(upcoming.errortext, upcoming.error) || undefined}
-                    >
-                        {t("reviewsAgents.upcoming.none")}
-                    </p>
-                ) : (
-                    <div
-                        ref={listRef}
-                        className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
-                        role="list"
-                        data-testid="reviews-upcoming"
-                    >
-                        {entries.map((entry) =>
-                            entry.kind === "session" ? (
-                                <SessionCard
-                                    key={entry.key}
-                                    dir={dir}
-                                    entry={entry}
-                                    repoUrl={reviews?.url}
-                                    marked={marked}
-                                />
-                            ) : (
-                                <UpcomingRow
-                                    key={entry.key}
-                                    dir={dir}
-                                    item={entry.item}
-                                    repoUrl={reviews?.url}
-                                    marked={marked === entry.item.branch.branch}
-                                />
-                            )
-                        )}
-                    </div>
-                )}
-                {open && upcoming?.ticketserror ? (
-                    <div className="text-11 text-muted" title={upcoming.ticketserror}>
-                        {t("reviewsAgents.upcoming.ticketsError")}
-                    </div>
-                ) : null}
-            </section>
+            <UpcomingView
+                cards={cards}
+                count={upcoming == null ? "" : rows.length}
+                ready={upcoming != null}
+                waiting={waiting}
+                open={open}
+                onToggle={() => setOpen(!open)}
+                marked={marked}
+                listRef={listRef}
+                emptyTitle={serverText(upcoming?.errortext, upcoming?.error)}
+                ticketsError={!!upcoming?.ticketserror}
+                ticketsErrorTitle={upcoming?.ticketserror}
+            />
             <Suspense fallback={null}>
                 <LeftoversSection dir={dir} reviews={reviews} upcoming={upcoming} defaultOpen={defaultOpen} />
             </Suspense>
@@ -210,10 +185,153 @@ export function UpcomingSection({
     );
 }
 
-type UpcomingState = { tone: CardTone; sentence: string; why?: string; saysStatus?: boolean };
+// One card of the section: an entry, the project it belongs to and what its actions act on. In All projects (#2314) the
+// card also carries its project's mark.
+export type UpcomingCard = {
+    entry: UpcomingEntry;
+    dir: string;
+    repoUrl: string;
+    base: string;
+    mark?: React.ReactNode;
+};
 
-// An upcoming branch's state: an agent waiting for you, an agent on it (or done, idle), or nobody on it.
+// The section's heading, empty text and cards, whichever projects the cards come from.
+export function UpcomingView({
+    cards,
+    count,
+    ready,
+    waiting,
+    open,
+    onToggle,
+    marked,
+    listRef,
+    emptyTitle,
+    ticketsError,
+    ticketsErrorTitle,
+}: {
+    cards: UpcomingCard[];
+    count: number | "";
+    // Whether every answer the section waits for is in: before, it shows no empty text.
+    ready: boolean;
+    waiting: number;
+    open: boolean;
+    onToggle: () => void;
+    marked?: string;
+    listRef?: React.RefObject<HTMLDivElement>;
+    emptyTitle?: string;
+    ticketsError?: boolean;
+    ticketsErrorTitle?: string;
+}) {
+    const t = useT();
+    const tCount = useTCount();
+    return (
+        <section className="flex flex-col gap-2" aria-label={t("reviewsAgents.upcoming.title")}>
+            <SectionHeading
+                title={t("reviewsAgents.upcoming.title")}
+                count={count}
+                hint={waiting > 0 ? tCount("reviewsAgents.upcoming.waitingHint", waiting) : undefined}
+                open={open}
+                onToggle={onToggle}
+                testId="reviews-upcoming-toggle"
+            />
+            {!open || !ready ? null : cards.length === 0 ? (
+                <p
+                    className="rounded-4 border border-border px-3 py-3 text-13 leading-5 text-muted"
+                    data-testid="reviews-upcoming-empty"
+                    title={emptyTitle || undefined}
+                >
+                    {t("reviewsAgents.upcoming.none")}
+                </p>
+            ) : (
+                <div
+                    ref={listRef}
+                    className="overflow-clip rounded-4 border border-border [overflow-clip-margin:1px]"
+                    role="list"
+                    data-testid="reviews-upcoming"
+                >
+                    {cards.map((card) =>
+                        card.entry.kind === "session" ? (
+                            <SessionCard
+                                key={`${card.dir}:${card.entry.key}`}
+                                dir={card.dir}
+                                entry={card.entry}
+                                repoUrl={card.repoUrl}
+                                base={card.base}
+                                marked={marked}
+                                mark={card.mark}
+                            />
+                        ) : (
+                            <UpcomingRow
+                                key={`${card.dir}:${card.entry.key}`}
+                                dir={card.dir}
+                                item={card.entry.item}
+                                repoUrl={card.repoUrl}
+                                base={card.base}
+                                marked={marked === card.entry.item.branch.branch}
+                                mark={card.mark}
+                            />
+                        )
+                    )}
+                </div>
+            )}
+            {open && ticketsError ? (
+                <div className="text-11 text-muted" title={ticketsErrorTitle}>
+                    {t("reviewsAgents.upcoming.ticketsError")}
+                </div>
+            ) : null}
+        </section>
+    );
+}
+
+type UpcomingState = { tone: CardTone; sentence: string; why?: string; saysStatus?: boolean; saysAhead?: boolean };
+
+// Resume (#2270): the stopped sub-agent's lead is asked to continue it; the answer is the card's line.
+async function askResume(dir: string, branch: UpcomingBranch, base: string): Promise<Phrase> {
+    try {
+        const result = await resumeUpcoming({
+            dir,
+            branch: branch.branch,
+            ticket: branch.ticket > 0 ? branch.ticket : undefined,
+            title: branch.title || undefined,
+            ahead: branch.ahead || undefined,
+            base: base || undefined,
+        });
+        return upcomingResumeOutcome(result);
+    } catch (e) {
+        return upcomingResumeOutcome(null, errorPhrase(e));
+    }
+}
+
+// useResume: the card's Resume, run once at a time, and the line it left.
+function useResume(dir: string, base: string) {
+    const [busy, setBusy] = useState(false);
+    const [note, setNote] = useState<Phrase>(null);
+    const run = (branch: UpcomingBranch) => {
+        if (busy) {
+            return;
+        }
+        setBusy(true);
+        fireAndForget(async () => {
+            const outcome = await askResume(dir, branch, base);
+            setNote(outcome);
+            setBusy(false);
+        });
+    };
+    return { busy, note, run };
+}
+
+// An upcoming branch's state: an agent waiting for you, an agent on it (or done, idle), its delegated agent stopped
+// without a PR (#2270), or nobody on it.
 export function upcomingState(t: TFunction, branch: UpcomingBranch, agent: AgentBarFacts): UpcomingState {
+    if (stoppedWithoutPr(agent)) {
+        return {
+            tone: "wait",
+            sentence: t("reviewsAgents.upcoming.state.stopped"),
+            why: aheadText(t, branch.ahead),
+            saysStatus: true,
+            saysAhead: true,
+        };
+    }
     if (agent == null) {
         const why = [
             branch.status ? boardStatusText(t, branch.status) : "",
@@ -252,41 +370,56 @@ function UpcomingRow({
     dir,
     item,
     repoUrl,
+    base,
     marked,
+    mark,
 }: {
     dir: string;
     item: UpcomingItem;
     repoUrl: string;
+    base: string;
     marked: boolean;
+    mark?: React.ReactNode;
 }) {
     const t = useT();
+    const word = useWordPhrase();
+    const resume = useResume(dir, base);
     const { branch, agent } = item;
     const url = ticketUrl(branch, repoUrl);
     const panel = agentPanel(agent);
     const state = upcomingState(t, branch, agent);
     const afterText = afterPrText(t, branch);
     const answers = agent?.kind === "panel" && agent.state === "waiting" && !!panel;
+    const stopped = stoppedWithoutPr(agent);
     const openTicket = () => {
         if (url) {
             fireAndForget(() => openWebLink(url));
         }
     };
     const goThere = () => fireAndForget(() => showPanel(panel));
+    const runResume = () => resume.run(branch);
     const open = panel ? goThere : openTicket;
     const primary = answers
         ? { label: t("reviews.card.action.answer", { name: agent.name }), run: goThere, molten: true }
-        : panel
-          ? { label: t("reviewsAgents.upcoming.goThere"), run: goThere, molten: false }
-          : url
-            ? { label: t("reviewsAgents.upcoming.openTicket"), run: openTicket, molten: false }
-            : null;
+        : stopped
+          ? { label: t("reviewsAgents.upcoming.resume.action"), run: runResume, molten: true }
+          : panel
+            ? { label: t("reviewsAgents.upcoming.goThere"), run: goThere, molten: false }
+            : url
+              ? { label: t("reviewsAgents.upcoming.openTicket"), run: openTicket, molten: false }
+              : null;
     const openMenu = (e: React.MouseEvent) => {
-        const items: ContextMenuItem[] = [
-            {
-                label: t("reviews.card.action.launch"),
-                click: () => LaunchModel.getInstance().ask(dir, launchTargetOfBranch(branch)),
-            },
-        ];
+        const items: ContextMenuItem[] = [];
+        if (stopped) {
+            items.push({ label: t("reviewsAgents.upcoming.resume.action"), click: runResume });
+            if (panel) {
+                items.push({ label: t("reviewsAgents.upcoming.goThere"), click: goThere });
+            }
+        }
+        items.push({
+            label: t("reviews.card.action.launch"),
+            click: () => LaunchModel.getInstance().ask(dir, launchTargetOfBranch(branch)),
+        });
         if (url && primary?.run !== openTicket) {
             items.push({ label: t("reviewsAgents.upcoming.openTicket"), click: openTicket });
         }
@@ -331,13 +464,19 @@ function UpcomingRow({
                         >
                             #{branch.ticket}
                         </NumberLink>
+                        {mark}
                         <span className="min-w-0 truncate" title={branch.branch}>
                             {branch.title || branch.branch}
                         </span>
                     </div>
                     <StateLine state={state} />
+                    {resume.note != null ? (
+                        <div className="text-11 leading-4 text-secondary" data-testid="reviews-upcoming-resume-note">
+                            {word(resume.note)}
+                        </div>
+                    ) : null}
                     <div className="flex min-h-4 flex-wrap items-center gap-x-3 gap-y-1 text-11 leading-4 text-muted">
-                        <span>{aheadText(t, branch.ahead)}</span>
+                        {state.saysAhead ? null : <span>{aheadText(t, branch.ahead)}</span>}
                         {afterText ? <span data-testid="reviews-upcoming-after">{afterText}</span> : null}
                         {branch.remote && !state.saysStatus ? <span>{t("reviewsAgents.upcoming.remote")}</span> : null}
                         {branch.status && !state.saysStatus ? (
@@ -357,6 +496,14 @@ function UpcomingRow({
                                 primary.run();
                             }}
                             onKeyDown={stop}
+                            disabled={primary.run === runResume && resume.busy}
+                            title={
+                                primary.run === runResume
+                                    ? t("reviewsAgents.upcoming.resume.title", {
+                                          name: agent?.parentName || t("reviewsAgents.subagent.name"),
+                                      })
+                                    : undefined
+                            }
                             className={primary.molten ? MoltenButton : CalmButton}
                             data-testid="reviews-upcoming-primary"
                             data-molten={primary.molten || undefined}
@@ -408,29 +555,45 @@ function SessionCard({
     dir,
     entry,
     repoUrl,
+    base,
     marked,
+    mark,
 }: {
     dir: string;
     entry: Extract<UpcomingEntry, { kind: "session" }>;
     repoUrl: string;
+    base: string;
     marked: string;
+    mark?: React.ReactNode;
 }) {
     const t = useT();
     const tCount = useTCount();
+    const word = useWordPhrase();
     const now = useMinuteNow();
+    const resume = useResume(dir, base);
     const name = entry.parentName;
-    const tone: CardTone = entry.waiting ? "you" : "agent";
+    const stoppedItems = entry.items.filter((item) => stoppedWithoutPr(item.agent));
+    const allStopped = !entry.waiting && stoppedItems.length === entry.items.length;
+    const tone: CardTone = entry.waiting ? "you" : allStopped ? "wait" : "agent";
     const sentence = entry.waiting
         ? t("reviews.card.state.agentWaiting", { name: name || t("reviews.card.anAgent") })
-        : tCount("reviewsAgents.upcoming.session.orchestrates", entry.items.length, {
-              name: name || t("reviews.card.anAgent"),
-          });
+        : allStopped
+          ? tCount("reviewsAgents.upcoming.session.stopped", entry.items.length)
+          : tCount("reviewsAgents.upcoming.session.orchestrates", entry.items.length, {
+                name: name || t("reviews.card.anAgent"),
+            });
     const goThere = () => fireAndForget(() => showPanel(entry.parentBlockId));
     const openMenu = (e: React.MouseEvent) => {
-        const items: ContextMenuItem[] = entry.items.map((item) => ({
-            label: t("reviewsAgents.upcoming.session.launch", { ticket: item.branch.ticket }),
-            click: () => LaunchModel.getInstance().ask(dir, launchTargetOfBranch(item.branch)),
-        }));
+        const items: ContextMenuItem[] = [
+            ...stoppedItems.map((item) => ({
+                label: t("reviewsAgents.upcoming.session.resume", { ticket: item.branch.ticket }),
+                click: () => resume.run(item.branch),
+            })),
+            ...entry.items.map((item) => ({
+                label: t("reviewsAgents.upcoming.session.launch", { ticket: item.branch.ticket }),
+                click: () => LaunchModel.getInstance().ask(dir, launchTargetOfBranch(item.branch)),
+            })),
+        ];
         showMenu(e, items);
     };
     return (
@@ -460,11 +623,17 @@ function SessionCard({
                                 ? t("reviewsAgents.upcoming.session.title", { name })
                                 : t("reviewsAgents.upcoming.session.titleUnknown")}
                         </span>
+                        {mark}
                         <span className="shrink-0 rounded-4 border border-border px-1 text-10 leading-[14px] font-semibold tracking-[0.06em] text-muted uppercase">
                             {tCount("reviewsAgents.upcoming.session.agents", entry.items.length)}
                         </span>
                     </div>
                     <StateLine state={{ tone, sentence }} />
+                    {resume.note != null ? (
+                        <div className="text-11 leading-4 text-secondary" data-testid="reviews-upcoming-resume-note">
+                            {word(resume.note)}
+                        </div>
+                    ) : null}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                     <button
@@ -515,18 +684,23 @@ function SessionLine({ item, now, url, marked }: { item: UpcomingItem; now: numb
     const t = useT();
     const { branch, agent } = item;
     const working = agent.kind === "background" || agent.state === "working";
+    const stopped = stoppedWithoutPr(agent);
     const stateText =
         agent.kind === "background"
             ? t("reviewsAgents.state.background")
-            : agent.subState === "done"
-              ? t("reviewsAgents.subagent.finishedAgo", { duration: durationText(t, now - (agent.since ?? now)) })
-              : agent.subState === "quiet"
-                ? t("reviewsAgents.subagent.state.quiet")
-                : t("reviewsAgents.state.working");
+            : stopped
+              ? t("reviewsAgents.upcoming.stoppedLine")
+              : agent.subState === "done"
+                ? t("reviewsAgents.subagent.finishedAgo", { duration: durationText(t, now - (agent.since ?? now)) })
+                : agent.subState === "quiet"
+                  ? t("reviewsAgents.subagent.state.quiet")
+                  : t("reviewsAgents.state.working");
     const detail =
         agent.kind === "background"
             ? t("reviewsAgents.upcoming.session.background")
-            : agentFactsLine(agentFacts(agent)) || (branch.status ? boardStatusText(t, branch.status) : "");
+            : stopped
+              ? aheadText(t, branch.ahead)
+              : agentFactsLine(agentFacts(agent)) || (branch.status ? boardStatusText(t, branch.status) : "");
     return (
         <div
             tabIndex={-1}

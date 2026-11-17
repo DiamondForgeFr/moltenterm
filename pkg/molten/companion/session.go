@@ -139,6 +139,8 @@ type Session struct {
 	promptTurn int
 	todosAt    int64
 	turnsEnded int
+	// turnOpen: a turn started, or the agent wrote in it, and its end is not recorded yet (#2257).
+	turnOpen bool
 	// recordAt: the time of the record being parsed, for the changes whose call does not carry it.
 	recordAt int64
 	// startedAt: the time of the first record; firstCommand: the first slash command, the title until a prompt.
@@ -313,6 +315,7 @@ func (s *Session) currentTurn() *answer {
 // records a prompt makes (Codex's task_started and user_message) make one turn. The previous turn's pending calls
 // are over: the user answered, or interrupted them.
 func (s *Session) StartTurn(at int64) {
+	s.turnOpen = true
 	if len(s.pending) > 0 {
 		s.pending = nil
 		s.touch()
@@ -354,6 +357,7 @@ func (s *Session) AddText(text string, at int64) {
 		return
 	}
 	cur := s.ensureTurn(at)
+	s.turnOpen = true
 	if cur.toolSinceText {
 		cur.texts = nil
 		cur.size = 0
@@ -379,6 +383,7 @@ func (s *Session) AddText(text string, at int64) {
 // AddToolCall records a call the agent makes; it stays pending until its result comes.
 func (s *Session) AddToolCall(id string, tool string, args string, at int64) {
 	cur := s.ensureTurn(at)
+	s.turnOpen = true
 	if cur.hasText {
 		cur.toolSinceText = true
 	}
@@ -437,6 +442,7 @@ func (s *Session) ResolveTool(id string) {
 // EndTurn: the agent finished its turn, nothing it asked is pending any more.
 func (s *Session) EndTurn() {
 	s.turnsEnded++
+	s.turnOpen = false
 	s.closeTurnAnswer(true)
 	if len(s.pending) == 0 {
 		return

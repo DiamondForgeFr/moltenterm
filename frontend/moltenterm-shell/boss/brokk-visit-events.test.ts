@@ -98,7 +98,8 @@ describe("when he comes, by default (FR-BOSS-009, AC4)", () => {
         ["finished", "badge"],
         ["download", "badge"],
         ["update", "badge"],
-        ["usage", "badge"],
+        // No card lists it, so no badge counts it (#2213).
+        ["usage", "rien"],
     ];
 
     it.each(table)("%s is %s", (id, expected) => {

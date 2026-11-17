@@ -77,6 +77,9 @@ type Env struct {
 	CiLimit time.Duration
 	// --ticket: the release's ticket, for a commit format that names one (#1046).
 	Ticket int
+	// The project's GitHub repository ("owner/repo") that a CI run must belong to (#2277); empty reads origin's URL.
+	// Tests set it, their origin being a folder.
+	Repo string
 
 	// The release tickets found or created during this run, by project and version (#1800): one answer for the run.
 	ticketLock sync.Mutex

@@ -1,15 +1,15 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The sidebar's heat (FR-SHELL-122, DS-SHELL-133, #1409): shown only while agents of the workspace work, stronger with
-// more of them, off with the setting, reduced motion or the sidebar away, and changing only on the shared frames.
+// The sidebar's heat (FR-SHELL-122, DS-SHELL-133, #1409, #2233): shown only while the activity source holds a running
+// item, stronger with more of them, off with the setting, reduced motion or the sidebar away, and changing only on the
+// shared frames.
 
 import { readFileSync } from "fs";
 import { getDefaultStore, type PrimitiveAtom } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { fileURLToPath } from "url";
 import { describe, expect, it, vi } from "vitest";
-import type { AgentStateInfo } from "../agent-state-model";
 
 const mocks = vi.hoisted(() => ({ setting: null as PrimitiveAtom<boolean>, reduced: null as PrimitiveAtom<boolean> }));
 
@@ -38,8 +38,6 @@ const css = readFileSync(`${dir}sidebar-heat.css`, "utf8");
 const sidebarSrc = readFileSync(`${dir}workspace-sidebar.tsx`, "utf8");
 const metaSrc = readFileSync(`${dir}../../../pkg/molten/settingsmeta/settingsmeta.go`, "utf8");
 
-const agent = (state: string): AgentStateInfo => ({ state, blockid: state + Math.random() }) as AgentStateInfo;
-
 function ruleBody(selector: string): string {
     const start = css.lastIndexOf(`\n${selector} {`);
     expect(start, selector).toBeGreaterThanOrEqual(0);
@@ -52,33 +50,33 @@ function keyframes(name: string): string {
     return css.slice(start, css.indexOf("\n}\n", start));
 }
 
-function render(agents: AgentStateInfo[], shown = true, setting: boolean = undefined, reduced = false): string {
+function render(running: number, shown = true, setting: boolean = undefined, reduced = false): string {
     const store = getDefaultStore();
     store.set(mocks.setting, setting);
     store.set(mocks.reduced, reduced);
-    return renderToStaticMarkup(<SidebarHeat agents={agents} shown={shown} />);
+    return renderToStaticMarkup(<SidebarHeat running={running} shown={shown} />);
 }
 
 describe("the sidebar's heat (#1409)", () => {
-    it("follows the working agents of the workspace, 1 to 3", () => {
-        expect(sidebarHeatLevel([])).toBe(0);
+    it("follows the number of running items, 1 to 3", () => {
+        expect(sidebarHeatLevel(0)).toBe(0);
         expect(sidebarHeatLevel(null)).toBe(0);
-        expect(sidebarHeatLevel([agent("idle"), agent("waiting"), agent("done"), agent("error")])).toBe(0);
-        expect(sidebarHeatLevel([agent("working"), agent("waiting")])).toBe(1);
-        expect(sidebarHeatLevel([agent("working"), agent("working")])).toBe(2);
-        expect(sidebarHeatLevel([1, 2, 3, 4, 5].map(() => agent("working")))).toBe(3);
+        expect(sidebarHeatLevel(-2)).toBe(0);
+        expect(sidebarHeatLevel(1)).toBe(1);
+        expect(sidebarHeatLevel(2)).toBe(2);
+        expect(sidebarHeatLevel(5)).toBe(3);
     });
 
-    it("shows only while an agent works, the sidebar shows, the setting allows it and motion is not reduced", () => {
-        expect(render([agent("idle")])).toBe("");
-        const on = render([agent("working"), agent("working")]);
+    it("shows only while something runs, the sidebar shows, the setting allows it and motion is not reduced", () => {
+        expect(render(0)).toBe("");
+        const on = render(2);
         expect(on).toContain('data-testid="sidebar-heat"');
         expect(on).toContain('data-level="2"');
         expect(on).toContain('aria-hidden="true"');
-        expect(render([agent("working")], true, true)).toContain('data-level="1"');
-        expect(render([agent("working")], true, false)).toBe("");
-        expect(render([agent("working")], false)).toBe("");
-        expect(render([agent("working")], true, undefined, true)).toBe("");
+        expect(render(1, true, true)).toContain('data-level="1"');
+        expect(render(1, true, false)).toBe("");
+        expect(render(1, false)).toBe("");
+        expect(render(1, true, undefined, true)).toBe("");
     });
 
     it("puts a rise back onto a whole cycle when it starts, and onto the nearest step at a lap", () => {
@@ -128,7 +126,7 @@ describe("the sidebar's heat (#1409)", () => {
     });
 
     it("rises from a molten bath whose waves and highlights flow one tile per cycle on the same frames (#1457)", () => {
-        const on = render([agent("working")]);
+        const on = render(1);
         const bath = on.indexOf('data-testid="sidebar-heat-bath"');
         expect(bath).toBeGreaterThan(on.indexOf("mt-sb-heat-embers"));
         expect(on.slice(bath)).toMatch(
@@ -198,7 +196,10 @@ describe("the sidebar's heat (#1409)", () => {
             sidebarSrc.indexOf("<TemporaryViews"),
             sidebarSrc.indexOf("</>", sidebarSrc.indexOf("<TemporaryViews"))
         );
-        expect(page).toContain("<SidebarHeat agents={sections.agents} shown={!hidden || peek} />");
+        expect(page).toContain("<ActivityHeat shown={!hidden || peek} />");
+        expect(sidebarSrc).toMatch(
+            /function ActivityHeat\([^)]*\) \{\s*const running = useActivityCount\(\);\s*return <SidebarHeat running=\{running\}/
+        );
         expect(metaSrc).toContain(`{Key: "${SidebarHeatSettingKey}", Section: SectionAppearance, Group: "Window"`);
         expect(metaSrc).toMatch(/moltenterm:sidebarheat".*Default: true/);
     });

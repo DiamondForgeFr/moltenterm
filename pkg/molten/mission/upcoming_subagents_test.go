@@ -59,8 +59,10 @@ func TestSubagentBranchAgents(t *testing.T) {
 	}
 }
 
-// #1825: a read-only sub-agent (the main checkout, a panel's own worktree, or no folder) is listed on no branch, so
-// the Integration cards can match its task with their ticket or PR; a finished one and a placed one are not.
+// #1825: a read-only sub-agent (the main checkout, a panel's own worktree, or no folder) is listed, so the Integration
+// cards can match it with their PR; a finished one and a placed one are not. #2297: only this project's sub-agents
+// (in one of its worktrees, or whose lead's panel is placed in it), and one in its lead's linked worktree is on that
+// worktree's branch.
 func TestUnplacedSubagents(t *testing.T) {
 	t.Parallel()
 	trees := []treeEntry{
@@ -68,36 +70,45 @@ func TestUnplacedSubagents(t *testing.T) {
 		{path: "/p/.claude/worktrees/a", branch: "feature/7-a"},
 		{path: "/x/d", branch: "feature/10-d"},
 	}
-	panels := []BranchAgent{{Branch: "feature/10-d", Worktree: "/x/d", Kind: UpcomingAgentPanel}}
-	sub := func(worktree string, state string, desc string) PaneSubagent {
-		return PaneSubagent{ParentBlockId: "parent", ParentFirstName: "Arthur", Agent: "claude", SubagentIdentity: companion.SubagentIdentity{
+	panels := []BranchAgent{{Branch: "feature/10-d", Worktree: "/x/d", Kind: UpcomingAgentPanel, BlockId: "lead"}}
+	sub := func(parent string, worktree string, state string, desc string) PaneSubagent {
+		return PaneSubagent{ParentBlockId: parent, ParentFirstName: "Arthur", Agent: "claude", SubagentIdentity: companion.SubagentIdentity{
 			Worktree: worktree, State: state, LastWrite: 5, Started: 1, Description: desc, Model: "claude-opus-5-5", Effort: "low",
 		}}
 	}
 	subs := []PaneSubagent{
-		sub("/p/.claude/worktrees/a", companion.SubagentRunning, "#7 placed"),
-		sub("/p", companion.SubagentRunning, "Review PR #1824 meta guard"),
-		sub("/p/src", companion.SubagentQuiet, "Review #1825 quietly"),
-		sub("/x/d", companion.SubagentRunning, "Review inside a panel's worktree"),
-		sub("", companion.SubagentRunning, "no folder"),
-		sub("/elsewhere", companion.SubagentRunning, "outside the repository"),
-		sub("/p", companion.SubagentDone, "Review PR #1800, finished"),
+		sub("other", "/p/.claude/worktrees/a", companion.SubagentRunning, "#7 placed"),
+		sub("other", "/p", companion.SubagentRunning, "Review PR #1824 meta guard"),
+		sub("other", "/p/src", companion.SubagentQuiet, "Review #1825 quietly"),
+		sub("lead", "/x/d/src", companion.SubagentRunning, "Review inside a panel's worktree"),
+		sub("lead", "", companion.SubagentRunning, "no folder, lead here"),
+		sub("lead", "/elsewhere", companion.SubagentRunning, "outside the repository, lead here"),
+		sub("other", "", companion.SubagentRunning, "Deliver #12 no folder, lead elsewhere"),
+		sub("other", "/elsewhere", companion.SubagentRunning, "Deliver #12 in another project"),
+		sub("other", "/p", companion.SubagentDone, "Review PR #1800, finished"),
 	}
 	got := UnplacedSubagents(trees, panels, subs)
 	var descs []string
 	for _, a := range got {
-		if a.Branch != "" || a.Worktree != "" || a.Kind != UpcomingAgentSubagent || a.ParentBlockId != "parent" || a.ParentFirstName != "Arthur" ||
-			a.Agent != "claude" || a.Model != "claude-opus-5-5" || a.Effort != "low" || a.ActiveAt != 5 || a.Started != 1 {
+		if a.Kind != UpcomingAgentSubagent || a.ParentFirstName != "Arthur" || a.Agent != "claude" || a.Model != "claude-opus-5-5" ||
+			a.Effort != "low" || a.ActiveAt != 5 || a.Started != 1 {
 			t.Fatalf("unplaced sub-agent: %+v", a)
+		}
+		want := ""
+		if a.Description == "Review inside a panel's worktree" {
+			want = "feature/10-d"
+		}
+		if a.Branch != want || (want == "") != (a.Worktree == "") {
+			t.Fatalf("%q: branch %q worktree %q, want branch %q", a.Description, a.Branch, a.Worktree, want)
 		}
 		descs = append(descs, a.Description)
 	}
-	want := []string{"Review PR #1824 meta guard", "Review #1825 quietly", "Review inside a panel's worktree", "no folder", "outside the repository"}
+	want := []string{"Review PR #1824 meta guard", "Review #1825 quietly", "Review inside a panel's worktree", "no folder, lead here", "outside the repository, lead here"}
 	if fmt.Sprint(descs) != fmt.Sprint(want) {
 		t.Fatalf("unplaced: %q, want %q", descs, want)
 	}
-	if br := agentBranches(got); br["develop"] || br["feature/10-d"] {
-		t.Fatalf("an unplaced sub-agent works on no branch: %+v", br)
+	if br := agentBranches(got); br["develop"] || !br["feature/10-d"] {
+		t.Fatalf("only the sub-agent in its lead's worktree works on a branch: %+v", br)
 	}
 	// Without linked worktrees, the main checkout's read-only sub-agents are still listed.
 	if one := UnplacedSubagents(trees[:1], nil, subs[1:2]); len(one) != 1 {
