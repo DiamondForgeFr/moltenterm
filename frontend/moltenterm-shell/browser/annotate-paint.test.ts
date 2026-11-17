@@ -38,8 +38,8 @@ function recorder(): { ctx: Paint2D; calls: Call[] } {
 }
 
 const Zones: Zone[] = [
-    { id: 7, x: 0.1, y: 0.2, w: 0.3, h: 0.25, comment: "one" },
-    { id: 9, x: 0.6, y: 0.5, w: 0.2, h: 0.2, comment: "two" },
+    { id: 7, x: 0.1, y: 0.2, w: 0.3, h: 0.25, comment: "one", refs: [] },
+    { id: 9, x: 0.6, y: 0.5, w: 0.2, h: 0.2, comment: "two", refs: [] },
 ];
 
 describe("paintZones", () => {
@@ -59,7 +59,7 @@ describe("paintZones", () => {
 
     it("keeps a badge inside the image when its zone starts at the edge", () => {
         const { ctx, calls } = recorder();
-        paintZones(ctx, [{ id: 1, x: 0, y: 0, w: 0.5, h: 0.5, comment: "" }], { w: 400, h: 300 }, "orange");
+        paintZones(ctx, [{ id: 1, x: 0, y: 0, w: 0.5, h: 0.5, comment: "", refs: [] }], { w: 400, h: 300 }, "orange");
         const arc = calls.find((c) => c[0] === "arc");
         const [x, y, r] = arc.slice(1, 4) as number[];
         expect(x - r).toBeGreaterThanOrEqual(0);

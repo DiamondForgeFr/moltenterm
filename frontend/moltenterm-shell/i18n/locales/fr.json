@@ -2888,9 +2888,24 @@
                 "title": "Zone {n}",
                 "placeholder": "Qu'est-ce qui ne va pas ici ?",
                 "hint": "Entrée valide, Maj+Entrée ajoute une ligne",
-                "erase": "Effacer cette zone"
+                "erase": "Effacer cette zone",
+                "refsHint": "Collez ou déposez une image (jusqu'à {count}) pour montrer ce que vous avez en tête. Un lien reste un lien."
+            },
+            "ref": {
+                "alt": "Image de référence {n}",
+                "remove": "Retirer cette image",
+                "refused": {
+                    "type": "Seules les images png, jpeg, webp et gif peuvent être jointes.",
+                    "size": "Cette image est trop lourde pour être jointe (plus de {limit} Mo).",
+                    "decode": "Cette image n'a pas pu être lue.",
+                    "large": "Cette image est trop lourde pour être jointe.",
+                    "zone": "Une zone porte au plus {count} images.",
+                    "report": "Un rapport porte au plus {count} images."
+                }
             },
             "review": {
+                "references": "Références",
+                "zone": "Zone {n}",
                 "title": "Ce qui sera envoyé",
                 "back": "Retour au dessin",
                 "to": "À",
@@ -2929,7 +2944,8 @@
                 "project": "{name} travaille sur un autre projet : rien n'a été envoyé."
             },
             "sendFailed": "Rien n'a été envoyé : {error}",
-            "materialTitle": "Page annotée : {where}"
+            "materialTitle": "Page annotée : {where}",
+            "refTitle": "Page annotée, zone {zone} : référence {n}"
         },
         "testContext": {
             "cardTitle": "La version que vous regardez",

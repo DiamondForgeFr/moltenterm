@@ -2888,9 +2888,24 @@
                 "title": "Zone {n}",
                 "placeholder": "What is wrong here?",
                 "hint": "Enter validates, Shift+Enter adds a line",
-                "erase": "Erase this zone"
+                "erase": "Erase this zone",
+                "refsHint": "Paste or drop an image (up to {count}) to show what you have in mind. A link stays a link."
+            },
+            "ref": {
+                "alt": "Reference image {n}",
+                "remove": "Remove this image",
+                "refused": {
+                    "type": "Only png, jpeg, webp and gif images can be attached.",
+                    "size": "That image is too large to attach (over {limit} MB).",
+                    "decode": "That image could not be read.",
+                    "large": "That image is too large to attach.",
+                    "zone": "A zone holds at most {count} images.",
+                    "report": "A report holds at most {count} images."
+                }
             },
             "review": {
+                "references": "References",
+                "zone": "Zone {n}",
                 "title": "What will be sent",
                 "back": "Back to drawing",
                 "to": "To",
@@ -2929,7 +2944,8 @@
                 "project": "{name} works on another project: nothing was sent."
             },
             "sendFailed": "Nothing was sent: {error}",
-            "materialTitle": "Annotated page: {where}"
+            "materialTitle": "Annotated page: {where}",
+            "refTitle": "Annotated page, zone {zone}: reference {n}"
         },
         "testContext": {
             "cardTitle": "The version you are looking at",
