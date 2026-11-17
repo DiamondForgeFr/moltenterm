@@ -2351,6 +2351,8 @@
             "browser-stop-other": "Arrêter le chargement de la page",
             "browser-inspect": "Inspecter la page",
             "browser-inspect-other": "Inspecter la page",
+            "browser-annotate": "Annoter la page",
+            "browser-annotate-other": "Annoter la page",
             "companion": "Compagnon de l'agent",
             "palette": "Palette de commandes",
             "command-panel": "Les commandes du panneau actif",
@@ -2854,6 +2856,77 @@
             "reopen": "Rouvrir la page"
         },
         "reloading": "Rechargement de la page…",
+        "annotate": {
+            "button": "Annoter",
+            "buttonTitle": "Annoter la page : y dessiner des zones et les envoyer à un agent ({shortcut})",
+            "menu": "Annoter la page",
+            "layerLabel": "Annotation de la page",
+            "capturing": "Capture de la page…",
+            "captureFailed": "La page n'a pas pu être capturée. Affichez son onglet et réessayez.",
+            "close": "Fermer",
+            "hint": "Dessinez une zone autour de ce qu'il faut changer, puis écrivez votre commentaire.",
+            "tray": {
+                "zones": {
+                    "one": "{count} zone",
+                    "other": "{count} zones"
+                },
+                "clear": "Tout effacer",
+                "review": "Relire et envoyer",
+                "leaveAsk": {
+                    "one": "Abandonner {count} zone ?",
+                    "other": "Abandonner {count} zones ?"
+                },
+                "discard": "Abandonner",
+                "keep": "Continuer à dessiner",
+                "full": "C'est le maximum de zones d'un rapport ({count})."
+            },
+            "zone": {
+                "label": "Zone {n}",
+                "labelWith": "Zone {n} : {comment}"
+            },
+            "field": {
+                "title": "Zone {n}",
+                "placeholder": "Qu'est-ce qui ne va pas ici ?",
+                "hint": "Entrée valide, Maj+Entrée ajoute une ligne",
+                "erase": "Effacer cette zone"
+            },
+            "review": {
+                "title": "Ce qui sera envoyé",
+                "back": "Retour au dessin",
+                "to": "À",
+                "page": "Page",
+                "image": "Image annotée",
+                "report": "Ce que l'agent lit",
+                "reportNote": "MoltenTerm ajoute son propre en-tête et demande une ligne de résultat.",
+                "loading": "Préparation du rapport…",
+                "failed": "Le rapport n'a pas pu être préparé : {error}",
+                "send": "Envoyer à {name}",
+                "sending": "Envoi…",
+                "copy": "Copier le rapport",
+                "copied": "Rapport copié. L'image est conservée dans les matériaux de ce projet.",
+                "copyFailed": "Le rapport n'a pas pu être copié : {error}",
+                "noAgent": "Aucun agent ne tourne pour ce projet en ce moment. Copiez le rapport pour le donner à l'un d'eux.",
+                "pick": "Envoyer à un autre agent",
+                "leadNote": "{name} devra confier les zones aux bons agents."
+            },
+            "why": {
+                "works": "travaille sur {branch}",
+                "owns": "dirige l'agent qui travaille sur {branch}",
+                "pr": "a signé la pull request",
+                "locked": "garde un nom verrouillé pour ce projet",
+                "project": "dirige ce projet"
+            },
+            "sent": {
+                "delivered": "{name} l'a reçu.",
+                "typed": "La demande est saisie dans l'invite de {name} : appuyez sur Entrée là-bas pour l'envoyer.",
+                "queued": "{name} est occupé : la demande sera saisie quand son invite sera libre.",
+                "kept": "L'image est conservée dans les matériaux de ce projet, pas dans ses fichiers.",
+                "done": "Terminé"
+            },
+            "gone": "{name} ne tourne plus. Choisissez un autre agent ou copiez le rapport.",
+            "sendFailed": "Rien n'a été envoyé : {error}",
+            "materialTitle": "Page annotée : {where}"
+        },
         "testContext": {
             "cardTitle": "La version que vous regardez",
             "unknown": "Source inconnue",

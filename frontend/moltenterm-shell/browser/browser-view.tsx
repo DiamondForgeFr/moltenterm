@@ -67,6 +67,9 @@ import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
 import { showAgentPage } from "./agent-show";
+import { AnnotateHost } from "./annotate-layer";
+import { annotatablePage } from "./annotate-model";
+import { AnnotateSession } from "./annotate-session";
 import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
 import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
@@ -112,6 +115,7 @@ import {
 import {
     browserKeyAction,
     BrowserKeyAddress,
+    BrowserKeyAnnotate,
     BrowserKeyBack,
     BrowserKeyFind,
     BrowserKeyForward,
@@ -315,6 +319,8 @@ export class BrowserViewModel implements ViewModel {
     inspector = new BrowserInspectorModel();
     // The confirmation of Clear this site's data… or Clear the browser cache… (FR-BRW-022).
     clearDataAtom = atom(null) as PrimitiveAtom<ClearDataRequest>;
+    // Annotate mode (#2327): the page frozen into a capture to draw numbered zones on.
+    annotate = new AnnotateSession();
     offInspectorGone: () => void = null;
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
@@ -843,6 +849,13 @@ export class BrowserViewModel implements ViewModel {
                     icon: "bookmark",
                     type: "submenu",
                     submenu: this.bookmarkMenuItems(tab),
+                });
+            }
+            if (tab != null && this.canAnnotate(tab.id)) {
+                menu.push({
+                    label: t("browser.annotate.menu"),
+                    icon: "vector-square",
+                    click: () => this.startAnnotate(tab.id),
                 });
             }
             menu.push(...(await this.shareItems(tab)));
@@ -1478,6 +1491,20 @@ export class BrowserViewModel implements ViewModel {
         return true;
     }
 
+    canAnnotate(tabId = this.state().activeId): boolean {
+        const tab = this.findTab(tabId);
+        return tab != null && !tab.engine && annotatablePage(tab.url);
+    }
+
+    // The header's button, the version card's Annotate and ⌘⇧A (Ctrl+Shift+A elsewhere): the shown page freezes into a
+    // capture and the developer draws zones on it. The key never starts it on a page that cannot be captured.
+    startAnnotate(tabId = this.state().activeId): boolean {
+        if (!this.canAnnotate(tabId)) {
+            return false;
+        }
+        return this.annotate.start(tabId, this.findTab(tabId).url);
+    }
+
     inspectorFailed(tabId: string): void {
         this.inspector.close(tabId);
         this.showNotice(t("browser.inspector.failed"));
@@ -1725,6 +1752,8 @@ export class BrowserViewModel implements ViewModel {
                 return true;
             case BrowserKeyInspect:
                 return this.toggleInspector(id);
+            case BrowserKeyAnnotate:
+                return this.annotate.isOpen() || this.startAnnotate(id);
             case BrowserKeyAddress:
                 return this.focusAddress();
             case BrowserKeyStop:
@@ -2393,7 +2422,11 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                       "mt-focus-only molten-fold-3"
                   )}
             <span className="mt-focus-only molten-fold-2 flex shrink-0 items-center">
-                <TestContextChip url={active?.url ?? ""} onSwitch={(url) => model.navigate(url)} />
+                <TestContextChip
+                    url={active?.url ?? ""}
+                    onSwitch={(url) => model.navigate(url)}
+                    onAnnotate={model.canAnnotate(active?.id) ? () => model.startAnnotate(active.id) : undefined}
+                />
             </span>
             {topField ? (
                 <PageAddress model={model} tab={active} />
@@ -2449,6 +2482,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 className={cn("molten-browser-drag h-full min-w-6", topField && "flex-1")}
             />
             <span className="mt-focus-only molten-fold-2 flex min-w-0 shrink items-center gap-1">
+                <AnnotateButton model={model} tab={active} />
                 <BookmarksButton model={model} tab={active} />
                 <ShareButton model={model} tab={active} />
                 <EngineButton model={model} tab={active} />
@@ -2474,6 +2508,34 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 </div>
             ) : null}
         </div>
+    );
+}
+
+// The Annotate button (FR-BRW-017, #2327): the page freezes into a capture to draw numbered zones on and send to an agent.
+// The tooltip names the shortcut with the glyphs of the platform.
+function AnnotateButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const t = useT();
+    const open = useAtomValue(model.annotate.openAtom);
+    if (tab == null || tab.engine || !annotatablePage(tab.url)) {
+        return null;
+    }
+    const shortcut = formatShortcutById(isMacOS() ? "browser-annotate" : "browser-annotate-other");
+    const label = t("browser.annotate.button");
+    return (
+        <button
+            type="button"
+            aria-label={label}
+            aria-pressed={open != null}
+            title={t("browser.annotate.buttonTitle", { shortcut })}
+            onClick={() => model.startAnnotate(tab.id)}
+            data-testid="browser-annotate-button"
+            className={cn(
+                "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary",
+                open != null && "bg-hover text-primary"
+            )}
+        >
+            <i className="fa fa-solid fa-vector-square text-12" />
+        </button>
     );
 }
 
@@ -2911,6 +2973,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                     <ActiveStartPage model={model} tabId={state.activeId} />
                     <ActiveErrorPage model={model} tabId={state.activeId} />
                     <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
+                    <AnnotateHost session={model.annotate} activeTabId={state.activeId} />
                 </div>
                 {state.tabs.map((tab) =>
                     inspectors[tab.id] != null && !tab.engine && discarded[tab.id] == null ? (

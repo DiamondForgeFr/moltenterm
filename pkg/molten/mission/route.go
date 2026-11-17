@@ -319,6 +319,15 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return openPipelineTab(req)
 	}
+	if command == AnnotateCommand {
+		var req AnnotateRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), annotateTimeout)
+		defer cancel()
+		return runAnnotate(ctx, defaultAnnotateEnv(), req)
+	}
 	if command == PipelineAskCommand {
 		var req PipelineAskRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -515,6 +524,8 @@ var windowCommands = map[string]string{
 	LaunchRetryCommand:      "a launch is retried from a MoltenTerm window",
 	// The version card's Stop this server (#2326): the developer's confirmed click only.
 	ServedStopCommand: "a served version is stopped from a MoltenTerm window",
+	// The version's annotated page (#2327) is kept as a material and handed to an agent on the developer's click only.
+	AnnotateCommand: "an annotated page is previewed, copied or sent from a MoltenTerm window",
 }
 
 func (l *routeLink) handleLaunch(command string, data any) (any, error) {
