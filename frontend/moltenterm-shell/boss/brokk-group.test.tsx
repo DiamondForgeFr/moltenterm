@@ -161,6 +161,7 @@ vi.mock("./brokk-rows-panels", () => ({
 
 import { getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
+import type { PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { DownloadsModel } from "../downloads/downloads-store";
@@ -255,6 +256,11 @@ function download(id: string, state: string, endedAt = 0, extra: Record<string, 
     return { id, state, endedAt, received: 0, total: 0, name: id, ...extra };
 }
 
+// The settings of this test are writable atoms (the mock above); the real ones are read-only.
+function setSetting(key: "boss:usageshow" | "boss:usagehide", value: string[]) {
+    globalStore.set(getSettingsKeyAtom(key) as unknown as PrimitiveAtom<string[]>, value);
+}
+
 function quiet() {
     globalStore.set(boss.nameAtom, "Brokk");
     globalStore.set(boss.tabRequestAtom, null);
@@ -265,8 +271,8 @@ function quiet() {
     globalStore.set(keep.stateAtom, EmptyKeepAwakeState);
     globalStore.set(UsageReadingsAtom, {});
     globalStore.set(UsageUseAtom, null);
-    globalStore.set(getSettingsKeyAtom("boss:usageshow"), undefined);
-    globalStore.set(getSettingsKeyAtom("boss:usagehide"), undefined);
+    setSetting("boss:usageshow", undefined);
+    setSetting("boss:usagehide", undefined);
     const session = BrokkSession.getInstance() as any;
     globalStore.set(session.exchangeAtom, []);
     globalStore.set(session.unseenIdAtom, null);
@@ -1235,7 +1241,7 @@ describe("the block under the square (AC17 and AC20)", () => {
             });
             expect(render()).not.toContain("brokk-usage-hidden-block");
             globalStore.set(UsageUseAtom, { claude: use(20) });
-            globalStore.set(getSettingsKeyAtom("boss:usageshow"), ["codex"]);
+            setSetting("boss:usageshow", ["codex"]);
             const html = render();
             expect(providers(html)).toEqual(["claude", "codex"]);
             expect(html).not.toContain("brokk-usage-hidden-block");
@@ -1248,7 +1254,7 @@ describe("the block under the square (AC17 and AC20)", () => {
             });
             globalStore.set(UsageUseAtom, { claude: use(20) });
             expect(providers(render())).toEqual(["claude", "codex"]);
-            globalStore.set(getSettingsKeyAtom("boss:usagehide"), ["codex"]);
+            setSetting("boss:usagehide", ["codex"]);
             const html = render();
             expect(providers(html)).toEqual(["claude"]);
             expect(html).toContain("Not used lately (1)");

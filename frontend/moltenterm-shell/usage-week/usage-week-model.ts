@@ -102,6 +102,25 @@ export function mainWindow(windows: UsageWindow[], now: number): UsageWindow {
     return best;
 }
 
+// What counts as a reading that is no longer current, and as the developer's recent use of a provider: 7 days.
+export const UseWindowMs = 7 * 24 * 60 * 60 * 1000;
+
+// A reading is current for as long as its window lasts, and for 7 days at most (FR-BOSS-009, AC96, #2341).
+export function staleAfterMs(windowMins: number): number {
+    return windowMins > 0 ? Math.min(windowMins * 60 * 1000, UseWindowMs) : UseWindowMs;
+}
+
+export function isStale(readAt: number, windowMins: number, now: number): boolean {
+    return readAt > 0 && now - readAt > staleAfterMs(windowMins);
+}
+
+// A reading older than its main window (or than 7 days) is no news: the one that tells a plan usage above 90 % ignores
+// it. A reading with no running window, or none at all, is not called stale: it has nothing to draw.
+export function readingStale(snapshot: { windows?: UsageWindow[]; readat?: number }, now: number): boolean {
+    const main = mainWindow(snapshot?.windows, now);
+    return main != null && isStale(snapshot.readat ?? 0, windowLength(main), now);
+}
+
 // The weekday a window resets on, in the language given ("lundi"); "" when the reader does not say.
 export function resetDay(resetsAt: number, locale: string): string {
     if (!(resetsAt > 0)) {

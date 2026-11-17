@@ -1,6 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import type { PrimitiveAtom } from "jotai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const m = vi.hoisted(() => ({ write: vi.fn(async (_settings: Record<string, unknown>) => {}) }));
@@ -31,10 +32,15 @@ import {
     UsageShowKey,
 } from "./brokk-usage-choices";
 
+// The settings of this test are writable atoms (the mock above); the real ones are read-only.
+function setSetting(key: string, value: unknown) {
+    globalStore.set(getSettingsKeyAtom(key as any) as unknown as PrimitiveAtom<unknown>, value);
+}
+
 beforeEach(() => {
     m.write.mockClear();
-    globalStore.set(getSettingsKeyAtom(UsageShowKey as any), undefined);
-    globalStore.set(getSettingsKeyAtom(UsageHideKey as any), undefined);
+    setSetting(UsageShowKey, undefined);
+    setSetting(UsageHideKey, undefined);
 });
 
 describe("the choices of which providers the usage grid shows (FR-BOSS-009, AC97)", () => {
@@ -58,8 +64,8 @@ describe("the choices of which providers the usage grid shows (FR-BOSS-009, AC97
     });
 
     it("write the lists with the provider moved, the other choices kept", async () => {
-        globalStore.set(getSettingsKeyAtom(UsageShowKey as any), ["claude"]);
-        globalStore.set(getSettingsKeyAtom(UsageHideKey as any), ["codex"]);
+        setSetting(UsageShowKey, ["claude"]);
+        setSetting(UsageHideKey, ["codex"]);
         expect(readChoices()).toEqual({ show: ["claude"], hide: ["codex"] });
         await chooseUsage("codex", "show");
         expect(m.write).toHaveBeenLastCalledWith({ [UsageShowKey]: ["claude", "codex"], [UsageHideKey]: null });
