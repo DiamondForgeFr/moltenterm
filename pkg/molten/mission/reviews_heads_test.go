@@ -90,6 +90,8 @@ type pushFixture struct {
 	reviews *Reviews
 	lock    sync.Mutex
 	answers []ReviewsAnswer
+	// beforeAnswer: runs in the publish of an answer, before it is recorded; a test holds an answer back with it.
+	beforeAnswer func(ReviewsAnswer)
 }
 
 func makePushFixture(t *testing.T) *pushFixture {
@@ -97,6 +99,12 @@ func makePushFixture(t *testing.T) *pushFixture {
 	f := &pushFixture{t: t, dir: dir, gh: &pushGh{tip: pushedOldHead, state: "OPEN", unknownReads: 2}}
 	collector := testCollector(t, "", f.gh.run, nil)
 	f.reviews = MakeReviews(collector, f.gh.run, func(answer ReviewsAnswer) {
+		f.lock.Lock()
+		before := f.beforeAnswer
+		f.lock.Unlock()
+		if before != nil {
+			before(answer)
+		}
 		f.lock.Lock()
 		defer f.lock.Unlock()
 		f.answers = append(f.answers, answer)
@@ -205,7 +213,8 @@ func TestAPushWithoutItsHeadIsFollowedUntilTheHeadMoves(t *testing.T) {
 	f.waitPublished("the pushed head, rebased and clean", rebasedAndClean)
 }
 
-// A PR merged or closed before the read leaves the list instead of staying with its old state.
+// A PR merged or closed before the read leaves the list instead of staying with its old state. The views keep the last
+// answer they were told, so it is the last one that must be without the PR.
 func TestAPushedPrThatIsNotOpenLeavesTheList(t *testing.T) {
 	t.Parallel()
 	f := makePushFixture(t)
@@ -230,6 +239,86 @@ func TestAPushedPrThatIsNotOpenLeavesTheList(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatal("the merged PR stayed in the list")
+}
+
+func waitClosed(t *testing.T, ch <-chan struct{}, what string) {
+	t.Helper()
+	// Generous: it only bounds a failing run.
+	select {
+	case <-ch:
+	case <-time.After(time.Minute):
+		t.Fatalf("timed out waiting for %s", what)
+	}
+}
+
+func isClosed(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
+}
+
+// An answer built before a PR left the list must not reach the views after the answer without it (#2343): the reports'
+// answer was built from the list a moment earlier and, on a loaded machine, was published last, so a merged PR stayed
+// in the views' list until they asked again (the test above then waited a minute for a last answer that never came).
+func TestAnAnswerBuiltBeforeAPrLeftTheListDoesNotComeAfterIt(t *testing.T) {
+	t.Parallel()
+	f := makePushFixture(t)
+	f.pr9()
+	// The reports of the first ask publish once: after that answer, the ones recorded are this test's.
+	f.waitPublished("the reports' answer", func(ReviewPr) bool { return true })
+	held := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHeld := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseHeld)
+	f.lock.Lock()
+	f.beforeAnswer = func(ReviewsAnswer) {
+		f.lock.Lock()
+		f.beforeAnswer = nil
+		f.lock.Unlock()
+		close(held)
+		<-release
+	}
+	f.lock.Unlock()
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		f.reviews.publishCurrent(f.dir)
+	}()
+	waitClosed(t, held, "the first answer to be held back")
+	merged := json.RawMessage(pushedPr(pushedNewHead, "MERGEABLE", "CLEAN", pushedRunningRollup, "MERGED"))
+	if _, ok := f.reviews.collector.ReplacePr(f.dir, 9, merged, false); !ok {
+		t.Fatal("the PR is in the list")
+	}
+	secondDone := make(chan struct{})
+	go func() {
+		defer close(secondDone)
+		f.reviews.publishCurrent(f.dir)
+	}()
+	// Generous: it only bounds a failing run. The second answer either waits for the first (queued) or has already
+	// been published without waiting (done): the first is let go after either.
+	deadline := time.Now().Add(time.Minute)
+	for f.reviews.publishWaiting.Load() == 0 && !isClosed(secondDone) && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	releaseHeld()
+	waitClosed(t, firstDone, "the held answer to be published")
+	waitClosed(t, secondDone, "the second answer to be published")
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	n := len(f.answers)
+	if n < 3 {
+		t.Fatalf("%d answers recorded, the reports', the held one and the one without the PR make 3", n)
+	}
+	if got := len(f.answers[n-1].Ready); got != 0 {
+		t.Fatalf("the last answer brings the merged PR back: %d ready", got)
+	}
+	if got := len(f.answers[n-2].Ready); got != 1 {
+		t.Errorf("the held answer was meant to be built before the PR left the list: %d ready", got)
+	}
 }
 
 // Nothing moved on origin: no read of the PR, however often the repository changes.
