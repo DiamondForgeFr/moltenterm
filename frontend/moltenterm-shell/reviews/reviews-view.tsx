@@ -55,6 +55,7 @@ import { useLeftoverAsks } from "./reviews-leftover-asks";
 import { LeftoverOwnerCard } from "./reviews-leftover-owner";
 import { leftoverOwnerCard, leftoverTurnRows } from "./reviews-leftover-owner-model";
 import { leftoverRows } from "./reviews-leftovers-model";
+import { LegendButton } from "./reviews-legend";
 import {
     MoltentermReviewsView,
     nextRow,
@@ -273,7 +274,12 @@ function ReviewsContent({
     );
     return (
         <>
-            <MissionHeader project={project} snapshot={headerSnapshot} onRefresh={refresh}>
+            <MissionHeader
+                project={project}
+                snapshot={headerSnapshot}
+                onRefresh={refresh}
+                trailing={answer?.state === "ok" ? <LegendButton /> : null}
+            >
                 {answer?.target ? (
                     <span
                         className="text-11 text-muted"

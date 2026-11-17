@@ -8828,6 +8828,27 @@
             "stateTitle": "Dans chaque section, ce qui vous attend d'abord, dans l'ordre des états des cartes.",
             "merge": "Ordre de fusion"
         },
+        "legend": {
+            "button": "Ce que veulent dire les couleurs",
+            "title": "Ce que veulent dire les couleurs",
+            "intro": "Le bord et le point de chaque carte disent où elle en est.",
+            "mark": {
+                "waiting": "Vous attend",
+                "ready": "Prête à fusionner",
+                "blocked": "Bloquée",
+                "running": "En cours",
+                "draft": "Rien ne bouge"
+            },
+            "tone": {
+                "you": "Un agent s'est arrêté pour vous poser une question, ou une décision vous revient.",
+                "ready": "La CI est verte et rien n'est ouvert : vous pouvez la fusionner.",
+                "broken": "La CI a échoué ou elle est en conflit avec sa branche cible, et aucun agent n'y travaille.",
+                "agent": "Un agent y travaille.",
+                "running": "La CI tourne.",
+                "draft": "Son agent a fini ou s'est arrêté, et personne n'y travaille.",
+                "wait": "Elle attend autre chose, par exemple une autre pull request."
+            }
+        },
         "sections": {
             "yours": "Intervention requise",
             "yoursHint": "bloquées tant que vous n'agissez pas",
