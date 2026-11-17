@@ -43,6 +43,34 @@ func TestAddFileKeepsTheFileAsAMaterialOfTheProject(t *testing.T) {
 	}
 }
 
+// The same file written again somewhere else (each send writes into a fresh private folder) is the material already
+// kept; another file is another material.
+func TestAddFileRecognisesTheSameFileFromAnotherPlace(t *testing.T) {
+	t.Parallel()
+	h := makeHarness(t)
+	first, err := h.r.AddFile(h.project, h.writePng("one/annotated-page.png", 40, 30), "Annotated page")
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := h.r.AddFile(h.project, h.writePng("two/annotated-page.png", 40, 30), "Annotated page")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Id != first.Id || again.CopyPath != first.CopyPath {
+		t.Errorf("the same file is two materials: %+v then %+v", first, again)
+	}
+	other, err := h.r.AddFile(h.project, h.writePng("three/annotated-page.png", 41, 30), "Annotated page")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if other.Id == first.Id {
+		t.Errorf("another file took the first one's place: %+v", other)
+	}
+	if list := h.list(); len(list) != 2 {
+		t.Errorf("the drawer holds %d materials, want 2", len(list))
+	}
+}
+
 // What MoltenTerm never copies is not copied because a caller asked: a file of its own data folder is refused.
 func TestAddFileRefusesMoltenTermsOwnData(t *testing.T) {
 	t.Parallel()

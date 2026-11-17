@@ -2924,6 +2924,10 @@
                 "done": "Terminé"
             },
             "gone": "{name} ne tourne plus. Choisissez un autre agent ou copiez le rapport.",
+            "refused": {
+                "workspace": "{name} travaille dans un autre espace de travail : rien n'a été envoyé.",
+                "project": "{name} travaille sur un autre projet : rien n'a été envoyé."
+            },
             "sendFailed": "Rien n'a été envoyé : {error}",
             "materialTitle": "Page annotée : {where}"
         },

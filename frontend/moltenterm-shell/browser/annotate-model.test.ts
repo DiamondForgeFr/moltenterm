@@ -28,6 +28,7 @@ import {
     MaxZones,
     MinZonePx,
     recipientsOf,
+    resolveRecipient,
     setComment,
     zoneAt,
     zoneNumber,
@@ -232,10 +233,20 @@ function panel(name: string, blockId: string, extra: Partial<AgentBarFacts> = {}
 }
 
 function live(blockid: string, firstname: string, project: string, extra: Partial<AgentStateInfo> = {}) {
-    return { blockid, firstname, project, agent: "claude", version: 1, state: "idle", ...extra } as AgentStateInfo;
+    return {
+        blockid,
+        firstname,
+        project,
+        workspaceid: Ws,
+        agent: "claude",
+        version: 1,
+        state: "idle",
+        ...extra,
+    } as AgentStateInfo;
 }
 
 const Dir = "/w/shop";
+const Ws = "ws-1";
 const States: AgentStateInfo[] = [
     live("b-camille", "Camille", Dir, { started: 10 }),
     live("b-hugo", "Hugo", Dir, { started: 5 }),
@@ -246,7 +257,16 @@ const States: AgentStateInfo[] = [
 ];
 
 function input(extra: Partial<RecipientInput> = {}): RecipientInput {
-    return { worktree: true, projectDir: Dir, onBranch: [], prLead: null, states: States, locks: [], ...extra };
+    return {
+        workspaceId: Ws,
+        worktree: true,
+        projectDir: Dir,
+        onBranch: [],
+        prLead: null,
+        states: States,
+        locks: [],
+        ...extra,
+    };
 }
 
 describe("the agent the zones are proposed to (FR-BRW-017 AC14)", () => {
@@ -325,6 +345,69 @@ describe("the agent the zones are proposed to (FR-BRW-017 AC14)", () => {
     });
 });
 
+// Activity is per workspace (only Brokk crosses them) and, when one is known, per project.
+describe("only the agents of the window's workspace and project are offered", () => {
+    const elsewhere = [
+        live("b-lea", "Lea", Dir, { workspaceid: "ws-2", started: 0 }),
+        live("b-marc", "Marc", "/w/blog", { workspaceid: "ws-2", started: 0 }),
+        live("b-none", "Nils", Dir, { workspaceid: undefined, started: 0 }),
+    ];
+
+    it("leaves out an agent of another workspace, even of the same project folder, however old its session", () => {
+        const list = recipientsOf(input({ states: [...elsewhere, ...States] }));
+        expect(list.map((r) => r.name)).toEqual(["Hugo", "Camille"]);
+    });
+
+    it("never names an agent of another workspace as the one on the branch, the sub-agent's owner, the signer or the lock", () => {
+        const stranger = live("b-lea", "Lea", Dir, { workspaceid: "ws-2" });
+        const sub = { kind: "subagent", name: "", parentBlockId: "b-lea", parentName: "Lea" } as AgentBarFacts;
+        const list = recipientsOf(
+            input({
+                states: [stranger],
+                onBranch: [panel("Lea", "b-lea"), sub],
+                prLead: { name: "Lea", blockId: "b-lea", source: "signature" },
+                locks: [{ name: "Lea", project: Dir }],
+            })
+        );
+        expect(list).toEqual([]);
+    });
+
+    it("offers the workspace's agents when no project folder is known (a page served from nowhere, a workspace with no project)", () => {
+        const list = recipientsOf(
+            input({ projectDir: "", states: [...elsewhere, live("b-ines", "Ines", "/w/other"), ...States] })
+        );
+        expect(list.map((r) => r.name).sort()).toEqual(["Camille", "Hugo", "Ines"]);
+        expect(list.every((r) => r.why === "project" && r.lead)).toBe(true);
+    });
+
+    it("offers nobody when the window's workspace is not known", () => {
+        expect(recipientsOf(input({ workspaceId: "" }))).toEqual([]);
+        expect(recipientsOf(input({ workspaceId: "", projectDir: "" }))).toEqual([]);
+    });
+});
+
+describe("the agent the developer picked", () => {
+    const list = recipientsOf(input());
+
+    it("is the one proposed until the developer picks another", () => {
+        expect(resolveRecipient(list, null)).toEqual({ chosen: list[0], lost: "" });
+        const camille = list.find((r) => r.name === "Camille");
+        expect(resolveRecipient(list, { blockId: camille.blockId, name: "Camille" })).toEqual({
+            chosen: camille,
+            lost: "",
+        });
+        expect(resolveRecipient([], null)).toEqual({ chosen: null, lost: "" });
+    });
+
+    it("is never replaced by another when it goes: nothing is chosen, and the review says who went", () => {
+        const gone = { blockId: "b-camille", name: "Camille" };
+        const rest = list.filter((r) => r.blockId !== "b-camille");
+        expect(rest.length).toBeGreaterThan(0);
+        expect(resolveRecipient(rest, gone)).toEqual({ chosen: null, lost: "Camille" });
+        expect(resolveRecipient([], gone)).toEqual({ chosen: null, lost: "Camille" });
+    });
+});
+
 const Answer: TestContextAnswer = {
     url: "http://localhost:5173/some/path?x=1",
     host: "localhost",
@@ -392,6 +475,7 @@ describe("where the page's zones go from (FR-BRW-017 AC12)", () => {
         const target = annotateTargetOf({
             url: Answer.url,
             answer: Answer,
+            workspaceId: Ws,
             workspaceDir: Dir,
             projects: [project(upcoming, agents)],
             asks: {},
@@ -408,6 +492,7 @@ describe("where the page's zones go from (FR-BRW-017 AC12)", () => {
         const target = annotateTargetOf({
             url: "https://example.test/docs",
             answer: null,
+            workspaceId: Ws,
             workspaceDir: Dir,
             projects: [],
             asks: {},
@@ -427,6 +512,7 @@ describe("where the page's zones go from (FR-BRW-017 AC12)", () => {
         const target = annotateTargetOf({
             url: Answer.url,
             answer: { ...Answer, sameproject: false, project: "/w/blog", root: "/w/blog-wt/x", branch: "feature/3-c" },
+            workspaceId: Ws,
             workspaceDir: Dir,
             projects: [],
             asks: {},
@@ -441,6 +527,7 @@ describe("where the page's zones go from (FR-BRW-017 AC12)", () => {
         const target = annotateTargetOf({
             url: Answer.url,
             answer: Answer,
+            workspaceId: Ws,
             workspaceDir: Dir,
             projects: [],
             asks: {},
@@ -452,7 +539,14 @@ describe("where the page's zones go from (FR-BRW-017 AC12)", () => {
 });
 
 describe("what wavesrv is asked", () => {
-    const target = { address: Answer.url, root: "/w/shop-wt/a", dir: Dir, branch: "feature/1-a", recipients: [] };
+    const target = {
+        address: Answer.url,
+        root: "/w/shop-wt/a",
+        dir: Dir,
+        branch: "feature/1-a",
+        workspaceId: Ws,
+        recipients: [],
+    };
     const zones = drawn("  The title is cut.  ", "").zones;
     const to = { blockId: "b-camille", name: "Camille", agent: "claude", why: "pr" as const, lead: true };
 
@@ -463,6 +557,7 @@ describe("what wavesrv is asked", () => {
             address: Answer.url,
             root: "/w/shop-wt/a",
             branch: "feature/1-a",
+            workspaceid: Ws,
             zones: [{ comment: "The title is cut." }, { comment: "" }],
             to: { blockid: "b-camille", firstname: "Camille", agent: "claude", lead: true },
         });
