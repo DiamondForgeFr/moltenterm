@@ -64,6 +64,7 @@ var englishFields = map[string]string{
 	"review.MarkReadyResult.Message":        "gh's raw error, the detail of the reason error",
 	"review.RestartResult.Reason":           "a code (RestartReason…) the Review tab words",
 	"brokksession.Result.Reason":            "a code (Reason…) the panel's talk field words (boss.panel.talk.*, #2003)",
+	"mission.AnnotateResult.Reason":         "a code (AnnotateRefused…) the annotate review words under browser.annotate.refused.* (#2327)",
 	"brokksession.Result.Message":           "the English detail of a refusal, logged and never shown: the field words the Reason (#2003)",
 	"review.BatchItem.Reason":               "a code (BatchReason…) the Reviews list and the notifications word",
 	"review.BatchItem.Note":                 "the agent's own words on an ambiguous conflict, data",
