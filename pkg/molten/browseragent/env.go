@@ -39,6 +39,9 @@ const (
 
 	PromptSite   = "site"
 	PromptAction = "action"
+	// PromptReuse asks the user whether an agent may use a page they opened (#2333): Allow or Deny, which means "open
+	// another tab".
+	PromptReuse = "reuse"
 )
 
 // BlockLocation is where a block is now: re-read on every call, so a pane moved to another tab or workspace is scoped
@@ -57,6 +60,21 @@ type Panel struct {
 	TabId       string
 	WorkspaceId string
 	Tabs        []molten.BrowserPanelTab
+}
+
+// WorkspacePanel is a browser panel of the workspace with where it is (#2333).
+type WorkspacePanel struct {
+	Panel
+	// TabName: the name of the Wave tab that holds the panel.
+	TabName string
+	// Shown: its Wave tab is the one the workspace shows.
+	Shown bool
+	// Active: the page the panel shows (a browser tab id).
+	Active string
+	// Recent: the panel's rank in its Wave tab's focus history, 0 for the latest, negative when never focused.
+	Recent int
+	// Order: the panel's place among its Wave tab's browser panels, 1 for the first.
+	Order int
 }
 
 func (p Panel) findTab(browserTabId string) (molten.BrowserPanelTab, bool) {
@@ -138,9 +156,24 @@ type PermissionPrompt struct {
 	ActionText *uimsg.Text `json:"actiontext,omitempty"`
 }
 
+// PanelReuseAsk is an agent asking to use a page the user opened in this panel (#2333): the tab's bar asks, and the
+// answer goes to wavesrv as an Answer with this request. Must match AgentReuseAsk in
+// frontend/moltenterm-shell/browser/browser-agent.ts.
+type PanelReuseAsk struct {
+	BrowserTabId string `json:"browsertabid"`
+	RequestId    string `json:"requestid"`
+	AgentName    string `json:"agentname"`
+	// AgentBlockId: the agent's terminal.
+	AgentBlockId string `json:"agentblockid,omitempty"`
+	// Since: when the agent asked (Unix ms).
+	Since int64 `json:"since,omitempty"`
+}
+
 type PanelState struct {
 	BlockId string          `json:"blockid"`
 	Tabs    []PanelAgentTab `json:"tabs"`
+	// Asks: the agents waiting for the user's Allow on a page of this panel that is not theirs yet, oldest first.
+	Asks []PanelReuseAsk `json:"asks"`
 }
 
 type ControlRequest struct {
@@ -193,6 +226,8 @@ type Env interface {
 	TabPanels(ctx context.Context, tabId string) ([]string, any, error)
 	// ReadPanel returns a panel and where it is; false when the block is gone or is not a browser panel.
 	ReadPanel(ctx context.Context, panelId string) (Panel, bool, error)
+	// WorkspacePanels lists the browser panels of every Wave tab of a workspace (#2333), never another workspace's.
+	WorkspacePanels(ctx context.Context, workspaceId string) ([]WorkspacePanel, error)
 	// AgentName is the display name of the agent detected in the terminal block, "" when none is.
 	AgentName(blockId string) string
 	// OpenTab queues the tab in its panel (or creates the panel) and returns the panel's block id.

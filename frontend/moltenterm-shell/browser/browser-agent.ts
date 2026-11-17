@@ -97,9 +97,22 @@ export type ShareResult = { result: "shared" | "move"; agentname?: string; holde
 export type ShareTellResult = { sent: boolean; message: string; messagetext?: ServerText };
 export type AgentSession = { sessionid: string; blockid: string; agentname: string };
 
-export type PanelAgentState = { blockid: string; tabs: AgentTab[] };
+// An agent asking to use a page the user opened in this panel (#2333): the tab's bar asks, Allow hands it over as Share
+// does. Must match PanelReuseAsk in pkg/molten/browseragent/env.go.
+export type AgentReuseAsk = {
+    browsertabid: string;
+    requestid: string;
+    agentname: string;
+    agentblockid?: string;
+    since?: number;
+};
+
+export type PanelAgentState = { blockid: string; tabs: AgentTab[]; asks?: AgentReuseAsk[] };
 
 export type AgentTabs = Record<string, AgentTab>;
+
+// The oldest question waiting on each tab, by tab id.
+export type ReuseAsks = Record<string, AgentReuseAsk>;
 
 export type ControlBarButton = { label: string; action: AgentControlAction; primary: boolean };
 
@@ -123,8 +136,10 @@ export type PermissionBarView = {
     site: string;
     title: string;
     detail: string;
-    // What Escape answers: dismiss for a site, deny for an action.
+    // What Escape answers: dismiss for a site, deny for an action or for a page the user opened.
     escape: PermissionDecision;
+    // A question about using a page the user opened has words of its own for assistive technology.
+    reuse?: boolean;
     buttons: PermissionBarButton[];
 };
 
@@ -136,6 +151,23 @@ export function readPanelAgentState(state: PanelAgentState): AgentTabs {
         }
     }
     return rtn;
+}
+
+export function readPanelReuseAsks(state: PanelAgentState): ReuseAsks {
+    const rtn: ReuseAsks = {};
+    for (const ask of state?.asks ?? []) {
+        if (ask?.browsertabid && ask.requestid && rtn[ask.browsertabid] == null) {
+            rtn[ask.browsertabid] = ask;
+        }
+    }
+    return rtn;
+}
+
+// The questions in `asks` that `seen` has not held, the oldest first.
+export function newReuseAsks(asks: ReuseAsks, seen: Set<string>): AgentReuseAsk[] {
+    return Object.values(asks ?? {})
+        .filter((ask) => !seen.has(ask.requestid))
+        .sort((a, b) => (a.since ?? 0) - (b.since ?? 0));
 }
 
 // The stamp of each tab's last shown page, by tab id.
@@ -265,6 +297,28 @@ export function permissionBarView(tab: AgentTab): PermissionBarView {
     };
 }
 
+// The bar of a page the user opened that an agent asks to use (#2333), in the permission bar's slot and style: Open
+// another tab first, so it is the first tab stop and what Escape answers, Allow, which hands the tab over as Share
+// does, the primary.
+export function reuseBarView(ask: AgentReuseAsk): PermissionBarView {
+    if (ask?.requestid == null || ask.requestid === "") {
+        return null;
+    }
+    const name = ask.agentname?.trim() || t("browser.agent.anAgent");
+    return {
+        requestId: ask.requestid,
+        site: "",
+        title: t("browser.permission.reuseTitle", { name }),
+        detail: t("browser.permission.reuseDetail"),
+        escape: "deny",
+        reuse: true,
+        buttons: [
+            { label: t("browser.permission.reuseOther"), decision: "deny", primary: false },
+            { label: t("browser.permission.allow"), decision: "allow", primary: true },
+        ],
+    };
+}
+
 // A click on a bar that appeared this recently is ignored: a double click meant for the previous question, or a click
 // already on its way, must not answer the next one (the next request takes the same slot, its Allow under the cursor).
 export const AnswerGuardMs = 400;
@@ -281,6 +335,15 @@ export function applyAnswer(tabs: AgentTabs, browserTabId: string, requestId: st
     }
     const { permission: _answered, ...rest } = tab;
     return { ...tabs, [browserTabId]: rest };
+}
+
+// The questions after the user answers one, before wavesrv's event confirms it.
+export function applyReuseAnswer(asks: ReuseAsks, browserTabId: string, requestId: string): ReuseAsks {
+    if (asks?.[browserTabId]?.requestid !== requestId) {
+        return asks;
+    }
+    const { [browserTabId]: _answered, ...rest } = asks;
+    return rest;
 }
 
 function hostOf(url: string): { host: string; hostname: string } {
@@ -379,6 +442,12 @@ export function activeCue(tab: AgentTab, now: number): AgentActionCue {
 export class BrowserAgentModel {
     blockId: string;
     tabsAtom = atom({}) as PrimitiveAtom<AgentTabs>;
+    // The agents waiting for the user's Allow on a page of this panel (#2333), by tab id.
+    asksAtom = atom({}) as PrimitiveAtom<ReuseAsks>;
+    // Asked when a question arrives live, with the tabs it is about, so the panel comes into view where the user sees it.
+    // The snapshot read when the panel mounts is where the questions start: an old one never moves the carpet.
+    onAsk: (tabIds: string[]) => void = null;
+    askSeen = new Set<string>();
     // The agents of the panel's tab connected to MoltenTerm's browser, as last listed (FR-BRW-011).
     sessionsAtom = atom([]) as PrimitiveAtom<AgentSession[]>;
     unsubscribe: () => void = null;
@@ -466,6 +535,13 @@ export class BrowserAgentModel {
         const showed = live ? tabsShownSince(tabs, this.shownSeen) : [];
         this.shownSeen = shownStamps(tabs);
         globalStore.set(this.tabsAtom, tabs);
+        const asks = readPanelReuseAsks(state);
+        const asked = live ? newReuseAsks(asks, this.askSeen) : [];
+        this.askSeen = new Set(Object.values(asks).map((ask) => ask.requestid));
+        globalStore.set(this.asksAtom, asks);
+        if (asked.length > 0) {
+            this.onAsk?.(asked.map((ask) => ask.browsertabid));
+        }
         if (showed.length === 0) {
             return;
         }
@@ -510,6 +586,7 @@ export class BrowserAgentModel {
     answer(browserTabId: string, requestId: string, decision: PermissionDecision): void {
         this.stateVersion++;
         globalStore.set(this.tabsAtom, applyAnswer(this.tabs(), browserTabId, requestId));
+        globalStore.set(this.asksAtom, applyReuseAnswer(globalStore.get(this.asksAtom), browserTabId, requestId));
         fireAndForget(async () => {
             try {
                 await TabRpcClient.wshRpcCall(

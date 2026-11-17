@@ -44,6 +44,7 @@ const (
 	actionNavigate   = "Went to %s"
 	actionBack       = "Went back"
 	actionForward    = "Went forward"
+	actionReload     = "Loaded the page again"
 	actionReadPage   = "Read the page"
 	actionPageText   = "Read the page's text"
 	actionFind       = "Searched the page"
@@ -219,8 +220,8 @@ type navigateResult struct {
 	Redirect string `json:"redirect"`
 }
 
-// navigate loads a URL, or goes back or forward (DS-BRW-015). The target's site is allowed before anything loads; a
-// redirect that lands on another site completes, and the next action there asks.
+// navigate loads a URL, goes back or forward, or loads the page again (DS-BRW-015, "reload": #2333). The target's site is
+// allowed before anything loads; a redirect that lands on another site completes, and the next action there asks.
 func (m *Manager) navigate(ctx context.Context, s sessionInfo, loc BlockLocation, args json.RawMessage) (mcpbrowser.CallResult, callLog) {
 	tabId, ok := parseTabId(args)
 	if !ok {
@@ -230,7 +231,7 @@ func (m *Manager) navigate(ctx context.Context, s sessionInfo, loc BlockLocation
 	json.Unmarshal(args, &parsed)
 	direction := strings.ToLower(strings.TrimSpace(parsed.Url))
 	target := ""
-	if direction != urlBack && direction != urlForward {
+	if direction != urlBack && direction != urlForward && direction != urlReload {
 		var problem string
 		target, problem = navigateTarget(parsed.Url)
 		if problem == "missing" {
@@ -251,7 +252,19 @@ func (m *Manager) navigate(ctx context.Context, s sessionInfo, loc BlockLocation
 	errText, err := m.runOnTab(ctx, s.id, tabId, func(ctx context.Context) error {
 		params := map[string]any{"timeoutms": navigateTimeout.Milliseconds()}
 		action := ""
-		if direction != "" {
+		if direction == urlReload {
+			page, err := m.currentPage(ctx, key)
+			if err != nil {
+				return err
+			}
+			if permissionSite(page.url) == "" {
+				return refusal(mcpbrowser.ErrNothingToReload)
+			}
+			target = page.url
+			params["url"] = target
+			action = actionReload
+			entry.site = siteOf(target)
+		} else if direction != "" {
 			page, err := m.currentPage(ctx, key)
 			if err != nil {
 				return err

@@ -2665,7 +2665,11 @@
             "siteDetail": "Il pourra lire les pages de ce site et y agir, avec vos connexions.",
             "allowOnce": "Autoriser une fois",
             "always": "Toujours pour ce site",
-            "block": "Bloquer"
+            "block": "Bloquer",
+            "reuseAria": "Demande d'utilisation de cette page",
+            "reuseTitle": "{name} voudrait utiliser cette page",
+            "reuseDetail": "Autoriser lui laisse travailler dans cet onglet. Sinon, il en ouvre un autre.",
+            "reuseOther": "Ouvrir un autre onglet"
         },
         "sitePermission": {
             "aria": "Demande d'autorisation d'un site",
@@ -10812,6 +10816,7 @@
             "action": {
                 "back": "Est revenu en arrière",
                 "forward": "Est allé en avant",
+                "reload": "A rechargé la page",
                 "navigate": "Est allé sur {site}",
                 "readpage": "A lu la page",
                 "pagetext": "A lu le texte de la page",

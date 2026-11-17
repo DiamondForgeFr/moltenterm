@@ -76,7 +76,7 @@ func (m *Manager) dispatch(ctx context.Context, s sessionInfo, loc BlockLocation
 	case mcpbrowser.ToolTabsContext:
 		return m.tabsContext(ctx, s, loc, args), callLog{}
 	case mcpbrowser.ToolTabsCreate:
-		return m.tabsCreate(ctx, s, loc)
+		return m.tabsCreate(ctx, s, loc, args)
 	case mcpbrowser.ToolTabsShow:
 		return m.tabsShow(ctx, s, loc, args)
 	case mcpbrowser.ToolTabsClose:
@@ -119,7 +119,7 @@ func resultSentence(result mcpbrowser.CallResult) string {
 		mcpbrowser.ErrStartRequired, mcpbrowser.ErrValueRequired, mcpbrowser.ErrFieldUnsupported, mcpbrowser.ErrFileInput,
 		mcpbrowser.ErrOptionNotFound, mcpbrowser.ErrResizeBounds, mcpbrowser.ErrBatchActions, mcpbrowser.ErrBatchNested,
 		mcpbrowser.ErrActionDenied, mcpbrowser.ErrActionTimeout, mcpbrowser.ErrInputFailed, mcpbrowser.ErrPageChanged, mcpbrowser.ErrRefOutside,
-		mcpbrowser.ErrTooManyKeys, mcpbrowser.ErrClipboardKey,
+		mcpbrowser.ErrTooManyKeys, mcpbrowser.ErrClipboardKey, mcpbrowser.ErrNothingToReload, mcpbrowser.ErrCallCancelled,
 	}
 	if slices.Contains(fixed, result.Content[0].Text) {
 		return result.Content[0].Text
@@ -280,18 +280,31 @@ func (m *Manager) tabsContext(ctx context.Context, s sessionInfo, loc BlockLocat
 	json.Unmarshal(args, &parsed)
 	entries, pages := m.readTabs(ctx, s, loc)
 	if len(entries) == 0 && parsed.CreateIfEmpty {
-		if created, _ := m.tabsCreate(ctx, s, loc); created.IsError {
-			return created
+		if _, failed := m.openEmptyTab(ctx, s, loc); failed != nil {
+			return *failed
 		}
 		entries, pages = m.readTabs(ctx, s, loc)
 	}
-	if len(entries) == 0 {
-		return mcpbrowser.TextResult(jsonText(map[string]any{"tabs": []tabEntry{}}) +
-			"\nNo tabs yet: open one with tabs_create (or tabs_context with createIfEmpty).")
+	others, otherPages := m.readOtherPages(ctx, s, loc)
+	if entries == nil {
+		entries = []tabEntry{}
 	}
-	parts := []string{jsonText(map[string]any{"tabs": entries})}
+	head := map[string]any{"tabs": entries}
+	if len(others) > 0 {
+		head["otherPages"] = others
+	}
+	parts := []string{jsonText(head)}
+	if len(entries) == 0 {
+		parts = append(parts, "No tabs yet: open one with tabs_create (or tabs_context with createIfEmpty).")
+	}
 	for i, entry := range entries {
 		parts = append(parts, untrustedBlock(entry.Site, pages[i]))
+	}
+	for i, entry := range others {
+		parts = append(parts, untrustedBlock(entry.Site, otherPages[i]))
+	}
+	if len(others) > 0 {
+		parts = append(parts, otherPagesHint)
 	}
 	return mcpbrowser.TextResult(strings.Join(parts, "\n"))
 }
@@ -378,14 +391,49 @@ func (m *Manager) livePage(ctx context.Context, s sessionInfo, tabId int64, key 
 	return molten.BrowserPanelTab{Id: key.BrowserTabId, Url: current.Url, Title: current.Title}, true
 }
 
-// tabsCreate opens an empty tab in the panel of the pane's tab, or in a new panel next to the terminal (AC2).
-func (m *Manager) tabsCreate(ctx context.Context, s sessionInfo, loc BlockLocation) (mcpbrowser.CallResult, callLog) {
+type tabsCreateArgs struct {
+	Url string `json:"url"`
+	// Reload: with a url, a page that is reused loads again instead of being shown as it is.
+	Reload bool `json:"reload"`
+	// NewTab: with a url, opens a new tab even when the page is already open.
+	NewTab bool `json:"newTab"`
+}
+
+// tabsCreate opens an empty tab in the panel of the pane's tab, or in a new panel next to the terminal (AC2). With a url
+// it first looks for the page among the pages already open in the workspace and reuses it (#2333, reuse.go), and loads
+// the url in a new tab otherwise.
+func (m *Manager) tabsCreate(ctx context.Context, s sessionInfo, loc BlockLocation, args json.RawMessage) (mcpbrowser.CallResult, callLog) {
+	var parsed tabsCreateArgs
+	if len(args) > 0 {
+		json.Unmarshal(args, &parsed)
+	}
+	if strings.TrimSpace(parsed.Url) == "" {
+		tabId, failed := m.openEmptyTab(ctx, s, loc)
+		if failed != nil {
+			return *failed, callLog{}
+		}
+		return mcpbrowser.TextResult(jsonText(map[string]any{"tabId": tabId}) + "\n" +
+			fmt.Sprintf("Opened an empty tab (tabId %d) in the browser panel next to the terminal.", tabId)), callLog{tabId: tabId}
+	}
+	target, problem := navigateTarget(parsed.Url)
+	if problem != "" {
+		return mcpbrowser.ErrorResult(mcpbrowser.ErrSchemeRefused), callLog{}
+	}
+	return m.openPage(ctx, s, loc, target, parsed)
+}
+
+// openEmptyTab opens an empty tab for the session and returns its id; failed is the result to return when it could not.
+func (m *Manager) openEmptyTab(ctx context.Context, s sessionInfo, loc BlockLocation) (int64, *mcpbrowser.CallResult) {
+	fail := func(text string) (int64, *mcpbrowser.CallResult) {
+		result := mcpbrowser.ErrorResult(text)
+		return 0, &result
+	}
 	if m.openTabCount(s.id) >= maxTabsPerSession {
-		return mcpbrowser.ErrorResult(mcpbrowser.ErrTooManyTabs), callLog{}
+		return fail(mcpbrowser.ErrTooManyTabs)
 	}
 	panels, recent, err := m.env.TabPanels(ctx, loc.TabId)
 	if err != nil {
-		return mcpbrowser.ErrorResult(mcpbrowser.ErrPanelUnreadable), callLog{}
+		return fail(mcpbrowser.ErrPanelUnreadable)
 	}
 	key := TabKey{BrowserTabId: agentTabIdPrefix + uuid.NewString()}
 	panelId, err := m.env.OpenTab(ctx, OpenTabRequest{
@@ -396,19 +444,18 @@ func (m *Manager) tabsCreate(ctx context.Context, s sessionInfo, loc BlockLocati
 		Url:          blankUrl,
 	})
 	if err != nil || panelId == "" {
-		return mcpbrowser.ErrorResult(mcpbrowser.ErrPanelUnreadable), callLog{}
+		return fail(mcpbrowser.ErrPanelUnreadable)
 	}
 	key.PanelId = panelId
 	tabId := m.addTab(s.id, key, OriginOpened, actionOpened)
 	if tabId == 0 {
 		m.env.CloseTab(context.Background(), key)
-		return mcpbrowser.ErrorResult(mcpbrowser.ErrSessionEnded), callLog{}
+		return fail(mcpbrowser.ErrSessionEnded)
 	}
 	m.syncControl(key)
 	m.publishPanel(panelId)
 	m.waitForTab(ctx, s.id, tabId, key)
-	return mcpbrowser.TextResult(jsonText(map[string]any{"tabId": tabId}) + "\n" +
-		fmt.Sprintf("Opened an empty tab (tabId %d) in the browser panel next to the terminal.", tabId)), callLog{tabId: tabId}
+	return tabId, nil
 }
 
 // waitForTab returns once the panel has the tab, so the next call finds it; a panel that is not shown opens it later.

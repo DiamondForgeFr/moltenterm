@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -39,6 +40,12 @@ type fakeEnv struct {
 	// typed: the lines typed into terminals ("block: line"); typeRefusal makes TypeLine refuse with it.
 	typed       []string
 	typeRefusal string
+	// Where the panels are in their workspace (WorkspacePanels): the Wave tabs' names, the Wave tab each workspace
+	// shows, each panel's focus rank and shown page.
+	tabNames  map[string]string
+	shownTabs map[string]string
+	recent    map[string]int
+	active    map[string]string
 }
 
 func makeFakeEnv() *fakeEnv {
@@ -49,7 +56,48 @@ func makeFakeEnv() *fakeEnv {
 		agentNames: map[string]string{},
 		control:    map[TabKey]bool{},
 		sites:      map[string]string{},
+		tabNames:   map[string]string{},
+		shownTabs:  map[string]string{},
+		recent:     map[string]int{},
+		active:     map[string]string{},
 	}
+}
+
+func (e *fakeEnv) WorkspacePanels(ctx context.Context, workspaceId string) ([]WorkspacePanel, error) {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	var ids []string
+	for id, p := range e.panels {
+		if p.WorkspaceId == workspaceId {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	order := map[string]int{}
+	var rtn []WorkspacePanel
+	for _, id := range ids {
+		p := e.panels[id]
+		order[p.TabId]++
+		copied := *p
+		copied.Tabs = append([]molten.BrowserPanelTab(nil), p.Tabs...)
+		recent, ok := e.recent[id]
+		if !ok {
+			recent = -1
+		}
+		active := e.active[id]
+		if active == "" && len(p.Tabs) > 0 {
+			active = p.Tabs[0].Id
+		}
+		rtn = append(rtn, WorkspacePanel{
+			Panel:   copied,
+			TabName: e.tabNames[p.TabId],
+			Shown:   e.shownTabs[workspaceId] == p.TabId,
+			Active:  active,
+			Recent:  recent,
+			Order:   order[p.TabId],
+		})
+	}
+	return rtn, nil
 }
 
 func (e *fakeEnv) AgentSites() map[string]string {
@@ -127,6 +175,7 @@ func (e *fakeEnv) TabPanels(ctx context.Context, tabId string) ([]string, any, e
 			rtn = append(rtn, id)
 		}
 	}
+	sort.Strings(rtn)
 	return rtn, nil, nil
 }
 
@@ -388,8 +437,10 @@ func TestCreateListAndCloseOwnTabs(t *testing.T) {
 	if ids := listedIds(t, listed); len(ids) != 2 || ids[0] != first || ids[1] != second {
 		t.Fatalf("tabs_context lists only the session's tabs: %v", ids)
 	}
-	if strings.Contains(text(listed), "My bank") || strings.Contains(text(listed), "user-tab") {
-		t.Fatalf("the user's own tab must never be visible: %s", text(listed))
+	// Since #2333 the user's page is listed (reuse_test.go), but nothing of it that the session was not given: no id, no
+	// title and no address beyond its site while the site is not allowed.
+	if strings.Contains(text(listed), "My bank") || strings.Contains(text(listed), "user-tab") || strings.Contains(text(listed), "SECRET-Q") {
+		t.Fatalf("the user's own tab must stay out of reach: %s", text(listed))
 	}
 	closed := call(m, "proc:a", sid, mcpbrowser.ToolTabsClose, fmt.Sprintf(`{"tabId":%d}`, first))
 	if closed.IsError {
@@ -643,7 +694,8 @@ func TestPageTextIsWrappedAndCannotEscape(t *testing.T) {
 	}
 	env.SetAgentSite("evil.example", SiteAllow)
 	out := text(call(m, "proc:a", sa, mcpbrowser.ToolTabsContext, `{}`))
-	if strings.Count(out, "</untrusted-page-content>") != 1 || strings.Count(out, "<untrusted-page-content") != 1 {
+	// One envelope for the agent's tab and one for the user's page the workspace also shows (#2333).
+	if strings.Count(out, "</untrusted-page-content>") != 2 || strings.Count(out, "<untrusted-page-content") != 2 {
 		t.Fatalf("the page closed the envelope: %s", out)
 	}
 	if strings.Contains(out, "<system>") {

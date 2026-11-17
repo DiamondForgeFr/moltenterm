@@ -14,6 +14,12 @@ export type AgentShowTarget = {
     selectTab: (browserTabId: string) => void;
 };
 
+// An agent asks, on a page of this panel, whether it may use it (#2333): the panel comes into view where the user sees the
+// question. The tab shown, the focus and the other panels stay as they are.
+export function showAgentAsk(blockId: string): void {
+    bringPanelIntoView(blockId);
+}
+
 // `shownTabIds` come latest last: when one call shows several tabs of a panel, the last one is what the developer sees.
 export function showAgentPage(target: AgentShowTarget, shownTabIds: string[]): void {
     const latest = shownTabIds?.[shownTabIds.length - 1];
