@@ -7,15 +7,18 @@
 // developer's use over the last 7 days, the unused ones on a plan that is not paid are left out and listed apart, and a
 // reading too old to be current never looks live (AC93 to AC98, #2341). Pure, so the rules are tested without a window.
 //
-// It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
+// It loads on demand, with the usage block of the group (brokk-usage-block.tsx) and the hub's usage visit
+// (brokk-usage-visit.ts), outside the JavaScript every view loads up front (NFR-PERF-003, bundle.initialJsMB): what the
+// hub reads at start is brokk-usage-choice.ts's.
 
 import { GaugeRow, gaugeRows, UsageSnapshot } from "../companion/companion-gauges-model";
-import { isStale, mainWindow, UsageWeekLine, usageWeekLine, UseWindowMs } from "../usage-week/usage-week-model";
+import { mainWindow, UsageWeekLine, usageWeekLine } from "../usage-week/usage-week-model";
+import { isStale, UseWindowMs } from "../usage-week/usage-week-stale";
 import type { UsageReadings, UsageUnreadable } from "./boss-usage";
+import { choiceOf, choicesOf, type UsageChoice, type UsageChoices } from "./brokk-usage-choice";
 
-// The 7 days of AC95 and AC96, and the rule of a stale reading, are the shared grid's (usage-week-model.ts), which the
-// visit model also reads.
-export { isStale, readingStale, staleAfterMs, UseWindowMs } from "../usage-week/usage-week-model";
+// The 7 days of AC95 and AC96, and the rule of a stale reading (usage-week-stale.ts).
+export { isStale, readingStale, staleAfterMs, UseWindowMs } from "../usage-week/usage-week-stale";
 
 // What an agent was used over the last 7 days, as wavesrv's recorder tells it (pkg/molten/agentuse).
 export type AgentUse = {
@@ -29,29 +32,13 @@ export type AgentUse = {
 // must match pkg/molten/agentuse
 export type AgentUseSummary = { at: number; agents: Record<string, AgentUse> };
 
-// The providers the developer pinned ("Always show") or turned away ("Hide"), from the settings boss:usageshow and
-// boss:usagehide.
-export type UsageChoices = { show: string[]; hide: string[] };
-export type UsageChoice = "show" | "hide" | "auto";
+export { choiceOf, choicesOf };
+export type { UsageChoice, UsageChoices };
 
 // `use`: the agents' use by id; null before wavesrv has told it, when nothing can be said to be unused.
 export type UsageContext = { use?: Record<string, AgentUse>; choices?: UsageChoices };
 
 const NoUse: AgentUse = { workms: 0, sessions: 0, lastat: 0 };
-
-// The lists as the settings hold them: anything that is not a list of ids is no choice.
-export function choicesOf(show: unknown, hide: unknown): UsageChoices {
-    const ids = (value: unknown): string[] =>
-        Array.isArray(value) ? value.filter((id): id is string => typeof id === "string" && id !== "") : [];
-    return { show: ids(show), hide: ids(hide) };
-}
-
-export function choiceOf(choices: UsageChoices, provider: string): UsageChoice {
-    if (choices?.show?.includes(provider)) {
-        return "show";
-    }
-    return choices?.hide?.includes(provider) ? "hide" : "auto";
-}
 
 // The choices with one provider's changed: "show" and "hide" exclude each other, "auto" gives it back to the rules.
 export function withChoice(choices: UsageChoices, provider: string, choice: UsageChoice): UsageChoices {

@@ -6,14 +6,12 @@ import type { DownloadRecord } from "../downloads/downloads-model";
 import type { UsageReadings } from "./boss-usage";
 import {
     acknowledgeDownloads,
-    acknowledgeUsage,
     downloadEventsOf,
-    hotProviders,
     makeDownloadsMemory,
     updateEventsOf,
-    usageEventsAfter,
     UsageThresholdPercent,
 } from "./brokk-extra-feeds";
+import { acknowledgeUsage, hotProviders, usageEventsAfter } from "./brokk-usage-visit";
 
 const Now = new Date(2026, 10, 6, 10, 0, 0).getTime();
 

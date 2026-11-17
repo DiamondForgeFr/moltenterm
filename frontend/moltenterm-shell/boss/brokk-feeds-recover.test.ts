@@ -2,25 +2,25 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { Atom, atom, createStore, PrimitiveAtom } from "jotai";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { AgentStatesData } from "../agent-state-model";
 import type { ReviewPr, ReviewsAnswer } from "../reviews/reviews-model";
 import { markRowHandled } from "./boss-handled";
 import { buildToHandle, ciFailureSince, keptReviewAnswers, ToHandleItem, ToHandleList } from "./boss-to-handle-model";
 import type { UsageReadings } from "./boss-usage";
-import {
-    acknowledgeUsage,
-    EmptyUsageMemory,
-    readUsageMemory,
-    usageEventsAfter,
-    UsageMemory,
-    usageMemoryText,
-} from "./brokk-extra-feeds";
+import { EmptyUsageMemory, readUsageMemory, UsageMemory, usageMemoryText } from "./brokk-extra-feeds";
 import { BrokkHub } from "./brokk-hub";
 import { avatarBadgeOf, faceRowKeys } from "./brokk-hub-feed";
-import { feedBrokkHub } from "./brokk-hub-feed-store";
+import { feedBrokkHub, loadUsageVisit } from "./brokk-hub-feed-store";
+import { acknowledgeUsage, usageEventsAfter } from "./brokk-usage-visit";
 import { DefaultVisitSettings, VisitSettings } from "./brokk-visit-events";
 import { EmptyShared } from "./brokk-visit-share";
+
+// The rules that tell which plan usage calls him load on demand (#2341): load them while the file is collected, so that a
+// reading is told in the event that brought it, and no test pays for the load inside its 5 s.
+beforeAll(async () => {
+    await loadUsageVisit();
+}, 60000);
 
 const T = Date.parse("2026-11-11T10:00:00Z");
 const Dir = "/projects/forge";

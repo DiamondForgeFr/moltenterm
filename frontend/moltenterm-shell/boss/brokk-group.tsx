@@ -19,7 +19,7 @@
 // the block give way to the brainstorm panel beside the square, and the talk window under both is wide and open.
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
-import { atoms, getSettingsKeyAtom } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { modalsModel } from "@/app/store/modalmodel";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
@@ -38,7 +38,6 @@ import {
 import { AgentStates } from "../agent-state-store";
 import { AiIcon } from "../ai-icon";
 import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
-import { agentName } from "../companion/companion-task-model";
 import { isActive, overallDownloadProgress } from "../downloads/downloads-model";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { useLocale, useT } from "../i18n/i18n";
@@ -50,13 +49,12 @@ import { MoltentermNotifications } from "../notifications-store";
 import { TabActivity, whileShown } from "../tab-activity";
 import { Tether } from "../tether/tether";
 import { RopePx, tetherLine } from "../tether/tether-model";
-import { UsageWeekGrid, UsageWeekRow } from "../usage-week/usage-week";
 import { loadWorkspaceSources } from "../workspace-rail";
 import { AnchorAttr, cardKeyAction, CardKeyInput, CardTestId, isOutsidePress } from "./boss-card-model";
 import { attentionAgents } from "./boss-overview";
 import { BossPortrait } from "./boss-portrait";
 import { BossBubbleModel } from "./boss-store";
-import { askUsageUse, UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
+import { askUsageUse } from "./boss-usage";
 import { BrokkItem, sayLine } from "./brokk-exchange-model";
 import {
     activePanel,
@@ -113,7 +111,6 @@ import { AgentsPanel, DownloadsPanel, SessionsPanel } from "./brokk-rows-panels"
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk } from "./brokk-talk";
 import { talkWaits } from "./brokk-talk-model";
-import { choiceOf, choicesOf, UsageChoice, UsageChoices, usageGrid, WeeklyUsage } from "./brokk-usage-model";
 import { useBrokkActions } from "./use-brokk-actions";
 import { useAvatarKeys } from "./use-brokk-hub";
 import { useCardLive } from "./use-brokk-live";
@@ -131,48 +128,14 @@ const BrainstormPanel = lazy(() =>
     import("../brainstorm/brainstorm-panel").then((mod) => ({ default: mod.BrainstormPanel }))
 );
 
-// What the developer's choice of which providers show is made of (the menu of a row, the write of the settings) and the
-// list of the providers not used lately load when they are needed, outside the JavaScript every view loads up front
-// (NFR-PERF-003, bundle.initialJsMB). The choices load as soon as the group opens, so a row's menu opens at once, in the
-// event that asked for it (a menu opened from the keyboard is told so while that event is dispatched).
-const UsageHidden = lazy(() => import("./brokk-usage-hidden").then((mod) => ({ default: mod.UsageHidden })));
+// The usage block under the square (the week grid and the providers not used lately, brokk-usage-block.tsx) loads on
+// demand, outside the JavaScript every view loads up front (NFR-PERF-003, bundle.initialJsMB, #2341). The host asks for it
+// once the window is up, so it is there when the group opens; a group that opens before it came draws it when it does.
+type UsageBlockModule = typeof import("./brokk-usage-block");
+let usageBlock: UsageBlockModule = null;
 
-type UsageChoicesModule = typeof import("./brokk-usage-choices");
-let usageChoices: UsageChoicesModule = null;
-
-function loadUsageChoices(): Promise<UsageChoicesModule> {
-    return import("./brokk-usage-choices").then((mod) => (usageChoices = mod));
-}
-
-// A provider's row in the shared week grid, named with its agent's display name. Its context menu is the developer's
-// choice of showing it always, hiding it, or leaving it to the rules (AC97, #2341).
-export function weekRow(u: WeeklyUsage, choices: UsageChoices): UsageWeekRow {
-    const { provider, readAt, old, stale, unreadable, ...line } = u;
-    const name = agentName(provider);
-    return {
-        key: provider,
-        agent: provider,
-        name,
-        line: unreadable ? undefined : line,
-        unreadable,
-        readAt,
-        old,
-        stale,
-        onContextMenu: (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const show = (mod: UsageChoicesModule) =>
-                ContextMenuModel.getInstance().showContextMenu(
-                    mod.usageChoiceMenu(provider, name, choiceOf(choices, provider)),
-                    e
-                );
-            if (usageChoices != null) {
-                show(usageChoices);
-                return;
-            }
-            fireAndForget(() => loadUsageChoices().then(show));
-        },
-    };
+export function preloadUsageBlock(): Promise<UsageBlockModule> {
+    return import("./brokk-usage-block").then((mod) => (usageBlock = mod));
 }
 
 // When the developer last looked at the Téléchargements panel: a download that failed or finished since is news, until he
@@ -379,11 +342,6 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const running = useAtomValue(downloads.ringAtom, { store: globalStore });
     const transfers = useAtomValue(downloads.transfersAtom, { store: globalStore });
     const badgeKeys = useAvatarKeys();
-    const readings = useAtomValue(UsageReadingsAtom, { store: globalStore });
-    const unreadable = useAtomValue(UsageUnreadableAtom, { store: globalStore });
-    const use = useAtomValue(UsageUseAtom, { store: globalStore });
-    const usageShow = useAtomValue(getSettingsKeyAtom("boss:usageshow"), { store: globalStore });
-    const usageHide = useAtomValue(getSettingsKeyAtom("boss:usagehide"), { store: globalStore });
     const keepState = useAtomValue(KeepAwakeModel.getInstance().stateAtom, { store: globalStore });
     const currentWorkspace = useAtomValue(atoms.workspace, { store: globalStore });
     // The brainstorm takes the screen (FR-BOSS-010, #2257): his group takes the brainstorm layout (AC23, #2285), with his
@@ -494,17 +452,6 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
         }
     }, [panels.pinned]);
     const marks = railMarks(railInput);
-    const choices = useMemo(() => choicesOf(usageShow, usageHide), [usageShow, usageHide]);
-    const grid = useMemo(
-        () => usageGrid(readings, now, unreadable, { use, choices }),
-        [readings, now, unreadable, use, choices]
-    );
-    const weekRows = useMemo(() => grid.rows.map((u) => weekRow(u, choices)), [grid, choices]);
-    const chooseProvider = useCallback(
-        (provider: string, choice: UsageChoice) =>
-            fireAndForget(() => loadUsageChoices().then((mod) => mod.chooseUsage(provider, choice))),
-        []
-    );
 
     // What his face does with the conversation: it listens while the developer writes, thinks only when his answer is
     // slow to come, speaks while it is revealed (AC86, AC87, #2259).
@@ -567,9 +514,12 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const pin = useCallback(() => boss.pinCard(), [boss]);
     useEffect(() => () => faceHover.groupGone(), [faceHover]);
     useEffect(() => TabActivity.getInstance().every(whileShown(AgeTickMs), () => setNow(Date.now()), "clock"), []);
+    const [block, setBlock] = useState<UsageBlockModule>(usageBlock);
     useEffect(() => {
-        fireAndForget(() => loadUsageChoices());
-    }, []);
+        if (block == null) {
+            fireAndForget(() => preloadUsageBlock().then(setBlock));
+        }
+    }, [block]);
     useEffect(() => {
         const ask = () => fireAndForget(() => askUsageUse());
         ask();
@@ -983,18 +933,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
                             />
                         ) : null}
                         <div ref={usageRef} className="mt-brokk-usage" data-testid="brokk-usage">
-                            {grid.rows.length === 0 ? (
-                                <span className="mt-brokk-usage-empty" data-testid="brokk-usage-empty">
-                                    {t("boss.panel.usage.empty")}
-                                </span>
-                            ) : (
-                                <UsageWeekGrid rows={weekRows} now={now} />
-                            )}
-                            {grid.hidden.length > 0 ? (
-                                <Suspense fallback={null}>
-                                    <UsageHidden items={grid.hidden} now={now} onChoose={chooseProvider} />
-                                </Suspense>
-                            ) : null}
+                            {block != null ? <block.UsageBlock now={now} /> : null}
                         </div>
                     </div>
                 ) : null}

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { atom, createStore, PrimitiveAtom } from "jotai";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { AgentStatesData } from "../agent-state-model";
 import type { MoltentermNotification } from "../notifications-model";
 import type { ToHandleList } from "./boss-to-handle-model";
@@ -10,10 +10,16 @@ import type { UsageReadings } from "./boss-usage";
 import { listedUpdateCard } from "./brokk-extra-feeds";
 import { badgeShares } from "./brokk-group-model";
 import { BrokkHub } from "./brokk-hub";
-import { feedBrokkHub } from "./brokk-hub-feed-store";
+import { feedBrokkHub, loadUsageVisit } from "./brokk-hub-feed-store";
 import { buildNotes, noteFacts } from "./brokk-notes-model";
 import { comingChoices, comingOf, DefaultVisitSettings, VisitSettings } from "./brokk-visit-events";
 import { EmptyShared } from "./brokk-visit-share";
+
+// The rules that tell which plan usage calls him load on demand (#2341): load them first, so that a hot reading is told in
+// the event that brought it.
+beforeAll(async () => {
+    await loadUsageVisit();
+}, 60000);
 
 const T = new Date(2026, 10, 11, 10, 0, 0).getTime();
 const CardKey = "update:available:12";
@@ -118,7 +124,12 @@ describe("Brokk's badge counts what his panel lists, in every workspace (#2213)"
         };
         const fresh = workspace(a, older);
         const hot: UsageReadings = {
-            claude: { agent: "claude", source: "t", readat: T, windows: [{ id: "w", label: "w", usedpercent: 95 }] },
+            claude: {
+                agent: "claude",
+                source: "t",
+                readat: Date.now(),
+                windows: [{ id: "w", label: "w", usedpercent: 95 }],
+            },
         };
         a.store.set(a.usage, hot);
         const later = workspace(a, older);

@@ -2,16 +2,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { atom, createStore, PrimitiveAtom } from "jotai";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { AgentStatesData } from "../agent-state-model";
 import type { DownloadRecord } from "../downloads/downloads-model";
 import type { ToHandleList } from "./boss-to-handle-model";
 import type { UsageReadings } from "./boss-usage";
 import { BrokkHub } from "./brokk-hub";
-import { feedBrokkHub } from "./brokk-hub-feed-store";
+import { feedBrokkHub, loadUsageVisit } from "./brokk-hub-feed-store";
 import type { UsageContext } from "./brokk-usage-model";
 import { DefaultVisitSettings, VisitSettings } from "./brokk-visit-events";
 import { EmptyShared } from "./brokk-visit-share";
+
+// The rules that tell which plan usage calls him load on demand (#2341): load them first, so that a reading is told in the
+// event that brought it, and no test pays for the load inside its 5 s.
+beforeAll(async () => {
+    await loadUsageVisit();
+}, 60000);
 
 const T = new Date(2026, 10, 6, 14, 0, 0).getTime();
 

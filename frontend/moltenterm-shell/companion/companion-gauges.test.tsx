@@ -616,7 +616,7 @@ describe("the legend, the explanation and the source line (#2123)", () => {
     it("leaves Brokk's usage block as it is: its grid asks for no legend", () => {
         expect(renderToStaticMarkup(<UsageWeekGrid rows={[]} now={now} />)).not.toContain("usage-week-legend");
         expect(renderToStaticMarkup(<UsageWeekGrid rows={[]} now={now} legend />)).toContain("usage-week-legend");
-        const brokk = readFileSync(join(__dirname, "../boss/brokk-group.tsx"), "utf8");
+        const brokk = readFileSync(join(__dirname, "../boss/brokk-usage-block.tsx"), "utf8");
         expect(brokk).toContain("<UsageWeekGrid rows={weekRows} now={now} />");
         expect(brokk).not.toMatch(/\blegend\b/i);
     });
@@ -916,7 +916,7 @@ describe("the share of each day under its block (#2164)", () => {
         expect(renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} />)).not.toContain("usage-week-share");
         expect(renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} legend />)).not.toContain("usage-week-share");
         expect(renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} dayFigures />)).toContain("usage-week-share");
-        const brokk = readFileSync(join(__dirname, "../boss/brokk-group.tsx"), "utf8");
+        const brokk = readFileSync(join(__dirname, "../boss/brokk-usage-block.tsx"), "utf8");
         expect(brokk).toContain("<UsageWeekGrid rows={weekRows} now={now} />");
         expect(brokk).not.toContain("dayFigures");
     });

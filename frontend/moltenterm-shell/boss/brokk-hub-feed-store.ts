@@ -15,20 +15,27 @@ import type { ToHandleList } from "./boss-to-handle-model";
 import type { UsageReadings } from "./boss-usage";
 import {
     acknowledgeDownloads,
-    acknowledgeUsage,
     downloadEventsOf,
     DownloadsSource,
     EmptyUsageMemory,
     makeDownloadsMemory,
     updateEventsOf,
     UpdateSource,
-    usageEventsAfter,
     type UsageMemory,
     UsageSource,
 } from "./brokk-extra-feeds";
 import type { BrokkHub } from "./brokk-hub";
 import type { UsageContext } from "./brokk-usage-model";
 import type { VisitSettings } from "./brokk-visit-events";
+
+// The rules that tell which plan usage calls him load when a reading first comes: until then there is nothing to tell
+// (NFR-PERF-003, bundle.initialJsMB, #2341). A test loads them first, so that a change is told in the event that brought it.
+type UsageVisit = typeof import("./brokk-usage-visit");
+let usageVisit: UsageVisit = null;
+
+export function loadUsageVisit(): Promise<UsageVisit> {
+    return import("./brokk-usage-visit").then((mod) => (usageVisit = mod));
+}
 
 type Store = Pick<ReturnType<typeof createStore>, "get" | "sub">;
 
@@ -114,11 +121,23 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const closed = () => (src.closedDownloadsAtom != null ? store.get(src.closedDownloadsAtom) : undefined);
     const feedDownloads = () => hub.feed(DownloadsSource, downloadEventsOf(downloads, items(), closed()));
     const feedUpdate = () => hub.feed(UpdateSource, updateEventsOf(offer(), seenUpdate));
-    const feedUsage = () => {
-        const step = usageEventsAfter(usage, readings(), Date.now(), usageContext());
-        keepUsage(step.memory);
-        hub.feed(UsageSource, step.events);
+    // Runs `run` with the rules at hand: at once when they are loaded, else when they are, and never for no reading at all,
+    // which has nothing to tell.
+    const withVisit = (run: (visit: UsageVisit) => void) => {
+        if (usageVisit != null) {
+            run(usageVisit);
+        } else if (Object.keys(readings() ?? {}).length > 0) {
+            loadUsageVisit().then(run, () => {});
+        }
     };
+    const feedUsage = () =>
+        withVisit((visit) => {
+            const step = visit.usageEventsAfter(usage, readings(), Date.now(), usageContext());
+            keepUsage(step.memory);
+            hub.feed(UsageSource, step.events);
+        });
+    const acknowledgeUsageSeen = () =>
+        withVisit((visit) => keepUsage(visit.acknowledgeUsage(readings(), Date.now(), usage, usageContext())));
     const feedAll = () => {
         feedDownloads();
         feedUpdate();
@@ -127,7 +146,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const acknowledge = () => {
         downloads = acknowledgeDownloads(downloads, items());
         seenUpdate = offer();
-        keepUsage(acknowledgeUsage(readings(), Date.now(), usage, usageContext()));
+        acknowledgeUsageSeen();
         feedAll();
     };
     const stops = [
