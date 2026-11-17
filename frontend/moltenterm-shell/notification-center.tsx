@@ -32,6 +32,7 @@ import { DownloadsModel } from "./downloads/downloads-store";
 import { startHandoffSystemNotifications } from "./handoff-system-notify";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { serverErrorText, serverText } from "./i18n/server-text";
+import { startLogsNotice } from "./logs/logs-notice";
 import { DepSyncHost } from "./mission/dep-sync";
 import { registerSetupPrGestures } from "./mission/release-setup-gestures";
 import { TrustApprovalHost } from "./mission/trust-approval";
@@ -210,6 +211,7 @@ export function NotificationHost() {
     useEffect(() => startNotificationToasts(), []);
     useEffect(() => startHandoffSystemNotifications(), []);
     useEffect(() => startDownloads(), []);
+    useEffect(() => startLogsNotice(), []);
     useEffect(() => {
         if (panelRequest != null && panelRequest.ids.length > 0) {
             boss.showInOpenPanel("notifications", panelRequest.ids);

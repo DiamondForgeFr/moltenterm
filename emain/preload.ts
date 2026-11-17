@@ -24,6 +24,8 @@ import {
     WindowReloadedChannel,
 } from "./moltenterm-hang-ipc";
 import { SlowSyncIpcMs } from "./moltenterm-hang-model";
+// MOLTENTERM-PATCH (#2335): the log files' size and clear, and the note past the high mark
+import { LogsClearChannel, LogsHighChannel, LogsInfoChannel, LogsListenChannel } from "./moltenterm-logs-ipc";
 import { webBlockWebviewSelector } from "./moltenterm-webselector-policy"; // MOLTENTERM-PATCH (#1961)
 
 function sendSync(channel: string, ...args: any[]): any {
@@ -331,6 +333,16 @@ contextBridge.exposeInMainWorld("api", {
         return () => ipcRenderer.removeListener(WindowReloadedChannel, listener);
     },
     moltentermShowLog: () => ipcRenderer.invoke(ShowLogChannel),
+    // MOLTENTERM-PATCH (#2335): the log files weigh this much, clear them, and tell me when they pass the high mark
+    // (emain/moltenterm-logs.ts)
+    moltentermLogsInfo: () => ipcRenderer.invoke(LogsInfoChannel),
+    moltentermLogsClear: () => ipcRenderer.invoke(LogsClearChannel),
+    moltentermLogsListen: () => ipcRenderer.invoke(LogsListenChannel),
+    onMoltentermLogsHigh: (callback: (edge: any) => void) => {
+        const listener = (_event, edge) => callback(edge);
+        ipcRenderer.on(LogsHighChannel, listener);
+        return () => ipcRenderer.removeListener(LogsHighChannel, listener);
+    },
 });
 
 // Custom event for "new-window"
