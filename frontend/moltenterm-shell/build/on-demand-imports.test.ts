@@ -33,6 +33,11 @@ describe("on-demand modules stay out of the entry chunk (#2200)", () => {
         ["../boss/brokk-talk.tsx", "../brainstorm/brainstorm-prompts"],
         // The brainstorm panel loads into his group the first time the mode opens (#2285).
         ["../boss/brokk-group.tsx", "../brainstorm/brainstorm-panel"],
+        // The usage grid's providers not used lately, and what its choices are made of (a row's menu, the settings write),
+        // load when they are needed; the use of each agent over 7 days loads when the hub or the group asks for it (#2341).
+        ["../boss/brokk-group.tsx", "./brokk-usage-hidden"],
+        ["../boss/brokk-group.tsx", "./brokk-usage-choices"],
+        ["../boss/boss-usage.ts", "./boss-usage-use"],
         // The scripted replay's script and player load when the palette plays it (dev and local builds).
         ["../palette/palette-actions.ts", "../brainstorm/brainstorm-replay"],
         // The annotate mode of the web page panel (#2327): its layer, model and painting load the first time it starts.

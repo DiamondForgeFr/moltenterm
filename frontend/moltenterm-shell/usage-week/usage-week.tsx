@@ -15,16 +15,7 @@
 
 import ClaudeColorSvg from "@/app/asset/claude-color.svg";
 import { cn, makeIconClass } from "@/util/util";
-import {
-    autoUpdate,
-    flip,
-    FloatingPortal,
-    offset,
-    shift,
-    useFocus,
-    useHover,
-    useInteractions,
-} from "@floating-ui/react";
+import { autoUpdate, flip, FloatingPortal, offset, shift, useHover, useInteractions } from "@floating-ui/react";
 import { CSSProperties, useState } from "react";
 import { AiIcon } from "../ai-icon";
 import { usageReasonText } from "../companion/companion-gauges-model";
@@ -104,8 +95,7 @@ function AgentLogo({ agent, name, onMenu }: { agent: string; name: string; onMen
         whileElementsMounted: autoUpdate,
     });
     const hover = useHover(context, { delay: { open: NameDelayMs, close: 0 } });
-    const focus = useFocus(context);
-    const { getReferenceProps, getFloatingProps } = useInteractions([hover, focus]);
+    const { getReferenceProps, getFloatingProps } = useInteractions([hover]);
     const logo = {
         ref: refs.setReference,
         className: "mt-uw-logo",
@@ -126,7 +116,12 @@ function AgentLogo({ agent, name, onMenu }: { agent: string; name: string; onMen
                     aria-haspopup="menu"
                     aria-label={t("usageWeek.choice.open", { name })}
                     {...logo}
-                    {...getReferenceProps({ onClick: (e) => onMenu(openRowMenu(e)) })}
+                    {...getReferenceProps({
+                        onClick: (e) => onMenu(openRowMenu(e)),
+                        // The name shows when the keyboard reaches the logo, as it does when the pointer rests on it.
+                        onFocus: (e) => setOpen(e.currentTarget.matches(":focus-visible")),
+                        onBlur: () => setOpen(false),
+                    })}
                 >
                     {icon}
                 </button>
