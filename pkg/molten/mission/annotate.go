@@ -6,7 +6,9 @@ package mission
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"image"
@@ -358,9 +360,17 @@ func composeAnnotation(f annotateFacts, imagePath string) (string, string) {
 	return annotateGoal(f), sb.String()
 }
 
+// keepAnnotatedImage writes the image where the materials may read it (never MoltenTerm's own data folder) and keeps
+// it. The folder is named by the image's hash, so the same drawing copied, then sent, or sent again after a refusal, is
+// the same material: the registry keeps a file declared twice once.
 func keepAnnotatedImage(env annotateEnv, data []byte, f annotateFacts) (molten.Material, error) {
-	dir, err := os.MkdirTemp(env.tempDir, annotateTempPrefix)
-	if err != nil {
+	temp := env.tempDir
+	if temp == "" {
+		temp = os.TempDir()
+	}
+	sum := sha256.Sum256(data)
+	dir := filepath.Join(temp, annotateTempPrefix+hex.EncodeToString(sum[:8]))
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return molten.Material{}, errors.New("the annotated image could not be written")
 	}
 	defer os.RemoveAll(dir)

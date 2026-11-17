@@ -258,6 +258,41 @@ func TestAnnotateSendHandsOneBriefAndKeepsTheImageAsAMaterial(t *testing.T) {
 	}
 }
 
+// The same drawing copied, sent, and sent again after a refusal is one material in the library, not three.
+func TestAnnotateTheSameDrawingIsOneMaterial(t *testing.T) {
+	t.Parallel()
+	f := makeAnnotateFixture(t)
+	req := f.request(AnnotateCopy, "A comment.")
+	first, err := runAnnotate(context.Background(), f.env, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.running = false
+	if gone, err := runAnnotate(context.Background(), f.env, f.request(AnnotateSend, "A comment.")); err != nil || gone.Status != AnnotateStatusNoAgent {
+		t.Fatalf("got %+v, %v", gone, err)
+	}
+	f.running = true
+	sent := f.request(AnnotateSend, "A comment.")
+	sent.Image = req.Image
+	second, err := runAnnotate(context.Background(), f.env, sent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.MaterialId != second.MaterialId || first.ImagePath != second.ImagePath {
+		t.Errorf("the same drawing is two materials: %+v then %+v", first, second)
+	}
+	key, _ := materials.ProjectKey(f.checkout)
+	if list, err := f.registry.Store().List(key); err != nil || len(list) != 1 {
+		t.Errorf("the project's materials: %+v (%v)", list, err)
+	}
+	other := f.request(AnnotateCopy, "A comment.")
+	other.Image = annotateDataURL(annotatePngBytes(t, 61, 41))
+	third, err := runAnnotate(context.Background(), f.env, other)
+	if err != nil || third.MaterialId == first.MaterialId {
+		t.Errorf("another drawing took the first one's place: %+v, %v", third, err)
+	}
+}
+
 // The recipient is named by its terminal: the window's choice is checked against the running agents, whatever it says.
 func TestAnnotateSendChecksTheRecipientRuns(t *testing.T) {
 	t.Parallel()
