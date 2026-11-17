@@ -191,7 +191,12 @@ export function BrokkTalk({
         if (open && scroll != null) {
             scroll.scrollTop = scroll.scrollHeight;
         }
-    }, [open, items, state.phase, confirming, text]);
+    }, [open, items, state.phase, confirming, text, asking]);
+
+    // An answer given in the window (an authorisation, a reply he offered) keeps the developer in it (#2349): the
+    // clicked button leaves or is disabled right after, and the focus it held would drop on the page and fold the
+    // window. The focus goes to his field first, where the developer goes on.
+    const keepConversation = () => inputRef.current?.focus({ preventScroll: true });
 
     // clearPrompt: the developer's own click on "Clear his prompt and send" (#2257), the one way text MoltenTerm did not
     // type leaves his prompt.
@@ -229,16 +234,17 @@ export function BrokkTalk({
     // A reply he offered goes as the developer's next message. When his agent could not take it, it waits in the field,
     // where the way out of the note (Réessayer) sends it again.
     const sendReply = async (reply: string) => {
+        keepConversation();
         if (onItsWay(state)) {
             return;
         }
-        inputRef.current?.focus();
         const result = await session.say(reply);
         if (keepsText(result) && draft.trim() === "") {
             setText(reply);
         }
     };
     const pick = (action: InlineAction) => {
+        keepConversation();
         const outcome = afterClick(action);
         setConfirming(outcome.confirming);
         if (outcome.send != null) {
@@ -246,6 +252,7 @@ export function BrokkTalk({
         }
     };
     const confirm = () => {
+        keepConversation();
         const outcome = afterConfirm(confirming);
         setConfirming(outcome.confirming);
         if (outcome.send != null) {
@@ -253,8 +260,8 @@ export function BrokkTalk({
         }
     };
     const cancel = () => {
+        keepConversation();
         setConfirming(afterCancel().confirming);
-        inputRef.current?.focus();
     };
     const takeWayOut = (way: TalkWayOut) => {
         if (way === "chooseAgent") {
@@ -439,7 +446,7 @@ export function BrokkTalk({
                                 </div>
                             </div>
                         ) : null}
-                        <BrokkPermissions name={name} />
+                        <BrokkPermissions name={name} onAnswer={keepConversation} />
                         {prompted ? (
                             <Suspense fallback={null}>
                                 <BrainstormPrompts name={name} />

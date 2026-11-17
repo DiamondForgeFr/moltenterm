@@ -11,7 +11,7 @@ import { useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { BrokkSession } from "./brokk-session";
-import { AutoApproval, PermissionAsk, PermitDecision, permitChoices } from "./brokk-talk-model";
+import { AutoApproval, PermissionAsk, permitChoices, PermitDecision, PermitStatus } from "./brokk-talk-model";
 
 const DecisionKeys: Record<PermitDecision, string> = {
     allow: "boss.panel.talk.permission.allow",
@@ -19,7 +19,27 @@ const DecisionKeys: Record<PermitDecision, string> = {
     deny: "boss.panel.talk.permission.deny",
 };
 
-export function BrokkPermissionCard({ ask, name }: { ask: PermissionAsk; name: string }) {
+// The developer's answer keeps them in his conversation (#2349). The clicked button is disabled, then leaves with its
+// card once the request is answered: holding the focus, it would drop it on the page, and the window, which stays
+// open while its field has the focus, would fold. So the focus goes back to his field first, before anything leaves.
+export async function answerPermission(
+    ask: PermissionAsk,
+    decision: PermitDecision,
+    keepConversation: () => void
+): Promise<PermitStatus> {
+    keepConversation();
+    return BrokkSession.getInstance().permit(ask, decision);
+}
+
+export function BrokkPermissionCard({
+    ask,
+    name,
+    onAnswer,
+}: {
+    ask: PermissionAsk;
+    name: string;
+    onAnswer: () => void;
+}) {
     const t = useT();
     const [sending, setSending] = useState(false);
     const answer = async (decision: PermitDecision) => {
@@ -28,7 +48,7 @@ export function BrokkPermissionCard({ ask, name }: { ask: PermissionAsk; name: s
         }
         setSending(true);
         try {
-            await BrokkSession.getInstance().permit(ask, decision);
+            await answerPermission(ask, decision, onAnswer);
         } finally {
             setSending(false);
         }
@@ -90,7 +110,7 @@ export function BrokkApprovedLines({ approved, name }: { approved: AutoApproval[
 
 // What the talk window shows of his agent's requests: the waiting one, the note of an answer that came too late, and
 // the approvals made without asking.
-export function BrokkPermissions({ name }: { name: string }) {
+export function BrokkPermissions({ name, onAnswer }: { name: string; onAnswer: () => void }) {
     const t = useT();
     const session = BrokkSession.getInstance();
     const ask = useAtomValue(session.permissionAtom, { store: globalStore });
@@ -99,7 +119,7 @@ export function BrokkPermissions({ name }: { name: string }) {
     return (
         <>
             <BrokkApprovedLines approved={approved} name={name} />
-            {ask != null ? <BrokkPermissionCard ask={ask} name={name} /> : null}
+            {ask != null ? <BrokkPermissionCard ask={ask} name={name} onAnswer={onAnswer} /> : null}
             {ask == null && gone ? (
                 <div role="status" className="text-11 text-secondary" data-testid="brokk-permission-gone">
                     {t("boss.panel.talk.permission.gone", { name })}
