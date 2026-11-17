@@ -6,7 +6,19 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
-import { annotatablePage } from "./annotate-model";
+
+// The panel's header, its menu and its keys load this file with the window; the layer and its model load on demand
+// (build/on-demand-imports.test.ts), so nothing heavy is imported here.
+
+// annotatablePage: the pages the mode starts on: a page of the web, not an error or a blank start page.
+export function annotatablePage(url: string): boolean {
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+        return false;
+    }
+}
 
 // nonce: each start is a new session, so the layer starts again from a fresh capture.
 export type AnnotateOpen = { tabId: string; url: string; nonce: number };

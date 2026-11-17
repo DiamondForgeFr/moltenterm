@@ -388,13 +388,3 @@ export function annotateRequest(
     }
     return req;
 }
-
-// annotatablePage: the pages the mode starts on: a page of the web, not an error or a blank start page.
-export function annotatablePage(url: string): boolean {
-    try {
-        const parsed = new URL(url);
-        return parsed.protocol === "http:" || parsed.protocol === "https:";
-    } catch {
-        return false;
-    }
-}

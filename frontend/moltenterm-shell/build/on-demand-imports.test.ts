@@ -35,6 +35,8 @@ describe("on-demand modules stay out of the entry chunk (#2200)", () => {
         ["../boss/brokk-group.tsx", "../brainstorm/brainstorm-panel"],
         // The scripted replay's script and player load when the palette plays it (dev and local builds).
         ["../palette/palette-actions.ts", "../brainstorm/brainstorm-replay"],
+        // The annotate mode of the web page panel (#2327): its layer, model and painting load the first time it starts.
+        ["../browser/browser-view.tsx", "./annotate-layer"],
     ])("%s imports %s on demand only", (file, mod) => {
         const text = source(file);
         expect(staticImports(text)).not.toContain(mod);

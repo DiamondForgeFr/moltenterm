@@ -11,7 +11,6 @@ import type { LeadFacts, ReviewPr } from "../reviews/reviews-model";
 import type { AgentBarFacts, UpcomingAnswer } from "../reviews/reviews-upcoming-model";
 import {
     addZone,
-    annotatablePage,
     annotateRequest,
     annotateTargetOf,
     cancelEdit,
@@ -476,13 +475,5 @@ describe("what wavesrv is asked", () => {
         expect(req.root).toBeUndefined();
         expect(req.dir).toBe(Dir);
         expect(req.to).toBeUndefined();
-    });
-
-    it("annotates only pages of the web", () => {
-        expect(annotatablePage("http://localhost:5173/")).toBe(true);
-        expect(annotatablePage("https://example.test/a?b=1")).toBe(true);
-        for (const url of ["about:blank", "file:///etc/hosts", "javascript:alert(1)", "", "not a url"]) {
-            expect(annotatablePage(url)).toBe(false);
-        }
     });
 });
