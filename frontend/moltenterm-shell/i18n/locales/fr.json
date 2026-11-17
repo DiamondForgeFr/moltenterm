@@ -12859,6 +12859,21 @@
         "row": "{name}, {percent} %",
         "rowReset": "{name}, {percent} %, remise à zéro {day}",
         "rowAsOf": "relevé {ago}",
+        "stale": "Relevé {ago}",
+        "choice": {
+            "show": "Toujours afficher {name}",
+            "hide": "Masquer {name}",
+            "auto": "Afficher {name} automatiquement"
+        },
+        "hidden": {
+            "toggle": "Non utilisés récemment ({count})",
+            "label": "Fournisseurs non utilisés récemment",
+            "title": "Non utilisés récemment",
+            "lastUse": "Dernier usage {ago}",
+            "noUse": "Aucun usage relevé",
+            "chosen": "Masqué par vous",
+            "alwaysShow": "Toujours afficher"
+        },
         "rowUnreadable": "{name}, aucun relevé : {reason}",
         "rowNoReading": "{name}, aucun relevé",
         "legend": {

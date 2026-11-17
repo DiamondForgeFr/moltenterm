@@ -12859,8 +12859,23 @@
         "row": "{name}, {percent} %",
         "rowReset": "{name}, {percent} %, resets {day}",
         "rowAsOf": "read {ago}",
+        "stale": "Read {ago}",
         "rowUnreadable": "{name}, no reading: {reason}",
         "rowNoReading": "{name}, no reading",
+        "choice": {
+            "show": "Always show {name}",
+            "hide": "Hide {name}",
+            "auto": "Show {name} automatically"
+        },
+        "hidden": {
+            "toggle": "Not used lately ({count})",
+            "label": "Providers not used lately",
+            "title": "Not used lately",
+            "lastUse": "Last use {ago}",
+            "noUse": "No use seen",
+            "chosen": "Hidden by you",
+            "alwaysShow": "Always show"
+        },
         "legend": {
             "label": "Colours and marks of the week grid",
             "today": "Today",

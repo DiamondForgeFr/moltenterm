@@ -9,8 +9,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 vi.mock("@/app/store/global", async () => {
     const { atom } = await import("jotai");
-    return { atoms: { workspace: atom({ oid: "wsA", name: "Alpha" }) } };
+    const settings = new Map<string, ReturnType<typeof atom>>();
+    return {
+        atoms: { workspace: atom({ oid: "wsA", name: "Alpha" }) },
+        // One atom per key, so a test sets what the settings hold: the usage grid's choices (#2341).
+        getSettingsKeyAtom: (key: string) => {
+            if (!settings.has(key)) {
+                settings.set(key, atom(undefined as unknown));
+            }
+            return settings.get(key);
+        },
+    };
 });
+vi.mock("../command-panel/bindings", () => ({ writeSettings: vi.fn(async () => {}) }));
 vi.mock("@/app/store/contextmenu", () => ({
     ContextMenuModel: { getInstance: () => ({ session: null, showContextMenu: vi.fn() }) },
 }));
@@ -72,7 +83,12 @@ vi.mock("./brokk-hub-store", async () => {
 });
 vi.mock("./boss-usage", async () => {
     const { atom } = await import("jotai");
-    return { UsageReadingsAtom: atom({} as any), UsageUnreadableAtom: atom({} as any) };
+    return {
+        UsageReadingsAtom: atom({} as any),
+        UsageUnreadableAtom: atom({} as any),
+        UsageUseAtom: atom(null as any),
+        refreshUsageUse: vi.fn(async () => {}),
+    };
 });
 // His animated portrait and its models have their own tests (use-brokk-live): here the group only asks for them.
 const Calls = vi.hoisted(() => ({ live: [] as unknown[], moment: [] as boolean[] }));
@@ -143,6 +159,7 @@ vi.mock("./brokk-rows-panels", () => ({
     DownloadsPanel: () => <div data-testid="mock-downloads" />,
 }));
 
+import { getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { AgentStates } from "../agent-state-store";
 import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
@@ -154,7 +171,7 @@ import { MoltentermNotifications } from "../notifications-store";
 import { CardTestId } from "./boss-card-model";
 import { BossBubbleModel } from "./boss-store";
 import { ToHandleItem } from "./boss-to-handle-model";
-import { UsageReadingsAtom, UsageUnreadableAtom } from "./boss-usage";
+import { UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
 import { BrokkGroup, BrokkScrim, GroupFrame, rememberPanel, SayCard } from "./brokk-group";
 import {
     ArrivalSteps,
@@ -247,6 +264,9 @@ function quiet() {
     globalStore.set(agents.dataAtom, { states: {}, versions: {} });
     globalStore.set(keep.stateAtom, EmptyKeepAwakeState);
     globalStore.set(UsageReadingsAtom, {});
+    globalStore.set(UsageUseAtom, null);
+    globalStore.set(getSettingsKeyAtom("boss:usageshow"), undefined);
+    globalStore.set(getSettingsKeyAtom("boss:usagehide"), undefined);
     const session = BrokkSession.getInstance() as any;
     globalStore.set(session.exchangeAtom, []);
     globalStore.set(session.unseenIdAtom, null);
@@ -1163,6 +1183,98 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(html).not.toContain("brokk-usage-bar");
     });
 
+    // #2341: FR-BOSS-009, AC93 to AC97.
+    describe("the order of use, the providers not used lately and the stale readings", () => {
+        const Day = 24 * 60 * Min;
+        const use = (workMinutes: number) => ({ workms: workMinutes * Min, sessions: 1, lastat: Date.now() - Day });
+        // A paid 30-day window read some days ago: it still runs, so the reading shows, however old.
+        const monthly = (agent: string, percent: number, daysAgo: number, plan: string) => ({
+            agent,
+            source: "t",
+            plan,
+            readat: Date.now() - daysAgo * Day,
+            windows: [
+                {
+                    id: "window:43200",
+                    label: "30-day",
+                    usedpercent: percent,
+                    resetsat: Date.now() + 20 * Day,
+                    windowmins: 43200,
+                },
+            ],
+        });
+        const providers = (html: string) =>
+            [...html.matchAll(/data-testid="usage-week-row"[^>]*data-provider="([a-z]+)"/g)].map((m) => m[1]);
+
+        it("orders the rows by the use of the last 7 days, not by how full a window is", () => {
+            globalStore.set(UsageReadingsAtom, { claude: reading("claude", 100), codex: reading("codex", 20) });
+            globalStore.set(UsageUseAtom, { claude: use(10), codex: use(90) });
+            expect(providers(render())).toEqual(["codex", "claude"]);
+            globalStore.set(UsageUseAtom, { claude: use(100), codex: use(90) });
+            expect(providers(render())).toEqual(["claude", "codex"]);
+        });
+
+        it("leaves a free plan nobody used out of the grid and tells how many wait under Not used lately", () => {
+            globalStore.set(UsageReadingsAtom, {
+                claude: reading("claude", 30),
+                codex: monthly("codex", 100, 10, "free"),
+            });
+            globalStore.set(UsageUseAtom, { claude: use(20) });
+            const html = render();
+            expect(providers(html)).toEqual(["claude"]);
+            expect(attr(html, "brokk-usage-hidden-toggle", "aria-expanded")).toBe("false");
+            expect(html).toContain("Not used lately (1)");
+            // Closed, it lists nothing: the developer opens it.
+            expect(html).not.toContain('data-testid="brokk-usage-hidden"');
+        });
+
+        it("shows no line about it while every provider shows, nor before the use is known", () => {
+            globalStore.set(UsageReadingsAtom, {
+                claude: reading("claude", 30),
+                codex: monthly("codex", 100, 10, "free"),
+            });
+            expect(render()).not.toContain("brokk-usage-hidden-block");
+            globalStore.set(UsageUseAtom, { claude: use(20) });
+            globalStore.set(getSettingsKeyAtom("boss:usageshow"), ["codex"]);
+            const html = render();
+            expect(providers(html)).toEqual(["claude", "codex"]);
+            expect(html).not.toContain("brokk-usage-hidden-block");
+        });
+
+        it("keeps a paid plan nobody used, and hides a paid one the developer chose to hide", () => {
+            globalStore.set(UsageReadingsAtom, {
+                claude: reading("claude", 30),
+                codex: monthly("codex", 5, 12, "plus"),
+            });
+            globalStore.set(UsageUseAtom, { claude: use(20) });
+            expect(providers(render())).toEqual(["claude", "codex"]);
+            globalStore.set(getSettingsKeyAtom("boss:usagehide"), ["codex"]);
+            const html = render();
+            expect(providers(html)).toEqual(["claude"]);
+            expect(html).toContain("Not used lately (1)");
+        });
+
+        it("draws a reading older than its window faded, with its age, and no pace colour", () => {
+            globalStore.set(UsageReadingsAtom, { codex: monthly("codex", 100, 10, "plus") });
+            globalStore.set(UsageUseAtom, {});
+            const html = render();
+            const tag = cellTag(html, "codex");
+            expect(tag).toContain('data-stale="true"');
+            expect(tag).toContain("read 10 d ago");
+            expect(/data-testid="usage-week-stale">([^<]*)</.exec(html)?.[1]).toBe("Read 10 d ago");
+            globalStore.set(UsageReadingsAtom, { codex: reading("codex", 100) });
+            const live = render();
+            expect(live).not.toContain("usage-week-stale");
+            expect(cellTag(live, "codex")).not.toContain("data-stale");
+        });
+
+        it("gives each row a menu of its own for the developer's choice", () => {
+            const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
+            expect(group).toContain("usageChoiceMenu(provider, name, choiceOf(choices, provider))");
+            expect(group).toContain("onContextMenu: (e) => {");
+        });
+    });
+
     // The tests run without a DOM: the popover itself (a floating portal) is checked through its source and its style.
     it("names each agent's logo in a small popover on hover", () => {
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
@@ -1176,7 +1288,7 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(grid).toContain("onOpenChange: setOpen,");
         expect(grid).toMatch(/<FloatingPortal>\s*<span[^>]*className="mt-uw-name"/);
         const group = readFileSync(join(__dirname, "brokk-group.tsx"), "utf8");
-        expect(group).toContain("name: agentName(provider)");
+        expect(group).toContain("const name = agentName(provider);");
         const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
             /\/\*[\s\S]*?\*\//g,
             ""

@@ -118,6 +118,22 @@ describe("the plan usage feeds the visit model", () => {
         expect(hotProviders(readings, Now)).toEqual([]);
     });
 
+    // #2341, AC96: a reading older than its window is no news, a full one least of all.
+    it("ignores a reading older than its window or than 7 days", () => {
+        const Day = 24 * 60 * 60 * 1000;
+        const monthly = (readat: number): UsageReadings[string] => ({
+            agent: "codex",
+            source: "test",
+            readat,
+            windows: [
+                { id: "window:43200", label: "30-day", usedpercent: 100, resetsat: Now + 20 * Day, windowmins: 43200 },
+            ],
+        });
+        expect(hotProviders({ codex: monthly(Now - Day) }, Now)).toEqual(["codex"]);
+        expect(hotProviders({ codex: monthly(Now - 8 * Day) }, Now)).toEqual([]);
+        expect(usageEventsAfter({ seen: new Set() }, { codex: monthly(Now - 8 * Day) }, Now).events).toEqual([]);
+    });
+
     it("raises a provider that crosses the line, once the developer has not seen it", () => {
         const step = usageEventsAfter({ seen: new Set() }, { claude: reading("claude", [92]) }, Now);
         expect(step.events).toEqual([{ key: "usage:claude", kind: "usage", since: 0 }]);

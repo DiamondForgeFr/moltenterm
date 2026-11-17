@@ -8,6 +8,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: vi.fn(() => () => {}) }));
+// The settings of the usage detail's choices (#2341): one atom a key, so a test sets what the settings hold.
+vi.mock("@/app/store/global", async (importOriginal) => {
+    const { atom } = await import("jotai");
+    const settings = new Map<string, ReturnType<typeof atom>>();
+    return {
+        ...(await importOriginal<typeof import("@/app/store/global")>()),
+        getSettingsKeyAtom: (key: string) => {
+            if (!settings.has(key)) {
+                settings.set(key, atom(undefined as unknown));
+            }
+            return settings.get(key);
+        },
+    };
+});
+vi.mock("../command-panel/bindings", () => ({ writeSettings: vi.fn(async () => {}) }));
 vi.mock("../suite/suite", () => ({ DominoLoader: () => <span data-testid="mock-domino" /> }));
 vi.mock("../tab-activity", () => ({
     TabActivity: { getInstance: () => ({ every: () => () => {} }) },
@@ -52,7 +67,7 @@ vi.mock("./brokk-session", async () => {
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { BrainstormLastLeftAtom, BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
-import { UsageReadingsAtom } from "./boss-usage";
+import { UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
 import { answerPermission } from "./brokk-permission";
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk, keepDraft } from "./brokk-talk";
@@ -64,6 +79,8 @@ beforeEach(() => {
     keepDraft("");
     globalStore.set((BrokkSession.getInstance() as any).exchangeAtom, []);
     globalStore.set(UsageReadingsAtom, {});
+    globalStore.set(UsageUnreadableAtom, {});
+    globalStore.set(UsageUseAtom, null);
     globalStore.set((BrokkSession.getInstance() as any).stateAtom, {
         phase: "idle",
         reason: "",
@@ -106,6 +123,61 @@ describe("the Usage tab (FR-BOSS-009, AC9; FR-BOSS-006)", () => {
         expect(html).toContain(">Max<");
         expect(html.match(/data-testid="brokk-usage-row"/g)).toHaveLength(3);
         expect(html).toMatch(/data-testid="brokk-usage-row" data-level="error"/);
+    });
+
+    // #2341: FR-BOSS-009, AC93 and AC97.
+    describe("the order of use and the providers not used lately", () => {
+        const Day = 24 * 60 * 60 * 1000;
+        const claude = {
+            agent: "claude",
+            source: "t",
+            readat: Now,
+            windows: [{ id: "w", label: "7d", usedpercent: 96 }],
+        };
+        const codex = {
+            agent: "codex",
+            source: "t",
+            readat: Now,
+            windows: [{ id: "w", label: "7d", usedpercent: 20 }],
+        };
+        const old = {
+            agent: "old",
+            source: "t",
+            plan: "free",
+            readat: Now - 10 * Day,
+            windows: [{ id: "w", label: "30-day", usedpercent: 100, resetsat: Now + 20 * Day, windowmins: 43200 }],
+        };
+        const used = (minutes: number) => ({ workms: minutes * 60_000, sessions: 1, lastat: Now - Day });
+        const providers = (html: string) => [...html.matchAll(/data-provider="([^"]+)"/g)].map((m) => m[1]);
+
+        it("lists the providers in the order the grid uses, the most used first", () => {
+            globalStore.set(UsageReadingsAtom, { claude, codex });
+            globalStore.set(UsageUseAtom, { claude: used(5), codex: used(50) });
+            expect(providers(renderToStaticMarkup(<BrokkUsageTab />))).toEqual(["codex", "claude"]);
+        });
+
+        it("lists a free plan nobody used under Not used lately, with its last reading, and not among the providers", () => {
+            globalStore.set(UsageReadingsAtom, { claude, old });
+            globalStore.set(UsageUseAtom, { claude: used(5) });
+            const html = renderToStaticMarkup(<BrokkUsageTab />);
+            const list = html.slice(0, html.indexOf('data-testid="brokk-usage-not-used"'));
+            expect(providers(list)).toEqual(["claude"]);
+            const hidden = html.slice(html.indexOf('data-testid="brokk-usage-not-used"'));
+            expect(hidden).toContain("Not used lately");
+            expect(providers(hidden)).toEqual(["old"]);
+            expect(hidden).toContain("Last use 10 d ago");
+            expect(hidden).toContain(">free<");
+            expect(hidden).toContain("Always show");
+        });
+
+        it("says no use was seen for a provider that was neither read nor used", () => {
+            globalStore.set(UsageReadingsAtom, {});
+            globalStore.set(UsageUnreadableAtom, { codex: "signedout" });
+            globalStore.set(UsageUseAtom, {});
+            const html = renderToStaticMarkup(<BrokkUsageTab />);
+            expect(html).toContain("No use seen");
+            expect(html).toContain('data-reason="unused"');
+        });
     });
 });
 

@@ -12,6 +12,7 @@ import { gaugeRows } from "../companion/companion-gauges-model";
 import { DownloadRecord } from "../downloads/downloads-model";
 import { checkUnread, MoltentermNotification } from "../notifications-model";
 import type { UsageReadings } from "./boss-usage";
+import { readingStale } from "./brokk-usage-model";
 import type { BrokkEvent } from "./brokk-visit-events";
 
 export const DownloadsSource = "downloads";
@@ -110,7 +111,7 @@ export type UsageMemory = { seen: Set<string> };
 export const EmptyUsageMemory: UsageMemory = { seen: new Set() };
 
 // The providers whose fullest window is at the line or above it. Several agents of one provider share its plan: the
-// provider takes its latest reading.
+// provider takes its latest reading. A reading too old to be current (AC96, #2341) is no news: it never calls him.
 export function hotProviders(readings: UsageReadings, now: number): string[] {
     const latest = new Map<string, number>();
     const readAt = new Map<string, number>();
@@ -123,7 +124,8 @@ export function hotProviders(readings: UsageReadings, now: number): string[] {
             continue;
         }
         readAt.set(provider, snapshot.readat ?? 0);
-        latest.set(provider, Math.max(0, ...gaugeRows(snapshot, now).map((row) => row.bar)));
+        const bar = readingStale(snapshot, now) ? 0 : Math.max(0, ...gaugeRows(snapshot, now).map((row) => row.bar));
+        latest.set(provider, bar);
     }
     return [...latest.entries()].filter(([, bar]) => bar >= UsageThresholdPercent).map(([provider]) => provider);
 }

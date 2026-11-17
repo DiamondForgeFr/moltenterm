@@ -86,8 +86,14 @@ describe("the downloads, the update notice and the plan usage reach Brokk (FR-BO
     });
 
     it("brings him for a plan usage that crosses 90 % when it is set to Vient, and never counts it (#2213)", () => {
+        // The feed reads the clock of the window: a reading is news only while it is current (#2341).
         const hot: UsageReadings = {
-            claude: { agent: "claude", source: "t", readat: T, windows: [{ id: "w", label: "w", usedpercent: 93 }] },
+            claude: {
+                agent: "claude",
+                source: "t",
+                readat: Date.now(),
+                windows: [{ id: "w", label: "w", usedpercent: 93 }],
+            },
         };
         const badge = window_({
             ...DefaultVisitSettings,
