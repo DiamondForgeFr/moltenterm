@@ -11,13 +11,14 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MenuPopover } from "../mission/menu-popover";
 import { MissionRouteId, MissionUpdateEvent } from "../mission/mission-client";
 import { MissionPaneEvent } from "../pane-status";
 import { LaunchEvent } from "../reviews/reviews-launch-client";
 import type { LaunchState } from "../reviews/reviews-launch-model";
+import { DominoLoader } from "../suite/suite";
 import { TabActivity, whileShown } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { readWorkspaceProject } from "../workspace-project";
@@ -30,7 +31,10 @@ import {
     TestContextAnswer,
     TestContextCommand,
 } from "./test-context-model";
-import { VersionCard } from "./version-card";
+
+// The card loads the first time a chip opens it: it stays out of the JavaScript every view loads up front
+// (NFR-PERF-003, the Perf budgets gate of #2330).
+const VersionCard = lazy(() => import("./version-card").then((m) => ({ default: m.VersionCard })));
 
 const TestContextRpcTimeoutMs = 15000;
 const TestContextPollMs = 5000;
@@ -179,13 +183,15 @@ export function TestContextChip({ url, onSwitch }: { url: string; onSwitch?: (ur
                     ariaLabel={t("browser.testContext.cardTitle")}
                     focusManaged
                 >
-                    <VersionCard
-                        answer={answer}
-                        workspaceDir={workspaceDir}
-                        onSwitch={onSwitch}
-                        onDone={() => setAnchor(null)}
-                        onChanged={refresh}
-                    />
+                    <Suspense fallback={<DominoLoader label={t("browser.testContext.cardTitle")} />}>
+                        <VersionCard
+                            answer={answer}
+                            workspaceDir={workspaceDir}
+                            onSwitch={onSwitch}
+                            onDone={() => setAnchor(null)}
+                            onChanged={refresh}
+                        />
+                    </Suspense>
                 </MenuPopover>
             ) : null}
         </>
