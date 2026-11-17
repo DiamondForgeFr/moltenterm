@@ -1519,6 +1519,8 @@ declare global {
         "boss:quietto"?: string;
         "boss:nevercome"?: boolean;
         "boss:proximity"?: string;
+        "boss:usageshow"?: string[];
+        "boss:usagehide"?: string[];
         "boss:brainstormsdir"?: string;
         "boss:projectsdir"?: string;
         "boss:autoapprove"?: boolean;

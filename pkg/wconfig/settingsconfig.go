@@ -267,6 +267,10 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#2203): how near Brokk stands (FR-BOSS-009, AC75, frontend/moltenterm-shell/boss/brokk-colleague.ts).
 	BossProximity string `json:"boss:proximity,omitempty" jsonschema:"enum=discreet,enum=colleague" jsonschema_description:"How near Brokk stands. discreet: only the events that matter, no moments and no model call; colleague: he says hello, suggests breaks and lets you know in the evening, and his model may phrase them. Colleague when unset"`
 
+	// MOLTENTERM-PATCH (#2341): the developer's choice over which providers Brokk's usage grid shows (FR-BOSS-009, AC97, frontend/moltenterm-shell/boss/brokk-usage-model.ts).
+	BossUsageShow []string `json:"boss:usageshow,omitempty" jsonschema_description:"Coding agents (claude, codex) that Brokk's usage grid always shows, even when they were not used for 7 days and their plan is not paid. Set from a row's menu in the grid and from the Not used lately list"`
+	BossUsageHide []string `json:"boss:usagehide,omitempty" jsonschema_description:"Coding agents (claude, codex) that Brokk's usage grid never shows, even on a paid plan. Set from a row's menu in the grid"`
+
 	// MOLTENTERM-PATCH (#2246, #2320): where the brainstorms with Brokk are saved (FR-BOSS-010, DS-BOSS-010, pkg/molten/brainstorm).
 	BossBrainstormsDir string `json:"boss:brainstormsdir,omitempty" jsonschema_description:"The folder where the brainstorms with Brokk are saved, one folder per idea. ~/MoltenTerm/Brainstorms when unset"`
 
