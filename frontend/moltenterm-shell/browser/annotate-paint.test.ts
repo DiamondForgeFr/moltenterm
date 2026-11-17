@@ -95,7 +95,7 @@ describe("composeAnnotatedImage", () => {
 
     // A page of 3000 x 2000 pixels, a canvas whose PNG is as long as the test says for each size.
     function stubDom(pngLength: (width: number) => number) {
-        const drawn: { w: number; h: number; text: string[] }[] = [];
+        const drawn: { w: number; h: number; text: string[]; ops: string[] }[] = [];
         vi.stubGlobal(
             "Image",
             class {
@@ -112,12 +112,13 @@ describe("composeAnnotatedImage", () => {
         vi.stubGlobal("document", {
             createElement: () => {
                 const text: string[] = [];
+                const ops: string[] = [];
                 const canvas = {
                     width: 0,
                     height: 0,
                     getContext: () => ({
-                        drawImage: () => {},
-                        fillRect: () => {},
+                        drawImage: () => ops.push("drawImage"),
+                        fillRect: () => ops.push("fillRect"),
                         strokeRect: () => {},
                         beginPath: () => {},
                         arc: () => {},
@@ -126,7 +127,7 @@ describe("composeAnnotatedImage", () => {
                         fillText: (s: string) => text.push(s),
                     }),
                     toDataURL: () => {
-                        drawn.push({ w: canvas.width, h: canvas.height, text });
+                        drawn.push({ w: canvas.width, h: canvas.height, text, ops });
                         return "data:image/png;base64," + "A".repeat(pngLength(canvas.width));
                     },
                 };
@@ -144,6 +145,12 @@ describe("composeAnnotatedImage", () => {
         expect(out.dataUrl.startsWith("data:image/png;base64,")).toBe(true);
         expect(drawn).toHaveLength(1);
         expect(drawn[0].text).toEqual(["1", "2"]);
+    });
+
+    it("lays the page over a white ground, so a page with no background of its own is not black in a viewer", async () => {
+        const drawn = stubDom(() => 1000);
+        await composeAnnotatedImage("data:image/png;base64,x", Zones);
+        expect(drawn[0].ops.slice(0, 2)).toEqual(["fillRect", "drawImage"]);
     });
 
     it("draws again smaller while the PNG is too large to send", async () => {

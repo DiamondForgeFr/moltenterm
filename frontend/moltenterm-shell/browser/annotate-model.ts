@@ -226,7 +226,11 @@ export type RecipientWhy = "works" | "owns" | "pr" | "locked" | "project";
 export type Recipient = { blockId: string; name: string; agent?: string; why: RecipientWhy; lead: boolean };
 
 export type RecipientInput = {
+    // Activity is per workspace (only Brokk crosses them): the window's workspace, whose agents alone are offered. With
+    // none known, nobody is.
+    workspaceId: string;
     worktree: boolean;
+    // The project's folder when one is known: only its agents are offered; without one, the workspace's agents are.
     projectDir: string;
     onBranch: AgentBarFacts[];
     prLead: LeadFacts;
@@ -240,9 +244,12 @@ function liveAgents(states: AgentStateInfo[]): AgentStateInfo[] {
 
 // recipientsOf: every agent the zones may go to, the proposed one first. The picker lists them in this order.
 export function recipientsOf(input: RecipientInput): Recipient[] {
-    const live = liveAgents(input.states);
+    const inScope = (s: AgentStateInfo) =>
+        !!input.workspaceId &&
+        s.workspaceid === input.workspaceId &&
+        (!input.projectDir || sameProjectFolder(s.project ?? "", input.projectDir));
+    const live = liveAgents(input.states).filter(inScope);
     const byBlock = new Map(live.map((s) => [s.blockid, s]));
-    const inProject = (s: AgentStateInfo) => !input.projectDir || sameProjectFolder(s.project ?? "", input.projectDir);
     const out: Recipient[] = [];
     const add = (blockId: string, why: RecipientWhy) => {
         const s = byBlock.get(blockId);
@@ -266,24 +273,38 @@ export function recipientsOf(input: RecipientInput): Recipient[] {
         const named = signer.name.trim().toLowerCase();
         const found =
             (signer.blockId && byBlock.has(signer.blockId) ? signer.blockId : "") ||
-            live.find((s) => inProject(s) && named !== "" && s.firstname.trim().toLowerCase() === named)?.blockid;
+            live.find((s) => named !== "" && s.firstname.trim().toLowerCase() === named)?.blockid;
         if (found) {
             add(found, "pr");
         }
     }
     for (const lock of locksOfProject(input.locks, input.projectDir)) {
-        const holder = live.find((s) => inProject(s) && s.firstname.trim() === lock.name);
+        const holder = live.find((s) => s.firstname.trim() === lock.name);
         if (holder != null) {
             add(holder.blockid, "locked");
         }
     }
-    const project = live
-        .filter(inProject)
-        .sort((a, b) => (a.started ?? 0) - (b.started ?? 0) || a.firstname.localeCompare(b.firstname));
+    const project = [...live].sort(
+        (a, b) => (a.started ?? 0) - (b.started ?? 0) || a.firstname.localeCompare(b.firstname)
+    );
     for (const s of project) {
         add(s.blockid, "project");
     }
     return out;
+}
+
+// resolveRecipient: the agent the review sends to. With no pick of the developer's it is the one proposed; an agent the
+// developer picked and that has since gone is never replaced by another: nothing is chosen, and the review says who
+// went, until a new pick.
+export function resolveRecipient(
+    recipients: Recipient[],
+    picked: { blockId: string; name: string }
+): { chosen: Recipient; lost: string } {
+    if (picked == null) {
+        return { chosen: recipients[0] ?? null, lost: "" };
+    }
+    const found = recipients.find((r) => r.blockId === picked.blockId);
+    return found != null ? { chosen: found, lost: "" } : { chosen: null, lost: picked.name };
 }
 
 export type AnnotateTarget = {
@@ -293,11 +314,14 @@ export type AnnotateTarget = {
     // The project's folder, for the capture's material when the page has no checkout.
     dir: string;
     branch: string;
+    // The window's workspace: wavesrv sends only to an agent whose terminal is in it.
+    workspaceId: string;
     recipients: Recipient[];
 };
 
 export type AnnotateTargetInput = {
     url: string;
+    workspaceId: string;
     answer: TestContextAnswer;
     workspaceDir: string;
     projects: ProjectFacts[];
@@ -327,7 +351,9 @@ export function annotateTargetOf(input: AnnotateTargetInput): AnnotateTarget {
         root: version?.root ?? "",
         dir: dir ?? "",
         branch: version?.branch ?? "",
+        workspaceId: input.workspaceId ?? "",
         recipients: recipientsOf({
+            workspaceId: input.workspaceId ?? "",
             worktree: !!version?.worktree,
             projectDir: dir ?? "",
             onBranch,
@@ -347,6 +373,7 @@ export type AnnotateRequest = {
     root?: string;
     dir?: string;
     branch?: string;
+    workspaceid?: string;
     title?: string;
     image?: string;
     zones: { comment: string }[];
@@ -354,7 +381,8 @@ export type AnnotateRequest = {
 };
 
 export type AnnotateResult = {
-    status: "preview" | "copied" | "sent" | "noagent";
+    status: "preview" | "copied" | "sent" | "noagent" | "refused";
+    reason?: "workspace" | "project";
     text?: string;
     imagepath?: string;
     materialid?: string;
@@ -377,6 +405,9 @@ export function annotateRequest(
     }
     if (target.branch) {
         req.branch = target.branch;
+    }
+    if (target.workspaceId) {
+        req.workspaceid = target.workspaceId;
     }
     if (action !== "preview") {
         req.title = extra.title;

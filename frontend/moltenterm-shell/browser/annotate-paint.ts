@@ -107,6 +107,9 @@ export async function composeAnnotatedImage(
         if (ctx == null) {
             throw new Error("the capture could not be drawn");
         }
+        // A page without a background of its own is transparent in its capture, which a viewer would show black.
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, size.w, size.h);
         ctx.drawImage(img, 0, 0, size.w, size.h);
         paintZones(ctx as unknown as Paint2D, zones, size, annotateColor());
         const dataUrl = canvas.toDataURL("image/png");

@@ -21,7 +21,7 @@ import { upcomingGet } from "../reviews/reviews-upcoming-client";
 import { useWorkspaceReviews } from "../reviews/reviews-workspace";
 import { DominoLoader } from "../suite/suite";
 import { readWorkspaceProject } from "../workspace-project";
-import { callAnnotate, capturePage, settlePaint } from "./annotate-client";
+import { callAnnotate, capturePage, copyTextLater, settlePaint, takeCapture } from "./annotate-client";
 import {
     addZone,
     annotateRequest,
@@ -43,13 +43,14 @@ import {
     MaxZones,
     type Point,
     type Recipient,
+    resolveRecipient,
     setComment,
     type Size,
     type Zone,
     zoneNumber,
 } from "./annotate-model";
 import { composeAnnotatedImage } from "./annotate-paint";
-import type { AnnotateSession } from "./annotate-session";
+import type { AnnotateOpen, AnnotateSession } from "./annotate-session";
 import { useTestContext } from "./test-context";
 
 const FieldSize: Size = { w: 288, h: 156 };
@@ -317,12 +318,16 @@ export type Outcome =
     | { kind: "sent"; result: AnnotateResult }
     | { kind: "copied" }
     | { kind: "gone"; name: string }
+    | { kind: "refused"; name: string; reason: "workspace" | "project" }
     | { kind: "failed"; text: Phrase };
 
 export type ReviewViewProps = {
     target: AnnotateTarget;
     recipients: Recipient[];
     chosen: Recipient;
+    // The first name of an agent the developer picked that has since gone: nothing is chosen in its place.
+    lost: string;
+
     image: string;
     imageFailed: boolean;
     report: { text?: string; error?: Phrase };
@@ -360,23 +365,32 @@ export function ReviewView(props: ReviewViewProps) {
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 py-3 text-12">
                 <section className="flex flex-col gap-1.5" aria-label={t("browser.annotate.review.to")}>
                     <h4 className="text-11 font-semibold text-muted">{t("browser.annotate.review.to")}</h4>
+                    {props.lost ? (
+                        <p
+                            className="leading-4 text-[var(--mt-state-warning)]"
+                            role="status"
+                            data-testid="browser-annotate-lost"
+                        >
+                            {t("browser.annotate.gone", { name: props.lost })}
+                        </p>
+                    ) : null}
                     {chosen != null ? (
                         <p className="leading-4 text-secondary" data-testid="browser-annotate-chosen">
                             <span className="font-semibold text-primary">{chosen.name}</span>
                             {" · "}
                             {whyText(t, chosen, target.branch)}
                         </p>
-                    ) : (
+                    ) : recipients.length === 0 ? (
                         <p className="leading-4 text-secondary" data-testid="browser-annotate-noagent">
                             {t("browser.annotate.review.noAgent")}
                         </p>
-                    )}
+                    ) : null}
                     {chosen?.lead ? (
                         <p className="text-11 leading-4 text-muted">
                             {t("browser.annotate.review.leadNote", { name: chosen.name })}
                         </p>
                     ) : null}
-                    {recipients.length > 1 ? (
+                    {recipients.length > 1 || (chosen == null && recipients.length > 0) ? (
                         <div
                             role="radiogroup"
                             aria-label={t("browser.annotate.review.pick")}
@@ -524,6 +538,10 @@ function OutcomeNote({ outcome }: { outcome: Outcome }) {
             text = t("browser.annotate.gone", { name: outcome.name });
             bad = true;
             break;
+        case "refused":
+            text = t(`browser.annotate.refused.${outcome.reason}`, { name: outcome.name });
+            bad = true;
+            break;
         default:
             text = word(outcome.text);
             bad = true;
@@ -555,13 +573,13 @@ function Review({
     onDone: () => void;
 }) {
     const t = useT();
-    const [chosenId, setChosenId] = useState("");
+    const [picked, setPicked] = useState<{ blockId: string; name: string }>(null);
     const [image, setImage] = useState<string>("");
     const [imageFailed, setImageFailed] = useState(false);
     const [report, setReport] = useState<{ text?: string; error?: Phrase }>({});
     const [busy, setBusy] = useState<"send" | "copy">(null);
     const [outcome, setOutcome] = useState<Outcome>(null);
-    const chosen = target.recipients.find((r) => r.blockId === chosenId) ?? target.recipients[0] ?? null;
+    const { chosen, lost } = resolveRecipient(target.recipients, picked);
     const zonesKey = JSON.stringify(zones.map((z) => [z.x, z.y, z.w, z.h, z.comment.trim()]));
     useEffect(() => {
         let live = true;
@@ -614,14 +632,20 @@ function Review({
         setOutcome(null);
         fireAndForget(async () => {
             try {
-                const result = await callAnnotate(
+                const answer = callAnnotate(
                     annotateRequest(kind, target, zones, { title, image, to: chosen ?? undefined })
                 );
+                if (kind === "copy") {
+                    // Started now, inside the click: the clipboard is written when the report is there.
+                    await copyTextLater(answer.then((result) => result.text ?? ""));
+                    setOutcome({ kind: "copied" });
+                    return;
+                }
+                const result = await answer;
                 if (result.status === "noagent") {
                     setOutcome({ kind: "gone", name: chosen?.name ?? "" });
-                } else if (result.status === "copied") {
-                    await navigator.clipboard.writeText(result.text ?? "");
-                    setOutcome({ kind: "copied" });
+                } else if (result.status === "refused") {
+                    setOutcome({ kind: "refused", name: chosen?.name ?? "", reason: result.reason });
                 } else {
                     setOutcome({ kind: "sent", result });
                 }
@@ -638,13 +662,15 @@ function Review({
             target={target}
             recipients={target.recipients}
             chosen={chosen}
+            lost={lost}
             image={image}
             imageFailed={imageFailed}
             report={report}
             busy={busy}
             outcome={outcome}
             onPick={(blockId) => {
-                setChosenId(blockId);
+                const r = target.recipients.find((x) => x.blockId === blockId);
+                setPicked(r != null ? { blockId, name: r.name } : null);
                 setOutcome(null);
             }}
             onSend={() => run("send")}
@@ -673,21 +699,23 @@ function useAnnotateTarget(url: string): AnnotateTarget {
             upcomingGet(workspaceDir).catch(() => {});
         }
     }, [workspaceDir, sameProject, upcomingKnown]);
+    const workspaceId = workspace?.oid ?? "";
     return useMemo(
-        () => annotateTargetOf({ url, answer, workspaceDir, projects, asks, states, locks }),
-        [url, answer, workspaceDir, projects, asks, states, locks]
+        () => annotateTargetOf({ url, workspaceId, answer, workspaceDir, projects, asks, states, locks }),
+        [url, workspaceId, answer, workspaceDir, projects, asks, states, locks]
     );
 }
 
 function AnnotateLayer({
     session,
     open,
-    activeTabId,
+    shown,
     onClose,
 }: {
     session: AnnotateSession;
     open: { tabId: string; url: string };
-    activeTabId: string;
+    // Hidden, never closed, while another tab of the panel is shown: the zones are there when this tab is back.
+    shown: boolean;
     onClose: () => void;
 }) {
     const t = useT();
@@ -705,14 +733,12 @@ function AnnotateLayer({
         fireAndForget(async () => {
             await settlePaint();
             const rect = rootRef.current?.getBoundingClientRect();
-            let url = "";
-            try {
-                url = rect != null ? await capturePage(rect) : "";
-            } catch {
-                url = "";
-            }
+            const taken = await takeCapture(
+                () => session.pageCapture(open.tabId),
+                async () => (rect != null ? await capturePage(rect) : "")
+            );
             if (live) {
-                setCapture(url);
+                setCapture(taken.url);
             }
         });
         return () => {
@@ -720,32 +746,27 @@ function AnnotateLayer({
         };
     }, []);
     const readyRef = useRef(false);
-    readyRef.current = !!capture;
+    readyRef.current = !!capture && shown;
     useEffect(() => {
         // The panel gives its focus to the page when it gains it; with the mode on, the keys (Escape, Enter) are the
         // layer's, the frozen page behind it must not take them.
-        session.focusLayer = () => {
+        session.focusLayers.set(open.tabId, () => {
             const root = rootRef.current;
             if (root == null || !readyRef.current) {
                 return false;
             }
             (root.querySelector("textarea") ?? root).focus();
             return true;
-        };
+        });
         return () => {
-            session.focusLayer = null;
+            session.focusLayers.delete(open.tabId);
         };
-    }, [session]);
+    }, [session, open.tabId]);
     useEffect(() => {
-        if (capture) {
+        if (capture && shown) {
             rootRef.current?.focus();
         }
-    }, [capture]);
-    useEffect(() => {
-        if (activeTabId !== open.tabId) {
-            onClose();
-        }
-    }, [activeTabId, open.tabId]);
+    }, [capture, shown]);
     useEffect(() => {
         const el = stageRef.current;
         if (el == null) {
@@ -767,7 +788,11 @@ function AnnotateLayer({
         <div
             ref={rootRef}
             tabIndex={-1}
-            className={cn("absolute inset-0 z-20 outline-none select-none", capture == null && "pointer-events-none")}
+            className={cn(
+                "absolute inset-0 z-20 outline-none select-none",
+                capture == null && "pointer-events-none",
+                !shown && "hidden"
+            )}
             aria-label={t("browser.annotate.layerLabel")}
             data-testid="browser-annotate"
             onKeyDown={(e) => {
@@ -923,19 +948,15 @@ function AnnotateLayer({
     );
 }
 
-// Mounted by the web page panel over its pages: nothing shows until the mode starts.
-export function AnnotateHost({ session, activeTabId }: { session: AnnotateSession; activeTabId: string }) {
-    const open = useAtomValue(session.openAtom);
-    if (open == null) {
-        return null;
-    }
-    return (
-        <AnnotateLayer
-            key={open.nonce}
-            session={session}
-            open={open}
-            activeTabId={activeTabId}
-            onClose={() => session.close()}
-        />
-    );
+// Mounted by the web page panel over its pages, one per tab in the mode (annotateLayers): nothing shows until it starts.
+export function AnnotateHost({
+    session,
+    open,
+    shown,
+}: {
+    session: AnnotateSession;
+    open: AnnotateOpen;
+    shown: boolean;
+}) {
+    return <AnnotateLayer session={session} open={open} shown={shown} onClose={() => session.close(open.tabId)} />;
 }

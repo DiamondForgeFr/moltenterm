@@ -2924,6 +2924,10 @@
                 "done": "Done"
             },
             "gone": "{name} no longer runs. Choose another agent or copy the report.",
+            "refused": {
+                "workspace": "{name} works in another workspace: nothing was sent.",
+                "project": "{name} works on another project: nothing was sent."
+            },
             "sendFailed": "Nothing was sent: {error}",
             "materialTitle": "Annotated page: {where}"
         },

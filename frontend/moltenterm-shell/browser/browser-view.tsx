@@ -67,7 +67,7 @@ import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
 import { showAgentPage } from "./agent-show";
-import { annotatablePage, AnnotateSession } from "./annotate-session";
+import { annotatablePage, annotateLayers, AnnotateSession, closedTabs } from "./annotate-session";
 import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
 import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
@@ -327,6 +327,7 @@ export class BrowserViewModel implements ViewModel {
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
+        this.annotate.pageCapture = (tabId) => this.capturePageImage(tabId);
         if (takeAddressFocus(blockId)) {
             this.addressHold.start();
         }
@@ -1493,6 +1494,23 @@ export class BrowserViewModel implements ViewModel {
         return true;
     }
 
+    // The page's own picture, without anything the window draws over it (the layer, a popover, a toast), as the page
+    // shows it in the panel; "" when the page cannot be captured (not loaded yet): the annotate mode then takes the
+    // window's picture of the panel's area.
+    async capturePageImage(tabId: string): Promise<string> {
+        const webview = this.webviews.get(tabId);
+        if (webview == null) {
+            return "";
+        }
+        try {
+            const image = await webview.capturePage();
+            return image == null || image.isEmpty() ? "" : image.toDataURL();
+        } catch (e) {
+            console.log("browser page capture failed", e);
+            return "";
+        }
+    }
+
     canAnnotate(tabId = this.state().activeId): boolean {
         const tab = this.findTab(tabId);
         return tab != null && !tab.engine && annotatablePage(tab.url);
@@ -1657,7 +1675,7 @@ export class BrowserViewModel implements ViewModel {
         if (this.addressHold.holds && this.focusAddress()) {
             return true;
         }
-        if (this.annotate.holdFocus()) {
+        if (this.annotate.holdFocus(this.state().activeId)) {
             return true;
         }
         // The engine choice's primary button holds the focus while the bar is up (DS-BRW-007).
@@ -1758,7 +1776,7 @@ export class BrowserViewModel implements ViewModel {
             case BrowserKeyInspect:
                 return this.toggleInspector(id);
             case BrowserKeyAnnotate:
-                return this.annotate.isOpen() || this.startAnnotate(id);
+                return this.annotate.isOpen(id) || this.startAnnotate(id);
             case BrowserKeyAddress:
                 return this.focusAddress();
             case BrowserKeyStop:
@@ -2516,15 +2534,33 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
     );
 }
 
-// The annotate layer over the panel's pages: nothing loads until the mode starts.
-function AnnotateMount({ session, activeTabId }: { session: AnnotateSession; activeTabId: string }) {
-    const open = useAtomValue(session.openAtom);
-    if (open == null) {
+// The annotate layers over the panel's pages: nothing loads until the mode starts. A tab's layer stays mounted, hidden,
+// while another tab is shown, so its zones are there when the tab is back; the session of a tab that is closed ends.
+function AnnotateMount({
+    session,
+    activeTabId,
+    tabIds,
+}: {
+    session: AnnotateSession;
+    activeTabId: string;
+    tabIds: string[];
+}) {
+    const opens = useAtomValue(session.openAtom);
+    const tabKey = tabIds.join("\n");
+    useEffect(() => {
+        for (const tabId of closedTabs(opens, tabKey ? tabKey.split("\n") : [])) {
+            session.close(tabId);
+        }
+    }, [session, opens, tabKey]);
+    const layers = annotateLayers(opens, activeTabId, tabIds);
+    if (layers.length === 0) {
         return null;
     }
     return (
         <Suspense fallback={null}>
-            <AnnotateHost session={session} activeTabId={activeTabId} />
+            {layers.map((layer) => (
+                <AnnotateHost key={layer.open.nonce} session={session} open={layer.open} shown={layer.shown} />
+            ))}
         </Suspense>
     );
 }
@@ -2533,23 +2569,24 @@ function AnnotateMount({ session, activeTabId }: { session: AnnotateSession; act
 // The tooltip names the shortcut with the glyphs of the platform.
 function AnnotateButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const t = useT();
-    const open = useAtomValue(model.annotate.openAtom);
+    const opens = useAtomValue(model.annotate.openAtom);
     if (tab == null || tab.engine || !annotatablePage(tab.url)) {
         return null;
     }
+    const on = opens.some((open) => open.tabId === tab.id);
     const shortcut = formatShortcutById(isMacOS() ? "browser-annotate" : "browser-annotate-other");
     const label = t("browser.annotate.button");
     return (
         <button
             type="button"
             aria-label={label}
-            aria-pressed={open != null}
+            aria-pressed={on}
             title={t("browser.annotate.buttonTitle", { shortcut })}
             onClick={() => model.startAnnotate(tab.id)}
             data-testid="browser-annotate-button"
             className={cn(
                 "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary",
-                open != null && "bg-hover text-primary"
+                on && "bg-hover text-primary"
             )}
         >
             <i className="fa fa-solid fa-vector-square text-12" />
@@ -2991,7 +3028,11 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                     <ActiveStartPage model={model} tabId={state.activeId} />
                     <ActiveErrorPage model={model} tabId={state.activeId} />
                     <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
-                    <AnnotateMount session={model.annotate} activeTabId={state.activeId} />
+                    <AnnotateMount
+                        session={model.annotate}
+                        activeTabId={state.activeId}
+                        tabIds={state.tabs.map((tab) => tab.id)}
+                    />
                 </div>
                 {state.tabs.map((tab) =>
                     inspectors[tab.id] != null && !tab.engine && discarded[tab.id] == null ? (

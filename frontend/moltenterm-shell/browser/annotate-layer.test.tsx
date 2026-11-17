@@ -117,6 +117,7 @@ const Target: AnnotateTarget = {
     root: "/w/shop-wt/a",
     dir: "/w/shop",
     branch: "feature/1-a",
+    workspaceId: "ws-1",
     recipients: [],
 };
 
@@ -131,6 +132,7 @@ function review(props: Partial<ReviewViewProps> = {}): string {
             target={Target}
             recipients={recipients}
             chosen={recipients[0] ?? null}
+            lost=""
             image="data:image/png;base64,AAAA"
             imageFailed={false}
             report={{ text: "The report's text." }}
@@ -226,6 +228,45 @@ describe("the review (FR-BRW-017 AC14)", () => {
         const html = review({ outcome: { kind: "gone", name: "Camille" } });
         expect(html).toContain("Camille no longer runs. Choose another agent or copy the report.");
         expect(html).toContain("browser-annotate-send");
+    });
+
+    it("says a picked agent that went, chooses no other in its place, and asks for a new pick among the agents left", () => {
+        const html = review({ recipients: [who("Hugo", "project", true)], chosen: null, lost: "Camille" });
+        expect(html).toContain('data-testid="browser-annotate-lost"');
+        expect(html).toContain("Camille no longer runs. Choose another agent or copy the report.");
+        expect(html).toContain('role="radiogroup"');
+        expect(html).toContain("Hugo");
+        expect(html).not.toContain('aria-checked="true"');
+        expect(html).not.toContain("browser-annotate-chosen");
+        expect(html).not.toContain("browser-annotate-send");
+        expect(html).toContain("browser-annotate-copy");
+    });
+
+    it("says a picked agent that went when no agent is left, with the copy as the way out", () => {
+        const html = review({ recipients: [], chosen: null, lost: "Camille" });
+        expect(html).toContain("browser-annotate-lost");
+        expect(html).toContain("No agent runs for this project right now");
+        expect(html).not.toContain("browser-annotate-send");
+    });
+
+    it("says nothing of a lost agent when none was picked", () => {
+        expect(review()).not.toContain("browser-annotate-lost");
+    });
+
+    it.each([
+        ["workspace", "Camille works in another workspace: nothing was sent."],
+        ["project", "Camille works on another project: nothing was sent."],
+    ] as const)("says why a send was refused (%s), and keeps the choice open", (reason, text) => {
+        const html = review({ outcome: { kind: "refused", name: "Camille", reason } });
+        expect(html).toContain(text);
+        expect(html).toContain("browser-annotate-send");
+        expect(html).not.toContain("browser-annotate-done");
+    });
+
+    it("says why a send was refused in French too", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        const html = review({ outcome: { kind: "refused", name: "Camille", reason: "workspace" } });
+        expect(html).toContain("Camille travaille dans un autre espace de travail");
     });
 
     it("says the copy was made, and a failure with its reason", () => {
