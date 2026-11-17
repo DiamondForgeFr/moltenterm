@@ -410,8 +410,9 @@
     overflow-y: auto;
 }
 
-/* The usage grid: no control, it opens nothing (FR-BOSS-009, AC58, #2106). It never scrolls: the card is as tall as its
-   rows, measured (blockHeight in brokk-group-model.ts), and the field stands below the last one. */
+/* The usage grid: it opens nothing (FR-BOSS-009, AC58, #2106); its only controls are a row's menu and, when a provider is
+   left out, the quiet "Not used lately" line under it (AC97, #2341). It never scrolls: the card is as tall as its rows
+   and that line, measured (blockHeight in brokk-group-model.ts), and the field stands below the last one. */
 .mt-brokk-usage {
     display: block;
     margin: 0;

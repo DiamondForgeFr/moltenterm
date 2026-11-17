@@ -10,13 +10,12 @@
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
 import { GaugeRow, gaugeRows, UsageSnapshot } from "../companion/companion-gauges-model";
-import { mainWindow, UsageWeekLine, usageWeekLine, windowLength } from "../usage-week/usage-week-model";
+import { isStale, mainWindow, UsageWeekLine, usageWeekLine, UseWindowMs } from "../usage-week/usage-week-model";
 import type { UsageReadings, UsageUnreadable } from "./boss-usage";
 
-const DayMs = 24 * 60 * 60 * 1000;
-
-// What counts as the developer's recent use, and as a reading that is no longer current: 7 days.
-export const UseWindowMs = 7 * DayMs;
+// The 7 days of AC95 and AC96, and the rule of a stale reading, are the shared grid's (usage-week-model.ts), which the
+// visit model also reads.
+export { isStale, readingStale, staleAfterMs, UseWindowMs } from "../usage-week/usage-week-model";
 
 // What an agent was used over the last 7 days, as wavesrv's recorder tells it (pkg/molten/agentuse).
 export type AgentUse = {
@@ -74,21 +73,6 @@ export function planKind(plan: string): PlanKind {
         return "unknown";
     }
     return NotPaidPlan.test(name) ? "free" : "paid";
-}
-
-// A reading is current for as long as its window lasts, and for 7 days at most.
-export function staleAfterMs(windowMins: number): number {
-    return windowMins > 0 ? Math.min(windowMins * 60 * 1000, UseWindowMs) : UseWindowMs;
-}
-
-export function isStale(readAt: number, windowMins: number, now: number): boolean {
-    return readAt > 0 && now - readAt > staleAfterMs(windowMins);
-}
-
-// A reading older than its main window (or than 7 days) is no news: the one that tells a plan usage above 90 % ignores it.
-export function readingStale(snapshot: UsageSnapshot, now: number): boolean {
-    const main = mainWindow(snapshot?.windows, now);
-    return main != null && isStale(snapshot.readat ?? 0, windowLength(main), now);
 }
 
 export type HiddenReason = "chosen" | "unused";

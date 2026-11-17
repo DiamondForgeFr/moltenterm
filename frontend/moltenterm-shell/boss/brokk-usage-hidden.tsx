@@ -55,7 +55,7 @@ export function UsageHiddenList({
                     </span>
                     <button
                         type="button"
-                        className="shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary"
+                        className="shrink-0 cursor-pointer rounded-4 px-1.5 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary"
                         data-testid="brokk-usage-hidden-show"
                         onClick={() => onShow(item.provider)}
                     >
@@ -87,7 +87,7 @@ export function UsageHidden({
             <button
                 type="button"
                 className={cn(
-                    "cursor-pointer rounded py-0.5 text-11 text-muted hover:text-primary",
+                    "cursor-pointer rounded-4 py-0.5 text-11 text-muted hover:text-primary",
                     open && "text-secondary"
                 )}
                 aria-expanded={open}

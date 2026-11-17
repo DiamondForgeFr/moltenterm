@@ -11,8 +11,8 @@
 import { gaugeRows } from "../companion/companion-gauges-model";
 import { DownloadRecord } from "../downloads/downloads-model";
 import { checkUnread, MoltentermNotification } from "../notifications-model";
+import { readingStale } from "../usage-week/usage-week-model";
 import type { UsageReadings } from "./boss-usage";
-import { readingStale } from "./brokk-usage-model";
 import type { BrokkEvent } from "./brokk-visit-events";
 
 export const DownloadsSource = "downloads";
