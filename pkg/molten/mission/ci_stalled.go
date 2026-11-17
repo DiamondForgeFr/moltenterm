@@ -169,14 +169,7 @@ func ciRunJustStarted(rec CiRunRecord) bool {
 
 // CiChanged publishes the project's review list again once a local CI run started or ended, when it was read.
 func (r *Reviews) CiChanged(dir string) {
-	if r == nil || r.publish == nil || r.collector == nil {
-		return
-	}
-	snap, ok := r.collector.Cached(filepath.Clean(dir))
-	if !ok {
-		return
-	}
-	r.publish(r.answerOf(snap))
+	r.publishCurrent(filepath.Clean(dir))
 }
 
 // reconcileAnswerLocalCi applies reconcileLocalCi to every PR of an answer, when the project has a local CI.
