@@ -8,15 +8,23 @@ support a patched version, and repeat renderer, trust and resource-limit tests o
 Its Commander 15 CLI dependency requires Node >=22.12.0; the renderer does not use that CLI. CI uses Node 22.
 Existing Streamdown sanitization strips KaTeX formatting and MathML, including before this change (#1610).
 
-Electron is pinned to 45.2.3 (#1983; 45.2.0 from #1590), with the developer-approved macOS 13+ minimum. Electron 42 is
-out of support; the earlier #810 choice of 42.11.15 and macOS 12 support is historical. Historic performance baselines
-keep their recorded versions. Electron 45 is tentatively supported until April 27, 2027; the pinned lifecycle review
-expires at the start of February 3, 2027 UTC. It was renewed on November 9, 2026 (#2122): 45.2.3 (November 4) was
-still the newest 45.x, with no Electron advisory holding it, 45 was among the three supported stable majors (43 to 45)
-and the schedule still gave April 27, 2027 for 45 and January 5, 2027 for 46 stable. The 45.2.1 to 45.2.3 notes carry
-Chromium 156.0.8078.75 to .80 and upstream Chromium, ANGLE, Dawn, FFmpeg, PDFium, Skia and V8 backports, Node.js
-24.22.2, and two fixes (a Wayland crash with a hidden parent window, `removeInsertedCSS()` and user-origin
-stylesheets); no API changes. The patch deadlines,
+Electron is pinned to 45.3.4 (#2357; 45.2.3 from #1983, 45.2.0 from #1590), with the developer-approved macOS 13+
+minimum. Electron 42 is out of support; the earlier #810 choice of 42.11.15 and macOS 12 support is historical. Historic
+performance baselines keep their recorded versions. Electron 45 is tentatively supported until April 27, 2027; the
+pinned lifecycle review expires at the start of February 15, 2027 UTC. It was renewed on November 17, 2026 (#2357, the
+release notes and the packaged build reviewed in #2359):
+45.3.4 (November 17) is the newest 45.x, with no Electron advisory holding it, 45 is among the three supported stable
+majors (43 to 45) and the schedule still gives April 27, 2027 for 45 and January 5, 2027 for 46 stable. The 45.2.1 to
+45.2.3 notes carry Chromium 156.0.8078.75 to .80 and upstream Chromium, ANGLE, Dawn, FFmpeg, PDFium, Skia and V8
+backports, Node.js 24.22.2, and two fixes (a Wayland crash with a hidden parent window, `removeInsertedCSS()` and
+user-origin stylesheets); no API changes. The 45.3.0 to 45.3.4 notes carry Chromium 156.0.8078.96 then .100, 48
+upstream ANGLE, Chromium, Dawn, Skia and V8 backports (use-after-frees, JIT and GPU fixes, the file system access
+blocklist), Node.js 24.22.3 (a security release: HTTP/2 and TLS fixes rated high), the distrust of eMudhra's revoked
+RSA intermediates, and fixes MoltenTerm meets: a main-process crash when a permission callback answers after its
+`<webview>` is gone, a crash when DevTools Fetch interception resumes a response, cookies set just before quitting
+now saved, canvas `font` with leading whitespace accepted (what #2065 works around), and a leak of right-clicked
+elements. The only addition is `chrome.storage.managed` for extensions, which MoltenTerm does not load; no API is
+removed or changed. The patch deadlines,
 the daily and release-time staleness check and the bump procedure are in [ELECTRON.md](ELECTRON.md); a bump is
 requalified on a packaged build before it ships.
 See [Electron releases](https://releases.electronjs.org/), its
