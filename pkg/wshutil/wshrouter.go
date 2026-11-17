@@ -113,8 +113,9 @@ type WshRouter struct {
 	linkBacklogCond      *sync.Cond
 	linkMsgBacklog       map[baseds.LinkId][]backlogMessageWrap
 	backlogHighWaterMark map[baseds.LinkId]int
-	backlogRoundLock     sync.Mutex                  // MOLTENTERM-PATCH (#2334): a round sends outside lock, rounds never overlap
-	backlogLogAt         map[backlogLogKey]time.Time // MOLTENTERM-PATCH (#2334): rate limit of the backlog's log lines
+	backlogRoundLock     sync.Mutex                        // MOLTENTERM-PATCH (#2334): a round sends outside lock, rounds never overlap
+	backlogLogAt         map[backlogLogKey]backlogLogEntry // MOLTENTERM-PATCH (#2334, #2340): rate limit of the backlog's log lines
+	unregisteringLinks   map[baseds.LinkId]bool            // MOLTENTERM-PATCH (#2340): gone links whose unregister has started
 
 	controlRpc *WshRpc
 }
@@ -289,6 +290,7 @@ func (router *WshRouter) getRouteInfo(rpcId string) *rpcRoutingInfo {
 }
 
 // returns true if message was sent, false if failed
+// MOLTENTERM-PATCH (#2340): false too when the link is found closed, so that a request is answered at once.
 func (router *WshRouter) sendRoutedMessage(msgBytes []byte, routeId string, commandName string, ingressLinkId baseds.LinkId) bool {
 	if strings.HasPrefix(routeId, RoutePrefix_Link) {
 		linkIdStr := strings.TrimPrefix(routeId, RoutePrefix_Link)
@@ -299,13 +301,11 @@ func (router *WshRouter) sendRoutedMessage(msgBytes []byte, routeId string, comm
 	}
 	lm := router.getLinkForRoute(routeId)
 	if lm != nil {
-		router.sendRpcMessageToLink(lm.linkId, lm.client, msgBytes, ingressLinkId, "route")
-		return true
+		return router.sendRpcMessageToLink(lm.linkId, lm.client, msgBytes, ingressLinkId, "route")
 	}
 	upstreamLinkId, upstream := router.getUpstreamClient()
 	if upstream != nil {
-		router.sendRpcMessageToLink(upstreamLinkId, upstream, msgBytes, ingressLinkId, "route-upstream")
-		return true
+		return router.sendRpcMessageToLink(upstreamLinkId, upstream, msgBytes, ingressLinkId, "route-upstream")
 	}
 	if commandName != "" {
 		log.Printf("[router] no rpc for route id %q command:%s\n", routeId, commandName)
@@ -320,8 +320,7 @@ func (router *WshRouter) sendMessageToLink(msgBytes []byte, linkId baseds.LinkId
 	if lm == nil {
 		return false
 	}
-	router.sendRpcMessageToLink(lm.linkId, lm.client, msgBytes, ingressLinkId, "link")
-	return true
+	return router.sendRpcMessageToLink(lm.linkId, lm.client, msgBytes, ingressLinkId, "link") // MOLTENTERM-PATCH (#2340)
 }
 
 // MOLTENTERM-PATCH (#2334): returns the line to log once router.lock is released ("" for none).
@@ -335,7 +334,8 @@ func (router *WshRouter) addToBacklog_withlock(linkId baseds.LinkId, msgBytes []
 	highWater := router.backlogHighWaterMark[linkId]
 
 	var logLine string
-	if BacklogLogThresholds[newLen] && highWater < newLen && router.allowBacklogLog_withlock(linkId, backlogLogReached, time.Now()) {
+	// MOLTENTERM-PATCH (#2340): a higher size than the one logged is logged within the minute too
+	if BacklogLogThresholds[newLen] && highWater < newLen && router.allowBacklogSizeLog_withlock(linkId, newLen, time.Now()) {
 		logLine = fmt.Sprintf("[router] backlog for linkid=%d reached %d messages", linkId, newLen)
 	}
 
@@ -350,18 +350,21 @@ func (router *WshRouter) addToBacklog_withlock(linkId baseds.LinkId, msgBytes []
 }
 
 // MOLTENTERM-PATCH (#2334): a message for a closed link is dropped, never backlogged, and the link is unregistered.
-func (router *WshRouter) sendRpcMessageToLink(linkId baseds.LinkId, client AbstractRpcClient, msgBytes []byte, ingressLinkId baseds.LinkId, debugStr string) {
-	logLine, gone := router.sendRpcMessageToLink_lock(linkId, client, msgBytes, ingressLinkId, debugStr)
+// MOLTENTERM-PATCH (#2340): returns false when the link is closed (the message is dropped), true when the message was
+// sent or queued; a single unregister runs per gone link.
+func (router *WshRouter) sendRpcMessageToLink(linkId baseds.LinkId, client AbstractRpcClient, msgBytes []byte, ingressLinkId baseds.LinkId, debugStr string) bool {
+	logLine, gone, unregister := router.sendRpcMessageToLink_lock(linkId, client, msgBytes, ingressLinkId, debugStr)
 	if logLine != "" {
 		log.Printf("%s\n", logLine)
 	}
-	if gone {
+	if unregister {
 		// not inline: unregistering publishes route-down events, which route back through this function
-		go router.UnregisterLink(linkId)
+		go router.unregisterGoneLink(linkId)
 	}
+	return !gone
 }
 
-func (router *WshRouter) sendRpcMessageToLink_lock(linkId baseds.LinkId, client AbstractRpcClient, msgBytes []byte, ingressLinkId baseds.LinkId, debugStr string) (string, bool) {
+func (router *WshRouter) sendRpcMessageToLink_lock(linkId baseds.LinkId, client AbstractRpcClient, msgBytes []byte, ingressLinkId baseds.LinkId, debugStr string) (string, bool, bool) {
 	router.lock.Lock()
 	defer router.lock.Unlock()
 	sent := false
@@ -369,13 +372,13 @@ func (router *WshRouter) sendRpcMessageToLink_lock(linkId baseds.LinkId, client 
 	if len(backlog) == 0 {
 		sent = client.SendRpcMessage(msgBytes, ingressLinkId, debugStr)
 		if !sent && isLinkClientGone(client) {
-			return router.dropGoneLinkBacklog_withlock(linkId, time.Now()), true
+			return router.dropGoneLinkBacklog_withlock(linkId, time.Now()), true, router.claimGoneLinkUnregister_withlock(linkId)
 		}
 	}
 	if !sent {
-		return router.addToBacklog_withlock(linkId, msgBytes, ingressLinkId, debugStr), false
+		return router.addToBacklog_withlock(linkId, msgBytes, ingressLinkId, debugStr), false, false
 	}
-	return "", false
+	return "", false, false
 }
 
 func (router *WshRouter) runServer() {

@@ -14,7 +14,7 @@ import (
 // #2334: a link whose proxy was closed while it stayed registered had its backlog retried every 50 ms, forever, each
 // send panicking and logging under the router lock. A closed link is now dropped, the backlog is sent outside the
 // router lock, and the backlog's log lines are printed after the lock is released, at most one per link and kind per
-// minute.
+// minute (a higher backlog size excepted, #2340).
 
 const BacklogLogInterval = time.Minute
 
@@ -34,6 +34,12 @@ type backlogLogKey struct {
 	kind   string
 }
 
+// backlogLogEntry is the last line logged for a link and kind: when, and the backlog size it named (0 for none).
+type backlogLogEntry struct {
+	at   time.Time
+	size int
+}
+
 type backlogRoundItem struct {
 	linkId  baseds.LinkId
 	client  AbstractRpcClient
@@ -49,20 +55,55 @@ func isLinkClientGone(client AbstractRpcClient) bool {
 
 // allowBacklogLog_withlock says whether a backlog line of this kind may be logged for the link now, and records it.
 func (router *WshRouter) allowBacklogLog_withlock(linkId baseds.LinkId, kind string, now time.Time) bool {
+	return router.allowBacklogLogSize_withlock(linkId, kind, 0, now)
+}
+
+// allowBacklogSizeLog_withlock rate-limits the "reached N messages" line, but never hides a size higher than the one
+// logged within the minute (#2340): a backlog that keeps growing is what the line is for.
+func (router *WshRouter) allowBacklogSizeLog_withlock(linkId baseds.LinkId, size int, now time.Time) bool {
+	return router.allowBacklogLogSize_withlock(linkId, backlogLogReached, size, now)
+}
+
+func (router *WshRouter) allowBacklogLogSize_withlock(linkId baseds.LinkId, kind string, size int, now time.Time) bool {
 	if router.backlogLogAt == nil {
-		router.backlogLogAt = make(map[backlogLogKey]time.Time)
+		router.backlogLogAt = make(map[backlogLogKey]backlogLogEntry)
 	}
-	for key, at := range router.backlogLogAt {
-		if now.Sub(at) >= BacklogLogInterval {
+	for key, entry := range router.backlogLogAt {
+		if now.Sub(entry.at) >= BacklogLogInterval {
 			delete(router.backlogLogAt, key)
 		}
 	}
 	key := backlogLogKey{linkId: linkId, kind: kind}
-	if _, logged := router.backlogLogAt[key]; logged {
+	if entry, logged := router.backlogLogAt[key]; logged && size <= entry.size {
 		return false
 	}
-	router.backlogLogAt[key] = now
+	router.backlogLogAt[key] = backlogLogEntry{at: now, size: size}
 	return true
+}
+
+// claimGoneLinkUnregister_withlock says whether the caller starts the unregister of a gone link: one runs per link,
+// and none once the link has left linkMap (every message to a gone link would otherwise start its own).
+func (router *WshRouter) claimGoneLinkUnregister_withlock(linkId baseds.LinkId) bool {
+	if router.linkMap[linkId] == nil || router.unregisteringLinks[linkId] {
+		return false
+	}
+	if router.unregisteringLinks == nil {
+		router.unregisteringLinks = make(map[baseds.LinkId]bool)
+	}
+	router.unregisteringLinks[linkId] = true
+	return true
+}
+
+func (router *WshRouter) releaseGoneLinkUnregister(linkId baseds.LinkId) {
+	router.lock.Lock()
+	defer router.lock.Unlock()
+	delete(router.unregisteringLinks, linkId)
+}
+
+// unregisterGoneLink runs the unregister a claimGoneLinkUnregister_withlock call granted.
+func (router *WshRouter) unregisterGoneLink(linkId baseds.LinkId) {
+	defer router.releaseGoneLinkUnregister(linkId)
+	router.UnregisterLink(linkId)
 }
 
 func printBacklogLogLines(lines []string) {
@@ -119,7 +160,9 @@ func (router *WshRouter) finishBacklogRound(items []*backlogRoundItem) ([]baseds
 	var lines []string
 	for _, item := range items {
 		if item.gone {
-			gone = append(gone, item.linkId)
+			if router.claimGoneLinkUnregister_withlock(item.linkId) {
+				gone = append(gone, item.linkId)
+			}
 			if line := router.dropGoneLinkBacklog_withlock(item.linkId, now); line != "" {
 				lines = append(lines, line)
 			}
@@ -155,6 +198,6 @@ func (router *WshRouter) runBacklogRound() ([]baseds.LinkId, []string) {
 
 func (router *WshRouter) unregisterGoneLinks(linkIds []baseds.LinkId) {
 	for _, linkId := range linkIds {
-		router.UnregisterLink(linkId)
+		router.unregisterGoneLink(linkId)
 	}
 }
