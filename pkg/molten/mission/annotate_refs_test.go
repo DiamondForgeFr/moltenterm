@@ -7,10 +7,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -293,6 +295,62 @@ func TestAnnotateLinks(t *testing.T) {
 	}
 	if got := annotateLinks(strings.Join(many, " ")); len(got) != annotateMaxLinksPerZone {
 		t.Errorf("%d links, want at most %d", len(got), annotateMaxLinksPerZone)
+	}
+}
+
+// The window's chips and this listing split a comment the same way: both read the same fixtures
+// (testdata/annotate-links.json; annotate-model.test.ts reads them too), Unicode spaces and invisible characters included.
+func TestAnnotateLinksSplitAsTheWindowDoes(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile(filepath.Join("testdata", "annotate-links.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Name    string   `json:"name"`
+		Comment string   `json:"comment"`
+		Hosts   []string `json:"hosts"`
+	}
+	if err := json.Unmarshal(raw, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases) < 15 {
+		t.Fatalf("only %d fixtures", len(cases))
+	}
+	for _, c := range cases {
+		var hosts []string
+		for _, link := range annotateLinks(annotateBlock(c.Comment, annotateMaxCommentRunes)) {
+			u, err := url.Parse(link)
+			if err != nil {
+				t.Fatalf("%s: %q: %v", c.Name, link, err)
+			}
+			hosts = append(hosts, strings.ToLower(u.Host))
+		}
+		if strings.Join(hosts, ",") != strings.Join(c.Hosts, ",") {
+			t.Errorf("%s: %q gave %v, want %v", c.Name, c.Comment, hosts, c.Hosts)
+		}
+	}
+}
+
+// A preview, a copy and a send answer each zone's links as the brief lists them, so that the review shows the brief's.
+func TestAnnotateAnswersTheLinksItLists(t *testing.T) {
+	t.Parallel()
+	f := makeAnnotateFixture(t)
+	for _, action := range []string{AnnotatePreview, AnnotateCopy} {
+		got, err := runAnnotate(context.Background(), f.env, f.request(action, "Like https://a.test/x?token=abc&p=1", "plain", "see javascript:alert(1)"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.Links) != 3 || len(got.Links[0]) != 1 || got.Links[0][0] != "https://a.test/x?p=1" || len(got.Links[1]) != 0 || len(got.Links[2]) != 0 {
+			t.Errorf("%s: links %v", action, got.Links)
+		}
+		if !strings.Contains(got.Text, "- `https://a.test/x?p=1`") {
+			t.Errorf("%s: the brief does not list what was answered:\n%s", action, got.Text)
+		}
+	}
+	none, err := runAnnotate(context.Background(), f.env, f.request(AnnotatePreview, "a plain comment"))
+	if err != nil || none.Links != nil {
+		t.Errorf("links %v (%v), want none", none.Links, err)
 	}
 }
 
