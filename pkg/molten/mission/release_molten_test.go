@@ -77,11 +77,19 @@ func makeMoltentermFixture(t *testing.T) (*Runs, string, string, []string) {
 	if err := json.Unmarshal(data, &own); err != nil {
 		t.Fatal(err)
 	}
+	// Its preflight checks (#2365) run the project's dependency scan and Electron rule, which need the network and
+	// scripts this fixture does not have: the release package's tests cover finalize with checks.
+	var releaseBlock map[string]json.RawMessage
+	if err := json.Unmarshal(own["release"], &releaseBlock); err != nil {
+		t.Fatal(err)
+	}
+	delete(releaseBlock, "preflight")
+	steps, _ := json.Marshal(releaseBlock)
 	pipeline, _ := json.MarshalIndent(map[string]json.RawMessage{
 		"schema":   json.RawMessage(`1`),
 		"name":     json.RawMessage(`"Fixture"`),
 		"versions": own["versions"],
-		"release":  own["release"],
+		"release":  steps,
 	}, "", "    ")
 
 	origin, dir := filepath.Join(base, "origin.git"), filepath.Join(base, "app")
