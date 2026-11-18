@@ -81,6 +81,39 @@ func TestClassify(t *testing.T) {
 	}
 }
 
+// #2372: an error or warning field that holds nothing is the report of a success, not a problem; a real error word
+// elsewhere on the line keeps the line's kind.
+func TestAnEmptyErrorMentionIsNoProblem(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"[wavesrv] filestore flush: 2/2 entries flushed, err:<nil>":       "",
+		"[wavesrv] sync done, err=<nil>":                                  "",
+		"[wavesrv] sync done, err: <nil>":                                 "",
+		"[wavesrv] sync done, err=nil":                                    "",
+		"[wavesrv] sync done, ERR = NIL":                                  "",
+		"[wavesrv] sync done, error: <nil>":                               "",
+		"[wavesrv] sync done, error=null":                                 "",
+		`[wavesrv] sync done {"error":null,"warning":null}`:               "",
+		"[wavesrv] sync done, errors: none":                               "",
+		"[wavesrv] check done, warning: <nil>":                            "",
+		"[wavesrv] check done, warn=nil":                                  "",
+		"[wavesrv] sync done, err=nil, err=<nil>":                         "",
+		"[wavesrv] err: connection refused":                               KindError,
+		"[wavesrv] error: <nil> then failed: boom":                        KindError,
+		"[wavesrv] err=<nil> on first try, err=timeout on the second one": KindError,
+		"[wavesrv] err=nilable value":                                     KindError,
+		"[wavesrv] error: nullified handle":                               KindError,
+		"Error: undefined":                                                KindError,
+		"[wavesrv] err:<nil> but warning: disk almost full":               KindWarning,
+		"[wavesrv] warning: <nil>, error: disk full":                      KindError,
+	}
+	for text, want := range cases {
+		if got := classify(text); got != want {
+			t.Errorf("classify(%q) = %q, want %q", text, got, want)
+		}
+	}
+}
+
 // A recovered panic is one record with its stack; its top frames skip the runtime's, the panic handler's and panic()
 // itself, and the ordinary line after it is not part of it.
 func TestAPanicIsGroupedWithItsStack(t *testing.T) {

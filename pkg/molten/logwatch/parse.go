@@ -57,6 +57,12 @@ var (
 	// errWordRe and warningWordRe read a lower-cased line, once a plain substring check found the word in it.
 	errWordRe     = regexp.MustCompile(`(?:^|[^a-z])err(?:[^a-z]|$)`)
 	warningWordRe = regexp.MustCompile(`(?:^|[^a-z])(?:warn|warning)(?:[^a-z]|$)`)
+	// emptyMentionRe is an error or warning field that holds nothing ("err:<nil>", "error=null", `"warning": none`): a
+	// report that all went well, which says nothing of a problem. It reads a lower-cased line; the end of a bare word
+	// is a word boundary, so "err=nilable" or "error: nullified" stay mentions. "undefined" is left out on purpose:
+	// JavaScript prints "Error: undefined" for an error thrown without a message, which is a real one.
+	emptyMentionRe = regexp.MustCompile(`(^|[^a-z])(?:err|errs|error|errors|warn|warning|warnings)"?\s*[:=]\s*` +
+		`(?:<nil>|<none>|<null>|(?:nil|null|none)\b)`)
 
 	goroutineRe = regexp.MustCompile(`^goroutine \d+ \[`)
 	goFuncRe    = regexp.MustCompile(`^[\w.\-/]+(?:\.\(\*?[\w\-\[\],. ]+\))?\.[\w$.\-\[\]]+\(.*\)$|^panic\(.*\)$|^main\.main\(\)$`)
@@ -204,6 +210,9 @@ func classify(text string) string {
 		return ""
 	}
 	lower := strings.ToLower(first)
+	if containsAny(lower, "nil", "null", "none") {
+		lower = emptyMentionRe.ReplaceAllString(lower, "${1} ")
+	}
 	switch {
 	case containsAny(lower, "error", "exception", "failed", "failure", "fatal"):
 		return KindError
