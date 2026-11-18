@@ -68,8 +68,8 @@ describe("Brokk's declaration (FR-BOSS-007, AC1)", () => {
                 { name: "glance", weight: 2 },
                 { name: "breath", weight: 2 },
                 { name: "lookaround" },
-                { name: "beard" },
-                { name: "scratch" },
+                { name: "beard", leave: "mirror" },
+                { name: "scratch", leave: "mirror" },
                 { name: "doubtful", onDemand: true },
                 { name: "frown", onDemand: true },
                 { name: "smile", onDemand: true },
@@ -274,6 +274,39 @@ describe("the rhythm of his gestures (FR-BOSS-007, AC17)", () => {
         }
     });
 
+    it("lets the beard and the scratch leave by mirror, and nothing else: a hand never fades out halfway (#2378)", () => {
+        const mirrored = (pose: "listening" | "speaking") =>
+            declaration.idles[pose].filter((idle) => idle.leave === "mirror").map((idle) => idle.name);
+        expect(mirrored("listening")).toEqual(["beard", "scratch"]);
+        expect(mirrored("speaking")).toEqual([]);
+        expect(declaration.idles.listening.find((idle) => idle.name === "beard")).toEqual({
+            name: "beard",
+            leave: "mirror",
+        });
+        expect(declaration.idles.listening.find((idle) => idle.name === "scratch")).toEqual({
+            name: "scratch",
+            leave: "mirror",
+        });
+    });
+
+    it("hands the package the word `mirror` and no other: an unknown way of leaving is dropped", () => {
+        const odd: BrokkManifest = {
+            ...(Manifest as BrokkManifest),
+            idles: {
+                listening: [
+                    { name: "beard", leave: "mirror" },
+                    { name: "scratch", leave: "rewind" },
+                    { name: "blink", weight: 1, repeat: true },
+                ],
+            },
+        };
+        expect(makeBrokkDeclaration(odd, "/c", "/s.jpg").idles.listening).toEqual([
+            { name: "beard", leave: "mirror" },
+            { name: "scratch" },
+            { name: "blink", weight: 1, repeat: true },
+        ]);
+    });
+
     it("repeats only what the manifest says may repeat", () => {
         const odd: BrokkManifest = {
             ...(Manifest as BrokkManifest),
@@ -291,26 +324,28 @@ describe("the rhythm of his gestures (FR-BOSS-007, AC17)", () => {
     });
 });
 
-describe("the package at v0.3.1 (FR-BOSS-007, AC1 and AC17; #1999, #2007)", () => {
+describe("the package at v0.7.0 (FR-BOSS-007, AC1 and AC17; #1999, #2007, #2378)", () => {
     const lock = JSON.parse(textOf("package-lock.json"));
     const manifest = JSON.parse(textOf("package.json"));
 
-    it("is named at v0.3.1 by the dependency, the lock, the notice and the ledger of the fork", () => {
-        expect(manifest.dependencies[PackageName]).toMatch(/character-studio\.git#v0\.3\.1$/);
-        expect(lock.packages[""].dependencies[PackageName]).toMatch(/character-studio\.git#v0\.3\.1$/);
-        expect(lock.packages[`node_modules/${PackageName}`].version).toBe("0.3.1");
-        expect(textOf("NOTICE")).toContain(`${PackageName} 0.3.1 by DiamondForge`);
-        expect(textOf("UPSTREAM.md")).toContain("character-studio.git#v0.3.1");
+    it("is named at v0.7.0 by the dependency, the lock, the notice and the ledger of the fork", () => {
+        expect(manifest.dependencies[PackageName]).toMatch(/character-studio\.git#v0\.7\.0$/);
+        expect(lock.packages[""].dependencies[PackageName]).toMatch(/character-studio\.git#v0\.7\.0$/);
+        expect(lock.packages[`node_modules/${PackageName}`].version).toBe("0.7.0");
+        expect(textOf("NOTICE")).toContain(`${PackageName} 0.7.0 by DiamondForge`);
+        expect(textOf("UPSTREAM.md")).toContain("character-studio.git#v0.7.0");
+        expect(textOf("UPSTREAM.md")).not.toContain("character-studio.git#v0.3.1");
         expect(textOf("UPSTREAM.md")).not.toContain("diamondforge-character.git#v0.2.0");
     });
 
-    it("is the one installed, with the gap, the repeat and the end of a gesture in its types", () => {
+    it("is the one installed, with the gap, the repeat, the mirror leave and the end of a gesture in its types", () => {
         const installed = JSON.parse(textOf(`node_modules/${PackageName}/package.json`));
-        expect(installed.version).toBe("0.3.1");
+        expect(installed.version).toBe("0.7.0");
         const types = textOf(`node_modules/${PackageName}/dist/transmission-portrait.d.ts`);
         expect(types).toContain("idleGap?: TransmissionIdleGap");
         expect(types).toContain("onGesture?: (name: string, phase: TransmissionGesturePhase) => void");
         expect(types).toContain("repeat?: boolean");
+        expect(types).toContain("leave?: 'mirror'");
     });
 
     it("keeps the next loop under the clip that leads to it, with the stylesheet the app takes from the package", () => {

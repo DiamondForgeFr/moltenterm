@@ -58,12 +58,18 @@ export function rhythmProps(rhythm: BlinkRhythm): PackageRhythmProps {
     return PackageRhythm[rhythm];
 }
 
+// `leave: "mirror"` marks a gesture whose way back is its way there played backward (the hand that comes up to the beard
+// and goes down, the scratch): an expression or a change of pose that comes while it plays waits for it to leave through
+// the matching frame of its second half, at most 1.65 s, instead of cutting the hand off halfway (#2378). It is a plain
+// string here, as the JSON file types it: the declaration keeps `mirror` and drops any other word.
+export type BrokkIdle = { name: string; weight?: number; onDemand?: boolean; repeat?: boolean; leave?: string };
+
 export type BrokkManifest = {
     still: string;
     states: readonly string[];
     transitions: readonly string[];
     samePose?: readonly string[];
-    idles: Record<string, readonly { name: string; weight?: number; onDemand?: boolean; repeat?: boolean }[]>;
+    idles: Record<string, readonly BrokkIdle[]>;
     expressionMs: Record<string, number>;
     head: { x: number; y: number; bubbleZoom: number };
 };
@@ -105,6 +111,7 @@ export function makeBrokkDeclaration(manifest: BrokkManifest, loops: string, sti
             ...(idle.weight != null ? { weight: idle.weight } : {}),
             ...(idle.onDemand ? { onDemand: true } : {}),
             ...(idle.repeat ? { repeat: true } : {}),
+            ...(idle.leave === "mirror" ? { leave: "mirror" as const } : {}),
         }));
     }
     return { src: still, loops, restState: RestState, transitions, idles };
