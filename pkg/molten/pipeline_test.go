@@ -4,6 +4,7 @@
 package molten
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -200,13 +201,96 @@ func TestValidatePipelineLaunch(t *testing.T) {
 }
 
 func TestValidatePipelineUnknownFieldAndBrokenJson(t *testing.T) {
-	report := validateWith(t, map[string]string{".molten/project.json": `{"schema": 1, "name": "x", "ci": {"jobs": [{"name": "a", "run": "true", "command": "x"}]}}`})
-	if report.Valid || !hasMessage(report.Errors, `unknown field "command"`) {
-		t.Fatalf("unknown field: %v", report.Errors)
+	report := validateWith(t, map[string]string{".molten/project.json": `{"schema": 1, "name": "x", "ci": {"jobs": [{"name": "a", "run": "true", "command": "x"}]}}`}).Strict()
+	if report.Valid || !hasMessage(report.Errors, `ci.jobs[0]: unknown field "command"`) || hasMessage(report.Warnings, "command") {
+		t.Fatalf("strict unknown field: %+v", report)
 	}
 	report = validateWith(t, map[string]string{".molten/project.json": `{broken`})
 	if report.Valid || !report.Present || len(report.Errors) != 1 {
 		t.Fatalf("broken JSON: %+v", report)
+	}
+}
+
+// A field written for a newer MoltenTerm (#2370) is ignored with one warning naming it; the rest of the pipeline loads.
+func TestPipelineUnknownFieldsWarn(t *testing.T) {
+	base := map[string]any{
+		"schema": 1, "name": "x",
+		"ci":      map[string]any{"jobs": []any{map[string]any{"name": "a", "run": "true"}}},
+		"builds":  []any{map[string]any{"id": "gold", "kind": "gold", "artifact": "out", "run": "true"}},
+		"release": map[string]any{"rc": []any{map[string]any{"id": "cut", "phase": "cut", "confirm": "Push the tag?", "run": "true"}}},
+	}
+	for _, c := range []struct {
+		name  string
+		edit  func(p map[string]any)
+		field string
+		want  string
+	}{
+		{"top level", func(p map[string]any) { p["newthing"] = true }, "newthing", `unknown field "newthing" ignored: it needs a newer MoltenTerm`},
+		{"release", func(p map[string]any) {
+			p["release"].(map[string]any)["future"] = []any{map[string]any{"id": "x"}}
+		}, "release.future", `release: unknown field "future" ignored`},
+		{"job", func(p map[string]any) {
+			p["ci"].(map[string]any)["jobs"].([]any)[0].(map[string]any)["timeout"] = 30
+		}, "ci.jobs[0].timeout", `ci.jobs[0]: unknown field "timeout" ignored`},
+		{"release step", func(p map[string]any) {
+			p["release"].(map[string]any)["rc"].([]any)[0].(map[string]any)["retry"] = 2
+		}, "release.rc[0].retry", `release.rc[0]: unknown field "retry" ignored`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var p map[string]any
+			raw, _ := json.Marshal(base)
+			json.Unmarshal(raw, &p)
+			c.edit(p)
+			data, _ := json.Marshal(p)
+			report := validateWith(t, map[string]string{".molten/project.json": string(data)})
+			if !report.Valid || len(report.Errors) != 0 {
+				t.Fatalf("an unknown field rejected the pipeline: %v", report.Errors)
+			}
+			if len(report.Unknown) != 1 || report.Unknown[0] != c.field {
+				t.Fatalf("unknown: %v, want [%s]", report.Unknown, c.field)
+			}
+			count := 0
+			for _, w := range report.Warnings {
+				if strings.Contains(w, "unknown field") {
+					count++
+				}
+			}
+			if count != 1 || !hasMessage(report.Warnings, c.want) {
+				t.Fatalf("warnings: %v, want one with %q", report.Warnings, c.want)
+			}
+			pl := report.Pipeline
+			if len(pl.Ci.Jobs) != 1 || len(pl.Builds) != 1 || len(pl.Release.Rc) != 1 || pl.Release.Rc[0].Confirm == "" {
+				t.Fatalf("the known parts were not loaded: %+v", pl)
+			}
+			strict := report.Strict()
+			if strict.Valid || len(strict.Errors) != 1 || hasMessage(strict.Warnings, "unknown field") {
+				t.Fatalf("strict: %+v", strict)
+			}
+		})
+	}
+}
+
+// A known field with a wrong value still rejects the pipeline, and a key differing only by case is the known field,
+// as encoding/json reads it.
+func TestPipelineKnownFieldsStillChecked(t *testing.T) {
+	report := validateWith(t, map[string]string{".molten/project.json": `{"schema": 1, "name": "x", "ci": {"jobs": [{"name": "a", "run": "true"}], "statuses": "gitlab"}}`})
+	if report.Valid || !hasMessage(report.Errors, "ci.statuses must be") {
+		t.Fatalf("invalid known value: %+v", report)
+	}
+	report = validateWith(t, map[string]string{".molten/project.json": `{"schema": 1, "name": "x", "ci": {"jobs": "a"}}`})
+	if report.Valid || len(report.Errors) != 1 {
+		t.Fatalf("wrong type: %+v", report)
+	}
+	report = validateWith(t, map[string]string{".molten/project.json": `{"Schema": 1, "name": "x", "ci": {"jobs": [{"name": "a", "run": "true", "env": {"ANY_NAME": "b"}}]}}`})
+	if !report.Valid || len(report.Unknown) != 0 {
+		t.Fatalf("case or env keys read as unknown: %+v", report)
+	}
+}
+
+func TestValidatePipelineDataIsStrict(t *testing.T) {
+	report := ValidatePipelineData(t.TempDir(), []byte(`{"schema": 1, "name": "x", "steps2": []}`))
+	if report.Valid || !hasMessage(report.Errors, `unknown field "steps2"`) {
+		t.Fatalf("the setup's draft must refuse unknown fields: %+v", report)
 	}
 }
 
@@ -321,7 +405,7 @@ func TestValidatePipelinePreflight(t *testing.T) {
 		{`[{"id": "scan", "run": "node scripts/missing.mjs"}]`, "scripts/missing.mjs does not exist"},
 		{`[{"id": "scan", "run": "true", "env": {"A": "b"}}]`, `unknown field "env"`},
 	} {
-		got := pipeline(c.checks)
+		got := pipeline(c.checks).Strict()
 		if got.Valid || !hasMessage(got.Errors, c.want) {
 			t.Errorf("%s: valid %v, errors %v, want one with %q", c.checks, got.Valid, got.Errors, c.want)
 		}

@@ -655,7 +655,7 @@ func (s *Setup) runPr(ctx context.Context, dir string, b *baseFiles, files prFil
 			return fail(PrFailureFailed, err.Error())
 		}
 	}
-	if report := molten.ValidatePipeline(tree); !report.Valid {
+	if report := molten.ValidatePipeline(tree).Strict(); !report.Valid {
 		return fail(PrFailureInvalid, strings.Join(report.Errors, "; "))
 	}
 	s.stepState(job, PrStepWrite, PrStateDone, strconv.Itoa(len(files.order)))

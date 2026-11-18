@@ -91,11 +91,39 @@ function openProjectTerminal(dir: string) {
     fireAndForget(() => createBlock({ meta: { view: "term", controller: "shell", "cmd:cwd": dir } }));
 }
 
+// A valid pipeline holding fields written for a newer MoltenTerm (#2370): they are named, and nothing else is hidden.
+function NewerFieldsBanner({ fields }: { fields: string[] }) {
+    const t = useT();
+    return (
+        <div
+            className="flex items-start gap-3 rounded-4 border border-warning/40 bg-warning/10 px-3 py-2"
+            data-testid="pipeline-newer-fields"
+        >
+            <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-warning" />
+            <div className="min-w-0 flex-1 text-12">
+                <div className="font-semibold text-primary">{t("mc.frame.pipelineProblems")}</div>
+                <div className="mt-0.5 text-secondary">{t("mc.frame.newerFields")}</div>
+                <ul className="mt-1 flex flex-col gap-0.5 font-mono text-11 text-secondary">
+                    {fields.slice(0, 5).map((f) => (
+                        <li key={f}>• {f}</li>
+                    ))}
+                    {fields.length > 5 ? (
+                        <li>… {t("mc.releaseMenu.andMore", { count: fields.length - 5 })}</li>
+                    ) : null}
+                </ul>
+            </div>
+        </div>
+    );
+}
+
 // A project without a valid pipeline still shows its history; the banner says how the user's agent connects it.
 export function PipelineBanner({ dir, report }: { dir: string; report: PipelineReport }) {
     const t = useT();
     const matrix = useFeatureMatrix();
     const stage = pipelineStage(report);
+    if (stage === "valid" && report.unknown?.length > 0) {
+        return <NewerFieldsBanner fields={report.unknown} />;
+    }
     if (stage === "loading" || stage === "valid") {
         return null;
     }

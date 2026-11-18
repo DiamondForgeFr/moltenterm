@@ -23,6 +23,7 @@ import (
 var moltenProjectLogo string
 var moltenProjectNoLogo bool
 var moltenProjectLogoClear bool
+var moltenProjectValidateStrict bool
 
 type MoltenProjectStatus struct {
 	Workspace string                 `json:"workspace"`
@@ -84,6 +85,7 @@ func init() {
 	moltenProjectLinkCmd.Flags().StringVar(&moltenProjectLogo, "logo", "", "use this image as the workspace icon")
 	moltenProjectLinkCmd.Flags().BoolVar(&moltenProjectNoLogo, "no-logo", false, "keep the workspace's icon")
 	moltenProjectLogoCmd.Flags().BoolVar(&moltenProjectLogoClear, "clear", false, "go back to the workspace's icon")
+	moltenProjectValidateCmd.Flags().BoolVar(&moltenProjectValidateStrict, "strict", false, "refuse fields this version does not know instead of ignoring them (CI, the pipeline setup)")
 	moltenCmd.AddCommand(moltenProjectCmd)
 	for _, cmd := range []*cobra.Command{moltenProjectLinkCmd, moltenProjectUnlinkCmd, moltenProjectShowCmd, moltenProjectLogoCmd, moltenProjectValidateCmd} {
 		cmd.Flags().BoolVar(&moltenJson, "json", false, "print the result as JSON")
@@ -464,6 +466,9 @@ func moltenProjectValidateRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	report := molten.ValidatePipeline(dir)
+	if moltenProjectValidateStrict {
+		report = report.Strict()
+	}
 	if moltenJson {
 		if err := moltenWriteJson(report); err != nil {
 			return err

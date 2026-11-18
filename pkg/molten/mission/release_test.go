@@ -114,6 +114,34 @@ func TestStartReleaseRunsThePreparationAndRecordsTheSession(t *testing.T) {
 	}
 }
 
+// A release in flight whose pipeline file gains a field this build does not know (#2370, merged on the trunk during the
+// release) still offers and runs its next step.
+func TestReleaseOffersNextStepWithUnknownField(t *testing.T) {
+	t.Parallel()
+	r, dir := makeReleaseFixture(t, releasePipeline)
+	res := startRelease(t, r, dir, ReleaseChannelRc, "v1.2.0-3")
+	if rec := waitRun(t, r, dir, res.Run.Id); rec.State != RunStateSuccess {
+		t.Fatalf("preparation: %+v", rec)
+	}
+	newer := strings.Replace(releasePipeline, `"release":{`, `"newfield":true,"release":{"preflight2":[{"id":"x"}],`, 1)
+	newer = strings.Replace(newer, `"run":"touch cut-ran"`, `"run":"touch cut-ran","retry":2`, 1)
+	os.WriteFile(filepath.Join(dir, ".molten", "project.json"), []byte(newer), 0644)
+	report := molten.ValidatePipeline(dir)
+	if !report.Valid || len(report.Unknown) != 3 || len(report.Pipeline.Release.Rc) != 3 {
+		t.Fatalf("the card loses its steps: %+v", report)
+	}
+	run, err := r.RunReleaseStep(ReleaseStepRequest{Dir: dir, Tag: "v1.2.0-3", Step: "cut"})
+	if err != nil || run.Untrusted != nil || run.Run == nil {
+		t.Fatalf("the next step is not offered: %+v %v", run, err)
+	}
+	if rec := waitRun(t, r, dir, run.Run.Id); rec.State != RunStateSuccess {
+		t.Fatalf("cut: %+v", rec)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "cut-ran")); err != nil {
+		t.Fatal("the cut step did not run")
+	}
+}
+
 func TestStartReleaseRefusals(t *testing.T) {
 	t.Parallel()
 	r, dir := makeReleaseFixture(t, releasePipeline)

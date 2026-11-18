@@ -58,7 +58,7 @@ what is missing, and only after the user agreed.
    running the same checks as the GitHub workflow), and ask before creating anything. Never invent a release
    process: when the project has none, leave `release` out and say so.
 8. Make the agreed changes the way the harness asks (ticket, branch, commits, pull request when it says so).
-9. Write `.molten/project.json` last, then run `molten project validate`. Fix every error it names until it says
+9. Write `.molten/project.json` last, then run `molten project validate --strict`. Fix every error it names until it says
    the pipeline is valid. Do not run the declared commands to "test" them: Mission Control runs them, through the
    user's trust prompt (see "Running the local CI" below).
 10. Report: what you connected, what you created, what is still missing, and tell the user that Mission Control's

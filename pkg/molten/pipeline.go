@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -267,12 +268,39 @@ var PipelineSections = []string{"timeline", "cilocal", "ciremote", "cd"}
 const PipelineSectionCd = "cd"
 
 type PipelineReport struct {
-	Path     string    `json:"path"`
-	Present  bool      `json:"present"`
-	Valid    bool      `json:"valid"`
-	Errors   []string  `json:"errors"`
-	Warnings []string  `json:"warnings"`
+	Path     string   `json:"path"`
+	Present  bool     `json:"present"`
+	Valid    bool     `json:"valid"`
+	Errors   []string `json:"errors"`
+	Warnings []string `json:"warnings"`
+	// The fields this build does not know, by their path (e.g. "release.preflight"): ignored, each with a warning, so a
+	// file written for a newer MoltenTerm keeps working in an older one (#2370). Strict refuses them.
+	Unknown  []string  `json:"unknown,omitempty"`
 	Pipeline *Pipeline `json:"pipeline,omitempty"`
+}
+
+// Strict refuses the unknown fields instead of ignoring them: for the files MoltenTerm writes itself (the pipeline
+// setup) and for `molten project validate --strict`, where a typo must not pass as a newer field.
+func (r PipelineReport) Strict() PipelineReport {
+	if len(r.Unknown) == 0 {
+		return r
+	}
+	ignored := map[string]bool{}
+	errors := slices.Clone(r.Errors)
+	for _, field := range r.Unknown {
+		ignored[unknownFieldWarning(field)] = true
+		errors = append(errors, unknownFieldRefusal(field))
+	}
+	warnings := []string{}
+	for _, w := range r.Warnings {
+		if !ignored[w] {
+			warnings = append(warnings, w)
+		}
+	}
+	r.Errors = errors
+	r.Warnings = warnings
+	r.Valid = false
+	return r
 }
 
 var pipelineIdRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)
@@ -836,12 +864,119 @@ func readProjectJson(path string, target any) bool {
 	return json.Unmarshal(data, target) == nil
 }
 
-func unknownFieldError(err error) string {
-	msg := err.Error()
-	if field, ok := strings.CutPrefix(msg, "json: unknown field "); ok {
-		return "unknown field " + field + " (see molten docs: pipeline-format.md)"
+// splitFieldPath splits "release.preflight" into where the field is ("release") and its name ("preflight").
+func splitFieldPath(path string) (string, string) {
+	i := strings.LastIndex(path, ".")
+	if i < 0 {
+		return "", path
 	}
-	return msg
+	return path[:i], path[i+1:]
+}
+
+func unknownFieldWarning(path string) string {
+	where, name := splitFieldPath(path)
+	text := fmt.Sprintf("unknown field %q ignored: it needs a newer MoltenTerm (see molten docs: pipeline-format.md)", name)
+	if where == "" {
+		return text
+	}
+	return where + ": " + text
+}
+
+func unknownFieldRefusal(path string) string {
+	where, name := splitFieldPath(path)
+	text := fmt.Sprintf("unknown field %q (see molten docs: pipeline-format.md)", name)
+	if where == "" {
+		return text
+	}
+	return where + ": " + text
+}
+
+// jsonFieldNames lists the JSON names a struct type decodes, its embedded structs' included.
+func jsonFieldNames(t reflect.Type, into map[string]reflect.Type) {
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		tag := field.Tag.Get("json")
+		name, _, _ := strings.Cut(tag, ",")
+		if name == "-" && !strings.Contains(tag, ",") {
+			continue
+		}
+		if field.Anonymous && name == "" && field.Type.Kind() == reflect.Struct {
+			jsonFieldNames(field.Type, into)
+			continue
+		}
+		if !field.IsExported() {
+			continue
+		}
+		if name == "" {
+			name = field.Name
+		}
+		into[name] = field.Type
+	}
+}
+
+// unknownFields walks the raw JSON along the type it decodes into and returns the paths of the keys that type does not
+// declare. Like encoding/json, a key matches a field case-insensitively. A value of the wrong shape is left to the
+// decoder, which already refused it.
+func unknownFields(path string, raw json.RawMessage, t reflect.Type) []string {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	join := func(name string) string {
+		if path == "" {
+			return name
+		}
+		return path + "." + name
+	}
+	var found []string
+	switch t.Kind() {
+	case reflect.Struct:
+		var keys map[string]json.RawMessage
+		if json.Unmarshal(raw, &keys) != nil {
+			return nil
+		}
+		fields := map[string]reflect.Type{}
+		jsonFieldNames(t, fields)
+		names := make([]string, 0, len(keys))
+		for key := range keys {
+			names = append(names, key)
+		}
+		sort.Strings(names)
+		for _, key := range names {
+			var fieldType reflect.Type
+			for name, ft := range fields {
+				if name == key {
+					fieldType = ft
+					break
+				}
+				if fieldType == nil && strings.EqualFold(name, key) {
+					fieldType = ft
+				}
+			}
+			if fieldType == nil {
+				found = append(found, join(key))
+				continue
+			}
+			found = append(found, unknownFields(join(key), keys[key], fieldType)...)
+		}
+	case reflect.Slice, reflect.Array:
+		var items []json.RawMessage
+		if json.Unmarshal(raw, &items) != nil {
+			return nil
+		}
+		for i, item := range items {
+			found = append(found, unknownFields(fmt.Sprintf("%s[%d]", path, i), item, t.Elem())...)
+		}
+	case reflect.Map:
+		var entries map[string]json.RawMessage
+		if json.Unmarshal(raw, &entries) != nil {
+			return nil
+		}
+		for key, entry := range entries {
+			found = append(found, unknownFields(join(key), entry, t.Elem())...)
+		}
+		sort.Strings(found)
+	}
+	return found
 }
 
 // ValidatePipeline reads and checks a project's `.molten/project.json`. It never runs a declared command.
@@ -860,19 +995,25 @@ func ValidatePipeline(dir string) PipelineReport {
 }
 
 // ValidatePipelineData checks a proposed `.molten/project.json` as if it were the project's file (FR-MC-036): the
-// release setup validates its draft before anything is written. It never runs a declared command.
+// release setup validates its draft before anything is written. It never runs a declared command. It is strict: the
+// setup writes only fields this build knows, so an unknown one is a mistake there (#2370).
 func ValidatePipelineData(dir string, data []byte) PipelineReport {
 	report := PipelineReport{Path: filepath.Join(dir, ProjectPipelineFile), Present: true, Errors: []string{}, Warnings: []string{}}
-	return validatePipelineData(dir, data, report)
+	return validatePipelineData(dir, data, report).Strict()
 }
 
+// An unknown field is ignored with a warning rather than refused (#2370): a field added by a newer MoltenTerm must not
+// lock an older build out of the whole pipeline, a release in flight included.
 func validatePipelineData(dir string, data []byte, report PipelineReport) PipelineReport {
 	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
 	var pipeline Pipeline
 	if err := decoder.Decode(&pipeline); err != nil {
-		report.Errors = append(report.Errors, unknownFieldError(err))
+		report.Errors = append(report.Errors, err.Error())
 		return report
+	}
+	report.Unknown = unknownFields("", data, reflect.TypeOf(pipeline))
+	for _, field := range report.Unknown {
+		report.Warnings = append(report.Warnings, unknownFieldWarning(field))
 	}
 	checker := &pipelineChecker{dir: dir, report: &report}
 	var keys map[string]json.RawMessage
