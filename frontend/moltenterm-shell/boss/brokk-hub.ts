@@ -164,6 +164,9 @@ export class BrokkHub {
 
     getModel = (): BrokkModel => this.model;
 
+    // The hub's clock: the feeds read their facts at the moment the hub applies them (#2376).
+    now = (): number => this.deps.now();
+
     subscribe = (listener: () => void): (() => void) => {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
