@@ -346,9 +346,14 @@ export class BrokkSession {
         if (view.blockid) {
             globalStore.set(BrokkHubModel.getInstance().sessionBlockAtom, view.blockid);
         }
-        if (view.unseen && this.windowOpen) {
+        // A page that shows the talk open sees his answer: his line goes. A hidden page says nothing of it.
+        if (view.unseen && this.windowOpen && this.visible()) {
             this.tellWindow();
         }
+    }
+
+    private visible(): boolean {
+        return globalThis.document == null || globalThis.document.visibilityState !== "hidden";
     }
 
     // Tells this page's listeners what changed in the messages it sent; the first reading only learns what is there.
@@ -498,8 +503,7 @@ export class BrokkSession {
     }
 
     private tellWindow(): void {
-        const visible = globalThis.document == null || globalThis.document.visibilityState !== "hidden";
-        void this.op({ op: "window", origin: this.origin(), open: this.windowOpen && visible });
+        void this.op({ op: "window", origin: this.origin(), open: this.windowOpen && this.visible() });
     }
 
     // Gives the message to his session, starting it when it does not exist; wavesrv then follows his answer. Resolves
