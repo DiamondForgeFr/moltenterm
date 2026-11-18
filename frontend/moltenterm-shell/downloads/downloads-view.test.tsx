@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
 vi.mock("@/app/store/global", async () => {
@@ -28,7 +28,19 @@ import { OriginState } from "./downloads-origin-model";
 import { DownloadsModel } from "./downloads-store";
 import { DownloadRow, DownloadsList } from "./downloads-view";
 
-const Now = Date.now();
+// The view groups the history by local day from its own Date.now(): a clock read at load time puts the records on
+// "Yesterday" for a couple of minutes after midnight. Fixed at noon, with only Date faked, the grouping cannot depend
+// on when the suite runs.
+const Now = new Date(2026, 10, 18, 12, 0, 0).getTime();
+
+beforeAll(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Now);
+});
+
+afterAll(() => {
+    vi.useRealTimers();
+});
 
 function record(over: Partial<DownloadRecord> = {}): DownloadRecord {
     return {
