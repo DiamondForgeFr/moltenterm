@@ -98,6 +98,20 @@ export type TalkView = {
     inflight?: ConversationKey[];
 };
 
+// The same state read again draws nothing again.
+function sameTalkState(a: TalkState, b: TalkState): boolean {
+    return (
+        a.phase === b.phase &&
+        a.reason === b.reason &&
+        a.agentName === b.agentName &&
+        a.started === b.started &&
+        a.reply === b.reply &&
+        a.where?.blockid === b.where?.blockid &&
+        a.where?.tabid === b.where?.tabid &&
+        a.where?.workspaceid === b.where?.workspaceid
+    );
+}
+
 // What a page has told its listeners of an entry: an answer's words, its turn and whether it was complete.
 function heardOf(entry: TalkEntry): string {
     return `${entry.turn ?? 0}|${entry.final === true}|${entry.markdown ?? ""}`;
@@ -323,7 +337,10 @@ export class BrokkSession {
         if (items !== before) {
             globalStore.set(this.exchangeAtom, items);
         }
-        globalStore.set(this.stateAtom, talkStateOfWire(view.state));
+        const state = talkStateOfWire(view.state);
+        if (!sameTalkState(globalStore.get(this.stateAtom), state)) {
+            globalStore.set(this.stateAtom, state);
+        }
         const mine = (view.waiting ?? []).find((w) => w.conversation === key);
         const queued = globalStore.get(this.queuedAtom);
         if (mine == null) {
