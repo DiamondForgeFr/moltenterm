@@ -1,16 +1,19 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The field under Brokk's group and the conversation window it opens (FR-BOSS-009, AC15, AC17, AC22 to AC24, #2003,
-// #2028, #2032, #2033): the developer writes to him, and the message goes to his own terminal session (brokk-session.ts).
-// While the field has the focus, or text is left in it, the frame grows in place into a window that shows the exchange:
-// the developer's messages and his answers, one answer per message, the replies an answer offers as buttons (an
-// authorisation asks once more), and the notes about a message his agent could not take, each with a way out: choose an
-// agent, try again, or open his terminal. He listens while the developer writes (onTyping). Folded, the field is one
-// row as wide as the group, and what it says hangs under it, so the group's geometry never moves. While the window is
-// open the panel beside the group gives way above it (onFocusChange, AC18, #2090), and the field is roomy, with its
-// hint and the send button under it (AC91, #2285), in one inset well that shows the focus (AC91a, #2303). The way back
-// to the brainstorm left is the resume card, folded and open (AC92, #2303).
+// The field under Brokk's group and the conversation window it opens (FR-BOSS-009, AC15, AC17, AC22 to AC24, AC99 to
+// AC104, #2003, #2028, #2032, #2033, #2382): the developer writes to him, and the message goes to his own terminal
+// session through his one talk, the same in every page (brokk-session.ts). While the field has the focus, or text is
+// left in it, the frame grows in place into a window shaped like today's chat composers: when nothing has been said it
+// is only the composer, a compact rounded well with the field and one small row of controls under it, Send at its end
+// (AC102, AC103); the field grows with the text up to six lines, then scrolls. Once something has been said, the
+// exchange stacks above the composer (AC104): the developer's messages, his answers, the replies an answer offers as
+// buttons (an authorisation asks once more), the request or the question his agent waits on, answered there (AC100,
+// AC101), and the notes about a message his agent could not take, each with a way out. His terminal is a discreet link,
+// only where something cannot be read in the window. He listens while the developer writes (onTyping). Folded, the
+// field is one row as wide as the group, and what it says hangs under it, so the group's geometry never moves. While
+// the window is open the panel beside the group gives way above it (onFocusChange, AC18, #2090). The way back to the
+// brainstorm left is the resume card, folded and open (AC92, #2303).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
@@ -34,16 +37,19 @@ import { DominoLoader } from "../suite/suite";
 import { BossBubbleModel } from "./boss-store";
 import { ExchangeView } from "./brokk-exchange";
 import { afterCancel, afterClick, afterConfirm, conversationOpen, InlineAction } from "./brokk-exchange-model";
-import { BrokkPermissions } from "./brokk-permission";
 import { BrokkSession } from "./brokk-session";
 import {
     canSend,
     fieldAction,
     fieldAfterSend,
     fieldWithReturned,
+    isQuestion,
     keepsText,
     MaxMessageLength,
     onItsWay,
+    openQuestion,
+    questionAnswers,
+    QuestionPicks,
     sendsOnKey,
     showsCommandHint,
     talkFieldHeight,
@@ -60,6 +66,15 @@ import {
 const BrainstormPrompts = lazy(() =>
     import("../brainstorm/brainstorm-prompts").then((mod) => ({ default: mod.BrainstormPrompts }))
 );
+
+// His agent's requests and questions (#2257, AC100) load the first time one is asked, outside the JavaScript every view
+// loads up front (NFR-PERF-003).
+const BrokkPermissions = lazy(() => import("./brokk-permission").then((mod) => ({ default: mod.BrokkPermissions })));
+
+// The spacing of the open window around what it measures (brokk-group.css): the exchange's padding above and below,
+// and the composer's margin all around.
+const ConvoPadPx = 12 + 4;
+const ComposerMarginPx = 8 + 8;
 
 // What the developer was writing when the group hid: it comes back with the group, so Escape never costs a message.
 let draft = "";
@@ -82,7 +97,7 @@ export function BrokkTalk({
     onTyping: (typing: boolean) => void;
     // The window opens or folds (AC22): the group's panel gives way above it while it is open.
     onFocusChange?: (open: boolean) => void;
-    // What the exchange needs, so that the window can grow with it.
+    // What the exchange and the composer need, so that the window is as tall as what it holds.
     onContentHeight?: (height: number) => void;
 }) {
     const t = useT();
@@ -92,13 +107,21 @@ export function BrokkTalk({
     const items = useAtomValue(session.exchangeAtom, { store: globalStore });
     const queued = useAtomValue(session.queuedAtom, { store: globalStore });
     const returned = useAtomValue(session.returnedAtom, { store: globalStore });
+    // What his agent asks the developer now (#2257, AC100): its card opens his conversation, where it is answered.
+    const ask = useAtomValue(session.permissionAtom, { store: globalStore });
+    const askGone = useAtomValue(session.permissionGoneAtom, { store: globalStore });
+    const approved = useAtomValue(session.approvedAtom, { store: globalStore });
     const [text, setTextState] = useState(draft);
     const [focused, setFocused] = useState(false);
     const [confirming, setConfirming] = useState<InlineAction>(null);
     const [slashKept, setSlashKept] = useState(false);
+    // The developer's answers to his agent's question so far, for the question on screen.
+    const [picks, setPicks] = useState<{ id: string; picks: QuestionPicks }>({ id: null, picks: {} });
+    const [answering, setAnswering] = useState(false);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const innerRef = useRef<HTMLDivElement>(null);
+    const composerRef = useRef<HTMLDivElement>(null);
     const setText = (value: string) => {
         keepDraft(value);
         setTextState(value);
@@ -107,9 +130,10 @@ export function BrokkTalk({
     // #2257): the mockup's exchange lives in his layer.
     const brainstorming = useAtomValue(BrainstormStateAtom, { store: globalStore })?.open === true;
     const brainstormAllowed = useBrainstormAllowed();
-    // A request of his agent opens his conversation, where its card is, and the note sending the developer to his
-    // terminal gives way to it (#2257).
-    const asking = useAtomValue(session.permissionAtom, { store: globalStore }) != null;
+    const asking = ask != null;
+    const question = isQuestion(ask) ? ask : null;
+    const questionPicks = question != null && picks.id === question.id ? picks.picks : {};
+    const openAsk = question != null ? openQuestion(question, questionPicks) : null;
     // A question about the brainstorms (the picker, his offer to resume one, a forget's confirmation) opens it too.
     const prompted = useAtomValue(BrainstormPromptAtom, { store: globalStore }) != null;
     // The way back to the brainstorm last left (FR-BOSS-010 AC10e, #2284).
@@ -121,10 +145,12 @@ export function BrokkTalk({
         if (returned == null) {
             return;
         }
-        const back = session.takeReturned();
-        if (back != null) {
-            setText(fieldWithReturned(back, draft));
-        }
+        fireAndForget(async () => {
+            const back = await session.takeReturned();
+            if (back != null) {
+                setText(fieldWithReturned(back, draft));
+            }
+        });
     }, [returned, session]);
     useEffect(() => onTyping(text.trim() !== ""), [text, onTyping]);
     useEffect(() => () => onTyping(false), [onTyping]);
@@ -148,30 +174,16 @@ export function BrokkTalk({
     const terminalAside = talkTerminalAside(state);
     // His words are coming in: the domino of "thinking" has done its work.
     const answerShows = last?.role === "brokk" && last.text !== "";
-    // The waiting message's row says it in the open window; folded, the note under the field does.
+    // The waiting message's row says it in the open window; folded, the note under the field does. A request or a
+    // question his window shows is answered there: no note sends the developer to his terminal.
     const showNote =
         noteKey != null &&
         !(state.phase === "answering" && answerShows) &&
         !(state.phase === "needsanswer" && asking) &&
         !(state.phase === "queued" && open && queued != null);
 
-    useLayoutEffect(() => {
-        const inner = innerRef.current;
-        if (!open || inner == null) {
-            return;
-        }
-        const report = () => onContentHeight?.(inner.offsetHeight);
-        report();
-        if (typeof ResizeObserver === "undefined") {
-            return;
-        }
-        const observer = new ResizeObserver(report);
-        observer.observe(inner);
-        return () => observer.disconnect();
-    }, [open, onContentHeight]);
-    // The field grows with its lines (AC22b, #2237): measured at its natural height, then capped. The exchange above it
-    // gives up the room, and stays scrolled to the latest. The open window's field has its own size and leading (#2285):
-    // it is measured again when the window opens or folds.
+    // The field grows with its lines (AC22b, AC103, #2237): measured at its natural height, then capped at six lines.
+    // The open window's field has its own size and leading: it is measured again when the window opens or folds.
     useLayoutEffect(() => {
         const field = inputRef.current;
         if (field == null) {
@@ -186,12 +198,24 @@ export function BrokkTalk({
         field.style.height = "auto";
         field.style.height = `${talkFieldHeight(field.scrollHeight, lineHeight, padding)}px`;
     }, [text, open]);
-    useEffect(() => {
-        const scroll = scrollRef.current;
-        if (open && scroll != null) {
-            scroll.scrollTop = scroll.scrollHeight;
+
+    // The send of the composer: an answer to his agent's open question (AC100), else a message.
+    const answerQuestion = async (next: QuestionPicks) => {
+        if (question == null) {
+            return;
         }
-    }, [open, items, state.phase, confirming, text, asking]);
+        setPicks({ id: question.id, picks: next });
+        const answers = questionAnswers(question, next);
+        if (answers == null || answering) {
+            return;
+        }
+        setAnswering(true);
+        try {
+            await session.answer(question, answers);
+        } finally {
+            setAnswering(false);
+        }
+    };
 
     // An answer given in the window (an authorisation, a reply he offered) keeps the developer in it (#2349): the
     // clicked button leaves or is disabled right after, and the focus it held would drop on the page and fold the
@@ -201,6 +225,15 @@ export function BrokkTalk({
     // clearPrompt: the developer's own click on "Clear his prompt and send" (#2257), the one way text MoltenTerm did not
     // type leaves his prompt.
     const send = async (clearPrompt = false) => {
+        if (openAsk != null && !clearPrompt) {
+            const typed = text.trim();
+            if (typed === "" || typed.length > MaxMessageLength) {
+                return;
+            }
+            setText("");
+            await answerQuestion({ ...questionPicks, [openAsk.question]: [typed] });
+            return;
+        }
         if (!canSend(text, state)) {
             return;
         }
@@ -282,11 +315,12 @@ export function BrokkTalk({
     ) : null;
 
     // The field's one command, offered while the developer starts a slash (#2257); it has no autocomplete of its own.
-    const commandHint = showsCommandHint(text, brainstormAllowed) ? (
-        <div className="text-11 text-muted" data-testid="brokk-talk-command">
-            {t("boss.panel.talk.commandHint", { name })}
-        </div>
-    ) : null;
+    const commandHint =
+        openAsk == null && showsCommandHint(text, brainstormAllowed) ? (
+            <div className="text-11 text-muted" data-testid="brokk-talk-command">
+                {t("boss.panel.talk.commandHint", { name })}
+            </div>
+        ) : null;
     // The way back to the brainstorm left (AC10e), as the resume card in both windows (#2303).
     const resumeLine =
         lastLeft != null && brainstormAllowed && !brainstorming ? (
@@ -340,19 +374,64 @@ export function BrokkTalk({
             ) : null}
         </div>
     ) : null;
+    const asks = asking || askGone || approved.length > 0;
+    // Nothing said yet, nothing on its way, nothing asked: the open window is only the composer (AC102).
+    const convoShown =
+        open &&
+        (items.length > 0 ||
+            queued != null ||
+            asks ||
+            prompted ||
+            note != null ||
+            slashNote != null ||
+            commandHint != null ||
+            resumeLine != null);
 
-    // Folded, the field keeps its one row with the button at its end; open, the roomy field has its hint and the button
-    // under it (AC91, #2285). The molten call to action, led by its icon; with nothing to send it is calm, not a dimmed
-    // orange (AC91a, #2303, brokk-group.css).
+    // The window is as tall as what it holds (AC102, AC104): the exchange's content and the composer, with their
+    // spacing; the group adds the frame.
+    useLayoutEffect(() => {
+        const composer = composerRef.current;
+        if (!open || composer == null) {
+            return;
+        }
+        const report = () => {
+            const convo = convoShown ? (innerRef.current?.offsetHeight ?? 0) + ConvoPadPx : 0;
+            onContentHeight?.(convo + composer.offsetHeight + ComposerMarginPx);
+        };
+        report();
+        if (typeof ResizeObserver === "undefined") {
+            return;
+        }
+        const observer = new ResizeObserver(report);
+        observer.observe(composer);
+        if (innerRef.current != null) {
+            observer.observe(innerRef.current);
+        }
+        return () => observer.disconnect();
+    }, [open, convoShown, onContentHeight]);
+    // The latest message stays in view (AC104).
+    useEffect(() => {
+        const scroll = scrollRef.current;
+        if (open && scroll != null) {
+            scroll.scrollTop = scroll.scrollHeight;
+        }
+    }, [open, convoShown, items, state.phase, confirming, text, ask, queued]);
+
+    // Folded, the field keeps its one row with the button at its end; open, the button stands at the end of the
+    // composer's row of controls (AC103). The molten call to action, led by its icon; with nothing to send it is calm,
+    // not a dimmed orange (AC91a, #2303, brokk-group.css).
+    const sendable = openAsk != null ? text.trim() !== "" && !answering : canSend(text, state);
     const sendButton = (
         <button
             type="submit"
-            disabled={!canSend(text, state)}
+            disabled={!sendable}
             data-testid="brokk-talk-send"
+            aria-label={t("boss.panel.talk.send")}
+            title={t("boss.panel.talk.send")}
             className="molten-btn mt-brokk-send inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-6 px-2.5 py-0.5 text-11 font-medium"
         >
             <i className={makeIconClass("paper-plane", false)} aria-hidden />
-            {t("boss.panel.talk.send")}
+            {open ? null : t("boss.panel.talk.send")}
             <MoltenWave />
         </button>
     );
@@ -363,7 +442,11 @@ export function BrokkTalk({
                 rows={1}
                 value={text}
                 maxLength={MaxMessageLength}
-                placeholder={t("boss.panel.talk.placeholder", { name })}
+                placeholder={
+                    openAsk != null
+                        ? t("boss.panel.talk.question.placeholder", { name })
+                        : t("boss.panel.talk.placeholder", { name })
+                }
                 title={brainstormAllowed ? t("boss.panel.talk.keysBrainstorm") : t("boss.panel.talk.keys")}
                 aria-label={t("boss.panel.talk.label", { name })}
                 data-testid="brokk-talk-input"
@@ -392,6 +475,7 @@ export function BrokkTalk({
             className="mt-brokk-field"
             data-testid="brokk-talk"
             data-open={open ? "true" : "false"}
+            data-convo={convoShown ? "true" : undefined}
             onSubmit={(e) => {
                 e.preventDefault();
                 void send();
@@ -400,7 +484,7 @@ export function BrokkTalk({
             // The focus moving from the input to a button is still the conversation.
             onBlur={(e) => setFocused(e.currentTarget.contains(e.relatedTarget as Node))}
         >
-            {open ? (
+            {convoShown ? (
                 <div
                     ref={scrollRef}
                     className="mt-brokk-convo"
@@ -412,11 +496,6 @@ export function BrokkTalk({
                     data-testid="brokk-convo"
                 >
                     <div ref={innerRef} className="mt-brokk-convo-inner">
-                        {items.length === 0 && note == null && queued == null ? (
-                            <p className="mt-brokk-empty" data-testid="brokk-convo-empty">
-                                {t("boss.panel.talk.empty", { name })}
-                            </p>
-                        ) : null}
                         <ExchangeView
                             items={items}
                             name={name}
@@ -446,7 +525,28 @@ export function BrokkTalk({
                                 </div>
                             </div>
                         ) : null}
-                        <BrokkPermissions name={name} onAnswer={keepConversation} />
+                        {asks ? (
+                            <Suspense fallback={null}>
+                                <BrokkPermissions
+                                    name={name}
+                                    onAnswer={keepConversation}
+                                    picks={questionPicks}
+                                    answering={answering}
+                                    onPicks={(next, sendNow) => {
+                                        keepConversation();
+                                        if (sendNow) {
+                                            void answerQuestion(next);
+                                            return;
+                                        }
+                                        setPicks({ id: question?.id ?? null, picks: next });
+                                    }}
+                                    onSendPicks={() => {
+                                        keepConversation();
+                                        void answerQuestion(questionPicks);
+                                    }}
+                                />
+                            </Suspense>
+                        ) : null}
                         {prompted ? (
                             <Suspense fallback={null}>
                                 <BrainstormPrompts name={name} />
@@ -459,15 +559,15 @@ export function BrokkTalk({
                     </div>
                 </div>
             ) : null}
-            {/* Open, the field and its footer are one inset well that shows the focus (AC91a, #2303). The well is there
-                folded too, laid out as if it were not (brokk-group.css): the field keeps its place in the tree, so
-                opening the window never remounts it and never takes its focus. */}
-            <div className="mt-brokk-composer" data-testid="brokk-talk-composer">
+            {/* Open, the field and its row of controls are one compact well that shows the focus (AC91a, AC103). The
+                well is there folded too, laid out as if it were not (brokk-group.css): the field keeps its place in
+                the tree, so opening the window never remounts it and never takes its focus. */}
+            <div ref={composerRef} className="mt-brokk-composer" data-testid="brokk-talk-composer">
                 {fieldRow}
                 {open ? (
                     <div className="mt-brokk-field-foot" data-testid="brokk-talk-foot">
                         <span className="mt-brokk-field-hint" data-testid="brokk-talk-hint">
-                            {t("boss.panel.talk.hint")}
+                            {openAsk != null ? t("boss.panel.talk.question.answering", { name }) : null}
                         </span>
                         {sendButton}
                     </div>

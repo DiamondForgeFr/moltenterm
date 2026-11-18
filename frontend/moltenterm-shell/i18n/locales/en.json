@@ -3838,7 +3838,7 @@
                 "empty": "No plan usage to show yet: it appears when an agent shares its reading."
             },
             "talk": {
-                "placeholder": "Write to {name}…",
+                "placeholder": "Tell {name} what you need…",
                 "label": "Message to {name}",
                 "send": "Send",
                 "sending": "On its way…",
@@ -3870,7 +3870,10 @@
                         "read": "{name}'s agent asks to read this file:",
                         "fetch": "{name}'s agent asks to open this web page:",
                         "search": "{name}'s agent asks to search the web for:",
-                        "patch": "{name}'s agent asks to change these files:"
+                        "patch": "{name}'s agent asks to change these files:",
+                        "find": "{name}'s agent asks to look for these files:",
+                        "grep": "{name}'s agent asks to search the content of these files:",
+                        "tool": "{name}'s agent asks to use this tool:"
                     },
                     "allow": "Allow once",
                     "always": "Always allow",
@@ -3878,12 +3881,20 @@
                     "gone": "That request is over: it was answered in his terminal, or his agent stopped asking.",
                     "autoApproved": "Approved without asking:"
                 },
+                "question": {
+                    "label": "Question from {name}'s agent",
+                    "asks": "{name}'s agent asks you:",
+                    "hint": "Or write your own answer below.",
+                    "send": "Send the answers",
+                    "placeholder": "Answer {name}…",
+                    "answering": "Your answer goes to his question",
+                    "yours": "Your answer: {answer}"
+                },
                 "unsettled": "{name}'s agent never came back to its prompt (a step that never ended), so nothing was sent. Try again in a moment.",
                 "slashKept": "A message starting with / stays here: {name}'s agent would run it as one of its own commands. Write it without the slash.",
                 "agentStopped": "{name}'s agent is no longer running in his terminal. Close that terminal, then send your message again.",
                 "keys": "Enter to send, Shift+Enter for a new line",
                 "keysBrainstorm": "Enter to send, Shift+Enter for a new line, /brainstorm [idea] to brainstorm",
-                "hint": "↵ to send · ⇧↵ for a new line",
                 "commandHint": "/brainstorm [idea]: brainstorm with {name}, on your idea if you give one",
                 "unreachable": "The message did not go: MoltenTerm got no answer from {name}'s session. Try again in a moment.",
                 "lookupFailed": "The message did not go: MoltenTerm could not look for {name}'s session just now. Try again in a moment.",
@@ -3892,7 +3903,6 @@
                 "noSpace": "The message did not go: {name} has no workspace to open his terminal in. Open a workspace, then try again.",
                 "noText": "The message did not go: it is empty or longer than 4,000 characters. Shorten it, then try again.",
                 "window": "Conversation with {name}",
-                "empty": "Tell {name} what you need.",
                 "you": "You",
                 "actionsLabel": "Replies {name} offers",
                 "confirmAsk": "Send “{text}”?",

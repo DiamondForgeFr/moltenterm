@@ -3838,7 +3838,7 @@
                 "empty": "Aucun usage de forfait à montrer pour l'instant : il apparaît quand un agent partage sa mesure."
             },
             "talk": {
-                "placeholder": "Écrire à {name}…",
+                "placeholder": "Dites à {name} ce dont vous avez besoin…",
                 "label": "Message pour {name}",
                 "send": "Envoyer",
                 "sending": "En route…",
@@ -3863,13 +3863,25 @@
                         "read": "L'agent de {name} demande à lire ce fichier :",
                         "fetch": "L'agent de {name} demande à ouvrir cette page web :",
                         "search": "L'agent de {name} demande à chercher sur le web :",
-                        "patch": "L'agent de {name} demande à modifier ces fichiers :"
+                        "patch": "L'agent de {name} demande à modifier ces fichiers :",
+                        "find": "L'agent de {name} demande à chercher ces fichiers :",
+                        "grep": "L'agent de {name} demande à chercher dans le contenu de ces fichiers :",
+                        "tool": "L'agent de {name} demande à utiliser cet outil :"
                     },
                     "allow": "Autoriser une fois",
                     "always": "Toujours autoriser",
                     "deny": "Refuser",
                     "gone": "Cette demande est terminée : elle a reçu sa réponse dans son terminal, ou son agent ne la pose plus.",
                     "autoApproved": "Approuvé sans demander :"
+                },
+                "question": {
+                    "label": "Question de l'agent de {name}",
+                    "asks": "L'agent de {name} vous demande :",
+                    "hint": "Ou écrivez votre réponse ci-dessous.",
+                    "send": "Envoyer les réponses",
+                    "placeholder": "Répondre à {name}…",
+                    "answering": "Votre réponse va à sa question",
+                    "yours": "Votre réponse : {answer}"
                 },
                 "unsettled": "L'agent de {name} n'est jamais revenu à son invite (une étape qui ne s'est pas terminée), donc rien n'est parti. Réessayez dans un instant.",
                 "slashKept": "Un message qui commence par / reste ici : l'agent de {name} l'exécuterait comme une de ses commandes. Écrivez-le sans la barre oblique.",
@@ -3883,7 +3895,6 @@
                 "agentStopped": "L'agent de {name} ne tourne plus dans son terminal. Fermez ce terminal, puis renvoyez votre message.",
                 "keys": "Entrée pour envoyer, Maj+Entrée pour un retour à la ligne",
                 "keysBrainstorm": "Entrée pour envoyer, Maj+Entrée pour un retour à la ligne, /brainstorm [idée] pour un brainstorm",
-                "hint": "↵ pour envoyer · ⇧↵ pour un retour à la ligne",
                 "commandHint": "/brainstorm [idée] : un brainstorm avec {name}, sur votre idée si vous la donnez",
                 "unreachable": "Le message n'est pas parti : la session de {name} n'a pas répondu à MoltenTerm. Réessayez dans un instant.",
                 "lookupFailed": "Le message n'est pas parti : MoltenTerm n'a pas pu chercher la session de {name} à l'instant. Réessayez dans un instant.",
@@ -3892,7 +3903,6 @@
                 "noSpace": "Le message n'est pas parti : {name} n'a pas d'espace de travail où ouvrir son terminal. Ouvrez-en un, puis réessayez.",
                 "noText": "Le message n'est pas parti : il est vide ou dépasse 4 000 caractères. Raccourcissez-le, puis réessayez.",
                 "window": "Conversation avec {name}",
-                "empty": "Dites à {name} ce dont vous avez besoin.",
                 "you": "Vous",
                 "actionsLabel": "Réponses proposées par {name}",
                 "confirmAsk": "Envoyer « {text} » ?",

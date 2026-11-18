@@ -26,7 +26,6 @@ import {
     ConversationChromePx,
     conversationHeight,
     ConversationMaxPx,
-    ConversationMinPx,
     conversationWidth,
     DefaultPanel,
     EdgePx,
@@ -496,9 +495,11 @@ describe("the conversation window", () => {
         expect(conversationWidth(g, 100)).toBe(g.panelLeft + 280);
     });
 
-    it("is about 240 px tall when the exchange is short, and grows with it", () => {
-        expect(conversationHeight(0, 800)).toBe(ConversationMinPx);
-        expect(conversationHeight(120, 800)).toBe(ConversationMinPx);
+    // AC102 (#2382): no empty area any more: with nothing said the window is the composer alone, as tall as it is.
+    it("is as tall as what it holds, only the composer when nothing has been said", () => {
+        const composerOnly = 8 + 32 + 32 + 8 + ConversationChromePx;
+        expect(conversationHeight(composerOnly, 800)).toBe(composerOnly);
+        expect(conversationHeight(120, 800)).toBe(120);
         expect(conversationHeight(300, 800)).toBe(300);
     });
 
@@ -508,25 +509,28 @@ describe("the conversation window", () => {
 
     it("stops at the window's room when that is smaller", () => {
         expect(conversationHeight(2000, 330)).toBe(330);
-        expect(conversationHeight(100, 200)).toBe(200);
+        expect(conversationHeight(100, 200)).toBe(100);
     });
 
     it("never goes under the field itself", () => {
         expect(conversationHeight(100, 10)).toBe(36);
+        expect(conversationHeight(0, 800)).toBe(36);
     });
 
     it("starts at the field's top, under the block, in the group's own coordinates", () => {
         expect(g.field.y).toBe(g.block.y + g.block.h + 8);
-        // The roomy input of #2285 in the inset well of #2303: two lines of the field, the footer and the room under the
-        // well, whose line is drawn inside and takes none.
-        expect(ConversationChromePx).toBe(122);
+        // The talk measures the exchange and the composer with their spacing (brokk-talk.tsx): the window adds its border.
+        expect(ConversationChromePx).toBe(2);
         const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
-        expect(css).toMatch(/\.mt-brokk-convo \{[^}]*padding: 14px 16px 8px;/);
-        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-input \{[^}]*min-height: 52px;/);
-        expect(css).toMatch(/\.mt-brokk-field-foot \{[^}]*height: 36px;/);
+        expect(css).toMatch(/\.mt-brokk-convo \{[^}]*padding: 12px 14px 4px;/);
+        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-input \{[^}]*min-height: 32px;/);
+        expect(css).toMatch(/\.mt-brokk-field-foot \{[^}]*height: 32px;/);
         expect(css).toMatch(
-            /\.mt-brokk-field\[data-open="true"\] \.mt-brokk-composer \{[^}]*margin: 0 10px 10px;[^}]*box-shadow: inset 0 0 0 1px var\(--mt-line-2\);/
+            /\.mt-brokk-field\[data-open="true"\] \.mt-brokk-composer \{[^}]*margin: 8px;[^}]*box-shadow: inset 0 0 0 1px var\(--mt-line-2\);/
         );
+        const talk = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
+        expect(talk).toContain("const ConvoPadPx = 12 + 4;");
+        expect(talk).toContain("const ComposerMarginPx = 8 + 8;");
         expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-row \{[^}]*padding: 0;/);
         expect(css).not.toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-row \{[^}]*border-top/);
     });

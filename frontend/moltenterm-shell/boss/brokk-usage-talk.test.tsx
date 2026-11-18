@@ -70,7 +70,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import type { PrimitiveAtom } from "jotai";
 import { BrainstormLastLeftAtom, BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
-import { answerPermission } from "./brokk-permission";
+import { answerPermission, BrokkPermissions } from "./brokk-permission";
 import { BrokkSession } from "./brokk-session";
 import { BrokkTalk, keepDraft } from "./brokk-talk";
 import { BrokkUsageTab } from "./brokk-usage-tab";
@@ -213,10 +213,25 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         return renderToStaticMarkup(<BrokkTalk onTyping={() => {}} />);
     }
 
+    // The cards of his agent's requests and questions, as the window draws them once they loaded.
+    function renderCards(picks: Record<string, string[]> = {}, onPicks = () => {}): string {
+        return renderToStaticMarkup(
+            <BrokkPermissions
+                name="Brokk"
+                onAnswer={() => {}}
+                picks={picks}
+                answering={false}
+                onPicks={onPicks}
+                onSendPicks={() => {}}
+            />
+        );
+    }
+
     it("is named for him, with a Send that waits for a message", () => {
         const html = render();
         expect(html).toContain('data-testid="brokk-talk-input"');
-        expect(html).toContain('placeholder="Write to Brokk…"');
+        // AC102 (#2382): the placeholder says what to write; no empty area says it any more.
+        expect(html).toContain('placeholder="Tell Brokk what you need…"');
         expect(html).toContain('aria-label="Message to Brokk"');
         expect(html).toMatch(
             /data-testid="brokk-talk-send"[^>]*><i class="[^"]*fa-paper-plane[^"]*" aria-hidden="true"><\/i>Send</
@@ -260,7 +275,7 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         expect(css).not.toContain("not-allowed");
         keepDraft("hello");
         expect(render()).toMatch(
-            /<button type="submit" data-testid="brokk-talk-send" class="molten-btn mt-brokk-send /
+            /<button type="submit" data-testid="brokk-talk-send"[^>]* class="molten-btn mt-brokk-send /
         );
     });
 
@@ -330,32 +345,46 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
         expect(html).toContain(">and the blocked ones?</textarea>");
     });
 
-    // FR-BOSS-009 AC91 (#2285): open, the field is roomy, with the keys' hint and the send button under it; folded, it
-    // keeps its one row with the button at its end.
-    it("has a roomy field in the open window, with the hint and the send button under it", () => {
+    // FR-BOSS-009 AC103 (#2382): open, the composer of today's chat apps: a compact field from one line, and one small
+    // row of controls under it with Send at its end, no hint line; folded, it keeps its one row with the button at its
+    // end.
+    it("is a compact composer in the open window, with Send at the end of its row of controls", () => {
         const folded = render();
         expect(folded).not.toContain('data-testid="brokk-talk-foot"');
         expect(folded).toMatch(/data-testid="brokk-talk-input"[^>]*><\/textarea><button type="submit"/);
         keepDraft("hello");
         const html = render();
         expect(html).toMatch(
-            /data-testid="brokk-talk-foot"><span class="mt-brokk-field-hint" data-testid="brokk-talk-hint">↵ to send · ⇧↵ for a new line<\/span><button type="submit"[^>]*data-testid="brokk-talk-send"/
+            /data-testid="brokk-talk-foot"><span class="mt-brokk-field-hint" data-testid="brokk-talk-hint"><\/span><button type="submit"[^>]*data-testid="brokk-talk-send"[^>]*aria-label="Send" title="Send"/
         );
+        expect(html).not.toContain("↵ to send");
         expect(html.match(/data-testid="brokk-talk-send"/g)).toHaveLength(1);
         expect(html.indexOf('data-testid="brokk-talk-input"')).toBeLessThan(
             html.indexOf('data-testid="brokk-talk-foot"')
         );
         const css = readFileSync(join(__dirname, "brokk-group.css"), "utf8");
-        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-input \{[^}]*min-height: 52px;/);
+        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-field-input \{[^}]*min-height: 32px;/);
+        expect(css).toMatch(/\.mt-brokk-field\[data-open="true"\] \.mt-brokk-composer \{[^}]*margin: 8px;/);
+        expect(css).toMatch(/\.mt-brokk-field-foot \{[^}]*height: 32px;/);
+        // The window is as tall as what it holds: the talk measures the exchange and the composer (AC102, AC104).
+        const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
+        expect(source).toContain("onContentHeight?.(convo + composer.offsetHeight + ComposerMarginPx);");
     });
 
-    it("opens as a log of the exchange named for him, with a hint while it is empty", () => {
+    // AC102 (#2382): the large empty area that said "Tell Brokk what you need." is gone: nothing said, the window is the
+    // composer alone. Once something is said, the exchange stacks above it, as a log named for him (AC104).
+    it("is only the composer while nothing has been said, then a log of the exchange above it", () => {
         keepDraft("hello");
+        const empty = render();
+        expect(empty).toContain('data-open="true"');
+        expect(empty).not.toContain('data-testid="brokk-convo"');
+        expect(empty).not.toContain("Tell Brokk what you need.");
+        const session = BrokkSession.getInstance() as any;
+        globalStore.set(session.exchangeAtom, [{ id: "m1", role: "you", text: "how many agents run?", at: 1 }]);
         const html = render();
-        expect(html).toMatch(/data-testid="brokk-convo"[^>]*>/);
+        expect(html).toMatch(/data-testid="brokk-talk" data-open="true" data-convo="true"/);
         expect(html).toContain('role="log"');
         expect(html).toContain('aria-label="Conversation with Brokk"');
-        expect(html).toContain("Tell Brokk what you need.");
         expect(html.indexOf('data-testid="brokk-convo"')).toBeLessThan(html.indexOf('data-testid="brokk-talk-input"'));
     });
 
@@ -632,14 +661,17 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
             at: 1,
         });
         try {
+            // The window opens for it, and the card loads in it (outside the JavaScript loaded up front).
             const html = render();
-            expect(html).toContain('data-testid="brokk-talk" data-open="true"');
-            expect(html).toContain("Brokk&#x27;s agent asks to run this command:");
-            expect(html).toMatch(/data-testid="brokk-permission-subject"[^>]*>npm test -- --run</);
-            expect(html).toContain('data-testid="brokk-permission-allow"');
-            expect(html).toContain('data-testid="brokk-permission-deny"');
-            expect(html).not.toContain('data-testid="brokk-permission-always"');
+            expect(html).toContain('data-testid="brokk-talk" data-open="true" data-convo="true"');
             expect(html).not.toContain("his agent waits for you in his terminal");
+            expect(html).not.toContain('data-testid="brokk-talk-terminal"');
+            const card = renderCards();
+            expect(card).toContain("Brokk&#x27;s agent asks to run this command:");
+            expect(card).toMatch(/data-testid="brokk-permission-subject"[^>]*>npm test -- --run</);
+            expect(card).toContain('data-testid="brokk-permission-allow"');
+            expect(card).toContain('data-testid="brokk-permission-deny"');
+            expect(card).not.toContain('data-testid="brokk-permission-always"');
             globalStore.set(session.permissionAtom, {
                 id: "req-2",
                 blockid: "block-1",
@@ -649,12 +681,22 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
                 always: true,
                 at: 2,
             });
-            expect(render()).toContain('data-testid="brokk-permission-always"');
+            expect(renderCards()).toContain('data-testid="brokk-permission-always"');
+            // #2382 (AC101): the searches a question about the projects leads to are read too.
+            globalStore.set(session.permissionAtom, {
+                id: "req-3",
+                blockid: "block-1",
+                tool: "Glob",
+                kind: "find",
+                subject: "/w/projects/**/.manifest.json",
+                at: 3,
+            });
+            expect(renderCards()).toContain("Brokk&#x27;s agent asks to look for these files:");
             globalStore.set(session.permissionAtom, null);
             globalStore.set(session.approvedAtom, [{ id: "a1", kind: "command", subject: "npm run lint", at: 3 }]);
             globalStore.set(stateAtom, { ...Idle, phase: "answering", where: Where });
             keepDraft("x");
-            expect(render()).toMatch(/Approved without asking: <code[^>]*>npm run lint</);
+            expect(renderCards()).toMatch(/Approved without asking: <code[^>]*>npm run lint</);
         } finally {
             globalStore.set(session.permissionAtom, null);
             globalStore.set(session.approvedAtom, []);
@@ -722,7 +764,7 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
             expect(source).toContain(
                 "const keepConversation = () => inputRef.current?.focus({ preventScroll: true });"
             );
-            expect(source).toContain("<BrokkPermissions name={name} onAnswer={keepConversation} />");
+            expect(source).toMatch(/<BrokkPermissions\s+name=\{name\}\s+onAnswer=\{keepConversation\}/);
             const card = readFileSync(join(__dirname, "brokk-permission.tsx"), "utf8");
             expect(card).toContain("await answerPermission(ask, decision, onAnswer);");
             expect(card).toContain("<BrokkPermissionCard ask={ask} name={name} onAnswer={onAnswer} />");
@@ -744,7 +786,91 @@ describe("the field to talk to him (FR-BOSS-009, AC9 and AC15)", () => {
 
         it("scrolls to what follows once the card is gone", () => {
             const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
-            expect(source).toContain("}, [open, items, state.phase, confirming, text, asking]);");
+            expect(source).toContain("}, [open, convoShown, items, state.phase, confirming, text, ask, queued]);");
+        });
+    });
+
+    // #2382 (AC100): his agent's question is answered in the window: its choices are buttons, any other answer is
+    // written in the composer, whose placeholder says so; no note sends the developer to his terminal.
+    describe("his agent's question, answered in place (AC100)", () => {
+        const Question = {
+            id: "q-1",
+            blockid: "block-1",
+            tool: "AskUserQuestion",
+            kind: "question",
+            subject: "Where are the projects?",
+            at: 1,
+            questions: [
+                {
+                    question: "Where are the projects?",
+                    header: "Folder",
+                    options: [
+                        { label: "Documents", description: "the usual place" },
+                        { label: "Elsewhere", description: "another folder" },
+                    ],
+                },
+            ],
+        };
+
+        it("shows the question with its choices, and lets the composer answer it", () => {
+            const session = BrokkSession.getInstance() as any;
+            globalStore.set(session.stateAtom, { ...Idle, phase: "needsanswer", where: Where });
+            globalStore.set(session.permissionAtom, Question);
+            try {
+                const html = render();
+                expect(html).toContain('data-convo="true"');
+                expect(html).toContain('placeholder="Answer Brokk…"');
+                expect(html).toContain(">Your answer goes to his question<");
+                expect(html).not.toContain("his agent waits for you in his terminal");
+                const card = renderCards();
+                expect(card).toContain('data-testid="brokk-question"');
+                expect(card).toContain("Brokk&#x27;s agent asks you:");
+                expect(card).toContain(">Where are the projects?</p>");
+                expect(
+                    [
+                        ...card.matchAll(
+                            /data-testid="brokk-question-choice"[^>]*><span class="mt-brokk-choice-label">([^<]*)</g
+                        ),
+                    ].map((m) => m[1])
+                ).toEqual(["Documents", "Elsewhere"]);
+                expect(card).toContain(">the usual place<");
+                expect(card).toContain("Or write your own answer below.");
+                // One question, one choice: a click answers it, with no Send of its own.
+                expect(card).not.toContain('data-testid="brokk-question-send"');
+                expect(card).not.toContain('data-testid="brokk-permission-allow"');
+                const picked = renderCards({ "Where are the projects?": ["Documents"] });
+                expect(picked).toMatch(
+                    /aria-pressed="true"[^>]*class="mt-brokk-choice cursor-pointer mt-selected-action"/
+                );
+                const written = renderCards({ "Where are the projects?": ["In the work folder"] });
+                expect(written).toContain(">Your answer: In the work folder<");
+            } finally {
+                globalStore.set(session.permissionAtom, null);
+                globalStore.set(session.stateAtom, Idle);
+            }
+        });
+
+        it("waits for Send when a question takes several choices, or several questions are asked", () => {
+            const session = BrokkSession.getInstance() as any;
+            globalStore.set(session.permissionAtom, {
+                ...Question,
+                questions: [{ ...Question.questions[0], multiselect: true }],
+            });
+            try {
+                expect(renderCards()).toMatch(/data-testid="brokk-question-send"[^>]*>Send the answers</);
+                expect(renderCards()).toMatch(
+                    /<button type="button" disabled=""[^>]*data-testid="brokk-question-send"/
+                );
+            } finally {
+                globalStore.set(session.permissionAtom, null);
+            }
+        });
+
+        it("answers the open question with the composer's text, not as a new message", () => {
+            const source = readFileSync(join(__dirname, "brokk-talk.tsx"), "utf8");
+            expect(source).toContain("if (openAsk != null && !clearPrompt) {");
+            expect(source).toContain("await answerQuestion({ ...questionPicks, [openAsk.question]: [typed] });");
+            expect(source).toContain("await session.answer(question, answers);");
         });
     });
 
