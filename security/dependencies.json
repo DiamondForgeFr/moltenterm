@@ -2,9 +2,9 @@
     "schema": 1,
     "owner": "AGachet",
     "electronLifecycle": {
-        "version": "45.2.3",
-        "reviewedAt": "2026-11-09",
-        "reviewBy": "2027-02-03",
+        "version": "45.3.4",
+        "reviewedAt": "2026-11-17",
+        "reviewBy": "2027-02-15",
         "tentativeEndOfSupport": "2027-04-27",
         "source": "https://releases.electronjs.org/schedule",
         "releaseSource": "https://releases.electronjs.org/"
