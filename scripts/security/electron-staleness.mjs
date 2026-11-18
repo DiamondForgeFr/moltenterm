@@ -11,9 +11,12 @@
 //   unsupported-line the major is not among the latest three stable ones
 // A finding is cleared by a bump, or by a human-reviewed, dated exception in security/dependencies.json.
 //
-// Usage: node scripts/security/electron-staleness.mjs [--enforce] [--issue] [--json] [--max-age-days N]
+// Usage: node scripts/security/electron-staleness.mjs [--enforce] [--warn] [--issue] [--json] [--max-age-days N]
 //          [--repo owner/name] [--root dir] [--feed file] [--advisories file] [--now ISO]
-//   --enforce  exit 1 when a finding is not excepted (the release workflow)
+//   --enforce  exit 1 when a finding is not excepted (the release workflow, and the release's own preflight)
+//   --warn     print a ::warning annotation per finding and per release still inside the window, with the day a
+//              release is refused (the nightly run, so the bump is done before the release day); it never changes the
+//              exit code
 //   --issue    open, update or close the one `security` issue (the daily workflow); needs gh, GH_TOKEN, --repo or
 //              GITHUB_REPOSITORY
 // Exit codes: 0 report, 1 findings under --enforce, 2 input failure. A failed read is never "current".
@@ -457,6 +460,25 @@ export function renderMarkdown(report) {
     return lines.join("\n");
 }
 
+// The findings as GitHub warnings: the pinned version, the newest release of its major, and the day a release is refused.
+// `flags: false` leaves out the findings a release already refuses, which --enforce reports as errors.
+export function renderWarnings(report, { flags = true } = {}) {
+    const context = `Pinned Electron ${report.pinned}, newest ${report.major}.x is ${report.latest.version} (${report.latest.date})`;
+    const warning = (flag, outcome) =>
+        `::warning title=Electron engine::${plain(`${context}: ${flag.title}; ${flag.detail}; ${outcome}`)}`;
+    const lines = report.pending.map((flag) =>
+        warning(flag, `act by ${due(flag)}: a release is refused after that day`)
+    );
+    if (flags) {
+        for (const flag of report.flags) {
+            lines.push(
+                warning(flag, `overdue${flag.dueBy == null ? "" : ` since ${due(flag)}`}: a release is refused until it is cleared`)
+            );
+        }
+    }
+    return lines;
+}
+
 const defaultRun = (args) => execFileSync("gh", args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
 
 // One issue, found by its title: opened for findings, edited and commented when they change, closed when none is left.
@@ -602,7 +624,7 @@ export function readPin(root) {
     return { pinned, lifecycle: policy.electronLifecycle, exceptions: policy.electronExceptions ?? [] };
 }
 
-const Flags = { "--enforce": "enforce", "--issue": "issue", "--json": "json" };
+const Flags = { "--enforce": "enforce", "--warn": "warn", "--issue": "issue", "--json": "json" };
 const Values = {
     "--max-age-days": "maxAgeDays",
     "--repo": "repo",
@@ -666,6 +688,11 @@ export async function main(
         if (options.issue) {
             const result = syncIssue(report, markdown, { run, repo: options.repo ?? env.GITHUB_REPOSITORY });
             out(`Issue "${IssueTitle}": ${result}`);
+        }
+        if (options.warn) {
+            for (const line of renderWarnings(report, { flags: !options.enforce })) {
+                out(line);
+            }
         }
         if (options.enforce && report.flags.length) {
             for (const flag of report.flags) {

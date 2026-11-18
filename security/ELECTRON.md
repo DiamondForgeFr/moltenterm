@@ -40,6 +40,8 @@ keep it, and the steps of a bump.
 | `electronLifecycle` in the scanner (`scripts/security/policy.mjs`)                           | Every scan, offline                 | Fails when the recorded review is overdue (at most 90 days old) or does not match the pin in `package.json` and the lock            |
 | `scripts/security/electron-staleness.mjs`, run by `.github/workflows/electron-staleness.yml` | Daily, and by hand                  | Opens or updates one issue "Electron engine update overdue" labelled `security`, and closes it once nothing is left. It never bumps |
 | The same script with `--enforce`, run by `security-scan.yml`                                 | Release tags and release rehearsals | Fails the dependency security job, which the release builds and the publication wait for                                            |
+| `release.preflight` of `.molten/project.json`, run by `molten release finalize`              | Before the tag is created           | Runs the dependency scan and the same script with `--enforce` on the tree about to be tagged: a refused release is not tagged       |
+| The same script with `--warn`, run by `ci-nightly.yml`                                       | Every night, on develop's pin       | Warns with the pinned version, the newest patch and the day a release would be refused. It never fails the night                    |
 
 The script reads the pin (`package.json`, the lock and `electronLifecycle` must agree), the release feed and the
 advisories, and raises:
@@ -55,6 +57,19 @@ advisories, and raises:
 
 A read that fails (feed, advisories, a file, a malformed range or exception) exits 2 and is never reported as current.
 A pull request is never stopped by a new upstream patch: only the release is.
+
+### Before the tag (#2365)
+
+The rule depends on the date: a develop that was green yesterday is refused once a newer patch has waited 7 days. A tag
+that the release workflow then refuses is already public and its number burnt (v1.0.0-12, 2026-11-17). So the release
+checks first, itself: `release.preflight` in `.molten/project.json` declares the dependency scan
+(`scripts/security/scan.mjs`) and this script with `--enforce`, and `molten release finalize` runs them in the release
+worktree before it commits, tags or pushes. When one fails it stops, names the check, the finding and the fix, and
+nothing reaches origin. The fix is a bump (steps below), merged on develop; then promote and prepare the release again.
+`release.yml` keeps its own scan as the last net.
+
+The nightly run (`ci-nightly.yml`) checks develop's pin with `--warn`, so a patch that has been out for a few days
+shows as a warning with the day a release would be refused, and the bump is made before the release day.
 
 ### Critical or exploited fixes
 
