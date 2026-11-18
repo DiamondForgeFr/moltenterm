@@ -87,6 +87,29 @@ func TestASpikeOfAKnownErrorRaisesOneCard(t *testing.T) {
 	}
 }
 
+// #2372 acceptance: the flusher's healthy report, 12 a minute for 10 minutes, raises no card, where the same rate of a
+// real error does.
+func TestNilErrorLinesRaiseNoCard(t *testing.T) {
+	t.Parallel()
+	w, fe, path := makeTestWatcher(t)
+	look(t, w)
+	appendLog(t, path, errorsEveryMinute(day, 10, 12, "[wavesrv] filestore flush: 2/2 entries flushed, err:<nil>"))
+	fe.advance(11 * time.Minute)
+	look(t, w)
+	if cards := fe.takeCards(); len(cards) != 0 {
+		t.Fatalf("120 nil-error lines raised %v", cardKeys(cards))
+	}
+
+	control, controlFe, controlPath := makeTestWatcher(t)
+	look(t, control)
+	appendLog(t, controlPath, errorsEveryMinute(day, 10, 12, "[wavesrv] filestore flush: 1/2 entries flushed, err:disk full"))
+	controlFe.advance(11 * time.Minute)
+	look(t, control)
+	if cards := controlFe.takeCards(); len(cards) != 1 || cards[0].Title != "An error keeps coming back" {
+		t.Fatalf("the same rate of a real error raised %v", cardKeys(cards))
+	}
+}
+
 // A burst in one minute is no spike: more than one a minute means over several minutes.
 func TestABurstInOneMinuteIsNoSpike(t *testing.T) {
 	t.Parallel()

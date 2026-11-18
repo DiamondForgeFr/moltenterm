@@ -525,7 +525,8 @@ func (s *FileStore) runFlusher() {
 	}()
 	for {
 		stats, err := s.runFlushWithNewContext()
-		if err != nil || stats.NumDirtyEntries > 0 {
+		// MOLTENTERM-PATCH (#2372): only a failed flush is logged; the healthy report, every few seconds, filled the log.
+		if err != nil {
 			log.Printf("filestore flush: %d/%d entries flushed, err:%v\n", stats.NumCommitted, stats.NumDirtyEntries, err)
 		}
 		if stopFlush.Load() {
