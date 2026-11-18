@@ -324,28 +324,32 @@ describe("the rhythm of his gestures (FR-BOSS-007, AC17)", () => {
     });
 });
 
-describe("the package at v0.7.0 (FR-BOSS-007, AC1 and AC17; #1999, #2007, #2378)", () => {
+describe("the package at v0.8.0 (FR-BOSS-007, AC1 and AC17; #1999, #2007, #2378, #2380)", () => {
     const lock = JSON.parse(textOf("package-lock.json"));
     const manifest = JSON.parse(textOf("package.json"));
 
-    it("is named at v0.7.0 by the dependency, the lock, the notice and the ledger of the fork", () => {
-        expect(manifest.dependencies[PackageName]).toMatch(/character-studio\.git#v0\.7\.0$/);
-        expect(lock.packages[""].dependencies[PackageName]).toMatch(/character-studio\.git#v0\.7\.0$/);
-        expect(lock.packages[`node_modules/${PackageName}`].version).toBe("0.7.0");
-        expect(textOf("NOTICE")).toContain(`${PackageName} 0.7.0 by DiamondForge`);
-        expect(textOf("UPSTREAM.md")).toContain("character-studio.git#v0.7.0");
+    it("is named at v0.8.0 by the dependency, the lock, the notice and the ledger of the fork", () => {
+        expect(manifest.dependencies[PackageName]).toMatch(/character-studio\.git#v0\.8\.0$/);
+        expect(lock.packages[""].dependencies[PackageName]).toMatch(/character-studio\.git#v0\.8\.0$/);
+        expect(lock.packages[`node_modules/${PackageName}`].version).toBe("0.8.0");
+        expect(textOf("NOTICE")).toContain(`${PackageName} 0.8.0 by DiamondForge`);
+        expect(textOf("UPSTREAM.md")).toContain("character-studio.git#v0.8.0");
+        expect(textOf("UPSTREAM.md")).not.toContain("character-studio.git#v0.7.0");
         expect(textOf("UPSTREAM.md")).not.toContain("character-studio.git#v0.3.1");
         expect(textOf("UPSTREAM.md")).not.toContain("diamondforge-character.git#v0.2.0");
     });
 
-    it("is the one installed, with the gap, the repeat, the mirror leave and the end of a gesture in its types", () => {
+    it("is the one installed, with the gap and the end of a gesture in the portrait's props, and the repeat and the mirror leave in the types of an idle", () => {
         const installed = JSON.parse(textOf(`node_modules/${PackageName}/package.json`));
-        expect(installed.version).toBe("0.7.0");
-        const types = textOf(`node_modules/${PackageName}/dist/transmission-portrait.d.ts`);
-        expect(types).toContain("idleGap?: TransmissionIdleGap");
-        expect(types).toContain("onGesture?: (name: string, phase: TransmissionGesturePhase) => void");
-        expect(types).toContain("repeat?: boolean");
-        expect(types).toContain("leave?: 'mirror'");
+        expect(installed.version).toBe("0.8.0");
+        const props = textOf(`node_modules/${PackageName}/dist/transmission-portrait.d.ts`);
+        expect(props).toContain("idleGap?: TransmissionIdleGap");
+        expect(props).toContain("onGesture?: (name: string, phase: TransmissionGesturePhase) => void");
+        expect(props).toContain("idles?: Partial<Record<NoInfer<TransmissionState<Rest>>, readonly TransmissionIdle[]>>");
+        const idle = textOf(`node_modules/${PackageName}/dist/portrait-types.d.ts`);
+        expect(idle).toContain("export type TransmissionIdle = {");
+        expect(idle).toContain("repeat?: boolean");
+        expect(idle).toContain("leave?: 'mirror'");
     });
 
     it("keeps the next loop under the clip that leads to it, with the stylesheet the app takes from the package", () => {

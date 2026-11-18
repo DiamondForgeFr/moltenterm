@@ -71,7 +71,7 @@ describe("parsePolicy", () => {
 
   it("keeps @diamondforge/character as DiamondForge's own private package, and NOTICE says so", () => {
     const real = loadPolicy(Root);
-    const own = findException(real, { ecosystem: "npm", name: "@diamondforge/character", version: "0.7.0" });
+    const own = findException(real, { ecosystem: "npm", name: "@diamondforge/character", version: "0.8.0" });
     expect(own?.reason).toMatch(/own private package/);
     const notice = fs.readFileSync(path.join(Root, "NOTICE"), "utf8");
     expect(notice).toMatch(/@diamondforge\/character[^]*DiamondForge's own private package/);
