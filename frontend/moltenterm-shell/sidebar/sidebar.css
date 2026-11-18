@@ -239,6 +239,66 @@
     --mt-edge-face: 20px;
 }
 
+/* The collapsed rail (FR-SHELL-079, #2384): while the sidebar is hidden, a column of its own at the window's left edge,
+   in the content's flow so that no panel is covered (Brokk's strip above adds no margin of its own, and still does not).
+   It keeps the docked sidebar's edge line (.mt-sb-place-strip, the window's left edge in the place colour, top to
+   bottom) and holds only the current project's mark, at the top: the header's own liseré (.mt-sb-place-bar, the place
+   colour) and the project's logo or icon or initial, 16 px. Its width is collapsed-mark-model.ts's CollapsedRailPx, which a test
+   keeps equal to this: 6 px of margin, the 3 px liseré, 5 px of gap and the 16 px mark. The rail takes no pointer but
+   the mark does, above the left-edge zone, so that hovering the mark names the project instead of unfolding the
+   sidebar. Nothing in it moves, so reduced motion has nothing to change. */
+.mt-sb-frame {
+    --mt-rail-px: 30px;
+}
+
+.mt-sb-rail {
+    position: relative;
+    z-index: 26;
+    flex: none;
+    width: var(--mt-rail-px);
+    padding: calc(var(--mt-frame-gap) + 2px) 0 0 6px;
+    pointer-events: none;
+}
+
+.mt-sb-rail-mark {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 24px;
+    height: 24px;
+    pointer-events: auto;
+    cursor: pointer;
+    border-radius: var(--mt-radius-control);
+}
+
+.mt-sb-rail-mark:hover {
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
+}
+
+.mt-sb-rail-mark:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
+}
+
+.mt-sb-rail-mark.is-unfolded {
+    visibility: hidden;
+}
+
+.mt-sb-rail-initial {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: var(--mt-radius-control);
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
+    color: var(--mt-text-main);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-medium);
+    line-height: 1;
+}
+
 /* At rest nothing of it is seen, reached by the pointer or by the keyboard, once the slide that folds it has ended. */
 .mt-sb.is-hidden[data-edge="rest"] {
     visibility: hidden;
