@@ -498,6 +498,34 @@ func TestFollowStep(t *testing.T) {
 	if s.Phase != PhaseAnswering || f.idle != 0 || !f.worked {
 		t.Fatalf("working: %+v %+v", s, f)
 	}
+	// A wait keeps what he said before it, however long it lasts, and he thinks again once he goes on (#2155).
+	f = followState{}
+	waitingReply := &Reply{Status: ReplyAnswer, Markdown: "Cleaning", BlockId: "b", TabId: "t"}
+	for i := 0; i < 2*IdleReadingsForNoReply; i++ {
+		s, f, done = followStep(answering, f, waitingReply, false, true)
+	}
+	if s.Phase != PhaseNeedsAnswer || s.Reply != "Cleaning" || done || s.Where == nil || s.Where.BlockId != "b" {
+		t.Fatalf("a long wait: %+v %v", s, done)
+	}
+	if s, _, done = followStep(s, f, &Reply{Status: ReplyWaiting}, true, false); s.Phase != PhaseAnswering || done {
+		t.Fatalf("after the wait: %+v %v", s, done)
+	}
+	// An unreadable answer given before his agent even started on it is not called one.
+	f = followState{}
+	for i := 0; i <= IdleReadingsForUnread; i++ {
+		s, f, done = followStep(answering, f, &Reply{Status: ReplyUnread}, false, false)
+	}
+	if done {
+		t.Fatalf("unread before any work: %+v", s)
+	}
+	// His agent at work: no limit on the wait for his answer.
+	f = followState{}
+	for i := 0; i < 2*IdleReadingsForNoReply; i++ {
+		s, f, done = followStep(answering, f, &Reply{Status: ReplyWaiting}, true, false)
+	}
+	if done || s.Phase != PhaseAnswering {
+		t.Fatalf("working: %+v %v", s, done)
+	}
 	if got := talkStateOf(nil); got.Phase != PhaseFailed || got.Reason != ReasonUnreachable {
 		t.Fatalf("no answer: %+v", got)
 	}
