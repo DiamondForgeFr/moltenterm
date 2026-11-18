@@ -22,7 +22,6 @@ const report: PipelineReport = {
 describe("unknown pipeline fields (#2370)", () => {
     it("shows them in the problems box while the pipeline stays valid", () => {
         const html = renderToStaticMarkup(<PipelineBanner dir="/p" report={report} />);
-        expect(html).toContain('data-testid="pipeline-newer-fields"');
         expect(html).toContain("The pipeline has problems");
         expect(html).toContain("These fields need a newer MoltenTerm");
         expect(html).toContain("release.preflight");

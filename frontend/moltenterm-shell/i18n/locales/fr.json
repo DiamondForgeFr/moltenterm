@@ -4943,7 +4943,7 @@
             "linkProjectTitle": "Lier un projet",
             "copied": "Copié",
             "pipelineProblems": "Le pipeline a des problèmes",
-            "newerFields": "Ces champs demandent un MoltenTerm plus récent. Ils sont ignorés ici ; tous les autres jobs, builds et étapes de release fonctionnent.",
+            "newerFields": "Ces champs demandent un MoltenTerm plus récent et sont ignorés ; tout le reste fonctionne.",
             "connectPipeline": "Connecter le pipeline",
             "connectBody": "Le panneau Projet lance la CI, les builds et les releases du projet une fois qu'ils sont décrits dans .molten/project.json. Votre agent de code connecte ce que le projet a déjà et crée ce qui manque, en suivant le workflow du projet : ouvrez un terminal dans le projet, lancez votre agent et tapez la commande ci-dessous.",
             "notFoundBefore": "Commande introuvable dans votre agent ? Lancez",
