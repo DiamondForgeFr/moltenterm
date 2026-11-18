@@ -239,22 +239,30 @@
     --mt-edge-face: 20px;
 }
 
-/* The collapsed rail (FR-SHELL-079, #2384): while the sidebar is hidden, a column of its own at the window's left edge,
-   in the content's flow so that no panel is covered (Brokk's strip above adds no margin of its own, and still does not).
-   It keeps the docked sidebar's edge line (.mt-sb-place-strip, the window's left edge in the place colour, top to
-   bottom) and holds only the current project's mark, at the top: the header's own liseré (.mt-sb-place-bar, the place
-   colour) and the project's logo or icon or initial, 16 px. Its width is collapsed-mark-model.ts's CollapsedRailPx, which a test
-   keeps equal to this: 6 px of margin, the 3 px liseré, 5 px of gap and the 16 px mark. The rail takes no pointer but
-   the mark does, above the left-edge zone, so that hovering the mark names the project instead of unfolding the
-   sidebar. Nothing in it moves, so reduced motion has nothing to change. */
+/* The collapsed rail (FR-SHELL-079, #2384): while the sidebar is hidden, a column at the window's left edge. The room it
+   takes is the content's margin, here in the stylesheet, so no panel is covered and the content does not move when the
+   rail's code (collapsed-rail.tsx, loaded on demand) arrives; Brokk's strip above adds no margin of its own, and still
+   does not. The rail keeps the docked sidebar's edge line (.mt-sb-place-strip, the window's left edge in the place
+   colour, top to bottom) and holds only the current project's mark, at the top: the header's own liseré
+   (.mt-sb-place-bar, the place colour) and the project's logo or icon or initial, 16 px. Its width is
+   collapsed-mark-model.ts's CollapsedRailPx, which a test keeps equal to this: 6 px of margin, the 3 px liseré, 5 px of
+   gap and the 16 px mark. The rail takes no pointer but the mark does, above the left-edge zone, so that hovering the
+   mark names the project instead of unfolding the sidebar. Nothing in it moves, so reduced motion has nothing to
+   change. */
 .mt-sb-frame {
     --mt-rail-px: 30px;
 }
 
+.mt-sb[data-hidden="true"] ~ .mt-frame-content {
+    margin-left: var(--mt-rail-px);
+}
+
 .mt-sb-rail {
-    position: relative;
+    position: absolute;
     z-index: 26;
-    flex: none;
+    top: 0;
+    bottom: 0;
+    left: 0;
     width: var(--mt-rail-px);
     padding: calc(var(--mt-frame-gap) + 2px) 0 0 6px;
     pointer-events: none;

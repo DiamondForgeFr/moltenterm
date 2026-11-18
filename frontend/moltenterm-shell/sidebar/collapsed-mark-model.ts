@@ -6,7 +6,7 @@
 // window is on. Kept apart from the component so the rules can be tested without the app.
 
 import type { HeaderMark } from "./sidebar-header-model";
-import { currentProject, projectLabel, readProjects } from "./workspace-projects";
+import { currentProject, headerProjectType, projectLabel } from "./workspace-projects";
 
 // The rail's width, as sidebar.css's --mt-rail-px states it: the room left of the content while the sidebar is hidden.
 // A test keeps the two equal.
@@ -26,13 +26,6 @@ export function markFace(header: HeaderMark, workspaceName: string): MarkFace {
     }
     const letter = Array.from(workspaceName?.trim() ?? "")[0];
     return letter == null ? { kind: "workspace" } : { kind: "initial", letter: letter.toLocaleUpperCase() };
-}
-
-// The project type the expanded header shows as its chip: with several projects the current one's label, with one only
-// its type (a lone project without a type shows nothing: its folder's name would mostly repeat the product's).
-export function headerProjectType(ws: { meta?: Record<string, any> }): string {
-    const current = currentProject(ws);
-    return readProjects(ws).length > 1 ? projectLabel(current) : (current?.type ?? "");
 }
 
 // What a click on the mark opens, as the expanded header does: its project chip's menu when it shows one, else the
