@@ -132,12 +132,12 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     };
     const feedUsage = () =>
         withVisit((visit) => {
-            const step = visit.usageEventsAfter(usage, readings(), Date.now(), usageContext());
+            const step = visit.usageEventsAfter(usage, readings(), hub.now(), usageContext());
             keepUsage(step.memory);
             hub.feed(UsageSource, step.events);
         });
     const acknowledgeUsageSeen = () =>
-        withVisit((visit) => keepUsage(visit.acknowledgeUsage(readings(), Date.now(), usage, usageContext())));
+        withVisit((visit) => keepUsage(visit.acknowledgeUsage(readings(), hub.now(), usage, usageContext())));
     const feedAll = () => {
         feedDownloads();
         feedUpdate();
