@@ -6,7 +6,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CollapsedRailPx, headerProjectType, markAction, markFace, markProjectName } from "./collapsed-mark-model";
+import { CollapsedRailPx, markAction, markFace, markProjectName } from "./collapsed-mark-model";
+import { headerProjectType } from "./workspace-projects";
 
 const ws = (meta: Record<string, unknown>) => ({ oid: "w1", meta }) as unknown as Workspace;
 

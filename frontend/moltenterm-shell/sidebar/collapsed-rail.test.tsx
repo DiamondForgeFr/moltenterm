@@ -14,7 +14,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import en from "../i18n/locales/en.json";
 import fr from "../i18n/locales/fr.json";
-import { CollapsedRail } from "./workspace-sidebar";
+import { CollapsedRail } from "./collapsed-rail";
 
 vi.mock("@/util/fetchutil", () => ({ fetch: () => new Promise(() => {}) }));
 
@@ -63,10 +63,12 @@ describe("the collapsed rail holds the project's mark and its liseré, nothing e
         expect(html).toMatch(/<button[^>]*>\s*<span class="mt-sb-place-bar"/);
     });
 
-    it("keeps the window's edge line the docked sidebar draws, and no other line", () => {
+    it("keeps the window's edge line the docked sidebar draws, and draws no other line", () => {
         showWorkspace("Acme", { "molten:project": "/x/Acme", "molten:projecttype": "Desktop" });
         const html = render();
-        expect(openingTag(html, "sidebar-collapsed-place-strip")).toContain('class="mt-sb-place-strip"');
+        expect(html).toMatch(
+            /<div class="mt-sb-rail"[^>]*><span class="mt-sb-place-strip" aria-hidden="true"><\/span>/
+        );
         expect(html.match(/class="mt-sb-place-(strip|bar)"/g)).toHaveLength(2);
     });
 
@@ -74,7 +76,7 @@ describe("the collapsed rail holds the project's mark and its liseré, nothing e
         showWorkspace("Acme", { "molten:project": "/x/Acme", "molten:projecttype": "Desktop" });
         const html = render();
         expect(openingTag(html, "sidebar-collapsed-place-bar")).not.toMatch(/style=/);
-        expect(openingTag(html, "sidebar-collapsed-place-strip")).not.toMatch(/style=/);
+        expect(html).not.toMatch(/<span class="mt-sb-place-strip"[^>]*style=/);
     });
 
     it("stands for a workspace without an icon by the first letter of its name", () => {
@@ -228,7 +230,8 @@ describe("while the sidebar is unfolded over the rail", () => {
 
 describe("the rail's style", () => {
     const css = fs.readFileSync(path.join(__dirname, "sidebar.css"), "utf8");
-    const src = fs.readFileSync(path.join(__dirname, "workspace-sidebar.tsx"), "utf8");
+    const sidebar = fs.readFileSync(path.join(__dirname, "workspace-sidebar.tsx"), "utf8");
+    const src = fs.readFileSync(path.join(__dirname, "collapsed-rail.tsx"), "utf8");
 
     function rule(selector: string): string {
         const at = css.indexOf(`${selector} {`);
@@ -236,16 +239,38 @@ describe("the rail's style", () => {
         return css.slice(at, css.indexOf("}", at));
     }
 
-    it("is drawn only while the sidebar is hidden", () => {
-        expect(src).toMatch(/\{hidden \? <CollapsedRail workspaces=\{workspaces\} unfolded=\{peek\} \/> : null\}/);
+    it("is drawn only while the sidebar is hidden, beside the left-edge zone", () => {
+        expect(sidebar).toMatch(
+            /\{hidden \? \(\s*<>\s*<div\s+className="mt-sb-edge"[\s\S]*?\/>\s*<Suspense fallback=\{null\}>\s*<CollapsedRail workspaces=\{workspaces\} unfolded=\{peek\} \/>\s*<\/Suspense>\s*<\/>\s*\) : null\}/
+        );
     });
 
-    it("is a column of the content's flow that takes no pointer, its mark above the left-edge zone", () => {
+    it("opens what the header opens: both read the chip's project type from the same rule", () => {
+        expect(sidebar).toContain("const type = headerProjectType(ws);");
+        expect(fs.readFileSync(path.join(__dirname, "collapsed-mark-model.ts"), "utf8")).toContain(
+            "headerProjectType(ws)"
+        );
+    });
+
+    it("loads its mark on demand: only a hidden sidebar shows it, and the startup JS budget has no room for it", () => {
+        expect(sidebar).toContain('lazy(() => import("./collapsed-rail")');
+        expect(sidebar).not.toMatch(/from "\.\/collapsed-rail"/);
+        expect(sidebar).not.toMatch(/from "\.\/collapsed-mark-model"/);
+    });
+
+    it("takes its room from the content's margin, in the stylesheet: nothing waits for the rail's code", () => {
+        expect(rule('.mt-sb[data-hidden="true"] ~ .mt-frame-content')).toContain("margin-left: var(--mt-rail-px)");
+        expect(sidebar).toContain('data-hidden={hidden ? "true" : undefined}');
+    });
+
+    it("is a column along the window's left edge that takes no pointer, its mark above the left-edge zone", () => {
         const rail = rule(".mt-sb-rail");
-        expect(rail).toContain("flex: none");
+        expect(rail).toMatch(/position:\s*absolute/);
+        expect(rail).toMatch(/top:\s*0/);
+        expect(rail).toMatch(/bottom:\s*0/);
+        expect(rail).toMatch(/left:\s*0/);
         expect(rail).toContain("width: var(--mt-rail-px)");
         expect(rail).toContain("pointer-events: none");
-        expect(rail).not.toMatch(/position:\s*absolute/);
         expect(rule(".mt-sb-rail-mark")).toContain("pointer-events: auto");
         const zone = Number(/\.mt-sb-edge \{[^}]*z-index:\s*(\d+)/.exec(css)?.[1]);
         expect(Number(/z-index:\s*(\d+)/.exec(rail)?.[1])).toBeGreaterThan(zone);

@@ -60,7 +60,10 @@ function storedProjects(meta: Record<string, any>): WorkspaceProjectEntry[] {
             continue;
         }
         seen.add(id);
-        const entry = withRepo({ id, type: str(item?.type), dir: str(item?.dir), branch: str(item?.branch) }, item?.repo);
+        const entry = withRepo(
+            { id, type: str(item?.type), dir: str(item?.dir), branch: str(item?.branch) },
+            item?.repo
+        );
         if (str(item?.logo) !== "") {
             entry.logo = str(item.logo);
         }
@@ -128,6 +131,14 @@ export function projectLabel(project: WorkspaceProjectEntry): string {
         return "";
     }
     return project.type || pathBaseName(project.dir);
+}
+
+// The project type the sidebar's header shows as its chip: with several projects the current one's label, with one only
+// its type (a lone project without a type shows nothing: its folder's name would mostly repeat the product's). The
+// collapsed rail's mark opens the same menu when the header has a chip (#2384).
+export function headerProjectType(ws: { meta?: Record<string, any> }): string {
+    const current = currentProject(ws);
+    return readProjects(ws).length > 1 ? projectLabel(current) : (current?.type ?? "");
 }
 
 // "Desktop · main": the label and the branch it follows, when one is set.

@@ -102,7 +102,6 @@ import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model
 import { closeTabAskingFirst } from "../worktree-close";
 import { statusBarMarker } from "../worktree-model";
 import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
-import { headerProjectType, markAction, markFace, markProjectName } from "./collapsed-mark-model";
 import { EmptyWorkspace } from "./empty-workspace";
 import { useFoundLogos } from "./header-logo";
 import { plusMenuItems } from "./plus-menu-model";
@@ -130,7 +129,6 @@ import {
     type TopRowBlock as TopRowBlockFacts,
     type TopRowLineFit,
 } from "./sidebar-blocks";
-import { CreateWorkspacePage } from "./sidebar-create";
 import { CreateDraft, freshColour, pendingLetter } from "./sidebar-create-model";
 import {
     finishDrop,
@@ -196,7 +194,14 @@ import { dotAttention, DotPopoverHover, dotPopoverProject, dotShowsPopover } fro
 import { snapRipplesOf, workspaceDotLook } from "./workspace-dot-ripple";
 import { filterEntries, WorkspaceLetterFilter } from "./workspace-letter-filter";
 import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
-import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
+import {
+    currentProject,
+    currentProjectId,
+    headerProjectType,
+    projectChipLabel,
+    projectLabel,
+    readProjects,
+} from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
 
 type SidebarEnv = TabEnv & WidgetsEnv;
@@ -213,6 +218,13 @@ const DragThresholdPx = 4;
 // every tab view loads up front (NFR-PERF-003, bundle.initialJsMB).
 const ProjectPageView = lazy(() => import("./sidebar-project-page").then((m) => ({ default: m.ProjectPageView })));
 
+// The new-workspace page only shows while a workspace is being created, so it loads on demand too; the collapsed rail's
+// code below (#2384) takes its share of the up-front JS, which the startup budget leaves no room for.
+const CreateWorkspacePage = lazy(() => import("./sidebar-create").then((m) => ({ default: m.CreateWorkspacePage })));
+
+// The collapsed rail (FR-SHELL-079, #2384): only a hidden sidebar shows it, so its code loads on demand too.
+const CollapsedRail = lazy(() => import("./collapsed-rail").then((m) => ({ default: m.CollapsedRail })));
+
 // Brokk's visit scene (FR-BOSS-009, #2002): his clips load with the first visit, never with the window.
 const BrokkVisitScene = lazy(() => import("../boss/brokk-visit-scene").then((m) => ({ default: m.BrokkVisitScene })));
 
@@ -222,7 +234,7 @@ const NoDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 const Drag = { WebkitAppRegion: "drag" } as React.CSSProperties;
 
 // A native menu placed under its button, as a click from the keyboard would have none.
-function showMenuUnder(anchor: HTMLElement, items: ContextMenuItem[], onClose?: () => void) {
+export function showMenuUnder(anchor: HTMLElement, items: ContextMenuItem[], onClose?: () => void) {
     const rect = anchor.getBoundingClientRect();
     const event = {
         clientX: rect.left,
@@ -283,7 +295,7 @@ function useWorkspaceEntries(): WorkspaceRailEntry[] {
 }
 
 // The workspaces the dots show: the saved ones in rail order.
-type SidebarWorkspaces = {
+export type SidebarWorkspaces = {
     entries: WorkspaceRailEntry[];
     savedIds: string[];
 };
@@ -310,7 +322,7 @@ function runProjectCall(call: () => Promise<void>) {
 
 // The project menu of the header (FR-SHELL-087): switch the current project, add one, and what the current one means.
 // It replaces the rail's visual-only "Group with…" (FR-MC-032).
-function projectMenuItems(
+export function projectMenuItems(
     ws: Workspace,
     t: (key: string, vars?: Record<string, any>) => string,
     activity: ProjectActivity[]
@@ -364,7 +376,7 @@ function keepAwakeItem(platform: string, t: (key: string, vars?: Record<string, 
 
 // The workspace menu of the header's ⋯, a dot and the sidebar's background (FR-SHELL-107): the same entries
 // everywhere, its projects listed when the workspace is the one on screen.
-function workspaceMenuFor(
+export function workspaceMenuFor(
     entry: { id: string; name: string; active: boolean },
     entries: WorkspaceRailEntry[],
     anchor: HTMLElement,
@@ -640,34 +652,6 @@ function ProjectActivityDots({ activity, title }: { activity: ProjectActivity[];
     );
 }
 
-function projectsActivityOf(ws: Workspace, agents: Parameters<typeof otherProjectsActivity>[2]): ProjectActivity[] {
-    return otherProjectsActivity(
-        ws,
-        readProjects(ws),
-        agents,
-        (blockId) => getObjectValue<Block>(makeORef("block", blockId))?.meta?.["cmd:cwd"] ?? ""
-    );
-}
-
-// The header's ⋯ menu: the workspace's menu, or its edit sheet while the workspace is not saved yet. True when a menu
-// opened, which `onClose` then hears the end of.
-function showWorkspaceMenuUnder(
-    ws: Workspace,
-    entry: WorkspaceRailEntry,
-    entries: WorkspaceRailEntry[],
-    anchor: HTMLElement,
-    platform: string,
-    t: (key: string, vars?: Record<string, any>) => string,
-    onClose: () => void
-): boolean {
-    if (entry == null || !entry.saved) {
-        openWorkspaceEditor(ws?.oid, anchor);
-        return false;
-    }
-    showMenuUnder(anchor, workspaceMenuFor(entry, entries, anchor, platform, t), onClose);
-    return true;
-}
-
 function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const t = useT();
     const platform = usePlatform();
@@ -685,7 +669,16 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const foundLogos = useFoundLogos(projects.length > 1 ? (current?.dir ?? "") : "");
     const icon = headerIcon(ws, foundLogos);
     const agentStates = useAtomValue(AgentStates.getInstance().dataAtom);
-    const activity = useMemo(() => projectsActivityOf(ws, Object.values(agentStates?.states ?? {})), [ws, agentStates]);
+    const activity = useMemo(
+        () =>
+            otherProjectsActivity(
+                ws,
+                projects,
+                Object.values(agentStates?.states ?? {}),
+                (blockId) => getObjectValue<Block>(makeORef("block", blockId))?.meta?.["cmd:cwd"] ?? ""
+            ),
+        [ws, agentStates]
+    );
     const activityTitle = activity
         .map((a) =>
             t("sidebar.project.activityLine", { project: projectLabel(a.project), activity: activityText(a.counts) })
@@ -696,8 +689,13 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
         showMenuUnder(anchor, projectMenuItems(ws, t, activity), () => setProjectMenuOpen(false));
     };
     const openMenu = (anchor: HTMLElement) => {
-        setMenuOpen(
-            showWorkspaceMenuUnder(ws, entry, workspaces.entries, anchor, platform, t, () => setMenuOpen(false))
+        if (entry == null || !entry.saved) {
+            openWorkspaceEditor(ws?.oid, anchor);
+            return;
+        }
+        setMenuOpen(true);
+        showMenuUnder(anchor, workspaceMenuFor(entry, workspaces.entries, anchor, platform, t), () =>
+            setMenuOpen(false)
         );
     };
     return (
@@ -752,76 +750,6 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
                 onClick={(e) => openMenu(e.currentTarget)}
             >
                 <SidebarGlyph name="more" />
-            </button>
-        </div>
-    );
-}
-
-// The collapsed rail (FR-SHELL-079, #2384): with the sidebar hidden, what is left at the window's left edge is the
-// current project's mark with the header's own liseré, in the workspace colour, so the developer still tells which
-// project and workspace the window is on. Hovering the mark names both; a click opens what the header opens. The rail
-// keeps the window's edge line the docked sidebar draws (the place strip): the window looks the same collapsed. The rail
-// is in the content's flow, so no panel is covered. `unfolded`: the sidebar is over it, which shows the header itself.
-export function CollapsedRail({ workspaces, unfolded }: { workspaces: SidebarWorkspaces; unfolded: boolean }) {
-    const t = useT();
-    const platform = usePlatform();
-    const ws = useAtomValue(atoms.workspace);
-    const [menuOpen, setMenuOpen] = useState(false);
-    const projects = readProjects(ws);
-    const current = currentProject(ws);
-    const foundLogos = useFoundLogos(projects.length > 1 ? (current?.dir ?? "") : "");
-    const entry = workspaces.entries.find((e) => e.id === ws?.oid);
-    const name = workspaceShownName(ws?.name, t) || t("rail.unsavedWorkspace");
-    const project = markProjectName(ws);
-    const title = project ? t("sidebar.collapsedMark", { name, project }) : name;
-    const face = markFace(headerIcon(ws, foundLogos), name);
-    // The agents are read when the menu opens: the rail draws nothing of them.
-    const open = (anchor: HTMLElement) => {
-        if (markAction(ws) === "project") {
-            const activity = projectsActivityOf(
-                ws,
-                Object.values(globalStore.get(AgentStates.getInstance().dataAtom)?.states ?? {})
-            );
-            setMenuOpen(true);
-            showMenuUnder(anchor, projectMenuItems(ws, t, activity), () => setMenuOpen(false));
-            return;
-        }
-        setMenuOpen(
-            showWorkspaceMenuUnder(ws, entry, workspaces.entries, anchor, platform, t, () => setMenuOpen(false))
-        );
-    };
-    return (
-        <div className="mt-sb-rail" data-testid="sidebar-collapsed-rail">
-            <span className="mt-sb-place-strip" data-testid="sidebar-collapsed-place-strip" aria-hidden />
-            <button
-                type="button"
-                className={cn("mt-sb-rail-mark", unfolded && "is-unfolded")}
-                title={title}
-                aria-label={title}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                tabIndex={unfolded ? -1 : 0}
-                data-testid="sidebar-collapsed-mark"
-                data-face={face.kind}
-                onClick={(e) => open(e.currentTarget)}
-            >
-                <span className="mt-sb-place-bar" data-testid="sidebar-collapsed-place-bar" aria-hidden />
-                {face.kind === "logo" ? (
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                        <WorkspaceIcon
-                            source={{ icon: "", color: "", image: "", logo: face.logo }}
-                            className="h-4 w-4"
-                        />
-                    </span>
-                ) : face.kind === "workspace" ? (
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                        <WorkspaceIcon source={{ ...workspaceIconSource(ws), logo: "" }} className="h-4 w-4" />
-                    </span>
-                ) : (
-                    <span className="mt-sb-rail-initial" aria-hidden>
-                        {face.letter}
-                    </span>
-                )}
             </button>
         </div>
     );
@@ -2819,17 +2747,21 @@ export function WorkspaceSidebar() {
     return (
         <>
             {hidden ? (
-                <div
-                    className="mt-sb-edge"
-                    data-testid="sidebar-edge"
-                    onMouseEnter={() => {
-                        keepPeek();
-                        model.setPeek(true);
-                    }}
-                    onClick={() => model.setPeek(true)}
-                />
+                <>
+                    <div
+                        className="mt-sb-edge"
+                        data-testid="sidebar-edge"
+                        onMouseEnter={() => {
+                            keepPeek();
+                            model.setPeek(true);
+                        }}
+                        onClick={() => model.setPeek(true)}
+                    />
+                    <Suspense fallback={null}>
+                        <CollapsedRail workspaces={workspaces} unfolded={peek} />
+                    </Suspense>
+                </>
             ) : null}
-            {hidden ? <CollapsedRail workspaces={workspaces} unfolded={peek} /> : null}
             <div ref={tintRef} className="mt-sb-swipe-tint" aria-hidden data-testid="sidebar-swipe-tint" />
             <aside
                 ref={asideRef}
@@ -2878,7 +2810,9 @@ export function WorkspaceSidebar() {
                                 <ProjectPageView page={projectPage} />
                             </Suspense>
                         ) : draft != null ? (
-                            <CreateWorkspacePage draft={draft} />
+                            <Suspense fallback={null}>
+                                <CreateWorkspacePage draft={draft} />
+                            </Suspense>
                         ) : (
                             <>
                                 <WorkspaceHeader workspaces={workspaces} />
