@@ -197,6 +197,8 @@ export type PipelineReport = {
     valid: boolean;
     errors: string[];
     warnings: string[];
+    // The fields this build does not know, by path: ignored, the pipeline stays valid (#2370).
+    unknown?: string[];
     pipeline?: PipelineDef;
 };
 

@@ -61,7 +61,10 @@ asks the user by a notification, and tells you in your prompt once they trusted 
 
 ## Fields
 
-All fields are lowercase. Unknown fields are refused, so a typo does not go unnoticed.
+All fields are lowercase. A field MoltenTerm does not know is ignored with a warning that names it ("it needs a newer
+MoltenTerm"), never refused: a file written for a newer version keeps every known job, build and release step working in
+an older one. `molten project validate --strict` refuses unknown fields instead, so a typo does not go unnoticed: run it
+after writing the file.
 
 | Field | Required | What it is |
 | --- | --- | --- |
