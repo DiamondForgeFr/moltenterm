@@ -233,7 +233,8 @@ func TestOnlyHisOwnReadableRequestsComeToHisLayer(t *testing.T) {
 		t.Fatal("a caller whose token does not name his terminal was taken")
 	}
 	for _, req := range []keepawake.PermissionRequest{
-		{BlockId: "brokk-1", FromBlock: true, ToolName: "mcp__server__tool", ToolInput: map[string]any{"x": 1}},
+		{BlockId: "brokk-1", FromBlock: true, ToolName: "ExitPlanMode", ToolInput: map[string]any{"plan": "synthetic"}},
+		{BlockId: "brokk-1", FromBlock: true, ToolName: "AskUserQuestion", ToolInput: map[string]any{"questions": "one?"}},
 		{BlockId: "brokk-1", FromBlock: true, ToolName: "Bash", ToolInput: map[string]any{"command": 42}},
 		{BlockId: "brokk-1", FromBlock: true, ToolName: "Edit", ToolInput: map[string]any{}},
 	} {
@@ -364,6 +365,12 @@ func TestMapPermission(t *testing.T) {
 		{"WebFetch", map[string]any{"url": "https://example.com"}, PermitKindFetch, "https://example.com"},
 		{"WebSearch", map[string]any{"query": "kids video apps"}, PermitKindSearch, "kids video apps"},
 		{"apply_patch", map[string]any{"command": "*** Begin Patch\n*** Update File: src/a.go\n@@\n-a\n+b\n*** Add File: src/b.go\n+x\n*** End Patch"}, PermitKindPatch, "update src/a.go\nadd src/b.go"},
+		// #2382: the searches a "which projects use…" message leads to, and an MCP server's tool.
+		{"Glob", map[string]any{"pattern": "**/.manifest.json", "path": "/w/projects/"}, PermitKindFind, "/w/projects/**/.manifest.json"},
+		{"Glob", map[string]any{"pattern": "*.md"}, PermitKindFind, "*.md"},
+		{"Grep", map[string]any{"pattern": "Toolkit", "path": "/w/projects", "glob": "*.json"}, PermitKindGrep, "Toolkit\n/w/projects\n*.json"},
+		{"LS", map[string]any{"path": "/w/projects"}, PermitKindRead, "/w/projects"},
+		{"mcp__notes__search", map[string]any{"q": "plans"}, PermitKindTool, "mcp__notes__search\n{\"q\":\"plans\"}"},
 	} {
 		got, ok := MapPermission(keepawake.PermissionRequest{ToolName: tc.tool, ToolInput: tc.input})
 		if !ok || got.Kind != tc.kind || got.Subject != tc.subj {
@@ -375,9 +382,120 @@ func TestMapPermission(t *testing.T) {
 		{ToolName: "Bash", ToolInput: map[string]any{"command": []any{"git", 3}}},
 		{ToolName: "Bash", ToolInput: map[string]any{"command": "  "}},
 		{ToolName: "apply_patch", ToolInput: map[string]any{"command": "no header here"}},
+		{ToolName: "ExitPlanMode", ToolInput: map[string]any{"plan": "x"}},
+		{ToolName: "Glob", ToolInput: map[string]any{"path": "/w"}},
+		{ToolName: "mcp__", ToolInput: map[string]any{}},
 	} {
 		if _, ok := MapPermission(tc); ok {
 			t.Errorf("%+v was read as sure", tc)
 		}
+	}
+}
+
+func questionInput(questions ...map[string]any) map[string]any {
+	list := make([]any, len(questions))
+	for i, q := range questions {
+		list[i] = q
+	}
+	return map[string]any{"questions": list}
+}
+
+func choiceQuestion(text string, multi bool, labels ...string) map[string]any {
+	options := make([]any, len(labels))
+	for i, label := range labels {
+		options[i] = map[string]any{"label": label, "description": "about " + label}
+	}
+	return map[string]any{"question": text, "header": "Pick", "options": options, "multiSelect": multi}
+}
+
+// #2382: his agent's question (AskUserQuestion) is read with its choices, or not at all.
+func TestAQuestionOfHisAgentIsReadWithItsChoices(t *testing.T) {
+	t.Parallel()
+	got, ok := MapPermission(keepawake.PermissionRequest{
+		ToolName:    "AskUserQuestion",
+		ToolInput:   questionInput(choiceQuestion("Where are the projects?", false, "Documents", "Elsewhere"), choiceQuestion("Which ones?", true, "All", "Active")),
+		Suggestions: []any{"x"},
+	})
+	if !ok || got.Kind != PermitKindQuestion || got.Always || len(got.Questions) != 2 {
+		t.Fatalf("read %+v %v", got, ok)
+	}
+	first := got.Questions[0]
+	if first.Question != "Where are the projects?" || first.Header != "Pick" || first.MultiSelect || len(first.Options) != 2 ||
+		first.Options[1] != (AgentChoice{Label: "Elsewhere", Description: "about Elsewhere"}) {
+		t.Fatalf("first question %+v", first)
+	}
+	if !got.Questions[1].MultiSelect || got.Subject != "Where are the projects?\nWhich ones?" {
+		t.Fatalf("second question %+v, subject %q", got.Questions[1], got.Subject)
+	}
+	for name, input := range map[string]map[string]any{
+		"no list":        {"questions": "Where?"},
+		"empty list":     questionInput(),
+		"five questions": questionInput(choiceQuestion("a", false, "x"), choiceQuestion("b", false, "x"), choiceQuestion("c", false, "x"), choiceQuestion("d", false, "x"), choiceQuestion("e", false, "x")),
+		"same question":  questionInput(choiceQuestion("a", false, "x"), choiceQuestion("a", false, "y")),
+		"same choice":    questionInput(choiceQuestion("a", false, "x", "x")),
+		"empty question": questionInput(choiceQuestion(" ", false, "x")),
+		"control char":   questionInput(choiceQuestion("a\x1b[2J", false, "x")),
+		"not a bool":     questionInput(map[string]any{"question": "a", "options": []any{}, "multiSelect": "yes"}),
+		"bad option":     questionInput(map[string]any{"question": "a", "options": []any{"x"}}),
+	} {
+		if _, ok := MapPermission(keepawake.PermissionRequest{ToolName: "AskUserQuestion", ToolInput: input}); ok {
+			t.Errorf("%s was read as sure", name)
+		}
+	}
+}
+
+// #2382: the developer's answers go back to his agent as its own answer: the hook's allow with the tool's input and
+// the answers, for that question alone; a question takes answers to every one of its questions, never an allow.
+func TestAQuestionIsAnsweredWithTheDevelopersAnswers(t *testing.T) {
+	t.Parallel()
+	f := &fakePermits{}
+	b := f.broker()
+	changes := 0
+	var changesLock sync.Mutex
+	b.OnChange(func() {
+		changesLock.Lock()
+		defer changesLock.Unlock()
+		changes++
+	})
+	input := questionInput(choiceQuestion("Where are the projects?", false, "Documents", "Elsewhere"), choiceQuestion("Which ones?", true, "All", "Active"))
+	req := keepawake.PermissionRequest{BlockId: "brokk-1", FromBlock: true, Agent: "claude", ToolName: "AskUserQuestion", ToolInput: input}
+	f.auto = true
+	done, p := ask(t, b, context.Background(), req)
+	if p == nil || p.Kind != PermitKindQuestion {
+		t.Fatalf("kept %+v: a question asks even with boss:autoapprove on", p)
+	}
+	if pending := b.PendingAny(); pending == nil || pending.Id != p.Id || len(pending.Questions) != 2 {
+		t.Fatalf("pending %+v", pending)
+	}
+	for name, bad := range map[string]PermitRequest{
+		"an allow":       {Id: p.Id, BlockId: "brokk-1", Decision: PermitAllow},
+		"always":         {Id: p.Id, BlockId: "brokk-1", Decision: PermitAlways},
+		"one answer":     {Id: p.Id, BlockId: "brokk-1", Decision: PermitAnswer, Answers: map[string]string{"Where are the projects?": "Documents"}},
+		"another key":    {Id: p.Id, BlockId: "brokk-1", Decision: PermitAnswer, Answers: map[string]string{"Where are the projects?": "x", "Other?": "y"}},
+		"an empty value": {Id: p.Id, BlockId: "brokk-1", Decision: PermitAnswer, Answers: map[string]string{"Where are the projects?": " ", "Which ones?": "All"}},
+	} {
+		if got := b.Answer(bad); got.Status != PermitInvalid {
+			t.Errorf("%s: %+v", name, got)
+		}
+	}
+	answers := map[string]string{"Where are the projects?": "In ~/work, mostly\x07", "Which ones?": "All, Active"}
+	if got := b.Answer(PermitRequest{Id: p.Id, BlockId: "brokk-1", Decision: PermitAnswer, Answers: answers}); got.Status != PermitAnswered {
+		t.Fatalf("answered %+v", got)
+	}
+	got := waitAsked(t, done)
+	if !got.handled || got.answer.Decision != keepawake.PermissionAllow {
+		t.Fatalf("the hook got %+v", got)
+	}
+	sent, _ := got.answer.Input["answers"].(map[string]any)
+	if sent["Where are the projects?"] != "In ~/work, mostly" || sent["Which ones?"] != "All, Active" {
+		t.Fatalf("answers %+v", got.answer.Input)
+	}
+	if _, ok := got.answer.Input["questions"].([]any); !ok {
+		t.Fatalf("the tool's own input is not given back: %+v", got.answer.Input)
+	}
+	changesLock.Lock()
+	defer changesLock.Unlock()
+	if changes < 2 {
+		t.Fatalf("the talk was told %d times, want the request's coming and going", changes)
 	}
 }

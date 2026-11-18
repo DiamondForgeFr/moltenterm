@@ -225,6 +225,8 @@ type Service struct {
 	env Env
 	// permits: his agent's permission requests, answered in his layer (permit.go); nil: none are kept.
 	permits *PermitBroker
+	// talk: his conversation, the one every window shows (talk.go, #2382); nil: the windows have none.
+	talk *Talk
 
 	lock     sync.Mutex
 	working  bool
@@ -243,6 +245,32 @@ func MakeService(env Env) *Service {
 // UsePermits gives the service the broker of his agent's permission requests.
 func (s *Service) UsePermits(b *PermitBroker) {
 	s.permits = b
+}
+
+// UseTalk gives the service his conversation (#2382).
+func (s *Service) UseTalk(t *Talk) {
+	s.talk = t
+}
+
+// TalkEnvOf is the talk's reach into this service: his session, his answers and his agent's requests.
+func (s *Service) TalkEnvOf() TalkEnv {
+	env := TalkEnv{
+		Lookup: s.Session,
+		Say: func(ctx context.Context, req Request) Result {
+			rtn := s.Say(ctx, req)
+			logUntaken(rtn)
+			return rtn
+		},
+		Reply: func(ctx context.Context, req ReplyRequest) (Reply, bool) {
+			reply := s.Reply(ctx, req)
+			return reply, reply.Status != StatusFailed
+		},
+	}
+	if s.permits != nil {
+		env.Pending = s.permits.PendingAny
+		env.Answer = s.permits.Answer
+	}
+	return env
 }
 
 // claim lets one call start or talk at a time: a second one is told it is busy rather than queued behind a wait of

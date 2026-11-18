@@ -30,6 +30,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wcore"
+	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
@@ -318,6 +319,13 @@ func Start() {
 		svc := Live()
 		permits := livePermits()
 		svc.UsePermits(permits)
+		env := svc.TalkEnvOf()
+		env.Facts = liveTalkFacts
+		env.Publish = liveTalkPublish
+		env.Instance = newPermitId()
+		talk := MakeTalk(env)
+		svc.UseTalk(talk)
+		permits.OnChange(talk.AsksChanged)
 		keepawake.UseOwnSessionAsker(permits.Ask)
 		if _, err := localroute.Register(wshutil.DefaultRouter, svc.route()); err != nil {
 			log.Printf("[brokksession] route not started: %v\n", err)
@@ -326,6 +334,30 @@ func Start() {
 		// window that asks (#2257).
 		go findAtStart()
 	})
+}
+
+// liveTalkFacts reads his agent's state as the windows read it (brokk-watch.ts): working, background work included;
+// waiting for the developer; his prompt taken by his own turn or a wait, not by work handed to the background.
+func liveTalkFacts(blockId string) TalkFacts {
+	for _, info := range attention.AgentStatesSnapshot() {
+		if info.BlockId != blockId {
+			continue
+		}
+		working := info.State == molten.AgentStateWorking
+		waiting := info.State == molten.AgentStateWaiting
+		return TalkFacts{Working: working, Waiting: waiting, PromptBusy: !info.Background && (working || waiting)}
+	}
+	return TalkFacts{}
+}
+
+// liveTalkPublish tells the windows the talk changed: the revision only, never its text, so that no subscriber outside
+// the windows reads his conversation (the route lets in the windows and Electron main only).
+func liveTalkPublish(rev int64) {
+	wps.Broker.Publish(wps.WaveEvent{Event: TalkEvent, Data: talkSignal{Rev: rev}})
+}
+
+type talkSignal struct {
+	Rev int64 `json:"rev"`
 }
 
 func findAtStart() {
@@ -396,10 +428,36 @@ func (s *Service) handle(ctx context.Context, command string, data any) (any, er
 		if err := utilfn.ReUnmarshal(&permit, data); err != nil {
 			return nil, err
 		}
+		if s.talk != nil {
+			return s.talk.Permit(permit), nil
+		}
 		if s.permits == nil {
 			return PermitResult{Status: PermitGone}, nil
 		}
 		return s.permits.Answer(permit), nil
+	case TalkCommand:
+		if s.talk == nil {
+			return nil, fmt.Errorf("his conversation is not kept")
+		}
+		return s.talk.View(), nil
+	case TalkSayCommand:
+		var say TalkSayRequest
+		if err := utilfn.ReUnmarshal(&say, data); err != nil {
+			return nil, err
+		}
+		if s.talk == nil {
+			return nil, fmt.Errorf("his conversation is not kept")
+		}
+		return s.talk.Say(say), nil
+	case TalkOpCommand:
+		var op TalkOpRequest
+		if err := utilfn.ReUnmarshal(&op, data); err != nil {
+			return nil, err
+		}
+		if s.talk == nil {
+			return nil, fmt.Errorf("his conversation is not kept")
+		}
+		return s.talk.Op(op)
 	}
 	return nil, fmt.Errorf("unknown Brokk session command %q", command)
 }
