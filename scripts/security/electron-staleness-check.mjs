@@ -20,6 +20,7 @@ import {
     parseVersion,
     readPin,
     renderMarkdown,
+    renderWarnings,
     reportKey,
     StalenessInputError,
     syncIssue,
@@ -603,6 +604,69 @@ test("main reports through its output, the step summary and the issue sync", asy
     }
 });
 
+test("--warn: a release still inside the window is a warning with the day it is refused, a finding an overdue one", () => {
+    const pending = renderWarnings(check({ pinned: "45.2.2" }));
+    assert.equal(pending.length, 1);
+    assert.match(pending[0], /^::warning title=Electron engine::/);
+    for (const part of [
+        "Pinned Electron 45.2.2, newest 45.x is 45.2.3 (2026-11-04)",
+        "Electron 45.2.3 is out",
+        "act by 2026-11-11: a release is refused after that day",
+    ]) {
+        assert.ok(pending[0].includes(part), `${part}\n${pending[0]}`);
+    }
+
+    const stale = check({ pinned: "45.2.0", advisories: [advisoryJson()] });
+    const overdue = renderWarnings(stale);
+    assert.equal(overdue.length, stale.flags.length);
+    assert.ok(overdue.some((line) => line.includes("overdue since 2026-11-06: a release is refused until it is cleared")));
+    assert.deepEqual(renderWarnings(stale, { flags: false }), [], "--enforce reports the findings as errors");
+
+    assert.deepEqual(renderWarnings(check({ pinned: "45.2.3" })), [], "a current pin has nothing to warn about");
+    for (const line of renderWarnings(check({ pinned: "45.2.0", advisories: [advisoryJson({ summary: "a\nb <c> @d" })] }))) {
+        assert.ok(!line.includes("\n") && !line.includes("<") && !line.includes("@d"), line);
+    }
+});
+
+test("--warn prints the warnings and never changes the exit code; without it nothing is annotated", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mt-electron-warn-"));
+    try {
+        const feed = path.join(directory, "feed.json");
+        const advisories = path.join(directory, "advisories.json");
+        fs.writeFileSync(feed, JSON.stringify(feedJson()));
+        fs.writeFileSync(advisories, "[]");
+        const root = path.join(directory, "root");
+        const common = ["--feed", feed, "--advisories", advisories, "--now", now.toISOString()];
+
+        writeRoot(root, { pinned: "45.2.2" });
+        const pending = run([...common, "--warn"], root);
+        assert.equal(pending.status, 0, pending.err);
+        assert.match(pending.out, /^::warning title=Electron engine::Pinned Electron 45\.2\.2.*act by 2026-11-11/m);
+        assert.equal(run([...common], root).out.includes("::warning"), false);
+
+        writeRoot(root, { pinned: "45.2.0" });
+        const stale = run([...common, "--warn"], root);
+        assert.equal(stale.status, 0, "findings alone never fail the night");
+        assert.match(stale.out, /^::warning title=Electron engine::.*overdue since 2026-11-06/m);
+        assert.equal(stale.out.includes("::error"), false);
+
+        const enforced = run([...common, "--warn", "--enforce"], root);
+        assert.equal(enforced.status, 1, "the release's own check still refuses");
+        assert.match(enforced.out, /::error title=Electron engine::Electron 45\.2\.3 is out/);
+        assert.equal(enforced.out.includes("overdue since"), false, "a finding is an error, not also a warning");
+
+        writeRoot(root, { pinned: "45.2.3" });
+        const current = run([...common, "--warn"], root);
+        assert.equal(current.status, 0);
+        assert.equal(current.out.includes("::warning"), false);
+
+        fs.writeFileSync(feed, "not json");
+        assert.equal(run([...common, "--warn"], root).status, 2, "a read that failed is never current, warning or not");
+    } finally {
+        fs.rmSync(directory, { recursive: true, force: true });
+    }
+});
+
 test("the network reads are retried, paged and authenticated, and a read that keeps failing is never a pass", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "mt-electron-net-"));
     const realFetch = globalThis.fetch;
@@ -872,6 +936,36 @@ test("workflow contracts: the daily check raises the issue, the release enforces
     );
 });
 
+test("workflow contracts: the nightly run warns about develop's Electron deadline and never fails the night (#2365)", () => {
+    const nightly = repoFile(".github/workflows/ci-nightly.yml");
+    const job = nightly.match(/^ {4}electron:\n([\s\S]*?)(?=\n {4}\S|\n*(?![\s\S]))/m)?.[1] ?? "";
+    assert.ok(job.includes("run: node scripts/security/electron-staleness.mjs --warn"), "the job runs the check");
+    assert.ok(!job.includes("--enforce") && !job.includes("--issue"), "it reports, the release enforces");
+    assert.match(job, /^ {8}continue-on-error: true$/m, "not even an unreadable feed fails the night");
+    assert.match(job, /^ {18}ref: develop$/m, "a scheduled run starts on main, whose pin lags the release's");
+    assert.ok(job.includes("GH_TOKEN: ${{ github.token }}"));
+    assert.ok(!/permissions:/.test(job) && /^permissions:\n {4}contents: read$/m.test(nightly), "read-only");
+    assert.ok(!/\$\{\{[^}]*\bsecrets\./.test(nightly));
+    assert.ok(nightly.includes("run: gh workflow run ci.yml --ref develop"), "the full CI dispatch is untouched");
+});
+
+test("the release's preflight runs the checks release.yml runs, as MoltenTerm declares them (#2365)", () => {
+    const project = JSON.parse(repoFile(".molten/project.json"));
+    const preflight = Object.fromEntries(project.release.preflight.map((check) => [check.id, check]));
+    const scan = repoFile(".github/workflows/security-scan.yml");
+    assert.ok(scan.includes("run: node scripts/security/scan.mjs --out security-report"));
+    assert.match(preflight["dependency-scan"].run, /^node scripts\/security\/scan\.mjs --out "\$\(mktemp -d\)\/report"$/);
+    assert.ok(scan.includes("run: node scripts/security/electron-staleness.mjs --enforce"));
+    assert.equal(preflight["electron-freshness"].run, "node scripts/security/electron-staleness.mjs --enforce");
+    for (const check of Object.values(preflight)) {
+        assert.ok(check.fix && !/exception/i.test(check.fix), `${check.id}: a fix, which never offers an exception`);
+    }
+    assert.ok(preflight["dependency-scan"].fix.includes("security/TRIAGE.md"));
+    assert.ok(preflight["electron-freshness"].fix.includes("security/ELECTRON.md"));
+    const finalize = project.release.rc.find((step) => step.run.startsWith("molten release finalize"));
+    assert.ok(finalize, "the step that tags is the one that runs the preflight");
+});
+
 test("the policy document names the deadlines, the checks, the exceptions and the packaged-build requalification", () => {
     const policy = repoFile("security/ELECTRON.md");
     for (const needle of [
@@ -879,6 +973,8 @@ test("the policy document names the deadlines, the checks, the exceptions and th
         "scripts/moltenterm-check-fuses.mjs",
         "scripts/security/electron-staleness.mjs",
         "electron-staleness.yml",
+        "ci-nightly.yml",
+        "release.preflight",
         "electronExceptions",
         "electronLifecycle",
         "3 days",

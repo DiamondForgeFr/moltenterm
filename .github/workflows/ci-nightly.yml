@@ -6,6 +6,11 @@
 # run" job opens or updates an issue when it fails. It dispatches ci.yml on develop rather than running on a schedule
 # itself: a scheduled run checks out the default branch (main) and would put develop's results on main's commit. GitHub
 # fires a schedule only from the default branch, so this starts once the file is on main.
+#
+# The same file warns about the Electron deadline (#2365). The freshness rule (security/ELECTRON.md) refuses a release
+# once a newer patch has waited 7 days, and only a tag ever checked it, so a develop that was green the day before could
+# be refused on the release day. The nightly run checks develop's pin and prints a warning with the day a release would
+# be refused. It never fails the night: the daily electron-staleness.yml raises the issue, the release stops on it.
 
 name: CI nightly
 
@@ -31,3 +36,23 @@ jobs:
                   GH_TOKEN: ${{ github.token }}
                   GH_REPO: ${{ github.repository }}
               run: gh workflow run ci.yml --ref develop
+
+    electron:
+        name: Electron deadline
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        # A warning, never a failure: not even when the release feed cannot be read.
+        continue-on-error: true
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  # A scheduled run starts on main, whose pin lags the one the next release is cut from.
+                  ref: develop
+                  persist-credentials: false
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  node-version: 22
+            - name: Warn about the Electron deadline
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: node scripts/security/electron-staleness.mjs --warn
