@@ -388,7 +388,8 @@ export function BrokkTalk({
             resumeLine != null);
 
     // The window is as tall as what it holds (AC102, AC104): the exchange's content and the composer, with their
-    // spacing; the group adds the frame.
+    // spacing; the group adds the frame. What grows in the exchange (a card that loads after it, an answer coming in)
+    // keeps the latest in view.
     useLayoutEffect(() => {
         const composer = composerRef.current;
         if (!open || composer == null) {
@@ -397,6 +398,10 @@ export function BrokkTalk({
         const report = () => {
             const convo = convoShown ? (innerRef.current?.offsetHeight ?? 0) + ConvoPadPx : 0;
             onContentHeight?.(convo + composer.offsetHeight + ComposerMarginPx);
+            const scroll = scrollRef.current;
+            if (scroll != null) {
+                scroll.scrollTop = scroll.scrollHeight;
+            }
         };
         report();
         if (typeof ResizeObserver === "undefined") {
