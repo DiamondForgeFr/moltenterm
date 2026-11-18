@@ -33,17 +33,17 @@ const (
 	RoleBrokk = "brokk"
 
 	// Ops of TalkOpCommand.
-	TalkOpCancel  = "cancel"
-	TalkOpClear   = "clearnote"
-	TalkOpTake    = "take"
-	TalkOpSwitch  = "switch"
-	TalkOpShow    = "show"
-	TalkOpLocal   = "local"
-	TalkOpStop    = "stop"
-	TalkOpReturn  = "return"
-	TalkOpReplay  = "replay"
-	TalkOpLead    = "lead"
-	TalkOpWindow  = "window"
+	TalkOpCancel = "cancel"
+	TalkOpClear  = "clearnote"
+	TalkOpTake   = "take"
+	TalkOpSwitch = "switch"
+	TalkOpShow   = "show"
+	TalkOpLocal  = "local"
+	TalkOpStop   = "stop"
+	TalkOpReturn = "return"
+	TalkOpReplay = "replay"
+	TalkOpLead   = "lead"
+	TalkOpWindow = "window"
 
 	// A window's open talk counts for this long after it said so: a page that went away while open does not keep his
 	// line from showing for ever. The windows say it again while they stay open.
