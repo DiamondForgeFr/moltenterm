@@ -91,43 +91,19 @@ function openProjectTerminal(dir: string) {
     fireAndForget(() => createBlock({ meta: { view: "term", controller: "shell", "cmd:cwd": dir } }));
 }
 
-// A valid pipeline holding fields written for a newer MoltenTerm (#2370): they are named, and nothing else is hidden.
-function NewerFieldsBanner({ fields }: { fields: string[] }) {
-    const t = useT();
-    return (
-        <div
-            className="flex items-start gap-3 rounded-4 border border-warning/40 bg-warning/10 px-3 py-2"
-            data-testid="pipeline-newer-fields"
-        >
-            <i className="fa fa-solid fa-triangle-exclamation mt-0.5 text-warning" />
-            <div className="min-w-0 flex-1 text-12">
-                <div className="font-semibold text-primary">{t("mc.frame.pipelineProblems")}</div>
-                <div className="mt-0.5 text-secondary">{t("mc.frame.newerFields")}</div>
-                <ul className="mt-1 flex flex-col gap-0.5 font-mono text-11 text-secondary">
-                    {fields.slice(0, 5).map((f) => (
-                        <li key={f}>• {f}</li>
-                    ))}
-                    {fields.length > 5 ? (
-                        <li>… {t("mc.releaseMenu.andMore", { count: fields.length - 5 })}</li>
-                    ) : null}
-                </ul>
-            </div>
-        </div>
-    );
-}
-
 // A project without a valid pipeline still shows its history; the banner says how the user's agent connects it.
+// A valid one holding fields written for a newer MoltenTerm (#2370) names them in the same box, and hides nothing else:
+// no agent can fix them, only a newer build.
 export function PipelineBanner({ dir, report }: { dir: string; report: PipelineReport }) {
     const t = useT();
     const matrix = useFeatureMatrix();
     const stage = pipelineStage(report);
-    if (stage === "valid" && report.unknown?.length > 0) {
-        return <NewerFieldsBanner fields={report.unknown} />;
-    }
-    if (stage === "loading" || stage === "valid") {
+    const newer = stage === "valid" && report.unknown?.length > 0 ? report.unknown : null;
+    if (stage === "loading" || (stage === "valid" && !newer)) {
         return null;
     }
-    const invalid = stage === "invalid";
+    const invalid = stage === "invalid" || newer != null;
+    const problems = newer ?? report.errors;
     return (
         <div
             className={cn(
@@ -145,41 +121,48 @@ export function PipelineBanner({ dir, report }: { dir: string; report: PipelineR
                 <div className="font-semibold text-primary">
                     {invalid ? t("mc.frame.pipelineProblems") : t("mc.frame.connectPipeline")}
                 </div>
+                {newer ? <div className="mt-0.5 text-secondary">{t("mc.frame.newerFields")}</div> : null}
                 {invalid ? (
                     <ul className="mt-1 flex flex-col gap-0.5 font-mono text-11 text-secondary">
-                        {report.errors.slice(0, 5).map((e) => (
+                        {problems.slice(0, 5).map((e) => (
                             <li key={e}>• {e}</li>
                         ))}
-                        {report.errors.length > 5 ? (
-                            <li>… {t("mc.releaseMenu.andMore", { count: report.errors.length - 5 })}</li>
+                        {problems.length > 5 ? (
+                            <li>… {t("mc.releaseMenu.andMore", { count: problems.length - 5 })}</li>
                         ) : null}
                     </ul>
                 ) : (
                     <div className="mt-0.5 text-secondary">{t("mc.frame.connectBody")}</div>
                 )}
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-11 text-muted">
-                    {pipelineInvocations(matrix).map((i) => (
-                        <span key={i.invocation}>
-                            {i.agent}: <code className="text-secondary">{i.invocation}</code>
-                        </span>
-                    ))}
-                </div>
-                <div className="mt-1 text-11 text-muted">
-                    {t("mc.frame.notFoundBefore")} <code>molten agent install &lt;agent&gt;</code>{" "}
-                    {t("mc.frame.notFoundAfter")}
-                    {invalid ? " " + t("mc.frame.checkAgain") : ""}
-                </div>
+                {newer ? null : (
+                    <>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-11 text-muted">
+                            {pipelineInvocations(matrix).map((i) => (
+                                <span key={i.invocation}>
+                                    {i.agent}: <code className="text-secondary">{i.invocation}</code>
+                                </span>
+                            ))}
+                        </div>
+                        <div className="mt-1 text-11 text-muted">
+                            {t("mc.frame.notFoundBefore")} <code>molten agent install &lt;agent&gt;</code>{" "}
+                            {t("mc.frame.notFoundAfter")}
+                            {invalid ? " " + t("mc.frame.checkAgain") : ""}
+                        </div>
+                    </>
+                )}
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-1.5">
-                <CopyButton
-                    text="/molten-pipeline"
-                    label={t("mc.frame.copyCommand", { command: "/molten-pipeline" })}
-                />
-                <button type="button" onClick={() => openProjectTerminal(dir)} className={PlainButton}>
-                    <i className="fa fa-solid fa-terminal mr-1.5" />
-                    {t("mc.frame.openTerminal")}
-                </button>
-            </div>
+            {newer ? null : (
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <CopyButton
+                        text="/molten-pipeline"
+                        label={t("mc.frame.copyCommand", { command: "/molten-pipeline" })}
+                    />
+                    <button type="button" onClick={() => openProjectTerminal(dir)} className={PlainButton}>
+                        <i className="fa fa-solid fa-terminal mr-1.5" />
+                        {t("mc.frame.openTerminal")}
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

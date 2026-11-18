@@ -4943,7 +4943,7 @@
             "linkProjectTitle": "Link a project",
             "copied": "Copied",
             "pipelineProblems": "The pipeline has problems",
-            "newerFields": "These fields need a newer MoltenTerm. They are ignored here; every other job, build and release step works.",
+            "newerFields": "These fields need a newer MoltenTerm and are ignored; everything else works.",
             "connectPipeline": "Connect the pipeline",
             "connectBody": "The Project panel runs this project's own CI, builds and releases once they are described in .molten/project.json. Your coding agent connects what the project already has and creates what is missing, following the project's workflow: open a terminal in the project, start your agent and type the command below.",
             "notFoundBefore": "Command not found in your agent? Run",
