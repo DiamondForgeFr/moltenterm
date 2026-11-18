@@ -15,19 +15,19 @@ import (
 // readings of his answer, his agent's state, and the waits of the follow and of the queue, which the test releases one
 // at a time.
 type fakeTalk struct {
-	lock     sync.Mutex
-	found    Result
-	says     []Result
-	said     []Request
-	reply    func(req ReplyRequest) (Reply, bool)
-	reads    []ReplyRequest
+	lock      sync.Mutex
+	found     Result
+	says      []Result
+	said      []Request
+	reply     func(req ReplyRequest) (Reply, bool)
+	reads     []ReplyRequest
 	facts     TalkFacts
 	factsRead int
 	pending   *PermissionAsk
-	answered []PermitRequest
-	revs     int
-	follows  chan struct{}
-	queues   chan struct{}
+	answered  []PermitRequest
+	revs      int
+	follows   chan struct{}
+	queues    chan struct{}
 }
 
 func makeFakeTalk() *fakeTalk {
@@ -370,7 +370,9 @@ func TestHisLineIsForAnAnswerNobodySaw(t *testing.T) {
 	f := makeFakeTalk()
 	talk := f.talk()
 	f.set(func() {
-		f.reply = func(ReplyRequest) (Reply, bool) { return Reply{Status: ReplyAnswer, Index: 1, Markdown: "Ready."}, true }
+		f.reply = func(ReplyRequest) (Reply, bool) {
+			return Reply{Status: ReplyAnswer, Index: 1, Markdown: "Ready."}, true
+		}
 	})
 	talk.Say(TalkSayRequest{Text: "status?"})
 	f.reading(t)
@@ -380,7 +382,9 @@ func TestHisLineIsForAnAnswerNobodySaw(t *testing.T) {
 		t.Fatalf("a window looked, and his line stays: %+v", opened.View)
 	}
 	f.set(func() {
-		f.reply = func(ReplyRequest) (Reply, bool) { return Reply{Status: ReplyAnswer, Index: 1, Markdown: "Ready, all green."}, true }
+		f.reply = func(ReplyRequest) (Reply, bool) {
+			return Reply{Status: ReplyAnswer, Index: 1, Markdown: "Ready, all green."}, true
+		}
 	})
 	f.reading(t)
 	eventually(t, "his answer goes on", func() bool { return strings.Contains(shape(talk.View().Main), "all green") })
@@ -398,7 +402,9 @@ func TestTheBrainstormHasItsOwnConversation(t *testing.T) {
 	talk := f.talk()
 	f.set(func() {
 		f.facts = TalkFacts{Working: true}
-		f.reply = func(ReplyRequest) (Reply, bool) { return Reply{Status: ReplyAnswer, Index: 1, Markdown: "Let's map it."}, true }
+		f.reply = func(ReplyRequest) (Reply, bool) {
+			return Reply{Status: ReplyAnswer, Index: 1, Markdown: "Let's map it."}, true
+		}
 	})
 	talk.Op(TalkOpRequest{Op: TalkOpLead, Text: "[brainstorm]"})
 	talk.Say(TalkSayRequest{Text: "a video app for kids"})
