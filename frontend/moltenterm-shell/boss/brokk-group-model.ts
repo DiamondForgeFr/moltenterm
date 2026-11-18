@@ -118,15 +118,13 @@ export function panelWidth(room: number): number {
     return Math.min(PanelWidthPx, Math.max(room, MinPanelWidthPx));
 }
 
-// The conversation window (FR-BOSS-009, AC22, #2033) grows from the field's top. It is this tall when the exchange is
-// short and grows with it up to the most, or the window's room, then scrolls inside.
-export const ConversationMinPx = 240;
+// The conversation window (FR-BOSS-009, AC22, #2033) grows from the field's top. It is as tall as what it holds: only
+// the composer when nothing has been said (AC102, #2382), then the exchange above it, up to the most, or the window's
+// room, then the exchange scrolls inside.
 export const ConversationMaxPx = 460;
-// What the window adds to the exchange's own height (brokk-group.css): its padding (14 above, 8 below), the roomy input
-// of #2285 in its inset well of #2303 (the field's two lines of 20 px and their 6 px padding above and below, the footer
-// of 36 px with the hint and the send button, the 10 px under the well; the well's line is drawn inside and takes no
-// room) and the frame's 2 px border.
-export const ConversationChromePx = 14 + 8 + (2 * 20 + 2 * 6) + 36 + 10 + 2;
+// What the window adds to what the talk measures (brokk-talk.tsx reports the exchange and the composer with their
+// spacing, brokk-group.css): the frame's 2 px border.
+export const ConversationChromePx = 2;
 
 // As wide as the group and the panel area together: it reaches the right edge where a panel stands, and covers nothing
 // since the panel gives way above it while it is open (panelRoom, #2090).
@@ -212,11 +210,11 @@ export function typingTarget(element: { tagName?: string; isContentEditable?: bo
     return tag === "input" || tag === "textarea" || tag === "select" || element.isContentEditable === true;
 }
 
-// `contentHeight`: what the exchange needs, the field's row included. `room`: the window's height from the top of the
-// field down.
+// `contentHeight`: what the talk needs, the exchange and the composer. `room`: the window's height from the top of the
+// field down. Never under the folded field.
 export function conversationHeight(contentHeight: number, room: number): number {
     const most = Math.max(FieldHeightPx, Math.min(ConversationMaxPx, room));
-    return Math.min(most, Math.max(ConversationMinPx, contentHeight));
+    return Math.min(most, Math.max(FieldHeightPx, contentHeight));
 }
 
 export type GroupPlace = {

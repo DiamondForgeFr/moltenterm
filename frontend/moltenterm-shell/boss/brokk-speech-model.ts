@@ -34,8 +34,8 @@ export const OutOfThinkingMs = 1250;
 // The pace of the reveal's steps while words are being revealed.
 export const RevealFrameMs = 40;
 // He thinks visibly once nothing of his answer has shown for this long, or his session has worked this long with no new
-// words. His answer is read every 1.5 s (brokk-talk-model.ts FollowEveryMs): a quick answer is read within three
-// readings, and goes straight from listening to speaking.
+// words. His answer is read every 1.5 s (pkg/molten/brokksession/talkrules.go FollowEvery): a quick answer is read
+// within three readings, and goes straight from listening to speaking.
 export const ThinkingDelayMs = 5000;
 
 // What is said of the latest answer. `from` characters were shown at `startAt`, `to` will be at `endAt`.

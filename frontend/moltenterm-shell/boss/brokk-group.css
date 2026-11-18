@@ -473,11 +473,11 @@
     padding: 0 4px;
 }
 
-/* The open window's input (FR-BOSS-009 AC91, DS-BOSS-013, #2285), Notulia's reading comfort in the shell's tokens: a
-   roomy field at least two lines tall over the whole width, then a footer with the keys' hint and the send button.
-   Both stand in one inset well (AC91a, #2303): sunk into the frame on surface 0, its line drawn inside so that it takes
-   no room, 10 px from the frame's sides and bottom. Its height is ConversationChromePx's part (brokk-group-model.ts):
-   the field's two lines (2 × 20 + 2 × 6), the footer (36) and the 10 px under the well. */
+/* The open window's composer (FR-BOSS-009 AC103, #2382), the pattern of today's AI chat composers in the shell's tokens:
+   one compact well with the field over the whole width, from one line, and one small row of controls under it, Send at
+   its end. The well is sunk into the frame on surface 0, its line drawn inside so that it takes no room (AC91a, #2303),
+   8 px from the frame on every side (brokk-talk.tsx ComposerMarginPx). When nothing has been said it is all the window
+   holds (AC102). */
 .mt-brokk-composer {
     display: contents;
 }
@@ -486,11 +486,16 @@
     display: flex;
     flex: none;
     flex-direction: column;
-    margin: 0 10px 10px;
+    margin: 8px;
     background: var(--mt-surface-0);
     border-radius: var(--mt-radius-panel);
     box-shadow: inset 0 0 0 1px var(--mt-line-2);
     transition: box-shadow var(--mt-duration-fast) var(--mt-ease);
+}
+
+/* With the exchange above it, the well sits under the last line with the exchange's own spacing. */
+.mt-brokk-field[data-open="true"][data-convo="true"] .mt-brokk-composer {
+    margin-top: 0;
 }
 
 /* The focus of the open window: the well takes the action line and the ember ring the folded frame takes. */
@@ -507,8 +512,8 @@
 }
 
 .mt-brokk-field[data-open="true"] .mt-brokk-field-input {
-    min-height: 52px;
-    padding: 6px 12px;
+    min-height: 32px;
+    padding: 8px 12px 4px;
     font-size: var(--mt-text-13);
     line-height: 20px;
 }
@@ -519,8 +524,16 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    height: 36px;
-    padding: 4px 6px 6px 12px;
+    height: 32px;
+    padding: 0 4px 4px 12px;
+}
+
+/* Send at the end of the row of controls: a small square with its icon, its name in its tooltip. */
+.mt-brokk-field[data-open="true"] .mt-brokk-send {
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
 }
 
 /* Send with nothing to send (AC91a, #2303): calm, on the raised surface with a hairline and the discreet text, instead of
@@ -542,12 +555,12 @@
     color: var(--mt-text-3);
 }
 
-/* The exchange: his answers full width, the developer's messages a quiet block on the right, newest last (AC89, AC90,
-   #2285). Its padding is ConversationChromePx's other part: 14 above, 8 below. */
+/* The exchange: his answers full width, the developer's messages a bubble on the right, newest last, right above the
+   composer (AC89, AC90, AC104, #2285, #2382). Its padding is brokk-talk.tsx ConvoPadPx: 12 above, 4 below. */
 .mt-brokk-convo {
     flex: 1;
     min-height: 0;
-    padding: 14px 16px 8px;
+    padding: 12px 14px 4px;
     overflow-y: auto;
     cursor: default;
     outline: none;
@@ -564,13 +577,6 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-}
-
-.mt-brokk-empty {
-    margin: 0;
-    padding: 8px 2px;
-    color: var(--mt-text-3);
-    font-size: var(--mt-text-13);
 }
 
 .mt-brokk-msg {
@@ -775,6 +781,113 @@
     flex-direction: column;
     gap: 4px;
     padding-top: 2px;
+}
+
+/* His agent's question (AC100, #2382): inline, on his side of the exchange (the brass rule), each question with its
+   choices as buttons; the chosen one carries the liseré of what is selected (mt-selected-action). */
+.mt-brokk-question {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 10px 8px 12px;
+    background: var(--mt-surface-0);
+    border: 1px solid var(--mt-line-1);
+    border-left: 2px solid color-mix(in srgb, var(--mt-action) 55%, transparent);
+    border-radius: var(--mt-radius-panel);
+}
+
+.mt-brokk-question-eyebrow,
+.mt-brokk-question-header {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-brokk-question-header {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.mt-brokk-question-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mt-brokk-question-text {
+    margin: 0;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-13);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.mt-brokk-question-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.mt-brokk-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    max-width: 100%;
+    padding: 4px 10px;
+    background: var(--mt-surface-2);
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    color: var(--mt-text-1);
+    font: inherit;
+    text-align: left;
+    transition:
+        border-color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-brokk-choice:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--mt-action) 60%, transparent);
+}
+
+.mt-brokk-choice:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 1px;
+}
+
+.mt-brokk-choice:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.mt-brokk-choice-label {
+    font-size: var(--mt-text-12);
+    line-height: 18px;
+}
+
+.mt-brokk-choice-detail {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 15px;
+}
+
+.mt-brokk-question-yours {
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+    overflow-wrap: anywhere;
+}
+
+.mt-brokk-question-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.mt-brokk-question-hint {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
 }
 
 /* The field wraps and grows with its lines up to MaxFieldLines (brokk-talk-model.ts), its height set in brokk-talk.tsx;

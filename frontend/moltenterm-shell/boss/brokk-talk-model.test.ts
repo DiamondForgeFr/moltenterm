@@ -9,69 +9,86 @@ import { brokkPose } from "./brokk-state-model";
 import {
     BrainstormCommand,
     canSend,
-    FailedReadingsForNoReply,
     fieldAction,
     fieldAfterSend,
     fieldWithReturned,
-    followStep,
-    IdleReadingsForAnswered,
-    IdleReadingsForNoReply,
-    IdleReadingsForUnread,
     IdleTalk,
-    joinQueued,
+    isQuestion,
     keepsText,
     MaxFieldLines,
     MaxMessageLength,
-    MaxQueueMs,
-    MaxUnsettledQueueMs,
+    openQuestion,
+    PermissionAsk,
     PermissionKinds,
     permitChoices,
-    queueBoundMs,
-    queuedOf,
-    SayResult,
+    questionAnswers,
     SendingTalk,
     sendsOnKey,
+    sendsOnPick,
     showsCommandHint,
-    StartFollow,
     StartingTalk,
     talkFieldHeight,
     talkNoteKey,
     TalkState,
-    talkStateOf,
+    talkStateOfWire,
     talkTerminalAside,
     talkWaits,
     talkWayOut,
     talkWayOutKey,
     UnreachableReason,
-    withApprovals,
+    withPick,
 } from "./brokk-talk-model";
 
 function textAt(texts: unknown, key: string): string {
     return key.split(".").reduce((node: any, part) => node?.[part], texts) as string;
 }
 
-describe("what a message does (FR-BOSS-009, AC15)", () => {
-    it("reads each answer of his session", () => {
-        expect(talkStateOf({ status: "sent" }).phase).toBe("answering");
-        for (const status of ["busy", "noagent", "agentmissing"] as const) {
-            expect(talkStateOf({ status }).phase).toBe(status);
-        }
-        expect(talkStateOf({ status: "failed", reason: "gone" })).toMatchObject({ phase: "failed", reason: "gone" });
-        expect(talkStateOf({ status: "none" }).phase).toBe("failed");
-        expect(talkStateOf(null).phase).toBe("failed");
-    });
+// What a message's answer says, as wavesrv words it (pkg/molten/brokksession/talkrules.go talkStateOf): the window
+// reads the state it sends.
+type SayResult = { status: string; reason?: string; blockid?: string; tabid?: string; workspaceid?: string };
 
-    it("keeps the agent's name, whether this message started the session, and where his terminal is", () => {
-        const state = talkStateOf({
-            status: "sent",
+function talkStateOf(result: SayResult): TalkState {
+    if (result == null) {
+        return talkStateOfWire({ phase: "failed", reason: UnreachableReason });
+    }
+    const phase = (
+        result.status === "sent"
+            ? "answering"
+            : ["busy", "noagent", "agentmissing"].includes(result.status)
+              ? result.status
+              : "failed"
+    ) as TalkState["phase"];
+    const where =
+        result.blockid && result.tabid
+            ? { workspaceid: result.workspaceid ?? "", tabid: result.tabid, blockid: result.blockid }
+            : null;
+    return talkStateOfWire({ phase, reason: result.reason, where });
+}
+
+describe("what a message does (FR-BOSS-009, AC15)", () => {
+    // #2382: the state comes from wavesrv's talk, the same in every window.
+    it("reads the state wavesrv's talk sends, and an unanswered call as a failure", () => {
+        const state = talkStateOfWire({
+            phase: "answering",
             started: true,
             agentname: "Claude Code",
-            blockid: "b",
-            tabid: "t",
-            workspaceid: "w",
-        } as SayResult);
-        expect(state).toMatchObject({ phase: "answering", started: true, agentName: "Claude Code" });
-        expect(state.where).toEqual({ workspaceid: "w", tabid: "t", blockid: "b" });
+            reply: "Two.",
+            where: { workspaceid: "w", tabid: "t", blockid: "b" },
+        });
+        expect(state).toEqual({
+            phase: "answering",
+            reason: "",
+            agentName: "Claude Code",
+            started: true,
+            reply: "Two.",
+            where: { workspaceid: "w", tabid: "t", blockid: "b" },
+        });
+        expect(talkStateOfWire({ phase: "idle" })).toEqual(IdleTalk);
+        expect(
+            talkStateOfWire({ phase: "queued", where: { workspaceid: "", tabid: "", blockid: "" } }).where
+        ).toBeNull();
+        expect(talkStateOfWire(null)).toMatchObject({ phase: "failed", reason: UnreachableReason });
+        expect(talkStateOfWire({} as any)).toMatchObject({ phase: "failed", reason: UnreachableReason });
     });
 
     it("sends a message that has text and fits, while none is on its way", () => {
@@ -248,13 +265,11 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
 
     // #2257: a busy agent keeps the message, which goes by itself: the field says so, with the domino.
     it("says a queued message goes by itself, with the domino (#2257)", () => {
-        const queued = queuedOf(talkStateOf({ status: "busy", reason: "notready" }));
-        expect(queued.phase).toBe("queued");
+        const queued: TalkState = { ...IdleTalk, phase: "queued", reason: "notready" };
         expect(talkNoteKey(queued)).toBe("boss.panel.talk.queued");
         expect(talkWaits(queued)).toBe(true);
         expect(keepsText(queued)).toBe(false);
         expect(canSend("changed", queued)).toBe(true);
-        expect(queuedOf(talkStateOf({ status: "sent" })).phase).toBe("answering");
         for (const texts of [En, Fr]) {
             expect(textAt(texts, "boss.panel.talk.queued")).toMatch(/\{name\}/);
             expect(textAt(texts, "boss.panel.talk.humanDraft")).toMatch(/\{name\}/);
@@ -262,10 +277,7 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
     });
 
     // #2284: the waiting message leaves the field; what is sent meanwhile joins it; a cancel gives it back first.
-    it("joins the messages that wait, and gives one back before what was written meanwhile (#2284)", () => {
-        const one = joinQueued(null, "first", 5);
-        expect(one).toEqual({ text: "first", since: 5 });
-        expect(joinQueued(one, "second", 9)).toEqual({ text: "first\n\nsecond", since: 5 });
+    it("gives a waiting message back before what was written meanwhile (#2284)", () => {
         expect(fieldWithReturned("first", "")).toBe("first");
         expect(fieldWithReturned("first", "  ")).toBe("first");
         expect(fieldWithReturned("first", "more")).toBe("first\nmore");
@@ -277,26 +289,19 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
     });
 
     // Review of #2257: an agent that never comes to rest is waited for a short while, then said plainly.
-    it("bounds the wait for an agent that never comes to rest, and says so (#2257)", () => {
+    it("says plainly when his agent never came to rest (#2257)", () => {
         const unsettled = talkStateOf({ status: "busy", reason: "unsettled" });
-        expect(queueBoundMs(unsettled)).toBe(MaxUnsettledQueueMs);
-        expect(queueBoundMs(talkStateOf({ status: "busy", reason: "notready" }))).toBe(MaxQueueMs);
-        expect(MaxUnsettledQueueMs).toBeLessThan(MaxQueueMs);
         expect(talkNoteKey(unsettled)).toBe("boss.panel.talk.unsettled");
         expect(talkNoteKey(talkStateOf({ status: "busy" }))).toBe("boss.panel.talk.refusedWhileFree");
     });
 
     // #2257: the answers a permission request offers, always allow only when his agent offers it; the approvals made
     // without asking show each once.
-    it("offers always allow only when his agent does, and lists each approval once (#2257)", () => {
+    it("offers always allow only when his agent does, and words every kind of request (#2257, #2382)", () => {
         const ask = { id: "r", blockid: "b", tool: "Bash", kind: "command" as const, subject: "ls", at: 1 };
         expect(permitChoices(ask)).toEqual(["allow", "deny"]);
         expect(permitChoices({ ...ask, always: true })).toEqual(["allow", "always", "deny"]);
-        const a = { id: "a", kind: "command" as const, subject: "ls", at: 1 };
-        const b = { id: "b", kind: "edit" as const, subject: "/w/x.go", at: 2 };
-        const shown = withApprovals([], [a]);
-        expect(withApprovals(shown, [a, b]).map((x) => x.id)).toEqual(["a", "b"]);
-        expect(withApprovals(shown, undefined)).toBe(shown);
+        expect(PermissionKinds).toEqual(expect.arrayContaining(["find", "grep", "tool"]));
         for (const kind of PermissionKinds) {
             for (const texts of [En, Fr]) {
                 expect(textAt(texts, `boss.panel.talk.permission.kind.${kind}`)).toMatch(/\{name\}.*:$/);
@@ -313,98 +318,89 @@ describe("what a message does (FR-BOSS-009, AC15)", () => {
     });
 });
 
-describe("his answer comes back to the panel (#2028)", () => {
-    const answering = talkStateOf({ status: "sent", blockid: "b", tabid: "t", workspaceid: "w" });
-
-    it("shows his answer while he works, and keeps it once he is done", () => {
-        const reply = { status: "answer" as const, markdown: "Two agents run now.", blockid: "b", tabid: "t" };
-        let step = followStep(answering, StartFollow, reply, true);
-        expect(step).toMatchObject({ done: false, state: { phase: "answering", reply: "Two agents run now." } });
-        for (let i = 0; i < IdleReadingsForAnswered; i++) {
-            step = followStep(step.state, step.follow, reply, false);
-        }
-        expect(step).toMatchObject({ done: true, state: { phase: "answered", reply: "Two agents run now." } });
-    });
-
-    it("waits for an answer while his agent works on the message", () => {
-        let step = { state: answering, follow: StartFollow, done: false };
-        for (let i = 0; i < IdleReadingsForNoReply * 2; i++) {
-            step = followStep(step.state, step.follow, { status: "waiting" }, true);
-        }
-        expect(step).toMatchObject({ done: false, state: { phase: "answering", reply: "" } });
-    });
-
-    it("points to his terminal when no answer comes while his agent does nothing", () => {
-        let step = { state: answering, follow: StartFollow, done: false };
-        for (let i = 0; i < IdleReadingsForNoReply && !step.done; i++) {
-            step = followStep(step.state, step.follow, { status: "waiting" }, false);
-        }
-        expect(step).toMatchObject({ done: true, state: { phase: "noreply" } });
-        expect(talkTerminalAside(step.state)).toBe(true);
-    });
-
-    it("says he answered in his terminal when his answer cannot be read", () => {
-        let step = followStep(answering, StartFollow, { status: "unread" }, true);
-        for (let i = 0; i < IdleReadingsForUnread; i++) {
-            step = followStep(step.state, step.follow, { status: "unread" }, false);
-        }
-        expect(step).toMatchObject({ done: true, state: { phase: "unread" } });
-    });
-
-    it("does not call an unreadable answer given before his agent even started on it", () => {
-        let step = followStep(answering, StartFollow, { status: "unread" }, false);
-        for (let i = 0; i < IdleReadingsForUnread; i++) {
-            step = followStep(step.state, step.follow, { status: "unread" }, false);
-        }
-        expect(step.done).toBe(false);
-    });
-
-    it("says his terminal is gone when his session no longer exists", () => {
-        const step = followStep(answering, StartFollow, { status: "none" }, false);
-        expect(step).toMatchObject({ done: true, state: { phase: "failed", reason: "gone" } });
-    });
-
-    it("gives up on readings that keep failing, with his terminal as the way out", () => {
-        let step = { state: answering, follow: StartFollow, done: false };
-        for (let i = 0; i < FailedReadingsForNoReply; i++) {
-            step = followStep(step.state, step.follow, null, true);
-        }
-        expect(step).toMatchObject({ done: true, state: { phase: "noreply" } });
+// #2155: his agent waits on a prompt only his terminal shows: the window says so, with his terminal beside it.
+describe("a Brokk blocked on a prompt is no silence (#2155)", () => {
+    it("says he needs the developer's answer and offers his terminal as a secondary link", () => {
+        const where = { workspaceid: "w", tabid: "t", blockid: "b" };
+        const blocked: TalkState = { ...IdleTalk, phase: "needsanswer", where };
+        expect(talkNoteKey(blocked)).toBe("boss.panel.talk.needsAnswer");
+        expect(talkTerminalAside(blocked)).toBe(true);
+        expect(talkWayOut(blocked)).toBeNull();
+        expect(keepsText(blocked)).toBe(false);
     });
 });
 
-// #2155: his agent stopped on a prompt in his hidden terminal (a fake agent state: waiting).
-describe("a Brokk blocked on a prompt is no silence (#2155)", () => {
-    const answering = talkStateOf({ status: "sent", blockid: "b", tabid: "t", workspaceid: "w" });
-    const waitingReply = { status: "waiting" as const };
+// #2382 (AC100): his agent's question, answered in the window: a choice at once, several with Send, or the composer.
+describe("his agent's questions (AC100, #2382)", () => {
+    const ask: PermissionAsk = {
+        id: "q-1",
+        blockid: "b",
+        tool: "AskUserQuestion",
+        kind: "question",
+        subject: "Where?",
+        at: 1,
+        questions: [
+            {
+                question: "Where are the projects?",
+                header: "Folder",
+                options: [{ label: "Documents" }, { label: "Elsewhere" }],
+            },
+        ],
+    };
+    const two: PermissionAsk = {
+        ...ask,
+        questions: [
+            ...ask.questions,
+            { question: "Which ones?", options: [{ label: "All" }, { label: "Active" }], multiselect: true },
+        ],
+    };
 
-    it("says he needs the developer's answer and offers his terminal, however long it lasts", () => {
-        let step = { state: answering, follow: StartFollow, done: false };
-        for (let i = 0; i < IdleReadingsForNoReply * 2; i++) {
-            step = followStep(step.state, step.follow, waitingReply, false, true);
+    it("answers a question of one choice at once", () => {
+        expect(isQuestion(ask)).toBe(true);
+        expect(isQuestion({ ...ask, kind: "command" })).toBe(false);
+        expect(isQuestion({ ...ask, questions: [] })).toBe(false);
+        const picked = withPick({}, ask.questions[0], "Documents");
+        expect(sendsOnPick(ask, ask.questions[0], picked)).toBe(true);
+        expect(questionAnswers(ask, picked)).toEqual({ "Where are the projects?": "Documents" });
+        expect(withPick(picked, ask.questions[0], "Elsewhere")).toEqual({ "Where are the projects?": ["Elsewhere"] });
+    });
+
+    it("toggles several choices, and waits for every question before the answers go", () => {
+        let picks = withPick({}, two.questions[0], "Documents");
+        expect(questionAnswers(two, picks)).toBeNull();
+        expect(openQuestion(two, picks)?.question).toBe("Which ones?");
+        picks = withPick(picks, two.questions[1], "All");
+        picks = withPick(picks, two.questions[1], "Active");
+        expect(sendsOnPick(two, two.questions[1], picks)).toBe(false);
+        expect(questionAnswers(two, picks)).toEqual({
+            "Where are the projects?": "Documents",
+            "Which ones?": "All, Active",
+        });
+        picks = withPick(picks, two.questions[1], "All");
+        expect(picks["Which ones?"]).toEqual(["Active"]);
+        expect(openQuestion(two, picks)).toBeNull();
+    });
+
+    it("takes the composer's text as the answer to the first open question", () => {
+        expect(openQuestion(ask, {})?.question).toBe("Where are the projects?");
+        const typed = { "Where are the projects?": ["In the work folder"] };
+        expect(questionAnswers(ask, typed)).toEqual({ "Where are the projects?": "In the work folder" });
+        for (const texts of [En, Fr]) {
+            expect(textAt(texts, "boss.panel.talk.question.placeholder")).toMatch(/\{name\}/);
+            expect(textAt(texts, "boss.panel.talk.question.asks")).toMatch(/\{name\}/);
+            expect(textAt(texts, "boss.panel.talk.question.yours")).toMatch(/\{answer\}/);
+            for (const key of ["label", "hint", "send", "answering"]) {
+                expect(textAt(texts, `boss.panel.talk.question.${key}`), key).toMatch(/\S/);
+            }
         }
-        expect(step).toMatchObject({ done: false, state: { phase: "needsanswer" } });
-        expect(talkNoteKey(step.state)).toBe("boss.panel.talk.needsAnswer");
-        expect(talkTerminalAside(step.state)).toBe(true);
-        expect(step.state.where).toEqual({ workspaceid: "w", tabid: "t", blockid: "b" });
-        expect(keepsText(step.state)).toBe(false);
     });
 
-    it("keeps what he said before the prompt", () => {
-        const reply = { status: "answer" as const, markdown: "Cleaning", blockid: "b", tabid: "t" };
-        const step = followStep(answering, StartFollow, reply, false, true);
-        expect(step.state).toMatchObject({ phase: "needsanswer", reply: "Cleaning" });
-    });
-
-    it("goes back to thinking once his agent works again after the developer answered", () => {
-        const blocked = followStep(answering, StartFollow, waitingReply, false, true);
-        const resumed = followStep(blocked.state, blocked.follow, waitingReply, true, false);
-        expect(resumed).toMatchObject({ done: false, state: { phase: "answering" } });
-    });
-
-    it("still says the terminal was closed when it was", () => {
-        const step = followStep(answering, StartFollow, { status: "none" }, false, true);
-        expect(step).toMatchObject({ done: true, state: { phase: "failed", reason: "gone" } });
+    // AC102: the placeholder carries what the empty window used to say.
+    it("lets the placeholder say what to write", () => {
+        expect(textAt(En, "boss.panel.talk.placeholder")).toBe("Tell {name} what you need…");
+        expect(textAt(Fr, "boss.panel.talk.placeholder")).toBe("Dites à {name} ce dont vous avez besoin…");
+        expect(textAt(En, "boss.panel.talk.empty")).toBeUndefined();
+        expect(textAt(En, "boss.panel.talk.hint")).toBeUndefined();
     });
 });
 

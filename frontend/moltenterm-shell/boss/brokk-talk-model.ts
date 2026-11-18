@@ -2,30 +2,28 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The field at the foot of Brokk's panel (FR-BOSS-009, AC9 and AC15, #2003): what a message does and what the field says
-// about it. Pure, so the rules are tested without a window or a session.
+// about it. Pure, so the rules are tested without a window or a session. The rules of the way of a message (its follow,
+// its queue) are wavesrv's since #2382 (pkg/molten/brokksession/talkrules.go): every window shows the same talk.
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
 
-// must match pkg/molten/brokksession/session.go
-export type SayStatus = "none" | "ready" | "sent" | "busy" | "noagent" | "agentmissing" | "failed";
-
-export type SayResult = {
-    status: SayStatus;
-    reason?: string;
-    blockid?: string;
-    tabid?: string;
-    workspaceid?: string;
-    agent?: string;
-    agentname?: string;
-    started?: boolean;
-    message?: string;
-};
-
-// must match the Reply… statuses of pkg/molten/brokksession/session.go
-export type ReplyStatus = "answer" | "waiting" | "unread" | "none";
-
 // must match PermissionAsk and AutoApproval in pkg/molten/brokksession/permit.go
-export type PermissionKind = "command" | "edit" | "write" | "read" | "fetch" | "search" | "patch";
+export type PermissionKind =
+    | "command"
+    | "edit"
+    | "write"
+    | "read"
+    | "fetch"
+    | "search"
+    | "patch"
+    | "find"
+    | "grep"
+    | "tool"
+    | "question";
+
+// A question of his agent to the developer (AskUserQuestion, AC100, #2382), with its choices.
+export type AgentChoice = { label: string; description?: string };
+export type AgentQuestion = { question: string; header?: string; options: AgentChoice[]; multiselect?: boolean };
 
 export type PermissionAsk = {
     id: string;
@@ -36,6 +34,7 @@ export type PermissionAsk = {
     subject: string;
     always?: boolean;
     at: number;
+    questions?: AgentQuestion[];
 };
 
 export type AutoApproval = { id: string; kind: PermissionKind; subject: string; at: number };
@@ -44,35 +43,65 @@ export type AutoApproval = { id: string; kind: PermissionKind; subject: string; 
 export type PermitDecision = "allow" | "always" | "deny";
 export type PermitStatus = "answered" | "gone" | "invalid";
 
-export const PermissionKinds: PermissionKind[] = ["command", "edit", "write", "read", "fetch", "search", "patch"];
+// The permission kinds a card words; a question has a card of its own.
+export const PermissionKinds: PermissionKind[] = [
+    "command",
+    "edit",
+    "write",
+    "read",
+    "fetch",
+    "search",
+    "patch",
+    "find",
+    "grep",
+    "tool",
+];
 
 // The decisions the card offers: always allow only when his agent offers it (#2257).
 export function permitChoices(ask: PermissionAsk): PermitDecision[] {
     return ask?.always ? ["allow", "always", "deny"] : ["allow", "deny"];
 }
 
-// The approvals of the latest reading added to those shown, each once, in their order.
-export function withApprovals(shown: AutoApproval[], read: AutoApproval[]): AutoApproval[] {
-    if (read == null || read.length === 0) {
-        return shown;
-    }
-    const known = new Set(shown.map((a) => a.id));
-    const added = read.filter((a) => a?.id && !known.has(a.id));
-    return added.length === 0 ? shown : [...shown, ...added];
+export function isQuestion(ask: PermissionAsk): boolean {
+    return ask?.kind === "question" && (ask.questions?.length ?? 0) > 0;
 }
 
-export type ReplyResult = {
-    permission?: PermissionAsk;
-    approved?: AutoApproval[];
-    status: ReplyStatus;
-    blockid?: string;
-    tabid?: string;
-    workspaceid?: string;
-    index?: number;
-    rev?: number;
-    at?: number;
-    markdown?: string;
-};
+// The developer's answers to a question so far, by the question's text: a choice's label, several joined by ", " (the
+// question tool's own form), or what was written in the composer.
+export type QuestionPicks = Record<string, string[]>;
+
+// The first question still without an answer; the composer's text answers it (AC100). Null when all have one.
+export function openQuestion(ask: PermissionAsk, picks: QuestionPicks): AgentQuestion {
+    return ask?.questions?.find((q) => (picks[q.question]?.length ?? 0) === 0) ?? null;
+}
+
+// A click on a choice: one choice answers its question, several toggle.
+export function withPick(picks: QuestionPicks, question: AgentQuestion, label: string): QuestionPicks {
+    const current = picks[question.question] ?? [];
+    if (!question.multiselect) {
+        return { ...picks, [question.question]: [label] };
+    }
+    const next = current.includes(label) ? current.filter((l) => l !== label) : [...current, label];
+    return { ...picks, [question.question]: next };
+}
+
+// The answers to send once every question has one; null while one is still open.
+export function questionAnswers(ask: PermissionAsk, picks: QuestionPicks): Record<string, string> {
+    if (!isQuestion(ask) || openQuestion(ask, picks) != null) {
+        return null;
+    }
+    const rtn: Record<string, string> = {};
+    for (const q of ask.questions) {
+        rtn[q.question] = picks[q.question].join(", ");
+    }
+    return rtn;
+}
+
+// A pick goes at once when it completes the answers with a choice of a question that takes one (AC100); a question
+// with several choices waits for Send.
+export function sendsOnPick(ask: PermissionAsk, question: AgentQuestion, picks: QuestionPicks): boolean {
+    return !question.multiselect && questionAnswers(ask, picks) != null;
+}
 
 export const MaxMessageLength = 4000;
 
@@ -133,11 +162,12 @@ export function sendsOnKey(key: { key: string; shiftKey?: boolean; isComposing?:
     return key.key === "Enter" && !key.shiftKey && !key.isComposing;
 }
 
-// idle: nothing to say; starting: the first message starts his session; sending: on its way; answering: his agent has
-// it and works on it (reply: what he answered so far); answered: his answer is here; unread: he answered in his
-// terminal, where the panel cannot read it; noreply: no answer came; needsanswer: his agent stopped on a prompt in his
-// hidden terminal (a permission, a trust question) and waits for the developer there. The others are the failures of
-// the message. queued: his agent was busy, and the message goes by itself once he is free (#2257).
+// must match the Phase… constants of pkg/molten/brokksession/talkrules.go. idle: nothing to say; starting: the first
+// message starts his session; sending: on its way; answering: his agent has it and works on it (reply: what he answered
+// so far); answered: his answer is here; unread: he answered where the window cannot read it; noreply: no answer came;
+// needsanswer: his agent waits for the developer, on a request or a question his window shows, or on a prompt only his
+// terminal can show. The others are the failures of the message. queued: his agent was busy, and the message goes by
+// itself once he is free (#2257).
 export type TalkPhase =
     | "idle"
     | "starting"
@@ -171,16 +201,32 @@ export const SendingTalk: TalkState = { ...IdleTalk, phase: "sending" };
 
 export const StartingTalk: TalkState = { ...IdleTalk, phase: "starting" };
 
-export function whereOf(result: { blockid?: string; tabid?: string; workspaceid?: string }): TalkWhere {
-    if (!result?.blockid || !result?.tabid) {
-        return null;
-    }
-    return { workspaceid: result.workspaceid ?? "", tabid: result.tabid, blockid: result.blockid };
-}
-
-// The reason of a call wavesrv did not answer (refused, timed out, no route): the window's own, never one of
-// pkg/molten/brokksession/session.go.
+// The reason of a call wavesrv did not answer (refused, timed out, no route), and of the talk's ReasonUnreachable.
 export const UnreachableReason = "unreachable";
+
+// TalkState as wavesrv sends it (pkg/molten/brokksession/talkrules.go).
+export type TalkStateWire = {
+    phase: TalkPhase;
+    reason?: string;
+    agentname?: string;
+    started?: boolean;
+    reply?: string;
+    where?: TalkWhere;
+};
+
+export function talkStateOfWire(wire: TalkStateWire): TalkState {
+    if (wire?.phase == null) {
+        return { ...IdleTalk, phase: "failed", reason: UnreachableReason };
+    }
+    return {
+        phase: wire.phase,
+        reason: wire.reason ?? "",
+        agentName: wire.agentname ?? "",
+        started: wire.started === true,
+        reply: wire.reply ?? "",
+        where: wire.where?.blockid ? wire.where : null,
+    };
+}
 
 // Each cause of a failure has its own note (#2236): one note for all of them said "unreachable" when his terminal had
 // only refused a long message. The reasons are pkg/molten/brokksession/session.go's, and the window's UnreachableReason.
@@ -197,94 +243,6 @@ const FailedNoteKeys = new Map<string, string>([
     ["lookup", "boss.panel.talk.lookupFailed"],
     [UnreachableReason, "boss.panel.talk.unreachable"],
 ]);
-
-// What the answer to a message says; a message his agent has goes on to wait for his answer.
-export function talkStateOf(result: SayResult): TalkState {
-    const status = result?.status;
-    const phase: TalkPhase =
-        status === "sent"
-            ? "answering"
-            : status === "busy" || status === "noagent" || status === "agentmissing"
-              ? status
-              : "failed";
-    return {
-        phase,
-        reason: result == null ? UnreachableReason : (result.reason ?? ""),
-        agentName: result?.agentname ?? "",
-        started: result?.started === true,
-        reply: "",
-        where: whereOf(result),
-    };
-}
-
-// How long his answer is followed: an agent that never shows it working, or a reply that cannot be read, is given up
-// on after these many readings in a row without work.
-export const FollowEveryMs = 1500;
-export const IdleReadingsForNoReply = 20;
-export const IdleReadingsForUnread = 3;
-export const IdleReadingsForAnswered = 2;
-export const FailedReadingsForNoReply = 5;
-export const MaxFollowMs = 20 * 60 * 1000;
-
-// idle: readings in a row while his agent did not work; worked: it was seen working since the message.
-export type Follow = { idle: number; failed: number; worked: boolean };
-
-export const StartFollow: Follow = { idle: 0, failed: 0, worked: false };
-
-// One reading of his answer: the next state, and whether to keep following. working: his agent works now (the ring);
-// waiting: his agent's state says it waits for the developer (#2155). A wait is no silence: it is said, the way to his
-// terminal is offered, and the following goes on, so that his answer is read once the developer has answered there.
-export function followStep(
-    state: TalkState,
-    follow: Follow,
-    reply: ReplyResult,
-    working: boolean,
-    waiting = false
-): { state: TalkState; follow: Follow; done: boolean } {
-    if (waiting && reply?.status !== "none") {
-        const where = whereOf(reply) ?? state.where;
-        const said = reply?.status === "answer" ? (reply.markdown ?? "") : state.reply;
-        return {
-            state: { ...state, phase: "needsanswer", reply: said, where },
-            follow: { ...follow, idle: 0, failed: 0 },
-            done: false,
-        };
-    }
-    if (state.phase === "needsanswer") {
-        state = { ...state, phase: "answering" };
-    }
-    if (reply == null) {
-        const failed = follow.failed + 1;
-        if (failed >= FailedReadingsForNoReply) {
-            return { state: { ...state, phase: "noreply" }, follow: { ...follow, failed }, done: true };
-        }
-        return { state, follow: { ...follow, failed }, done: false };
-    }
-    const where = whereOf(reply) ?? state.where;
-    if (reply.status === "none") {
-        return { state: { ...state, phase: "failed", reason: "gone", where: null }, follow, done: true };
-    }
-    const idle = working ? 0 : follow.idle + 1;
-    const next: Follow = { idle, failed: 0, worked: follow.worked || working };
-    if (reply.status === "answer") {
-        const answering: TalkState = { ...state, phase: "answering", reply: reply.markdown ?? "", where };
-        if (idle >= IdleReadingsForAnswered) {
-            return { state: { ...answering, phase: "answered" }, follow: next, done: true };
-        }
-        return { state: answering, follow: next, done: false };
-    }
-    // A reply that cannot be read is in his terminal once his agent worked on the message and stopped.
-    if (
-        reply.status === "unread" &&
-        ((next.worked && idle >= IdleReadingsForUnread) || idle >= IdleReadingsForNoReply)
-    ) {
-        return { state: { ...state, phase: "unread", where }, follow: next, done: true };
-    }
-    if (idle >= IdleReadingsForNoReply) {
-        return { state: { ...state, phase: "noreply", where }, follow: next, done: true };
-    }
-    return { state: { ...state, where }, follow: next, done: false };
-}
 
 // A message goes when it has text, fits, and the previous one is not on its way.
 export function canSend(text: string, state: TalkState): boolean {
@@ -314,29 +272,8 @@ export function talkWaits(state: TalkState): boolean {
     return onItsWay(state) || state.phase === "answering" || state.phase === "queued";
 }
 
-// A message his agent was too busy to take waits for him in his talk window (#2257, #2284): it is tried again this
-// often. While his own state says his turn runs or he waits for the developer, it waits with no limit: a long turn is
-// never a failure. Only the time he seems free and still refuses it counts, up to this long, then the failure is said.
-export const QueueEveryMs = 2000;
-export const MaxQueueMs = 10 * 60 * 1000;
-// An agent whose state cannot be read (no hooks) and whose transcript never shows it at rest (a call or a turn whose end
-// never came) is waited for this long only, then the field says so plainly (review of #2257).
-export const MaxUnsettledQueueMs = 2 * 60 * 1000;
-
-// How long a message waits for him while he seems free, by what kept him busy.
-export function queueBoundMs(state: TalkState): number {
-    return state.reason === "unsettled" ? MaxUnsettledQueueMs : MaxQueueMs;
-}
-
 // The message waiting for him in his talk window (#2284); several sent meanwhile join it, one per paragraph.
 export type QueuedMessage = { text: string; since: number };
-
-export function joinQueued(queued: QueuedMessage, text: string, now: number): QueuedMessage {
-    if (queued == null) {
-        return { text, since: now };
-    }
-    return { ...queued, text: `${queued.text}\n\n${text}` };
-}
 
 // The text a queued message gives back to the field (Cancel, or a failure): before what the developer wrote meanwhile.
 export function fieldWithReturned(returned: string, current: string): string {
@@ -344,11 +281,6 @@ export function fieldWithReturned(returned: string, current: string): string {
         return returned;
     }
     return `${returned}\n${current}`;
-}
-
-// What a busy answer becomes while the message waits for him: the field keeps the text and says it goes by itself.
-export function queuedOf(state: TalkState): TalkState {
-    return state.phase === "busy" ? { ...state, phase: "queued" } : state;
 }
 
 // The line under the field, as an interface key; null says nothing.

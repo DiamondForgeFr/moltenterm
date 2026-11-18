@@ -164,11 +164,14 @@ function BrokkHostLayer({ show }: { show: boolean }) {
         return () => clearTimeout(timer);
     }, []);
     useEffect(() => (show ? BrokkExpressionsModel.getInstance().watch(document) : undefined), [show]);
-    // The session a restart left, so that the ring turns for it.
+    // The session a restart left, so that the ring turns for it, and his one talk, the same in every page (AC99, #2382).
     useEffect(() => {
-        if (show) {
-            void BrokkSession.getInstance().find();
+        if (!show) {
+            return;
         }
+        const session = BrokkSession.getInstance();
+        void session.find();
+        return session.start();
     }, [show]);
 
     return (
