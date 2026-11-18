@@ -103,6 +103,20 @@
         }
     ],
     "release": {
+        "preflight": [
+            {
+                "id": "dependency-scan",
+                "title": "Dependency scan",
+                "run": "node scripts/security/scan.mjs --out \"$(mktemp -d)/report\"",
+                "fix": "Read the report named above and security/TRIAGE.md, fix the dependency on develop, then promote and prepare the release again."
+            },
+            {
+                "id": "electron-freshness",
+                "title": "Electron engine freshness",
+                "run": "node scripts/security/electron-staleness.mjs --enforce",
+                "fix": "Bump Electron as security/ELECTRON.md describes and merge it on develop, then promote and prepare the release again."
+            }
+        ],
         "rc": [
             {
                 "id": "promote",

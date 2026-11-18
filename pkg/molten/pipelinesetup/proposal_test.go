@@ -223,6 +223,31 @@ func TestParseChanges(t *testing.T) {
 	}
 }
 
+// #2365: a step change rewrites the release block from a copy of it; the preflight checks the project declared stay in it.
+func TestApplyingAStepChangeKeepsThePreflightChecks(t *testing.T) {
+	t.Parallel()
+	text := `{
+    "schema": 1,
+    "name": "Fixture",
+    "release": {
+        "preflight": [{ "id": "scan", "title": "Scan", "run": "true", "fix": "Fix it" }],
+        "rc": [{ "id": "finalize", "title": "Finalize", "phase": "cut", "run": "true" }, { "id": "extra", "title": "Extra", "phase": "back", "run": "true" }]
+    }
+}
+`
+	changed, err := applyChanges([]byte(text), []StepChange{{Key: "1", Op: ChangeOpRemove, Channel: ChannelRc, Id: "extra"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rel := releaseOf(t, string(changed))
+	if len(rel.Preflight) != 1 || rel.Preflight[0].Id != "scan" || rel.Preflight[0].Fix != "Fix it" {
+		t.Fatalf("the preflight checks were dropped:\n%s", changed)
+	}
+	if got := strings.Join(stepIds(rel.Rc), ","); got != "finalize" {
+		t.Fatalf("rc: %s", got)
+	}
+}
+
 // An added step without a place goes after the last step of its phase, before the later phases.
 func TestPlaceOfAnAddedStep(t *testing.T) {
 	t.Parallel()

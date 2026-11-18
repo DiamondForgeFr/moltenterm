@@ -110,6 +110,8 @@ type Project struct {
 	Install string
 	// versions.format: the formatter the release's files go through before they are committed (#1095), empty to detect.
 	Format string
+	// release.preflight: the checks run before a tag is created (#2365).
+	Preflight []molten.PipelineCheck
 }
 
 // releaseBranchMissing says which branch was looked for, and why that one (#415).
@@ -271,6 +273,9 @@ func (e *Env) LoadProject(ctx context.Context) (*Project, error) {
 	p.Convention = ReadConvention(root)
 	if ci := report.Pipeline.Ci; ci != nil && ci.Prepare != nil {
 		p.Install = strings.TrimSpace(ci.Prepare.Run)
+	}
+	if rel := report.Pipeline.Release; rel != nil {
+		p.Preflight = rel.Preflight
 	}
 	return p, nil
 }
