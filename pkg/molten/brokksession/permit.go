@@ -68,9 +68,11 @@ const (
 	PermitInvalid  = "invalid"
 
 	maxPermitSubject = 2000
-	// A question of his agent (AskUserQuestion): at most this many questions, choices, characters in a question, a
-	// label, a description and an answer. A question past these is not read: his terminal asks it.
+	// A question of his agent (AskUserQuestion, a multiple-choice question): at most this many questions, at least and
+	// at most this many choices, at most this many characters in a question, a label, a description and an answer. A
+	// question past these is not read: his terminal asks it.
 	maxQuestions        = 4
+	minChoices          = 2
 	maxChoices          = 10
 	maxQuestionText     = 480
 	maxChoiceLabel      = 200
@@ -467,6 +469,21 @@ func MapPermission(req keepawake.PermissionRequest) (PermissionAsk, bool) {
 		v = strings.TrimSpace(v)
 		return v, ok && v != ""
 	}
+	// The fields a card shows on lines of their own: each one there must be a text without a line break, or the request
+	// is not read (a break would read as another line of the card).
+	oneLine := func(names ...string) bool {
+		for _, name := range names {
+			raw, present := req.ToolInput[name]
+			if !present || raw == nil {
+				continue
+			}
+			s, isText := raw.(string)
+			if !isText || strings.ContainsAny(s, "\r\n") {
+				return false
+			}
+		}
+		return true
+	}
 	set := func(kind string, subject string) (PermissionAsk, bool) {
 		if strings.ContainsAny(subject, "\x00") || len(subject) > maxPermitSubject {
 			return PermissionAsk{}, false
@@ -523,25 +540,29 @@ func MapPermission(req keepawake.PermissionRequest) (PermissionAsk, bool) {
 		}
 	case "Glob":
 		// A search for files by name: the pattern, in its folder when one is named (#2382).
-		if pattern, ok := field("pattern"); ok {
-			if dir, ok := field("path"); ok && !strings.HasPrefix(pattern, "/") {
-				return set(PermitKindFind, strings.TrimRight(dir, "/")+"/"+pattern)
-			}
-			return set(PermitKindFind, pattern)
+		pattern, ok := field("pattern")
+		if !ok || !oneLine("pattern", "path") {
+			break
 		}
+		if dir, ok := field("path"); ok && !strings.HasPrefix(pattern, "/") {
+			return set(PermitKindFind, strings.TrimRight(dir, "/")+"/"+pattern)
+		}
+		return set(PermitKindFind, pattern)
 	case "Grep":
-		// A search in the files' content: the pattern, then the folder and the file filter it names (#2382).
-		if pattern, ok := field("pattern"); ok {
-			lines := []string{pattern}
-			for _, name := range []string{"path", "glob"} {
-				if v, ok := field(name); ok {
-					lines = append(lines, v)
-				}
-			}
-			return set(PermitKindGrep, strings.Join(lines, "\n"))
+		// A search in the files' content: the pattern, then the folder and the file filter it names, one per line (#2382).
+		pattern, ok := field("pattern")
+		if !ok || !oneLine("pattern", "path", "glob") {
+			break
 		}
+		lines := []string{pattern}
+		for _, name := range []string{"path", "glob"} {
+			if v, ok := field(name); ok {
+				lines = append(lines, v)
+			}
+		}
+		return set(PermitKindGrep, strings.Join(lines, "\n"))
 	case "LS":
-		if dir, ok := field("path"); ok {
+		if dir, ok := field("path"); ok && oneLine("path") {
 			return set(PermitKindRead, dir)
 		}
 	case askUserQuestionTool:
@@ -597,7 +618,7 @@ func readQuestions(input map[string]any) ([]AgentQuestion, bool) {
 			return nil, false
 		}
 		options, ok := obj["options"].([]any)
-		if !ok || len(options) > maxChoices {
+		if !ok || len(options) < minChoices || len(options) > maxChoices {
 			return nil, false
 		}
 		q := AgentQuestion{Question: text, Header: header, MultiSelect: multi, Options: make([]AgentChoice, 0, len(options))}

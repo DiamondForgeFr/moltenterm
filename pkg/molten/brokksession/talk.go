@@ -6,6 +6,7 @@ package brokksession
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 )
@@ -49,10 +50,11 @@ const (
 	// line from showing for ever. The windows say it again while they stay open.
 	windowOpenFor = 5 * time.Minute
 
-	maxKeptTurns  = 400
-	maxEntries    = 400
-	maxOriginLen  = 128
-	maxLeadLength = 4 * MaxTextLength
+	maxKeptTurns    = 400
+	maxEntries      = 400
+	maxOriginLen    = 128
+	maxLeadLength   = 4 * MaxTextLength
+	maxAnsweredAsks = 16
 )
 
 // TalkEntry is one line of a conversation: a message of the developer (Text) or an answer of his (Markdown, as his agent
@@ -201,10 +203,12 @@ type Talk struct {
 	lead       string
 	gone       bool
 	lastAsk    string
-	approved   []AutoApproval
-	unseen     string
-	blockId    string
-	windows    map[string]time.Time
+	// The requests a window answered last: a late click on one of them is no news.
+	answeredAsks []string
+	approved     []AutoApproval
+	unseen       string
+	blockId      string
+	windows      map[string]time.Time
 }
 
 func MakeTalk(env TalkEnv) *Talk {
@@ -688,8 +692,25 @@ func (t *Talk) Permit(req PermitRequest) PermitResult {
 		status = t.env.Answer(req)
 	}
 	t.update(func() bool {
-		t.gone = status.Status != PermitAnswered
-		return true
+		switch status.Status {
+		case PermitAnswered:
+			t.answeredAsks = append(t.answeredAsks, req.Id)
+			if len(t.answeredAsks) > maxAnsweredAsks {
+				t.answeredAsks = t.answeredAsks[len(t.answeredAsks)-maxAnsweredAsks:]
+			}
+			t.gone = false
+			return true
+		case PermitGone:
+			// A request a window just answered is over for the others too, not answered elsewhere: a second window's
+			// click right after it says nothing.
+			if slices.Contains(t.answeredAsks, req.Id) {
+				return false
+			}
+			t.gone = true
+			return true
+		}
+		// An answer that was not valid leaves the request waiting as it was.
+		return false
 	})
 	return status
 }
@@ -713,9 +734,24 @@ func (t *Talk) keepApprovalsLocked(reply *Reply) bool {
 	if reply == nil {
 		return false
 	}
-	before := len(t.approved)
-	t.approved = withApprovals(t.approved, reply.Approved)
-	return len(t.approved) != before
+	before := t.approved
+	t.approved = recentApprovals(withApprovals(t.approved, reply.Approved), t.env.Now())
+	return !slices.Equal(before, t.approved)
+}
+
+// recentApprovals keeps the approvals of the last autoApprovalKeep, at most maxAutoApprovals, as the broker does.
+func recentApprovals(approved []AutoApproval, now time.Time) []AutoApproval {
+	since := now.Add(-autoApprovalKeep).UnixMilli()
+	rtn := make([]AutoApproval, 0, len(approved))
+	for _, a := range approved {
+		if a.At >= since {
+			rtn = append(rtn, a)
+		}
+	}
+	if len(rtn) > maxAutoApprovals {
+		rtn = rtn[len(rtn)-maxAutoApprovals:]
+	}
+	return rtn
 }
 
 func (t *Talk) keepBlockLocked(blockId string) {

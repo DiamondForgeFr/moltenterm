@@ -5,6 +5,7 @@ package brokksession
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -26,8 +27,11 @@ type fakeTalk struct {
 	pending   *PermissionAsk
 	answered  []PermitRequest
 	revs      int
+	now       time.Time
 	follows   chan struct{}
 	queues    chan struct{}
+	// done releases every wait once the test is over.
+	done chan struct{}
 }
 
 func makeFakeTalk() *fakeTalk {
@@ -35,12 +39,39 @@ func makeFakeTalk() *fakeTalk {
 		found:   Result{Status: StatusReady, BlockId: "block-9", TabId: "tab-9", WorkspaceId: "ws-9"},
 		says:    []Result{{Status: StatusSent, BlockId: "block-9", TabId: "tab-9", WorkspaceId: "ws-9"}},
 		reply:   func(ReplyRequest) (Reply, bool) { return Reply{Status: ReplyWaiting}, true },
+		now:     time.UnixMilli(1_800_000_000_000),
 		follows: make(chan struct{}),
 		queues:  make(chan struct{}),
+		done:    make(chan struct{}),
 	}
 }
 
-func (f *fakeTalk) talk() *Talk {
+func (f *fakeTalk) clock() time.Time {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	return f.now
+}
+
+// talk is the talk over the fake. Once the test is over its follow and its queue stop, and their waits are released,
+// so that no loop of the test stays blocked behind it.
+func (f *fakeTalk) talk(t *testing.T) *Talk {
+	talk := f.makeTalk()
+	t.Cleanup(func() {
+		talk.update(func() bool {
+			for _, tr := range append([]*tracked{talk.tracked}, talk.replayedLocked()...) {
+				if tr != nil {
+					tr.stopped = true
+				}
+			}
+			talk.sendGen++
+			return true
+		})
+		close(f.done)
+	})
+	return talk
+}
+
+func (f *fakeTalk) makeTalk() *Talk {
 	return MakeTalk(TalkEnv{
 		Lookup: func(context.Context) Result {
 			f.lock.Lock()
@@ -75,20 +106,32 @@ func (f *fakeTalk) talk() *Talk {
 			defer f.lock.Unlock()
 			return f.pending
 		},
+		// The broker's rules (permit.go Answer): the request waiting under that id alone; a question takes answers,
+		// never an allow.
 		Answer: func(req PermitRequest) PermitResult {
 			f.lock.Lock()
 			defer f.lock.Unlock()
 			f.answered = append(f.answered, req)
+			if f.pending == nil || f.pending.Id != req.Id {
+				return PermitResult{Status: PermitGone}
+			}
+			if f.pending.Kind == PermitKindQuestion && req.Decision != PermitAnswer && req.Decision != PermitDeny {
+				return PermitResult{Status: PermitInvalid}
+			}
 			f.pending = nil
 			return PermitResult{Status: PermitAnswered}
 		},
 		Wait: func(d time.Duration) {
+			ch := f.follows
 			if d == QueueEvery {
-				<-f.queues
-				return
+				ch = f.queues
 			}
-			<-f.follows
+			select {
+			case <-ch:
+			case <-f.done:
+			}
 		},
+		Now: f.clock,
 		Publish: func(int64) {
 			f.lock.Lock()
 			defer f.lock.Unlock()
@@ -183,7 +226,7 @@ func phaseIs(talk *Talk, phase string) func() bool {
 func TestOneConversationForEveryWindow(t *testing.T) {
 	t.Parallel()
 	f := makeFakeTalk()
-	talk := f.talk()
+	talk := f.talk(t)
 	state := talk.Say(TalkSayRequest{Text: "  which projects use the toolkit?  ", WorkspaceId: "ws-a", Name: "Brokk", Origin: "tab-a"})
 	if state.Phase != PhaseAnswering {
 		t.Fatalf("state %+v", state)
@@ -236,9 +279,9 @@ func TestOneConversationForEveryWindow(t *testing.T) {
 func TestTheFollowOfHisAnswer(t *testing.T) {
 	t.Parallel()
 	f := makeFakeTalk()
-	talk := f.talk()
+	talk := f.talk(t)
 	f.set(func() { f.facts = TalkFacts{Waiting: true} })
-	before := time.Now().UnixMilli()
+	before := f.clock().UnixMilli()
 	talk.Say(TalkSayRequest{Text: "clean the old branches", Origin: "tab-a"})
 	f.reading(t)
 	eventually(t, "his wait is said", phaseIs(talk, PhaseNeedsAnswer))
@@ -266,7 +309,7 @@ func TestTheFollowOfHisAnswer(t *testing.T) {
 	}
 
 	g := makeFakeTalk()
-	other := g.talk()
+	other := g.talk(t)
 	g.set(func() {
 		g.reply = func(ReplyRequest) (Reply, bool) {
 			return Reply{Status: ReplyUnread, BlockId: "block-9", TabId: "tab-9", WorkspaceId: "ws-9"}, true
@@ -288,7 +331,7 @@ func TestTheFollowOfHisAnswer(t *testing.T) {
 func TestAMessageWaitsForHim(t *testing.T) {
 	t.Parallel()
 	f := makeFakeTalk()
-	talk := f.talk()
+	talk := f.talk(t)
 	f.set(func() {
 		f.says = []Result{{Status: StatusBusy, Reason: ReasonInProgress}, {Status: StatusSent, BlockId: "block-9", TabId: "tab-9"}}
 		f.facts = TalkFacts{PromptBusy: true}
@@ -317,7 +360,7 @@ func TestAMessageWaitsForHim(t *testing.T) {
 	}
 
 	g := makeFakeTalk()
-	other := g.talk()
+	other := g.talk(t)
 	g.set(func() { g.says = []Result{{Status: StatusBusy, Reason: ReasonInProgress}} })
 	other.Say(TalkSayRequest{Text: "never mind"})
 	result, err := other.Op(TalkOpRequest{Op: TalkOpCancel})
@@ -335,7 +378,7 @@ func TestAMessageWaitsForHim(t *testing.T) {
 func TestTheFirstAnswerIsReadToItsEnd(t *testing.T) {
 	t.Parallel()
 	f := makeFakeTalk()
-	talk := f.talk()
+	talk := f.talk(t)
 	f.set(func() {
 		f.facts = TalkFacts{Working: true}
 		f.reply = func(req ReplyRequest) (Reply, bool) {
@@ -368,7 +411,7 @@ func TestTheFirstAnswerIsReadToItsEnd(t *testing.T) {
 func TestHisLineIsForAnAnswerNobodySaw(t *testing.T) {
 	t.Parallel()
 	f := makeFakeTalk()
-	talk := f.talk()
+	talk := f.talk(t)
 	f.set(func() {
 		f.reply = func(ReplyRequest) (Reply, bool) {
 			return Reply{Status: ReplyAnswer, Index: 1, Markdown: "Ready."}, true
@@ -399,7 +442,7 @@ func TestHisLineIsForAnAnswerNobodySaw(t *testing.T) {
 func TestTheBrainstormHasItsOwnConversation(t *testing.T) {
 	t.Parallel()
 	f := makeFakeTalk()
-	talk := f.talk()
+	talk := f.talk(t)
 	f.set(func() {
 		f.facts = TalkFacts{Working: true}
 		f.reply = func(ReplyRequest) (Reply, bool) {
@@ -449,7 +492,7 @@ func TestTheBrainstormHasItsOwnConversation(t *testing.T) {
 	}
 
 	g := makeFakeTalk()
-	other := g.talk()
+	other := g.talk(t)
 	g.set(func() { g.says = []Result{{Status: StatusBusy, Reason: ReasonInProgress}} })
 	other.Op(TalkOpRequest{Op: TalkOpSwitch, Conversation: ConversationBrainstorm})
 	other.Say(TalkSayRequest{Text: "and for teens?"})
@@ -463,7 +506,7 @@ func TestTheBrainstormHasItsOwnConversation(t *testing.T) {
 func TestAReplayedStepIsReadLikeAnAnswer(t *testing.T) {
 	t.Parallel()
 	f := makeFakeTalk()
-	talk := f.talk()
+	talk := f.talk(t)
 	talk.Op(TalkOpRequest{Op: TalkOpReplay, Key: "s1", You: "an idea", Markdown: "", Turn: 1, Origin: "tab-a"})
 	talk.Op(TalkOpRequest{Op: TalkOpReplay, Key: "s1", You: "an idea", Markdown: "A first line", Turn: 1, Origin: "tab-a"})
 	result, _ := talk.Op(TalkOpRequest{Op: TalkOpReplay, Key: "s1", You: "an idea", Markdown: "A first line, whole.", Turn: 1, Final: true, Origin: "tab-a"})
@@ -478,6 +521,81 @@ func TestAReplayedStepIsReadLikeAnAnswer(t *testing.T) {
 	}
 	if _, err := talk.Op(TalkOpRequest{Op: TalkOpSwitch, Conversation: "other"}); err == nil {
 		t.Fatal("an unknown conversation was taken")
+	}
+}
+
+// Review of #2382: "that request is over" says a request ended elsewhere (answered in his terminal, or no longer
+// asked). A window that clicks right after another window answered, or an answer that was not valid, says nothing of
+// the kind: the request was answered here, or still waits.
+func TestARequestIsOverOnlyWhenItEndedElsewhere(t *testing.T) {
+	t.Parallel()
+	question := &PermissionAsk{Id: "q-1", BlockId: "block-9", Kind: PermitKindQuestion, Subject: "Where?", Questions: []AgentQuestion{{Question: "Where?"}}}
+	answers := map[string]string{"Where?": "Documents"}
+
+	// Two windows: A answers, B clicks just after.
+	f := makeFakeTalk()
+	talk := f.talk(t)
+	f.set(func() { f.pending = question })
+	talk.AsksChanged()
+	if got := talk.Permit(PermitRequest{Id: "q-1", BlockId: "block-9", Decision: PermitAnswer, Answers: answers}); got.Status != PermitAnswered {
+		t.Fatalf("window A: %+v", got)
+	}
+	if got := talk.Permit(PermitRequest{Id: "q-1", BlockId: "block-9", Decision: PermitAnswer, Answers: answers}); got.Status != PermitGone {
+		t.Fatalf("window B: %+v", got)
+	}
+	if v := talk.View(); v.PermissionGone || v.Permission != nil {
+		t.Fatalf("a request a window answered reads as answered elsewhere: %+v", v)
+	}
+
+	// An answer that is not valid: the request still waits, and nothing says it is over.
+	g := makeFakeTalk()
+	other := g.talk(t)
+	g.set(func() { g.pending = question })
+	other.AsksChanged()
+	if got := other.Permit(PermitRequest{Id: "q-1", BlockId: "block-9", Decision: PermitAllow}); got.Status != PermitInvalid {
+		t.Fatalf("an allow on a question: %+v", got)
+	}
+	if v := other.View(); v.PermissionGone || v.Permission == nil || v.Permission.Id != "q-1" {
+		t.Fatalf("an invalid answer: %+v", v)
+	}
+
+	// A request that ended elsewhere: it is over, until his agent asks again.
+	if got := other.Permit(PermitRequest{Id: "q-0", BlockId: "block-9", Decision: PermitDeny}); got.Status != PermitGone {
+		t.Fatalf("an old request: %+v", got)
+	}
+	if !other.View().PermissionGone {
+		t.Fatal("a request answered in his terminal is not said to be over")
+	}
+	g.set(func() {
+		g.pending = &PermissionAsk{Id: "q-2", BlockId: "block-9", Kind: PermitKindCommand, Subject: "ls"}
+	})
+	other.AsksChanged()
+	if v := other.View(); v.PermissionGone || v.Permission.Id != "q-2" {
+		t.Fatalf("a new request: %+v", v)
+	}
+}
+
+// Review of #2382: the approvals made without asking go out with every view: the last half hour, at most 50, as the
+// broker keeps them.
+func TestTheApprovalsShownAreBounded(t *testing.T) {
+	t.Parallel()
+	f := makeFakeTalk()
+	talk := f.talk(t)
+	now := f.clock()
+	var read []AutoApproval
+	read = append(read, AutoApproval{Id: "old", Kind: PermitKindCommand, Subject: "ls", At: now.Add(-autoApprovalKeep - time.Minute).UnixMilli()})
+	for i := 0; i < maxAutoApprovals+10; i++ {
+		read = append(read, AutoApproval{Id: fmt.Sprintf("a%d", i), Kind: PermitKindCommand, Subject: "ls", At: now.UnixMilli() - int64(maxAutoApprovals+10-i)})
+	}
+	talk.read(func() { talk.keepApprovalsLocked(&Reply{Approved: read}) })
+	got := talk.View().Approved
+	if len(got) != maxAutoApprovals || got[0].Id != "a10" || got[len(got)-1].Id != fmt.Sprintf("a%d", maxAutoApprovals+9) {
+		t.Fatalf("kept %d approvals, from %s to %s", len(got), got[0].Id, got[len(got)-1].Id)
+	}
+	f.set(func() { f.now = now.Add(autoApprovalKeep + time.Second) })
+	talk.read(func() { talk.keepApprovalsLocked(&Reply{}) })
+	if left := talk.View().Approved; len(left) != 0 {
+		t.Fatalf("approvals older than half an hour stay: %d", len(left))
 	}
 }
 

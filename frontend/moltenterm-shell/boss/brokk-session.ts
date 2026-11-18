@@ -581,11 +581,12 @@ export class BrokkSession {
         } catch (e) {
             console.log("brokk session: the answer to his agent's request did not go", e);
         }
-        if (globalStore.get(this.permissionAtom)?.id === ask.id) {
+        // Answered here or over: the card goes. An answer that was not valid leaves the request waiting. Whether it was
+        // over elsewhere is the talk's to say, in every window (a click just after another window's answer is no news).
+        if (status !== "invalid" && globalStore.get(this.permissionAtom)?.id === ask.id) {
             globalStore.set(this.permissionAtom, null);
         }
-        globalStore.set(this.permissionGoneAtom, status !== "answered");
-        void this.refresh();
+        await this.refresh();
         return status;
     }
 

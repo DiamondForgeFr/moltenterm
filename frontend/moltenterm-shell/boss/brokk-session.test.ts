@@ -333,8 +333,13 @@ describe("the page's moves on the talk", () => {
             if (command !== PermitCommand) {
                 return server;
             }
-            // wavesrv's talk says it too, in every page.
-            server = { ...server, rev: server.rev + 1, permissiongone: status !== "answered" };
+            // wavesrv's talk says it, in every page: over only for a request that ended elsewhere.
+            server = {
+                ...server,
+                rev: server.rev + 1,
+                permissiongone: status === "gone",
+                permission: status === "invalid" ? ask : undefined,
+            };
             return { status };
         });
         globalStore.set(a.permissionAtom, ask);
@@ -342,9 +347,15 @@ describe("the page's moves on the talk", () => {
         expect(calls[0].data).toEqual({ id: "req-7", blockid: "block-9", decision: "allow" });
         expect(globalStore.get(a.permissionAtom)).toBeNull();
         expect(globalStore.get(a.permissionGoneAtom)).toBe(false);
-        status = "gone";
+        // Review of #2382: an answer that was not valid leaves the request on screen, and says nothing is over.
+        status = "invalid";
         globalStore.set(a.permissionAtom, ask);
+        expect(await a.permit(ask, "always")).toBe("invalid");
+        expect(globalStore.get(a.permissionAtom)?.id).toBe("req-7");
+        expect(globalStore.get(a.permissionGoneAtom)).toBe(false);
+        status = "gone";
         expect(await a.permit(ask, "deny")).toBe("gone");
+        expect(globalStore.get(a.permissionAtom)).toBeNull();
         expect(globalStore.get(a.permissionGoneAtom)).toBe(true);
     });
 

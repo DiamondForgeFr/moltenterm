@@ -385,10 +385,23 @@ func TestMapPermission(t *testing.T) {
 		{ToolName: "ExitPlanMode", ToolInput: map[string]any{"plan": "x"}},
 		{ToolName: "Glob", ToolInput: map[string]any{"path": "/w"}},
 		{ToolName: "mcp__", ToolInput: map[string]any{}},
+		// Review of #2382: the card shows the pattern, the folder and the filter one per line, so a line break in any of
+		// them would read as another folder: never read.
+		{ToolName: "Grep", ToolInput: map[string]any{"pattern": "Toolkit\n/w/elsewhere", "path": "/w/projects"}},
+		{ToolName: "Grep", ToolInput: map[string]any{"pattern": "Toolkit", "path": "/w/projects\r\n/w/other"}},
+		{ToolName: "Grep", ToolInput: map[string]any{"pattern": "Toolkit", "glob": "*.json\n/w/other"}},
+		{ToolName: "Grep", ToolInput: map[string]any{"pattern": "Toolkit", "path": 7}},
+		{ToolName: "Glob", ToolInput: map[string]any{"pattern": "*.md\n/w/other"}},
+		{ToolName: "Glob", ToolInput: map[string]any{"pattern": "*.md", "path": "/w\n/x"}},
+		{ToolName: "LS", ToolInput: map[string]any{"path": "/w\n/x"}},
 	} {
 		if _, ok := MapPermission(tc); ok {
 			t.Errorf("%+v was read as sure", tc)
 		}
+	}
+	// An empty or absent optional field is no line of the card.
+	if got, ok := MapPermission(keepawake.PermissionRequest{ToolName: "Grep", ToolInput: map[string]any{"pattern": "Toolkit", "path": "", "glob": nil}}); !ok || got.Subject != "Toolkit" {
+		t.Errorf("grep with empty fields: %+v %v", got, ok)
 	}
 }
 
@@ -427,16 +440,21 @@ func TestAQuestionOfHisAgentIsReadWithItsChoices(t *testing.T) {
 	if !got.Questions[1].MultiSelect || got.Subject != "Where are the projects?\nWhich ones?" {
 		t.Fatalf("second question %+v, subject %q", got.Questions[1], got.Subject)
 	}
+	eleven := []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"}
 	for name, input := range map[string]map[string]any{
 		"no list":        {"questions": "Where?"},
 		"empty list":     questionInput(),
-		"five questions": questionInput(choiceQuestion("a", false, "x"), choiceQuestion("b", false, "x"), choiceQuestion("c", false, "x"), choiceQuestion("d", false, "x"), choiceQuestion("e", false, "x")),
-		"same question":  questionInput(choiceQuestion("a", false, "x"), choiceQuestion("a", false, "y")),
+		"five questions": questionInput(choiceQuestion("a", false, "x", "y"), choiceQuestion("b", false, "x", "y"), choiceQuestion("c", false, "x", "y"), choiceQuestion("d", false, "x", "y"), choiceQuestion("e", false, "x", "y")),
+		"same question":  questionInput(choiceQuestion("a", false, "x", "y"), choiceQuestion("a", false, "y", "z")),
 		"same choice":    questionInput(choiceQuestion("a", false, "x", "x")),
-		"empty question": questionInput(choiceQuestion(" ", false, "x")),
-		"control char":   questionInput(choiceQuestion("a\x1b[2J", false, "x")),
-		"not a bool":     questionInput(map[string]any{"question": "a", "options": []any{}, "multiSelect": "yes"}),
-		"bad option":     questionInput(map[string]any{"question": "a", "options": []any{"x"}}),
+		"empty question": questionInput(choiceQuestion(" ", false, "x", "y")),
+		"control char":   questionInput(choiceQuestion("a\x1b[2J", false, "x", "y")),
+		"not a bool":     questionInput(map[string]any{"question": "a", "options": []any{map[string]any{"label": "x"}, map[string]any{"label": "y"}}, "multiSelect": "yes"}),
+		"bad option":     questionInput(map[string]any{"question": "a", "options": []any{"x", "y"}}),
+		// A multiple-choice question has two to ten choices (minChoices, maxChoices).
+		"no choice":      questionInput(map[string]any{"question": "a", "options": []any{}}),
+		"one choice":     questionInput(choiceQuestion("a", false, "x")),
+		"eleven choices": questionInput(choiceQuestion("a", false, eleven...)),
 	} {
 		if _, ok := MapPermission(keepawake.PermissionRequest{ToolName: "AskUserQuestion", ToolInput: input}); ok {
 			t.Errorf("%s was read as sure", name)
