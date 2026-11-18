@@ -138,6 +138,41 @@ func TestAgentPermissionPrintsTheDevelopersAnswer(t *testing.T) {
 	}
 }
 
+// #2382: the developer's answers to a question of Brokk's agent go back as the hook's allow with the tool's updated
+// input; a deny never carries an input.
+func TestAgentPermissionPrintsTheAnswersToAQuestion(t *testing.T) {
+	input := `{"session_id":"abc123","cwd":"/Users/me/brokk","hook_event_name":"PermissionRequest","tool_name":"AskUserQuestion",` +
+		`"tool_input":{"questions":[{"question":"Where are the projects?","header":"Folder","options":[{"label":"Documents","description":"the usual place"},{"label":"Elsewhere","description":"another folder"}],"multiSelect":false}]}}`
+	var out bytes.Buffer
+	runAgentPermission(strings.NewReader(input), &out, "block-1", "claude", func(req keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
+		updated := map[string]any{"questions": req.ToolInput["questions"], "answers": map[string]any{"Where are the projects?": "Documents"}}
+		return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow, Input: updated}, nil
+	})
+	var parsed struct {
+		HookSpecificOutput struct {
+			Decision struct {
+				Behavior     string         `json:"behavior"`
+				UpdatedInput map[string]any `json:"updatedInput"`
+			} `json:"decision"`
+		} `json:"hookSpecificOutput"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &parsed); err != nil {
+		t.Fatalf("output %q: %v", out.String(), err)
+	}
+	decision := parsed.HookSpecificOutput.Decision
+	answers, _ := decision.UpdatedInput["answers"].(map[string]any)
+	if decision.Behavior != "allow" || answers["Where are the projects?"] != "Documents" || decision.UpdatedInput["questions"] == nil {
+		t.Fatalf("printed %q", out.String())
+	}
+	out.Reset()
+	runAgentPermission(strings.NewReader(input), &out, "block-1", "claude", func(req keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
+		return keepawake.PermissionAnswer{Decision: keepawake.PermissionDeny, Message: "no", Input: map[string]any{"x": 1}}, nil
+	})
+	if strings.Contains(out.String(), "updatedInput") {
+		t.Fatalf("a deny printed an input: %q", out.String())
+	}
+}
+
 // FR-SHELL-064: Codex's PermissionRequest input (its documented fields, an apply_patch) gets the same answer, in the
 // output shape Codex documents.
 func TestAgentPermissionCodexInput(t *testing.T) {

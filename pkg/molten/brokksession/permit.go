@@ -7,11 +7,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/keepawake"
 )
@@ -47,6 +49,18 @@ const (
 	PermitKindSearch  = "search"
 	// PermitKindPatch: Codex's apply_patch; the subject lists "add|update|delete <path>", one per line.
 	PermitKindPatch = "patch"
+	// PermitKindFind: files searched by name (Glob); the subject is the pattern, after its folder when one is named.
+	PermitKindFind = "find"
+	// PermitKindGrep: the content of files searched (Grep); the subject is the pattern, then the folder and the file
+	// filter, one per line.
+	PermitKindGrep = "grep"
+	// PermitKindTool: a tool of an MCP server; the subject is the tool's name, then its input as sent.
+	PermitKindTool = "tool"
+	// PermitKindQuestion: his agent asks the developer (Claude Code's AskUserQuestion, #2382); Questions holds them.
+	PermitKindQuestion = "question"
+
+	// PermitAnswer: the developer's answers to a question (PermitRequest.Answers).
+	PermitAnswer = "answer"
 
 	// Results of an answer.
 	PermitAnswered = "answered"
@@ -54,6 +68,16 @@ const (
 	PermitInvalid  = "invalid"
 
 	maxPermitSubject = 2000
+	// A question of his agent (AskUserQuestion): at most this many questions, choices, characters in a question, a
+	// label, a description and an answer. A question past these is not read: his terminal asks it.
+	maxQuestions        = 4
+	maxChoices          = 10
+	maxQuestionText     = 480
+	maxChoiceLabel      = 200
+	maxChoiceDetail     = 1000
+	maxQuestionAnswer   = MaxTextLength
+	askUserQuestionTool = "AskUserQuestion"
+	mcpToolPrefix       = "mcp__"
 	// How many approvals made without asking the window keeps, and for how long.
 	maxAutoApprovals = 50
 	autoApprovalKeep = 30 * time.Minute
@@ -92,8 +116,24 @@ type PermissionAsk struct {
 	Subject string `json:"subject"`
 	Always  bool   `json:"always,omitempty"`
 	At      int64  `json:"at"`
+	// Questions: what a question asks (PermitKindQuestion), each with its choices.
+	Questions []AgentQuestion `json:"questions,omitempty"`
 	// Cwd: where his agent runs it, for the guard (permitguard.go); not shown.
 	Cwd string `json:"-"`
+}
+
+// AgentQuestion is one question of his agent to the developer, as AskUserQuestion sends it: the question, its short
+// header, its choices, and whether several may be picked.
+type AgentQuestion struct {
+	Question    string        `json:"question"`
+	Header      string        `json:"header,omitempty"`
+	Options     []AgentChoice `json:"options"`
+	MultiSelect bool          `json:"multiselect,omitempty"`
+}
+
+type AgentChoice struct {
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
 }
 
 // AutoApproval is a request boss:autoapprove let through, for the line in his talk window.
@@ -109,6 +149,8 @@ type PermitRequest struct {
 	Id       string `json:"id"`
 	BlockId  string `json:"blockid"`
 	Decision string `json:"decision"`
+	// Answers: with PermitAnswer, the developer's answer to each question, by the question's text.
+	Answers map[string]string `json:"answers,omitempty"`
 }
 
 type PermitResult struct {
@@ -118,9 +160,16 @@ type PermitResult struct {
 type pendingAsk struct {
 	ask         PermissionAsk
 	suggestions []any
-	answer      chan string
+	// input: the tool's input as his agent sent it, given back with a question's answers.
+	input  map[string]any
+	answer chan permitAnswer
 	// gone is closed when a newer request of the same terminal takes its place.
 	gone chan struct{}
+}
+
+type permitAnswer struct {
+	decision string
+	answers  map[string]string
 }
 
 // PermitEnv is what the broker reaches outside itself; the tests give fakes.
@@ -147,6 +196,27 @@ type PermitBroker struct {
 	lock    sync.Mutex
 	pending map[string]*pendingAsk
 	auto    []AutoApproval
+	// changed is told when a request comes or goes (the talk shows it in every window at once, #2382).
+	changed func()
+}
+
+// OnChange sets what is told when a request comes or goes; it is called outside the broker's lock.
+func (b *PermitBroker) OnChange(fn func()) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	b.changed = fn
+}
+
+func (b *PermitBroker) changedFn() func() {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	return b.changed
+}
+
+func (b *PermitBroker) notify() {
+	if fn := b.changedFn(); fn != nil {
+		fn()
+	}
 }
 
 func MakePermitBroker(env PermitEnv) *PermitBroker {
@@ -178,20 +248,24 @@ func (b *PermitBroker) Ask(ctx context.Context, req keepawake.PermissionRequest)
 		return keepawake.PermissionAnswer{}, true
 	}
 	ask.Id, ask.BlockId, ask.At = b.env.NewId(), req.BlockId, b.env.Now().UnixMilli()
-	if b.env.AutoApprove != nil && b.env.AutoApprove() && (b.env.Guard == nil || b.env.Guard(ask) == "") {
+	// A question is the developer's to answer: boss:autoapprove never answers it.
+	autoApprovable := ask.Kind != PermitKindQuestion
+	if autoApprovable && b.env.AutoApprove != nil && b.env.AutoApprove() && (b.env.Guard == nil || b.env.Guard(ask) == "") {
 		// Nothing runs unseen: an approval that could not be written down asks instead.
 		if b.noteAuto(ask) {
 			return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow}, true
 		}
 	}
-	p := b.add(ask, req.Suggestions)
+	p := b.add(ask, req.Suggestions, req.ToolInput)
+	b.notify()
+	defer b.notify()
 	defer b.remove(p)
 	ticker := time.NewTicker(permitMovedEvery)
 	defer ticker.Stop()
 	for {
 		select {
-		case decision := <-p.answer:
-			return answerOf(decision, p.suggestions), true
+		case answer := <-p.answer:
+			return answerOf(answer, p.suggestions, p.input), true
 		case <-p.gone:
 			return keepawake.PermissionAnswer{}, true
 		case <-ctx.Done():
@@ -206,20 +280,32 @@ func (b *PermitBroker) Ask(ctx context.Context, req keepawake.PermissionRequest)
 	}
 }
 
-func answerOf(decision string, suggestions []any) keepawake.PermissionAnswer {
-	switch decision {
+func answerOf(answer permitAnswer, suggestions []any, input map[string]any) keepawake.PermissionAnswer {
+	switch answer.decision {
 	case PermitAllow:
 		return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow}
 	case PermitAlways:
 		return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow, Updated: suggestions}
+	case PermitAnswer:
+		// The question tool reads the developer's answers from its own input (questions, answers).
+		updated := make(map[string]any, len(input)+1)
+		for k, v := range input {
+			updated[k] = v
+		}
+		answers := make(map[string]any, len(answer.answers))
+		for k, v := range answer.answers {
+			answers[k] = v
+		}
+		updated["answers"] = answers
+		return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow, Input: updated}
 	}
 	return keepawake.PermissionAnswer{Decision: keepawake.PermissionDeny, Message: denyMessage}
 }
 
 // add keeps the request, in place of an older one of the same terminal: an agent asks one thing at a time, so an older
 // request still kept was answered in his terminal and its hook is gone.
-func (b *PermitBroker) add(ask PermissionAsk, suggestions []any) *pendingAsk {
-	p := &pendingAsk{ask: ask, suggestions: suggestions, answer: make(chan string, 1), gone: make(chan struct{})}
+func (b *PermitBroker) add(ask PermissionAsk, suggestions []any, input map[string]any) *pendingAsk {
+	p := &pendingAsk{ask: ask, suggestions: suggestions, input: input, answer: make(chan permitAnswer, 1), gone: make(chan struct{})}
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	for id, old := range b.pending {
@@ -255,23 +341,64 @@ func (b *PermitBroker) noteAuto(ask PermissionAsk) bool {
 }
 
 // Answer gives the developer's decision to the request waiting under that id in that terminal; anything else is gone.
+// A question takes answers (PermitAnswer) or a deny, a permission an allow, an always allow (when offered) or a deny.
 func (b *PermitBroker) Answer(req PermitRequest) PermitResult {
-	if req.Decision != PermitAllow && req.Decision != PermitAlways && req.Decision != PermitDeny {
+	if req.Decision != PermitAllow && req.Decision != PermitAlways && req.Decision != PermitDeny && req.Decision != PermitAnswer {
 		return PermitResult{Status: PermitInvalid}
 	}
+	result := b.answer(req)
+	if result.Status == PermitAnswered {
+		b.notify()
+	}
+	return result
+}
+
+func (b *PermitBroker) answer(req PermitRequest) PermitResult {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	p := b.pending[req.Id]
 	if p == nil || req.Id == "" || p.ask.BlockId != req.BlockId {
 		return PermitResult{Status: PermitGone}
 	}
-	if req.Decision == PermitAlways && !p.ask.Always {
+	question := p.ask.Kind == PermitKindQuestion
+	if req.Decision == PermitAlways && (!p.ask.Always || question) {
 		return PermitResult{Status: PermitInvalid}
 	}
+	if question && req.Decision == PermitAllow {
+		return PermitResult{Status: PermitInvalid}
+	}
+	var answers map[string]string
+	if req.Decision == PermitAnswer {
+		var ok bool
+		if answers, ok = questionAnswers(p.ask.Questions, req.Answers); !question || !ok {
+			return PermitResult{Status: PermitInvalid}
+		}
+	}
 	delete(b.pending, req.Id)
-	p.answer <- req.Decision
+	p.answer <- permitAnswer{decision: req.Decision, answers: answers}
 	return PermitResult{Status: PermitAnswered}
 }
+
+// questionAnswers checks the developer's answers: one for each question, by its text, none for another, each a text
+// of its own (a choice's label, several joined, or what the developer wrote), without control characters but the line
+// breaks.
+func questionAnswers(questions []AgentQuestion, answers map[string]string) (map[string]string, bool) {
+	if len(questions) == 0 || len(answers) != len(questions) {
+		return nil, false
+	}
+	rtn := make(map[string]string, len(questions))
+	for _, q := range questions {
+		answer, ok := answers[q.Question]
+		answer = strings.TrimSpace(controlRuns.ReplaceAllString(answer, " "))
+		if !ok || answer == "" || utf8.RuneCountInString(answer) > maxQuestionAnswer {
+			return nil, false
+		}
+		rtn[q.Question] = answer
+	}
+	return rtn, true
+}
+
+var controlRuns = regexp.MustCompile("[\x00-\x09\x0b-\x1f\x7f]+")
 
 // Pending is the request waiting in the terminal, if any.
 func (b *PermitBroker) Pending(blockId string) *PermissionAsk {
@@ -279,11 +406,39 @@ func (b *PermitBroker) Pending(blockId string) *PermissionAsk {
 	defer b.lock.Unlock()
 	for _, p := range b.pending {
 		if p.ask.BlockId == blockId {
-			ask := p.ask
-			return &ask
+			return copyAsk(p.ask)
 		}
 	}
 	return nil
+}
+
+// PendingAny is the request waiting, whatever the terminal: the broker keeps only his session's (Ask checks IsOwn), and
+// the talk shows it before it knows his terminal (a restart, #2382). The newest one when two terminals ever asked.
+func (b *PermitBroker) PendingAny() *PermissionAsk {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+	var newest *pendingAsk
+	for _, p := range b.pending {
+		if newest == nil || p.ask.At > newest.ask.At || (p.ask.At == newest.ask.At && p.ask.Id > newest.ask.Id) {
+			newest = p
+		}
+	}
+	if newest == nil {
+		return nil
+	}
+	return copyAsk(newest.ask)
+}
+
+func copyAsk(ask PermissionAsk) *PermissionAsk {
+	rtn := ask
+	if ask.Questions != nil {
+		rtn.Questions = make([]AgentQuestion, len(ask.Questions))
+		for i, q := range ask.Questions {
+			rtn.Questions[i] = q
+			rtn.Questions[i].Options = append([]AgentChoice{}, q.Options...)
+		}
+	}
+	return &rtn
 }
 
 // AutoApproved lists the approvals made without asking since after (Unix milliseconds), of the last half hour.
@@ -366,8 +521,123 @@ func MapPermission(req keepawake.PermissionRequest) (PermissionAsk, bool) {
 				return set(PermitKindPatch, strings.Join(files, "\n"))
 			}
 		}
+	case "Glob":
+		// A search for files by name: the pattern, in its folder when one is named (#2382).
+		if pattern, ok := field("pattern"); ok {
+			if dir, ok := field("path"); ok && !strings.HasPrefix(pattern, "/") {
+				return set(PermitKindFind, strings.TrimRight(dir, "/")+"/"+pattern)
+			}
+			return set(PermitKindFind, pattern)
+		}
+	case "Grep":
+		// A search in the files' content: the pattern, then the folder and the file filter it names (#2382).
+		if pattern, ok := field("pattern"); ok {
+			lines := []string{pattern}
+			for _, name := range []string{"path", "glob"} {
+				if v, ok := field(name); ok {
+					lines = append(lines, v)
+				}
+			}
+			return set(PermitKindGrep, strings.Join(lines, "\n"))
+		}
+	case "LS":
+		if dir, ok := field("path"); ok {
+			return set(PermitKindRead, dir)
+		}
+	case askUserQuestionTool:
+		// His agent's question to the developer (#2382): answered in his window, never guessed.
+		if questions, ok := readQuestions(req.ToolInput); ok {
+			texts := make([]string, len(questions))
+			for i, q := range questions {
+				texts[i] = q.Question
+			}
+			if ask, ok := set(PermitKindQuestion, strings.Join(texts, "\n")); ok {
+				ask.Always, ask.Questions = false, questions
+				return ask, true
+			}
+		}
+	default:
+		// A tool of an MCP server: its name and its input as sent, which the card shows as they are (#2382).
+		if strings.HasPrefix(req.ToolName, mcpToolPrefix) && len(req.ToolName) > len(mcpToolPrefix) {
+			input, err := json.Marshal(req.ToolInput)
+			if err != nil || req.ToolInput == nil {
+				input = []byte("{}")
+			}
+			return set(PermitKindTool, req.ToolName+"\n"+string(input))
+		}
 	}
 	return PermissionAsk{}, false
+}
+
+// readQuestions reads AskUserQuestion's input: one to four questions, each a text with a short header and two to ten
+// choices, each choice a label and its description. Anything else is not read.
+func readQuestions(input map[string]any) ([]AgentQuestion, bool) {
+	list, ok := input["questions"].([]any)
+	if !ok || len(list) == 0 || len(list) > maxQuestions {
+		return nil, false
+	}
+	seen := map[string]bool{}
+	questions := make([]AgentQuestion, 0, len(list))
+	for _, raw := range list {
+		obj, ok := raw.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		text, ok := plainText(obj["question"], maxQuestionText, true)
+		if !ok || seen[text] {
+			return nil, false
+		}
+		seen[text] = true
+		header, ok := plainText(obj["header"], maxChoiceLabel, false)
+		if !ok {
+			return nil, false
+		}
+		multi, isBool := obj["multiSelect"].(bool)
+		if obj["multiSelect"] != nil && !isBool {
+			return nil, false
+		}
+		options, ok := obj["options"].([]any)
+		if !ok || len(options) > maxChoices {
+			return nil, false
+		}
+		q := AgentQuestion{Question: text, Header: header, MultiSelect: multi, Options: make([]AgentChoice, 0, len(options))}
+		labels := map[string]bool{}
+		for _, rawOption := range options {
+			option, ok := rawOption.(map[string]any)
+			if !ok {
+				return nil, false
+			}
+			label, ok := plainText(option["label"], maxChoiceLabel, true)
+			if !ok || labels[label] {
+				return nil, false
+			}
+			labels[label] = true
+			detail, ok := plainText(option["description"], maxChoiceDetail, false)
+			if !ok {
+				return nil, false
+			}
+			q.Options = append(q.Options, AgentChoice{Label: label, Description: detail})
+		}
+		questions = append(questions, q)
+	}
+	return questions, true
+}
+
+// plainText reads a text of at most max characters with no control character but line breaks; required: it may not
+// be missing or empty.
+func plainText(value any, max int, required bool) (string, bool) {
+	if value == nil {
+		return "", !required
+	}
+	text, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	text = strings.TrimSpace(text)
+	if (required && text == "") || utf8.RuneCountInString(text) > max || controlRuns.MatchString(text) {
+		return "", false
+	}
+	return text, true
 }
 
 var patchFileLine = regexp.MustCompile(`(?m)^\*\*\* (Add|Update|Delete) File: (.+)$`)

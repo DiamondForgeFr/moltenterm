@@ -52,12 +52,14 @@ type PermissionRequest struct {
 
 // PermissionAnswer: Decision is PermissionAllow, PermissionDeny (Brokk's own session, #2257), or empty to leave the
 // request to the agent's prompt. Updated: the agent's own suggested rules to apply ("always allow"); Message: why a
-// deny, for the agent.
+// deny, for the agent; Input: the tool's input to run it with, an allow's only (the developer's answers to a question
+// of Brokk's agent, #2382).
 type PermissionAnswer struct {
-	Decision string `json:"decision,omitempty"`
-	Reason   string `json:"reason,omitempty"`
-	Updated  []any  `json:"updated,omitempty"`
-	Message  string `json:"message,omitempty"`
+	Decision string         `json:"decision,omitempty"`
+	Reason   string         `json:"reason,omitempty"`
+	Updated  []any          `json:"updated,omitempty"`
+	Message  string         `json:"message,omitempty"`
+	Input    map[string]any `json:"input,omitempty"`
 }
 
 // PermissionDeny refuses the request for the agent (the developer's Deny in Brokk's layer, #2257).

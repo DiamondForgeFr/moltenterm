@@ -65,6 +65,8 @@ type permissionHookDecision struct {
 	Behavior           string `json:"behavior"`
 	UpdatedPermissions []any  `json:"updatedPermissions,omitempty"`
 	Message            string `json:"message,omitempty"`
+	// UpdatedInput: the tool's input with the developer's answers to a question of Brokk's agent (#2382).
+	UpdatedInput map[string]any `json:"updatedInput,omitempty"`
 }
 
 type permissionHookSpecific struct {
@@ -131,6 +133,9 @@ func runAgentPermission(r io.Reader, w io.Writer, blockId string, agent string, 
 		return
 	}
 	decision := permissionHookDecision{Behavior: answer.Decision, UpdatedPermissions: answer.Updated, Message: answer.Message}
+	if answer.Decision == keepawake.PermissionAllow {
+		decision.UpdatedInput = answer.Input
+	}
 	out, err := json.Marshal(permissionHookOutput{HookSpecificOutput: permissionHookSpecific{
 		HookEventName: molten.ClaudePermissionHookEvent, Decision: decision,
 	}})
