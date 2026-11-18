@@ -47,10 +47,12 @@
         "name": "lookaround"
       },
       {
-        "name": "beard"
+        "name": "beard",
+        "leave": "mirror"
       },
       {
-        "name": "scratch"
+        "name": "scratch",
+        "leave": "mirror"
       },
       {
         "name": "doubtful",

@@ -20,13 +20,14 @@ export const RevealCapMs = 3000;
 export const SpeakingSettleMs = 1200;
 // Speech shorter than this reads as a twitch of the mouth, not as speech.
 export const MinSpeakingMs = 2500;
-// When the tone's gesture starts (#2259, #2262). The package (@diamondforge/character 0.3.1, FR-AI-012) plays an
+// When the tone's gesture starts (#2259, #2262). The package (@diamondforge/character 0.7.0, FR-AI-012) plays an
 // expression asked at once on the loop on screen, over a crossfade of AskedFadeMs from wherever the loop is: unlike a
 // gesture drawn by chance, it does not wait for the end of a round. What it does wait for is a clip between two poses,
-// which always plays to its end, and it plays the expression right after: the listening and speaking loops swap without
-// one, but reaching the thinking pose takes IntoThinkingMs (48 frames at 16 fps) and leaving it OutOfThinkingMs (20
-// frames); brokk-speech-model.test.ts measures them. So an answer that starts while his face thinks shows its tone once
-// the clip out of thinking and the crossfade are over, about 1.5 s after his first words.
+// which always plays to its end, and a beard or a scratch under way, which leave by mirror (1.65 s at most, #2378); it
+// plays the expression right after. The listening and speaking loops swap without a clip, but reaching the thinking
+// pose takes IntoThinkingMs (48 frames at 16 fps) and leaving it OutOfThinkingMs (20 frames);
+// brokk-speech-model.test.ts measures them. So an answer that starts while his face thinks shows its tone once the clip
+// out of thinking and the crossfade are over, about 1.5 s after his first words.
 export const AskedFadeMs = 300;
 export const IntoThinkingMs = 3000;
 export const OutOfThinkingMs = 1250;

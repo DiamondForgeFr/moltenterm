@@ -91,6 +91,14 @@ describe("the animated portrait hears the end of a gesture from the package (FR-
         expect(source).not.toContain("getAttribute");
     });
 
+    it("tells the package the beard and the scratch leave by mirror, so that a hand never fades out halfway (#2378)", () => {
+        draw();
+        const mirrored = (Package.props.idles.listening as { name: string; leave?: string }[])
+            .filter((idle) => idle.leave === "mirror")
+            .map((idle) => idle.name);
+        expect(mirrored).toEqual(["beard", "scratch"]);
+    });
+
     it("hands the pose back when the package says a gesture ended, by the gesture's name", () => {
         draw();
         Package.props.onGesture("call", "end");

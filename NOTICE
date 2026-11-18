@@ -41,7 +41,7 @@ remote font:
   Sans Mono, Copyright 2003 Bitstream, Inc. (Bitstream Vera License), patched with icon glyphs by the Nerd Fonts
   patcher 3.2.1, Copyright 2014 Ryan L McIntyre (MIT License). See public/fonts/hacknerdmono-license.txt.
 
-This product bundles @diamondforge/character 0.3.1 by DiamondForge, the runtime of the DiamondForge suite's
+This product bundles @diamondforge/character 0.7.0 by DiamondForge, the runtime of the DiamondForge suite's
 animated characters. It is DiamondForge's own private package, UNLICENSED (all rights reserved), and is not
 licensed under any of the licences above.
 

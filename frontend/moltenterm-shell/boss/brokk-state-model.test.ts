@@ -169,6 +169,13 @@ describe("the face's clocks", () => {
         expect(faceAfter(none, { type: "gesture-ended", name: "call" })).toBe(none);
     });
 
+    it("keeps the gesture asked when the beard or the scratch ends, which leave by mirror before the gesture asked plays (#2378)", () => {
+        const state = startFace({ play: call });
+        expect(faceAfter(state, { type: "gesture-ended", name: "beard" })).toBe(state);
+        expect(faceAfter(state, { type: "gesture-ended", name: "scratch" })).toBe(state);
+        expect(faceAfter(state, { type: "gesture-ended", name: "call" }).reaction).toBeNull();
+    });
+
     it("hands it back at the cap for the gesture asked, and not for an older one", () => {
         const state = startFace({ play: smile });
         expect(faceAfter(state, { type: "reaction-expired", cue: 7 })).toBe(state);
