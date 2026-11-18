@@ -255,7 +255,9 @@ every night (02:17 UTC), so a gap in the selection, a flaky test or a new adviso
 rather than running on a schedule itself, which would check out `main` and put the results on its commit. A schedule
 fires only from the default branch, so the nightly run starts once `ci-nightly.yml` is on `main`. A failed full run on
 `develop` or `main` opens the issue "CI: the full suites fail on <branch>", or comments on it while it is open. It never
-blocks a pull request.
+blocks a pull request. The same file has an `electron` job (#2365) that checks `develop`'s Electron pin with
+`scripts/security/electron-staleness.mjs --warn` and prints a warning with the pinned version, the newest patch and the
+day a release would be refused ("Releases", below); it never fails the night.
 
 **The `ci:full` label** forces everything on a pull request. Affected tests reads it when the run starts, not from the
 event, so after adding it, push or re-run the jobs.
@@ -298,7 +300,7 @@ Release candidates are `v1.0.0-N` until the first public release, `v1.0.0` (FR-R
 | ------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | prepare | `molten release promote --workflow ci.yml`         | `develop` reaches `main` (fast-forward, else a merge commit) once CI is green on its commit. Refused while `main` holds a release commit `develop` lacks: merge the previous sync-back first.                |
 | prepare | `molten release prepare <tag>`                     | In `../MoltenTerm-release` (a worktree on `origin/main`): `package.json` and `package-lock.json` bumped, `releases/<tag>.md` and `releases/<tag>.internal.md` written ("Release notes", below). Review the notes before the cut. |
-| cut     | `molten release finalize <tag>`                    | Commit `chore(release): <tag> (rc\|public)`, tag, `git push --atomic origin main <tag>` (as a repository admin: the `main` ruleset accepts pull requests only).                                              |
+| cut     | `molten release finalize <tag>`                    | First the preflight (`release.preflight`, #2365): the dependency scan and the Electron freshness rule run in the release worktree, and a failed check refuses the release before anything is committed, tagged or pushed (`RELEASE.md`, "The preflight"). Then commit `chore(release): <tag> (rc\|public)`, tag, `git push --atomic origin main <tag>` (as a repository admin: the `main` ruleset accepts pull requests only). |
 | build   | `.github/workflows/release.yml`                    | On the tag: macOS arm64 and x64 (dmg, zip; public tags require Developer ID, notarization and final delivery verification) and Linux x64 and arm64 (AppImage, deb), checked to come from `main` and carry the tag's version. |
 | publish | release.yml, then `molten release close-milestone` | The GitHub release with every file, `SHA256SUMS.txt` and electron-builder's `latest*.yml`: a candidate is published as a prerelease, a public release waits as a draft. Its milestone closes once published. |
 | back    | `molten release sync-back <tag>`                   | The release commit cherry-picked onto `develop` in `chore/sync-back-<tag>`, with its pull request.                                                                                                           |

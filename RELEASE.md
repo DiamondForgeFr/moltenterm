@@ -213,7 +213,7 @@ set of final files (`scripts/moltenterm-release-files.sh`, `scripts/moltenterm-r
 2. **Release candidate.** Release › Release candidate:
    - promote (`develop` onto `main` once CI is green);
    - prepare (bump and notes in `../MoltenTerm-release`): review the notes;
-   - finalize (confirm): `release.yml` builds and publishes the prerelease.
+   - finalize (confirm): runs the preflight checks (below), then `release.yml` builds and publishes the prerelease.
 
    Walk the checklist on the prerelease's files, then merge the sync-back pull request.
 3. **Public release.** Release › Public: the same steps, then publish the draft on GitHub, close the milestone, and
@@ -221,6 +221,26 @@ set of final files (`scripts/moltenterm-release-files.sh`, `scripts/moltenterm-r
 
 A point that fails: open a ticket, fix it on `develop`, rehearse again, and cut the next candidate (`-N+1`). Never
 re-tag a published candidate.
+
+### The preflight, before the tag (#2365)
+
+`release.yml` runs the dependency scan once the tag is pushed, so a refusal there leaves a public tag and a burnt
+candidate number (v1.0.0-12: the Electron freshness rule refused Electron 45.2.3, and the tag had to be deleted). The
+same two checks therefore run first, in the release worktree, on the tree about to be tagged. They are declared in
+`.molten/project.json` (`release.preflight`), and `molten release finalize` runs them, as `molten release tag` and
+`molten release tag --rc-branch` do for a release that goes through a pull request:
+
+| Check | Command | Refused when |
+| --- | --- | --- |
+| Dependency scan | `node scripts/security/scan.mjs` | a finding is not covered by a review, or the scan could not complete (it needs the network) |
+| Electron freshness | `node scripts/security/electron-staleness.mjs --enforce` | a newer Electron patch has waited more than 7 days, an advisory holds the pin, or the support of its major ends within 30 days (`security/ELECTRON.md`) |
+
+A failed check stops the release before anything is committed, tagged or pushed. The step's last line names the
+check, its finding and its fix: a dependency finding is read in the report it names and triaged by
+`security/TRIAGE.md`; Electron is bumped as `security/ELECTRON.md` says. Merge the fix on `develop`, then promote and
+prepare the release again. Only the developer records an exception (`security/dependencies.json`), never a step of the
+release. The scan takes a few minutes. `release.yml` keeps its own scan as the last net, and the nightly CI
+(`ci-nightly.yml`) warns about the Electron deadline of develop's pin days ahead.
 
 ## The checklist
 
