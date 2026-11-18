@@ -11555,6 +11555,7 @@
         },
         "hide": "Masquer la barre latérale ({keys})",
         "show": "Garder la barre latérale affichée ({keys})",
+        "collapsedMark": "{name} · {project}",
         "appMenu": "Menu",
         "grip": "Largeur de la barre latérale",
         "gripTitle": "Glisser pour élargir ou réduire la barre (double-clic : {width} px)",

@@ -340,7 +340,7 @@ describe("the edge, in the model and in the style sheets (AC40, AC44 to AC46)", 
         );
     });
 
-    it("gives the content no strip's margin: the content keeps its whole width", () => {
+    it("gives the content no margin for the strip: the collapsed rail (#2384) is a column of its own, not Brokk's", () => {
         expect(sidebar).not.toMatch(/data-gutter/);
         expect(sidebar).not.toMatch(/\.mt-frame-content\s*\{[^}]*margin-left:\s*var\(--mt-edge-px\)/);
     });
