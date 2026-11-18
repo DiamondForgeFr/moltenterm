@@ -293,6 +293,41 @@ func TestValidatePipelineReleasePaths(t *testing.T) {
 	}
 }
 
+// #2365: release.preflight holds commands the release runs before it tags, so each is checked like any declared command.
+func TestValidatePipelinePreflight(t *testing.T) {
+	pipeline := func(checks string) PipelineReport {
+		return validateWith(t, map[string]string{
+			".molten/project.json": `{"schema": 1, "name": "x", "release": {"preflight": ` + checks + `}}`,
+			"scripts/scan.mjs":     "",
+		})
+	}
+	report := pipeline(`[
+	  {"id": "scan", "title": "Scan", "run": "node scripts/scan.mjs --tag {tag}", "fix": "Read the report"},
+	  {"id": "again", "run": "true", "cwd": "scripts"}
+	]`)
+	if !report.Valid {
+		t.Fatalf("a declared preflight: %v", report.Errors)
+	}
+	checks := report.Pipeline.Release.Preflight
+	if len(checks) != 2 || checks[0].Fix != "Read the report" || checks[1].Cwd != "scripts" {
+		t.Fatalf("the checks were not read: %+v", checks)
+	}
+	for _, c := range []struct{ checks, want string }{
+		{`[{"id": "Scan", "run": "true"}]`, `id "Scan" must be lowercase`},
+		{`[{"id": "scan", "run": "true"}, {"id": "scan", "run": "true"}]`, `id "scan" is used twice`},
+		{`[{"id": "scan"}]`, "run is empty"},
+		{`[{"id": "scan", "run": "true", "cwd": "../elsewhere"}]`, "leaves the project"},
+		{`[{"id": "scan", "run": "true {version} {nope}"}]`, "unknown variable {nope}"},
+		{`[{"id": "scan", "run": "node scripts/missing.mjs"}]`, "scripts/missing.mjs does not exist"},
+		{`[{"id": "scan", "run": "true", "env": {"A": "b"}}]`, `unknown field "env"`},
+	} {
+		got := pipeline(c.checks)
+		if got.Valid || !hasMessage(got.Errors, c.want) {
+			t.Errorf("%s: valid %v, errors %v, want one with %q", c.checks, got.Valid, got.Errors, c.want)
+		}
+	}
+}
+
 func TestValidatePipelineVersions(t *testing.T) {
 	report := validateWith(t, map[string]string{
 		".molten/project.json": `{

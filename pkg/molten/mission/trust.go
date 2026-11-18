@@ -60,6 +60,10 @@ func PipelineCommands(p *molten.Pipeline) []TrustedCommand {
 		rtn = append(rtn, TrustedCommand{Kind: "build", Id: build.Id, Title: build.Title, Run: build.Run, Cwd: build.Cwd, Env: build.Env})
 	}
 	if p.Release != nil {
+		// The cut runs these before it tags (#2365), inside a step that is already trusted: declaring or changing one asks again.
+		for _, check := range p.Release.Preflight {
+			rtn = append(rtn, TrustedCommand{Kind: "preflight", Id: check.Id, Title: check.Title, Run: check.Run, Cwd: check.Cwd})
+		}
 		for _, step := range p.Release.Rc {
 			if step.IsManual() {
 				continue

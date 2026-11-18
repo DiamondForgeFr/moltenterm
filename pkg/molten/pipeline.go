@@ -163,9 +163,24 @@ func (s PipelineStep) IsManual() bool {
 	return strings.TrimSpace(s.Manual) != ""
 }
 
+// A check the release runs before it creates or pushes a tag (#2365), in the release worktree, on the tree that will be
+// tagged. It is a command with an exit code: 0 passes, anything else, or a command that cannot run, refuses the release.
+type PipelineCheck struct {
+	Id    string `json:"id"`
+	Title string `json:"title,omitempty"`
+	Run   string `json:"run"`
+	// Relative to the release worktree, default its root.
+	Cwd string `json:"cwd,omitempty"`
+	// What the developer does when the check fails, said with the failure.
+	Fix string `json:"fix,omitempty"`
+}
+
 type PipelineRelease struct {
-	Rc     []PipelineStep `json:"rc,omitempty"`
-	Public []PipelineStep `json:"public,omitempty"`
+	// The checks `molten release finalize`, `tag` and `tag --rc-branch` run before they create a tag, so that a release
+	// the later workflows would refuse never reaches origin.
+	Preflight []PipelineCheck `json:"preflight,omitempty"`
+	Rc        []PipelineStep  `json:"rc,omitempty"`
+	Public    []PipelineStep  `json:"public,omitempty"`
 }
 
 // An adapter step (FR-MC-007): a project-specific action shown in a panel section.
@@ -365,6 +380,15 @@ func (c *pipelineChecker) checkCommand(where string, cmd PipelineCommand) {
 		if name == "" || strings.ContainsAny(name, "= ") {
 			c.errorf("%s: env name %q is not valid", where, name)
 		}
+	}
+}
+
+func (c *pipelineChecker) checkPreflight(checks []PipelineCheck) {
+	seen := map[string]bool{}
+	for i, check := range checks {
+		label := fmt.Sprintf("release.preflight[%d]", i)
+		c.checkId(label, check.Id, seen)
+		c.checkCommand(label+" ("+check.Id+")", PipelineCommand{Run: check.Run, Cwd: check.Cwd})
 	}
 }
 
@@ -722,6 +746,7 @@ func (c *pipelineChecker) check(p *Pipeline) {
 		}
 	}
 	if p.Release != nil {
+		c.checkPreflight(p.Release.Preflight)
 		c.checkSteps("release.rc", p.Release.Rc)
 		c.checkSteps("release.public", p.Release.Public)
 	}

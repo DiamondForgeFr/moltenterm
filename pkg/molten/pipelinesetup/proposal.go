@@ -326,7 +326,11 @@ func copyRelease(r *molten.PipelineRelease) *molten.PipelineRelease {
 	if r == nil {
 		return &molten.PipelineRelease{}
 	}
-	return &molten.PipelineRelease{Rc: append([]molten.PipelineStep(nil), r.Rc...), Public: append([]molten.PipelineStep(nil), r.Public...)}
+	return &molten.PipelineRelease{
+		Preflight: append([]molten.PipelineCheck(nil), r.Preflight...),
+		Rc:        append([]molten.PipelineStep(nil), r.Rc...),
+		Public:    append([]molten.PipelineStep(nil), r.Public...),
+	}
 }
 
 func copyVersions(v *molten.PipelineVersions) (*molten.PipelineVersions, error) {

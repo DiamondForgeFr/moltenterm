@@ -299,6 +299,9 @@ func (e *Env) TagRcBranch(ctx context.Context, tag string) error {
 	if where := e.tagTaken(ctx, p.Root, tag); where != "" {
 		return fmt.Errorf("%s already exists %s: nothing was committed", tag, where)
 	}
+	if err := e.preflight(ctx, p, wt, tag, v); err != nil {
+		return err
+	}
 	committed, err := e.commitPrepared(ctx, p, wt, tag, v, channel)
 	if err != nil {
 		return err
@@ -588,6 +591,9 @@ func (e *Env) Tag(ctx context.Context, tag string) error {
 				return fmt.Errorf("%s at %s reads %s, not %s: nothing was tagged", f.Path, target[:7], got, v)
 			}
 		}
+	}
+	if err := e.preflight(ctx, p, wt, tag, v); err != nil {
+		return err
 	}
 	if _, err := e.git(ctx, p.Root, "tag", tag, target); err != nil {
 		return fmt.Errorf("could not tag the release: %w", err)

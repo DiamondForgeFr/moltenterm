@@ -222,7 +222,8 @@ func (e *Env) changedPaths(ctx context.Context, wt string) ([]string, error) {
 // Finalize commits what Prepare left, tags it and pushes the release branch and the tag atomically, after checking
 // the prepared tree again: the notes may have been edited, and the release branch may have moved meanwhile. The
 // version is read back from the files, never recomputed: a tag cut meanwhile must not renumber what the notes were
-// written for.
+// written for. The project's preflight checks (release.preflight) are part of that check: a release a later workflow
+// would refuse is not tagged.
 func (e *Env) Finalize(ctx context.Context, tag string) error {
 	p, err := e.LoadProject(ctx)
 	if err != nil {
@@ -254,13 +255,19 @@ func (e *Env) Finalize(ctx context.Context, tag string) error {
 		ready.ok("%s is not taken", tag)
 	}
 	head := e.revParse(ctx, wt, "HEAD")
-	if head == "" || head != e.revParse(ctx, p.Root, "origin/"+p.Release) {
+	prepared := head != "" && head == e.revParse(ctx, p.Root, "origin/"+p.Release)
+	if !prepared {
 		ready.problem("%s moved since the preparation (or nothing is prepared): prepare %s again", p.Release, tag)
 	} else {
 		ready.ok("%s is where the preparation left it", p.Release)
 	}
 	e.formatRelease(ctx, p, wt, tag)
 	allowed, ticket := e.readyToCommit(ctx, ready, p, wt, tag, v)
+	// Last, because a check can take minutes (a dependency scan), and not on a tree that is not the release's: it is
+	// prepared again before anything is tagged.
+	if prepared {
+		e.checkPreflight(ctx, ready, p, wt, tag, v)
+	}
 	if err := ready.finish(tag, "nothing was committed"); err != nil {
 		return err
 	}
