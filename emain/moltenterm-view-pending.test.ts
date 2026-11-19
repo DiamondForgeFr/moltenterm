@@ -82,7 +82,7 @@ describe("ViewPendingController (#450)", () => {
         const startedAt = Date.now();
         vi.advanceTimersByTime(40);
         c.begin("A", () => {}, startedAt);
-        vi.advanceTimersByTime(19);
+        vi.advanceTimersByTime(ViewPendingGraceMs - 41);
         expect(s.live.sent).toEqual([]);
         vi.advanceTimersByTime(1);
         expect(s.live.sent).toEqual([{ phase: "loading", workspaceName: "A" }]);
@@ -92,7 +92,7 @@ describe("ViewPendingController (#450)", () => {
         const s = makeSurface();
         const c = new ViewPendingController(s);
         const first = c.begin("A", () => {}, Date.now());
-        vi.advanceTimersByTime(100);
+        vi.advanceTimersByTime(ViewPendingGraceMs + 40);
         const second = c.begin("B", () => {}, Date.now());
         expect(s.live.sent).toEqual([
             { phase: "loading", workspaceName: "A" },

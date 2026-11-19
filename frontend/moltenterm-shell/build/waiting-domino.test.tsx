@@ -57,6 +57,8 @@ export const BusyLabelAllowed: Record<string, string> = {
     "frontend/moltenterm-shell/sessions/sessions-model.ts": "the connection chip's tooltip; its dot says the state",
     "frontend/moltenterm-shell/view-pending.tsx": "the caption under PendingSurface's large dominoes (DominoLoader)",
     "emain/moltenterm-view-pending.ts": "static page before the renderer: it draws its own copy of the large dominoes",
+    "emain/moltenterm-switch-picture.ts":
+        "the caption of the wait over a switch picture: waitingScript draws the page's own large dominoes (df-dominos) with it",
     // Components whose shared part draws the loader.
     "frontend/moltenterm-shell/browser/browser-error-page.tsx": "EmptyState's busy action draws the dominoes",
     "frontend/moltenterm-shell/lazy/monaco-lazy.tsx": "LazyViewLoading is the loading state",

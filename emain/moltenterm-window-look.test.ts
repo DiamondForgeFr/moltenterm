@@ -15,6 +15,7 @@ import {
     noteWindowCreatedLook,
     parseLookRequest,
     receiveWindowLook,
+    viewLooksTranslucent,
     windowLookSupport,
 } from "./moltenterm-window-look";
 
@@ -43,6 +44,35 @@ describe("a workspace's look in Electron main (FR-SHELL-091, DS-SHELL-131)", () 
         applyWindowLook(win, view, true, Mac, { translucent: false, blur: false });
         expect(view.setBackgroundColor).toHaveBeenCalledWith("#222222");
         expect(win.setVibrancy).toHaveBeenCalledWith(null);
+    });
+
+    it("rebuilds the window's vibrancy only when it changes, so a switch to a view with the same look flicks nothing (#2375)", () => {
+        const win = makeWindow();
+        applyWindowLook(win, makeView(), true, Mac, { translucent: true, blur: true });
+        applyWindowLook(win, makeView(), true, Mac, { translucent: true, blur: true });
+        applyWindowLook(win, makeView(), true, Mac, { translucent: true, blur: true });
+        expect(win.setVibrancy).toHaveBeenCalledTimes(1);
+        applyWindowLook(win, makeView(), true, Mac, { translucent: false, blur: false });
+        expect(win.setVibrancy).toHaveBeenCalledTimes(2);
+        expect(win.setVibrancy).toHaveBeenLastCalledWith(null);
+        applyWindowLook(win, makeView(), true, Mac, { translucent: true, blur: true });
+        expect(win.setVibrancy).toHaveBeenCalledTimes(3);
+        // each window keeps its own: a second window gets its first call
+        const other = makeWindow();
+        applyWindowLook(other, makeView(), true, Mac, { translucent: true, blur: true });
+        expect(other.setVibrancy).toHaveBeenCalledTimes(1);
+    });
+
+    it("tells which views asked to let the desktop through", () => {
+        const win = makeWindow();
+        const see = makeView();
+        const flat = makeView();
+        receiveWindowLook(win, see, false, Mac, { translucent: true, blur: false });
+        receiveWindowLook(win, flat, false, Mac, { translucent: false, blur: false });
+        expect(viewLooksTranslucent(see)).toBe(true);
+        expect(viewLooksTranslucent(flat)).toBe(false);
+        expect(viewLooksTranslucent(makeView())).toBe(false);
+        expect(viewLooksTranslucent(null)).toBe(false);
     });
 
     it("makes an opaque look opaque even on a window created with a blur (#1629)", () => {

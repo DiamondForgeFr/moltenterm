@@ -164,7 +164,7 @@ import { pruneSnapshots, sidebarAtRest, SnapshotSource, useSidebarCapture } from
 import { SidebarModel } from "./sidebar-store";
 import { centredScroll, manyDots } from "./sidebar-swipe";
 import { SidebarSwipeController } from "./sidebar-swipe-view";
-import { switchDirection, switchFromSidebar, SwitchIntent, useSwitchArrival } from "./sidebar-switch";
+import { notifySwitchIntent, switchDirection, switchFromSidebar, SwitchIntent, useSwitchArrival } from "./sidebar-switch";
 import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
 import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./temporary-clear";
@@ -2118,7 +2118,10 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
     const hoverOf = (id: string): DotHoverProps => ({
         shown: hoverId === id,
         dragging: dragging != null,
-        onEnter: () => hoverRef.current.enter(id),
+        onEnter: () => {
+            hoverRef.current.enter(id);
+            notifySwitchIntent(id);
+        },
         onOut: () => hoverRef.current.out(),
         onLeave: () => hoverRef.current.leave(),
     });

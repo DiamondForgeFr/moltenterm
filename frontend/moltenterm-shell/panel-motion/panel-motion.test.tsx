@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentStateInfo } from "../agent-state-model";
 import { ArrivalDeps, ArrivalShownGraceMs, PanelArrival } from "./panel-arrival-model";
 import { markPour, notifyViewPour, onViewPour, pourWaitMs, resetPourMomentForTest } from "./pour-moment";
-import { parseCssTime, playPour, PourAnimationId, pourKeyframes, PourShiftPx } from "./view-pour";
+import { parseCssTime, playPour, PourAnimationId, PourFromOpacity, pourKeyframes, PourShiftPx } from "./view-pour";
 import {
     isAgentWorking,
     snapTurnToGrid,
@@ -84,12 +84,14 @@ describe("the view pour (FR-SHELL-112)", () => {
         expect(parseCssTime("")).toBeNaN();
     });
 
-    it("slides 8 px from the tiles' side and fades in, with transform and opacity only", () => {
+    it("slides 8 px from the tiles' side and eases in from a visible opacity, with transform and opacity only", () => {
         expect(PourShiftPx).toBe(8);
         expect(pourKeyframes("x")).toEqual([
-            { opacity: 0, transform: "translateX(-8px)" },
+            { opacity: PourFromOpacity, transform: "translateX(-8px)" },
             { opacity: 1, transform: "none" },
         ]);
+        // a switch never shows an empty or a black frame (#2375): the panels never start from nothing
+        expect(PourFromOpacity).toBeGreaterThanOrEqual(0.5);
         expect(pourKeyframes("y")[0].transform).toBe("translateY(-8px)");
         for (const frame of [...pourKeyframes("x"), ...pourKeyframes("y")]) {
             expect(Object.keys(frame).sort()).toEqual(["opacity", "transform"]);
@@ -132,6 +134,14 @@ describe("the view pour (FR-SHELL-112)", () => {
         expect(playPour(instant.el, "x")).toBeNull();
         expect(instant.animate).not.toHaveBeenCalled();
         expect(pourWaitMs()).toBe(0);
+    });
+
+    it("never goes below 70 % under the switch picture: its dissolve shows a view that is already there (#2375)", () => {
+        const { el, animate } = fakeEl();
+        playPour(el, "x");
+        const frames = animate.mock.calls[0][0] as Keyframe[];
+        expect(frames[0].opacity).toBe(PourFromOpacity);
+        expect(Math.min(...frames.map((f) => Number(f.opacity)))).toBeGreaterThanOrEqual(0.7);
     });
 
     it("tells its listeners once it started", () => {

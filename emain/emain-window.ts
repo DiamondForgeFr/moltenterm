@@ -30,6 +30,7 @@ import { noteWindowCreatedLook } from "./moltenterm-window-look"; // MOLTENTERM-
 import { askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): dialogs in the interface language
+import { beginSwitchPicture } from "./moltenterm-switch-picture-live"; // MOLTENTERM-PATCH (#2375)
 import {
     activeWindowTabView,
     closeWindowTabViews,
@@ -402,7 +403,8 @@ export class WaveBrowserWindow extends BaseWindow {
 
         // If the workspace is already owned by a window, then we can just call SwitchWorkspace without first prompting the user, since it'll just focus to the other window.
         const workspaceList = await WorkspaceService.ListWorkspaces();
-        if (!workspaceList?.find((wse) => wse.workspaceid === workspaceId)?.windowid) {
+        const ownedByAWindow = !!workspaceList?.find((wse) => wse.workspaceid === workspaceId)?.windowid;
+        if (!ownedByAWindow) {
             const curWorkspace = await WorkspaceService.GetWorkspace(this.workspaceId);
 
             if (curWorkspace && isNonEmptyUnsavedWorkspace(curWorkspace)) {
@@ -417,6 +419,7 @@ export class WaveBrowserWindow extends BaseWindow {
                 console.log("switchWorkspace cancelled: the workspace left runs something", this.waveWindowId);
                 return false;
             }
+            beginSwitchPicture(this, { workspaceId }); // MOLTENTERM-PATCH (#2375): the target's last picture shows at once
         }
         await this._queueActionInternal({ op: "switchworkspace", workspaceId });
         return true;
@@ -431,6 +434,9 @@ export class WaveBrowserWindow extends BaseWindow {
             setInBackend,
             primaryStartupTab ? "(primary startup)" : ""
         );
+        if (!primaryStartupTab && this.activeTabView != null && this.activeTabView.waveTabId !== tabId) {
+            beginSwitchPicture(this, { tabId }); // MOLTENTERM-PATCH (#2375): the target view's last picture shows at once
+        }
         await this._queueActionInternal({ op: "switchtab", tabId, setInBackend, primaryStartupTab });
     }
 

@@ -26,6 +26,13 @@ import {
     windowShowsLiveView,
     windowViewPending,
 } from "./moltenterm-tabview-host";
+import { SwitchWaitingGraceMs } from "./moltenterm-switch-picture";
+import {
+    cancelSwitchPicture,
+    dropSwitchPictureOfTab,
+    dropSwitchPicturesOfWorkspace,
+    switchPictureActive,
+} from "./moltenterm-switch-picture-live";
 import { beginTabViewWork, endTabViewWork } from "./moltenterm-tabview-priority";
 import { StartupPendingGraceMs } from "./moltenterm-view-pending";
 import { releaseTabViewFromOtherWindow, tabViewsToCloseOnLeave } from "./moltenterm-workspace-switch";
@@ -113,6 +120,7 @@ export async function runWindowAction(win: WaveBrowserWindow, entry: WindowActio
         endTabViewWork();
         if (win.actionQueue.length <= 1) {
             windowViewPending(win).settle();
+            cancelSwitchPicture(win); // a picture whose target never came on screen goes (#2375)
         }
         enforceHiddenTabViewBudget();
     }
@@ -197,6 +205,7 @@ async function runAction(win: WaveBrowserWindow, entry: WindowAction, run: Actio
                 return;
             }
             removeTabViewLater(win, tabId, 1000);
+            dropSwitchPictureOfTab(tabId);
             if (rtn.closewindow) {
                 win.close();
                 return;
@@ -221,6 +230,7 @@ async function runAction(win: WaveBrowserWindow, entry: WindowAction, run: Actio
             const resetWs = await WorkspaceService.GetWorkspace(win.workspaceId);
             tabId = await WorkspaceService.ResetWorkspace(win.workspaceId);
             tabViewsToClose = resetWs?.tabids ?? [];
+            dropSwitchPicturesOfWorkspace(win.workspaceId); // the views it showed are gone (#2375)
             break;
         }
         case "undoworkspace": {
@@ -335,7 +345,8 @@ async function runSwitchWorkspace(win: WaveBrowserWindow, workspaceId: string, r
         win,
         newWs.name,
         () => fireAndForget(() => win.switchWorkspace(workspaceId)),
-        startedAt
+        startedAt,
+        switchPictureActive(win) ? SwitchWaitingGraceMs : undefined // over a picture the wait shows later (#2375)
     );
     try {
         const [tabView, tabInitialized] = await acquireWindowTabView(win, tabId, run);
@@ -466,6 +477,7 @@ async function applyDeleteWorkspace(win: WaveBrowserWindow, workspaceId: string,
     const onThisWindow = win.workspaceId == workspaceId || backendWorkspaceOf(win) == workspaceId;
     const newWorkspaceId = await deleteWorkspaceFromBackend(win, workspaceId);
     console.log("delete-workspace done", workspaceId, win.waveWindowId);
+    dropSwitchPicturesOfWorkspace(workspaceId);
     if (!onThisWindow) {
         return;
     }
