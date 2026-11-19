@@ -127,10 +127,12 @@ func TestSettleFinishedSubagentLeavesRunning(t *testing.T) {
 	if sa := settledSubagent(t, s, "#9101 stopped job"); sa.State != SubagentRunning {
 		t.Fatalf("the waiting notification keeps the agent running until its files say otherwise: %+v", sa)
 	}
-	f.agent("a5e7000000000stop", "toolu_stop", "#9101 stopped job", true, at(21*time.Minute), at(21*time.Minute))
+	// Claude Code writes the meta as the agent's turn ends, a moment before the notification that woke it.
+	ended := at(20*time.Minute - time.Second)
+	f.agent("a5e7000000000stop", "toolu_stop", "#9101 stopped job", true, ended, ended)
 	settle(a, s, f.session, at(22*time.Minute))
 	sa := settledSubagent(t, s, "#9101 stopped job")
-	if sa.State != SubagentDone || sa.Ended != at(21*time.Minute).UnixMilli() {
+	if sa.State != SubagentDone || sa.Ended != ended.UnixMilli() {
 		t.Fatalf("its meta file's finished ends it, at the meta's write: %+v", sa)
 	}
 	if running := s.runningSubagents(); len(running) != 0 {
