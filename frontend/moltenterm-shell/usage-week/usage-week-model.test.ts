@@ -17,6 +17,7 @@ import {
     PaceOrangeAt,
     paceRatio,
     PaceRedAt,
+    previousMonthReset,
     startIndex,
     UnusedBlueAt,
     UnusedBlueFrom,
@@ -335,5 +336,56 @@ describe("the week lines of a list of windows", () => {
         expect(mainWindow(windows, Now).id).toBe("week");
         expect(mainWindow([windows[0]], Now).id).toBe("session");
         expect(mainWindow([windows[2], { id: "spend", label: "Spend limit", usedpercent: 9 }], Now)).toBeNull();
+    });
+});
+
+describe("calendar month usage windows", () => {
+    const at = (year: number, month: number, day: number, hour = 9) => new Date(year, month, day, hour, 17).getTime();
+
+    it("has a stable identity and no invented fixed duration", () => {
+        const month = { id: "month", label: "This month", usedpercent: 25 };
+        expect(windowLength(month)).toBe(0);
+        expect(windowLength(month)).not.toBe(43200);
+        expect(usageWeekLine(month, Now)).toMatchObject({ windowMins: 0, start: -1, pace: 1, unused: 0 });
+    });
+
+    it.each([
+        [at(2027, 2, 1), at(2027, 1, 1), 28],
+        [at(2024, 2, 1), at(2024, 1, 1), 29],
+        [at(2026, 10, 1), at(2026, 9, 1), 31],
+        [at(2026, 11, 1), at(2026, 10, 1), 30],
+    ])("subtracts a calendar month, including 28/29/30/31-day months", (reset, previous) => {
+        expect(lastReset(reset, 0)).toBe(reset);
+        expect(usageWeekLine({ id: "month", label: "This month", usedpercent: 10, resetsat: reset }, Now).start).toBe(
+            weekdayIndex(previous)
+        );
+        expect(new Date(reset).getTime() - new Date(previous).getTime()).toBeGreaterThan(27 * Day);
+    });
+
+    it("clamps month ends in local time", () => {
+        expect(new Date(previousMonthReset(at(2027, 2, 31))).getDate()).toBe(28);
+        expect(new Date(previousMonthReset(at(2024, 2, 31))).getDate()).toBe(29);
+        expect(new Date(previousMonthReset(at(2026, 4, 31))).getDate()).toBe(30);
+        expect(new Date(previousMonthReset(at(2027, 2, 31))).getHours()).toBe(9);
+    });
+
+    it("keeps the local reset time across DST and computes elapsed pace from the calendar interval", () => {
+        const reset = at(2026, 10, 2, 0);
+        const previous = previousMonthReset(reset);
+        expect(new Date(previous).getHours()).toBe(0);
+        expect(new Date(previous).getDate()).toBe(2);
+        const midpoint = previous + (reset - previous) / 2;
+        const line = usageWeekLine({ id: "month", label: "This month", usedpercent: 50, resetsat: reset }, midpoint);
+        expect(line.pace).toBeCloseTo(1, 5);
+        expect(line.windowMins).toBe(0);
+    });
+
+    it("ranks a running month above session and week", () => {
+        const windows = [
+            { id: "session", label: "Current session", usedpercent: 10, resetsat: Now + Day },
+            { id: "week", label: "This week", usedpercent: 20, resetsat: Now + Day },
+            { id: "month", label: "This month", usedpercent: 30, resetsat: Now + Day },
+        ];
+        expect(mainWindow(windows, Now).id).toBe("month");
     });
 });

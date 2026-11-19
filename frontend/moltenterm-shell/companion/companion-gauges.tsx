@@ -21,7 +21,6 @@ import { UsageWeekGrid, UsageWeekRow } from "../usage-week/usage-week";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
     CompanionUsageInfo,
-    experimentalExplanation,
     experimentalLabel,
     experimentalView,
     ExperimentalView,
@@ -133,7 +132,9 @@ function usePlanUsage(target: string, agent: string, now: number) {
     // wavesrv publishes a change of the gauges to the agent's other companions only: one made elsewhere (the command
     // panel, the settings file) reaches this one through the settings, and the section reads again.
     const gaugesSetting = JSON.stringify(useAtomValue(getSettingsKeyAtom("companion:usagegauges")) ?? []);
-    const sourceSetting = useAtomValue(getSettingsKeyAtom("companion:usageclaudeoauth")) === true;
+    const claudeSourceSetting = useAtomValue(getSettingsKeyAtom("companion:usageclaudeoauth")) === true;
+    const kimiSourceSetting = useAtomValue(getSettingsKeyAtom("companion:usagekimioauth")) === true;
+    const sourceSetting = agent === "kimi" ? kimiSourceSetting : agent === "claude" ? claudeSourceSetting : false;
     const settingsSeen = useRef(`${gaugesSetting}:${sourceSetting}`);
     useEffect(() => {
         const key = `${gaugesSetting}:${sourceSetting}`;
@@ -453,7 +454,7 @@ export function ExperimentalRow({
         return (
             <div className={frame} data-testid="companion-plan-usage-experimental" data-state="on">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="text-secondary">{t("companion.gauges.modelLimits")}</span>
+                    <span className="text-secondary">{view.label}</span>
                     <ExperimentalSourceBadge />
                     <button type="button" className={cn(GhostButton, "ml-auto")} onClick={() => onSet(false)}>
                         {t("companion.gauges.turnOff")}
@@ -461,7 +462,7 @@ export function ExperimentalRow({
                 </div>
                 {view.reason ? (
                     <div className="mt-0.5 text-muted" title={view.reason}>
-                        {t("companion.gauges.modelLimitsUnavailable")}
+                        {view.unavailable}
                         <span className="sr-only">: {view.reason}</span>
                     </div>
                 ) : null}
@@ -478,7 +479,7 @@ export function ExperimentalRow({
                 data-state="confirm"
             >
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="text-secondary">{t("companion.gauges.modelLimits")}</span>
+                    <span className="text-secondary">{view.label}</span>
                     <ExperimentalSourceBadge />
                 </div>
                 <p className="mt-1 text-12 text-primary">{view.statement}</p>
@@ -504,13 +505,13 @@ export function ExperimentalRow({
     return (
         <div className={frame} data-testid="companion-plan-usage-experimental" data-state="off">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="text-secondary">{t("companion.gauges.modelLimits")}</span>
+                <span className="text-secondary">{view.label}</span>
                 <ExperimentalSourceBadge />
                 <button type="button" className={cn(GhostButton, "ml-auto")} onClick={() => setConfirming(true)}>
                     {t("companion.gauges.turnOnEllipsis")}
                 </button>
             </div>
-            <p className="mt-0.5 text-muted">{experimentalExplanation()}</p>
+            <p className="mt-0.5 text-muted">{view.explanation}</p>
         </div>
     );
 }

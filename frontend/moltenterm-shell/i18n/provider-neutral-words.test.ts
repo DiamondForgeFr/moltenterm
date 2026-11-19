@@ -20,6 +20,7 @@ export const ProviderSubjectKeys: Record<string, string> = {
     "settings.items.agent:integrateoff.options.codex": "the tool's own name, as a choice",
     "settings.items.companion:usagegauges.options.claude": "the tool's own name, as a choice",
     "settings.items.companion:usagegauges.options.codex": "the tool's own name, as a choice",
+    "settings.items.companion:usagegauges.options.kimi": "the tool's own name, as a choice",
     "settings.items.moltenterm:codingagent.options.claude": "the tool's own name, as a choice",
     "settings.items.moltenterm:codingagent.options.codex": "the tool's own name, as a choice",
     // The tool that made a worktree, shown as a chip beside the other tools that make worktrees.
@@ -29,6 +30,8 @@ export const ProviderSubjectKeys: Record<string, string> = {
     "settings.items.companion:usageclaudeoauth.label": "the setting belongs to one adapter's undocumented endpoint",
     "settings.items.companion:usageclaudeoauth.description":
         "the setting belongs to one adapter's undocumented endpoint",
+    "settings.items.companion:usagekimioauth.label": "the setting belongs to one adapter's undocumented endpoint",
+    "settings.items.companion:usagekimioauth.description": "the setting belongs to one adapter's undocumented endpoint",
     // A mod's Claude Code part is a plugin of that product: the trust prompt must say what runs where.
     "molten.trust.partTitle": "the part is a Claude Code plugin",
     "molten.trust.canPart": "the part is a Claude Code plugin",
@@ -45,6 +48,8 @@ export const ProviderSubjectPrefixes: Record<string, string> = {
     // A gauges source is named after the product it reads (#2123): wavesrv names it in English for the agents, the window
     // names it from its id in the interface language, so each name carries the product it belongs to.
     "companion.gauges.source.": "a usage source's own name, after the product it reads",
+    "companion.gauges.kimi.": "the Kimi adapter's own source, credential scope and limitations",
+    "companion.gauges.reason.kimi.": "the Kimi adapter's own availability reasons",
 };
 
 function providerSubject(key: string): boolean {
