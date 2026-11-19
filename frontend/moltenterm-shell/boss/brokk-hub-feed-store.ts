@@ -70,8 +70,16 @@ export type HubSources = {
     // choices. A provider the grid does not show never brings him for its usage. A window without one leaves it out, and
     // every provider counts.
     usageContextAtom?: Atom<UsageContext>;
-    // Where the plan usage already seen is kept across restarts (#2223). A window without one starts empty each time.
+    // Where the plan usage already seen is kept across restarts (#2223), read anew at each feed: every page shares it
+    // (#2391). A window without one starts empty each time.
     usageMemory?: { read: () => UsageMemory; write: (memory: UsageMemory) => void };
+    // The update offer already shown, shared by every page (#2391). A window without one keeps it itself.
+    updateSeen?: { read: () => string; write: (offer: string) => void };
+    // The last moment the developer opened his group, in any page (FR-BOSS-009, AC106, #2391): what finished or ended
+    // before it is heard. A window without one counts from when it began to listen.
+    heardAtAtom?: Atom<number>;
+    // Changes when what the pages share changed (the client's meta): the feeds read it again.
+    sharedAtom?: Atom<unknown>;
     // What this tab view shows the developer (makeSeenViewAtom, #2166): what is in it does not bring him. A window
     // without one leaves it out.
     inViewAtom?: Atom<AgentSeenView>;
@@ -105,22 +113,29 @@ function follow<T>(
 // not opened Brokk since. Returns what to call on a change, on opening, and the sources to listen to.
 function extraFeeds(hub: BrokkHub, src: HubSources) {
     const { store } = src;
-    let downloads = makeDownloadsMemory(Date.now());
-    let seenUpdate = "";
-    let usage = src.usageMemory?.read() ?? EmptyUsageMemory;
-    const keepUsage = (next: UsageMemory) => {
-        if (next !== usage) {
-            usage = next;
-            src.usageMemory?.write(next);
+    const startedAt = Date.now();
+    let downloads = makeDownloadsMemory(startedAt);
+    let localUpdate = "";
+    let localUsage = EmptyUsageMemory;
+    const seenUpdate = () => (src.updateSeen != null ? src.updateSeen.read() : localUpdate);
+    const usage = () => (src.usageMemory != null ? src.usageMemory.read() : localUsage);
+    const keepUsage = (before: UsageMemory, next: UsageMemory) => {
+        if (next === before) {
+            return;
         }
+        localUsage = next;
+        src.usageMemory?.write(next);
     };
+    // The downloads that ended before his group was last opened, in any page, are heard (#2391).
+    const floor = () => (src.heardAtAtom != null ? store.get(src.heardAtAtom) || startedAt : startedAt);
     const items = () => (src.downloadsAtom != null ? store.get(src.downloadsAtom) : []);
     const offer = () => (src.updateOfferAtom != null ? store.get(src.updateOfferAtom) : "");
     const readings = () => (src.usageAtom != null ? store.get(src.usageAtom) : {});
     const usageContext = () => (src.usageContextAtom != null ? store.get(src.usageContextAtom) : undefined);
     const closed = () => (src.closedDownloadsAtom != null ? store.get(src.closedDownloadsAtom) : undefined);
-    const feedDownloads = () => hub.feed(DownloadsSource, downloadEventsOf(downloads, items(), closed()));
-    const feedUpdate = () => hub.feed(UpdateSource, updateEventsOf(offer(), seenUpdate));
+    const feedDownloads = () =>
+        hub.feed(DownloadsSource, downloadEventsOf({ ...downloads, floor: floor() }, items(), closed()));
+    const feedUpdate = () => hub.feed(UpdateSource, updateEventsOf(offer(), seenUpdate()));
     // Runs `run` with the rules at hand: at once when they are loaded, else when they are, and never for no reading at all,
     // which has nothing to tell.
     const withVisit = (run: (visit: UsageVisit) => void) => {
@@ -132,12 +147,18 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     };
     const feedUsage = () =>
         withVisit((visit) => {
-            const step = visit.usageEventsAfter(usage, readings(), hub.now(), usageContext());
-            keepUsage(step.memory);
+            const before = usage();
+            const step = visit.usageEventsAfter(before, readings(), hub.now(), usageContext());
+            keepUsage(before, step.memory);
             hub.feed(UsageSource, step.events);
         });
     const acknowledgeUsageSeen = () =>
-        withVisit((visit) => keepUsage(visit.acknowledgeUsage(readings(), hub.now(), usage, usageContext())));
+        withVisit((visit) => {
+            const before = usage();
+            const next = visit.acknowledgeUsage(readings(), hub.now(), before, usageContext());
+            const same = next.seen.size === before.seen.size && [...next.seen].every((p) => before.seen.has(p));
+            keepUsage(before, same ? before : next);
+        });
     const feedAll = () => {
         feedDownloads();
         feedUpdate();
@@ -145,7 +166,10 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     };
     const acknowledge = () => {
         downloads = acknowledgeDownloads(downloads, items());
-        seenUpdate = offer();
+        if (offer() !== seenUpdate()) {
+            localUpdate = offer();
+            src.updateSeen?.write(offer());
+        }
         acknowledgeUsageSeen();
         feedAll();
     };
@@ -155,9 +179,10 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
         src.updateOfferAtom != null ? store.sub(src.updateOfferAtom, feedUpdate) : null,
         src.usageAtom != null ? store.sub(src.usageAtom, feedUsage) : null,
         src.usageContextAtom != null ? store.sub(src.usageContextAtom, feedUsage) : null,
+        src.heardAtAtom != null ? store.sub(src.heardAtAtom, feedDownloads) : null,
     ].filter((stop) => stop != null);
     feedAll();
-    return { acknowledge, stop: () => stops.forEach((stop) => stop()) };
+    return { acknowledge, feedAll, stop: () => stops.forEach((stop) => stop()) };
 }
 
 export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
@@ -206,6 +231,8 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         store.sub(src.agentsLoadedAtom, readings),
         store.sub(src.toHandleAtom, readings),
         src.openDoneAtom != null ? store.sub(src.openDoneAtom, readings) : () => {},
+        src.heardAtAtom != null ? follow(store, src.heardAtAtom, (at) => hub.heardUntil(at)) : () => {},
+        src.sharedAtom != null ? store.sub(src.sharedAtom, extra.feedAll) : () => {},
     ];
     readings();
     return () => stops.forEach((stop) => stop());

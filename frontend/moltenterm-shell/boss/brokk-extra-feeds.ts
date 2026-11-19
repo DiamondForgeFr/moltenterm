@@ -109,8 +109,8 @@ export type UsageMemory = { seen: Set<string> };
 
 export const EmptyUsageMemory: UsageMemory = { seen: new Set() };
 
-// The seen providers survive a restart (#2223): kept in the local storage of this computer.
-export const UsageSeenKey = "moltenterm:brokk-usage-seen";
+// The seen providers survive a restart (#2223) and are the same for every page (#2391): kept in the client's meta
+// (brokk-marks.ts).
 
 export function readUsageMemory(raw: string): UsageMemory {
     try {

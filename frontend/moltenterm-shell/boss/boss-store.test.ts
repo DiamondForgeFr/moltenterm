@@ -79,8 +79,18 @@ import { KeepAwakeModel } from "../keepawake-store";
 import { SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
 import { PendingHandoffs } from "./boss-handoffs";
 import { BossBubbleModel, BossDom } from "./boss-store";
+import { clearParked, HandledMetaKey, ParkedMetaKey, parkedText, parkRow, readParked } from "./brokk-marks";
+import { BrokkMarks } from "./brokk-marks-store";
 
 const { settings, workspaces } = (GlobalMock as any).TestAtoms;
+
+// The client's meta every page shares (brokk-marks-store.ts): written at once, and told to the listeners.
+const sharedMeta = new Map<string, unknown>();
+const metaListeners = new Set<() => void>();
+function writeSharedMeta(meta: Record<string, unknown>) {
+    Object.entries(meta).forEach(([key, value]) => sharedMeta.set(key, value));
+    metaListeners.forEach((listener) => listener());
+}
 const agents = AgentStates.getInstance();
 const handoffs = PendingHandoffs.getInstance();
 const model = BossBubbleModel.getInstance();
@@ -121,6 +131,17 @@ function publishPending() {
 }
 
 beforeEach(() => {
+    sharedMeta.clear();
+    metaListeners.clear();
+    BrokkMarks.getInstance().useDeps({
+        now: () => Date.now(),
+        read: () => Object.fromEntries(sharedMeta),
+        write: writeSharedMeta,
+        subscribe: (listener) => {
+            metaListeners.add(listener);
+            return () => metaListeners.delete(listener);
+        },
+    });
     m.setMeta.mockReset();
     m.setMeta.mockResolvedValue(undefined);
     m.readPending.mockReset();
@@ -187,7 +208,28 @@ describe("the one cue when the badge rises (AC6; FR-BOSS-007, AC3)", () => {
         const detach = await attachedAndRead();
         model.park("agent:b");
         expect(globalStore.get(model.badgeAtom).count).toBe(1);
-        globalStore.set(model.parkedAtom, {});
+        model.openCard();
+        expect(globalStore.get(model.badgeAtom).count).toBe(2);
+        expect(globalStore.get(model.cueAtom)).toBe(0);
+        detach();
+    });
+
+    it("sets a row aside in every page, and gives it back when his group opens in any of them (#2391)", async () => {
+        setStates(agentInfo("a", "waiting"), agentInfo("b", "waiting"));
+        const detach = await attachedAndRead();
+        // Another page's Later reaches this one through the client's meta.
+        writeSharedMeta({
+            [ParkedMetaKey]: parkedText(parkRow(readParked(sharedMeta.get(ParkedMetaKey)), "agent:b", Date.now())),
+        });
+        expect(globalStore.get(model.badgeAtom).count).toBe(1);
+        // This page's Later is written there for the others.
+        model.park("agent:a");
+        expect(Object.keys(readParked(sharedMeta.get(ParkedMetaKey)).keys).sort()).toEqual(["agent:a", "agent:b"]);
+        expect(globalStore.get(model.badgeAtom).count).toBe(0);
+        // Another page opens his group: both come back here, as no news.
+        writeSharedMeta({
+            [ParkedMetaKey]: parkedText(clearParked(readParked(sharedMeta.get(ParkedMetaKey)), Date.now() + 1)),
+        });
         expect(globalStore.get(model.badgeAtom).count).toBe(2);
         expect(globalStore.get(model.cueAtom)).toBe(0);
         detach();
@@ -525,20 +567,15 @@ describe("the Sessions card (FR-BOSS-002, AC1, AC5)", () => {
 });
 
 describe("the rows settled or ignored (FR-BOSS-009, AC16, #2026)", () => {
-    const store = new Map<string, string>();
-    const fakeStorage = {
-        getItem: (key: string) => store.get(key) ?? null,
-        setItem: (key: string, value: string) => void store.set(key, value),
+    // The marks as the client's meta holds them (#2391).
+    const store = {
+        get: (_key: string) => sharedMeta.get(HandledMetaKey) as string,
+        set: (_key: string, value: string) => void sharedMeta.set(HandledMetaKey, value),
     };
     const waiting = { key: "agent:a", since: 7, tone: "waiting" };
 
     beforeEach(() => {
-        store.clear();
-        vi.stubGlobal("localStorage", fakeStorage);
         globalStore.set(model.handledAtom, {});
-    });
-    afterEach(() => {
-        vi.unstubAllGlobals();
     });
 
     it("takes a settled row out of the list and the badge, and shares the mark with the other views", () => {
@@ -582,17 +619,19 @@ describe("the rows settled or ignored (FR-BOSS-009, AC16, #2026)", () => {
         ]);
     });
 
-    it("reads the marks when the host attaches, and listens to the other views while it is on screen", () => {
+    it("reads the marks when the host attaches, and listens to the other pages while it is on screen", () => {
         store.set("moltenterm:brokk-handled", JSON.stringify({ "agent:a": { episode: "7:waiting", at: Date.now() } }));
-        const added: string[] = [];
-        const removed: string[] = [];
-        vi.stubGlobal("addEventListener", (type: string) => added.push(type));
-        vi.stubGlobal("removeEventListener", (type: string) => removed.push(type));
         const detach = model.attach(fakeDom());
         expect(Object.keys(globalStore.get(model.handledAtom))).toEqual(["agent:a"]);
-        expect(added).toContain("storage");
+        writeSharedMeta({
+            [HandledMetaKey]: JSON.stringify({
+                "agent:a": { episode: "7:waiting", at: Date.now() },
+                "agent:b": { episode: "9:error", at: Date.now() },
+            }),
+        });
+        expect(Object.keys(globalStore.get(model.handledAtom)).sort()).toEqual(["agent:a", "agent:b"]);
         detach();
-        expect(removed).toContain("storage");
+        expect(metaListeners.size).toBe(0);
     });
 
     describe("archiving cards, with the undo (#2195, FR-MC-019 AC15 and AC16)", () => {
