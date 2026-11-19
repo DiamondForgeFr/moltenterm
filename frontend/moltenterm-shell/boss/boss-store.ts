@@ -14,6 +14,7 @@ import { AgentStates } from "../agent-state-store";
 import { I18nModel } from "../i18n/i18n";
 import { keepAwakeActive } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
+import { dropLegacy, readLegacy } from "../legacy-storage";
 import { MoltentermNotifications } from "../notifications-store";
 import type { ReviewsAnswer } from "../reviews/reviews-model";
 import { SharedReadiedAtom, SharedReviewsAnswersAtom } from "../reviews/reviews-state-atoms";
@@ -45,6 +46,7 @@ import {
     ParkedMetaKey,
     parkedText,
     parkRow,
+    readHeard,
     readParked,
 } from "./brokk-marks";
 import { BrokkMarks } from "./brokk-marks-store";
@@ -53,6 +55,9 @@ import { visitSettingsOf } from "./brokk-visit-events";
 import { arrivalsAfter, EmptyArrivals, unseenItems } from "./brokk-watch";
 
 // The slice of the document the model listens on, so the rules run against a stand-in in the tests.
+// Where earlier versions kept the rows settled or ignored (#2026), read once and dropped (#2391).
+export const LegacyHandledKey = "moltenterm:brokk-handled";
+
 export type BossDom = {
     addEventListener: (type: string, listener: (event: any) => void, options?: any) => void;
     removeEventListener: (type: string, listener: (event: any) => void, options?: any) => void;
@@ -110,7 +115,22 @@ export class BossBubbleModel {
 
     private constructor() {
         const marks = BrokkMarks.getInstance();
-        this.parkedAtom = atom((get) => parkedKeysOf(readParked(get(marks.metaAtom)[ParkedMetaKey])));
+        // Read anew only when the parked marks change, not for every mark another page writes (his mood, the usage seen):
+        // a new object would build the rows To handle again.
+        let parkedRaw: unknown = undefined;
+        let parked: Record<string, boolean> = {};
+        this.parkedAtom = atom((get) => {
+            const raw = get(marks.metaAtom)[ParkedMetaKey];
+            if (raw !== parkedRaw) {
+                parkedRaw = raw;
+                const next = parkedKeysOf(readParked(raw));
+                const keys = Object.keys(next);
+                if (keys.length !== Object.keys(parked).length || keys.some((key) => !parked[key])) {
+                    parked = next;
+                }
+            }
+            return parked;
+        });
         this.nameAtom = atom((get) => bossName(get(getSettingsKeyAtom(BossNameSettingKey as keyof SettingsType))));
         this.showAtom = atom((get) => bossSettingOn(get(getSettingsKeyAtom(BossShowSettingKey as keyof SettingsType))));
         let answers: Record<string, ReviewsAnswer> = {};
@@ -218,19 +238,18 @@ export class BossBubbleModel {
     }
 
     // The developer opened his group (AC106): what waited is heard and the rows set aside come back, in every page.
-    private heard(): void {
-        const marks = BrokkMarks.getInstance();
+    heard(): void {
         const now = Date.now();
-        marks.write({
-            [HeardMetaKey]: now,
-            [ParkedMetaKey]: parkedText(clearParked(readParked(marks.value(ParkedMetaKey)), now)),
+        BrokkMarks.getInstance().update({
+            [HeardMetaKey]: (raw) => Math.max(readHeard(raw), now),
+            [ParkedMetaKey]: (raw) => parkedText(clearParked(readParked(raw), now)),
         });
     }
 
     // Sets a To handle row aside until the card is next opened, in any page (Later, FR-BOSS-003).
     park(key: string): void {
-        const marks = BrokkMarks.getInstance();
-        marks.write({ [ParkedMetaKey]: parkedText(parkRow(readParked(marks.value(ParkedMetaKey)), key, Date.now())) });
+        const now = Date.now();
+        BrokkMarks.getInstance().update({ [ParkedMetaKey]: (raw) => parkedText(parkRow(readParked(raw), key, now)) });
     }
 
     // The developer settled or ignored this row (FR-BOSS-009, AC16): it stays away while the fact it shows stays what it
@@ -254,13 +273,28 @@ export class BossBubbleModel {
         this.changeHandled((handled, now) => rows.reduce((next, row) => unmarkRowHandled(next, row.key, now), handled));
     }
 
+    // The change is applied to the marks the meta holds, merged with this page's: again to another page's write that
+    // comes before this one's echo (brokk-marks-store.ts update), so no page's mark is lost.
     private changeHandled(change: (handled: HandledRows, now: number) => HandledRows): void {
         const now = Date.now();
-        const marks = BrokkMarks.getInstance();
-        const shared = readHandled(marks.value(HandledMetaKey), now);
-        const next = change(mergeHandled(globalStore.get(this.handledAtom), shared, now), now);
-        globalStore.set(this.handledAtom, next);
-        marks.write({ [HandledMetaKey]: handledText(next) });
+        const apply = (raw: unknown) =>
+            change(mergeHandled(globalStore.get(this.handledAtom), readHandled(raw, now), now), now);
+        globalStore.set(this.handledAtom, apply(BrokkMarks.getInstance().value(HandledMetaKey)));
+        BrokkMarks.getInstance().update({ [HandledMetaKey]: (raw) => handledText(apply(raw)) });
+    }
+
+    // Earlier versions kept the marks in the page's local storage (#2026): moved to the shared marks once, then dropped.
+    private adoptLegacyHandled(): void {
+        const raw = readLegacy(LegacyHandledKey);
+        if (raw == null) {
+            return;
+        }
+        dropLegacy([LegacyHandledKey]);
+        const legacy = readHandled(raw, Date.now());
+        if (Object.keys(legacy).length === 0) {
+            return;
+        }
+        this.changeHandled((handled, now) => mergeHandled(handled, legacy, now));
     }
 
     // Archives cards (#2195): the notifications go to the Archived list and the rows that stand for a fact are marked as
@@ -365,6 +399,7 @@ export class BossBubbleModel {
         const marks = BrokkMarks.getInstance();
         const stopMarks = marks.start();
         this.handledChanged(marks.value(HandledMetaKey));
+        this.adoptLegacyHandled();
         const stopShared = globalStore.sub(marks.metaAtom, () =>
             this.handledChanged(globalStore.get(marks.metaAtom)[HandledMetaKey])
         );

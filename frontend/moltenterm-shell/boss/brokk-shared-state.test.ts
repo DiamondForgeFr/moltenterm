@@ -12,14 +12,11 @@ import { BrokkHub } from "./brokk-hub";
 import { avatarBadgeOf } from "./brokk-hub-feed";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
 import {
-    clearParked,
     HandledMetaKey,
     HeardMetaKey,
     MarksMeta,
     parkedKeysOf,
     ParkedMetaKey,
-    parkedText,
-    parkRow,
     readHeard,
     readParked,
 } from "./brokk-marks";
@@ -141,17 +138,13 @@ function page(a: App) {
         // The face's badge, as the avatar draws it (use-brokk-hub.ts useAvatarBadge).
         badge: () => avatarBadgeOf(store.get(toHandle).items, hub.getView().badge, DefaultVisitSettings).count,
         rows: () => store.get(toHandle).items.map((item) => item.key),
-        // The developer opens his group in this page (boss-store.ts openCard).
+        // The developer opens his group in this page: the moment the meta then holds (BossBubbleModel.heard, which
+        // brokk-two-pages.test.ts drives through BrokkMarks), and the panel opening in this page.
         open: () => {
-            a.writeMeta({
-                [HeardMetaKey]: a.clock.now,
-                [ParkedMetaKey]: parkedText(clearParked(readParked(a.meta[ParkedMetaKey]), a.clock.now)),
-            });
+            a.writeMeta({ [HeardMetaKey]: a.clock.now });
             store.set(cardOpen, true);
             store.set(cardOpen, false);
         },
-        later: (key: string) =>
-            a.writeMeta({ [ParkedMetaKey]: parkedText(parkRow(readParked(a.meta[ParkedMetaKey]), key, a.clock.now)) }),
     };
     a.pages.push(p);
     return p;
@@ -183,27 +176,16 @@ describe("one badge in every workspace (FR-BOSS-009, AC105, AC106, #2391)", () =
         expect(later.badge()).toBe(0);
     });
 
-    it("shows a row set aside, seen or done in page A the same in page B", () => {
+    // Set aside and settled: brokk-two-pages.test.ts, through each page's own BossBubbleModel and BrokkMarks.
+    it("shows a row seen or done in page A the same in page B", () => {
         const a = app();
         const one = page(a);
         const two = page(a);
         a.setNotifications(warning("n1"), warning("n2"), warning("n3"));
         expect(two.badge()).toBe(3);
-
-        one.later("notif:n1");
-        expect(one.rows()).toEqual(two.rows());
-        expect(two.rows()).not.toContain("notif:n1");
-        expect(two.badge()).toBe(2);
-
         // Seen: going there read it; done: it resolved. Both are the notification's, which every page holds.
         a.setNotifications(warning("n1"), warning("n2", { read: true }), warning("n3", { resolved: T + 1 }));
-        expect(one.badge()).toBe(two.badge());
-        expect(two.badge()).toBe(0);
-
-        // Opened in page B, the row set aside comes back in both.
-        a.clock.now = T + 5000;
-        two.open();
-        expect(one.rows()).toContain("notif:n1");
+        expect(one.rows()).toEqual(two.rows());
         expect(one.badge()).toBe(1);
         expect(two.badge()).toBe(1);
     });

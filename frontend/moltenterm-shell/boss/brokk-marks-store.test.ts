@@ -4,14 +4,19 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/app/store/jotaiStore", async () => ({ globalStore: (await import("jotai")).createStore() }));
-vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: { SetMetaCommand: vi.fn() } }));
+const m = vi.hoisted(() => ({
+    setMeta: vi.fn(async () => {}),
+    client: { clientAtom: null as unknown, clientId: undefined as string },
+}));
+vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: { SetMetaCommand: m.setMeta } }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: {} }));
 vi.mock("@/app/store/wos", () => ({ makeORef: (type: string, id: string) => `${type}:${id}` }));
-vi.mock("@/app/store/client-model", () => ({ ClientModel: { getInstance: () => ({ clientAtom: null }) } }));
+vi.mock("@/app/store/client-model", () => ({ ClientModel: { getInstance: () => m.client } }));
 
 import { globalStore } from "@/app/store/jotaiStore";
-import { HeardMetaKey, ParkedMetaKey } from "./brokk-marks";
-import { BrokkMarks, MarksWriteEchoMs } from "./brokk-marks-store";
+import { atom } from "jotai";
+import { HeardMetaKey, ParkedMetaKey, parkedText, parkRow, readParked } from "./brokk-marks";
+import { BrokkMarks, MarksWriteEchoMs, pageWrites } from "./brokk-marks-store";
 
 function fixture(initial: Record<string, unknown> | null) {
     const clock = { now: 1000 };
@@ -67,5 +72,45 @@ describe("the page's side of the shared marks (#2391)", () => {
         const held = fixture({ [HeardMetaKey]: 500 });
         held.marks.refresh();
         expect(held.writes).toEqual([]);
+    });
+
+    it("applies its change again to another page's write that comes before its echo, so neither mark is lost", () => {
+        const f = fixture({ [HeardMetaKey]: 500 });
+        const stop = f.marks.start();
+        const park = (key: string) => (raw: unknown) => parkedText(parkRow(readParked(raw), key, f.clock.now));
+        f.marks.update({ [ParkedMetaKey]: park("mine") });
+        // Another page set its own row aside from the same reading, and its write lands first.
+        const theirs = park("theirs")(undefined);
+        f.echo({ [HeardMetaKey]: 500, [ParkedMetaKey]: theirs });
+        const retried = f.writes[f.writes.length - 1][ParkedMetaKey];
+        expect(Object.keys(readParked(retried).keys).sort()).toEqual(["mine", "theirs"]);
+        // This page's first write lands after it, then the retry: both marks stay.
+        f.echo({ [HeardMetaKey]: 500, [ParkedMetaKey]: park("mine")(undefined) });
+        expect(f.writes).toHaveLength(2);
+        f.echo({ [HeardMetaKey]: 500, [ParkedMetaKey]: retried });
+        expect(Object.keys(readParked(f.marks.value(ParkedMetaKey)).keys).sort()).toEqual(["mine", "theirs"]);
+        stop();
+    });
+
+    it("keeps a write made before the client is known, and sends it once it is", async () => {
+        m.setMeta.mockClear();
+        m.client.clientId = undefined;
+        m.client.clientAtom = atom({ oid: "c1", meta: { [HeardMetaKey]: 500 } });
+        BrokkMarks.resetInstance();
+        const marks = BrokkMarks.getInstance();
+        marks.write({ [ParkedMetaKey]: "early" });
+        expect(m.setMeta).not.toHaveBeenCalled();
+        m.client.clientId = "c1";
+        marks.refresh();
+        expect(m.setMeta).toHaveBeenCalledWith({}, { oref: "client:c1", meta: { [ParkedMetaKey]: "early" } });
+        m.client.clientAtom = null;
+        m.client.clientId = undefined;
+        BrokkMarks.resetInstance();
+    });
+
+    it("lets only the page the developer is in write what every page computes", () => {
+        expect(pageWrites({ visibilityState: "visible", hasFocus: () => true })).toBe(true);
+        expect(pageWrites({ visibilityState: "visible", hasFocus: () => false })).toBe(false);
+        expect(pageWrites({ visibilityState: "hidden", hasFocus: () => true })).toBe(false);
     });
 });

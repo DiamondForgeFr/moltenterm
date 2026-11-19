@@ -17,7 +17,7 @@ import { BossBubbleModel } from "./boss-store";
 import { AskedExpression, BrokkExpression, rose } from "./brokk-ask-model";
 import { BrokkColleagueModel } from "./brokk-colleague-store";
 import { MoodMetaKey, moodText, readMood } from "./brokk-marks";
-import { BrokkMarks } from "./brokk-marks-store";
+import { BrokkMarks, pageWrites } from "./brokk-marks-store";
 import { EmptyMood, moodAfter, MoodEvent, MoodMemory, moodOf, replayOf } from "./brokk-mood";
 import { EmptyQueue, queueAfter, QueueEvent, QueueState } from "./brokk-queue";
 import { moodFactsOf, presenceAfter, unseenItems, watchBrokk } from "./brokk-watch";
@@ -104,8 +104,8 @@ export class BrokkExpressionsModel {
         }
         globalStore.set(this.moodAtom, next);
         // His mood is one in every workspace (FR-BOSS-009, AC105, #2391): every page notes the same events, and the
-        // page on screen writes what it noted; the others take it.
-        if (globalThis.document?.visibilityState !== "visible") {
+        // page the developer is in (on screen, focused) writes what it noted; the others take it.
+        if (!pageWrites()) {
             return;
         }
         this.moodAt = Math.max(now, this.moodAt + 1);
