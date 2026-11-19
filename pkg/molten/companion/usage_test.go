@@ -32,12 +32,6 @@ func TestUsageHiddenBehindAProvider(t *testing.T) {
 
 func TestSupportedAgentsWithUsageHaveAnAdapter(t *testing.T) {
 	for _, agent := range SupportedAgents {
-		if agent == molten.AgentIdKimi {
-			if usage.For(agent) != nil {
-				t.Error("Kimi has no supported usage API and must not have a usage adapter")
-			}
-			continue
-		}
 		if usage.For(agent) == nil {
 			t.Errorf("%s has a companion but no usage adapter", agent)
 		}

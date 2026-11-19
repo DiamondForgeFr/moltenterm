@@ -92,7 +92,7 @@ func (r *Registry) Agents() []string {
 var defaultRegistry = mustBuiltinRegistry()
 
 func mustBuiltinRegistry() *Registry {
-	r, err := MakeRegistry(MakeClaudeUsageAdapter(), MakeCodexUsageAdapter())
+	r, err := MakeRegistry(MakeClaudeUsageAdapter(), MakeCodexUsageAdapter(), MakeKimiUsageAdapter())
 	if err != nil {
 		// A built-in adapter with a bad page is a programming error: refuse it at startup, never at a click.
 		panic(err)

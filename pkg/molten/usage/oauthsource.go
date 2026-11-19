@@ -237,6 +237,10 @@ func cloneSnapshot(snap UsageSnapshot) UsageSnapshot {
 	snap.Windows = append([]UsageWindow(nil), snap.Windows...)
 	if snap.Credits != nil {
 		credits := *snap.Credits
+		if credits.Monthly != nil {
+			monthly := *credits.Monthly
+			credits.Monthly = &monthly
+		}
 		snap.Credits = &credits
 	}
 	return snap

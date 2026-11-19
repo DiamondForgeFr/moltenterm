@@ -139,9 +139,9 @@ var comingOptions = []Option{{Value: "vient", Label: "Comes to fetch me"}, {Valu
 // phrasing by his model. The scale grows: 1.1.0 adds close and partner (#2156), so a value is added, never a switch.
 var proximityOptions = []Option{{Value: "discreet", Label: "Discreet"}, {Value: "colleague", Label: "Colleague"}}
 
-var graceOptions =[]Option{{Value: "1", Label: "1 minute"}, {Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
+var graceOptions = []Option{{Value: "1", Label: "1 minute"}, {Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
 
-var blockedOptions =[]Option{{Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
+var blockedOptions = []Option{{Value: "2", Label: "2 minutes"}, {Value: "5", Label: "5 minutes"}, {Value: "10", Label: "10 minutes"}, {Value: "15", Label: "15 minutes"}}
 
 var onOff = []Option{{Value: "off", Label: "Off"}, {Value: "on", Label: "On"}, {Value: "term", Label: "Terminals only"}}
 
@@ -230,7 +230,7 @@ var settings = []Setting{
 	{Key: "conn:localhostdisplayname", Section: SectionTerminal, Group: "Connections", Label: "Name of this computer", Description: "How the local connection is named in headers and menus.", Control: ControlText},
 
 	// Agents
-	{Key: "companion:usagegauges", Section: SectionAgents, Group: "Companion", Label: "Plan usage", Description: "The agents whose plan usage the companion shows.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
+	{Key: "companion:usagegauges", Section: SectionAgents, Group: "Companion", Label: "Plan usage", Description: "The agents whose plan usage the companion shows.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}, {Value: "kimi", Label: "Kimi Code"}}},
 	{Key: "agent:sessionroots", Section: SectionAgents, Group: "Companion", Label: "More session folders", Description: "Extra configuration folders per agent whose sessions the companion reads.", Control: ControlJSON},
 	{Key: "companion:ticketsummaries", Section: SectionAgents, Group: "Companion", Label: "Explain each ticket in one sentence", Description: "The Tasks block's tickets, in your language. Uses your agent (a small model), at most 24 times a day.", Control: ControlToggle},
 
@@ -321,6 +321,7 @@ var settings = []Setting{
 	{Key: "term:disablewebgl", Section: SectionAdvanced, Group: "Terminal", Label: "No WebGL in terminals", Description: "Draw terminals without WebGL, slower but safer on some GPUs.", Control: ControlToggle},
 	{Key: "term:showsplitbuttons", Section: SectionAdvanced, Group: "Terminal", Label: "Split buttons in headers", Description: "Show split buttons in terminal headers.", Control: ControlToggle},
 	{Key: "companion:usageclaudeoauth", Section: SectionAdvanced, Group: "Agents", Label: "Claude Code limits (experimental)", Description: "Read Claude Code's limits from Anthropic's undocumented endpoint with its own sign-in.", Control: ControlToggle},
+	{Key: "companion:usagekimioauth", Section: SectionAdvanced, Group: "Agents", Label: "Kimi Code managed limits (experimental)", Description: "Read managed limits from Kimi Code's undocumented .com endpoint with its shared OAuth sign-in.", Control: ControlToggle},
 	{Key: "debug:pprofport", Section: SectionAdvanced, Group: "Debugging", Label: "Profiler port", Description: "Serve Go's pprof on this port.", Control: ControlNumber, Range: rng(0, 65535, 1)},
 	{Key: "debug:pprofmemprofilerate", Section: SectionAdvanced, Group: "Debugging", Label: "Memory profile rate", Description: "Go's memory profile sampling rate.", Control: ControlNumber, Range: rng(0, 1048576, 1)},
 	{Key: "debug:webglstatus", Section: SectionAdvanced, Group: "Debugging", Label: "WebGL status", Description: "Show whether each terminal draws with WebGL.", Control: ControlToggle},

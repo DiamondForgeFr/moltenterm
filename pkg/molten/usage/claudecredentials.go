@@ -149,11 +149,15 @@ func readKeychainCredentials(ctx context.Context, place claudeCredentialPlace) (
 
 // readCredentialsFile reads a regular file only, never through a symbolic link, as Claude Code does.
 func readCredentialsFile(path string) ([]byte, error) {
+	return readBoundedRegularFile(path, maxCredentialsBytes)
+}
+
+func readBoundedRegularFile(path string, maxBytes int64) ([]byte, error) {
 	info, err := os.Lstat(path)
 	if err != nil || !info.Mode().IsRegular() {
 		return nil, errNoCredentials
 	}
-	if info.Size() > maxCredentialsBytes {
+	if info.Size() > maxBytes {
 		return nil, Unavailable(ReasonFormat)
 	}
 	f, err := openNoBlock(path)
@@ -165,8 +169,8 @@ func readCredentialsFile(path string) ([]byte, error) {
 	if err != nil || !os.SameFile(info, opened) {
 		return nil, errNoCredentials
 	}
-	data, err := io.ReadAll(io.LimitReader(f, maxCredentialsBytes+1))
-	if err != nil || len(data) > maxCredentialsBytes {
+	data, err := io.ReadAll(io.LimitReader(f, maxBytes+1))
+	if err != nil || len(data) > int(maxBytes) {
 		zero(data)
 		return nil, Unavailable(ReasonFormat)
 	}
