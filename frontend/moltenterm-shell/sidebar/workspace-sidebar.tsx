@@ -201,14 +201,7 @@ import { dotAttention, DotPopoverHover, dotPopoverProject, dotShowsPopover } fro
 import { snapRipplesOf, workspaceDotLook } from "./workspace-dot-ripple";
 import { filterEntries, WorkspaceLetterFilter } from "./workspace-letter-filter";
 import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
-import {
-    currentProject,
-    currentProjectId,
-    headerProjectType,
-    projectChipLabel,
-    projectLabel,
-    readProjects,
-} from "./workspace-projects";
+import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
 
 type SidebarEnv = TabEnv & WidgetsEnv;
@@ -225,12 +218,8 @@ const DragThresholdPx = 4;
 // every tab view loads up front (NFR-PERF-003, bundle.initialJsMB).
 const ProjectPageView = lazy(() => import("./sidebar-project-page").then((m) => ({ default: m.ProjectPageView })));
 
-// The new-workspace page only shows while a workspace is being created, so it loads on demand too; the collapsed rail's
-// code below (#2384) takes its share of the up-front JS, which the startup budget leaves no room for.
+// The new-workspace page only shows while a workspace is being created, so it loads on demand too (#2384, kept by #2389).
 const CreateWorkspacePage = lazy(() => import("./sidebar-create").then((m) => ({ default: m.CreateWorkspacePage })));
-
-// The collapsed rail (FR-SHELL-079, #2384): only a hidden sidebar shows it, so its code loads on demand too.
-const CollapsedRail = lazy(() => import("./collapsed-rail").then((m) => ({ default: m.CollapsedRail })));
 
 // Brokk's visit scene (FR-BOSS-009, #2002): his clips load with the first visit, never with the window.
 const BrokkVisitScene = lazy(() => import("../boss/brokk-visit-scene").then((m) => ({ default: m.BrokkVisitScene })));
@@ -241,7 +230,7 @@ const NoDrag = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
 const Drag = { WebkitAppRegion: "drag" } as React.CSSProperties;
 
 // A native menu placed under its button, as a click from the keyboard would have none.
-export function showMenuUnder(anchor: HTMLElement, items: ContextMenuItem[], onClose?: () => void) {
+function showMenuUnder(anchor: HTMLElement, items: ContextMenuItem[], onClose?: () => void) {
     const rect = anchor.getBoundingClientRect();
     const event = {
         clientX: rect.left,
@@ -302,7 +291,7 @@ function useWorkspaceEntries(): WorkspaceRailEntry[] {
 }
 
 // The workspaces the dots show: the saved ones in rail order.
-export type SidebarWorkspaces = {
+type SidebarWorkspaces = {
     entries: WorkspaceRailEntry[];
     savedIds: string[];
 };
@@ -329,7 +318,7 @@ function runProjectCall(call: () => Promise<void>) {
 
 // The project menu of the header (FR-SHELL-087): switch the current project, add one, and what the current one means.
 // It replaces the rail's visual-only "Group with…" (FR-MC-032).
-export function projectMenuItems(
+function projectMenuItems(
     ws: Workspace,
     t: (key: string, vars?: Record<string, any>) => string,
     activity: ProjectActivity[]
@@ -383,7 +372,7 @@ function keepAwakeItem(platform: string, t: (key: string, vars?: Record<string, 
 
 // The workspace menu of the header's ⋯, a dot and the sidebar's background (FR-SHELL-107): the same entries
 // everywhere, its projects listed when the workspace is the one on screen.
-export function workspaceMenuFor(
+function workspaceMenuFor(
     entry: { id: string; name: string; active: boolean },
     entries: WorkspaceRailEntry[],
     anchor: HTMLElement,
@@ -671,7 +660,7 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     // A lone project without a type shows nothing: its folder's name would mostly repeat the product's.
     const projects = readProjects(ws);
     const current = currentProject(ws);
-    const type = headerProjectType(ws);
+    const type = projects.length > 1 ? projectLabel(current) : (current?.type ?? "");
     useProjectFollowToast(ws, projects.length > 1 ? (current?.id ?? "") : "");
     const foundLogos = useFoundLogos(projects.length > 1 ? (current?.dir ?? "") : "");
     const icon = headerIcon(ws, foundLogos);
@@ -2773,9 +2762,7 @@ export function WorkspaceSidebar() {
                         }}
                         onClick={() => model.setPeek(true)}
                     />
-                    <Suspense fallback={null}>
-                        <CollapsedRail workspaces={workspaces} unfolded={peek} />
-                    </Suspense>
+                    <span className="mt-sb-place-strip mt-sb-edge-line" data-testid="sidebar-edge-line" aria-hidden />
                 </>
             ) : null}
             <div ref={tintRef} className="mt-sb-swipe-tint" aria-hidden data-testid="sidebar-swipe-tint" />

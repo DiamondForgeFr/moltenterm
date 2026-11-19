@@ -340,9 +340,10 @@ describe("the edge, in the model and in the style sheets (AC40, AC44 to AC46)", 
         );
     });
 
-    it("gives the content no margin for the strip: the collapsed rail (#2384) is a column of its own, not Brokk's", () => {
+    it("gives the content no strip's margin: the content keeps its whole width", () => {
         expect(sidebar).not.toMatch(/data-gutter/);
         expect(sidebar).not.toMatch(/\.mt-frame-content\s*\{[^}]*margin-left:\s*var\(--mt-edge-px\)/);
+        expect(sidebar).not.toMatch(/~\s*\.mt-frame-content\s*\{[^}]*margin-left/);
     });
 
     it("moves the sidebar out of the window by all but its strip while it peeks, and by all but its half", () => {

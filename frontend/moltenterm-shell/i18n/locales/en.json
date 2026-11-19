@@ -11556,7 +11556,6 @@
         },
         "hide": "Hide the sidebar ({keys})",
         "show": "Keep the sidebar shown ({keys})",
-        "collapsedMark": "{name} · {project}",
         "appMenu": "Menu",
         "grip": "Sidebar width",
         "gripTitle": "Drag to widen or narrow the sidebar (double-click: {width} px)",

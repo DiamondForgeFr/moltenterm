@@ -544,7 +544,7 @@ describe("action and place (#1319)", () => {
         expect(sidebarCss).not.toContain("mt-sb-tile-place");
     });
 
-    it("runs the place strip down the sidebar's left edge, top to bottom, inset from the floating sidebar's corners (#1630)", () => {
+    it("runs the place strip down the sidebar's left edge, top to bottom; the floating sidebar draws none (#1630, #2389)", () => {
         const sidebarCss = readFileSync(new URL("./sidebar/sidebar.css", import.meta.url), "utf8");
         const strip = /\n\.mt-sb-place-strip \{([^}]*)\}/.exec(sidebarCss)?.[1] ?? "";
         expect(strip).toMatch(/top: 0;/);
@@ -554,8 +554,8 @@ describe("action and place (#1319)", () => {
         expect(strip).not.toMatch(/right:|height:/);
         expect(strip).toMatch(/linear-gradient\(\s*to bottom,/);
         const floating = /\n\.mt-sb\.is-hidden \.mt-sb-place-strip \{([^}]*)\}/.exec(sidebarCss)?.[1] ?? "";
-        expect(floating).toMatch(/top: var\(--mt-radius-panel\);/);
-        expect(floating).toMatch(/bottom: var\(--mt-radius-panel\);/);
+        // The window's edge line (.mt-sb-edge-line) is the one line while the sidebar is hidden (FR-SHELL-079, #2389).
+        expect(floating).toMatch(/display: none;/);
     });
 
     it("keeps the window, the floating sidebar, the library, the 360 carpet and the agent avatar on cast iron (AC-1)", () => {
