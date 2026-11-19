@@ -32,6 +32,7 @@ export const ProviderSubjectKeys: Record<string, string> = {
         "the setting belongs to one adapter's undocumented endpoint",
     "settings.items.companion:usagekimioauth.label": "the setting belongs to one adapter's undocumented endpoint",
     "settings.items.companion:usagekimioauth.description": "the setting belongs to one adapter's undocumented endpoint",
+    "agentWorks.integration.kimiUsage": "the integration detail names the adapter and its official source",
     // A mod's Claude Code part is a plugin of that product: the trust prompt must say what runs where.
     "molten.trust.partTitle": "the part is a Claude Code plugin",
     "molten.trust.canPart": "the part is a Claude Code plugin",

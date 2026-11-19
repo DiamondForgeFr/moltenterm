@@ -64,9 +64,24 @@ copies the documented `[[hooks]]` TOML recipe of `agent-states.md`; you merge it
 waits, done, errors, interruptions and sub-agents.
 
 Kimi's `PermissionRequest` event is observation-only, so coffee approvals do not answer it. No status-line relay,
-plan-usage adapter, per-run MoltenTerm MCP server, briefing, mod parts or automatic headless runner is wired by this
-integration. In particular, `kimi -p --output-format stream-json` follows automatic permissions and can write:
-MoltenTerm's read-only `PrintArgv`, `QuickPrintArgv` and review-session flows never launch it.
+per-run MoltenTerm MCP server, briefing, mod parts or automatic headless runner is wired by this integration. In
+particular, `kimi -p --output-format stream-json` follows automatic permissions and can write: MoltenTerm's read-only
+`PrintArgv`, `QuickPrintArgv` and review-session flows never launch it.
+
+### Experimental managed plan usage
+
+Managed plan usage needs both `companion:usagegauges` to contain `kimi` and `companion:usagekimioauth` to be on. The
+experimental source is Kimi Code's official but undocumented managed-usage endpoint, verified against Kimi Code 2.6.3
+at source revision `3cc88fad51f53796fa8db5db59cd283bc0de57db`. It reads the five-hour, weekly and calendar-month
+windows, plus booster balance and monthly spending together. The month follows calendar resets, not a fixed 30 days.
+
+Only the shared `.com` file-backed managed sign-in is supported. MoltenTerm reads just `access_token` and the
+Unix-seconds `expires_at` from `$KIMI_CODE_HOME/credentials/kimi-code.json` (else
+`~/.kimi-code/credentials/kimi-code.json`), after checking the exact managed `.com` configuration. It never refreshes
+or writes credentials, persists the token, follows redirects, or exposes the token to logs, RPC or storage. Global
+`.ai` credentials, scoped credentials, keyring storage, custom providers or base URLs, arbitrary hosts and API-key-only
+configurations are unsupported. MoltenTerm never probes `.ai`, enumerates scoped credential files or tries another
+region's endpoint.
 
 ## The `molten` command inside the agent's sandbox
 

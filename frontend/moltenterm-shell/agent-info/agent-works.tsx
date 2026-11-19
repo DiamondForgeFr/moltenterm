@@ -46,6 +46,7 @@ function DetailLine({ detail }: { detail: WorksDetail }) {
                     {" · "}
                     {t(detailLevelKey(detail))}
                     {detail.reason ? ` — ${t(reasonKey(detail.reason))}` : ""}
+                    {detail.detailKey ? ` — ${t(detail.detailKey)}` : ""}
                 </span>
             </span>
         </li>

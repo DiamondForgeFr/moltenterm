@@ -129,6 +129,7 @@ var conformanceCases = map[string]map[string][]string{
 		FeatDetect:       {adapterConf, refMolten + "TestMatchAgentCommand", refMolten + "TestFindAgentProcess"},
 		FeatState:        {hookConf},
 		FeatHooksOffer:   {refMolten + "TestKimiHooksDetection", refMolten + "TestHookOfferRules"},
+		FeatUsage:        {adapterConf, "pkg/molten/usage:TestKimiOAuthRequestWindowsAndCredits", "pkg/molten/companion:TestKimiUsageRequiresBothOptIns"},
 		FeatTurnNotify:   {hookConf},
 		FeatHandoff:      {"pkg/molten/agenthandoff:TestBriefFilesLinksAndSnapshots", "pkg/molten/agentnames:TestTakeGivesDistinctNames"},
 		FeatSignature:    {"pkg/molten/agentsign:TestTrailerRoundTrip"},

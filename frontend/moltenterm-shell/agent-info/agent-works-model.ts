@@ -32,7 +32,7 @@ const ListFormat = (Intl as unknown as { ListFormat: new (locale: string, option
 // works: native or adapted; partly: MoltenTerm sees it only from the agent's process or terminal; none: not yet.
 export type WorksLevel = "works" | "partly" | "none";
 export type WorksItem = { feature: string; level: WorksLevel };
-export type WorksDetail = WorksItem & { matrixLevel: FeatureLevel; reason?: string };
+export type WorksDetail = WorksItem & { matrixLevel: FeatureLevel; reason?: string; detailKey?: string };
 
 export type AgentWorks = {
     // The matrix has the agent's row; false shows one sentence instead of the groups.
@@ -80,6 +80,7 @@ export function agentWorks(matrix: FeatureMatrix, agent: string): AgentWorks {
                 level: worksLevel(cell.level),
                 matrixLevel: cell.level,
                 reason: cell.level === "native" ? undefined : cell.reason,
+                detailKey: row.id === "kimi" && feature === "usage" ? "agentWorks.integration.kimiUsage" : undefined,
             };
         }),
     };

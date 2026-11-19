@@ -48,9 +48,9 @@ describe("what works with an agent (FR-AGC-004)", () => {
             missing: ["approvals", "usage", "browsermcp"],
         });
         expect(glance(agentWorks(RealMatrix, "kimi"))).toEqual({
-            follows: ["state:works"],
+            follows: ["state:works", "usage:works"],
             uses: ["handoff:works", "guides:works"],
-            missing: ["approvals", "usage", "browsermcp"],
+            missing: ["approvals", "browsermcp"],
         });
         expect(agentWorks(RealMatrix, "aider").known).toBe(false);
     });
@@ -76,9 +76,26 @@ describe("what works with an agent (FR-AGC-004)", () => {
             "Works with its state (partly) and handoffs (partly) · not yet: approvals, plan usage, the browser, and guides"
         );
         expect(pickerSummary(agentWorks(RealMatrix, "kimi"), tOf(fr), "fr")).toBe(
-            "Marche avec son état, les passations et les guides · pas encore\u00a0: les autorisations, l'usage du forfait et le navigateur"
+            "Marche avec son état, l'usage du forfait, les passations et les guides · pas encore\u00a0: les autorisations et le navigateur"
         );
         expect(pickerSummary(agentWorks(RealMatrix, "aider"), tOf(en), "en")).toBe("Not known yet");
+    });
+
+    it("expands Kimi's adapted usage with localized experimental source evidence", () => {
+        const usage = agentWorks(RealMatrix, "kimi").details.find((d) => d.feature === "usage");
+        expect(usage).toMatchObject({
+            level: "works",
+            matrixLevel: "adapted",
+            detailKey: "agentWorks.integration.kimiUsage",
+        });
+        expect(tOf(en)(usage!.detailKey)).toBe(
+            "Experimental — official but undocumented Kimi Code managed-usage source, verified with 2.6.3; shared .com setup only"
+        );
+        expect(tOf(fr)(usage!.detailKey)).toBe(
+            "Expérimental — source officielle mais non documentée de l'usage géré de Kimi Code, vérifiée avec la version 2.6.3 ; configuration .com commune uniquement"
+        );
+        expect(agentWorks(RealMatrix, "claude").details.find((d) => d.feature === "usage")?.detailKey).toBeUndefined();
+        expect(agentWorks(RealMatrix, "codex").details.find((d) => d.feature === "usage")?.detailKey).toBeUndefined();
     });
 
     it("has every word in both languages", () => {

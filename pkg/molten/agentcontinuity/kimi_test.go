@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
 
 func TestKimiModels(t *testing.T) {
@@ -69,8 +70,21 @@ func TestKimiDeclaredLimits(t *testing.T) {
 	if !strings.Contains(caps[CapInitialPrompt].Note, "stream-json") || !strings.Contains(caps[CapInitialPrompt].Note, "may write") {
 		t.Errorf("headless limitation: %q", caps[CapInitialPrompt].Note)
 	}
-	if a.Launch() != nil || a.Usage() != nil || a.Toolkit(ModelEnv{}, "").Supported {
-		t.Error("Kimi has no launcher, usage adapter or toolkit reader in this integration")
+	if a.Launch() != nil || a.Toolkit(ModelEnv{}, "").Supported {
+		t.Error("Kimi has no launcher or toolkit reader in this integration")
+	}
+	adapter := a.Usage()
+	if adapter == nil || adapter.Id() != molten.AgentIdKimi || len(adapter.Sources()) != 1 || adapter.Sources()[0].Id() != usage.KimiOAuthSourceId {
+		t.Fatalf("Kimi managed usage adapter: %+v", adapter)
+	}
+	quota := caps[CapQuota]
+	if quota.Support != SupportUndocumented || !quota.InUse {
+		t.Errorf("Kimi quota capability: %+v", quota)
+	}
+	for _, evidence := range []string{"managed-usage", "2.6.3", "3cc88fad51f53796fa8db5db59cd283bc0de57db", ".com"} {
+		if !strings.Contains(quota.Note, evidence) {
+			t.Errorf("Kimi quota evidence misses %q: %q", evidence, quota.Note)
+		}
 	}
 	if got := a.ResumesSession([]string{"--", "--continue"}); got {
 		t.Error("a prompt after -- is not a resume option")

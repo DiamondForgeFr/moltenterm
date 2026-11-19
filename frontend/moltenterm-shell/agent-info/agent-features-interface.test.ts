@@ -26,7 +26,7 @@ describe("the interface reads the matrix (FR-AGC-003)", () => {
         // CodingAgentIds
         expect(codingAgentIds()).toEqual(["claude", "codex"]);
         // UsageAgents, IntegratedAgents, UsageSourceAgent
-        expect(agentsWith(RealMatrix, "usage")).toEqual(["claude", "codex"]);
+        expect(agentsWith(RealMatrix, "usage")).toEqual(["claude", "codex", "kimi"]);
         expect(agentsWith(RealMatrix, "launcher")).toEqual(["claude", "codex"]);
         expect(agentsWith(RealMatrix, "statusline")).toEqual(["claude"]);
         // The command tables' agents and their permission modes

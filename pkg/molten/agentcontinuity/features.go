@@ -385,7 +385,7 @@ var kimiFeatures = map[string]FeatureSupport{
 	FeatState:         {Level: LevelNative, Note: "manual hooks for prompts, tools, permissions, stop, failure, interruption and sub-agents", Adapter: "agentintegration.go, agenthook/hook.go"},
 	FeatHooksOffer:    {Level: LevelNative, Note: "copyable [[hooks]] snippet for config.toml; never installed automatically", Adapter: "agenthooks.go, attention/agenthookoffer.go"},
 	FeatLauncher:      {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "Kimi Code has no per-run hook injection; this Story only offers the manual TOML recipe"},
-	FeatUsage:         {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "Kimi's /usage is not a usage adapter; no plan gauges are read"},
+	FeatUsage:         {Level: LevelAdapted, Note: "experimental read of Kimi Code's official but undocumented managed-usage endpoint, verified 2.6.3 at 3cc88fad51f53796fa8db5db59cd283bc0de57db; shared .com managed configuration only", Adapter: "usage/kimioauth.go, usage/kimioauthfetch.go, usage/kimicredentials.go, usage/adapters.go"},
 	FeatStatusLine:    {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "the status line relay is Claude Code's"},
 	FeatApprovals:     {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "Kimi's PermissionRequest hook is observation-only; MoltenTerm reports waiting but never answers it"},
 	FeatTurnNotify:    {Level: LevelNative, Note: "Stop, StopFailure and Interrupt hooks", Adapter: "agenthook/hook.go, cmd/wsh/cmd/wshcmd-molten-agentnotify.go"},
