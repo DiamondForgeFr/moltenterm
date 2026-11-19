@@ -11420,6 +11420,9 @@
         "sectionTitle": "Ce qui marche avec {name}",
         "unknown": "MoltenTerm ne connaît pas encore cet agent.",
         "unknownShort": "Pas encore connu",
+        "integration": {
+            "kimiUsage": "Expérimental — source officielle mais non documentée de l'usage géré de Kimi Code, vérifiée avec la version 2.6.3 ; configuration .com commune uniquement"
+        },
         "picker": {
             "works": "Marche avec {features}",
             "notYet": "pas encore : {features}"

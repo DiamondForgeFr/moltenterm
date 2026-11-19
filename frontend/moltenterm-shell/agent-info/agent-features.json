@@ -583,9 +583,9 @@
                     "adapter": "agenthook/hook.go, cmd/wsh/cmd/wshcmd-molten-agentnotify.go"
                 },
                 "usage": {
-                    "level": "none",
-                    "reason": "agentspecific",
-                    "note": "Kimi's /usage is not a usage adapter; no plan gauges are read"
+                    "level": "adapted",
+                    "note": "experimental read of Kimi Code's official but undocumented managed-usage endpoint, verified 2.6.3 at 3cc88fad51f53796fa8db5db59cd283bc0de57db; shared .com managed configuration only",
+                    "adapter": "usage/kimioauth.go, usage/kimioauthfetch.go, usage/kimicredentials.go, usage/adapters.go"
                 },
                 "worktreename": {
                     "level": "process-only",

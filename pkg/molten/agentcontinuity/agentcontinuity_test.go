@@ -84,12 +84,12 @@ func TestCapabilityMatrix(t *testing.T) {
 		molten.AgentIdCodex: {CapBriefing: SupportDocumented, CapInitialPrompt: SupportDocumented, CapModels: SupportDocumented, CapResume: SupportDocumented,
 			CapTranscript: SupportUndocumented, CapQuota: SupportUndocumented, CapMcp: SupportDocumented, CapHooks: SupportDocumented},
 		molten.AgentIdKimi: {CapBriefing: SupportUnavailable, CapInitialPrompt: SupportDocumented, CapModels: SupportDocumented, CapResume: SupportDocumented,
-			CapTranscript: SupportUndocumented, CapQuota: SupportUnavailable, CapMcp: SupportDocumented, CapHooks: SupportDocumented},
+			CapTranscript: SupportUndocumented, CapQuota: SupportUndocumented, CapMcp: SupportDocumented, CapHooks: SupportDocumented},
 	}
 	inUse := map[string][]string{
 		molten.AgentIdClaude: {CapHooks, CapQuota, CapTranscript},
 		molten.AgentIdCodex:  {CapHooks, CapQuota, CapTranscript},
-		molten.AgentIdKimi:   {CapHooks, CapTranscript},
+		molten.AgentIdKimi:   {CapHooks, CapQuota, CapTranscript},
 	}
 	for id, caps := range want {
 		a := Find(id)
@@ -558,7 +558,7 @@ func TestListWritesNothing(t *testing.T) {
 		len(codex.Models) != 2 || !codex.Models[1].Configured {
 		t.Errorf("codex listing %+v", codex)
 	}
-	if !kimi.Supported || kimi.Launcher || kimi.Quota != nil || kimi.GuideProfile != "kimi" || len(kimi.TranscriptRoots) == 0 || kimi.Capabilities[CapInitialPrompt].Note == "" {
+	if !kimi.Supported || kimi.Launcher || kimi.Quota == nil || kimi.Quota.PageURL != usage.KimiUsagePageURL || kimi.GuideProfile != "kimi" || len(kimi.TranscriptRoots) == 0 || kimi.Capabilities[CapInitialPrompt].Note == "" {
 		t.Errorf("kimi listing %+v", kimi)
 	}
 	if gemini.Supported || gemini.Offered() || gemini.Installed || gemini.Reason != ReasonNotFound || gemini.Unsupported == "" || gemini.Capabilities != nil {
