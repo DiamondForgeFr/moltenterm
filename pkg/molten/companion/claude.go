@@ -102,29 +102,23 @@ func (a *ClaudeAdapter) SubagentWritten(sessionPath string, agentId string) int6
 }
 
 // SubagentIds reads the sub-agents' agent-<id>.meta.json files next to the session: each names the call that started
-// its agent (toolUseId), foreground agents included.
+// its agent (toolUseId), foreground agents included. The most recently written are read first (#2397).
 func (a *ClaudeAdapter) SubagentIds(sessionPath string) map[string]string {
 	if !strings.HasSuffix(sessionPath, ".jsonl") {
 		return nil
 	}
-	dir := filepath.Join(strings.TrimSuffix(sessionPath, ".jsonl"), "subagents")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
+	dir := claudeSubagentDir(sessionPath)
+	entries := claudeSubagentEntries(dir)
+	if entries == nil {
 		return nil
 	}
 	rtn := map[string]string{}
-	read := 0
-	for _, e := range entries {
-		name := e.Name()
-		agentId, ok := strings.CutSuffix(strings.TrimPrefix(name, "agent-"), ".meta.json")
-		if !ok || !strings.HasPrefix(name, "agent-") || !claudeAgentIdRegex.MatchString(agentId) || !e.Type().IsRegular() {
-			continue
-		}
-		if read >= claudeMaxSubagentMetas {
+	for i, e := range entries {
+		if i >= claudeMaxSubagentMetas {
 			break
 		}
-		read++
-		meta, ok := readClaudeSubagentMeta(filepath.Join(dir, name))
+		agentId := e.id
+		meta, ok := readClaudeSubagentMeta(filepath.Join(dir, "agent-"+agentId+".meta.json"))
 		if !ok || meta.ToolUseId == "" {
 			continue
 		}

@@ -147,6 +147,13 @@ export function subagentUnseenFailure(row: SubagentRow, seen: Record<string, str
     return row?.state === "error" && seen?.[row.id] !== subagentFailureKey(row);
 }
 
+// The ones at work before the quiet ones, each by start (#2397): the sidebar shows the first MaxRunningSubRows, and a
+// quiet one that started long ago must not push an agent at work behind "+n".
+function byWorkThenStart(a: SubagentRow, b: SubagentRow): number {
+    const work = (r: SubagentRow) => (r.state === "working" ? 0 : 1);
+    return work(a) - work(b) || (a.started ?? 0) - (b.started ?? 0);
+}
+
 // One with no recorded end cannot be timed, so it does not linger.
 function subagentLingers(row: SubagentRow, now: number): boolean {
     return (row.ended ?? 0) > 0 && now - row.ended < SubagentLingerMs;
@@ -168,7 +175,7 @@ export function subagentGroups(
     parentEnded: boolean,
     seen: Record<string, string>
 ): SubagentGroups {
-    const running = (rows ?? []).filter(subagentRunning).sort((a, b) => (a.started ?? 0) - (b.started ?? 0));
+    const running = (rows ?? []).filter(subagentRunning).sort(byWorkThenStart);
     const lingering = (rows ?? [])
         .filter((r) => !subagentRunning(r))
         .filter(
@@ -202,7 +209,7 @@ export type SubagentCardGroups = {
 };
 
 export function subagentCardGroups(rows: SubagentRow[], seen: Record<string, string>): SubagentCardGroups {
-    const running = (rows ?? []).filter(subagentRunning).sort((a, b) => (a.started ?? 0) - (b.started ?? 0));
+    const running = (rows ?? []).filter(subagentRunning).sort(byWorkThenStart);
     const rest = (rows ?? []).filter((r) => !subagentRunning(r));
     const byEnd = (a: SubagentRow, b: SubagentRow) => (b.ended ?? 0) - (a.ended ?? 0);
     return {

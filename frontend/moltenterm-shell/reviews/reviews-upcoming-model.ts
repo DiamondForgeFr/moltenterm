@@ -281,6 +281,10 @@ export function branchAgents(
             found.push(subagentFacts(a, states));
             continue;
         }
+        if (ticketlessSubagentNames(a, branch, own)) {
+            found.push(subagentFacts(a, states));
+            continue;
+        }
         if (a.branch !== branch) {
             continue;
         }
@@ -384,6 +388,21 @@ function leadsOnBranch(upcoming: UpcomingAnswer, branch: string): Set<string> {
         }
     }
     return rtn;
+}
+
+// ticketlessSubagentNames (#2397): a sub-agent at work in one of the project's worktrees whose branch names no ticket
+// yet (Claude Code starts it on worktree-agent-<id>, before it checks out its ticket's branch) is the ticket's that its
+// task names: the worktree places it in this project, so its "#N" is this project's work.
+function ticketlessSubagentNames(a: BranchAgent, branch: string, own: { ticket: number; pr: number }): boolean {
+    return (
+        a.kind === "subagent" &&
+        !!a.branch &&
+        a.branch !== branch &&
+        !!a.worktree &&
+        a.state !== "done" &&
+        branchTicketNumber(a.branch) === 0 &&
+        namesWork(a.description, own)
+    );
 }
 
 // namesWork: a sub-agent's task names the ticket ("#1821") or the PR ("PR #1824", "#1824", "PR 1824").
