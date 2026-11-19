@@ -1,0 +1,201 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The companion's work area (FR-SHELL-018, #2392): a band of the layout (companion-layout.ts), by default the Tasks
+   block on the left and the agents at work on the right, side by side from TwoColumnMinWidth and stacked in the
+   layout's order below it. The blocks are the suite's (suite.css), made compact for a side panel. A line in the heat
+   colour of a task's state links it to the agent working on it; a short flow runs along it as it appears or is pointed
+   at, never under reduced motion. */
+
+.mt-cwork {
+    --df-block-gap: 0px;
+    --df-block-pad: 12px;
+    --df-block-pad-top: 22px;
+    --df-pocket-left: 12px;
+    --df-block-content-gap: 10px;
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 24px;
+    padding: 22px 12px 4px;
+}
+
+/* The lane between the columns is the room the lines cross. */
+.mt-cwork[data-layout="columns"][data-both] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 40px;
+    align-items: start;
+}
+
+.mt-cwork-col {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    min-width: 0;
+}
+
+.mt-cwork > .df-block,
+.mt-cwork-col > .df-block {
+    margin-top: 0;
+    min-width: 0;
+}
+
+.mt-cwork [data-heat="running"] {
+    --mt-cwork-heat: var(--mt-state-running);
+}
+
+.mt-cwork [data-heat="waiting"] {
+    --mt-cwork-heat: var(--mt-state-waiting);
+}
+
+.mt-cwork [data-heat="blocked"] {
+    --mt-cwork-heat: var(--mt-state-blocked);
+}
+
+.mt-cwork [data-heat="ready"] {
+    --mt-cwork-heat: var(--mt-state-ready);
+}
+
+.mt-cwork [data-heat="draft"] {
+    --mt-cwork-heat: var(--mt-state-draft);
+}
+
+.mt-cwork-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0 -4px;
+    padding: 3px 4px;
+    border-radius: var(--mt-radius-control);
+}
+
+/* Both ends of a link light together while the pointer is on one of them or on its line. */
+.mt-cwork-end {
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-cwork-end[data-link-hot] {
+    background-color: color-mix(in srgb, var(--mt-cwork-heat, var(--mt-state-running)) 12%, transparent);
+}
+
+.mt-cwork-bar {
+    position: relative;
+    flex: 1;
+    height: 4px;
+    overflow: hidden;
+    border-radius: var(--mt-radius-control);
+    background: color-mix(in srgb, var(--mt-text-3) 25%, transparent);
+}
+
+.mt-cwork-bar::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--mt-state-ready);
+    transform: scaleX(var(--mt-cwork-progress, 0));
+    transform-origin: left center;
+}
+
+.mt-cwork-chip {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    height: 18px;
+    padding: 0 6px;
+    border: 1px solid color-mix(in srgb, var(--mt-cwork-heat, var(--mt-state-draft)) 55%, transparent);
+    border-radius: var(--mt-radius-control);
+    color: var(--mt-text-2);
+    background: color-mix(in srgb, var(--mt-cwork-heat, var(--mt-state-draft)) 8%, transparent);
+}
+
+.mt-cwork-links {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.mt-cwork-link {
+    fill: none;
+    stroke: var(--mt-cwork-heat);
+    stroke-width: 1.25;
+    stroke-linecap: round;
+    opacity: 0.6;
+    transition:
+        opacity var(--mt-duration-fast) var(--mt-ease),
+        stroke-width var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-cwork-dot {
+    fill: var(--mt-cwork-heat);
+    opacity: 0.8;
+}
+
+.mt-cwork-links g[data-link-hot] .mt-cwork-link {
+    stroke-width: 2;
+    opacity: 1;
+}
+
+/* A short glint along the line: once as it appears, once more each time it is pointed at. It ends past the line's end,
+   where its dash shows nothing. */
+.mt-cwork-flow {
+    fill: none;
+    stroke: var(--mt-cwork-heat);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-dasharray: 10 110;
+    stroke-dashoffset: -100;
+    animation: mt-cwork-flow-in calc(var(--mt-duration-flow) * 2) var(--mt-ease) 1;
+}
+
+.mt-cwork-links g[data-link-hot] .mt-cwork-flow {
+    animation: mt-cwork-flow-hot calc(var(--mt-duration-flow) * 2) var(--mt-ease) 1;
+}
+
+.mt-cwork-hit {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 10;
+    pointer-events: stroke;
+}
+
+@keyframes mt-cwork-flow-in {
+    from {
+        stroke-dashoffset: 10;
+    }
+    to {
+        stroke-dashoffset: -100;
+    }
+}
+
+@keyframes mt-cwork-flow-hot {
+    from {
+        stroke-dashoffset: 10;
+    }
+    to {
+        stroke-dashoffset: -100;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-cwork-flow {
+        display: none;
+    }
+
+    .mt-cwork-end,
+    .mt-cwork-link {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-cwork-flow {
+    display: none;
+}
+
+.prefers-reduced-motion .mt-cwork-end,
+.prefers-reduced-motion .mt-cwork-link {
+    transition: none;
+}

@@ -2061,6 +2061,29 @@
         },
         "loading": "Loading…",
         "tasks": "Tasks",
+        "work": {
+            "milestone": "Milestone {title}",
+            "openMilestone": "Open the milestone",
+            "openTicket": "Open ticket #{number}",
+            "progressTitle": "{closed} of {total} closed",
+            "due": "Due {date}",
+            "dueToday": "Due today",
+            "overdue": "Overdue since {date}",
+            "more": {
+                "one": "and {count} more",
+                "other": "and {count} more"
+            },
+            "allDone": "Nothing left to do in this milestone.",
+            "reading": "Reading the milestone…",
+            "phrasing": "Writing the summaries…",
+            "phrasingTitle": "The project's agent writes one sentence per ticket, in the interface language. The titles show meanwhile.",
+            "ownTasks": "The agent's tasks",
+            "ticketTitle": "Ticket title: {title}",
+            "linkChip": "→ {agent}",
+            "linkTitle": "{agent} works on it",
+            "inProgress": "In progress",
+            "open": "Open"
+        },
         "bar": {
             "earlierSession": "Earlier session",
             "backToCurrent": "Back to current",

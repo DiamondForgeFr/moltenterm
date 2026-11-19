@@ -2061,6 +2061,29 @@
         },
         "loading": "Chargement…",
         "tasks": "Tâches",
+        "work": {
+            "milestone": "Jalon {title}",
+            "openMilestone": "Ouvrir le jalon",
+            "openTicket": "Ouvrir le ticket #{number}",
+            "progressTitle": "{closed} sur {total} terminés",
+            "due": "Échéance le {date}",
+            "dueToday": "Échéance aujourd'hui",
+            "overdue": "En retard depuis le {date}",
+            "more": {
+                "one": "et {count} autre",
+                "other": "et {count} autres"
+            },
+            "allDone": "Plus rien à faire dans ce jalon.",
+            "reading": "Lecture du jalon…",
+            "phrasing": "Rédaction des résumés…",
+            "phrasingTitle": "L'agent du projet écrit une phrase par ticket, dans la langue de l'interface. Les titres s'affichent en attendant.",
+            "ownTasks": "Les tâches de l'agent",
+            "ticketTitle": "Titre du ticket : {title}",
+            "linkChip": "→ {agent}",
+            "linkTitle": "{agent} y travaille",
+            "inProgress": "En cours",
+            "open": "Ouvert"
+        },
         "bar": {
             "earlierSession": "Session précédente",
             "backToCurrent": "Revenir à l'actuelle",

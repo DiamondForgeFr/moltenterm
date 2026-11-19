@@ -1,0 +1,311 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// The companion's Tasks block (FR-SHELL-018, #2392): the project's active milestone as wavesrv reads it
+// (pkg/molten/milestones), the agent's own task list, and the links from a task in progress to the agent working on it.
+// A link is drawn only on a certain match, never guessed. Pure, so it is tested without a window.
+
+import type { StateMarkKind } from "../state-mark";
+import { CompanionTodo, CompanionView } from "./companion-model";
+import type { AgentRow, AgentRowState } from "./companion-recap-model";
+
+// must match pkg/molten/milestones/milestones.go
+export const MilestonesRoute = "molten:milestones";
+export const MilestonesEvent = "molten:milestones";
+export const MilestonesGetCommand = "moltenmilestonesget";
+export const MaxMilestoneRows = 8;
+
+export type MilestoneState = "loading" | "ok" | "none" | "noforge";
+
+export type MilestoneTicket = { number: number; title: string; url?: string; updated?: number; sentence?: string };
+
+export type MilestoneInfo = {
+    number: number;
+    title: string;
+    url?: string;
+    // The forge's counts, pull requests included, as its own progress bar.
+    open: number;
+    closed: number;
+    due?: number;
+    // The open tickets, pull requests left out.
+    remaining: number;
+    tickets: MilestoneTicket[];
+};
+
+export type MilestonesView = {
+    dir: string;
+    state: MilestoneState;
+    milestone?: MilestoneInfo;
+    phrasing?: boolean;
+    readat?: number;
+};
+
+export type MilestonesSignal = { dir: string; rev: number };
+
+export function milestoneProgress(m: MilestoneInfo): { closed: number; total: number; ratio: number } {
+    const closed = Math.max(0, m?.closed ?? 0);
+    const total = closed + Math.max(0, m?.open ?? 0);
+    return { closed, total, ratio: total > 0 ? closed / total : 0 };
+}
+
+export type DueText = { kind: "due" | "today" | "overdue"; date: string };
+
+// The due date as the forge holds it: a day, kept in UTC so the date reads as it was set.
+function dayOf(ms: number): string {
+    return new Date(ms).toISOString().slice(0, 10);
+}
+
+export function dueText(due: number, now: number, locale: string): DueText {
+    if (!(due > 0)) {
+        return null;
+    }
+    const sameYear = new Date(due).getUTCFullYear() === new Date(now).getUTCFullYear();
+    const date = new Date(due).toLocaleDateString(locale, {
+        day: "numeric",
+        month: "short",
+        year: sameYear ? undefined : "numeric",
+        timeZone: "UTC",
+    });
+    const day = dayOf(due);
+    const today = dayOf(now);
+    if (day === today) {
+        return { kind: "today", date };
+    }
+    return { kind: day < today ? "overdue" : "due", date };
+}
+
+// The workflow's branch naming (feature/{N}-…, fix/{N}-…): pkg/molten/companion/tickets.go.
+const BranchTicketRegex = /^(?:feature|fix)\/(\d{1,9})(?:-|$)/;
+// A ticket named in a sentence: "#601", not "a#1" nor "&#39;".
+const TicketMentionRegex = /(?:^|[^\w&#/])#(\d{1,9})\b/g;
+
+// The tickets a text names, each once.
+export function mentionedTickets(text: string): number[] {
+    const found = new Set<number>();
+    for (const m of (text ?? "").matchAll(TicketMentionRegex)) {
+        found.add(Number(m[1]));
+    }
+    return [...found];
+}
+
+// The ticket an agent works on, when it is certain: its own branch names it, else its own description names exactly
+// one ticket. Anything else is 0: two tickets named, or none.
+export function certainTicket(branch: string, description: string): number {
+    const m = BranchTicketRegex.exec((branch ?? "").trim());
+    if (m != null) {
+        return Number(m[1]);
+    }
+    const named = mentionedTickets(description);
+    return named.length === 1 ? named[0] : 0;
+}
+
+export type LinkAgent = { id: string; name: string; state: AgentRowState; ticket: number; description: string };
+
+// The agents at work a task can link to: the main agent by its session's branch only (its topic is no certainty), each
+// sub-agent by its own branch, then its own description.
+export function linkAgents(rows: AgentRow[], view: CompanionView): LinkAgent[] {
+    const subs = new Map((view?.subagents ?? []).map((s) => [s.id, s]));
+    return (rows ?? []).map((row) => {
+        if (row.main) {
+            return {
+                id: row.id,
+                name: row.name,
+                state: row.state,
+                ticket: certainTicket(view?.session?.branch, ""),
+                description: "",
+            };
+        }
+        const sub = subs.get(row.id);
+        const description = (sub?.description ?? "").trim();
+        return {
+            id: row.id,
+            name: row.name,
+            state: row.state,
+            ticket: certainTicket(sub?.branch ?? row.branch, description),
+            description,
+        };
+    });
+}
+
+// A milestone ticket's agents: every agent whose certain ticket it is.
+export function ticketLinks(tickets: MilestoneTicket[], agents: LinkAgent[]): Map<number, LinkAgent[]> {
+    const numbers = new Set((tickets ?? []).map((t) => t.number));
+    const links = new Map<number, LinkAgent[]>();
+    for (const agent of agents ?? []) {
+        if (!(agent.ticket > 0) || !numbers.has(agent.ticket)) {
+            continue;
+        }
+        links.set(agent.ticket, [...(links.get(agent.ticket) ?? []), agent]);
+    }
+    return links;
+}
+
+function sameText(a: string, b: string): boolean {
+    const norm = (s: string) => (s ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+    return norm(a) !== "" && norm(a) === norm(b);
+}
+
+// The agent's own task in progress links only when it is certain (#2392): the one agent whose description is the
+// task's text, else the one agent working on the single ticket the task names. Never a guess from similar words.
+export function todoLinks(todos: CompanionTodo[], agents: LinkAgent[]): Map<number, LinkAgent> {
+    const links = new Map<number, LinkAgent>();
+    (todos ?? []).forEach((todo, i) => {
+        if (todo?.status !== "in_progress") {
+            return;
+        }
+        const exact = (agents ?? []).filter((a) => sameText(a.description, todo.text));
+        if (exact.length === 1) {
+            links.set(i, exact[0]);
+            return;
+        }
+        if (exact.length > 1) {
+            return;
+        }
+        const named = mentionedTickets(todo.text);
+        if (named.length !== 1) {
+            return;
+        }
+        const working = (agents ?? []).filter((a) => a.ticket === named[0]);
+        if (working.length === 1) {
+            links.set(i, working[0]);
+        }
+    });
+    return links;
+}
+
+// The rows shown: the tickets an agent works on first, in the order their agents stand in (agents: the agents at work as
+// listed), so that their lines do not cross; then the others in the forge's order (the most recently updated first),
+// MaxMilestoneRows at most. more is the open tickets left out.
+export function previewTickets(
+    m: MilestoneInfo,
+    linked: Map<number, LinkAgent[]>,
+    agents?: LinkAgent[]
+): { rows: MilestoneTicket[]; more: number } {
+    const tickets = m?.tickets ?? [];
+    const place = new Map((agents ?? []).map((a, i) => [a.id, i]));
+    const rank = (t: MilestoneTicket) =>
+        Math.min(...(linked?.get(t.number) ?? []).map((a) => place.get(a.id) ?? Number.MAX_SAFE_INTEGER));
+    const first = tickets.filter((t) => linked?.has(t.number)).sort((a, b) => rank(a) - rank(b));
+    const rest = tickets.filter((t) => !linked?.has(t.number));
+    const rows = [...first, ...rest].slice(0, MaxMilestoneRows);
+    const remaining = Math.max(m?.remaining ?? 0, tickets.length);
+    return { rows, more: Math.max(0, remaining - rows.length) };
+}
+
+// The heat of a task's state, from the agent that works on it (FR-SHELL-116): working incandescent, waiting violet,
+// failed ember; a task no agent works on is iron.
+export function heatOf(state: AgentRowState): StateMarkKind {
+    switch (state) {
+        case "working":
+        case "running":
+            return "running";
+        case "waiting":
+            return "waiting";
+        case "error":
+            return "blocked";
+    }
+    return "draft";
+}
+
+// Ends of a link: a row of the Tasks block, an agent's card.
+export function ticketEnd(n: number): string {
+    return `ticket:${n}`;
+}
+
+export function todoEnd(i: number): string {
+    return `todo:${i}`;
+}
+
+export function agentEnd(id: string): string {
+    return `agent:${id}`;
+}
+
+export type DrawnLink = { id: string; from: string; to: string; heat: StateMarkKind };
+
+export function drawnLinks(
+    rows: MilestoneTicket[],
+    tickets: Map<number, LinkAgent[]>,
+    todos: Map<number, LinkAgent>
+): DrawnLink[] {
+    const links: DrawnLink[] = [];
+    for (const row of rows ?? []) {
+        for (const agent of tickets?.get(row.number) ?? []) {
+            const from = ticketEnd(row.number);
+            const to = agentEnd(agent.id);
+            links.push({ id: `${from}>${to}`, from, to, heat: heatOf(agent.state) });
+        }
+    }
+    for (const [i, agent] of todos ?? []) {
+        const from = todoEnd(i);
+        const to = agentEnd(agent.id);
+        links.push({ id: `${from}>${to}`, from, to, heat: heatOf(agent.state) });
+    }
+    return links;
+}
+
+// The ends a pointer on one end, or on a line, lights: both ends of every link it belongs to.
+export function hotEnds(links: DrawnLink[], hot: string): Set<string> {
+    const ends = new Set<string>();
+    if (!hot) {
+        return ends;
+    }
+    for (const link of links ?? []) {
+        if (link.id === hot || link.from === hot || link.to === hot) {
+            ends.add(link.from);
+            ends.add(link.to);
+            ends.add(link.id);
+        }
+    }
+    return ends;
+}
+
+export type Box = { left: number; top: number; right: number; bottom: number };
+
+export type LinkPath = { id: string; heat: StateMarkKind; d: string; x1: number; y1: number; x2: number; y2: number };
+
+// The line from a task's row (mid-height) to an agent's card (on its first line), between the edges that face each
+// other, in the coordinates of the area that holds both: the agents stand on the right by default, on the left in a
+// layout that puts them there. None when an end is not laid out or the two do not stand side by side.
+export function linkPath(link: DrawnLink, from: Box, to: Box, origin: Box): LinkPath {
+    if (from == null || to == null || origin == null) {
+        return null;
+    }
+    if (from.right <= from.left || from.bottom <= from.top || to.right <= to.left || to.bottom <= to.top) {
+        return null;
+    }
+    const toRight = to.left >= from.right;
+    if (!toRight && to.right > from.left) {
+        return null;
+    }
+    const side = toRight ? 1 : -1;
+    const x1 = (toRight ? from.right : from.left) - origin.left + 2 * side;
+    const y1 = (from.top + from.bottom) / 2 - origin.top;
+    const x2 = (toRight ? to.left : to.right) - origin.left - 2 * side;
+    const y2 = to.top + Math.min((to.bottom - to.top) / 2, 10) - origin.top;
+    if ((x2 - x1) * side < 8) {
+        return null;
+    }
+    const dx = Math.max(12, Math.abs(x2 - x1) / 2) * side;
+    const r = (v: number) => Math.round(v * 10) / 10;
+    return {
+        id: link.id,
+        heat: link.heat,
+        d: `M ${r(x1)} ${r(y1)} C ${r(x1 + dx)} ${r(y1)}, ${r(x2 - dx)} ${r(y2)}, ${r(x2)} ${r(y2)}`,
+        x1: r(x1),
+        y1: r(y1),
+        x2: r(x2),
+        y2: r(y2),
+    };
+}
+
+export function samePaths(a: LinkPath[], b: LinkPath[]): boolean {
+    if (a.length !== b.length) {
+        return false;
+    }
+    return a.every((p, i) => p.id === b[i].id && p.d === b[i].d && p.heat === b[i].heat);
+}
+
+// The numbers whose sentences the companion needs: the rows it shows.
+export function wantedTickets(rows: MilestoneTicket[]): number[] {
+    return (rows ?? []).map((r) => r.number);
+}
