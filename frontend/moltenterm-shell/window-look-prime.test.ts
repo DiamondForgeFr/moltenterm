@@ -30,7 +30,7 @@ vi.mock("@/app/store/global", async () => {
         "window:textureintensity": 0.5,
     });
     return {
-        atoms: { workspace: j.atom({ oid: "ws-1", meta: {} }) },
+        atoms: { workspace: j.atom({ oid: "ws-1", meta: {} }), prefersReducedMotionAtom: j.atom(false) },
         getSettingsPrefixAtom: () => settings,
         getApi: () => ({
             getWindowLookSupport: () =>
@@ -81,6 +81,7 @@ beforeEach(() => {
 });
 
 import { primeWindowLook, WindowLookModel } from "./window-look";
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 
 describe("the look before the first paint (#2390)", () => {
@@ -92,6 +93,22 @@ describe("the look before the first paint (#2390)", () => {
         expect(doc.props.get("--mt-window-alpha")).toBe("0.7");
         expect(state.sent).toEqual([{ translucent: true, blur: true, reducedMotion: false }]);
         expect(globalStore.get(WindowLookModel.getInstance().supportAtom)).toEqual({ translucent: true, blur: true });
+    });
+
+    it("sends the app's reduced-motion setting with the first look, not only the system's", async () => {
+        globalStore.set(atoms.prefersReducedMotionAtom as any, true);
+        await primeWindowLook();
+        expect(state.sent).toEqual([{ translucent: true, blur: true, reducedMotion: true }]);
+        globalStore.set(atoms.prefersReducedMotionAtom as any, false);
+    });
+
+    it("tells main when reduced motion changes, even when the look does not", () => {
+        const src = readFileSync("frontend/moltenterm-shell/window-look.tsx", "utf8");
+        const applier = src.slice(src.indexOf("export function WindowLookApplier"));
+        expect(applier).toContain("useAtomValue(atoms.prefersReducedMotionAtom)");
+        expect(applier).toMatch(/ws\?\.oid, reducedMotion\]\);/);
+        const tell = src.slice(src.indexOf("function tellWindow"));
+        expect(tell.slice(0, tell.indexOf("\n}\n"))).toContain("atoms.prefersReducedMotionAtom");
     });
 
     it("draws and sends nothing when main cannot say what the window supports", async () => {

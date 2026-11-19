@@ -250,11 +250,17 @@ describe("a switch between looks (#2390)", () => {
         letViewThrough(win, v);
         applyActiveViewLook(win, v);
         expect(v.setBackgroundColor).toHaveBeenLastCalledWith("#222222");
-        // a view that never asked for a look goes back to opaque
+        // a view that never asked for a look goes back to opaque, whether the switch was cancelled or it comes back later
         const fresh = makeView();
         letViewThrough(win, fresh);
         restoreViewBackground(win, fresh);
         expect(fresh.setBackgroundColor).toHaveBeenLastCalledWith("#222222");
+        const back = makeView();
+        letViewThrough(win, back);
+        const vibrancyCalls = win.setVibrancy.mock.calls.length;
+        expect(applyActiveViewLook(win, back)).toBe(false);
+        expect(back.setBackgroundColor).toHaveBeenLastCalledWith("#222222");
+        expect(win.setVibrancy).toHaveBeenCalledTimes(vibrancyCalls);
     });
 
     it("never lets a view through on a window that cannot be see-through", () => {

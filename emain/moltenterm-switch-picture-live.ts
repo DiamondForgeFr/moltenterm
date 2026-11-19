@@ -31,6 +31,7 @@ import {
     WaitingState,
     waitingCaptionKey,
     waitPanelsMounted,
+    withDeadline,
     WindowSwitchPicture,
 } from "./moltenterm-switch-picture";
 import { mt } from "./moltenterm-i18n";
@@ -371,19 +372,34 @@ export async function awaitArrivingPanels(win: WaveBrowserWindow, view: WaveTabV
         return;
     }
     const started = Date.now();
-    const expected = await guardedAsync(async () => {
-        const tab = (await ObjectService.GetObject("tab:" + view.waveTabId)) as Tab;
-        return tab?.blockids?.length ?? 0;
-    }, 0);
-    const mounted = await waitPanelsMounted(
-        () =>
-            view.isDestroyed || view.webContents.isDestroyed()
-                ? Promise.resolve(-1)
-                : (view.webContents.executeJavaScript(mountedBlocksScript()) as Promise<number>),
-        expected,
-        () => Date.now(),
-        (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
-        Math.min(PanelsMountMaxMs, maxMs)
+    const limit = Math.min(PanelsMountMaxMs, maxMs);
+    const timers = {
+        set: (fn: () => void, ms: number) => setTimeout(fn, ms),
+        clear: (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>),
+    };
+    // One deadline for the whole wait, the backend's answer and every probe included: a renderer or a backend that
+    // locks up never holds the switch, the view is shown anyway.
+    const mounted = await withDeadline(
+        (async () => {
+            const expected = await guardedAsync(async () => {
+                const tab = (await ObjectService.GetObject("tab:" + view.waveTabId)) as Tab;
+                return tab?.blockids?.length ?? 0;
+            }, 0);
+            return waitPanelsMounted(
+                () =>
+                    view.isDestroyed || view.webContents.isDestroyed()
+                        ? Promise.resolve(-1)
+                        : (view.webContents.executeJavaScript(mountedBlocksScript()) as Promise<number>),
+                expected,
+                () => Date.now(),
+                (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+                limit - (Date.now() - started)
+            );
+        })(),
+        limit,
+        false,
+        timers.set,
+        timers.clear
     );
     console.log(
         `[#2390] new view without a picture shown ${mounted ? "with its panels mounted" : "before all its panels mounted"}, ${Date.now() - started} ms after its first render`

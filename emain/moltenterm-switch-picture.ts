@@ -552,6 +552,38 @@ export async function waitPanelsMounted(
     return false;
 }
 
+// A promise's value, or the fallback once ms have passed: a page or a backend that never answers holds nothing past its
+// bound (#2390). The timer is cleared when the promise answers first.
+export function withDeadline<T>(
+    p: Promise<T>,
+    ms: number,
+    fallback: T,
+    setTimer: (fn: () => void, ms: number) => unknown,
+    clearTimer: (handle: unknown) => void
+): Promise<T> {
+    return new Promise<T>((resolve) => {
+        let done = false;
+        const finish = (v: T) => {
+            if (done) {
+                return;
+            }
+            done = true;
+            resolve(v);
+        };
+        const timer = setTimer(() => finish(fallback), ms);
+        p.then(
+            (v) => {
+                clearTimer(timer);
+                finish(v);
+            },
+            () => {
+                clearTimer(timer);
+                finish(fallback);
+            }
+        );
+    });
+}
+
 // A page that mounts every panel its tab holds is settled; one that shows fewer (a layout that draws only some of
 // them) is settled once its count stopped changing for StableProbes looks.
 export const StableProbes = 3;
