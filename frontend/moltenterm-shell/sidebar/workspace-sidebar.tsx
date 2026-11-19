@@ -164,7 +164,14 @@ import { pruneSnapshots, sidebarAtRest, SnapshotSource, useSidebarCapture } from
 import { SidebarModel } from "./sidebar-store";
 import { centredScroll, manyDots } from "./sidebar-swipe";
 import { SidebarSwipeController } from "./sidebar-swipe-view";
-import { notifySwitchIntent, switchDirection, switchFromSidebar, SwitchIntent, useSwitchArrival } from "./sidebar-switch";
+import {
+    cancelSwitchIntent,
+    notifySwitchIntent,
+    switchDirection,
+    switchFromSidebar,
+    SwitchIntent,
+    useSwitchArrival,
+} from "./sidebar-switch";
 import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
 import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./temporary-clear";
@@ -2122,8 +2129,14 @@ function WorkspaceDots({ workspaces }: { workspaces: SidebarWorkspaces }) {
             hoverRef.current.enter(id);
             notifySwitchIntent(id);
         },
-        onOut: () => hoverRef.current.out(),
-        onLeave: () => hoverRef.current.leave(),
+        onOut: () => {
+            hoverRef.current.out();
+            cancelSwitchIntent();
+        },
+        onLeave: () => {
+            hoverRef.current.leave();
+            cancelSwitchIntent();
+        },
     });
     const shown = filterEntries(workspaces.entries, (w) => w.name, letter);
     const pendingShown = draft != null && letter == null;

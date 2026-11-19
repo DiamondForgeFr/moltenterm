@@ -23,7 +23,6 @@ import { ElectronWshClient } from "./emain-wsh";
 import { openLinkInApp } from "./moltenterm-external-links"; // MOLTENTERM-PATCH (#663, #2176)
 import { watchGuestFavicons } from "./moltenterm-favicons"; // MOLTENTERM-PATCH (#1962)
 import { attachWebviewWindowOpen } from "./moltenterm-popups"; // MOLTENTERM-PATCH (#207)
-import { noteSwitchModifier } from "./moltenterm-switch-picture-live"; // MOLTENTERM-PATCH (#2375)
 import { acquireViewForTab, noteTabViewDestroyed, noteTabViewDestroying } from "./moltenterm-tabview-host"; // MOLTENTERM-PATCH (#461)
 import { opaqueBackground } from "./moltenterm-theme"; // MOLTENTERM-PATCH (#1341)
 
@@ -282,7 +281,6 @@ export async function getOrCreateWebViewForTab(
     tabView.webContents.on("before-input-event", (e, input) => {
         const waveEvent = adaptFromElectronKeyEvent(input);
         // console.log("WIN bie", tabView.waveTabId.substring(0, 8), waveEvent.type, waveEvent.code);
-        noteSwitchModifier(getWaveWindowById(tabView.waveWindowId), tabView, input); // MOLTENTERM-PATCH (#2375)
         handleCtrlShiftState(tabView.webContents, waveEvent);
         setWasActive(true);
         if (input.type == "keyDown" && tabView.keyboardChordMode) {

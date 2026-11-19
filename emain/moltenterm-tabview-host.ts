@@ -45,6 +45,7 @@ import {
     coverArrivingView,
     coverGrace,
     finishArrivingView,
+    pruneDeletedSwitchPictures,
     switchWaitingView,
     wearAhead,
 } from "./moltenterm-switch-picture-live";
@@ -930,6 +931,7 @@ export function sweepDeletedTabViews(reason: string) {
         },
         log: (msg, ...args) => console.log(msg, ...args),
     });
+    pruneDeletedSwitchPictures();
     fireAndForget(async () => {
         const destroyed = await sweepTabViews(reason);
         if (destroyed > 0) {
