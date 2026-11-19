@@ -162,7 +162,7 @@ declare global {
         clearWebviewStorage: (webContentsId: number) => Promise<void>; // clear-webview-storage
         setWaveAIOpen: (isOpen: boolean) => void; // set-waveai-open
         setWindowButtons: (state: { visible: boolean; zoom: number; peekGap?: number } | null) => void; // moltenterm-window-buttons, MOLTENTERM-PATCH (#1216, #1279, #1293)
-        setWindowLook: (look: { translucent: boolean; blur: boolean }) => void; // moltenterm-window-look, MOLTENTERM-PATCH (#1281)
+        setWindowLook: (look: { translucent: boolean; blur: boolean; reducedMotion?: boolean }) => void; // moltenterm-window-look, MOLTENTERM-PATCH (#1281, #2390)
         getWindowLookSupport: () => Promise<{ translucent: boolean; blur: boolean }>; // MOLTENTERM-PATCH (#1281)
         moltentermGetSystemIdleSec: () => Promise<number>; // moltenterm-system-idle-get, MOLTENTERM-PATCH (#1958)
         // Brokk's kind colleague runs in Electron main (emain/moltenterm-colleague.ts), MOLTENTERM-PATCH (#2221): the

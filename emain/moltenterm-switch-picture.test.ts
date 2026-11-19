@@ -41,6 +41,9 @@ import {
     uncoverScript,
     waitingCaptionKey,
     waitingScript,
+    mountedBlocksScript,
+    PanelsMountMaxMs,
+    waitPanelsMounted,
     WindowSwitchPicture,
 } from "./moltenterm-switch-picture";
 
@@ -513,6 +516,25 @@ describe("the picture script on the view being left", () => {
         expect(main.style.opacity).toBe("");
     });
 
+    it("clears an opaque page's own background for a see-through picture and gives it back with the overlay (#2390)", async () => {
+        for (const fadeOut of [false, true]) {
+            const page = fakePage({ tokens: Tokens, withMain: true });
+            (page.body.style as any).background = "rgb(1, 2, 3)";
+            page.run(showPictureScript(true));
+            await flush();
+            expect((page.body.style as any).background).toBe("transparent");
+            expect((page.root.style as any).background).toBe("transparent");
+            page.run(removeOverlayScript(fadeOut));
+            expect((page.body.style as any).background).toBe("rgb(1, 2, 3)");
+            expect((page.root.style as any).background ?? "").toBe("");
+        }
+        const opaque = fakePage({ tokens: Tokens, withMain: true });
+        (opaque.body.style as any).background = "rgb(1, 2, 3)";
+        opaque.run(showPictureScript(false));
+        await flush();
+        expect((opaque.body.style as any).background).toBe("rgb(1, 2, 3)");
+    });
+
     it("gives the page its content back at once when it is off screen", async () => {
         const page = fakePage({ tokens: Tokens, withMain: true });
         page.run(showPictureScript(true));
@@ -778,6 +800,8 @@ function setup(over: Partial<SwitchPictureDeps> = {}, pictures: SwitchPicture[] 
         enabled: () => true,
         store,
         translucent: () => false,
+        letThrough: () => false,
+        restoreLook: () => {},
         viewOfTab: () => null,
         windowSize: () => ({ width: 1000, height: 700 }),
         captureLeaver: (_v, tabId) => captures.push(tabId),
@@ -836,6 +860,36 @@ describe("one window's switch", () => {
         expect(scriptsOf(opaque.leaver, "var m = false ?")).toHaveLength(1);
     });
 
+    it("lets an opaque leaver through for a see-through target, so the look moves with the cross-fade (#2390)", () => {
+        const through: string[] = [];
+        const restored: string[] = [];
+        const s = setup(
+            {
+                translucent: () => false,
+                letThrough: (v) => {
+                    through.push(v.id);
+                    return true;
+                },
+                restoreLook: (v) => restored.push(v.id),
+            },
+            [pic("target", "wt", 1000, { translucent: true }), pic("other", "wo", 1100, { translucent: true })]
+        );
+        s.sw.begin(s.leaver, "leaver", "wl", { workspaceId: "wt" });
+        expect(through).toEqual(["leaver"]);
+        expect(scriptsOf(s.leaver, "var m = true ?")).toHaveLength(1);
+        // a newer switch keeps the overlay as it is: the leaver is not let through twice
+        s.sw.begin(s.leaver, "leaver", "wl", { workspaceId: "wo" });
+        expect(through).toEqual(["leaver"]);
+        // the switch ends without a target: the leaver gets its own background back
+        s.sw.cancel();
+        expect(restored).toEqual(["leaver"]);
+        vi.useRealTimers();
+        // an opaque target's picture never clears the leaver
+        const flat = setup({ letThrough: (v) => through.push(v.id) > 0 });
+        flat.sw.begin(flat.leaver, "leaver", "wl", { workspaceId: "wt" });
+        expect(through).toEqual(["leaver"]);
+        flat.sw.cancel();
+    });
     it("tells the target to keep its own content out of sight only under a picture that lets the desktop through", async () => {
         const see = setup({}, [pic("target", "wt", 1000, { translucent: true })]);
         see.sw.begin(see.leaver, "leaver", "wl", { workspaceId: "wt" });
@@ -1156,5 +1210,62 @@ describe("typing arms nothing, and a closed tab leaves no picture (#2375)", () =
         const host = source("emain/moltenterm-tabview-host.ts");
         const sweep = host.slice(host.indexOf("export function sweepDeletedTabViews"));
         expect(sweep.slice(0, sweep.indexOf("\n}\n"))).toContain("pruneDeletedSwitchPictures();");
+    });
+});
+
+// A switch's new view with no picture to wear is never shown half-drawn (#2390).
+describe("a new view without a picture waits for its panels", () => {
+    function clock(counts: number[]) {
+        let t = 0;
+        let i = 0;
+        return {
+            now: () => t,
+            sleep: async (ms: number) => {
+                t += ms;
+            },
+            count: async () => counts[Math.min(i++, counts.length - 1)],
+            asked: () => i,
+        };
+    }
+
+    it("is shown as soon as every panel of its tab is mounted", async () => {
+        const c = clock([0, 1, 3]);
+        expect(await waitPanelsMounted(c.count, 3, c.now, c.sleep)).toBe(true);
+        expect(c.asked()).toBe(3);
+    });
+
+    it("takes a count that stopped changing for a layout that draws only some of its panels", async () => {
+        const c = clock([0, 2, 2, 2, 2]);
+        expect(await waitPanelsMounted(c.count, 5, c.now, c.sleep)).toBe(true);
+        expect(c.asked()).toBe(2 + StableProbes);
+    });
+
+    it("never holds the switch longer than its bound, whatever the page answers", async () => {
+        for (const counts of [[0], [-1]]) {
+            const c = clock(counts);
+            expect(await waitPanelsMounted(c.count, 3, c.now, c.sleep)).toBe(false);
+            expect(c.now()).toBeGreaterThanOrEqual(PanelsMountMaxMs);
+            expect(c.now()).toBeLessThan(PanelsMountMaxMs + 100);
+        }
+        const failing = clock([0]);
+        const broken = () => Promise.reject(new Error("gone"));
+        expect(await waitPanelsMounted(broken, 3, failing.now, failing.sleep)).toBe(false);
+    });
+
+    it("reads the panels from the page's DOM, which a view off screen keeps up to date", () => {
+        const page = fakePage({ blocks: ["a", "a", "b"] });
+        expect(page.run(mountedBlocksScript())).toBe(2);
+        expect(mountedBlocksScript()).not.toContain("requestAnimationFrame");
+    });
+
+    it("is waited for only on a switch's new view that wears no picture", () => {
+        const host = readFileSync("emain/moltenterm-tabview-host.ts", "utf8");
+        const init = host.slice(host.indexOf("async function initializeTab"));
+        const body = init.slice(0, init.indexOf("\n}\n"));
+        expect(body.indexOf("awaitArrivingPanels")).toBeGreaterThan(body.indexOf("await coverGrace"));
+        expect(body).toContain("offScreen && !nothingShown");
+        const live = readFileSync("emain/moltenterm-switch-picture-live.ts", "utf8");
+        const wait = live.slice(live.indexOf("export async function awaitArrivingPanels"));
+        expect(wait.slice(0, wait.indexOf("\n}\n"))).toContain(".wears(adapterOf(view))");
     });
 });

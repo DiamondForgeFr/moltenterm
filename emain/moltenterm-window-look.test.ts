@@ -12,9 +12,12 @@ vi.mock("./moltenterm-theme", () => ({ opaqueBackground: () => "#222222" }));
 import {
     applyActiveViewLook,
     applyWindowLook,
+    letViewThrough,
+    LookFadeMs,
     noteWindowCreatedLook,
     parseLookRequest,
     receiveWindowLook,
+    restoreViewBackground,
     viewLooksTranslucent,
     windowLookSupport,
 } from "./moltenterm-window-look";
@@ -169,5 +172,97 @@ describe("a workspace switch and the window's blur (#1711)", () => {
         const win = makeMacWindow();
         expect(applyActiveViewLook(win, makeView())).toBe(false);
         expect(win.setVibrancy).not.toHaveBeenCalled();
+    });
+});
+
+// #2390: a switch never snaps the look or drops a frame.
+describe("a switch between looks (#2390)", () => {
+    const Blur = { translucent: true, blur: true };
+    const Clear = { translucent: true, blur: false };
+    const Opaque = { translucent: false, blur: false };
+
+    function makeMacWindow() {
+        const win = makeWindow();
+        noteWindowCreatedLook(win, true, false, "darwin");
+        return win;
+    }
+
+    it("fades the window's blur in or out with the switch, in the switch's cross-fade time", () => {
+        const win = makeMacWindow();
+        const a = makeView();
+        const b = makeView();
+        receiveWindowLook(win, a, true, Mac, Clear);
+        receiveWindowLook(win, b, false, Mac, Blur);
+        applyActiveViewLook(win, b);
+        expect(win.setVibrancy).toHaveBeenLastCalledWith("hud", { animationDuration: LookFadeMs });
+        expect(LookFadeMs).toBe(180);
+        applyActiveViewLook(win, a);
+        expect(win.setVibrancy).toHaveBeenLastCalledWith(null, { animationDuration: LookFadeMs });
+    });
+
+    it("changes the blur at once under reduced motion, and for a change of the look on screen", () => {
+        const win = makeMacWindow();
+        const a = makeView();
+        const b = makeView();
+        receiveWindowLook(win, a, true, Mac, Clear);
+        receiveWindowLook(win, b, false, Mac, { ...Blur, reducedMotion: true });
+        applyActiveViewLook(win, b);
+        expect(win.setVibrancy).toHaveBeenLastCalledWith("hud");
+        // the sheet's slider on the view on screen
+        receiveWindowLook(win, b, true, Mac, Clear);
+        expect(win.setVibrancy).toHaveBeenLastCalledWith(null);
+    });
+
+    it("sets a view's background only when it changes, so the view on screen never drops its frame", () => {
+        const win = makeMacWindow();
+        const v = makeView();
+        receiveWindowLook(win, v, true, Mac, Blur);
+        receiveWindowLook(win, v, true, Mac, Blur);
+        applyActiveViewLook(win, v);
+        applyActiveViewLook(win, v);
+        expect(v.setBackgroundColor).toHaveBeenCalledTimes(1);
+        receiveWindowLook(win, v, true, Mac, Opaque);
+        expect(v.setBackgroundColor).toHaveBeenCalledTimes(2);
+        expect(v.setBackgroundColor).toHaveBeenLastCalledWith("#222222");
+    });
+
+    it("reads the page's reduced-motion rule only when it is exactly true", () => {
+        expect(parseLookRequest({ translucent: true, blur: true, reducedMotion: true })).toEqual({
+            translucent: true,
+            blur: true,
+            reducedMotion: true,
+        });
+        expect(parseLookRequest({ translucent: true, blur: true, reducedMotion: "yes" })).toEqual({
+            translucent: true,
+            blur: true,
+        });
+    });
+
+    it("lets an opaque view being left through for the cross-fade, and gives its background back", () => {
+        const win = makeMacWindow();
+        const v = makeView();
+        receiveWindowLook(win, v, true, Mac, Opaque);
+        expect(letViewThrough(win, v)).toBe(true);
+        expect(v.setBackgroundColor).toHaveBeenLastCalledWith("#00000000");
+        restoreViewBackground(win, v);
+        expect(v.setBackgroundColor).toHaveBeenLastCalledWith("#222222");
+        // coming back on screen with a later switch restores it too
+        letViewThrough(win, v);
+        applyActiveViewLook(win, v);
+        expect(v.setBackgroundColor).toHaveBeenLastCalledWith("#222222");
+        // a view that never asked for a look goes back to opaque
+        const fresh = makeView();
+        letViewThrough(win, fresh);
+        restoreViewBackground(win, fresh);
+        expect(fresh.setBackgroundColor).toHaveBeenLastCalledWith("#222222");
+    });
+
+    it("never lets a view through on a window that cannot be see-through", () => {
+        const win = makeWindow();
+        noteWindowCreatedLook(win, false, false, "linux");
+        const v = makeView();
+        expect(letViewThrough(win, v)).toBe(false);
+        expect(v.setBackgroundColor).not.toHaveBeenCalled();
+        expect(letViewThrough(makeWindow(true), v)).toBe(false);
     });
 });

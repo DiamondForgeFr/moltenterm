@@ -17,18 +17,23 @@ import { opaqueBackground } from "./moltenterm-theme";
 export const WindowLookChannel = "moltenterm-window-look";
 export const WindowLookSupportChannel = "moltenterm-window-look-support";
 
-const ClearViewBg = "#00000000";
+export const ClearViewBg = "#00000000";
 // Dark in every system appearance, so the sidebar's light text stays readable over it.
 const BlurVibrancy = "hud";
+// The window's blur fades in or out with a switch in --mt-duration-base (frontend/moltenterm-shell/tokens.css), the
+// switch picture's cross-fade (#2390): a switch between two looks moves from one to the other with the motion, never in
+// one frame.
+export const LookFadeMs = 180;
 
 export type WindowLookSupport = { translucent: boolean; blur: boolean };
-export type WindowLookRequest = { translucent: boolean; blur: boolean };
+// reducedMotion: the page's own reduced-motion rule (the app's setting or the system's), so the blur changes at once.
+export type WindowLookRequest = { translucent: boolean; blur: boolean; reducedMotion?: boolean };
 
 type CreatedLook = { transparent: boolean; blur: boolean; platform: string };
 
 type LookWindow = {
     isDestroyed(): boolean;
-    setVibrancy?(type: string | null): void;
+    setVibrancy?(type: string | null, options?: { animationDuration?: number }): void;
 };
 
 type LookView = {
@@ -38,6 +43,31 @@ type LookView = {
 const created = new WeakMap<object, CreatedLook>();
 const requested = new WeakMap<object, WindowLookRequest>();
 const appliedVibrancy = new WeakMap<object, string | null>();
+const appliedBackground = new WeakMap<object, string>();
+
+// A view's background is set only when it changes: Chromium drops the frame a view on screen shows when its background
+// is set, and the window showed one empty frame (the bare blur) at a switch (#2390).
+export function setViewBackground(view: LookView, color: string) {
+    if (view == null || appliedBackground.get(view) === color) {
+        return;
+    }
+    appliedBackground.set(view, color);
+    view.setBackgroundColor(color);
+}
+
+function setWindowVibrancy(win: LookWindow, vibrancy: string | null, animate: boolean) {
+    // Only a change reaches the window: setVibrancy rebuilds the window's effect view, and doing it at every switch
+    // flicked the view that had just come on screen (a hidden then visible cycle 3 ms after the swap, #2375).
+    if (appliedVibrancy.has(win) && appliedVibrancy.get(win) === vibrancy) {
+        return;
+    }
+    appliedVibrancy.set(win, vibrancy);
+    if (animate) {
+        win.setVibrancy?.(vibrancy, { animationDuration: LookFadeMs });
+        return;
+    }
+    win.setVibrancy?.(vibrancy);
+}
 
 export function noteWindowCreatedLook(win: object, transparent: boolean, blur: boolean, platform: string) {
     created.set(win, { transparent, blur, platform });
@@ -55,17 +85,24 @@ export function parseLookRequest(value: unknown): WindowLookRequest {
         return null;
     }
     const v = value as Record<string, unknown>;
-    return { translucent: v.translucent === true, blur: v.blur === true };
+    const request: WindowLookRequest = { translucent: v.translucent === true, blur: v.blur === true };
+    if (v.reducedMotion === true) {
+        request.reducedMotion = true;
+    }
+    return request;
 }
 
 // What the window and the sending view become. The look is the only judge (#1629): window:blur is on by default, so a
 // window keeping Wave's creation-time blur under an opaque look would turn a saved opaque workspace see-through.
+// switching: the view comes on screen with a switch, so the window's blur fades with the motion (#2390); a change of
+// the look on screen (the sheet's slider) is drawn at once.
 export function applyWindowLook(
     win: LookWindow,
     view: LookView,
     isActiveView: boolean,
     look: CreatedLook,
-    request: WindowLookRequest
+    request: WindowLookRequest,
+    switching = false
 ): boolean {
     if (win == null || win.isDestroyed() || view == null || request == null) {
         return false;
@@ -73,19 +110,33 @@ export function applyWindowLook(
     const support = windowLookSupport(look);
     const translucent = request.translucent && support.translucent;
     const blur = translucent && request.blur && support.blur;
-    view.setBackgroundColor(translucent ? ClearViewBg : opaqueBackground());
+    setViewBackground(view, translucent ? ClearViewBg : opaqueBackground());
     if (!isActiveView || look?.platform !== "darwin") {
         return true;
     }
-    // Only a change reaches the window: setVibrancy rebuilds the window's effect view, and doing it at every switch
-    // flicked the view that had just come on screen (a hidden then visible cycle 3 ms after the swap, #2375).
-    const vibrancy = blur ? BlurVibrancy : null;
-    if (appliedVibrancy.has(win) && appliedVibrancy.get(win) === vibrancy) {
-        return true;
-    }
-    appliedVibrancy.set(win, vibrancy);
-    win.setVibrancy?.(vibrancy);
+    setWindowVibrancy(win, blur ? BlurVibrancy : null, switching && request.reducedMotion !== true);
     return true;
+}
+
+// The view being left by a switch to a see-through workspace lets the desktop through while its own content fades
+// under the target's picture, so the window turns see-through with the cross-fade instead of at the swap (#2390). Only
+// its background changes: its page keeps drawing what it drew.
+export function letViewThrough(win: LookWindow, view: LookView): boolean {
+    if (win == null || win.isDestroyed() || view == null || !windowLookSupport(created.get(win)).translucent) {
+        return false;
+    }
+    setViewBackground(view, ClearViewBg);
+    return true;
+}
+
+// The view a switch left on screen after all (the switch was cancelled) takes its own background back.
+export function restoreViewBackground(win: LookWindow, view: LookView) {
+    if (win == null || win.isDestroyed() || view == null) {
+        return;
+    }
+    const request = requested.get(view);
+    const translucent = request?.translucent === true && windowLookSupport(created.get(win)).translucent;
+    setViewBackground(view, translucent ? ClearViewBg : opaqueBackground());
 }
 
 // Whether a view asked to let the desktop through: no picture of it can be drawn over what shows behind (#2375).
@@ -118,7 +169,7 @@ export function applyActiveViewLook(win: LookWindow, view: LookView): boolean {
     if (request == null) {
         return false;
     }
-    return applyWindowLook(win, view, true, created.get(win), request);
+    return applyWindowLook(win, view, true, created.get(win), request, true);
 }
 
 let initialized = false;
