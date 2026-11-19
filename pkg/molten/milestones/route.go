@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentchoice"
@@ -23,8 +24,11 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/util/fileutil"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
+	"github.com/wavetermdev/waveterm/pkg/waveobj"
+	"github.com/wavetermdev/waveterm/pkg/wconfig"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
+	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
 
 const (
@@ -33,7 +37,8 @@ const (
 	dataDirName = "milestones"
 	storeName   = "sentences.json"
 	// The agent runs in this empty folder of MoltenTerm's own, never in a project's.
-	runDirName = "run"
+	runDirName        = "run"
+	clientReadTimeout = 5 * time.Second
 )
 
 func dataDir() string {
@@ -88,13 +93,39 @@ func liveValidDir(dir string) bool {
 }
 
 // liveAgent is the project's coding agent (the developer's choice for it, else the default, else the first installed:
-// agentchoice), when it has a text-only form; Kimi and the others write no sentence.
+// agentchoice), when it has a text-only form; Codex, Kimi and the others write no sentence.
 func liveAgent(dir string) string {
 	choice := agentchoice.Resolve(dir, "")
 	if choice.Agent == "" || choice.Missing || agentchoice.TextOnlyPrintArgv(choice.Agent) == nil {
 		return ""
 	}
 	return choice.Agent
+}
+
+// SummariesConsentKey is the developer's agreement to the sentences, written by the window in the client's meta when he
+// turns them on (the companion's offer, or Settings with its confirmation), removed when he turns them off. A terminal
+// cannot write molten:* keys on the client (pkg/molten/metaguard) nor set companion:ticketsummaries (pkg/wshrpc/wshserver
+// configguard); an agent writing settings.json by hand gets the setting without the agreement, which counts as off.
+// Must match frontend/moltenterm-shell/settings/settings-catalog.ts ConfirmConsentKeys.
+const SummariesConsentKey = "molten:ticketsummaries"
+
+// SummariesAgreed: the setting and the developer's agreement agree.
+func SummariesAgreed(setting bool, clientMeta map[string]any) bool {
+	if !setting {
+		return false
+	}
+	at, ok := clientMeta[SummariesConsentKey].(float64)
+	return ok && at > 0
+}
+
+func liveSummariesOn() bool {
+	if !wconfig.GetWatcher().GetFullConfig().Settings.CompanionTicketSummaries {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), clientReadTimeout)
+	defer cancel()
+	client, err := wstore.DBGetSingleton[*waveobj.Client](ctx)
+	return err == nil && client != nil && SummariesAgreed(true, client.Meta)
 }
 
 func runDir() (string, error) {
@@ -110,11 +141,7 @@ func liveRunPrint(ctx context.Context, agent string, prompt string) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
-	argv := agentchoice.TextOnlyPrintArgv(agent, dir)
-	if argv == nil {
-		return nil, fmt.Errorf("%s has no text-only form", agent)
-	}
-	return agentchoice.RunPrintArgv(ctx, dir, argv, prompt)
+	return agentchoice.RunTextOnly(ctx, dir, agent, prompt)
 }
 
 func storePath() string {
@@ -153,14 +180,15 @@ func livePublish(sig Signal) {
 // Live is wavesrv's service.
 func Live() *Service {
 	return MakeService(Env{
-		Gh:        liveGh,
-		ValidDir:  liveValidDir,
-		Agent:     liveAgent,
-		RunPrint:  liveRunPrint,
-		RecordUse: attention.RecordHeadlessUse,
-		Publish:   livePublish,
-		Load:      liveLoad,
-		Save:      liveSave,
+		Gh:          liveGh,
+		ValidDir:    liveValidDir,
+		Agent:       liveAgent,
+		SummariesOn: liveSummariesOn,
+		RunPrint:    liveRunPrint,
+		RecordUse:   attention.RecordHeadlessUse,
+		Publish:     livePublish,
+		Load:        liveLoad,
+		Save:        liveSave,
 	})
 }
 

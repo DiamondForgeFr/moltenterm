@@ -33,6 +33,8 @@ func TestMoltenConsentConfigCallers(t *testing.T) {
 		{wconfig.ConfigKey_BrowserLocalPages: map[string]any{"/tmp/report/index.html": "allow"}},
 		// #2257: Brokk's agent acting without asking is the developer's choice, never an agent's.
 		{wconfig.ConfigKey_BossAutoApprove: true},
+		// #2392: the companion's sentences spend the developer's subscription, his to agree to.
+		{wconfig.ConfigKey_CompanionTicketSummaries: true},
 	}
 	for _, from := range []routetest.From{e.Window(), e.Electron()} {
 		for _, meta := range consent {
@@ -61,7 +63,8 @@ func TestMoltenConsentConfigCallers(t *testing.T) {
 func mustRefuseConsentConfig(t *testing.T, name string, err error) {
 	t.Helper()
 	if err == nil || !(strings.HasPrefix(err.Error(), "refused: a terminal cannot set browser:") ||
-		strings.HasPrefix(err.Error(), "refused: a terminal cannot set boss:autoapprove")) {
+		strings.HasPrefix(err.Error(), "refused: a terminal cannot set boss:autoapprove") ||
+		strings.HasPrefix(err.Error(), "refused: a terminal cannot set companion:ticketsummaries")) {
 		t.Errorf("%s: %v, want a refusal", name, err)
 	}
 }

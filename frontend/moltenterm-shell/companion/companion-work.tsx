@@ -6,17 +6,23 @@
 // line from each task in progress to the agent working on it, only on a certain match. Loaded on demand, out of the
 // startup bundle (companion-view.tsx).
 
-import { openLink } from "@/app/store/global";
+import { ClientModel } from "@/app/store/client-model";
+import { getSettingsKeyAtom, openLink } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
+import { makeORef } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
+import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
+import { useAtomValue } from "jotai";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../agent-state-model";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
+import { MoltenWave } from "../molten-button";
 import { StateMark, StateMarkKind } from "../state-mark";
 import { DominoLoader, SectionBlock } from "../suite/suite";
-import { whileShown } from "../tab-activity";
-import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
+import { TabActivity, whileShown } from "../tab-activity";
+import { everyInPanel, panelActivityAtom, usePanelBlockId } from "../view360/offcarpet-model";
 import { ColumnsBand, CompanionSectionId, defaultWorkBand, workLayout } from "./companion-layout";
 import {
     agentEnd,
@@ -36,8 +42,11 @@ import {
     MilestonesRoute,
     MilestonesView,
     MilestoneTicket,
+    offersSummaries,
     previewTickets,
     samePaths,
+    SummariesConsentKey,
+    SummariesSettingKey,
     ticketEnd,
     ticketLinks,
     todoEnd,
@@ -45,6 +54,7 @@ import {
     wantedTickets,
 } from "./companion-milestone-model";
 import { CompanionTodo, CompanionView, todoCounts } from "./companion-model";
+import { useCompanionPref } from "./companion-prefs";
 import { AgentsList } from "./companion-recap";
 import { AgentRow, agentsView, finishedLabel } from "./companion-recap-model";
 import type { SessionSectionSlots } from "./companion-section";
@@ -59,11 +69,19 @@ function cleanDir(dir: string): string {
     return trimmed.length > 1 ? trimmed.replace(/\/+$/, "") : trimmed;
 }
 
-// The project's active milestone, in the interface language: asked at once, on each change wavesrv announces, and on a
-// beat while the companion shows (never while it is hidden).
+// The companion is on screen: its tab shows, and its panel is on the carpet.
+function onScreen(panelId: string): boolean {
+    const state = globalStore.get(panelId ? panelActivityAtom(panelId) : TabActivity.getInstance().stateAtom);
+    return state === "active" || state === "visible";
+}
+
+// The project's active milestone, in the interface language: asked at once, on each change wavesrv announces or of the
+// sentences' setting, and on a beat while the companion shows. Each ask says whether the companion is on screen: a
+// hidden one only gets what was read last, and never makes wavesrv read the forge or write sentences.
 export function useMilestones(dir: string, want: number[]): MilestonesView {
     const locale = useLocale();
     const panelId = usePanelBlockId();
+    const summaries = useAtomValue(getSettingsKeyAtom(SummariesSettingKey));
     const [view, setView] = useState<MilestonesView>(null);
     const [rev, setRev] = useState(0);
     const project = cleanDir(dir);
@@ -79,7 +97,7 @@ export function useMilestones(dir: string, want: number[]): MilestonesView {
                 try {
                     const next = await TabRpcClient.wshRpcCall(
                         MilestonesGetCommand,
-                        { dir: project, lang: locale, want: want ?? [] },
+                        { dir: project, lang: locale, want: want ?? [], shown: onScreen(panelId) },
                         { route: MilestonesRoute, timeout: RpcTimeoutMs }
                     );
                     if (!cancelled) {
@@ -95,7 +113,7 @@ export function useMilestones(dir: string, want: number[]): MilestonesView {
             cancelled = true;
             stop();
         };
-    }, [project, locale, wantKey, rev, panelId]);
+    }, [project, locale, wantKey, rev, panelId, summaries]);
     useEffect(() => {
         if (!project) {
             return;
@@ -142,6 +160,22 @@ function linkKeyOf(target: EventTarget): string {
     return el.getAttribute("data-link-id") ?? el.getAttribute("data-link-end");
 }
 
+// The developer's yes to the offer: the agreement wavesrv requires first, then the setting, whose change asks again.
+function turnSummariesOn() {
+    const clientId = ClientModel.getInstance().clientId;
+    fireAndForget(async () => {
+        if (clientId != null) {
+            await RpcApi.SetMetaCommand(TabRpcClient, {
+                oref: makeORef("client", clientId),
+                meta: { [SummariesConsentKey]: Date.now() } as MetaType,
+            });
+        }
+        await RpcApi.SetConfigCommand(TabRpcClient, { [SummariesSettingKey]: true } as SettingsType);
+    });
+}
+
+type SummariesOffer = { yes: () => void; no: () => void };
+
 function openPage(e: React.MouseEvent, url: string) {
     // The block's own click handler would take the focus back from the browser panel the page opens in.
     e.stopPropagation();
@@ -176,6 +210,16 @@ export function CompanionWork(props: CompanionWorkProps) {
     const [want, setWant] = useState<number[]>([]);
     const asked = useMilestones(props.milestones != null ? "" : dir, want);
     const milestones = props.milestones ?? asked;
+    const [offerAnswered, answerOffer] = useCompanionPref("summariesasked");
+    const offer: SummariesOffer = offersSummaries(milestones, offerAnswered)
+        ? {
+              yes: () => {
+                  answerOffer(true);
+                  turnSummariesOn();
+              },
+              no: () => answerOffer(true),
+          }
+        : null;
     const [hot, setHot] = useState<string>(null);
     const agents = agentsView(view, agentState, now);
     const linkable = linkAgents(agents.rows, view);
@@ -222,6 +266,7 @@ export function CompanionWork(props: CompanionWorkProps) {
                         rows={preview.rows}
                         more={preview.more}
                         phrasing={milestones.phrasing}
+                        offer={offer}
                         links={tickets}
                         chips={chips}
                         lit={lit}
@@ -311,6 +356,7 @@ function MilestoneSection({
     rows,
     more,
     phrasing,
+    offer,
     links,
     now,
     ...marks
@@ -319,6 +365,7 @@ function MilestoneSection({
     rows: MilestoneTicket[];
     more: number;
     phrasing: boolean;
+    offer: SummariesOffer;
     links: Map<number, LinkAgent[]>;
     now: number;
 } & EndMarks) {
@@ -383,6 +430,39 @@ function MilestoneSection({
                     {`${progress.closed}/${progress.total}`}
                 </span>
             </div>
+            {offer != null ? (
+                <div
+                    className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-4 border border-border px-2 py-1.5 text-11 text-secondary"
+                    data-testid="companion-summaries-offer"
+                >
+                    <span className="min-w-0 flex-1 basis-48">{t("companion.work.offer")}</span>
+                    <span className="flex shrink-0 items-center gap-1">
+                        <button
+                            type="button"
+                            className="molten-btn cursor-pointer rounded-4 px-2 py-0.5 text-11"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                offer.yes();
+                            }}
+                            data-testid="companion-summaries-yes"
+                        >
+                            {t("companion.work.offerYes")}
+                            <MoltenWave />
+                        </button>
+                        <button
+                            type="button"
+                            className="cursor-pointer rounded-4 px-2 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                offer.no();
+                            }}
+                            data-testid="companion-summaries-no"
+                        >
+                            {t("companion.work.offerNo")}
+                        </button>
+                    </span>
+                </div>
+            ) : null}
             {phrasing ? (
                 <div className="flex items-center gap-1.5 text-11 text-muted" title={t("companion.work.phrasingTitle")}>
                     <DominoLoader />

@@ -47,25 +47,26 @@ const (
 )
 
 type Ticket struct {
-	Number int    `json:"number"`
-	Title  string `json:"title"`
-	Url    string `json:"url,omitempty"`
-	// Updated is the ticket's last update (Unix ms): with its number and the language, it keys its sentence.
-	Updated  int64  `json:"updated,omitempty"`
+	Number   int    `json:"number"`
+	Title    string `json:"title"`
+	Url      string `json:"url,omitempty"`
 	Sentence string `json:"sentence,omitempty"`
 	// excerpt is the first lines of its body, cleaned, for its sentence only: it never leaves wavesrv for a window.
 	excerpt string
+	// hash is what its sentence is written from, its cleaned title and excerpt (contentHash): with the language, it
+	// keys the sentence.
+	hash string
 }
 
 type Milestone struct {
 	Number int    `json:"number"`
 	Title  string `json:"title"`
 	Url    string `json:"url,omitempty"`
-	// Open and Closed are the forge's counts, which hold its pull requests too, as its own progress bar does.
+	// Open and Closed count its issues, pull requests left out.
 	Open   int   `json:"open"`
 	Closed int   `json:"closed"`
 	Due    int64 `json:"due,omitempty"`
-	// Remaining is the number of its open tickets, pull requests left out.
+	// Remaining is the number of its open tickets.
 	Remaining int      `json:"remaining"`
 	Tickets   []Ticket `json:"tickets"`
 }
@@ -74,6 +75,10 @@ type View struct {
 	Dir       string     `json:"dir"`
 	State     string     `json:"state"`
 	Milestone *Milestone `json:"milestone,omitempty"`
+	// Summaries: the developer turned the sentences on and confirmed it (companion:ticketsummaries). Phrasable: the
+	// project's agent can write them. The companion offers them once when the second holds and the first does not.
+	Summaries bool `json:"summaries,omitempty"`
+	Phrasable bool `json:"phrasable,omitempty"`
 	// Phrasing: a batch of sentences is being written for this project's tickets.
 	Phrasing bool  `json:"phrasing,omitempty"`
 	ReadAt   int64 `json:"readat,omitempty"`
@@ -86,6 +91,9 @@ type GetRequest struct {
 	// Want: the tickets the companion shows, whose sentences it needs, MaxShown at most. Without it none is written: a
 	// companion asks first, then again with the rows it shows, so no batch is spent on a ticket it does not show.
 	Want []int `json:"want,omitempty"`
+	// Shown: the companion is on screen. A hidden one gets what was read last and starts nothing: no read of the forge,
+	// no batch of sentences.
+	Shown bool `json:"shown,omitempty"`
 }
 
 // Signal tells the windows that a project's view changed: they ask for it again, in their language.
@@ -101,8 +109,11 @@ type Env struct {
 	Gh func(ctx context.Context, dir string, args ...string) ([]byte, error)
 	// ValidDir: an existing local folder.
 	ValidDir func(dir string) bool
-	// Agent is the project's coding agent when it has a quick, read-only form; "" when none can write the sentences.
+	// Agent is the project's coding agent when it has a text-only form; "" when none can write the sentences.
 	Agent func(dir string) string
+	// SummariesOn: the developer turned the sentences on (companion:ticketsummaries) and confirmed it. Nothing is
+	// written while it is off.
+	SummariesOn func() bool
 	// RunPrint runs that agent's text-only form on the prompt, in no project's folder.
 	RunPrint func(ctx context.Context, agent string, prompt string) ([]byte, error)
 	// RecordUse adds a batch's running time to the agent's use.
@@ -177,43 +188,57 @@ func (s *Service) cleanDir(dir string) (string, bool) {
 	return dir, true
 }
 
-// Get answers a project's view at once, from what was read last. It starts a read of the forge when the last one is
-// old enough, and a batch of sentences when shown tickets have none in lang and the cap allows one; each tells the
-// windows by a Signal when it is done.
+// Get answers a project's view at once, from what was read last. For a companion on screen, it starts a read of the
+// forge when the last one is old enough, and a batch of sentences when the developer turned them on, shown tickets have
+// none in lang and the cap allows one; each tells the windows by a Signal when it is done. A hidden companion starts
+// nothing.
 func (s *Service) Get(req GetRequest) View {
 	dir, ok := s.cleanDir(req.Dir)
 	if !ok {
 		return View{Dir: req.Dir, State: StateNoForge}
 	}
-	lang := cleanLang(req.Lang)
-	view, read, ask := s.look(dir, lang, req.Want)
+	// Turned off, the companion shows the titles: neither a sentence written earlier nor a new one.
+	summaries := s.env.SummariesOn != nil && s.env.SummariesOn()
+	lang := ""
+	if summaries {
+		lang = cleanLang(req.Lang)
+	}
+	view, read, ask := s.look(dir, lang, req.Want, req.Shown)
 	if read {
 		s.background.Add(1)
 		go s.read(dir)
 	}
-	if len(ask.tickets) == 0 || s.env.Agent == nil || s.env.RunPrint == nil {
+	agent := ""
+	if view.Milestone != nil && s.env.Agent != nil && s.env.RunPrint != nil {
+		agent = s.env.Agent(dir)
+	}
+	view.Phrasable = agent != ""
+	view.Summaries = summaries
+	if !req.Shown || !summaries || agent == "" || len(ask.tickets) == 0 {
 		return view
 	}
-	agent := s.env.Agent(dir)
-	if agent == "" {
+	ask, file := s.claimBatch(ask)
+	if len(ask.tickets) == 0 {
 		return view
 	}
-	if ask = s.claimBatch(ask); len(ask.tickets) > 0 {
-		view.Phrasing = true
-		s.background.Add(1)
-		go s.runBatch(agent, ask)
+	// The count is kept before the run starts: a crash or a quit during it still spends its place in the cap.
+	if s.env.Save != nil {
+		s.env.Save(file)
 	}
+	view.Phrasing = true
+	s.background.Add(1)
+	go s.runBatch(agent, ask)
 	return view
 }
 
-func (s *Service) look(dir string, lang string, want []int) (View, bool, batch) {
+func (s *Service) look(dir string, lang string, want []int, shown bool) (View, bool, batch) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.loadLocked()
 	now := s.now()
 	p := s.projectLocked(dir, now)
 	read := false
-	if !p.reading && p.stale(now) && s.reads < maxReads {
+	if shown && !p.reading && p.stale(now) && s.reads < maxReads {
 		p.reading = true
 		s.reads++
 		read = true
@@ -303,7 +328,7 @@ func (s *Service) read(dir string) {
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), readTimeout)
 	defer cancel()
-	res = readForge(ctx, s.env.Gh, dir)
+	res = readForge(ctx, s.env.Gh, dir, s.now())
 }
 
 func (s *Service) applyRead(dir string, res readResult) (Signal, bool) {

@@ -1445,6 +1445,7 @@ declare global {
         "app:language"?: string;
         "companion:usagegauges"?: string[];
         "companion:usageclaudeoauth"?: boolean;
+        "companion:ticketsummaries"?: boolean;
         "linemap:animation"?: boolean;
         "cicd:runs"?: string;
         "editor:minimapenabled"?: boolean;

@@ -18,6 +18,7 @@ import {
     MilestoneInfo,
     milestoneProgress,
     MilestonesView,
+    offersSummaries,
     previewTickets,
     ticketEnd,
     ticketLinks,
@@ -28,9 +29,15 @@ import { CompanionSubagent, CompanionView } from "./companion-model";
 import { agentsView } from "./companion-recap-model";
 import { CompanionWork } from "./companion-work";
 
-vi.mock("@/app/store/global", () => ({ openLink: vi.fn() }));
+vi.mock("@/app/store/global", async () => {
+    const { atom } = await import("jotai");
+    const off = atom(false);
+    return { openLink: vi.fn(), getSettingsKeyAtom: () => off };
+});
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: vi.fn(() => () => {}) }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: { wshRpcCall: vi.fn() } }));
+vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: { SetMetaCommand: vi.fn(), SetConfigCommand: vi.fn() } }));
+vi.mock("@/app/store/client-model", () => ({ ClientModel: { getInstance: () => ({ clientAtom: null }) } }));
 
 const Min = 60 * 1000;
 const now = Date.UTC(2026, 10, 19, 12, 0, 0);
@@ -170,6 +177,29 @@ describe("the milestone block", () => {
         expect(html).toContain("Open the milestone");
     });
 
+    // #2392: the sentences are the developer's choice: offered once, discreetly, while they are off and the project's
+    // agent can write them; never again once answered.
+    it("offers the sentences once while they are off and an agent can write them", () => {
+        const offered = { ...withMilestone, phrasable: true, summaries: false };
+        const html = markup(companionView("claude", "Claude Code"), offered, 900);
+        expect(html).toContain('data-testid="companion-summaries-offer"');
+        expect(html).toContain("Explain each ticket in one sentence in your language?");
+        expect(html).toContain(">Turn on<");
+        expect(html).toContain(">No thanks<");
+        const french = inFrench(() => markup(companionView("claude", "Claude Code"), offered, 900));
+        expect(french).toContain("Expliquer chaque ticket en une phrase dans votre langue");
+        expect(french).toContain(">Activer<");
+        expect(french).toContain(">Non merci<");
+        expect(offersSummaries(offered, false)).toBe(true);
+        expect(offersSummaries(offered, true)).toBe(false);
+        expect(offersSummaries({ ...offered, summaries: true }, false)).toBe(false);
+        expect(offersSummaries({ ...offered, phrasable: false }, false)).toBe(false);
+        expect(offersSummaries({ dir: "/w", state: "none", phrasable: true }, false)).toBe(false);
+        expect(markup(companionView("codex", "Codex"), { ...offered, phrasable: false }, 900)).not.toContain(
+            "companion-summaries-offer"
+        );
+    });
+
     it("reads in French", () => {
         const html = inFrench(() => markup(companionView("claude", "Claude Code"), withMilestone, 900));
         expect(html).toContain(">Tâches<");
@@ -272,6 +302,10 @@ describe("links from a task to its agent (#2392)", () => {
         expect(certainTicket("", "Compare #35 with #41")).toBe(0);
         expect(certainTicket("feature/v2-thing", "Review the docs")).toBe(0);
         expect(certainTicket("", "a#1 and &#39;")).toBe(0);
+        // A #N elsewhere than at the start names another ticket as often as its own: never a link.
+        expect(certainTicket("worktree-agent-2", "Port the fix from #2391")).toBe(0);
+        expect(certainTicket("worktree-agent-3", "#2390 smooth the workspace switch")).toBe(2390);
+        expect(certainTicket("", "  #2390 smooth")).toBe(2390);
         expect(Object.fromEntries(agents.map((a) => [a.id, a.ticket]))).toEqual({ main: 0, a: 38, b: 41, c: 0, d: 0 });
     });
 
@@ -281,11 +315,13 @@ describe("links from a task to its agent (#2392)", () => {
         expect(main.ticket).toBe(35);
     });
 
-    it("links the agent's own task only to the one agent whose description it is, or the one on the ticket it names", () => {
+    it("links the agent's own task only to the one agent whose description it is, or the one on the ticket it starts with", () => {
         const links = todoLinks(view.todos, agents);
         expect([...links.entries()].map(([i, a]) => [i, a.id])).toEqual([[1, "d"]]);
-        const named = todoLinks([{ text: "Finish #41", status: "in_progress" }], agents);
+        const named = todoLinks([{ text: "#41 finish the checkout", status: "in_progress" }], agents);
         expect(named.get(0)?.id).toBe("b");
+        expect(todoLinks([{ text: "Finish #41", status: "in_progress" }], agents).size).toBe(0);
+        expect(todoLinks([{ text: "Port the fix from #2391", status: "in_progress" }], agents).size).toBe(0);
         const twice = [...agents, { ...agents.find((a) => a.id === "d"), id: "e" }];
         expect(todoLinks(view.todos, twice).size).toBe(0);
         expect(todoLinks([{ text: "Review the docs", status: "pending" }], agents).size).toBe(0);
@@ -313,7 +349,14 @@ describe("links from a task to its agent (#2392)", () => {
     });
 
     it("draws no line and no chip without a certain match", () => {
-        const unsure = { ...view, subagents: subagents.filter((s) => s.id === "c"), todos: [] };
+        const porting: CompanionSubagent = {
+            id: "p",
+            description: "Port the fix from #41",
+            background: true,
+            state: "running",
+            started: now - Min,
+        };
+        const unsure = { ...view, subagents: [...subagents.filter((s) => s.id === "c"), porting], todos: [] };
         for (const width of [380, 900]) {
             const html = markup(unsure, withMilestone, width);
             expect(html).not.toContain('data-testid="companion-work-chip"');

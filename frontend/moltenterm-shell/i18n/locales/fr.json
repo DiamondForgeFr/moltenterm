@@ -1067,6 +1067,13 @@
                 "label": "Autres dossiers de sessions",
                 "description": "Des dossiers de configuration en plus, par agent, dont le compagnon lit les sessions."
             },
+            "companion:ticketsummaries": {
+                "label": "Expliquer chaque ticket en une phrase",
+                "description": "Les tickets du bloc Tâches, dans votre langue. Utilise votre agent (petit modèle), au plus 24 fois par jour.",
+                "confirm": "Une fois activé, l'agent de code du projet écrit une phrase par ticket du jalon actif, dans la langue de l'interface, avec un petit modèle et sans aucun outil. Seuls le numéro, le titre et les premières lignes de chaque ticket sont envoyés, jamais vos fichiers. Au plus 24 fois par jour, comptées dans l'usage de l'agent.",
+                "confirmOn": "Activer",
+                "confirmCancel": "Garder les titres"
+            },
             "agent:integrate": {
                 "label": "Connexion de l'agent",
                 "description": "Les agents pris en charge reçoivent les hooks et le navigateur de MoltenTerm à chaque lancement ; vos fichiers ne sont pas modifiés."
@@ -2077,6 +2084,9 @@
             "reading": "Lecture du jalon…",
             "phrasing": "Rédaction des résumés…",
             "phrasingTitle": "L'agent du projet écrit une phrase par ticket, dans la langue de l'interface. Les titres s'affichent en attendant.",
+            "offer": "Expliquer chaque ticket en une phrase dans votre langue ? Utilise votre agent (petit modèle), au plus 24 fois par jour.",
+            "offerYes": "Activer",
+            "offerNo": "Non merci",
             "ownTasks": "Les tâches de l'agent",
             "ticketTitle": "Titre du ticket : {title}",
             "linkChip": "→ {agent}",

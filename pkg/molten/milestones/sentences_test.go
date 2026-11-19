@@ -63,8 +63,9 @@ func (a *stubAgent) last() string {
 	return a.prompts[len(a.prompts)-1]
 }
 
+// phrasingEnv is a developer who turned the sentences on, with an agent that can write them.
 func phrasingEnv(agent *stubAgent) Env {
-	return Env{Agent: func(string) string { return "claude" }, RunPrint: agent.run}
+	return Env{Agent: func(string) string { return "claude" }, RunPrint: agent.run, SummariesOn: func() bool { return true }}
 }
 
 func sentences(m *Milestone) map[int]string {
@@ -81,12 +82,13 @@ var shown = []int{41, 38, 35}
 // readMilestone lets the first read end, so the next asks find the tickets.
 func (f *fixture) readMilestone(t *testing.T) {
 	t.Helper()
-	f.svc.Get(GetRequest{Dir: f.dir})
+	f.svc.Get(GetRequest{Dir: f.dir, Shown: true})
 	f.svc.waitIdle()
 }
 
-// TC-SHELL-018-5: written once per ticket, last update and language; asked again only when one of them changes.
-func TestSentencesAreCachedPerTicketUpdateAndLanguage(t *testing.T) {
+// TC-SHELL-018-5: written once per ticket, content (its cleaned title and excerpt) and language; asked again only when
+// one of them changes. A comment, a label or a move changes nothing of what is sent: no new sentence.
+func TestSentencesAreCachedPerTicketContentAndLanguage(t *testing.T) {
 	t.Parallel()
 	agent := &stubAgent{}
 	f := makeFixture(t, shopForge(), phrasingEnv(agent))
@@ -110,18 +112,33 @@ func TestSentencesAreCachedPerTicketUpdateAndLanguage(t *testing.T) {
 		t.Errorf("another language: %d batches, %v", agent.count(), sentences(view.Milestone))
 	}
 
-	f.forge.set(func(ff *fakeForge) { ff.issues[2][0].UpdatedAt = "2026-11-19T08:30:00Z" })
+	// A comment or a label: the ticket moves on the forge, what is sent of it does not.
+	f.forge.set(func(ff *fakeForge) { ff.issues[2][1], ff.issues[2][0] = ff.issues[2][0], ff.issues[2][1] })
+	f.clock.Add(2 * time.Minute)
+	f.get("fr", shown...)
+	f.get("fr", shown...)
+	if agent.count() != 2 {
+		t.Fatalf("a ticket whose title and body did not change was asked again: %d batches, want 2", agent.count())
+	}
+
+	f.forge.set(func(ff *fakeForge) {
+		for i := range ff.issues[2] {
+			if ff.issues[2][i].Number == 41 {
+				ff.issues[2][i].Title = "Checkout total shown twice on mobile"
+			}
+		}
+	})
 	f.clock.Add(2 * time.Minute)
 	f.get("fr", shown...)
 	view = f.get("fr", shown...)
 	if agent.count() != 3 {
-		t.Fatalf("an updated ticket: %d batches, want 3", agent.count())
+		t.Fatalf("a retitled ticket: %d batches, want 3", agent.count())
 	}
 	if prompt := agent.last(); !strings.Contains(prompt, "#41\n") || strings.Contains(prompt, "#38\n") {
-		t.Errorf("only the updated ticket is asked again:\n%s", prompt)
+		t.Errorf("only the retitled ticket is asked again:\n%s", prompt)
 	}
 	if sentences(view.Milestone)[41] == "" {
-		t.Errorf("the updated ticket has its new sentence: %v", sentences(view.Milestone))
+		t.Errorf("the retitled ticket has its new sentence: %v", sentences(view.Milestone))
 	}
 
 	// After a restart, the sentences kept on disk are not asked again.
@@ -129,7 +146,7 @@ func TestSentencesAreCachedPerTicketUpdateAndLanguage(t *testing.T) {
 	restarted := phrasingEnv(agent)
 	restarted.Load = func() StoreFile { return saved }
 	forge := shopForge()
-	forge.issues[2][0].UpdatedAt = "2026-11-19T08:30:00Z"
+	forge.issues[2][0].Title = "Checkout total shown twice on mobile"
 	again := makeFixture(t, forge, restarted)
 	again.readMilestone(t)
 	view = again.get("fr", shown...)
@@ -169,10 +186,10 @@ func TestTheCallCapHolds(t *testing.T) {
 	forge := shopForge()
 	var many []forgeIssue
 	for n := 100; n < 120; n++ {
-		many = append(many, issue(n, fmt.Sprintf("Ticket %d", n), "2026-11-18T10:00:00Z"))
+		many = append(many, issue(n, fmt.Sprintf("Ticket %d", n)))
 	}
 	forge.issues[2] = many
-	forge.milestones[1].OpenIssues = len(many)
+	forge.milestones[1].Open.TotalCount = len(many)
 	f := makeFixture(t, forge, phrasingEnv(agent))
 	f.readMilestone(t)
 	var rows []int
@@ -180,10 +197,14 @@ func TestTheCallCapHolds(t *testing.T) {
 		rows = append(rows, n)
 	}
 	for i := 0; i < 10; i++ {
-		view := f.svc.Get(GetRequest{Dir: f.dir, Lang: "fr", Want: rows})
+		view := f.svc.Get(GetRequest{Dir: f.dir, Lang: "fr", Want: rows, Shown: true})
 		if !view.Phrasing {
 			t.Errorf("ask %d: the view does not say a batch runs", i)
 		}
+	}
+	// The counts are on disk before the run ends: a quit during it still spends its place.
+	if saved := f.rec.lastSaved(); saved.Batches != 1 || len(saved.Hour) != 1 || saved.Day != "2026-11-19" {
+		t.Errorf("while the first batch runs, the store holds %d batches today and %d this hour", saved.Batches, len(saved.Hour))
 	}
 	close(agent.hold)
 	f.svc.waitIdle()
@@ -215,6 +236,77 @@ func TestTheCallCapHolds(t *testing.T) {
 	}
 	if saved := f.rec.lastSaved(); saved.Batches != maxBatchesPerDay || saved.Day != "2026-11-19" {
 		t.Errorf("the day's count is kept on disk: %+v", saved.Day)
+	}
+}
+
+// The hour's and the day's counts survive a restart: a restarted app does not get a fresh cap.
+func TestTheCountsSurviveARestart(t *testing.T) {
+	t.Parallel()
+	recent := []int64{}
+	for i := 0; i < maxBatchesPerHour; i++ {
+		recent = append(recent, epoch.Add(-time.Duration(i+1)*time.Minute).UnixMilli())
+	}
+	agent := &stubAgent{}
+	env := phrasingEnv(agent)
+	env.Load = func() StoreFile {
+		return StoreFile{Version: storeVersion, Hour: recent, Day: "2026-11-19", Batches: maxBatchesPerHour}
+	}
+	f := makeFixture(t, shopForge(), env)
+	f.readMilestone(t)
+	f.get("fr", shown...)
+	if agent.count() != 0 {
+		t.Errorf("the hour's batches spent before a restart were given back: %d batches", agent.count())
+	}
+
+	full := phrasingEnv(agent)
+	full.Load = func() StoreFile {
+		return StoreFile{Version: storeVersion, Day: "2026-11-19", Batches: maxBatchesPerDay}
+	}
+	g := makeFixture(t, shopForge(), full)
+	g.readMilestone(t)
+	g.get("fr", shown...)
+	if agent.count() != 0 {
+		t.Errorf("the day's batches spent before a restart were given back: %d batches", agent.count())
+	}
+}
+
+// Nothing is written, nor shown, until the developer turns the sentences on and agrees (#2392): titles only.
+func TestNothingIsWrittenUntilTurnedOn(t *testing.T) {
+	t.Parallel()
+	agent := &stubAgent{}
+	on := false
+	env := phrasingEnv(agent)
+	env.SummariesOn = func() bool { return on }
+	f := makeFixture(t, shopForge(), env)
+	f.readMilestone(t)
+	view := f.get("fr", shown...)
+	if agent.count() != 0 || view.Summaries || !view.Phrasable || sentences(view.Milestone)[41] != "" {
+		t.Fatalf("off: %d batches, summaries %v, phrasable %v", agent.count(), view.Summaries, view.Phrasable)
+	}
+	on = true
+	view = f.get("fr", shown...)
+	if agent.count() != 1 || !view.Summaries || sentences(view.Milestone)[41] == "" {
+		t.Fatalf("turned on: %d batches, %v", agent.count(), sentences(view.Milestone))
+	}
+	on = false
+	view = f.get("fr", shown...)
+	if sentences(view.Milestone)[41] != "" {
+		t.Errorf("turned off again, a sentence written earlier still shows: %v", sentences(view.Milestone))
+	}
+}
+
+// A hidden companion never starts a batch, even with the sentences on and none written yet.
+func TestAHiddenCompanionStartsNoBatch(t *testing.T) {
+	t.Parallel()
+	agent := &stubAgent{}
+	f := makeFixture(t, shopForge(), phrasingEnv(agent))
+	f.readMilestone(t)
+	for i := 0; i < 3; i++ {
+		f.svc.Get(GetRequest{Dir: f.dir, Lang: "fr", Want: shown})
+	}
+	f.svc.waitIdle()
+	if agent.count() != 0 {
+		t.Errorf("a hidden companion started %d batches", agent.count())
 	}
 }
 

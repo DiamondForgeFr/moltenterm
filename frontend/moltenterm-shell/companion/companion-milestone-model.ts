@@ -14,20 +14,23 @@ export const MilestonesRoute = "molten:milestones";
 export const MilestonesEvent = "molten:milestones";
 export const MilestonesGetCommand = "moltenmilestonesget";
 export const MaxMilestoneRows = 8;
+// The sentences' setting and the developer's agreement the window records with it, which wavesrv requires: must match
+// pkg/molten/milestones/route.go SummariesConsentKey and settings-catalog.ts ConfirmConsentKeys.
+export const SummariesSettingKey = "companion:ticketsummaries";
+export const SummariesConsentKey = "molten:ticketsummaries";
 
 export type MilestoneState = "loading" | "ok" | "none" | "noforge";
 
-export type MilestoneTicket = { number: number; title: string; url?: string; updated?: number; sentence?: string };
+export type MilestoneTicket = { number: number; title: string; url?: string; sentence?: string };
 
 export type MilestoneInfo = {
     number: number;
     title: string;
     url?: string;
-    // The forge's counts, pull requests included, as its own progress bar.
+    // Its issues, pull requests left out.
     open: number;
     closed: number;
     due?: number;
-    // The open tickets, pull requests left out.
     remaining: number;
     tickets: MilestoneTicket[];
 };
@@ -36,9 +39,18 @@ export type MilestonesView = {
     dir: string;
     state: MilestoneState;
     milestone?: MilestoneInfo;
+    // summaries: the developer turned the sentences on and confirmed it; phrasable: the project's agent can write them.
+    summaries?: boolean;
+    phrasable?: boolean;
     phrasing?: boolean;
     readat?: number;
 };
+
+// The one-time offer to explain each ticket in one sentence (#2392): shown above the milestone's tickets while the
+// sentences are off, the project's agent can write them and the offer was never answered.
+export function offersSummaries(view: MilestonesView, asked: boolean): boolean {
+    return view?.state === "ok" && view.milestone != null && view.phrasable === true && !view.summaries && !asked;
+}
 
 export type MilestonesSignal = { dir: string; rev: number };
 
@@ -76,27 +88,24 @@ export function dueText(due: number, now: number, locale: string): DueText {
 
 // The workflow's branch naming (feature/{N}-…, fix/{N}-…): pkg/molten/companion/tickets.go.
 const BranchTicketRegex = /^(?:feature|fix)\/(\d{1,9})(?:-|$)/;
-// A ticket named in a sentence: "#601", not "a#1" nor "&#39;".
-const TicketMentionRegex = /(?:^|[^\w&#/])#(\d{1,9})\b/g;
+// A text that starts with its ticket: "#2390 smooth the switch".
+const LeadingTicketRegex = /^\s*#(\d{1,9})\b/;
 
-// The tickets a text names, each once.
-export function mentionedTickets(text: string): number[] {
-    const found = new Set<number>();
-    for (const m of (text ?? "").matchAll(TicketMentionRegex)) {
-        found.add(Number(m[1]));
-    }
-    return [...found];
+// The ticket a text starts with; 0 when it does not start with one. A #N anywhere else ("Port the fix from #2391")
+// names another ticket as often as its own: it never counts.
+export function leadingTicket(text: string): number {
+    const m = LeadingTicketRegex.exec(text ?? "");
+    return m == null ? 0 : Number(m[1]);
 }
 
-// The ticket an agent works on, when it is certain: its own branch names it, else its own description names exactly
-// one ticket. Anything else is 0: two tickets named, or none.
+// The ticket an agent works on, when it is certain: its own branch names it, else its own description starts with it.
+// Anything else is 0.
 export function certainTicket(branch: string, description: string): number {
     const m = BranchTicketRegex.exec((branch ?? "").trim());
     if (m != null) {
         return Number(m[1]);
     }
-    const named = mentionedTickets(description);
-    return named.length === 1 ? named[0] : 0;
+    return leadingTicket(description);
 }
 
 export type LinkAgent = { id: string; name: string; state: AgentRowState; ticket: number; description: string };
@@ -146,7 +155,7 @@ function sameText(a: string, b: string): boolean {
 }
 
 // The agent's own task in progress links only when it is certain (#2392): the one agent whose description is the
-// task's text, else the one agent working on the single ticket the task names. Never a guess from similar words.
+// task's text, else the one agent working on the ticket the task starts with. Never a guess from similar words.
 export function todoLinks(todos: CompanionTodo[], agents: LinkAgent[]): Map<number, LinkAgent> {
     const links = new Map<number, LinkAgent>();
     (todos ?? []).forEach((todo, i) => {
@@ -161,11 +170,11 @@ export function todoLinks(todos: CompanionTodo[], agents: LinkAgent[]): Map<numb
         if (exact.length > 1) {
             return;
         }
-        const named = mentionedTickets(todo.text);
-        if (named.length !== 1) {
+        const named = leadingTicket(todo.text);
+        if (named === 0) {
             return;
         }
-        const working = (agents ?? []).filter((a) => a.ticket === named[0]);
+        const working = (agents ?? []).filter((a) => a.ticket === named);
         if (working.length === 1) {
             links.set(i, working[0]);
         }

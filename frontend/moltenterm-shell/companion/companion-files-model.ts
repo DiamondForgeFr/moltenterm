@@ -13,6 +13,8 @@ export type CompanionPrefs = {
     filesopen?: boolean;
     // The plan usage shows its details (compact by default).
     usagedetails?: boolean;
+    // The offer to explain each ticket in one sentence was answered, yes or no (#2392): it is never shown again.
+    summariesasked?: boolean;
 };
 
 export function readCompanionPrefs(value: unknown): CompanionPrefs {
@@ -23,6 +25,7 @@ export function readCompanionPrefs(value: unknown): CompanionPrefs {
     return {
         filesopen: prefs.filesopen === true,
         usagedetails: prefs.usagedetails === true,
+        summariesasked: prefs.summariesasked === true,
     };
 }
 

@@ -20,12 +20,14 @@ import (
 // a site, which an agent must never choose. Only the MoltenTerm window and Electron main, where the user answers, write
 // them. browser:localpages lists the files the user let a terminal open in the panel without a question (#1978).
 // boss:autoapprove lets Brokk's agent act without asking (#2257): an agent must never give it to itself.
+// companion:ticketsummaries spends the developer's subscription on the milestone's sentences (#2392): his to agree to.
 var moltenConsentConfigKeys = map[string]bool{
 	wconfig.ConfigKey_BrowserAgentSites:         true,
 	wconfig.ConfigKey_BrowserSitePermissions:    true,
 	wconfig.ConfigKey_BrowserClientCertificates: true,
 	wconfig.ConfigKey_BrowserLocalPages:         true,
 	wconfig.ConfigKey_BossAutoApprove:           true,
+	wconfig.ConfigKey_CompanionTicketSummaries:  true,
 }
 
 func moltenCheckConfigWrite(ctx context.Context, meta waveobj.MetaMapType) error {

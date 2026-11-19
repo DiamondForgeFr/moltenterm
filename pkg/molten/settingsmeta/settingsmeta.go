@@ -232,6 +232,7 @@ var settings = []Setting{
 	// Agents
 	{Key: "companion:usagegauges", Section: SectionAgents, Group: "Companion", Label: "Plan usage", Description: "The agents whose plan usage the companion shows.", Control: ControlMulti, Options: []Option{{Value: "claude", Label: "Claude Code"}, {Value: "codex", Label: "Codex"}}},
 	{Key: "agent:sessionroots", Section: SectionAgents, Group: "Companion", Label: "More session folders", Description: "Extra configuration folders per agent whose sessions the companion reads.", Control: ControlJSON},
+	{Key: "companion:ticketsummaries", Section: SectionAgents, Group: "Companion", Label: "Explain each ticket in one sentence", Description: "The Tasks block's tickets, in your language. Uses your agent (a small model), at most 24 times a day.", Control: ControlToggle},
 
 	// The foreman (FR-BOSS-001): the bubble that counts what waits across every workspace.
 	// Range, for a text, is its length in characters.

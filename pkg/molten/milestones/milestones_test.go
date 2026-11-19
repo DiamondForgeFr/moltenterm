@@ -52,11 +52,19 @@ func (f *fakeForge) gh(_ context.Context, _ string, args ...string) ([]byte, err
 	if f.err != nil {
 		return nil, f.err
 	}
+	if len(args) == 8 && args[1] == "graphql" && strings.Contains(args[3], "open: issues(states: OPEN)") &&
+		args[5] == "owner={owner}" && args[7] == "name={repo}" {
+		var answer milestonesAnswer
+		answer.Data.Repository = &struct {
+			Milestones struct {
+				Nodes []forgeMilestone `json:"nodes"`
+			} `json:"milestones"`
+		}{}
+		answer.Data.Repository.Milestones.Nodes = f.milestones
+		return json.Marshal(answer)
+	}
 	if len(args) != 2 || args[0] != "api" {
 		return nil, fmt.Errorf("unexpected gh call %v", args)
-	}
-	if strings.HasPrefix(args[1], "repos/{owner}/{repo}/milestones?state=open") {
-		return json.Marshal(f.milestones)
 	}
 	var number int
 	if _, err := fmt.Sscanf(args[1], "repos/{owner}/{repo}/issues?milestone=%d&state=open", &number); err == nil {
@@ -77,16 +85,17 @@ func (f *fakeForge) count() int {
 	return f.calls
 }
 
+// milestone is an open milestone as GitHub's GraphQL lists it: open and closed count its issues, not its pull requests.
 func milestone(number int, title string, open int, closed int, due string, updated string) forgeMilestone {
 	return forgeMilestone{
-		Number: number, Title: title, HtmlUrl: fmt.Sprintf("%s/milestone/%d", repoUrl, number),
-		OpenIssues: open, ClosedIssues: closed, DueOn: due, UpdatedAt: updated,
+		Number: number, Title: title, Url: fmt.Sprintf("%s/milestone/%d", repoUrl, number),
+		Open: issueCount{TotalCount: open}, Closed: issueCount{TotalCount: closed}, DueOn: due, UpdatedAt: updated,
 	}
 }
 
-func issue(number int, title string, updated string) forgeIssue {
+func issue(number int, title string) forgeIssue {
 	return forgeIssue{
-		Number: number, Title: title, HtmlUrl: fmt.Sprintf("%s/issues/%d", repoUrl, number), UpdatedAt: updated,
+		Number: number, Title: title, HtmlUrl: fmt.Sprintf("%s/issues/%d", repoUrl, number),
 		Body: "The checkout page shows the total twice.\n\nSteps:\n1. Open the cart",
 	}
 }
@@ -99,10 +108,10 @@ func shopForge() *fakeForge {
 		},
 		issues: map[int][]forgeIssue{
 			2: {
-				issue(41, "Checkout total shown twice", "2026-11-18T10:00:00Z"),
+				issue(41, "Checkout total shown twice"),
 				{Number: 40, Title: "A pull request", HtmlUrl: repoUrl + "/pull/40", PullRequest: json.RawMessage(`{"url":"x"}`)},
-				issue(38, "Receipt e-mail in the buyer's language", "2026-11-17T10:00:00Z"),
-				issue(35, "Faster product search", "2026-11-12T10:00:00Z"),
+				issue(38, "Receipt e-mail in the buyer's language"),
+				issue(35, "Faster product search"),
 			},
 		},
 	}
@@ -173,11 +182,12 @@ func makeFixture(t *testing.T, forge *fakeForge, env Env) *fixture {
 	return f
 }
 
-// get asks for the view and lets the read or batch it started end, as a companion that asks again on the signal.
+// get asks for the view as a companion on screen, and lets the read or batch it started end, as a companion that asks
+// again on the signal.
 func (f *fixture) get(lang string, want ...int) View {
-	f.svc.Get(GetRequest{Dir: f.dir, Lang: lang, Want: want})
+	f.svc.Get(GetRequest{Dir: f.dir, Lang: lang, Want: want, Shown: true})
 	f.svc.waitIdle()
-	return f.svc.Get(GetRequest{Dir: f.dir, Lang: lang, Want: want})
+	return f.svc.Get(GetRequest{Dir: f.dir, Lang: lang, Want: want, Shown: true})
 }
 
 func ticketNumbers(m *Milestone) []int {
@@ -188,8 +198,9 @@ func ticketNumbers(m *Milestone) []int {
 	return rtn
 }
 
-// The active milestone (#2392): the nearest due date, the earliest, an overdue one included; without a due date the most
-// recent activity; a milestone with work left before one without.
+// The active milestone (#2392): the nearest due date, the earliest, a recently overdue one included; one overdue by more
+// than 60 days after every other; without a due date the most recent activity; a milestone with open issues left before
+// one without.
 func TestPickActive(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -213,17 +224,29 @@ func TestPickActive(t *testing.T) {
 			milestone(1, "quiet", 2, 0, "", "2026-10-01T00:00:00Z"),
 			milestone(2, "busy", 2, 0, "", "2026-11-18T00:00:00Z"),
 		}, 2},
-		{"work left first", []forgeMilestone{
+		{"work left first: open pull requests are no work left", []forgeMilestone{
 			milestone(1, "done but open", 0, 9, "2026-11-20T00:00:00Z", "2026-11-19T00:00:00Z"),
 			milestone(2, "work left", 1, 2, "2026-12-01T00:00:00Z", "2026-11-01T00:00:00Z"),
 		}, 2},
+		{"overdue by more than 60 days loses to one due later", []forgeMilestone{
+			milestone(1, "forgotten", 3, 0, "2026-08-01T00:00:00Z", "2026-11-19T00:00:00Z"),
+			milestone(2, "next", 3, 0, "2026-12-20T00:00:00Z", "2026-11-01T00:00:00Z"),
+		}, 2},
+		{"overdue by more than 60 days loses to an undated one", []forgeMilestone{
+			milestone(1, "forgotten", 3, 0, "2026-08-01T00:00:00Z", "2026-11-19T00:00:00Z"),
+			milestone(2, "someday", 3, 0, "", "2026-10-01T00:00:00Z"),
+		}, 2},
+		{"overdue by less than 60 days is still the one to finish", []forgeMilestone{
+			milestone(1, "late", 3, 0, "2026-10-01T00:00:00Z", "2026-11-19T00:00:00Z"),
+			milestone(2, "next", 3, 0, "2026-12-20T00:00:00Z", "2026-11-01T00:00:00Z"),
+		}, 1},
 	}
 	for _, c := range cases {
-		if got := pickActive(c.list); got == nil || got.Number != c.want {
+		if got := pickActive(c.list, epoch); got == nil || got.Number != c.want {
 			t.Errorf("%s: picked %+v, want #%d", c.name, got, c.want)
 		}
 	}
-	if pickActive(nil) != nil {
+	if pickActive(nil, epoch) != nil {
 		t.Error("no open milestone picks none")
 	}
 }
@@ -233,7 +256,7 @@ func TestPickActive(t *testing.T) {
 func TestMilestoneFollowsTheForge(t *testing.T) {
 	t.Parallel()
 	f := makeFixture(t, shopForge(), Env{})
-	if first := f.svc.Get(GetRequest{Dir: f.dir}); first.State != StateLoading || first.Milestone != nil {
+	if first := f.svc.Get(GetRequest{Dir: f.dir, Shown: true}); first.State != StateLoading || first.Milestone != nil {
 		t.Fatalf("before the first read: %+v", first)
 	}
 	view := f.get("")
@@ -250,9 +273,6 @@ func TestMilestoneFollowsTheForge(t *testing.T) {
 	if got := ticketNumbers(m); fmt.Sprint(got) != "[41 38 35]" || m.Remaining != 3 {
 		t.Errorf("tickets %v, remaining %d: the pull request is left out", got, m.Remaining)
 	}
-	if m.Tickets[0].Updated != time.Date(2026, 11, 18, 10, 0, 0, 0, time.UTC).UnixMilli() {
-		t.Errorf("updated: %d", m.Tickets[0].Updated)
-	}
 	if f.rec.signalCount() != 1 {
 		t.Errorf("signals after the first read: %d, want 1", f.rec.signalCount())
 	}
@@ -266,7 +286,7 @@ func TestMilestoneFollowsTheForge(t *testing.T) {
 
 	f.forge.set(func(ff *fakeForge) {
 		ff.milestones[1].Title = "1.0.0 — launch"
-		ff.milestones[1].OpenIssues, ff.milestones[1].ClosedIssues = 2, 13
+		ff.milestones[1].Open.TotalCount, ff.milestones[1].Closed.TotalCount = 2, 13
 		ff.issues[2] = append(ff.issues[2][:2], ff.issues[2][3])
 	})
 	f.clock.Add(31 * time.Second)
@@ -326,6 +346,28 @@ func TestAFailedReadKeepsTheLastOne(t *testing.T) {
 	}
 	if f.rec.signalCount() != 1 {
 		t.Errorf("a failed read told the companions: %d signals", f.rec.signalCount())
+	}
+}
+
+// A companion that is not on screen gets what was read last and starts nothing: no read of the forge, however old the
+// last one is (#2392).
+func TestAHiddenCompanionStartsNoRead(t *testing.T) {
+	t.Parallel()
+	f := makeFixture(t, shopForge(), Env{})
+	if view := f.svc.Get(GetRequest{Dir: f.dir}); view.State != StateLoading {
+		t.Errorf("hidden, before any read: %+v", view)
+	}
+	f.svc.waitIdle()
+	if f.forge.count() != 0 {
+		t.Fatalf("a hidden companion read the forge: %d calls", f.forge.count())
+	}
+	f.get("")
+	calls := f.forge.count()
+	f.clock.Add(10 * time.Minute)
+	view := f.svc.Get(GetRequest{Dir: f.dir})
+	f.svc.waitIdle()
+	if f.forge.count() != calls || view.Milestone == nil || view.Milestone.Title != "1.0.0" {
+		t.Errorf("hidden after a read: %d calls (want %d), view %+v", f.forge.count(), calls, view.Milestone)
 	}
 }
 
