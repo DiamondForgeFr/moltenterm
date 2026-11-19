@@ -794,6 +794,13 @@ function fakeView(id: string): FakeView {
 
 const scriptsOf = (v: FakeView, what: string) => v.scripts.filter((s) => s.includes(what));
 
+// A switch's wait that a test does not await (`void sw.arrived(...)`) polls on through the deps' timers, which read the
+// global setTimeout each time they are called. Left running, it went on in the real clock once its test was over, and
+// then in the fake clock of whichever test ran next, where it showed up as a timer that test never made: a count of
+// pending timers failed on a loaded machine only, when a poll happened to land inside the later test (#2400). So a
+// fixture is ended with its test, before the clock comes back, and what it left running goes quiet: its timers are inert.
+const endFixtures: (() => void)[] = [];
+
 function setup(over: Partial<SwitchPictureDeps> = {}, pictures: SwitchPicture[] = [pic("target", "wt", 1000)]) {
     vi.useFakeTimers();
     vi.setSystemTime(2000);
@@ -802,9 +809,14 @@ function setup(over: Partial<SwitchPictureDeps> = {}, pictures: SwitchPicture[] 
     const log: string[] = [];
     const held: [string, boolean][] = [];
     const captures: string[] = [];
+    let ended = false;
+    const end = () => {
+        ended = true;
+    };
+    endFixtures.push(end);
     const deps: SwitchPictureDeps = {
         now: () => Date.now(),
-        setTimer: (fn, ms) => setTimeout(fn, ms),
+        setTimer: (fn, ms) => (ended ? null : setTimeout(fn, ms)),
         clearTimer: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
         log: (m) => log.push(m),
         enabled: () => true,
@@ -820,10 +832,11 @@ function setup(over: Partial<SwitchPictureDeps> = {}, pictures: SwitchPicture[] 
         ...over,
     };
     const sw = new WindowSwitchPicture(deps);
-    return { sw, deps, store, log, held, captures, leaver: fakeView("leaver"), target: fakeView("target") };
+    return { sw, deps, store, log, held, captures, end, leaver: fakeView("leaver"), target: fakeView("target") };
 }
 
 afterEach(() => {
+    endFixtures.splice(0).forEach((end) => end());
     vi.useRealTimers();
 });
 
@@ -839,7 +852,6 @@ describe("one window's switch", () => {
         expect(leaver.scripts[0]).toContain("mt-switch-overlay");
         expect(leaver.scripts[0].length).toBeLessThan(10000);
         expect(sw.isActive()).toBe(true);
-        vi.useRealTimers();
     });
 
     it("shows nothing when the target has no picture, the window changed size or the setting is off", () => {
@@ -851,11 +863,9 @@ describe("one window's switch", () => {
             expect(sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" })).toBe(false);
             expect(leaver.scripts).toEqual([]);
             expect(sw.isActive()).toBe(false);
-            vi.useRealTimers();
         }
         const none = setup({}, []);
         expect(none.sw.begin(none.leaver, "leaver", "wl", { workspaceId: "wt" })).toBe(false);
-        vi.useRealTimers();
     });
 
     it("fades the leaver's own content out only when both it and the picture let the desktop through", () => {
@@ -893,7 +903,6 @@ describe("one window's switch", () => {
         // the switch ends without a target: the leaver gets its own background back
         s.sw.cancel();
         expect(restored).toEqual(["leaver"]);
-        vi.useRealTimers();
         // an opaque target's picture never clears the leaver
         const flat = setup({ letThrough: (v) => through.push(v.id) > 0 });
         flat.sw.begin(flat.leaver, "leaver", "wl", { workspaceId: "wt" });
@@ -934,7 +943,6 @@ describe("one window's switch", () => {
         expect(sw.begin(leaver, "target", "wt", { workspaceId: "wt" })).toBe(false);
         leaver.live = false;
         expect(sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" })).toBe(false);
-        vi.useRealTimers();
     });
 
     it("covers the target only with its own picture, before it is shown", async () => {
@@ -948,7 +956,6 @@ describe("one window's switch", () => {
         expect(await sw.cover(other, "elsewhere")).toBe(false);
         expect(other.scripts).toEqual([]);
         expect(sw.isActive()).toBe(false);
-        vi.useRealTimers();
     });
 
     it("puts the leaver back and the picture away when the switch cannot cover", async () => {
@@ -958,7 +965,6 @@ describe("one window's switch", () => {
         expect(await sw.cover(target, "target")).toBe(false);
         expect(sw.isActive()).toBe(false);
         expect(held[held.length - 1]).toEqual(["leaver", false]);
-        vi.useRealTimers();
     });
 
     it("lets the target arrive at once: the leaver's overlay goes and its keys are free before any panel is waited for", () => {
@@ -971,7 +977,6 @@ describe("one window's switch", () => {
             ["leaver", false],
         ]);
         expect(scriptsOf(leaver, "mt-switch-overlay").length).toBeGreaterThan(1);
-        vi.useRealTimers();
     });
 
     it("dissolves the cover once every panel is mounted, with no fixed wait", async () => {
@@ -984,7 +989,6 @@ describe("one window's switch", () => {
         await done;
         expect(scriptsOf(target, "function count()")).toHaveLength(1);
         expect(scriptsOf(target, "fade(c, 1, 0, dissolveMs")).toHaveLength(1);
-        vi.useRealTimers();
     });
 
     it("leaves a newer switch's cover alone when an older switch's wait for the same view ends (A to B, B to A, A to B)", async () => {
@@ -1012,7 +1016,6 @@ describe("one window's switch", () => {
         await vi.advanceTimersByTimeAsync(SwitchSettlePollMs);
         await third;
         expect(target.scripts.filter((s) => s === uncoverScript())).toHaveLength(1);
-        vi.useRealTimers();
     });
 
     it("keeps looking while panels mount, and lets the picture go anyway after SwitchSettleMaxMs", async () => {
@@ -1028,7 +1031,6 @@ describe("one window's switch", () => {
         expect(probes).toBeLessThanOrEqual(Math.ceil(SwitchSettleMaxMs / SwitchSettlePollMs) + 1);
         expect(scriptsOf(target, "fade(c, 1, 0, dissolveMs")).toHaveLength(1);
         expect(log.some((m) => m.includes("anyway"))).toBe(true);
-        vi.useRealTimers();
     });
 
     it("stops looking when the target's page is gone", async () => {
@@ -1039,7 +1041,6 @@ describe("one window's switch", () => {
         await vi.advanceTimersByTimeAsync(10);
         await done;
         expect(target.scripts).toEqual([]);
-        vi.useRealTimers();
     });
 
     it("fades the picture out and frees the keys when the switch ends without a target", () => {
@@ -1049,7 +1050,6 @@ describe("one window's switch", () => {
         expect(sw.isActive()).toBe(false);
         expect(held[held.length - 1]).toEqual(["leaver", false]);
         expect(leaver.scripts[leaver.scripts.length - 1]).toContain("fade(ov, 1, 0, dissolveMs");
-        vi.useRealTimers();
     });
 
     it("lets a picture go by itself when its action died without a word", () => {
@@ -1058,7 +1058,6 @@ describe("one window's switch", () => {
         vi.advanceTimersByTime(SwitchHoldMaxMs + 1);
         expect(sw.isActive()).toBe(false);
         expect(held[held.length - 1]).toEqual(["leaver", false]);
-        vi.useRealTimers();
     });
 
     it("keeps the screen on a picture, never back on the view left, when a newer switch has none", () => {
@@ -1066,7 +1065,6 @@ describe("one window's switch", () => {
         sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" });
         expect(sw.begin(leaver, "leaver", "wl", { workspaceId: "nobody" })).toBe(false);
         expect(sw.isActive()).toBe(true);
-        vi.useRealTimers();
     });
 
     it("changes the picture of a newer switch, takes the cover off a target it no longer goes to, and captures the leaver once", async () => {
@@ -1078,7 +1076,6 @@ describe("one window's switch", () => {
         expect(target.scripts.filter((s) => s === removeCoverScript())).toHaveLength(1);
         expect(leaver.sent).toEqual(["target", "second"]);
         expect(captures).toEqual(["leaver"]);
-        vi.useRealTimers();
     });
 
     it("arms a picture ahead of the click, only when nothing else shows and the target is not the view itself", () => {
@@ -1092,7 +1089,6 @@ describe("one window's switch", () => {
         const before = leaver.scripts.length;
         sw.arm(leaver, { workspaceId: "wt" });
         expect(leaver.scripts).toHaveLength(before);
-        vi.useRealTimers();
     });
 
     it("reads the view on screen back on the intent, so the click has nothing left to read while the target reinitializes", () => {
@@ -1195,7 +1191,23 @@ describe("one window's switch", () => {
         sw.showWaiting({ phase: "loading", name: "n", caption: "c" });
         sw.showWaiting(null);
         expect(scriptsOf(leaver, "mt-switch-wait").length).toBeGreaterThanOrEqual(2);
-        vi.useRealTimers();
+    });
+
+    it("goes quiet with its test: a wait nobody awaited sets no timer once its fixture has ended (#2400)", async () => {
+        const { sw, leaver, target, end } = setup();
+        sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" });
+        await sw.cover(target, "target");
+        target.answers.settle = { blocks: 0, visible: true };
+        void sw.arrived(target, "target");
+        await vi.advanceTimersByTimeAsync(0);
+        // the wait has probed once and holds its poll timer, the switch its last word's timer
+        const held = vi.getTimerCount();
+        expect(held).toBe(2);
+        // what afterEach does before the clock comes back
+        end();
+        await vi.advanceTimersByTimeAsync(SwitchSettlePollMs);
+        // the poll fired and was not replaced: nothing of this test goes on in a clock that is another test's
+        expect(vi.getTimerCount()).toBe(held - 1);
     });
 });
 
@@ -1264,8 +1276,21 @@ describe("a new view without a picture waits for its panels", () => {
 
     it("shows the view anyway when the page or the backend never answers: one real deadline for the whole wait", async () => {
         vi.useFakeTimers();
-        const set = (fn: () => void, ms: number) => setTimeout(fn, ms);
-        const clear = (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>);
+        // The deadlines' own timers, counted here: the clock's count (vi.getTimerCount) holds whatever any other code
+        // schedules while it is faked, which is not what this test is about (#2400).
+        const pending = new Set<unknown>();
+        const set = (fn: () => void, ms: number) => {
+            const handle = setTimeout(() => {
+                pending.delete(handle);
+                fn();
+            }, ms);
+            pending.add(handle);
+            return handle;
+        };
+        const clear = (h: unknown) => {
+            pending.delete(h);
+            clearTimeout(h as ReturnType<typeof setTimeout>);
+        };
         // a renderer locked up after its first render: the probe never comes back
         const hung = waitPanelsMounted(() => new Promise<number>(() => {}), 3, () => Date.now(), (ms) =>
             new Promise<void>((r) => setTimeout(r, ms))
@@ -1276,11 +1301,12 @@ describe("a new view without a picture waits for its panels", () => {
         expect(shown).toBeNull();
         await vi.advanceTimersByTimeAsync(2);
         expect(shown).toBe(false);
+        expect(pending.size).toBe(0);
         // an answer in time wins and leaves no timer behind
         expect(await withDeadline(Promise.resolve(true), PanelsMountMaxMs, false, set, clear)).toBe(true);
-        expect(vi.getTimerCount()).toBe(0);
+        expect(pending.size).toBe(0);
         expect(await withDeadline(Promise.reject(new Error("gone")), PanelsMountMaxMs, false, set, clear)).toBe(false);
-        vi.useRealTimers();
+        expect(pending.size).toBe(0);
         const live = readFileSync("emain/moltenterm-switch-picture-live.ts", "utf8");
         const wait = live.slice(live.indexOf("export async function awaitArrivingPanels"));
         const body = wait.slice(0, wait.indexOf("\n}\n"));
@@ -1376,7 +1402,6 @@ describe("no picture outlives its switch (#2390)", () => {
         // the frozen settle, should the page ever answer, takes nothing off any more
         await vi.advanceTimersByTimeAsync(5000);
         expect(scriptsOf(target, "fade(c, 1, 0, dissolveMs")).toHaveLength(1);
-        vi.useRealTimers();
     });
 
     it("clears a switch that ended without its target, and logs nothing for a page that held nothing", async () => {
@@ -1386,7 +1411,6 @@ describe("no picture outlives its switch (#2390)", () => {
         await vi.advanceTimersByTimeAsync(SwitchClearAfterMs + 10);
         expect(leaver.scripts.filter((s) => s === clearSwitchScript())).toHaveLength(1);
         expect(log.some((m) => m.includes("forced off"))).toBe(false);
-        vi.useRealTimers();
     });
 
     it("leaves alone a view a newer switch is using", async () => {
@@ -1399,7 +1423,6 @@ describe("no picture outlives its switch (#2390)", () => {
         sw.begin(target, "target", "wt", { workspaceId: "wl" });
         await vi.advanceTimersByTimeAsync(SwitchClearAfterMs);
         expect(target.scripts.filter((s) => s === clearSwitchScript())).toHaveLength(0);
-        vi.useRealTimers();
     });
 
     it("reports a page that does not answer main's last word", async () => {
@@ -1410,6 +1433,5 @@ describe("no picture outlives its switch (#2390)", () => {
         sw.cancel();
         await vi.advanceTimersByTimeAsync(SwitchClearAfterMs + 1100);
         expect(log.some((m) => m.includes("leaver did not answer the last clear"))).toBe(true);
-        vi.useRealTimers();
     });
 });
