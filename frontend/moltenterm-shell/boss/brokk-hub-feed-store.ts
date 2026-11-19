@@ -80,6 +80,9 @@ export type HubSources = {
     heardAtAtom?: Atom<number>;
     // Changes when what the pages share changed (the client's meta): the feeds read it again.
     sharedAtom?: Atom<unknown>;
+    // This page writes what every page computes the same way (pageWrites in brokk-marks-store.ts): the page the
+    // developer is in. A window without one writes it.
+    writesShared?: () => boolean;
     // What this tab view shows the developer (makeSeenViewAtom, #2166): what is in it does not bring him. A window
     // without one leaves it out.
     inViewAtom?: Atom<AgentSeenView>;
@@ -119,12 +122,16 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     let localUsage = EmptyUsageMemory;
     const seenUpdate = () => (src.updateSeen != null ? src.updateSeen.read() : localUpdate);
     const usage = () => (src.usageMemory != null ? src.usageMemory.read() : localUsage);
-    const keepUsage = (before: UsageMemory, next: UsageMemory) => {
+    // `gesture`: the developer opened his group here, so this page writes it. Otherwise the memory only moves because a
+    // provider cooled down, which every page reads the same: only the page the developer is in writes it.
+    const keepUsage = (before: UsageMemory, next: UsageMemory, gesture: boolean) => {
         if (next === before) {
             return;
         }
         localUsage = next;
-        src.usageMemory?.write(next);
+        if (gesture || (src.writesShared?.() ?? true)) {
+            src.usageMemory?.write(next);
+        }
     };
     // The downloads that ended before his group was last opened, in any page, are heard (#2391).
     const floor = () => (src.heardAtAtom != null ? store.get(src.heardAtAtom) || startedAt : startedAt);
@@ -149,7 +156,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
         withVisit((visit) => {
             const before = usage();
             const step = visit.usageEventsAfter(before, readings(), hub.now(), usageContext());
-            keepUsage(before, step.memory);
+            keepUsage(before, step.memory, false);
             hub.feed(UsageSource, step.events);
         });
     const acknowledgeUsageSeen = () =>
@@ -157,7 +164,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
             const before = usage();
             const next = visit.acknowledgeUsage(readings(), hub.now(), before, usageContext());
             const same = next.seen.size === before.seen.size && [...next.seen].every((p) => before.seen.has(p));
-            keepUsage(before, same ? before : next);
+            keepUsage(before, same ? before : next, true);
         });
     const feedAll = () => {
         feedDownloads();

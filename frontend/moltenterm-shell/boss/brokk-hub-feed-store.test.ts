@@ -2,14 +2,21 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { atom, createStore, PrimitiveAtom } from "jotai";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import type { ToHandleItem, ToHandleList } from "./boss-to-handle-model";
+import type { UsageReadings } from "./boss-usage";
+import { readUsageMemory, usageMemoryText } from "./brokk-extra-feeds";
 import { BrokkHub } from "./brokk-hub";
 import { avatarBadgeOf } from "./brokk-hub-feed";
-import { feedBrokkHub } from "./brokk-hub-feed-store";
+import { feedBrokkHub, loadUsageVisit } from "./brokk-hub-feed-store";
 import { DefaultVisitSettings, VisitSettings } from "./brokk-visit-events";
 import { EmptyShared } from "./brokk-visit-share";
+
+// The rules that tell which plan usage calls him load on demand (#2341): load them first.
+beforeAll(async () => {
+    await loadUsageVisit();
+}, 60000);
 
 const T = new Date(2026, 10, 6, 14, 0, 0).getTime();
 const Min = 60_000;
@@ -229,5 +236,71 @@ describe("Brokk's switch reaches the hub (FR-BOSS-009, #2218)", () => {
         expect(w.hub.getView().badgeKeys).toEqual(["agent:a"]);
         w.store.set(w.sources.on, true);
         expect(w.hub.getView().visit).not.toBeNull();
+    });
+});
+
+describe("the plan usage seen, shared by every page (#2391)", () => {
+    function reading(percent: number): UsageReadings {
+        return {
+            claude: {
+                agent: "claude",
+                source: "t",
+                readat: T,
+                windows: [{ id: "w", label: "w", usedpercent: percent }],
+            },
+        };
+    }
+
+    // Two pages on stores of their own, reading and writing one shared memory; `writes` says which page the developer is in.
+    function pages(writer: boolean[]) {
+        const shared = { text: usageMemoryText({ seen: new Set(["claude"]) }), writes: [0, 0] };
+        const pages = writer.map((writes, i) => {
+            const store = createStore();
+            const usage = atom(reading(95)) as PrimitiveAtom<UsageReadings>;
+            const hub = new BrokkHub({
+                now: () => T,
+                setTimer: () => 0,
+                clearTimer: () => {},
+                overlayOpen: () => false,
+                openPanel: () => {},
+                readShared: () => EmptyShared,
+                writeShared: () => {},
+            });
+            feedBrokkHub(hub, {
+                store,
+                agentsAtom: atom(states()),
+                agentsLoadedAtom: atom(true),
+                toHandleAtom: atom({ items: [], info: [], parked: 0 } as ToHandleList),
+                settingsAtom: atom(DefaultVisitSettings),
+                sidebarOnScreenAtom: atom(true),
+                searchOpenAtom: atom(false),
+                dragAtom: atom(false),
+                cardOpenAtom: atom(false),
+                usageAtom: usage,
+                usageMemory: {
+                    read: () => readUsageMemory(shared.text),
+                    write: (memory) => {
+                        shared.writes[i]++;
+                        shared.text = usageMemoryText(memory);
+                    },
+                },
+                writesShared: () => writes,
+            });
+            return { store, usage };
+        });
+        return { shared, pages };
+    }
+
+    it("is written by the page the developer is in only, when a provider cools down", () => {
+        const {
+            shared,
+            pages: [shown, hidden],
+        } = pages([true, false]);
+        expect(shared.writes).toEqual([0, 0]);
+        hidden.store.set(hidden.usage, reading(10));
+        expect(shared.writes).toEqual([0, 0]);
+        shown.store.set(shown.usage, reading(10));
+        expect(shared.writes).toEqual([1, 0]);
+        expect([...readUsageMemory(shared.text).seen]).toEqual([]);
     });
 });

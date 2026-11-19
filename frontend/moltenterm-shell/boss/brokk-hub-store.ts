@@ -16,6 +16,7 @@ import { makeSeenViewAtom } from "../agent-seen";
 import { AgentStates } from "../agent-state-store";
 import { brainstormHolds } from "../brainstorm/brainstorm-hold";
 import { DownloadsModel } from "../downloads/downloads-store";
+import { dropLegacy, readLegacy } from "../legacy-storage";
 import { modalIsOpen } from "../modal-open";
 import { MoltentermNotifications } from "../notifications-store";
 import { sidebarDragAtom } from "../sidebar/sidebar-drag";
@@ -33,12 +34,32 @@ import { BrokkHub } from "./brokk-hub";
 import { AvatarBadge, avatarBadgeOf } from "./brokk-hub-feed";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
 import { readUpdateSeen, readUsageSeen, UpdateSeenMetaKey, UsageSeenMetaKey } from "./brokk-marks";
-import { BrokkMarks } from "./brokk-marks-store";
+import { BrokkMarks, pageWrites } from "./brokk-marks-store";
 import { openDoneBlocks } from "./brokk-notes-model";
 import { choicesOf, UsageContext } from "./brokk-usage-model";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
 import { EmptyShared, readShared, sharedText, VisitShareKey } from "./brokk-visit-share";
 import { brokkPromptBusy, brokkWaiting, brokkWorking } from "./brokk-watch";
+
+// Where earlier versions kept the plan usage seen (#2223), read once and dropped (#2391).
+export const LegacyUsageSeenKey = "moltenterm:brokk-usage-seen";
+
+// The providers seen that an earlier version kept in the page's local storage join the shared ones, once.
+function adoptLegacyUsageSeen(marks: BrokkMarks): void {
+    const raw = readLegacy(LegacyUsageSeenKey);
+    if (raw == null) {
+        return;
+    }
+    dropLegacy([LegacyUsageSeenKey]);
+    const legacy = readUsageMemory(raw);
+    if (legacy.seen.size === 0) {
+        return;
+    }
+    marks.update({
+        [UsageSeenMetaKey]: (current) =>
+            usageMemoryText({ seen: new Set([...readUsageMemory(readUsageSeen(current)).seen, ...legacy.seen]) }),
+    });
+}
 
 function storage(): Storage {
     try {
@@ -216,6 +237,7 @@ export class BrokkHubModel {
         fireAndForget(() => askUsageUse());
         const marks = BrokkMarks.getInstance();
         const stopMarks = marks.start();
+        adoptLegacyUsageSeen(marks);
         const stopFeeds = feedBrokkHub(this.hub, {
             store: globalStore,
             agentsAtom: agents.dataAtom,
@@ -244,6 +266,7 @@ export class BrokkHubModel {
             },
             heardAtAtom: marks.heardAtAtom,
             sharedAtom: marks.metaAtom,
+            writesShared: () => pageWrites(),
             inViewAtom: makeSeenViewAtom(),
             openDoneAtom: this.openDoneAtom,
         });

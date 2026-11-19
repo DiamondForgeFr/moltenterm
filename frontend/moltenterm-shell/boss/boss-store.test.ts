@@ -619,6 +619,24 @@ describe("the rows settled or ignored (FR-BOSS-009, AC16, #2026)", () => {
         ]);
     });
 
+    it("moves the marks an earlier version kept in the page's local storage to the shared ones, once (#2391)", () => {
+        const local = new Map([
+            ["moltenterm:brokk-handled", JSON.stringify({ "agent:a": { episode: "7:waiting", at: Date.now() } })],
+        ]);
+        vi.stubGlobal("localStorage", {
+            getItem: (key: string) => local.get(key) ?? null,
+            removeItem: (key: string) => void local.delete(key),
+        });
+        try {
+            const detach = model.attach(fakeDom());
+            expect(Object.keys(JSON.parse(store.get(HandledMetaKey)))).toEqual(["agent:a"]);
+            expect(local.has("moltenterm:brokk-handled")).toBe(false);
+            detach();
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
     it("reads the marks when the host attaches, and listens to the other pages while it is on screen", () => {
         store.set("moltenterm:brokk-handled", JSON.stringify({ "agent:a": { episode: "7:waiting", at: Date.now() } }));
         const detach = model.attach(fakeDom());
