@@ -21,7 +21,6 @@ import { DurableSessions } from "../sessions/sessions-store";
 import { FocusTarget, focusTargetOf, restoreFocus } from "./boss-card-model";
 import {
     EmptyHandled,
-    HandledKey,
     HandledRow,
     HandledRows,
     handledText,
@@ -38,6 +37,17 @@ import { buildToHandle, keptReviewAnswers, peekRowOf, toHandleBadge, ToHandleLis
 import { startUsageReadings, UsageReadingsAtom } from "./boss-usage";
 import { PanelId, PanelRequest } from "./brokk-group-model";
 import { faceRowKeys } from "./brokk-hub-feed";
+import {
+    clearParked,
+    HandledMetaKey,
+    HeardMetaKey,
+    parkedKeysOf,
+    ParkedMetaKey,
+    parkedText,
+    parkRow,
+    readParked,
+} from "./brokk-marks";
+import { BrokkMarks } from "./brokk-marks-store";
 import type { ArchivePlan } from "./brokk-notes-model";
 import { visitSettingsOf } from "./brokk-visit-events";
 import { arrivalsAfter, EmptyArrivals, unseenItems } from "./brokk-watch";
@@ -56,14 +66,6 @@ export type CloseCardOptions = {
     restoreFocus?: boolean;
 };
 
-function storage(): Storage {
-    try {
-        return globalThis.localStorage;
-    } catch {
-        return null;
-    }
-}
-
 export class BossBubbleModel {
     private static instance: BossBubbleModel = null;
 
@@ -76,8 +78,9 @@ export class BossBubbleModel {
     cardPinnedAtom = atom(false) as PrimitiveAtom<boolean>;
     // The tab a surface asked the panel to show: the panel reads it when it changes (showPanel).
     tabRequestAtom = atom(null) as PrimitiveAtom<PanelRequest>;
-    // The To handle rows set aside with Later, by their key: back at the card's next opening (FR-BOSS-003).
-    parkedAtom = atom({}) as PrimitiveAtom<Record<string, boolean>>;
+    // The To handle rows set aside with Later, by their key: back at the card's next opening in any page (FR-BOSS-003,
+    // FR-BOSS-009 AC106, #2391).
+    parkedAtom: Atom<Record<string, boolean>>;
     // The developer writes to him or his session answers (the field of the group): the title-bar face shows the sign of
     // a conversation then, and not merely because the group is open (FR-BOSS-009, AC17, #2032).
     talkingAtom = atom(false) as PrimitiveAtom<boolean>;
@@ -86,8 +89,8 @@ export class BossBubbleModel {
     faceLentAtom = atom(0) as PrimitiveAtom<number>;
     // Something keeps this computer awake: the cup shows as a small mark on the title-bar face while the group is closed.
     keepAwakeAtom: Atom<boolean>;
-    // The rows settled or ignored, for the episode they were in, shared by the views and windows of this computer
-    // (FR-BOSS-009, AC16).
+    // The rows settled or ignored, for the episode they were in, shared by every page through the client's meta
+    // (FR-BOSS-009, AC16, AC106).
     handledAtom = atom(EmptyHandled) as PrimitiveAtom<HandledRows>;
     // The rows an undo gives back, until they are listed again: their return is no arrival (#2210).
     givenBack = new Set<string>();
@@ -106,6 +109,8 @@ export class BossBubbleModel {
     private dom: BossDom = null;
 
     private constructor() {
+        const marks = BrokkMarks.getInstance();
+        this.parkedAtom = atom((get) => parkedKeysOf(readParked(get(marks.metaAtom)[ParkedMetaKey])));
         this.nameAtom = atom((get) => bossName(get(getSettingsKeyAtom(BossNameSettingKey as keyof SettingsType))));
         this.showAtom = atom((get) => bossSettingOn(get(getSettingsKeyAtom(BossShowSettingKey as keyof SettingsType))));
         let answers: Record<string, ReviewsAnswer> = {};
@@ -165,7 +170,7 @@ export class BossBubbleModel {
             return;
         }
         this.cardReturn = returnTo ?? focusTargetOf(this.dom?.activeElement, this.dom);
-        globalStore.set(this.parkedAtom, {});
+        this.heard();
         globalStore.set(this.tabRequestAtom, null);
         globalStore.set(this.cardPinnedAtom, options.pinned !== false);
         globalStore.set(this.cardOpenAtom, true);
@@ -212,9 +217,20 @@ export class BossBubbleModel {
         globalStore.set(this.tabRequestAtom, { tab, seq, highlight });
     }
 
-    // Sets a To handle row aside until the card is next opened (Later, FR-BOSS-003).
+    // The developer opened his group (AC106): what waited is heard and the rows set aside come back, in every page.
+    private heard(): void {
+        const marks = BrokkMarks.getInstance();
+        const now = Date.now();
+        marks.write({
+            [HeardMetaKey]: now,
+            [ParkedMetaKey]: parkedText(clearParked(readParked(marks.value(ParkedMetaKey)), now)),
+        });
+    }
+
+    // Sets a To handle row aside until the card is next opened, in any page (Later, FR-BOSS-003).
     park(key: string): void {
-        globalStore.set(this.parkedAtom, { ...globalStore.get(this.parkedAtom), [key]: true });
+        const marks = BrokkMarks.getInstance();
+        marks.write({ [ParkedMetaKey]: parkedText(parkRow(readParked(marks.value(ParkedMetaKey)), key, Date.now())) });
     }
 
     // The developer settled or ignored this row (FR-BOSS-009, AC16): it stays away while the fact it shows stays what it
@@ -240,15 +256,11 @@ export class BossBubbleModel {
 
     private changeHandled(change: (handled: HandledRows, now: number) => HandledRows): void {
         const now = Date.now();
-        const store = storage();
-        const shared = readHandled(store?.getItem(HandledKey), now);
+        const marks = BrokkMarks.getInstance();
+        const shared = readHandled(marks.value(HandledMetaKey), now);
         const next = change(mergeHandled(globalStore.get(this.handledAtom), shared, now), now);
         globalStore.set(this.handledAtom, next);
-        try {
-            store?.setItem(HandledKey, handledText(next));
-        } catch {
-            // A full or missing storage only means this view's marks stay in this view.
-        }
+        marks.write({ [HandledMetaKey]: handledText(next) });
     }
 
     // Archives cards (#2195): the notifications go to the Archived list and the rows that stand for a fact are marked as
@@ -269,8 +281,8 @@ export class BossBubbleModel {
         };
     }
 
-    // Another view or window wrote the marks.
-    handledChanged(raw: string): void {
+    // Another page wrote the marks.
+    handledChanged(raw: unknown): void {
         const now = Date.now();
         const current = globalStore.get(this.handledAtom);
         const next = mergeHandled(current, readHandled(raw, now), now);
@@ -350,18 +362,18 @@ export class BossBubbleModel {
     // the tooltip tells.
     attach(dom: BossDom): () => void {
         this.dom = dom;
-        this.handledChanged(storage()?.getItem(HandledKey));
-        const onStorage = (e: StorageEvent) => {
-            if (e.key === HandledKey && e.newValue != null) {
-                this.handledChanged(e.newValue);
-            }
-        };
-        globalThis.addEventListener?.("storage", onStorage);
+        const marks = BrokkMarks.getInstance();
+        const stopMarks = marks.start();
+        this.handledChanged(marks.value(HandledMetaKey));
+        const stopShared = globalStore.sub(marks.metaAtom, () =>
+            this.handledChanged(globalStore.get(marks.metaAtom)[HandledMetaKey])
+        );
         const stopHandoffs = PendingHandoffs.getInstance().start();
         const stopCount = this.watchCount();
         const stopUsage = startUsageReadings();
         return () => {
-            globalThis.removeEventListener?.("storage", onStorage);
+            stopShared();
+            stopMarks();
             stopCount();
             stopHandoffs();
             stopUsage();

@@ -5,12 +5,10 @@
 // notification is settled by resolving the notification; the others (an agent that waits, a failing CI, a pull request
 // ready) show a fact the app reads from elsewhere, so what the developer did with them is a mark of its own. A mark holds
 // for the episode it was made on, the wait and state of the agent or the last update of the pull request: when the fact
-// is new the row comes back. The marks are shared by the windows and views of this computer through the local storage,
-// as what Brokk told is (brokk-visit-share.ts). Pure, so the rules are tested without a window.
+// is new the row comes back. The marks are shared by every page through the client's meta, and kept across restarts
+// (brokk-marks.ts, #2391). Pure, so the rules are tested without a window.
 //
 // It is part of the bubble's up-front JavaScript: it imports nothing of the portrait.
-
-export const HandledKey = "moltenterm:brokk-handled";
 
 // A mark outlives its row by a month at most: the shared record must not grow for ever.
 export const HandledKeepMs = 30 * 24 * 60 * 60 * 1000;

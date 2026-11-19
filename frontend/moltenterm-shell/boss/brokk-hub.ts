@@ -14,7 +14,7 @@ import type { AgentSeenView, AgentStatesData } from "../agent-state-model";
 import type { ToHandleItem } from "./boss-to-handle-model";
 import { GateEvent, gateHold } from "./brokk-gate";
 import type { PanelId } from "./brokk-group-model";
-import { finishedSetAfter, finishedStillListed } from "./brokk-hub-feed";
+import { finishedAfterHeard, finishedSetAfter, finishedStillListed, sameEvents } from "./brokk-hub-feed";
 import {
     brokkAfter,
     BrokkInput,
@@ -120,6 +120,13 @@ export class BrokkHub {
     private example: Visit = null;
     private shared: SharedVisit;
     private finished: BrokkEvent[] = [];
+    // The finishes this page saw, for the agents whose state gives no moment; the last opening of his group anywhere
+    // (AC106); the Done cards still listed.
+    private observed: BrokkEvent[] = [];
+    // null until the shared moment is known: the hub's own start stands for it.
+    private heardAt: number = null;
+    private startedAt: number;
+    private openDone: ReadonlySet<string> = undefined;
     private agentsBefore: AgentStatesData = null;
     // The settings as the developer set them, and Brokk's switch (boss:show): the model reads both as one (#2218).
     private chosen: VisitSettings;
@@ -133,6 +140,7 @@ export class BrokkHub {
     constructor(deps: HubDeps) {
         this.deps = deps;
         this.chosen = InitialBrokk.settings;
+        this.startedAt = deps.now();
         this.shared = deps.readShared();
         this.answer = brokkAfter(InitialBrokk, { type: "tick" }, deps.now()).view;
         this.view = { ...this.answer, ready: false };
@@ -203,15 +211,32 @@ export class BrokkHub {
         this.run({ type: "sync", source, events });
     }
 
-    // The agent states, read once the first reading is in: who finished stays a good news for the badge, while its Done
-    // card is listed (`openDone`, the blocks whose card the developer has not archived, #2210).
+    // The agent states, read once the first reading is in: who finished since his group was last opened stays a good
+    // news for the badge, while its Done card is listed (`openDone`, the blocks whose card the developer has not
+    // archived, #2210), whichever page saw it finish (#2391).
     agents(data: AgentStatesData, openDone?: ReadonlySet<string>): void {
-        const finished = finishedStillListed(
-            finishedSetAfter(this.finished, this.agentsBefore, data, this.deps.now()),
-            openDone
-        );
+        this.observed = finishedSetAfter(this.observed, this.agentsBefore, data, this.deps.now());
         this.agentsBefore = data;
-        if (finished === this.finished) {
+        this.openDone = openDone;
+        this.syncFinished();
+    }
+
+    // His group was opened, in this page or another (the shared moment, AC106): what finished before is heard.
+    heardUntil(at: number): void {
+        if (!(at > 0) || (this.heardAt != null && at <= this.heardAt) || this.stopped) {
+            return;
+        }
+        this.heardAt = at;
+        this.observed = this.observed.filter((event) => event.since > at);
+        this.syncFinished();
+    }
+
+    private syncFinished(): void {
+        const finished = finishedStillListed(
+            finishedAfterHeard(this.agentsBefore, this.observed, this.heardAt ?? this.startedAt),
+            this.openDone
+        );
+        if (sameEvents(finished, this.finished)) {
             return;
         }
         this.finished = finished;
@@ -237,6 +262,8 @@ export class BrokkHub {
     // His panel is open, wherever the developer opened it from: what waited is told, and the good news is heard.
     panelOpened(): void {
         this.finished = [];
+        this.observed = [];
+        this.heardAt = Math.max(this.heardAt ?? 0, this.deps.now());
         this.run({ type: "open" });
         this.run({ type: "sync", source: FinishedSource, events: [] });
     }

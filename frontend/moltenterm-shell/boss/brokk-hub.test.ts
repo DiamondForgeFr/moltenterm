@@ -104,7 +104,7 @@ function settings(coming: Partial<VisitSettings["coming"]>, rest: Partial<VisitS
 }
 
 function agent(blockid: string, state: AgentStateInfo["state"]): AgentStateInfo {
-    return { blockid, agent: "claude", firstname: blockid, state, version: 1, since: 1 };
+    return { blockid, agent: "claude", firstname: blockid, state, version: 1 };
 }
 
 function states(...infos: AgentStateInfo[]): AgentStatesData {

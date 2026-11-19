@@ -35,6 +35,33 @@ export function finishedSetAfter(
     return fresh.length === 0 && kept.length === previous.length ? previous : [...kept, ...fresh];
 }
 
+// The agents that finished since the developer last opened his group, in any page (AC106, #2391): every done agent whose
+// finish (its state's since) is after `heardAt`. The page that watched it finish is not the only one that counts it, so
+// every workspace counts the same. An agent whose state gives no moment counts when this page saw it finish (`observed`,
+// finishedSetAfter). Sorted by key.
+export function finishedAfterHeard(data: AgentStatesData, observed: BrokkEvent[], heardAt: number): BrokkEvent[] {
+    const seen = new Map(observed.map((event) => [blockOfFinished(event), event.since]));
+    const rtn: BrokkEvent[] = [];
+    for (const info of Object.values(data?.states ?? {})) {
+        if (info?.state !== "done") {
+            continue;
+        }
+        const since = info.since > 0 ? info.since : seen.get(info.blockid);
+        if (since == null || (info.since > 0 && since <= heardAt)) {
+            continue;
+        }
+        rtn.push({ key: `${FinishedPrefix}${info.blockid}`, kind: "finished", since });
+    }
+    return rtn.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+}
+
+export function sameEvents(a: BrokkEvent[], b: BrokkEvent[]): boolean {
+    return (
+        a.length === b.length &&
+        a.every((event, i) => event.key === b[i].key && event.kind === b[i].kind && event.since === b[i].since)
+    );
+}
+
 // The finished agents whose Done card is still listed (#2210): the developer archived the others, and their own gesture is
 // no news. Without the list (a window that does not tell it), all of them. The very same array when none goes.
 export function finishedStillListed(events: BrokkEvent[], openDone: ReadonlySet<string>): BrokkEvent[] {

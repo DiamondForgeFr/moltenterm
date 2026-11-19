@@ -28,16 +28,12 @@ import { BossBubbleModel } from "./boss-store";
 import { askUsageUse, UsageReadingsAtom, UsageUseAtom } from "./boss-usage";
 import { FaceHoverIntent } from "./brokk-avatar-model";
 import { SidebarPlace, sidebarPlaceOf } from "./brokk-edge-model";
-import {
-    closedDownloadIds,
-    listedUpdateCard,
-    readUsageMemory,
-    usageMemoryText,
-    UsageSeenKey,
-} from "./brokk-extra-feeds";
+import { closedDownloadIds, listedUpdateCard, readUsageMemory, usageMemoryText } from "./brokk-extra-feeds";
 import { BrokkHub } from "./brokk-hub";
 import { AvatarBadge, avatarBadgeOf } from "./brokk-hub-feed";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
+import { readUpdateSeen, readUsageSeen, UpdateSeenMetaKey, UsageSeenMetaKey } from "./brokk-marks";
+import { BrokkMarks } from "./brokk-marks-store";
 import { openDoneBlocks } from "./brokk-notes-model";
 import { choicesOf, UsageContext } from "./brokk-usage-model";
 import { VisitSettings, visitSettingsOf } from "./brokk-visit-events";
@@ -218,6 +214,8 @@ export class BrokkHubModel {
             })
         );
         fireAndForget(() => askUsageUse());
+        const marks = BrokkMarks.getInstance();
+        const stopMarks = marks.start();
         const stopFeeds = feedBrokkHub(this.hub, {
             store: globalStore,
             agentsAtom: agents.dataAtom,
@@ -235,16 +233,17 @@ export class BrokkHubModel {
             updateOfferAtom: this.updateOfferAtom,
             usageAtom: UsageReadingsAtom,
             usageContextAtom,
+            // What he showed and when he was last opened are the same for every page (FR-BOSS-009, AC106, #2391).
             usageMemory: {
-                read: () => readUsageMemory(storage()?.getItem(UsageSeenKey)),
-                write: (memory) => {
-                    try {
-                        storage()?.setItem(UsageSeenKey, usageMemoryText(memory));
-                    } catch {
-                        // A full or missing storage only means the next start may tell it again.
-                    }
-                },
+                read: () => readUsageMemory(readUsageSeen(marks.value(UsageSeenMetaKey))),
+                write: (memory) => marks.write({ [UsageSeenMetaKey]: usageMemoryText(memory) }),
             },
+            updateSeen: {
+                read: () => readUpdateSeen(marks.value(UpdateSeenMetaKey)),
+                write: (offer) => marks.write({ [UpdateSeenMetaKey]: offer }),
+            },
+            heardAtAtom: marks.heardAtAtom,
+            sharedAtom: marks.metaAtom,
             inViewAtom: makeSeenViewAtom(),
             openDoneAtom: this.openDoneAtom,
         });
@@ -253,10 +252,21 @@ export class BrokkHubModel {
                 this.hub.sharedChanged(e.newValue == null ? EmptyShared : readShared(e.newValue, Date.now()));
             }
         };
+        // A hidden page's timers are slowed: the page that shows again looks at once, with what every page shares.
+        const onVisible = () => {
+            if (document.visibilityState !== "visible") {
+                return;
+            }
+            marks.refresh();
+            this.hub.wake();
+        };
         window.addEventListener("storage", onStorage);
+        document.addEventListener("visibilitychange", onVisible);
         return () => {
             window.removeEventListener("storage", onStorage);
+            document.removeEventListener("visibilitychange", onVisible);
             stopFeeds();
+            stopMarks();
         };
     }
 }

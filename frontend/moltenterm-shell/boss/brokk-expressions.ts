@@ -16,6 +16,8 @@ import { AgentStates } from "../agent-state-store";
 import { BossBubbleModel } from "./boss-store";
 import { AskedExpression, BrokkExpression, rose } from "./brokk-ask-model";
 import { BrokkColleagueModel } from "./brokk-colleague-store";
+import { MoodMetaKey, moodText, readMood } from "./brokk-marks";
+import { BrokkMarks } from "./brokk-marks-store";
 import { EmptyMood, moodAfter, MoodEvent, MoodMemory, moodOf, replayOf } from "./brokk-mood";
 import { EmptyQueue, queueAfter, QueueEvent, QueueState } from "./brokk-queue";
 import { moodFactsOf, presenceAfter, unseenItems, watchBrokk } from "./brokk-watch";
@@ -55,6 +57,8 @@ export class BrokkExpressionsModel {
     // The last keystroke seen on the page: the scene calms his blinks while the developer types.
     lastKeyAtAtom = atom(null) as PrimitiveAtom<number>;
 
+    // When the mood this page holds was written to the shared record, by it or another page.
+    private moodAt = 0;
     private queue: QueueState = EmptyQueue;
     private wake: ReturnType<typeof setTimeout> = null;
 
@@ -93,10 +97,29 @@ export class BrokkExpressionsModel {
 
     note(event: MoodEvent): void {
         const current = globalStore.get(this.moodAtom);
-        const next = moodAfter(current, event, Date.now());
-        if (next !== current) {
-            globalStore.set(this.moodAtom, next);
+        const now = Date.now();
+        const next = moodAfter(current, event, now);
+        if (next === current) {
+            return;
         }
+        globalStore.set(this.moodAtom, next);
+        // His mood is one in every workspace (FR-BOSS-009, AC105, #2391): every page notes the same events, and the
+        // page on screen writes what it noted; the others take it.
+        if (globalThis.document?.visibilityState !== "visible") {
+            return;
+        }
+        this.moodAt = Math.max(now, this.moodAt + 1);
+        BrokkMarks.getInstance().write({ [MoodMetaKey]: moodText({ at: this.moodAt, memory: next }) });
+    }
+
+    // Another page wrote his mood: a later one is this page's too.
+    moodShared(raw: unknown): void {
+        const shared = readMood<MoodMemory>(raw);
+        if (shared == null || shared.at <= this.moodAt) {
+            return;
+        }
+        this.moodAt = shared.at;
+        globalStore.set(this.moodAtom, shared.memory);
     }
 
     // A keystroke on the page: no expression starts for a moment.
@@ -138,6 +161,12 @@ export class BrokkExpressionsModel {
     watch(target: ListenTarget = document): () => void {
         const bubble = BossBubbleModel.getInstance();
         const agents = AgentStates.getInstance();
+        const marks = BrokkMarks.getInstance();
+        const stopMarks = marks.start();
+        this.moodShared(marks.value(MoodMetaKey));
+        const stopMood = globalStore.sub(marks.metaAtom, () =>
+            this.moodShared(globalStore.get(marks.metaAtom)[MoodMetaKey])
+        );
         const stopCalls = watchCalls(globalStore, bubble.cueAtom, (expression) => {
             this.note({ type: "arrived" });
             if (!globalStore.get(bubble.cardOpenAtom)) {
@@ -178,6 +207,8 @@ export class BrokkExpressionsModel {
         InputEvents.forEach((name) => target.addEventListener(name, onInput, options));
         target.addEventListener("keydown", onKey, options);
         return () => {
+            stopMood();
+            stopMarks();
             stopCalls();
             stopForge();
             stopColleague();
