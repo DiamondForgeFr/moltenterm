@@ -99,8 +99,9 @@ func (s *Session) SettleSubagentFiles(ids []SubagentIdentity, now int64) bool {
 		if !id.Finished || (sa.state != SubagentRunning && sa.state != SubagentQuiet) {
 			continue
 		}
-		// A meta written before the agent's latest start or wake is the end of an earlier run.
-		if id.Ended > 0 && id.Ended < max(sa.started, sa.woke) {
+		// A meta written well before the agent's latest start or wake is the end of an earlier run. Claude Code writes
+		// the meta as the turn ends, a moment before the notification that wakes an agent waiting on its own work.
+		if id.Ended > 0 && id.Ended+SubagentReviveAfter.Milliseconds() < max(sa.started, sa.woke) {
 			continue
 		}
 		sa.state = SubagentDone
