@@ -137,7 +137,8 @@ contextBridge.exposeInMainWorld("api", {
     setWindowButtons: (state: { visible: boolean; zoom: number; peekGap?: number } | null) =>
         ipcRenderer.send("moltenterm-window-buttons", state),
     // MOLTENTERM-PATCH (#1281): the workspace's look, see-through and blur (emain/moltenterm-window-look.ts)
-    setWindowLook: (look: { translucent: boolean; blur: boolean }) => ipcRenderer.send("moltenterm-window-look", look),
+    setWindowLook: (look: { translucent: boolean; blur: boolean; reducedMotion?: boolean }) =>
+        ipcRenderer.send("moltenterm-window-look", look), // MOLTENTERM-PATCH (#2390): with the page's reduced-motion rule
     getWindowLookSupport: () => ipcRenderer.invoke("moltenterm-window-look-support"),
     closeBuilderWindow: () => ipcRenderer.send("close-builder-window"),
     incrementTermCommands: (opts?: { isRemote?: boolean; isWsl?: boolean; isDurable?: boolean }) =>

@@ -42,6 +42,7 @@ import {
 import { checkReusedTabViewPainted, noteTabViewLeftScreen } from "./moltenterm-tabview-repaint";
 import { makeTabViewSweeper } from "./moltenterm-tabview-sweep";
 import {
+    awaitArrivingPanels,
     coverArrivingView,
     coverGrace,
     finishArrivingView,
@@ -695,6 +696,11 @@ async function initializeTab(
     throwIfGone(tabView, "while it loaded");
     await coverGrace(win, tabView, wearing);
     throwIfGone(tabView, "while it put its picture on");
+    // A switch's new view without a picture waits for its panels, off screen, so it never appears half-drawn (#2390).
+    if (offScreen && !nothingShown && tabView.isWaveReady) {
+        await run.race(awaitArrivingPanels(win, tabView, run.remainingMs()));
+        throwIfGone(tabView, "while its panels mounted");
+    }
     registry.markReady(tabView, tabView.isWaveReady ? "rendered" : "shown at the readiness deadline (#68)");
 }
 

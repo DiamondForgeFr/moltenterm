@@ -45,6 +45,7 @@ import { startFaviconCache } from "./moltenterm-shell/favicon/favicon-store"; //
 import { startCarpetThumbCleanup } from "./moltenterm-shell/view360/carpet-thumbs"; // MOLTENTERM-PATCH (#1814)
 import { startMoltentermI18n, whenMoltentermI18nReady } from "./moltenterm-shell/i18n/i18n-start"; // MOLTENTERM-PATCH (#623, #1213)
 import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTERM-PATCH (#223)
+import { primeWindowLook } from "./moltenterm-shell/window-look"; // MOLTENTERM-PATCH (#2390)
 import { startWosResync } from "./moltenterm-shell/wos-resync"; // MOLTENTERM-PATCH (#1950)
 import { pinTabWorkspace } from "./moltenterm-shell/tab-workspace"; // MOLTENTERM-PATCH (#447)
 import { TabActivity } from "./moltenterm-shell/tab-activity"; // MOLTENTERM-PATCH (#455)
@@ -233,6 +234,7 @@ async function initWave(initOpts: WaveInitOpts) {
     startMoltentermAccent(atoms.workspace); // MOLTENTERM-PATCH (#47): before the first render, so no green flash
     startAppTheme(atoms.settingsAtom); // MOLTENTERM-PATCH (#1341): the interface theme, before the first render
     await startMoltentermI18n(); // MOLTENTERM-PATCH (#623, #1213): the interface language, loaded before the first render
+    await primeWindowLook(); // MOLTENTERM-PATCH (#2390): the workspace's look drawn and sent before the first paint
     const reactElem = createElement(App, { onFirstRender: firstRenderResolveFn }, null);
     const elem = document.getElementById("main");
     const root = createRoot(elem);

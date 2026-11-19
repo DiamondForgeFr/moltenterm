@@ -16,7 +16,8 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo } from "react";
+import { prefersReducedMotion } from "./molten-motion";
 import {
     effectiveLook,
     isTranslucent,
@@ -150,9 +151,38 @@ function drawLook(look: WindowLook) {
 }
 
 // Sent hidden or not: Electron main keeps each view's last request and applies it when the view comes on screen
-// (#1711), so the window never waits for this view to send again after a switch.
+// (#1711), so the window never waits for this view to send again after a switch. The reduced-motion rule goes with it:
+// main fades the window's blur with a switch, or not (#2390).
 function tellWindow(look: WindowLook) {
-    getApi().setWindowLook?.({ translucent: isTranslucent(look), blur: isTranslucent(look) && look.blur });
+    getApi().setWindowLook?.({
+        translucent: isTranslucent(look),
+        blur: isTranslucent(look) && look.blur,
+        reducedMotion: prefersReducedMotion(),
+    });
+}
+
+function readReducedTransparency(): boolean {
+    return window.matchMedia?.(ReducedTransparencyQuery)?.matches === true;
+}
+
+// Before the first render of a tab view (wave.ts): what the window supports is asked first, and the look is drawn and
+// sent before anything paints. A view built for a switch then comes on screen in its own look, with its background
+// already cleared by main, instead of showing a flat look-less frame and snapping to its look a few hundred
+// milliseconds later (#2390).
+export async function primeWindowLook() {
+    const model = WindowLookModel.getInstance();
+    try {
+        const support = await getApi().getWindowLookSupport?.();
+        globalStore.set(model.supportAtom, support ?? { translucent: false, blur: false });
+    } catch {
+        return;
+    }
+    globalStore.set(model.reducedTransparencyAtom, readReducedTransparency());
+    const drawn = lookToApply(globalStore.get(model.windowLookAtom).drawn, globalStore.get(model.supportAtom));
+    if (drawn != null) {
+        drawLook(drawn);
+        tellWindow(drawn);
+    }
 }
 
 // Mounted once per tab view (app.tsx).
@@ -162,14 +192,16 @@ export function WindowLookApplier() {
     const shown = useAtomValue(model.windowLookAtom);
     useEffect(() => {
         let live = true;
-        getApi()
-            .getWindowLookSupport?.()
-            .then((support) => {
-                if (live) {
-                    globalStore.set(model.supportAtom, support ?? { translucent: false, blur: false });
-                }
-            })
-            .catch(() => {});
+        if (globalStore.get(model.supportAtom) == null) {
+            getApi()
+                .getWindowLookSupport?.()
+                .then((support) => {
+                    if (live) {
+                        globalStore.set(model.supportAtom, support ?? { translucent: false, blur: false });
+                    }
+                })
+                .catch(() => {});
+        }
         const query = window.matchMedia?.(ReducedTransparencyQuery);
         const onQuery = () => globalStore.set(model.reducedTransparencyAtom, query?.matches === true);
         onQuery();
@@ -181,7 +213,8 @@ export function WindowLookApplier() {
     }, []);
     const support = useAtomValue(model.supportAtom);
     const drawn = lookToApply(shown.drawn, support);
-    useEffect(() => {
+    // Drawn before the frame paints: a change of look never shows one frame of the old one.
+    useLayoutEffect(() => {
         if (drawn == null) {
             return;
         }

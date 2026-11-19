@@ -236,6 +236,8 @@ const RootId = "main";
 export const CoverAttribute = "data-mt-cover";
 // The value that hides the root (moltenterm-shell.css holds the rule); "opaque" only marks that a cover is on.
 export const CoverHidesRoot = "translucent";
+// On the overlay of a view whose page background went for the switch: the inline backgrounds to give back.
+const ThroughAttribute = "data-mt-through";
 // How a picture reaches a page: main sends its bytes on this channel, the preload makes a blob URL of them and puts it
 // on the page's root under this attribute, and the scripts below read it.
 export const PictureChannel = "moltenterm-switch-picture";
@@ -282,9 +284,11 @@ function layerStyle(): string {
 
 // Puts the picture over the view being left, cross-fading from what shows (or from the picture already there, when a
 // newer switch changes the target). The overlay takes the pointer: a click on a picture must not land in the old view.
-// fadeRoot: both the picture and the view let the desktop through, so the view's own content fades out as the picture
-// fades in, added to it (plus-lighter, a cross-dissolve of premultiplied colours), instead of the two layers adding up
-// their see-through and the window turning more or less opaque half-way.
+// fadeRoot: the picture lets the desktop through, and so does the view (its own look, or its background cleared for the
+// switch, #2390), so the view's own content fades out as the picture fades in, added to it (plus-lighter, a
+// cross-dissolve of premultiplied colours), instead of the two layers adding up their see-through and the window turning
+// more or less opaque half-way. An opaque page's own background goes for the switch, so the desktop comes through with
+// the cross-fade; the overlay's removal gives it back.
 export function showPictureScript(fadeRoot: boolean): string {
     return `(function () { try {${Prelude}
 var ov = d.getElementById(${JSON.stringify(OverlayId)});
@@ -298,7 +302,12 @@ var go = function () {
     ov.style.cssText = "position:fixed;inset:0;z-index:2147483000;overflow:hidden;cursor:default";
     d.body.appendChild(ov);
     var m = ${JSON.stringify(fadeRoot)} ? d.getElementById(${JSON.stringify(RootId)}) : null;
-    if (m) { ov.style.mixBlendMode = "plus-lighter"; fade(m, 1, 0, fadeMs); }
+    if (m) {
+      ov.style.mixBlendMode = "plus-lighter";
+      ov.setAttribute(${JSON.stringify(ThroughAttribute)}, (root.style.background || "") + "|" + (d.body.style.background || ""));
+      root.style.background = "transparent"; d.body.style.background = "transparent";
+      fade(m, 1, 0, fadeMs);
+    }
   } else { below = Array.prototype.slice.call(ov.children).filter(function (c) { return c.tagName === "IMG"; }); ov.style.opacity = ""; }
   ov.appendChild(layer);
   fade(layer, 0, 1, fadeMs, function () { below.forEach(function (b) { b.remove(); }); });
@@ -331,6 +340,8 @@ if (!ov) return "none";
 var w = d.getElementById(${JSON.stringify(WaitId)}); if (w) w.remove();
 var m = d.getElementById(${JSON.stringify(RootId)});
 var held = !!m && m.style.opacity === "0";
+var through = ov.getAttribute(${JSON.stringify(ThroughAttribute)});
+if (through != null) { var bg = through.split("|"); root.style.background = bg[0]; d.body.style.background = bg[1] || ""; }
 var gone = function () { ov.remove(); };
 if (${JSON.stringify(fadeOut)}) {
   fade(ov, 1, 0, dissolveMs, gone);
@@ -466,6 +477,40 @@ setTimeout(function () { finish(-1); }, 250);
 })`;
 }
 
+// The panels a page has mounted, read from its DOM alone: a view off screen runs no animation frame (#2390).
+export function mountedBlocksScript(): string {
+    return `(function () { var ids = {}; document.querySelectorAll(".block[data-blockid]").forEach(function (e) { ids[e.getAttribute("data-blockid")] = 1; }); return Object.keys(ids).length; })()`;
+}
+
+// A new view with no picture to wear is put on screen once its panels are mounted, so it never appears half-drawn
+// (#2390): the view being left stays meanwhile, at most this long past the view's first render.
+export const PanelsMountMaxMs = 400;
+export const PanelsMountPollMs = 20;
+
+// Waits until the page has mounted the panels its tab holds (or a count that stopped changing for StableProbes looks),
+// at most maxMs. Resolves with whether it did.
+export async function waitPanelsMounted(
+    count: () => Promise<number>,
+    expected: number,
+    now: () => number,
+    sleep: (ms: number) => Promise<void>,
+    maxMs: number = PanelsMountMaxMs
+): Promise<boolean> {
+    const start = now();
+    let last = -1;
+    let stableFor = 0;
+    while (now() - start < maxMs) {
+        const blocks = await count().catch((): number => -1);
+        stableFor = blocks === last ? stableFor + 1 : 0;
+        last = blocks;
+        if (isSettled({ blocks, visible: true }, expected, stableFor)) {
+            return true;
+        }
+        await sleep(PanelsMountPollMs);
+    }
+    return false;
+}
+
 // A page that mounts every panel its tab holds is settled; one that shows fewer (a layout that draws only some of
 // them) is settled once its count stopped changing for StableProbes looks.
 export const StableProbes = 3;
@@ -496,6 +541,10 @@ export type SwitchPictureDeps = {
     store: SwitchPictureStore;
     // Whether this view's look lets the desktop through.
     translucent(view: SwitchView): boolean;
+    // Clears an opaque view's background so it can let the desktop through for the switch; false when the window cannot
+    // (#2390). restoreLook gives it its own background back.
+    letThrough(view: SwitchView): boolean;
+    restoreLook(view: SwitchView): void;
     windowSize(): { width: number; height: number };
     captureLeaver(view: SwitchView, tabId: string, workspaceId: string): void;
     // The window's live view of a tab, when it has one: a warm target gets its picture ahead of the click.
@@ -516,6 +565,8 @@ type ActiveSwitch = {
     prepared: Set<string>;
     // The views that wear it.
     worn: Set<string>;
+    // The leaver's background was cleared for the switch: a cancel gives it back.
+    through: boolean;
 };
 
 function fire(view: SwitchView, script: string) {
@@ -613,10 +664,24 @@ export class WindowSwitchPicture {
             covered: previous?.covered ?? new Set<SwitchView>(),
             prepared: previous?.prepared ?? new Set<string>(),
             worn: previous?.worn ?? new Set<string>(),
+            through: previous?.through ?? false,
         };
         d.holdKeys(this.current.leaver, true);
         this.send(this.current.leaver, picture);
-        fire(this.current.leaver, showPictureScript(picture.translucent && d.translucent(leaver)));
+        // A see-through target's picture over an opaque view: the view lets the desktop through for the switch, so the
+        // window's see-through moves with the cross-fade instead of appearing at the swap (#2390). Decided once, by
+        // the switch that put the overlay on.
+        const shown = this.current.leaver;
+        let fadeRoot = false;
+        if (previous == null && picture.translucent) {
+            if (d.translucent(shown)) {
+                fadeRoot = true;
+            } else if (d.letThrough(shown)) {
+                fadeRoot = true;
+                this.current.through = true;
+            }
+        }
+        fire(shown, showPictureScript(fadeRoot));
         d.log(`[#2375] picture shown for ${picture.tabId} (${picture.width}x${picture.height})`);
         return true;
     }
@@ -703,6 +768,11 @@ export class WindowSwitchPicture {
         }
     }
 
+    // Whether the view wears this switch's picture: then its panels may still mount under it.
+    wears(target: SwitchView): boolean {
+        return this.current?.worn.has(target.id) === true;
+    }
+
     // Whether the target's page decoded the picture of this switch before the click: it can then wear it before its
     // reinit starts, which the page cannot do in time when it has to decode it first.
     isPreparedAhead(target: SwitchView, tabId: string): boolean {
@@ -761,6 +831,9 @@ export class WindowSwitchPicture {
         this.forget(cur.leaver);
         if (cur.leaver.isLive()) {
             fire(cur.leaver, removeOverlayScript(true));
+            if (cur.through) {
+                this.deps.restoreLook(cur.leaver);
+            }
         }
         this.current = null;
         this.uncoverExcept(cur.covered, null);

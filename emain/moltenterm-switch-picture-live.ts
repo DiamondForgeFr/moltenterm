@@ -17,6 +17,8 @@ import {
     SwitchCoverGraceMs,
     SwitchEncodeDelayMs,
     encodeWaitMs,
+    mountedBlocksScript,
+    PanelsMountMaxMs,
     quietUntilAfter,
     SwitchEncodeQueueMax,
     SwitchPicture,
@@ -28,12 +30,13 @@ import {
     swallowsKey,
     WaitingState,
     waitingCaptionKey,
+    waitPanelsMounted,
     WindowSwitchPicture,
 } from "./moltenterm-switch-picture";
 import { mt } from "./moltenterm-i18n";
 import { tabViewWorkspace } from "./moltenterm-tabview-budget";
 import { windowTabViews } from "./moltenterm-tabview-host";
-import { viewLooksTranslucent } from "./moltenterm-window-look";
+import { letViewThrough, restoreViewBackground, viewLooksTranslucent } from "./moltenterm-window-look";
 
 export const SwitchIntentChannel = "moltenterm-switch-intent";
 
@@ -100,6 +103,8 @@ function windowSwitch(win: WaveBrowserWindow): WindowSwitchPicture {
         enabled,
         store,
         translucent: (v) => viewLooksTranslucent((v as LiveSwitchView).view),
+        letThrough: (v) => letViewThrough(win, (v as LiveSwitchView).view),
+        restoreLook: (v) => restoreViewBackground(win, (v as LiveSwitchView).view),
         windowSize: () => {
             const b = win.getContentBounds();
             return { width: b.width, height: b.height };
@@ -354,6 +359,42 @@ export async function coverGrace(win: WaveBrowserWindow, view: WaveTabView, wear
         await sw.attach(adapterOf(view));
     } finally {
         clearTimeout(timer);
+    }
+}
+
+// A new view that wears no picture (none was kept, or the window was resized since: a stretched picture is never
+// shown) comes on screen once its panels are mounted, so it never appears half-drawn: the view being left stays until
+// then, a few hundred milliseconds at most (#2390). A view wearing its picture is shown at once, the picture covers
+// the panels still mounting.
+export async function awaitArrivingPanels(win: WaveBrowserWindow, view: WaveTabView, maxMs: number): Promise<void> {
+    if (!enabled() || maxMs <= 0 || windowSwitches.get(win)?.wears(adapterOf(view)) === true) {
+        return;
+    }
+    const started = Date.now();
+    const expected = await guardedAsync(async () => {
+        const tab = (await ObjectService.GetObject("tab:" + view.waveTabId)) as Tab;
+        return tab?.blockids?.length ?? 0;
+    }, 0);
+    const mounted = await waitPanelsMounted(
+        () =>
+            view.isDestroyed || view.webContents.isDestroyed()
+                ? Promise.resolve(-1)
+                : (view.webContents.executeJavaScript(mountedBlocksScript()) as Promise<number>),
+        expected,
+        () => Date.now(),
+        (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+        Math.min(PanelsMountMaxMs, maxMs)
+    );
+    console.log(
+        `[#2390] new view without a picture shown ${mounted ? "with its panels mounted" : "before all its panels mounted"}, ${Date.now() - started} ms after its first render`
+    );
+}
+
+async function guardedAsync<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
+    try {
+        return await fn();
+    } catch {
+        return fallback;
     }
 }
 
