@@ -238,6 +238,8 @@ export const CoverAttribute = "data-mt-cover";
 export const CoverHidesRoot = "translucent";
 // On the overlay of a view whose page background went for the switch: the inline backgrounds to give back.
 const ThroughAttribute = "data-mt-through";
+// The page's overlay token (showPictureScript): a show whose token moved since it started puts nothing on.
+const OverlayToken = "__mtOverlayWant";
 // How a picture reaches a page: main sends its bytes on this channel, the preload makes a blob URL of them and puts it
 // on the page's root under this attribute, and the scripts below read it.
 export const PictureChannel = "moltenterm-switch-picture";
@@ -289,13 +291,18 @@ function layerStyle(): string {
 // cross-dissolve of premultiplied colours), instead of the two layers adding up their see-through and the window turning
 // more or less opaque half-way. An opaque page's own background goes for the switch, so the desktop comes through with
 // the cross-fade; the overlay's removal gives it back.
+// The picture goes on only while it is still wanted: its decode can end after the switch has landed and the overlay's
+// removal found nothing to remove, and a late overlay stayed over the view for good, taking its clicks (#2390). Each
+// show and each removal moves the page's overlay token; a show whose token moved puts nothing on.
 export function showPictureScript(fadeRoot: boolean): string {
     return `(function () { try {${Prelude}
-var ov = d.getElementById(${JSON.stringify(OverlayId)});
+var want = window.${OverlayToken} = (window.${OverlayToken} || 0) + 1;
 var layer = d.createElement("img");
 layer.alt = ""; layer.decoding = "async"; layer.setAttribute("aria-hidden", "true");
 layer.style.cssText = ${JSON.stringify(layerStyle())};
 var go = function () {
+  if (window.${OverlayToken} !== want) return;
+  var ov = d.getElementById(${JSON.stringify(OverlayId)});
   var below = [];
   if (!ov) {
     ov = d.createElement("div"); ov.id = ${JSON.stringify(OverlayId)}; ov.setAttribute("aria-hidden", "true");
@@ -333,6 +340,7 @@ return "armed";
 // ended without a target, the view stays).
 export function removeOverlayScript(fadeOut: boolean): string {
     return `(function () { try {${Prelude}
+window.${OverlayToken} = (window.${OverlayToken} || 0) + 1;
 window.__mtSwitchArmed = null;
 forgetPicture();
 var ov = d.getElementById(${JSON.stringify(OverlayId)});
@@ -350,6 +358,39 @@ if (${JSON.stringify(fadeOut)}) {
 return "ok";
 } catch (e) { return "error:" + e; } })()`;
 }
+
+// Main's last word on a switch that ended (#2390): whatever the page still holds of it (an overlay, a cover, the wait,
+// its content held out of sight, its background cleared) goes at once, without a fade, and a picture still decoding
+// never goes on. Answers what it found: "clean", or the parts it took off.
+export function clearSwitchScript(): string {
+    return `(function () { try {
+var d = document, root = d.documentElement, found = [];
+window.${OverlayToken} = (window.${OverlayToken} || 0) + 1;
+window.__mtCoverGiveUp = true; window.__mtCover = null; window.__mtSwitchArmed = null;
+var ov = d.getElementById(${JSON.stringify(OverlayId)});
+if (ov) {
+  found.push("overlay");
+  var through = ov.getAttribute(${JSON.stringify(ThroughAttribute)});
+  if (through != null) { var bg = through.split("|"); root.style.background = bg[0]; d.body.style.background = bg[1] || ""; }
+  ov.remove();
+}
+var c = d.getElementById(${JSON.stringify(CoverId)}); if (c) { found.push("cover"); c.remove(); }
+var w = d.getElementById(${JSON.stringify(WaitId)}); if (w) { found.push("wait"); w.remove(); }
+if (root.hasAttribute(${JSON.stringify(CoverAttribute)})) { found.push("cover-mark"); root.removeAttribute(${JSON.stringify(CoverAttribute)}); }
+var m = d.getElementById(${JSON.stringify(RootId)});
+if (m && m.style.opacity !== "" && m.style.opacity != null) { found.push("content-hidden"); if (m.getAnimations) m.getAnimations().forEach(function (a) { a.cancel(); }); m.style.opacity = ""; }
+return found.length ? found.join(",") : "clean";
+} catch (e) { return "error:" + e; } })()`;
+}
+
+// After a switch ends (its target on screen, or cancelled), main makes sure within this long that neither the target
+// nor the view left holds anything of it, whether or not the page answered the scripts before: the settle (600 ms at
+// most) and the dissolve (120 ms) are over by then.
+export const SwitchClearAfterMs = 1000;
+// A page that does not answer main's last word within this long is reported as not answering.
+export const SwitchClearAnswerMs = 1000;
+// A probe or the dissolve unanswered this long is taken as no answer: the settle goes on without it.
+export const SettleProbeAnswerMs = 300;
 
 export type WaitingState = { phase: string; name: string; caption: string } | null;
 
@@ -812,12 +853,69 @@ export class WindowSwitchPicture {
             fire(cur.leaver, removeOverlayScript(false));
         }
         this.current = null;
+        const covered = Array.from(cur.covered);
         this.uncoverExcept(cur.covered, cur.picture.tabId === tabId ? tabId : null);
+        this.watch([cur.leaver, target, ...covered], `switch to ${tabId}`, cur.token);
         if (cur.picture.tabId !== tabId) {
             return Promise.resolve();
         }
         this.owners.set(target.id, cur.token);
         return this.settle(target, tabId, cur.token);
+    }
+
+    // Main's guarantee (#2390): SwitchClearAfterMs after a switch ended, a view that no switch is using any more holds
+    // nothing of it, whatever its page answered or did not answer before (a decode that ended late, an animation that a
+    // hidden page never ran). Every view's outcome is logged when something had to be taken off or the page did not
+    // answer.
+    private watch(views: SwitchView[], what: string, token: number) {
+        const d = this.deps;
+        const endedAt = d.now();
+        const seen = new Set<string>();
+        const unique = views.filter((v) => v != null && !seen.has(v.id) && seen.add(v.id) != null);
+        d.setTimer(() => {
+            for (const view of unique) {
+                if (!view.isLive() || this.inUse(view, endedAt, token)) {
+                    continue;
+                }
+                // A settle of this switch still waiting on a page that does not answer never takes anything off later.
+                if (this.owners.get(view.id) === token) {
+                    this.owners.delete(view.id);
+                }
+                this.forget(view);
+                let answered = false;
+                const timer = d.setTimer(() => {
+                    if (!answered) {
+                        d.log(`[#2390] ${what}: ${view.id} did not answer the last clear within ${SwitchClearAnswerMs} ms`);
+                    }
+                }, SwitchClearAnswerMs);
+                view.run(clearSwitchScript())
+                    .then((found) => {
+                        answered = true;
+                        d.clearTimer(timer);
+                        if (found !== "clean") {
+                            d.log(`[#2390] ${what}: forced off what ${view.id} still held (${String(found)})`);
+                        }
+                    })
+                    .catch((): void => {
+                        answered = true;
+                        d.clearTimer(timer);
+                    });
+            }
+        }, SwitchClearAfterMs);
+    }
+
+    // A view a newer switch uses (its leaver, a target wearing or preparing its picture, a view sent a picture since)
+    // is that switch's to clear.
+    private inUse(view: SwitchView, since: number, token: number): boolean {
+        const cur = this.current;
+        if (cur != null && (cur.leaver.id === view.id || Array.from(cur.covered).some((v) => v.id === view.id))) {
+            return true;
+        }
+        if (this.owners.has(view.id) && this.owners.get(view.id) !== token) {
+            return true;
+        }
+        const held = this.held.get(view.id);
+        return held != null && held.at > since;
     }
 
     // The switch ended without a target on screen: the leaver is where it was, the picture fades out.
@@ -836,7 +934,9 @@ export class WindowSwitchPicture {
             }
         }
         this.current = null;
+        const covered = Array.from(cur.covered);
         this.uncoverExcept(cur.covered, null);
+        this.watch([cur.leaver, ...covered], "cancelled switch", cur.token);
     }
 
     private uncoverExcept(covered: Set<SwitchView>, keepTabId: string) {
@@ -877,7 +977,8 @@ export class WindowSwitchPicture {
         let last = -1;
         let stableFor = 0;
         while (owns() && target.isLive() && d.now() - start < SwitchSettleMaxMs) {
-            const report = (await target.run(settleProbeScript()).catch((): unknown => null)) as SettleReport;
+            // a page that never answers (frozen, or hidden mid-probe) costs one probe's bound, not the whole wait
+            const report = (await this.bounded(target.run(settleProbeScript()), SettleProbeAnswerMs)) as SettleReport;
             stableFor = report != null && report.blocks === last ? stableFor + 1 : 0;
             last = report?.blocks ?? -1;
             if (isSettled(report, expected, stableFor)) {
@@ -893,11 +994,44 @@ export class WindowSwitchPicture {
         if (!settled) {
             d.log(`[#2375] panels not all mounted after ${SwitchSettleMaxMs} ms, the picture goes anyway`);
         }
-        await target.run(uncoverScript()).catch((): unknown => null);
-        if (owns()) {
+        const answer = await this.bounded(target.run(uncoverScript()), SettleProbeAnswerMs);
+        // every cover's end is logged: how it went, and whether the page answered (#2390)
+        d.log(
+            `[#2390] cover of ${tabId} off: ${settled ? "panels mounted" : "settle timed out"}, ${answer == null ? "the page did not answer the dissolve (main clears it)" : "dissolved"}, ${d.now() - start} ms after the target was shown`
+        );
+        if (owns() && answer != null) {
             this.owners.delete(target.id);
             this.forget(target);
         }
+    }
+
+    // A script's answer, or null when the page gives none within ms.
+    private bounded(p: Promise<unknown>, ms: number): Promise<unknown> {
+        return new Promise((resolve) => {
+            let done = false;
+            const timer = this.deps.setTimer(() => {
+                if (!done) {
+                    done = true;
+                    resolve(null);
+                }
+            }, ms);
+            p.then(
+                (v) => {
+                    if (!done) {
+                        done = true;
+                        this.deps.clearTimer(timer);
+                        resolve(v);
+                    }
+                },
+                () => {
+                    if (!done) {
+                        done = true;
+                        this.deps.clearTimer(timer);
+                        resolve(null);
+                    }
+                }
+            );
+        });
     }
 }
 

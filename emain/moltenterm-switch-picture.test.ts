@@ -41,6 +41,8 @@ import {
     uncoverScript,
     waitingCaptionKey,
     waitingScript,
+    clearSwitchScript,
+    SwitchClearAfterMs,
     mountedBlocksScript,
     PanelsMountMaxMs,
     waitPanelsMounted,
@@ -772,6 +774,13 @@ function fakeView(id: string): FakeView {
         },
         run: (script: string) => {
             v.scripts.push(script);
+            if (script === clearSwitchScript()) {
+                return Promise.resolve(v.answers.clear ?? "clean");
+            }
+            // a page frozen mid-dissolve (a hidden page runs no animation frame) answers no probe and no dissolve
+            if (v.answers.frozen && (script === uncoverScript() || script.startsWith("new Promise"))) {
+                return new Promise(() => {});
+            }
             if (script === prepareCoverScript()) {
                 return Promise.resolve(v.answers.prepare ?? "ready");
             }
@@ -1267,5 +1276,113 @@ describe("a new view without a picture waits for its panels", () => {
         const live = readFileSync("emain/moltenterm-switch-picture-live.ts", "utf8");
         const wait = live.slice(live.indexOf("export async function awaitArrivingPanels"));
         expect(wait.slice(0, wait.indexOf("\n}\n"))).toContain(".wears(adapterOf(view))");
+    });
+});
+
+// The gold froze on 2026-11-19 (#2390): a picture whose decode ended after its switch had landed went on over the view
+// left, for good, taking its clicks; the developer found it over the live view when they came back to it.
+describe("no picture outlives its switch (#2390)", () => {
+    const Tokens = { "--mt-duration-base": "180ms", "--mt-duration-fast": "120ms", "--mt-ease": "ease" };
+
+    it("never puts on a picture whose decode ends after its removal", async () => {
+        const page = fakePage({ tokens: Tokens, withMain: true, slowDecode: true });
+        page.run(showPictureScript(true));
+        await flush();
+        // the switch lands before the page has decoded the picture: the removal finds nothing
+        expect(page.run(removeOverlayScript(false))).toBe("none");
+        page.releaseDecodes();
+        await flush();
+        expect(page.byId("mt-switch-overlay")).toBeNull();
+        expect(page.byId("main").style.opacity).toBeUndefined();
+        expect(page.animations).toHaveLength(0);
+    });
+
+    it("lets only the newest of two pictures still decoding go on", async () => {
+        const page = fakePage({ tokens: Tokens, slowDecode: true, picture: "blob:first" });
+        page.run(showPictureScript(false));
+        await flush();
+        page.root.setAttribute(PictureAttribute, "blob:second");
+        page.run(showPictureScript(false));
+        await flush();
+        page.releaseDecodes();
+        await flush();
+        expect(page.byId("mt-switch-overlay").children.map((c) => c.src)).toEqual(["blob:second"]);
+    });
+
+    it("clears, without a fade, whatever a page frozen mid-dissolve still holds", async () => {
+        const page = fakePage({ tokens: Tokens, withMain: true });
+        (page.body.style as any).background = "rgb(1, 2, 3)";
+        page.run(showPictureScript(true));
+        await flush();
+        page.root.setAttribute(PictureAttribute, "blob:cover");
+        await (page.run(prepareCoverScript()) as Promise<unknown>);
+        page.run(attachCoverScript(true));
+        expect(page.byId("mt-switch-cover")).not.toBeNull();
+        // the dissolve starts and its animation never runs: the cover and the hidden content stay
+        page.run(uncoverScript());
+        expect(page.run(clearSwitchScript())).toBe("overlay,cover,content-hidden");
+        expect(page.byId("mt-switch-overlay")).toBeNull();
+        expect(page.byId("mt-switch-cover")).toBeNull();
+        expect(page.root.hasAttribute(CoverAttribute)).toBe(false);
+        expect(page.byId("main").style.opacity).toBe("");
+        expect((page.body.style as any).background).toBe("rgb(1, 2, 3)");
+        expect(page.run(clearSwitchScript())).toBe("clean");
+    });
+
+    it("has main clear a target frozen mid-dissolve and the view left, about a second after the switch", async () => {
+        const { sw, leaver, target, log } = setup();
+        sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" });
+        await sw.cover(target, "target");
+        await sw.attach(target);
+        target.answers.frozen = true;
+        target.answers.clear = "cover,content-hidden";
+        leaver.answers.clear = "overlay";
+        void sw.arrived(target, "target");
+        await vi.advanceTimersByTimeAsync(SwitchClearAfterMs - 10);
+        expect(target.scripts.filter((s) => s === clearSwitchScript())).toHaveLength(0);
+        await vi.advanceTimersByTimeAsync(20);
+        expect(target.scripts.filter((s) => s === clearSwitchScript())).toHaveLength(1);
+        expect(leaver.scripts.filter((s) => s === clearSwitchScript())).toHaveLength(1);
+        expect(log.some((m) => m.includes("forced off what target still held (cover,content-hidden)"))).toBe(true);
+        expect(log.some((m) => m.includes("forced off what leaver still held (overlay)"))).toBe(true);
+        expect(log.some((m) => m.includes("did not answer the dissolve"))).toBe(true);
+        // the frozen settle, should the page ever answer, takes nothing off any more
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(scriptsOf(target, "fade(c, 1, 0, dissolveMs")).toHaveLength(1);
+        vi.useRealTimers();
+    });
+
+    it("clears a switch that ended without its target, and logs nothing for a page that held nothing", async () => {
+        const { sw, leaver, log } = setup();
+        sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" });
+        sw.cancel();
+        await vi.advanceTimersByTimeAsync(SwitchClearAfterMs + 10);
+        expect(leaver.scripts.filter((s) => s === clearSwitchScript())).toHaveLength(1);
+        expect(log.some((m) => m.includes("forced off"))).toBe(false);
+        vi.useRealTimers();
+    });
+
+    it("leaves alone a view a newer switch is using", async () => {
+        const { sw, leaver, target } = setup({}, [pic("target", "wt", 1000), pic("leaver", "wl", 900)]);
+        sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" });
+        await sw.cover(target, "target");
+        void sw.arrived(target, "target");
+        await vi.advanceTimersByTimeAsync(100);
+        // straight back: the target is now the view being left, its overlay belongs to the new switch
+        sw.begin(target, "target", "wt", { workspaceId: "wl" });
+        await vi.advanceTimersByTimeAsync(SwitchClearAfterMs);
+        expect(target.scripts.filter((s) => s === clearSwitchScript())).toHaveLength(0);
+        vi.useRealTimers();
+    });
+
+    it("reports a page that does not answer main's last word", async () => {
+        const { sw, leaver, log } = setup();
+        sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" });
+        const run = leaver.run;
+        leaver.run = (s: string) => (s === clearSwitchScript() ? new Promise(() => {}) : run(s));
+        sw.cancel();
+        await vi.advanceTimersByTimeAsync(SwitchClearAfterMs + 1100);
+        expect(log.some((m) => m.includes("leaver did not answer the last clear"))).toBe(true);
+        vi.useRealTimers();
     });
 });
