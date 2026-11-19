@@ -120,6 +120,7 @@ class FakeWebContents {
     }
     send(channel: string, ...args: any[]) {
         this.sent.push({ channel, args, t: Date.now() });
+        h.trace.push(`send ${this.id} ${channel}`);
         if (channel === "wave-init") {
             h.scheduleRender(this, args[0]);
         }
@@ -153,10 +154,32 @@ class FakeWebContents {
     getOSProcessId() {
         return 0;
     }
-    // The renderer's answer to the budget's unsaved-work probe (#454).
+    // The renderer's answer to the budget's unsaved-work probe (#454); the switch picture's scripts (#2375) are kept, in
+    // order with what is sent to the view, and its settle probe answers that every panel is mounted.
     unsavedWork = false;
-    executeJavaScript(): Promise<unknown> {
+    scripts: string[] = [];
+    executeJavaScript(script?: string): Promise<unknown> {
+        if (typeof script === "string" && script.includes("mt-switch") || script?.includes("count()")) {
+            this.scripts.push(script);
+            h.trace.push(`js ${this.id} ${script.includes("count()") ? "settle" : scriptKind(script)}`);
+            if (script.includes("count()")) {
+                return Promise.resolve({ blocks: 1, visible: true });
+            }
+            return Promise.resolve(script.includes('resolve("ready")') ? "ready" : "ok");
+        }
         return Promise.resolve(this.unsavedWork);
+    }
+    // The capture of a view being left (#2375): a picture with something in it.
+    capturePage(): Promise<unknown> {
+        const image = {
+            isEmpty: () => false,
+            getSize: () => ({ width: 1200, height: 800 }),
+            resize: () => image,
+            toBitmap: () => Buffer.alloc(4),
+            toJPEG: () => Buffer.from("jpeg"),
+            toPNG: () => Buffer.from("png"),
+        };
+        return Promise.resolve(image);
     }
     // Chromium backgrounds a view's renderer while its throttling is allowed and it is not shown (#450).
     throttling = true;
@@ -249,8 +272,30 @@ class FakeBaseWindow {
     }
 }
 
+// What a switch picture script does, for the trace: the picture over the view being left, the cover on the target, a
+// removal, the dissolve.
+function scriptKind(script: string): string {
+    if (script.includes('resolve("ready")')) {
+        return "prepare";
+    }
+    if (script.includes('c.id = "mt-switch-cover"')) {
+        return "cover";
+    }
+    if (script.includes("fade(c, 1, 0, dissolveMs")) {
+        return "dissolve";
+    }
+    if (script.includes("window.__mtSwitchArmed = null")) {
+        return "remove-overlay";
+    }
+    if (script.includes("ov.id")) {
+        return "overlay";
+    }
+    return "other";
+}
+
 // Harness state shared with the fakes above.
 const h = {
+    trace: [] as string[],
     backend: null as FakeBackend,
     windows: [] as FakeBaseWindow[],
     allViews: [] as FakeWebContentsView[],
@@ -318,6 +363,7 @@ const h = {
             const last = h.screen[h.screen.length - 1];
             if (last == null || last[1] !== on) {
                 h.screen.push([Date.now(), on]);
+                h.trace.push(`screen ${on}`);
             }
         });
     },
@@ -493,6 +539,7 @@ let mod: any;
 async function setup(opts: { isDev?: boolean; settings?: Record<string, unknown>; silentStart?: boolean } = {}) {
     vi.resetModules();
     h.backend = new FakeBackend();
+    h.trace = [];
     h.windows = [];
     h.allViews = [];
     h.closedRenderers = [];
@@ -605,6 +652,7 @@ async function loadModules() {
         noteWebviewLifecycleSettings: () => {},
     }));
     vi.doMock("./moltenterm-popups", () => ({ attachWebviewWindowOpen: () => {} }));
+    vi.doMock("./moltenterm-carpet-thumb-store", () => ({ isFlatFrame: () => false }));
     vi.doMock("./moltenterm-tabview-repaint", () => ({
         checkReusedTabViewPainted: () => {},
         noteTabViewLeftScreen: () => {},
@@ -989,10 +1037,11 @@ describe("window action queue: one readiness deadline, one retry (#449, #450)", 
             h.silentBoot = true;
             h.tabviewModule.discardHotSpareTab();
             h.tabviewModule.ensureHotSpareTab({ settings: h.settings });
+            const { ViewPendingGraceMs } = await import("./moltenterm-view-pending");
             const starterView = win.activeTabView;
             const t0 = Date.now();
             ipc("switch-workspace", a.oid);
-            await vi.advanceTimersByTimeAsync(100);
+            await vi.advanceTimersByTimeAsync(ViewPendingGraceMs + 40);
             expect(lastPending(starterView)).toEqual({ phase: "loading", workspaceName: "A" });
             await vi.advanceTimersByTimeAsync(deadlineMs);
             // Before #450: the view was dropped at the deadline and nothing retried.
@@ -1002,7 +1051,7 @@ describe("window action queue: one readiness deadline, one retry (#449, #450)", 
             expect(h.onScreen()).toBe(starter.activetabid);
             await vi.advanceTimersByTimeAsync(deadlineMs);
             expect(queueLength()).toBe(0);
-            expect(Date.now() - t0).toBeLessThanOrEqual(2 * deadlineMs + 200);
+            expect(Date.now() - t0).toBeLessThanOrEqual(2 * deadlineMs + 200 + ViewPendingGraceMs + 40);
             expect(win.workspaceId).toBe(starter.oid);
             expect(backendWindowWs()).toBe(starter.oid);
             expect(h.onScreen()).toBe(starter.activetabid);
@@ -1098,18 +1147,19 @@ describe("window action queue: one readiness deadline, one retry (#449, #450)", 
 });
 
 describe("window pending state (#450)", () => {
-    it("shows the pending state within 100 ms while a view loads and clears it when the view is on screen", async () => {
+    it("shows the pending state once the grace has passed while a view loads and clears it when the view is on screen", async () => {
         await setup();
         const a = h.backend.addWorkspace("A");
         h.tabviewModule.discardHotSpareTab();
         const starterView = win.activeTabView;
+        const { ViewPendingGraceMs } = await import("./moltenterm-view-pending");
         const t0 = Date.now();
         ipc("switch-workspace", a.oid);
-        await vi.advanceTimersByTimeAsync(50);
+        await vi.advanceTimersByTimeAsync(ViewPendingGraceMs - 10);
         expect(pendingMessages(starterView)).toEqual([]);
         await vi.advanceTimersByTimeAsync(50);
         const [[shownAt, state]] = pendingMessages(starterView);
-        expect(shownAt - t0).toBeLessThanOrEqual(100);
+        expect(shownAt - t0).toBeLessThanOrEqual(ViewPendingGraceMs + 40);
         expect(state).toEqual({ phase: "loading", workspaceName: "A" });
         await vi.advanceTimersByTimeAsync(1000);
         expect(h.onScreen()).toBe(a.activetabid);
@@ -1127,9 +1177,10 @@ describe("window pending state (#450)", () => {
         const b = h.backend.addWorkspace("B");
         h.tabviewModule.discardHotSpareTab();
         const starterView = win.activeTabView;
+        const { ViewPendingGraceMs } = await import("./moltenterm-view-pending");
         const t0 = Date.now();
         ipc("switch-workspace", a.oid);
-        await vi.advanceTimersByTimeAsync(150);
+        await vi.advanceTimersByTimeAsync(ViewPendingGraceMs + 50);
         expect(lastPending(starterView)).toEqual({ phase: "loading", workspaceName: "A" });
         ipc("switch-workspace", b.oid);
         await vi.advanceTimersByTimeAsync(20);
@@ -1657,5 +1708,95 @@ describe("a burst of closes and switches (#1778)", () => {
         await vi.advanceTimersByTimeAsync(5000);
         expect(await answer).toBe(false);
         expect(tabsOf(starter.oid)).toContain(a);
+    });
+});
+
+// The switch picture (#2375): a switch shows the target's last picture at once, on the view being left; the target wears
+// it before its reinit and puts it away once painted; and none of it makes the target come on screen later.
+describe("the switch picture (#2375)", () => {
+    // The starter workspace is left for another one, and its picture is kept; both views stay cached.
+    async function leaveStarter() {
+        const starter = await setup();
+        const other = await addVisitedWorkspace();
+        await vi.advanceTimersByTimeAsync(1000);
+        const leaver = win.activeTabView;
+        const target = viewsForTab(starter.activetabid)[0];
+        return { starter, other, leaver, target };
+    }
+
+    async function timeToScreen(withPictures: boolean): Promise<number> {
+        const previous = process.env.MOLTENTERM_SWITCHPICTURE;
+        process.env.MOLTENTERM_SWITCHPICTURE = withPictures ? "1" : "0";
+        try {
+            const { starter } = await leaveStarter();
+            const t0 = Date.now();
+            ipc("switch-workspace", starter.oid);
+            await vi.advanceTimersByTimeAsync(3000);
+            return screenSince(t0).find((e) => e[1] === starter.activetabid)[0];
+        } finally {
+            if (previous == null) {
+                delete process.env.MOLTENTERM_SWITCHPICTURE;
+            } else {
+                process.env.MOLTENTERM_SWITCHPICTURE = previous;
+            }
+        }
+    }
+
+    it("shows the picture on the view being left within the action, and wears it on the target before its reinit", async () => {
+        const { starter, leaver, target } = await leaveStarter();
+        h.trace = [];
+        const t0 = Date.now();
+        ipc("switch-workspace", starter.oid);
+        await vi.advanceTimersByTimeAsync(20);
+        expect(h.trace).toContain(`js ${leaver.webContents.id} overlay`);
+        await vi.advanceTimersByTimeAsync(3000);
+        const t = (entry: string) => h.trace.indexOf(entry);
+        const onTarget = (what: string) => `js ${target.webContents.id} ${what}`;
+        // the target wears the picture before it comes on screen, and puts it away once it has painted
+        expect(t(onTarget("cover"))).toBeGreaterThan(-1);
+        expect(t(onTarget("cover"))).toBeLessThan(t(`screen ${starter.activetabid}`));
+        expect(t(onTarget("dissolve"))).toBeGreaterThan(t(`screen ${starter.activetabid}`));
+        expect(t(`js ${leaver.webContents.id} remove-overlay`)).toBeGreaterThan(-1);
+        expect(h.onScreen()).toBe(starter.activetabid);
+        // never an empty window on the way
+        expect(screenSince(t0).every((e) => e[1] !== "")).toBe(true);
+        expect(h.rendererErrors).toEqual([]);
+    });
+
+    it("puts the target on screen no later than without any picture", async () => {
+        const without = await timeToScreen(false);
+        const withPicture = await timeToScreen(true);
+        expect(withPicture).toBeLessThanOrEqual(without);
+    });
+
+    it("shows no picture for a workspace not left before", async () => {
+        await setup();
+        const fresh = h.backend.addWorkspace("Fresh");
+        await warmSpare();
+        h.trace = [];
+        ipc("switch-workspace", fresh.oid);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(h.trace.filter((e) => e.startsWith("js") && !e.endsWith("settle"))).toEqual([]);
+        expect(h.onScreen()).toBe(fresh.activetabid);
+    });
+
+    it("holds back what is typed in the view being left while its screen shows the target, then lets it through", async () => {
+        const { starter, leaver } = await leaveStarter();
+        const key = (init: object) => {
+            const event = {
+                prevented: false,
+                preventDefault() {
+                    this.prevented = true;
+                },
+            };
+            leaver.webContents.emit("before-input-event", event, { type: "keyDown", key: "a", ...init });
+            return event.prevented;
+        };
+        ipc("switch-workspace", starter.oid);
+        await vi.advanceTimersByTimeAsync(10);
+        expect(key({})).toBe(true);
+        expect(key({ meta: true })).toBe(false);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(key({})).toBe(false);
     });
 });

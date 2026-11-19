@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The view pour (coulée de vue, FR-SHELL-112, #1349): when a view comes on screen through a switch, its content
-// slides 8 px from the side of the tiles and fades in, and the tile that was clicked lights up, in
-// --mt-duration-base with --mt-ease. Each view is its own renderer (one WebContentsView per tab): a switch to a view
+// slides 8 px from the side of the tiles and fades in (from 70 %, never from black, #2375), and the tile that was
+// clicked lights up, in --mt-duration-base with --mt-ease. It plays under the target's last picture (the switch
+// picture, FR-SHELL-082) without showing: the picture dissolves over a view already at 70 % or more. Each view is its own renderer (one WebContentsView per tab): a switch to a view
 // already open re-initialises it (Wave's reinitVersion), which is the signal; the window's focus coming back is not
 // a switch and moves nothing. Only transform and opacity animate, through the Web Animations API, so the switch
 // writes no style the layout depends on and reads no layout back. Under reduced motion nothing plays.
@@ -18,6 +19,8 @@ import "./panel-motion.css";
 import { markPour, notifyViewPour } from "./pour-moment";
 
 export const PourShiftPx = 8;
+// The panels never start from black (#2375): a switch shows no empty or dim frame, so the pour only eases them in.
+export const PourFromOpacity = 0.7;
 export const PourAnimationId = "mt-view-pour";
 // must match --mt-ease in tokens.css, for a document without the tokens (a test)
 export const PourEaseFallback = "cubic-bezier(0.2, 0, 0, 1)";
@@ -38,7 +41,7 @@ export function parseCssTime(value: string): number {
 export function pourKeyframes(axis: PourAxis): Keyframe[] {
     const from = axis === "y" ? `translateY(-${PourShiftPx}px)` : `translateX(-${PourShiftPx}px)`;
     return [
-        { opacity: 0, transform: from },
+        { opacity: PourFromOpacity, transform: from },
         { opacity: 1, transform: "none" },
     ];
 }

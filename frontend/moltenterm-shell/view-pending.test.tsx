@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { globalStore } from "@/app/store/jotaiStore";
+import { readFileSync } from "fs";
 import { Provider } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const shellCss = readFileSync("frontend/moltenterm-shell/moltenterm-shell.css", "utf8");
 
 const { api } = vi.hoisted(() => ({
     api: { onPending: null as (state: any) => void, actions: [] as string[] },
@@ -52,7 +55,12 @@ describe("pending state (FR-PERF-004, DS-PERF-005)", () => {
         api.onPending({ phase: "loading", workspaceName: "Client A" });
         const html = renderOverlay();
         expect(html).toContain("absolute inset-0");
-        expect(html).toContain("bg-background");
+        // a veil over the outgoing panels, never an empty cover (#2375): the stylesheet draws it by phase
+        expect(html).toContain('data-phase="loading"');
+        expect(shellCss).toMatch(
+            /\.molten-view-pending-overlay\s*{\s*background:\s*color-mix\(in srgb, var\(--color-background\) 70%, transparent\);/
+        );
+        expect(html).not.toMatch(/bg-background["\s]/);
         expect(html).toMatch(/font-semibold[^"]*"[^>]*>Client A</);
         expect(html).toContain("df-dominos");
         expect(html).toContain('role="status"');
@@ -70,6 +78,11 @@ describe("pending state (FR-PERF-004, DS-PERF-005)", () => {
         renderOverlay();
         api.onPending({ phase: "failed", workspaceName: "Client A" });
         const html = renderOverlay();
+        // the message and Reload keep their opaque ground
+        expect(html).toContain('data-phase="failed"');
+        expect(shellCss).toMatch(
+            /\.molten-view-pending-overlay\[data-phase="failed"\],\s*\.molten-view-pending-overlay\[data-phase="stopped"\]\s*{\s*background:\s*var\(--color-background\);/
+        );
         expect(html).toContain("Client A did not open");
         expect(html).toContain('data-testid="view-pending-reload"');
         expect(html).toContain("molten-btn");

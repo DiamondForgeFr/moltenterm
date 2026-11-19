@@ -1369,11 +1369,24 @@
     transform: rotate(270deg);
 }
 
+/* The switch picture (#2375, emain/moltenterm-switch-picture.ts): while a see-through view wears its last picture, its
+   live content stays out of sight under it, so the two layers never add up their see-through. Electron main sets the
+   attribute and takes it off with the picture's dissolve. */
+html[data-mt-cover="translucent"] #main {
+    opacity: 0;
+}
+
 /* The pending state of a tab view (#450, DS-PERF-005): a view reports no progress while it loads, so the large dominoes
-   fall under the workspace's name (DS-SHELL-154, #1714). The overlay fades in, so a switch that lands just after the
-   grace barely shows. */
+   fall under the workspace's name (DS-SHELL-154, #1714). The overlay is a veil over the outgoing panels (#2375) and fades
+   in, so a switch that lands just after the grace barely shows. */
 .molten-view-pending-overlay {
-    animation: mt-view-pending-in 80ms ease-out;
+    background: color-mix(in srgb, var(--color-background) 70%, transparent);
+    animation: mt-view-pending-in var(--mt-duration-fast) var(--mt-ease);
+}
+
+.molten-view-pending-overlay[data-phase="failed"],
+.molten-view-pending-overlay[data-phase="stopped"] {
+    background: var(--color-background);
 }
 
 @keyframes mt-view-pending-in {

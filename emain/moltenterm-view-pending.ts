@@ -16,9 +16,10 @@ import { mainLocale, mt } from "./moltenterm-i18n";
 
 export const ViewPendingChannel = "moltenterm-view-pending";
 export const ViewPendingActionChannel = "moltenterm-view-pending-action";
-// A switch to a warm view takes 50 to 150 ms: shorter ones never show the pending state, longer ones show it within
-// 100 ms.
-export const ViewPendingGraceMs = 60;
+// A switch to a warm view takes 50 to 150 ms and its own motion takes 180 ms (#2375): the pending state, a veil over the
+// panels, shows only once a switch is slower than that. At 60 ms it covered the outgoing panels shortly before the
+// target arrived, the blank frame with a domino of a normal switch.
+export const ViewPendingGraceMs = 300;
 // A launch shows its window when the first tab is ready (about 2 s); the pending page only shows a slower one.
 export const StartupPendingGraceMs = 3000;
 export const PendingPageReloadUrl = "moltenterm-pending://reload";

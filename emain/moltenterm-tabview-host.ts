@@ -42,8 +42,16 @@ import {
 import { checkReusedTabViewPainted, noteTabViewLeftScreen } from "./moltenterm-tabview-repaint";
 import { makeTabViewSweeper } from "./moltenterm-tabview-sweep";
 import {
+    coverArrivingView,
+    coverGrace,
+    finishArrivingView,
+    switchWaitingView,
+    wearAhead,
+} from "./moltenterm-switch-picture-live";
+import {
     loadPendingPage,
     makePendingPage,
+    PendingLiveView,
     PendingPage,
     ViewPendingActionChannel,
     ViewPendingController,
@@ -580,8 +588,13 @@ async function setTabViewIntoWindow(
             activateTabView(win, tabView, oldActiveView);
         }
         positionWindowTabViews(win);
+        finishArrivingView(win, tabView); // its switch picture dissolves once it has painted (#2375)
     } else {
         console.log("reusing an existing tab, calling wave-init", tabView.waveTabId);
+        // A page that decoded its switch picture ahead of the click wears it before its reinit, so the frames it draws
+        // meanwhile and the first one on screen hold nothing but the picture; any other asks for it and wears it once
+        // its reinit is done (#2375).
+        const wearing = (await wearAhead(win, tabView)) ? Promise.resolve() : coverArrivingView(win, tabView);
         // A view hidden off-screen is shown again before its reinit (#454).
         revealTabView(tabView);
         const reinitDone = waitReady ? nextWaveReady(tabView) : null;
@@ -590,9 +603,16 @@ async function setTabViewIntoWindow(
             // A superseded switch leaves the reused view off-screen, in the cache (#68, #449).
             await run.race(withTimeout(reinitDone, Math.min(MoltentermReinitTimeoutMs, run.remainingMs())));
             throwIfGone(tabView, "while it reinitialized");
+            await coverGrace(win, tabView, wearing);
+            throwIfGone(tabView, "while it put its picture on");
             activateTabView(win, tabView, oldActiveView);
+        } else {
+            await coverGrace(win, tabView, wearing);
+            throwIfGone(tabView, "while it put its picture on");
         }
         positionWindowTabViews(win);
+        console.log("reused tab on screen", tabView.waveTabId);
+        finishArrivingView(win, tabView);
         // A long-hidden view can come back black (#223).
         checkReusedTabViewPainted(win, tabView);
     }
@@ -642,6 +662,7 @@ async function initializeTab(
     }
     win.contentView.addChildView(tabView);
     keepPendingPageOnTop(win);
+    const wearing = coverArrivingView(win, tabView); // it wears the switch picture before it renders anything (#2375)
     const initOpts: WaveInitOpts = {
         tabId: tabView.waveTabId,
         clientId: clientId,
@@ -671,6 +692,8 @@ async function initializeTab(
     }
     console.log("wave-ready init time", Date.now() - startTime + "ms");
     throwIfGone(tabView, "while it loaded");
+    await coverGrace(win, tabView, wearing);
+    throwIfGone(tabView, "while it put its picture on");
     registry.markReady(tabView, tabView.isWaveReady ? "rendered" : "shown at the readiness deadline (#68)");
 }
 
@@ -806,13 +829,14 @@ export function beginWindowPending(
     return state.pendingToken;
 }
 
-// The view that draws the pending state over its panels: on screen and rendered.
-function pendingLiveView(win: WaveBrowserWindow): WaveTabView {
+// The view that draws the pending state over its panels: on screen and rendered. While a switch picture covers it
+// (#2375) the state is drawn over that picture instead, by a stand-in with the view's two members the controller uses.
+function pendingLiveView(win: WaveBrowserWindow): PendingLiveView {
     const view = win.activeTabView;
     if (win.isDestroyed() || view == null || view.isDestroyed || !view.isWaveReady || !view.isOnScreen()) {
         return null;
     }
-    return view;
+    return switchWaitingView(win) ?? view;
 }
 
 // The window shows a rendered view, which can keep showing while another one loads and draw the pending state.

@@ -133,9 +133,12 @@ export function ViewPendingOverlay() {
     if (state == null) {
         return null;
     }
+    // A veil while the view loads (#2375): the outgoing panels stay visible under it, never an empty cover. A failure
+    // keeps the opaque ground its message and its Reload read on (moltenterm-shell.css).
     return (
         <div
-            className="molten-view-pending-overlay absolute inset-0 z-40 bg-background"
+            className="molten-view-pending-overlay absolute inset-0 z-40"
+            data-phase={state.phase}
             data-testid="view-pending-overlay"
         >
             <PendingSurface

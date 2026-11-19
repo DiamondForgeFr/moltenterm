@@ -143,6 +143,11 @@ export function switchFromSidebar(workspaceId: string, direction: -1 | 1, swipe?
     getApi().switchWorkspace(workspaceId);
 }
 
+// A hover, a focus or a press on a workspace's dot: main decodes that workspace's last picture ahead of the click (#2375).
+export function notifySwitchIntent(workspaceId: string) {
+    (getApi() as any).moltentermSwitchIntent?.({ workspaceId });
+}
+
 // The direction a switch from one workspace to another goes along the bottom bar's order.
 export function switchDirection(ids: readonly string[], fromId: string, toId: string): -1 | 1 {
     return ids.indexOf(toId) < ids.indexOf(fromId) ? -1 : 1;

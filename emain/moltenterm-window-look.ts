@@ -37,6 +37,7 @@ type LookView = {
 
 const created = new WeakMap<object, CreatedLook>();
 const requested = new WeakMap<object, WindowLookRequest>();
+const appliedVibrancy = new WeakMap<object, string | null>();
 
 export function noteWindowCreatedLook(win: object, transparent: boolean, blur: boolean, platform: string) {
     created.set(win, { transparent, blur, platform });
@@ -76,7 +77,20 @@ export function applyWindowLook(
     if (!isActiveView || look?.platform !== "darwin") {
         return true;
     }
-    win.setVibrancy?.(blur ? BlurVibrancy : null);    return true;
+    // Only a change reaches the window: setVibrancy rebuilds the window's effect view, and doing it at every switch
+    // flicked the view that had just come on screen (a hidden then visible cycle 3 ms after the swap, #2375).
+    const vibrancy = blur ? BlurVibrancy : null;
+    if (appliedVibrancy.has(win) && appliedVibrancy.get(win) === vibrancy) {
+        return true;
+    }
+    appliedVibrancy.set(win, vibrancy);
+    win.setVibrancy?.(vibrancy);
+    return true;
+}
+
+// Whether a view asked to let the desktop through: no picture of it can be drawn over what shows behind (#2375).
+export function viewLooksTranslucent(view: object): boolean {
+    return view != null && requested.get(view)?.translucent === true;
 }
 
 // A view's request, kept for when it comes on screen, and applied now.

@@ -26,6 +26,8 @@ import {
 import { SlowSyncIpcMs } from "./moltenterm-hang-model";
 // MOLTENTERM-PATCH (#2335): the log files' size and clear, and the note past the high mark
 import { LogsClearChannel, LogsHighChannel, LogsInfoChannel, LogsListenChannel } from "./moltenterm-logs-ipc";
+import { PictureChannel } from "./moltenterm-switch-picture"; // MOLTENTERM-PATCH (#2375)
+import { receivePicture } from "./moltenterm-switch-picture-receive"; // MOLTENTERM-PATCH (#2375)
 import { webBlockWebviewSelector } from "./moltenterm-webselector-policy"; // MOLTENTERM-PATCH (#1961)
 
 function sendSync(channel: string, ...args: any[]): any {
@@ -34,6 +36,12 @@ function sendSync(channel: string, ...args: any[]): any {
 
 // Answered on the page's own thread: a page stuck in a long task answers late, which is what Electron main measures.
 ipcRenderer.on(HangPingChannel, (_event, seq: number) => ipcRenderer.send(HangPongChannel, seq));
+
+// MOLTENTERM-PATCH (#2375): the picture of a switch arrives as bytes, becomes a blob URL on the page's root, and the
+// scripts main runs read it (emain/moltenterm-switch-picture-receive.ts)
+ipcRenderer.on(PictureChannel, (_event, mime: unknown, bytes: unknown) =>
+    receivePicture(document.documentElement, mime, bytes)
+);
 
 // update type in custom.d.ts (ElectronApi type)
 contextBridge.exposeInMainWorld("api", {
@@ -226,6 +234,9 @@ contextBridge.exposeInMainWorld("api", {
     onMoltentermViewPending: (callback: (state: any) => void) =>
         ipcRenderer.on("moltenterm-view-pending", (_event, state) => callback(state)),
     moltentermViewPendingAction: (action: string) => ipcRenderer.send("moltenterm-view-pending-action", action),
+    // MOLTENTERM-PATCH (#2375): a hover, a focus or a press on a workspace's dot prepares its switch picture
+    moltentermSwitchIntent: (target: { workspaceId?: string; tabId?: string }) =>
+        ipcRenderer.send("moltenterm-switch-intent", target),
     // MOLTENTERM-PATCH (#455): the window's focus, minimised and shown state for the tab activity model
     // (emain/moltenterm-tab-activity.ts)
     moltentermGetWindowActivity: () => sendSync("moltenterm-window-activity-get"),
