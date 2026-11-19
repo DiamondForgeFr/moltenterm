@@ -45,6 +45,37 @@ func TestHookSnippetsAreTheDocumentedOnes(t *testing.T) {
 	}
 }
 
+func TestKimiHooksDetection(t *testing.T) {
+	env := hookTestEnv(t)
+	config := filepath.Join(env.Home, ".kimi-code", "config.toml")
+	if kimiHooksConfigured(env, "") {
+		t.Fatal("no config: not set up")
+	}
+	writeTestFile(t, config, "[[hooks]]\nevent = \"Stop\"\ncommand = \"afplay done.wav\"\n")
+	if kimiHooksConfigured(env, "") {
+		t.Fatal("a hook that does not run MoltenTerm is not set up")
+	}
+	writeTestFile(t, config, kimiHooksSnippet)
+	if !kimiHooksConfigured(env, "") {
+		t.Fatal("the documented TOML hooks are set up")
+	}
+	writeTestFile(t, config, "not = [valid")
+	if kimiHooksConfigured(env, "") {
+		t.Fatal("an invalid TOML file is not set up")
+	}
+	alt := filepath.Join(env.Home, "kimi-home")
+	writeTestFile(t, filepath.Join(alt, "config.toml"), kimiHooksSnippet)
+	env.Getenv = func(name string) string {
+		if name == "KIMI_CODE_HOME" {
+			return alt
+		}
+		return ""
+	}
+	if !kimiHooksConfigured(env, "") {
+		t.Fatal("KIMI_CODE_HOME's config is read")
+	}
+}
+
 func TestClaudeHooksDetection(t *testing.T) {
 	env := hookTestEnv(t)
 	repo := filepath.Join(env.Home, "work", "repo")
@@ -145,7 +176,7 @@ func TestCodexHooksDetection(t *testing.T) {
 
 // #988: one handler for every event of both agents; the snippets are valid hooks files of the shape both agents read.
 func TestAgentStateHooksShareOneHandler(t *testing.T) {
-	for agent, command := range map[string]string{AgentIdClaude: ClaudeStateHookCommand, AgentIdCodex: CodexStateHookCommand} {
+	for agent, command := range map[string]string{AgentIdClaude: ClaudeStateHookCommand, AgentIdCodex: CodexStateHookCommand, AgentIdKimi: KimiStateHookCommand} {
 		for _, h := range AgentStateHooks(agent) {
 			if h.Command != command || !IsAgentStateHookCommand(h.Command) || !IsAgentSessionHookCommand(h.Command) {
 				t.Errorf("%s %s: %q", agent, h.Event, h.Command)
@@ -154,6 +185,10 @@ func TestAgentStateHooksShareOneHandler(t *testing.T) {
 				t.Errorf("codex %s: %+v (Codex has no Notification event; a fixed timeout)", h.Event, h)
 			}
 		}
+	}
+	if len(AgentStateHooks(AgentIdKimi)) != 11 || !strings.Contains(kimiHooksSnippet, "[[hooks]]\nevent = \"PermissionRequest\"") ||
+		!strings.Contains(kimiHooksSnippet, "command = \"[ -n \\\"$WAVETERM_BLOCKID\\\" ] && molten agent hook --agent kimi || true\"") {
+		t.Errorf("kimi TOML snippet: %q", kimiHooksSnippet)
 	}
 	if AgentStateHooks("gemini") != nil {
 		t.Error("no hooks for an agent MoltenTerm does not integrate")
@@ -185,6 +220,9 @@ func TestHookOfferRules(t *testing.T) {
 	}
 	if offer := MakeAgentHookOffer(env, "codex", cwd, false); !offer.Show || offer.File != "~/.codex/hooks.json" || offer.Language != "json" || offer.Snippet != codexHooksSnippet {
 		t.Fatalf("a Codex without hooks gets the hooks.json offer: %+v", offer)
+	}
+	if offer := MakeAgentHookOffer(env, "kimi", cwd, false); !offer.Show || offer.File != "~/.kimi-code/config.toml" || offer.Language != "toml" || offer.Snippet != kimiHooksSnippet {
+		t.Fatalf("a Kimi Code without hooks gets the TOML offer: %+v", offer)
 	}
 	for _, agent := range []string{"gemini", "opencode", "my-agent"} {
 		if offer := MakeAgentHookOffer(env, agent, cwd, false); offer.Show || offer.Reason != HookOfferUnsupported {

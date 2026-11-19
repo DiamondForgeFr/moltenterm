@@ -180,7 +180,7 @@ var agentFactsCatalog = map[string]AgentFacts{
 		BeyondCode:   map[string]string{"writing": "yes", "research": "yes", "images": "notstated", "voice": "notstated"},
 		Uses:         []string{"code", "write-research"},
 		IncludedIn:   []string{"kimi"},
-		Sources:      []string{"https://api.kimi.ai/coding/", "https://api.kimi.com/coding/", "https://code.kimi.com/kimi-code/install.ps1", "https://code.kimi.com/kimi-code/install.sh", "https://github.com/MoonshotAI/kimi-cli", "https://github.com/roomedia/ax-trend/issues/3498", "https://www.kimi.ai/blog/kimi-k3-1-pro", "https://www.kimi.ai/code/#pricing", "https://www.kimi.ai/help/membership/membership-pricing", "https://www.kimi.com/code", "https://www.kimi.com/code/console", "https://www.kimi.com/code/docs/"},
+		Sources:      []string{"https://api.kimi.ai/coding/", "https://api.kimi.com/coding/", "https://code.kimi.com/kimi-code/install.ps1", "https://code.kimi.com/kimi-code/install.sh", "https://github.com/MoonshotAI/kimi-code", "https://github.com/roomedia/ax-trend/issues/3498", "https://www.kimi.ai/blog/kimi-k3-1-pro", "https://www.kimi.ai/code/#pricing", "https://www.kimi.ai/help/membership/membership-pricing", "https://www.kimi.com/code", "https://www.kimi.com/code/console", "https://www.kimi.com/code/docs/"},
 	},
 	molten.AgentIdVibe: {
 		CheckedOn:    "2026-11-01",

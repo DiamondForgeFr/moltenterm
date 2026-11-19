@@ -101,7 +101,7 @@ describe("the agent cards (FR-ONB-007)", () => {
         const claude = cards.find((c) => c.id === "claude-code");
         expect(claude).toMatchObject({ command: "claude", ready: true, full: true });
         const kimi = cards.find((c) => c.id === "kimi");
-        expect(kimi).toMatchObject({ command: "kimi", ready: false, full: false, account: "subscription" });
+        expect(kimi).toMatchObject({ command: "kimi", ready: false, full: true, account: "subscription" });
         expect(kimi.installPage).toBe("https://example.invalid/kimi");
     });
 

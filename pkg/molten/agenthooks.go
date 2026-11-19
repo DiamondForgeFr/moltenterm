@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 // The hook setup offer (#221, FR-SHELL-011): an agent whose hooks never reported shows its states from its pane's
@@ -47,6 +49,7 @@ const (
 var (
 	claudeHooksSnippet = hooksSnippet(AgentStateHooks(AgentIdClaude))
 	codexHooksSnippet  = hooksSnippet(AgentStateHooks(AgentIdCodex))
+	kimiHooksSnippet   = kimiHooksTOML(AgentStateHooks(AgentIdKimi))
 )
 
 // The notify line an older agent-states.md offered Codex: a config.toml running it is still set up.
@@ -84,6 +87,21 @@ func hooksSnippet(entries []AgentHookEntry) string {
 	return b.String()
 }
 
+// kimiHooksTOML writes the [[hooks]] entries of Kimi Code's config.toml, one event per rule.
+func kimiHooksTOML(entries []AgentHookEntry) string {
+	var b strings.Builder
+	for i, entry := range entries {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "[[hooks]]\nevent = %q\ncommand = %q\n", entry.Event, entry.Command)
+		if entry.Timeout > 0 {
+			fmt.Fprintf(&b, "timeout = %d\n", entry.Timeout)
+		}
+	}
+	return strings.TrimSuffix(b.String(), "\n")
+}
+
 type agentHookSetup struct {
 	language string
 	snippet  string
@@ -110,6 +128,14 @@ var agentHookSetups = map[string]agentHookSetup{
 		also:       "or in a project's .codex/hooks.json, merged with the hooks you already have; Codex runs them once you trust them in /hooks",
 		brings:     "working while it works, done when its turn ends, and its session linked as soon as it starts",
 		configured: codexHooksConfigured,
+	},
+	"kimi": {
+		language:   "toml",
+		snippet:    kimiHooksSnippet,
+		file:       func(env AgentEnv) string { return filepath.Join(kimiCodeHome(env), "config.toml") },
+		also:       "merged with the hooks you already have; Kimi Code reads hooks from this user file, not from the project",
+		brings:     "working, waiting for a permission, done, errors and interruptions, plus the session and sub-agent links",
+		configured: kimiHooksConfigured,
 	},
 }
 
@@ -144,6 +170,10 @@ func claudeConfigDir(env AgentEnv) string {
 
 func codexHome(env AgentEnv) string {
 	return envOr(env, "CODEX_HOME", filepath.Join(env.Home, ".codex"))
+}
+
+func kimiCodeHome(env AgentEnv) string {
+	return envOr(env, "KIMI_CODE_HOME", filepath.Join(env.Home, ".kimi-code"))
 }
 
 // Claude Code's managed settings, set by an administrator; a var so tests do not read the real one.
@@ -232,6 +262,27 @@ func codexHooksConfigured(env AgentEnv, cwd string) bool {
 		}
 	}
 	return false
+}
+
+// kimiHooksConfigured reads only Kimi Code's hooks table. An invalid file is not called configured.
+func kimiHooksConfigured(env AgentEnv, cwd string) bool {
+	data, err := os.ReadFile(filepath.Join(kimiCodeHome(env), "config.toml"))
+	if err != nil {
+		return false
+	}
+	var config struct {
+		Hooks []struct {
+			Command string `toml:"command"`
+		} `toml:"hooks"`
+	}
+	if err := toml.Unmarshal(data, &config); err != nil {
+		return false
+	}
+	return slices.ContainsFunc(config.Hooks, func(h struct {
+		Command string `toml:"command"`
+	}) bool {
+		return IsAgentStateHookCommand(h.Command)
+	})
 }
 
 // guideProfileOfAgent maps an agent state id (claude) to its guides' profile (claude-code), for `molten agent remove`.

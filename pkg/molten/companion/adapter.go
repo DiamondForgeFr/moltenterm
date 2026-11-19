@@ -43,6 +43,17 @@ type Adapter interface {
 	Parse(rec map[string]any, s *Session) bool
 }
 
+// SessionInitializer is an adapter whose session metadata lives next to the transcript rather than inside it.
+type SessionInitializer interface {
+	InitSession(path string, s *Session)
+}
+
+func initSession(adapter Adapter, path string, s *Session) {
+	if init, ok := adapter.(SessionInitializer); ok {
+		init.InitSession(path, s)
+	}
+}
+
 // SessionFinder is an adapter that resolves one of its sessions' transcripts from the session id an agent reports
 // (Codex's notify payload). The path it returns is still validated like any reported path.
 type SessionFinder interface {
@@ -158,12 +169,14 @@ func AdapterFor(agent string) Adapter {
 		return MakeClaudeAdapter(nil)
 	case molten.AgentIdCodex:
 		return MakeCodexAdapter(nil)
+	case molten.AgentIdKimi:
+		return MakeKimiAdapter(nil)
 	}
 	return nil
 }
 
 // SupportedAgents are the agents with a companion.
-var SupportedAgents = []string{molten.AgentIdClaude, molten.AgentIdCodex}
+var SupportedAgents = []string{molten.AgentIdClaude, molten.AgentIdCodex, molten.AgentIdKimi}
 
 // ValidateSessionPath accepts a transcript path only when it is a regular .jsonl file under one of the adapter's
 // roots, symlinks resolved on both sides (no escape through a link), in the adapter's layout. It returns the

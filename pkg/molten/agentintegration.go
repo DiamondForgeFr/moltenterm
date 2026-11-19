@@ -38,6 +38,9 @@ const (
 	CodexStateHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent hook --agent codex || true`
 	// Seconds: the handler waits 5 s at most for each of its (at most two) calls to wavesrv.
 	CodexStateHookTimeout = 15
+	// Kimi Code has no MoltenTerm launcher: this is the command of the config.toml recipe the developer applies.
+	KimiStateHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent hook --agent kimi || true`
+	KimiStateHookTimeout = 15
 
 	// What the PermissionRequest hook runs (FR-SHELL-063, DS-SHELL-110): it answers allow while the pane's workspace
 	// has its coffee on, nothing otherwise. A configuration that runs it answers its prompts itself.
@@ -215,11 +218,20 @@ type AgentHookEntry struct {
 	Timeout int
 }
 
-// The hook events both agents share, in the order agent-states.md lists them. Codex has no Notification event: its
-// waiting comes from its PermissionRequest hook and its terminal notifications (FR-SHELL-038).
+// The hook events Claude Code and Codex share, in the order agent-states.md lists them. Codex has no Notification
+// event: its waiting comes from its PermissionRequest hook and its terminal notifications (FR-SHELL-038).
 var agentHookEvents = []string{
 	agenthook.HookEventSessionStart, agenthook.HookEventUserPromptSubmit, agenthook.HookEventPostToolUse,
 	agenthook.HookEventNotification, agenthook.HookEventStop, agenthook.HookEventSubagentStart, agenthook.HookEventSubagentStop,
+}
+
+// Kimi Code 2.6.3's documented observation events. PermissionRequest is observation-only there, so this handler only
+// reports the wait; it never answers it. Unknown events remain a no-op in agenthook.RunHookEvent.
+var kimiHookEvents = []string{
+	agenthook.HookEventSessionStart, agenthook.HookEventUserPromptSubmit, agenthook.HookEventPostToolUse,
+	agenthook.HookEventPostToolUseFailed, agenthook.HookEventPermissionRequest, agenthook.HookEventPermissionResult,
+	agenthook.HookEventStop, agenthook.HookEventStopFailure, agenthook.HookEventInterrupt,
+	agenthook.HookEventSubagentStart, agenthook.HookEventSubagentStop,
 }
 
 // AgentStateHooks lists the hooks of agent-states.md for an agent (claude, codex), nil for another: one command for
@@ -227,16 +239,19 @@ var agentHookEvents = []string{
 func AgentStateHooks(agent string) []AgentHookEntry {
 	var command string
 	timeout := 0
+	events := agentHookEvents
 	switch agent {
 	case AgentIdClaude:
 		command = ClaudeStateHookCommand
 	case AgentIdCodex:
 		command, timeout = CodexStateHookCommand, CodexStateHookTimeout
+	case AgentIdKimi:
+		command, timeout, events = KimiStateHookCommand, KimiStateHookTimeout, kimiHookEvents
 	default:
 		return nil
 	}
 	var rtn []AgentHookEntry
-	for _, event := range agentHookEvents {
+	for _, event := range events {
 		entry := AgentHookEntry{Event: event, Command: command, Timeout: timeout}
 		if event == agenthook.HookEventNotification {
 			if agent != AgentIdClaude {

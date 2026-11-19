@@ -90,6 +90,21 @@ func TestRunHookEvent(t *testing.T) {
 	}
 }
 
+func TestKimiSessionStartLinksBySessionId(t *testing.T) {
+	var calls []hookCall
+	input := ReadHookInput(strings.NewReader(`{"session_id":"session_abc","hook_event_name":"SessionStart","source":"resume"}`))
+	if err := RunHookEvent(input, "kimi", "b", recordCalls(&calls)); err != nil {
+		t.Fatal(err)
+	}
+	want := []hookCall{
+		{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"idle","agent":"kimi","start":true}`},
+		{CompanionSessionCommand, CompanionRoute, `{"blockid":"b","agent":"kimi","path":"","sessionid":"session_abc"}`},
+	}
+	if len(calls) != len(want) || calls[0] != want[0] || calls[1] != want[1] {
+		t.Fatalf("calls %+v, want %+v", calls, want)
+	}
+}
+
 // A tool's output can be large: the input is read as a stream, and the event after it is still found.
 func TestReadHookInputStreams(t *testing.T) {
 	big := strings.Repeat("x", 3*1024*1024)

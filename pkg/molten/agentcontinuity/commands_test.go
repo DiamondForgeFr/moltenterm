@@ -11,7 +11,7 @@ import (
 )
 
 func TestAgentCommandTables(t *testing.T) {
-	for _, agent := range []string{"claude", "codex"} {
+	for _, agent := range []string{"claude", "codex", "kimi"} {
 		adapter := Find(agent)
 		seen := map[string]bool{}
 		for _, c := range AgentCommands(agent) {

@@ -19,7 +19,7 @@ import (
 // agent version and model it was checked with.
 
 // MatrixAsOf is when the matrix was last checked against the code and the agents' documentation (NFR-AGC-002).
-const MatrixAsOf = "2026-11-01"
+const MatrixAsOf = "2026-11-19"
 
 // TriedAsOf is when the tried levels below were last written by hand (FR-AGC-001, #2167). It is the developer's own
 // experience with each agent, not something the code measures: change it with the levels.
@@ -380,15 +380,35 @@ var geminiFeatures = plannedFeatures(map[string]FeatureSupport{
 	FeatBusyClose:    shellBusyClose,
 })
 
-var kimiFeatures = plannedFeatures(map[string]FeatureSupport{
-	FeatDetect:       {Level: LevelProcessOnly, Reason: ReasonNoAdapter, Note: "process name and path hints of molten.AgentKinds, since #1680", Adapter: "agentstate.go (AgentKinds), agentproc.go", Issue: "#1680"},
-	FeatState:        processState,
-	FeatHandoff:      processHandoff,
-	FeatGuides:       {Level: LevelAdapted, Note: "Kimi skill (/skill:morph)", Adapter: "agents.go, agentguides.go"},
-	FeatOnboarding:   {Level: LevelAdapted, Note: "catalog entry from its guide profile", Adapter: "onboarding/agents.go"},
-	FeatWorktreeName: processWorktreeName,
-	FeatBusyClose:    shellBusyClose,
-})
+var kimiFeatures = map[string]FeatureSupport{
+	FeatDetect:        {Level: LevelNative, Note: "process name and path hints of molten.AgentKinds, since #1680", Adapter: "agentstate.go (AgentKinds), agentproc.go", Issue: "#1680"},
+	FeatState:         {Level: LevelNative, Note: "manual hooks for prompts, tools, permissions, stop, failure, interruption and sub-agents", Adapter: "agentintegration.go, agenthook/hook.go"},
+	FeatHooksOffer:    {Level: LevelNative, Note: "copyable [[hooks]] snippet for config.toml; never installed automatically", Adapter: "agenthooks.go, attention/agenthookoffer.go"},
+	FeatLauncher:      {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "Kimi Code has no per-run hook injection; this Story only offers the manual TOML recipe"},
+	FeatUsage:         {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "Kimi's /usage is not a usage adapter; no plan gauges are read"},
+	FeatStatusLine:    {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "the status line relay is Claude Code's"},
+	FeatApprovals:     {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "Kimi's PermissionRequest hook is observation-only; MoltenTerm reports waiting but never answers it"},
+	FeatTurnNotify:    {Level: LevelNative, Note: "Stop, StopFailure and Interrupt hooks", Adapter: "agenthook/hook.go, cmd/wsh/cmd/wshcmd-molten-agentnotify.go"},
+	FeatBrowserMcp:    {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "MCP is documented, but no per-run molten-browser server is added and this Story does not write MCP configuration"},
+	FeatInstructions:  {Level: LevelNone, Reason: ReasonNoMcp, Note: "without the molten-browser MCP integration there are no per-run MoltenTerm instructions"},
+	FeatHandoff:       {Level: LevelAdapted, Note: "send with molten agent send; the brief is typed into the receiver's terminal", Adapter: "agenthandoff/brief.go, agentnames/agentnames.go"},
+	FeatSignature:     {Level: LevelAdapted, Note: "molten agent whoami --trailer and sign-pr, which the agent must remember; model and effort from the companion", Adapter: "agentsign/agentsign.go"},
+	FeatMaterials:     {Level: LevelAdapted, Note: "molten material add, known from the guides", Adapter: "materials/guard.go"},
+	FeatFilePanel:     {Level: LevelAdapted, Note: "molten files, known from the guides", Adapter: "cmd/wsh/cmd/wshcmd-molten-files.go, filesearch"},
+	FeatGuides:        {Level: LevelAdapted, Note: "Kimi skill (/skill:morph)", Adapter: "agents.go, agentguides.go"},
+	FeatModParts:      {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "generic mod agent parts are #1497, not this integration"},
+	FeatResume:        {Level: LevelNative, Note: "kimi --session <id>, kimi --continue", Adapter: "agentcontinuity/kimi.go, companion/resume.go"},
+	FeatBriefing:      {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "no per-run briefing channel is wired; #333 owns briefing delivery"},
+	FeatEffort:        {Level: LevelAdapted, Note: "configured model aliases and -m; /model is Kimi's picker, effort is replayed but not set", Adapter: "agentcontinuity/kimi.go"},
+	FeatCommands:      {Level: LevelAdapted, Note: "verified local command table; /permission opens Kimi's own picker, no generic permission modes", Adapter: "FS/command-panel/agent-commands.ts, termupdate/agentinputwatch.go"},
+	FeatCompanion:     {Level: LevelAdapted, Note: "read-only state.json, session index and internal wire.jsonl replay; incompatible records fall back to terminal-only", Adapter: "companion/adapter.go, companion/kimi.go"},
+	FeatRunner:        {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "kimi -p has stream-json but automatic permissions and automatic writes; no read-only PrintArgv or QuickPrintArgv"},
+	FeatReviewSession: {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "no read-only non-interactive review command is wired; generic approved headless execution is #1488"},
+	FeatOnboarding:    {Level: LevelNative, Note: "catalog entry and current Kimi Code repository", Adapter: "onboarding/agents.go, onboarding/agentfacts.go"},
+	FeatWorktreeName:  {Level: LevelProcessOnly, Reason: ReasonAgentSpecific, Note: "Kimi has no worktree folder of its own; named from its process", Adapter: "agentstate.go, mission/upcoming_attribution.go"},
+	FeatTermCopy:      {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "no Kimi terminal copy profile is declared"},
+	FeatBusyClose:     {Level: LevelNative, Note: "the agent's precise hook state", Adapter: "FS/busy-close-model.ts"},
+}
 
 var qwenFeatures = plannedFeatures(map[string]FeatureSupport{
 	FeatDetect:       processDetected,

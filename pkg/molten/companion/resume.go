@@ -149,6 +149,15 @@ func SessionIdFromPath(agent string, path string) string {
 			return ""
 		}
 		return id
+	case molten.AgentIdKimi:
+		if stem != "wire" || filepath.Base(filepath.Dir(path)) != "main" || filepath.Base(filepath.Dir(filepath.Dir(path))) != "agents" {
+			return ""
+		}
+		id := filepath.Base(kimiSessionDir(path))
+		if !kimiSessionIdRegex.MatchString(id) {
+			return ""
+		}
+		return id
 	}
 	return ""
 }

@@ -93,6 +93,24 @@ var claudeCommands = []AgentCommand{
 
 // Codex's table, read on codex-cli 0.163.0 (testdata/codex-0.163.0-slash-commands.txt, #990): /permissions replaced
 // /approvals; /clear also clears the terminal view, /new does not.
+// Kimi Code 2.6.3's documented slash commands (moonshotai.github.io/kimi-code/en/reference/slash-commands).
+// /permission opens Kimi's own picker; permission-mode cycling is deliberately not generalized here (#1493).
+var kimiCommands = []AgentCommand{
+	{Action: ActionPermissions, Kind: CommandSlash, Text: "/permission"},
+	{Action: ActionNew, Kind: CommandSlash, Text: "/new"},
+	{Action: ActionClear, Kind: CommandSlash, Text: "/clear"},
+	{Action: ActionCompact, Kind: CommandSlash, Text: "/compact"},
+	{Action: ActionModel, Kind: CommandSlash, Text: "/model"},
+	{Action: ActionResume, Kind: CommandSlash, Text: "/resume"},
+	{Action: ActionFork, Kind: CommandSlash, Text: "/fork"},
+	{Action: ActionRename, Kind: CommandSlash, Text: "/rename"},
+	{Action: ActionCopy, Kind: CommandSlash, Text: "/copy"},
+	{Action: ActionStatus, Kind: CommandSlash, Text: "/status"},
+	{Action: ActionInterrupt, Kind: CommandInterrupt, Text: keyEscape},
+	{Action: ActionQuit, Kind: CommandSlash, Text: kimiExitCommand},
+	{Action: ActionMcp, Kind: CommandSlash, Text: "/mcp"},
+}
+
 var codexCommands = []AgentCommand{
 	{Action: ActionPermissions, Kind: CommandSlash, Text: "/permissions"},
 	{Action: ActionNew, Kind: CommandSlash, Text: "/new"},
@@ -118,6 +136,8 @@ func AgentCommands(agent string) []AgentCommand {
 		return claudeCommands
 	case molten.AgentIdCodex:
 		return codexCommands
+	case molten.AgentIdKimi:
+		return kimiCommands
 	}
 	return nil
 }

@@ -35,6 +35,20 @@ var hookConformance = map[string][]hookPayloadCase{
 		{"tool", `{"session_id":"019a","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"tool_response":{"output":"a"}}`, AgentStateWorking, ""},
 		{"stop", `{"session_id":"019a","hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"Done."}`, AgentStateDone, ""},
 	},
+	"kimi": {
+		{"session start without transcript", `{"session_id":"session_abc","cwd":"/w","hook_event_name":"SessionStart","source":"startup","model":"kimi-code/k3"}`, AgentStateIdle, ""},
+		{"prompt", `{"session_id":"session_abc","hook_event_name":"UserPromptSubmit","prompt":"fix the tests"}`, AgentStateWorking, ""},
+		{"tool", `{"session_id":"session_abc","hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}`, AgentStateWorking, ""},
+		{"failed tool", `{"session_id":"session_abc","hook_event_name":"PostToolUseFailure","tool_name":"Bash"}`, AgentStateWorking, ""},
+		{"permission", `{"session_id":"session_abc","hook_event_name":"PermissionRequest","tool_name":"Bash","message":"Approve Bash"}`, AgentStateWaiting, "Approve Bash"},
+		{"permission result", `{"session_id":"session_abc","hook_event_name":"PermissionResult","tool_name":"Bash"}`, AgentStateWorking, ""},
+		{"stop", `{"session_id":"session_abc","hook_event_name":"Stop"}`, AgentStateDone, ""},
+		{"stop failure", `{"session_id":"session_abc","hook_event_name":"StopFailure","message":"provider failed"}`, AgentStateError, "provider failed"},
+		{"interrupt", `{"session_id":"session_abc","hook_event_name":"Interrupt","reason":"user"}`, AgentStateDone, ""},
+		{"subagent start", `{"session_id":"session_abc","hook_event_name":"SubagentStart","agent_id":"agent-1","agent_type":"explore"}`, AgentStateWorking, ""},
+		{"subagent stop", `{"session_id":"session_abc","hook_event_name":"SubagentStop","agent_id":"agent-1","agent_type":"explore"}`, AgentStateDone, ""},
+		{"unknown fails open", `{"session_id":"session_abc","hook_event_name":"FutureEvent"}`, "", ""},
+	},
 }
 
 // FR-AGC-006: each agent's hook payloads, run through `molten agent hook --agent <id>` against a fake wavesrv, give

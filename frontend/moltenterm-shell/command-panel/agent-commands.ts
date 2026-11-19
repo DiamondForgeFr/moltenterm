@@ -255,6 +255,86 @@ export const CodexCommands: AgentCommandDef[] = [
     },
 ];
 
+// Kimi Code 2.6.3's documented commands. /permission opens its own mode picker; MoltenTerm does not generalize
+// Claude's permission-mode cycling here (#1493).
+export const KimiCommands: AgentCommandDef[] = [
+    {
+        action: "permissions",
+        label: "Permissions",
+        labelKey: "cmdpanel.agent.permissions",
+        icon: "shield-halved",
+        command: "/permission",
+    },
+    {
+        action: "new",
+        label: "New conversation",
+        labelKey: "cmdpanel.agent.newConversation",
+        icon: "plus",
+        command: "/new",
+        keywords: ["reset"],
+    },
+    {
+        action: "clear",
+        label: "Clear and start over",
+        labelKey: "cmdpanel.agent.clearAndStartOver",
+        icon: "eraser",
+        command: "/clear",
+        keywords: ["clear", "reset", "new conversation"],
+    },
+    {
+        action: "compact",
+        label: "Compact",
+        labelKey: "cmdpanel.agent.compact",
+        icon: "compress",
+        command: "/compact",
+        keywords: ["summarize", "context"],
+    },
+    { action: "model", label: "Model", labelKey: "cmdpanel.agent.model", icon: "microchip", command: "/model" },
+    {
+        action: "resume",
+        label: "Resume",
+        labelKey: "cmdpanel.agent.resume",
+        icon: "clock-rotate-left",
+        command: "/resume",
+        keywords: ["session"],
+    },
+    {
+        action: "fork",
+        label: "Fork conversation",
+        labelKey: "cmdpanel.agent.fork",
+        icon: "code-branch",
+        command: "/fork",
+        keywords: ["branch", "duplicate", "session"],
+    },
+    {
+        action: "rename",
+        label: "Rename conversation",
+        labelKey: "cmdpanel.agent.rename",
+        icon: "pen",
+        command: "/rename",
+        keywords: ["name", "title", "session"],
+    },
+    {
+        action: "copy",
+        label: "Copy last answer",
+        labelKey: "cmdpanel.agent.copy",
+        icon: "copy",
+        command: "/copy",
+        keywords: ["response"],
+    },
+    { action: "status", label: "Status", labelKey: "cmdpanel.agent.status", icon: "circle-info", command: "/status" },
+    Interrupt,
+    {
+        action: "quit",
+        label: "Quit",
+        labelKey: "cmdpanel.agent.quit",
+        icon: "right-from-bracket",
+        command: "/exit",
+        keywords: ["exit"],
+    },
+    { action: "mcp", label: "MCP", labelKey: "cmdpanel.agent.mcp", icon: "plug", command: "/mcp" },
+];
+
 // How an agent takes an effort level (#549), told in the submenu: Claude Code keeps what /effort sets as its default
 // for new sessions (max excepted); Codex's effort keys change this session only.
 export type EffortStyle = "claude" | "codex";
@@ -262,6 +342,7 @@ export type EffortStyle = "claude" | "codex";
 const Tables: Record<string, { commands: AgentCommandDef[]; modes: boolean; effort?: EffortStyle }> = {
     claude: { commands: ClaudeCommands, modes: true, effort: "claude" },
     codex: { commands: CodexCommands, modes: false, effort: "codex" },
+    kimi: { commands: KimiCommands, modes: false },
 };
 
 // The agent's table, offered only where the compatibility matrix says its commands work (FR-AGC-003): the tables are

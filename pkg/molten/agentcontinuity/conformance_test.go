@@ -126,10 +126,22 @@ var conformanceCases = map[string]map[string][]string{
 		FeatBusyClose:  {frontBusyClose},
 	},
 	molten.AgentIdKimi: {
-		FeatDetect:     {refContinuity + "TestPlannedAgentConformance"},
-		FeatGuides:     {guideConf},
-		FeatOnboarding: {onboardingConf},
-		FeatBusyClose:  {frontBusyClose},
+		FeatDetect:       {adapterConf, refMolten + "TestMatchAgentCommand", refMolten + "TestFindAgentProcess"},
+		FeatState:        {hookConf},
+		FeatHooksOffer:   {refMolten + "TestKimiHooksDetection", refMolten + "TestHookOfferRules"},
+		FeatTurnNotify:   {hookConf},
+		FeatHandoff:      {"pkg/molten/agenthandoff:TestBriefFilesLinksAndSnapshots", "pkg/molten/agentnames:TestTakeGivesDistinctNames"},
+		FeatSignature:    {"pkg/molten/agentsign:TestTrailerRoundTrip"},
+		FeatMaterials:    {guideConf, "pkg/molten/materials:TestCodexPatchFixture"},
+		FeatFilePanel:    {guideConf, "cmd/wsh/cmd:TestMoltenFilesTextOutput"},
+		FeatGuides:       {guideConf},
+		FeatResume:       {adapterConf, refContinuity + "TestFreshAndResumeArgs", "pkg/molten/companion:TestKimiDiscoveryAndSessionLookup"},
+		FeatEffort:       {refContinuity + "TestKimiModels", frontCommands},
+		FeatCommands:     {frontCommands, refContinuity + "TestAgentCommandTables", "pkg/molten/termupdate:TestAgentInputKimiTable"},
+		FeatCompanion:    {adapterConf, "pkg/molten/companion:TestKimiSession"},
+		FeatOnboarding:   {onboardingConf, "pkg/molten/onboarding:TestAgentInstallPagesDoNotUseArchivedRepositories"},
+		FeatWorktreeName: {adapterConf},
+		FeatBusyClose:    {frontBusyClose},
 	},
 	molten.AgentIdQwen:        subscriptionCliCases,
 	molten.AgentIdAntigravity: subscriptionCliCases,
@@ -336,6 +348,19 @@ var adapterConformance = map[string]adapterCase{
 		worktrees:    filepath.Join(".claude", "worktrees"),
 		process:      "/Users/x/.local/share/claude/versions/2.1.292",
 	},
+	molten.AgentIdKimi: {
+		model: "kimi-code/k3", prompt: "fix the tests",
+		fresh:  []string{"-m", "kimi-code/k3", "--", "fix the tests"},
+		resume: []string{"--session", "0a1b2c3d-4e5f"},
+		last:   []string{"--continue"},
+		exit:   "/exit",
+		help:   filepath.Join("testdata", "kimi-2.6.3-help.txt"),
+		helpOptions: []string{
+			"-S, --session", "-c, --continue", "-m, --model", "-p, --prompt", "--output-format <format>",
+		},
+		guide:   "kimi",
+		process: "/Users/x/.kimi-code/bin/kimi",
+	},
 	molten.AgentIdCodex: {
 		model: "gpt-5.4", prompt: "fix the tests",
 		fresh:        []string{"-m", "gpt-5.4", "--", "fix the tests"},
@@ -469,9 +494,98 @@ func TestPlannedAgentConformance(t *testing.T) {
 	}
 }
 
+func agentChoiceDeclares(t *testing.T, id string) bool {
+	t.Helper()
+	constants, err := os.ReadFile(filepath.Join(repoRoot, "pkg/molten/agentstate.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "agentstate.go", constants, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	constant := ""
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			values := spec.(*ast.ValueSpec)
+			for i, name := range values.Names {
+				if i < len(values.Values) {
+					if value, ok := values.Values[i].(*ast.BasicLit); ok && strings.Trim(value.Value, `"`) == id {
+						constant = "molten." + name.Name
+					}
+				}
+			}
+		}
+	}
+	if constant == "" {
+		t.Fatalf("no agent id constant for %s", id)
+	}
+	choice, err := os.ReadFile(filepath.Join(repoRoot, "pkg/molten/agentchoice/agentchoice.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Contains(string(choice), constant)
+}
+
 // noneProofs show for a none cell that no code path delivers the feature to the agent. A cell none for want of an
 // adapter is also proved by noAdapterProof.
 var noneProofs = map[string]func(t *testing.T, id string, exe string){
+	FeatLauncher: func(t *testing.T, id string, exe string) {
+		if agentlaunch.FindAdapter(id) != nil {
+			t.Errorf("%s has a launcher", id)
+		}
+	},
+	FeatUsage: func(t *testing.T, id string, exe string) {
+		if usage.For(id) != nil {
+			t.Errorf("%s has a usage adapter", id)
+		}
+	},
+	FeatApprovals: func(t *testing.T, id string, exe string) {
+		if agentlaunch.FindAdapter(id) != nil || slices.ContainsFunc(molten.AgentStateHooks(id), func(h molten.AgentHookEntry) bool {
+			return strings.Contains(h.Command, "agent permission")
+		}) {
+			t.Errorf("%s has an automatic approval path", id)
+		}
+	},
+	FeatBrowserMcp: func(t *testing.T, id string, exe string) {
+		if agentlaunch.FindAdapter(id) != nil {
+			t.Errorf("%s has a per-run MCP launcher", id)
+		}
+	},
+	FeatInstructions: func(t *testing.T, id string, exe string) {
+		if agentlaunch.FindAdapter(id) != nil {
+			t.Errorf("%s has per-run MCP instructions", id)
+		}
+	},
+	FeatBriefing: func(t *testing.T, id string, exe string) {
+		if a := Find(id); a != nil && a.Briefing().Support != SupportUnavailable {
+			t.Errorf("%s has a briefing channel", id)
+		}
+	},
+	FeatRunner: func(t *testing.T, id string, exe string) {
+		if agentChoiceDeclares(t, id) {
+			t.Errorf("%s has a non-interactive runner", id)
+		}
+	},
+	FeatReviewSession: func(t *testing.T, id string, exe string) {
+		if agentChoiceDeclares(t, id) || agentlaunch.FindAdapter(id) != nil {
+			t.Errorf("%s has a read-only review path", id)
+		}
+	},
+	FeatTermCopy: func(t *testing.T, id string, exe string) {
+		data, err := os.ReadFile(filepath.Join(repoRoot, "frontend/moltenterm-shell/term-copy/agent-copy-profiles.ts"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), `id: "`+id+`"`) {
+			t.Errorf("%s has a terminal copy profile", id)
+		}
+	},
 	FeatDetect: func(t *testing.T, id string, exe string) {
 		if molten.FindAgentKind(id) != nil || molten.MatchAgentCommand(exe+" fix the tests") != "" ||
 			molten.MatchAgentProcess("/usr/local/bin/"+exe, nil) != "" {

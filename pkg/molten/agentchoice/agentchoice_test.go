@@ -85,8 +85,10 @@ func TestPrintArgv(t *testing.T) {
 	if got := PrintArgv("codex", "/p", "", "/q \"x\"", "/p", "relative"); !reflect.DeepEqual(got, want) {
 		t.Errorf("codex: %v", got)
 	}
-	if PrintArgv("gemini", "/p") != nil {
-		t.Errorf("an agent without a read-only form is never started")
+	for _, id := range []string{"gemini", "kimi"} {
+		if PrintArgv(id, "/p") != nil {
+			t.Errorf("%s has no read-only form and is never started", id)
+		}
 	}
 }
 
@@ -103,8 +105,10 @@ func TestQuickPrintArgv(t *testing.T) {
 	if got := QuickPrintArgv("codex", "/p"); !reflect.DeepEqual(got, codex) {
 		t.Errorf("codex: %v", got)
 	}
-	if QuickPrintArgv("gemini", "/p") != nil {
-		t.Errorf("an agent without a read-only form is never started")
+	for _, id := range []string{"gemini", "kimi"} {
+		if QuickPrintArgv(id, "/p") != nil {
+			t.Errorf("%s has no read-only form and is never started", id)
+		}
 	}
 }
 

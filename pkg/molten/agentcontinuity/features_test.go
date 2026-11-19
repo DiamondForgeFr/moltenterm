@@ -24,7 +24,7 @@ func TestFeatureMatrixCoversEveryAgent(t *testing.T) {
 		ids = append(ids, a.Id)
 		rows[a.Id] = a
 	}
-	want := []string{molten.AgentIdClaude, molten.AgentIdCodex, molten.AgentIdGemini, molten.AgentIdKimi, molten.AgentIdQwen, molten.AgentIdOpenCode,
+	want := []string{molten.AgentIdClaude, molten.AgentIdCodex, molten.AgentIdKimi, molten.AgentIdGemini, molten.AgentIdQwen, molten.AgentIdOpenCode,
 		molten.AgentIdAntigravity, molten.AgentIdCopilot, molten.AgentIdCursor, molten.AgentIdGrok, molten.AgentIdVibe}
 	if !reflect.DeepEqual(ids, want) {
 		t.Fatalf("matrix agents %v, want %v", ids, want)
@@ -80,10 +80,10 @@ func TestFeatureMatrixCells(t *testing.T) {
 		{"gemini", FeatState, LevelProcessOnly, ReasonNoHooks},
 		{"gemini", FeatGuides, LevelAdapted, ""},
 		{"gemini", FeatBrowserMcp, LevelNone, ReasonNoAdapter},
-		{"kimi", FeatDetect, LevelProcessOnly, ReasonNoAdapter},
+		{"kimi", FeatDetect, LevelNative, ""},
 		{"copilot", FeatGuides, LevelAdapted, ""},
 		{"cursor", FeatResume, LevelNone, ReasonNoAdapter},
-		{"kimi", FeatBusyClose, LevelProcessOnly, ReasonNoHooks},
+		{"kimi", FeatBusyClose, LevelNative, ""},
 		{"opencode", FeatGuides, LevelNone, ReasonNoSkills},
 		{"opencode", FeatDetect, LevelProcessOnly, ReasonNoAdapter},
 	}

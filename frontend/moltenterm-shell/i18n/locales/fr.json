@@ -3047,6 +3047,7 @@
             "quit": "Quitter",
             "diff": "Diff",
             "permissions": "Permissions",
+            "mcp": "Serveurs MCP",
             "clearAndStartOver": "Effacer et recommencer",
             "fork": "Dupliquer la conversation",
             "rename": "Renommer la conversation",

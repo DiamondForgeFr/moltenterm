@@ -1,0 +1,5 @@
+{"type":"metadata","protocol_version":"1.5","created_at":1795041015678,"min_protocol_version":"1.5"}
+{"type":"profile.bind","time":1795041015678,"agentId":"agent-1","modelAlias":"kimi-code/k3","thinkingEffort":"medium","profileName":"synthetic"}
+{"type":"context.append_loop_event","time":1795041015679,"agentId":"agent-1","event":{"type":"content.part","turnId":"sub-1","step":1,"part":{"type":"text","text":"Synthetic sub-agent answer"}}}
+{"type":"context.append_loop_event","time":1795041015680,"agentId":"agent-1","event":{"type":"step.end","turnId":"sub-1","step":1,"finishReason":"end_turn"}}
+{"type":"turn.ended","time":1795041015681,"agentId":"agent-1","turnId":"sub-1","reason":"completed"}

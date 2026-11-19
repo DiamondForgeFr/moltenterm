@@ -8,7 +8,7 @@ finished and not seen yet: once you look at the pane (it is focused, or shown in
 use for a moment), its green dot and the marks of its tab and workspace clear, and its "is done" notification is
 read. Waiting only clears when the agent moves on.
 
-MoltenTerm recognises Claude Code (`claude`), Codex (`codex`), Gemini CLI (`gemini`) and OpenCode (`opencode`) in a
+MoltenTerm recognises Claude Code (`claude`), Codex (`codex`), Kimi Code (`kimi`), Gemini CLI (`gemini`) and OpenCode (`opencode`) in a
 MoltenTerm terminal. It never reads the screen to guess what an agent does: without hooks it only looks at when the
 pane's output comes, never at what it says.
 
@@ -42,7 +42,7 @@ MoltenTerm learns the state from four sources:
    **working**, and once it has stayed quiet for about four seconds the dot goes back to idle by itself. Only the
    timing of the output counts, never its content. The echo of what you type and the redraw after a resize do not
    count, nor does a single redraw. Output never ends **waiting** or **done**: answer with Enter first.
-4. **The agent's hooks** (most precise): Claude Code and Codex run `molten agent hook` at each event, other agents
+4. **The agent's hooks** (most precise): Claude Code, Codex and Kimi Code run `molten agent hook` at each event, other agents
    `molten agent state <state>`. As soon as a hook reports in a pane (a session start counts), its output activity is
    ignored there, for this agent, until the pane is closed: the hooks alone say when it works, and once its `Stop`
    hook reported a done there, a turn end reported by Codex's notify wrapper adds nothing.
@@ -61,13 +61,14 @@ full path or by another program, or with the integration turned off. They are yo
 
 ### The offer in the pane header
 
-While Claude Code or Codex runs in a local terminal without these hooks and without MoltenTerm's integration (an
+While Claude Code, Codex or Kimi Code runs in a local terminal without these hooks and without MoltenTerm's integration (an
 integrated run never shows it), the pane header shows a small **Set up hooks** chip next to the agent. It opens the snippet below for that agent, where to add it and a Copy button; you
 apply it yourself. MoltenTerm only reads the agent's settings to know whether the hooks are already there (Claude
 Code: `~/.claude/settings.json` or `$CLAUDE_CONFIG_DIR/settings.json`, its `settings.local.json`, the managed settings,
 and the `.claude/settings.json` and `.claude/settings.local.json` of the pane's folder and its parents up to the
 repository's root; Codex: `~/.codex/hooks.json` or `$CODEX_HOME/hooks.json` running `molten agent hook`, or the
-older notify line running `molten agent state` in its `config.toml`).
+older notify line running `molten agent state` in its `config.toml`; Kimi Code: `~/.kimi-code/config.toml` or
+`$KIMI_CODE_HOME/config.toml`, whose `[[hooks]]` entries run `molten agent hook`).
 The chip does not show once your own hooks for the agent have reported, in this run or an earlier one (the hooks
 MoltenTerm's launcher adds do not count), nor for an agent you ran
 `molten agent remove` for. Its × (or **Don't offer again**) hides it for that agent for good; the choice is kept in
@@ -79,15 +80,18 @@ MoltenTerm's launcher adds do not count), nor for an agent you ran
 molten agent hook [--agent <name>]
 ```
 
-The hook handler of Claude Code and Codex, which give their hooks the same JSON input on standard input. It reads
+The hook handler of Claude Code, Codex and Kimi Code, which give their hooks JSON input on standard input. It reads
 the event (`hook_event_name`) and reports what it means, printing nothing:
 
 | Event | Reported |
 | --- | --- |
 | `SessionStart` | the session link (`transcript_path`, else `session_id`), and the pane's states are precise from now on: idle, unless the agent is working or waiting (after a compaction, the link only) |
 | `UserPromptSubmit`, `PostToolUse` | working |
+| `PostToolUseFailure`, `PermissionResult` (Kimi Code) | working |
+| `PermissionRequest` (Kimi Code) | waiting; the event is observation-only, so MoltenTerm never answers the permission |
 | `Notification` (Claude Code) | waiting, for the notifications that wait for you (see below) |
-| `Stop` | done |
+| `Stop`, `Interrupt` (Kimi Code) | done |
+| `StopFailure` (Kimi Code) | error |
 | `SubagentStart`, `SubagentStop` | the sub-agent (its id, type and, at its end, its transcript), for the companion, and that it runs or stopped |
 
 Any other event reports nothing. An event fired inside a sub-agent carries its `agent_id`: its `UserPromptSubmit`,
@@ -266,6 +270,80 @@ touches); with the coffee off, Codex asks you as usual. MoltenTerm writes nothin
 hooks turned off (`[features] hooks = false`) or managed hooks only leave it out. Codex's own app-level approvals
 (Computer Use per app, the Full Access selection) are not approval requests: they still wait for you.
 
+## Kimi Code
+
+Kimi Code 2.6.3 has documented lifecycle hooks, but MoltenTerm has no Kimi launcher and never installs them for you.
+Merge these rules into `~/.kimi-code/config.toml` (or `$KIMI_CODE_HOME/config.toml`), keeping your existing settings
+and hooks. Kimi reads hooks from this user file, not from a project file:
+
+```toml
+[[hooks]]
+event = "SessionStart"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+
+[[hooks]]
+event = "UserPromptSubmit"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+
+[[hooks]]
+event = "PostToolUse"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+
+[[hooks]]
+event = "PostToolUseFailure"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+
+[[hooks]]
+event = "PermissionRequest"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+
+[[hooks]]
+event = "PermissionResult"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+
+[[hooks]]
+event = "Stop"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+
+[[hooks]]
+event = "StopFailure"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+
+[[hooks]]
+event = "Interrupt"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+
+[[hooks]]
+event = "SubagentStart"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+
+[[hooks]]
+event = "SubagentStop"
+command = "[ -n \"$WAVETERM_BLOCKID\" ] && molten agent hook --agent kimi || true"
+timeout = 15
+```
+
+Kimi hooks carry `session_id` but no `transcript_path`: `SessionStart` links the pane through Kimi's session index.
+Prompts, successful and failed tools, permission waits and results, turn ends, errors, interruptions and sub-agent
+starts and stops update the live state. Unknown events do nothing and Kimi's hooks fail open. `PermissionRequest` is
+observation-only: MoltenTerm shows the wait but does not auto-approve it.
+
+The companion reads `state.json`, `session_index.jsonl` and the main and sub-agent `wire.jsonl` files read-only. It
+shows the prompts, answers, model and effort, tasks, tools, file diffs, working folder and sub-agents that those
+records support. Resume a selected session with `kimi --session <id>`, or the folder's latest with `kimi --continue`.
+The guarded command panel offers only the commands verified on 2.6.3. Kimi's `-p --output-format stream-json` mode
+uses automatic permissions and can write, so MoltenTerm does not use it for read-only tasks or review sessions.
+
 ## Gemini CLI, OpenCode and other agents
 
 Call the same commands from whatever the agent offers: hooks, plugins (an OpenCode plugin can run
@@ -277,12 +355,13 @@ these still shows working from its output activity, and its bell or OSC 9 notifi
 Clicking the agent in the pane header (or `Cmd+Shift+J`) opens the **agent companion** to the right of the pane. It
 reads the agent's own session transcript, in place and read-only, and shows the latest answer with a Copy button on
 every code block, the earlier answers, the files changed with their diffs, the task list and a pending permission
-request. MoltenTerm never writes, copies or sends the transcript anywhere. Claude Code and Codex have a companion;
-other agents do not yet.
+request. MoltenTerm never writes, copies or sends the transcript anywhere. Claude Code, Codex and Kimi Code have a
+companion. Kimi's internal wire format is not stable: an unknown or incompatible record makes its companion
+terminal-only rather than showing guessed data.
 
 Without any setup, the companion looks for the session of the pane's folder started after the agent: in
 `~/.claude/projects/` for Claude Code (or `$CLAUDE_CONFIG_DIR/projects/`), in `~/.codex/sessions/` for Codex (or
-`$CODEX_HOME/sessions/`). A resumed session (`--resume`) started before the agent: the companion takes it when it is
+`$CODEX_HOME/sessions/`), and in `$KIMI_CODE_HOME/sessions/` (else `~/.kimi-code/sessions/`) for Kimi Code. A resumed session (`--resume`) started before the agent: the companion takes it when it is
 the only session of the folder written since the agent started and no other terminal holds it. When two panes run
 the same agent in the same folder it cannot tell their sessions apart, so it asks you to pick one, as it does when
 several sessions are candidates. A hook removes the guess: the agent tells the pane which transcript is its own.
@@ -296,8 +375,9 @@ molten agent session [<transcript-path>] [--agent <name>] [--stdin]
   refused.
 
 A `claude` or `codex` started in a local MoltenTerm terminal already links its session through MoltenTerm's launcher.
-For one started otherwise, the `SessionStart` hook of the snippets above links it (it also runs after `/clear` and
-when a session is resumed); `molten agent session --stdin` in a `SessionStart` hook does the same.
+For one started otherwise, and for Kimi Code, the `SessionStart` hook of the snippets above links it (it also runs
+after `/clear` and when a session is resumed). Claude Code and Codex can instead use `molten agent session --stdin`
+in a `SessionStart` hook; Kimi hooks have no transcript path and use the session id.
 
 ### Sessions in another folder
 
@@ -309,12 +389,13 @@ folder), per agent:
 {
   "agent:sessionroots": {
     "claude": ["~/work/.claude"],
-    "codex": ["~/work/.codex"]
+    "codex": ["~/work/.codex"],
+    "kimi": ["~/work/.kimi-code"]
   }
 }
 ```
 
-The companion then also reads `projects/` (Claude Code) or `sessions/` (Codex) inside each folder, for discovery and
+The companion then also reads `projects/` (Claude Code) or `sessions/` (Codex and Kimi Code) inside each folder, for discovery and
 for the paths hooks report. A folder is used only when it is an absolute path (or starts with `~/`) to an existing
 folder you own that other users cannot write to; any other is ignored, and MoltenTerm's log says why.
 
