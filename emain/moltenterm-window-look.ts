@@ -167,6 +167,10 @@ export function applyActiveViewLook(win: LookWindow, view: LookView): boolean {
     }
     const request = requested.get(view);
     if (request == null) {
+        // a view let through for a switch it left before it ever asked for a look comes back opaque (#2390)
+        if (appliedBackground.get(view) === ClearViewBg && !win.isDestroyed()) {
+            setViewBackground(view, opaqueBackground());
+        }
         return false;
     }
     return applyWindowLook(win, view, true, created.get(win), request, true);

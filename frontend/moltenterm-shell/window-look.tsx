@@ -17,7 +17,6 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import * as jotai from "jotai";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useMemo } from "react";
-import { prefersReducedMotion } from "./molten-motion";
 import {
     effectiveLook,
     isTranslucent,
@@ -157,7 +156,7 @@ function tellWindow(look: WindowLook) {
     getApi().setWindowLook?.({
         translucent: isTranslucent(look),
         blur: isTranslucent(look) && look.blur,
-        reducedMotion: prefersReducedMotion(),
+        reducedMotion: globalStore.get(atoms.prefersReducedMotionAtom) === true,
     });
 }
 
@@ -213,6 +212,8 @@ export function WindowLookApplier() {
     }, []);
     const support = useAtomValue(model.supportAtom);
     const drawn = lookToApply(shown.drawn, support);
+    // The app's setting or the system's: main hears of a change at once, look or not (#2390).
+    const reducedMotion = useAtomValue(atoms.prefersReducedMotionAtom) === true;
     // Drawn before the frame paints: a change of look never shows one frame of the old one.
     useLayoutEffect(() => {
         if (drawn == null) {
@@ -220,7 +221,7 @@ export function WindowLookApplier() {
         }
         drawLook(drawn);
         tellWindow(drawn);
-    }, [drawn == null, drawn?.opacity, drawn?.blur, drawn?.texture, drawn?.intensity, ws?.oid]);
+    }, [drawn == null, drawn?.opacity, drawn?.blur, drawn?.texture, drawn?.intensity, ws?.oid, reducedMotion]);
     return null;
 }
 

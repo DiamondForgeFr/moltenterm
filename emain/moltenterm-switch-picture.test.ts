@@ -46,6 +46,7 @@ import {
     mountedBlocksScript,
     PanelsMountMaxMs,
     waitPanelsMounted,
+    withDeadline,
     WindowSwitchPicture,
 } from "./moltenterm-switch-picture";
 
@@ -1259,6 +1260,32 @@ describe("a new view without a picture waits for its panels", () => {
         const failing = clock([0]);
         const broken = () => Promise.reject(new Error("gone"));
         expect(await waitPanelsMounted(broken, 3, failing.now, failing.sleep)).toBe(false);
+    });
+
+    it("shows the view anyway when the page or the backend never answers: one real deadline for the whole wait", async () => {
+        vi.useFakeTimers();
+        const set = (fn: () => void, ms: number) => setTimeout(fn, ms);
+        const clear = (h: unknown) => clearTimeout(h as ReturnType<typeof setTimeout>);
+        // a renderer locked up after its first render: the probe never comes back
+        const hung = waitPanelsMounted(() => new Promise<number>(() => {}), 3, () => Date.now(), (ms) =>
+            new Promise<void>((r) => setTimeout(r, ms))
+        );
+        let shown: boolean = null;
+        void withDeadline(hung, PanelsMountMaxMs, false, set, clear).then((v) => (shown = v));
+        await vi.advanceTimersByTimeAsync(PanelsMountMaxMs - 1);
+        expect(shown).toBeNull();
+        await vi.advanceTimersByTimeAsync(2);
+        expect(shown).toBe(false);
+        // an answer in time wins and leaves no timer behind
+        expect(await withDeadline(Promise.resolve(true), PanelsMountMaxMs, false, set, clear)).toBe(true);
+        expect(vi.getTimerCount()).toBe(0);
+        expect(await withDeadline(Promise.reject(new Error("gone")), PanelsMountMaxMs, false, set, clear)).toBe(false);
+        vi.useRealTimers();
+        const live = readFileSync("emain/moltenterm-switch-picture-live.ts", "utf8");
+        const wait = live.slice(live.indexOf("export async function awaitArrivingPanels"));
+        const body = wait.slice(0, wait.indexOf("\n}\n"));
+        expect(body.indexOf("withDeadline(")).toBeLessThan(body.indexOf("ObjectService.GetObject"));
+        expect(body.indexOf("withDeadline(")).toBeLessThan(body.indexOf("executeJavaScript"));
     });
 
     it("reads the panels from the page's DOM, which a view off screen keeps up to date", () => {
