@@ -1,0 +1,24 @@
+{"type":"metadata","protocol_version":"1.5","created_at":1795041015663,"min_protocol_version":"1.5"}
+{"type":"profile.bind","time":1795041015664,"agentId":"main","modelAlias":"kimi-code/k3","thinkingEffort":"high","profileName":"synthetic"}
+{"type":"context.append_message","time":1795041015665,"agentId":"main","message":{"role":"user","origin":{"kind":"user"},"content":[{"type":"text","text":"Fix the synthetic demo"}],"toolCalls":[]}}
+{"type":"context.append_message","time":1795041015666,"agentId":"main","message":{"role":"user","origin":{"kind":"injection"},"content":[{"type":"text","text":"Not a user prompt"}],"toolCalls":[]}}
+{"type":"turn.prompt","time":1795041015667,"agentId":"main","promptId":"p1","turnId":"t1","origin":{"kind":"user"},"input":[{"type":"text","text":"Fix the synthetic demo"}]}
+{"type":"context.append_loop_event","time":1795041015668,"agentId":"main","event":{"type":"content.part","turnId":"t1","step":1,"part":{"type":"text","text":"I will inspect the demo."}}}
+{"type":"context.append_loop_event","time":1795041015669,"agentId":"main","event":{"type":"tool.call","turnId":"t1","step":1,"toolCallId":"todo-1","name":"TodoList","args":{"todos":[{"title":"Inspect the fixture","status":"completed"},{"title":"Run the checks","status":"in_progress"}]}}}
+{"type":"context.append_loop_event","time":1795041015670,"agentId":"main","event":{"type":"tool.result","turnId":"t1","step":1,"toolCallId":"todo-1","result":{"output":"updated","isError":false}}}
+{"type":"context.append_loop_event","time":1795041015671,"agentId":"main","event":{"type":"tool.call","turnId":"t1","step":1,"toolCallId":"bash-1","name":"Bash","args":{"command":"go test ./pkg/demo","description":"Run synthetic checks"}}}
+{"type":"context.append_loop_event","time":1795041015672,"agentId":"main","event":{"type":"tool.result","turnId":"t1","step":1,"toolCallId":"bash-1","result":{"output":"ok","isError":false}}}
+{"type":"context.append_loop_event","time":1795041015673,"agentId":"main","event":{"type":"step.end","turnId":"t1","step":1,"finishReason":"tool_use"}}
+{"type":"context.append_loop_event","time":1795041015674,"agentId":"main","event":{"type":"tool.call","turnId":"t1","step":2,"toolCallId":"edit-1","name":"Edit","args":{"path":"hello.txt","old_string":"before\n","new_string":"after\n"},"display":{"kind":"file_io","operation":"edit","path":"hello.txt"}}}
+{"type":"context.append_loop_event","time":1795041015675,"agentId":"main","event":{"type":"tool.result","turnId":"t1","step":2,"toolCallId":"edit-1","result":{"output":"edited","isError":false}}}
+{"type":"context.append_loop_event","time":1795041015676,"agentId":"main","event":{"type":"tool.call","turnId":"t1","step":2,"toolCallId":"write-1","name":"Write","args":{"path":"notes.md","content":"first\nsecond\n"},"display":{"kind":"file_io","operation":"write","path":"notes.md"}}}
+{"type":"context.append_loop_event","time":1795041015677,"agentId":"main","event":{"type":"tool.result","turnId":"t1","step":2,"toolCallId":"write-1","result":{"output":"written","isError":false}}}
+{"type":"context.append_loop_event","time":1795041015678,"agentId":"main","event":{"type":"tool.call","turnId":"t1","step":2,"toolCallId":"agent-call","name":"Agent","args":{"description":"Inspect the fixture","subagent_type":"explore","run_in_background":true,"prompt":"Read only the synthetic fixture"}}}
+{"type":"subagent.spawned","time":1795041015679,"subagentId":"agent-1","subagentName":"explore","parentToolCallId":"agent-call","description":"Inspect the fixture","runInBackground":true}
+{"type":"context.append_loop_event","time":1795041015680,"agentId":"main","event":{"type":"tool.result","turnId":"t1","step":2,"toolCallId":"agent-call","result":{"output":"task_id: agent-call\nstatus: running\nagent_id: agent-1\nactual_subagent_type: explore","isError":false}}}
+{"type":"context.append_loop_event","time":1795041015680,"agentId":"main","event":{"type":"content.part","turnId":"t1","step":3,"part":{"type":"think","text":"Synthetic hidden reasoning"}}}
+{"type":"context.append_loop_event","time":1795041015681,"agentId":"main","event":{"type":"content.part","turnId":"t1","step":3,"part":{"type":"text","text":"The synthetic demo is fixed."}}}
+{"type":"full_compaction.begin","time":1795041015682,"agentId":"main"}
+{"type":"context.apply_compaction","time":1795041015683,"agentId":"main"}
+{"type":"full_compaction.complete","time":1795041015684,"agentId":"main"}
+{"type":"interaction.request","time":1795041015685,"agentId":"main","id":"approval-1","kind":"approval","toolCallId":"bash-2","request":{"action":"Run the synthetic server","agentId":"main","id":"approval-1","toolCallId":"bash-2","toolName":"Bash"}}

@@ -51,7 +51,7 @@ func skipOnWindows(t *testing.T) {
 
 func TestBuiltinRegistry(t *testing.T) {
 	r := Default()
-	if got := r.Ids(); !reflect.DeepEqual(got, []string{molten.AgentIdClaude, molten.AgentIdCodex}) {
+	if got := r.Ids(); !reflect.DeepEqual(got, []string{molten.AgentIdClaude, molten.AgentIdCodex, molten.AgentIdKimi}) {
 		t.Fatalf("ids %v", got)
 	}
 	for _, a := range r.Adapters() {
@@ -62,7 +62,7 @@ func TestBuiltinRegistry(t *testing.T) {
 			t.Errorf("%s does not match molten.AgentKinds", a.Id())
 		}
 	}
-	if _, err := r.Lookup("aider"); err == nil || !strings.Contains(err.Error(), "supported: claude, codex") {
+	if _, err := r.Lookup("aider"); err == nil || !strings.Contains(err.Error(), "supported: claude, codex, kimi") {
 		t.Errorf("unknown id: %v", err)
 	}
 	if _, err := r.Lookup(molten.AgentIdGemini); err == nil || !strings.Contains(err.Error(), "#333") {
@@ -83,10 +83,13 @@ func TestCapabilityMatrix(t *testing.T) {
 			CapTranscript: SupportDocumented, CapQuota: SupportDocumented, CapMcp: SupportDocumented, CapHooks: SupportDocumented},
 		molten.AgentIdCodex: {CapBriefing: SupportDocumented, CapInitialPrompt: SupportDocumented, CapModels: SupportDocumented, CapResume: SupportDocumented,
 			CapTranscript: SupportUndocumented, CapQuota: SupportUndocumented, CapMcp: SupportDocumented, CapHooks: SupportDocumented},
+		molten.AgentIdKimi: {CapBriefing: SupportUnavailable, CapInitialPrompt: SupportDocumented, CapModels: SupportDocumented, CapResume: SupportDocumented,
+			CapTranscript: SupportUndocumented, CapQuota: SupportUnavailable, CapMcp: SupportDocumented, CapHooks: SupportDocumented},
 	}
 	inUse := map[string][]string{
 		molten.AgentIdClaude: {CapHooks, CapQuota, CapTranscript},
 		molten.AgentIdCodex:  {CapHooks, CapQuota, CapTranscript},
+		molten.AgentIdKimi:   {CapHooks, CapTranscript},
 	}
 	for id, caps := range want {
 		a := Find(id)
@@ -185,7 +188,7 @@ func TestMakeRegistryRefusesBadAdapters(t *testing.T) {
 
 // FR-CONT-006 AC4: fresh and resume argv, a model and a session id each one argument.
 func TestFreshAndResumeArgs(t *testing.T) {
-	claude, codex := Find("claude"), Find("codex")
+	claude, codex, kimi := Find("claude"), Find("codex"), Find("kimi")
 	for _, tc := range []struct {
 		a      AgentAdapter
 		model  string
@@ -204,6 +207,10 @@ func TestFreshAndResumeArgs(t *testing.T) {
 		{codex, "", "--help", []string{"--", "--help"}},
 		{codex, "", "logout", []string{"--", "logout"}},
 		{codex, "", "exec", []string{"--", "exec"}},
+		{kimi, "", "", nil},
+		{kimi, "kimi-code/k3", "", []string{"-m", "kimi-code/k3"}},
+		{kimi, "kimi-code/k3", "Continue the task", []string{"-m", "kimi-code/k3", "--", "Continue the task"}},
+		{kimi, "", "--help", []string{"--", "--help"}},
 	} {
 		got, err := tc.a.FreshArgs(tc.model, tc.prompt)
 		if err != nil || !reflect.DeepEqual(got, tc.want) {
@@ -216,7 +223,7 @@ func TestFreshAndResumeArgs(t *testing.T) {
 			t.Errorf("claude accepted the one-word prompt %q: %q", prompt, got)
 		}
 	}
-	for _, a := range []AgentAdapter{claude, codex} {
+	for _, a := range []AgentAdapter{claude, codex, kimi} {
 		for _, model := range []string{"-p", "--dangerously-skip-permissions", "opus sonnet", "op\nus", "a;b", "$(x)", strings.Repeat("m", 200)} {
 			if _, err := a.FreshArgs(model, ""); err == nil {
 				t.Errorf("%s accepted model %q", a.Id(), model)
@@ -247,10 +254,16 @@ func TestFreshAndResumeArgs(t *testing.T) {
 	if got := codex.LastSessionArgs(); !reflect.DeepEqual(got, []string{"resume", "--last"}) || !codex.ResumesSession(got) {
 		t.Errorf("codex last session %q", got)
 	}
+	if got, err := kimi.ResumeArgs(id); err != nil || !reflect.DeepEqual(got, []string{"--session", id}) {
+		t.Errorf("kimi resume %q %v", got, err)
+	}
+	if got := kimi.LastSessionArgs(); !reflect.DeepEqual(got, []string{"--continue"}) || !kimi.ResumesSession(got) {
+		t.Errorf("kimi last session %q", got)
+	}
 }
 
 func TestResumesSession(t *testing.T) {
-	claude, codex := Find("claude"), Find("codex")
+	claude, codex, kimi := Find("claude"), Find("codex"), Find("kimi")
 	for _, tc := range []struct {
 		a    AgentAdapter
 		args []string
@@ -286,6 +299,12 @@ func TestResumesSession(t *testing.T) {
 		{codex, []string{"-i", "a.png", "b.png", "resume"}, false},
 		{codex, []string{"-i", "a.png", "-m", "x", "resume"}, true},
 		{codex, []string{"exec"}, false},
+		{kimi, nil, false},
+		{kimi, []string{"--session", "abc"}, true},
+		{kimi, []string{"-S=abc"}, true},
+		{kimi, []string{"--continue"}, true},
+		{kimi, []string{"-c"}, true},
+		{kimi, []string{"--", "--session"}, false},
 	} {
 		if got := tc.a.ResumesSession(tc.args); got != tc.want {
 			t.Errorf("%s ResumesSession(%q) = %v", tc.a.Id(), tc.args, got)
@@ -523,10 +542,10 @@ func TestListWritesNothing(t *testing.T) {
 	for _, l := range listings {
 		ids = append(ids, l.Id)
 	}
-	if !reflect.DeepEqual(ids, []string{"claude", "codex", "gemini", "kimi", "qwen", "opencode", "antigravity", "copilot", "cursor", "grok", "vibe"}) {
+	if !reflect.DeepEqual(ids, []string{"claude", "codex", "kimi", "gemini", "qwen", "opencode", "antigravity", "copilot", "cursor", "grok", "vibe"}) {
 		t.Fatalf("ids %v", ids)
 	}
-	claude, codex, gemini := listings[0], listings[1], listings[2]
+	claude, codex, kimi, gemini := listings[0], listings[1], listings[2], listings[3]
 	if !claude.Offered() || claude.Version != "2.1.292" || claude.Briefing.Channel != ChannelSystemAppend || !claude.Launcher ||
 		claude.GuideProfile != "claude-code" || claude.Quota == nil || len(claude.Quota.Sources) != 2 || len(claude.TranscriptRoots) == 0 ||
 		len(claude.Capabilities) != len(AllCapabilities) || claude.Exit == nil {
@@ -538,6 +557,9 @@ func TestListWritesNothing(t *testing.T) {
 	if !codex.Offered() || codex.Version != "0.160.1" || !codex.Launcher || codex.GuideProfile != "codex" || codex.Quota.PageURL != usage.CodexUsagePageURL ||
 		len(codex.Models) != 2 || !codex.Models[1].Configured {
 		t.Errorf("codex listing %+v", codex)
+	}
+	if !kimi.Supported || kimi.Launcher || kimi.Quota != nil || kimi.GuideProfile != "kimi" || len(kimi.TranscriptRoots) == 0 || kimi.Capabilities[CapInitialPrompt].Note == "" {
+		t.Errorf("kimi listing %+v", kimi)
 	}
 	if gemini.Supported || gemini.Offered() || gemini.Installed || gemini.Reason != ReasonNotFound || gemini.Unsupported == "" || gemini.Capabilities != nil {
 		t.Errorf("gemini listing %+v", gemini)

@@ -12,26 +12,30 @@ import (
 	"time"
 )
 
-// The one hook handler of Claude Code and Codex (#988, FR-SHELL-036, FR-SHELL-038): both agents run their lifecycle
-// hooks with the same JSON input on stdin (hook_event_name, session_id, transcript_path...), so MoltenTerm gives every
-// event the same command, `molten agent hook --agent <id>`, and the event decides what it reports. Codex trusts a hook
-// against the hash of its definition: the command text never carries the event.
+// The one hook handler of Claude Code, Codex and Kimi Code (#988, FR-SHELL-036, FR-SHELL-038, FR-CONT-030): the agents
+// run their lifecycle hooks with JSON input on stdin (hook_event_name, session_id...), so MoltenTerm gives every event
+// the same command, `molten agent hook --agent <id>`, and the event decides what it reports. Codex trusts a hook against
+// the hash of its definition: the command text never carries the event.
 //
-// It prints nothing: Codex adds a SessionStart or UserPromptSubmit hook's output to the model's context, and refuses
-// plain text from a Stop or SubagentStop hook.
+// It prints nothing: the agents may add a hook's standard output to the model's context.
 
 // must match pkg/molten (checked by its tests)
 const (
 	CompanionSessionCommand  = "moltencompanionsession"
 	CompanionSubagentCommand = "moltencompanionsubagent"
 
-	HookEventSessionStart     = "SessionStart"
-	HookEventUserPromptSubmit = "UserPromptSubmit"
-	HookEventPostToolUse      = "PostToolUse"
-	HookEventNotification     = "Notification"
-	HookEventStop             = "Stop"
-	HookEventSubagentStart    = "SubagentStart"
-	HookEventSubagentStop     = "SubagentStop"
+	HookEventSessionStart      = "SessionStart"
+	HookEventUserPromptSubmit  = "UserPromptSubmit"
+	HookEventPostToolUse       = "PostToolUse"
+	HookEventPostToolUseFailed = "PostToolUseFailure"
+	HookEventNotification      = "Notification"
+	HookEventPermissionRequest = "PermissionRequest"
+	HookEventPermissionResult  = "PermissionResult"
+	HookEventStop              = "Stop"
+	HookEventStopFailure       = "StopFailure"
+	HookEventInterrupt         = "Interrupt"
+	HookEventSubagentStart     = "SubagentStart"
+	HookEventSubagentStop      = "SubagentStop"
 
 	SubagentEventStart = "start"
 	SubagentEventStop  = "stop"
@@ -152,7 +156,7 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 	switch input.HookEventName {
 	case HookEventSessionStart:
 		return sessionStart(input, agent, blockId, call)
-	case HookEventUserPromptSubmit, HookEventPostToolUse:
+	case HookEventUserPromptSubmit, HookEventPostToolUse, HookEventPostToolUseFailed, HookEventPermissionResult:
 		if input.AgentId != "" {
 			return subagent(AgentStateWorking)
 		}
@@ -171,11 +175,15 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 			return nil
 		}
 		return state(AgentStateWaiting, input.Message)
-	case HookEventStop:
+	case HookEventPermissionRequest:
+		return state(AgentStateWaiting, input.Message)
+	case HookEventStop, HookEventInterrupt:
 		if input.AgentId != "" {
 			return subagent(AgentStateDone)
 		}
 		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateDone, Agent: agent, Transcript: absPath(input.TranscriptPath)})
+	case HookEventStopFailure:
+		return state(AgentStateError, input.Message)
 	case HookEventSubagentStart, HookEventSubagentStop:
 		return subagentEvent(input, agent, blockId, call)
 	}

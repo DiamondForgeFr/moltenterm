@@ -1,5 +1,5 @@
 {
-    "asof": "2026-11-01",
+    "asof": "2026-11-19",
     "triedasof": "2026-11-10",
     "features": [
         {
@@ -448,6 +448,154 @@
             }
         },
         {
+            "id": "kimi",
+            "name": "Kimi Code",
+            "adapter": true,
+            "profile": "kimi",
+            "command": "kimi",
+            "guidecall": "/skill:{name}",
+            "tried": "little",
+            "features": {
+                "approvals": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "Kimi's PermissionRequest hook is observation-only; MoltenTerm reports waiting but never answers it"
+                },
+                "briefing": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "no per-run briefing channel is wired; #333 owns briefing delivery"
+                },
+                "browsermcp": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "MCP is documented, but no per-run molten-browser server is added and this Story does not write MCP configuration"
+                },
+                "busyclose": {
+                    "level": "native",
+                    "note": "the agent's precise hook state",
+                    "adapter": "FS/busy-close-model.ts"
+                },
+                "commands": {
+                    "level": "adapted",
+                    "note": "verified local command table; /permission opens Kimi's own picker, no generic permission modes",
+                    "adapter": "FS/command-panel/agent-commands.ts, termupdate/agentinputwatch.go"
+                },
+                "companion": {
+                    "level": "adapted",
+                    "note": "read-only state.json, session index and internal wire.jsonl replay; incompatible records fall back to terminal-only",
+                    "adapter": "companion/adapter.go, companion/kimi.go"
+                },
+                "detect": {
+                    "level": "native",
+                    "note": "process name and path hints of molten.AgentKinds, since #1680",
+                    "adapter": "agentstate.go (AgentKinds), agentproc.go",
+                    "issue": "#1680"
+                },
+                "effort": {
+                    "level": "adapted",
+                    "note": "configured model aliases and -m; /model is Kimi's picker, effort is replayed but not set",
+                    "adapter": "agentcontinuity/kimi.go"
+                },
+                "filepanel": {
+                    "level": "adapted",
+                    "note": "molten files, known from the guides",
+                    "adapter": "cmd/wsh/cmd/wshcmd-molten-files.go, filesearch"
+                },
+                "guides": {
+                    "level": "adapted",
+                    "note": "Kimi skill (/skill:morph)",
+                    "adapter": "agents.go, agentguides.go"
+                },
+                "handoff": {
+                    "level": "adapted",
+                    "note": "send with molten agent send; the brief is typed into the receiver's terminal",
+                    "adapter": "agenthandoff/brief.go, agentnames/agentnames.go"
+                },
+                "hooksoffer": {
+                    "level": "native",
+                    "note": "copyable [[hooks]] snippet for config.toml; never installed automatically",
+                    "adapter": "agenthooks.go, attention/agenthookoffer.go"
+                },
+                "instructions": {
+                    "level": "none",
+                    "reason": "nomcp",
+                    "note": "without the molten-browser MCP integration there are no per-run MoltenTerm instructions"
+                },
+                "launcher": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "Kimi Code has no per-run hook injection; this Story only offers the manual TOML recipe"
+                },
+                "materials": {
+                    "level": "adapted",
+                    "note": "molten material add, known from the guides",
+                    "adapter": "materials/guard.go"
+                },
+                "modparts": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "generic mod agent parts are #1497, not this integration"
+                },
+                "onboarding": {
+                    "level": "native",
+                    "note": "catalog entry and current Kimi Code repository",
+                    "adapter": "onboarding/agents.go, onboarding/agentfacts.go"
+                },
+                "resume": {
+                    "level": "native",
+                    "note": "kimi --session \u003cid\u003e, kimi --continue",
+                    "adapter": "agentcontinuity/kimi.go, companion/resume.go"
+                },
+                "reviewsession": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "no read-only non-interactive review command is wired; generic approved headless execution is #1488"
+                },
+                "runner": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "kimi -p has stream-json but automatic permissions and automatic writes; no read-only PrintArgv or QuickPrintArgv"
+                },
+                "signature": {
+                    "level": "adapted",
+                    "note": "molten agent whoami --trailer and sign-pr, which the agent must remember; model and effort from the companion",
+                    "adapter": "agentsign/agentsign.go"
+                },
+                "state": {
+                    "level": "native",
+                    "note": "manual hooks for prompts, tools, permissions, stop, failure, interruption and sub-agents",
+                    "adapter": "agentintegration.go, agenthook/hook.go"
+                },
+                "statusline": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "the status line relay is Claude Code's"
+                },
+                "termcopy": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "no Kimi terminal copy profile is declared"
+                },
+                "turnnotify": {
+                    "level": "native",
+                    "note": "Stop, StopFailure and Interrupt hooks",
+                    "adapter": "agenthook/hook.go, cmd/wsh/cmd/wshcmd-molten-agentnotify.go"
+                },
+                "usage": {
+                    "level": "none",
+                    "reason": "agentspecific",
+                    "note": "Kimi's /usage is not a usage adapter; no plan gauges are read"
+                },
+                "worktreename": {
+                    "level": "process-only",
+                    "reason": "agentspecific",
+                    "note": "Kimi has no worktree folder of its own; named from its process",
+                    "adapter": "agentstate.go, mission/upcoming_attribution.go"
+                }
+            }
+        },
+        {
             "id": "gemini",
             "name": "Gemini CLI",
             "adapter": false,
@@ -563,138 +711,6 @@
                     "level": "adapted",
                     "note": "margin glyphs of its profile",
                     "adapter": "FS/term-copy/agent-copy-profiles.ts"
-                },
-                "turnnotify": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "usage": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "worktreename": {
-                    "level": "process-only",
-                    "reason": "noadapter",
-                    "note": "named from its process",
-                    "adapter": "agentstate.go, mission/upcoming_attribution.go"
-                }
-            }
-        },
-        {
-            "id": "kimi",
-            "name": "Kimi Code",
-            "adapter": false,
-            "profile": "kimi",
-            "command": "kimi",
-            "guidecall": "/skill:{name}",
-            "tried": "little",
-            "features": {
-                "approvals": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "briefing": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "browsermcp": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "busyclose": {
-                    "level": "process-only",
-                    "reason": "nohooks",
-                    "note": "the shell integration's running command; works for any program",
-                    "adapter": "FS/busy-close-model.ts"
-                },
-                "commands": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "companion": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "detect": {
-                    "level": "process-only",
-                    "reason": "noadapter",
-                    "note": "process name and path hints of molten.AgentKinds, since #1680",
-                    "adapter": "agentstate.go (AgentKinds), agentproc.go",
-                    "issue": "#1680"
-                },
-                "effort": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "filepanel": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "guides": {
-                    "level": "adapted",
-                    "note": "Kimi skill (/skill:morph)",
-                    "adapter": "agents.go, agentguides.go"
-                },
-                "handoff": {
-                    "level": "process-only",
-                    "reason": "nomcp",
-                    "note": "receives a brief typed into its terminal; sends only with molten agent send",
-                    "adapter": "agenthandoff/brief.go"
-                },
-                "hooksoffer": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "instructions": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "launcher": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "materials": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "modparts": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "onboarding": {
-                    "level": "adapted",
-                    "note": "catalog entry from its guide profile",
-                    "adapter": "onboarding/agents.go"
-                },
-                "resume": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "reviewsession": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "runner": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "signature": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "state": {
-                    "level": "process-only",
-                    "reason": "nohooks",
-                    "note": "working and idle from the terminal's activity; molten agent state --agent \u003cid\u003e also accepts it",
-                    "adapter": "attention/procwatch.go"
-                },
-                "statusline": {
-                    "level": "none",
-                    "reason": "noadapter"
-                },
-                "termcopy": {
-                    "level": "none",
-                    "reason": "noadapter"
                 },
                 "turnnotify": {
                     "level": "none",

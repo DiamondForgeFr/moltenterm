@@ -23,7 +23,7 @@ import (
 
 const maxExtraRoots = 8
 
-var sessionSubdirs = map[string]string{molten.AgentIdClaude: "projects", molten.AgentIdCodex: "sessions"}
+var sessionSubdirs = map[string]string{molten.AgentIdClaude: "projects", molten.AgentIdCodex: "sessions", molten.AgentIdKimi: "sessions"}
 
 var configuredRootsLock sync.Mutex
 var configuredRoots func() map[string][]string

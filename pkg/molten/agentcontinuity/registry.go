@@ -28,7 +28,6 @@ const plannedReason = "no adapter yet (FR-CONT-013, #333)"
 // PlannedAgents follow in FR-CONT-013.
 var PlannedAgents = []PlannedAgent{
 	{Id: molten.AgentIdGemini, Name: "Gemini CLI", Executable: "gemini", Reason: plannedReason, Features: geminiFeatures},
-	{Id: molten.AgentIdKimi, Name: "Kimi Code", Executable: "kimi", Reason: plannedReason, Features: kimiFeatures},
 	{Id: molten.AgentIdQwen, Name: "Qwen Code", Executable: "qwen", Reason: plannedReason, Features: qwenFeatures},
 	{Id: molten.AgentIdOpenCode, Name: "OpenCode", Executable: "opencode", Reason: plannedReason, Features: openCodeFeatures},
 	// The subscription CLIs of #1680: started from the launcher and the companion, recognised by their process.
@@ -197,7 +196,7 @@ func (r *Registry) Ids() []string {
 var defaultRegistry = mustBuiltinRegistry()
 
 func mustBuiltinRegistry() *Registry {
-	r, err := MakeRegistry(claudeAdapter{}, codexAdapter{})
+	r, err := MakeRegistry(claudeAdapter{}, codexAdapter{}, kimiAdapter{})
 	if err == nil {
 		err = checkPlanned(r, PlannedAgents)
 	}

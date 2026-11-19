@@ -231,3 +231,21 @@ func TestInstallCatalogCoversTheAgents(t *testing.T) {
 		t.Fatal("the Kimi page is the archived kimi-cli repository")
 	}
 }
+
+func TestAgentInstallPagesDoNotUseArchivedRepositories(t *testing.T) {
+	if strings.Contains(agentInstallCatalog["kimi"].Page, "kimi-cli") {
+		t.Fatal("the Kimi install page is the archived kimi-cli repository")
+	}
+	for _, source := range agentFactsCatalog["kimi"].Sources {
+		if strings.Contains(source, "MoonshotAI/kimi-cli") {
+			t.Fatalf("archived source %q", source)
+		}
+	}
+	found := false
+	for _, source := range agentFactsCatalog["kimi"].Sources {
+		found = found || source == "https://github.com/MoonshotAI/kimi-code"
+	}
+	if !found {
+		t.Fatal("the current Kimi Code repository is not a source")
+	}
+}

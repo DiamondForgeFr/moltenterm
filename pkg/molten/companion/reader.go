@@ -47,7 +47,9 @@ func OpenAdapterSessionReader(adapter Adapter, path string) (*SessionReader, err
 	if err != nil {
 		return nil, err
 	}
-	return &SessionReader{Agent: adapter.Id(), Path: resolved, adapter: adapter, follower: f, session: MakeLeanSession()}, nil
+	s := MakeLeanSession()
+	initSession(adapter, resolved, s)
+	return &SessionReader{Agent: adapter.Id(), Path: resolved, adapter: adapter, follower: f, session: s}, nil
 }
 
 // Poll reads what was appended since the last call and returns the session's digest.
@@ -64,6 +66,7 @@ func (r *SessionReader) Poll() (SessionDigest, error) {
 		}
 		if reset {
 			r.session = MakeLeanSession()
+			initSession(r.adapter, r.Path, r.session)
 			continue
 		}
 		if !more {

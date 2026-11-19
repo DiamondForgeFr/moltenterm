@@ -55,6 +55,19 @@ Nothing is added outside a MoltenTerm terminal (another terminal app, SSH, WSL),
 MoltenTerm cannot read your settings in time: the launcher never keeps the agent from starting and, on any doubt,
 adds nothing.
 
+## Kimi Code: manual hooks, no automatic launcher
+
+Kimi Code 2.6.3 is detected and has a read-only session companion, session resume and guarded commands. MoltenTerm
+does not put a `kimi` launcher on `PATH` and does not edit Kimi's configuration. The pane's **Set up hooks** offer
+copies the documented `[[hooks]]` TOML recipe of `agent-states.md`; you merge it into `$KIMI_CODE_HOME/config.toml`
+(else `~/.kimi-code/config.toml`) yourself. The hooks link sessions by `session_id` and report working, permission
+waits, done, errors, interruptions and sub-agents.
+
+Kimi's `PermissionRequest` event is observation-only, so coffee approvals do not answer it. No status-line relay,
+plan-usage adapter, per-run MoltenTerm MCP server, briefing, mod parts or automatic headless runner is wired by this
+integration. In particular, `kimi -p --output-format stream-json` follows automatic permissions and can write:
+MoltenTerm's read-only `PrintArgv`, `QuickPrintArgv` and review-session flows never launch it.
+
 ## The `molten` command inside the agent's sandbox
 
 The `molten` command the guides name (`molten agent send`, `molten worktree link`, `molten ci run`...) talks to

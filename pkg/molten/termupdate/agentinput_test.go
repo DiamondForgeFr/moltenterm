@@ -203,6 +203,20 @@ func TestAgentInputCodexTable(t *testing.T) {
 	}
 }
 
+func TestAgentInputKimiTable(t *testing.T) {
+	f := claudeInputTerm()
+	f.procs[1].Name = "kimi"
+	f.run.Agent = "kimi"
+	out := ask(f, AgentInputRequest{Agent: "kimi", Action: agentcontinuity.ActionPermissions})
+	if out.Result != InputSent || strings.Join(f.input, "|") != "\x15|/permission|\r" || out.AgentName != "Kimi Code" {
+		t.Fatalf("got %+v, typed %q", out, f.input)
+	}
+	f.input = nil
+	if out := ask(f, AgentInputRequest{Agent: "kimi", Action: agentcontinuity.ActionPermissionMode}); out.Reason != InputReasonUnknownAction || len(f.input) != 0 {
+		t.Fatalf("kimi has no generalized permission mode: %+v %q", out, f.input)
+	}
+}
+
 func TestPermissionModeStepsToTheTarget(t *testing.T) {
 	f := claudeInputTerm()
 	f.cycle = []string{ModeDefault, ModeAcceptEdits, ModePlan}

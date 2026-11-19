@@ -116,18 +116,19 @@ type Session struct {
 	// metaSeen: the transcript's own header was read; a later one is another session's (a Codex sub-agent's copy).
 	metaSeen bool
 	// Cwd: the agent's folder when its transcript says it, for the relative paths of its edits.
-	Cwd         string
-	lines       int
-	parsed      int
-	known       int
-	turns       []*answer
-	nextTurn    int
-	files       map[string]*fileChange
-	fileSeq     int64
-	diffBytes   int
-	todos       []Todo
-	pending     []ToolCall
-	editedCalls map[string]bool
+	Cwd          string
+	lines        int
+	parsed       int
+	known        int
+	incompatible bool
+	turns        []*answer
+	nextTurn     int
+	files        map[string]*fileChange
+	fileSeq      int64
+	diffBytes    int
+	todos        []Todo
+	pending      []ToolCall
+	editedCalls  map[string]bool
 	// Codex's plan limits, from its token_count events (FR-SHELL-029): read by the usage source, not the view, so
 	// they change limitsRev and not Version.
 	codexLimits usage.CodexTranscriptLimits
@@ -282,9 +283,17 @@ func (s *Session) CodexLimits() (usage.CodexTranscriptLimits, int64) {
 	return s.codexLimits.Copy(), s.limitsRev
 }
 
-// Unsupported tells that the transcript is not in a format its adapter reads: enough lines, none recognised, or
-// most of them not even JSON.
+// MarkUnsupported makes the companion terminal-only: the adapter found a record or protocol it cannot read safely.
+func (s *Session) MarkUnsupported() {
+	s.incompatible = true
+}
+
+// Unsupported tells that the transcript is not in a format its adapter reads: an explicit incompatibility, enough
+// lines with none recognised, or most of them not even JSON.
 func (s *Session) Unsupported() bool {
+	if s.incompatible {
+		return true
+	}
 	if s.lines < unsupportedMinLines {
 		return false
 	}

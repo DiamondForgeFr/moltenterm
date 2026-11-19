@@ -21,7 +21,7 @@ function fakeAgent(features: AgentFeatures["features"]): AgentFeatures {
 const Adapted = { level: "adapted" as const, note: "fake", adapter: "fake" };
 
 describe("the interface reads the matrix (FR-AGC-003)", () => {
-    it("gives the lists it kept by hand for Claude Code and Codex", () => {
+    it("gives the lists the interface kept by hand", () => {
         setTestMatrix(RealMatrix);
         // CodingAgentIds
         expect(codingAgentIds()).toEqual(["claude", "codex"]);
@@ -38,7 +38,7 @@ describe("the interface reads the matrix (FR-AGC-003)", () => {
         // FullIntegrationIds, by catalog id
         expect(
             ["claude-code", "codex", "gemini-cli", "qwen-code", "kimi"].filter((id) => fullIntegration(RealMatrix, id))
-        ).toEqual(["claude-code", "codex"]);
+        ).toEqual(["claude-code", "codex", "kimi"]);
         // MorphCalls
         expect(["claude", "codex", "kimi", "gemini", "opencode", undefined].map((a) => morphCall(a))).toEqual([
             "/morph",

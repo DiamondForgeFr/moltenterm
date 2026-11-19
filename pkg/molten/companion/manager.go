@@ -81,10 +81,10 @@ const (
 // state to change (Poke), and looks again this often for what raises no event (FR-PERF-011).
 const idleTickInterval = 2 * time.Second
 
-var largeRecordMarkers = [][]byte{[]byte(`"structuredPatch"`), []byte(`"bashEditDiff"`), []byte(`"FileChange"`), []byte(`"patch_apply_begin"`)}
+var largeRecordMarkers = [][]byte{[]byte(`"structuredPatch"`), []byte(`"bashEditDiff"`), []byte(`"FileChange"`), []byte(`"patch_apply_begin"`), []byte(`"tool.call"`)}
 var asyncLaunchedMarker = []byte(`"async_launched"`)
 var taskNotificationMarker = []byte(`<task-notification>`)
-var resultIdRegex = regexp.MustCompile(`"(?:tool_use_id|call_id)"\s*:\s*"([^"]{1,200})"`)
+var resultIdRegex = regexp.MustCompile(`"(?:tool_use_id|call_id|toolCallId)"\s*:\s*"([^"]{1,200})"`)
 
 type SessionInfo struct {
 	Path     string `json:"path"`
@@ -1784,6 +1784,7 @@ func (w *watcher) follow(path string, linkedBy string, started int64, guess stri
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	w.path, w.linkedBy, w.guess, w.session = resolved, linkedBy, guess, MakeSession()
+	initSession(w.adapter, resolved, w.session)
 	// Another session's answer may have the same index and revision: the first event of this one carries its text.
 	w.latestStarted = false
 	w.status, w.message, w.messageText = StatusLoading, "", nil
@@ -1823,6 +1824,9 @@ func parseRecordLine(adapter Adapter, s *Session, line []byte) {
 	var rec map[string]any
 	if json.Unmarshal(line, &rec) != nil {
 		s.countLine(false, false)
+		if adapter.Id() == molten.AgentIdKimi {
+			s.MarkUnsupported()
+		}
 		return
 	}
 	s.countLine(true, adapter.Parse(rec, s))
@@ -1839,6 +1843,7 @@ func (w *watcher) read() bool {
 	if reset {
 		// Replaced or truncated: read it again from the start, into a new session.
 		w.session = MakeSession()
+		initSession(w.adapter, w.path, w.session)
 		w.version++
 		return true
 	}
