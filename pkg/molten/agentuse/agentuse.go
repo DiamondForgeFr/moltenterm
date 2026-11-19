@@ -131,6 +131,21 @@ func (r *Recorder) Sample(now time.Time, runs []Run) bool {
 	return r.dirty
 }
 
+// AddWork credits a run MoltenTerm started on its own, without a terminal (the companion's ticket sentences, #2392), to
+// the hour it ended in: its time is the agent's work time, never a session the developer started.
+func (r *Recorder) AddWork(agent string, at time.Time, workMs int64) {
+	if agent == "" || workMs <= 0 {
+		return
+	}
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	atMs := at.UnixMilli()
+	b := r.bucketLocked(agent, atMs/hourMs)
+	b.WorkMs += workMs
+	b.LastAt = max(b.LastAt, atMs)
+	r.dirty = true
+}
+
 func (r *Recorder) trimLocked(hour int64) bool {
 	trimmed := false
 	for agent, byHour := range r.hours {

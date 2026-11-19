@@ -77,11 +77,28 @@ function TicketLine({ row }: { row: AgentRow }) {
     );
 }
 
-function AgentCard({ row }: { row: AgentRow }) {
+// The link anchors of the Tasks block (#2392): each card is an end a line reaches; hot when the pointer is on the task it
+// works on, or on the line between them.
+export type AgentLinkMarks = {
+    ends?: ReadonlySet<string>;
+    hot?: ReadonlySet<string>;
+    heat?: (row: AgentRow) => string;
+};
+
+function AgentCard({ row, marks }: { row: AgentRow; marks?: AgentLinkMarks }) {
+    const end = `agent:${row.id}`;
     return (
         <li
-            className={cn("flex flex-col gap-0.5", !row.main && "ml-2 border-l border-border pl-2")}
+            className={cn(
+                "flex flex-col gap-0.5 rounded-4",
+                !row.main && "ml-2 border-l border-border pl-2",
+                marks != null && "mt-cwork-end"
+            )}
             data-testid={row.main ? "companion-agent-main" : "companion-subagent"}
+            data-link-end={marks != null ? end : undefined}
+            data-linked={marks?.ends?.has(end) ? "" : undefined}
+            data-link-hot={marks?.hot?.has(end) ? "" : undefined}
+            data-heat={marks?.heat?.(row)}
         >
             <div className="flex min-w-0 items-center gap-2 text-12">
                 <span
@@ -132,11 +149,26 @@ export function AgentsSection({
             <SectionTitle right={ended ? <span className="text-11 text-muted">{ended}</span> : null}>
                 {t("companion.agents.title")}
             </SectionTitle>
-            <ul className="flex flex-col gap-1.5 px-3">
-                {agents.rows.map((row) => (
-                    <AgentCard key={row.id} row={row} />
-                ))}
-            </ul>
+            <AgentsList rows={agents.rows} className="px-3" />
         </section>
+    );
+}
+
+// The cards of the agents at work; with marks, each card is an end of the Tasks block's links.
+export function AgentsList({
+    rows,
+    marks,
+    className,
+}: {
+    rows: AgentRow[];
+    marks?: AgentLinkMarks;
+    className?: string;
+}) {
+    return (
+        <ul className={cn("flex flex-col gap-1.5", className)}>
+            {rows.map((row) => (
+                <AgentCard key={row.id} row={row} marks={marks} />
+            ))}
+        </ul>
     );
 }

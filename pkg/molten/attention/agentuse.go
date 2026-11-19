@@ -106,6 +106,12 @@ func AgentUseSummary() agentuse.Summary {
 	return defaultAgentUse.summary()
 }
 
+// RecordHeadlessUse adds a run MoltenTerm started without a terminal (the companion's ticket sentences, #2392) to the
+// agent's use: its time is work time, written with the next sample.
+func RecordHeadlessUse(agent string, ended time.Time, d time.Duration) {
+	defaultAgentUse.recorder.AddWork(agent, ended, d.Milliseconds())
+}
+
 // startAgentUse keeps the record in the data folder: only wavesrv's own tracker does, tests' trackers do not.
 func startAgentUse() {
 	defaultAgentUse.store = agentuse.MakeStore(filepath.Join(wavebase.GetWaveDataDir(), "molten", agentUseDirName))

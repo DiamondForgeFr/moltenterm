@@ -15,7 +15,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
-import { memo, useEffect, useId, useMemo, useState } from "react";
+import { Fragment, lazy, memo, Suspense, useEffect, useId, useMemo, useState } from "react";
 import { goToAgent } from "../agent-info/agent-info-hooks";
 import { agentProviderLabel, agentProviderName, type AgentStateInfo } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
@@ -42,6 +42,7 @@ import {
 import { FilesSection } from "./companion-files";
 import { PlanUsageSection, ProviderUsageNote } from "./companion-gauges";
 import { IntegratedBadge, IntegrationDetails } from "./companion-integration";
+import type { ColumnsBand } from "./companion-layout";
 import {
     CompanionAnswer,
     CompanionAnswerCommand,
@@ -67,9 +68,9 @@ import {
     statusMessage,
     todoCounts,
 } from "./companion-model";
-import { permissionTerminalOf, PermissionRequestCard } from "./companion-permission";
+import { PermissionRequestCard, permissionTerminalOf } from "./companion-permission";
 import { AgentsSection, RecentTopicsSection } from "./companion-recap";
-import { SectionTitle, SessionSections } from "./companion-section";
+import { SectionTitle, SessionSections, SessionSectionSlots } from "./companion-section";
 import { CompanionSessions } from "./companion-session-store";
 import { GuessNotice, SessionBar, SessionHistoryList } from "./companion-session-ui";
 import { WorkspaceTaskSection } from "./companion-task";
@@ -404,6 +405,23 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         );
         return withUsage ? <WithUsage usage={usage}>{empty}</WithUsage> : empty;
     }
+    // The sections by their ids (companion-layout.ts); the Tasks block and the agents at work come from the work area.
+    const slots: SessionSectionSlots = {
+        usage,
+        permission: <PermissionCard pending={view.pending} target={target} agentState={agentState} />,
+        topics: <RecentTopicsSection view={view} now={Date.now()} />,
+        answer: <AnswerSection key={view.session?.path} target={target} view={view} />,
+        task: <WorkspaceTaskSection target={target} companionId={model.blockId} companion={view} />,
+        files: (
+            <FilesSection
+                key={`files:${view.session?.path}`}
+                target={target}
+                companionId={model.blockId}
+                files={view.files}
+                folder={folder}
+            />
+        ),
+    };
     return (
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
             <SessionBar
@@ -432,24 +450,54 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
             <GuessNotice session={session} onHistory={() => setHistory(true)} />
             <IntegrationNotice view={view} className="mx-3 mt-2" />
             <SessionSections
-                usage={usage}
-                agents={<AgentsSection view={view} agentState={agentState} now={Date.now()} />}
-                permission={<PermissionCard pending={view.pending} target={target} agentState={agentState} />}
-                topics={<RecentTopicsSection view={view} now={Date.now()} />}
-                answer={<AnswerSection key={view.session?.path} target={target} view={view} />}
-                todos={<TodoSection todos={view.todos} />}
-                task={<WorkspaceTaskSection target={target} companionId={model.blockId} companion={view} />}
-                files={
-                    <FilesSection
-                        key={`files:${view.session?.path}`}
-                        target={target}
-                        companionId={model.blockId}
-                        files={view.files}
-                        folder={folder}
+                slots={slots}
+                columns={(band) => (
+                    <WorkArea
+                        view={view}
+                        agentState={agentState}
+                        dir={projectDir || folder}
+                        band={band}
+                        slots={slots}
                     />
-                }
+                )}
             />
         </div>
+    );
+}
+
+// A band of two columns, the Tasks block and the agents at work among its sections (#2392), loads on demand, out of the
+// startup bundle; until then its sections show stacked, in the layout's order, as on a narrow companion.
+const CompanionWork = lazy(() => import("./companion-work").then((m) => ({ default: m.CompanionWork })));
+
+function WorkArea({
+    view,
+    agentState,
+    dir,
+    band,
+    slots,
+}: {
+    view: CompanionView;
+    agentState: AgentStateInfo;
+    dir: string;
+    band: ColumnsBand;
+    slots: SessionSectionSlots;
+}) {
+    const now = Date.now();
+    const stacked = band.ids.map((id) => (
+        <Fragment key={id}>
+            {id === "tasks" ? (
+                <TodoSection todos={view.todos} />
+            ) : id === "agents" ? (
+                <AgentsSection view={view} agentState={agentState} now={now} />
+            ) : (
+                slots[id]
+            )}
+        </Fragment>
+    ));
+    return (
+        <Suspense fallback={stacked}>
+            <CompanionWork view={view} agentState={agentState} dir={dir} now={now} band={band} slots={slots} />
+        </Suspense>
     );
 }
 

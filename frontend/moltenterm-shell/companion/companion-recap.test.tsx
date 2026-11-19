@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AgentStateInfo } from "../agent-state-model";
 import { FilesSection } from "./companion-files";
 import { filterFiles, fuzzyScore, readCompanionPrefs } from "./companion-files-model";
+import { ColumnsBand } from "./companion-layout";
 import { CompanionFile, CompanionView } from "./companion-model";
 import { AgentsSection, RecentTopicsSection } from "./companion-recap";
 import { agentsView, branchTicket, finishedLabel, mainAgentRow, topicRows } from "./companion-recap-model";
@@ -263,46 +264,56 @@ function slotOrder(html: string): string[] {
     return [...html.matchAll(/data-slot="(\w+)"/g)].map((m) => m[1]);
 }
 
-describe("the companion's order (#555, PR #557)", () => {
-    it("puts the plan usage and the agents first, the topics after, the changed files last", () => {
-        const slot = (name: string) => <i data-slot={name} />;
+describe("the companion's order (#555, PR #557, #2392)", () => {
+    const slot = (name: string) => <i data-slot={name} />;
+    const columns = (band: ColumnsBand) => <i data-slot={`columns_${band.ids.join("_")}`} />;
+
+    it("puts the plan usage and the band of the tasks and the agents first, the topics after, the changed files last", () => {
         const html = renderToStaticMarkup(
             <SessionSections
-                usage={slot("usage")}
-                agents={slot("agents")}
-                permission={slot("permission")}
-                topics={slot("topics")}
-                answer={slot("answer")}
-                todos={slot("todos")}
-                task={slot("task")}
-                files={slot("files")}
+                slots={{
+                    usage: slot("usage"),
+                    permission: slot("permission"),
+                    topics: slot("topics"),
+                    answer: slot("answer"),
+                    task: slot("task"),
+                    files: slot("files"),
+                }}
+                columns={columns}
             />
         );
         expect(slotOrder(html)).toEqual([
             "usage",
-            "agents",
+            "columns_tasks_agents",
             "permission",
             "topics",
             "answer",
-            "todos",
             "task",
             "files",
         ]);
     });
 
-    it("starts with the agents when the plan usage does not show", () => {
+    it("starts with the tasks and the agents when the plan usage does not show", () => {
+        const html = renderToStaticMarkup(
+            <SessionSections slots={{ usage: null, topics: slot("topics"), files: slot("files") }} columns={columns} />
+        );
+        expect(slotOrder(html)).toEqual(["columns_tasks_agents", "topics", "files"]);
+    });
+
+    it("follows another layout: its order, its hidden sections, its bands", () => {
         const html = renderToStaticMarkup(
             <SessionSections
-                usage={null}
-                agents={<i data-slot="agents" />}
-                permission={null}
-                topics={<i data-slot="topics" />}
-                answer={null}
-                todos={null}
-                task={null}
-                files={<i data-slot="files" />}
+                slots={{ usage: slot("usage"), topics: slot("topics"), files: slot("files") }}
+                columns={columns}
+                layout={[
+                    { id: "files", column: "full" },
+                    { id: "agents", column: "left" },
+                    { id: "topics", column: "right" },
+                    { id: "tasks", column: "right" },
+                    { id: "usage", column: "full", hidden: true },
+                ]}
             />
         );
-        expect(slotOrder(html)).toEqual(["agents", "topics", "files"]);
+        expect(slotOrder(html)).toEqual(["files", "columns_agents_topics_tasks"]);
     });
 });

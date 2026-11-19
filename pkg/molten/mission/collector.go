@@ -30,6 +30,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/companion"
 	"github.com/wavetermdev/waveterm/pkg/molten/gitwatch"
 	"github.com/wavetermdev/waveterm/pkg/molten/materials"
+	"github.com/wavetermdev/waveterm/pkg/molten/milestones"
 	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -782,6 +783,8 @@ func Start() {
 	attention.StartAgentRoute()
 	// The agent companion (FR-SHELL-018) follows the agents the states know.
 	companion.Start()
+	// The companion's Tasks block reads the project's active milestone (#2392).
+	milestones.Start()
 	// The workspace task checkpoint (FR-CONT-007) updates from the agents' turns the companion reads.
 	checkpoint.Start()
 	// The materials registry (FR-MAT-001) reads the signals of the sessions the checkpoint follows.

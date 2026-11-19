@@ -95,6 +95,26 @@ func TestEachAgentHasItsOwnUse(t *testing.T) {
 	}
 }
 
+// #2392: a run MoltenTerm starts on its own is the agent's work time, never one of the developer's sessions.
+func TestAHeadlessRunIsWorkTimeOnly(t *testing.T) {
+	t.Parallel()
+	r := MakeRecorder()
+	r.AddWork("claude", at(time.Minute), 4_000)
+	r.AddWork("", at(time.Minute), 4_000)
+	r.AddWork("codex", at(time.Minute), 0)
+	sum := r.Summary(at(2 * time.Minute))
+	got := sum.Agents["claude"]
+	if got.WorkMs != 4_000 || got.Sessions != 0 || got.LastAt != at(time.Minute).UnixMilli() {
+		t.Errorf("claude: %+v, want 4000 ms of work, no session", got)
+	}
+	if len(sum.Agents) != 1 {
+		t.Errorf("an empty agent or an empty run is not recorded: %+v", sum.Agents)
+	}
+	if r.Take() == nil {
+		t.Error("the record changed and must be written")
+	}
+}
+
 func TestOnlyTheLastSevenDaysCount(t *testing.T) {
 	t.Parallel()
 	r := MakeRecorder()
