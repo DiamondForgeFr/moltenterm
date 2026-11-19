@@ -138,9 +138,11 @@ type SettingsType struct {
 	AppLanguage string `json:"app:language,omitempty" jsonschema_description:"The interface language: system (the OS preferred languages, the default), en, fr or an installed language"`
 
 	// MOLTENTERM-PATCH (#261): the coding agents whose plan usage gauges the agent companion shows (FR-SHELL-027, pkg/molten/usage).
-	CompanionUsageGauges []string `json:"companion:usagegauges,omitempty" jsonschema_description:"Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"`
+	CompanionUsageGauges []string `json:"companion:usagegauges,omitempty" jsonschema_description:"Coding agents (claude, codex, kimi) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"`
 	// MOLTENTERM-PATCH (#262): Claude Code's experimental plan usage source, off unless confirmed in the companion (FR-SHELL-028).
 	CompanionUsageClaudeOAuth bool `json:"companion:usageclaudeoauth,omitempty" jsonschema_description:"Also read Claude Code's model limits and credits from Anthropic's undocumented usage endpoint, with Claude Code's own sign-in token (experimental). Set from the companion's confirmation"`
+	// MOLTENTERM-PATCH (#2393): Kimi Code's experimental managed plan usage source, off unless confirmed in the companion (FR-CONT-030).
+	CompanionUsageKimiOAuth bool `json:"companion:usagekimioauth,omitempty" jsonschema_description:"Also read Kimi Code's managed usage limits, booster balance and monthly spending from its undocumented .com endpoint, with the shared managed OAuth sign-in (experimental). Set from the companion's confirmation"`
 	// MOLTENTERM-PATCH (#2392): one sentence per milestone ticket in the interface language, off until the developer agrees (FR-SHELL-018).
 	CompanionTicketSummaries bool `json:"companion:ticketsummaries,omitempty" jsonschema_description:"Explain each ticket of the active milestone in one sentence in the interface language, written by the project's coding agent with a small model, at most 24 times a day. Off by default; turned on from the companion's offer or here, with a confirmation"`
 	// MOLTENTERM-PATCH (#403): the All line maps and All CI/CD panels scopes of their command panel options (FR-SHELL-049).
@@ -200,7 +202,7 @@ type SettingsType struct {
 	// read once at startup to migrate (MigratePowerSettings) and never written again.
 	PowerSleepPolicy      string `json:"power:sleeppolicy,omitempty" jsonschema:"enum=allow,enum=untilworkends,enum=letsleep" jsonschema_description:"Replaced by power:automatic and power:terminalrequests; MoltenTerm moves its value to them at startup and removes it"`
 	PowerAutomatic        bool   `json:"power:automatic,omitempty" jsonschema_description:"Automatic keep-awake: while any agent works on this computer, MoltenTerm keeps it awake itself and releases it after the grace delay (power:graceminutes). The display may always sleep"`
-	PowerGraceMinutes    *int64 `json:"power:graceminutes,omitempty" jsonschema:"enum=1,enum=2,enum=5,enum=10,enum=15" jsonschema_description:"Minutes the computer stays awake after the last work stopped (1, 2, 5, 10 or 15); 2 when unset"`
+	PowerGraceMinutes     *int64 `json:"power:graceminutes,omitempty" jsonschema:"enum=1,enum=2,enum=5,enum=10,enum=15" jsonschema_description:"Minutes the computer stays awake after the last work stopped (1, 2, 5, 10 or 15); 2 when unset"`
 	PowerWorkAgents       *bool  `json:"power:workagents,omitempty" jsonschema_description:"An agent at work, or still busy with background subagents or commands after its turn, counts as work; true when unset"`
 	PowerWorkCommands     *bool  `json:"power:workcommands,omitempty" jsonschema_description:"A foreground command in a terminal that is not an idle shell counts as work; true when unset"`
 	PowerWorkProjects     *bool  `json:"power:workprojects,omitempty" jsonschema_description:"A Mission Control run of a project counts as work; true when unset"`

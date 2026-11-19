@@ -20,6 +20,7 @@ const (
 	ReasonDenied       = "denied"
 	ReasonRateLimited  = "ratelimited"
 	ReasonOffline      = "offline"
+	ReasonUnsupported  = "unsupported"
 )
 
 // OptInSource is a source with its own opt-in, kept in a setting of its own and written only from its confirmation.

@@ -18,6 +18,8 @@ import (
 const (
 	WindowSession = "session"
 	WindowWeek    = "week"
+	// A month follows the calendar, so it has no fixed WindowMins duration.
+	WindowMonth = "month"
 	// A model-specific window is "model:<name>", a window known only by its length "window:<mins>".
 	WindowModelPrefix  = "model:"
 	WindowLengthPrefix = "window:"
@@ -148,14 +150,22 @@ type UsageWindow struct {
 	WindowMins int64 `json:"windowmins,omitempty"`
 }
 
+type UsageMonthlySpend struct {
+	Used         float64 `json:"used"`
+	Limit        float64 `json:"limit"`
+	LimitEnabled bool    `json:"limitenabled"`
+	Unit         string  `json:"unit,omitempty"`
+}
+
 type UsageCredits struct {
 	Enabled bool    `json:"enabled"`
 	Used    float64 `json:"used"`
 	Limit   float64 `json:"limit"`
 	Unit    string  `json:"unit,omitempty"`
 	// Codex gives a balance, as text, or unlimited credits, instead of used and limit.
-	Balance   string `json:"balance,omitempty"`
-	Unlimited bool   `json:"unlimited,omitempty"`
+	Balance   string             `json:"balance,omitempty"`
+	Unlimited bool               `json:"unlimited,omitempty"`
+	Monthly   *UsageMonthlySpend `json:"monthly,omitempty"`
 }
 
 // MergeSnapshots merges the snapshots of an agent's sources, given best source first: a window id a better source

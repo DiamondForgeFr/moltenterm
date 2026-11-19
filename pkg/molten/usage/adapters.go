@@ -8,6 +8,7 @@ import "github.com/wavetermdev/waveterm/pkg/molten"
 const (
 	ClaudeUsagePageURL = "https://claude.ai/settings/usage"
 	CodexUsagePageURL  = "https://chatgpt.com/codex/settings/usage"
+	KimiUsagePageURL   = "https://www.kimi.com/membership/pricing"
 )
 
 // pageAdapter is an agent known by its usage page; the gauges sources of #261 to #263 go in its sources, best first.
@@ -42,4 +43,9 @@ func MakeClaudeUsageAdapter() UsageAdapter {
 func MakeCodexUsageAdapter() UsageAdapter {
 	return &pageAdapter{id: molten.AgentIdCodex, pageURL: CodexUsagePageURL, pageName: "Codex usage", domain: "chatgpt.com",
 		sources: []GaugesSource{MakeCodexTranscriptSource(DefaultCodexUsage), MakeCodexAppServerSource(DefaultCodexUsage)}}
+}
+
+func MakeKimiUsageAdapter() UsageAdapter {
+	return &pageAdapter{id: molten.AgentIdKimi, pageURL: KimiUsagePageURL, pageName: "Kimi Code plans", domain: "kimi.com",
+		sources: []GaugesSource{DefaultKimiOAuthSource}}
 }

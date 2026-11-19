@@ -13,12 +13,13 @@ import (
 )
 
 func TestBuiltinAdapters(t *testing.T) {
-	if got := Agents(); !reflect.DeepEqual(got, []string{"claude", "codex"}) {
+	if got := Agents(); !reflect.DeepEqual(got, []string{"claude", "codex", "kimi"}) {
 		t.Fatalf("agents: %v", got)
 	}
 	cases := map[string]UsagePage{
 		"claude": {PageURL: "https://claude.ai/settings/usage", PageName: "Claude usage"},
 		"codex":  {PageURL: "https://chatgpt.com/codex/settings/usage", PageName: "Codex usage"},
+		"kimi":   {PageURL: "https://www.kimi.com/membership/pricing", PageName: "Kimi Code plans"},
 	}
 	for agent, want := range cases {
 		page := PageOf(agent)
@@ -36,6 +37,26 @@ func TestBuiltinAdapters(t *testing.T) {
 	s = For("codex").Sources()
 	if len(s) != 2 || s[0].Id() != CodexTranscriptSourceId || s[0].Documented() || s[1].Id() != CodexAppServerSourceId || !s[1].Documented() {
 		t.Errorf("codex: the session log first (undocumented), then the app-server (documented): %v", s)
+	}
+	s = For("kimi").Sources()
+	if len(s) != 1 || s[0].Id() != KimiOAuthSourceId || s[0].Documented() {
+		t.Fatalf("kimi: one undocumented managed OAuth source: %v", s)
+	}
+	optIn := OptInOf(For("kimi"))
+	if optIn == nil || optIn.SettingKey() != "companion:usagekimioauth" {
+		t.Fatalf("kimi: its own source opt-in: %v", optIn)
+	}
+	settings := &wconfig.SettingsType{}
+	if optIn.Enabled(settings) || s[0].Enabled(settings) {
+		t.Error("kimi: off by default")
+	}
+	settings.CompanionUsageKimiOAuth = true
+	if optIn.Enabled(settings) {
+		t.Error("kimi: the source opt-in alone is not enough")
+	}
+	settings.CompanionUsageGauges = []string{"kimi"}
+	if !optIn.Enabled(settings) {
+		t.Error("kimi: both opt-ins enable the source")
 	}
 }
 
@@ -190,6 +211,20 @@ func TestReadGauges(t *testing.T) {
 	}
 	if res := ReadGauges(context.Background(), For("claude"), settings, "b1", now); res.State != GaugesOff {
 		t.Errorf("built-in Claude adapter, not turned on: %+v", res)
+	}
+}
+
+func TestCloneSnapshotDeepClonesMonthlyCredits(t *testing.T) {
+	original := UsageSnapshot{
+		Windows: []UsageWindow{{Id: WindowMonth, UsedPercent: 25}},
+		Credits: &UsageCredits{Balance: "12.35", Monthly: &UsageMonthlySpend{Used: 5.43, Limit: 20, LimitEnabled: true, Unit: "USD"}},
+	}
+	cloned := cloneSnapshot(original)
+	cloned.Windows[0].UsedPercent = 80
+	cloned.Credits.Balance = "0.00"
+	cloned.Credits.Monthly.Used = 0
+	if original.Windows[0].UsedPercent != 25 || original.Credits.Balance != "12.35" || original.Credits.Monthly.Used != 5.43 {
+		t.Errorf("the cached snapshot changed: %+v", original)
 	}
 }
 
