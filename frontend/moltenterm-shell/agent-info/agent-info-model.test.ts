@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { HandoffHistoryEntry } from "../agent-links/agent-links-model";
 import {
     linkedAgents,
+    MaxRunningSubRows,
     mcpServerRows,
     nextSubagentExpiry,
     sharedPages,
@@ -174,6 +175,21 @@ describe("subagentGroups", () => {
         const g = subagentGroups(twelve, Now, true, {});
         expect(g.lingering).toEqual([]);
         expect(g.running).toHaveLength(3);
+    });
+
+    // #2397: quiet ones started days ago came first and filled the shown rows; the agents at work went behind "+n".
+    it("lists the ones at work before the quiet ones, so the shown rows never hide one at work", () => {
+        const rows = [
+            row("q1", "idle", Now - 3 * 24 * 60 * Minute),
+            row("q2", "idle", Now - 2 * 24 * 60 * Minute),
+            row("q3", "idle", Now - 24 * 60 * Minute),
+            row("q4", "idle", Now - 20 * 60 * Minute),
+            row("w1", "working", Now - 30 * Minute),
+            row("w2", "working", Now - 10 * Minute),
+        ];
+        const g = subagentGroups(rows, Now, false, {});
+        expect(g.running.slice(0, MaxRunningSubRows).map((r) => r.id)).toEqual(["w1", "w2", "q1", "q2", "q3"]);
+        expect(subagentCardGroups(rows, {}).running.map((r) => r.id)).toEqual(["w1", "w2", "q1", "q2", "q3", "q4"]);
     });
 });
 

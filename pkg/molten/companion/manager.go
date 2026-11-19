@@ -1286,6 +1286,16 @@ func (w *watcher) settleSubagents() {
 	}
 	w.quietAt = now
 	writer, _ := w.adapter.(SubagentWriter)
+	// The sub-agents' own files are listed outside the lock: the commands never wait for that read.
+	var files []SubagentIdentity
+	listed := ""
+	if lister, ok := w.adapter.(SubagentFileLister); ok {
+		var open []string
+		listed, open = w.sessionPathNow()
+		if listed != "" {
+			files = readSubagentFiles(lister, listed, open)
+		}
+	}
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	if w.session == nil {
@@ -1296,10 +1306,24 @@ func (w *watcher) settleSubagents() {
 	if writer != nil {
 		lastWrite = func(agentId string) int64 { return writer.SubagentWritten(path, agentId) }
 	}
+	if listed != "" && listed == path {
+		w.session.SettleSubagentFiles(files, now.UnixMilli())
+	}
 	if w.adapter.Id() == molten.AgentIdClaude {
 		w.session.ReviveSubagents(now.UnixMilli(), lastWrite)
 	}
 	w.session.QuietSubagents(now.UnixMilli(), lastWrite)
+}
+
+// sessionPathNow is the transcript the watcher follows ("" before one is linked) and the agent ids of its sub-agents
+// still taken for running or quiet.
+func (w *watcher) sessionPathNow() (string, []string) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.session == nil {
+		return "", nil
+	}
+	return w.path, w.session.settledAgentIds()
 }
 
 // readAgentFacts gives the agents their ticket and its complexity (#601). Only a refresh (a view that shows asked)

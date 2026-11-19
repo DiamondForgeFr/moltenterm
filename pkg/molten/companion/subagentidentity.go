@@ -48,6 +48,10 @@ type SubagentIdentity struct {
 	Started int64
 	// LastWrite: when it last wrote its transcript, or its end when a hook reported it, in Unix milliseconds.
 	LastWrite int64
+	// CallId: the parent's call that started it (Claude Code's toolUseId), "" when its files do not name it.
+	CallId string
+	// Ended: when its files say it finished (Claude Code: its meta file's write), 0 when they do not (#2397).
+	Ended int64
 }
 
 // SubagentLister is an adapter that lists a session's sub-agents from their own files.
@@ -70,6 +74,78 @@ func readClaudeSubagentMeta(path string) (claudeSubagentMeta, bool) {
 		return claudeSubagentMeta{}, false
 	}
 	return meta, true
+}
+
+// claudeFinished is Claude Code's own word on a sub-agent's end (#2397): it writes "finished" into the meta file when
+// the agent ends, and rewrites the file without it when SendMessage resumes the agent. A transcript written well after
+// the meta is an agent that runs again, whatever the meta still says. The parent transcript is not needed: its end
+// may lie before the part read, or a TaskStop ended the agent without a notification.
+func claudeFinished(meta claudeSubagentMeta, metaAt int64, written int64) bool {
+	return meta.Finished && written-metaAt <= SubagentReviveAfter.Milliseconds()
+}
+
+// claudeIdentity is a sub-agent as its meta file and its files' last writes describe it.
+func claudeIdentity(agentId string, meta claudeSubagentMeta, metaAt int64, written int64) SubagentIdentity {
+	id := SubagentIdentity{
+		AgentId: agentId, Description: cutString(oneLine(meta.Description), MaxSubagentText), Kind: cutString(meta.AgentType, 100),
+		Worktree: meta.WorktreePath, Finished: claudeFinished(meta, metaAt, written), LastWrite: written,
+		CallId: cutString(meta.ToolUseId, 200),
+	}
+	if id.Finished {
+		id.Ended = metaAt
+	}
+	return id
+}
+
+// claudeSubagentEntry is a sub-agent's meta file in the session's subagents/ folder, with its files' last writes.
+type claudeSubagentEntry struct {
+	id     string
+	metaAt int64
+	// write: its transcript's last write, 0 without a transcript.
+	write int64
+	info  os.FileInfo
+}
+
+// claudeSubagentEntries lists the sub-agents of a session's subagents/ folder, the most recently written first, from
+// the folder's listing alone (no file is read): a cap on the meta files read never drops a recent agent for one that
+// ended long ago (#2397: the folder of a long lead session holds hundreds).
+func claudeSubagentEntries(dir string) []claudeSubagentEntry {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	transcripts := map[string]os.FileInfo{}
+	var rtn []claudeSubagentEntry
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, "agent-") || !e.Type().IsRegular() {
+			continue
+		}
+		if agentId, ok := strings.CutSuffix(strings.TrimPrefix(name, "agent-"), ".jsonl"); ok && claudeAgentIdRegex.MatchString(agentId) {
+			if info, err := e.Info(); err == nil {
+				transcripts[agentId] = info
+			}
+			continue
+		}
+		agentId, ok := strings.CutSuffix(strings.TrimPrefix(name, "agent-"), ".meta.json")
+		if !ok || !claudeAgentIdRegex.MatchString(agentId) {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		rtn = append(rtn, claudeSubagentEntry{id: agentId, metaAt: info.ModTime().UnixMilli()})
+	}
+	for i := range rtn {
+		if info, ok := transcripts[rtn[i].id]; ok {
+			rtn[i].info, rtn[i].write = info, info.ModTime().UnixMilli()
+		}
+	}
+	sort.SliceStable(rtn, func(i, j int) bool {
+		return max(rtn[i].write, rtn[i].metaAt) > max(rtn[j].write, rtn[j].metaAt)
+	})
+	return rtn
 }
 
 // claudeSubagentDir is the folder of a session's sub-agents: <slug>/<session>/subagents.
@@ -149,46 +225,16 @@ func (a *ClaudeAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 		return nil
 	}
 	dir := claudeSubagentDir(sessionPath)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-	type found struct {
-		id    string
-		meta  claudeSubagentMeta
-		info  os.FileInfo
-		write int64
-	}
-	var all []found
-	for _, e := range entries {
-		name := e.Name()
-		agentId, ok := strings.CutSuffix(strings.TrimPrefix(name, "agent-"), ".meta.json")
-		if !ok || !strings.HasPrefix(name, "agent-") || !claudeAgentIdRegex.MatchString(agentId) || !e.Type().IsRegular() {
-			continue
-		}
-		if len(all) >= claudeMaxSubagentMetas {
+	rtn := make([]SubagentIdentity, 0, maxIdentitySubagents)
+	for _, f := range claudeSubagentEntries(dir) {
+		if len(rtn) >= maxIdentitySubagents {
 			break
 		}
-		meta, ok := readClaudeSubagentMeta(filepath.Join(dir, name))
+		meta, ok := readClaudeSubagentMeta(filepath.Join(dir, "agent-"+f.id+".meta.json"))
 		if !ok {
 			continue
 		}
-		f := found{id: agentId, meta: meta}
-		if info, err := os.Lstat(filepath.Join(dir, "agent-"+agentId+".jsonl")); err == nil && info.Mode().IsRegular() {
-			f.info, f.write = info, info.ModTime().UnixMilli()
-		}
-		all = append(all, f)
-	}
-	sort.SliceStable(all, func(i, j int) bool { return all[i].write > all[j].write })
-	if len(all) > maxIdentitySubagents {
-		all = all[:maxIdentitySubagents]
-	}
-	rtn := make([]SubagentIdentity, 0, len(all))
-	for _, f := range all {
-		id := SubagentIdentity{
-			AgentId: f.id, Description: cutString(oneLine(f.meta.Description), MaxSubagentText), Kind: cutString(f.meta.AgentType, 100),
-			Worktree: f.meta.WorktreePath, Finished: f.meta.Finished, LastWrite: f.write,
-		}
+		id := claudeIdentity(f.id, meta, f.metaAt, f.write)
 		if f.info != nil {
 			path := filepath.Join(dir, "agent-"+f.id+".jsonl")
 			facts, _ := cachedTail(path, f.info, func() (tailFacts, bool) {
@@ -203,7 +249,7 @@ func (a *ClaudeAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 				id.Worktree = facts.cwd
 			}
 		}
-		id.Model, id.Effort = a.withAgentDefinition(id.Model, id.Effort, f.meta.AgentType, id.Worktree)
+		id.Model, id.Effort = a.withAgentDefinition(id.Model, id.Effort, meta.AgentType, id.Worktree)
 		rtn = append(rtn, id)
 	}
 	return rtn
@@ -280,7 +326,9 @@ func ApplyHookSubagents(ids []SubagentIdentity, hooks []SubagentHookEvent, now t
 	}
 	for i := range ids {
 		id := &ids[i]
-		if at, ok := stopAt[id.AgentId]; ok && at >= startAt[id.AgentId] {
+		// A stop is not an end when the agent wrote its transcript well after it (#2397): an agent stops its turn and
+		// goes on (its own background work, a SendMessage resume) without a new start.
+		if at, ok := stopAt[id.AgentId]; ok && at >= startAt[id.AgentId] && id.LastWrite-at <= SubagentReviveAfter.Milliseconds() {
 			id.Finished = true
 			if id.LastWrite == 0 || at < id.LastWrite {
 				id.LastWrite = at
