@@ -3,7 +3,7 @@
 
 // The switch picture (#2375) on real views: the rules are in moltenterm-switch-picture.ts. This file takes the capture of
 // a view being left (Electron's capturePage, encoded once the switch has landed), runs the scripts in the views, holds
-// the leaver's keys while its overlay shows, and listens to the intent the sidebar and the shortcut's modifier give.
+// the leaver's keys while its overlay shows, and listens to the intent the sidebar's dots give.
 
 import { ObjectService } from "@/app/store/services";
 import type { WaveTabView } from "./emain-tabview";
@@ -13,6 +13,7 @@ import { isFlatFrame } from "./moltenterm-carpet-thumb-store";
 import { onAppIpc } from "./moltenterm-privileged-ipc";
 import {
     PictureChannel,
+    prunePictures,
     SwitchCoverGraceMs,
     SwitchEncodeDelayMs,
     encodeWaitMs,
@@ -234,6 +235,7 @@ function encodePicture(
         console.log(
             `[#2375] picture kept for ${tabId}: ${width}x${height}, ${translucent ? "png" : "jpeg"} ${Math.round(bytes.length / 1024)} KB, encoded in ${Date.now() - started} ms (${store.size} kept)`
         );
+        pruneDeletedSwitchPictures();
     } catch (e) {
         console.log("[#2375] a view's picture could not be kept", tabId, String((e as Error)?.message ?? e));
     }
@@ -372,6 +374,15 @@ export function dropSwitchPicturesOfWorkspace(workspaceId: string) {
     store.dropWorkspace(workspaceId);
 }
 
+// A tab can be closed by the window, the backend, an agent or `wsh`: the pictures' tabs are asked of the backend each
+// time a picture is kept and each time the views of deleted tabs are swept (#448), and the ones it lost go.
+export function pruneDeletedSwitchPictures() {
+    prunePictures(store, async (tabIds) => {
+        const tabs = await ObjectService.GetObjects(tabIds.map((id) => "tab:" + id));
+        return new Set((tabs ?? []).filter((tab) => tab != null).map((tab) => tab.oid));
+    }).catch((): void => null);
+}
+
 // The pending state over a picture: the waiting indicator goes on the picture, never on the view hidden under it. A
 // failure leaves the picture and shows on the view, where its Reload lives.
 export type PendingShim = {
@@ -431,7 +442,9 @@ function parseTarget(value: unknown): SwitchTarget {
 
 let initialized = false;
 
-// The sidebar's dots (a hover, a focus, a press) and the shortcut's modifier prepare the picture before the click.
+// The sidebar's dots (a dwell, a focus, a press) prepare the picture before the click. The workspace shortcut prepares
+// nothing ahead: its modifier alone is typing (⌥ types { } [ ] | ~ on a French keyboard, terminals take Alt as Meta), and
+// its target is known only once its digit is handled, which is the action itself.
 export function initSwitchPicture() {
     if (initialized) {
         return;
@@ -447,18 +460,5 @@ export function initSwitchPicture() {
         noteSwitchActivity();
         windowSwitch(win).arm(adapterOf(view), target, tabViewWorkspace(view));
     });
-}
-
-// The modifier of the workspace shortcut goes down: the workspace left last is the likeliest target, and its picture is
-// decoded before the digit comes.
-export function noteSwitchModifier(win: WaveBrowserWindow, view: WaveTabView, input: Electron.Input) {
-    if (win == null || view == null || input.type !== "keyDown" || input.key !== "Alt" || input.isAutoRepeat) {
-        return;
-    }
-    noteSwitchActivity();
-    const last = store.latest(view.waveTabId, Date.now());
-    if (last != null) {
-        windowSwitch(win).arm(adapterOf(view), { tabId: last.tabId }, tabViewWorkspace(view));
-    }
 }
 

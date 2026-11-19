@@ -19,6 +19,7 @@ import {
     prepareCoverScript,
     isSettled,
     pictureFits,
+    prunePictures,
     removeCoverScript,
     removeOverlayScript,
     SettleReport,
@@ -26,6 +27,7 @@ import {
     showPictureScript,
     StableProbes,
     SwitchArmedMs,
+    SwitchCoverMaxMs,
     SwitchHoldMaxMs,
     SwitchMotion,
     SwitchPicture,
@@ -136,13 +138,43 @@ describe("the picture store", () => {
         expect(store.size).toBe(0);
     });
 
-    it("finds the picture taken last, other than one tab's own", () => {
+    it("drops the pictures of tabs the backend no longer has, whichever path closed them", async () => {
         const store = new SwitchPictureStore();
         store.put(pic("a", "w1", 1));
-        store.put(pic("b", "w2", 9));
-        expect(store.latest("b", 10).tabId).toBe("a");
-        expect(store.latest("zzz", 10).tabId).toBe("b");
-        expect(store.latest("a", 100000000)).toBeNull();
+        store.put(pic("b", "w1", 2));
+        store.put(pic("c", "w2", 3));
+        const asked: string[][] = [];
+        const dropped = await prunePictures(store, async (ids) => {
+            asked.push(ids);
+            return new Set(["b"]);
+        });
+        expect(asked).toEqual([["a", "b", "c"]]);
+        expect(dropped).toBe(2);
+        expect(store.tabIds()).toEqual(["b"]);
+    });
+
+    it("drops nothing when the backend does not answer, and asks nothing when there is nothing to ask", async () => {
+        const store = new SwitchPictureStore();
+        let calls = 0;
+        expect(await prunePictures(store, async () => (calls++, new Set<string>()))).toBe(0);
+        expect(calls).toBe(0);
+        store.put(pic("a", "w1", 1));
+        expect(
+            await prunePictures(store, async () => {
+                throw new Error("no answer");
+            })
+        ).toBe(0);
+        expect(store.tabIds()).toEqual(["a"]);
+    });
+
+    it("keeps a picture put while the backend was answering", async () => {
+        const store = new SwitchPictureStore();
+        store.put(pic("a", "w1", 1));
+        await prunePictures(store, async () => {
+            store.put(pic("fresh", "w1", 2));
+            return new Set<string>();
+        });
+        expect(store.tabIds()).toEqual(["fresh"]);
     });
 
     it("keeps few and small pictures: six, of at most 1600 px", () => {
@@ -241,6 +273,7 @@ function fakePage(
     const decodeGates: (() => void)[] = [];
     const animations:{ el: FakeEl; frames: any; opts: any; finish: () => void }[] = [];
     const timers: (() => void)[] = [];
+    const delays: number[] = [];
     const root = makeEl("html");
     const body = makeEl("body");
     const all = new Set<FakeEl>();
@@ -371,7 +404,10 @@ function fakePage(
             window,
             getComputedStyle,
             Image,
-            (fn: () => void) => timers.push(fn),
+            (fn: () => void, ms?: number) => {
+                delays.push(ms);
+                return timers.push(fn);
+            },
             (fn: () => void) => fn(),
             MessageChannel,
             URLish
@@ -380,6 +416,7 @@ function fakePage(
         run,
         animations,
         timers,
+        delays,
         root,
         body,
         document,
@@ -674,6 +711,16 @@ describe("the cover on the target", () => {
         expect(page.root.hasAttribute(CoverAttribute)).toBe(false);
     });
 
+    it("lets go of a cover its switch never took off within a few seconds, not the leaver's whole hold", async () => {
+        const page = fakePage({ tokens: Tokens });
+        await cover(page, false);
+        expect(page.delays).toEqual([SwitchCoverMaxMs]);
+        expect(SwitchCoverMaxMs).toBeLessThanOrEqual(3000);
+        // long enough for a reinit (400 ms at most) and the wait for the panels
+        expect(SwitchCoverMaxMs).toBeGreaterThan(400 + SwitchSettleMaxMs);
+        expect(SwitchCoverMaxMs).toBeLessThan(SwitchHoldMaxMs);
+    });
+
     it("counts each panel once, whatever the frames the page draws for it", async () => {
         const page = fakePage({ blocks: ["a", "a", "b", "b", "c"] });
         expect(await (page.run(settleProbeScript()) as Promise<SettleReport>)).toEqual({ blocks: 3, visible: true });
@@ -876,6 +923,34 @@ describe("one window's switch", () => {
         vi.useRealTimers();
     });
 
+    it("leaves a newer switch's cover alone when an older switch's wait for the same view ends (A to B, B to A, A to B)", async () => {
+        const { sw, leaver, target } = setup();
+        // switch 1 lands on B and waits for its panels, which never all come
+        sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" });
+        await sw.cover(target, "target");
+        target.answers.settle = { blocks: 0, visible: true };
+        const first = sw.arrived(target, "target");
+        await vi.advanceTimersByTimeAsync(SwitchSettlePollMs);
+        // switch 3 goes to B again while that wait goes on, and puts its own cover on
+        sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" });
+        await sw.cover(target, "target");
+        await sw.attach(target);
+        const scriptsBefore = target.scripts.length;
+        await vi.advanceTimersByTimeAsync(SwitchSettleMaxMs + SwitchSettlePollMs);
+        await first;
+        // the first wait ended without touching it: no dissolve, and the cover is still the switch's
+        expect(target.scripts.slice(scriptsBefore).filter((s) => s === uncoverScript())).toHaveLength(0);
+        expect(target.scripts.filter((s) => s === uncoverScript())).toHaveLength(0);
+        expect(sw.isPreparedAhead(target, "target")).toBe(false);
+        // the third switch lands and takes its own cover off, once
+        target.answers.settle = { blocks: 2, visible: true };
+        const third = sw.arrived(target, "target");
+        await vi.advanceTimersByTimeAsync(SwitchSettlePollMs);
+        await third;
+        expect(target.scripts.filter((s) => s === uncoverScript())).toHaveLength(1);
+        vi.useRealTimers();
+    });
+
     it("keeps looking while panels mount, and lets the picture go anyway after SwitchSettleMaxMs", async () => {
         const { sw, leaver, target, log } = setup();
         sw.begin(leaver, "leaver", "wl", { workspaceId: "wt" });
@@ -1057,5 +1132,29 @@ describe("one window's switch", () => {
         sw.showWaiting(null);
         expect(scriptsOf(leaver, "mt-switch-wait").length).toBeGreaterThanOrEqual(2);
         vi.useRealTimers();
+    });
+});
+
+describe("typing arms nothing, and a closed tab leaves no picture (#2375)", () => {
+    const source = (path: string) => readFileSync(path, "utf8");
+
+    it("keeps every key hook of the tab view away from the switch picture: Option types { } [ ] | ~ and terminals take Alt as Meta", () => {
+        expect(source("emain/emain-tabview.ts")).not.toContain("moltenterm-switch-picture");
+        const live = source("emain/moltenterm-switch-picture-live.ts");
+        expect(live).not.toContain("noteSwitchModifier");
+        expect(live).not.toMatch(/input\.key\s*[!=]==?\s*"Alt"/);
+    });
+
+    it("arms only from the intent of a dot, which is a dwell of the pointer", () => {
+        const live = source("emain/moltenterm-switch-picture-live.ts");
+        expect(live.match(/\.arm\(/g)).toHaveLength(1);
+        expect(live).toContain("onAppIpc(SwitchIntentChannel");
+        expect(source("frontend/moltenterm-shell/sidebar/sidebar-switch.ts")).toContain("makeSwitchIntent(");
+    });
+
+    it("asks the backend which of the pictures' tabs are left each time the views of deleted tabs are swept", () => {
+        const host = source("emain/moltenterm-tabview-host.ts");
+        const sweep = host.slice(host.indexOf("export function sweepDeletedTabViews"));
+        expect(sweep.slice(0, sweep.indexOf("\n}\n"))).toContain("pruneDeletedSwitchPictures();");
     });
 });

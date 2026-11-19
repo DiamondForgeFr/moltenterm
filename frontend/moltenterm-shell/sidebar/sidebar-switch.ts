@@ -12,6 +12,7 @@ import { useAtomValue } from "jotai";
 import { useEffect } from "react";
 import { prefersReducedMotion } from "../molten-motion";
 import { settleFrames, SettleMs, settleOffset, SwipeAbsorb, SwipeSettle, workspaceAtNumber } from "./sidebar-swipe";
+import { makeSwitchIntent } from "./switch-intent";
 
 export const SwitchIntentKey = "moltenterm:sidebar-switch";
 // The new workspace's tab view may take a moment to load; an older record belongs to a switch that went elsewhere.
@@ -140,12 +141,20 @@ export function switchFromSidebar(workspaceId: string, direction: -1 | 1, swipe?
         }
     }
     writeStorage(SwitchIntentKey, JSON.stringify(intent));
+    dotIntent.leave();
     getApi().switchWorkspace(workspaceId);
 }
 
-// A hover, a focus or a press on a workspace's dot: main decodes that workspace's last picture ahead of the click (#2375).
+const dotIntent = makeSwitchIntent((workspaceId) => (getApi() as any).moltentermSwitchIntent?.({ workspaceId }));
+
+// The pointer rests on a workspace's dot (a dwell, not a sweep across it): main decodes that workspace's last picture
+// ahead of the click (#2375).
 export function notifySwitchIntent(workspaceId: string) {
-    (getApi() as any).moltentermSwitchIntent?.({ workspaceId });
+    dotIntent.enter(workspaceId);
+}
+
+export function cancelSwitchIntent() {
+    dotIntent.leave();
 }
 
 // The direction a switch from one workspace to another goes along the bottom bar's order.

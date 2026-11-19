@@ -38,6 +38,10 @@ export const SwitchArmedMs = 10000;
 export const SwitchCoverGraceMs = 8;
 // A switch that never reached its target (its action died without a word) lets the picture go after this.
 export const SwitchHoldMaxMs = 15000;
+// A cover its switch never took off (its action died without a word) goes by itself after this: a reinit is waited
+// for 400 ms at most and the panels for SwitchSettleMaxMs, so a live switch is done long before, and a stuck cover is
+// not left over a view in use for as long as the leaver's hold.
+export const SwitchCoverMaxMs = 3000;
 // The capture of a view being left is encoded once the switch has landed: the resize and the JPEG are the one slow
 // step, and the swap and the first frames of the target must not wait for them.
 export const SwitchEncodeDelayMs = 400;
@@ -54,7 +58,7 @@ export function encodeWaitMs(now: number, quietUntil: number): number {
 export function quietUntilAfter(now: number, current: number): number {
     return Math.max(current, now + SwitchEncodeQuietMs);
 }
-// Each capture waiting to be encoded holds a whole bitmap (about 20 MB on a large display): two at most wait.
+// Each capture waiting to be encoded holds a whole bitmap (about 59 MB on a 5K HiDPI display): two at most wait.
 export const SwitchEncodeQueueMax = 2;
 // A view's picture is not taken again within this long of the last one.
 export const SwitchPictureMinGapMs = 3000;
@@ -139,20 +143,6 @@ export class SwitchPictureStore {
         return best;
     }
 
-    // The picture taken last, other than one tab's own: the workspace left last, the likeliest next target.
-    latest(excludeTabId: string, now: number): SwitchPicture {
-        let best: SwitchPicture = null;
-        for (const picture of Array.from(this.entries.values())) {
-            if (picture.tabId === excludeTabId || now - picture.at > this.maxAgeMs) {
-                continue;
-            }
-            if (best == null || picture.at > best.at) {
-                best = picture;
-            }
-        }
-        return best;
-    }
-
     forTarget(target: SwitchTarget, now: number): SwitchPicture {
         if (target?.tabId != null) {
             return this.forTab(target.tabId, now);
@@ -181,9 +171,36 @@ export class SwitchPictureStore {
         }
     }
 
+    tabIds(): string[] {
+        return Array.from(this.entries.keys());
+    }
+
     clear() {
         this.entries.clear();
     }
+}
+
+// A tab closed by any path (the window, the backend, an agent, `wsh`) leaves no picture behind: the pictures' tabs are
+// asked of the backend and the ones it no longer has go. A backend that does not answer drops nothing.
+export async function prunePictures(
+    store: SwitchPictureStore,
+    existingTabIds: (tabIds: string[]) => Promise<ReadonlySet<string>>
+): Promise<number> {
+    const before = store.tabIds();
+    if (before.length === 0) {
+        return 0;
+    }
+    let existing: ReadonlySet<string>;
+    try {
+        existing = await existingTabIds(before);
+    } catch (e) {
+        return 0;
+    }
+    // A picture put while the backend answered belongs to a tab it was not asked about: it stays.
+    const asked = new Set(before);
+    const gone = before.filter((id) => !existing.has(id));
+    store.keepOnly(new Set(store.tabIds().filter((id) => existing.has(id) || !asked.has(id))));
+    return gone.length;
 }
 
 export function pictureFits(picture: SwitchPicture, width: number, height: number): boolean {
@@ -387,7 +404,7 @@ var c = d.createElement("div"); c.id = ${JSON.stringify(CoverId)}; c.setAttribut
 c.style.cssText = "position:fixed;inset:0;z-index:2147483000;overflow:hidden;pointer-events:none";
 c.appendChild(img); d.body.appendChild(c);
 root.setAttribute(${JSON.stringify(CoverAttribute)}, ${JSON.stringify(hidesRoot ? CoverHidesRoot : "opaque")});
-setTimeout(function () { if (c.isConnected) { c.remove(); root.removeAttribute(${JSON.stringify(CoverAttribute)}); } }, ${SwitchHoldMaxMs + SwitchSettleMaxMs});
+setTimeout(function () { if (c.isConnected) { c.remove(); root.removeAttribute(${JSON.stringify(CoverAttribute)}); } }, ${SwitchCoverMaxMs});
 return "ok";
 } catch (e) { return "error:" + e; } })()`;
 }
@@ -515,6 +532,9 @@ export class WindowSwitchPicture {
     // The target pages that decoded their picture ahead of the click (the key of that picture): at the click, nothing is
     // left to run in a target that is busy with its reinit.
     private preparedAhead = new Map<string, string>();
+    // The switch (its token) a view's cover belongs to: A to B, B to A and A to B again within the first one's wait for
+    // the panels must not have that wait take the third switch's cover off.
+    private owners = new Map<string, number>();
 
     constructor(readonly deps: SwitchPictureDeps) {}
 
@@ -643,6 +663,7 @@ export class WindowSwitchPicture {
             return false;
         }
         cur.covered.add(target);
+        this.owners.set(target.id, cur.token);
         if (this.holds(target, cur.picture) && this.preparedAhead.get(target.id) === pictureKey(cur.picture)) {
             cur.prepared.add(target.id);
             return true;
@@ -725,7 +746,8 @@ export class WindowSwitchPicture {
         if (cur.picture.tabId !== tabId) {
             return Promise.resolve();
         }
-        return this.settle(target, tabId);
+        this.owners.set(target.id, cur.token);
+        return this.settle(target, tabId, cur.token);
     }
 
     // The switch ended without a target on screen: the leaver is where it was, the picture fades out.
@@ -773,14 +795,15 @@ export class WindowSwitchPicture {
         }
     }
 
-    private async settle(target: SwitchView, tabId: string) {
+    private async settle(target: SwitchView, tabId: string, token: number) {
         const d = this.deps;
+        const owns = () => this.owners.get(target.id) === token;
         const expected = await d.expectedBlocks(tabId).catch((): number => 0);
         const start = d.now();
         let settled = false;
         let last = -1;
         let stableFor = 0;
-        while (target.isLive() && d.now() - start < SwitchSettleMaxMs) {
+        while (owns() && target.isLive() && d.now() - start < SwitchSettleMaxMs) {
             const report = (await target.run(settleProbeScript()).catch((): unknown => null)) as SettleReport;
             stableFor = report != null && report.blocks === last ? stableFor + 1 : 0;
             last = report?.blocks ?? -1;
@@ -790,14 +813,18 @@ export class WindowSwitchPicture {
             }
             await new Promise<void>((resolve) => d.setTimer(resolve, SwitchSettlePollMs));
         }
-        if (!target.isLive()) {
+        // A newer switch owns the view's cover now: it takes it off itself, and this wait must leave it alone
+        if (!owns() || !target.isLive()) {
             return;
         }
         if (!settled) {
             d.log(`[#2375] panels not all mounted after ${SwitchSettleMaxMs} ms, the picture goes anyway`);
         }
         await target.run(uncoverScript()).catch((): unknown => null);
-        this.forget(target);
+        if (owns()) {
+            this.owners.delete(target.id);
+            this.forget(target);
+        }
     }
 }
 
