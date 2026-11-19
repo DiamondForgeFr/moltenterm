@@ -748,7 +748,7 @@ describe("the legend, the explanation and the source line (#2123)", () => {
 
     it("knows every source id of wavesrv, and has a name for each in both languages", () => {
         const dir = join(__dirname, "../../../pkg/molten/usage");
-        const goIds = ["claudeoauth.go", "claudestatusline.go", "codex.go"].flatMap((file) =>
+        const goIds = ["claudeoauth.go", "claudestatusline.go", "codex.go", "kimioauth.go"].flatMap((file) =>
             [...readFileSync(join(dir, file), "utf8").matchAll(/SourceId\s*=\s*"([^"]+)"/g)].map((m) => m[1])
         );
         expect([...goIds].sort()).toEqual([...UsageSourceIds].sort());
@@ -931,5 +931,50 @@ describe("the share of each day under its block (#2164)", () => {
         );
         expect(html).toContain("usage-week-unreadable");
         expect(html).not.toContain("usage-week-share");
+    });
+});
+
+describe("Kimi managed plan usage", () => {
+    const kimi: CompanionUsageInfo = {
+        ...enabled,
+        agent: "kimi",
+        sourcename: "Kimi Code managed usage endpoint",
+        snapshot: {
+            agent: "kimi",
+            source: "kimi-oauth",
+            readat: now,
+            windows: [
+                { id: "session", label: "Current session", usedpercent: 20, resetsat: now + Hour, windowmins: 300 },
+                { id: "week", label: "This week", usedpercent: 40, resetsat: now + 3 * 24 * Hour, windowmins: 10080 },
+                { id: "month", label: "This month", usedpercent: 60, resetsat: new Date(2026, 10, 1, 0, 0).getTime() },
+            ],
+            credits: {
+                enabled: true,
+                used: 0,
+                limit: 0,
+                balance: "12.35",
+                unit: "USD",
+                monthly: { used: 5.43, limit: 20, limitenabled: true, unit: "USD" },
+            },
+        },
+    };
+
+    it("shows three windows, their resets, booster and monthly spending, with no fourth gauge", () => {
+        const html = markup(kimi);
+        expect(windowsOf(html)).toEqual(["session", "week", "month"]);
+        expect(labelsOf(html)).toEqual(["Session", "Week", "Month"]);
+        expect(noteOf(html, "month")).toContain("Resets");
+        expect(html).toContain("Booster balance: $12.35");
+        expect(html).toContain("Monthly spending: $5.43 of $20.00");
+        expect(html).not.toContain("month_code");
+        const rows = gaugeRows(kimi.snapshot, now);
+        expect(rows[2].line.windowMins).toBe(0);
+        expect(rows[2].line.windowMins).not.toBe(43200);
+    });
+
+    it("uses Kimi-specific no-plan and unsupported explanations", () => {
+        expect(usageReasonText("noplan", "kimi")).toContain("no managed plan limits or booster wallet");
+        expect(usageReasonText("unsupported", "kimi")).toContain("shared .com file-backed managed sign-in");
+        expect(usageReasonText("unsupported", "claude")).toBe("This sign-in configuration is not supported");
     });
 });

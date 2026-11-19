@@ -10,6 +10,7 @@
 import type { UsageWindow } from "../companion/companion-gauges-model";
 
 export const WeekWindowId = "week";
+export const MonthWindowId = "month";
 // A window known only by its length: seven days.
 const WeekMins = 7 * 24 * 60;
 const SessionWindowId = "session";
@@ -83,21 +84,27 @@ function isRunning(window: UsageWindow, now: number): boolean {
     return window != null && Number.isFinite(window.usedpercent) && !(window.resetsat > 0 && window.resetsat <= now);
 }
 
-// The main window of a reading: its longest running one, whatever its length (a week, 30 days…). A reading whose only
-// window is the 5-hour session gives that one; none without a running window.
+function mainWindowRank(window: UsageWindow): number {
+    if (window.id === MonthWindowId) {
+        return Number.POSITIVE_INFINITY;
+    }
+    return usageWindowMins(window);
+}
+
+// A calendar month ranks above a week, a week above a session, without inventing a month duration.
 export function mainWindow(windows: UsageWindow[], now: number): UsageWindow {
     let best: UsageWindow = null;
-    let bestLength = -1;
+    let bestRank = -1;
     for (const w of windows ?? []) {
         if (!isRunning(w, now)) {
             continue;
         }
-        const length = usageWindowMins(w);
-        if (length < 0 || length <= bestLength) {
+        const rank = mainWindowRank(w);
+        if (rank < 0 || rank <= bestRank) {
             continue;
         }
         best = w;
-        bestLength = length;
+        bestRank = rank;
     }
     return best;
 }
@@ -127,6 +134,17 @@ export function lastReset(resetsAt: number, windowMins: number): number {
     const d = new Date(resetsAt);
     d.setDate(d.getDate() - windowMins / MinsPerDay);
     return d.getTime();
+}
+
+export function previousMonthReset(resetsAt: number): number {
+    const reset = new Date(resetsAt);
+    const day = reset.getDate();
+    const previous = new Date(reset.getTime());
+    previous.setDate(1);
+    previous.setMonth(previous.getMonth() - 1);
+    const daysInPreviousMonth = new Date(previous.getFullYear(), previous.getMonth() + 1, 0).getDate();
+    previous.setDate(Math.min(day, daysInPreviousMonth));
+    return previous.getTime();
 }
 
 // The block the fill starts on, the reset day's (0 %): the weekday of the window's last reset, which a weekly window
@@ -221,18 +239,37 @@ export function legendColours(): { under: string; on: string; above: string } {
     };
 }
 
-// The line one window draws.
+function windowAllowedPercent(window: UsageWindow, now: number): number {
+    const resetsAt = window.resetsat ?? 0;
+    if (window.id !== MonthWindowId) {
+        return allowedPercent(resetsAt, windowLength(window), now);
+    }
+    if (!(resetsAt > 0)) {
+        return -1;
+    }
+    const previous = previousMonthReset(resetsAt);
+    return Math.min(1, Math.max(0, (now - previous) / (resetsAt - previous))) * 100;
+}
+
+// The line one window draws. A month uses calendar arithmetic in local time, never a fixed duration.
 export function usageWeekLine(window: UsageWindow, now: number): UsageWeekLine {
     const percent = Math.round(Math.min(100, Math.max(0, window.usedpercent)));
     const resetsAt = window.resetsat ?? 0;
     const windowMins = windowLength(window);
+    const allowed = windowAllowedPercent(window, now);
+    const pace =
+        allowed < 0 ? (percent > GravePercent ? PaceRedAt * 2 : 1) : percent / Math.max(MinAllowedPercent, allowed);
+    const unused = allowed < 0 ? 0 : Math.max(0, allowed - percent);
+    const start = !(resetsAt > 0)
+        ? -1
+        : weekdayIndex(window.id === MonthWindowId ? previousMonthReset(resetsAt) : lastReset(resetsAt, windowMins));
     return {
         percent,
-        pace: paceRatio(percent, resetsAt, windowMins, now),
-        unused: unusedPoints(percent, resetsAt, windowMins, now),
+        pace,
+        unused,
         resetsAt,
         windowMins,
-        start: startIndex(resetsAt, windowMins),
+        start,
     };
 }
 

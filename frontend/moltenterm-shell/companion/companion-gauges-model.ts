@@ -10,7 +10,8 @@ import { relativeTime } from "./companion-model";
 
 // must match pkg/molten/usage/usage.go and pkg/molten/companion/usage.go
 export type UsageWindow = { id: string; label: string; usedpercent: number; resetsat?: number; windowmins?: number };
-// Codex gives a balance (as text) or unlimited credits instead of used and limit.
+export type UsageMonthlySpend = { used: number; limit: number; limitenabled: boolean; unit?: string };
+// Codex gives a balance (as text) or unlimited credits instead of used and limit. Kimi adds monthly spending.
 export type UsageCredits = {
     enabled: boolean;
     used: number;
@@ -18,6 +19,7 @@ export type UsageCredits = {
     unit?: string;
     balance?: string;
     unlimited?: boolean;
+    monthly?: UsageMonthlySpend;
 };
 export type UsageSnapshot = {
     agent: string;
@@ -39,7 +41,8 @@ export type UsageReason =
     | "tokenexpired"
     | "denied"
     | "ratelimited"
-    | "offline";
+    | "offline"
+    | "unsupported";
 // The agent's experimental source (FR-SHELL-028): offered only while its gauges are on.
 export type UsageExperimental = { source: string; name: string; on: boolean; store: string; reason?: UsageReason };
 export type CompanionUsageInfo = {
@@ -73,11 +76,13 @@ export const UsageReasons: UsageReason[] = [
     "denied",
     "ratelimited",
     "offline",
+    "unsupported",
 ];
 
 // Codex's sources are its session log and its app-server (FR-SHELL-029): their own words where Claude Code's differ.
 const AgentReasons: Record<string, UsageReason[]> = {
     codex: ["waiting", "noplan", "expired"],
+    kimi: ["noplan", "unsupported"],
 };
 
 export function usageReasonText(reason: string, agent?: string): string {
@@ -90,7 +95,13 @@ export function usageReasonText(reason: string, agent?: string): string {
 
 // The ids of the gauges sources (pkg/molten/usage, GaugesSource.Id). wavesrv names a source in English, for the agents
 // and the logs that read it; the section names it from its id, in the interface language (#2123).
-export const UsageSourceIds = ["claude-statusline", "claude-oauth", "codex-transcript", "codex-appserver"];
+export const UsageSourceIds = [
+    "claude-statusline",
+    "claude-oauth",
+    "codex-transcript",
+    "codex-appserver",
+    "kimi-oauth",
+];
 
 // The source's name in the interface language; `given` (wavesrv's own) stands in for an id this window does not know.
 export function usageSourceName(id: string, given = ""): string {
@@ -202,6 +213,7 @@ function resetWords(resetsAt: number, now: number, short: boolean): string {
 const WindowLabelNames: Record<string, string> = {
     "Current session": "session",
     "This week": "week",
+    "This month": "month",
     "Spend limit": "spend",
 };
 
@@ -272,6 +284,29 @@ export function creditsText(credits: UsageCredits): string {
     if (credits == null || !credits.enabled || !Number.isFinite(credits.used) || !Number.isFinite(credits.limit)) {
         return "";
     }
+    if (credits.monthly != null) {
+        const monthly = credits.monthly;
+        if (!Number.isFinite(monthly.used) || !Number.isFinite(monthly.limit)) {
+            return "";
+        }
+        const parts: string[] = [];
+        if (credits.balance != null && credits.balance !== "") {
+            const n = Number(credits.balance);
+            const balance = Number.isFinite(n) ? creditAmount(n, credits.unit) : credits.balance;
+            parts.push(t("companion.gauges.boosterBalance", { balance }));
+        }
+        const used = creditAmount(monthly.used, monthly.unit || credits.unit);
+        const limited = monthly.limitenabled && monthly.limit > 0;
+        parts.push(
+            limited
+                ? t("companion.gauges.monthlySpending", {
+                      used,
+                      limit: creditAmount(monthly.limit, monthly.unit || credits.unit),
+                  })
+                : t("companion.gauges.monthlySpendingUnlimited", { used })
+        );
+        return parts.join(" · ");
+    }
     if (credits.unlimited) {
         return t("companion.gauges.creditsUnlimited");
     }
@@ -289,20 +324,39 @@ export function creditsText(credits: UsageCredits): string {
     });
 }
 
-export type ExperimentalView = { kind: "none" } | { kind: "off"; statement: string } | { kind: "on"; reason: string };
+export type ExperimentalView =
+    | { kind: "none" }
+    | { kind: "off"; source: string; label: string; explanation: string; statement: string }
+    | { kind: "on"; source: string; label: string; unavailable: string; reason: string };
 
 export function experimentalLabel(): string {
     return t("companion.gauges.experimentalLabel");
 }
 
-export function experimentalExplanation(): string {
-    return t("companion.gauges.experimentalExplanation");
+export function experimentalExplanation(source = ""): string {
+    return t(
+        source === "kimi-oauth"
+            ? "companion.gauges.kimi.experimentalExplanation"
+            : "companion.gauges.experimentalExplanation"
+    );
 }
 
-// The confirmation of FR-SHELL-028-AC1, naming where the token is read.
-export function experimentalStatement(store: string, source: string): string {
+export function experimentalRowLabel(source = ""): string {
+    return t(source === "kimi-oauth" ? "companion.gauges.kimi.rowLabel" : "companion.gauges.modelLimits");
+}
+
+export function experimentalUnavailableLabel(source = ""): string {
+    return t(source === "kimi-oauth" ? "companion.gauges.kimi.unavailable" : "companion.gauges.modelLimitsUnavailable");
+}
+
+// The confirmation of FR-SHELL-028-AC1, naming where the token is read and exactly what the source supports.
+export function experimentalStatement(store: string, source: string, sourceId = ""): string {
     const where = store || t("companion.gauges.tokenWhereDefault");
-    return t("companion.gauges.experimentalStatement", {
+    const key =
+        sourceId === "kimi-oauth"
+            ? "companion.gauges.kimi.experimentalStatement"
+            : "companion.gauges.experimentalStatement";
+    return t(key, {
         where,
         source: source || t("companion.gauges.sourceDefault"),
     });
@@ -315,11 +369,23 @@ export function experimentalView(info: CompanionUsageInfo): ExperimentalView {
         return { kind: "none" };
     }
     if (!exp.on) {
-        return { kind: "off", statement: experimentalStatement(exp.store, usageSourceName(exp.source, exp.name)) };
+        return {
+            kind: "off",
+            source: exp.source,
+            label: experimentalRowLabel(exp.source),
+            explanation: experimentalExplanation(exp.source),
+            statement: experimentalStatement(exp.store, usageSourceName(exp.source, exp.name), exp.source),
+        };
     }
     // Waiting is its first answer on the way, not a failure.
     const failed = exp.reason && exp.reason !== "waiting";
-    return { kind: "on", reason: failed ? usageReasonText(exp.reason) : "" };
+    return {
+        kind: "on",
+        source: exp.source,
+        label: experimentalRowLabel(exp.source),
+        unavailable: experimentalUnavailableLabel(exp.source),
+        reason: failed ? usageReasonText(exp.reason, info.agent) : "",
+    };
 }
 
 // What the plan usage section shows. Hidden for an agent without a gauges source; any failure is one muted line,

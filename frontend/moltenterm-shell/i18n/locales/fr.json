@@ -1100,12 +1100,17 @@
                 "description": "Les agents dont le compagnon affiche la consommation du forfait.",
                 "options": {
                     "claude": "Claude Code",
-                    "codex": "Codex"
+                    "codex": "Codex",
+                    "kimi": "Kimi Code"
                 }
             },
             "companion:usageclaudeoauth": {
                 "label": "Limites de Claude Code (expérimental)",
                 "description": "Lire les limites de Claude Code sur un point d'accès non documenté d'Anthropic, avec sa propre connexion."
+            },
+            "companion:usagekimioauth": {
+                "label": "Limites gérées de Kimi Code (expérimental)",
+                "description": "Lire les limites gérées depuis le point d'accès .com non documenté de Kimi Code avec sa connexion OAuth partagée."
             },
             "linemap:animation": {
                 "label": "Animer le plan de lignes",
@@ -2192,6 +2197,7 @@
             "window": {
                 "session": "Session en cours",
                 "week": "Cette semaine",
+                "month": "Ce mois-ci",
                 "spend": "Limite de dépenses",
                 "model": "Cette semaine ({name})",
                 "extra": "{name} {window}",
@@ -2202,6 +2208,7 @@
             "windowShort": {
                 "session": "Session",
                 "week": "Semaine",
+                "month": "Mois",
                 "spend": "Dépenses",
                 "model": "Semaine ({name})"
             },
@@ -2217,10 +2224,15 @@
                 "denied": "Le fournisseur a refusé le jeton de connexion de l'agent",
                 "ratelimited": "Le fournisseur a demandé d'attendre : MoltenTerm redemandera plus tard",
                 "offline": "Le service d'utilisation du fournisseur est injoignable",
+                "unsupported": "Cette configuration de connexion n'est pas prise en charge",
                 "codex": {
                     "waiting": "En attente de l'agent : les limites arrivent avec sa prochaine réponse",
                     "noplan": "L'agent n'indique aucune limite d'abonnement pour cette connexion",
                     "expired": "Les limites ont été remises à zéro : les nouvelles valeurs arrivent avec la prochaine réponse de l'agent"
+                },
+                "kimi": {
+                    "noplan": "Kimi Code n'indique aucune limite gérée ni portefeuille booster pour cette connexion",
+                    "unsupported": "Seule la connexion gérée .com partagée de Kimi Code, stockée dans un fichier, est prise en charge ; les configurations globales, à portée limitée, dans le trousseau, avec fournisseur personnalisé ou clé API sont indisponibles"
                 }
             },
             "percentUsed": "{percent} % utilisés",
@@ -2231,11 +2243,20 @@
             "creditsLeft": "Crédits : {balance} restants",
             "creditsAvailable": "Crédits disponibles",
             "extraUsage": "Utilisation supplémentaire : {used} sur {limit}",
+            "boosterBalance": "Solde booster : {balance}",
+            "monthlySpending": "Dépenses mensuelles : {used} sur {limit}",
+            "monthlySpendingUnlimited": "Dépenses mensuelles : {used} · Illimitées",
             "experimentalLabel": "Expérimental · source non documentée",
             "experimentalExplanation": "Lit aussi la limite hebdomadaire de chaque modèle et les crédits d'utilisation supplémentaire depuis un service non documenté du fournisseur.",
             "tokenWhereDefault": "l'endroit où l'agent le garde",
             "sourceDefault": "le service d'utilisation du fournisseur",
             "experimentalStatement": "MoltenTerm lira le jeton de connexion de l'agent depuis {where} pour obtenir l'utilisation de votre abonnement (source : {source}). Le jeton reste en mémoire, il n'est jamais enregistré ni envoyé ailleurs. Non documenté : cela peut cesser de fonctionner.",
+            "kimi": {
+                "experimentalExplanation": "Lit aussi les trois fenêtres de limites gérées, le solde booster et les dépenses mensuelles depuis le point d'accès .com non documenté de Kimi Code.",
+                "rowLabel": "Limites gérées, booster et dépenses mensuelles",
+                "unavailable": "Utilisation gérée indisponible",
+                "experimentalStatement": "MoltenTerm lira uniquement access_token et expires_at depuis {where}. Il envoie le jeton d'accès uniquement à https://api.kimi.com/coding/v1/usages. Il ne renouvelle ni ne modifie jamais les identifiants, ne conserve pas le jeton et ne l'expose ni aux journaux, ni aux RPC, ni au stockage. Seule la connexion gérée .com partagée, stockée dans un fichier, est prise en charge : les identifiants globaux ou à portée limitée, le trousseau, les fournisseurs personnalisés et les clés API ne le sont pas. Comportement expérimental et non documenté vérifié avec la version officielle 2.6.3 de Kimi Code (source : {source}) ; il peut cesser de fonctionner."
+            },
             "updated": "Mise à jour {ago}",
             "title": "Utilisation de l'abonnement",
             "show": "Afficher l'utilisation de l'abonnement",
@@ -2262,7 +2283,8 @@
                 "claude-statusline": "ligne d'état de Claude Code",
                 "claude-oauth": "service d'utilisation d'Anthropic",
                 "codex-transcript": "journal de session de Codex",
-                "codex-appserver": "app-server de Codex"
+                "codex-appserver": "app-server de Codex",
+                "kimi-oauth": "service d'utilisation gérée de Kimi Code"
             },
             "sourceAnd": "{list} et {last}",
             "explain": "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; la ligne « Remise à zéro » indique quand la fenêtre repart. Les petits chiffres sous les blocs répartissent ce total sur les jours depuis la remise à zéro, un septième chacun : ils disent combien de journées ont été utilisées.",

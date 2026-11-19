@@ -60,8 +60,8 @@ describe("experimental source rules", () => {
         expect(experimentalView({ ...withEndpoint, gauges: "off" })).toEqual({ kind: "none" });
         expect(experimentalView({ ...withEndpoint, hasgauges: false })).toEqual({ kind: "none" });
         const off = experimentalView({ ...withEndpoint, experimental: { ...withEndpoint.experimental, on: false } });
-        expect(off).toEqual({ kind: "off", statement: experimentalStatement(Store, Endpoint) });
-        expect(experimentalView(withEndpoint)).toEqual({ kind: "on", reason: "" });
+        expect(off).toMatchObject({ kind: "off", statement: experimentalStatement(Store, Endpoint) });
+        expect(experimentalView(withEndpoint)).toMatchObject({ kind: "on", reason: "" });
     });
 
     it("says exactly what is read in the confirmation", () => {
@@ -79,15 +79,15 @@ describe("experimental source rules", () => {
     it("gives a failure's reason in plain words, and none while the first answer comes", () => {
         const failing = (reason: any) =>
             experimentalView({ ...withEndpoint, experimental: { ...withEndpoint.experimental, reason } });
-        expect(failing("ratelimited")).toEqual({
+        expect(failing("ratelimited")).toMatchObject({
             kind: "on",
             reason: "The provider asked to wait: MoltenTerm asks again later",
         });
         expect(failing("signedout").kind === "on" && failing("signedout")).toMatchObject({
             reason: expect.stringContaining("never asks"),
         });
-        expect(failing("waiting")).toEqual({ kind: "on", reason: "" });
-        expect(failing("somethingnew")).toEqual({ kind: "on", reason: "The source could not be read" });
+        expect(failing("waiting")).toMatchObject({ kind: "on", reason: "" });
+        expect(failing("somethingnew")).toMatchObject({ kind: "on", reason: "The source could not be read" });
     });
 
     it("formats the credits in their currency", () => {
@@ -172,5 +172,79 @@ describe("experimental source row", () => {
         expect(html).toContain(experimentalStatement(Store, Endpoint).replace(/"/g, "&quot;").replace(/'/g, "&#x27;"));
         expect(html).toMatch(/class="molten-btn[^"]*"[^>]*>Turn on/);
         expect(html).toContain("Cancel");
+    });
+});
+
+describe("Kimi managed usage", () => {
+    const store = "~/.kimi-code/credentials/kimi-code.json";
+    const info: CompanionUsageInfo = {
+        ...withEndpoint,
+        agent: "kimi",
+        sourcename: "Kimi Code managed usage endpoint",
+        experimental: { source: "kimi-oauth", name: "Kimi Code managed usage endpoint", on: true, store },
+        snapshot: {
+            agent: "kimi",
+            source: "kimi-oauth",
+            readat: now,
+            windows: [],
+            credits: {
+                enabled: true,
+                used: 0,
+                limit: 0,
+                balance: "0.00",
+                unit: "USD",
+                monthly: { used: 0, limit: 0, limitenabled: false, unit: "USD" },
+            },
+        },
+    };
+
+    it("discloses every credential, transport, persistence and eligibility boundary", () => {
+        const statement = experimentalStatement(store, "Kimi Code managed usage endpoint", "kimi-oauth");
+        for (const text of [
+            "only access_token and expires_at",
+            store,
+            "only to https://api.kimi.com/coding/v1/usages",
+            "never refreshes or writes credentials",
+            "persists the token",
+            "logs, RPC, or storage",
+            "global or scoped credentials, keyring, custom providers, and API keys",
+            "official Kimi Code 2.6.3",
+        ]) {
+            expect(statement).toContain(text);
+        }
+        const off = experimentalView({ ...info, experimental: { ...info.experimental, on: false } });
+        expect(off).toMatchObject({ kind: "off", source: "kimi-oauth", statement });
+        const html = renderToStaticMarkup(
+            <ExperimentalRow view={off} onSet={() => {}} confirming onConfirming={() => {}} />
+        );
+        expect(html).toContain("Managed limits, booster, and monthly spending");
+        expect(html).toContain("access_token");
+    });
+
+    it("uses Kimi labels and availability reasons", () => {
+        expect(
+            experimentalView({ ...info, experimental: { ...info.experimental, reason: "unsupported" } })
+        ).toMatchObject({
+            kind: "on",
+            label: "Managed limits, booster, and monthly spending",
+            unavailable: "Managed usage unavailable",
+            reason: expect.stringContaining("Only Kimi Code's shared .com"),
+        });
+    });
+
+    it("renders zero booster balance and unlimited zero monthly spending together", () => {
+        expect(creditsText(info.snapshot.credits)).toBe("Booster balance: $0.00 · Monthly spending: $0.00 · Unlimited");
+        expect(render(info)).toContain("Booster balance: $0.00");
+        expect(render(info)).toContain("Monthly spending: $0.00");
+    });
+
+    it("renders limited monthly spending without changing Claude or Codex formatting", () => {
+        const credits = {
+            ...info.snapshot.credits,
+            balance: "12.35",
+            monthly: { used: 5.43, limit: 20, limitenabled: true, unit: "USD" },
+        };
+        expect(creditsText(credits)).toBe("Booster balance: $12.35 · Monthly spending: $5.43 of $20.00");
+        expect(creditsText(withEndpoint.snapshot.credits)).toBe("Extra usage: $12.50 of $50.00");
     });
 });

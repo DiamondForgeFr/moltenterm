@@ -902,12 +902,17 @@
                 "description": "The agents whose plan usage the companion shows.",
                 "options": {
                     "claude": "Claude Code",
-                    "codex": "Codex"
+                    "codex": "Codex",
+                    "kimi": "Kimi Code"
                 }
             },
             "companion:usageclaudeoauth": {
                 "label": "Claude Code limits (experimental)",
                 "description": "Read Claude Code's limits from Anthropic's undocumented endpoint with its own sign-in."
+            },
+            "companion:usagekimioauth": {
+                "label": "Kimi Code managed limits (experimental)",
+                "description": "Read managed limits from Kimi Code's undocumented .com endpoint with its shared OAuth sign-in."
             },
             "linemap:animation": {
                 "label": "Animate the line map",
@@ -2192,6 +2197,7 @@
             "window": {
                 "session": "Current session",
                 "week": "This week",
+                "month": "This month",
                 "spend": "Spend limit",
                 "model": "This week ({name})",
                 "extra": "{name} {window}",
@@ -2202,6 +2208,7 @@
             "windowShort": {
                 "session": "Session",
                 "week": "Week",
+                "month": "Month",
                 "spend": "Spend",
                 "model": "Week ({name})"
             },
@@ -2217,10 +2224,15 @@
                 "denied": "The provider refused the agent's sign-in token",
                 "ratelimited": "The provider asked to wait: MoltenTerm asks again later",
                 "offline": "The provider's usage endpoint could not be reached",
+                "unsupported": "This sign-in configuration is not supported",
                 "codex": {
                     "waiting": "Waiting for the agent: the limits come with its next response",
                     "noplan": "The agent reports no plan limits for this sign-in",
                     "expired": "The limits were reset: new values come with the agent's next response"
+                },
+                "kimi": {
+                    "noplan": "Kimi Code reports no managed plan limits or booster wallet for this sign-in",
+                    "unsupported": "Only Kimi Code's shared .com file-backed managed sign-in is supported; global, scoped, keyring, custom-provider, and API-key configurations are unavailable"
                 }
             },
             "percentUsed": "{percent} % used",
@@ -2231,11 +2243,20 @@
             "creditsLeft": "Credits: {balance} left",
             "creditsAvailable": "Credits available",
             "extraUsage": "Extra usage: {used} of {limit}",
+            "boosterBalance": "Booster balance: {balance}",
+            "monthlySpending": "Monthly spending: {used} of {limit}",
+            "monthlySpendingUnlimited": "Monthly spending: {used} · Unlimited",
             "experimentalLabel": "Experimental · undocumented source",
             "experimentalExplanation": "Also reads each model's weekly limit and extra usage credits from an undocumented endpoint of the provider.",
             "tokenWhereDefault": "where the agent keeps it",
             "sourceDefault": "the provider's usage endpoint",
             "experimentalStatement": "MoltenTerm will read the agent's sign-in token from {where} to get your plan usage (source: {source}). The token stays in memory, is never saved or sent anywhere else. Undocumented: it may stop working.",
+            "kimi": {
+                "experimentalExplanation": "Also reads the three managed limit windows, booster balance, and monthly spending from Kimi Code's undocumented .com endpoint.",
+                "rowLabel": "Managed limits, booster, and monthly spending",
+                "unavailable": "Managed usage unavailable",
+                "experimentalStatement": "MoltenTerm will read only access_token and expires_at from {where}. It sends the access token only to https://api.kimi.com/coding/v1/usages. It never refreshes or writes credentials, persists the token, or exposes it to logs, RPC, or storage. Only the shared .com file-backed managed sign-in is supported: global or scoped credentials, keyring, custom providers, and API keys are not. Experimental, undocumented behavior verified against official Kimi Code 2.6.3 (source: {source}); it may stop working."
+            },
             "updated": "Updated {ago}",
             "title": "Plan usage",
             "show": "Show plan usage",
@@ -2262,7 +2283,8 @@
                 "claude-statusline": "Claude Code status line",
                 "claude-oauth": "Anthropic usage endpoint",
                 "codex-transcript": "Codex session log",
-                "codex-appserver": "Codex app-server"
+                "codex-appserver": "Codex app-server",
+                "kimi-oauth": "Kimi Code managed usage endpoint"
             },
             "sourceAnd": "{list} and {last}",
             "explain": "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the \"Resets\" line says when the window starts again. The small figures under the blocks spread that total over the days from the reset, one seventh each, so they tell how many days' worth has been used.",

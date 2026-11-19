@@ -617,3 +617,20 @@ describe("the search engine setting (#2312)", () => {
         expect(catalog().some((e) => e.key === "moltenterm:searchenginenote")).toBe(false);
     });
 });
+
+describe("Kimi managed usage settings", () => {
+    it("offers Kimi plan gauges and a separate default-off managed OAuth toggle", () => {
+        const gauges = entry("companion:usagegauges");
+        expect(gauges.options).toContainEqual({ value: "kimi", label: "Kimi Code" });
+        const oauth = entry("companion:usagekimioauth");
+        expect(oauth).toMatchObject({ section: "advanced", group: "Agents", control: "toggle" });
+        expect(oauth.defaultValue ?? false).toBe(false);
+        for (const language of ["en", "fr"]) {
+            const localized = localizeSettingEntry(oauth, (key, vars) => translate(language, key, vars));
+            expect(localized.label).toContain("Kimi Code");
+            expect(localized.description).toContain(".com");
+            const options = localizeSettingEntry(gauges, (key, vars) => translate(language, key, vars)).options;
+            expect(options.find((option) => option.value === "kimi")?.label).toBe("Kimi Code");
+        }
+    });
+});

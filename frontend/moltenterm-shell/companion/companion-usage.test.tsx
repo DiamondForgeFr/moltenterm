@@ -25,6 +25,12 @@ const codex: CompanionView = {
     agentname: "Codex",
     usage: { pageurl: "https://chatgpt.com/codex/settings/usage", pagename: "Codex usage" },
 };
+const kimi: CompanionView = {
+    ...claude,
+    agent: "kimi",
+    agentname: "Kimi Code",
+    usage: { pageurl: "https://www.kimi.com/membership/pricing", pagename: "Kimi Code plans" },
+};
 
 describe("companion usage action", () => {
     it("names the adapter's page", () => {
@@ -32,6 +38,10 @@ describe("companion usage action", () => {
         expect(usageAction(codex)).toEqual({
             url: "https://chatgpt.com/codex/settings/usage",
             title: "Open Codex usage",
+        });
+        expect(usageAction(kimi)).toEqual({
+            url: "https://www.kimi.com/membership/pricing",
+            title: "Open Kimi Code plans",
         });
     });
 
