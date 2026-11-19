@@ -77,6 +77,7 @@ const (
 
 	ConfigKey_CompanionUsageGauges           = "companion:usagegauges"
 	ConfigKey_CompanionUsageClaudeOAuth      = "companion:usageclaudeoauth"
+	ConfigKey_CompanionTicketSummaries       = "companion:ticketsummaries"
 
 	ConfigKey_LineMapAnimation               = "linemap:animation"
 

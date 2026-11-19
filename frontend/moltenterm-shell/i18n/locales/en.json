@@ -869,6 +869,13 @@
                 "label": "More session folders",
                 "description": "Extra configuration folders per agent whose sessions the companion reads."
             },
+            "companion:ticketsummaries": {
+                "label": "Explain each ticket in one sentence",
+                "description": "The Tasks block's tickets, in your language. Uses your agent (a small model), at most 24 times a day.",
+                "confirm": "Turned on, your project's coding agent writes one sentence per ticket of the active milestone, in the interface language, with a small model and no tool. Only each ticket's number, title and first lines are sent, never your files. At most 24 times a day, counted in the agent's use.",
+                "confirmOn": "Turn it on",
+                "confirmCancel": "Keep the titles"
+            },
             "agent:integrate": {
                 "label": "Agent hookup",
                 "description": "Supported agents get MoltenTerm's hooks and browser for each run; your files are not edited."
@@ -2077,6 +2084,9 @@
             "reading": "Reading the milestone…",
             "phrasing": "Writing the summaries…",
             "phrasingTitle": "The project's agent writes one sentence per ticket, in the interface language. The titles show meanwhile.",
+            "offer": "Explain each ticket in one sentence in your language? Uses your agent (a small model), at most 24 times a day.",
+            "offerYes": "Turn on",
+            "offerNo": "No thanks",
             "ownTasks": "The agent's tasks",
             "ticketTitle": "Ticket title: {title}",
             "linkChip": "→ {agent}",

@@ -247,7 +247,11 @@ describe("changed files", () => {
 
     it("reads only the choices it knows from the client's meta", () => {
         expect(readCompanionPrefs(null)).toEqual({});
-        expect(readCompanionPrefs({ filesopen: true, other: 1 })).toEqual({ filesopen: true, usagedetails: false });
+        expect(readCompanionPrefs({ filesopen: true, other: 1 })).toEqual({
+            filesopen: true,
+            usagedetails: false,
+            summariesasked: false,
+        });
         expect(readCompanionPrefs([true])).toEqual({});
     });
 

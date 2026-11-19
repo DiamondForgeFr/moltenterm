@@ -19,9 +19,11 @@ import (
 
 // One sentence per ticket, in the interface language (#2392): tickets are written in the project's language, usually
 // English, and the sentence says in plain words what the work is. The project's coding agent writes them in its quick,
-// read-only, text-only form, never in a terminal. Each is written once per ticket, last update and language, and kept
-// on disk. The cap is strict: one batch at a time, MaxShown tickets per batch at most, maxBatchesPerHour and
-// maxBatchesPerDay for the whole computer. A sentence missing or failed leaves the ticket's title; nothing waits for it.
+// text-only form (no tool at all), never in a terminal, and only once the developer turned them on. Each is written once
+// per ticket, content (its cleaned title and excerpt) and language, and kept on disk. The cap is strict: one batch at a
+// time, MaxShown tickets per batch at most, maxBatchesPerHour and maxBatchesPerDay for the whole computer, both counts
+// kept on disk as soon as a batch is claimed. A sentence missing or failed leaves the ticket's title; nothing waits for
+// it.
 
 const (
 	maxBatchesPerHour = 6
@@ -31,7 +33,7 @@ const (
 	batchTimeout = 90 * time.Second
 	// The sentences kept; the oldest written go first.
 	maxSentences = 2000
-	storeVersion = 1
+	storeVersion = 2
 	dayLayout    = "2006-01-02"
 
 	maxTitleRunes    = 200
@@ -59,27 +61,30 @@ var (
 )
 
 type sentenceKey struct {
-	repo    string
-	number  int
-	updated int64
-	lang    string
+	repo   string
+	number int
+	hash   string
+	lang   string
 }
 
-// Sentence is one ticket's sentence as the store keeps it: FailedAt when the last batch brought none (Unix ms).
+// Sentence is one ticket's sentence as the store keeps it: Hash is what it was written from (contentHash), FailedAt
+// when the last batch brought none (Unix ms).
 type Sentence struct {
 	Repo     string `json:"repo"`
 	Number   int    `json:"number"`
-	Updated  int64  `json:"updated"`
+	Hash     string `json:"hash"`
 	Lang     string `json:"lang"`
 	Text     string `json:"text,omitempty"`
 	FailedAt int64  `json:"failedat,omitempty"`
 	At       int64  `json:"at"`
 }
 
-// StoreFile is what is kept on disk: the sentences and the day's count of batches.
+// StoreFile is what is kept on disk: the sentences, when the batches of the last hour started (Unix ms) and the day's
+// count of batches.
 type StoreFile struct {
 	Version   int        `json:"version"`
 	Sentences []Sentence `json:"sentences"`
+	Hour      []int64    `json:"hour,omitempty"`
 	Day       string     `json:"day,omitempty"`
 	Batches   int        `json:"batches,omitempty"`
 }
@@ -130,7 +135,7 @@ func languageName(lang string) string {
 }
 
 func keyOf(repo string, t Ticket, lang string) sentenceKey {
-	return sentenceKey{repo: repo, number: t.Number, updated: t.Updated, lang: lang}
+	return sentenceKey{repo: repo, number: t.Number, hash: t.hash, lang: lang}
 }
 
 func (st *sentenceState) phrasingFor(repo string) bool {
@@ -183,29 +188,35 @@ func (s *Service) loadLocked() {
 	for i := range file.Sentences {
 		e := file.Sentences[i]
 		lang := cleanLang(e.Lang)
-		if e.Repo == "" || e.Number <= 0 || lang == "" {
+		if e.Repo == "" || e.Number <= 0 || e.Hash == "" || lang == "" {
 			continue
 		}
 		e.Lang = lang
 		e.Text = cleanSentence(e.Text, "")
-		st.sentences[sentenceKey{repo: e.Repo, number: e.Number, updated: e.Updated, lang: lang}] = &e
+		st.sentences[sentenceKey{repo: e.Repo, number: e.Number, hash: e.Hash, lang: lang}] = &e
+	}
+	for _, at := range file.Hour {
+		if at > 0 {
+			st.hour = append(st.hour, time.UnixMilli(at))
+		}
 	}
 	st.day, st.dayBatches = file.Day, max(0, file.Batches)
 }
 
 // claimBatch takes the cap's room for one batch: none while another runs, past the hour's or the day's count, or when
-// the tickets got their sentences meanwhile.
-func (s *Service) claimBatch(b batch) batch {
+// the tickets got their sentences meanwhile. It returns the store with the counts that include it, to keep before the
+// run starts.
+func (s *Service) claimBatch(b batch) (batch, StoreFile) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	st := &s.text
 	now := s.now()
 	if st.phrasing {
-		return batch{}
+		return batch{}, StoreFile{}
 	}
 	b = st.missingLocked(b.repo, b.lang, b.tickets, now)
 	if len(b.tickets) == 0 {
-		return batch{}
+		return batch{}, StoreFile{}
 	}
 	recent := st.hour[:0]
 	for _, at := range st.hour {
@@ -215,19 +226,19 @@ func (s *Service) claimBatch(b batch) batch {
 	}
 	st.hour = recent
 	if len(st.hour) >= maxBatchesPerHour {
-		return batch{}
+		return batch{}, StoreFile{}
 	}
 	day := now.Format(dayLayout)
 	if st.day != day {
 		st.day, st.dayBatches = day, 0
 	}
 	if st.dayBatches >= maxBatchesPerDay {
-		return batch{}
+		return batch{}, StoreFile{}
 	}
 	st.dayBatches++
 	st.hour = append(st.hour, now)
 	st.phrasing, st.repo = true, b.repo
-	return b
+	return b, st.fileLocked()
 }
 
 func (s *Service) runBatch(agent string, b batch) {
@@ -269,7 +280,7 @@ func (s *Service) finishBatch(b batch, got map[int]string) (StoreFile, []Signal)
 		key := keyOf(b.repo, t, b.lang)
 		e := st.sentences[key]
 		if e == nil {
-			e = &Sentence{Repo: b.repo, Number: t.Number, Updated: t.Updated, Lang: b.lang}
+			e = &Sentence{Repo: b.repo, Number: t.Number, Hash: t.hash, Lang: b.lang}
 			st.sentences[key] = e
 		}
 		e.At = now
@@ -302,6 +313,9 @@ func (st *sentenceState) fileLocked() StoreFile {
 	file := StoreFile{Version: storeVersion, Sentences: make([]Sentence, 0, len(st.sentences)), Day: st.day, Batches: st.dayBatches}
 	for _, e := range st.sentences {
 		file.Sentences = append(file.Sentences, *e)
+	}
+	for _, at := range st.hour {
+		file.Hour = append(file.Hour, at.UnixMilli())
 	}
 	sort.Slice(file.Sentences, func(i, j int) bool {
 		a, b := file.Sentences[i], file.Sentences[j]

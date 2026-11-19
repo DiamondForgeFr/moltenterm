@@ -141,6 +141,8 @@ type SettingsType struct {
 	CompanionUsageGauges []string `json:"companion:usagegauges,omitempty" jsonschema_description:"Coding agents (claude, codex) whose plan usage gauges the agent companion shows; empty shows none. Set from the companion's Show plan usage"`
 	// MOLTENTERM-PATCH (#262): Claude Code's experimental plan usage source, off unless confirmed in the companion (FR-SHELL-028).
 	CompanionUsageClaudeOAuth bool `json:"companion:usageclaudeoauth,omitempty" jsonschema_description:"Also read Claude Code's model limits and credits from Anthropic's undocumented usage endpoint, with Claude Code's own sign-in token (experimental). Set from the companion's confirmation"`
+	// MOLTENTERM-PATCH (#2392): one sentence per milestone ticket in the interface language, off until the developer agrees (FR-SHELL-018).
+	CompanionTicketSummaries bool `json:"companion:ticketsummaries,omitempty" jsonschema_description:"Explain each ticket of the active milestone in one sentence in the interface language, written by the project's coding agent with a small model, at most 24 times a day. Off by default; turned on from the companion's offer or here, with a confirmation"`
 	// MOLTENTERM-PATCH (#403): the All line maps and All CI/CD panels scopes of their command panel options (FR-SHELL-049).
 	LineMapAnimation *bool  `json:"linemap:animation,omitempty" jsonschema_description:"Whether the line map panels animate (the load sequence and the moving trains); reduced motion turns it off anyway"`
 	CicdRuns         string `json:"cicd:runs,omitempty" jsonschema:"enum=local,enum=remote,enum=cd" jsonschema_description:"Which runs a CI/CD panel shows: local CI, remote CI or CD (default remote)"`
