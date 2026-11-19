@@ -486,7 +486,7 @@ func (a *KimiAdapter) parseKimiLoopEvent(event map[string]any, s *Session, at in
 		callId := str(event, "toolCallId")
 		result := obj(event, "result")
 		s.ResolveTool(callId)
-		async := boolean(result, "async_launched") || boolean(result, "async") || kimiResultField(str(result, "output"), "status") == "running"
+		async := boolean(result, "async_launched") || boolean(result, "async") || kimiResultField(kimiContentText(result["output"]), "status") == "running"
 		s.SubagentResult(callId, async, boolean(result, "isError"), str(result, "resolvedModel"))
 		if agentId := kimiResultAgentId(result); agentId != "" {
 			s.SetSubagentId(callId, agentId)
@@ -600,7 +600,7 @@ func kimiResultAgentId(result map[string]any) string {
 			return id
 		}
 	}
-	output := str(result, "output")
+	output := kimiContentText(result["output"])
 	var decoded map[string]any
 	if output != "" && json.Unmarshal([]byte(output), &decoded) == nil {
 		for _, key := range []string{"agentId", "agent_id"} {

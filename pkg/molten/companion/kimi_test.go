@@ -199,13 +199,27 @@ func TestKimiReaderReplaysStateAndWire(t *testing.T) {
 }
 
 func TestKimiAgentResultText(t *testing.T) {
-	a := MakeKimiAdapter([]string{"/nowhere"})
-	s := MakeSession()
-	s.StartSubagent("agent-call", "Inspect", "explore", "", "", true, 1)
-	parseRecordLine(a, s, []byte(`{"type":"context.append_loop_event","event":{"type":"tool.result","toolCallId":"agent-call","result":{"output":"task_id: agent-call\nstatus: running\nagent_id: agent-1\nactual_subagent_type: explore"}}}`))
-	agent := s.subagent("agent-call")
-	if agent == nil || agent.agentId != "agent-1" || agent.state != SubagentRunning {
-		t.Fatalf("Kimi's textual Agent result was not replayed: %+v", agent)
+	for _, test := range []struct {
+		name   string
+		output string
+	}{
+		{name: "string", output: `"task_id: agent-call\nstatus: running\nagent_id: agent-1\nactual_subagent_type: explore"`},
+		{name: "text parts", output: `[{"type":"text","text":"task_id: agent-call\nstatus: running\nagent_id: agent-1\nactual_subagent_type: explore"}]`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			a := MakeKimiAdapter([]string{"/nowhere"})
+			s := MakeSession()
+			s.StartSubagent("agent-call", "Inspect", "explore", "", "", true, 1)
+			parseRecordLine(a, s, []byte(`{"type":"context.append_loop_event","event":{"type":"tool.result","toolCallId":"agent-call","result":{"output":`+test.output+`}}}`))
+			agent := s.subagent("agent-call")
+			if agent == nil || agent.agentId != "agent-1" || agent.state != SubagentRunning || !agent.background {
+				t.Fatalf("Kimi's textual Agent result was not replayed: %+v", agent)
+			}
+			parseRecordLine(a, s, []byte(`{"type":"subagent.completed","subagentId":"agent-1"}`))
+			if agent.state != SubagentDone {
+				t.Fatalf("Kimi's native terminal record did not complete the Agent: %+v", agent)
+			}
+		})
 	}
 }
 
