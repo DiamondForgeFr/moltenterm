@@ -1,11 +1,12 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package milestones is the project's active milestone as the companion's Tasks block shows it (FR-SHELL-018, #2392):
-// its name, progress and due date, and its remaining tickets, each with one sentence in the interface language. The
-// forge is read through the user's gh, only when a companion that shows asks, at most once a minute per project, and
-// the read is shared by every companion of the project. The sentences are written by the project's coding agent in
-// its quick, read-only form, under a strict cap (sentences.go).
+// Package milestones is the project's open milestones as the companion's Tasks block shows them (FR-SHELL-018, #2392,
+// #2416): for each, its name, progress and due date, and its remaining tickets, each with one sentence in the interface
+// language. The block has one tab per open milestone, in the order of order.go. The forge is read through the user's gh,
+// only when a companion that shows asks, at most once a minute per project, and the read is shared by every companion of
+// the project. The sentences are written by the project's coding agent in its quick, read-only form, under a strict cap
+// (sentences.go).
 package milestones
 
 import (
@@ -13,6 +14,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -27,7 +29,7 @@ const (
 	GetCommand = "moltenmilestonesget"
 
 	// StateLoading: not read yet; StateNone: no open milestone; StateNoForge: gh is missing or signed out, or the
-	// folder is not a repository on a forge it knows.
+	// folder is not a repository on a forge it knows. StateOk: Milestones holds every open milestone, in tab order.
 	StateLoading = "loading"
 	StateOk      = "ok"
 	StateNone    = "none"
@@ -69,12 +71,16 @@ type Milestone struct {
 	// Remaining is the number of its open tickets.
 	Remaining int      `json:"remaining"`
 	Tickets   []Ticket `json:"tickets"`
+	// Loaded: its tickets were read. A milestone with no open issue has none to read; one past the first tabs is read
+	// when a window selects it (GetRequest.Milestone).
+	Loaded bool `json:"loaded"`
 }
 
 type View struct {
-	Dir       string     `json:"dir"`
-	State     string     `json:"state"`
-	Milestone *Milestone `json:"milestone,omitempty"`
+	Dir   string `json:"dir"`
+	State string `json:"state"`
+	// Milestones: every open milestone, in the order of the tabs (order.go).
+	Milestones []Milestone `json:"milestones,omitempty"`
 	// Summaries: the developer turned the sentences on and confirmed it (companion:ticketsummaries). Phrasable: the
 	// project's agent can write them. The companion offers them once when the second holds and the first does not.
 	Summaries bool `json:"summaries,omitempty"`
@@ -91,6 +97,9 @@ type GetRequest struct {
 	// Want: the tickets the companion shows, whose sentences it needs, MaxShown at most. Without it none is written: a
 	// companion asks first, then again with the rows it shows, so no batch is spent on a ticket it does not show.
 	Want []int `json:"want,omitempty"`
+	// Milestone: the number of the tab the companion shows. When it is past the tabs whose tickets are read with every
+	// read, its tickets are read at once.
+	Milestone int `json:"milestone,omitempty"`
 	// Shown: the companion is on screen. A hidden one gets what was read last and starts nothing: no read of the forge,
 	// no batch of sentences.
 	Shown bool `json:"shown,omitempty"`
@@ -127,14 +136,41 @@ type Env struct {
 type project struct {
 	dir string
 	// repo is the forge repository's web address: the sentences are kept per repository, not per folder.
-	repo      string
-	state     string
-	milestone *Milestone
-	readAt    time.Time
-	askedAt   time.Time
-	failed    bool
-	reading   bool
-	rev       int64
+	repo       string
+	state      string
+	milestones []Milestone
+	// selected: the milestones past the first tabs that a window showed, whose tickets every read gets as well; the
+	// least recently shown one first.
+	selected []int
+	readAt   time.Time
+	askedAt  time.Time
+	failed   bool
+	reading  bool
+	rev      int64
+}
+
+// selectTab notes the tab a window shows. It tells whether that milestone's tickets are still to read.
+func (p *project) selectTab(number int) bool {
+	if number <= 0 {
+		return false
+	}
+	index := -1
+	for i := range p.milestones {
+		if p.milestones[i].Number == number {
+			index = i
+			break
+		}
+	}
+	if index < 0 || p.milestones[index].Open <= 0 {
+		return false
+	}
+	if index >= ticketMilestones {
+		p.selected = append(slices.DeleteFunc(p.selected, func(n int) bool { return n == number }), number)
+		if len(p.selected) > maxSelected {
+			p.selected = p.selected[len(p.selected)-maxSelected:]
+		}
+	}
+	return !p.milestones[index].Loaded
 }
 
 func (p *project) stale(now time.Time) bool {
@@ -189,9 +225,9 @@ func (s *Service) cleanDir(dir string) (string, bool) {
 }
 
 // Get answers a project's view at once, from what was read last. For a companion on screen, it starts a read of the
-// forge when the last one is old enough, and a batch of sentences when the developer turned them on, shown tickets have
-// none in lang and the cap allows one; each tells the windows by a Signal when it is done. A hidden companion starts
-// nothing.
+// forge when the last one is old enough (or the tab it shows has no tickets read yet), and a batch of sentences when the
+// developer turned them on, shown tickets have none in lang and the cap allows one; each tells the windows by a Signal
+// when it is done. A hidden companion starts nothing.
 func (s *Service) Get(req GetRequest) View {
 	dir, ok := s.cleanDir(req.Dir)
 	if !ok {
@@ -203,13 +239,13 @@ func (s *Service) Get(req GetRequest) View {
 	if summaries {
 		lang = cleanLang(req.Lang)
 	}
-	view, read, ask := s.look(dir, lang, req.Want, req.Shown)
-	if read {
+	view, read, ask := s.look(dir, lang, req)
+	if read != nil {
 		s.background.Add(1)
-		go s.read(dir)
+		go s.read(dir, read)
 	}
 	agent := ""
-	if view.Milestone != nil && s.env.Agent != nil && s.env.RunPrint != nil {
+	if len(view.Milestones) > 0 && s.env.Agent != nil && s.env.RunPrint != nil {
 		agent = s.env.Agent(dir)
 	}
 	view.Phrasable = agent != ""
@@ -231,34 +267,45 @@ func (s *Service) Get(req GetRequest) View {
 	return view
 }
 
-func (s *Service) look(dir string, lang string, want []int, shown bool) (View, bool, batch) {
+// readJob is a read of the forge a Get starts: selected are the milestones past the first tabs whose tickets it reads.
+type readJob struct {
+	selected []int
+}
+
+func (s *Service) look(dir string, lang string, req GetRequest) (View, *readJob, batch) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.loadLocked()
 	now := s.now()
 	p := s.projectLocked(dir, now)
-	read := false
-	if shown && !p.reading && p.stale(now) && s.reads < maxReads {
+	// A tab whose tickets are not read yet is read at once, but not again before the next ordinary read after a failure.
+	unread := req.Shown && p.selectTab(req.Milestone)
+	var job *readJob
+	if req.Shown && !p.reading && (p.stale(now) || (unread && !p.failed)) && s.reads < maxReads {
 		p.reading = true
 		s.reads++
-		read = true
+		job = &readJob{selected: slices.Clone(p.selected)}
 	}
 	view := View{Dir: dir, State: p.state, ReadAt: unixMs(p.readAt), Phrasing: s.text.phrasingFor(p.repo)}
-	if p.milestone == nil {
-		return view, read, batch{}
+	if len(p.milestones) == 0 {
+		return view, job, batch{}
 	}
-	m := *p.milestone
-	m.Tickets = make([]Ticket, len(p.milestone.Tickets))
-	for i, t := range p.milestone.Tickets {
-		t.Sentence = s.text.sentenceOf(p.repo, t, lang)
-		t.excerpt = ""
-		m.Tickets[i] = t
+	view.Milestones = make([]Milestone, len(p.milestones))
+	var all []Ticket
+	for i, m := range p.milestones {
+		m.Tickets = make([]Ticket, len(p.milestones[i].Tickets))
+		for j, t := range p.milestones[i].Tickets {
+			all = append(all, t)
+			t.Sentence = s.text.sentenceOf(p.repo, t, lang)
+			t.excerpt = ""
+			m.Tickets[j] = t
+		}
+		view.Milestones[i] = m
 	}
-	view.Milestone = &m
-	return view, read, s.text.missingLocked(p.repo, lang, shownTickets(p.milestone.Tickets, want), now)
+	return view, job, s.text.missingLocked(p.repo, lang, shownTickets(all, req.Want), now)
 }
 
-// shownTickets are the tickets of the milestone a companion asked for, in its order.
+// shownTickets are the tickets a companion asked for among those of the milestones, in its order.
 func shownTickets(tickets []Ticket, want []int) []Ticket {
 	byNumber := make(map[int]Ticket, len(tickets))
 	for _, t := range tickets {
@@ -311,13 +358,13 @@ func (s *Service) evictLocked() {
 
 // readResult is one read of the forge. A failure without a state keeps the last good read.
 type readResult struct {
-	state     string
-	repo      string
-	milestone *Milestone
-	err       error
+	state      string
+	repo       string
+	milestones []Milestone
+	err        error
 }
 
-func (s *Service) read(dir string) {
+func (s *Service) read(dir string, job *readJob) {
 	res := readResult{err: errors.New("the read stopped")}
 	defer s.background.Done()
 	defer func() {
@@ -328,7 +375,7 @@ func (s *Service) read(dir string) {
 	}()
 	ctx, cancel := context.WithTimeout(context.Background(), readTimeout)
 	defer cancel()
-	res = readForge(ctx, s.env.Gh, dir, s.now())
+	res = readForge(ctx, s.env.Gh, dir, job.selected)
 }
 
 func (s *Service) applyRead(dir string, res readResult) (Signal, bool) {
@@ -350,12 +397,24 @@ func (s *Service) applyRead(dir string, res readResult) (Signal, bool) {
 		res = readResult{state: StateNoForge}
 	}
 	p.failed = res.err != nil || res.state == StateNoForge
-	if p.state == res.state && p.repo == res.repo && reflect.DeepEqual(p.milestone, res.milestone) {
+	// A tab a window selected while this read ran has its tickets to read: the windows ask again, which reads them.
+	late := res.err == nil && p.unreadSelectedAmong(res.milestones)
+	if p.state == res.state && p.repo == res.repo && reflect.DeepEqual(p.milestones, res.milestones) && !late {
 		return Signal{}, false
 	}
-	p.state, p.repo, p.milestone = res.state, res.repo, res.milestone
+	p.state, p.repo, p.milestones = res.state, res.repo, res.milestones
 	p.rev++
 	return Signal{Dir: dir, Rev: p.rev}, true
+}
+
+// unreadSelectedAmong: a milestone a window selected is in the list without its tickets.
+func (p *project) unreadSelectedAmong(list []Milestone) bool {
+	for _, m := range list {
+		if m.Open > 0 && !m.Loaded && slices.Contains(p.selected, m.Number) {
+			return true
+		}
+	}
+	return false
 }
 
 // signalsLocked tells every project of a repository that its view changed.
