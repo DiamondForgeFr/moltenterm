@@ -67,6 +67,12 @@
     --mt-row-28: 28px;
     --mt-row-32: 32px;
 
+    /* The companion's one horizontal inset (FR-SHELL-018, #2440): from its edge to the section titles, the topics, the
+       gauges, the files, a block's icon tile and the padding of a block's content, in one or two columns, at every
+       width. It sits here, not in companion-work.css, because the sections outside the work area's lazy chunk read it
+       at startup. The companion's own inset is never written as a literal (companion/companion-inset.test.ts). */
+    --mt-companion-inset: var(--mt-space-12);
+
     --mt-icon-14: 14px;
     --mt-icon-16: 16px;
     --mt-icon-20: 20px;

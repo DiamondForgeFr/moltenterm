@@ -468,7 +468,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 {bar}
                 <Suspense
                     fallback={
-                        <div className="p-3 text-12 text-muted">
+                        <div className="px-(--mt-companion-inset) py-3 text-12 text-muted">
                             <DominoLoader className="mr-1.5" />
                             {t("companion.arrange.loading")}
                         </div>
@@ -503,7 +503,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
             {bar}
             <GuessNotice session={session} onHistory={() => setHistory(true)} />
-            <IntegrationNotice view={view} className="mx-3 mt-2" />
+            <IntegrationNotice view={view} className="mx-(--mt-companion-inset) mt-2" />
             <SessionSections
                 slots={slots}
                 layout={layout}
@@ -888,7 +888,7 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
         return (
             <>
                 <SectionTitle>{t("companion.answer.title")}</SectionTitle>
-                <div className="px-3 text-12 text-muted">{t("companion.answer.none")}</div>
+                <div className="px-(--mt-companion-inset) text-12 text-muted">{t("companion.answer.none")}</div>
             </>
         );
     }
@@ -930,8 +930,8 @@ function AnswerSection({ target, view }: { target: string; view: CompanionView }
             >
                 {pinned == null ? t("companion.answer.latest") : t("companion.answer.earlier")}
             </SectionTitle>
-            {error ? <div className="px-3 text-12 text-danger">{error}</div> : null}
-            <div className="px-3" data-testid="companion-answer">
+            {error ? <div className="px-(--mt-companion-inset) text-12 text-danger">{error}</div> : null}
+            <div className="px-(--mt-companion-inset)" data-testid="companion-answer">
                 {shown ? (
                     <AnswerMarkdown markdown={markdown} />
                 ) : (

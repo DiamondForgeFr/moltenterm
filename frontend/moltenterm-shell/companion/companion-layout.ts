@@ -45,6 +45,14 @@ export const DefaultCompanionLayout: CompanionLayout = [
 // between them and the companion's padding. Narrower, they stack.
 export const TwoColumnMinWidth = 560;
 
+// The companion's one horizontal inset in px: --mt-companion-inset (tokens.css), which companion-inset.test.ts keeps
+// equal to this. A block with its icon tile keeps the inset on the right and, on the left, the inset plus what the
+// tile hangs out of the block's 1 px border (16 - 1), so the tile's left edge lies on the inset; the Tasks block's width
+// is its column's minus both.
+export const CompanionInsetPx = 12;
+export const TileHangPx = 15;
+export const BlockInsetPx = 2 * CompanionInsetPx + TileHangPx;
+
 export type WorkLayout = "columns" | "stacked";
 
 export function workLayout(width: number): WorkLayout {

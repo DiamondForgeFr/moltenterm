@@ -28,7 +28,7 @@ import { TabActivity, whileShown } from "../tab-activity";
 import { everyInPanel, panelActivityAtom, usePanelBlockId } from "../view360/offcarpet-model";
 import { AgentsBlockBody } from "./companion-agents";
 import { agentsRunKey, classifyTickets, HoldInputs, taskLists } from "./companion-holds-model";
-import { ColumnsBand, CompanionSectionId, defaultWorkBand, workLayout } from "./companion-layout";
+import { BlockInsetPx, ColumnsBand, CompanionSectionId, defaultWorkBand, workLayout } from "./companion-layout";
 import {
     agentEnd,
     chosenMilestone,
@@ -62,9 +62,8 @@ import "./companion-work.css";
 const RpcTimeoutMs = 5000;
 // While it shows, the block asks again on this beat; wavesrv reads the forge at most once a minute anyway.
 const RefreshMs = 30000;
-// The lane between the two columns, and the room each block keeps from its column (companion-work.css).
+// The lane between the two columns (companion-work.css); the room each block keeps from its column is BlockInsetPx.
 const ColumnGapPx = 16;
-const BlockInsetPx = 32;
 
 function cleanDir(dir: string): string {
     const trimmed = (dir ?? "").trim();

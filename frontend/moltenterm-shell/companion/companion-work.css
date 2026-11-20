@@ -9,9 +9,9 @@
 
 .mt-cwork {
     --df-block-gap: 0px;
-    --df-block-pad: 12px;
+    --df-block-pad: var(--mt-companion-inset);
     --df-block-pad-top: 30px;
-    --df-pocket-left: 12px;
+    --df-pocket-left: var(--mt-companion-inset);
     --df-block-content-gap: 10px;
     /* The blocks sit 28 px apart, the suite's compact spacing (#2416). */
     --mt-cwork-gap: 28px;
@@ -38,7 +38,7 @@
     gap: 0;
 }
 
-/* The lane between the columns is the room the lines cross: 16 px, and the 12 px each block keeps from its column. */
+/* The lane between the columns is the room the lines cross: 16 px, and the inset each block keeps from its column. */
 .mt-cwork[data-layout="columns"][data-both] {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     column-gap: 16px;
@@ -52,19 +52,22 @@
     min-width: 0;
 }
 
-/* The blocks keep 12 px from the companion's edges; the other sections of a band inset themselves. A block with its
-   icon tile (the tile hangs 16 px out of the corner) keeps 20 px on the left, and its tabs start after the tile. */
+/* The one inset (--mt-companion-inset, tokens.css) is the distance from the companion's edge to every first mark: the
+   other sections of a band inset themselves by it, a block keeps it on the right and pads its content by it. A block
+   with its icon tile hangs the tile out of its corner (the tile's offset, from inside the 1 px border): the block keeps
+   the inset plus what hangs out on the left, so the tile's left edge lies on the inset like the section titles, and its
+   tabs start one inset after the tile. */
 .mt-cwork > .df-block,
 .mt-cwork-col > .df-block {
     margin-block: 0;
-    margin-inline: 12px;
+    margin-inline: var(--mt-companion-inset);
     min-width: 0;
 }
 
 .mt-cwork > .df-block:has(> .df-icon-tile),
 .mt-cwork-col > .df-block:has(> .df-icon-tile) {
-    --df-pocket-left: 32px;
-    margin-inline-start: 20px;
+    --df-pocket-left: calc(var(--df-tile-size) + var(--df-tile-offset) + var(--mt-companion-inset));
+    margin-inline-start: calc(var(--mt-companion-inset) - var(--df-tile-offset) - 1px);
 }
 
 .mt-cwork [data-heat="running"] {

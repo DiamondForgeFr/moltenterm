@@ -20,14 +20,18 @@ export function RecentTopicsSection({ view, now }: { view: CompanionView; now: n
         <section aria-label={t("companion.topics.title")} data-testid="companion-topics">
             <SectionTitle>{t("companion.topics.title")}</SectionTitle>
             {name ? (
-                <div className="truncate px-3 pb-1 text-12 text-secondary" title={name} data-testid="companion-name">
+                <div
+                    className="truncate px-(--mt-companion-inset) pb-1 text-12 text-secondary"
+                    title={name}
+                    data-testid="companion-name"
+                >
                     {name}
                 </div>
             ) : null}
             {rows.length === 0 ? (
-                <div className="px-3 text-12 text-muted">{t("companion.topics.empty")}</div>
+                <div className="px-(--mt-companion-inset) text-12 text-muted">{t("companion.topics.empty")}</div>
             ) : (
-                <ol className="flex flex-col gap-1.5 px-3">
+                <ol className="flex flex-col gap-1.5 px-(--mt-companion-inset)">
                     {rows.map((row) => (
                         <li key={row.key} className="flex flex-col" title={row.title} data-testid="companion-topic">
                             <span className="line-clamp-2 text-12 text-primary">{row.text}</span>
@@ -153,7 +157,7 @@ export function AgentsSection({
             <SectionTitle right={ended ? <span className="text-11 text-muted">{ended}</span> : null}>
                 {t("companion.agents.title")}
             </SectionTitle>
-            <AgentsList rows={agents.rows} className="px-3" />
+            <AgentsList rows={agents.rows} className="px-(--mt-companion-inset)" />
         </section>
     );
 }
