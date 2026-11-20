@@ -1111,7 +1111,7 @@
             },
             "companion:usagekimioauth": {
                 "label": "Limites gérées de Kimi Code (expérimental)",
-                "description": "Lire les limites gérées depuis le point d'accès non documenté de Kimi Code pour sa région .com ou .ai configurée, avec sa connexion OAuth stockée dans un fichier."
+                "description": "Lire les limites gérées de Kimi Code pour sa région officielle .com ou .ai avec sa connexion OAuth stockée dans un fichier."
             },
             "linemap:animation": {
                 "label": "Animer le plan de lignes",
