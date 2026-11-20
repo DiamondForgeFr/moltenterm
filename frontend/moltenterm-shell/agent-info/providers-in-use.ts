@@ -42,7 +42,8 @@ export type ProviderOrder = {
 };
 
 // orderProviders ranks the installed agents. `preferred` is the id of the provider a choice leads with (the one that
-// made the pull request); it leads when installed, whether or not it is in use. Ties in last use fall back to the id.
+// made the pull request); it leads when installed, whether or not it is in use. Ties in last use keep the given order,
+// the registry's: no provider is preferred by name.
 export function orderProviders(
     agents: ProviderAgent[],
     lastUseOf: LastUseOf,
@@ -55,7 +56,7 @@ export function orderProviders(
     const ranked = installed
         .filter((a) => a !== lead)
         .map((agent) => ({ agent, lastUse: lastUseOf(agent.id) || 0 }))
-        .sort((a, b) => b.lastUse - a.lastUse || (a.agent.id < b.agent.id ? -1 : a.agent.id > b.agent.id ? 1 : 0));
+        .sort((a, b) => b.lastUse - a.lastUse);
     const inUse = ranked.filter((r) => inUseWithin(r.lastUse, now, windowMs)).map((r) => r.agent);
     const other = ranked.filter((r) => !inUseWithin(r.lastUse, now, windowMs)).map((r) => r.agent);
     return { shown: lead ? [lead, ...inUse] : inUse, other };

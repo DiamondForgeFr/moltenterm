@@ -2203,9 +2203,10 @@
           "type": "string",
           "enum": [
             "claude",
-            "codex"
+            "codex",
+            "kimi"
           ],
-          "description": "The coding agent MoltenTerm starts on its own (reviews: investigate, rebase, restart work, batch merge, the assisted review; the release notes; the companion's Start the agent here) when a project chose none in a panel's options: claude (Claude Code) or codex (Codex). Unset: the first installed of Claude Code, then Codex. A chosen agent that is not installed is reported, never replaced",
+          "description": "The coding agent MoltenTerm starts on its own (reviews: investigate, rebase, restart work, batch merge, the assisted review; the release notes; the companion's Start the agent here) when a project chose none in a panel's options: claude (Claude Code), codex (Codex) or kimi (Kimi Code). Unset: the first installed of Claude Code, then Codex. A chosen agent that is not installed is reported, never replaced",
           "x-moltenterm": {
             "section": "agents",
             "group": "Coding agent",
@@ -2220,6 +2221,10 @@
               {
                 "value": "codex",
                 "label": "Codex"
+              },
+              {
+                "value": "kimi",
+                "label": "Kimi Code"
               }
             ],
             "unsetlabel": "The first installed",

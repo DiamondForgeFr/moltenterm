@@ -9,18 +9,13 @@
 // the default is selected and focused at open. Validate (or Enter) starts the agent in the selected mode; Cancel and
 // Escape start nothing.
 
-import { atoms, getSettingsKeyAtom } from "@/app/store/global";
+import { atoms } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
-import { cn } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useId, useRef, useState } from "react";
-import {
-    orderProviders,
-    preferredProviderId,
-    ProvidersUseDaysKey,
-    providersUseWindowMs,
-} from "../agent-info/providers-in-use";
-import { useProviderLastUse } from "../agent-info/providers-in-use-use";
+import { orderProviders, preferredProviderId } from "../agent-info/providers-in-use";
+import { ProviderUseAtom, refreshProviderUse } from "../agent-info/providers-in-use-use";
 import { DialogFrame } from "../dialog-frame";
 import { t, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
@@ -220,7 +215,7 @@ async function openReviewGesture(args: Record<string, any>) {
 
 export function AgentChoiceHost() {
     const pending = useAtomValue(AgentChoiceModel.getInstance().pendingAtom);
-    const windowMs = providersUseWindowMs(useAtomValue(getSettingsKeyAtom(ProvidersUseDaysKey)));
+    useEffect(() => fireAndForget(refreshProviderUse), []);
     useEffect(() => registerNotificationGesture(ReviewOpenGesture, openReviewGesture), []);
     useEffect(() => registerNotificationGesture(InvestigateGesture, investigateGesture), []);
     useEffect(() => registerNotificationGesture(ReviewsCardGesture, reviewsCardGesture), []);
@@ -228,28 +223,22 @@ export function AgentChoiceHost() {
     if (pending == null) {
         return null;
     }
-    return <AgentChoiceDialog key={`${pending.kind}:${pending.number}`} pending={pending} windowMs={windowMs} />;
+    return <AgentChoiceDialog key={`${pending.kind}:${pending.number}`} pending={pending} />;
 }
 
-export function AgentChoiceDialog({
-    pending,
-    windowMs = providersUseWindowMs(undefined),
-}: {
-    pending: PendingChoice;
-    windowMs?: number;
-}) {
+export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
     const t = useT();
     const defaultRef = useRef<HTMLButtonElement>(null);
     const [picked, setPicked] = useState<string>(null);
     const [selected, setSelected] = useState<AgentMode>(DefaultMode);
     const agent = pickedAgent(pending, picked);
     const installed = (pending.agents ?? []).filter((a) => a.installed);
-    const lastUse = useProviderLastUse();
+    const usage = useAtomValue(ProviderUseAtom);
     const order = orderProviders(
         pending.agents ?? [],
-        (id) => lastUse[id] ?? 0,
+        (id) => usage.last[id] ?? 0,
         Date.now(),
-        windowMs,
+        usage.windowMs,
         preferredProviderId(pending.prAgent, pending.agents)
     );
     const validate = () => answerAgentChoice(pending, picked, selected);

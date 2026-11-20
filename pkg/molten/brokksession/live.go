@@ -182,7 +182,7 @@ func liveFolder() (string, error) {
 
 func livePickAgent(dir string) (string, string, bool) {
 	choice := agentchoice.Resolve(dir, "")
-	if choice.Agent == "" {
+	if choice.Agent == "" || agentchoice.QuickPrintArgv(choice.Agent, dir) == nil {
 		return "", choice.ChosenName, choice.Missing
 	}
 	return choice.Agent, molten.AgentDisplayName(choice.Agent), false
@@ -190,7 +190,7 @@ func livePickAgent(dir string) (string, string, bool) {
 
 func liveChosenAgent(dir string) (string, bool) {
 	choice := agentchoice.Resolve(dir, "")
-	if !choice.Explicit() || choice.Missing || choice.Agent == "" {
+	if !choice.Explicit() || choice.Missing || choice.Agent == "" || agentchoice.QuickPrintArgv(choice.Agent, dir) == nil {
 		return "", false
 	}
 	return choice.Agent, true

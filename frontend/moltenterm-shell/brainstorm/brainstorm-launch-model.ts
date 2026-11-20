@@ -7,6 +7,7 @@
 // command line itself. The setup types the harness profile whichever profile is chosen: the full profile comes second,
 // by the update of a folder set up already, after its dry run.
 
+import { rankAgents } from "../agent-info/providers-in-use-use";
 import type { BrainstormState } from "./brainstorm-boot";
 import type { BrainstormGraph, ProposalAction } from "./brainstorm-graph-model";
 
@@ -211,7 +212,7 @@ export function briefToSend(edited: string, preview: HandoffPreview): string {
 }
 
 export function installedAgents(preview: HandoffPreview): HandoffAgent[] {
-    return (preview?.agents ?? []).filter((a) => a.installed);
+    return rankAgents(preview?.agents ?? []).filter((a) => a.installed);
 }
 
 // The key of the sentence a refusal says; an unknown code says that it did not work.

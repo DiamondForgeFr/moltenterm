@@ -11,6 +11,25 @@ import (
 	"time"
 )
 
+// #2431: Kimi Code is an agent the flows start like the others: the default takes the first installed in the registry's
+// order, and the developer can choose it. It has no read-only form, so it is never a print agent.
+func TestKimiIsStartableLikeTheOthers(t *testing.T) {
+	order := []string{"claude", "codex", "kimi"}
+	r := Resolver{Order: order, Installed: func(id string) bool { return id == "kimi" }}
+	if got := r.Resolve("/p", ""); got.Agent != "kimi" || got.Source != SourceOrder {
+		t.Errorf("the first installed agent is kimi by default: %+v", got)
+	}
+	if got := r.Resolve("/p", "kimi"); got.Agent != "kimi" || got.Source != SourceRun {
+		t.Errorf("the run's choice of kimi is started: %+v", got)
+	}
+	if got := Supported; !reflect.DeepEqual(got, order) {
+		t.Errorf("the registry's agents are supported, in its order: %v", got)
+	}
+	if QuickPrintArgv("kimi", "/p") != nil || PrintArgv("kimi", "/p") != nil {
+		t.Errorf("kimi has no read-only form: it is never a print agent")
+	}
+}
+
 func resolver(installed map[string]bool, global string, projects map[string]string) Resolver {
 	return Resolver{
 		Order:     []string{"claude", "codex"},
@@ -113,7 +132,7 @@ func TestQuickPrintArgv(t *testing.T) {
 }
 
 func TestQuickPrintArgvKeepsEveryGuardOfThePrintForm(t *testing.T) {
-	for _, id := range Supported {
+	for _, id := range []string{"claude", "codex"} {
 		plain, quick := PrintArgv(id, "/p"), QuickPrintArgv(id, "/p")
 		if len(quick) <= len(plain) {
 			t.Fatalf("%s: the quick form %v adds nothing to %v", id, quick, plain)

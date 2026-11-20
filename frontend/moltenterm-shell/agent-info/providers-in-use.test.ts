@@ -101,14 +101,14 @@ describe("the order is by last use, the most recent first (#2431)", () => {
         expect(order.other.map((a) => a.id)).toEqual(["codex"]);
     });
 
-    it("breaks a tie in last use by id, so the order is the same on every run", () => {
+    it("keeps the given order on a tie in last use, so no provider is preferred by name", () => {
         const order = orderProviders(
             [agent("kimi"), agent("codex")],
             lastUseFrom({ kimi: Hour, codex: Hour }),
             Now,
             Window
         );
-        expect(order.shown.map((a) => a.id)).toEqual(["codex", "kimi"]);
+        expect(order.shown.map((a) => a.id)).toEqual(["kimi", "codex"]);
     });
 });
 
@@ -142,6 +142,29 @@ describe("the preferred provider leads a choice (#2431)", () => {
         expect(preferredProviderId("Claude Code via GLM", agents)).toBe("claude");
         expect(preferredProviderId("Unknown Agent", agents)).toBe("");
         expect(preferredProviderId("", agents)).toBe("");
+    });
+});
+
+describe("the resume picker's order, from the PR's provider (#2431)", () => {
+    // Synthetic: Claude Code made the pull request, Kimi Code was used today, Codex eight days ago.
+    const agents = [
+        { id: "claude", name: "Claude Code", installed: true },
+        { id: "kimi", name: "Kimi Code", installed: true },
+        { id: "codex", name: "Codex", installed: true },
+    ];
+
+    it("defaults to the provider that made the PR, then Kimi Code, with Codex under Other agents", () => {
+        const preferred = preferredProviderId("Claude Code", agents);
+        const order = orderProviders(agents, lastUseFrom({ kimi: 3 * Hour, codex: 8 * Day }), Now, Window, preferred);
+        expect(order.shown.map((a) => a.id)).toEqual(["claude", "kimi"]);
+        expect(order.other.map((a) => a.id)).toEqual(["codex"]);
+    });
+
+    it("names no provider in code: the same rule leads with whichever provider made the PR", () => {
+        const preferred = preferredProviderId("Kimi Code", agents);
+        const order = orderProviders(agents, lastUseFrom({ claude: 2 * Day, codex: 8 * Day }), Now, Window, preferred);
+        expect(order.shown.map((a) => a.id)).toEqual(["kimi", "claude"]);
+        expect(order.other.map((a) => a.id)).toEqual(["codex"]);
     });
 });
 

@@ -371,7 +371,7 @@ func checkStart(req mcpreview.StartRequest) error {
 // in the registry's order. A requested or chosen agent that is not installed is never replaced: the result says so and
 // lists the installed agents (Installed) for the developer to pick.
 func (m *Manager) pickAgent(requested string, projectDir string) (string, mcpreview.StartResult) {
-	resolver := agentchoice.Resolver{Order: m.env.AgentOrder, Installed: m.env.AgentInstalled, Global: m.env.GlobalAgent,
+	resolver := agentchoice.Resolver{Order: reviewOrder(m.env.AgentOrder), Installed: m.env.AgentInstalled, Global: m.env.GlobalAgent,
 		Project: m.env.ProjectAgent}
 	choice := resolver.Resolve(projectDir, requested)
 	if choice.Agent != "" {
@@ -513,6 +513,9 @@ func (m *Manager) agentCommand(agent string, moltenPath string, prompt string, u
 	guidePath, err := m.env.WriteFile("review-guide", ".md", guide)
 	if err != nil {
 		return "", fmt.Errorf("the review guide could not be written: %w", err)
+	}
+	if !isSupportedAgent(agent) {
+		return "", fmt.Errorf("%s cannot run a review: a review runs Claude Code or Codex", agent)
 	}
 	if agent == molten.AgentIdCodex {
 		return CommandLine("codex", withPrompt(CodexReviewArgs(moltenPath, guidePath, untrusted), prompt)), nil
