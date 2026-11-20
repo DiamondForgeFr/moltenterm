@@ -159,7 +159,7 @@ export function SessionBar({
     const earlierCount = view.earlier?.length ?? 0;
     return (
         <div
-            className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1.5 text-11 text-muted"
+            className="flex shrink-0 items-center gap-2 border-b border-border px-(--mt-companion-inset) py-1.5 text-11 text-muted"
             title={[session?.path, session?.format].filter((s) => !!s).join("\n")}
             data-testid="companion-session-bar"
         >
@@ -261,7 +261,10 @@ export function GuessNotice({ session, onHistory }: { session: CompanionSession;
         return null;
     }
     return (
-        <div className="mx-3 mt-1.5 flex items-center gap-2 text-11 text-muted" data-testid="companion-guess">
+        <div
+            className="mx-(--mt-companion-inset) mt-1.5 flex items-center gap-2 text-11 text-muted"
+            data-testid="companion-guess"
+        >
             <span className="min-w-0 truncate">{hint}</span>
             <button
                 type="button"

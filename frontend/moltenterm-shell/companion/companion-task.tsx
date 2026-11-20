@@ -21,6 +21,7 @@ import { MoltenWave } from "../molten-button";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { CompanionView, relativeTime } from "./companion-model";
+import { SectionTitle } from "./companion-section";
 import {
     newerTask,
     redactionLabel,
@@ -144,7 +145,9 @@ export function WorkspaceTaskSection({
         }
         return (
             <TaskFrame>
-                <div className="px-3 pb-3 text-12 text-muted">{t("companion.task.unavailable", { error })}</div>
+                <div className="px-(--mt-companion-inset) pb-3 text-12 text-muted">
+                    {t("companion.task.unavailable", { error })}
+                </div>
             </TaskFrame>
         );
     }
@@ -225,7 +228,7 @@ export function WorkspaceTaskCard({
                 ) : null
             }
         >
-            <div className="flex flex-col gap-1.5 px-3 pb-3 text-12" data-testid="companion-task">
+            <div className="flex flex-col gap-1.5 px-(--mt-companion-inset) pb-3 text-12" data-testid="companion-task">
                 {summary.empty ? (
                     <div className="text-muted">{t("companion.task.empty")}</div>
                 ) : (
@@ -330,12 +333,7 @@ function TaskFrame({ children, right }: { children: React.ReactNode; right?: Rea
     const t = useT();
     return (
         <>
-            <div className="flex items-center gap-2 px-3 pt-3 pb-1">
-                <div className="text-11 font-semibold tracking-wide text-muted uppercase">
-                    {t("companion.task.title")}
-                </div>
-                <div className="ml-auto flex items-center gap-1">{right}</div>
-            </div>
+            <SectionTitle right={right}>{t("companion.task.title")}</SectionTitle>
             {children}
         </>
     );

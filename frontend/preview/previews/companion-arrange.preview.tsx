@@ -118,7 +118,7 @@ function Stand({ title, children }: { title: string; children: React.ReactNode }
     return (
         <section data-testid={`companion-${title.toLowerCase().replace(/\s+/g, "-")}`}>
             <SectionTitle>{title}</SectionTitle>
-            <div className="px-3 text-12 text-secondary">{children}</div>
+            <div className="px-(--mt-companion-inset) text-12 text-secondary">{children}</div>
         </section>
     );
 }
