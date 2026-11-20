@@ -43,6 +43,7 @@ function fixture(
         reduced?: boolean;
         libraryOpen?: boolean;
         noLayout?: boolean;
+        layoutOff?: boolean;
     } = {}
 ): Fixture {
     const page = fakeElement();
@@ -61,6 +62,7 @@ function fixture(
         page: () => page,
         ghost: (side) => el(`ghost${side}`),
         leave: {
+            enabled: () => opts.layoutOff !== true,
             prepare: (id) => {
                 leave.drawnFor = id;
                 leave.progress = 0;
@@ -560,6 +562,12 @@ describe("side panels edge to edge, the content into the next layout (FR-SHELL-0
     it("leaves a dot's switch to a workspace that is not a neighbour, or under reduced motion, to the cross-fade", () => {
         expect(fixture().controller.autoSwitch("a", 1)).toBe(false);
         expect(fixture({ reduced: true }).controller.autoSwitch("c", 1)).toBe(false);
+    });
+
+    it("plays no settle for a dot when the kill switch turned the layout off (MOLTENTERM_SWITCHPICTURE)", () => {
+        const f = fixture({ layoutOff: true });
+        expect(f.controller.autoSwitch("c", 1)).toBe(false);
+        expect(f.controller.state.phase).toBe("idle");
     });
 
     it("under reduced motion shows the layout at once, then switches: the same steps without the slide", () => {

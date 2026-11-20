@@ -1261,6 +1261,21 @@ describe("a switch that shows its remembered layout shows no picture (#2407)", (
             "__mtSwitchLayoutOnScreen = arrivedOnScreen"
         );
     });
+
+    it("answers the view that asked a sidebar switch it did not make here, whatever path ended it", () => {
+        const win = source("emain/emain-window.ts");
+        const handler = win.slice(win.indexOf('onAppIpc("switch-workspace"'));
+        const body = handler.slice(0, handler.indexOf("\n});\n"));
+        // in a finally: a switch cancelled, sent to another window or failed answers too
+        expect(body).toMatch(/finally \{\s*answerSidebarSwitch\(ww, workspaceId, event\.sender\.id\)/);
+        const live = source("emain/moltenterm-switch-picture-live.ts");
+        const answer = live.slice(live.indexOf("export function answerSidebarSwitch"));
+        expect(answer.slice(0, answer.indexOf("\n}\n"))).toMatch(/win\.workspaceId === workspaceId/);
+        expect(live).toContain("__mtSwitchLayoutRefused");
+        expect(source("frontend/moltenterm-shell/switch-layout/layout-frames.ts")).toContain(
+            "__mtSwitchLayoutRefused = switchRefused"
+        );
+    });
 });
 
 // A switch's new view with no picture to wear is never shown half-drawn (#2390).

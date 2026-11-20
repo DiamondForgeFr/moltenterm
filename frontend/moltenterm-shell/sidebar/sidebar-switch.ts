@@ -12,7 +12,7 @@ import { useAtomValue } from "jotai";
 import { useEffect } from "react";
 import { prefersReducedMotion } from "../molten-motion";
 import { settleFrames, SettleMs, settleOffset, SwipeAbsorb, SwipeSettle, workspaceAtNumber } from "./sidebar-swipe";
-import { clearLeave, holdLeave, leaving, playLeave, prepareLeave } from "../switch-layout/layout-frames";
+import { clearLeave, holdLeave, playLeave, prepareLeave } from "../switch-layout/layout-frames";
 import { makeSwitchIntent } from "./switch-intent";
 
 export const SwitchIntentKey = "moltenterm:sidebar-switch";
@@ -158,8 +158,9 @@ export function switchFromSidebar(workspaceId: string, direction: -1 | 1, swipe?
         askSwitch(workspaceId, direction, undefined);
         return;
     }
-    playLeave().then(() => {
-        if (token !== switchToken || !leaving()) {
+    // A swipe or another dot during the fade replaces this leave: its switch is not asked.
+    playLeave().then((ended) => {
+        if (token !== switchToken || !ended) {
             return;
         }
         askSwitch(workspaceId, direction, { offset: 0, v0: 0, absorb: null, layout: true });

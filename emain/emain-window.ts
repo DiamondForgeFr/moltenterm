@@ -30,7 +30,7 @@ import { noteWindowCreatedLook } from "./moltenterm-window-look"; // MOLTENTERM-
 import { askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): dialogs in the interface language
-import { beginSwitchPicture } from "./moltenterm-switch-picture-live"; // MOLTENTERM-PATCH (#2375)
+import { answerSidebarSwitch, beginSwitchPicture } from "./moltenterm-switch-picture-live"; // MOLTENTERM-PATCH (#2375, #2407)
 import {
     activeWindowTabView,
     closeWindowTabViews,
@@ -653,7 +653,11 @@ onAppIpc("switch-workspace", (event, workspaceId) => {
     fireAndForget(async () => {
         const ww = getWaveWindowByWebContentsId(event.sender.id);
         console.log("switch-workspace", workspaceId, ww?.waveWindowId);
-        await ww?.switchWorkspace(workspaceId, event.sender.id); // MOLTENTERM-PATCH (#1250)
+        try {
+            await ww?.switchWorkspace(workspaceId, event.sender.id); // MOLTENTERM-PATCH (#1250)
+        } finally {
+            answerSidebarSwitch(ww, workspaceId, event.sender.id); // MOLTENTERM-PATCH (#2407): a switch not made gives the view its content back
+        }
     });
 });
 

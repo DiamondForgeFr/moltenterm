@@ -9,7 +9,9 @@
 //   screen, a domino in each one still waiting, each frame dissolving into its live panel as soon as that panel is ready.
 // Neither ever outlives its switch: each has a deadline, and leaving the screen takes it off at once.
 
+import * as WOS from "@/app/store/wos";
 import { prefersReducedMotion } from "../molten-motion";
+import { snapToCycle } from "../suite/suite";
 import { Box, contentBoxFor, RememberedLayout, scaleLayout } from "./layout-memory";
 import { loadLayout } from "./layout-store";
 import "./switch-layout.css";
@@ -87,6 +89,8 @@ function place(el: HTMLElement, r: Box) {
     el.style.height = `${r.height}px`;
 }
 
+// The suite's dominoes (DominoLoader's markup), on the one clock every chain falls on (suite.tsx snapToCycle): each bar's
+// fall is put back on the last whole cycle when it starts. The chain's own fade-in is left alone.
 function dominoes(): HTMLElement {
     const d = document.createElement("span");
     d.className = "df-dominos df-dominos-card";
@@ -94,6 +98,14 @@ function dominoes(): HTMLElement {
     for (let i = 0; i < 8; i++) {
         d.appendChild(document.createElement("span"));
     }
+    d.addEventListener("animationstart", (e) => {
+        if (e.target === d) {
+            return;
+        }
+        for (const anim of (e.target as Element).getAnimations?.() ?? []) {
+            anim.ready.then(() => snapToCycle(anim)).catch((): void => null);
+        }
+    });
     return d;
 }
 
@@ -123,10 +135,25 @@ export function buildFrames(id: string, layout: RememberedLayout, box: Box, wait
 type Leave = { layer: HTMLElement; content: HTMLElement; timer: ReturnType<typeof setTimeout>; progress: number };
 let leave: Leave = null;
 
-// The next workspace's frames over this view's content, not shown yet. False when there is nothing to draw.
+// The view a workspace shows now, as far as this view's objects tell (empty when they do not know).
+function activeTabOf(workspaceId: string): string {
+    try {
+        return WOS.getObjectValue<Workspace>(WOS.makeORef("workspace", workspaceId))?.activetabid ?? "";
+    } catch {
+        return "";
+    }
+}
+
+// The next workspace's frames over this view's content, not shown yet. False when there is nothing to draw, or when
+// the layout is of another view than the one the workspace shows now: the view reached would refuse to wear it, and
+// the leave would end on frames the switch then drops at once.
 export function prepareLeave(workspaceId: string, layout: RememberedLayout = loadLayout(workspaceId)): boolean {
     clearLeave();
     if (!switchLayoutOn() || layout == null || layout.panels.length === 0) {
+        return false;
+    }
+    const active = activeTabOf(workspaceId);
+    if (active && layout.tabId && layout.tabId !== active) {
         return false;
     }
     const content = contentElement();
@@ -161,27 +188,30 @@ function cancelAnimations(el: HTMLElement) {
     el.getAnimations?.().forEach((a) => a.cancel());
 }
 
-// The eased cross-fade of a dot or a key, from where it stands to the end. Resolves when it is over.
-export function playLeave(ms: number = switchFadeMs()): Promise<void> {
+// The eased cross-fade of a dot or a key, from where it stands to the end. Resolves once it is over, with whether it
+// ended on its own leave: a leave cleared or replaced meanwhile (a swipe, another dot) answers false, and its switch
+// must not be asked.
+export function playLeave(ms: number = switchFadeMs()): Promise<boolean> {
     const l = leave;
     if (l == null) {
-        return Promise.resolve();
+        return Promise.resolve(false);
     }
     const from = l.progress;
     leaveProgress(1);
     if (!(ms > 0) || l.layer.animate == null) {
-        return Promise.resolve();
+        return Promise.resolve(leave === l);
     }
     const opts = { duration: ms * (1 - from), easing: ease() };
     const a = l.layer.animate([{ opacity: from }, { opacity: 1 }], opts);
     l.content.animate([{ opacity: 1 - from }, { opacity: 0 }], opts);
     return new Promise((resolve) => {
-        a.onfinish = () => resolve();
-        a.oncancel = () => resolve();
+        a.onfinish = () => resolve(leave === l);
+        a.oncancel = () => resolve(false);
     });
 }
 
-// The switch was asked: the layer stays until this view leaves the screen, LeaveMaxMs at most.
+// The switch was asked: the layer stays until this view leaves the screen. Anything that says the switch will not come
+// takes it off at once (main's answer, the window losing the focus, the next press or key), LeaveMaxMs at the latest.
 export function holdLeave() {
     if (leave == null) {
         return;
@@ -189,6 +219,9 @@ export function holdLeave() {
     clearTimeout(leave.timer);
     leave.timer = setTimeout(() => clearLeave(), LeaveMaxMs);
     document.addEventListener("visibilitychange", onLeaveVisibility);
+    window.addEventListener("blur", onLeaveInput);
+    window.addEventListener("pointerdown", onLeaveInput, true);
+    window.addEventListener("keydown", onLeaveInput, true);
 }
 
 function onLeaveVisibility() {
@@ -197,16 +230,32 @@ function onLeaveVisibility() {
     }
 }
 
+function onLeaveInput() {
+    clearLeave();
+}
+
+// Electron main answers a switch it did not make in this window (it only focused the window that shows the workspace,
+// opened another window, or the developer kept the workspace): the view stays, its content comes back at once.
+export function switchRefused() {
+    clearLeave();
+}
+
+(globalThis as any).__mtSwitchLayoutRefused = switchRefused;
+
 // Everything back as it was: the frames gone, the content's own opacity.
 export function clearLeave() {
     const l = leave;
     leave = null;
     document.removeEventListener("visibilitychange", onLeaveVisibility);
+    window.removeEventListener("blur", onLeaveInput);
+    window.removeEventListener("pointerdown", onLeaveInput, true);
+    window.removeEventListener("keydown", onLeaveInput, true);
     if (l == null) {
         document.getElementById(LeaveLayerId)?.remove();
         return;
     }
     clearTimeout(l.timer);
+    cancelAnimations(l.layer);
     cancelAnimations(l.content);
     l.content.style.opacity = "";
     l.layer.remove();
