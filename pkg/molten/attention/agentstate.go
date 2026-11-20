@@ -374,7 +374,13 @@ func (a *agentStates) attention(blockId string, signal AttentionSignal) {
 	if molten.IsIdlePromptSignal(signal.Title, signal.Message) && (rec.state == molten.AgentStateIdle || rec.state == molten.AgentStateDone) {
 		return
 	}
-	a.setStateLocked(blockId, rec, molten.AttentionAgentState(signal.Title, signal.Message), "")
+	state := molten.AttentionAgentState(signal.Title, signal.Message)
+	p := a.panes[blockId]
+	// Kimi falls back to BEL for completion when OSC 9 is unavailable; the same BEL may mean an approval or question.
+	if signal.TitleCode == molten.NotificationTitleBell && rec.agent == molten.AgentIdKimi && p != nil && p.hookedAgent == rec.agent && rec.state != molten.AgentStateWaiting {
+		state = molten.AgentStateDone
+	}
+	a.setStateLocked(blockId, rec, state, "")
 }
 
 // input sees what the user types in a terminal: Enter in a pane whose agent waits (or is done) is an answer. The

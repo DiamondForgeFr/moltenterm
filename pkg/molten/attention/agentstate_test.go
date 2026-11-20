@@ -492,3 +492,129 @@ func TestSessionStartAndRedundantTurnEnd(t *testing.T) {
 		t.Fatal("another agent's turn end is not this one's")
 	}
 }
+
+func TestHookedKimiCompletionBell(t *testing.T) {
+	t.Parallel()
+	for _, stopFirst := range []bool{false, true} {
+		name := "BEL before Stop"
+		if stopFirst {
+			name = "Stop before BEL"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := makeAgentHarness()
+			h.out("b1", cmdMark("kimi"))
+			if err := h.report("b1", molten.AgentStateWorking, molten.AgentIdKimi); err != nil {
+				t.Fatal(err)
+			}
+			if stopFirst {
+				if err := h.report("b1", molten.AgentStateDone, molten.AgentIdKimi); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h.out("b1", "\x07")
+			if got := h.state("b1"); got != molten.AgentStateDone {
+				t.Fatalf("after BEL: %q, want done", got)
+			}
+			if !stopFirst {
+				if err := h.report("b1", molten.AgentStateDone, molten.AgentIdKimi); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h.out("b1", "prompt redraw")
+			if got := h.state("b1"); got != molten.AgentStateDone {
+				t.Fatalf("after Stop and later output: %q, want done", got)
+			}
+		})
+	}
+}
+
+func TestHookedKimiBellAndPermissionHooks(t *testing.T) {
+	t.Parallel()
+	t.Run("PermissionRequest before BEL", func(t *testing.T) {
+		t.Parallel()
+		h := makeAgentHarness()
+		h.out("b1", cmdMark("kimi"))
+		h.report("b1", molten.AgentStateWorking, molten.AgentIdKimi)
+		h.report("b1", molten.AgentStateWaiting, molten.AgentIdKimi)
+		h.out("b1", "\x07")
+		if got := h.state("b1"); got != molten.AgentStateWaiting {
+			t.Fatalf("BEL over PermissionRequest: %q, want waiting", got)
+		}
+		h.report("b1", molten.AgentStateWorking, molten.AgentIdKimi)
+		if got := h.state("b1"); got != molten.AgentStateWorking {
+			t.Fatalf("PermissionResult: %q, want working", got)
+		}
+	})
+	t.Run("BEL before PermissionRequest", func(t *testing.T) {
+		t.Parallel()
+		h := makeAgentHarness()
+		h.out("b1", cmdMark("kimi"))
+		h.report("b1", molten.AgentStateWorking, molten.AgentIdKimi)
+		h.out("b1", "\x07")
+		h.report("b1", molten.AgentStateWaiting, molten.AgentIdKimi)
+		if got := h.state("b1"); got != molten.AgentStateWaiting {
+			t.Fatalf("PermissionRequest after BEL: %q, want waiting", got)
+		}
+	})
+}
+
+func TestBareBellCompatibility(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name   string
+		agent  string
+		hooked bool
+	}{
+		{name: "hooked Claude", agent: molten.AgentIdClaude, hooked: true},
+		{name: "unhooked Kimi", agent: molten.AgentIdKimi},
+		{name: "generic agent", agent: molten.AgentIdCodex},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			h := makeAgentHarness()
+			h.out("b1", cmdMark(c.agent))
+			if c.hooked {
+				h.report("b1", molten.AgentStateWorking, c.agent)
+			}
+			h.out("b1", "\x07")
+			if got := h.state("b1"); got != molten.AgentStateWaiting {
+				t.Fatalf("bare BEL: %q, want waiting", got)
+			}
+		})
+	}
+	if got := molten.AttentionAgentState(BellTitle, "Bell"); got != molten.AgentStateWaiting {
+		t.Fatalf("generic bell classification: %q, want waiting", got)
+	}
+	h := makeAgentHarness()
+	h.out("ordinary", "\x07")
+	if got := h.state("ordinary"); got != "" || len(h.recorded) != 1 || h.recorded[0].TitleCode != molten.NotificationTitleBell {
+		t.Fatalf("ordinary terminal: state %q, signals %+v", got, h.recorded)
+	}
+}
+
+func TestHookedKimiBellKeepsBackgroundChildState(t *testing.T) {
+	t.Parallel()
+	h := makeAgentHarness()
+	h.out("b1", cmdMark("kimi"))
+	h.report("b1", molten.AgentStateWorking, molten.AgentIdKimi)
+	h.report("b1", molten.AgentStateDone, molten.AgentIdKimi)
+	if _, _, err := h.states.report(molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateWorking, Agent: molten.AgentIdKimi, Subagent: "child"}); err != nil {
+		t.Fatal(err)
+	}
+	before := h.info("b1")
+	if before.State != molten.AgentStateWorking || !before.Background || before.Subagents != 1 {
+		t.Fatalf("background child before BEL: %+v", before)
+	}
+	h.out("b1", "\x07")
+	after := h.info("b1")
+	if after.State != before.State || after.Background != before.Background || after.Subagents != before.Subagents {
+		t.Fatalf("background child after BEL: before %+v, after %+v", before, after)
+	}
+	if _, _, err := h.states.report(molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateDone, Agent: molten.AgentIdKimi, Subagent: "child"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.info("b1"); got.State != molten.AgentStateDone || got.Background || got.Subagents != 0 {
+		t.Fatalf("background child completed: %+v", got)
+	}
+}
