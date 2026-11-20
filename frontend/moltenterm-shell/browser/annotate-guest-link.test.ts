@@ -116,6 +116,26 @@ describe("the line to the page", () => {
         expect(await pending).toBeNull();
     });
 
+    it("ends every request still waiting when the page starts to be left, and asks nothing of it until it is up again", async () => {
+        const webview = new FakeWebview();
+        const link = new GuestLink(webview);
+        link.attach();
+        const first = link.request((reqId) => ({ type: "prepare", reqId, id: 1 }), 60_000);
+        const second = link.request((reqId) => ({ type: "overview", reqId, slice: 0 }), 60_000);
+        link.blocked = true;
+        link.abortAll();
+        expect(await first).toBeNull();
+        expect(await second).toBeNull();
+        const sent = webview.sent.length;
+        expect(await link.request((reqId) => ({ type: "restore", reqId }))).toBeNull();
+        expect(webview.sent).toHaveLength(sent);
+        link.blocked = false;
+        const again = link.request((reqId) => ({ type: "restore", reqId }), 60_000);
+        const { reqId } = webview.heard()[webview.heard().length - 1] as { reqId: number };
+        webview.say({ type: "restored", reqId });
+        expect(await again).toEqual({ type: "restored", reqId });
+    });
+
     it("ends the requests still waiting when the line is cut, and a request the page cannot take", async () => {
         const webview = new FakeWebview();
         const link = new GuestLink(webview);
@@ -171,6 +191,14 @@ describe("a mark the page says it placed", () => {
         expect(long.anchor.box).toEqual({ x: 10, y: 20, w: 30, h: 40 });
         const unrelated = readPlaced(placed({ anchor: anchor({ rel: null }) }));
         expect(unrelated.anchor.selector).toBe("");
+    });
+
+    it("keeps the flag of an element that moves with the viewport, only with a selector", () => {
+        expect(readPlaced(placed({ anchor: anchor({ sticky: true }) })).anchor.sticky).toBe(true);
+        expect(
+            readPlaced(placed({ anchor: anchor({ sticky: "yes" as unknown as boolean }) })).anchor.sticky
+        ).toBeUndefined();
+        expect(readPlaced(placed({ anchor: anchor({ sticky: true, selector: "" }) })).anchor.sticky).toBeUndefined();
     });
 
     it("is refused for an outline that is not numbers or has too many points", () => {

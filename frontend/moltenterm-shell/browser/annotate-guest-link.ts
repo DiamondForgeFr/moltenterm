@@ -33,9 +33,21 @@ export class GuestLink {
     nextReq = 1;
     waiting = new Map<number, { settle: (m: FromGuest) => void; timer: ReturnType<typeof setTimeout> }>();
     onMessage: (msg: FromGuest) => void = () => {};
+    // While the page is being left (from its navigation starting to its next document being ready) nothing is asked of it:
+    // a request would reach no overlay, and wait for its bound.
+    blocked = false;
 
     constructor(webview: LinkedWebview) {
         this.webview = webview;
+    }
+
+    // abortAll: every request still waiting ends with null, as the page that would have answered is gone.
+    abortAll(): void {
+        for (const [reqId, wait] of this.waiting) {
+            clearTimeout(wait.timer);
+            this.waiting.delete(reqId);
+            wait.settle(null);
+        }
     }
 
     // attach: starts reading the page's messages; the returned function stops, and ends every request still waiting.
@@ -44,11 +56,7 @@ export class GuestLink {
         this.webview.addEventListener("ipc-message", listener);
         return () => {
             this.webview.removeEventListener("ipc-message", listener);
-            for (const [reqId, wait] of this.waiting) {
-                clearTimeout(wait.timer);
-                this.waiting.delete(reqId);
-                wait.settle(null);
-            }
+            this.abortAll();
         };
     }
 
@@ -85,6 +93,9 @@ export class GuestLink {
 
     request<M extends FromGuest>(build: (reqId: number) => ToGuest, boundMs = RequestBoundMs): Promise<M> {
         const reqId = this.nextReq++;
+        if (this.blocked) {
+            return Promise.resolve(null);
+        }
         return new Promise<M>((resolve) => {
             const settle = (m: FromGuest) => resolve(m as M);
             const timer = setTimeout(() => {
@@ -145,9 +156,9 @@ export function readPlaced(msg: unknown): Placed {
         path = a.path.slice();
     }
     const selector = a.selector.length > MaxSelectorChars || rel == null ? "" : a.selector;
-    return {
-        kind: m.kind as MarkKind,
-        address: m.address.slice(0, MaxAddressChars),
-        anchor: { box, selector, rel: selector === "" ? null : rel, fixed: !!a.fixed, path },
-    };
+    const anchor: Anchor = { box, selector, rel: selector === "" ? null : rel, fixed: !!a.fixed, path };
+    if (a.sticky === true && selector !== "") {
+        anchor.sticky = true;
+    }
+    return { kind: m.kind as MarkKind, address: m.address.slice(0, MaxAddressChars), anchor };
 }

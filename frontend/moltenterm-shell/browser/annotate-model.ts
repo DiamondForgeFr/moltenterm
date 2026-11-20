@@ -306,17 +306,21 @@ export function commentKeyAction(e: { key: string; shiftKey: boolean; isComposin
 
 export type LayerKeyAction = "leave" | "ask-leave" | "keep" | "back";
 
-// layerKeyAction: Escape outside a comment field. From the review it goes back to drawing; with zones drawn the first
-// asks before they are lost, and a second one keeps them; with none it leaves.
+// layerKeyAction: Escape outside a comment field. From the review it goes back to drawing, waits while a send or a copy is
+// under way, and closes the mode once the request is sent, as Done does; with zones drawn the first asks before they are
+// lost, and a second one keeps them; with none it leaves.
 export function layerKeyAction(
     key: string,
-    ctx: { review: boolean; leaveAsk: boolean; zones: number }
+    ctx: { review: boolean; leaveAsk: boolean; zones: number; busy?: boolean; sent?: boolean }
 ): LayerKeyAction {
     if (key !== "Escape") {
         return null;
     }
     if (ctx.review) {
-        return "back";
+        if (ctx.busy) {
+            return null;
+        }
+        return ctx.sent ? "leave" : "back";
     }
     if (ctx.leaveAsk) {
         return "keep";

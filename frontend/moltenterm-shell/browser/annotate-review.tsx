@@ -208,10 +208,20 @@ export function ReviewView(props: ReviewViewProps) {
                                 ) : (
                                     <p className="text-11 leading-4 text-muted" data-testid="browser-annotate-no-crop">
                                         {here
-                                            ? t("browser.annotate.review.noImage.failed")
+                                            ? t(
+                                                  `browser.annotate.review.noImage.${captured.reasons?.[zone.id] ?? "failed"}`
+                                              )
                                             : t("browser.annotate.review.noImage.elsewhere")}
                                     </p>
                                 )}
+                                {captured.missing?.includes(zone.id) ? (
+                                    <p
+                                        className="text-11 leading-4 text-[var(--mt-state-warning)]"
+                                        data-testid="browser-annotate-review-missing"
+                                    >
+                                        {t("browser.annotate.review.missing")}
+                                    </p>
+                                ) : null}
                                 <RefThumbs refs={zone.refs} />
                                 <LinkChips links={links} />
                             </article>
@@ -277,7 +287,8 @@ export function ReviewView(props: ReviewViewProps) {
                             </button>
                             <button
                                 type="button"
-                                className="cursor-pointer rounded-4 px-2 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
+                                className="cursor-pointer rounded-4 px-2 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default disabled:opacity-50"
+                                disabled={busy != null}
                                 onClick={props.onBack}
                                 data-testid="browser-annotate-back"
                             >
@@ -343,12 +354,15 @@ export function Review({
     target,
     zones,
     captured,
+    onState,
     onBack,
     onDone,
 }: {
     target: AnnotateTarget;
     zones: Zone[];
     captured: Captured;
+    // What the review is doing, for the keys of the layer around it: a send or a copy is under way, the request was sent.
+    onState: (state: { busy: boolean; sent: boolean }) => void;
     onBack: () => void;
     onDone: () => void;
 }) {
@@ -357,6 +371,10 @@ export function Review({
     const [report, setReport] = useState<{ text?: string; links?: string[][]; error?: Phrase }>({});
     const [busy, setBusy] = useState<"send" | "copy">(null);
     const [outcome, setOutcome] = useState<Outcome>(null);
+    const sent = outcome?.kind === "sent";
+    useEffect(() => {
+        onState({ busy: busy != null, sent });
+    }, [busy, sent]);
     const { chosen, lost } = resolveRecipient(target.recipients, picked);
     const zonesKey = JSON.stringify(zones.map((z) => [z.id, z.comment.trim(), z.refs.length, z.address]));
     const lead = !!chosen?.lead;

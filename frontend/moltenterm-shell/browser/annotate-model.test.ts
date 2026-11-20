@@ -293,6 +293,12 @@ describe("the keys", () => {
         expect(layerKeyAction("Escape", { review: false, leaveAsk: false, zones: 2 })).toBe("ask-leave");
         expect(layerKeyAction("Escape", { review: false, leaveAsk: true, zones: 2 })).toBe("keep");
         expect(layerKeyAction("Escape", { review: true, leaveAsk: false, zones: 2 })).toBe("back");
+        // While a send or a copy is under way Escape waits; once the request is sent it closes the mode, as Done does.
+        expect(layerKeyAction("Escape", { review: true, leaveAsk: false, zones: 2, busy: true })).toBeNull();
+        expect(layerKeyAction("Escape", { review: true, leaveAsk: false, zones: 2, sent: true })).toBe("leave");
+        expect(
+            layerKeyAction("Escape", { review: true, leaveAsk: false, zones: 2, busy: true, sent: true })
+        ).toBeNull();
         expect(layerKeyAction("a", { review: false, leaveAsk: false, zones: 2 })).toBeNull();
     });
 });

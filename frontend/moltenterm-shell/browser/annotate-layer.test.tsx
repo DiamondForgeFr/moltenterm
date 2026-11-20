@@ -202,6 +202,24 @@ describe("the list of comments", () => {
         expect(list(0, [])).toContain("No comment yet.");
     });
 
+    it("says when the page no longer has the element a comment is on, instead of keeping quiet about it", () => {
+        const html = renderToStaticMarkup(
+            <CommentList
+                zones={zones}
+                address={Page}
+                editingId={0}
+                missing={[1, 3]}
+                onGo={Noop}
+                onEdit={Noop}
+                onErase={Noop}
+            />
+        );
+        // The third comment is on another page: only the first, on the page shown, can say its element is gone.
+        expect(html.match(/data-testid="browser-annotate-list-missing"/g)).toHaveLength(1);
+        expect(html).toContain("Element no longer found: the mark stays where it was drawn.");
+        expect(list()).not.toContain("browser-annotate-list-missing");
+    });
+
     it("is in French too", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
         const html = list();
@@ -311,6 +329,8 @@ const Taken: Captured = {
     crops: { 1: "data:image/png;base64,CROP1" },
     overview: "data:image/png;base64,OVERVIEW",
     noOverview: "",
+    reasons: {},
+    missing: [],
 };
 
 function review(props: Partial<ReviewViewProps> = {}): string {
@@ -380,7 +400,7 @@ describe("the review (FR-BRW-017 AC14, AC26)", () => {
 
     it("says why there is no overview, and why a comment has no image", () => {
         const none = (noOverview: Captured["noOverview"]) =>
-            review({ captured: { crops: {}, overview: "", noOverview } });
+            review({ captured: { ...Taken, crops: {}, overview: "", noOverview } });
         expect(none("none")).toContain("No overview: none of the comments is on the page shown.");
         expect(none("tall")).toContain("No overview: the page is taller than 12 screens.");
         expect(none("inner")).toContain("No overview: the page scrolls inside one of its areas.");
@@ -389,10 +409,26 @@ describe("the review (FR-BRW-017 AC14, AC26)", () => {
         expect(none("failed")).not.toContain("browser-annotate-overview");
         const elsewhere = review({
             zones: [{ ...Zone1, address: "http://localhost:5173/cart" }],
-            captured: { crops: {}, overview: "", noOverview: "none" },
+            captured: { ...Taken, crops: {}, overview: "", noOverview: "none" },
         });
         expect(elsewhere).toContain("No image: its page is no longer shown.");
         expect(elsewhere).toContain("On localhost:5173/cart");
+    });
+
+    it("says why a comment's mark has no image when a scrolling area of the page clips it, and when its element is gone", () => {
+        const clipped = review({ captured: { ...Taken, crops: {}, reasons: { 1: "clipped" } } });
+        expect(clipped).toContain("No image: a scrolling area of the page hides the mark.");
+        expect(clipped).not.toContain("the page gave no picture of it");
+        const gone = review({ captured: { ...Taken, missing: [1] } });
+        expect(gone).toContain('data-testid="browser-annotate-review-missing"');
+        expect(gone).toContain("Element no longer found: the mark stays where it was drawn.");
+        expect(review()).not.toContain("browser-annotate-review-missing");
+    });
+
+    it("does not offer to go back while a send or a copy is under way", () => {
+        expect(review({ busy: "send" })).toMatch(/disabled=""[^>]*data-testid="browser-annotate-back"/);
+        expect(review({ busy: "copy" })).toMatch(/disabled=""[^>]*data-testid="browser-annotate-back"/);
+        expect(review()).not.toMatch(/disabled=""[^>]*data-testid="browser-annotate-back"/);
     });
 
     it("proposes the agent working on the worktree and says why, with one click to send it", () => {
@@ -433,7 +469,7 @@ describe("the review (FR-BRW-017 AC14, AC26)", () => {
     it("holds the send until the report is ready, whatever the images are", () => {
         expect(review({ report: {} })).toMatch(/disabled=""[^>]*data-testid="browser-annotate-send"/);
         expect(review()).not.toMatch(/disabled=""[^>]*data-testid="browser-annotate-send"/);
-        expect(review({ captured: { crops: {}, overview: "", noOverview: "tall" } })).not.toMatch(
+        expect(review({ captured: { ...Taken, crops: {}, overview: "", noOverview: "tall" } })).not.toMatch(
             /disabled=""[^>]*data-testid="browser-annotate-send"/
         );
         expect(review({ busy: "send" })).toContain("Sending…");

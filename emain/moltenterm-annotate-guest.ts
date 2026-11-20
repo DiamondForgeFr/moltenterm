@@ -23,6 +23,7 @@ import {
     scrollTarget,
     simplifyPath,
     toViewport,
+    visibleFraction,
 } from "../frontend/moltenterm-shell/browser/annotate-anchor";
 import {
     AnnotateChannel,
@@ -44,6 +45,21 @@ const SettleTries = 4;
 // An element covering more of the viewport than this is not a mark's target: the click draws a marker on it instead.
 const BigElement = 0.6;
 const FlashMs = 1900;
+// The page's own changes (a script moving an element) are read again at most this often.
+const MinRefreshMs = 120;
+// A mark seen less than this much, once a scrolling area of the page has clipped it, has no picture.
+const SeenAtLeast = 0.5;
+const ScrollKeys = new Set([
+    " ",
+    "PageUp",
+    "PageDown",
+    "Home",
+    "End",
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+]);
 
 const Css = `
 :host { all: initial; }
@@ -63,6 +79,7 @@ const Css = `
 .draft polyline { fill: none; stroke: var(--c); stroke-width: 3; stroke-dasharray: 2 5; stroke-linecap: round; stroke-linejoin: round; }
 .capture { position: fixed; left: 0; top: 0; right: 0; bottom: 0; cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; pointer-events: auto; }
 .capture.paused { pointer-events: none; }
+.capture.locked { cursor: progress; pointer-events: auto; }
 `;
 
 type Drag = { pointerId: number; down: Point; path: Point[] };
@@ -77,18 +94,32 @@ type Overlay = {
     color: string;
     tool: MarkKind;
     paused: boolean;
+    // The pictures are being taken: the page takes nothing from the developer.
+    locked: boolean;
+    // Set by destroy: whatever was waiting on the page (a scroll, a frame) finds the overlay gone and touches nothing.
+    dead: boolean;
     marks: MarkView[];
     nodes: Map<number, HTMLElement>;
     boxes: Map<number, Box>;
+    // The comments whose element the page no longer has, as last said to the panel.
+    missing: Set<number>;
+    missingKey: string;
+    // Some mark is on an element that moves with the viewport.
+    sticky: boolean;
     tracked: number;
     lastView: string;
-    // Where the developer had scrolled the page before a capture moved it.
+    // Where the developer had scrolled the page, and its scrolling areas, before a capture moved them.
     saved: Point;
+    inner: Map<Element, Point>;
     drag: Drag;
     frame: number;
+    timer: number;
+    lastRun: number;
     flashTimer: number;
     observer: ResizeObserver;
+    mutations: MutationObserver;
     removers: (() => void)[];
+    unlockWheel: () => void;
 };
 
 let overlay: Overlay = null;
@@ -229,9 +260,76 @@ function placeNode(node: HTMLElement, box: Box, origin: Point): void {
 }
 
 function ensureAttached(o: Overlay): void {
-    if (!o.host.isConnected) {
+    if (!o.dead && !o.host.isConnected) {
         document.documentElement.appendChild(o.host);
     }
+}
+
+// elementOf: the element a mark is on, null when it has none or the page no longer has it.
+function elementOf(selector: string): Element {
+    if (selector === "") {
+        return null;
+    }
+    try {
+        return document.querySelector(selector);
+    } catch {
+        return null;
+    }
+}
+
+// movesWithViewport: the element, or one around it, is fixed or sticky.
+function movesWithViewport(el: Element): boolean {
+    for (let a = el; a != null; a = a.parentElement) {
+        const position = getComputedStyle(a).position;
+        if (position === "fixed" || position === "sticky") {
+            return true;
+        }
+    }
+    return false;
+}
+
+// The scrolling areas around an element, their offsets noted before a capture moves them, put back by restoreInner.
+function saveInner(o: Overlay, el: Element): void {
+    for (let a = el?.parentElement; a != null; a = a.parentElement) {
+        if (a === document.documentElement || o.inner.has(a)) {
+            continue;
+        }
+        if (a.scrollHeight > a.clientHeight || a.scrollWidth > a.clientWidth) {
+            o.inner.set(a, { x: a.scrollLeft, y: a.scrollTop });
+        }
+    }
+}
+
+function restoreInner(o: Overlay): void {
+    for (const [el, at] of o.inner) {
+        el.scrollLeft = at.x;
+        el.scrollTop = at.y;
+    }
+    o.inner.clear();
+}
+
+// clipsOf: the areas of the scrolling or clipping ancestors of an element, which cut it off from sight (in the viewport's
+// pixels). The viewport is not one: a mark taller than it is still captured as far as it shows.
+function clipsOf(el: Element): Box[] {
+    const clips: Box[] = [];
+    for (let a = el?.parentElement; a != null && a !== document.documentElement; a = a.parentElement) {
+        const style = getComputedStyle(a);
+        if (style.overflowX === "visible" && style.overflowY === "visible") {
+            continue;
+        }
+        const r = a.getBoundingClientRect();
+        clips.push({ x: r.left, y: r.top, w: r.width, h: r.height });
+    }
+    return clips;
+}
+
+// restoreScroll: the page and its scrolling areas back where the developer left them.
+function restoreScroll(o: Overlay): void {
+    if (o.saved != null) {
+        jump(o.saved);
+        o.saved = null;
+    }
+    restoreInner(o);
 }
 
 function reportView(o: Overlay): void {
@@ -251,8 +349,12 @@ function reportView(o: Overlay): void {
     post({ type: "view", id: o.tracked, box: view, viewport: viewportSize() });
 }
 
-// refresh: every mark is read again from its element (or its page coordinates) and put there.
+// refresh: every mark is read again from its element (or its page coordinates) and put there. An overlay that was removed
+// is never touched again, whatever was waiting on it.
 function refresh(o: Overlay): void {
+    if (o.dead || overlay !== o) {
+        return;
+    }
     ensureAttached(o);
     const origin = originOf(o);
     const cache = new Map<string, Box>();
@@ -264,33 +366,54 @@ function refresh(o: Overlay): void {
             return cache.get(selector);
         },
     };
+    const missing: number[] = [];
     for (const mark of o.marks) {
-        const { box } = resolveAnchor(mark.anchor, env);
+        const { box, onElement } = resolveAnchor(mark.anchor, env);
+        if (!onElement && mark.anchor.selector !== "") {
+            missing.push(mark.id);
+        }
         o.boxes.set(mark.id, box);
         const node = o.nodes.get(mark.id);
         if (node != null) {
             placeNode(node, box, origin);
         }
     }
+    o.missing = new Set(missing);
+    const key = missing.join(",");
+    if (key !== o.missingKey) {
+        o.missingKey = key;
+        post({ type: "found", missing });
+    }
     reportView(o);
 }
 
-function schedule(o: Overlay): void {
-    if (o.frame !== 0) {
+// schedule: a refresh on the next frame, at most once in MinRefreshMs unless the marks are on something that moves with
+// the viewport, which a scroll must follow frame by frame.
+function schedule(o: Overlay, now = false): void {
+    if (o.dead || o.frame !== 0 || o.timer !== 0) {
         return;
     }
-    const run = () => {
-        if (overlay !== o) {
-            return;
-        }
+    const wait = now ? 0 : Math.max(0, MinRefreshMs - (performance.now() - o.lastRun));
+    if (wait > 0) {
+        o.timer = window.setTimeout(() => {
+            o.timer = 0;
+            schedule(o, true);
+        }, wait);
+        return;
+    }
+    o.frame = requestAnimationFrame(() => {
         o.frame = 0;
+        o.lastRun = performance.now();
         refresh(o);
-    };
-    o.frame = requestAnimationFrame(run);
+    });
 }
 
 function setMarks(o: Overlay, marks: MarkView[]): void {
+    if (o.dead) {
+        return;
+    }
     o.marks = marks;
+    o.sticky = marks.some((m) => m.anchor.sticky === true);
     o.layer.replaceChildren();
     o.nodes.clear();
     o.boxes.clear();
@@ -302,14 +425,41 @@ function setMarks(o: Overlay, marks: MarkView[]): void {
     refresh(o);
 }
 
-function applyLook(o: Overlay): void {
-    o.host.style.setProperty("--c", o.color);
-    o.capture.style.cursor = o.tool === "point" ? "pointer" : "crosshair";
-    o.capture.classList.toggle("paused", o.paused);
+function blockWheel(e: Event): void {
+    e.preventDefault();
 }
 
+function applyLook(o: Overlay): void {
+    o.host.style.setProperty("--c", o.color);
+    o.capture.style.cursor = o.locked ? "progress" : o.tool === "point" ? "pointer" : "crosshair";
+    o.capture.classList.toggle("paused", o.paused && !o.locked);
+    o.capture.classList.toggle("locked", o.locked);
+}
+
+// lock: while the pictures are taken the capture layer stays over the page and takes every pointer and wheel, so the
+// developer cannot scroll or click the page under a capture.
+function lock(o: Overlay, locked: boolean): void {
+    if (o.dead || o.locked === locked) {
+        return;
+    }
+    o.locked = locked;
+    o.drag = null;
+    o.draft.style.display = "none";
+    o.hover.style.display = "none";
+    o.unlockWheel();
+    if (locked) {
+        o.capture.addEventListener("wheel", blockWheel, { passive: false });
+        o.unlockWheel = () => {
+            o.capture.removeEventListener("wheel", blockWheel);
+            o.unlockWheel = () => {};
+        };
+    }
+    applyLook(o);
+}
+
+// hide: the marks, the hover and the draft go out of sight for a picture; the capture layer stays, transparent.
 function hide(o: Overlay, hidden: boolean): void {
-    o.host.style.visibility = hidden ? "hidden" : "visible";
+    o.layer.style.visibility = hidden ? "hidden" : "visible";
 }
 
 // elementAt: the page element under a viewport point, never the overlay itself nor the document's root.
@@ -428,12 +578,12 @@ function finishGesture(o: Overlay, drag: Drag, up: Point): void {
         type: "placed",
         address: location.href,
         kind: gesture.mark,
-        anchor: anchorOf(box, element, target.fixed, gesture.path),
+        anchor: anchorOf(box, element, target.fixed, gesture.path, target.el != null && movesWithViewport(target.el)),
     });
 }
 
 function onPointerDown(o: Overlay, e: PointerEvent): void {
-    if (!e.isTrusted || e.button !== 0 || o.paused) {
+    if (!e.isTrusted || e.button !== 0 || o.paused || o.locked) {
         return;
     }
     e.preventDefault();
@@ -449,7 +599,7 @@ function onPointerDown(o: Overlay, e: PointerEvent): void {
 }
 
 function onPointerMove(o: Overlay, e: PointerEvent): void {
-    if (!e.isTrusted) {
+    if (!e.isTrusted || o.locked) {
         return;
     }
     const drag = o.drag;
@@ -524,17 +674,27 @@ function create(msg: StartMessage): Overlay {
         color: msg.color,
         tool: msg.tool,
         paused: msg.paused,
+        locked: false,
+        dead: false,
         marks: [],
         nodes: new Map(),
         boxes: new Map(),
+        missing: new Set(),
+        missingKey: "",
+        sticky: false,
         tracked: 0,
         lastView: "",
         saved: null,
+        inner: new Map(),
         drag: null,
         frame: 0,
+        timer: 0,
+        lastRun: 0,
         flashTimer: 0,
         observer: null,
+        mutations: null,
         removers: [],
+        unlockWheel: () => {},
     };
     listen(o, capture, "pointerdown", (e) => onPointerDown(o, e));
     listen(o, capture, "pointermove", (e) => onPointerMove(o, e));
@@ -551,10 +711,12 @@ function create(msg: StartMessage): Overlay {
         window,
         "scroll",
         (e) => {
-            if (e.target === document) {
-                reportView(o);
-            } else {
+            if (e.target !== document) {
                 schedule(o);
+            } else if (o.sticky) {
+                schedule(o, true);
+            } else {
+                reportView(o);
             }
         },
         { capture: true, passive: true }
@@ -565,7 +727,15 @@ function create(msg: StartMessage): Overlay {
         window,
         "keydown",
         (e: KeyboardEvent) => {
-            if (!e.isTrusted || e.key !== "Escape" || o.paused) {
+            if (!e.isTrusted) {
+                return;
+            }
+            if (o.locked && ScrollKeys.has(e.key)) {
+                // A page under a capture is not scrolled by a key either.
+                e.preventDefault();
+                return;
+            }
+            if (e.key !== "Escape" || (o.paused && !o.locked)) {
                 return;
             }
             e.preventDefault();
@@ -576,18 +746,37 @@ function create(msg: StartMessage): Overlay {
     );
     o.observer = new ResizeObserver(() => schedule(o));
     o.observer.observe(document.documentElement);
+    // A script that moves an element is followed too; the overlay's own host is not a change of the page.
+    o.mutations = new MutationObserver((records) => {
+        if (records.some((r) => r.target !== o.host)) {
+            schedule(o);
+        }
+    });
+    o.mutations.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["class", "style", "hidden", "open"],
+    });
     return o;
 }
 
+// destroy: no element, observer, listener or timer of the overlay is left, and what was waiting on it finds it dead.
 function destroy(o: Overlay): void {
+    o.dead = true;
     if (o.frame !== 0) {
         cancelAnimationFrame(o.frame);
+        o.frame = 0;
     }
+    window.clearTimeout(o.timer);
     window.clearTimeout(o.flashTimer);
+    o.unlockWheel();
     o.observer?.disconnect();
+    o.mutations?.disconnect();
     for (const remove of o.removers) {
         remove();
     }
+    o.removers = [];
     o.host.remove();
 }
 
@@ -597,8 +786,8 @@ function jump(to: { x: number; y: number }): void {
 
 // moveTo: the page scrolled to a place, waited for until it is there (a page may animate its scrolling, or hold it back
 // while it loads more).
-async function moveTo(to: Point): Promise<void> {
-    for (let i = 0; i < SettleTries; i++) {
+async function moveTo(o: Overlay, to: Point): Promise<void> {
+    for (let i = 0; i < SettleTries && !o.dead; i++) {
         jump(to);
         await settle();
         if (Math.abs(window.scrollX - to.x) <= 1 && Math.abs(window.scrollY - to.y) <= 1) {
@@ -607,32 +796,66 @@ async function moveTo(to: Point): Promise<void> {
     }
 }
 
+function failedPicture(reqId: number, reason: "gone" | "clipped"): FromGuest {
+    return {
+        type: "prepared",
+        reqId,
+        ok: false,
+        viewport: viewportSize(),
+        box: { x: 0, y: 0, w: 0, h: 0 },
+        path: [],
+        scroll: scrolledTo(),
+        reason,
+    };
+}
+
+// prepare: the marks out of sight, the mark's element and the page scrolled so that the mark is in view (the scrolling
+// areas around the element too), and where the mark is said. A mark that a scrolling area of the page still clips has
+// no picture.
 async function prepare(o: Overlay, reqId: number, id: number): Promise<void> {
     o.saved = o.saved ?? scrolledTo();
     hide(o, true);
     refresh(o);
-    const box = o.boxes.get(id);
     const mark = o.marks.find((m) => m.id === id);
+    const box = o.boxes.get(id);
     if (box == null || mark == null) {
-        post({
-            type: "prepared",
-            reqId,
-            ok: false,
-            viewport: viewportSize(),
-            box: { x: 0, y: 0, w: 0, h: 0 },
-            path: [],
-            scroll: scrolledTo(),
-        });
+        post(failedPicture(reqId, "gone"));
         return;
     }
-    await moveTo(scrollTarget(box, viewportSize(), pageSize()));
+    const el = mark.anchor.rel != null && !mark.anchor.sticky ? elementOf(mark.anchor.selector) : null;
+    if (el != null) {
+        saveInner(o, el);
+        el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" as ScrollBehavior });
+        await settle();
+        if (o.dead) {
+            return;
+        }
+        refresh(o);
+    }
+    await moveTo(o, scrollTarget(o.boxes.get(id) ?? box, viewportSize(), pageSize()));
+    if (o.dead) {
+        return;
+    }
     refresh(o);
     const now = o.boxes.get(id) ?? box;
     const scroll = scrolledTo();
     const view = toViewport(now, scroll);
+    if (el != null && visibleFraction(view, clipsOf(el)) < SeenAtLeast) {
+        post(failedPicture(reqId, "clipped"));
+        return;
+    }
     const path: number[] =
         mark.kind === "freehand" ? pathPoints(mark.anchor.path, view).flatMap((p) => [p.x, p.y]) : [];
-    post({ type: "prepared", reqId, ok: true, viewport: viewportSize(), box: view, path, scroll });
+    post({
+        type: "prepared",
+        reqId,
+        ok: true,
+        viewport: viewportSize(),
+        box: view,
+        path,
+        scroll,
+        onElement: !o.missing.has(id),
+    });
 }
 
 // The page scrolls as a whole, as a screenshot by screens needs: no inner scroller holds most of its height.
@@ -662,7 +885,10 @@ async function overview(o: Overlay, reqId: number, slice: number): Promise<void>
         const view = viewportSize();
         const doc = pageSize();
         const offset = Math.max(0, Math.min(slice * view.h, doc.h - view.h));
-        await moveTo({ x: 0, y: offset });
+        await moveTo(o, { x: 0, y: offset });
+        if (o.dead) {
+            return;
+        }
     } else {
         refresh(o);
     }
@@ -690,8 +916,13 @@ async function overview(o: Overlay, reqId: number, slice: number): Promise<void>
 }
 
 async function restore(o: Overlay, reqId: number): Promise<void> {
+    restoreInner(o);
     if (o.saved != null) {
-        await moveTo(o.saved);
+        const at = o.saved;
+        await moveTo(o, at);
+        if (o.dead) {
+            return;
+        }
         o.saved = null;
     }
     hide(o, false);
@@ -706,7 +937,20 @@ async function reveal(o: Overlay, id: number): Promise<void> {
     if (box == null || node == null) {
         return;
     }
-    await moveTo(scrollTarget(box, viewportSize(), pageSize()));
+    const mark = o.marks.find((m) => m.id === id);
+    const el = mark != null && mark.anchor.rel != null && !mark.anchor.sticky ? elementOf(mark.anchor.selector) : null;
+    if (el != null) {
+        el.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" as ScrollBehavior });
+        await settle();
+        if (o.dead) {
+            return;
+        }
+        refresh(o);
+    }
+    await moveTo(o, scrollTarget(o.boxes.get(id) ?? box, viewportSize(), pageSize()));
+    if (o.dead) {
+        return;
+    }
     refresh(o);
     node.classList.remove("flash");
     // Restarts the animation when the same mark is shown twice in a row.
@@ -716,6 +960,27 @@ async function reveal(o: Overlay, id: number): Promise<void> {
     o.flashTimer = window.setTimeout(() => node.classList.remove("flash"), FlashMs);
 }
 
+// A request that reaches a page with no overlay (it was reloaded, or left) is answered at once as a failure, so the panel
+// does not wait for its bound.
+function answerWithoutOverlay(msg: ToGuest): void {
+    if (msg.type === "prepare") {
+        post(failedPicture(msg.reqId, "gone"));
+    } else if (msg.type === "overview") {
+        post({
+            type: "overview",
+            reqId: msg.reqId,
+            ok: false,
+            viewport: viewportSize(),
+            scroll: scrolledTo(),
+            doc: pageSize(),
+            whole: false,
+            marks: [],
+        });
+    } else if (msg.type === "restore") {
+        post({ type: "restored", reqId: msg.reqId });
+    }
+}
+
 function handle(msg: ToGuest): void {
     if (msg == null || typeof msg !== "object") {
         return;
@@ -723,20 +988,31 @@ function handle(msg: ToGuest): void {
     if (msg.type === "start") {
         if (overlay == null) {
             overlay = create(msg);
+            // A key meant for the page (Enter, Space) must not reach the element that happens to have the focus while a tool
+            // is on.
+            const active = document.activeElement as HTMLElement;
+            if (active != null && active !== document.body && active !== document.documentElement) {
+                active.blur?.();
+            }
         }
         overlay.color = msg.color;
         overlay.tool = msg.tool;
         overlay.paused = msg.paused;
+        overlay.tracked = msg.track ?? 0;
+        overlay.lastView = "";
         applyLook(overlay);
         setMarks(overlay, msg.marks ?? []);
         return;
     }
     const o = overlay;
     if (o == null) {
+        answerWithoutOverlay(msg);
         return;
     }
     switch (msg.type) {
         case "stop":
+            // The page is put back where the developer left it, whatever a capture was doing.
+            restoreScroll(o);
             destroy(o);
             overlay = null;
             return;
@@ -751,6 +1027,9 @@ function handle(msg: ToGuest): void {
             o.draft.style.display = "none";
             o.hover.style.display = "none";
             applyLook(o);
+            return;
+        case "lock":
+            lock(o, msg.locked);
             return;
         case "marks":
             setMarks(o, msg.marks ?? []);

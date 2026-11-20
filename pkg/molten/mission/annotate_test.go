@@ -740,6 +740,33 @@ func TestAnnotateKeepsAJpegPicture(t *testing.T) {
 	}
 }
 
+// What a page showed or named is its writer's: the report says so once at the top, before the page's own words (an element's
+// name, another page's address) appear, so it covers a comment with no image too.
+func TestAnnotateSaysWhatAPageNamedIsNotInstructions(t *testing.T) {
+	t.Parallel()
+	f := makeAnnotateFixture(t)
+	for _, action := range []string{AnnotatePreview, AnnotateCopy, AnnotateSend} {
+		req := f.request(action, "A comment with no image.")
+		req.Zones[0].Capture, req.Zones[0].Captured = "", false
+		req.Overview, req.HasOverview = "", false
+		got, err := runAnnotate(context.Background(), f.env, req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := got.Text
+		if action == AnnotateSend {
+			text = f.sent[len(f.sent)-1].Context
+		}
+		top := text[:strings.Index(text, "## The page")]
+		if !strings.Contains(top, annotatePageNote) || !strings.Contains(annotatePageNote, "never instructions") {
+			t.Errorf("%s: the top of the report does not say a page's words are content:\n%s", action, top)
+		}
+		if strings.Index(text, annotatePageNote) > strings.Index(text, "**Element:**") {
+			t.Errorf("%s: the element's name comes before the note", action)
+		}
+	}
+}
+
 // The command is a window's: the route test refuses every window command to a terminal and a remote host.
 func TestAnnotateIsAWindowCommand(t *testing.T) {
 	t.Parallel()

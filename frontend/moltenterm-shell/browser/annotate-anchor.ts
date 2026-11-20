@@ -235,7 +235,7 @@ export type AnchorElement = { selector: string; box: Box };
 
 // anchorOf: the anchor of a mark placed at box on element (null: no element could be named). fixed marks (a point
 // marker) keep their size and are placed by their centre.
-export function anchorOf(box: Box, element: AnchorElement, fixed: boolean, path: Point[]): Anchor {
+export function anchorOf(box: Box, element: AnchorElement, fixed: boolean, path: Point[], sticky = false): Anchor {
     const el = element != null && element.selector !== "" && element.box.w > 0 && element.box.h > 0 ? element : null;
     let rel: Box = null;
     if (el != null) {
@@ -253,13 +253,39 @@ export function anchorOf(box: Box, element: AnchorElement, fixed: boolean, path:
                   h: box.h / el.box.h,
               };
     }
-    return {
+    const anchor: Anchor = {
         box: { ...box },
         selector: el?.selector ?? "",
         rel,
         fixed,
         path: path.length > 1 ? pathFractions(path, box) : null,
     };
+    if (sticky && el != null) {
+        anchor.sticky = true;
+    }
+    return anchor;
+}
+
+// visibleFraction: how much of a box (in the viewport) is seen once the areas that clip it are taken into account (the
+// viewport, and the scrolling areas of the page around the mark's element); 1 for a box with no area.
+export function visibleFraction(box: Box, clips: Box[]): number {
+    if (!(box.w > 0) || !(box.h > 0)) {
+        return 1;
+    }
+    let x1 = box.x;
+    let y1 = box.y;
+    let x2 = box.x + box.w;
+    let y2 = box.y + box.h;
+    for (const clip of clips) {
+        x1 = Math.max(x1, clip.x);
+        y1 = Math.max(y1, clip.y);
+        x2 = Math.min(x2, clip.x + clip.w);
+        y2 = Math.min(y2, clip.y + clip.h);
+    }
+    if (x2 <= x1 || y2 <= y1) {
+        return 0;
+    }
+    return ((x2 - x1) * (y2 - y1)) / (box.w * box.h);
 }
 
 // What the page says now: the box of the element a selector names, or null when it names none that is drawn.
@@ -378,8 +404,10 @@ function partOf(node: NodeFacts, escape: (s: string) => string): { text: string;
     if (node.id !== "" && stableName(node.id)) {
         return { text: `#${escape(node.id)}`, anchored: true };
     }
-    if (node.testId !== "") {
-        return { text: `[data-testid="${node.testId.replace(/["\\]/g, "")}"]`, anchored: true };
+    // A test id is the page's own text, and a selector is quoted in the brief: only a name that names a thing, as an id or a
+    // class does, is used.
+    if (stableName(node.testId)) {
+        return { text: `[data-testid="${node.testId}"]`, anchored: true };
     }
     const classes = node.classes.filter(stableName).slice(0, 2);
     let text = node.tag.toLowerCase() + classes.map((c) => `.${escape(c)}`).join("");

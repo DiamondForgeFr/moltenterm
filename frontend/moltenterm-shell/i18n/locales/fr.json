@@ -3013,7 +3013,8 @@
                 "edit": "Modifier ce commentaire",
                 "erase": "Effacer ce commentaire",
                 "noText": "Pas encore de texte",
-                "elsewhere": "Sur {page}"
+                "elsewhere": "Sur {page}",
+                "missing": "Élément introuvable : le repère reste où il a été dessiné."
             },
             "ask": {
                 "title": {
@@ -3073,8 +3074,10 @@
                 "cancel": "Annuler",
                 "noImage": {
                     "elsewhere": "Pas d'image : sa page n'est plus affichée.",
-                    "failed": "Pas d'image : la page n'en a pas donné."
+                    "failed": "Pas d'image : la page n'en a pas donné.",
+                    "clipped": "Pas d'image : une zone défilante de la page cache le repère."
                 },
+                "missing": "Élément introuvable : le repère reste où il a été dessiné.",
                 "noOverview": {
                     "none": "Pas de vue d'ensemble : aucun commentaire n'est sur la page affichée.",
                     "tall": "Pas de vue d'ensemble : la page fait plus de {screens} écrans de haut.",
