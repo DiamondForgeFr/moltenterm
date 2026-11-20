@@ -266,6 +266,7 @@ func Start() {
 		return wconfig.GetWatcher().GetFullConfig().Settings.AgentSessionRoots
 	})
 	m := MakeManager()
+	m.planDir = planDirUnder(wavebase.GetWaveDataDir())
 	m.runOf = attention.AgentRun
 	m.setSettings = attention.SetAgentSettings
 	m.integrationOf = attention.AgentIntegration
