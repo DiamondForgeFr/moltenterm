@@ -9,7 +9,8 @@ vi.mock("react-dom", async (importOriginal) => {
     return { ...actual, createPortal: (node: React.ReactNode) => node };
 });
 
-import { AgentChoiceDialog, answerAgentChoice, PendingChoice, pickedAgent } from "./agent-choice";
+import { answerAgentChoice, PendingChoice, pickedAgent } from "./agent-choice";
+import { AgentChoiceDialog } from "./agent-choice-dialog";
 
 beforeAll(() => {
     vi.stubGlobal("document", { body: {} });
