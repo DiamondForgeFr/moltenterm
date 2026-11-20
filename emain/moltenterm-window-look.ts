@@ -139,6 +139,14 @@ export function restoreViewBackground(win: LookWindow, view: LookView) {
     setViewBackground(view, translucent ? ClearViewBg : opaqueBackground());
 }
 
+// The background main last gave the view, and whether its look lets the desktop through (#2419): a cleared background
+// on a view whose look is opaque is a let-through a switch never gave back.
+export function viewBackgroundState(win: LookWindow, view: object): { background: string; wantsClear: boolean } {
+    const request = requested.get(view);
+    const wantsClear = request?.translucent === true && windowLookSupport(created.get(win)).translucent;
+    return { background: appliedBackground.get(view) ?? null, wantsClear };
+}
+
 // Whether a view asked to let the desktop through: no picture of it can be drawn over what shows behind (#2375).
 export function viewLooksTranslucent(view: object): boolean {
     return view != null && requested.get(view)?.translucent === true;

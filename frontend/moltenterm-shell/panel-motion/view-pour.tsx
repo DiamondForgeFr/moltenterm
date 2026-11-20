@@ -10,7 +10,7 @@
 // writes no style the layout depends on and reads no layout back. Under reduced motion nothing plays.
 // The pour holds the view's one moment (pour-moment.ts): a panel arriving meanwhile waits for it to end.
 
-import { globalPrimaryTabStartup } from "@/app/store/global";
+import { getApi, globalPrimaryTabStartup } from "@/app/store/global";
 import { atoms } from "@/app/store/global-atoms";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
@@ -77,9 +77,33 @@ export function useViewPour(ref: React.RefObject<HTMLElement>, axis: PourAxis) {
         if (!reinit && globalPrimaryTabStartup) {
             return;
         }
-        playPour(ref.current, axis);
+        const anim = playPour(ref.current, axis);
         notifyViewPour();
+        logPourEnd(anim, ref.current);
     }, [reinit]);
+}
+
+// The renderer's end of a switch, in the log (#2419): the pour is over and the content is drawn at this opacity. A view
+// left invisible after a switch then shows which side did not end its step.
+export function logPourEnd(
+    anim: Animation,
+    el: HTMLElement,
+    send: (msg: string) => void = (msg) => getApi()?.sendLog?.(msg)
+) {
+    const report = (how: string) => {
+        const main = el?.ownerDocument?.getElementById("main");
+        const view = main?.ownerDocument?.defaultView;
+        const opacity = main == null || view == null ? "unknown" : view.getComputedStyle(main).opacity;
+        send(`[#2419] pour ${how}, content opacity ${opacity}`);
+    };
+    if (anim == null) {
+        report("not played");
+        return;
+    }
+    anim.finished.then(
+        () => report("finished"),
+        () => report("cancelled")
+    );
 }
 
 // The tile's light at a switch: shown on the active tile for one pour, then gone. Not under reduced motion, where the
