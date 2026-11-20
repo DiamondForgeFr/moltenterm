@@ -19,7 +19,7 @@ import (
 // agent version and model it was checked with.
 
 // MatrixAsOf is when the matrix was last checked against the code and the agents' documentation (NFR-AGC-002).
-const MatrixAsOf = "2026-11-19"
+const MatrixAsOf = "2026-11-20"
 
 // TriedAsOf is when the tried levels below were last written by hand (FR-AGC-001, #2167). It is the developer's own
 // experience with each agent, not something the code measures: change it with the levels.
@@ -382,9 +382,9 @@ var geminiFeatures = plannedFeatures(map[string]FeatureSupport{
 
 var kimiFeatures = map[string]FeatureSupport{
 	FeatDetect:        {Level: LevelNative, Note: "process name and path hints of molten.AgentKinds, since #1680", Adapter: "agentstate.go (AgentKinds), agentproc.go", Issue: "#1680"},
-	FeatState:         {Level: LevelNative, Note: "manual hooks for prompts, tools, permissions, stop, failure, interruption and sub-agents", Adapter: "agentintegration.go, agenthook/hook.go"},
-	FeatHooksOffer:    {Level: LevelNative, Note: "copyable [[hooks]] snippet for config.toml; never installed automatically", Adapter: "agenthooks.go, attention/agenthookoffer.go"},
-	FeatLauncher:      {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "Kimi Code has no per-run hook injection; this Story only offers the manual TOML recipe"},
+	FeatState:         {Level: LevelNative, Note: "managed or manual hooks for prompts, tools, permissions, stop, failure, interruption and sub-agents", Adapter: "agentintegration.go, agenthook/hook.go"},
+	FeatHooksOffer:    {Level: LevelNative, Note: "explicitly approved managed config.toml block on Kimi Code 2.6.3, update/drift detection and safe removal; other versions read-only, manual TOML fallback", Adapter: "agenthooks.go, kimihooks.go, attention/agenthookoffer.go"},
+	FeatLauncher:      {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "Kimi Code has no per-run hook injection; the qualified managed block is persistent and applies from the next Kimi start"},
 	FeatUsage:         {Level: LevelAdapted, Note: "experimental read of Kimi Code's official but undocumented managed-usage endpoint, verified 2.6.3 at 3cc88fad51f53796fa8db5db59cd283bc0de57db; shared .com managed configuration only", Adapter: "usage/kimioauth.go, usage/kimioauthfetch.go, usage/kimicredentials.go, usage/adapters.go"},
 	FeatStatusLine:    {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "the status line relay is Claude Code's"},
 	FeatApprovals:     {Level: LevelNone, Reason: ReasonAgentSpecific, Note: "Kimi's PermissionRequest hook is observation-only; MoltenTerm reports waiting but never answers it"},

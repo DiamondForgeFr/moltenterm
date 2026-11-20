@@ -61,18 +61,24 @@ full path or by another program, or with the integration turned off. They are yo
 
 ### The offer in the pane header
 
-While Claude Code, Codex or Kimi Code runs in a local terminal without these hooks and without MoltenTerm's integration (an
-integrated run never shows it), the pane header shows a small **Set up hooks** chip next to the agent. It opens the snippet below for that agent, where to add it and a Copy button; you
-apply it yourself. MoltenTerm only reads the agent's settings to know whether the hooks are already there (Claude
-Code: `~/.claude/settings.json` or `$CLAUDE_CONFIG_DIR/settings.json`, its `settings.local.json`, the managed settings,
-and the `.claude/settings.json` and `.claude/settings.local.json` of the pane's folder and its parents up to the
-repository's root; Codex: `~/.codex/hooks.json` or `$CODEX_HOME/hooks.json` running `molten agent hook`, or the
-older notify line running `molten agent state` in its `config.toml`; Kimi Code: `~/.kimi-code/config.toml` or
-`$KIMI_CODE_HOME/config.toml`, whose `[[hooks]]` entries run `molten agent hook`).
-The chip does not show once your own hooks for the agent have reported, in this run or an earlier one (the hooks
-MoltenTerm's launcher adds do not count), nor for an agent you ran
-`molten agent remove` for. Its × (or **Don't offer again**) hides it for that agent for good; the choice is kept in
-`agent-guides.json`, in MoltenTerm's data folder under `molten/`.
+While Claude Code, Codex or Kimi Code runs in a local terminal without these hooks and without MoltenTerm's launcher
+integration, the command panel can offer **Set up hooks**. Claude Code and Codex open the snippet below, where to add
+it and a Copy button; you apply it yourself. MoltenTerm only reads their settings to know whether the hooks are
+already there (Claude Code: `~/.claude/settings.json` or `$CLAUDE_CONFIG_DIR/settings.json`, its `settings.local.json`,
+the managed settings, and the `.claude/settings.json` and `.claude/settings.local.json` of the pane's folder and its
+parents up to the repository's root; Codex: `~/.codex/hooks.json` or `$CODEX_HOME/hooks.json` running
+`molten agent hook`, or the older notify line running `molten agent state` in its `config.toml`).
+
+For Kimi Code 2.6.3, the same offer names `$KIMI_CODE_HOME/config.toml` (else `~/.kimi-code/config.toml`) and provides
+an explicit **Install MoltenTerm hooks** action. Copying the TOML remains a manual fallback; copying never marks the
+hooks installed or active. An installed block asks you to restart Kimi Code until hooks report, after which the
+ordinary setup proposal disappears. Definition updates, managed-block repair and compatibility review can still
+appear after reports. Integration retains the management status and safe Remove action even when no proposal shows.
+
+Ordinary setup is also hidden once your own hooks have reported, in this run or an earlier one (the hooks
+MoltenTerm's launcher adds do not count), or for an agent whose initial offer you declined. **Don't offer again** on
+an update suppresses only that reviewed revision; a new definition, compatibility state or drift can offer again.
+The choices are kept in `agent-guides.json`, in MoltenTerm's data folder under `molten/`.
 
 ## The commands
 
@@ -272,9 +278,28 @@ hooks turned off (`[features] hooks = false`) or managed hooks only leave it out
 
 ## Kimi Code
 
-Kimi Code 2.6.3 has documented lifecycle hooks, but MoltenTerm has no Kimi launcher and never installs them for you.
-Merge these rules into `~/.kimi-code/config.toml` (or `$KIMI_CODE_HOME/config.toml`), keeping your existing settings
-and hooks. Kimi reads hooks from this user file, not from a project file:
+Kimi Code 2.6.3 has 11 qualified lifecycle events. MoltenTerm has no Kimi launcher or per-run hook override. Instead,
+the **Set up hooks** proposal and companion Integration panel can install a marked block after you approve the exact
+configuration file. Installation, update and repair require a successful probe of Kimi Code 2.6.3; a missing,
+unreadable or different version is a read-only compatibility review. These actions change MoltenTerm's hooks, never
+update the Kimi application, and apply from the next Kimi Code start.
+
+The managed block records MoltenTerm's definition version and canonical definition fingerprint, the qualified Kimi
+version and event set. MoltenTerm also keeps installation metadata and the complete block hash in its data folder.
+It preserves every byte outside the block, validates TOML before and after a proposed change, backs up an existing
+file, preserves permissions and writes by same-directory atomic rename. Invalid TOML, duplicate or incomplete
+markers, conflicting duplicate Molten hooks, symlinks and stale approvals fail closed. If saving installation state
+fails after a config write, MoltenTerm rolls the config back and reports the backup when rollback also fails.
+
+A changed definition, fingerprint or event set offers **Update MoltenTerm hooks**. An edited, partially deleted or
+fully deleted managed block offers repair, even after hooks have reported. **Remove MoltenTerm hooks** makes a fresh
+backup and deletes only the complete marked block from the current content, preserving your later edits. It remains
+available for an unknown Kimi version only while that block is safely identifiable. If MoltenTerm created the file
+and no user-managed content remains, removal deletes the empty file. Legacy user-authored hooks are reported as
+manual configuration and are never adopted, rewritten or removed.
+
+The manual fallback is to merge these rules into `~/.kimi-code/config.toml` (or `$KIMI_CODE_HOME/config.toml`),
+keeping your existing settings and hooks. Kimi reads hooks from this user file, not from a project file:
 
 ```toml
 [[hooks]]

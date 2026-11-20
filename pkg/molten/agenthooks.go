@@ -4,6 +4,7 @@
 package molten
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,13 +17,14 @@ import (
 )
 
 // The hook setup offer (#221, FR-SHELL-011): an agent whose hooks never reported shows its states from its pane's
-// output only (#217); the pane header offers the setup of agentdocs/agent-states.md, which makes them precise. The
-// user applies it: MoltenTerm only reads the agent's configuration, to leave out an agent already set up, and never
-// writes it.
+// output only (#217). Claude and Codex setup is a read-only manual recipe. Kimi Code 2.6.3 additionally supports an
+// explicitly approved, transactional managed block (kimihooks.go).
 
 const (
 	AgentHookOfferCommand   = "moltenagenthookoffer"
 	AgentHookDismissCommand = "moltenagenthookdismiss"
+	AgentHookApplyCommand   = "moltenagenthookapply"
+	AgentHookRemoveCommand  = "moltenagenthookremove"
 	AgentStatesDocCommand   = "moltenagentstatesdoc"
 
 	// What every hook of agent-states.md runs; a configuration that runs it is set up.
@@ -42,6 +44,27 @@ const (
 	HookOfferConfigured  = "configured"
 	// The agent was started through MoltenTerm's launcher, which added its hooks to the run (FR-SHELL-036).
 	HookOfferIntegrated = "integrated"
+
+	HookStatusAbsent              = "absent"
+	HookStatusCurrent             = "current"
+	HookStatusDefinitionUpdate    = "definition-update"
+	HookStatusCompatibilityReview = "compatibility-review"
+	HookStatusDrift               = "drift"
+	HookStatusInvalid             = "invalid"
+	HookStatusConflict            = "conflict"
+	HookStatusManual              = "manual"
+	HookStatusNotReporting        = "installed-not-reporting"
+	HookStatusReporting           = "reporting"
+
+	HookActionInstall = "install"
+	HookActionUpdate  = "update"
+	HookActionRepair  = "repair"
+	HookActionReview  = "review"
+	HookActionRemove  = "remove"
+
+	HookUpdateDefinition    = "definition"
+	HookUpdateCompatibility = "compatibility"
+	HookUpdateRepair        = "repair"
 )
 
 // The hooks of agent-states.md (#988): the same events and the same command as the launcher's, so a pasted copy is the
@@ -154,6 +177,26 @@ type AgentHookOffer struct {
 	Brings    string `json:"brings,omitempty"`
 	Language  string `json:"language,omitempty"`
 	Snippet   string `json:"snippet,omitempty"`
+
+	Persistent                 bool     `json:"persistent,omitempty"`
+	Status                     string   `json:"status,omitempty"`
+	Action                     string   `json:"action,omitempty"`
+	UpdateKind                 string   `json:"updatekind,omitempty"`
+	UpdateKey                  string   `json:"updatekey,omitempty"`
+	DefinitionVersion          int      `json:"definitionversion,omitempty"`
+	DefinitionSHA256           string   `json:"definitionsha256,omitempty"`
+	InstalledDefinitionVersion int      `json:"installeddefinitionversion,omitempty"`
+	InstalledDefinitionSHA256  string   `json:"installeddefinitionsha256,omitempty"`
+	InstalledKimiVersion       string   `json:"installedkimiversion,omitempty"`
+	CurrentKimiVersion         string   `json:"currentkimiversion,omitempty"`
+	QualifiedKimiVersion       string   `json:"qualifiedkimiversion,omitempty"`
+	Events                     []string `json:"events,omitempty"`
+	Managed                    bool     `json:"managed,omitempty"`
+	ConfigDigest               string   `json:"configdigest,omitempty"`
+	CanApply                   bool     `json:"canapply,omitempty"`
+	CanRemove                  bool     `json:"canremove,omitempty"`
+	ErrorCode                  string   `json:"errorcode,omitempty"`
+	DetectionError             string   `json:"detectionerror,omitempty"`
 }
 
 type AgentHookOfferRequest struct {
@@ -161,7 +204,33 @@ type AgentHookOfferRequest struct {
 }
 
 type AgentHookDismissRequest struct {
-	Agent string `json:"agent"`
+	Agent     string `json:"agent"`
+	UpdateKey string `json:"updatekey,omitempty"`
+}
+
+type AgentHookMutationRequest struct {
+	BlockId        string `json:"blockid"`
+	Action         string `json:"action"`
+	UpdateKey      string `json:"updatekey"`
+	ExpectedDigest string `json:"expecteddigest"`
+}
+
+type AgentHookMutationResult struct {
+	Offer      AgentHookOffer `json:"offer"`
+	BackupPath string         `json:"backuppath,omitempty"`
+}
+
+// AgentHookDetection is the bounded, cached Kimi probe result supplied by attention.
+type AgentHookDetection struct {
+	Installed bool
+	Version   string
+	Reason    string
+}
+
+// Registered by agentcontinuity, which owns the bounded stat-cached detector. A callback avoids an import cycle through
+// the companion while keeping detection out of the pure offer engine.
+var DetectKimiHookVersion = func(context.Context) AgentHookDetection {
+	return AgentHookDetection{Reason: "Kimi version detector is unavailable"}
 }
 
 func claudeConfigDir(env AgentEnv) string {
@@ -312,13 +381,27 @@ func displayHomePath(env AgentEnv, path string) string {
 
 // MakeAgentHookOffer decides the offer for an agent running in a local terminal whose folder is cwd. hooked: its hooks
 // reported in this run of MoltenTerm. The user's refusal of MoltenTerm's guides for the agent (`molten agent remove`)
-// is a refusal of the offer too.
+// is a refusal of the initial offer too. Kimi update, repair and compatibility offers take precedence over that memory.
 func MakeAgentHookOffer(env AgentEnv, agent string, cwd string, hooked bool) AgentHookOffer {
+	return MakeAgentHookOfferDetected(env, agent, cwd, hooked, AgentHookDetection{})
+}
+
+func MakeAgentHookOfferDetected(env AgentEnv, agent string, cwd string, hooked bool, detection AgentHookDetection) AgentHookOffer {
 	offer := AgentHookOffer{Agent: agent, AgentName: AgentDisplayName(agent)}
 	setup, ok := agentHookSetups[agent]
-	switch {
-	case !ok:
+	if !ok {
 		offer.Reason = HookOfferUnsupported
+		return offer
+	}
+	offer.File = displayHomePath(env, setup.file(env))
+	offer.Also = setup.also
+	offer.Brings = setup.brings
+	offer.Language = setup.language
+	offer.Snippet = setup.snippet
+	if agent == AgentIdKimi {
+		return makeKimiAgentHookOffer(env, offer, hooked, detection)
+	}
+	switch {
 	case hooked:
 		offer.Reason = HookOfferHooked
 	case AgentHooksSeen(env.DataDir, agent):
@@ -334,11 +417,6 @@ func MakeAgentHookOffer(env AgentEnv, agent string, cwd string, hooked bool) Age
 		return offer
 	}
 	offer.Show = true
-	offer.File = displayHomePath(env, setup.file(env))
-	offer.Also = setup.also
-	offer.Brings = setup.brings
-	offer.Language = setup.language
-	offer.Snippet = setup.snippet
 	return offer
 }
 

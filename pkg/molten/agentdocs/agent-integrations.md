@@ -1,4 +1,4 @@
-# Agent integrations: what MoltenTerm adds to `claude` and `codex`
+# Agent integrations: launcher additions and managed hooks
 
 Start Claude Code or Codex in a local MoltenTerm terminal the way you always do: `claude`, `codex`, with your own
 arguments. The pane then shows the agent's precise state, the companion opens on this terminal's session, the plan
@@ -55,13 +55,32 @@ Nothing is added outside a MoltenTerm terminal (another terminal app, SSH, WSL),
 MoltenTerm cannot read your settings in time: the launcher never keeps the agent from starting and, on any doubt,
 adds nothing.
 
-## Kimi Code: manual hooks, no automatic launcher
+## Kimi Code: approved persistent hooks, no per-run launcher
 
 Kimi Code 2.6.3 is detected and has a read-only session companion, session resume and guarded commands. MoltenTerm
-does not put a `kimi` launcher on `PATH` and does not edit Kimi's configuration. The pane's **Set up hooks** offer
-copies the documented `[[hooks]]` TOML recipe of `agent-states.md`; you merge it into `$KIMI_CODE_HOME/config.toml`
-(else `~/.kimi-code/config.toml`) yourself. The hooks link sessions by `session_id` and report working, permission
-waits, done, errors, interruptions and sub-agents.
+does not put a `kimi` launcher on `PATH`, inject per-run hooks or update the Kimi application. Instead, the pane's
+**Set up hooks** offer and the companion Integration panel open one approval dialog naming
+`$KIMI_CODE_HOME/config.toml` (else `~/.kimi-code/config.toml`). **Install MoltenTerm hooks** writes only a marked
+managed block after that explicit approval. The dialog shows the backup and next-start behavior before the write;
+copying the documented `[[hooks]]` TOML recipe of `agent-states.md` remains a manual fallback and does not mark setup
+installed or active.
+
+Only Kimi Code 2.6.3 is qualified for installation, update and repair. A missing, unreadable or different version is
+a read-only compatibility review. An existing complete managed block can still be removed safely in that state.
+Every existing-file mutation creates a backup, preserves permissions and uses a same-directory atomic write. Every
+byte outside the managed block is retained. Invalid TOML, marker conflicts, duplicate unmanaged Molten hooks,
+symlinks and stale dialog digests fail closed; installation-state failure rolls the configuration back where
+possible. Removal takes a fresh backup and removes only the identifiable block from current content, never an old
+whole-file backup over newer user edits.
+
+Integration distinguishes installed/restart-required from active/reporting. The ordinary setup proposal disappears
+only after hooks report; **Update MoltenTerm hooks**, managed-block repair and compatibility review remain visible
+after reports and take precedence over earlier dismissal or seen state. Update dismissal is revision-specific and
+never removes Integration management. All install, update, repair and removal changes apply from the next Kimi Code
+start. Legacy manual hooks are detected as manual configuration and are never adopted or rewritten.
+
+The 11 qualified hooks link sessions by `session_id` and report working, permission waits, done, errors,
+interruptions and sub-agents.
 
 Kimi's `PermissionRequest` event is observation-only, so coffee approvals do not answer it. No status-line relay,
 per-run MoltenTerm MCP server, briefing, mod parts or automatic headless runner is wired by this integration. In

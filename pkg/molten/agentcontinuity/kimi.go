@@ -4,6 +4,8 @@
 package agentcontinuity
 
 import (
+	"context"
+	"os"
 	"path/filepath"
 	"sort"
 
@@ -31,6 +33,15 @@ const (
 	maxKimiModelChoices = 50
 )
 
+func init() {
+	molten.DetectKimiHookVersion = func(ctx context.Context) molten.AgentHookDetection {
+		detected := DefaultDetector.Detect(ctx, kimiExecutable, DetectEnv{
+			PathList: molten.LoginPath(), LauncherDir: os.Getenv(agentlaunch.AgentBinDirVarName), Env: os.Environ(),
+		})
+		return molten.AgentHookDetection{Installed: detected.Installed, Version: detected.Version, Reason: detected.Reason}
+	}
+}
+
 var kimiCapabilities = map[string]Capability{
 	CapBriefing:      {Support: SupportUnavailable, Note: "no per-run briefing channel is wired; #333 owns briefing delivery"},
 	CapInitialPrompt: {Support: SupportDocumented, Note: "interactive prompt after --; -p --output-format stream-json is documented headless, but uses automatic permissions and may write"},
@@ -39,7 +50,7 @@ var kimiCapabilities = map[string]Capability{
 	CapTranscript:    {Support: SupportUndocumented, Note: "state.json, session_index.jsonl and wire.jsonl observed on 2.6.3; internal format, terminal-only on incompatible records", InUse: true},
 	CapQuota:         {Support: SupportUndocumented, Note: "official managed-usage endpoint, verified in Kimi Code 2.6.3 (3cc88fad51f53796fa8db5db59cd283bc0de57db); shared .com managed configuration only", InUse: true},
 	CapMcp:           {Support: SupportDocumented, Note: "documented MCP configuration; this Story does not write it or add a per-run server"},
-	CapHooks:         {Support: SupportDocumented, Note: "manual [[hooks]] config.toml recipe; no launcher or automatic installation", InUse: true},
+	CapHooks:         {Support: SupportDocumented, Note: "11 qualified events; an explicitly approved managed config.toml block on 2.6.3, with manual TOML fallback and read-only compatibility review for other versions", InUse: true},
 }
 
 type kimiAdapter struct{}

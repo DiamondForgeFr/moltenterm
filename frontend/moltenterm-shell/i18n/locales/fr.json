@@ -1967,13 +1967,68 @@
             "intro": "Sans hooks, MoltenTerm voit seulement quand la sortie de {name} arrive : au travail pendant qu'elle défile, inactif une fois silencieuse. Avec eux, le panneau affiche {brings}.",
             "addTo": "Ajoutez ceci à",
             "also": ", {also} :",
+            "persistentTitle": "Gérer les hooks de {name}",
+            "persistentSubtitle": "Hooks de cycle de vie MoltenTerm persistants",
+            "install": "Installer les hooks MoltenTerm",
+            "update": "Mettre à jour les hooks MoltenTerm",
+            "repair": "Réparer les hooks MoltenTerm",
+            "review": "Vérifier la compatibilité",
+            "manage": "Gérer les hooks",
+            "remove": "Supprimer les hooks MoltenTerm",
+            "exactFile": "Fichier de configuration :",
+            "qualifiedVersion": "Version de Kimi Code qualifiée : {version}",
+            "currentVersion": "Version actuelle de Kimi Code : {version}",
+            "installedVersion": "Version de Kimi Code à l’installation des hooks : {version}",
+            "definitionVersion": "Définition des hooks : {version} (cible {target})",
+            "eventCount": "{count} événements du cycle de vie",
+            "backupNotice": "Avant de modifier un fichier existant, MoltenTerm crée une sauvegarde.",
+            "backupCreated": "Sauvegarde créée :",
+            "persistentRestart": "Le changement s’applique au prochain démarrage de Kimi Code.",
+            "manualFallback": "Copier le TOML est une solution manuelle de repli et ne marque pas les hooks comme installés ou actifs.",
+            "status": {
+                "absent": "Hooks non configurés",
+                "current": "Hooks installés",
+                "definition-update": "Mise à jour des hooks MoltenTerm disponible",
+                "compatibility-review": "Vérifier la compatibilité de Kimi Code",
+                "drift": "Les hooks gérés doivent être réparés",
+                "invalid": "La configuration des hooks demande attention",
+                "conflict": "Configuration de hooks en conflit",
+                "manual": "Configuration manuelle détectée",
+                "installed-not-reporting": "Hooks installés — redémarrez Kimi Code pour les activer",
+                "reporting": "Hooks actifs et transmettant leurs états"
+            },
+            "explanation": {
+                "absent": "Installez le bloc géré après avoir vérifié le fichier cible.",
+                "current": "Le bloc géré est installé.",
+                "definition-update": "Mettez à jour les hooks MoltenTerm pour utiliser la définition vérifiée.",
+                "compatibility-review": "Cette version de Kimi Code reste en lecture seule jusqu’à la vérification de son contrat de hooks.",
+                "drift": "Réparez le bloc géré sans remplacer vos autres réglages.",
+                "invalid": "Aucune écriture gérée n’est autorisée tant que la configuration n’est pas sûre.",
+                "conflict": "Résolvez les hooks MoltenTerm en conflit avant une modification gérée.",
+                "manual": "Vos hooks existants restent inchangés.",
+                "installed-not-reporting": "Le processus Kimi Code actuel doit être redémarré.",
+                "reporting": "MoltenTerm reçoit les états transmis par les hooks."
+            },
+            "error": {
+                "state": "L’enregistrement d’installation de MoltenTerm est illisible ; aucune modification n’a été faite.",
+                "read-config": "Le fichier de configuration est illisible ; aucune modification n’a été faite.",
+                "symlink": "Le fichier de configuration est un lien symbolique ; aucune modification n’a été faite.",
+                "config-type": "Le chemin de configuration n’est pas un fichier ordinaire ; aucune modification n’a été faite.",
+                "config-too-large": "Le fichier de configuration est trop volumineux pour être géré sans risque ; aucune modification n’a été faite.",
+                "invalid-toml": "Le TOML est invalide ; aucune modification n’a été faite.",
+                "markers": "Les marqueurs du bloc géré sont incomplets ou dupliqués ; aucune modification n’a été faite.",
+                "metadata": "Les métadonnées du bloc géré sont incomplètes ; aucune modification n’a été faite.",
+                "conflict": "Les hooks MoltenTerm en conflit doivent être résolus avant une modification gérée."
+            },
             "bringsBy": {
                 "claude": "en attente quand il demande une autorisation, terminé à la fin de son tour, de nouveau au travail une fois votre accord donné",
-                "codex": "au travail pendant qu'il travaille, terminé à la fin de son tour, et sa session liée dès son démarrage"
+                "codex": "au travail pendant qu'il travaille, terminé à la fin de son tour, et sa session liée dès son démarrage",
+                "kimi": "au travail, en attente d’une autorisation, terminé, les erreurs et interruptions, ainsi que les liens vers la session et les sous-agents"
             },
             "alsoBy": {
                 "claude": "ou dans le .claude/settings.json d'un projet, fusionné avec les hooks que vous avez déjà",
-                "codex": "ou dans le .codex/hooks.json d'un projet, fusionné avec les hooks que vous avez déjà ; l'agent les exécute une fois que vous les avez approuvés dans /hooks"
+                "codex": "ou dans le .codex/hooks.json d'un projet, fusionné avec les hooks que vous avez déjà ; l'agent les exécute une fois que vous les avez approuvés dans /hooks",
+                "kimi": "fusionné avec les hooks que vous avez déjà ; Kimi Code lit les hooks dans ce fichier utilisateur, pas dans le projet"
             },
             "restart": "Relancez {name} après la modification. Dès que ses hooks se manifestent, cette proposition disparaît.",
             "guide": "Lire le guide des états des agents"
@@ -2217,6 +2272,9 @@
             "badgeTitle": "Ce que MoltenTerm a ajouté à cette exécution, et comment le désactiver",
             "title": "Connecté par MoltenTerm",
             "hint": "Ajouté à cette exécution de {name} uniquement, par ses propres options d'exécution. Vos fichiers ne sont pas modifiés.",
+            "persistentTitle": "Hooks de Kimi Code",
+            "persistentBadgeTitle": "Gérer les hooks persistants de Kimi Code",
+            "persistentHint": "Hooks MoltenTerm persistants pour {name} ; les changements s’appliquent au prochain démarrage.",
             "added": "Ajouté",
             "skipped": "Laissé tel quel",
             "runs": "Exécute",
@@ -3309,6 +3367,10 @@
             "updateTerminal": "Mettre à jour le terminal",
             "restartNoNetwork": "Redémarrer le terminal (plus de réseau)",
             "setupHooks": "Configurer les hooks de {agent}",
+            "restartHooks": "Redémarrer {agent} pour activer les hooks",
+            "updateHooks": "Mettre à jour les hooks MoltenTerm",
+            "repairHooks": "Réparer les hooks MoltenTerm",
+            "reviewHooks": "Vérifier la compatibilité des hooks de {agent}",
             "linkWorktree": "Lier le worktree {name}"
         },
         "durable": {

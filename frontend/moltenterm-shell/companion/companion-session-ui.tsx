@@ -15,7 +15,6 @@ import {
     CompanionView,
     guessHint,
     historyGroups,
-    isIntegrated,
     linkLabel,
     relativeTime,
     sessionTitle,
@@ -131,6 +130,8 @@ export function SessionBar({
     modelEffort,
     onHistory,
     onIntegration,
+    integrationDetails = false,
+    persistentIntegration = false,
     onBackToCurrent,
     onArrange,
     arranging,
@@ -143,6 +144,8 @@ export function SessionBar({
     modelEffort?: string;
     onHistory: () => void;
     onIntegration?: () => void;
+    integrationDetails?: boolean;
+    persistentIntegration?: boolean;
     // Leaves an earlier session the user chose for the one the agent runs (#600).
     onBackToCurrent?: () => void;
     // Turns the arranging mode on, or off when it is on (#2395): the button says which.
@@ -198,8 +201,8 @@ export function SessionBar({
                         {t("companion.bar.reading")}
                     </span>
                 ) : null}
-                {onIntegration != null && isIntegrated(view) ? (
-                    <IntegratedBadge onOpen={onIntegration} className="-my-0.5" />
+                {onIntegration != null && integrationDetails ? (
+                    <IntegratedBadge onOpen={onIntegration} persistent={persistentIntegration} className="-my-0.5" />
                 ) : null}
                 <UsageButton view={view} className="-my-0.5" />
                 {onArrange != null ? (

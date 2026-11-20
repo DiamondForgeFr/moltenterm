@@ -1967,13 +1967,68 @@
             "intro": "Without hooks, MoltenTerm only sees when {name}'s output comes: working while it streams, idle once it is quiet. With them, the pane shows {brings}.",
             "addTo": "Add this to",
             "also": ", {also}:",
+            "persistentTitle": "Manage {name} hooks",
+            "persistentSubtitle": "Persistent MoltenTerm lifecycle hooks",
+            "install": "Install MoltenTerm hooks",
+            "update": "Update MoltenTerm hooks",
+            "repair": "Repair MoltenTerm hooks",
+            "review": "Review compatibility",
+            "manage": "Manage hooks",
+            "remove": "Remove MoltenTerm hooks",
+            "exactFile": "Configuration file:",
+            "qualifiedVersion": "Qualified Kimi Code version: {version}",
+            "currentVersion": "Current Kimi Code version: {version}",
+            "installedVersion": "Kimi Code version when hooks were installed: {version}",
+            "definitionVersion": "Hook definition: {version} (target {target})",
+            "eventCount": "{count} lifecycle events",
+            "backupNotice": "Before changing an existing file, MoltenTerm creates a backup.",
+            "backupCreated": "Backup created:",
+            "persistentRestart": "The change applies from the next Kimi Code start.",
+            "manualFallback": "Copying TOML is a manual fallback and does not mark hooks installed or active.",
+            "status": {
+                "absent": "Hooks not configured",
+                "current": "Hooks installed",
+                "definition-update": "MoltenTerm hook update available",
+                "compatibility-review": "Review Kimi Code compatibility",
+                "drift": "Managed hooks need repair",
+                "invalid": "Hook configuration needs attention",
+                "conflict": "Conflicting hook configuration",
+                "manual": "Manual configuration detected",
+                "installed-not-reporting": "Hooks installed — restart Kimi Code to activate them",
+                "reporting": "Hooks active/reporting"
+            },
+            "explanation": {
+                "absent": "Install the managed block after reviewing the target file.",
+                "current": "The managed block is installed.",
+                "definition-update": "Update MoltenTerm hooks to use the reviewed definition.",
+                "compatibility-review": "This Kimi Code version is read-only until its hook contract is reviewed.",
+                "drift": "Repair the managed block without replacing your other settings.",
+                "invalid": "No managed write is allowed until the configuration is safe.",
+                "conflict": "Resolve the conflicting MoltenTerm hooks before a managed change.",
+                "manual": "Your existing hooks are left unchanged.",
+                "installed-not-reporting": "The current Kimi Code process must be restarted.",
+                "reporting": "MoltenTerm is receiving hook reports."
+            },
+            "error": {
+                "state": "MoltenTerm's installation record is unreadable; no changes were made.",
+                "read-config": "The configuration file cannot be read; no changes were made.",
+                "symlink": "The configuration file is a symbolic link; no changes were made.",
+                "config-type": "The configuration path is not a regular file; no changes were made.",
+                "config-too-large": "The configuration file is too large to manage safely; no changes were made.",
+                "invalid-toml": "The TOML is invalid; no changes were made.",
+                "markers": "Managed-block markers are incomplete or duplicated; no changes were made.",
+                "metadata": "Managed-block metadata is incomplete; no changes were made.",
+                "conflict": "Conflicting MoltenTerm hooks must be resolved before a managed change."
+            },
             "bringsBy": {
                 "claude": "waiting when it asks for a permission, done when its turn ends, working again once you approved",
-                "codex": "working while it works, done when its turn ends, and its session linked as soon as it starts"
+                "codex": "working while it works, done when its turn ends, and its session linked as soon as it starts",
+                "kimi": "working, waiting for a permission, done, errors and interruptions, plus the session and sub-agent links"
             },
             "alsoBy": {
                 "claude": "or in a project's .claude/settings.json, merged with the hooks you already have",
-                "codex": "or in a project's .codex/hooks.json, merged with the hooks you already have; the agent runs them once you trust them in /hooks"
+                "codex": "or in a project's .codex/hooks.json, merged with the hooks you already have; the agent runs them once you trust them in /hooks",
+                "kimi": "merged with the hooks you already have; Kimi Code reads hooks from this user file, not from the project"
             },
             "restart": "Start {name} again after the change. Once its hooks report, this offer goes away.",
             "guide": "Read the agent states guide"
@@ -2217,6 +2272,9 @@
             "badgeTitle": "What MoltenTerm added to this run, and how to turn it off",
             "title": "Hooked up by MoltenTerm",
             "hint": "Added to this run of {name} only, through its own per-run options. Your files are not edited.",
+            "persistentTitle": "Kimi Code hooks",
+            "persistentBadgeTitle": "Manage persistent Kimi Code hooks",
+            "persistentHint": "Persistent MoltenTerm hooks for {name}; changes apply from the next start.",
             "added": "Added",
             "skipped": "Left alone",
             "runs": "Runs",
@@ -3309,6 +3367,10 @@
             "updateTerminal": "Update terminal",
             "restartNoNetwork": "Restart terminal (no network)",
             "setupHooks": "Set up {agent}'s hooks",
+            "restartHooks": "Restart {agent} to activate hooks",
+            "updateHooks": "Update MoltenTerm hooks",
+            "repairHooks": "Repair MoltenTerm hooks",
+            "reviewHooks": "Review {agent} hook compatibility",
             "linkWorktree": "Link the worktree {name}"
         },
         "durable": {

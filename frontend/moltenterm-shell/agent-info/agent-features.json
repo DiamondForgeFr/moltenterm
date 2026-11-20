@@ -1,5 +1,5 @@
 {
-    "asof": "2026-11-19",
+    "asof": "2026-11-20",
     "triedasof": "2026-11-10",
     "features": [
         {
@@ -514,8 +514,8 @@
                 },
                 "hooksoffer": {
                     "level": "native",
-                    "note": "copyable [[hooks]] snippet for config.toml; never installed automatically",
-                    "adapter": "agenthooks.go, attention/agenthookoffer.go"
+                    "note": "explicitly approved managed config.toml block on Kimi Code 2.6.3, update/drift detection and safe removal; other versions read-only, manual TOML fallback",
+                    "adapter": "agenthooks.go, kimihooks.go, attention/agenthookoffer.go"
                 },
                 "instructions": {
                     "level": "none",
@@ -525,7 +525,7 @@
                 "launcher": {
                     "level": "none",
                     "reason": "agentspecific",
-                    "note": "Kimi Code has no per-run hook injection; this Story only offers the manual TOML recipe"
+                    "note": "Kimi Code has no per-run hook injection; the qualified managed block is persistent and applies from the next Kimi start"
                 },
                 "materials": {
                     "level": "adapted",
@@ -564,7 +564,7 @@
                 },
                 "state": {
                     "level": "native",
-                    "note": "manual hooks for prompts, tools, permissions, stop, failure, interruption and sub-agents",
+                    "note": "managed or manual hooks for prompts, tools, permissions, stop, failure, interruption and sub-agents",
                     "adapter": "agentintegration.go, agenthook/hook.go"
                 },
                 "statusline": {
