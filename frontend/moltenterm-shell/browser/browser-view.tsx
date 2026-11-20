@@ -227,7 +227,7 @@ import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
 import { ClearCacheKind, ClearSiteKind, siteOriginOf } from "./site-data";
 import { isSiteAsk, SitePermissionModel } from "./site-permission-store";
 import { TestContextChip } from "./test-context";
-import { PanelWaitingMaxMs } from "@/moltenterm-shell/switch-layout/panel-ready";
+import { PanelWaitingMaxMs } from "../switch-layout/panel-ready";
 
 export { MoltentermBrowserView };
 
