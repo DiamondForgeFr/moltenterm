@@ -174,8 +174,7 @@ import {
     SwitchIntent,
     useSwitchArrival,
 } from "./sidebar-switch";
-import { clearLeave, leaveProgress, prepareLeave } from "../switch-layout/layout-frames";
-import { pruneLayouts, useRememberLayout } from "../switch-layout/layout-recorder";
+import { clearLeave, leaveProgress, prepareLeave, switchLayoutOn } from "../switch-layout/layout-frames";
 import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
 import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./temporary-clear";
@@ -2453,7 +2452,12 @@ function useSidebarSwipe(refs: SwipeRefs, workspaces: SidebarWorkspaces): Sideba
             {
                 page: () => refs.content.current,
                 ghost: (side) => (side < 0 ? refs.ghostPrev : refs.ghostNext).current,
-                leave: { prepare: (id) => prepareLeave(id), progress: leaveProgress, clear: clearLeave },
+                leave: {
+                    enabled: () => switchLayoutOn(),
+                    prepare: (id) => prepareLeave(id),
+                    progress: leaveProgress,
+                    clear: clearLeave,
+                },
                 pull: (side) => (side < 0 ? refs.pullLeft : refs.pullRight).current,
                 shadow: (side) => (side < 0 ? refs.shadowLeft : refs.shadowRight).current,
                 library: () => document.querySelector<HTMLElement>(".mt-lib"),
@@ -2527,6 +2531,34 @@ function useSwipeNeighbours(
         return { prev: entries[at] ?? null, next: null };
     }
     return { prev: at > 0 ? entries[at - 1] : null, next: at >= 0 ? (entries[at + 1] ?? null) : null };
+}
+
+// The remembered layout of the view on screen (#2407), kept up to date by a module loaded once the sidebar is idle:
+// the first paint does not carry it.
+function useRememberLayout(workspaceId: string, tabId: string) {
+    useEffect(() => {
+        if (!workspaceId || !tabId) {
+            return;
+        }
+        let stop: () => void = null;
+        let alive = true;
+        const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
+        const cancel = window.cancelIdleCallback ?? clearTimeout;
+        const handle = idle(() => {
+            import("../switch-layout/layout-recorder")
+                .then((m) => {
+                    if (alive) {
+                        stop = m.startRememberLayout(workspaceId, tabId);
+                    }
+                })
+                .catch((): void => null);
+        });
+        return () => {
+            alive = false;
+            cancel(handle as any);
+            stop?.();
+        };
+    }, [workspaceId, tabId]);
 }
 
 // The sidebar's page slides when the new-workspace page opens (from the right) or closes (back from the left).
@@ -2681,7 +2713,10 @@ export function WorkspaceSidebar() {
             pruneSnapshots(workspaceIdsKey.split(" "));
             // The backend's whole list, not the bottom bar's: right after a start the bar may hold the shown
             // workspace alone, and the layouts the others kept across the restart would go (#2407).
-            fireAndForget(async () => pruneLayouts(await sidebarWorkspaceIds()));
+            fireAndForget(async () => {
+                const recorder = await import("../switch-layout/layout-recorder");
+                recorder.pruneLayouts(await sidebarWorkspaceIds());
+            });
         }
     }, [workspaceIdsKey]);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);

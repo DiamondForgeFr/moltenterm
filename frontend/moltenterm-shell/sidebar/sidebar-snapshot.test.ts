@@ -1,15 +1,11 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { describe, expect, it } from "vitest";
-import {
-    parseSnapshot,
-    sidebarAtRest,
-    snapshotFits,
-    snapshotKey,
-    staleSnapshotKeys,
-    uncomposite,
-} from "./sidebar-snapshot";
+import { describe, expect, it, vi } from "vitest";
+import { materialOffset, uncomposite } from "./sidebar-material";
+import { parseSnapshot, sidebarAtRest, snapshotFits, snapshotKey, staleSnapshotKeys } from "./sidebar-snapshot";
+
+vi.mock("../switch-layout/layout-frames", () => ({ switchLayoutOn: () => true }));
 
 describe("the neighbour's captured sidebar (#1261, TC-SHELL-218)", () => {
     it("reads back only a well-formed image capture", () => {
@@ -86,9 +82,25 @@ describe("the neighbour's sidebar without the window's material (#2407)", () => 
         expect(over(Array.from(pixels), Material)).toEqual(shown);
     });
 
-    it("leaves a pixel alone where the material is opaque: over an opaque frame it is already itself", () => {
-        const pixels = new Uint8ClampedArray([10, 20, 30, 255]);
-        uncomposite(pixels, new Uint8ClampedArray([1, 2, 3, 255]));
-        expect(Array.from(pixels)).toEqual([10, 20, 30, 255]);
+    it("on an opaque textured look, takes out the pixels that are the material and keeps the content's", () => {
+        // Two pixels of an opaque frame with a grain: the empty sidebar (the material itself, give or take the rounding)
+        // and a line of text over it.
+        const material = new Uint8ClampedArray([40, 38, 36, 255, 52, 50, 47, 255]);
+        const pixels = new Uint8ClampedArray([41, 37, 36, 255, 236, 234, 230, 255]);
+        uncomposite(pixels, material);
+        expect(Array.from(pixels)).toEqual([0, 0, 0, 0, 236, 234, 230, 255]);
+    });
+
+    it("handles a frame whose material mixes both, pixel by pixel", () => {
+        const material = new Uint8ClampedArray([32, 30, 28, 179, 40, 38, 36, 255]);
+        const empty = over([0, 0, 0, 0], [32, 30, 28, 179]);
+        const pixels = new Uint8ClampedArray([...empty, 40, 38, 36, 255]);
+        uncomposite(pixels, material);
+        expect(pixels[3]).toBe(0);
+        expect(pixels[7]).toBe(0);
+    });
+
+    it("finds the frame's corner where the capture, whose rectangle is rounded, has it", () => {
+        expect(materialOffset({ left: 0, top: 0 }, { left: 8.4, top: 81.6 })).toEqual({ x: -8, y: -82 });
     });
 });

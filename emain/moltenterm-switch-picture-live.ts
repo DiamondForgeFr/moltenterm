@@ -51,6 +51,7 @@ const CoverWaitMs = 80;
 
 // switch-layout/layout-frames.ts answers this in the page.
 const OnScreenScript = "window.__mtSwitchLayoutOnScreen && window.__mtSwitchLayoutOnScreen(), 0";
+const RefusedScript = "window.__mtSwitchLayoutRefused && window.__mtSwitchLayoutRefused(), 0";
 
 const store = new SwitchPictureStore();
 const windowSwitches = new WeakMap<object, WindowSwitchPicture>();
@@ -284,6 +285,25 @@ function guarded<T>(what: string, fallback: T, fn: () => T): T {
 // A sidebar switch whose view left faded into the target's remembered layout (#2407) says so just before it asks the
 // switch: that switch shows no picture (takesLayout).
 const layoutSwitches = new WeakMap<object, LayoutSwitchMark>();
+
+// A sidebar switch this window did not make (the workspace is shown by another window, which only got the focus; it
+// opened in a new window; the developer kept the workspace left; the switch failed): the view that asked is still on
+// screen, faded into the target's layout, and gets its content back at once (#2407).
+export function answerSidebarSwitch(win: WaveBrowserWindow, workspaceId: string, askingWebContentsId: number) {
+    if (win == null || win.isDestroyed()) {
+        return;
+    }
+    layoutSwitches.delete(win);
+    const view = win.activeTabView;
+    if (win.workspaceId === workspaceId || view == null || view.isDestroyed || view.webContents.isDestroyed()) {
+        return;
+    }
+    if (view.webContents.id !== askingWebContentsId) {
+        return;
+    }
+    console.log(`[#2407] switch to ${workspaceId} not made in this window: the view that asked gets its content back`);
+    view.webContents.executeJavaScript(RefusedScript).catch((): void => null);
+}
 
 export function beginSwitchPicture(win: WaveBrowserWindow, target: SwitchTarget): boolean {
     noteSwitchActivity();

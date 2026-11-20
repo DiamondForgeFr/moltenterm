@@ -54,6 +54,8 @@ export function ringTurns(progress: number): { right: number; left: number } {
 // The view's content during a swipe (#2407, switch-layout/layout-frames.ts): it fades out as the neighbour's remembered
 // layout fades in, by the swipe's progress. Nothing is laid over the frame or the sidebar.
 export type SwipeLeave = {
+    // The remembered layout is on (MOLTENTERM_SWITCHPICTURE neither 0 nor picture): a dot's switch plays the settle.
+    enabled(): boolean;
     // Draws the workspace's frames over the content, not shown yet; false when it has no layout.
     prepare(workspaceId: string): boolean;
     progress(p: number): void;
@@ -304,7 +306,13 @@ export class SidebarSwipeController {
     // A dot's or a key's switch to a neighbour, played as this swipe's own settle (#2407): the sidebars come in edge to
     // edge and the content fades into the neighbour's layout, eased, then the switch is asked where it lands.
     autoSwitch(workspaceId: string, side: -1 | 1): boolean {
-        if (this.state.phase !== "idle" || this.busy() || this.view.reduced() || this.view.ghost(side) == null) {
+        if (
+            !this.view.leave.enabled() ||
+            this.state.phase !== "idle" ||
+            this.busy() ||
+            this.view.reduced() ||
+            this.view.ghost(side) == null
+        ) {
             return false;
         }
         const g = this.gestureFor("sidebar");
