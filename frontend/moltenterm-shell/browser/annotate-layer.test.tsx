@@ -381,6 +381,7 @@ describe("the review (FR-BRW-017 AC14, AC26)", () => {
     it("says why there is no overview, and why a comment has no image", () => {
         const none = (noOverview: Captured["noOverview"]) =>
             review({ captured: { crops: {}, overview: "", noOverview } });
+        expect(none("none")).toContain("No overview: none of the comments is on the page shown.");
         expect(none("tall")).toContain("No overview: the page is taller than 12 screens.");
         expect(none("inner")).toContain("No overview: the page scrolls inside one of its areas.");
         expect(none("failed")).toContain("No overview: the page could not be captured whole.");

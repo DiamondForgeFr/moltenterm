@@ -3076,6 +3076,7 @@
                     "failed": "No image: the page gave no picture of it."
                 },
                 "noOverview": {
+                    "none": "No overview: none of the comments is on the page shown.",
                     "tall": "No overview: the page is taller than {screens} screens.",
                     "inner": "No overview: the page scrolls inside one of its areas.",
                     "failed": "No overview: the page could not be captured whole."

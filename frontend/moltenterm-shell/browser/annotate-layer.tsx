@@ -20,7 +20,7 @@ import { upcomingGet } from "../reviews/reviews-upcoming-client";
 import { useWorkspaceReviews } from "../reviews/reviews-workspace";
 import { readWorkspaceProject } from "../workspace-project";
 import { captureComments, type Captured } from "./annotate-capture";
-import { GuestLink, readPlaced } from "./annotate-guest-link";
+import { GuestLink, readBox, readPlaced } from "./annotate-guest-link";
 import { LinkChips, RefThumbs } from "./annotate-layer-parts";
 import {
     addZone,
@@ -300,11 +300,13 @@ function AnnotateLayer({
                 setRefNote("");
                 setState((s) => editZone(s.editing != null ? cancelEdit(s, s.editing.id) : s, msg.id));
                 return;
-            case "view":
-                if (msg.id === latest.current.state.editing?.id) {
-                    setView({ id: msg.id, box: msg.box });
+            case "view": {
+                const box = readBox(msg.box);
+                if (box != null && msg.id === latest.current.state.editing?.id) {
+                    setView({ id: msg.id, box });
                 }
                 return;
+            }
             case "key":
                 escape();
                 return;
