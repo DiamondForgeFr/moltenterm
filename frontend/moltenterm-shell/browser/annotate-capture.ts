@@ -50,6 +50,10 @@ export type Captured = {
     overview: string;
     // Why there is no overview: "" when there is one.
     noOverview: "" | "none" | "tall" | "inner" | "failed";
+    // Why a comment of the page shown has no image: a scrolling area of the page clips its mark, or the page gave none.
+    reasons: Record<number, "clipped" | "failed">;
+    // The comments whose element the page no longer has: their mark stayed where it was drawn.
+    missing: number[];
 };
 
 export function loadImage(dataUrl: string): Promise<ImageLike> {
@@ -88,18 +92,21 @@ async function shoot(env: CaptureEnv, region: Box): Promise<ImageLike> {
     }
 }
 
-async function captureCrop(env: CaptureEnv, zone: Zone, n: number, count: number): Promise<string> {
+type Crop = { url: string; reason?: "clipped" | "failed"; missing?: boolean };
+
+async function captureCrop(env: CaptureEnv, zone: Zone, n: number, count: number): Promise<Crop> {
     const prepared = await env.link.request<PreparedMessage>((reqId) => ({ type: "prepare", reqId, id: zone.id }));
     if (prepared == null || !prepared.ok) {
-        return "";
+        return { url: "", reason: prepared?.reason === "clipped" ? "clipped" : "failed" };
     }
+    const missing = prepared.onElement === false;
     const region = cropRegion(prepared.box, prepared.viewport, CropPad, CropMin);
     const shot = await shoot(env, region);
     if (shot == null) {
-        return "";
+        return { url: "", reason: "failed", missing };
     }
     try {
-        return composeCrop(
+        const url = composeCrop(
             shot,
             region,
             { n, kind: zone.kind, box: prepared.box, path: prepared.path },
@@ -107,8 +114,9 @@ async function captureCrop(env: CaptureEnv, zone: Zone, n: number, count: number
             env.color,
             env.make
         ).dataUrl;
+        return { url, missing };
     } catch {
-        return "";
+        return { url: "", reason: "failed", missing };
     }
 }
 
@@ -153,7 +161,7 @@ async function captureOverview(
 // shown are captured, the others have no image: their page is gone.
 export async function captureComments(env: CaptureEnv, zones: Zone[]): Promise<Captured> {
     const here = zones.filter((z) => sameAddress(z.address, env.address));
-    const result: Captured = { crops: {}, overview: "", noOverview: "none" };
+    const result: Captured = { crops: {}, overview: "", noOverview: "none", reasons: {}, missing: [] };
     if (here.length === 0) {
         return result;
     }
@@ -165,8 +173,13 @@ export async function captureComments(env: CaptureEnv, zones: Zone[]): Promise<C
                 break;
             }
             const crop = await captureCrop(env, zone, zones.indexOf(zone) + 1, zones.length);
-            if (crop !== "") {
-                result.crops[zone.id] = crop;
+            if (crop.url !== "") {
+                result.crops[zone.id] = crop.url;
+            } else {
+                result.reasons[zone.id] = crop.reason ?? "failed";
+            }
+            if (crop.missing) {
+                result.missing.push(zone.id);
             }
             env.onProgress?.(++done, here.length + 1);
         }

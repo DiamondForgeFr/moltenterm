@@ -284,6 +284,7 @@ export function CommentList({
     zones,
     address,
     editingId,
+    missing = [],
     onGo,
     onEdit,
     onErase,
@@ -291,6 +292,8 @@ export function CommentList({
     zones: Zone[];
     address: string;
     editingId: number;
+    // The comments whose element the page no longer has.
+    missing?: number[];
     onGo: (id: number) => void;
     onEdit: (id: number) => void;
     onErase: (id: number) => void;
@@ -353,6 +356,14 @@ export function CommentList({
                                                 })}
                                             </span>
                                         )}
+                                        {here && missing.includes(zone.id) ? (
+                                            <span
+                                                className="text-11 leading-4 text-[var(--mt-state-warning)]"
+                                                data-testid="browser-annotate-list-missing"
+                                            >
+                                                {t("browser.annotate.list.missing")}
+                                            </span>
+                                        ) : null}
                                     </span>
                                 </button>
                                 <button

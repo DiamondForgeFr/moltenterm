@@ -26,6 +26,9 @@ export type Anchor = {
     rel: Box;
     // A point marker keeps its size when its element's changes.
     fixed: boolean;
+    // The element, or one around it, is fixed or sticky: it moves with the viewport, not with the page, so the mark is
+    // read again on every scroll.
+    sticky?: boolean;
     // A freehand outline: its points (x0, y0, x1, y1...) as fractions of the box.
     path: number[];
 };
@@ -40,6 +43,8 @@ export type StartMessage = {
     tool: MarkKind;
     paused: boolean;
     marks: MarkView[];
+    // The comment whose field is open (0: none), so a page that was reloaded reports where its mark is again.
+    track?: number;
 };
 
 // Panel to page.
@@ -47,6 +52,8 @@ export type ToGuest =
     | StartMessage
     | { type: "tool"; tool: MarkKind }
     | { type: "pause"; paused: boolean }
+    // While the pictures are taken the page takes no pointer, wheel or scrolling key from the developer.
+    | { type: "lock"; locked: boolean }
     | { type: "marks"; marks: MarkView[] }
     // Scroll the page to a mark and flash it.
     | { type: "reveal"; id: number }
@@ -71,6 +78,10 @@ export type PreparedMessage = {
     box: Box;
     path: number[];
     scroll: Point;
+    // false: the mark's element is gone (its selector names nothing any more); it stays where it was drawn.
+    onElement?: boolean;
+    // Why ok is false: the mark is not there (gone), or a scrolling area of the page clips it (clipped).
+    reason?: "gone" | "clipped";
 };
 
 export type OverviewMessage = {
@@ -94,6 +105,8 @@ export type FromGuest =
     | { type: "edit"; id: number }
     | { type: "view"; id: number; box: Box; viewport: Size }
     | { type: "key"; key: "Escape" }
+    // The comments whose element the page no longer has (sent when the set changes).
+    | { type: "found"; missing: number[] }
     | PreparedMessage
     | OverviewMessage
     | { type: "restored"; reqId: number };

@@ -35,6 +35,9 @@ class FakePage {
     overviewWhole = true;
     docH = Doc.h;
     fail = new Set<string>();
+    // The comments a scrolling area of the page clips, and those whose element the page no longer has.
+    clipped = new Set<number>();
+    gone = new Set<number>();
 
     request = async <M>(build: (reqId: number) => ToGuest): Promise<M> => {
         const msg = build(this.log.length + 1);
@@ -43,6 +46,9 @@ class FakePage {
             this.log.push(`prepare ${msg.id}`);
             if (this.fail.has(`prepare ${msg.id}`)) {
                 return { type: "prepared", reqId, ok: false } as unknown as M;
+            }
+            if (this.clipped.has(msg.id)) {
+                return { type: "prepared", reqId, ok: false, reason: "clipped" } as unknown as M;
             }
             return this.prepared(reqId, msg.id) as unknown as M;
         }
@@ -72,6 +78,7 @@ class FakePage {
             box: { x: box.x, y: box.y - this.scrollY, w: box.w, h: box.h },
             path: [],
             scroll: { x: 0, y: this.scrollY },
+            onElement: !this.gone.has(id),
         };
     }
 
@@ -272,7 +279,13 @@ describe("what the capture leaves out, and puts back", () => {
         const zones = commented({ address: "http://localhost:3000/cart", box: middle });
         const page = pageWith(zones);
         const { env } = makeEnv(page);
-        expect(await captureComments(env, zones)).toEqual({ crops: {}, overview: "", noOverview: "none" });
+        expect(await captureComments(env, zones)).toEqual({
+            crops: {},
+            overview: "",
+            noOverview: "none",
+            reasons: {},
+            missing: [],
+        });
         expect(page.log).toEqual([]);
     });
 
@@ -292,8 +305,52 @@ describe("what the capture leaves out, and puts back", () => {
         page.fail.add("shoot");
         const { env } = makeEnv(page);
         const taken = await captureComments(env, zones);
-        expect(taken).toEqual({ crops: {}, overview: "", noOverview: "failed" });
+        expect(taken).toEqual({
+            crops: {},
+            overview: "",
+            noOverview: "failed",
+            reasons: { [zones[0].id]: "failed", [zones[1].id]: "failed" },
+            missing: [],
+        });
         expect(page.log[page.log.length - 1]).toBe("restore");
+    });
+
+    it("says why a mark has no image: a scrolling area of the page clips it, or the page gave none", async () => {
+        const zones = commented({ box: top }, { box: middle }, { box: bottom });
+        const page = pageWith(zones);
+        page.fail.add(`prepare ${zones[0].id}`);
+        page.clipped.add(zones[1].id);
+        const { env } = makeEnv(page);
+        const taken = await captureComments(env, zones);
+        expect(taken.reasons).toEqual({ [zones[0].id]: "failed", [zones[1].id]: "clipped" });
+        expect(Object.keys(taken.crops).map(Number)).toEqual([zones[2].id]);
+    });
+
+    it("says which comments' element the page no longer has, and still takes their picture", async () => {
+        const zones = commented({ box: top }, { box: middle });
+        const page = pageWith(zones);
+        page.gone.add(zones[1].id);
+        const { env } = makeEnv(page);
+        const taken = await captureComments(env, zones);
+        expect(taken.missing).toEqual([zones[1].id]);
+        expect(Object.keys(taken.crops).map(Number)).toEqual(zones.map((z) => z.id));
+    });
+
+    it("ends at once, with no image, when the page is being left, and puts nothing back on the page that went", async () => {
+        const zones = commented({ box: top }, { box: middle });
+        const page = pageWith(zones);
+        const { env } = makeEnv(page);
+        // The link is cut as the first request goes out: every request after it answers nothing, as a blocked link does.
+        const request = page.request;
+        let asked = 0;
+        page.request = (async (build: (reqId: number) => ToGuest) => {
+            asked++;
+            return asked === 1 ? await request(build) : null;
+        }) as typeof page.request;
+        const taken = await captureComments(env, zones);
+        expect(Object.keys(taken.crops)).toHaveLength(1);
+        expect(taken.overview).toBe("");
+        expect(taken.noOverview).toBe("failed");
     });
 
     it("stops asking the page once the review is left, and still puts it back", async () => {

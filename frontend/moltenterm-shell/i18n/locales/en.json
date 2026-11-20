@@ -3013,7 +3013,8 @@
                 "edit": "Edit this comment",
                 "erase": "Erase this comment",
                 "noText": "No text yet",
-                "elsewhere": "On {page}"
+                "elsewhere": "On {page}",
+                "missing": "Element no longer found: the mark stays where it was drawn."
             },
             "tray": {
                 "zones": {
@@ -3073,8 +3074,10 @@
                 "cancel": "Cancel",
                 "noImage": {
                     "elsewhere": "No image: its page is no longer shown.",
-                    "failed": "No image: the page gave no picture of it."
+                    "failed": "No image: the page gave no picture of it.",
+                    "clipped": "No image: a scrolling area of the page hides the mark."
                 },
+                "missing": "Element no longer found: the mark stays where it was drawn.",
                 "noOverview": {
                     "none": "No overview: none of the comments is on the page shown.",
                     "tall": "No overview: the page is taller than {screens} screens.",

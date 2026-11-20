@@ -246,6 +246,8 @@ function AnnotateLayer({
     const [refNote, setRefNote] = useState("");
     const [progress, setProgress] = useState({ done: 0, total: 1 });
     const [captured, setCaptured] = useState<Captured>(null);
+    // The comments whose element the page no longer has, as the page last said.
+    const [missing, setMissing] = useState<number[]>([]);
     const target = useAnnotateTarget(address);
     // The latest of everything the page's messages and the page's events read, so they never see an old render.
     const latest = useRef({ state, tool, paused, phase, address, shown });
@@ -253,6 +255,9 @@ function AnnotateLayer({
     const linkRef = useRef<GuestLink>(null);
     const cancelRef = useRef(false);
     const aliveRef = useRef(true);
+    // What the review is doing: a send or a copy under way, a request sent. Escape and Back wait for the first, and close the
+    // mode after the second.
+    const reviewRef = useRef({ busy: false, sent: false });
     const colorRef = useRef(annotateColor());
     const webview = session.webviewOf(open.tabId);
     const startMessage = (): StartMessage => ({
@@ -261,14 +266,34 @@ function AnnotateLayer({
         tool: latest.current.tool,
         paused: latest.current.paused || latest.current.phase !== "draw",
         marks: markViews(latest.current.state, latest.current.address),
+        track: latest.current.state.editing?.id ?? 0,
     });
+    // leftPage: the page the pictures are of is gone. A capture under way is cancelled; a review that has not sent anything
+    // goes back to drawing, its pictures dropped, so that old ones are never sent under a new address.
+    const leftPage = () => {
+        const { phase: p } = latest.current;
+        if (p === "capturing") {
+            cancelRef.current = true;
+        } else if (p === "review" && !reviewRef.current.busy && !reviewRef.current.sent) {
+            setPhase("draw");
+            setCaptured(null);
+        }
+    };
+    const leftPageRef = useRef(leftPage);
+    leftPageRef.current = leftPage;
     const escape = () => {
         const { state: s, phase: p } = latest.current;
         if (p === "capturing") {
             cancelRef.current = true;
             return;
         }
-        const action = layerKeyAction("Escape", { review: p === "review", leaveAsk, zones: s.zones.length });
+        const action = layerKeyAction("Escape", {
+            review: p === "review",
+            leaveAsk,
+            zones: s.zones.length,
+            busy: reviewRef.current.busy,
+            sent: reviewRef.current.sent,
+        });
         if (action === "back") {
             setPhase("draw");
             setCaptured(null);
@@ -307,6 +332,9 @@ function AnnotateLayer({
                 }
                 return;
             }
+            case "found":
+                setMissing(Array.isArray(msg.missing) ? msg.missing.filter((id) => typeof id === "number") : []);
+                return;
             case "key":
                 escape();
                 return;
@@ -323,18 +351,40 @@ function AnnotateLayer({
         linkRef.current = link;
         link.onMessage = (msg) => onGuestRef.current(msg);
         const detach = link.attach();
-        // A new document starts with a fresh preload that knows nothing yet: it is told again where the marks are.
+        // The page is being left: nothing is asked of it until its next document is up, whatever was waiting ends, and the
+        // pictures of the page that goes are not kept.
+        const onStart = (e: { isMainFrame?: boolean; isInPlace?: boolean }) => {
+            if (e?.isMainFrame === false || e?.isInPlace === true) {
+                return;
+            }
+            link.blocked = true;
+            link.abortAll();
+            leftPageRef.current();
+        };
+        // A new document starts with a fresh preload that knows nothing yet: it is told again where the marks are, and which
+        // comment's field is open.
         const onReady = () => {
+            link.blocked = false;
+            setMissing([]);
             setAddress(addressOf(webview, latest.current.address));
             link.send(startMessage());
+        };
+        const onStop = () => {
+            link.blocked = false;
         };
         const onNavigate = (e: { url?: string; isMainFrame?: boolean }) => {
             if (e?.isMainFrame === false) {
                 return;
             }
-            setAddress(e?.url || addressOf(webview, latest.current.address));
+            const url = e?.url || addressOf(webview, latest.current.address);
+            if (!sameAddress(url, latest.current.address)) {
+                leftPageRef.current();
+            }
+            setAddress(url);
         };
+        webview.addEventListener("did-start-navigation", onStart);
         webview.addEventListener("dom-ready", onReady);
+        webview.addEventListener("did-stop-loading", onStop);
         webview.addEventListener("did-navigate", onNavigate);
         webview.addEventListener("did-navigate-in-page", onNavigate);
         setAddress(addressOf(webview, latest.current.address));
@@ -343,7 +393,9 @@ function AnnotateLayer({
             aliveRef.current = false;
             cancelRef.current = true;
             link.send({ type: "stop" });
+            webview.removeEventListener("did-start-navigation", onStart);
             webview.removeEventListener("dom-ready", onReady);
+            webview.removeEventListener("did-stop-loading", onStop);
             webview.removeEventListener("did-navigate", onNavigate);
             webview.removeEventListener("did-navigate-in-page", onNavigate);
             detach();
@@ -357,6 +409,11 @@ function AnnotateLayer({
     useEffect(() => {
         linkRef.current?.send({ type: "pause", paused: guestPaused });
     }, [guestPaused]);
+    // While the pictures are taken the page takes nothing from the developer.
+    const capturing = phase === "capturing";
+    useEffect(() => {
+        linkRef.current?.send({ type: "lock", locked: capturing });
+    }, [capturing]);
     const marks = markViews(state, address);
     const marksKey = marks.map((m) => `${m.id}:${m.n}:${m.active ? 1 : 0}`).join(",");
     useEffect(() => {
@@ -420,6 +477,20 @@ function AnnotateLayer({
     leaveRef.current = leave;
     useEffect(() => {
         session.leaveLayers.set(open.tabId, () => {
+            const { phase: p } = latest.current;
+            // A capture is cancelled, not left half done under a question; a send under way is waited for; after one the
+            // mode closes, as Done does.
+            if (p === "capturing") {
+                cancelRef.current = true;
+                return;
+            }
+            if (p === "review" && reviewRef.current.busy) {
+                return;
+            }
+            if (p === "review" && reviewRef.current.sent) {
+                onClose();
+                return;
+            }
             setPhase("draw");
             setCaptured(null);
             leaveRef.current();
@@ -461,6 +532,7 @@ function AnnotateLayer({
         setListOpen(false);
         setLeaveAsk(false);
         cancelRef.current = false;
+        reviewRef.current = { busy: false, sent: false };
         setProgress({ done: 0, total: 1 });
         setPhase("capturing");
         fireAndForget(async () => {
@@ -531,6 +603,7 @@ function AnnotateLayer({
                     zones={state.zones}
                     address={address}
                     editingId={editingId}
+                    missing={missing}
                     onGo={(id) => linkRef.current?.send({ type: "reveal", id })}
                     onEdit={(id) => {
                         setRefNote("");
@@ -579,6 +652,9 @@ function AnnotateLayer({
                     target={target}
                     zones={state.zones}
                     captured={captured}
+                    onState={(s) => {
+                        reviewRef.current = s;
+                    }}
                     onBack={() => {
                         setPhase("draw");
                         setCaptured(null);
