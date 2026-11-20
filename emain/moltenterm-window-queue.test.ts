@@ -281,6 +281,13 @@ class FakeBaseWindow {
     isVisible() {
         return this.visible;
     }
+    // The landing check of a switch (#2419) reads back frames only in a window that shows them.
+    isMinimized() {
+        return false;
+    }
+    isFocused() {
+        return true;
+    }
     setMenu() {}
     setFullScreen() {}
     getContentBounds() {
@@ -1732,6 +1739,37 @@ describe("a burst of closes and switches (#1778)", () => {
 
 // The switch picture (#2375): a switch shows the target's last picture at once, on the view being left; the target wears
 // it before its reinit and puts it away once painted; and none of it makes the target come on screen later.
+describe("the landing check of a switch (#2419)", () => {
+    function landingLines(): string[] {
+        return (console.log as any).mock.calls
+            .map((c: unknown[]) => String(c[0]))
+            .filter((m: string) => m.startsWith("[#2419] switch to") || m.includes("landing check"));
+    }
+
+    it("watches only the view a switch put on screen, and a newer switch replaces the watch", async () => {
+        const starter = await setup();
+        await vi.advanceTimersByTimeAsync(3000);
+        // the window's first view came with no switch: nothing is watched
+        expect(h.trace.filter((e) => e.endsWith("landing"))).toEqual([]);
+        const other = h.backend.addWorkspace("Other");
+        h.trace = [];
+        ipc("switch-workspace", other.oid);
+        await vi.advanceTimersByTimeAsync(1000);
+        ipc("switch-workspace", starter.oid);
+        await vi.advanceTimersByTimeAsync(4000);
+        expect(h.onScreen()).toBe(starter.activetabid);
+        const landed = landingLines();
+        expect(landed).toHaveLength(1);
+        expect(landed[0]).toMatch(
+            new RegExp(
+                `^\\[#2419\\] switch to ${starter.activetabid} landed: on screen, visible, background .*, content opacity 1$`
+            )
+        );
+        const starterView = viewsForTab(starter.activetabid)[0];
+        expect(h.trace.filter((e) => e.endsWith("landing"))).toEqual([`js ${starterView.webContents.id} landing`]);
+    });
+});
+
 describe("the switch picture (#2375)", () => {
     // The starter workspace is left for another one, and its picture is kept; both views stay cached.
     async function leaveStarter() {

@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The end of a switch (#2419) on real views: the rules are in moltenterm-switch-landing.ts. The tab view host calls
-// watchLandedView once a switch has put its view on screen; a newer landing of the same window replaces the watch.
+// watchLandedView once a switch has put its view on screen; a switch that starts, a newer landing and the window's
+// close stop the watch.
 
 import type { WaveTabView } from "./emain-tabview";
 import type { WaveBrowserWindow } from "./emain-window";
 import { isBackgroundMode } from "./moltenterm-background";
-import { isFlatFrame } from "./moltenterm-carpet-thumb-store";
 import {
     framePaints,
-    LandingFrameWidthPx,
+    LandingBandHeightPx,
     LandingMainState,
     LandingPageReport,
     landingProbeScript,
@@ -81,29 +81,49 @@ function restoreMain(win: WaveBrowserWindow, view: WaveTabView) {
     restoreViewBackground(win, view);
 }
 
-// One frame of the view, read back small. Only a window on screen draws frames to read.
+// A thin band of the view's frame, across its whole width at mid-height (the sidebar and the panels): the rules only ask
+// whether anything is painted, and a whole frame would cost megabytes at every switch.
+export function landingBand(bounds: { width: number; height: number }) {
+    const height = Math.min(LandingBandHeightPx, Math.max(1, bounds.height));
+    return {
+        x: 0,
+        y: Math.max(0, Math.round(bounds.height / 2 - height / 2)),
+        width: Math.max(1, bounds.width),
+        height,
+    };
+}
+
 async function paints(win: WaveBrowserWindow, view: WaveTabView): Promise<boolean> {
-    if (win.isDestroyed() || !win.isVisible() || win.isMinimized() || !live(view)) {
+    if (win.isDestroyed() || !live(view)) {
         return null;
     }
-    // A background test page (#495) draws only when read back: the first readback wakes it, the second holds its frame.
-    if (isBackgroundMode()) {
-        await view.webContents.capturePage();
+    const image = await view.webContents.capturePage(landingBand(view.getBounds()));
+    if (image == null || image.isEmpty()) {
+        return null;
     }
-    const image = await view.webContents.capturePage();
-    if (image.isEmpty()) {
-        return false;
+    return framePaints(image.toBitmap(), image.getSize());
+}
+
+// A visibility cycle can take the keyboard focus from the view: it gets it back if it had it.
+function cycleVisibility(view: WaveTabView) {
+    const focused = view.webContents.isFocused();
+    view.setVisible(false);
+    view.setVisible(true);
+    if (focused && !view.webContents.isFocused()) {
+        view.webContents.focus();
     }
-    const small = image.resize({ width: LandingFrameWidthPx });
-    return framePaints(small.toBitmap(), small.getSize(), (bitmap, size) =>
-        isFlatFrame(Buffer.from(bitmap.buffer, bitmap.byteOffset, bitmap.byteLength), size)
-    );
+}
+
+// A switch that starts (its picture shown, or its action queued) and the window's close stop the watch of the last
+// landing: the check never touches a view a newer switch uses (#2419).
+export function cancelLandingWatch(win: WaveBrowserWindow) {
+    watches.get(win)?.();
+    watches.delete(win);
 }
 
 // The view a switch just put on screen is checked once the switch has settled (moltenterm-switch-landing.ts).
 export function watchLandedView(win: WaveBrowserWindow, view: WaveTabView) {
-    watches.get(win)?.();
-    watches.delete(win);
+    cancelLandingWatch(win);
     if (!enabled() || win.isDestroyed() || !live(view)) {
         return;
     }
@@ -124,10 +144,7 @@ export function watchLandedView(win: WaveBrowserWindow, view: WaveTabView) {
                 ),
             restorePage: () => Promise.resolve().then(() => view.webContents.executeJavaScript(restoreLandingScript())),
             paints: () => paints(win, view),
-            cycleVisibility: () => {
-                view.setVisible(false);
-                view.setVisible(true);
-            },
+            cycleVisibility: () => cycleVisibility(view),
             clearBackground: ClearViewBg,
         },
         () => {

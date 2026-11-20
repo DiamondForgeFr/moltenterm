@@ -18,6 +18,8 @@ import "./switch-layout.css";
 
 export const LeaveLayerId = "mt-switch-layout-leave";
 export const ArrivalLayerId = "mt-switch-layout-arrival";
+// The id of the leave's cross-fade, so Electron main's landing check (#2419) cancels only it.
+export const LeaveAnimationId = "mt-switch-layout-leave";
 // The motion tokens (tokens.css), read from the page first.
 const FallbackFadeMs = 180;
 const FallbackDissolveMs = 120;
@@ -162,6 +164,8 @@ export function prepareLeave(workspaceId: string, layout: RememberedLayout = loa
     }
     const layer = buildFrames(LeaveLayerId, layout, boxOf(content), false);
     layer.style.opacity = "0";
+    // Electron main's landing check of a switch (#2419) tells a leave in progress from one left over by its age.
+    layer.dataset.at = String(Date.now());
     document.body.appendChild(layer);
     leave = { layer, content, timer: null, progress: 0 };
     return true;
@@ -201,7 +205,7 @@ export function playLeave(ms: number = switchFadeMs()): Promise<boolean> {
     if (!(ms > 0) || l.layer.animate == null) {
         return Promise.resolve(leave === l);
     }
-    const opts = { duration: ms * (1 - from), easing: ease() };
+    const opts = { duration: ms * (1 - from), easing: ease(), id: LeaveAnimationId };
     const a = l.layer.animate([{ opacity: from }, { opacity: 1 }], opts);
     l.content.animate([{ opacity: 1 - from }, { opacity: 0 }], opts);
     return new Promise((resolve) => {
