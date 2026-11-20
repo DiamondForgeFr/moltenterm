@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
@@ -35,7 +36,16 @@ func MakeFileBackup(absFilePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read file for backup: %w", err)
 	}
+	return MakeFileBackupFromData(absFilePath, fileData, fileInfo.Mode().Perm())
+}
 
+// MOLTENTERM-PATCH (#1693): approved descriptor snapshots must not be re-read from a pathname that can be swapped.
+func MakeFileBackupFromData(absFilePath string, fileData []byte, perm fs.FileMode) (string, error) {
+	backupDir := filepath.Join(wavebase.GetWaveCachesDir(), "waveai-backups", time.Now().Format("2006-01-02"))
+	return makeFileBackup(absFilePath, fileData, perm, backupDir)
+}
+
+func makeFileBackup(absFilePath string, fileData []byte, perm fs.FileMode, backupDir string) (string, error) {
 	dir := filepath.Dir(absFilePath)
 	basename := filepath.Base(absFilePath)
 
@@ -49,9 +59,6 @@ func MakeFileBackup(absFilePath string) (string, error) {
 	uuidStr := uuidV7.String()
 
 	now := time.Now()
-	dateStr := now.Format("2006-01-02")
-
-	backupDir := filepath.Join(wavebase.GetWaveCachesDir(), "waveai-backups", dateStr)
 	err = os.MkdirAll(backupDir, 0700)
 	if err != nil {
 		return "", fmt.Errorf("failed to create backup directory: %w", err)
@@ -68,7 +75,7 @@ func MakeFileBackup(absFilePath string) (string, error) {
 	metadata := BackupMetadata{
 		FullPath:  absFilePath,
 		Timestamp: now.Format(time.RFC3339),
-		Perm:      fmt.Sprintf("%04o", fileInfo.Mode().Perm()),
+		Perm:      fmt.Sprintf("%04o", perm),
 	}
 
 	metadataJSON, err := json.MarshalIndent(metadata, "", "  ")
