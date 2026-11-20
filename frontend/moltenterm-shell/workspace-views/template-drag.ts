@@ -22,8 +22,12 @@ export function reorderIndexAt(el: Element, attr: string, container: Element): n
     return Number.isInteger(n) ? n : null;
 }
 
-// What a press on an item does: nothing when it starts on a field or a button inside it, which keep their own gesture.
+// What a press on an item does: nothing when it starts on a field or a button inside it, which keep their own gesture;
+// a button marked data-drag-handle is the item's handle, and its gesture is the drag (#2395).
 export function startsReorder(target: Element): boolean {
+    if (target?.closest("[data-drag-handle]") != null) {
+        return true;
+    }
     return target?.closest("input, textarea, select, button, [data-no-drag]") == null;
 }
 

@@ -207,8 +207,10 @@ export function CompanionWork(props: CompanionWorkProps) {
     const measured = useWidth(rootRef);
     const layout = workLayout(props.width ?? measured);
     const band = props.band ?? defaultWorkBand();
+    // A band without the Tasks block (hidden or elsewhere in the layout, #2395) never asks for the milestone.
+    const showsTasks = band.ids.includes("tasks");
     const [want, setWant] = useState<number[]>([]);
-    const asked = useMilestones(props.milestones != null ? "" : dir, want);
+    const asked = useMilestones(props.milestones != null || !showsTasks ? "" : dir, want);
     const milestones = props.milestones ?? asked;
     const [offerAnswered, answerOffer] = useCompanionPref("summariesasked");
     const offer: SummariesOffer = offersSummaries(milestones, offerAnswered)
@@ -232,7 +234,8 @@ export function CompanionWork(props: CompanionWorkProps) {
     }, [wanted]);
     const todos = view?.todos ?? [];
     const todoAgents = todoLinks(todos, linkable);
-    const links = drawnLinks(preview?.rows, tickets, todoAgents);
+    // Without the Tasks block in this band there is nothing to link an agent to.
+    const links = showsTasks ? drawnLinks(preview?.rows, tickets, todoAgents) : [];
     const lit = hotEnds(links, hot);
     const ends = new Set(links.flatMap((l) => [l.from, l.to]));
     const loading = milestones?.state === "loading";
@@ -245,7 +248,13 @@ export function CompanionWork(props: CompanionWorkProps) {
     const right = band.right.filter(shows);
     const columns = layout === "columns" && left.length > 0 && right.length > 0;
     // A line needs the tasks and the agents in the two columns; anywhere else, the chips say who works on what.
-    const sideBySide = columns && hasTasks && left.includes("tasks") !== left.includes("agents");
+    const sideOf = (id: CompanionSectionId) => (left.includes(id) ? "left" : right.includes(id) ? "right" : null);
+    const sideBySide =
+        columns &&
+        hasTasks &&
+        sideOf("tasks") != null &&
+        sideOf("agents") != null &&
+        sideOf("tasks") !== sideOf("agents");
     const chips = !sideBySide;
     const sections: Partial<Record<CompanionSectionId, React.ReactNode>> = {
         ...props.slots,
@@ -294,12 +303,15 @@ export function CompanionWork(props: CompanionWorkProps) {
         ),
     };
     const place = (ids: CompanionSectionId[]) => ids.map((id) => <Fragment key={id}>{sections[id]}</Fragment>);
+    // A band whose sections all have nothing to show takes no room; the root stays mounted so its width is measured.
+    const empty = !band.ids.some(shows);
     return (
         <div
             ref={rootRef}
             className="mt-cwork"
             data-layout={layout}
             data-both={columns ? "" : undefined}
+            data-empty={empty ? "" : undefined}
             data-testid="companion-work"
             onPointerOver={(e) => {
                 const key = linkKeyOf(e.target);

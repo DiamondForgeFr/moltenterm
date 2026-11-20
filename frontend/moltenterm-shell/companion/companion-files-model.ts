@@ -3,6 +3,7 @@
 
 // The changed files' filter and the companion's remembered choices (#555). Pure, so they are tested without a window.
 
+import { CompanionLayout, readStoredLayout } from "./companion-layout";
 import { CompanionFile, displayPath } from "./companion-model";
 
 // The client's meta key holding the companion's choices, the same for every companion of the user.
@@ -15,6 +16,8 @@ export type CompanionPrefs = {
     usagedetails?: boolean;
     // The offer to explain each ticket in one sentence was answered, yes or no (#2392): it is never shown again.
     summariesasked?: boolean;
+    // The developer's own arrangement of the sections (#2395); absent means the default layout.
+    layout?: CompanionLayout;
 };
 
 export function readCompanionPrefs(value: unknown): CompanionPrefs {
@@ -26,6 +29,7 @@ export function readCompanionPrefs(value: unknown): CompanionPrefs {
         filesopen: prefs.filesopen === true,
         usagedetails: prefs.usagedetails === true,
         summariesasked: prefs.summariesasked === true,
+        layout: readStoredLayout(prefs.layout) ?? undefined,
     };
 }
 

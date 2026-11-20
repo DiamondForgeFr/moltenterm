@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AgentStateInfo } from "../agent-state-model";
 import { FilesSection } from "./companion-files";
 import { filterFiles, fuzzyScore, readCompanionPrefs } from "./companion-files-model";
-import { ColumnsBand } from "./companion-layout";
+import { ColumnsBand, SectionPlacement } from "./companion-layout";
 import { CompanionFile, CompanionView } from "./companion-model";
 import { AgentsSection, RecentTopicsSection } from "./companion-recap";
 import { agentsView, branchTicket, finishedLabel, mainAgentRow, topicRows } from "./companion-recap-model";
@@ -319,5 +319,23 @@ describe("the companion's order (#555, PR #557, #2392)", () => {
             />
         );
         expect(slotOrder(html)).toEqual(["files", "columns_agents_topics_tasks"]);
+    });
+
+    // #2395: the Tasks block and the agents at work come from the work area, never from a slot, at any width of column.
+    it("draws the Tasks block at full width through the work area, and leaves it out once hidden", () => {
+        const slots = { topics: slot("topics"), files: slot("files") };
+        const layout: SectionPlacement[] = [
+            { id: "files", column: "full" },
+            { id: "tasks", column: "full" },
+            { id: "topics", column: "full" },
+            { id: "agents", column: "full", hidden: true },
+        ];
+        expect(
+            slotOrder(renderToStaticMarkup(<SessionSections slots={slots} columns={columns} layout={layout} />))
+        ).toEqual(["files", "columns_tasks", "topics"]);
+        const hidden = layout.map((p) => (p.id === "tasks" ? { ...p, hidden: true } : p));
+        expect(
+            slotOrder(renderToStaticMarkup(<SessionSections slots={slots} columns={columns} layout={hidden} />))
+        ).toEqual(["files", "topics"]);
     });
 });

@@ -20,6 +20,11 @@
     padding: 22px 12px 4px;
 }
 
+/* A band of a layout (#2395) whose sections have nothing to show leaves no gap. */
+.mt-cwork[data-empty] {
+    display: none;
+}
+
 /* The lane between the columns is the room the lines cross. */
 .mt-cwork[data-layout="columns"][data-both] {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
