@@ -277,3 +277,97 @@ func strconvQuote(value string) string {
 	encoded, _ := json.Marshal(value)
 	return string(encoded)
 }
+
+func kimiToolCwdRecord(agentId string, field string, cwd string) string {
+	return `{"type":"context.append_loop_event","agentId":` + strconvQuote(agentId) +
+		`,"event":{"type":"tool.call","toolCallId":"call","name":"Bash","` + field +
+		`":{"cwd":` + strconvQuote(cwd) + `}}}`
+}
+
+func TestKimiSubagentWorktreeBranchAndTicket(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		branch      string
+		description string
+		field       string
+		ticket      int
+	}{
+		{name: "fix branch from arguments", branch: "fix/2406-local-ci-url-path", description: "Corriger chemins CI #2406", field: "args", ticket: 2406},
+		{name: "feature branch from display", branch: "feature/2393-kimi-managed-usage", description: "Finish Kimi usage delivery", field: "display", ticket: 2393},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			parent := t.TempDir()
+			makeRepo(t, parent, "develop")
+			_, session := writeKimiFixture(t, parent)
+			child := filepath.Join(parent, "worktrees", "child")
+			makeWorktree(t, parent, child, test.branch)
+			previous := filepath.Join(parent, "worktrees", "previous")
+			makeWorktree(t, parent, previous, "fix/9999-previous")
+			wire := filepath.Join(kimiSessionDir(session), "agents", "agent-1", "wire.jsonl")
+			writeLines(t, wire,
+				`{"type":"profile.bind","agentId":"agent-1","modelAlias":"kimi-code/k3","thinkingEffort":"medium"}`,
+				kimiToolCwdRecord("agent-1", "args", previous),
+				kimiToolCwdRecord("agent-1", test.field, child),
+				kimiToolCwdRecord("agent-1", "args", "relative/newer"),
+				`{"type":"turn.ended","agentId":"agent-1"}`,
+			)
+
+			facts, ok := MakeKimiAdapter(nil).ReadSubagent(session, "agent-1")
+			if !ok || facts.Worktree != child || facts.Branch != test.branch {
+				t.Fatalf("child worktree facts: %+v %v, want %q on %q", facts, ok, child, test.branch)
+			}
+			s := MakeSession()
+			s.StartSubagent("call-1", test.description, "general-purpose", "", "", true, 1)
+			s.SetSubagentId("call-1", "agent-1")
+			s.SetSubagentFacts("call-1", facts)
+			s.ResolveTickets(nil)
+			subagents := s.Subagents()
+			if len(subagents) != 1 || subagents[0].Ticket != test.ticket || subagents[0].Branch != test.branch || subagents[0].Worktree != child {
+				t.Errorf("child ticket association: %+v, want ticket %d on %q in %q", subagents, test.ticket, test.branch, child)
+			}
+		})
+	}
+}
+
+func TestKimiSubagentWorktreeFallback(t *testing.T) {
+	parent := t.TempDir()
+	makeRepo(t, parent, "develop")
+	_, session := writeKimiFixture(t, parent)
+	facts, ok := MakeKimiAdapter(nil).ReadSubagent(session, "agent-1")
+	if !ok || facts.Worktree != parent || facts.Branch != "develop" {
+		t.Fatalf("session directory fallback: %+v %v, want %q on develop", facts, ok, parent)
+	}
+}
+
+func TestKimiSubagentRejectsInvalidAndForeignToolCwd(t *testing.T) {
+	otherChild := t.TempDir()
+	makeRepo(t, otherChild, "fix/9998-other-child")
+	parentEvidence := t.TempDir()
+	makeRepo(t, parentEvidence, "fix/9997-parent")
+	for _, test := range []struct {
+		name    string
+		agentId string
+		field   string
+		cwd     string
+	}{
+		{name: "relative", agentId: "agent-1", field: "args", cwd: "worktrees/child"},
+		{name: "malformed", agentId: "agent-1", field: "display", cwd: "/tmp/\x00child"},
+		{name: "another child", agentId: "agent-2", field: "args", cwd: otherChild},
+		{name: "parent", agentId: "main", field: "display", cwd: parentEvidence},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			parent := t.TempDir()
+			makeRepo(t, parent, "develop")
+			_, session := writeKimiFixture(t, parent)
+			wire := filepath.Join(kimiSessionDir(session), "agents", "agent-1", "wire.jsonl")
+			writeLines(t, wire,
+				`{"type":"profile.bind","agentId":"agent-1","modelAlias":"kimi-code/k3","thinkingEffort":"medium"}`,
+				kimiToolCwdRecord(test.agentId, test.field, test.cwd),
+			)
+			facts, ok := MakeKimiAdapter(nil).ReadSubagent(session, "agent-1")
+			if !ok || facts.Worktree != parent || facts.Branch != "develop" {
+				t.Errorf("no child directory evidence: %+v %v, want fallback %q on develop", facts, ok, parent)
+			}
+		})
+	}
+}
