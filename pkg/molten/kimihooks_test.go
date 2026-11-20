@@ -28,11 +28,7 @@ func kimiHooksTestEnv(t *testing.T) (AgentEnv, string) {
 		return ""
 	}
 	oldBackup := kimiMakeFileBackup
-	kimiMakeFileBackup = func(path string) (string, error) {
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return "", err
-		}
+	kimiMakeFileBackup = func(path string, data []byte, _ os.FileMode) (string, error) {
 		dir := filepath.Join(env.DataDir, "test-backups")
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			return "", err
@@ -134,6 +130,9 @@ func TestKimiManagedMutationPreservesUserBytesAndPermissions(t *testing.T) {
 	installed := readTestConfig(t, config)
 	if !strings.HasPrefix(installed, original+"\n") || strings.Count(installed, "# my settings") != 1 || result.BackupPath == "" {
 		t.Fatalf("user content not preserved: %q", installed)
+	}
+	if backup := readTestConfig(t, result.BackupPath); backup != original {
+		t.Fatalf("backup does not match the inspected configuration:\n got %q\nwant %q", backup, original)
 	}
 	if info, err := os.Stat(config); err != nil || info.Mode().Perm() != 0640 {
 		t.Fatalf("permissions: %v, %v", info.Mode(), err)
@@ -408,7 +407,9 @@ func TestKimiManagedFailureRollback(t *testing.T) {
 	t.Run("backup failure prevents mutation", func(t *testing.T) {
 		env, config := kimiHooksTestEnv(t)
 		writeTestFile(t, config, "model = \"k3\"\n")
-		kimiMakeFileBackup = func(string) (string, error) { return "", errors.New("backup denied") }
+		kimiMakeFileBackup = func(string, []byte, os.FileMode) (string, error) {
+			return "", errors.New("backup denied")
+		}
 		_, err := applyKimiForTest(env, kimiOffer(env, false, qualifiedKimiDetection))
 		if err == nil || readTestConfig(t, config) != "model = \"k3\"\n" {
 			t.Fatalf("backup failure: %v", err)

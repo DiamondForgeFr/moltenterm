@@ -4,11 +4,13 @@
 package molten
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -72,7 +74,7 @@ type kimiConfigInspection struct {
 }
 
 var kimiConfigLocks sync.Map
-var kimiMakeFileBackup = filebackup.MakeFileBackup
+var kimiMakeFileBackup = filebackup.MakeFileBackupFromData
 var kimiWriteFileAtomically = writeKimiFileAtomically
 var kimiSaveInstallations = saveKimiInstallations
 
@@ -196,7 +198,7 @@ func hasManualKimiHooks(data []byte) (manual bool, valid bool, conflict bool) {
 
 func inspectKimiConfig(path string) kimiConfigInspection {
 	rtn := kimiConfigInspection{Path: path, BlockStart: -1, BlockEnd: -1}
-	info, err := os.Lstat(path)
+	pathInfo, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		rtn.Digest = digestKimiConfig(nil, false)
 		return rtn
@@ -205,20 +207,40 @@ func inspectKimiConfig(path string) kimiConfigInspection {
 		rtn.ErrorCode = "read-config"
 		return rtn
 	}
-	if info.Mode()&os.ModeSymlink != 0 {
+	if pathInfo.Mode()&os.ModeSymlink != 0 {
 		rtn.ErrorCode = "symlink"
 		return rtn
 	}
-	if !info.Mode().IsRegular() {
+	if !pathInfo.Mode().IsRegular() {
 		rtn.ErrorCode = "config-type"
 		return rtn
 	}
-	if info.Size() > maxKimiHookConfigBytes {
+	if pathInfo.Size() > maxKimiHookConfigBytes {
 		rtn.ErrorCode = "config-too-large"
 		return rtn
 	}
-	data, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
+		rtn.ErrorCode = "read-config"
+		return rtn
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || !os.SameFile(pathInfo, info) {
+		rtn.ErrorCode = "read-config"
+		return rtn
+	}
+	data, err := io.ReadAll(io.LimitReader(file, maxKimiHookConfigBytes+1))
+	if err != nil {
+		rtn.ErrorCode = "read-config"
+		return rtn
+	}
+	if len(data) > maxKimiHookConfigBytes {
+		rtn.ErrorCode = "config-too-large"
+		return rtn
+	}
+	currentPathInfo, err := os.Lstat(path)
+	if err != nil || currentPathInfo.Mode()&os.ModeSymlink != 0 || !currentPathInfo.Mode().IsRegular() || !os.SameFile(info, currentPathInfo) {
 		rtn.ErrorCode = "read-config"
 		return rtn
 	}
@@ -232,7 +254,7 @@ func inspectKimiConfig(path string) kimiConfigInspection {
 	}
 	starts, ends := 0, 0
 	for pos := 0; pos < len(data); {
-		lineEnd := strings.IndexByte(string(data[pos:]), '\n')
+		lineEnd := bytes.IndexByte(data[pos:], '\n')
 		next := len(data)
 		line := data[pos:]
 		if lineEnd >= 0 {
@@ -477,7 +499,7 @@ func mutateKimiHooks(env AgentEnv, req AgentHookMutationRequest, hooked bool, de
 	}
 	backupPath := ""
 	if inspection.Exists {
-		backupPath, err = kimiMakeFileBackup(path)
+		backupPath, err = kimiMakeFileBackup(path, inspection.Data, inspection.Mode)
 		if err != nil {
 			return AgentHookMutationResult{Offer: offer}, fmt.Errorf("back up Kimi configuration: %w", err)
 		}

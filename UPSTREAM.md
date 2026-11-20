@@ -549,6 +549,7 @@ Everything else (directories, lock, socket, menus, About panel, permission promp
 
 | Wave file | Change | Why | Ticket |
 | --- | --- | --- | --- |
+| `pkg/filebackup/filebackup.go` | Backups can be written from an already validated byte snapshot and permission mode instead of re-reading the source path. | Approved Kimi hook mutations must back up exactly the configuration that was inspected, even if the pathname is replaced before the backup runs. | #1693 |
 | `pkg/filestore/blockstore.go` | Dirty-cache enumeration pins a snapshot under the store lock, then checks each entry under its entry lock without retaining the store lock. Pins are released through the existing removal path. | Variable RPC race validation exposed the flusher reading an entry's file pointer concurrently with loading it; preserve dirty-only semantics and cleanup balance. | #1964 |
 | `pkg/filestore/blockstore.go` | The flusher logs only a failed flush, no longer the "entries flushed, err:<nil>" report of each healthy one. | A healthy app wrote about 10 such lines a minute, which the log watch read as errors. | #2372 |
 | `pkg/wshutil/wshrouter.go` | Route removal refuses a link that does not own the route before unannouncing upstream or clearing broker subscriptions. Bind/unbind side effects are serialized separately from router reads. | An SSH router could remove a window's subscriptions by unannouncing its route; delayed cleanup must also preserve a replacement window's subscriptions. Covered by `pkg/wshutil/moltenterm_unannounce_test.go`. | #1965 |
