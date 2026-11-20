@@ -5,13 +5,10 @@
 // store methods. Manual recipes stay read-only; persistent capabilities add explicitly approved managed mutations.
 
 import { fireAndForget } from "@/util/util";
-import { useAtomValue } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { AgentHookOffer, hookApplyTextKey, hookOfferQueryKey, hookOfferTexts } from "./agent-hooks-model";
+import { AgentHookOffer, hookApplyTextKey, hookOfferTexts } from "./agent-hooks-model";
 import { AgentHookOffers } from "./agent-hooks-store";
-import { AgentStates } from "./agent-state-store";
 import { DialogFrame } from "./dialog-frame";
-import { useProposalRequest } from "./header/header-proposals";
 import { useT } from "./i18n/i18n";
 import { serverErrorText } from "./i18n/server-text";
 import { MoltenWave } from "./molten-button";
@@ -22,29 +19,6 @@ const PlainButton =
 const PrimaryButton =
     "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12 disabled:cursor-default disabled:opacity-50";
 const CopiedMs = 2000;
-
-export function AgentHookOfferHost({ blockId }: { blockId: string }) {
-    const offers = AgentHookOffers.getInstance();
-    const info = useAtomValue(AgentStates.getInstance().blockAtom(blockId));
-    const offer = useAtomValue(offers.visibleAtom(blockId));
-    const [open, setOpen] = useState(false);
-    const queryKey = hookOfferQueryKey(info);
-    useEffect(() => {
-        if (!queryKey) {
-            return;
-        }
-        fireAndForget(() => offers.refresh(blockId));
-    }, [blockId, queryKey]);
-    useProposalRequest(blockId, "hooks", () => setOpen(offer != null));
-    if (offer == null || !open) {
-        return null;
-    }
-    const dismiss = () => {
-        setOpen(false);
-        fireAndForget(() => offers.dismiss(offer.agent, offer.updatekind ? offer.updatekey : undefined));
-    };
-    return <AgentHookOfferDialog blockId={blockId} offer={offer} onClose={() => setOpen(false)} onDismiss={dismiss} />;
-}
 
 export function AgentHookOfferDialog({
     blockId,

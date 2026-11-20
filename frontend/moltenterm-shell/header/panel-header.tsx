@@ -13,7 +13,7 @@ import { cn, isLocalConnName, makeIconClass, NullAtom, useAtomValueSafe } from "
 import { Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import type { ReactElement, RefObject } from "react";
 import { useEffect } from "react";
-import { AgentHookOfferHost } from "../agent-hooks-ui";
+import { AgentHookOfferHost } from "../agent-hooks-host";
 import { AgentNameLockMark } from "../agent-name-lock-mark";
 import {
     agentEffortPart,
