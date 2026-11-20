@@ -10,7 +10,8 @@
 // Neither ever outlives its switch: each has a deadline, and leaving the screen takes it off at once.
 
 import { prefersReducedMotion } from "../molten-motion";
-import { Box, contentBoxFor, readLayout, RememberedLayout, scaleLayout } from "./layout-memory";
+import { Box, contentBoxFor, RememberedLayout, scaleLayout } from "./layout-memory";
+import { loadLayout } from "./layout-store";
 import "./switch-layout.css";
 
 export const LeaveLayerId = "mt-switch-layout-leave";
@@ -123,7 +124,7 @@ type Leave = { layer: HTMLElement; content: HTMLElement; timer: ReturnType<typeo
 let leave: Leave = null;
 
 // The next workspace's frames over this view's content, not shown yet. False when there is nothing to draw.
-export function prepareLeave(workspaceId: string, layout: RememberedLayout = readLayout(workspaceId)): boolean {
+export function prepareLeave(workspaceId: string, layout: RememberedLayout = loadLayout(workspaceId)): boolean {
     clearLeave();
     if (!switchLayoutOn() || layout == null || layout.panels.length === 0) {
         return false;
@@ -285,12 +286,25 @@ export function arrivedOnScreen() {
     }, ArrivalPanelMaxMs);
 }
 
+// Electron main hides and shows a view again within a few milliseconds while it puts it on screen: only a view that
+// stays hidden this long has left the screen.
+const HiddenForMs = 400;
+
 function onArrivalVisibility() {
     const a = arrival;
-    // Shown and hidden again: the switch is over for this view.
-    if (a != null && a.shownAt > 0 && document.visibilityState !== "visible") {
-        clearArrival();
+    if (a == null || a.shownAt === 0 || document.visibilityState === "visible") {
+        return;
     }
+    setTimeout(() => {
+        if (arrival === a && document.visibilityState !== "visible") {
+            clearArrival();
+        }
+    }, HiddenForMs);
+}
+
+// Worn for a switch that is still on its way: not on screen yet, put on moments ago.
+export function arrivalPending(): boolean {
+    return arrival != null && arrival.shownAt === 0 && Date.now() - arrival.wornAt < ArrivalOnScreenFallbackMs;
 }
 
 (globalThis as any).__mtSwitchLayoutOnScreen = arrivedOnScreen;

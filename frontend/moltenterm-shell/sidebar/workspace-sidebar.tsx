@@ -169,6 +169,7 @@ import {
     notifySwitchIntent,
     switchDirection,
     setAutoSwitcher,
+    sidebarWorkspaceIds,
     switchFromSidebar,
     SwitchIntent,
     useSwitchArrival,
@@ -2678,7 +2679,9 @@ export function WorkspaceSidebar() {
     useEffect(() => {
         if (workspaceIdsKey) {
             pruneSnapshots(workspaceIdsKey.split(" "));
-            pruneLayouts(workspaceIdsKey.split(" "));
+            // The backend's whole list, not the bottom bar's: right after a start the bar may hold the shown
+            // workspace alone, and the layouts the others kept across the restart would go (#2407).
+            fireAndForget(async () => pruneLayouts(await sidebarWorkspaceIds()));
         }
     }, [workspaceIdsKey]);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);

@@ -14,12 +14,11 @@ import {
     LayoutKeyPrefix,
     MeasuredBlock,
     measureLayout,
-    readLayout,
     RememberedLayout,
     sameLayout,
     staleLayoutKeys,
-    writeLayout,
 } from "./layout-memory";
+import { loadLayout, saveLayout } from "./layout-store";
 
 // The layout animates its changes (about 100 ms): it is read once it has been still this long.
 export const LayoutSettleMs = 400;
@@ -64,11 +63,14 @@ export function recordLayoutNow(workspaceId: string, tabId: string, last: Rememb
     if (layout == null || layout.panels.length === 0 || sameLayout(layout, last)) {
         return last;
     }
-    writeLayout(layout);
+    saveLayout(layout);
     return layout;
 }
 
 export function pruneLayouts(workspaceIds: readonly string[]) {
+    if (workspaceIds == null || workspaceIds.length === 0) {
+        return;
+    }
     try {
         const keys = Object.keys(window.localStorage).filter((k) => k.startsWith(LayoutKeyPrefix));
         for (const key of staleLayoutKeys(keys, workspaceIds)) {
@@ -84,7 +86,7 @@ export function useRememberLayout(workspaceId: string, tabId: string) {
         if (!workspaceId || !tabId || !switchLayoutOn()) {
             return;
         }
-        let last = readLayout(workspaceId);
+        let last = loadLayout(workspaceId);
         let timer: ReturnType<typeof setTimeout> = null;
         const record = () => {
             timer = null;
