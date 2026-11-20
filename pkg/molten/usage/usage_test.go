@@ -19,13 +19,16 @@ func TestBuiltinAdapters(t *testing.T) {
 	cases := map[string]UsagePage{
 		"claude": {PageURL: "https://claude.ai/settings/usage", PageName: "Claude usage"},
 		"codex":  {PageURL: "https://chatgpt.com/codex/settings/usage", PageName: "Codex usage"},
-		"kimi":   {PageURL: "https://www.kimi.com/membership/pricing", PageName: "Kimi Code plans"},
 	}
 	for agent, want := range cases {
 		page := PageOf(agent)
 		if page == nil || *page != want {
 			t.Errorf("%s: page %+v, want %+v", agent, page, want)
 		}
+	}
+	kimiPage := PageOf("kimi")
+	if kimiPage == nil || kimiPage.PageName != "Kimi Code plans" || kimiPage.PageURL != KimiUsagePageURL && kimiPage.PageURL != KimiAIUsagePageURL {
+		t.Errorf("kimi: the configured official region: %+v", kimiPage)
 	}
 	s := For("claude").Sources()
 	if len(s) != 2 || s[0].Id() != ClaudeStatusLineSourceId || !s[0].Documented() {

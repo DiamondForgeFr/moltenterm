@@ -974,7 +974,7 @@ describe("Kimi managed plan usage", () => {
 
     it("uses Kimi-specific no-plan and unsupported explanations", () => {
         expect(usageReasonText("noplan", "kimi")).toContain("no managed plan limits or booster wallet");
-        expect(usageReasonText("unsupported", "kimi")).toContain("shared .com file-backed managed sign-in");
+        expect(usageReasonText("unsupported", "kimi")).toContain("official .com or .ai file-backed managed sign-in");
         expect(usageReasonText("unsupported", "claude")).toBe("This sign-in configuration is not supported");
     });
 });

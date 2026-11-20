@@ -203,11 +203,12 @@ describe("Kimi managed usage", () => {
         for (const text of [
             "only access_token and expires_at",
             store,
-            "only to https://api.kimi.com/coding/v1/usages",
+            "official managed-usage endpoint of the configured .com or .ai region",
             "never refreshes or writes credentials",
             "persists the token",
             "logs, RPC, or storage",
-            "global or scoped credentials, keyring, custom providers, and API keys",
+            "shared or environment-scoped credential",
+            "keyring, custom providers, arbitrary hosts, and API keys",
             "official Kimi Code 2.6.3",
         ]) {
             expect(statement).toContain(text);
@@ -228,7 +229,7 @@ describe("Kimi managed usage", () => {
             kind: "on",
             label: "Managed limits, booster, and monthly spending",
             unavailable: "Managed usage unavailable",
-            reason: expect.stringContaining("Only Kimi Code's shared .com"),
+            reason: expect.stringContaining("Only Kimi Code's official .com or .ai"),
         });
     });
 

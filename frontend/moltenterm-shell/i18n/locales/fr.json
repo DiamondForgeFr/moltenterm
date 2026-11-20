@@ -1111,7 +1111,7 @@
             },
             "companion:usagekimioauth": {
                 "label": "Limites gérées de Kimi Code (expérimental)",
-                "description": "Lire les limites gérées depuis le point d'accès .com non documenté de Kimi Code avec sa connexion OAuth partagée."
+                "description": "Lire les limites gérées depuis le point d'accès non documenté de Kimi Code pour sa région .com ou .ai configurée, avec sa connexion OAuth stockée dans un fichier."
             },
             "linemap:animation": {
                 "label": "Animer le plan de lignes",
@@ -2379,7 +2379,7 @@
                 },
                 "kimi": {
                     "noplan": "Kimi Code n'indique aucune limite gérée ni portefeuille booster pour cette connexion",
-                    "unsupported": "Seule la connexion gérée .com partagée de Kimi Code, stockée dans un fichier, est prise en charge ; les configurations globales, à portée limitée, dans le trousseau, avec fournisseur personnalisé ou clé API sont indisponibles"
+                    "unsupported": "Seules les connexions gérées officielles .com ou .ai de Kimi Code, stockées dans un fichier, sont prises en charge ; le trousseau, les fournisseurs personnalisés, les hôtes arbitraires et les clés API sont indisponibles"
                 }
             },
             "percentUsed": "{percent} % utilisés",
@@ -2399,10 +2399,10 @@
             "sourceDefault": "le service d'utilisation du fournisseur",
             "experimentalStatement": "MoltenTerm lira le jeton de connexion de l'agent depuis {where} pour obtenir l'utilisation de votre abonnement (source : {source}). Le jeton reste en mémoire, il n'est jamais enregistré ni envoyé ailleurs. Non documenté : cela peut cesser de fonctionner.",
             "kimi": {
-                "experimentalExplanation": "Lit aussi les trois fenêtres de limites gérées, le solde booster et les dépenses mensuelles depuis le point d'accès .com non documenté de Kimi Code.",
+                "experimentalExplanation": "Lit aussi les trois fenêtres de limites gérées, le solde booster et les dépenses mensuelles depuis le point d'accès non documenté de Kimi Code correspondant à la région .com ou .ai configurée.",
                 "rowLabel": "Limites gérées, booster et dépenses mensuelles",
                 "unavailable": "Utilisation gérée indisponible",
-                "experimentalStatement": "MoltenTerm lira uniquement access_token et expires_at depuis {where}. Il envoie le jeton d'accès uniquement à https://api.kimi.com/coding/v1/usages. Il ne renouvelle ni ne modifie jamais les identifiants, ne conserve pas le jeton et ne l'expose ni aux journaux, ni aux RPC, ni au stockage. Seule la connexion gérée .com partagée, stockée dans un fichier, est prise en charge : les identifiants globaux ou à portée limitée, le trousseau, les fournisseurs personnalisés et les clés API ne le sont pas. Comportement expérimental et non documenté vérifié avec la version officielle 2.6.3 de Kimi Code (source : {source}) ; il peut cesser de fonctionner."
+                "experimentalStatement": "MoltenTerm lira uniquement access_token et expires_at depuis {where}. Il envoie le jeton d'accès uniquement au point d'accès officiel d'utilisation gérée de la région .com ou .ai configurée. Il ne renouvelle ni ne modifie jamais les identifiants, ne conserve pas le jeton et ne l'expose ni aux journaux, ni aux RPC, ni au stockage. Seules les connexions gérées officielles .com et .ai, stockées dans un fichier, sont prises en charge : le fichier partagé ou propre à l'environnement indiqué par la configuration est lu ; le trousseau, les fournisseurs personnalisés, les hôtes arbitraires et les clés API ne le sont pas. Comportement expérimental et non documenté vérifié avec la version officielle 2.6.3 de Kimi Code (source : {source}) ; il peut cesser de fonctionner."
             },
             "updated": "Mise à jour {ago}",
             "title": "Utilisation de l'abonnement",

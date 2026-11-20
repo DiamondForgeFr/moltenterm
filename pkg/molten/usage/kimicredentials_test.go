@@ -176,6 +176,11 @@ func TestCheckKimiManagedConfig(t *testing.T) {
 		env  map[string]string
 	}{
 		{"official shared host", validKimiConfig, nil},
+		{"official AI scoped host", strings.NewReplacer(
+			"https://api.kimi.com/coding/v1/", "https://api.kimi.ai/coding/v1/",
+			"https://auth.kimi.com/", "https://auth.kimi.ai/",
+			`key = "oauth/kimi-code"`, `key = "oauth/kimi-code-env-prod"`,
+		).Replace(validKimiConfig), nil},
 		{"matching environment", validKimiConfig, map[string]string{"KIMI_CODE_OAUTH_HOST": "https://auth.kimi.com", "KIMI_CODE_BASE_URL": "https://api.kimi.com/coding/v1"}},
 		{"API key is not decoded", strings.Replace(validKimiConfig, `base_url = "https://api.kimi.com/coding/v1/"`, "base_url = \"https://api.kimi.com/coding/v1/\"\napi_key = \"not-read\"", 1), nil},
 	}
@@ -199,7 +204,6 @@ func TestCheckKimiManagedConfig(t *testing.T) {
 		{"custom model", `default_model = "kimi-code/k2.5"`, `default_model = "openai/gpt"`},
 		{"custom provider", `provider = "managed:kimi-code"`, `provider = "custom"`},
 		{"keyring storage", `storage = "file"`, `storage = "keyring"`},
-		{"scoped credentials", `key = "oauth/kimi-code"`, `key = "oauth/kimi-code-env-prod"`},
 		{"global AI OAuth host", `oauth_host = "https://auth.kimi.com/"`, `oauth_host = "https://auth.kimi.ai"`},
 		{"custom base URL", `base_url = "https://api.kimi.com/coding/v1/"`, `base_url = "https://example.com/v1"`},
 	}
@@ -244,10 +248,38 @@ func TestCheckKimiManagedConfig(t *testing.T) {
 	}
 }
 
+func TestReadKimiManagedConnection(t *testing.T) {
+	home := t.TempDir()
+	aiConfig := strings.NewReplacer(
+		"https://api.kimi.com/coding/v1/", "https://api.kimi.ai/coding/v1/",
+		"https://auth.kimi.com/", "https://auth.kimi.ai/",
+		`key = "oauth/kimi-code"`, `key = "oauth/kimi-code-env-prod"`,
+	).Replace(validKimiConfig)
+	connection, err := readKimiManagedConfigAt(writeKimiConfig(t, aiConfig), noKimiEnv, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCredential := filepath.Join(home, ".kimi-code", "credentials", "kimi-code-env-prod.json")
+	if connection.credentialPath != wantCredential || connection.usageEndpoint != KimiAIUsageEndpoint || connection.pageURL != KimiAIUsagePageURL || connection.domain != "kimi.ai" {
+		t.Errorf("AI connection: %+v", connection)
+	}
+
+	for _, key := range []string{"", "kimi-code", "oauth/..", "oauth/.hidden", "oauth/../other", "oauth/sub/file", `oauth/sub\file`} {
+		t.Run("credential key "+key, func(t *testing.T) {
+			body := strings.Replace(validKimiConfig, `key = "oauth/kimi-code"`, `key = "`+key+`"`, 1)
+			if _, err := readKimiManagedConfigAt(writeKimiConfig(t, body), noKimiEnv, home); ReasonOf(err) != ReasonUnsupported {
+				t.Errorf("key %q: %v", key, err)
+			}
+		})
+	}
+}
+
 func TestKimiManagedChangeClearsCachedValuesBeforeCredentialRead(t *testing.T) {
 	f := newKimiOAuthFixture(t)
 	config := writeKimiConfig(t, validKimiConfig)
-	f.src.managed = func() error { return checkKimiManagedConfigAt(config, noKimiEnv) }
+	f.src.connection = func() (kimiManagedConnection, error) {
+		return readKimiManagedConfigAt(config, noKimiEnv, "")
+	}
 	if _, err := f.src.Read(fetchCtx(), "k1"); err != nil {
 		t.Fatal(err)
 	}

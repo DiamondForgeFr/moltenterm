@@ -94,13 +94,12 @@ experimental source is Kimi Code's official but undocumented managed-usage endpo
 at source revision `3cc88fad51f53796fa8db5db59cd283bc0de57db`. It reads the five-hour, weekly and calendar-month
 windows, plus booster balance and monthly spending together. The month follows calendar resets, not a fixed 30 days.
 
-Only the shared `.com` file-backed managed sign-in is supported. MoltenTerm reads just `access_token` and the
-Unix-seconds `expires_at` from `$KIMI_CODE_HOME/credentials/kimi-code.json` (else
-`~/.kimi-code/credentials/kimi-code.json`), after checking the exact managed `.com` configuration. It never refreshes
-or writes credentials, persists the token, follows redirects, or exposes the token to logs, RPC or storage. Global
-`.ai` credentials, scoped credentials, keyring storage, custom providers or base URLs, arbitrary hosts and API-key-only
-configurations are unsupported. MoltenTerm never probes `.ai`, enumerates scoped credential files or tries another
-region's endpoint.
+The official `.com` and `.ai` file-backed managed sign-ins are supported. After checking the managed configuration and
+its matching regional hosts, MoltenTerm reads only the credential file selected by its OAuth key, shared or scoped to an
+environment, under `$KIMI_CODE_HOME/credentials` (else `~/.kimi-code/credentials`). It reads just `access_token` and the
+Unix-seconds `expires_at`. It never refreshes or writes credentials, persists the token, follows redirects, or exposes
+the token to logs, RPC or storage. Keyring storage, custom providers or base URLs, arbitrary hosts and API-key-only
+configurations are unsupported. MoltenTerm never enumerates credential files or tries another region's endpoint.
 
 ## The `molten` command inside the agent's sandbox
 

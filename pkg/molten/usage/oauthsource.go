@@ -171,7 +171,7 @@ func (e *oauthEngine) prepareCall(ctx context.Context) (*oauthCall, uint64, bool
 	if !e.lastCall.IsZero() && now.Sub(e.lastCall) < interval {
 		return nil, e.generation, false
 	}
-	callCtx, cancel := context.WithTimeout(context.Background(), oauthFetchTimeout)
+	callCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), oauthFetchTimeout)
 	call := &oauthCall{ctx: callCtx, cancel: cancel, done: make(chan struct{})}
 	e.call, e.lastCall = call, now
 	return call, e.generation, true

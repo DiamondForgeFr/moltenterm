@@ -676,12 +676,12 @@
         },
         "companion:usagekimioauth": {
           "type": "boolean",
-          "description": "Also read Kimi Code's managed usage limits, booster balance and monthly spending from its undocumented .com endpoint, with the shared managed OAuth sign-in (experimental). Set from the companion's confirmation",
+          "description": "Also read Kimi Code's managed usage limits, booster balance and monthly spending from its undocumented endpoint for the configured .com or .ai region, with the configured file-backed managed OAuth sign-in (experimental). Set from the companion's confirmation",
           "x-moltenterm": {
             "section": "advanced",
             "group": "Agents",
             "label": "Kimi Code managed limits (experimental)",
-            "description": "Read managed limits from Kimi Code's undocumented .com endpoint with its shared OAuth sign-in.",
+            "description": "Read managed limits from Kimi Code's undocumented endpoint for its configured .com or .ai region with its file-backed OAuth sign-in.",
             "control": "toggle",
             "order": 135
           }

@@ -912,7 +912,7 @@
             },
             "companion:usagekimioauth": {
                 "label": "Kimi Code managed limits (experimental)",
-                "description": "Read managed limits from Kimi Code's undocumented .com endpoint with its shared OAuth sign-in."
+                "description": "Read managed limits from Kimi Code's undocumented endpoint for its configured .com or .ai region with its file-backed OAuth sign-in."
             },
             "linemap:animation": {
                 "label": "Animate the line map",
@@ -2379,7 +2379,7 @@
                 },
                 "kimi": {
                     "noplan": "Kimi Code reports no managed plan limits or booster wallet for this sign-in",
-                    "unsupported": "Only Kimi Code's shared .com file-backed managed sign-in is supported; global, scoped, keyring, custom-provider, and API-key configurations are unavailable"
+                    "unsupported": "Only Kimi Code's official .com or .ai file-backed managed sign-in is supported; keyring, custom-provider, arbitrary-host, and API-key configurations are unavailable"
                 }
             },
             "percentUsed": "{percent} % used",
@@ -2399,10 +2399,10 @@
             "sourceDefault": "the provider's usage endpoint",
             "experimentalStatement": "MoltenTerm will read the agent's sign-in token from {where} to get your plan usage (source: {source}). The token stays in memory, is never saved or sent anywhere else. Undocumented: it may stop working.",
             "kimi": {
-                "experimentalExplanation": "Also reads the three managed limit windows, booster balance, and monthly spending from Kimi Code's undocumented .com endpoint.",
+                "experimentalExplanation": "Also reads the three managed limit windows, booster balance, and monthly spending from Kimi Code's undocumented endpoint for the configured .com or .ai region.",
                 "rowLabel": "Managed limits, booster, and monthly spending",
                 "unavailable": "Managed usage unavailable",
-                "experimentalStatement": "MoltenTerm will read only access_token and expires_at from {where}. It sends the access token only to https://api.kimi.com/coding/v1/usages. It never refreshes or writes credentials, persists the token, or exposes it to logs, RPC, or storage. Only the shared .com file-backed managed sign-in is supported: global or scoped credentials, keyring, custom providers, and API keys are not. Experimental, undocumented behavior verified against official Kimi Code 2.6.3 (source: {source}); it may stop working."
+                "experimentalStatement": "MoltenTerm will read only access_token and expires_at from {where}. It sends the access token only to the official managed-usage endpoint of the configured .com or .ai region. It never refreshes or writes credentials, persists the token, or exposes it to logs, RPC, or storage. Only official .com and .ai file-backed managed sign-ins are supported: the configured shared or environment-scoped credential is read; keyring, custom providers, arbitrary hosts, and API keys are not. Experimental, undocumented behavior verified against official Kimi Code 2.6.3 (source: {source}); it may stop working."
             },
             "updated": "Updated {ago}",
             "title": "Plan usage",
@@ -11625,7 +11625,7 @@
         "unknown": "MoltenTerm does not know this agent yet.",
         "unknownShort": "Not known yet",
         "integration": {
-            "kimiUsage": "Experimental — official but undocumented Kimi Code managed-usage source, verified with 2.6.3; shared .com setup only"
+            "kimiUsage": "Experimental — official but undocumented Kimi Code managed-usage source, verified with 2.6.3; official .com and .ai file-backed setups"
         },
         "picker": {
             "works": "Works with {features}",

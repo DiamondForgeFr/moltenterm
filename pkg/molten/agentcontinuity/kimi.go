@@ -48,7 +48,7 @@ var kimiCapabilities = map[string]Capability{
 	CapModels:        {Support: SupportDocumented, Note: "-m <alias>; aliases and context sizes are read from config.toml"},
 	CapResume:        {Support: SupportDocumented, Note: "kimi --session <id>, kimi --continue"},
 	CapTranscript:    {Support: SupportUndocumented, Note: "state.json, session_index.jsonl and wire.jsonl observed on 2.6.3; internal format, terminal-only on incompatible records", InUse: true},
-	CapQuota:         {Support: SupportUndocumented, Note: "official managed-usage endpoint, verified in Kimi Code 2.6.3 (3cc88fad51f53796fa8db5db59cd283bc0de57db); shared .com managed configuration only", InUse: true},
+	CapQuota:         {Support: SupportUndocumented, Note: "official managed-usage endpoint, verified in Kimi Code 2.6.3 (3cc88fad51f53796fa8db5db59cd283bc0de57db); official .com and .ai file-backed managed configurations", InUse: true},
 	CapMcp:           {Support: SupportDocumented, Note: "documented MCP configuration; this Story does not write it or add a per-run server"},
 	CapHooks:         {Support: SupportDocumented, Note: "11 qualified events; an explicitly approved managed config.toml block on 2.6.3, with manual TOML fallback and read-only compatibility review for other versions", InUse: true},
 }

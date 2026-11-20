@@ -119,7 +119,7 @@ func TestKimiUsageRequiresBothOptIns(t *testing.T) {
 		t.Fatal("nothing read, requested or written before both opt-ins")
 	}
 	info, err := m.SetUsageGauges("b1", true)
-	if err != nil || info.Experimental == nil || info.Experimental.On || info.Experimental.Store != "the Kimi test store" {
+	if err != nil || info.Gauges != usage.GaugesUnavailable || info.Experimental == nil || info.Experimental.On || info.Experimental.Store != "the Kimi test store" {
 		t.Fatalf("source offered off: %+v %v", info, err)
 	}
 	if env.ep.hits.Load() != 0 || env.creds.Load() != 0 || env.managed.Load() != 0 || len(env.settings) != 0 {
