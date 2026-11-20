@@ -26,6 +26,10 @@ import { useCompanionPref } from "./companion-prefs";
 
 const RpcTimeoutMs = 5000;
 
+// A file's row (px-2) lets its hover fill reach 8 px past its text: the list gives up that much of the companion's
+// inset, so the texts of the rows, their diffs and their messages start on the inset like every other section.
+const RowListPad = "px-[calc(var(--mt-companion-inset)_-_0.5rem)]";
+
 function diffCall(target: string, path: string): Promise<CompanionDiff> {
     return TabRpcClient.wshRpcCall(
         CompanionDiffCommand,
@@ -95,7 +99,7 @@ export function FilesSection({
                 type="button"
                 onClick={toggleList}
                 aria-expanded={listOpen}
-                className="flex w-full cursor-pointer items-center gap-2 px-3 pt-3 pb-1 text-left hover:text-primary"
+                className="flex w-full cursor-pointer items-center gap-2 px-(--mt-companion-inset) pt-3 pb-1 text-left hover:text-primary"
                 data-testid="companion-files-toggle"
             >
                 <i
@@ -113,10 +117,10 @@ export function FilesSection({
                 </span>
             </button>
             {!listOpen ? null : count === 0 ? (
-                <div className="px-3 text-12 text-muted">{t("companion.files.none")}</div>
+                <div className="px-(--mt-companion-inset) text-12 text-muted">{t("companion.files.none")}</div>
             ) : (
                 <>
-                    <div className="px-3 pb-1">
+                    <div className="px-(--mt-companion-inset) pb-1">
                         <input
                             ref={inputRef}
                             type="search"
@@ -131,9 +135,11 @@ export function FilesSection({
                         />
                     </div>
                     {shown.length === 0 ? (
-                        <div className="px-3 text-12 text-muted">{t("companion.files.noMatch")}</div>
+                        <div className="px-(--mt-companion-inset) text-12 text-muted">
+                            {t("companion.files.noMatch")}
+                        </div>
                     ) : (
-                        <ul ref={listRef} className="flex flex-col px-1" data-testid="companion-files">
+                        <ul ref={listRef} className={cn("flex flex-col", RowListPad)} data-testid="companion-files">
                             {shown.map((f) => (
                                 <FileRow
                                     key={f.path}
@@ -252,11 +258,11 @@ function FileDiffView({ target, path, edits }: { target: string; path: string; e
         };
     }, [target, path, edits]);
     if (error) {
-        return <div className="px-3 text-12 text-danger">{error}</div>;
+        return <div className="px-2 text-12 text-danger">{error}</div>;
     }
     if (diff == null) {
         return (
-            <div className="px-3 text-12 text-muted">
+            <div className="px-2 text-12 text-muted">
                 <DominoLoader className="mr-1.5" />
                 {t("companion.loading")}
             </div>

@@ -251,7 +251,7 @@ export function ProviderUsageNote({ provider, native }: { provider: string; nati
         : t("companion.gauges.providerHintPlain", { provider });
     return (
         <div
-            className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1 text-11 text-muted"
+            className="flex shrink-0 items-center gap-2 border-b border-border px-(--mt-companion-inset) py-1 text-11 text-muted"
             data-testid="companion-plan-usage"
             data-state="provider"
             title={hint}
@@ -332,7 +332,7 @@ export function PlanUsageBody({
     if (view.kind === "off") {
         return (
             <div
-                className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-1 text-11 text-muted"
+                className="flex shrink-0 items-center gap-2 border-b border-border px-(--mt-companion-inset) py-1 text-11 text-muted"
                 data-testid="companion-plan-usage"
                 data-state="off"
             >
@@ -352,7 +352,7 @@ export function PlanUsageBody({
     if (view.kind === "unavailable") {
         return (
             <div
-                className="shrink-0 border-b border-border px-3 py-1 text-11 text-muted"
+                className="shrink-0 border-b border-border px-(--mt-companion-inset) py-1 text-11 text-muted"
                 data-testid="companion-plan-usage"
                 data-state="unavailable"
             >
@@ -383,7 +383,7 @@ export function PlanUsageBody({
     }
     return (
         <section
-            className="shrink-0 border-b border-border px-3 pt-2 pb-2.5"
+            className="shrink-0 border-b border-border px-(--mt-companion-inset) pt-2 pb-2.5"
             aria-label={t("companion.gauges.title")}
             data-testid="companion-plan-usage"
             data-state="enabled"
@@ -598,7 +598,7 @@ function CompactGauges({ view, onDetails }: { view: Extract<GaugesView, { kind: 
         .join(" · ");
     return (
         <section
-            className="relative shrink-0 px-3 py-1"
+            className="relative shrink-0 px-(--mt-companion-inset) py-1"
             aria-label={t("companion.gauges.title")}
             data-testid="companion-plan-usage"
             data-state="enabled"
@@ -656,7 +656,7 @@ function StatusLineSetupCard({
         });
     return (
         <section
-            className="shrink-0 border-b border-border px-3 pt-2 pb-3 text-12"
+            className="shrink-0 border-b border-border px-(--mt-companion-inset) pt-2 pb-3 text-12"
             aria-label={t("companion.gauges.setupLabel")}
             data-testid="companion-plan-usage"
             data-state="setup"
