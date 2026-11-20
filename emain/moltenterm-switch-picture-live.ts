@@ -37,6 +37,7 @@ import {
     WindowSwitchPicture,
 } from "./moltenterm-switch-picture";
 import { mt } from "./moltenterm-i18n";
+import { cancelLandingWatch } from "./moltenterm-switch-landing-live";
 import { tabViewWorkspace } from "./moltenterm-tabview-budget";
 import { windowTabViews } from "./moltenterm-tabview-host";
 import { letViewThrough, restoreViewBackground, viewLooksTranslucent } from "./moltenterm-window-look";
@@ -307,6 +308,8 @@ export function answerSidebarSwitch(win: WaveBrowserWindow, workspaceId: string,
 
 export function beginSwitchPicture(win: WaveBrowserWindow, target: SwitchTarget): boolean {
     noteSwitchActivity();
+    // a switch that starts: the check of the last landing leaves its view alone (#2419)
+    cancelLandingWatch(win);
     const marked = layoutSwitches.get(win);
     layoutSwitches.delete(win);
     if (takesLayout(marked, target, Date.now())) {

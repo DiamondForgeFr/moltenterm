@@ -244,20 +244,20 @@ export function swallowsKey(input: SwitchKeyInput): boolean {
 
 // --- the scripts run in the views
 
-const OverlayId = "mt-switch-overlay";
+export const OverlayId = "mt-switch-overlay";
 // The id of every fade the scripts start, so the ones still running can be told from the page's own animations.
 export const SwitchFadeId = "mt-switch-fade";
-const WaitId = "mt-switch-wait";
-const CoverId = "mt-switch-cover";
+export const WaitId = "mt-switch-wait";
+export const CoverId = "mt-switch-cover";
 // The app's React root: what a see-through view's own content is, kept out of sight under its picture.
-const RootId = "main";
+export const RootId = "main";
 export const CoverAttribute = "data-mt-cover";
 // The value that hides the root (moltenterm-shell.css holds the rule); "opaque" only marks that a cover is on.
 export const CoverHidesRoot = "translucent";
 // On the overlay of a view whose page background went for the switch: the inline backgrounds to give back.
-const ThroughAttribute = "data-mt-through";
+export const ThroughAttribute = "data-mt-through";
 // The page's overlay token (showPictureScript): a show whose token moved since it started puts nothing on.
-const OverlayToken = "__mtOverlayWant";
+export const OverlayToken = "__mtOverlayWant";
 // How a picture reaches a page: main sends its bytes on this channel, the preload makes a blob URL of them and puts it
 // on the page's root under this attribute, and the scripts below read it.
 export const PictureChannel = "moltenterm-switch-picture";

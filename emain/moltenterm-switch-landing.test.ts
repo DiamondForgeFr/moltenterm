@@ -2,9 +2,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The end of a switch (#2419): a view a switch left invisible is found and restored, on main's side and in its page,
-// and the log names what was stuck. Fake clock, fake views, a small fake page: nothing waits for real time.
+// and the log names what was stuck; a view a newer switch uses is never touched. Fake clock, fake views, a small fake
+// page: nothing waits for real time.
 
 import { describe, expect, it } from "vitest";
+import {
+    LeaveAnimationId as PageLeaveAnimationId,
+    LeaveLayerId as PageLeaveLayerId,
+    LeaveMaxMs as PageLeaveMaxMs,
+} from "../frontend/moltenterm-shell/switch-layout/layout-frames";
 import {
     checkSwitchLanding,
     framePaints,
@@ -13,6 +19,9 @@ import {
     LandingOutcome,
     LandingPageReport,
     landingProbeScript,
+    LeaveAnimationId,
+    LeaveLayerId,
+    LeaveMaxMs,
     restoreLandingScript,
     stuckMainStates,
     stuckPageStates,
@@ -22,6 +31,7 @@ import {
     SwitchLandingRetryMs,
     watchSwitchLanding,
 } from "./moltenterm-switch-landing";
+import { SwitchFadeId } from "./moltenterm-switch-picture";
 
 const Clear = "#00000000";
 
@@ -34,7 +44,7 @@ const fine: LandingPageReport = {
     coverMark: false,
     overlay: false,
     cover: false,
-    leaving: false,
+    leaveAgeMs: null,
     shown: true,
 };
 
@@ -92,13 +102,19 @@ function fakeView(page: Partial<LandingPageReport> = {}, main: Partial<LandingMa
     const state = {
         page: { ...fine, ...page } as LandingPageReport,
         main: { ...shown, ...main } as LandingMainState,
-        painted,
+        painted: painted as boolean,
         landed: true,
         busy: false,
+        // the page's restore takes: false leaves the page as it was
+        restoreWorks: true,
         logs: [] as string[],
         restoredMain: [] as string[][],
         pageRestores: 0,
+        probes: 0,
+        readbacks: 0,
         cycles: 0,
+        // run at each probe: a newer switch starting while the check waits on the page
+        onProbe: null as () => void,
     };
     const clock = fakeClock();
     const deps: SwitchLandingDeps = {
@@ -115,13 +131,22 @@ function fakeView(page: Partial<LandingPageReport> = {}, main: Partial<LandingMa
                 state.main.background = "#1f1f1f";
             }
         },
-        probePage: async () => ({ ...state.page }),
+        probePage: async () => {
+            state.probes++;
+            state.onProbe?.();
+            return { ...state.page };
+        },
         restorePage: async () => {
             state.pageRestores++;
-            state.page = { ...fine, leaving: state.page.leaving };
+            if (state.restoreWorks) {
+                state.page = { ...fine, shown: state.page.shown };
+            }
             return "restored";
         },
-        paints: async () => state.painted,
+        paints: async () => {
+            state.readbacks++;
+            return state.painted;
+        },
         cycleVisibility: () => {
             state.cycles++;
             state.painted = true;
@@ -160,9 +185,19 @@ describe("the page's stuck states", () => {
         expect(stuckPageStates({ ...fine, main: InvisibleOpacity })).toEqual([]);
     });
 
-    it("leaves the panels of a view fading under the next workspace's layout on purpose", () => {
-        expect(stuckPageStates({ ...fine, content: 0, leaving: true })).toEqual([]);
-        expect(stuckPageStates({ ...fine, content: 0, leaving: false })).toEqual(["panels at opacity 0"]);
+    it("leaves the panels of a view fading under the next workspace's layout on purpose, for LeaveMaxMs", () => {
+        expect(stuckPageStates({ ...fine, content: 0, leaveAgeMs: LeaveMaxMs })).toEqual([]);
+        expect(stuckPageStates({ ...fine, content: 0 })).toEqual(["panels at opacity 0"]);
+        expect(stuckPageStates({ ...fine, content: 0, leaveAgeMs: LeaveMaxMs + 1 })).toEqual([
+            "layout leave layer left over",
+            "panels at opacity 0",
+        ]);
+    });
+
+    it("knows the page's layout leave layer as the page names it (#2407)", () => {
+        expect(LeaveLayerId).toBe(PageLeaveLayerId);
+        expect(LeaveAnimationId).toBe(PageLeaveAnimationId);
+        expect(LeaveMaxMs).toBe(PageLeaveMaxMs);
     });
 });
 
@@ -183,27 +218,30 @@ describe("main's stuck states", () => {
 });
 
 describe("the pixel test", () => {
-    const notFlat = () => false;
-    const frame = (alpha: number[], width = alpha.length) => {
+    const band = (alpha: number[], rgb = 0) => {
         const b = new Uint8Array(alpha.length * 4);
-        alpha.forEach((a, i) => (b[i * 4 + 3] = a));
-        return { bitmap: b, size: { width, height: alpha.length / width } };
+        alpha.forEach((a, i) => {
+            b[i * 4] = rgb;
+            b[i * 4 + 1] = rgb;
+            b[i * 4 + 2] = rgb;
+            b[i * 4 + 3] = a;
+        });
+        return { bitmap: b, size: { width: alpha.length, height: 1 } };
     };
 
-    it("finds nothing painted in a fully transparent frame", () => {
-        const f = frame(new Array(100).fill(0));
-        expect(framePaints(f.bitmap, f.size, notFlat)).toBe(false);
+    it("finds nothing painted in a fully transparent band", () => {
+        const f = band(new Array(100).fill(0));
+        expect(framePaints(f.bitmap, f.size)).toBe(false);
     });
 
-    it("finds a drawn frame painted, and a flat one not", () => {
-        const f = frame(new Array(100).fill(200));
-        expect(framePaints(f.bitmap, f.size, notFlat)).toBe(true);
-        expect(framePaints(f.bitmap, f.size, () => true)).toBe(false);
+    it("finds a dark, flat band painted: an empty terminal or a folded sidebar is drawn", () => {
+        const f = band(new Array(100).fill(255), 20);
+        expect(framePaints(f.bitmap, f.size)).toBe(true);
     });
 
-    it("finds nothing in a missing or short frame", () => {
-        expect(framePaints(null, { width: 10, height: 10 }, notFlat)).toBe(false);
-        expect(framePaints(new Uint8Array(8), { width: 10, height: 10 }, notFlat)).toBe(false);
+    it("cannot tell from a missing or short band", () => {
+        expect(framePaints(null, { width: 10, height: 10 })).toBeNull();
+        expect(framePaints(new Uint8Array(8), { width: 10, height: 10 })).toBeNull();
     });
 });
 
@@ -229,13 +267,25 @@ describe("the landing check", () => {
     });
 
     // The gold's case: the view on screen, its panels mounted, nothing drawn.
-    it("brings back a view left at opacity 0 and names the stuck state", async () => {
+    it("brings back a view left at opacity 0, looks again, and names the stuck state", async () => {
         const v = fakeView({ main: 0, coverMark: true });
         const outcomes = await watchAndLand(v);
         expect(outcomes[0].stuck).toEqual(["cover mark (panels hidden under a picture)", "content at opacity 0"]);
+        expect(outcomes[0].remaining).toEqual([]);
         expect(v.state.page).toEqual(fine);
+        expect(v.state.probes).toBe(2);
         expect(v.state.logs).toEqual([
             "[#2419] the view tab-b was left invisible after its switch (cover mark (panels hidden under a picture); content at opacity 0): restored to visible and opaque",
+        ]);
+    });
+
+    it("says so when the restore did not take", async () => {
+        const v = fakeView({ main: 0 });
+        v.state.restoreWorks = false;
+        const outcomes = await watchAndLand(v);
+        expect(outcomes[0].remaining).toEqual(["content at opacity 0"]);
+        expect(v.state.logs).toEqual([
+            "[#2419] the view tab-b was left invisible after its switch (content at opacity 0): still stuck: content at opacity 0",
         ]);
     });
 
@@ -250,17 +300,32 @@ describe("the landing check", () => {
         ]);
         expect(v.state.restoredMain).toHaveLength(1);
         expect(v.state.main).toMatchObject({ visible: true, onScreen: true, covered: false, background: "#1f1f1f" });
-        expect(v.state.logs[0]).toContain(
-            "[#2419] the view tab-b was left invisible after its switch (off screen; hidden"
-        );
+        expect(v.state.logs[0]).toContain("(off screen; hidden");
+        expect(v.state.logs[0]).toContain("restored to visible and opaque");
     });
 
-    it("cycles the visibility of a view whose page looks drawn but whose frame holds nothing", async () => {
+    it("cycles the visibility of a view whose page looks drawn but whose band holds nothing", async () => {
         const v = fakeView({}, {}, false);
         const outcomes = await watchAndLand(v);
         expect(outcomes[0].stuck).toEqual(["nothing painted"]);
         expect(v.state.cycles).toBe(1);
         expect(v.state.logs[0]).toContain("(nothing painted): restored to visible and opaque");
+    });
+
+    it("reads nothing back, and cycles nothing, in a window that does not show its frames", async () => {
+        const v = fakeView({}, { windowShows: false }, false);
+        const outcomes = await watchAndLand(v);
+        expect(outcomes[0].stuck).toEqual([]);
+        expect(v.state.readbacks).toBe(0);
+        expect(v.state.cycles).toBe(0);
+    });
+
+    it("cycles nothing when the readback cannot tell", async () => {
+        const v = fakeView({}, {}, null);
+        const outcomes = await watchAndLand(v);
+        expect(outcomes[0].stuck).toEqual([]);
+        expect(v.state.cycles).toBe(0);
+        expect(v.state.logs[0]).not.toContain("painted");
     });
 
     it("cycles the visibility of a page that believes it is hidden in a window that shows it", async () => {
@@ -296,14 +361,47 @@ describe("the landing check", () => {
         expect(left.state.logs).toEqual([]);
     });
 
-    it("checks a view whose window stays busy after a few tries", async () => {
-        const v = fakeView({ main: 0 });
+    // M1: a cold view opening for seconds keeps the window busy; the view still on screen wears the next switch's
+    // picture on purpose, and the check must not strip it.
+    it("gives up on a window that stays busy, touching nothing", async () => {
+        const v = fakeView({ main: 0, overlay: true });
         v.state.busy = true;
-        await watchAndLand(v, SwitchLandingCheckMs + SwitchLandingRetryMs * SwitchLandingMaxTries);
-        expect(v.state.pageRestores).toBe(1);
+        const outcomes = await watchAndLand(
+            v,
+            SwitchLandingCheckMs + SwitchLandingRetryMs * (SwitchLandingMaxTries + 2)
+        );
+        expect(outcomes).toEqual([{ stuck: [], skipped: "busy" }]);
+        expect(v.state.probes).toBe(0);
+        expect(v.state.pageRestores).toBe(0);
+        expect(v.state.logs).toEqual([]);
     });
 
-    it("is cancelled by a newer landing of the window", async () => {
+    it("leaves the page alone when a switch starts while it waits on the page", async () => {
+        const v = fakeView({ main: 0, overlay: true });
+        v.state.onProbe = () => (v.state.busy = true);
+        const outcomes = await watchAndLand(v);
+        expect(outcomes).toEqual([{ stuck: [], skipped: "busy" }]);
+        expect(v.state.pageRestores).toBe(0);
+        expect(v.state.logs).toEqual([]);
+    });
+
+    it("reads nothing back and cycles nothing once a switch has started", async () => {
+        const v = fakeView({}, {}, false);
+        v.state.onProbe = () => (v.state.busy = true);
+        expect(await watchAndLand(v)).toEqual([{ stuck: [], skipped: "busy" }]);
+        expect(v.state.readbacks).toBe(0);
+        expect(v.state.cycles).toBe(0);
+
+        const late = fakeView({}, {}, false);
+        late.deps.paints = async () => {
+            late.state.busy = true;
+            return false;
+        };
+        expect(await watchAndLand(late)).toEqual([{ stuck: [], skipped: "busy" }]);
+        expect(late.state.cycles).toBe(0);
+    });
+
+    it("is cancelled by a switch that starts, before it runs or in the middle of its check", async () => {
         const v = fakeView({ main: 0 });
         const outcomes: LandingOutcome[] = [];
         const cancel = watchSwitchLanding("tab-b", v.deps, (o) => outcomes.push(o));
@@ -311,6 +409,14 @@ describe("the landing check", () => {
         await v.clock.advance(SwitchLandingCheckMs * 2);
         expect(outcomes).toEqual([]);
         expect(v.clock.pending()).toBe(0);
+
+        const mid = fakeView({ main: 0 });
+        const midOutcomes: LandingOutcome[] = [];
+        const stop = watchSwitchLanding("tab-b", mid.deps, (o) => midOutcomes.push(o));
+        mid.state.onProbe = () => stop();
+        await mid.clock.advance(SwitchLandingCheckMs);
+        expect(midOutcomes).toEqual([{ stuck: [], skipped: "left" }]);
+        expect(mid.state.pageRestores).toBe(0);
     });
 
     it("goes on when the page does not answer", async () => {
@@ -325,18 +431,20 @@ describe("the landing check", () => {
 
 // The scripts, on a small fake page: computed opacity reads the element's inline opacity, or the stylesheet's rule
 // html[data-mt-cover="translucent"] #main { opacity: 0 }, or a running animation's value.
+type Anim = { id: string; value: number; cancel(): void };
 type El = {
     id: string;
     className: string;
     style: Record<string, string>;
     attrs: Map<string, string>;
-    anims: { value: number; cancel(): void }[];
+    dataset: Record<string, string>;
+    anims: Anim[];
     removed?: boolean;
     getAttribute(k: string): string;
     setAttribute(k: string, v: string): void;
     hasAttribute(k: string): boolean;
     removeAttribute(k: string): void;
-    getAnimations(): { cancel(): void }[];
+    getAnimations(): Anim[];
     remove(): void;
 };
 
@@ -346,6 +454,7 @@ function el(id = "", className = ""): El {
         className,
         style: { opacity: "", visibility: "", background: "" },
         attrs: new Map(),
+        dataset: {},
         anims: [],
         getAttribute: (k) => e.attrs.get(k) ?? null,
         setAttribute: (k, v) => void e.attrs.set(k, v),
@@ -365,8 +474,9 @@ function fakePage() {
     const main = el("main");
     const content = el("", "mt-frame-content");
     const extra: El[] = [];
-    const animate = (e: El, value: number) => {
-        const a = {
+    const animate = (e: El, value: number, id = "") => {
+        const a: Anim = {
+            id,
             value,
             cancel: () => {
                 e.anims = e.anims.filter((x) => x !== a);
@@ -387,6 +497,7 @@ function fakePage() {
     const document = {
         documentElement: root,
         body,
+        visibilityState: "visible",
         getElementById: (id: string) => (id === "main" ? main : (extra.find((x) => x.id === id && !x.removed) ?? null)),
         querySelector: (sel: string) => (sel === ".mt-frame-content" ? content : null),
     };
@@ -414,7 +525,9 @@ function fakePage() {
 
 describe("the page scripts", () => {
     it("report a drawn page as drawn", () => {
-        expect(stuckPageStates(fakePage().report())).toEqual([]);
+        const p = fakePage();
+        expect(p.report()).toEqual(fine);
+        expect(stuckPageStates(p.report())).toEqual([]);
     });
 
     it("bring back a page left under the cover mark, an overlay and its cover", () => {
@@ -434,9 +547,9 @@ describe("the page scripts", () => {
         expect(p.window.__mtCoverGiveUp).toBe(true);
     });
 
-    it("cancel an animation that holds the content at opacity 0, and an inline opacity", () => {
+    it("cancel a switch's fade holding the content at opacity 0, and an inline opacity", () => {
         const p = fakePage();
-        p.animate(p.main, 0);
+        p.animate(p.main, 0, SwitchFadeId);
         p.body.style.opacity = "0";
         p.body.style.visibility = "hidden";
         expect(stuckPageStates(p.report())).toEqual(["body at opacity 0", "body hidden", "content at opacity 0"]);
@@ -445,12 +558,30 @@ describe("the page scripts", () => {
         expect(stuckPageStates(p.report())).toEqual([]);
     });
 
+    it("never cancel the page's own animations", () => {
+        const p = fakePage();
+        p.animate(p.main, 0.5, "mt-view-pour");
+        expect(p.run(restoreLandingScript())).toBe("clean");
+        expect(p.main.anims.map((a) => a.id)).toEqual(["mt-view-pour"]);
+    });
+
     it("leave the panels of a view being left under the next layout alone", () => {
         const p = fakePage();
         p.content.style.opacity = "0";
-        p.add("mt-switch-layout-leave");
+        p.add(LeaveLayerId).dataset.at = String(Date.now());
         expect(stuckPageStates(p.report())).toEqual([]);
         expect(p.run(restoreLandingScript())).toBe("clean");
         expect(p.content.style.opacity).toBe("0");
+    });
+
+    it("take off a layout leave layer left over past LeaveMaxMs, and its faded panels", () => {
+        const p = fakePage();
+        p.animate(p.content, 0, LeaveAnimationId);
+        const layer = p.add(LeaveLayerId);
+        layer.dataset.at = String(Date.now() - LeaveMaxMs - 1000);
+        expect(stuckPageStates(p.report())).toEqual(["layout leave layer left over", "panels at opacity 0"]);
+        expect(p.run(restoreLandingScript())).toBe("leave-layer,panels-opacity");
+        expect(layer.removed).toBe(true);
+        expect(stuckPageStates(p.report())).toEqual([]);
     });
 });

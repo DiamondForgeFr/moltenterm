@@ -24,7 +24,7 @@ import { ActionRun, isSuperseded, readinessDeadlineMs } from "./moltenterm-actio
 import { hostsBrowserPage, hostsControlledTab } from "./moltenterm-browseragent";
 import { onAppIpc } from "./moltenterm-privileged-ipc";
 import { acquireReadyView, awaitViewInitialized } from "./moltenterm-spare-ready";
-import { watchLandedView } from "./moltenterm-switch-landing-live";
+import { cancelLandingWatch, watchLandedView } from "./moltenterm-switch-landing-live";
 import {
     beginShowingTabView,
     endShowingTabView,
@@ -474,6 +474,7 @@ export function removeWindowTabView(win: WaveBrowserWindow, tabId: string, force
 export function closeWindowTabViews(win: WaveBrowserWindow) {
     closingWindows.add(win);
     windowState(win).pending.hide();
+    cancelLandingWatch(win); // nothing is left to check in a window that closes (#2419)
     for (const tabView of windowTabViews(win.waveWindowId).values()) {
         destroyTabView(tabView, "window closed");
     }
