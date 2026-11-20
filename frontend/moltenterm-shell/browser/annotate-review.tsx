@@ -165,11 +165,9 @@ export function ReviewView(props: ReviewViewProps) {
                         />
                     ) : (
                         <p className="text-11 leading-4 text-muted" data-testid="browser-annotate-no-overview">
-                            {captured.noOverview === "" || captured.noOverview === "none"
-                                ? t("browser.annotate.review.noOverview.failed")
-                                : t(`browser.annotate.review.noOverview.${captured.noOverview}`, {
-                                      screens: MaxOverviewScreens,
-                                  })}
+                            {t(`browser.annotate.review.noOverview.${captured.noOverview || "failed"}`, {
+                                screens: MaxOverviewScreens,
+                            })}
                         </p>
                     )}
                 </section>

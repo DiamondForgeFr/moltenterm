@@ -3076,6 +3076,7 @@
                     "failed": "Pas d'image : la page n'en a pas donné."
                 },
                 "noOverview": {
+                    "none": "Pas de vue d'ensemble : aucun commentaire n'est sur la page affichée.",
                     "tall": "Pas de vue d'ensemble : la page fait plus de {screens} écrans de haut.",
                     "inner": "Pas de vue d'ensemble : la page défile dans l'une de ses zones.",
                     "failed": "Pas de vue d'ensemble : la page n'a pas pu être capturée en entier."
