@@ -335,11 +335,22 @@ func (a *KimiAdapter) ReadSubagent(sessionPath string, agentId string) (Subagent
 	if !ok {
 		return SubagentFacts{}, false
 	}
-	if state, stateOk := readKimiState(path); stateOk {
+	if state, stateOk := readKimiState(path); stateOk && facts.Worktree == "" {
 		facts.Worktree = state.Cwd
-		facts.Branch = FolderBranch(state.Cwd)
 	}
+	facts.Branch = FolderBranch(facts.Worktree)
 	return facts, facts.Model != "" || facts.Effort != "" || facts.Branch != "" || facts.Worktree != "" || facts.Ended
+}
+
+func kimiToolCwd(event map[string]any) string {
+	for _, field := range []string{"args", "display"} {
+		cwd := str(obj(event, field), "cwd")
+		if cwd == "" || !filepath.IsAbs(cwd) || strings.IndexByte(cwd, 0) >= 0 {
+			continue
+		}
+		return filepath.Clean(cwd)
+	}
+	return ""
 }
 
 func kimiTail(path string, agentId string) (SubagentFacts, bool) {
@@ -369,6 +380,17 @@ func kimiTail(path string, agentId string) (SubagentFacts, bool) {
 			}
 		case "turn.ended":
 			facts.Ended = true
+		case "context.append_loop_event":
+			if agentId == "" || facts.Worktree != "" {
+				continue
+			}
+			if id := str(rec, "agentId"); id != "" && id != agentId {
+				continue
+			}
+			event := obj(rec, "event")
+			if str(event, "type") == "tool.call" {
+				facts.Worktree = kimiToolCwd(event)
+			}
 		}
 	}
 	return facts, true
