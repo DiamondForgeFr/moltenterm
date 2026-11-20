@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -42,8 +44,28 @@ type fakeForge struct {
 	milestones []forgeMilestone
 	issues     map[int][]forgeIssue
 	err        error
-	calls      int
-	log        []string
+	// statuses: the board status of tickets, by number; statusErr fails the call that reads them (a token without the
+	// project scope).
+	statuses  map[int]string
+	statusErr error
+	calls     int
+	log       []string
+}
+
+var statusTicketRegex = regexp.MustCompile(`t(\d+): issue\(number: \d+\)`)
+
+// statusAnswerOf answers the board's query for the tickets it names: a ticket with a status has one project item.
+func (f *fakeForge) statusAnswerOf(query string) ([]byte, error) {
+	repository := map[string]any{}
+	for _, m := range statusTicketRegex.FindAllStringSubmatch(query, -1) {
+		number, _ := strconv.Atoi(m[1])
+		nodes := []any{}
+		if name, ok := f.statuses[number]; ok {
+			nodes = append(nodes, map[string]any{"status": map[string]any{"name": name}})
+		}
+		repository["t"+m[1]] = map[string]any{"projectItems": map[string]any{"nodes": nodes}}
+	}
+	return json.Marshal(map[string]any{"data": map[string]any{"repository": repository}})
 }
 
 func (f *fakeForge) callList() []string {
@@ -70,6 +92,13 @@ func (f *fakeForge) gh(_ context.Context, _ string, args ...string) ([]byte, err
 		}{}
 		answer.Data.Repository.Milestones.Nodes = f.milestones
 		return json.Marshal(answer)
+	}
+	if len(args) == 8 && args[1] == "graphql" && strings.Contains(args[3], "projectItems") &&
+		args[5] == "owner={owner}" && args[7] == "name={repo}" {
+		if f.statusErr != nil {
+			return nil, f.statusErr
+		}
+		return f.statusAnswerOf(args[3])
 	}
 	if len(args) != 2 || args[0] != "api" {
 		return nil, fmt.Errorf("unexpected gh call %v", args)
@@ -404,9 +433,9 @@ func TestAMilestonePastTheTabsIsReadWhenSelected(t *testing.T) {
 	if got := view.byTitle("1.5.0"); !got.Loaded || fmt.Sprint(ticketNumbers(got)) != "[500]" {
 		t.Errorf("the selected tab: %+v", got)
 	}
-	// One read: the milestones, the tickets of the first four, and the selected one's.
-	if forge.count() != calls+6 {
-		t.Errorf("gh calls: %d, want %d", forge.count(), calls+6)
+	// One read: the milestones, the tickets of the first four and the selected one's, and the board's statuses.
+	if forge.count() != calls+7 {
+		t.Errorf("gh calls: %d, want %d", forge.count(), calls+7)
 	}
 	if view.byTitle("1.6.0").Loaded {
 		t.Error("a milestone nobody selected was read")
@@ -418,8 +447,8 @@ func TestAMilestonePastTheTabsIsReadWhenSelected(t *testing.T) {
 	f.svc.Get(GetRequest{Dir: f.dir, Shown: true, Milestone: 999})
 	f.svc.Get(GetRequest{Dir: f.dir, Shown: true, Milestone: 1})
 	f.svc.waitIdle()
-	if forge.count() != calls+12 {
-		t.Errorf("a number that is no milestone, or a tab already read, started a read: %d calls, want %d", forge.count(), calls+12)
+	if forge.count() != calls+14 {
+		t.Errorf("a number that is no milestone, or a tab already read, started a read: %d calls, want %d", forge.count(), calls+14)
 	}
 }
 

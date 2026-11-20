@@ -20,7 +20,7 @@ import (
 // (GraphQL counts issues apart from pull requests, where the REST milestone mixes both); then one call per milestone
 // whose tickets the companion needs: the open issues, newest update first. Those are the first ticketMilestones of the
 // tabs' order, and the ones a window selected (#2416): a project with many open milestones does not read them all every
-// minute.
+// minute. One last call reads the board status of all those tickets (status.go, #2418).
 
 const (
 	// One page of the forge's API: a project with more open tickets in one milestone counts the rest from the
@@ -214,5 +214,12 @@ func readForge(ctx context.Context, gh ghFunc, dir string, selected []int) readR
 		}
 		milestones = append(milestones, m)
 	}
+	var numbers []int
+	for _, m := range milestones {
+		for _, t := range m.Tickets {
+			numbers = append(numbers, t.Number)
+		}
+	}
+	applyStatuses(milestones, readStatuses(ctx, gh, dir, numbers))
 	return readResult{state: StateOk, repo: repo, milestones: milestones}
 }

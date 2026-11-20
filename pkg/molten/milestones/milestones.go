@@ -53,6 +53,9 @@ type Ticket struct {
 	Title    string `json:"title"`
 	Url      string `json:"url,omitempty"`
 	Sentence string `json:"sentence,omitempty"`
+	// Status is the ticket's board status as the project board names it (status.go), "" when it is on no board or the
+	// board could not be read.
+	Status string `json:"status,omitempty"`
 	// excerpt is the first lines of its body, cleaned, for its sentence only: it never leaves wavesrv for a window.
 	excerpt string
 	// hash is what its sentence is written from, its cleaned title and excerpt (contentHash): with the language, it
