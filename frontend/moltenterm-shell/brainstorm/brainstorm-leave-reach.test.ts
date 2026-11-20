@@ -9,9 +9,10 @@
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const Dir = path.dirname(new URL(import.meta.url).pathname);
+const Dir = path.dirname(fileURLToPath(import.meta.url));
 const BrainstormCss = readFileSync(path.join(Dir, "brainstorm.css"), "utf8");
 const GroupCss = readFileSync(path.join(Dir, "../boss/brokk-group.css"), "utf8");
 const Host = readFileSync(path.join(Dir, "../boss/brokk-hub-host.tsx"), "utf8");
