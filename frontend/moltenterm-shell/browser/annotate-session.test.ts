@@ -63,6 +63,37 @@ describe("the annotate session of a panel (#2327)", () => {
         a.start("tab-a", "http://localhost:1/");
         expect(b.isOpen("tab-a")).toBe(false);
     });
+
+    it("counts the comments pending in each tab, for the Comment button, and forgets them when the session ends (#2422)", () => {
+        const session = new AnnotateSession();
+        session.start("tab-a", "http://localhost:1/");
+        session.start("tab-b", "http://localhost:2/");
+        session.setCount("tab-a", 3);
+        session.setCount("tab-b", 1);
+        expect(globalStore.get(session.countsAtom)).toEqual({ "tab-a": 3, "tab-b": 1 });
+        session.setCount("tab-b", 0);
+        expect(globalStore.get(session.countsAtom)).toEqual({ "tab-a": 3 });
+        session.close("tab-a");
+        expect(globalStore.get(session.countsAtom)).toEqual({});
+    });
+
+    it("leaves through the layer when it is mounted, which asks before comments are lost, and at once when it is not", () => {
+        const session = new AnnotateSession();
+        session.start("tab-a", "http://localhost:1/");
+        const asked: string[] = [];
+        session.leaveLayers.set("tab-a", () => asked.push("ask"));
+        session.leave("tab-a");
+        expect(asked).toEqual(["ask"]);
+        expect(session.isOpen("tab-a")).toBe(true);
+        session.leaveLayers.delete("tab-a");
+        session.leave("tab-a");
+        expect(session.isOpen("tab-a")).toBe(false);
+    });
+
+    it("has no page for a tab until the panel says where they are", () => {
+        const session = new AnnotateSession();
+        expect(session.webviewOf("tab-a")).toBeNull();
+    });
 });
 
 // A tab change never discards what the developer drew (FR-BRW-017 AC13): the layer of the annotated tab stays, hidden,

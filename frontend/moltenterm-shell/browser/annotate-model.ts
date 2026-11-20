@@ -1,10 +1,11 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Annotate a version (FR-BRW-017, DS-BRW-024, #2327): the developer freezes the web page panel's page into a capture,
-// draws numbered rectangles on it and comments each, then hands them to an agent. This file holds what needs no DOM:
-// the zones and what the developer does to them, where a comment field goes, the agent the zones are proposed to and
-// why, and the request wavesrv answers (pkg/molten/mission/annotate.go). Pure.
+// Comment on a version's live page (FR-BRW-017, DS-BRW-024, #2327, #2422): the developer marks places of the web page
+// panel's page, anchored to the page and to the elements under them, comments each, then hands them to an agent. This
+// file holds what needs no DOM: the comments (a "zone" here, whatever its kind of mark) and what the developer does to
+// them, where a comment field goes, the agent they are proposed to and why, and the request wavesrv answers
+// (pkg/molten/mission/annotate.go). Pure.
 
 import { type AgentNameLock, locksOfProject, sameProjectFolder } from "../agent-name-locks-model";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
@@ -15,22 +16,28 @@ import { cardInputOf } from "../reviews/reviews-sections-model";
 import { type AgentBarFacts, branchAgents } from "../reviews/reviews-upcoming-model";
 import { type TestContextAnswer } from "./test-context-model";
 import { type ProjectFacts, reviewPrOf, versionOfAnswer } from "./version-card-model";
+import { type Anchor, type Box, type MarkKind, type MarkView, type Point, type Size } from "./annotate-wire";
+
+export type { Box, Point, Size };
+export type Rect = Box;
 
 // must match AnnotateCommand and the statuses in pkg/molten/mission/annotate.go
 export const AnnotateCommand = "moltenmissionannotate";
 
 export const MaxZones = 20;
 export const MaxCommentChars = 1000;
-// A drag shorter than this, in pixels, in either direction is a click.
-export const MinZonePx = 8;
 const FieldGapPx = 8;
 
-export type Rect = { x: number; y: number; w: number; h: number };
-export type Point = { x: number; y: number };
-export type Size = { w: number; h: number };
-
-// A zone is a rectangle in fractions of the capture's width and height, so it keeps its place when the panel is resized.
-export type Zone = { id: number; x: number; y: number; w: number; h: number; comment: string; refs: ZoneRef[] };
+// A comment: a mark on the page (its kind and its anchor, annotate-anchor.ts) with the address of the page it was placed
+// on, its text and its reference images.
+export type Zone = {
+    id: number;
+    kind: MarkKind;
+    anchor: Anchor;
+    address: string;
+    comment: string;
+    refs: ZoneRef[];
+};
 
 // A reference image the developer attached to a zone's comment: what the window wrote again from a pasted or dropped
 // image, as a data URL (annotate-refs.ts).
@@ -53,36 +60,80 @@ export function emptyState(): AnnotateState {
 export const MaxRefsPerZone = 4;
 export const MaxRefs = 8;
 
-function clamp01(n: number): number {
-    return Math.min(1, Math.max(0, n));
-}
-
-// dragRect: the rectangle two points make, in fractions of the stage, or null for a click.
-export function dragRect(a: Point, b: Point, stage: Size): Rect {
-    if (!(stage?.w > 0) || !(stage?.h > 0)) {
-        return null;
-    }
-    const x1 = Math.min(Math.max(0, Math.min(a.x, b.x)), stage.w);
-    const y1 = Math.min(Math.max(0, Math.min(a.y, b.y)), stage.h);
-    const x2 = Math.min(Math.max(0, Math.max(a.x, b.x)), stage.w);
-    const y2 = Math.min(Math.max(0, Math.max(a.y, b.y)), stage.h);
-    if (x2 - x1 < MinZonePx || y2 - y1 < MinZonePx) {
-        return null;
-    }
-    return { x: clamp01(x1 / stage.w), y: clamp01(y1 / stage.h), w: (x2 - x1) / stage.w, h: (y2 - y1) / stage.h };
-}
-
 export function zoneNumber(state: AnnotateState, id: number): number {
     return state.zones.findIndex((z) => z.id === id) + 1;
 }
 
-// addZone: the new zone opens its comment field. At the limit nothing is added.
-export function addZone(state: AnnotateState, rect: Rect): AnnotateState {
-    if (rect == null || state.zones.length >= MaxZones) {
+// What the overlay says it placed: the kind of mark, its anchor and the address of the page it is on.
+export type Placed = { kind: MarkKind; anchor: Anchor; address: string };
+
+// addZone: the new comment opens its field. At the limit nothing is added.
+export function addZone(state: AnnotateState, placed: Placed): AnnotateState {
+    if (placed?.anchor == null || state.zones.length >= MaxZones) {
         return state;
     }
-    const zone: Zone = { id: state.nextId, ...rect, comment: "", refs: [] };
+    const zone: Zone = {
+        id: state.nextId,
+        kind: placed.kind,
+        anchor: placed.anchor,
+        address: placed.address,
+        comment: "",
+        refs: [],
+    };
     return { ...state, zones: [...state.zones, zone], nextId: state.nextId + 1, editing: { id: zone.id, fresh: true } };
+}
+
+// The same page: addresses are equal but for their fragment (a link to a place of the page is still the page).
+export function addressKey(address: string): string {
+    const text = (address ?? "").trim();
+    const i = text.indexOf("#");
+    return i < 0 ? text : text.slice(0, i);
+}
+
+export function sameAddress(a: string, b: string): boolean {
+    return addressKey(a) === addressKey(b);
+}
+
+export function zonesOfPage(zones: Zone[], address: string): Zone[] {
+    return zones.filter((z) => sameAddress(z.address, address));
+}
+
+// markViews: the marks the overlay draws on the page shown at address, numbered as they are in the report.
+export function markViews(state: AnnotateState, address: string): MarkView[] {
+    const out: MarkView[] = [];
+    state.zones.forEach((z, i) => {
+        if (sameAddress(z.address, address)) {
+            out.push({ id: z.id, n: i + 1, kind: z.kind, anchor: z.anchor, active: state.editing?.id === z.id });
+        }
+    });
+    return out;
+}
+
+// pagesOf: the pages the comments are on, in the order they were first commented.
+export function pagesOf(zones: Zone[]): { address: string; count: number }[] {
+    const pages: { address: string; count: number }[] = [];
+    for (const z of zones) {
+        const page = pages.find((p) => sameAddress(p.address, z.address));
+        if (page != null) {
+            page.count++;
+        } else {
+            pages.push({ address: addressKey(z.address), count: 1 });
+        }
+    }
+    return pages;
+}
+
+// discardPage: the comments of a page the developer chose to drop.
+export function discardPage(state: AnnotateState, address: string): AnnotateState {
+    const zones = state.zones.filter((z) => !sameAddress(z.address, address));
+    const editing = state.editing != null && zones.some((z) => z.id === state.editing.id) ? state.editing : null;
+    return { ...state, zones, editing };
+}
+
+// The comment text a list shows: the first line, cut.
+export function excerptOf(comment: string, max = 80): string {
+    const line = (comment ?? "").trim().split("\n")[0].trim();
+    return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
 export function refCount(state: AnnotateState): number {
@@ -239,41 +290,6 @@ export function clearAll(state: AnnotateState): AnnotateState {
     return { ...state, zones: [], editing: null };
 }
 
-// zoneAt: the zone under a point of the stage, in fractions; of several, the smallest, so a zone drawn inside another
-// is the one a click reaches.
-export function zoneAt(zones: Zone[], p: Point): Zone {
-    let found: Zone = null;
-    for (const z of zones) {
-        if (p.x < z.x || p.x > z.x + z.w || p.y < z.y || p.y > z.y + z.h) {
-            continue;
-        }
-        if (found == null || z.w * z.h < found.w * found.h) {
-            found = z;
-        }
-    }
-    return found;
-}
-
-export type Gesture = { kind: "draw"; rect: Rect } | { kind: "edit"; id: number } | { kind: "none" };
-
-// gestureOf: what a press and a release on the stage do, points in pixels of the stage. A drag makes a zone; a click on
-// a zone edits it, even where a drag would have started; a click elsewhere, and a drag too thin to be a zone, do nothing.
-export function gestureOf(start: Point, end: Point, stage: Size, zones: Zone[]): Gesture {
-    const rect = dragRect(start, end, stage);
-    if (rect != null) {
-        return { kind: "draw", rect };
-    }
-    if (
-        Math.max(Math.abs(end.x - start.x), Math.abs(end.y - start.y)) >= MinZonePx ||
-        !(stage?.w > 0) ||
-        !(stage?.h > 0)
-    ) {
-        return { kind: "none" };
-    }
-    const hit = zoneAt(zones, { x: start.x / stage.w, y: start.y / stage.h });
-    return hit != null ? { kind: "edit", id: hit.id } : { kind: "none" };
-}
-
 export type CommentKeyAction = "commit" | "cancel" | "newline";
 
 // commentKeyAction: a key in a comment field. Enter validates the zone and Shift+Enter adds a line; Escape closes the
@@ -308,10 +324,10 @@ export function layerKeyAction(
     return ctx.zones > 0 ? "ask-leave" : "leave";
 }
 
-// fieldPlacement: where a comment field of the given size goes, in pixels of the stage: beside its zone (right, else
-// left), else under or over it, always inside the stage.
-export function fieldPlacement(zone: Rect, stage: Size, field: Size): Point {
-    const box = { x: zone.x * stage.w, y: zone.y * stage.h, w: zone.w * stage.w, h: zone.h * stage.h };
+// fieldPlacement: where a comment field of the given size goes, in pixels of the stage: beside its mark (right, else
+// left), else under or over it, always inside the stage. The mark's box is where the page shows it now, in the same
+// pixels (annotate-layer.tsx follows it while the page scrolls).
+export function fieldPlacement(box: Box, stage: Size, field: Size): Point {
     const keep = (p: Point): Point => ({
         x: Math.max(FieldGapPx, Math.min(p.x, stage.w - field.w - FieldGapPx)),
         y: Math.max(FieldGapPx, Math.min(p.y, stage.h - field.h - FieldGapPx)),
@@ -331,13 +347,34 @@ export function fieldPlacement(zone: Rect, stage: Size, field: Size): Point {
     return keep({ x: box.x, y: box.y - FieldGapPx - field.h });
 }
 
-export type ZoneWire = { comment: string; images?: string[]; imagecount?: number };
+// capture: the image taken of the comment's place at send time, a data URL; a preview says only that one exists
+// (captured), so that the images are not sent twice.
+export type ZoneWire = {
+    comment: string;
+    kind: MarkKind;
+    address: string;
+    selector?: string;
+    capture?: string;
+    captured?: boolean;
+    images?: string[];
+    imagecount?: number;
+};
 
-// zonesWire: the comments in order, trimmed, with the reference images as data URLs; a preview carries only their count,
-// so that the images are not sent twice.
-export function zonesWire(zones: Zone[], preview = false): ZoneWire[] {
+// zonesWire: the comments in order, trimmed, each with the page it is on, its kind of mark and its element's selector,
+// the image taken of its place and its reference images as data URLs; a preview carries only their count.
+export function zonesWire(zones: Zone[], preview = false, captures: Record<number, string> = {}): ZoneWire[] {
     return zones.map((z) => {
-        const wire: ZoneWire = { comment: z.comment.trim() };
+        const wire: ZoneWire = { comment: z.comment.trim(), kind: z.kind, address: addressKey(z.address) };
+        if (z.anchor.selector) {
+            wire.selector = z.anchor.selector;
+        }
+        if (captures[z.id]) {
+            if (preview) {
+                wire.captured = true;
+            } else {
+                wire.capture = captures[z.id];
+            }
+        }
         if (z.refs.length > 0) {
             if (preview) {
                 wire.imagecount = z.refs.length;
@@ -506,9 +543,13 @@ export type AnnotateRequest = {
     branch?: string;
     workspaceid?: string;
     title?: string;
-    image?: string;
+    // The page's overview, a data URL; a preview says only that there is one.
+    overview?: string;
+    hasoverview?: boolean;
     zones: ZoneWire[];
     reftitle?: string;
+    // The title of a comment's image material, with {zone} left for wavesrv to fill with the comment's number.
+    capturetitle?: string;
     to?: { blockid: string; firstname: string; agent?: string; lead?: boolean };
 };
 
@@ -516,7 +557,9 @@ export type AnnotateResult = {
     status: "preview" | "copied" | "sent" | "noagent" | "refused";
     reason?: "workspace" | "project";
     text?: string;
+    // The kept copy of the overview, and the kept copy of each comment's image by comment ("" for none).
     imagepath?: string;
+    capturepaths?: string[];
     materialid?: string;
     delivery?: "delivered" | "typed" | "queued";
     to?: string;
@@ -536,9 +579,21 @@ export function annotateRequest(
     action: AnnotateAction,
     target: AnnotateTarget,
     zones: Zone[],
-    extra: { title?: string; refTitle?: string; image?: string; to?: Recipient }
+    extra: {
+        title?: string;
+        refTitle?: string;
+        captureTitle?: string;
+        // The overview of the page and the image taken of each comment's place (by comment id), as data URLs.
+        overview?: string;
+        captures?: Record<number, string>;
+        to?: Recipient;
+    }
 ): AnnotateRequest {
-    const req: AnnotateRequest = { action, address: target.address, zones: zonesWire(zones, action === "preview") };
+    const req: AnnotateRequest = {
+        action,
+        address: target.address,
+        zones: zonesWire(zones, action === "preview", extra.captures),
+    };
     if (target.root) {
         req.root = target.root;
     } else if (target.dir) {
@@ -550,10 +605,13 @@ export function annotateRequest(
     if (target.workspaceId) {
         req.workspaceid = target.workspaceId;
     }
-    if (action !== "preview") {
+    if (action === "preview") {
+        req.hasoverview = !!extra.overview;
+    } else {
         req.title = extra.title;
-        req.image = extra.image;
+        req.overview = extra.overview || undefined;
         req.reftitle = extra.refTitle;
+        req.capturetitle = extra.captureTitle;
     }
     // The recipient's role changes the text (a lead is asked to dispatch), so the preview and the copy say it too.
     if (extra.to != null) {

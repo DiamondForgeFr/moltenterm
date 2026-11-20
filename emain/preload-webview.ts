@@ -12,6 +12,8 @@ import {
     horizontalWheelDelta,
     routeHorizontalWheel,
 } from "../frontend/moltenterm-shell/view360/carpet-wheel";
+// MOLTENTERM-PATCH (#2422)
+import { installAnnotateGuest } from "./moltenterm-annotate-guest";
 // MOLTENTERM-PATCH (#971)
 import { GateEventTypes, WebviewInputGate } from "./moltenterm-webview-input-gate";
 
@@ -96,5 +98,9 @@ ipcRenderer.on(CarpetWheelStateChannel, (_event, state: CarpetWheelState) => {
         window.removeEventListener("wheel", moltentermOnCarpetWheel, { capture: true });
     }
 });
+
+// MOLTENTERM-PATCH (#2422): the comment overlay of the web page panel (FR-BRW-017). It listens for the panel's `start`
+// and does nothing else until then.
+installAnnotateGuest();
 
 console.log("loaded wave preload-webview.ts");

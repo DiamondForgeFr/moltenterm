@@ -68,6 +68,7 @@ import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
 import { showAgentAsk, showAgentPage, type AgentShowTarget } from "./agent-show";
 import { annotatablePage, annotateLayers, AnnotateSession, closedTabs } from "./annotate-session";
+import { CommentButton } from "./comment-button";
 import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
 import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
@@ -325,13 +326,13 @@ export class BrowserViewModel implements ViewModel {
     inspector = new BrowserInspectorModel();
     // The confirmation of Clear this site's data… or Clear the browser cache… (FR-BRW-022).
     clearDataAtom = atom(null) as PrimitiveAtom<ClearDataRequest>;
-    // Annotate mode (#2327): the page frozen into a capture to draw numbered zones on.
+    // Comment mode (#2327, #2422): marks and comments on the live page, anchored to it.
     annotate = new AnnotateSession();
     offInspectorGone: () => void = null;
 
     constructor({ blockId, nodeModel, tabModel }: ViewModelInitType) {
         this.blockId = blockId;
-        this.annotate.pageCapture = (tabId) => this.capturePageImage(tabId);
+        this.annotate.webviewOf = (tabId) => this.webviews.get(tabId);
         if (takeAddressFocus(blockId)) {
             this.addressHold.start();
         }
@@ -848,13 +849,6 @@ export class BrowserViewModel implements ViewModel {
                     icon: "bookmark",
                     type: "submenu",
                     submenu: this.bookmarkMenuItems(tab),
-                });
-            }
-            if (tab != null && this.canAnnotate(tab.id)) {
-                menu.push({
-                    label: t("browser.annotate.menu"),
-                    icon: "vector-square",
-                    click: () => this.startAnnotate(tab.id),
                 });
             }
             menu.push(...(await this.shareItems(tab)));
@@ -1521,30 +1515,13 @@ export class BrowserViewModel implements ViewModel {
         return true;
     }
 
-    // The page's own picture, without anything the window draws over it (the layer, a popover, a toast), as the page
-    // shows it in the panel; "" when the page cannot be captured (not loaded yet): the annotate mode then takes the
-    // window's picture of the panel's area.
-    async capturePageImage(tabId: string): Promise<string> {
-        const webview = this.webviews.get(tabId);
-        if (webview == null) {
-            return "";
-        }
-        try {
-            const image = await webview.capturePage();
-            return image == null || image.isEmpty() ? "" : image.toDataURL();
-        } catch (e) {
-            console.log("browser page capture failed", e);
-            return "";
-        }
-    }
-
     canAnnotate(tabId = this.state().activeId): boolean {
         const tab = this.findTab(tabId);
         return tab != null && !tab.engine && annotatablePage(tab.url);
     }
 
-    // The header's button, the version card's Annotate and ⌘⇧A (Ctrl+Shift+A elsewhere): the shown page freezes into a
-    // capture and the developer draws zones on it. The key never starts it on a page that cannot be captured.
+    // The header's Comment button, the version card's and ⌘⇧A (Ctrl+Shift+A elsewhere): the shown page stays live and the
+    // developer marks and comments it. The key never starts it on a page that cannot be commented on.
     startAnnotate(tabId = this.state().activeId): boolean {
         if (!this.canAnnotate(tabId)) {
             return false;
@@ -2464,6 +2441,8 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 t("browser.nav.forward"),
                 "molten-fold-3"
             )}
+            {/* The Comment button (#2422) is in no focus-only or folding group: it is always shown. */}
+            <CommentButton session={model.annotate} tab={active} onStart={() => model.startAnnotate(active.id)} />
             {loading
                 ? navButton(
                       "xmark",
@@ -2545,7 +2524,6 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 className={cn("molten-browser-drag h-full min-w-6", topField && "flex-1")}
             />
             <span className="mt-focus-only molten-fold-2 flex min-w-0 shrink items-center gap-1">
-                <AnnotateButton model={model} tab={active} />
                 <BookmarksButton model={model} tab={active} />
                 <ShareButton model={model} tab={active} />
                 <EngineButton model={model} tab={active} />
@@ -2602,35 +2580,6 @@ function AnnotateMount({
                 <AnnotateHost key={layer.open.nonce} session={session} open={layer.open} shown={layer.shown} />
             ))}
         </Suspense>
-    );
-}
-
-// The Annotate button (FR-BRW-017, #2327): the page freezes into a capture to draw numbered zones on and send to an agent.
-// The tooltip names the shortcut with the glyphs of the platform.
-function AnnotateButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
-    const t = useT();
-    const opens = useAtomValue(model.annotate.openAtom);
-    if (tab == null || tab.engine || !annotatablePage(tab.url)) {
-        return null;
-    }
-    const on = opens.some((open) => open.tabId === tab.id);
-    const shortcut = formatShortcutById(isMacOS() ? "browser-annotate" : "browser-annotate-other");
-    const label = t("browser.annotate.button");
-    return (
-        <button
-            type="button"
-            aria-label={label}
-            aria-pressed={on}
-            title={t("browser.annotate.buttonTitle", { shortcut })}
-            onClick={() => model.startAnnotate(tab.id)}
-            data-testid="browser-annotate-button"
-            className={cn(
-                "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary",
-                on && "bg-hover text-primary"
-            )}
-        >
-            <i className="fa fa-solid fa-vector-square text-12" />
-        </button>
     );
 }
 

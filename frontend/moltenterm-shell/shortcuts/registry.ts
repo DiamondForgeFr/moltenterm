@@ -623,13 +623,13 @@ export const Shortcuts: Shortcut[] = [
         ["Ctrl:Shift:i"],
         ["devtools", "developer tools", "inspector", "console", "network"]
     ),
-    // #2327 (FR-BRW-017): the version's page frozen into a capture to draw numbered zones on and send to an agent.
+    // #2327, #2422 (FR-BRW-017): comment on the version's live page and send the comments to an agent.
     ...browserShortcuts(
         "browser-annotate",
-        "Annotate the page",
+        "Comment on the page",
         ["Cmd:Shift:a"],
         ["Ctrl:Shift:a"],
-        ["annotate", "zones", "comment", "capture", "feedback", "draw", "markup"]
+        ["comment", "annotate", "zones", "capture", "feedback", "draw", "markup"]
     ),
     // Agents
     {

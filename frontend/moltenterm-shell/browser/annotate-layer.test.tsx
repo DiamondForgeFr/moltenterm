@@ -1,102 +1,207 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The annotate mode as drawn (FR-BRW-017 AC12 to AC14, AC17, #2327): the tray, a zone and its comment field, and the
-// review of what will be sent, to whom and why. Synthetic agents and branches only.
+// The comment mode as drawn (FR-BRW-017 AC14, AC17, AC24, AC27, #2327, #2422): the toolbar and its questions, the list of
+// comments, a comment and its field, and the review of what will be sent, to whom and why. Synthetic agents, pages and
+// branches only.
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
-import {
-    CommentField,
-    NumberBadge,
-    type Outcome,
-    ReviewView,
-    type ReviewViewProps,
-    Tray,
-    ZoneMark,
-} from "./annotate-layer";
+import { CommentField } from "./annotate-layer";
+import type { Captured } from "./annotate-capture";
 import type { AnnotateTarget, Recipient, Zone } from "./annotate-model";
+import { type Outcome, ReviewView, type ReviewViewProps } from "./annotate-review";
+import { CaptureBar, CommentList, CommentToolbar, type CommentToolbarProps } from "./annotate-toolbar";
 
 const Noop = () => {};
-const Zone1: Zone = { id: 1, x: 0.1, y: 0.2, w: 0.3, h: 0.25, comment: "The title is cut.", refs: [] };
+const Page = "http://localhost:5173/some/path?x=1";
+const Zone1: Zone = {
+    id: 1,
+    kind: "zone",
+    anchor: { box: { x: 100, y: 1200, w: 300, h: 150 }, selector: "main > .card", rel: null, fixed: false, path: null },
+    address: Page,
+    comment: "The title is cut.",
+    refs: [],
+};
 const Thumb = "data:image/png;base64,iVBORw0KGgo=";
 
-function tray(count: number, leaveAsk = false): string {
-    return renderToStaticMarkup(
-        <Tray
-            count={count}
-            leaveAsk={leaveAsk}
-            onClear={Noop}
-            onReview={Noop}
-            onClose={Noop}
-            onDiscard={Noop}
-            onKeep={Noop}
-        />
-    );
+const toolbarProps: CommentToolbarProps = {
+    tool: "point",
+    paused: false,
+    count: 0,
+    listOpen: false,
+    leaveAsk: false,
+    pageAsk: null,
+    onTool: Noop,
+    onPause: Noop,
+    onList: Noop,
+    onClear: Noop,
+    onReview: Noop,
+    onClose: Noop,
+    onDiscard: Noop,
+    onKeep: Noop,
+    onKeepPage: Noop,
+    onDiscardPage: Noop,
+};
+
+function bar(change: Partial<CommentToolbarProps> = {}): string {
+    return renderToStaticMarkup(<CommentToolbar {...toolbarProps} {...change} />);
 }
 
 afterEach(() => I18nModel.getInstance().setLanguageSetting("en"));
 
-describe("the tray", () => {
-    it("says what to do while nothing is drawn, with no Send", () => {
-        const html = tray(0);
-        expect(html).toContain("Draw a zone around what to change");
-        expect(html).not.toContain("browser-annotate-review");
-        expect(html).not.toContain("browser-annotate-clear");
+describe("the toolbar (FR-BRW-017 AC24)", () => {
+    it("holds the three tools, Pause, the count that opens the list, and Close", () => {
+        const html = bar();
+        for (const id of ["tool-point", "tool-zone", "tool-freehand", "pause", "count", "close"]) {
+            expect(html).toContain(`data-testid="browser-annotate-${id}"`);
+        }
+        expect(html).toContain('role="toolbar"');
+        expect(html).toContain("0 comments");
+        expect(html).toContain('aria-expanded="false"');
     });
 
-    it("counts the zones and offers Clear all and the review once one is drawn", () => {
-        expect(tray(1)).toContain("1 zone<");
-        const html = tray(3);
-        expect(html).toContain("3 zones");
+    it("says what the tool in use does, while no comment is made", () => {
+        expect(bar()).toContain("Click an element to comment on it.");
+        expect(bar({ tool: "zone" })).toContain("Drag a rectangle around what to change.");
+        expect(bar({ tool: "freehand" })).toContain("Draw an outline around what to change.");
+        expect(bar({ paused: true })).toContain("Paused: the page works as usual.");
+        expect(bar({ count: 2 })).not.toContain("browser-annotate-hint");
+    });
+
+    it("marks the tool in use with the selected line, and none while paused", () => {
+        const html = bar({ tool: "zone" });
+        expect(html.match(/mt-selected-action/g)).toHaveLength(1);
+        expect(html).toMatch(/mt-selected-action[^>]*aria-pressed="true"[^>]*data-testid="browser-annotate-tool-zone"/);
+        expect(bar({ tool: "zone", paused: true })).not.toContain("mt-selected-action");
+    });
+
+    it("shows Pause pressed, and offers to resume, while paused", () => {
+        const on = bar({ paused: true });
+        expect(on).toMatch(/aria-pressed="true"[^>]*data-testid="browser-annotate-pause"/);
+        expect(on).toContain('aria-label="Resume commenting"');
+        expect(bar()).toContain('aria-label="Pause: use the page as usual"');
+    });
+
+    it("counts the comments, and offers Clear all and the review only once there is one", () => {
+        expect(bar({ count: 1 })).toContain("1 comment<");
+        const html = bar({ count: 3, listOpen: true });
+        expect(html).toContain("3 comments");
+        expect(html).toContain('aria-expanded="true"');
         expect(html).toContain("Clear all");
         expect(html).toContain("Review and send");
-        expect(html).toContain("molten-btn");
+        expect(bar()).not.toContain("browser-annotate-review");
+        expect(bar()).not.toContain("browser-annotate-clear");
     });
 
-    it("asks before the zones are lost", () => {
-        const html = tray(2, true);
-        expect(html).toContain("Discard 2 zones?");
+    it("keeps the call to action alone orange: Review and send is the one molten button", () => {
+        const html = bar({ count: 2 });
+        expect(html.match(/molten-btn(?![-\w])/g)).toHaveLength(1);
+        expect(html).toMatch(/molten-btn[^>]*data-testid="browser-annotate-review"/);
+        expect(html).not.toContain("molten-btn-destructive");
+    });
+
+    it("says when the report is full", () => {
+        expect(bar({ count: 20 })).toContain("That is the most comments one report holds (20).");
+    });
+
+    it("asks before the comments are lost, with Discard as the destructive action", () => {
+        const html = bar({ count: 2, leaveAsk: true });
+        expect(html).toContain("Discard 2 comments?");
         expect(html).toContain("molten-btn-destructive");
-        expect(html).toContain("Keep drawing");
+        expect(html).toContain("Keep commenting");
         expect(html).not.toContain("Review and send");
+        expect(html).not.toContain("browser-annotate-tool-point");
     });
 
-    it("says it in French too", () => {
+    it("asks to keep or discard the comments of a page that was left, naming the page", () => {
+        const html = bar({ count: 3, pageAsk: { count: 2, page: "localhost:5173/some/path", pages: 1 } });
+        expect(html).toContain("The page changed. Keep the 2 comments you left on localhost:5173/some/path?");
+        expect(html).toContain("without an image");
+        expect(html).toMatch(/molten-btn[^>]*data-testid="browser-annotate-ask-keep"/);
+        expect(html).toContain('data-testid="browser-annotate-ask-discard"');
+        expect(html).not.toContain("Review and send");
+        const one = bar({ count: 1, pageAsk: { count: 1, page: "localhost:5173/cart", pages: 1 } });
+        expect(one).toContain("Keep the comment you left on localhost:5173/cart?");
+        const many = bar({ count: 4, pageAsk: { count: 4, page: "localhost:5173/a", pages: 2 } });
+        expect(many).toContain("you left on 2 other pages?");
+    });
+
+    it("is in French too, with no platform name", () => {
         I18nModel.getInstance().setLanguageSetting("fr");
-        expect(tray(2)).toContain("2 zones");
-        expect(tray(1)).toContain("1 zone<");
-        expect(tray(2)).toContain("Relire et envoyer");
-        expect(tray(2, true)).toContain("Abandonner 2 zones ?");
+        const html = bar({ count: 2 });
+        expect(html).toContain("2 commentaires");
+        expect(html).toContain("Relire et envoyer");
+        expect(html).toContain("Commenter un élément");
+        expect(bar({ count: 2, leaveAsk: true })).toContain("Abandonner 2 commentaires ?");
+        expect(bar({ paused: true })).toContain("En pause");
+        expect(bar({ count: 2, pageAsk: { count: 2, page: "localhost:5173/a", pages: 1 } })).toContain("Garder les 2 commentaires");
+        expect(html).not.toMatch(/\b(Mac|macOS|Finder|Windows)\b/);
     });
 });
 
-describe("a zone and its comment field", () => {
-    it("marks the zone with its number and comment, and names it for the keyboard", () => {
-        const html = renderToStaticMarkup(<ZoneMark zone={Zone1} n={2} active={false} onEdit={Noop} onErase={Noop} />);
-        expect(html).toContain('aria-label="Zone 2: The title is cut."');
-        expect(html).toContain('data-n="2"');
-        expect(html).toContain('tabindex="0"');
-        expect(html).toContain("cursor-pointer");
-        expect(html).toContain("left:10.000%");
-        expect(html).toContain("The title is cut.");
-        expect(renderToStaticMarkup(<NumberBadge n={7} />)).toContain(">7<");
+describe("the bar shown while the pictures are taken", () => {
+    it("says how far the page is, and can be cancelled", () => {
+        const html = renderToStaticMarkup(<CaptureBar done={1} total={4} onCancel={Noop} />);
+        expect(html).toContain("Capturing the page… 1 of 4");
+        expect(html).toContain('data-testid="browser-annotate-capture-cancel"');
+        expect(html).toContain('role="status"');
     });
+});
 
-    it("shows a zone with no comment by its number alone", () => {
-        const html = renderToStaticMarkup(
-            <ZoneMark zone={{ ...Zone1, comment: "" }} n={1} active onEdit={Noop} onErase={Noop} />
+describe("the list of comments", () => {
+    const zones: Zone[] = [
+        Zone1,
+        { ...Zone1, id: 2, kind: "point", comment: "", address: Page },
+        { ...Zone1, id: 3, kind: "freehand", comment: "Too close.\nSecond line", address: "http://localhost:5173/cart" },
+    ];
+    const list = (editingId = 0, shown = zones) =>
+        renderToStaticMarkup(
+            <CommentList zones={shown} address={Page} editingId={editingId} onGo={Noop} onEdit={Noop} onErase={Noop} />
         );
-        expect(html).toContain('aria-label="Zone 1"');
-        expect(html).not.toContain('<span class="min-w-0 truncate');
+
+    it("lists every comment, numbered, by its first line, with a way to go to it, edit it and erase it", () => {
+        const html = list();
+        expect(html.match(/data-testid="browser-annotate-list-item"/g)).toHaveLength(3);
+        expect(html).toContain('data-n="1"');
+        expect(html).toContain("The title is cut.");
+        expect(html).toContain("Too close.");
+        expect(html).not.toContain("Second line");
+        expect(html).toContain("No text yet");
+        expect(html.match(/data-testid="browser-annotate-list-go"/g)).toHaveLength(3);
+        expect(html.match(/data-testid="browser-annotate-list-edit"/g)).toHaveLength(3);
+        expect(html.match(/data-testid="browser-annotate-list-erase"/g)).toHaveLength(3);
+        expect(html).toContain('aria-label="Comments"');
     });
 
+    it("says where a comment of another page is, and cannot be gone to from this one", () => {
+        const html = list();
+        expect(html).toContain("On localhost:5173/cart");
+        expect(html.match(/disabled=""/g)).toHaveLength(1);
+        expect(html).toMatch(/disabled=""[^>]*data-testid="browser-annotate-list-go"/);
+    });
+
+    it("says there is none yet", () => {
+        expect(list(0, [])).toContain("No comment yet.");
+    });
+
+    it("is in French too", () => {
+        I18nModel.getInstance().setLanguageSetting("fr");
+        const html = list();
+        expect(html).toContain("Commentaires");
+        expect(html).toContain("Pas encore de texte");
+        expect(html).toContain("Sur localhost:5173/cart");
+    });
+});
+
+describe("a comment and its field", () => {
     function field(zone: Zone, note = ""): string {
         return renderToStaticMarkup(
             <CommentField
                 zone={zone}
                 n={1}
+                box={{ x: 100, y: 120, w: 200, h: 100 }}
                 stage={{ w: 1000, h: 600 }}
                 note={note}
                 onChange={Noop}
@@ -108,6 +213,14 @@ describe("a zone and its comment field", () => {
             />
         );
     }
+
+    it("opens beside its mark, taking the pointer the layer lets through, and names itself for the keyboard", () => {
+        const html = field(Zone1);
+        expect(html).toContain("pointer-events-auto");
+        expect(html).toContain('aria-label="Comment 1"');
+        expect(html).toContain("left:308px");
+        expect(html).toContain("top:120px");
+    });
 
     it("shows the reference images under the comment as thumbnails, each with its remove", () => {
         const html = field({
@@ -154,19 +267,19 @@ describe("a zone and its comment field", () => {
         expect(field(Zone1)).not.toContain("browser-annotate-ref-note");
     });
 
-    it("opens the field with the comment, its hint and a way to erase the zone", () => {
+    it("opens the field with the comment, its hint and a way to erase the comment", () => {
         const html = field(Zone1);
         expect(html).toContain("<textarea");
         expect(html).toContain("The title is cut.");
         expect(html).toContain('maxLength="1000"');
         expect(html).toContain("Enter validates, Shift+Enter adds a line");
-        expect(html).toContain("Erase this zone");
+        expect(html).toContain("Erase this comment");
         expect(html).toContain("What is wrong here?");
     });
 });
 
 const Target: AnnotateTarget = {
-    address: "http://localhost:5173/some/path?x=1",
+    address: Page,
     root: "/w/shop-wt/a",
     dir: "/w/shop",
     branch: "feature/1-a",
@@ -178,6 +291,12 @@ function who(name: string, why: Recipient["why"], lead: boolean): Recipient {
     return { blockId: `b-${name.toLowerCase()}`, name, agent: "claude", why, lead };
 }
 
+const Taken: Captured = {
+    crops: { 1: "data:image/png;base64,CROP1" },
+    overview: "data:image/png;base64,OVERVIEW",
+    noOverview: "",
+};
+
 function review(props: Partial<ReviewViewProps> = {}): string {
     const recipients = props.recipients ?? [who("Camille", "works", false)];
     return renderToStaticMarkup(
@@ -187,8 +306,7 @@ function review(props: Partial<ReviewViewProps> = {}): string {
             recipients={recipients}
             chosen={recipients[0] ?? null}
             lost=""
-            image="data:image/png;base64,AAAA"
-            imageFailed={false}
+            captured={Taken}
             report={{ text: "The report's text." }}
             busy={null}
             outcome={null}
@@ -202,8 +320,8 @@ function review(props: Partial<ReviewViewProps> = {}): string {
     );
 }
 
-describe("the review (FR-BRW-017 AC14)", () => {
-    it("shows each zone's reference images and links as they will be sent, and nothing when there are none", () => {
+describe("the review (FR-BRW-017 AC14, AC26)", () => {
+    it("shows each comment's reference images and links as they will be sent, and nothing when there are none", () => {
         const zones: Zone[] = [
             Zone1,
             { ...Zone1, id: 2, comment: "Like https://example.test/inspiration", refs: [{ id: 7, dataUrl: Thumb }] },
@@ -213,32 +331,51 @@ describe("the review (FR-BRW-017 AC14)", () => {
             zones,
             report: { text: "The report's text.", links: [[], ["https://example.test/inspiration"], []] },
         });
-        expect(html).toContain('data-testid="browser-annotate-review-refs"');
-        expect(html).toContain("References");
-        expect(html.match(/data-testid="browser-annotate-review-zone"/g)).toHaveLength(1);
-        expect(html).toContain("Zone 2");
+        expect(html.match(/data-testid="browser-annotate-review-zone"/g)).toHaveLength(3);
+        expect(html.match(/data-testid="browser-annotate-refs"/g)).toHaveLength(1);
+        expect(html.match(/data-testid="browser-annotate-links"/g)).toHaveLength(1);
+        expect(html).toContain("Comment 2");
         expect(html).toContain(`src="${Thumb}"`);
         expect(html).toContain("example.test");
         expect(html).not.toContain("browser-annotate-ref-remove");
-        expect(review()).not.toContain("browser-annotate-review-refs");
+        expect(review()).not.toContain("browser-annotate-refs");
     });
 
     it("shows the links the brief lists, not the ones the comment seems to hold", () => {
         const zones: Zone[] = [{ ...Zone1, comment: "Like https://typed.test/a" }];
         const listed = review({ zones, report: { text: "x", links: [["https://listed.test/b"]] } });
         expect(listed).toContain("listed.test");
-        expect(listed).not.toContain("typed.test");
-        expect(review({ zones, report: { text: "x" } })).not.toContain("browser-annotate-review-refs");
+        expect(listed).not.toContain("typed.test/a</p>x");
+        expect(listed.match(/data-testid="browser-annotate-link"/g)).toHaveLength(1);
+        expect(review({ zones, report: { text: "x" } })).not.toContain("browser-annotate-link");
     });
 
-    it("shows what will be sent: the address, the branch, the image and the report as wavesrv writes it", () => {
+    it("shows what will be sent: the address, the branch, the overview, each comment's image and the report as wavesrv writes it", () => {
         const html = review();
         expect(html).toContain("What will be sent");
         expect(html).toContain("http://localhost:5173/some/path?x=1");
         expect(html).toContain("feature/1-a");
-        expect(html).toContain('src="data:image/png;base64,AAAA"');
+        expect(html).toContain('src="data:image/png;base64,OVERVIEW"');
+        expect(html).toContain('src="data:image/png;base64,CROP1"');
+        expect(html).toContain("The title is cut.");
         expect(html).toContain("The report&#x27;s text.");
         expect(html).toContain("MoltenTerm adds its own header");
+    });
+
+    it("says why there is no overview, and why a comment has no image", () => {
+        const none = (noOverview: Captured["noOverview"]) =>
+            review({ captured: { crops: {}, overview: "", noOverview } });
+        expect(none("tall")).toContain("No overview: the page is taller than 12 screens.");
+        expect(none("inner")).toContain("No overview: the page scrolls inside one of its areas.");
+        expect(none("failed")).toContain("No overview: the page could not be captured whole.");
+        expect(none("failed")).toContain("No image: the page gave no picture of it.");
+        expect(none("failed")).not.toContain("browser-annotate-overview");
+        const elsewhere = review({
+            zones: [{ ...Zone1, address: "http://localhost:5173/cart" }],
+            captured: { crops: {}, overview: "", noOverview: "none" },
+        });
+        expect(elsewhere).toContain("No image: its page is no longer shown.");
+        expect(elsewhere).toContain("On localhost:5173/cart");
     });
 
     it("proposes the agent working on the worktree and says why, with one click to send it", () => {
@@ -247,13 +384,13 @@ describe("the review (FR-BRW-017 AC14)", () => {
         expect(html).toContain("works on feature/1-a");
         expect(html).toContain("Send to Camille");
         expect(html).toContain("molten-btn");
-        expect(html).not.toContain("will be asked to hand the zones");
+        expect(html).not.toContain("will be asked to hand the comments");
     });
 
-    it("proposes the project's lead otherwise, which is asked to dispatch the zones", () => {
+    it("proposes the project's lead otherwise, which is asked to dispatch the comments", () => {
         const html = review({ recipients: [who("Hugo", "project", true)] });
         expect(html).toContain("leads this project");
-        expect(html).toContain("Hugo will be asked to hand the zones to the right agents.");
+        expect(html).toContain("Hugo will be asked to hand the comments to the right agents.");
         expect(html).toContain("Send to Hugo");
         expect(review({ recipients: [who("Hugo", "pr", true)] })).toContain("signed the pull request");
         expect(review({ recipients: [who("Hugo", "owns", true)] })).toContain("owns the agent working on feature/1-a");
@@ -276,10 +413,12 @@ describe("the review (FR-BRW-017 AC14)", () => {
         expect(html).not.toContain("browser-annotate-send");
     });
 
-    it("holds the send until the image and the report are ready", () => {
-        expect(review({ image: "" })).toMatch(/disabled=""[^>]*data-testid="browser-annotate-send"/);
+    it("holds the send until the report is ready, whatever the images are", () => {
         expect(review({ report: {} })).toMatch(/disabled=""[^>]*data-testid="browser-annotate-send"/);
         expect(review()).not.toMatch(/disabled=""[^>]*data-testid="browser-annotate-send"/);
+        expect(review({ captured: { crops: {}, overview: "", noOverview: "tall" } })).not.toMatch(
+            /disabled=""[^>]*data-testid="browser-annotate-send"/
+        );
         expect(review({ busy: "send" })).toContain("Sending…");
     });
 
@@ -294,7 +433,7 @@ describe("the review (FR-BRW-017 AC14)", () => {
         ["typed", "The request is typed in Camille&#x27;s prompt: press Enter there to send it."],
         ["queued", "Camille is busy: the request is typed when their prompt is free."],
     ] as const)(
-        "says how it was handed over (%s) and that the image is kept as a material, then offers Done",
+        "says how it was handed over (%s) and that the images are kept as materials, then offers Done",
         (delivery, text) => {
             const outcome: Outcome = { kind: "sent", result: { status: "sent", to: "Camille", delivery } };
             const html = review({ outcome });
@@ -352,11 +491,16 @@ describe("the review (FR-BRW-017 AC14)", () => {
     });
 
     it("says the copy was made, and a failure with its reason", () => {
-        expect(review({ outcome: { kind: "copied" } })).toContain("Report copied. The image is kept in this project");
+        expect(review({ outcome: { kind: "copied" } })).toContain("Report copied. The images are kept in this project");
         const failed = review({
             outcome: { kind: "failed", text: { key: "browser.annotate.sendFailed", vars: { error: "boom" } } },
         });
         expect(failed).toContain("Nothing was sent: ");
+    });
+
+    it("says the images are too large for one report", () => {
+        const failed = review({ outcome: { kind: "failed", text: { key: "browser.annotate.review.tooLarge" } } });
+        expect(failed).toContain("The images are too large for one report.");
     });
 
     it("is in French too, with no platform name", () => {
@@ -366,6 +510,7 @@ describe("the review (FR-BRW-017 AC14)", () => {
         expect(html).toContain("dirige ce projet");
         expect(html).toContain("Ce qui sera envoyé");
         expect(html).toContain("Copier le rapport");
+        expect(html).toContain("Vue d&#x27;ensemble de la page");
         expect(html).not.toMatch(/\b(Mac|macOS|Finder|Windows)\b/);
     });
 });

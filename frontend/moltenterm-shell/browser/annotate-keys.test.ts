@@ -44,7 +44,7 @@ describe("the annotate shortcut", () => {
         expect([other.scope, other.keys, other.notMac]).toEqual(["browser", "Ctrl:Shift:a", true]);
         expect(formatShortcutById("browser-annotate", true)).toBe("⇧⌘A");
         expect(formatShortcutById("browser-annotate-other", false)).toBe("Ctrl+Shift+A");
-        expect(shortcutDisplayLabel(mac)).toBe("Annotate the page");
+        expect(shortcutDisplayLabel(mac)).toBe("Comment on the page");
     });
 
     it("is read as the annotate action by the panel's key table, on its own platform only", () => {

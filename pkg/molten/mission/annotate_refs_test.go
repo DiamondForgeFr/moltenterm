@@ -85,7 +85,7 @@ func TestAnnotateReferencesAreKeptAsMaterialsAndListed(t *testing.T) {
 			if _, _, err := image.Decode(bytes.NewReader(raw)); err != nil {
 				t.Errorf("reference %d.%d does not decode: %v", z+1, r+1, err)
 			}
-			want := fmt.Sprintf("- **Zone %d, reference %d:** `%s`", z+1, r+1, path)
+			want := fmt.Sprintf("- **Comment %d, reference %d:** `%s`", z+1, r+1, path)
 			if !strings.Contains(got.Text, want) {
 				t.Errorf("the brief does not list %s:\n%s", want, got.Text)
 			}
@@ -128,7 +128,7 @@ func TestAnnotateSendListsTheReferencesInTheBrief(t *testing.T) {
 	if err != nil || got.Status != AnnotateStatusSent || len(got.References) != 1 {
 		t.Fatalf("got %+v, %v", got, err)
 	}
-	if !strings.Contains(f.sent[0].Context, got.References[0][0]) || !strings.Contains(f.sent[0].Context, "Zone 1, reference 1") {
+	if !strings.Contains(f.sent[0].Context, got.References[0][0]) || !strings.Contains(f.sent[0].Context, "Comment 1, reference 1") {
 		t.Errorf("the brief:\n%s", f.sent[0].Context)
 	}
 	if strings.Contains(f.sent[0].Goal, "reference") {
@@ -244,7 +244,7 @@ func TestAnnotatePreviewListsTheReferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"**Zone 1, reference 1:** the image shown in the review", "**Zone 1, reference 2:** the image shown in the review", annotateRefsNote} {
+	for _, want := range []string{"**Comment 1, reference 1:** the image shown in the review", "**Comment 1, reference 2:** the image shown in the review", annotateRefsNote} {
 		if !strings.Contains(got.Text, want) {
 			t.Errorf("the preview does not say %q:\n%s", want, got.Text)
 		}
