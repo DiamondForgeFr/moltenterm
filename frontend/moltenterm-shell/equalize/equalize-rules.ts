@@ -104,15 +104,15 @@ function evenOps(children: LayoutNode[], weights: number[]): ResizeNodeOperation
     return ops;
 }
 
-// The top-level columns' floor when a panel is added (FR-SHELL-042 AC-grid, #2433): the tab's width and the minimum of
-// each column, the first column's floor included.
+// What the top-level columns keep when a panel is added (FR-SHELL-042 AC-grid, #2433): the tab's width and the width
+// each column keeps at least, which is the first column's floor (#848) and nothing for the others.
 export type AddedPanelFloor = { parentId: string; minsPx: number[]; widthPx: number; gapPx: number };
 
 // The sizes of a panel just added (#1241, #2433): the siblings it joined share their axis equally, the new one included:
 // a row by the columns each spans, a column's rows alike, nothing inside them touched, so a stacked column keeps its
-// heights and the other rows keep their widths. A row of top-level columns whose equal
-// parts would put a column under its minimum shares the width as "Readjust every size" does, so the first column's
-// floor holds and the 360 view takes over when they do not fit. Empty when the node has no sibling, or all are even.
+// heights and the other rows keep their widths. A row of top-level columns whose equal parts would put the first
+// column under its floor shares the width as "Readjust every size" does, so the floor holds and the 360 view takes over
+// when the columns do not fit. Empty when the node has no sibling, or all are even.
 export function addedPanelOps(root: LayoutNode, nodeId: string, floor?: AddedPanelFloor): ResizeNodeOperation[] {
     const parent = parentOf(root, nodeId);
     if (parent == null || (parent.children?.length ?? 0) < 2) {

@@ -23,7 +23,7 @@ import {
 } from "@/layout/lib/types";
 import { addedPanelOps, type AddedPanelFloor } from "../equalize/equalize-rules";
 import { currentFirstColumnFloorPx } from "../panel-size/panel-size-store";
-import { columnMinimumsPx, columnsParent } from "../view360/view360-decision";
+import { columnsParent } from "../view360/view360-decision";
 
 // The node an action adds to the tree, null for every other action.
 export function addedPanelNode(action: LayoutTreeAction): LayoutNode {
@@ -61,9 +61,12 @@ function floorOf(model: LayoutModel): AddedPanelFloor {
         view360?.lastEvalWidth > 0
             ? view360.lastEvalWidth
             : (model.displayContainerRef?.current?.getBoundingClientRect?.()?.width ?? 0);
+    // Only the floor the developer set holds (#848): the readable minimums are the 360 view's rule, not a width the grid
+    // keeps, so a row without a floor shares its width equally.
+    const floorPx = currentFirstColumnFloorPx() ?? 0;
     return {
         parentId: columns.id,
-        minsPx: columnMinimumsPx(columns.children.length, currentFirstColumnFloorPx() ?? 0),
+        minsPx: columns.children.map((_, i) => (i === 0 ? floorPx : 0)),
         widthPx,
         gapPx: view360?.lastEvalGap ?? 0,
     };

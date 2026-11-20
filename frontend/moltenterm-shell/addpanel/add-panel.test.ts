@@ -193,7 +193,7 @@ describe("outside the 360 view, every kind of action rebalances the row the pane
         }
     });
 
-    it("gives the first column its readable minimum when equal parts would put it under it", () => {
+    it("shares the width equally even where the first column ends under its readable minimum: only a floor the developer set holds", () => {
         const model = makeLayout(row("a", "b", "c", "d", "e"));
         model.treeReducer(
             {
@@ -204,11 +204,10 @@ describe("outside the 360 view, every kind of action rebalances the row the pane
             } as never,
             false
         );
-        const [first, ...others] = model.treeState.rootNode.children.map((c) => (c.size / 100) * Width);
-        expect(first).toBeGreaterThanOrEqual(FirstColumnMinPx - 1);
-        for (const px of others) {
-            expect(px).toBeCloseTo(others[0], 3);
-        }
+        const root = model.treeState.rootNode;
+        expect(root.children.length).toBe(6);
+        expect((root.children[0].size / 100) * Width).toBeLessThan(FirstColumnMinPx);
+        expectEven(root);
     });
 
     it("splits a lone panel into two halves", () => {
