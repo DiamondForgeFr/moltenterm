@@ -17,6 +17,7 @@ import * as WOS from "@/app/store/wos";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
+import { rankAgentIds } from "../agent-info/providers-in-use-use";
 import { codingAgentName } from "../coding-agent/coding-agent";
 import { EmptyState } from "../empty-state";
 import { I18nModel, t as translate, useT } from "../i18n/i18n";
@@ -311,7 +312,7 @@ function AiStatus({
             return (
                 <div className="flex flex-col gap-1.5">
                     <p className="text-muted">{ai.message}</p>
-                    {(ai.installed ?? []).map((id) => (
+                    {rankAgentIds(ai.installed ?? []).map((id) => (
                         <button
                             key={id}
                             type="button"

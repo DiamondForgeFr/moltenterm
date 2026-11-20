@@ -1491,7 +1491,8 @@
                 "unset": "Le premier installé",
                 "options": {
                     "claude": "Claude Code",
-                    "codex": "Codex"
+                    "codex": "Codex",
+                    "kimi": "Kimi Code"
                 }
             },
             "review:reviewername": {

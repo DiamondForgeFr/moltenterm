@@ -36,9 +36,10 @@ const (
 	MissingEnvVar = "MOLTEN_CODING_AGENT_MISSING"
 )
 
-// Supported lists the agents the flows can start, in the default order: the ones with a non-interactive form and a
-// review flow today.
-var Supported = []string{molten.AgentIdClaude, molten.AgentIdCodex}
+// Supported lists the agents the flows can start in a worktree, in the default order: every agent of the registry
+// (#2431). The read-only, non-interactive forms (PrintArgv, QuickPrintArgv) are narrower: Kimi Code has none, so the
+// flows that need one see no argv for it and fall back as they do for any agent without one.
+var Supported = []string{molten.AgentIdClaude, molten.AgentIdCodex, molten.AgentIdKimi}
 
 // Agent is one agent the flows can start, and whether it is installed on this computer. Command is the program that
 // starts it, set on the known agents.

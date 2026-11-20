@@ -7,6 +7,7 @@ import type { UsageReadings } from "./boss-usage";
 import {
     AgentUse,
     choiceOf,
+    hiddenReason,
     planKind,
     readingStale,
     staleAfterMs,
@@ -360,11 +361,19 @@ describe("a provider not used within the window is left out (FR-BOSS-009, AC95, 
         expect(grid.hidden.map((h) => [h.provider, h.reason])).toEqual([["claude", "unused"]]);
     });
 
-    it("keeps a paid plan even when it was not used", () => {
+    it("hides a paid plan too when it was not used within the window, behind N hidden (#2431)", () => {
         const readings = { codex: monthly("codex", 5, 12, "plus"), claude: monthly("claude", 5, 12, "Max") };
         const grid = usageGrid(readings, Now, undefined, { use: {} });
-        expect(ids(grid.rows).sort()).toEqual(["claude", "codex"]);
-        expect(grid.hidden).toEqual([]);
+        expect(grid.rows).toEqual([]);
+        expect(grid.hidden.map((h) => [h.provider, h.reason])).toEqual([
+            ["claude", "unused"],
+            ["codex", "unused"],
+        ]);
+    });
+
+    it("keeps a paid plan in Brokk's visits, whatever its use (#2341, unchanged by #2431)", () => {
+        expect(hiddenReason("codex", "plus", Now - 12 * Day, { use: {} }, Now)).toBe("");
+        expect(hiddenReason("codex", "free", Now - 12 * Day, { use: {} }, Now)).toBe("unused");
     });
 
     it("follows the window the developer set in Settings, 7 days when unset (#2431)", () => {
@@ -503,7 +512,7 @@ describe("a stale reading never looks current (FR-BOSS-009, AC96)", () => {
 
     it("does not rank a stale full window above a current one that is less full", () => {
         const readings = { a: monthly("a", 100, 8, "plus"), b: fresh("b", 30, "") };
-        expect(ids(weeklyUsage(readings, Now, undefined, { use: {} }))).toEqual(["b", "a"]);
+        expect(ids(weeklyUsage(readings, Now, undefined, { use: { a: use(0, 1, 2) } }))).toEqual(["b", "a"]);
     });
 
     it("tells Brokk's usage visit that a stale reading is no news", () => {

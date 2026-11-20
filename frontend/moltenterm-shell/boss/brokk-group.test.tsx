@@ -1313,21 +1313,20 @@ describe("the block under the square (AC17 and AC20)", () => {
             expect(html).not.toContain("brokk-usage-hidden-block");
         });
 
-        it("keeps a paid plan nobody used, and hides a paid one the developer chose to hide", () => {
+        it("hides a paid plan nobody used within the window, and shows it when the developer chooses to (#2431)", () => {
             globalStore.set(UsageReadingsAtom, {
                 claude: reading("claude", 30),
                 codex: monthly("codex", 5, 12, "plus"),
             });
             globalStore.set(UsageUseAtom, { claude: use(20) });
+            expect(providers(render())).toEqual(["claude"]);
+            setSetting("boss:usageshow", ["codex"]);
             expect(providers(render())).toEqual(["claude", "codex"]);
-            setSetting("boss:usagehide", ["codex"]);
-            const html = render();
-            expect(providers(html)).toEqual(["claude"]);
         });
 
         it("draws a reading older than its window faded, with its age, and no pace colour", () => {
             globalStore.set(UsageReadingsAtom, { codex: monthly("codex", 100, 10, "plus") });
-            globalStore.set(UsageUseAtom, {});
+            globalStore.set(UsageUseAtom, { codex: use(5) });
             const html = render();
             const tag = cellTag(html, "codex");
             expect(tag).toContain('data-stale="true"');

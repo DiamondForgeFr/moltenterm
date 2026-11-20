@@ -140,6 +140,21 @@ func isSupportedAgent(id string) bool {
 	return id == molten.AgentIdClaude || id == molten.AgentIdCodex
 }
 
+// reviewOrder keeps the agents a review session can run from the registry's order, so that the default of a review is
+// never an agent that cannot run one (#2431): Claude Code and Codex when the order names none of them.
+func reviewOrder(order []string) []string {
+	var rtn []string
+	for _, id := range order {
+		if isSupportedAgent(id) {
+			rtn = append(rtn, id)
+		}
+	}
+	if len(rtn) == 0 {
+		return []string{molten.AgentIdClaude, molten.AgentIdCodex}
+	}
+	return rtn
+}
+
 // tomlString writes a TOML basic string (as agentlaunch does): quotes, backslashes and control characters escaped.
 func tomlString(s string) string {
 	var b strings.Builder

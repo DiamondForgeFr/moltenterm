@@ -15,6 +15,7 @@ import { fireAndForget } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect } from "react";
 import { agentDisplayName, agentsWith, currentFeatureMatrix, FeatureMatrix } from "../agent-info/agent-features-model";
+import { ProviderUseAtom, rankAgents } from "../agent-info/providers-in-use-use";
 import type { AgentStatesData } from "../agent-state-model";
 import { CommandPanelModel } from "../command-panel/command-panel-store";
 import { t } from "../i18n/i18n";
@@ -154,16 +155,18 @@ export class CodingAgentModel {
 // Every agent MoltenTerm knows with whether it is on this computer, from the last answer for no folder in particular:
 // the launcher offers the found ones that have no preset (#1680). Reads it again when old.
 export function knownCodingAgents(): CodingAgent[] {
-    return CodingAgentModel.getInstance().choiceOf("")?.known ?? [];
+    return rankAgents(CodingAgentModel.getInstance().choiceOf("")?.known ?? []);
 }
 
 export function useKnownCodingAgents(): CodingAgent[] {
     const model = CodingAgentModel.getInstance();
     const choices = useAtomValue(model.choicesAtom);
+    const usage = useAtomValue(ProviderUseAtom);
     useEffect(() => {
         model.choiceOf("");
     }, [model]);
-    return choices[""]?.choice?.known;
+    const known = choices[""]?.choice?.known;
+    return known == null ? known : rankAgents(known, "", usage);
 }
 
 // The supported agents running in a pane (FR-SHELL-100). wavesrv only finds the programs on the login PATH, so an agent
@@ -196,8 +199,9 @@ export function codingAgentDetail(choice: CodingAgentChoice, running: string[] =
 }
 
 export function codingAgentOptions(choice: CodingAgentChoice, running: string[] = []) {
-    const agents: CodingAgent[] =
-        choice?.agents ?? codingAgentIds().map((id) => ({ id, name: codingAgentName(id), installed: true }));
+    const agents: CodingAgent[] = rankAgents(
+        choice?.agents ?? codingAgentIds().map((id) => ({ id, name: codingAgentName(id), installed: true }))
+    );
     return agents.map((a) => {
         let detail: string = undefined;
         if (!a.installed) {

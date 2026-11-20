@@ -81,13 +81,9 @@ function lastUseOf(ctx: UsageContext, provider: string, readAt: number): number 
 // Why the grid leaves a provider out, "" when it shows: the developer's choice first; then no use and no reading within
 // the window set in Settings (#2431) on a plan that is not paid (an unknown plan is not paid, since its last reading is
 // then older than the window). A paid plan stays (#2341). An unknown use hides nothing: it is not the same as unused.
-export function hiddenReason(
-    provider: string,
-    plan: string,
-    readAt: number,
-    ctx: UsageContext,
-    now: number
-): HiddenReason | "" {
+// The gauges' rule (#2431): a provider with no use and no reading within the window is hidden, paid plan or not. The
+// developer's choice comes first.
+export function gaugeHiddenReason(provider: string, readAt: number, ctx: UsageContext, now: number): HiddenReason | "" {
     const choice = choiceOf(ctx?.choices, provider);
     if (choice === "show") {
         return "";
@@ -99,8 +95,20 @@ export function hiddenReason(
         return "";
     }
     const windowMs = ctx.windowMs ?? UseWindowMs;
-    if (inUseWithin(lastUseOf(ctx, provider, readAt), now, windowMs)) {
-        return "";
+    return inUseWithin(lastUseOf(ctx, provider, readAt), now, windowMs) ? "" : "unused";
+}
+
+// Brokk's visits keep their own rule (#2341, unchanged by #2431): a paid plan is never unused, whatever its use.
+export function hiddenReason(
+    provider: string,
+    plan: string,
+    readAt: number,
+    ctx: UsageContext,
+    now: number
+): HiddenReason | "" {
+    const reason = gaugeHiddenReason(provider, readAt, ctx, now);
+    if (reason !== "unused") {
+        return reason;
     }
     return planKind(plan) === "paid" ? "" : "unused";
 }
@@ -156,7 +164,7 @@ export function usageProviders(readings: UsageReadings, now: number, ctx?: Usage
     for (const [id, snapshot] of latestByProvider(readings)) {
         const rows = gaugeRows(snapshot, now);
         const readAt = snapshot.readat ?? 0;
-        if (rows.length === 0 || hiddenReason(id, snapshot.plan ?? "", readAt, ctx, now) !== "") {
+        if (rows.length === 0 || gaugeHiddenReason(id, readAt, ctx, now) !== "") {
             continue;
         }
         providers.push({
@@ -266,7 +274,7 @@ export function usageGrid(
     const rows: WeeklyUsage[] = [];
     const hidden: HiddenUsage[] = [];
     for (const { row, plan } of [...found, ...none]) {
-        const reason = hiddenReason(row.provider, plan, row.readAt, ctx, now);
+        const reason = gaugeHiddenReason(row.provider, row.readAt, ctx, now);
         if (reason === "") {
             rows.push(row);
             continue;

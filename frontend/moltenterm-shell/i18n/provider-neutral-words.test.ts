@@ -23,6 +23,7 @@ export const ProviderSubjectKeys: Record<string, string> = {
     "settings.items.companion:usagegauges.options.kimi": "the tool's own name, as a choice",
     "settings.items.moltenterm:codingagent.options.claude": "the tool's own name, as a choice",
     "settings.items.moltenterm:codingagent.options.codex": "the tool's own name, as a choice",
+    "settings.items.moltenterm:codingagent.options.kimi": "the tool's own name, as a choice",
     // The tool that made a worktree, shown as a chip beside the other tools that make worktrees.
     "mc.branches.tool.claudeCode": "names the tool that made a worktree",
     "mc.branches.tool.codex": "names the tool that made a worktree",
