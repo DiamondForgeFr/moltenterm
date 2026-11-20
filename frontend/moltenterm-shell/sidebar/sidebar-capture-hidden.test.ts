@@ -34,15 +34,29 @@ import {
 const Ws = "ws-andvari";
 const Box = { left: 8, top: 80, width: 256, height: 900 };
 
-let mutate: () => void = null;
+// --- a small fake page: the sidebar's viewport, its rows' page (content) and the neighbours' ghosts beside it
+
+type Record_ = { type: string; target: FakeEl; addedNodes: FakeEl[]; removedNodes: FakeEl[] };
+const observers = new Set<FakeObserver>();
 
 class FakeObserver {
-    constructor(cb: () => void) {
-        mutate = cb;
+    target: FakeEl = null;
+    constructor(readonly cb: (records: Record_[]) => void) {
+        observers.add(this);
     }
-    observe() {}
+    observe(target: FakeEl) {
+        this.target = target;
+    }
     disconnect() {
-        mutate = null;
+        observers.delete(this);
+    }
+}
+
+function notify(record: Record_) {
+    for (const o of Array.from(observers)) {
+        if (o.target != null && o.target.contains(record.target)) {
+            o.cb([record]);
+        }
     }
 }
 
@@ -56,20 +70,48 @@ class FakeEl {
     src = "";
     alt = "";
     draggable = true;
+    scrollTop = 0;
+    scrollLeft = 0;
+    offsetTop = 0;
+    offsetLeft = 0;
+    get classList() {
+        return { contains: (c: string) => this.className.split(/\s+/).includes(c) };
+    }
     getBoundingClientRect() {
         return Box;
+    }
+    contains(other: FakeEl): boolean {
+        for (let e = other; e != null; e = e.parent) {
+            if (e === this) return true;
+        }
+        return false;
     }
     appendChild(c: FakeEl) {
         c.parent = this;
         this.children.push(c);
-        mutate?.();
+        notify({ type: "childList", target: this, addedNodes: [c], removedNodes: [] });
         return c;
     }
     remove() {
-        if (this.parent != null) {
-            this.parent.children = this.parent.children.filter((c) => c !== this);
+        const p = this.parent;
+        if (p != null) {
+            p.children = p.children.filter((c) => c !== this);
             this.parent = null;
+            notify({ type: "childList", target: p, addedNodes: [], removedNodes: [this] });
         }
+    }
+    // A change of this element's own text or attributes.
+    touch() {
+        notify({ type: "attributes", target: this, addedNodes: [], removedNodes: [] });
+    }
+    querySelector(sel: string): FakeEl {
+        const cls = sel.replace(/^\./, "");
+        for (const c of this.children) {
+            if (c.classList.contains(cls)) return c;
+            const d = c.querySelector(sel);
+            if (d != null) return d;
+        }
+        return null;
     }
     setAttribute(k: string, v: string) {
         this.attrs[k] = v;
@@ -91,26 +133,49 @@ function fakeStorage() {
 }
 
 let viewport: FakeEl;
+let content: FakeEl;
+let row: FakeEl;
+let ghost: FakeEl;
 let atRest = true;
 let stop: () => void = null;
+let doc: any;
+
+function setVisibility(v: "visible" | "hidden") {
+    doc.visibilityState = v;
+    for (const fn of Array.from(doc.listeners as Set<() => void>)) {
+        fn();
+    }
+}
 
 beforeEach(() => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     api.shots = [];
     api.rows = 2;
     atRest = true;
+    observers.clear();
     resetSidebarClocks();
     viewport = new FakeEl();
-    const noop = () => {};
-    vi.stubGlobal("document", {
+    content = viewport.appendChild(new FakeEl());
+    content.className = "mt-sb-page";
+    row = content.appendChild(new FakeEl());
+    ghost = viewport.appendChild(new FakeEl());
+    ghost.className = "mt-sb-ghost";
+    const listeners = new Set<() => void>();
+    doc = {
         visibilityState: "hidden",
+        listeners,
         documentElement: { classList: { contains: () => false } },
         createElement: () => new FakeEl(),
-        addEventListener: noop,
-        removeEventListener: noop,
-    });
+        addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+        removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+    };
+    vi.stubGlobal("document", doc);
+    const noop = () => {};
     vi.stubGlobal("window", { localStorage: fakeStorage(), addEventListener: noop, removeEventListener: noop });
-    vi.stubGlobal("getComputedStyle", () => ({ getPropertyValue: () => "" }));
+    vi.stubGlobal("getComputedStyle", (el: FakeEl) => ({
+        getPropertyValue: () => "",
+        position: el?.style?.position || "static",
+    }));
     vi.stubGlobal("MutationObserver", FakeObserver);
 });
 
@@ -122,7 +187,11 @@ afterEach(() => {
 });
 
 function start() {
-    stop = startSidebarCapture(Ws, { viewport: () => viewport as any, atRest: () => atRest });
+    stop = startSidebarCapture(Ws, {
+        viewport: () => viewport as any,
+        rows: () => content as any,
+        atRest: () => atRest,
+    });
 }
 
 describe("a hidden workspace's side panel capture (#2438)", () => {
@@ -143,7 +212,7 @@ describe("a hidden workspace's side panel capture (#2438)", () => {
         // An agent starts in the hidden workspace: a row is added.
         await vi.advanceTimersByTimeAsync(1000);
         api.rows = 3;
-        mutate();
+        content.appendChild(new FakeEl());
         const changedAt = Date.now();
         expect(sidebarCaptureCurrent(Ws, 256, 900)).toBe(false);
         await vi.advanceTimersByTimeAsync(SnapshotMinGapMs + SnapshotSettleMs);
@@ -157,7 +226,7 @@ describe("a hidden workspace's side panel capture (#2438)", () => {
     it("never takes more than one capture per throttle, however often the rows change", async () => {
         start();
         for (let i = 0; i < 40; i++) {
-            mutate();
+            row.touch();
             await vi.advanceTimersByTimeAsync(250);
         }
         await vi.advanceTimersByTimeAsync(SnapshotMinGapMs + SnapshotSettleMs);
@@ -175,31 +244,86 @@ describe("a hidden workspace's side panel capture (#2438)", () => {
         await vi.advanceTimersByTimeAsync(SnapshotSettleMs);
         expect(api.shots).toHaveLength(1);
     });
+
+    it("ignores a neighbour's new capture in its ghost: no capture loop between hidden views", async () => {
+        start();
+        await vi.advanceTimersByTimeAsync(SnapshotSettleMs);
+        expect(api.shots).toHaveLength(1);
+        for (let i = 0; i < 5; i++) {
+            ghost.touch();
+            ghost.appendChild(new FakeEl());
+            await vi.advanceTimersByTimeAsync(SnapshotMinGapMs + SnapshotSettleMs);
+        }
+        expect(api.shots).toHaveLength(1);
+        expect(sidebarCaptureCurrent(Ws, 256, 900)).toBe(true);
+    });
+
+    it("counts a restart of the capture (a reinit in the same page) as freshly drawn rows", async () => {
+        start();
+        await vi.advanceTimersByTimeAsync(SnapshotSettleMs);
+        expect(sidebarCaptureCurrent(Ws, 256, 900)).toBe(true);
+        stop();
+        vi.advanceTimersByTime(10);
+        start();
+        expect(sidebarCaptureCurrent(Ws, 256, 900)).toBe(false);
+    });
 });
 
 describe("a switch landing on the side panel (#2438)", () => {
     it("changes nothing when the capture it slid in is current", async () => {
         start();
         await vi.advanceTimersByTimeAsync(SnapshotSettleMs);
-        expect(landSidebar(viewport as any, Ws)).toBe("current");
-        expect(viewport.children).toHaveLength(0);
-        expect(viewport.animations).toHaveLength(0);
+        expect(landSidebar(viewport as any, content as any, Ws)).toBe("current");
+        expect(content.children).toEqual([row]);
+        expect(content.animations).toHaveLength(0);
     });
 
-    it("cross-fades from a capture older than the rows, so no row pops in", async () => {
+    it("cross-fades from a capture older than the rows, inside the rows' page so it moves with the slide", async () => {
         start();
         await vi.advanceTimersByTimeAsync(SnapshotSettleMs + 10);
         // A row changed after the last capture, and the switch lands before the next one ran.
         api.rows = 3;
-        mutate();
-        expect(landSidebar(viewport as any, Ws)).toBe("picture");
-        const [img] = viewport.children;
-        expect(img.className).toBe(LandingPictureClass);
+        row.touch();
+        content.scrollTop = 40;
+        content.offsetTop = 6;
+        expect(landSidebar(viewport as any, content as any, Ws)).toBe("picture");
+        const img = content.querySelector("." + LandingPictureClass);
+        expect(img.parent).toBe(content);
+        expect(viewport.children.includes(img)).toBe(false);
+        expect([img.style.top, img.style.left, img.style.width]).toEqual(["34px", "0px", "256px"]);
+        expect(content.style.position).toBe("relative");
         expect(img.src).toBe("data:image/png;base64,rows2");
         expect(img.style.pointerEvents).toBe("none");
         expect(img.animations[0].frames).toEqual([{ opacity: 1 }, { opacity: 0 }]);
         img.animations[0].onfinish();
-        expect(viewport.children).toHaveLength(0);
+        expect(content.querySelector("." + LandingPictureClass)).toBeNull();
+        expect(content.style.position || "").toBe("");
+    });
+
+    it("never counts its own picture as a change of the rows", async () => {
+        start();
+        await vi.advanceTimersByTimeAsync(SnapshotSettleMs + 10);
+        row.touch();
+        landSidebar(viewport as any, content as any, Ws);
+        await vi.advanceTimersByTimeAsync(SnapshotMinGapMs + SnapshotSettleMs);
+        // The picture is still on (its fade never ended): no capture of it.
+        expect(api.shots).toHaveLength(1);
+        content.querySelector("." + LandingPictureClass).animations[0].onfinish();
+        await vi.advanceTimersByTimeAsync(SnapshotSettleMs);
+        expect(api.shots).toHaveLength(2);
+        expect(sidebarCaptureCurrent(Ws, 256, 900)).toBe(true);
+    });
+
+    it("drops the picture when the view leaves the screen in the middle of its fade", async () => {
+        start();
+        await vi.advanceTimersByTimeAsync(SnapshotSettleMs + 10);
+        row.touch();
+        setVisibility("visible");
+        landSidebar(viewport as any, content as any, Ws);
+        expect(content.querySelector("." + LandingPictureClass)).not.toBeNull();
+        setVisibility("hidden");
+        expect(content.querySelector("." + LandingPictureClass)).toBeNull();
+        expect(content.style.position || "").toBe("");
     });
 
     it("fades the real side panel in when no capture fits, never showing a loader", () => {
@@ -207,8 +331,8 @@ describe("a switch landing on the side panel (#2438)", () => {
             snapshotKey(Ws),
             JSON.stringify({ url: "data:image/png;base64,old", width: 300, height: 900, at: 1 })
         );
-        expect(landSidebar(viewport as any, Ws)).toBe("fade");
-        expect(viewport.animations[0].frames).toEqual([{ opacity: 0 }, { opacity: 1 }]);
-        expect(viewport.children).toHaveLength(0);
+        expect(landSidebar(viewport as any, content as any, Ws)).toBe("fade");
+        expect(content.animations[0].frames).toEqual([{ opacity: 0 }, { opacity: 1 }]);
+        expect(content.children).toEqual([row]);
     });
 });

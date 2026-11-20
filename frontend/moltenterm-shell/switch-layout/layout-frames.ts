@@ -28,9 +28,11 @@ const FallbackEase = "cubic-bezier(0.2, 0, 0, 1)";
 // An arrival layer goes at the latest this long after it was put on, whatever its panels did. Long enough for a slow
 // page or a terminal's reconnection to keep its loader (#2438), short enough that no loader stays.
 export const ArrivalMaxMs = 10000;
-// Once on screen, a panel that never comes (the layout was out of date) or never says it is ready lets its frame go
-// after this.
+// Once on screen, a panel mounted but still waiting for its content lets its frame go after this.
 export const ArrivalPanelMaxMs = 8000;
+// Once on screen, a panel that never mounts (the layout was out of date, the panel was closed) lets its frame go after
+// this: an empty frame waits for nothing.
+export const ArrivalMissingMaxMs = 1500;
 // A page that runs no animation frame (hidden again meanwhile) lets its frames go after this.
 export const ArrivalHiddenMaxMs = 1500;
 // A leave layer left on a view still on screen (a switch the main process refused) goes after this.
@@ -392,12 +394,13 @@ function revealStep() {
     if (a == null) {
         return;
     }
-    const late = Date.now() - a.shownAt >= ArrivalPanelMaxMs;
+    const elapsed = Date.now() - a.shownAt;
     for (const [id, frame] of Array.from(a.pending.entries())) {
         const block = blockOf(id);
         const ok = panelReady(block, frame.dataset.kind);
         const seen = ok ? (a.ready.get(id) ?? 0) + 1 : 0;
         a.ready.set(id, seen);
+        const late = elapsed >= (block == null ? ArrivalMissingMaxMs : ArrivalPanelMaxMs);
         if (seen < 2 && !late) {
             continue;
         }

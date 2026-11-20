@@ -131,6 +131,9 @@ export function sidebarAtRest(f: SidebarRestFacts): boolean {
 export type SnapshotSource = {
     // The sidebar's page area, captured whole.
     viewport(): HTMLElement;
+    // The rows' page inside it, whose changes ask for a capture: the neighbours' captures parked beside it (the ghosts)
+    // are other views' rows, and a change of theirs is none of this view's (#2438). The viewport when absent.
+    rows?(): HTMLElement;
     // The page shows the workspace at rest: no swipe, no slide, no other page over it, the sidebar on screen.
     atRest(): boolean;
 };
@@ -192,9 +195,15 @@ export const LandingPictureClass = "mt-sb-landing-picture";
 
 // A switch landed on this view (#2438): the side panel the switch slid in was its capture. When that capture is not
 // what the sidebar shows now (missing, of another size, older than its last change), the real sidebar comes in by a
-// short fade, from the capture when one fits, so no row pops in. Returns how it came in.
-export function landSidebar(viewport: HTMLElement, workspaceId: string): "current" | "picture" | "fade" | "none" {
-    if (viewport == null || !workspaceId) {
+// short fade, from the capture when one fits, so no row pops in. The picture lies inside the rows' page (content), so
+// it moves with the arrival's slide; it goes as soon as the view leaves the screen, never to be captured. Returns how
+// it came in.
+export function landSidebar(
+    viewport: HTMLElement,
+    content: HTMLElement,
+    workspaceId: string
+): "current" | "picture" | "fade" | "none" {
+    if (viewport == null || content == null || !workspaceId) {
         return "none";
     }
     const r = viewport.getBoundingClientRect();
@@ -215,29 +224,62 @@ export function landSidebar(viewport: HTMLElement, workspaceId: string): "curren
         img.alt = "";
         img.setAttribute("aria-hidden", "true");
         img.draggable = false;
+        // The capture's corner is the viewport's: placed in the content's own coordinates (layout offsets, which the
+        // slide's transform does not change), scrolled as the content is.
         Object.assign(img.style, {
             position: "absolute",
-            top: "0",
-            left: "0",
+            top: `${content.scrollTop - content.offsetTop}px`,
+            left: `${content.scrollLeft - content.offsetLeft}px`,
             width: `${snap.width}px`,
             height: `${snap.height}px`,
             maxWidth: "none",
             pointerEvents: "none",
             zIndex: "5",
         });
-        viewport.appendChild(img);
-        if (img.animate == null) {
+        const position = content.style.position;
+        if (getComputedStyle(content).position === "static") {
+            content.style.position = "relative";
+        }
+        content.appendChild(img);
+        const done = () => {
+            document.removeEventListener("visibilitychange", onHidden);
             img.remove();
+            content.style.position = position;
+        };
+        const onHidden = () => {
+            if (document.visibilityState === "hidden") {
+                done();
+            }
+        };
+        document.addEventListener("visibilitychange", onHidden);
+        if (img.animate == null) {
+            done();
             return "picture";
         }
         img.style.opacity = "0";
         const a = img.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms, easing: "linear" });
-        a.onfinish = () => img.remove();
-        a.oncancel = () => img.remove();
+        a.onfinish = done;
+        a.oncancel = done;
         return "picture";
     }
-    viewport.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: ms, easing: "linear" });
+    content.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: ms, easing: "linear" });
     return "fade";
+}
+
+function isLandingPicture(n: Node): boolean {
+    return (n as Element)?.classList?.contains(LandingPictureClass) ?? false;
+}
+
+// A change of the rows: the landing picture coming and going is none.
+function rowsChanged(records: MutationRecord[]): boolean {
+    return records.some(
+        (r) =>
+            !isLandingPicture(r.target) &&
+            !(
+                r.type === "childList" &&
+                [...Array.from(r.addedNodes), ...Array.from(r.removedNodes)].every(isLandingPicture)
+            )
+    );
 }
 
 // Captures this view's sidebar once it stays still, after each change, also while the view is hidden (#2438: a hidden
@@ -262,7 +304,8 @@ export function startSidebarCapture(workspaceId: string, source: SnapshotSource)
             return;
         }
         const wait = lastAt + SnapshotMinGapMs - Date.now();
-        if (wait > 0 || !source.atRest()) {
+        // A landing's picture over the rows is no picture of them (a view hidden in the middle of its fade).
+        if (wait > 0 || !source.atRest() || viewport.querySelector("." + LandingPictureClass) != null) {
             schedule(Math.max(wait, SnapshotSettleMs));
             return;
         }
@@ -285,7 +328,13 @@ export function startSidebarCapture(workspaceId: string, source: SnapshotSource)
                 ? await (await import("./sidebar-material")).withoutMaterial(captured, viewport)
                 : captured;
             // The page moved while the capture ran: it may show a half-slid frame, so it waits for the next rest.
-            if (!alive || !source.atRest() || !url || url.length > SnapshotMaxChars) {
+            if (
+                !alive ||
+                !source.atRest() ||
+                viewport.querySelector("." + LandingPictureClass) != null ||
+                !url ||
+                url.length > SnapshotMaxChars
+            ) {
                 return;
             }
             const snap: SidebarSnapshot = { url, width: rect.width, height: rect.height, at: Date.now() };
@@ -300,12 +349,21 @@ export function startSidebarCapture(workspaceId: string, source: SnapshotSource)
         clearTimeout(timer);
         timer = setTimeout(capture, ms);
     };
-    clockOf(workspaceId);
-    const observer = new MutationObserver(() => {
+    // The rows were just drawn (a view's first render, or a reinit in the same page): a capture from before is behind.
+    noteSidebarChanged(workspaceId);
+    const observer = new MutationObserver((records) => {
+        if (!rowsChanged(records)) {
+            return;
+        }
         noteSidebarChanged(workspaceId);
         schedule();
     });
-    observer.observe(viewport, { subtree: true, childList: true, attributes: true, characterData: true });
+    observer.observe(source.rows?.() ?? viewport, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+    });
     const onVisibility = () => {
         if (document.visibilityState === "visible") {
             schedule();

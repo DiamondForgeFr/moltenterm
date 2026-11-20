@@ -21,6 +21,7 @@ vi.mock("./layout-store", () => ({ loadLayout: (): null => null }));
 import {
     ArrivalLayerId,
     ArrivalMaxMs,
+    ArrivalMissingMaxMs,
     ArrivalOnScreenFallbackMs,
     ArrivalPanelMaxMs,
     arrivedOnScreen,
@@ -429,15 +430,20 @@ describe("the frames worn by the view reached (#2407)", () => {
         expect(arriving()).toBe(false);
     });
 
-    it("lets a frame whose panel never comes go ArrivalPanelMaxMs after the view came on screen", () => {
+    it("lets a frame whose panel never comes go ArrivalMissingMaxMs after the view came on screen, not 8 s (#2438)", () => {
         page.document.visibilityState = "visible";
-        addContent();
+        const content = addContent();
         wearArrival(Layout, "tab-beta");
+        // b1 is mounted and still waiting for its content; b2 was closed since the layout was recorded.
+        mountBlock(content, "b1", { left: 268, top: 4, width: 660, height: 990 }).appendChild(
+            new FakeEl("webview")
+        ).dataset.dfWaiting = "";
         arrivedOnScreen();
-        vi.advanceTimersByTime(ArrivalPanelMaxMs - 20);
+        vi.advanceTimersByTime(ArrivalMissingMaxMs - 20);
         expect(layer(ArrivalLayerId).children).toHaveLength(2);
         vi.advanceTimersByTime(400);
-        expect(arriving()).toBe(false);
+        expect(layer(ArrivalLayerId).children.map((f) => f.dataset.panel)).toEqual(["b1"]);
+        expect(ArrivalMissingMaxMs).toBeLessThan(ArrivalPanelMaxMs);
     });
 
     it("keeps a frame and its domino while its mounted panel waits for its content, and dissolves it once ready (#2438)", () => {

@@ -2684,7 +2684,7 @@ export function WorkspaceSidebar() {
     const onArrive = useCallback(
         (intent: SwitchIntent) => {
             // The side panel the switch slid in may be behind this one: it comes in without a row popping in (#2438).
-            landSidebar(viewportRef.current, intent.workspaceId);
+            landSidebar(viewportRef.current, contentRef.current, intent.workspaceId);
             swipe.arrived(intent);
         },
         [swipe]
@@ -2709,7 +2709,11 @@ export function WorkspaceSidebar() {
         return sidebarAtRest({ ...facts, animating: (contentRef.current?.getAnimations?.().length ?? 0) > 0 });
     };
     const snapshotSource = useMemo<SnapshotSource>(
-        () => ({ viewport: () => viewportRef.current, atRest: () => restRef.current?.() ?? false }),
+        () => ({
+            viewport: () => viewportRef.current,
+            rows: () => contentRef.current,
+            atRest: () => restRef.current?.() ?? false,
+        }),
         []
     );
     useSidebarCapture(ws?.oid, snapshotSource, libraryOpen);
