@@ -2217,7 +2217,6 @@
             "offer": "Explain each ticket in one sentence in your language? Uses your agent (a small model), at most 24 times a day.",
             "offerYes": "Turn on",
             "offerNo": "No thanks",
-            "ownTasks": "The agent's tasks",
             "ticketTitle": "Ticket title: {title}",
             "linkChip": "→ {agent}",
             "linkTitle": "{agent} works on it",
@@ -2241,6 +2240,19 @@
             "filesOther": "{count} files"
         },
         "branch": "Branch: {branch}",
+        "plan": {
+            "title": "Plan of {name}",
+            "updated": "updated {time}",
+            "inProgress": "in progress",
+            "inProgressFor": "in progress · {duration}",
+            "current": "Current step",
+            "done": "Done",
+            "todo": "To do",
+            "folded": {
+                "one": "{count} step done",
+                "other": "{count} steps done"
+            }
+        },
         "agents": {
             "title": "Agents at work",
             "ticketComplexity": "{ticket} · complexity: {complexity}",

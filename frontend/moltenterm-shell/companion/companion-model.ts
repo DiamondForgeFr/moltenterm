@@ -43,7 +43,11 @@ export type CompanionStatus =
 export type TodoStatus = "pending" | "in_progress" | "completed";
 export type FileKind = "add" | "update" | "delete";
 
-export type CompanionTodo = { text: string; status: TodoStatus };
+// at: for a published plan step, when it was done (completed) or became the current one (in_progress), unix ms.
+export type CompanionTodo = { text: string; status: TodoStatus; at?: number };
+
+// The source of the plan the companion shows: the agent's native task list, or the plan it published (#2430).
+export type CompanionTodosSource = "native" | "published";
 
 export type CompanionToolCall = { id: string; tool: string; args?: string; at?: number; approval?: boolean };
 
@@ -169,6 +173,8 @@ export type CompanionView = {
     latest?: CompanionAnswer;
     files?: CompanionFile[];
     todos?: CompanionTodo[];
+    todosBy?: CompanionTodosSource;
+    todosAt?: number;
     pending?: CompanionToolCall[];
     // The agent's usage page, from its usage adapter (pkg/molten/usage): the frontend holds no provider URL.
     usage?: CompanionUsagePage;

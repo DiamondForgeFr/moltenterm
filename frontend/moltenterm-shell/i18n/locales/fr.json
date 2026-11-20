@@ -2217,7 +2217,6 @@
             "offer": "Expliquer chaque ticket en une phrase dans votre langue ? Utilise votre agent (petit modèle), au plus 24 fois par jour.",
             "offerYes": "Activer",
             "offerNo": "Non merci",
-            "ownTasks": "Les tâches de l'agent",
             "ticketTitle": "Titre du ticket : {title}",
             "linkChip": "→ {agent}",
             "linkTitle": "{agent} y travaille",
@@ -2241,6 +2240,19 @@
             "filesOther": "{count} fichiers"
         },
         "branch": "Branche : {branch}",
+        "plan": {
+            "title": "Plan de {name}",
+            "updated": "mis à jour {time}",
+            "inProgress": "en cours",
+            "inProgressFor": "en cours · {duration}",
+            "current": "Étape en cours",
+            "done": "Fait",
+            "todo": "À faire",
+            "folded": {
+                "one": "{count} étape faite",
+                "other": "{count} étapes faites"
+            }
+        },
         "agents": {
             "title": "Agents au travail",
             "ticketComplexity": "{ticket} · complexité : {complexity}",

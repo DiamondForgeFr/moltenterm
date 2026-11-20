@@ -226,8 +226,12 @@ describe("Tasks first (#2392)", () => {
                 const html = markup(companionView(agent, name), milestones, width);
                 const tasks = html.indexOf('data-testid="companion-tasks"');
                 const agents = html.indexOf('data-testid="companion-agents"');
-                expect(tasks).toBeGreaterThan(-1);
-                expect(tasks).toBeLessThan(agents);
+                if (milestones === withMilestone) {
+                    expect(tasks).toBeGreaterThan(-1);
+                    expect(tasks).toBeLessThan(agents);
+                } else {
+                    expect(tasks).toBe(-1);
+                }
             }
         }
     });
@@ -293,7 +297,7 @@ describe("the milestone block", () => {
         expect(html).toMatch(/Échéance le 22 nov/);
         expect(html).toContain("et 4 autres");
         expect(html).toContain("Ouvrir le jalon");
-        expect(html).toContain("Les tâches de l&#x27;agent");
+        expect(html).toMatch(/Plan de /);
     });
 
     it("puts the tickets an agent works on first", () => {
@@ -493,16 +497,16 @@ describe("one tab per open milestone (#2416)", () => {
         expect(html).not.toContain("Ready to release");
     });
 
-    it("keeps the agent's own tasks under the milestone, and alone when no milestone is open", () => {
+    it("keeps the agent's own plan under the agents, and alone when no milestone is open (#2430)", () => {
         const html = markup(view, shopTabs, 900);
-        expect(html).toContain('data-testid="companion-todos"');
+        expect(html).toContain('data-testid="companion-plan"');
         expect(html.indexOf('data-testid="companion-milestone-ready"')).toBeLessThan(
-            html.indexOf('data-testid="companion-todos"')
+            html.indexOf('data-testid="companion-plan"')
         );
         const alone = markup(view, { dir: "/w", state: "none" }, 900);
-        expect(alone).toContain('data-testid="companion-todos"');
+        expect(alone).toContain('data-testid="companion-plan"');
         expect(alone).not.toContain('role="tablist"');
-        expect(alone).toContain(">Tasks<");
+        expect(alone).not.toContain('data-testid="companion-tasks"');
     });
 
     it("opens the milestone from the pocket on its bottom border", () => {
@@ -647,7 +651,8 @@ describe("blocks by width", () => {
             expect(html).toContain('data-testid="companion-tasks"');
             expect(html).not.toContain('data-testid="companion-agents"');
             expect(html).not.toContain('data-testid="companion-work-links"');
-            expect(html.match(/data-testid="companion-work-chip"/g)).toHaveLength(3);
+            // The two milestone tickets with an agent; the plan's own chip sits in the agents block, hidden here.
+            expect(html.match(/data-testid="companion-work-chip"/g)).toHaveLength(2);
         }
     });
 
@@ -867,8 +872,6 @@ describe("who works on what (#2418)", () => {
                     phrasing={false}
                     offer={null}
                     links={linksOf(1, 2, 3)}
-                    todos={[]}
-                    todoAgents={new Map()}
                     now={now}
                     chips={false}
                     lit={new Set()}

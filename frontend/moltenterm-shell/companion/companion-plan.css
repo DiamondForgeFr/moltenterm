@@ -1,0 +1,154 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The plan of the main agent in the agents block (#2430): a progress strip (one segment per step: patina done, the
+   incandescent current step softly pulsing, iron to do), then the steps on a vertical rail that turns from patina to
+   iron at the current step. Colours are the state tokens (tokens.css); every state keeps its shape (a check, the
+   working arc, a hollow dot). Reduced motion stops the pulse. */
+
+.mt-plan {
+    --mt-plan-pad: var(--df-block-pad, 12px);
+}
+
+.mt-plan-ago {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-regular);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.mt-plan-strip {
+    display: flex;
+    gap: 3px;
+    margin: 2px 0 8px;
+    padding: 0 var(--mt-plan-pad);
+}
+
+.mt-plan-seg {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--mt-surface-3);
+}
+
+.mt-plan-seg[data-state="completed"] {
+    background: var(--mt-state-ready);
+}
+
+.mt-plan-seg[data-state="in_progress"] {
+    background: var(--mt-state-running);
+    animation: mt-plan-pulse var(--mt-duration-loop, 1.6s) ease-in-out infinite;
+}
+
+@keyframes mt-plan-pulse {
+    0%,
+    100% {
+        opacity: 0.55;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.mt-plan-list {
+    position: relative;
+    margin: 0;
+    padding: 0 0 6px;
+    list-style: none;
+}
+
+/* The rail: a 1 px line through the marks, patina above the current step and iron below it. */
+.mt-plan-list::before {
+    content: "";
+    position: absolute;
+    top: 15px;
+    bottom: 15px;
+    left: calc(var(--mt-plan-pad) + 5.5px);
+    width: 1px;
+    opacity: 0.6;
+    background: linear-gradient(
+        var(--mt-state-ready) 0 var(--mt-plan-stop, 0%),
+        var(--mt-state-draft) var(--mt-plan-stop, 0%) 100%
+    );
+}
+
+.mt-plan-fold {
+    height: 22px;
+    padding: 0 var(--mt-plan-pad) 0 calc(var(--mt-plan-pad) + 24px);
+    display: flex;
+    align-items: center;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-plan-step {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 30px;
+    padding: 0 var(--mt-plan-pad);
+    font-size: var(--mt-text-12);
+    color: var(--mt-text-2);
+}
+
+/* The current step: a faint incandescent wash fading to the right, semibold text. */
+.mt-plan-step[data-state="current"] {
+    background: linear-gradient(to right, color-mix(in srgb, var(--mt-state-running) 8%, transparent), transparent 70%);
+    color: var(--mt-text-1);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-plan-step[data-state="done"] {
+    color: var(--mt-text-3);
+}
+
+.mt-plan-mark {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+}
+
+.mt-plan-check circle {
+    fill: var(--mt-state-ready);
+}
+
+.mt-plan-check path {
+    fill: none;
+    stroke: var(--mt-surface-1);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.mt-plan-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.mt-plan-meta {
+    flex: none;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+}
+
+.mt-plan-step[data-state="current"] .mt-plan-meta {
+    color: var(--mt-state-running);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-plan-seg[data-state="in_progress"] {
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-plan-seg[data-state="in_progress"] {
+    animation: none;
+}

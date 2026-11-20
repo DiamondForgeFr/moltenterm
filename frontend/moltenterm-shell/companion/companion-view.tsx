@@ -56,7 +56,6 @@ import {
     CompanionRoute,
     CompanionSessionsCommand,
     CompanionTargetMetaKey,
-    CompanionTodo,
     CompanionToolCall,
     CompanionView,
     hasIntegrationDetails,
@@ -68,7 +67,6 @@ import {
     newerView,
     permissionRequest,
     statusMessage,
-    todoCounts,
 } from "./companion-model";
 import { PermissionRequestCard, permissionTerminalOf } from "./companion-permission";
 import { saveCompanionLayout, useCompanionLayout } from "./companion-prefs";
@@ -546,9 +544,7 @@ function WorkArea({
     const now = Date.now();
     const stacked = band.ids.map((id) => (
         <Fragment key={id}>
-            {id === "tasks" ? (
-                <TodoSection todos={view.todos} />
-            ) : id === "agents" ? (
+            {id === "tasks" ? null : id === "agents" ? (
                 <AgentsSection view={view} agentState={agentState} now={now} />
             ) : (
                 slots[id]
@@ -953,34 +949,3 @@ const AnswerMarkdown = memo(({ markdown }: { markdown: string }) => {
     return <Markdown text={markdown} scrollable={false} fontSizeOverride={13} fixedFontSizeOverride={12} />;
 });
 AnswerMarkdown.displayName = "AnswerMarkdown";
-
-const TodoIcons: Record<string, string> = {
-    completed: "fa-solid fa-circle-check text-success",
-    in_progress: "fa-solid fa-circle-half-stroke text-accent",
-    pending: "fa-regular fa-circle text-muted",
-};
-
-function TodoSection({ todos }: { todos: CompanionTodo[] }) {
-    const t = useT();
-    if (todos == null || todos.length === 0) {
-        return null;
-    }
-    const { done, total } = todoCounts(todos);
-    return (
-        <>
-            <SectionTitle right={<span className="text-11 text-muted tabular-nums">{`${done} / ${total}`}</span>}>
-                {t("companion.tasks")}
-            </SectionTitle>
-            <ul className="flex flex-col gap-1 px-3" data-testid="companion-todos">
-                {todos.map((todo, i) => (
-                    <li key={i} className="flex items-start gap-2 text-12">
-                        <i className={cn("mt-0.5 fa-fw", TodoIcons[todo.status] ?? TodoIcons.pending)} />
-                        <span className={cn(todo.status === "completed" ? "text-muted line-through" : "text-primary")}>
-                            {todo.text}
-                        </span>
-                    </li>
-                ))}
-            </ul>
-        </>
-    );
-}
