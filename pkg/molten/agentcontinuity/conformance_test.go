@@ -495,7 +495,10 @@ func TestPlannedAgentConformance(t *testing.T) {
 	}
 }
 
-func agentChoiceDeclares(t *testing.T, id string) bool {
+// agentIdMentioned reports whether the function fn of the file (relative to the repository) names the agent's id
+// constant. The proofs read the code that decides a feature for an agent: this package cannot import agentchoice or
+// reviewsession, which import it (#2431).
+func agentIdMentioned(t *testing.T, id string, source string, fn string) bool {
 	t.Helper()
 	constants, err := os.ReadFile(filepath.Join(repoRoot, "pkg/molten/agentstate.go"))
 	if err != nil {
@@ -526,11 +529,22 @@ func agentChoiceDeclares(t *testing.T, id string) bool {
 	if constant == "" {
 		t.Fatalf("no agent id constant for %s", id)
 	}
-	choice, err := os.ReadFile(filepath.Join(repoRoot, "pkg/molten/agentchoice/agentchoice.go"))
+	src, err := os.ReadFile(filepath.Join(repoRoot, source))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return strings.Contains(string(choice), constant)
+	fset = token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, source, src, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, decl := range parsed.Decls {
+		if fd, ok := decl.(*ast.FuncDecl); ok && fd.Name.Name == fn {
+			return strings.Contains(string(src[fset.Position(fd.Pos()).Offset:fset.Position(fd.End()).Offset]), constant)
+		}
+	}
+	t.Fatalf("%s has no function %s", source, fn)
+	return false
 }
 
 // noneProofs show for a none cell that no code path delivers the feature to the agent. A cell none for want of an
@@ -569,12 +583,12 @@ var noneProofs = map[string]func(t *testing.T, id string, exe string){
 		}
 	},
 	FeatRunner: func(t *testing.T, id string, exe string) {
-		if agentChoiceDeclares(t, id) {
+		if agentIdMentioned(t, id, "pkg/molten/agentchoice/agentchoice.go", "PrintArgv") {
 			t.Errorf("%s has a non-interactive runner", id)
 		}
 	},
 	FeatReviewSession: func(t *testing.T, id string, exe string) {
-		if agentChoiceDeclares(t, id) || agentlaunch.FindAdapter(id) != nil {
+		if agentIdMentioned(t, id, "pkg/molten/reviewsession/command.go", "isSupportedAgent") || agentlaunch.FindAdapter(id) != nil {
 			t.Errorf("%s has a read-only review path", id)
 		}
 	},
