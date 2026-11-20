@@ -22,6 +22,11 @@ vi.mock("@/app/store/global", async () => {
     };
 });
 vi.mock("../command-panel/bindings", () => ({ writeSettings: vi.fn(async () => {}) }));
+// The usage readers ask wavesrv over RPC. An empty answer leaves the readings and the use the test sets as they are.
+vi.mock("@/app/store/wshrpcutil", async (importOriginal) => {
+    const actual = await importOriginal<Record<string, unknown>>();
+    return { ...actual, TabRpcClient: { wshRpcCall: vi.fn(async () => []) } };
+});
 // The menus the group shows, so a test can read what a row opened (#2341).
 const Menus = vi.hoisted(() => ({ shown: vi.fn() }));
 vi.mock("@/app/store/contextmenu", () => ({
@@ -920,6 +925,16 @@ describe("the block under the square (AC17 and AC20)", () => {
         source: "t",
         readat: Date.now(),
         windows: [{ id: "week", label: "This week", usedpercent: percent, resetsat }],
+    });
+
+    // A frozen clock for the whole block: each reading and use is stamped at the same instant, so the order and the
+    // day marked are the fixtures', not the milliseconds the machine took to build them (#2431).
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["Date"] });
+        vi.setSystemTime(new Date("2026-11-06T10:00:00Z"));
+    });
+    afterEach(() => {
+        vi.useRealTimers();
     });
 
     it("says one line, the moment of a kind colleague (#2203)", () => {
