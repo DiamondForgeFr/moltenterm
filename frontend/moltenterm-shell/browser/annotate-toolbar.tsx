@@ -194,7 +194,9 @@ export function CommentToolbar(props: CommentToolbarProps) {
                             data-testid="browser-annotate-count"
                         >
                             <List size={14} strokeWidth={2} aria-hidden />
-                            {tc("browser.annotate.tray.zones", count)}
+                            {/* A narrow panel keeps the bar on one line: the number alone, the words when there is room. */}
+                            <span className="hidden @[560px]:inline">{tc("browser.annotate.tray.zones", count)}</span>
+                            <span className="@[560px]:hidden">{count}</span>
                         </button>
                         {count >= MaxZones ? (
                             <span className="text-11 text-muted">
@@ -204,11 +206,14 @@ export function CommentToolbar(props: CommentToolbarProps) {
                         {count > 0 ? (
                             <button
                                 type="button"
-                                className="cursor-pointer rounded-4 px-2 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary"
+                                className="inline-flex h-7 shrink-0 cursor-pointer items-center justify-center rounded-4 px-1.5 text-12 text-secondary hover:bg-hover hover:text-primary @[560px]:px-2"
+                                title={t("browser.annotate.tray.clear")}
+                                aria-label={t("browser.annotate.tray.clear")}
                                 onClick={props.onClear}
                                 data-testid="browser-annotate-clear"
                             >
-                                {t("browser.annotate.tray.clear")}
+                                <Trash2 size={14} strokeWidth={2} aria-hidden className="@[560px]:hidden" />
+                                <span className="hidden @[560px]:inline">{t("browser.annotate.tray.clear")}</span>
                             </button>
                         ) : null}
                         {count > 0 ? (
@@ -293,7 +298,7 @@ export function CommentList({
     const t = useT();
     return (
         <aside
-            className="pointer-events-auto absolute top-2 right-2 bottom-16 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col rounded-4 border border-border bg-surface-3 shadow-e2"
+            className="pointer-events-auto absolute top-2 right-2 z-30 flex max-h-[calc(100%-5.5rem)] w-72 max-w-[calc(100%-1rem)] flex-col rounded-4 border border-border bg-surface-3 shadow-e2"
             aria-label={t("browser.annotate.list.title")}
             data-testid="browser-annotate-list"
         >

@@ -95,6 +95,14 @@ describe("the toolbar (FR-BRW-017 AC24)", () => {
         expect(bar()).not.toContain("browser-annotate-clear");
     });
 
+    it("keeps the bar on one line in a narrow panel: the number and an icon, the words when the panel has room", () => {
+        const html = bar({ count: 3 });
+        expect(html).toContain('class="hidden @[560px]:inline">3 comments<');
+        expect(html).toContain('class="@[560px]:hidden">3<');
+        expect(html).toMatch(/aria-label="Clear all"[^>]*data-testid="browser-annotate-clear"/);
+        expect(html).toContain('title="Clear all"');
+    });
+
     it("keeps the call to action alone orange: Review and send is the one molten button", () => {
         const html = bar({ count: 2 });
         expect(html.match(/molten-btn(?![-\w])/g)).toHaveLength(1);

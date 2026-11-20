@@ -488,7 +488,7 @@ function AnnotateLayer({
         <div
             ref={rootRef}
             tabIndex={-1}
-            className={cn("pointer-events-none absolute inset-0 z-20 outline-none", !shown && "hidden")}
+            className={cn("pointer-events-none absolute inset-0 z-20 @container outline-none", !shown && "hidden")}
             aria-label={t("browser.annotate.layerLabel")}
             data-testid="browser-annotate"
             onKeyDown={(e) => {
