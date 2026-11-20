@@ -17,7 +17,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     row-gap: 24px;
-    padding: 22px 12px 4px;
+    padding: 22px 0 4px;
 }
 
 /* A band of a layout (#2395) whose sections have nothing to show leaves no gap. */
@@ -25,10 +25,21 @@
     display: none;
 }
 
-/* The lane between the columns is the room the lines cross. */
+/* A band without a block has no chip to make room for: its sections (the topics, the answer, the files...) keep their
+   own inset and their own spacing, as at full width. */
+.mt-cwork:not(:has(.df-block)) {
+    padding-block: 0;
+    row-gap: 0;
+}
+
+.mt-cwork:not(:has(.df-block)) .mt-cwork-col {
+    gap: 0;
+}
+
+/* The lane between the columns is the room the lines cross: 16 px, and the 12 px each block keeps from its column. */
 .mt-cwork[data-layout="columns"][data-both] {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 40px;
+    column-gap: 16px;
     align-items: start;
 }
 
@@ -39,9 +50,11 @@
     min-width: 0;
 }
 
+/* The blocks keep 12 px from the companion's edges; the other sections of a band inset themselves. */
 .mt-cwork > .df-block,
 .mt-cwork-col > .df-block {
-    margin-top: 0;
+    margin-block: 0;
+    margin-inline: 12px;
     min-width: 0;
 }
 

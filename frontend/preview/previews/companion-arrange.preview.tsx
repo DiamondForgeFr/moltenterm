@@ -21,6 +21,9 @@ import { SessionBar } from "../../moltenterm-shell/companion/companion-session-u
 import { CompanionWork } from "../../moltenterm-shell/companion/companion-work";
 import { I18nModel } from "../../moltenterm-shell/i18n/i18n";
 
+import "../../moltenterm-shell/molten-button.css";
+import "../../moltenterm-shell/moltenterm-shell.css";
+
 const Min = 60 * 1000;
 const Now = Date.now();
 
