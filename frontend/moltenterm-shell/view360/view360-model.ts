@@ -911,14 +911,20 @@ export class View360Model {
     // After a switch (#1654) the focused panel stays in view, the carpet gliding to it, and keeps the keyboard when it
     // had it (or `force`). Measured before the next render: the DOM still shows where the focus was.
     private keepFocusAcrossSwitch(force: boolean) {
-        const blockId = globalStore.get(this.layoutModel.focusedNode)?.data?.blockId;
-        if (blockId == null) {
+        const focusedBlockId = () => globalStore.get(this.layoutModel.focusedNode)?.data?.blockId;
+        if (focusedBlockId() == null) {
             return;
         }
         const container = this.layoutModel.displayContainerRef?.current;
         const focusEl = typeof document === "undefined" ? null : document.activeElement;
         const hadFocus = force || (container != null && focusEl != null && container.contains(focusEl));
         setTimeout(() => {
+            // Read when the timer fires (#2439): a panel whose add made the switch takes the focus after the pass, and
+            // the panel focused during the pass would be revealed and handed the keyboard back in its place.
+            const blockId = focusedBlockId();
+            if (blockId == null) {
+                return;
+            }
             this.revealBlock(blockId);
             if (!hadFocus) {
                 return;
