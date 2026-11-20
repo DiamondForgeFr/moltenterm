@@ -284,6 +284,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#2257): Brokk's agent's permission requests approved without asking (pkg/molten/brokksession/permit.go).
 	BossAutoApprove bool `json:"boss:autoapprove,omitempty" jsonschema_description:"Approve without asking the requests of Brokk's agent that stay in his own folder (reading and editing his files, simple read-only commands, git status, diff, log, show, tests), each one shown as a line in his talk window; everything else still asks. Counts only once confirmed in MoltenTerm's settings. Off when unset"`
 
+	// MOLTENTERM-PATCH (#2431): the days of recent use that put an installed agent in use (frontend/moltenterm-shell/agent-info/providers-in-use.ts).
+	MoltentermProvidersUseDays *int64 `json:"moltenterm:providersusedays,omitempty" jsonschema_description:"The days of recent use that put an installed agent in use: it leads the agent lists and Brokk's usage gauges, the others are folded under Other agents and hidden from the gauges. 7 when unset"`
+
 	// MOLTENTERM-PATCH (#1407): the molten reveal of a settings block opened in the library (FR-SHELL-088, frontend/moltenterm-shell/library/settings-reveal.ts).
 	MoltentermSettingsReveal *bool `json:"moltenterm:settingsreveal,omitempty" jsonschema_description:"A settings block opened in the library is revealed by molten flows that cool and break open, under 700 ms; false, or reduced motion, fades it in instead"`
 

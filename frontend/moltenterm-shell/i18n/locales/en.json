@@ -1290,6 +1290,10 @@
                 "label": "Publication language",
                 "description": "Language of review comments on GitHub when the project names none; empty: from its PRs and README."
             },
+            "moltenterm:providersusedays": {
+                "label": "Days of recent use",
+                "description": "Installed agents used within these days lead the agent lists and the foreman's gauges; the others fold away."
+            },
             "moltenterm:codingagent": {
                 "label": "Default coding agent",
                 "description": "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.",
@@ -1412,6 +1416,7 @@
         },
         "units": {
             "px": "px",
+            "days": "days",
             "lines": "lines",
             "min": "min",
             "ms": "ms",
@@ -11254,6 +11259,7 @@
         },
         "noReview": "The pull request to open is not known.",
         "agent": "Agent",
+        "otherAgents": "Other agents",
         "notInstalled": "{agent}: not installed",
         "missing": "{missing}, the agent chosen for this project, is not installed on this computer. Choose another agent for this run.",
         "missingNone": "{missing}, the agent chosen for this project, is not installed on this computer, and no other supported agent is.",

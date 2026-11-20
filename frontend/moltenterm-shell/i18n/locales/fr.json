@@ -665,6 +665,7 @@
         },
         "units": {
             "px": "px",
+            "days": "jours",
             "lines": "lignes",
             "min": "min",
             "ms": "ms",
@@ -1479,6 +1480,10 @@
             "review:publishlanguage": {
                 "label": "Langue de publication",
                 "description": "Langue des commentaires de revue sur GitHub quand le projet n'en désigne aucune ; vide : d'après ses PR et son README."
+            },
+            "moltenterm:providersusedays": {
+                "label": "Jours d'usage récent",
+                "description": "Un agent installé utilisé dans ces derniers jours passe en tête des listes d'agents et des jauges du contremaître. Les autres sont repliés sous « Autres agents », et les jauges les masquent."
             },
             "moltenterm:codingagent": {
                 "label": "Agent de code par défaut",
@@ -11254,6 +11259,7 @@
         },
         "noReview": "La pull request à ouvrir n'est pas connue.",
         "agent": "Agent",
+        "otherAgents": "Autres agents",
         "notInstalled": "{agent} : non installé",
         "missing": "{missing}, l'agent choisi pour ce projet, n'est pas installé sur cet ordinateur. Choisissez un autre agent pour ce lancement.",
         "missingNone": "{missing}, l'agent choisi pour ce projet, n'est pas installé sur cet ordinateur, et aucun autre agent pris en charge ne l'est.",

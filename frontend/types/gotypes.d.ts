@@ -1526,6 +1526,7 @@ declare global {
         "boss:brainstormsdir"?: string;
         "boss:projectsdir"?: string;
         "boss:autoapprove"?: boolean;
+        "moltenterm:providersusedays"?: number;
         "moltenterm:settingsreveal"?: boolean;
         "moltenterm:theme"?: string;
         "moltenterm:view360"?: string;

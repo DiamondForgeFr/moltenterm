@@ -454,6 +454,7 @@ export class ReviewsModel {
             number: pr.number,
             branch: pr.branch,
             base: pr.base,
+            prAgent: pr.agents?.find((a) => (a.agent ?? "") !== "")?.agent ?? "",
             agent: outcome.agent,
             ...agentChoiceOf(outcome.result),
         });

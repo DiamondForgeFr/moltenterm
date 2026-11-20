@@ -173,6 +173,7 @@ const (
 	ConfigKey_BossProjectsDir                = "boss:projectsdir"
 	ConfigKey_BossAutoApprove                = "boss:autoapprove"
 
+	ConfigKey_MoltentermProvidersUseDays     = "moltenterm:providersusedays"
 	ConfigKey_MoltentermSettingsReveal       = "moltenterm:settingsreveal"
 	ConfigKey_MoltentermTheme                = "moltenterm:theme"
 	ConfigKey_MoltentermView360              = "moltenterm:view360"
