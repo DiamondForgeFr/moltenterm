@@ -15,6 +15,10 @@ const Allowed: Record<string, string> = {
         "the switch's slide handed to the tab view that shows the new workspace, 2.5 s at most",
     "sidebar/sidebar-snapshot.ts": "captures of each workspace's sidebar for the swipe, retaken by each view at rest",
     "sidebar/workspace-sidebar.tsx": "the last workspace list, drawn by a new tab view until wavesrv answers",
+    "switch-layout/layout-memory.ts":
+        "this run's copy of each workspace's remembered layout, read by every view at once (#2407); the workspace's meta keeps it across a restart",
+    "switch-layout/layout-recorder.ts": "drops this run's layout copies of workspaces that are gone (#2407)",
+    "switch-layout/layout-arrival.ts": "reads the switch's record of sidebar-switch.ts, the same moment (#2407)",
     "legacy-storage.ts": "reads and drops what earlier versions kept, to move it into the settings or the meta",
     "reviews/reviews-order-store.ts": "the same move, for the Integration panel's sort and folds (#1758)",
     "boss/brokk-hub-store.ts":

@@ -23,7 +23,7 @@
     border-radius: var(--block-border-radius, 8px);
     background-color: var(--mt-frame-tint, var(--mt-surface-0));
     background-image: linear-gradient(var(--block-bg-color, transparent), var(--block-bg-color, transparent));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil, #fff) 8%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil) 8%, transparent);
 }
 
 /* The domino shows only for a panel that is still not ready after a moment: a warm view's panels are ready at once and
