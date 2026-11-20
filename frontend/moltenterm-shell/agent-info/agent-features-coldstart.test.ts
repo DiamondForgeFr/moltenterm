@@ -22,7 +22,7 @@ describe("cold start (FR-AGC-003)", () => {
         expect(AgentFeaturesModel.getInstance().refreshed).toBe(false);
         expect(rpc.wshRpcCall).toHaveBeenCalledTimes(0);
         expect(codingAgentIds()).toEqual(["claude", "codex"]);
-        expect(agentsWith(matrix, "usage")).toEqual(["claude", "codex"]);
+        expect(agentsWith(matrix, "usage")).toEqual(["claude", "codex", "kimi"]);
         expect(agentsWith(matrix, "launcher")).toEqual(["claude", "codex"]);
         expect(agentsWith(matrix, "statusline")).toEqual(["claude"]);
         expect(agentCommandTable("claude")).toBe(ClaudeCommands);
