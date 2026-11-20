@@ -74,8 +74,8 @@ const view: CompanionView = {
     ],
     subagents,
     files: [
-        { path: "src/checkout/total.ts", kind: "modified", added: 12, removed: 3, edits: 2, at: Now - 2 * Min },
-        { path: "docs/releases/2.4.md", kind: "added", added: 40, removed: 0, edits: 1, at: Now - 1 * Min },
+        { path: "src/checkout/total.ts", kind: "update", added: 12, removed: 3, edits: 2, at: Now - 2 * Min },
+        { path: "docs/releases/2.4.md", kind: "add", added: 40, removed: 0, edits: 1, at: Now - 1 * Min },
     ],
 };
 
