@@ -5,11 +5,9 @@
 
 import { createBlock, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { ObjectService } from "@/app/store/services";
-import type { LayoutTreeResizeNodeAction } from "@/layout/index";
 import { getLayoutModelForStaticTab, LayoutTreeActionType, newLayoutNode } from "@/layout/index";
-import type { LayoutTreeSplitHorizontalAction } from "@/layout/lib/types";
+import type { LayoutTreeInsertNodeAction, LayoutTreeSplitHorizontalAction } from "@/layout/lib/types";
 import { fireAndForget } from "@/util/util";
-import { rowEqualizeOps } from "../equalize/equalize-rules";
 import { currentNewViewChoices } from "../newview/new-view";
 import { NewViewOpenKey } from "../newview/new-view-model";
 import { runPaletteEntry } from "../palette/palette-actions";
@@ -32,9 +30,12 @@ export async function openNewPanel(terminalDef: () => BlockDef): Promise<void> {
         return;
     }
     const blockdef = content.kind === "terminal" ? terminalDef() : content.blockdef;
-    const under = findPanelUnderPointer();
-    const target = newPanelTarget(under?.hit, under?.x, placementFallbackBlockId());
     const layoutModel = getLayoutModelForStaticTab();
+    // Under a 360 × N the panel goes next to the focused one, whatever is under the pointer (FR-SHELL-123-AC17): the
+    // 360 view picks the side and keeps its zones (View360Model.rewriteAction).
+    const zones = layoutModel?.moltenView360?.addMode() === "zones";
+    const under = zones ? null : findPanelUnderPointer();
+    const target = newPanelTarget(under?.hit, under?.x, placementFallbackBlockId());
     if (target == null || layoutModel?.getNodeByBlockId(target.blockId) == null) {
         await createBlock(blockdef);
         return;
@@ -44,10 +45,7 @@ export async function openNewPanel(terminalDef: () => BlockDef): Promise<void> {
     const node = layoutModel.getNodeByBlockId(target.blockId);
     const rootNode = layoutModel.treeState?.rootNode;
     const view360 = layoutModel.moltenView360;
-    const split =
-        node == null
-            ? null
-            : newPanelSplit(rootNode, node.id, target.side, view360?.layout ?? null, view360?.wanted ?? false);
+    const split = node == null ? null : newPanelSplit(rootNode, node.id, target.side, view360?.layout ?? null);
     if (split == null) {
         fireAndForget(() => ObjectService.DeleteBlock(newBlockId));
         return;
@@ -57,21 +55,20 @@ export async function openNewPanel(terminalDef: () => BlockDef): Promise<void> {
         layoutModel.magnifyNodeToggle(layoutModel.magnifiedNodeId, false);
     }
     const newNode = newLayoutNode(undefined, undefined, undefined, { blockId: newBlockId });
-    const action: LayoutTreeSplitHorizontalAction = {
+    if (layoutModel.moltenView360?.addMode() === "zones") {
+        layoutModel.treeReducer({
+            type: LayoutTreeActionType.InsertNode,
+            node: newNode,
+            focused: true,
+        } as LayoutTreeInsertNodeAction);
+        return;
+    }
+    // The siblings of the new panel share their row (LayoutModel.treeReducer, add-panel.ts).
+    layoutModel.treeReducer({
         type: LayoutTreeActionType.SplitHorizontal,
         targetNodeId: split.targetNodeId,
         newNode,
         position: split.position,
         focused: true,
-    };
-    if (!split.equalizeRow) {
-        layoutModel.treeReducer(action);
-        return;
-    }
-    // Both actions before the layout is drawn: no frame with the row uneven.
-    layoutModel.treeReducer(action, false);
-    layoutModel.treeReducer({
-        type: LayoutTreeActionType.ResizeNode,
-        resizeOperations: rowEqualizeOps(layoutModel.treeState?.rootNode, newNode.id),
-    } as LayoutTreeResizeNodeAction);
+    } as LayoutTreeSplitHorizontalAction);
 }

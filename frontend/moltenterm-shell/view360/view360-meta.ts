@@ -9,6 +9,7 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { GroupPages, readGroup, type CarpetGroup } from "./carpet-group";
 import { readPlaces } from "./carpet-places";
+import { readZoneShares, type ZoneShares } from "./carpet-zones";
 import { parsePins, type TabPins } from "./pin-model";
 import { manualChoice, readFractions } from "./view360-decision";
 
@@ -63,6 +64,26 @@ export function storedPlaces(tab: Tab): number {
     return readPlaces((tab?.meta as Record<string, unknown>)?.[View360PlacesMetaKey]);
 }
 
+// The widths of the zones of a 360 × 2 and a 360 × 3 as the developer set them (FR-SHELL-123 AC19, #2433): shares of the
+// carpet's band, one list per number of zones, kept with the view across the carpet's moves, a resized window and a
+// restart.
+export const View360ZonesMetaKey = "molten:view360zones";
+
+export function storedZones(tab: Tab): ZoneShares {
+    return readZoneShares((tab?.meta as Record<string, unknown>)?.[View360ZonesMetaKey]);
+}
+
+function zonesMeta(zones: ZoneShares): ZoneShares {
+    return zones == null || Object.keys(zones).length === 0 ? null : zones;
+}
+
+export function setTabZones(tabId: string, zones: ZoneShares): Promise<void> {
+    return RpcApi.SetMetaCommand(TabRpcClient, {
+        oref: WOS.makeORef("tab", tabId),
+        meta: { [View360ZonesMetaKey]: zonesMeta(zones) } as MetaType,
+    });
+}
+
 // What a 360 × N writes, or its Undo gives back, in one meta write: the view's N, its manual choice, its pins and the
 // fixed zone's width. A field left undefined is not written.
 export type View360PlacesState = {
@@ -71,6 +92,7 @@ export type View360PlacesState = {
     pins?: TabPins;
     fixedPx?: number;
     group?: CarpetGroup;
+    zones?: ZoneShares;
 };
 
 // The view's "360 on the pages" (FR-SHELL-124), next to its N and its pins: "pages", or none for all panels.
@@ -96,6 +118,9 @@ export function writePlacesState(tabId: string, state: View360PlacesState): Prom
     }
     if (state.fixedPx !== undefined) {
         meta[View360FixedPxMetaKey] = state.fixedPx == null ? null : Math.round(state.fixedPx);
+    }
+    if (state.zones !== undefined) {
+        meta[View360ZonesMetaKey] = zonesMeta(state.zones);
     }
     return RpcApi.SetMetaCommand(TabRpcClient, { oref: WOS.makeORef("tab", tabId), meta: meta as MetaType });
 }

@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // "Add a panel on the left / on the right" (#732), in every panel's menus next to "Split…": a new top-level column
-// beside the panel's column, opening on the picker like a split (FR-SHELL-042). The panels already there keep their
-// size when the new column fits beside them. When it does not, the column follows the tab's 360 decision like any
-// other panel added (#1668, FR-SHELL-066): the automatic switch (and its first-switch notice) lays it on the carpet,
-// and under Keep the grid the other columns give width down to their minimums instead.
+// beside the panel's column, opening on the picker like a split (FR-SHELL-042). In the grid the columns share the row
+// equally like for any panel added (#2433, add-panel.ts). When they do not fit, the column follows the tab's 360
+// decision like any other panel added (#1668, FR-SHELL-066): the automatic switch (and its first-switch notice) lays
+// it on the carpet, and under Keep the grid the first column's floor holds and the others give width down to their
+// minimums instead.
 
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
@@ -22,7 +23,6 @@ import {
     columnIndexOf,
     type ColumnPlace,
     insertIndexFor,
-    shrinkableColumns,
 } from "./add-beside-model";
 import { addPanelColumn, addPickerColumn } from "./split";
 
@@ -75,19 +75,15 @@ function planBeside(layoutModel: LayoutModel, blockId: string, side: BesideSide)
         carpetPx: view360?.columnWidthPx(column) ?? DefaultCarpetColumnPx,
     }));
     const firstAsk = insertIndex === 0 ? floor : 0;
-    const sizes = besideFit(kept, insertIndex, Math.max(DefaultCarpetColumnPx, firstAsk), width, gap);
-    if (sizes != null) {
-        return { ...place, columnSizes: sizes };
-    }
-    if (view360?.wantsWithColumns(columns.length + 1, width, gap)) {
+    // The columns' sizes are the layout's (every panel added shares its row, add-panel.ts, #2433): the fit only says
+    // whether the tab stays in the grid or goes to 360 view.
+    const fits = besideFit(kept, insertIndex, Math.max(DefaultCarpetColumnPx, firstAsk), width, gap) != null;
+    if (!fits && view360?.wantsWithColumns(columns.length + 1, width, gap)) {
         // The automatic switch takes the column to the carpet; in 360 view nothing goes before the fixed zone, which
         // the first column becomes.
         return side === "left" && columnIndex === 0 ? null : place;
     }
-    // The tab stays in the grid: the columns give width down to their minimums, the new one an equal share when the
-    // room allows it.
-    const shared = besideFit(shrinkableColumns(kept), insertIndex, firstAsk, width, gap);
-    return shared == null ? place : { ...place, columnSizes: shared };
+    return place;
 }
 
 // The sides offered for the panel's menus.

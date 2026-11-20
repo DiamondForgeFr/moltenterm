@@ -161,7 +161,11 @@ export class EqualizeModel {
     onResizeEnd(draggedTree: boolean): void {
         const view360 = this.layoutModel.moltenView360;
         const dragged360 =
-            view360 != null && (view360.dragFixedPx != null || view360.dragColumn != null || view360.dragPin != null);
+            view360 != null &&
+            (view360.dragFixedPx != null ||
+                view360.dragColumn != null ||
+                view360.dragPin != null ||
+                view360.dragZones != null);
         if (!(draggedTree || dragged360) || !this.auto) {
             return;
         }
@@ -210,7 +214,7 @@ export class EqualizeModel {
         this.carpetTimer = setTimeout(() => {
             this.carpetTimer = null;
             const view360 = this.layoutModel.moltenView360;
-            if (!this.auto || view360?.dragColumn != null) {
+            if (!this.auto || view360?.dragColumn != null || view360?.dragZones != null) {
                 return;
             }
             if (this.equalizeCarpet()) {

@@ -7795,6 +7795,13 @@
                 "other": "{panels} will be pinned under {agent}, as there is no room beside it"
             },
             "quotedName": "“{name}”"
+        },
+        "zones": {
+            "evenOut": "Even out the zones",
+            "evenOutSingle": "One zone is in view: there is nothing to even out",
+            "evenOutEven": "The zones already have equal widths",
+            "toastTitle": "Zones evened out",
+            "toastMessage": "The {count} zones now share the width equally: {shares} %."
         }
     },
     "termcopy": {

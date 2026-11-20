@@ -9,13 +9,13 @@
 import { getLayoutModelForStaticTab, LayoutTreeActionType, newLayoutNode } from "@/layout/index";
 import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { findNode } from "@/layout/lib/layoutNode";
-import type {
-    LayoutNode,
-    LayoutTreeDeleteNodeAction,
-    LayoutTreeResizeNodeAction,
-    LayoutTreeSplitHorizontalAction,
-    LayoutTreeSplitVerticalAction,
-    LayoutTreeSwapNodeAction,
+import {
+    DefaultNodeSize,
+    type LayoutNode,
+    type LayoutTreeDeleteNodeAction,
+    type LayoutTreeSplitHorizontalAction,
+    type LayoutTreeSplitVerticalAction,
+    type LayoutTreeSwapNodeAction,
 } from "@/layout/lib/types";
 import { t } from "../i18n/i18n";
 import type { DropTarget } from "./drop-model";
@@ -29,7 +29,6 @@ import {
     panelPlace,
     PanelZone,
     panelZoneAt,
-    placeSizes,
 } from "./panel-move-model";
 import { insertBlockBeside } from "./split";
 import type { SplitDirection } from "./split-model";
@@ -97,25 +96,16 @@ function placeNode(layoutModel: LayoutModel, place: PanelPlace, node: LayoutNode
     if (root == null || findNode(root, targetNodeId) == null) {
         return false;
     }
-    const sizes = placeSizes(place, root);
-    node.size = sizes.added;
-    const split = {
+    // A panel laid on a zone asks for no size: the siblings it joined share their axis, as for any panel added
+    // (add-panel.ts, #2433).
+    node.size = DefaultNodeSize;
+    layoutModel.treeReducer({
         type: place.kind === "column" ? LayoutTreeActionType.SplitHorizontal : LayoutTreeActionType.SplitVertical,
         targetNodeId,
         newNode: node,
         position: place.position,
         focused: true,
-    } as LayoutTreeSplitHorizontalAction | LayoutTreeSplitVerticalAction;
-    if (sizes.target == null) {
-        layoutModel.treeReducer(split);
-        return true;
-    }
-    // Both actions before the layout is drawn: no frame with the target squeezed by a default size.
-    layoutModel.treeReducer(split, false);
-    layoutModel.treeReducer({
-        type: LayoutTreeActionType.ResizeNode,
-        resizeOperations: [{ nodeId: targetNodeId, size: sizes.target }],
-    } as LayoutTreeResizeNodeAction);
+    } as LayoutTreeSplitHorizontalAction | LayoutTreeSplitVerticalAction);
     return true;
 }
 

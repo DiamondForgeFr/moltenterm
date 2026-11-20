@@ -7795,6 +7795,13 @@
                 "other": "{panels} seront épinglés sous {agent}, faute de place à côté"
             },
             "quotedName": "« {name} »"
+        },
+        "zones": {
+            "evenOut": "Égaliser les zones",
+            "evenOutSingle": "Une seule zone est en vue : il n'y a rien à égaliser",
+            "evenOutEven": "Les zones ont déjà la même largeur",
+            "toastTitle": "Zones égalisées",
+            "toastMessage": "Les {count} zones se partagent la largeur à parts égales : {shares} %."
         }
     },
     "termcopy": {

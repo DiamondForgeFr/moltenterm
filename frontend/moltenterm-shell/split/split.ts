@@ -14,7 +14,7 @@ import type { LayoutModel } from "@/layout/lib/layoutModel";
 import { findNode, findParent } from "@/layout/lib/layoutNode";
 import type { LayoutTreeSplitHorizontalAction, LayoutTreeSplitVerticalAction } from "@/layout/lib/types";
 import { fireAndForget } from "@/util/util";
-import { besideColumns, type ColumnPlace } from "./add-beside-model";
+import { type ColumnPlace } from "./add-beside-model";
 import { HalfSplit, pickerBlockDef, splitAxis, SplitDirection, SplitFromMetaKey, splitSizes } from "./split-model";
 
 // The pickers opened by a split and not chosen or cancelled yet (new block id -> source block id). Not persisted: a
@@ -89,9 +89,12 @@ export function insertBlockBeside(
     if (layoutModel.magnifiedNodeId != null) {
         layoutModel.magnifyNodeToggle(layoutModel.magnifiedNodeId, false);
     }
+    // A half is the new panel's share like any panel added: the siblings share their axis (add-panel.ts, #2433). Another
+    // fraction is a size the caller asked for.
+    const own = fraction !== HalfSplit;
     const sizes = splitSizes(source.size, fraction);
     const { axis, position } = splitAxis(direction);
-    const newNode = newLayoutNode(undefined, sizes.added, undefined, { blockId: newBlockId });
+    const newNode = newLayoutNode(undefined, own ? sizes.added : undefined, undefined, { blockId: newBlockId });
     const splitAction: LayoutTreeSplitHorizontalAction | LayoutTreeSplitVerticalAction = {
         type: axis === "horizontal" ? LayoutTreeActionType.SplitHorizontal : LayoutTreeActionType.SplitVertical,
         targetNodeId: source.id,
@@ -99,6 +102,10 @@ export function insertBlockBeside(
         position,
         focused: true,
     } as LayoutTreeSplitHorizontalAction | LayoutTreeSplitVerticalAction;
+    if (!own) {
+        layoutModel.treeReducer(splitAction);
+        return true;
+    }
     // Both actions before the layout is drawn: no 50/50 frame before the dragged size.
     layoutModel.treeReducer(splitAction, false);
     layoutModel.treeReducer({
@@ -160,8 +167,9 @@ async function addColumn(
     if (layoutModel.magnifiedNodeId != null) {
         layoutModel.magnifyNodeToggle(layoutModel.magnifiedNodeId, false);
     }
-    // The size of its neighbour: back in the normal layout, the new column takes an equal share of the row.
-    const newNode = newLayoutNode(undefined, target.size, undefined, { blockId: newBlockId });
+    // Back in the normal layout the new column and its neighbours share the row equally (add-panel.ts, #2433); in 360
+    // view the carpet lays it out.
+    const newNode = newLayoutNode(undefined, undefined, undefined, { blockId: newBlockId });
     const action: LayoutTreeSplitHorizontalAction = {
         type: LayoutTreeActionType.SplitHorizontal,
         targetNodeId: target.id,
@@ -169,18 +177,7 @@ async function addColumn(
         position: where.position,
         focused: true,
     };
-    const sizes = where.columnSizes;
-    if (!sizes?.length || besideColumns(rootNode).length !== sizes.length - 1) {
-        layoutModel.treeReducer(action);
-        return newBlockId;
-    }
-    // Both actions before the layout is drawn: the existing columns never show squeezed.
-    layoutModel.treeReducer(action, false);
-    const columns = besideColumns(layoutModel.treeState?.rootNode);
-    layoutModel.treeReducer({
-        type: LayoutTreeActionType.ResizeNode,
-        resizeOperations: columns.map((column, i) => ({ nodeId: column.id, size: sizes[i] ?? column.size })),
-    } as LayoutTreeResizeNodeAction);
+    layoutModel.treeReducer(action);
     return newBlockId;
 }
 

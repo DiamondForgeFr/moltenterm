@@ -447,6 +447,13 @@
     color: var(--mt-text-1);
 }
 
+.mt-places-row.is-off,
+.mt-places-row.is-off:hover {
+    background: transparent;
+    color: var(--mt-text-3);
+    cursor: default;
+}
+
 .mt-places-row > .mt-places-kbd {
     margin-left: auto;
 }

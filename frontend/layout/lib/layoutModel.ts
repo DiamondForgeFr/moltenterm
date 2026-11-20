@@ -72,6 +72,8 @@ import {
 import { isHiddenMeta } from "../../moltenterm-shell/hidden-panel-meta";
 // MOLTENTERM-PATCH (#614): 360 view, the first column fixed and the others on a carpet that scrolls horizontally
 import { View360Model } from "../../moltenterm-shell/view360/view360-model";
+// MOLTENTERM-PATCH (#2433): one rule for every panel added: the siblings share their axis, a 360 × N keeps its zones
+import { addedPanelNode, addsMagnified, rebalanceAddedPanel } from "../../moltenterm-shell/addpanel/add-panel";
 // MOLTENTERM-PATCH (#825): equalize the panel columns once, or after every change while the tab's auto mode is on
 import { EqualizeModel } from "../../moltenterm-shell/equalize/equalize-model";
 // MOLTENTERM-PATCH (#1349): a panel added to the view arrives instead of appearing
@@ -221,6 +223,8 @@ export class LayoutModel {
     magnifiedNodeId: string;
     // MOLTENTERM-PATCH (#606): blocks added since the last updateTree, sized from memory once their parent has a size
     moltenAddedBlockIds: string[] = [];
+    // MOLTENTERM-PATCH (#2433): added blocks whose size the add rule settled: the size remembered for their kind is not applied
+    moltenSizedBlockIds: Set<string> = new Set();
     // MOLTENTERM-PATCH (#614): the 360 view (fixed zone + carpet) of this tab
     moltenView360: View360Model;
     // MOLTENTERM-PATCH (#825): the tab's equalize button and its auto mode
@@ -667,6 +671,9 @@ export class LayoutModel {
      * @param action The action to perform.
      */
     treeReducer(action: LayoutTreeAction, setState = true) {
+        // MOLTENTERM-PATCH (#2433): one rule for every panel added, whichever way it comes (see add-panel.ts)
+        const moltenAddMode =
+            addedPanelNode(action) != null && !addsMagnified(action) ? this.moltenView360?.addMode() : null;
         // MOLTENTERM-PATCH (#614): in 360 view a panel opened any way is laid at the end of the carpet
         const moltenLaid = this.moltenView360?.rewriteAction(action, this.treeState.rootNode) ?? action;
         if (moltenLaid !== action) {
@@ -755,6 +762,14 @@ export class LayoutModel {
                 break;
             default:
                 console.error("Invalid reducer action", this.treeState, action);
+        }
+        // MOLTENTERM-PATCH (#2433): the added panel's siblings share their axis equally before the layout is drawn
+        if (moltenAddMode != null) {
+            const node = addedPanelNode(action);
+            const sized = moltenAddMode === "grid" ? rebalanceAddedPanel(this, node) : moltenAddMode === "zones";
+            if (sized && node?.data?.blockId) {
+                this.moltenSizedBlockIds.add(node.data.blockId);
+            }
         }
         if (this.magnifiedNodeId !== this.treeState.magnifiedNodeId) {
             this.lastMagnifiedNodeId = this.magnifiedNodeId;
@@ -855,8 +870,11 @@ export class LayoutModel {
                 const added = this.moltenAddedBlockIds;
                 this.moltenAddedBlockIds = [];
                 // MOLTENTERM-PATCH (#825): auto equalize gives the added panel its share, not its remembered size
+                // MOLTENTERM-PATCH (#2433): nor does a panel whose siblings were rebalanced when it was added
+                const remembered = added.filter((id) => !this.moltenSizedBlockIds.has(id));
+                this.moltenSizedBlockIds.clear();
                 if (!this.moltenEqualize?.auto) {
-                    applyRememberedPanelSizes(this, added);
+                    applyRememberedPanelSizes(this, remembered);
                 }
                 // MOLTENTERM-PATCH (#614): the carpet scrolls to a panel just laid on it
                 this.moltenView360?.onBlocksAdded(added);

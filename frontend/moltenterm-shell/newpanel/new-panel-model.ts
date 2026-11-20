@@ -22,9 +22,9 @@ export type PointerHit = { blockId: string; left: number; width: number };
 
 export type NewPanelTarget = { blockId: string; side: BesideSide };
 
-// Where the split lands, and whether the row it joins is evened out afterwards (never on the 360 carpet, which
-// scrolls: its columns keep their widths).
-export type NewPanelSplit = { targetNodeId: string; position: "before" | "after"; equalizeRow: boolean };
+// Where the split lands. The row it joins is evened out by the layout, which does it for every panel added
+// (LayoutModel.treeReducer, add-panel.ts, #2433), and a 360 × N keeps its zones (View360Model.rewriteAction).
+export type NewPanelSplit = { targetNodeId: string; position: "before" | "after" };
 
 // What the new panel holds: a block, today's terminal (on the connection of the panel the key was pressed in, in the
 // workspace folder, #1839), or an entry that opens nothing in a panel (Sessions, the Project tab), which just runs.
@@ -48,25 +48,19 @@ export function newPanelTarget(hit: PointerHit, pointerX: number, focusedBlockId
 }
 
 // The split for a panel of node nodeId. In the normal layout, a split of the panel itself, so the new one joins its
-// row (or makes one with it) and that row is evened out. In 360 view (layout set), a new top-level column beside the
-// carpet column holding it; over the fixed zone, where nothing goes before it, the start of the carpet. A tab wanting
-// 360 view but not drawn in it yet lets the 360 view lay the split out (rewriteAction), without evening anything.
-export function newPanelSplit(
-    root: LayoutNode,
-    nodeId: string,
-    side: BesideSide,
-    layout: CarpetLayout,
-    wants360: boolean
-): NewPanelSplit {
+// row (or makes one with it). In 360 view (layout set), a new top-level column beside the carpet column holding it;
+// over the fixed zone, where nothing goes before it, the start of the carpet. A tab wanting 360 view but not drawn in
+// it yet lets the 360 view lay the split out (rewriteAction).
+export function newPanelSplit(root: LayoutNode, nodeId: string, side: BesideSide, layout: CarpetLayout): NewPanelSplit {
     if (root == null || !nodeId) {
         return null;
     }
     const position = side === "left" ? "before" : "after";
     if (layout == null) {
-        return { targetNodeId: nodeId, position, equalizeRow: !wants360 };
+        return { targetNodeId: nodeId, position };
     }
     const place = besidePlace(root, nodeId, side, layout) ?? besidePlace(root, nodeId, "right", layout);
-    return place == null ? null : { targetNodeId: place.targetNodeId, position: place.position, equalizeRow: false };
+    return place == null ? null : { targetNodeId: place.targetNodeId, position: place.position };
 }
 
 // What the new panel holds, from "When a new view opens" (app:newviewopen): the chooser by default, the type set to

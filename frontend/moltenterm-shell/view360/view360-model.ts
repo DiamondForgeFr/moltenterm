@@ -92,7 +92,19 @@ import {
     placeWidthPx,
     WheelStepPx,
 } from "./carpet-places";
-import { showPinPlacesToast, showPlacesToast } from "./carpet-places-toast";
+import { showPinPlacesToast, showPlacesToast, showZonesToast } from "./carpet-places-toast";
+import {
+    dragZoneBorder,
+    planZoneInsert,
+    sharesOf,
+    withZoneShares,
+    zoneColumnWidthsPx,
+    zonesAreEven,
+    zoneSharesOf,
+    zoneWidthsPx,
+    type ZoneFocus,
+    type ZoneShares,
+} from "./carpet-zones";
 import {
     countBeside,
     handPins,
@@ -142,12 +154,14 @@ import {
     setTabOfferAnswer,
     setTabPins,
     setTabView360,
+    setTabZones,
     storedFixedPx,
     storedFractions,
     storedGroup,
     storedOfferAnswer,
     storedPins,
     storedPlaces,
+    storedZones,
     tabManualView360,
     View360PlacesState,
     writePlacesState,
@@ -192,6 +206,8 @@ export type PlacesSnapshot = {
     grippedFixedPx: number;
     savedFixedPx: number;
     carpetPx: Map<string, number>;
+    // The zones' shares the view remembered (#2433).
+    zones: ZoneShares;
     scrollLeft: number;
     focusNodeId: string;
 };
@@ -273,6 +289,10 @@ export class View360Model {
     // ({ n: null } a write that forgets it).
     pendingPlacesAtom: PrimitiveAtom<{ n: number }> = atom(null) as PrimitiveAtom<{ n: number }>;
     placesAtom: Atom<number>;
+    // The widths of the zones of a 360 × 2 and a 360 × 3 as the developer set them (FR-SHELL-123 AC19, #2433): from the
+    // tab's meta, or this window's last write ahead of its round trip.
+    pendingZonesAtom: PrimitiveAtom<{ zones: ZoneShares }> = atom(null) as PrimitiveAtom<{ zones: ZoneShares }>;
+    zonesAtom: Atom<ZoneShares>;
     // The places drawn at the last pass: the view's N, or fewer while the window is too narrow for N (AC7); null when
     // the view has no N or is not drawn in 360 view.
     shownPlacesAtom: PrimitiveAtom<number> = atom(null) as PrimitiveAtom<number>;
@@ -312,6 +332,12 @@ export class View360Model {
     dragFixedPx: number = null;
     dragColumn: { nodeId: string; kind: string; px: number } = null;
     dragPin: { nodeId: string; blockId: string; px: number } = null;
+    // The zones' widths being dragged under a 360 × n (#2433).
+    dragZones: { n: number; widths: number[] } = null;
+    // The carpet column in the first zone at the last pass drawn under a 360 × N: where the zones' widths are laid.
+    restColumnId: string = null;
+    // The index of that column among the carpet's columns.
+    layoutPage = 0;
 
     scrollFrame: number = null;
     settleTimer: ReturnType<typeof setTimeout> = null;
@@ -370,6 +396,13 @@ export class View360Model {
             return pending != null ? pending.n : get(metaPlacesAtom);
         });
         this.watch(metaPlacesAtom, () => globalStore.set(this.pendingPlacesAtom, null));
+        const metaZonesAtom = selectAtom(
+            tabAtom,
+            (tab) => storedZones(tab),
+            (a, b) => JSON.stringify(a) === JSON.stringify(b)
+        );
+        this.zonesAtom = atom((get) => get(this.pendingZonesAtom)?.zones ?? get(metaZonesAtom));
+        this.watch(metaZonesAtom, () => globalStore.set(this.pendingZonesAtom, null));
         const metaGroupAtom = selectAtom(tabAtom, (tab) => storedGroup(tab));
         this.groupAtom = atom((get) => get(this.pendingGroupAtom)?.group ?? get(metaGroupAtom));
         this.watch(metaGroupAtom, () => globalStore.set(this.pendingGroupAtom, null));
@@ -409,6 +442,12 @@ export class View360Model {
         // Another N redraws the carpet, also while the view was already in 360 view.
         this.watch(this.placesAtom, () => {
             if (!this.inLayoutPass) {
+                this.layoutModel.updateTree();
+            }
+        });
+        // Zones set in another window of the same view (#2433).
+        this.watch(this.zonesAtom, () => {
+            if (!this.inLayoutPass && this.dragZones == null) {
                 this.layoutModel.updateTree();
             }
         });
@@ -1024,10 +1063,24 @@ export class View360Model {
         // a 360 × N every carpet column takes the width of one place, so the carpet always shows N whole panels.
         const indexes = carpet.map((c) => split.carpet.indexOf(c) + 1);
         const room = layout.viewport.width;
-        const slots =
-            shownPlaces != null
-                ? carpet.map(() => placeWidthPx(layout.viewport.width, shownPlaces))
-                : carpetSlotWidthsPx(fractions, indexes, room, CarpetColumnGapPx);
+        // A 360 × N shares the band between its zones (#2433): equal parts, or the shares the developer set, laid from
+        // the carpet's first column in view.
+        let slots: number[];
+        let alignedPage = -1;
+        if (shownPlaces == null) {
+            this.restColumnId = null;
+            slots = carpetSlotWidthsPx(fractions, indexes, room, CarpetColumnGapPx);
+        } else {
+            const page = this.pageIndex(carpet, shownPlaces);
+            this.layoutPage = page;
+            this.restColumnId = carpet[page]?.id ?? null;
+            const zones = this.zoneWidths(room, shownPlaces);
+            slots =
+                zones == null
+                    ? carpet.map(() => placeWidthPx(room, shownPlaces))
+                    : zoneColumnWidthsPx(zones, page, carpet.length);
+            alignedPage = zones == null ? -1 : page;
+        }
         if (slots != null) {
             carpet.forEach((c, i) => this.slotPx.set(c.id, slots[i]));
             layout = computeCarpetLayout(carpetInput());
@@ -1054,8 +1107,126 @@ export class View360Model {
         this.setLayout(layout);
         this.setPlacements(placements);
         this.setShownPlaces(shownPlaces);
-        this.settlePlacesScroll(layout, shownPlaces, resized ? anchorIndex : -1);
+        this.settlePlacesScroll(layout, shownPlaces, resized ? anchorIndex : -1, alignedPage);
         return layout;
+    }
+
+    // ---- the zones of a 360 × N (FR-SHELL-123 AC17 to AC20, #2433) ---------------------------------------------------
+
+    zones(): ZoneShares {
+        return globalStore.get(this.zonesAtom);
+    }
+
+    // The shares of n zones as this window has them: the drag in progress, else the developer's, null while equal.
+    private zoneSharesFor(n: number): number[] {
+        if (this.dragZones?.n === n) {
+            return sharesOf(this.dragZones.widths);
+        }
+        return zoneSharesOf(this.zones(), n);
+    }
+
+    // The zones' widths over a band, or null while they are equal parts (the carpet's own slots).
+    private zoneWidths(bandPx: number, n: number): number[] {
+        const shares = this.zoneSharesFor(n);
+        return shares == null ? null : zoneWidthsPx(bandPx, n, shares);
+    }
+
+    // The widths of the n zones as drawn, whether the developer set them or not.
+    zoneWidthsNow(n: number): number[] {
+        const band = this.layout?.viewport.width ?? 0;
+        return zoneWidthsPx(band, n, this.zoneSharesFor(n));
+    }
+
+    // The index among the carpet columns of the first one in view: the one an add or a close asked for, the one an
+    // Undo brings back, the one the carpet rests on, else the one the scroll is at.
+    private pageIndex(carpet: LayoutNode[], n: number): number {
+        const max = Math.max(0, carpet.length - n);
+        const byId = (id: string) => (id == null ? -1 : carpet.findIndex((c) => c.id === id));
+        let index = byId(this.pendingStart?.columnId);
+        if (index < 0 && this.pendingStart == null && this.pendingRestore == null) {
+            // Where the carpet rests is where its scroll is; during a glide, the page it left.
+            const atRest = this.smoothFrame == null && this.layout != null;
+            index = byId(atRest ? this.layout.columns[this.placesAnchorIndex()]?.nodeId : this.restColumnId);
+            if (index < 0) {
+                index = byId(this.restColumnId);
+            }
+        }
+        if (index < 0) {
+            const at = this.pendingRestore != null ? this.columnIndexAt(this.pendingRestore.scrollLeft) : -1;
+            index = at >= 0 ? at : this.placesAnchorIndex();
+        }
+        return Math.min(Math.max(0, index), max);
+    }
+
+    // The carpet column whose start is the first at or after a scroll position, in the layout last drawn.
+    private columnIndexAt(scrollLeft: number): number {
+        const layout = this.layout;
+        if (layout == null || !layout.columns.length) {
+            return -1;
+        }
+        const index = layout.columns.findIndex((c) => c.x + c.width / 2 > scrollLeft);
+        return index < 0 ? layout.columns.length - 1 : index;
+    }
+
+    // The carpet came to rest (a glide ended, a jump): the zones' widths follow the column now in the first zone, which
+    // takes the width of its place. Nothing to lay again while the zones are equal.
+    private settlePage() {
+        const layout = this.layout;
+        const n = globalStore.get(this.shownPlacesAtom);
+        if (layout == null || n == null || this.smoothFrame != null || this.glideTarget != null) {
+            return;
+        }
+        if (this.dragZones != null || this.pendingStart != null || this.pendingRestore != null) {
+            return;
+        }
+        const index = Math.min(Math.max(0, this.placesAnchorIndex()), Math.max(0, layout.columns.length - n));
+        const id = layout.columns[index]?.nodeId ?? null;
+        if (id == null || id === this.restColumnId) {
+            return;
+        }
+        this.restColumnId = id;
+        if (this.zoneSharesFor(n) != null) {
+            this.layoutModel.updateTree(false);
+        }
+    }
+
+    private writeZones(zones: ZoneShares) {
+        if (JSON.stringify(zones ?? {}) === JSON.stringify(this.zones() ?? {})) {
+            return;
+        }
+        globalStore.set(this.pendingZonesAtom, { zones });
+        const tabId = this.tabId;
+        if (tabId != null) {
+            fireAndForget(() => setTabZones(tabId, zones));
+        }
+    }
+
+    // Whether "Even out the zones" has something to do: why not, or null when it has (AC20).
+    evenZonesWhy(): "single" | "even" | null {
+        const n = globalStore.get(this.shownPlacesAtom);
+        if (n == null || n < 2) {
+            return "single";
+        }
+        return zonesAreEven(this.zoneSharesFor(n), n) ? "even" : null;
+    }
+
+    // "Even out the zones" (AC20): the visible zones take equal widths, the view forgets its shares for this number of
+    // zones, and the message offers Undo for 10 s. Returns false when there is nothing to do.
+    evenZones(): boolean {
+        const n = globalStore.get(this.shownPlacesAtom);
+        if (this.evenZonesWhy() != null || n == null) {
+            return false;
+        }
+        const before = this.zones();
+        this.writeZones(withZoneShares(before, n, null));
+        this.layoutModel.updateTree();
+        showZonesToast(n, () => this.restoreZones(before));
+        return true;
+    }
+
+    private restoreZones(zones: ZoneShares) {
+        this.writeZones(zones ?? {});
+        this.layoutModel.updateTree();
     }
 
     // ---- 360 × N (FR-SHELL-123) ------------------------------------------------------------------------------------
@@ -1069,7 +1240,8 @@ export class View360Model {
     equalizeParts(): number {
         const layout = this.layout;
         const width = this.layoutWidth;
-        const dragging = this.dragFixedPx != null || this.dragColumn != null || this.dragPin != null;
+        const dragging =
+            this.dragFixedPx != null || this.dragColumn != null || this.dragPin != null || this.dragZones != null;
         if (layout == null || !layout.columns.length || !(width > 0) || dragging) {
             return null;
         }
@@ -1080,11 +1252,15 @@ export class View360Model {
         // Decided on what the view was asked for, not on the drawn widths, which the layout may round or clamp: the
         // auto mode would otherwise ask again after every pass.
         if (shown != null) {
-            if (this.grippedFixedPx == null && this.carpetPx.size === 0 && !floorAbove) {
+            const zonesSet = zoneSharesOf(this.zones(), shown) != null;
+            if (this.grippedFixedPx == null && this.carpetPx.size === 0 && !floorAbove && !zonesSet) {
                 return null;
             }
             this.grippedFixedPx = null;
             this.carpetPx.clear();
+            if (zonesSet) {
+                this.writeZones(withZoneShares(this.zones(), shown, null));
+            }
             if (floorAbove) {
                 setFirstColumnFloor(parts.fixedPx);
             }
@@ -1123,7 +1299,7 @@ export class View360Model {
 
     // Where the carpet rests after a pass: the start place an apply asked for, the scroll an Undo gives back, or, once
     // the places changed width, the same first place as before.
-    private settlePlacesScroll(layout: CarpetLayout, shownPlaces: number, anchorIndex: number) {
+    private settlePlacesScroll(layout: CarpetLayout, shownPlaces: number, anchorIndex: number, alignedPage = -1) {
         if (this.pendingRestore != null) {
             const { scrollLeft, focusNodeId } = this.pendingRestore;
             this.pendingRestore = null;
@@ -1142,7 +1318,15 @@ export class View360Model {
             this.scrollTo(placeScrollPx(layout, placesStartIndex(index, layout.columns.length, shownPlaces)));
             return;
         }
-        if (anchorIndex >= 0 && this.smoothFrame == null) {
+        if (this.smoothFrame != null) {
+            return;
+        }
+        // The zones' widths are laid from the column in the first zone: the carpet rests on its start edge.
+        if (alignedPage >= 0) {
+            this.scrollTo(placeScrollPx(layout, alignedPage));
+            return;
+        }
+        if (anchorIndex >= 0) {
             this.scrollTo(placeScrollPx(layout, anchorIndex));
         }
     }
@@ -1369,6 +1553,8 @@ export class View360Model {
         // Another N redraws by itself (placesAtom); otherwise the pass is asked for here.
         const changed = this.places() !== n;
         this.writePlacesWithGroup(n, group, pinsChanged ? pins : undefined);
+        // Equal parts on apply (AC5): the zones the view remembered for this number are forgotten.
+        this.writeZones(withZoneShares(this.zones(), n, null));
         if (!changed) {
             this.layoutModel.updateTree();
         }
@@ -1401,6 +1587,7 @@ export class View360Model {
             grippedFixedPx: this.grippedFixedPx,
             savedFixedPx: this.savedFixedPx,
             carpetPx: new Map(this.carpetPx),
+            zones: this.zones(),
             scrollLeft: this.scrollLeft,
             focusNodeId: globalStore.get(this.layoutModel.focusedNode)?.id ?? null,
         };
@@ -1413,6 +1600,7 @@ export class View360Model {
         this.grippedFixedPx = snapshot.grippedFixedPx;
         this.savedFixedPx = snapshot.savedFixedPx;
         this.carpetPx = new Map(snapshot.carpetPx);
+        this.writeZones(snapshot.zones ?? {});
         this.pendingRestore = { scrollLeft: snapshot.scrollLeft, focusNodeId: snapshot.focusNodeId };
         // The grouping and its marked pins come back too (FR-SHELL-124-AC6).
         const pinsChanged = JSON.stringify(snapshot.pins) !== JSON.stringify(globalStore.get(this.pinsAtom));
@@ -1567,8 +1755,14 @@ export class View360Model {
                     stuckTitleKey: NoRoomKeys[this.fixedNoRoom(column)],
                 });
             });
+        // Under a 360 × N the only borders are those between two zones in view (#2433): none at the band's edges, where
+        // a drag would add a zone or open a gap.
+        const zones = globalStore.get(this.shownPlacesAtom);
         layout.columns.forEach((column, i) => {
             if (!carpetColumnHasHandle(layout, i)) {
+                return;
+            }
+            if (zones != null && !(i - this.layoutPage >= 0 && i - this.layoutPage < zones - 1)) {
                 return;
             }
             const rect = carpetColumnRect(layout, column);
@@ -1598,6 +1792,10 @@ export class View360Model {
     rewriteAction(action: LayoutTreeAction, rootNode: LayoutNode): LayoutTreeAction {
         if (!this.wanted || rootNode == null) {
             return action;
+        }
+        const zoned = this.rewriteForZones(action, rootNode);
+        if (zoned != null) {
+            return zoned;
         }
         let newNode: LayoutNode = null;
         let focused = false;
@@ -1665,6 +1863,106 @@ export class View360Model {
         return rtn;
     }
 
+    // How a panel added now is laid (FR-SHELL-123 AC17, FR-SHELL-042 AC-grid, #2433): "grid" in the normal layout, where
+    // the siblings of the new panel share their row equally; "zones" under a 360 × N that the new panel makes store
+    // something, where it takes a zone next to the focused panel; "carpet" in the plain 360 view, which lays it at
+    // the end of the carpet.
+    addMode(): "grid" | "zones" | "carpet" {
+        if (!this.wanted) {
+            return "grid";
+        }
+        if (this.places() == null) {
+            return "carpet";
+        }
+        const carpet = this.zoneCarpet(this.layoutModel.treeState?.rootNode);
+        const n = this.zoneCount();
+        return carpet == null || n == null || carpet.length + 1 <= n ? "grid" : "zones";
+    }
+
+    // The carpet's columns as a panel added now would find them (the pinned ones are in the fixed zone), null without.
+    private zoneCarpet(rootNode: LayoutNode): LayoutNode[] {
+        const split = splitCarpetColumns(rootNode);
+        return split == null ? null : partPinnedColumns(split.carpet, globalStore.get(this.pinsAtom)).carpet;
+    }
+
+    // The zones in view under a 360 × N, drawn or about to be.
+    private zoneCount(): number {
+        const shown = globalStore.get(this.shownPlacesAtom);
+        const places = this.places();
+        if (shown != null || places == null) {
+            return shown;
+        }
+        const pinned = this.besidePx;
+        return effectivePlaces(places, this.lastEvalWidth, currentFirstColumnFloorPx() ?? 0, pinned);
+    }
+
+    // A panel added under a 360 × N is inserted next to the focused panel and the zones keep their number
+    // (FR-SHELL-123 AC17): the panel the action names stands for the focus when it is in view, otherwise the focused
+    // one does. Without either (nothing in focus) the plain carpet rule applies. Returns null for anything else.
+    private rewriteForZones(action: LayoutTreeAction, rootNode: LayoutNode): LayoutTreeSplitHorizontalAction {
+        let newNode: LayoutNode = null;
+        let focused = false;
+        let named: string = null;
+        let side: "before" | "after" = null;
+        switch (action?.type) {
+            case LayoutTreeActionType.InsertNode:
+            case LayoutTreeActionType.InsertNodeAtIndex: {
+                const insert = action as LayoutTreeInsertNodeAction | LayoutTreeInsertNodeAtIndexAction;
+                if (insert.magnified) {
+                    return null;
+                }
+                newNode = insert.node;
+                focused = !!insert.focused;
+                break;
+            }
+            case LayoutTreeActionType.SplitHorizontal: {
+                const split = action as LayoutTreeSplitHorizontalAction;
+                newNode = split.newNode;
+                focused = !!split.focused;
+                named = split.targetNodeId;
+                side = split.position;
+                break;
+            }
+            default:
+                return null;
+        }
+        if (newNode == null || this.addMode() !== "zones") {
+            return null;
+        }
+        const carpet = this.zoneCarpet(rootNode);
+        const n = this.zoneCount();
+        const page = this.pageIndex(carpet, n);
+        // Where a panel stands: a carpet column in view, the fixed zone, or nowhere the zones can follow.
+        const resolve = (
+            nodeId: string,
+            nodeSide: "before" | "after"
+        ): { focus: ZoneFocus; side: "before" | "after" } => {
+            if (nodeId == null) {
+                return null;
+            }
+            const index = carpet.findIndex((column) => findNode(column, nodeId) != null);
+            if (index >= 0) {
+                return index >= page && index < page + n ? { focus: { kind: "column", index }, side: nodeSide } : null;
+            }
+            return findNode(rootNode, nodeId) != null ? { focus: { kind: "fixed" }, side: null } : null;
+        };
+        const anchor = resolve(named, side) ?? resolve(globalStore.get(this.layoutModel.focusedNode)?.id, null);
+        if (anchor == null) {
+            return null;
+        }
+        const plan = planZoneInsert(carpet.length, page, n, anchor.focus, anchor.side);
+        const target = plan.index < carpet.length ? carpet[plan.index] : carpet[carpet.length - 1];
+        const columns = [...carpet.slice(0, plan.index), newNode, ...carpet.slice(plan.index)];
+        this.pendingStart = { columnId: columns[plan.start].id };
+        return {
+            type: LayoutTreeActionType.SplitHorizontal,
+            targetNodeId: target.id,
+            newNode,
+            position: plan.index < carpet.length ? "before" : "after",
+            focused,
+        } as LayoutTreeSplitHorizontalAction;
+    }
+
     // Called once the layout has placed newly added blocks: the carpet scrolls to the last one laid on it.
     // Under a 360 × N only a panel that took the focus is shown (a page opened from a page), and the page an agent
     // opens through the molten-browser server, which the developer is meant to see (#1812, FR-SHELL-123-AC11): any
@@ -1686,18 +1984,6 @@ export class View360Model {
             }
         }
         this.revealBlock(last);
-    }
-
-    // Where a panel an agent opens goes under a 360 × N (AC11): after the carpet's last panel, so the places in view
-    // stay. Null otherwise: it goes beside the panel it comes from.
-    carpetEndBlockId(): string {
-        if (this.layout == null || globalStore.get(this.shownPlacesAtom) == null || !this.layout.columns.length) {
-            return null;
-        }
-        const rootNode = this.layoutModel.treeState?.rootNode;
-        const last = this.layout.columns[this.layout.columns.length - 1];
-        const ids = leafBlockIds(rootNode == null ? null : findNode(rootNode, last.nodeId));
-        return ids[ids.length - 1] ?? null;
     }
 
     // Glides the carpet so the panel's column is fully in view (#747): anything drawn on a panel for the keyboard
@@ -1936,6 +2222,15 @@ export class View360Model {
             this.dragFixedPx = clampFixedDragPx(x, container.width, this.fixedNeedPx);
         } else if (isFixedHandle) {
             return true;
+        } else if (globalStore.get(this.shownPlacesAtom) != null) {
+            // Under a 360 × N a border only trades width between the two zones it lies between (#2433).
+            const n = globalStore.get(this.shownPlacesAtom);
+            const index = handle.parentIndex - 1 - this.layoutPage;
+            if (index < 0 || index >= n - 1) {
+                return true;
+            }
+            const widths = this.dragZones?.n === n ? this.dragZones.widths : this.zoneWidthsNow(n);
+            this.dragZones = { n, widths: dragZoneBorder(widths, index, x - layout.viewport.left) };
         } else {
             const column = layout.columns[handle.parentIndex - 1];
             // A handle drawn before the carpet changed may name what is now the last column, which has none (#1836).
@@ -1955,8 +2250,13 @@ export class View360Model {
     }
 
     onResizeEnd(): boolean {
-        if (this.dragFixedPx == null && this.dragColumn == null && this.dragPin == null) {
+        if (this.dragFixedPx == null && this.dragColumn == null && this.dragPin == null && this.dragZones == null) {
             return false;
+        }
+        if (this.dragZones != null) {
+            const { n, widths } = this.dragZones;
+            this.dragZones = null;
+            this.writeZones(withZoneShares(this.zones(), n, sharesOf(widths)));
         }
         if (this.dragPin != null) {
             const { blockId, px } = this.dragPin;
@@ -2132,6 +2432,7 @@ export class View360Model {
         if (this.glideTarget == null && globalStore.get(this.glideTargetAtom) != null) {
             globalStore.set(this.glideTargetAtom, null);
         }
+        this.settlePage();
     }
 
     private revealFocusedNode() {

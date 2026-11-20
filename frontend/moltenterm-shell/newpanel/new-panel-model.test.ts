@@ -6,7 +6,7 @@ import { FlexDirection, type LayoutNode, type LayoutTreeState } from "@/layout/l
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { rowEqualizeOps } from "../equalize/equalize-rules";
+import { addedPanelOps } from "../equalize/equalize-rules";
 import {
     ChooserBlockDef,
     newViewChoices,
@@ -53,9 +53,10 @@ function layout360(fixed: string[], carpet: string[]): CarpetLayout {
     } as CarpetLayout;
 }
 
-// Runs ⌘N's split and row equalize on a tree as the layout does, and returns the root.
+// Runs ⌘T's split and the row's equalize on a tree as the layout does for every panel added, and returns the root. The
+// layout's own funnel is tested in addpanel/add-panel.test.ts.
 function openBeside(root: LayoutNode, nodeId: string, side: "left" | "right"): LayoutNode {
-    const split = newPanelSplit(root, nodeId, side, null, false);
+    const split = newPanelSplit(root, nodeId, side, null);
     const state = { rootNode: root } as LayoutTreeState;
     const newNode = leaf("new", 10);
     splitHorizontal(state, {
@@ -64,7 +65,7 @@ function openBeside(root: LayoutNode, nodeId: string, side: "left" | "right"): L
         newNode,
         position: split.position,
     } as any);
-    for (const op of rowEqualizeOps(state.rootNode, newNode.id)) {
+    for (const op of addedPanelOps(state.rootNode, newNode.id)) {
         const find = (n: LayoutNode): LayoutNode =>
             n.id === op.nodeId ? n : (n.children ?? []).map(find).find((x) => x != null);
         find(state.rootNode).size = op.size;
@@ -140,32 +141,20 @@ describe("in 360 view (#1241)", () => {
     const tree = node("root", FlexDirection.Row, [leaf("a"), leaf("p"), stack, leaf("c")]);
     const layout = layout360(["a", "p"], ["stack", "c"]);
 
-    it("puts the new panel beside the carpet column under the pointer, widths untouched", () => {
-        expect(newPanelSplit(tree, "b2", "left", layout, true)).toEqual({
-            targetNodeId: "stack",
-            position: "before",
-            equalizeRow: false,
-        });
-        expect(newPanelSplit(tree, "c", "right", layout, true)).toEqual({
-            targetNodeId: "c",
-            position: "after",
-            equalizeRow: false,
-        });
+    it("puts the new panel beside the carpet column under the pointer", () => {
+        expect(newPanelSplit(tree, "b2", "left", layout)).toEqual({ targetNodeId: "stack", position: "before" });
+        expect(newPanelSplit(tree, "c", "right", layout)).toEqual({ targetNodeId: "c", position: "after" });
     });
 
     it("puts it at the start of the carpet from the fixed zone, whichever half", () => {
-        const start = { targetNodeId: "stack", position: "before", equalizeRow: false };
-        expect(newPanelSplit(tree, "a", "left", layout, true)).toEqual(start);
-        expect(newPanelSplit(tree, "a", "right", layout, true)).toEqual(start);
-        expect(newPanelSplit(tree, "p", "left", layout, true)).toEqual(start);
+        const start = { targetNodeId: "stack", position: "before" };
+        expect(newPanelSplit(tree, "a", "left", layout)).toEqual(start);
+        expect(newPanelSplit(tree, "a", "right", layout)).toEqual(start);
+        expect(newPanelSplit(tree, "p", "left", layout)).toEqual(start);
     });
 
-    it("lets the 360 view lay it out without evening the row while the tab wants 360 view but is not drawn in it", () => {
-        expect(newPanelSplit(tree, "c", "right", null, true)).toEqual({
-            targetNodeId: "c",
-            position: "after",
-            equalizeRow: false,
-        });
+    it("splits the panel itself while the tab is not drawn in 360 view: the 360 view lays it out if it wants it", () => {
+        expect(newPanelSplit(tree, "c", "right", null)).toEqual({ targetNodeId: "c", position: "after" });
     });
 });
 

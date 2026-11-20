@@ -6,6 +6,7 @@
 // each child of a row a weight in proportion to the columns it holds.
 
 import { FlexDirection, type LayoutNode, type ResizeNodeOperation } from "@/layout/lib/types";
+import { sharedColumnSizes } from "../view360/view360-decision";
 
 // Wave's resize refuses sizes over 100: the children of a row share this total.
 const RowTotal = 100;
@@ -91,22 +92,51 @@ function parentOf(node: LayoutNode, nodeId: string): LayoutNode {
     return null;
 }
 
-// The equalize of the row holding a node only (#1241, a panel opened with ⌘T): the row's children get the same width
-// per column they span, and nothing inside them is touched, so a stacked column keeps its heights and the other rows
-// keep their widths. Empty when the node's parent is not a row of two or more, or is already even.
-export function rowEqualizeOps(root: LayoutNode, nodeId: string): ResizeNodeOperation[] {
-    const row = parentOf(root, nodeId);
-    if (!isRow(row) || row.children.length < 2) {
-        return [];
-    }
-    const spans = row.children.map(columnSpan);
-    const total = spans.reduce((acc, n) => acc + n, 0);
+function evenOps(children: LayoutNode[], weights: number[]): ResizeNodeOperation[] {
+    const total = weights.reduce((acc, n) => acc + n, 0);
     const ops: ResizeNodeOperation[] = [];
-    row.children.forEach((child, i) => {
-        const size = (RowTotal * spans[i]) / total;
+    children.forEach((child, i) => {
+        const size = (RowTotal * weights[i]) / total;
         if (Math.abs((child.size ?? 0) - size) > SizeEpsilon) {
             ops.push({ nodeId: child.id, size });
         }
     });
     return ops;
+}
+
+// The top-level columns' floor when a panel is added (FR-SHELL-042 AC-grid, #2433): the tab's width and the minimum of
+// each column, the first column's floor included.
+export type AddedPanelFloor = { parentId: string; minsPx: number[]; widthPx: number; gapPx: number };
+
+// The sizes of a panel just added (#1241, #2433): the siblings it joined share their axis equally, the new one included:
+// a row by the columns each spans, a column's rows alike, nothing inside them touched, so a stacked column keeps its
+// heights and the other rows keep their widths. A row of top-level columns whose equal
+// parts would put a column under its minimum shares the width as "Readjust every size" does, so the first column's
+// floor holds and the 360 view takes over when they do not fit. Empty when the node has no sibling, or all are even.
+export function addedPanelOps(root: LayoutNode, nodeId: string, floor?: AddedPanelFloor): ResizeNodeOperation[] {
+    const parent = parentOf(root, nodeId);
+    if (parent == null || (parent.children?.length ?? 0) < 2) {
+        return [];
+    }
+    const children = parent.children;
+    if (!isRow(parent)) {
+        return evenOps(
+            children,
+            children.map(() => 1)
+        );
+    }
+    const spans = children.map(columnSpan);
+    if (floor?.parentId !== parent.id || floor.minsPx?.length !== children.length || !(floor.widthPx > 0)) {
+        return evenOps(children, spans);
+    }
+    const total = spans.reduce((acc, n) => acc + n, 0);
+    const room = floor.widthPx - Math.max(0, floor.gapPx || 0) * (children.length - 1);
+    const tight = children.some((_, i) => (spans[i] / total) * room + 0.5 < floor.minsPx[i]);
+    if (!tight) {
+        return evenOps(children, spans);
+    }
+    const sizes = sharedColumnSizes(floor.minsPx, floor.widthPx, floor.gapPx);
+    return children.flatMap((child, i) =>
+        Math.abs((child.size ?? 0) - sizes[i]) > SizeEpsilon ? [{ nodeId: child.id, size: sizes[i] }] : []
+    );
 }
