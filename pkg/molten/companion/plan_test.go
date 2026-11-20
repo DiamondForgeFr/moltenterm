@@ -4,6 +4,7 @@
 package companion
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -110,6 +111,74 @@ func TestForgetBlockDropsThePlan(t *testing.T) {
 	m.ForgetBlock("block-1")
 	if _, ok := m.planFor("block-1", "/sessions/a.jsonl"); ok {
 		t.Fatal("a closed block keeps its plan")
+	}
+}
+
+// A manager that keeps the plans in dir, as the app does in its data folder, with the block's session at path.
+func persistentPlanManager(dir string, path string) *Manager {
+	m := planTestManager(path)
+	m.planDir = dir
+	return m
+}
+
+func TestPlanSurvivesARestartWhileTheSessionLives(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	before := persistentPlanManager(dir, "/sessions/a.jsonl")
+	applyOp(t, before, molten.AgentPlanRequest{Op: agentplan.OpSet, Steps: []string{"Read", "Write"}})
+	applyOp(t, before, molten.AgentPlanRequest{Op: agentplan.OpStart, Index: 1})
+	applyOp(t, before, molten.AgentPlanRequest{Op: agentplan.OpDone, Index: 1})
+
+	after := persistentPlanManager(dir, "/sessions/a.jsonl")
+	shown := applyOp(t, after, molten.AgentPlanRequest{Op: agentplan.OpShow})
+	if len(shown.Steps) != 2 || shown.Steps[0].Status != agentplan.StatusCompleted || shown.Steps[1].Status != agentplan.StatusPending {
+		t.Fatalf("after a restart the plan is %+v", shown)
+	}
+	if shown.Steps[0].DoneAt != 5000 {
+		t.Fatalf("the done time was lost: %+v", shown.Steps[0])
+	}
+}
+
+func TestPlanOfAnotherSessionIsNotReadBack(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	applyOp(t, persistentPlanManager(dir, "/sessions/a.jsonl"), molten.AgentPlanRequest{Op: agentplan.OpSet, Steps: []string{"Read"}})
+	after := persistentPlanManager(dir, "/sessions/b.jsonl")
+	if _, ok := after.planFor("block-1", "/sessions/b.jsonl"); ok {
+		t.Fatal("a new session read the plan of an earlier one")
+	}
+}
+
+func TestPlanIsDroppedWhenTheSessionEnds(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	m := persistentPlanManager(dir, "/sessions/a.jsonl")
+	applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpSet, Steps: []string{"Read"}})
+
+	w := makeWatcher(m, "block-1")
+	w.path = "/sessions/a.jsonl"
+	w.noRun()
+
+	if _, ok := persistentPlanManager(dir, "/sessions/a.jsonl").planFor("block-1", "/sessions/a.jsonl"); ok {
+		t.Fatal("the plan of an ended session came back after a restart")
+	}
+	if _, err := os.Stat(planFileName(dir, "/sessions/a.jsonl")); !os.IsNotExist(err) {
+		t.Fatalf("the plan file of the ended session is still there: %v", err)
+	}
+}
+
+func TestPlanFileHoldsOnlyItsSession(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	m := persistentPlanManager(dir, "/sessions/a.jsonl")
+	applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpSet, Steps: []string{"A"}})
+	m.reports["block-1"] = sessionReport{agent: "claude", path: "/sessions/b.jsonl", at: time.UnixMilli(2)}
+	applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpSet, Steps: []string{"B"}})
+	if a, ok := readPlanFile(dir, "/sessions/a.jsonl"); !ok || a.Steps[0].Text != "A" {
+		t.Fatalf("session a's file = %+v, %v", a, ok)
+	}
+	if b, ok := readPlanFile(dir, "/sessions/b.jsonl"); !ok || b.Steps[0].Text != "B" {
+		t.Fatalf("session b's file = %+v, %v", b, ok)
 	}
 }
 

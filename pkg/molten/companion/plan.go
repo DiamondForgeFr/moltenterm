@@ -4,7 +4,12 @@
 package companion
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentplan"
@@ -64,22 +69,101 @@ func applyPlanOp(p agentplan.Plan, req molten.AgentPlanRequest, now int64) (agen
 	return p, fmt.Errorf("unknown plan operation %q", req.Op)
 }
 
-// planFor returns the plan the block's companion shows for a session path, and whether it has one.
+// planFor returns the plan the block's companion shows for a session path, and whether it has one. A session's plan
+// the app kept on disk (before a restart) is read back when the block has none in memory.
 func (m *Manager) planFor(blockId string, path string) (agentplan.Plan, bool) {
 	m.lock.Lock()
-	defer m.lock.Unlock()
 	entry, ok := m.plans[blockId]
-	if !ok || (entry.session != "" && entry.session != path) {
+	dir := m.planDir
+	m.lock.Unlock()
+	if ok && (entry.session == "" || entry.session == path) {
+		return entry.plan, true
+	}
+	if path == "" || dir == "" {
 		return agentplan.Plan{}, false
 	}
-	return entry.plan, true
-}
-
-func (m *Manager) storePlan(blockId string, path string, plan agentplan.Plan) {
+	plan, found := readPlanFile(dir, path)
+	if !found {
+		return agentplan.Plan{}, false
+	}
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.version++
 	m.plans[blockId] = planEntry{session: path, plan: plan, version: m.version}
+	return plan, true
+}
+
+func (m *Manager) storePlan(blockId string, path string, plan agentplan.Plan) {
+	m.lock.Lock()
+	m.version++
+	m.plans[blockId] = planEntry{session: path, plan: plan, version: m.version}
+	dir := m.planDir
+	m.lock.Unlock()
+	if path != "" && dir != "" {
+		writePlanFile(dir, path, plan)
+	}
+}
+
+// endPlan drops a session's plan once its agent exited: the block forgets it, and its file goes.
+func (m *Manager) endPlan(blockId string, path string) {
+	m.lock.Lock()
+	delete(m.plans, blockId)
+	dir := m.planDir
+	m.lock.Unlock()
+	if path != "" && dir != "" {
+		removePlanFile(dir, path)
+	}
+}
+
+// planDirUnder is where the plans of the agent sessions live, in MoltenTerm's data folder.
+func planDirUnder(dataDir string) string {
+	return filepath.Join(dataDir, "molten", "agent-plans")
+}
+
+// planFile is one session's plan on disk, named by a hash of the session's path.
+type planFile struct {
+	Session string         `json:"session"`
+	Plan    agentplan.Plan `json:"plan"`
+}
+
+func planFileName(dir string, path string) string {
+	sum := sha256.Sum256([]byte(path))
+	return filepath.Join(dir, hex.EncodeToString(sum[:16])+".json")
+}
+
+func readPlanFile(dir string, path string) (agentplan.Plan, bool) {
+	data, err := os.ReadFile(planFileName(dir, path))
+	if err != nil {
+		return agentplan.Plan{}, false
+	}
+	var file planFile
+	if json.Unmarshal(data, &file) != nil || file.Session != path {
+		return agentplan.Plan{}, false
+	}
+	return file.Plan, true
+}
+
+// writePlanFile replaces the session's file with the plan, through a temporary file, so a crash never leaves half of it.
+func writePlanFile(dir string, path string, plan agentplan.Plan) {
+	data, err := json.Marshal(planFile{Session: path, Plan: plan})
+	if err != nil {
+		return
+	}
+	if os.MkdirAll(dir, 0o700) != nil {
+		return
+	}
+	name := planFileName(dir, path)
+	tmp := name + ".tmp"
+	if os.WriteFile(tmp, data, 0o600) != nil {
+		return
+	}
+	if os.Rename(tmp, name) != nil {
+		os.Remove(tmp)
+	}
+}
+
+func removePlanFile(dir string, path string) {
+	os.Remove(planFileName(dir, path))
 }
 
 func (m *Manager) planVersion(blockId string) int64 {

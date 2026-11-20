@@ -238,8 +238,10 @@ type Manager struct {
 	identityAdapters map[string]Adapter
 	// refusedTranscripts: the transcript a hook's state report named and the companion refused, by block (#2142).
 	refusedTranscripts map[string]string
-	// plans: the plans the agents of the blocks published with `molten agent plan` (plan.go, #2430).
-	plans map[string]planEntry
+	// plans: the plans the agents of the blocks published with `molten agent plan` (plan.go, #2430). planDir: where
+	// each session's plan is kept on disk, so it survives a restart while the session lives; empty keeps them in memory.
+	plans   map[string]planEntry
+	planDir string
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf          func(blockId string) (molten.AgentRunInfo, bool)
@@ -1479,11 +1481,16 @@ func sameIntegration(a *molten.AgentIntegrationReport, b *molten.AgentIntegratio
 func (w *watcher) noRun() {
 	w.lock.Lock()
 	hadSession := w.path != ""
-	if hadSession && !w.ended {
+	path := w.path
+	ending := hadSession && !w.ended
+	if ending {
 		w.ended = true
 		w.version++
 	}
 	w.lock.Unlock()
+	if ending {
+		w.m.endPlan(w.blockId, path)
+	}
 	if hadSession {
 		// The agent exited: its last session stays on screen, still followed (it may be resumed).
 		if w.follower != nil {
