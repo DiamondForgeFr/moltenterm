@@ -107,6 +107,7 @@ export function useCarpetCaptures(layoutModel: LayoutModel, columns: CaptureColu
                     view360.smoothFrame == null &&
                     root()?.dataset.mtCarpetScrolling == null &&
                     view360.dragColumn == null &&
+                    view360.dragZones == null &&
                     view360.dragFixedPx == null &&
                     view360.dragPin == null &&
                     !globalStore.get(layoutModel.activeDrag) &&

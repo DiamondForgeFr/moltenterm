@@ -8,8 +8,8 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import { t, tCount } from "../../i18n/i18n";
 import { formatShortcutById } from "../../shortcuts/format";
-import { headerPlacement } from "../../view360/view360-places";
 import type { View360Model } from "../../view360/view360-model";
+import { headerPlacement } from "../../view360/view360-places";
 import { CommandProvider, PanelContext, PanelItem, PanelSection } from "../panel-types";
 
 function view360Of(): View360Model {
@@ -38,7 +38,8 @@ export function carpetPlacesItems(view360: View360Model, blockId: string): Panel
                 id: `molten:places:${option.n}`,
                 type: "action",
                 label: tCount("view360.places.menuChoice", option.n),
-                detail: shown === option.n ? t("view360.places.current") : t("view360.places.mark", { count: option.n }),
+                detail:
+                    shown === option.n ? t("view360.places.current") : t("view360.places.mark", { count: option.n }),
                 icon: "table-columns",
                 keywords: ["360", "carpet", "visible panels", "tabs"],
                 run: () => {
@@ -82,6 +83,24 @@ export function carpetPlacesItems(view360: View360Model, blockId: string): Panel
             shortcut: formatShortcutById("pin-panel"),
             run: () => {
                 view360.unpin(blockId);
+            },
+        });
+    }
+    if (globalStore.get(view360.shownPlacesAtom) != null) {
+        const why = view360.evenZonesWhy();
+        items.push({
+            id: "molten:places:even-zones",
+            type: "action",
+            label: t("view360.zones.evenOut"),
+            icon: "arrows-left-right",
+            keywords: ["360", "carpet", "zones", "equal", "width", "égaliser"],
+            disabled: why != null,
+            disabledReason:
+                why == null
+                    ? undefined
+                    : t(why === "single" ? "view360.zones.evenOutSingle" : "view360.zones.evenOutEven"),
+            run: () => {
+                view360.evenZones();
             },
         });
     }

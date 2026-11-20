@@ -6,6 +6,7 @@
 
 import { t, tCount } from "../i18n/i18n";
 import { showToast } from "../toast-store";
+import { evenPercents } from "./carpet-zones";
 
 export const PlacesToastId = "view360-places";
 export const PlacesUndoMs = 10000;
@@ -34,6 +35,27 @@ export function showPinPlacesToast(shown: number, before: number): string {
         kind: "info",
         ...pinPlacesToastText(shown, before),
         text: () => pinPlacesToastText(shown, before),
+    });
+}
+
+export const ZonesToastId = "view360-zones";
+
+// "Even out the zones" (FR-SHELL-123-AC20, #2433): the whole percents the zones now share, adding up to 100.
+export function zonesToastText(n: number): { title: string; message: string } {
+    return {
+        title: t("view360.zones.toastTitle"),
+        message: t("view360.zones.toastMessage", { count: n, shares: evenPercents(n).join(" / ") }),
+    };
+}
+
+export function showZonesToast(n: number, undo: () => void): string {
+    return showToast({
+        id: ZonesToastId,
+        kind: "info",
+        ...zonesToastText(n),
+        text: () => ({ ...zonesToastText(n), actionLabels: { undo: t("view360.places.undo") } }),
+        dismissMs: PlacesUndoMs,
+        actions: [{ id: "undo", label: t("view360.places.undo"), run: undo }],
     });
 }
 

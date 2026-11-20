@@ -129,22 +129,6 @@ export function panelPlace(
     return { kind: "column", columnId: column.id, position };
 }
 
-// The layout sizes once a panel is placed. A new column takes the size of the column it goes beside, an equal share of
-// the row; a stacked panel takes half of the target, which keeps the other half, so the other panels of the column
-// keep their size.
-export function placeSizes(place: PanelPlace, root: LayoutNode): { added: number; target?: number } {
-    if (place == null) {
-        return null;
-    }
-    if (place.kind === "column") {
-        const column = findIn(root, place.columnId);
-        return { added: column?.size ?? 10 };
-    }
-    const size = findIn(root, place.targetNodeId)?.size;
-    const half = Number.isFinite(size) && size > 0 ? size / 2 : 5;
-    return { added: half, target: half };
-}
-
 // The chip names a panel as a person would: an agent's header reads "Valentin · Claude Code", the chip "Right of
 // Valentin".
 export function chipName(title: string): string {

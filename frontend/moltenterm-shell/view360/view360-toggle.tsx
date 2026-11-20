@@ -88,7 +88,14 @@ export function view360MenuItems(view360: View360Model): ContextMenuItem[] {
             click: () => view360.applyPlaces(blockId, option.n),
         });
     }
-    if (offered.length > 0) {
+    if (globalStore.get(view360.shownPlacesAtom) != null) {
+        menu.push({
+            label: t("view360.zones.evenOut"),
+            enabled: view360.evenZonesWhy() == null,
+            click: () => view360.evenZones(),
+        });
+    }
+    if (offered.length > 0 || globalStore.get(view360.shownPlacesAtom) != null) {
         menu.push({ type: "separator" });
     }
     if (!single) {

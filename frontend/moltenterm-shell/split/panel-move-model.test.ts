@@ -13,7 +13,6 @@ import {
     nearestSide,
     panelPlace,
     panelZoneAt,
-    placeSizes,
 } from "./panel-move-model";
 
 function leaf(id: string, size = 10): LayoutNode {
@@ -137,21 +136,6 @@ describe("a panel moved on the layout tree", () => {
     it("right of a single stack: the tree becomes a row of columns", () => {
         const root = group("root", FlexDirection.Column, [leaf("a"), leaf("b"), leaf("c")]);
         expect(shape(applyMove(root, "c", "a", "right"))).toBe("row(col(a,b),c)");
-    });
-});
-
-describe("placeSizes", () => {
-    it("a new column takes the size of the column it goes beside", () => {
-        const root = twoColumns();
-        expect(placeSizes({ kind: "column", columnId: "col2", position: "after" }, root)).toEqual({ added: 20 });
-    });
-
-    it("a stacked panel takes half of the target, which keeps the other half", () => {
-        const root = twoColumns();
-        expect(placeSizes({ kind: "stack", targetNodeId: "project", position: "after" }, root)).toEqual({
-            added: 5,
-            target: 5,
-        });
     });
 });
 

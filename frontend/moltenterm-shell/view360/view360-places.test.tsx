@@ -1,18 +1,19 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { atom } from "jotai";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { atom } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { placeOptions } from "./carpet-places";
-import type { PanelPlacement } from "./view360-model";
+import { carpetPlacesItems } from "../command-panel/providers/carpet-places";
 import { CarpetGroup, GroupAll, GroupPages } from "./carpet-group";
-import type { View360Model } from "./view360-model";
+import { placeOptions } from "./carpet-places";
+import type { PanelPlacement, View360Model } from "./view360-model";
 import {
     CarpetHeaderButton,
     chooserChoices,
+    EvenZonesRow,
     groupPlanLines,
     headerPlacement,
     optionCaption,
@@ -74,7 +75,9 @@ describe("Store on the carpet, the header button (FR-SHELL-123-AC1)", () => {
         expect(wave).not.toContain("PinHeaderButton");
         const browser = readFileSync(resolve(root, "frontend/moltenterm-shell/browser/browser-view.tsx"), "utf8");
         expect(browser.indexOf("<CarpetHeaderButton")).toBeGreaterThan(0);
-        expect(browser.indexOf("<CarpetHeaderButton")).toBeLessThan(browser.indexOf('data-role="command-panel-trigger"'));
+        expect(browser.indexOf("<CarpetHeaderButton")).toBeLessThan(
+            browser.indexOf('data-role="command-panel-trigger"')
+        );
     });
 
     it("reads a pin as pinned only where 360 view draws it", () => {
@@ -97,6 +100,72 @@ describe("the chooser's words (AC2, AC3, AC13)", () => {
         expect(few.map(optionCaption).slice(1)).toEqual(["Nothing to store", "Nothing to store"]);
         expect(optionsWhy(few)).toContain("nothing would be stored");
         expect(optionsWhy(placeOptions(6, 3160))).toBeNull();
+    });
+});
+
+describe("Even out the zones, where the chooser and the command panel offer it (FR-SHELL-123-AC20, #2433)", () => {
+    it("is a row of the chooser, enabled while the zones are uneven", () => {
+        const html = renderToStaticMarkup(<EvenZonesRow why={null} onRun={vi.fn()} />);
+        expect(html).toContain("Even out the zones");
+        expect(html).toContain('aria-disabled="false"');
+        expect(html).toContain('data-testid="mt-places-even-zones"');
+        expect(html).not.toContain("mt-places-even-why");
+    });
+
+    it("is disabled with its reason written under it when the zones are even or a single one is in view", () => {
+        const even = renderToStaticMarkup(<EvenZonesRow why="even" onRun={vi.fn()} />);
+        expect(even).toContain('aria-disabled="true"');
+        expect(even).toContain("is-off");
+        expect(even).toContain("The zones already have equal widths");
+        const single = renderToStaticMarkup(<EvenZonesRow why="single" onRun={vi.fn()} />);
+        expect(single).toContain("One zone is in view: there is nothing to even out");
+    });
+
+    it("stands in the chooser's Already in 360 view section, after the pins and before Leave", () => {
+        const source = readFileSync(resolve(__dirname, "view360-places.tsx"), "utf8");
+        const section = source.indexOf('t("view360.places.already")');
+        expect(section).toBeGreaterThan(0);
+        expect(source.indexOf("<EvenZonesRow", section)).toBeGreaterThan(
+            source.indexOf('data-testid="mt-places-pin-stacked"')
+        );
+        expect(source.indexOf("<EvenZonesRow", section)).toBeLessThan(source.indexOf('data-testid="mt-places-leave"'));
+    });
+
+    // The part of a 360 view the command panel reads, in 360 view with 2 zones drawn.
+    function panelView(why: "single" | "even" | null) {
+        return {
+            activeAtom: atom(true),
+            placementsAtom: atom({ page: "carpet" } as Record<string, PanelPlacement>),
+            rolesAtom: atom({ page: "carpet" } as Record<string, PanelPlacement>),
+            shownPlacesAtom: atom(2),
+            placeOptions: () => [],
+            evenZonesWhy: () => why,
+            evenZones: vi.fn(() => true),
+            requestLeave: vi.fn(),
+        } as unknown as View360Model;
+    }
+
+    it("is an action of the command panel, before Leave the 360 view", () => {
+        const view = panelView(null);
+        const items = carpetPlacesItems(view, "page");
+        const ids = items.map((i) => i.id);
+        expect(ids.indexOf("molten:places:even-zones")).toBeGreaterThan(-1);
+        expect(ids.indexOf("molten:places:even-zones")).toBeLessThan(ids.indexOf("molten:places:leave"));
+        const item = items.find((i) => i.id === "molten:places:even-zones");
+        expect(item).toMatchObject({ type: "action", label: "Even out the zones", disabled: false });
+        (item as { run: () => void }).run();
+        expect(view.evenZones).toHaveBeenCalledTimes(1);
+    });
+
+    it("is disabled in the command panel, with its reason, when the zones are even", () => {
+        const item = carpetPlacesItems(panelView("even"), "page").find((i) => i.id === "molten:places:even-zones");
+        expect(item).toMatchObject({ disabled: true, disabledReason: "The zones already have equal widths" });
+    });
+
+    it("is left out of the command panel outside a 360 × N", () => {
+        const view = panelView(null);
+        (view as unknown as { shownPlacesAtom: unknown }).shownPlacesAtom = atom(null as number);
+        expect(carpetPlacesItems(view, "page").some((i) => i.id === "molten:places:even-zones")).toBe(false);
     });
 });
 

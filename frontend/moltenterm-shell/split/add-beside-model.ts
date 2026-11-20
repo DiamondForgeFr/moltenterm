@@ -11,8 +11,7 @@ import { columnMinPx, columnsParent } from "../view360/view360-decision";
 
 export type BesideSide = "left" | "right";
 
-// columnSizes: the top-level columns' sizes once the new one is in (besideFit), when the tab stays in the normal layout.
-export type ColumnPlace = { targetNodeId: string; position: "before" | "after"; columnSizes?: number[] };
+export type ColumnPlace = { targetNodeId: string; position: "before" | "after" };
 
 // A top-level column as the fit sees it: its width in the normal layout, the width it keeps at least (the first
 // column's floor, #731, #848), and the width it would take on the carpet.

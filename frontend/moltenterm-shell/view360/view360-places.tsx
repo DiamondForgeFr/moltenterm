@@ -18,8 +18,8 @@ import { createPortal } from "react-dom";
 import { useFloatingInPlace } from "../floating-in-place";
 import { t, tCount, useLocale, useT, useTCount } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
-import { ReadableCarpetColumnPx } from "./carpet-model";
 import { CarpetGroup, GroupAll, GroupPages, type GroupPin } from "./carpet-group";
+import { ReadableCarpetColumnPx } from "./carpet-model";
 import { PlaceOption } from "./carpet-places";
 import { PinText } from "./pin-text";
 import { makePlaceNamesAtom } from "./places-names";
@@ -213,6 +213,34 @@ export function groupPlanLines(
     return lines;
 }
 
+// "Even out the zones" (FR-SHELL-123-AC20, #2433): the row of the chooser's "Already in 360 view" section. Disabled, it
+// says why under itself: the zones are already even, or a single zone is in view.
+export function EvenZonesRow({ why, onRun }: { why: "single" | "even" | null; onRun: () => void }) {
+    const t = useT();
+    return (
+        <>
+            <button
+                type="button"
+                className={cn("mt-places-row", why == null ? "cursor-pointer" : "is-off")}
+                aria-disabled={why != null}
+                aria-describedby={why != null ? "mt-places-even-why" : undefined}
+                data-testid="mt-places-even-zones"
+                data-reason={why ?? ""}
+                onClick={() => why == null && onRun()}
+            >
+                <i className="fa fa-solid fa-arrows-left-right" aria-hidden="true" />
+                <span>{t("view360.zones.evenOut")}</span>
+            </button>
+            {why != null && (
+                <div className="mt-places-why" id="mt-places-even-why" data-testid="mt-places-even-why">
+                    <i className="fa fa-solid fa-circle-info" aria-hidden="true" />
+                    <span>{t(why === "single" ? "view360.zones.evenOutSingle" : "view360.zones.evenOutEven")}</span>
+                </div>
+            )}
+        </>
+    );
+}
+
 type ChooserProps = { view360: View360Model; state: PlacesChooserState };
 
 function PlacesChooser({ view360, state }: ChooserProps) {
@@ -225,6 +253,8 @@ function PlacesChooser({ view360, state }: ChooserProps) {
     const placements = useAtomValue(view360.placementsAtom);
     const shown = useAtomValue(view360.shownPlacesAtom);
     const roles = useAtomValue(view360.rolesAtom);
+    useAtomValue(view360.zonesAtom);
+    const evenWhy = view360.evenZonesWhy();
     const blockId = state.blockId;
     const firstBlockId = Object.keys(roles).find((id) => roles[id] === "first") ?? null;
     // Computed each time the chooser opens (AC3), for both choices of "On the carpet" (FR-SHELL-124).
@@ -346,11 +376,7 @@ function PlacesChooser({ view360, state }: ChooserProps) {
         ? t("view360.places.quotedName", { name: names[blockId] })
         : t("view360.places.fallbackPanel");
     const why = optionsWhy(options);
-    const planLines = groupPlanLines(
-        choices.plan,
-        (id) => names[id] || t("view360.places.fallbackPanel"),
-        agent
-    );
+    const planLines = groupPlanLines(choices.plan, (id) => names[id] || t("view360.places.fallbackPanel"), agent);
     const offeredKeys = options.filter((o) => o.offered).map((o) => String(o.n));
     const pinShortcut = formatShortcutById("pin-panel");
     const style: CSSProperties = { ...floatingStyles, width: ChooserWidthPx };
@@ -430,11 +456,7 @@ function PlacesChooser({ view360, state }: ChooserProps) {
             )}
             {group === GroupPages &&
                 planLines.map((line) => (
-                    <div
-                        key={line.mode}
-                        className="mt-places-why"
-                        data-testid={`mt-places-group-plan-${line.mode}`}
-                    >
+                    <div key={line.mode} className="mt-places-why" data-testid={`mt-places-group-plan-${line.mode}`}>
                         <i
                             className={cn("fa fa-solid", line.mode === "beside" ? "fa-thumbtack" : "fa-layer-group")}
                             aria-hidden="true"
@@ -454,7 +476,9 @@ function PlacesChooser({ view360, state }: ChooserProps) {
                         >
                             <i className="fa fa-solid fa-thumbtack" aria-hidden="true" />
                             <span>{t("view360.places.pinBeside")}</span>
-                            {pinShortcut && placement === "carpet" && <span className="mt-places-kbd">{pinShortcut}</span>}
+                            {pinShortcut && placement === "carpet" && (
+                                <span className="mt-places-kbd">{pinShortcut}</span>
+                            )}
                         </button>
                     )}
                     {placement !== "stacked" && (
@@ -468,6 +492,7 @@ function PlacesChooser({ view360, state }: ChooserProps) {
                             <span>{t("view360.places.pinStacked")}</span>
                         </button>
                     )}
+                    <EvenZonesRow why={evenWhy} onRun={() => run(() => view360.evenZones())} />
                     <button
                         type="button"
                         className="mt-places-row cursor-pointer"
