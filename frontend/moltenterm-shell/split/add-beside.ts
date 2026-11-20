@@ -3,10 +3,10 @@
 
 // "Add a panel on the left / on the right" (#732), in every panel's menus next to "Split…": a new top-level column
 // beside the panel's column, opening on the picker like a split (FR-SHELL-042). In the grid the columns share the row
-// equally like for any panel added (#2433, add-panel.ts). When they do not fit, the column follows the tab's 360
-// decision like any other panel added (#1668, FR-SHELL-066): the automatic switch (and its first-switch notice) lays
-// it on the carpet, and under Keep the grid the first column's floor holds and the others give width down to their
-// minimums instead.
+// equally like for any panel added (#2433, add-panel.ts): only a first-column floor the developer set holds. When the
+// column does not fit beside the others at their readable minimums, it follows the tab's 360 decision like any other
+// panel added (#1668, FR-SHELL-066): the automatic switch (and its first-switch notice) lays it on the carpet, and
+// under Keep the grid the row stays equal.
 
 import { getLayoutModelForStaticTab } from "@/layout/index";
 import type { LayoutModel } from "@/layout/lib/layoutModel";

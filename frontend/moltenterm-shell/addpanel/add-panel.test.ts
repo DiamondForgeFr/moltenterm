@@ -26,6 +26,8 @@ import { View360MetaKey, View360PlacesMetaKey } from "../view360/view360-meta";
 
 const settingAtom = vi.hoisted(() => ({ current: null as unknown }));
 const floor = vi.hoisted(() => ({ px: null as number }));
+// The view of a block, "web" unless a test says otherwise (a terminal is the agent's).
+const views = vi.hoisted(() => ({ byBlock: {} as Record<string, string> }));
 
 vi.mock("@/app/store/global", async () => {
     const { atom } = await import("jotai");
@@ -53,7 +55,7 @@ vi.mock("@/layout/lib/layoutAtom", async () => {
 vi.mock("../toast-store", () => ({ showToast: vi.fn(() => "toast:1") }));
 vi.mock("../panel-motion/panel-arrival-model", () => ({ notePanelsArrived: vi.fn() }));
 vi.mock("../panel-size/panel-size-store", () => ({
-    cachedBlockView: () => "web",
+    cachedBlockView: (blockId: string) => views.byBlock[blockId] ?? "web",
     currentPanelSizes: () => ({}),
     currentFirstColumnFloorPx: () => floor.px,
     clearFirstColumnFloor: vi.fn(),
@@ -130,6 +132,7 @@ function expectEven(parent: LayoutNode) {
 
 beforeEach(() => {
     floor.px = null;
+    views.byBlock = {};
 });
 
 describe("outside the 360 view, every kind of action rebalances the row the panel joined (FR-SHELL-042 AC-grid)", () => {
@@ -595,6 +598,79 @@ describe("under a 360 × N the panel goes next to the focused one and the zones 
             add(model, split("c5", "after"));
             expect(order(model)).toEqual(["c0", "c1", "n", "c2", "c3", "c4", "c5"]);
             expect(inView(model)).toEqual(["c1", "n"]);
+        });
+    });
+
+    describe("the agent stays on the left and graphics go on its right (DS-REV-012)", () => {
+        // What the layout does with each action the backend queues (an agent's `wsh view`, a reopened panel).
+        function replay(model: LayoutModel, action: Record<string, unknown>): Promise<void> {
+            return (model as unknown as { handleBackendAction: (a: unknown) => Promise<void> }).handleBackendAction(
+                action
+            );
+        }
+
+        const added = (model: LayoutModel, blockId: string) =>
+            model.treeState.rootNode.children.find((c) => c.data?.blockId === blockId);
+
+        it("a panel added next to the agent's terminal in the last zone goes after it, not before", () => {
+            views.byBlock["b-c2"] = "term";
+            const model = zonesLayout(2, "c2");
+            add(model, insertAction(newLeaf("n")));
+            expect(order(model)).toEqual(["c0", "c1", "c2", "n", "c3", "c4", "c5"]);
+            expect(inView(model)).toEqual(["c2", "n"]);
+            expect(model.treeState.focusedNodeId).toBe("n");
+        });
+
+        it("a terminal in the last zone of a 360 × 3 keeps the graphics on its right as well", () => {
+            views.byBlock["b-c3"] = "term";
+            const model = zonesLayout(3, "c3");
+            add(model, insertAction(newLeaf("n")));
+            expect(order(model)).toEqual(["c0", "c1", "c2", "c3", "n", "c4", "c5"]);
+            expect(inView(model)).toEqual(["c2", "c3", "n"]);
+        });
+
+        it("a panel the backend adds (`wsh view` run in the focused terminal) goes after it in the last zone", async () => {
+            views.byBlock["b-c2"] = "term";
+            const model = zonesLayout(2, "c2");
+            await replay(model, { actionid: "v1", actiontype: LayoutTreeActionType.InsertNode, blockid: "x" });
+            model.updateTree();
+            expect(order(model).slice(0, 4)).toEqual(["c0", "c1", "c2", added(model, "x").id]);
+            expect(inView(model)).toEqual(["c2", added(model, "x").id]);
+        });
+
+        it("a panel the backend adds goes after any focused panel in the last zone, a reopened panel too", async () => {
+            const model = zonesLayout(2, "c2");
+            await replay(model, {
+                actionid: "v2",
+                actiontype: LayoutTreeActionType.InsertNodeAtIndex,
+                blockid: "y",
+                indexarr: [1],
+            });
+            model.updateTree();
+            expect(order(model).slice(0, 4)).toEqual(["c0", "c1", "c2", added(model, "y").id]);
+            expect(inView(model)).toEqual(["c2", added(model, "y").id]);
+        });
+
+        it("the backend's rule ends with its action: the next panel the developer adds goes before a panel that is no terminal", async () => {
+            const model = zonesLayout(2, "c2");
+            await replay(model, { actionid: "v3", actiontype: LayoutTreeActionType.InsertNode, blockid: "z" });
+            expect(model.moltenBackendAdd).toBe(false);
+            const fresh = zonesLayout(2, "c2");
+            add(fresh, insertAction(newLeaf("n")));
+            expect(order(fresh)).toEqual(["c0", "c1", "n", "c2", "c3", "c4", "c5"]);
+        });
+
+        it("a side a split names is kept: a split asked on the left of the terminal goes there", () => {
+            views.byBlock["b-c2"] = "term";
+            const model = zonesLayout(2, "c2");
+            add(model, {
+                type: LayoutTreeActionType.SplitHorizontal,
+                targetNodeId: "c2",
+                newNode: newLeaf("n"),
+                position: "before",
+                focused: true,
+            });
+            expect(order(model)).toEqual(["c0", "c1", "n", "c2", "c3", "c4", "c5"]);
         });
     });
 

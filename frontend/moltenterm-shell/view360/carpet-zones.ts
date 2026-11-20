@@ -84,6 +84,16 @@ export function evenPercents(n: number): number[] {
     return percents;
 }
 
+// The shares "Even out the zones" gives n zones (AC20): the whole percents of evenPercents. Two zones are exactly even,
+// which is the default (no shares kept); three keep 33 / 34 / 33 so the widths are what the message says.
+export function withEvenZones(stored: ZoneShares, n: number): ZoneShares {
+    const percents = evenPercents(n);
+    if (new Set(percents).size === 1) {
+        return withZoneShares(stored, n, null);
+    }
+    return { ...(stored ?? {}), [keyOf(n)]: percents.map((p) => p / 100) };
+}
+
 function sum(values: number[]): number {
     return values.reduce((acc, v) => acc + v, 0);
 }

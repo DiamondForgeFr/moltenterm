@@ -97,6 +97,7 @@ import {
     dragZoneBorder,
     planZoneInsert,
     sharesOf,
+    withEvenZones,
     withZoneShares,
     zoneColumnWidthsPx,
     zonesAreEven,
@@ -180,6 +181,7 @@ import {
     type OfferState,
     type ScreenOffer,
 } from "./view360-offer";
+import { prefetchView360Chunks, prefetchView360WhenIdle } from "./view360-prefetch";
 
 const SmoothScrollMs = 260;
 // Transitions stay off this long after the last scroll step, so the panels follow the scroll without lag.
@@ -455,6 +457,13 @@ export class View360Model {
         this.watch(this.thresholdAtom, () => this.layoutModel.updateTree());
         // The window crossing the narrow threshold too (FR-SHELL-109).
         this.watch(narrowWindowAtom, () => this.layoutModel.updateTree());
+        // The carpet's chrome loads on demand: fetched once the tab wants the 360 view, or when the window is idle (#2433).
+        prefetchView360WhenIdle();
+        this.watch(this.decisionAtom, () => {
+            if (globalStore.get(this.decisionAtom).wanted) {
+                prefetchView360Chunks();
+            }
+        });
         this.activeAtom = selectAtom(this.decisionAtom, (d) => d.active);
         const visibleAtom = atom((get) => visibleCarpetColumnIds(get(this.layoutAtom), get(this.scrollLeftAtom)));
         this.visibleColumnIdsAtom = selectAtom(visibleAtom, (ids) => ids, sameIds);
@@ -1168,8 +1177,9 @@ export class View360Model {
         return index < 0 ? layout.columns.length - 1 : index;
     }
 
-    // The carpet came to rest (a glide ended, a jump): the zones' widths follow the column now in the first zone, which
-    // takes the width of its place. Nothing to lay again while the zones are equal.
+    // The carpet came to rest (a glide ended, a jump, a drag of the tab strip let go): the layout is drawn again from the
+    // column now in the first zone, which takes the width of its place and whose border carries the handle. Never while
+    // the carpet is still being dragged: its pointer moves in the geometry it started from.
     private settlePage() {
         const layout = this.layout;
         const n = globalStore.get(this.shownPlacesAtom);
@@ -1179,26 +1189,30 @@ export class View360Model {
         if (this.dragZones != null || this.pendingStart != null || this.pendingRestore != null) {
             return;
         }
+        if (globalStore.get(this.freeScrollAtom)) {
+            return;
+        }
         const index = Math.min(Math.max(0, this.placesAnchorIndex()), Math.max(0, layout.columns.length - n));
         const id = layout.columns[index]?.nodeId ?? null;
         if (id == null || id === this.restColumnId) {
             return;
         }
         this.restColumnId = id;
-        if (this.zoneSharesFor(n) != null) {
-            this.layoutModel.updateTree(false);
-        }
+        this.layoutModel.updateTree(false);
     }
 
-    private writeZones(zones: ZoneShares) {
+    // Writes the shares of the zones, which draws the layout again through the watcher of zonesAtom. Returns whether
+    // they changed.
+    private writeZones(zones: ZoneShares): boolean {
         if (JSON.stringify(zones ?? {}) === JSON.stringify(this.zones() ?? {})) {
-            return;
+            return false;
         }
         globalStore.set(this.pendingZonesAtom, { zones });
         const tabId = this.tabId;
         if (tabId != null) {
             fireAndForget(() => setTabZones(tabId, zones));
         }
+        return true;
     }
 
     // Whether "Even out the zones" has something to do: why not, or null when it has (AC20).
@@ -1210,23 +1224,22 @@ export class View360Model {
         return zonesAreEven(this.zoneSharesFor(n), n) ? "even" : null;
     }
 
-    // "Even out the zones" (AC20): the visible zones take equal widths, the view forgets its shares for this number of
-    // zones, and the message offers Undo for 10 s. Returns false when there is nothing to do.
+    // "Even out the zones" (AC20): the visible zones take the shares the message says, 50 / 50 for two and 33 / 34 / 33
+    // for three (the middle one takes the leftover percent), and the message offers Undo for 10 s. The zones are drawn
+    // again by the watcher of their shares. Returns false when there is nothing to do.
     evenZones(): boolean {
         const n = globalStore.get(this.shownPlacesAtom);
         if (this.evenZonesWhy() != null || n == null) {
             return false;
         }
         const before = this.zones();
-        this.writeZones(withZoneShares(before, n, null));
-        this.layoutModel.updateTree();
+        this.writeZones(withEvenZones(before, n));
         showZonesToast(n, () => this.restoreZones(before));
         return true;
     }
 
     private restoreZones(zones: ZoneShares) {
         this.writeZones(zones ?? {});
-        this.layoutModel.updateTree();
     }
 
     // ---- 360 × N (FR-SHELL-123) ------------------------------------------------------------------------------------
@@ -1252,7 +1265,7 @@ export class View360Model {
         // Decided on what the view was asked for, not on the drawn widths, which the layout may round or clamp: the
         // auto mode would otherwise ask again after every pass.
         if (shown != null) {
-            const zonesSet = zoneSharesOf(this.zones(), shown) != null;
+            const zonesSet = !zonesAreEven(zoneSharesOf(this.zones(), shown), shown);
             if (this.grippedFixedPx == null && this.carpetPx.size === 0 && !floorAbove && !zonesSet) {
                 return null;
             }
@@ -1553,9 +1566,10 @@ export class View360Model {
         // Another N redraws by itself (placesAtom); otherwise the pass is asked for here.
         const changed = this.places() !== n;
         this.writePlacesWithGroup(n, group, pinsChanged ? pins : undefined);
-        // Equal parts on apply (AC5): the zones the view remembered for this number are forgotten.
-        this.writeZones(withZoneShares(this.zones(), n, null));
-        if (!changed) {
+        // Applying the number the view already has gives its zones equal parts again (AC5): the shares it remembered are
+        // forgotten. Another number leaves them, so 2 → 3 → 2 finds the zones of 2 as they were (AC19).
+        const zonesChanged = !changed && this.writeZones(withZoneShares(this.zones(), n, null));
+        if (!changed && !zonesChanged) {
             this.layoutModel.updateTree();
         }
         const node = this.layoutModel.getNodeByBlockId?.(blockId);
@@ -1932,6 +1946,14 @@ export class View360Model {
         const carpet = this.zoneCarpet(rootNode);
         const n = this.zoneCount();
         const page = this.pageIndex(carpet, n);
+        // The agent stays on the left and graphics go on its right (DS-REV-012): a panel added next to a terminal, and
+        // one the backend adds (`wsh view` run in the agent's terminal, a reopened panel), goes after the focused panel
+        // even in the last zone, where the zone on the left then goes to the carpet.
+        const afterAgent = (nodeId: string): "after" =>
+            this.layoutModel.moltenBackendAdd === true ||
+            cachedBlockView(findNode(rootNode, nodeId)?.data?.blockId) === "term"
+                ? "after"
+                : null;
         // Where a panel stands: a carpet column in view, the fixed zone, or nowhere the zones can follow.
         const resolve = (
             nodeId: string,
@@ -1942,7 +1964,9 @@ export class View360Model {
             }
             const index = carpet.findIndex((column) => findNode(column, nodeId) != null);
             if (index >= 0) {
-                return index >= page && index < page + n ? { focus: { kind: "column", index }, side: nodeSide } : null;
+                return index >= page && index < page + n
+                    ? { focus: { kind: "column", index }, side: nodeSide ?? afterAgent(nodeId) }
+                    : null;
             }
             return findNode(rootNode, nodeId) != null ? { focus: { kind: "fixed" }, side: null } : null;
         };
@@ -2383,6 +2407,7 @@ export class View360Model {
         this.freeScrollTimer = setTimeout(() => {
             this.freeScrollTimer = null;
             globalStore.set(this.freeScrollAtom, false);
+            this.settlePage();
         }, ScrollSettleMs);
     }
 
