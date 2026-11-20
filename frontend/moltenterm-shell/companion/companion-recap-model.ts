@@ -61,6 +61,9 @@ export type AgentRow = {
     id: string;
     main: boolean;
     name: string;
+    // The main agent's first name and its tool, which name is made of: the work area draws them apart (#2418).
+    first?: string;
+    tool?: string;
     state: AgentRowState;
     stateLabel: string;
     config: string;
@@ -151,6 +154,8 @@ export function mainAgentRow(view: CompanionView, agentState: AgentStateInfo): A
         id: "main",
         main: true,
         name: agentState?.firstname ? agentLabel(agentState) : view?.agentname || agentState?.agentname || "Agent",
+        first: (agentState?.firstname ?? "").trim(),
+        tool: (agentState?.agentname || view?.agentname || "").trim(),
         state,
         stateLabel: ended ? t("companion.agents.exited") : agentStateLabel(state),
         config: ended ? "" : configLabel(me.modelName, me.effort, false),

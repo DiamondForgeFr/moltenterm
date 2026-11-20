@@ -68,6 +68,19 @@ export function useCompanionPref(
     return [chosen ?? stored, set];
 }
 
+// Whether the Taken by others group is open, as the developer left it (#2418): undefined while he never chose, so the
+// block's width decides. The choice is the same in every companion and shows at once.
+export function useTakenOpen(): [boolean, (open: boolean) => void] {
+    const client = useAtomValue(clientAtom());
+    const stored = readCompanionPrefs(client?.meta?.[CompanionPrefsMetaKey]).takenopen;
+    const [chosen, setChosen] = useState<boolean>(undefined);
+    const set = (open: boolean) => {
+        setChosen(open);
+        rememberCompanionPrefs({ takenopen: open });
+    };
+    return [chosen ?? stored, set];
+}
+
 // The milestone tabs just chosen, shown until the client's meta carries them (and kept when the write failed).
 const SavedTabs = atom<Record<string, number>>(null) as PrimitiveAtom<Record<string, number>>;
 

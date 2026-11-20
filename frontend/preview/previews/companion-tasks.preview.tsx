@@ -6,6 +6,7 @@
 // frames hold the real work area. ?lang=fr shows them in French.
 
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
+import { AllLeads, EveryLead, Flore } from "../../moltenterm-shell/companion/companion-holds-fixture";
 import { ColumnsBand } from "../../moltenterm-shell/companion/companion-layout";
 import { MilestoneInfo, MilestonesView } from "../../moltenterm-shell/companion/companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "../../moltenterm-shell/companion/companion-model";
@@ -163,18 +164,90 @@ const NarrowView: MilestonesView = { dir: "/shop", state: "ok", milestones: [lat
 
 const TasksOnly: ColumnsBand = { kind: "columns", ids: ["tasks"], left: ["tasks"], right: [] };
 
+// Who works on what (#2418): Flore (Claude Code) leads three sub-agents on tickets 1 to 3; Jérôme (Kimi) has two on 4 and
+// 5, Julie (Claude Code) one on 6; 7 to 12 are free.
+const holdsTitles: [string, string][] = [
+    ["Checkout total shown twice", "Total du panier affiché deux fois"],
+    ["Receipt e-mail in the buyer's language", "E-mail de reçu dans la langue de l'acheteur"],
+    ["Faster product search", "Recherche de produits plus rapide"],
+    ["A failed export step offers the known fixes", "Un export en échec propose les correctifs connus"],
+    ["The export shows the failed step with a retry", "L'export montre l'étape en échec avec un bouton pour relancer"],
+    ["The builder says the real cause of a failure", "Le builder indique la vraie cause d'un échec"],
+    ["Wishlists can be shared by a link", "Les listes d'envies se partagent par un lien"],
+    ["The order page lists the parcel's tracking steps", "La page de commande liste les étapes de suivi du colis"],
+    ["Prices round the same way everywhere", "Les prix s'arrondissent pareil partout"],
+    ["The admin can export last month's orders", "L'administrateur exporte les commandes du mois dernier"],
+    ["Coupons can be limited to one category", "Les coupons se limitent à une catégorie"],
+    ["The shipping page opens at the right place", "La page de livraison s'ouvre au bon endroit"],
+];
+
+const holdsTickets = holdsTitles.map(([en, fr], i) => ({
+    number: i + 1,
+    title: french ? fr : en,
+    url: `https://github.com/example/shop/issues/${i + 1}`,
+    sentence: i < 3 || i > 5 ? (french ? fr : en) : undefined,
+}));
+
+const holdsMilestone = milestone({
+    number: 2,
+    title: "1.0.0",
+    due: Now - 21 * Day,
+    open: 12,
+    closed: 1082,
+    tickets: holdsTickets,
+});
+
+const flore: AgentStateInfo = { ...Flore, blockid: "flore", model: "claude-opus-5-5", effort: "medium" };
+const holdsView: CompanionView = {
+    blockid: "flore",
+    version: 1,
+    status: "live",
+    agent: "claude",
+    agentname: "Claude Code",
+    session: { path: "/s.jsonl", linkedby: "hook", branch: "develop", title: "Prepare the shop's 2.4 release" },
+    todos: [],
+    topics: [
+        {
+            text: french ? "Onglets par jalon et tâches prises par d'autres" : "Milestone tabs, tasks taken by others",
+            at: Now - 30 * Min,
+        },
+    ],
+    subagents: [1, 2, 3].map((n) => ({
+        id: `s${n}`,
+        description: `#${n} ${holdsTitles[n - 1][french ? 1 : 0]}`,
+        branch: `feature/${n}-work`,
+        kind: n === 1 ? "sf-fix" : "sf-build",
+        model: n === 1 ? "claude-opus-5-5" : "claude-sonnet-5-5",
+        background: true,
+        state: "running" as const,
+        started: Now - [120, 20, 5][n - 1] * Min,
+    })),
+};
+const HoldsMilestones: MilestonesView = {
+    dir: "/shop",
+    state: "ok",
+    milestones: [
+        holdsMilestone,
+        milestone({ number: 3, title: "1.1.0", due: Now + 40 * Day, open: 6, closed: 2 }),
+        later,
+    ],
+};
+const holds = { upcoming: AllLeads, states: EveryLead };
+
 function Frame({
     name,
     width,
     milestones,
     band,
     chosen,
+    asLead,
 }: {
     name: string;
     width: number;
     milestones: MilestonesView;
     band?: ColumnsBand;
     chosen?: number;
+    asLead?: boolean;
 }) {
     return (
         <div className="flex flex-col gap-1">
@@ -185,13 +258,14 @@ function Frame({
                 data-testid={`companion-frame-${name}`}
             >
                 <CompanionWork
-                    view={view}
-                    agentState={agentState}
+                    view={asLead ? holdsView : view}
+                    agentState={asLead ? flore : agentState}
                     dir=""
                     now={Now}
                     band={band}
                     milestones={milestones}
                     chosen={chosen}
+                    holds={asLead ? holds : undefined}
                 />
             </div>
         </div>
@@ -211,6 +285,10 @@ export function CompanionTasksPreview() {
                 <Frame name="other-tab" width={820} milestones={ReadyView} band={TasksOnly} chosen={14} />
             ) : null}
             {shows("narrow") ? <Frame name="narrow" width={420} milestones={NarrowView} /> : null}
+            {shows("holds") ? <Frame name="holds" width={1240} milestones={HoldsMilestones} asLead /> : null}
+            {shows("holds-narrow") ? (
+                <Frame name="holds-narrow" width={420} milestones={HoldsMilestones} asLead />
+            ) : null}
         </div>
     );
 }
