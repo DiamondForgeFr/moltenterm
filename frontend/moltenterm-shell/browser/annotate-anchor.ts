@@ -5,7 +5,16 @@
 // the geometry of the gestures that place it and of the captures taken at send time. Pure: the page's overlay
 // (emain/moltenterm-annotate-guest.ts) and the panel's layer both import it, and a test runs it on fake elements.
 
-import { type Anchor, type Box, MaxPathPoints, MinMarkPx, type MarkKind, type Point, PointMarkPx, type Size } from "./annotate-wire";
+import {
+    type Anchor,
+    type Box,
+    type MarkKind,
+    MaxPathPoints,
+    MinMarkPx,
+    type Point,
+    PointMarkPx,
+    type Size,
+} from "./annotate-wire";
 
 export function boxContains(outer: Box, inner: Box, tolerance = 1): boolean {
     return (
@@ -50,7 +59,12 @@ export function dragBox(a: Point, b: Point): Box {
 
 // A point marker: PointMarkPx square on the click, kept inside the page's left and top edges.
 export function pointBox(at: Point): Box {
-    return { x: Math.max(0, at.x - PointMarkPx / 2), y: Math.max(0, at.y - PointMarkPx / 2), w: PointMarkPx, h: PointMarkPx };
+    return {
+        x: Math.max(0, at.x - PointMarkPx / 2),
+        y: Math.max(0, at.y - PointMarkPx / 2),
+        w: PointMarkPx,
+        h: PointMarkPx,
+    };
 }
 
 // What a press and a release do, points in page coordinates. hit: the mark under the press, if any. A click on a mark
@@ -175,6 +189,47 @@ export function pathPoints(path: number[], box: Box): Point[] {
     return out;
 }
 
+// How much of two boxes is shared: the area they have in common over the area they cover together.
+export function overlap(a: Box, b: Box): number {
+    const w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+    const h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+    if (!(w > 0) || !(h > 0)) {
+        return 0;
+    }
+    const shared = w * h;
+    return shared / (a.w * a.h + b.w * b.h - shared);
+}
+
+// A mark drawn around an element, with a margin, belongs to that element: it follows it when it is resized or moved.
+const FitsElement = 0.4;
+
+// pickAnchorIndex: which of the elements under a mark's centre (candidates, their boxes in page coordinates) the mark is
+// placed on. The one the mark fits best, when it fits one (a rectangle drawn around an input, an outline around a card); else
+// the smallest that holds the whole mark (a rectangle over several cards then scales with their container). -1 for none.
+export function pickAnchorIndex(candidates: Box[], mark: Box): number {
+    let best = -1;
+    let bestFit = FitsElement;
+    candidates.forEach((box, i) => {
+        const fit = overlap(box, mark);
+        if (fit >= bestFit) {
+            best = i;
+            bestFit = fit;
+        }
+    });
+    if (best >= 0) {
+        return best;
+    }
+    let smallest = -1;
+    let area = Infinity;
+    candidates.forEach((box, i) => {
+        if (boxContains(box, mark, 2) && box.w * box.h < area) {
+            smallest = i;
+            area = box.w * box.h;
+        }
+    });
+    return smallest;
+}
+
 // The element a mark was placed on, as the overlay found it: its selector and its box in page coordinates.
 export type AnchorElement = { selector: string; box: Box };
 
@@ -220,7 +275,12 @@ export function resolveAnchor(anchor: Anchor, env: AnchorEnv): { box: Box; onEle
                 const cx = el.x + anchor.rel.x * el.w;
                 const cy = el.y + anchor.rel.y * el.h;
                 return {
-                    box: { x: Math.max(0, cx - anchor.box.w / 2), y: Math.max(0, cy - anchor.box.h / 2), w: anchor.box.w, h: anchor.box.h },
+                    box: {
+                        x: Math.max(0, cx - anchor.box.w / 2),
+                        y: Math.max(0, cy - anchor.box.h / 2),
+                        w: anchor.box.w,
+                        h: anchor.box.h,
+                    },
                     onElement: true,
                 };
             }
@@ -289,7 +349,10 @@ export function sliceOffsets(docH: number, viewH: number, max: number): number[]
 
 // stableName: an id or a class that names a thing, not a build: no run of digits or hex that looks generated.
 export function stableName(name: string): boolean {
-    return /^[A-Za-z][\w-]{0,60}$/.test(name) && !/\d{4,}|[0-9a-f]{8,}|^(css|sc|jsx|emotion|svelte|astro|ember)-/i.test(name);
+    return (
+        /^[A-Za-z][\w-]{0,60}$/.test(name) &&
+        !/\d{4,}|[0-9a-f]{8,}|^(css|sc|jsx|emotion|svelte|astro|ember)-/i.test(name)
+    );
 }
 
 // What the selector builder reads of an element; the overlay fills it from the DOM, a test from a fake.

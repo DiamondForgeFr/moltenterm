@@ -7,7 +7,15 @@
 // nothing waits for ever; the bound only decides a failing run, never a passing one.
 
 import type { Placed } from "./annotate-model";
-import { type Anchor, AnnotateChannel, type Box, type FromGuest, type MarkKind, MaxPathPoints, type ToGuest } from "./annotate-wire";
+import {
+    type Anchor,
+    AnnotateChannel,
+    type Box,
+    type FromGuest,
+    type MarkKind,
+    MaxPathPoints,
+    type ToGuest,
+} from "./annotate-wire";
 
 export type IpcEvent = { channel: string; args: unknown[] };
 

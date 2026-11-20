@@ -31,7 +31,9 @@ export type Paint2D = {
 export type CanvasLike = {
     width: number;
     height: number;
-    getContext(type: "2d"): (Paint2D & { drawImage(img: unknown, x: number, y: number, w: number, h: number): void }) | null;
+    getContext(
+        type: "2d"
+    ): (Paint2D & { drawImage(img: unknown, x: number, y: number, w: number, h: number): void }) | null;
     toDataURL(type?: string, quality?: number): string;
 };
 

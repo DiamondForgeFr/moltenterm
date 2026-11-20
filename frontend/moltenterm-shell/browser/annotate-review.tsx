@@ -11,8 +11,9 @@ import { useT } from "../i18n/i18n";
 import { errorPhrase, type Phrase, phrase, useWordPhrase } from "../i18n/phrase";
 import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
-import { callAnnotate, copyTextLater } from "./annotate-client";
 import type { Captured } from "./annotate-capture";
+import { callAnnotate, copyTextLater } from "./annotate-client";
+import { LinkChips, RefThumbs } from "./annotate-layer-parts";
 import {
     addressKey,
     annotateRequest,
@@ -25,7 +26,6 @@ import {
     sameAddress,
     type Zone,
 } from "./annotate-model";
-import { LinkChips, RefThumbs } from "./annotate-layer-parts";
 import { NumberBadge, pageLabel, ToolIcons } from "./annotate-toolbar";
 import { MaxOverviewScreens } from "./annotate-wire";
 
@@ -190,7 +190,9 @@ export function ReviewView(props: ReviewViewProps) {
                                     <Icon size={12} strokeWidth={2} aria-hidden className="shrink-0 text-muted" />
                                     <span className="min-w-0 flex-1 truncate text-11 font-medium text-secondary">
                                         {t("browser.annotate.review.zone", { n: i + 1 })}
-                                        {here ? "" : ` · ${t("browser.annotate.review.onPage", { page: pageLabel(zone.address) })}`}
+                                        {here
+                                            ? ""
+                                            : ` · ${t("browser.annotate.review.onPage", { page: pageLabel(zone.address) })}`}
                                     </span>
                                 </header>
                                 {zone.comment.trim() ? (

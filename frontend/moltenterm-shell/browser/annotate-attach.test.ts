@@ -9,8 +9,8 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nModel, t } from "../i18n/i18n";
 import {
-    type AnnotateState,
     addZone,
+    type AnnotateState,
     commitComment,
     emptyState,
     MaxRefs,

@@ -13,8 +13,8 @@ import {
     fitScale,
     OverviewTier,
     type Paint2D,
-    paintMarks,
     type PaintMark,
+    paintMarks,
 } from "./annotate-paint";
 
 function recorder(): { ctx: Paint2D; calls: string[]; texts: string[] } {
@@ -88,7 +88,8 @@ describe("drawing the marks", () => {
         const large = recorder();
         paintMarks(small.ctx, [zone], { w: 500, h: 400 }, "orange");
         paintMarks(large.ctx, [zone], { w: 3000, h: 2400 }, "orange");
-        const radius = (calls: string[]) => Number(/^arc [\d.]+,[\d.]+,([\d.]+)/.exec(calls.find((c) => c.startsWith("arc")))[1]);
+        const radius = (calls: string[]) =>
+            Number(/^arc [\d.]+,[\d.]+,([\d.]+)/.exec(calls.find((c) => c.startsWith("arc")))[1]);
         expect(radius(large.calls)).toBeGreaterThan(radius(small.calls));
     });
 });
@@ -166,7 +167,12 @@ describe("a mark's picture", () => {
         expect(out.dataUrl).toBe("data:image/jpeg;base64,OK");
         expect(out.width).toBeLessThan(700);
         expect(made.length).toBeGreaterThan(1);
-        expect(tried.slice(0, 4)).toEqual(["image/png@1:880", "image/jpeg@0.85:880", "image/jpeg@0.7:880", "image/jpeg@0.55:880"]);
+        expect(tried.slice(0, 4)).toEqual([
+            "image/png@1:880",
+            "image/jpeg@0.85:880",
+            "image/jpeg@0.7:880",
+            "image/jpeg@0.55:880",
+        ]);
         const never = canvases(() => long);
         expect(() => composeCrop(shot, region, mark, cropTier(1), "orange", never.make)).toThrow("too large");
     });
@@ -190,7 +196,12 @@ describe("a mark's picture", () => {
 
     it("draws an outline's points relative to the region", () => {
         const { make, made } = canvases(small);
-        const outline = { n: 4, kind: "freehand" as const, box: { x: 400, y: 300, w: 100, h: 50 }, path: [400, 300, 450, 350, 500, 300] };
+        const outline = {
+            n: 4,
+            kind: "freehand" as const,
+            box: { x: 400, y: 300, w: 100, h: 50 },
+            path: [400, 300, 450, 350, 500, 300],
+        };
         composeCrop(shot, region, outline, cropTier(1), "orange", make);
         expect(made[0].labels).toEqual(["4"]);
     });

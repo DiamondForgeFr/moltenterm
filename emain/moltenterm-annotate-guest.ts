@@ -11,7 +11,6 @@
 import { ipcRenderer } from "electron";
 import {
     anchorOf,
-    boxContains,
     boxOfPoints,
     buildSelector,
     gestureOf,
@@ -19,6 +18,7 @@ import {
     type NodeFacts,
     pathFractions,
     pathPoints,
+    pickAnchorIndex,
     resolveAnchor,
     scrollTarget,
     simplifyPath,
@@ -28,11 +28,10 @@ import {
     AnnotateChannel,
     type Box,
     type FromGuest,
-    MaxOverviewScreens,
     type MarkKind,
     type MarkView,
+    MaxOverviewScreens,
     type Point,
-    PointMarkPx,
     type Size,
     type StartMessage,
     type ToGuest,
@@ -400,11 +399,12 @@ function anchorElementFor(o: Overlay, kind: MarkKind, box: Box, up: Point): { el
     }
     const cx = Math.min(window.innerWidth - 1, Math.max(0, box.x + box.w / 2 - s.x));
     const cy = Math.min(window.innerHeight - 1, Math.max(0, box.y + box.h / 2 - s.y));
-    let el = elementAt(cx, cy, o) ?? document.body;
-    while (el != null && el !== document.body && !boxContains(pageBoxOf(el.getBoundingClientRect()), box, 2)) {
-        el = el.parentElement;
-    }
-    return { el: el ?? document.body, fixed: false, box };
+    const stack = document.elementsFromPoint(cx, cy).filter((el) => el !== o.host && el !== document.documentElement);
+    const at = pickAnchorIndex(
+        stack.map((el) => pageBoxOf(el.getBoundingClientRect())),
+        box
+    );
+    return { el: at >= 0 ? stack[at] : document.body, fixed: false, box };
 }
 
 function finishGesture(o: Overlay, drag: Drag, up: Point): void {
@@ -420,7 +420,10 @@ function finishGesture(o: Overlay, drag: Drag, up: Point): void {
     }
     const target = anchorElementFor(o, gesture.mark, gesture.box, up);
     const box = target.box;
-    const element = target.el != null ? { selector: selectorOf(target.el), box: pageBoxOf(target.el.getBoundingClientRect()) } : null;
+    const element =
+        target.el != null
+            ? { selector: selectorOf(target.el), box: pageBoxOf(target.el.getBoundingClientRect()) }
+            : null;
     post({
         type: "placed",
         address: location.href,
@@ -472,7 +475,13 @@ function onPointerUp(o: Overlay, e: PointerEvent): void {
     finishGesture(o, drag, pageOf(e));
 }
 
-function listen(o: Overlay, target: EventTarget, type: string, fn: (e: any) => void, options?: AddEventListenerOptions) {
+function listen(
+    o: Overlay,
+    target: EventTarget,
+    type: string,
+    fn: (e: any) => void,
+    options?: AddEventListenerOptions
+) {
     target.addEventListener(type, fn, options);
     o.removers.push(() => target.removeEventListener(type, fn, options));
 }
@@ -605,7 +614,15 @@ async function prepare(o: Overlay, reqId: number, id: number): Promise<void> {
     const box = o.boxes.get(id);
     const mark = o.marks.find((m) => m.id === id);
     if (box == null || mark == null) {
-        post({ type: "prepared", reqId, ok: false, viewport: viewportSize(), box: { x: 0, y: 0, w: 0, h: 0 }, path: [], scroll: scrolledTo() });
+        post({
+            type: "prepared",
+            reqId,
+            ok: false,
+            viewport: viewportSize(),
+            box: { x: 0, y: 0, w: 0, h: 0 },
+            path: [],
+            scroll: scrolledTo(),
+        });
         return;
     }
     await moveTo(scrollTarget(box, viewportSize(), pageSize()));
@@ -614,9 +631,7 @@ async function prepare(o: Overlay, reqId: number, id: number): Promise<void> {
     const scroll = scrolledTo();
     const view = toViewport(now, scroll);
     const path: number[] =
-        mark.kind === "freehand"
-            ? pathPoints(mark.anchor.path, view).flatMap((p) => [p.x, p.y])
-            : [];
+        mark.kind === "freehand" ? pathPoints(mark.anchor.path, view).flatMap((p) => [p.x, p.y]) : [];
     post({ type: "prepared", reqId, ok: true, viewport: viewportSize(), box: view, path, scroll });
 }
 

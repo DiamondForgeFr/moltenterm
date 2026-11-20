@@ -10,12 +10,17 @@ import { cn } from "@/util/util";
 import { List, MousePointer2, Pause, Pencil, Play, SquareDashed, Trash2, X } from "lucide-react";
 import type { ComponentType } from "react";
 import { useT, useTCount } from "../i18n/i18n";
-import { DominoLoader } from "../suite/suite";
 import { MoltenWave } from "../molten-button";
+import { DominoLoader } from "../suite/suite";
 import { excerptOf, MaxZones, sameAddress, type Zone } from "./annotate-model";
 import type { MarkKind } from "./annotate-wire";
 
-type IconComponent = ComponentType<{ size?: number; strokeWidth?: number; "aria-hidden"?: boolean; className?: string }>;
+type IconComponent = ComponentType<{
+    size?: number;
+    strokeWidth?: number;
+    "aria-hidden"?: boolean;
+    className?: string;
+}>;
 
 export const ToolIcons: Record<MarkKind, IconComponent> = {
     point: MousePointer2,
@@ -87,7 +92,10 @@ export function CommentToolbar(props: CommentToolbarProps) {
                     <>
                         <span className="px-1 text-primary" data-testid="browser-annotate-ask">
                             {tc("browser.annotate.ask.title", pageAsk.count, {
-                                page: pageAsk.pages > 1 ? t("browser.annotate.ask.pages", { count: pageAsk.pages }) : pageAsk.page,
+                                page:
+                                    pageAsk.pages > 1
+                                        ? t("browser.annotate.ask.pages", { count: pageAsk.pages })
+                                        : pageAsk.page,
                             })}
                         </span>
                         <span className="px-1 text-11 text-muted">{t("browser.annotate.ask.note")}</span>
@@ -132,7 +140,11 @@ export function CommentToolbar(props: CommentToolbarProps) {
                     </>
                 ) : (
                     <>
-                        <div className="flex items-center gap-0.5" role="group" aria-label={t("browser.annotate.layerLabel")}>
+                        <div
+                            className="flex items-center gap-0.5"
+                            role="group"
+                            aria-label={t("browser.annotate.layerLabel")}
+                        >
                             {ToolOrder.map((kind) => {
                                 const Icon = ToolIcons[kind];
                                 const on = kind === tool && !paused;
@@ -162,7 +174,11 @@ export function CommentToolbar(props: CommentToolbarProps) {
                             onClick={props.onPause}
                             data-testid="browser-annotate-pause"
                         >
-                            {paused ? <Play size={15} strokeWidth={2} aria-hidden /> : <Pause size={15} strokeWidth={2} aria-hidden />}
+                            {paused ? (
+                                <Play size={15} strokeWidth={2} aria-hidden />
+                            ) : (
+                                <Pause size={15} strokeWidth={2} aria-hidden />
+                            )}
                         </button>
                         <span className="h-4 w-px bg-border" aria-hidden />
                         <button
@@ -181,7 +197,9 @@ export function CommentToolbar(props: CommentToolbarProps) {
                             {tc("browser.annotate.tray.zones", count)}
                         </button>
                         {count >= MaxZones ? (
-                            <span className="text-11 text-muted">{t("browser.annotate.tray.full", { count: MaxZones })}</span>
+                            <span className="text-11 text-muted">
+                                {t("browser.annotate.tray.full", { count: MaxZones })}
+                            </span>
                         ) : null}
                         {count > 0 ? (
                             <button
@@ -307,13 +325,27 @@ export function CommentList({
                                 >
                                     <NumberBadge n={i + 1} />
                                     <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                        <span className={cn("flex items-center gap-1 text-12", text ? "text-primary" : "text-muted")}>
-                                            <Icon size={12} strokeWidth={2} aria-hidden className="shrink-0 text-muted" />
-                                            <span className="min-w-0 truncate">{text || t("browser.annotate.list.noText")}</span>
+                                        <span
+                                            className={cn(
+                                                "flex items-center gap-1 text-12",
+                                                text ? "text-primary" : "text-muted"
+                                            )}
+                                        >
+                                            <Icon
+                                                size={12}
+                                                strokeWidth={2}
+                                                aria-hidden
+                                                className="shrink-0 text-muted"
+                                            />
+                                            <span className="min-w-0 truncate">
+                                                {text || t("browser.annotate.list.noText")}
+                                            </span>
                                         </span>
                                         {here ? null : (
                                             <span className="truncate font-mono text-11 text-muted">
-                                                {t("browser.annotate.list.elsewhere", { page: pageLabel(zone.address) })}
+                                                {t("browser.annotate.list.elsewhere", {
+                                                    page: pageLabel(zone.address),
+                                                })}
                                             </span>
                                         )}
                                     </span>

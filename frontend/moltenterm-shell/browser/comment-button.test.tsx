@@ -7,8 +7,8 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { setKeyUtilPlatform } from "@/util/keyutil";
-import { readFileSync } from "node:fs";
 import { Provider } from "jotai";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
@@ -99,7 +99,10 @@ describe("the Comment button", () => {
 // The row's source says where the button stands: no DOM to measure it here (the test instance does).
 describe("where the Comment button stands in the address row", () => {
     const source = readFileSync(new URL("./browser-view.tsx", import.meta.url), "utf8");
-    const row = source.slice(source.indexOf("function BrowserNavBar"), source.indexOf("// The annotate layers over the panel's pages"));
+    const row = source.slice(
+        source.indexOf("function BrowserNavBar"),
+        source.indexOf("// The annotate layers over the panel's pages")
+    );
 
     it("is right after Forward and before Reload and the address", () => {
         const forward = row.indexOf('"arrow-right"');
