@@ -14,6 +14,7 @@ import { prefersReducedMotion } from "../molten-motion";
 import { snapToCycle } from "../suite/suite";
 import { Box, contentBoxFor, RememberedLayout, scaleLayout } from "./layout-memory";
 import { loadLayout } from "./layout-store";
+import { panelWaiting } from "./panel-ready";
 import "./switch-layout.css";
 
 export const LeaveLayerId = "mt-switch-layout-leave";
@@ -24,10 +25,14 @@ export const LeaveAnimationId = "mt-switch-layout-leave";
 const FallbackFadeMs = 180;
 const FallbackDissolveMs = 120;
 const FallbackEase = "cubic-bezier(0.2, 0, 0, 1)";
-// An arrival layer goes at the latest this long after it was put on, whatever its panels did.
-export const ArrivalMaxMs = 3000;
-// Once on screen, a panel that never comes (the layout was out of date) lets its frame go after this.
-export const ArrivalPanelMaxMs = 1500;
+// An arrival layer goes at the latest this long after it was put on, whatever its panels did. Long enough for a slow
+// page or a terminal's reconnection to keep its loader (#2438), short enough that no loader stays.
+export const ArrivalMaxMs = 10000;
+// Once on screen, a panel that never comes (the layout was out of date) or never says it is ready lets its frame go
+// after this.
+export const ArrivalPanelMaxMs = 8000;
+// A page that runs no animation frame (hidden again meanwhile) lets its frames go after this.
+export const ArrivalHiddenMaxMs = 1500;
 // A leave layer left on a view still on screen (a switch the main process refused) goes after this.
 export const LeaveMaxMs = 4000;
 
@@ -336,7 +341,7 @@ export function arrivedOnScreen() {
         if (arrival === a && a.pending.size > 0 && document.visibilityState !== "visible") {
             clearArrival();
         }
-    }, ArrivalPanelMaxMs);
+    }, ArrivalHiddenMaxMs);
 }
 
 // Electron main hides and shows a view again within a few milliseconds while it puts it on screen: only a view that
@@ -362,7 +367,8 @@ export function arrivalPending(): boolean {
 
 (globalThis as any).__mtSwitchLayoutOnScreen = arrivedOnScreen;
 
-// A panel is ready once it is mounted with a size, a terminal once its screen exists, seen so on two frames in a row.
+// A panel is ready once it is mounted with a size, a terminal once its screen exists, and its content says it is
+// there (panel-ready.ts, #2438): seen so on two frames in a row.
 export function panelReady(block: Element, kind: string): boolean {
     if (block == null) {
         return false;
@@ -371,7 +377,10 @@ export function panelReady(block: Element, kind: string): boolean {
     if (r.width < 1 || r.height < 1) {
         return false;
     }
-    return kind !== "term" || block.querySelector(".xterm-screen") != null;
+    if (kind === "term" && block.querySelector(".xterm-screen") == null) {
+        return false;
+    }
+    return !panelWaiting(block);
 }
 
 function blockOf(id: string): HTMLElement {

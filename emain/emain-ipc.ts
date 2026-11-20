@@ -293,7 +293,9 @@ export function initIpcHandlers() {
         if (!tabView) {
             throw new Error("No tab view found for the given webContents id");
         }
-        let image = await tabView.webContents.capturePage(rect);
+        // MOLTENTERM-PATCH (#2438): a view the hidden-view budget hid captures its own sidebar too, painted for the capture
+        // without being shown to its page (which would run its visibility handlers, a switch's among them).
+        let image = await tabView.webContents.capturePage(rect, { stayHidden: !tabView.getVisible() });
         // MOLTENTERM-PATCH (#1545): a thumbnail for the 360 view's peeks and tab previews, resized here and sent as a
         // JPEG, so the renderer never holds full-size captures of every carpet panel.
         const thumbWidth = Number(opts?.width);

@@ -129,6 +129,11 @@ class FakeEl extends FakeEvents {
         const px = (v: string) => parseFloat(v ?? "0") || 0;
         return { left: px(this.style.left), top: px(this.style.top), width: px(this.style.width), height: px(this.style.height) };
     }
+    // Laid out unless marked hidden (display: none): a block's parts take its box.
+    displayed = true;
+    getClientRects() {
+        return this.displayed ? [this.getBoundingClientRect()] : [];
+    }
     animate(_frames: unknown, opts: { duration: number }) {
         const a = new FakeAnimation(this, opts.duration);
         this.animations.add(a);
@@ -433,6 +438,60 @@ describe("the frames worn by the view reached (#2407)", () => {
         expect(layer(ArrivalLayerId).children).toHaveLength(2);
         vi.advanceTimersByTime(400);
         expect(arriving()).toBe(false);
+    });
+
+    it("keeps a frame and its domino while its mounted panel waits for its content, and dissolves it once ready (#2438)", () => {
+        page.document.visibilityState = "visible";
+        const content = addContent();
+        wearArrival(Layout, "tab-beta");
+        const b1 = mountBlock(content, "b1", { left: 268, top: 4, width: 660, height: 990 });
+        const b2 = mountBlock(content, "b2", { left: 936, top: 4, width: 660, height: 990 });
+        // b1's page is still loading: its webview carries the signal; b2 is a terminal that drew its scrollback.
+        const page1 = b1.appendChild(new FakeEl("webview"));
+        page1.dataset.dfWaiting = "";
+        arrivedOnScreen();
+        vi.advanceTimersByTime(2000);
+        const frames = layer(ArrivalLayerId).children;
+        expect(frames.map((f) => f.dataset.panel)).toEqual(["b1"]);
+        expect(frames[0].querySelector(".df-dominos")).not.toBeNull();
+        expect(frames[0].style.opacity).toBeUndefined();
+        delete page1.dataset.dfWaiting;
+        vi.advanceTimersByTime(48);
+        expect(layer(ArrivalLayerId).children[0].style.opacity).toBe("0");
+        vi.advanceTimersByTime(400);
+        expect(arriving()).toBe(false);
+        expect(b2.isConnected).toBe(true);
+    });
+
+    it("dissolves a panel already live in a kept view at once, and ignores a waiting part that is not displayed", () => {
+        page.document.visibilityState = "visible";
+        const content = addContent();
+        mountBlock(content, "b1", { left: 268, top: 4, width: 660, height: 990 });
+        const b2 = mountBlock(content, "b2", { left: 936, top: 4, width: 660, height: 990 });
+        const hiddenTab = b2.appendChild(new FakeEl("webview"));
+        hiddenTab.dataset.dfWaiting = "";
+        hiddenTab.displayed = false;
+        wearArrival(Layout, "tab-beta");
+        arrivedOnScreen();
+        vi.advanceTimersByTime(48);
+        expect(layer(ArrivalLayerId).children.every((f) => f.style.opacity === "0")).toBe(true);
+    });
+
+    it("lets a panel that never says it is ready go at ArrivalPanelMaxMs, the safety net (#2438)", () => {
+        page.document.visibilityState = "visible";
+        const content = addContent();
+        wearArrival(Layout, "tab-beta");
+        for (const [id, left] of [["b1", 268], ["b2", 936]] as const) {
+            const block = mountBlock(content, id, { left, top: 4, width: 660, height: 990 });
+            block.appendChild(new FakeEl("span")).dataset.dfWaiting = "";
+        }
+        arrivedOnScreen();
+        vi.advanceTimersByTime(ArrivalPanelMaxMs - 20);
+        expect(layer(ArrivalLayerId).children).toHaveLength(2);
+        vi.advanceTimersByTime(400);
+        expect(arriving()).toBe(false);
+        expect(ArrivalPanelMaxMs).toBeGreaterThanOrEqual(5000);
+        expect(ArrivalMaxMs).toBeGreaterThan(ArrivalPanelMaxMs + ArrivalOnScreenFallbackMs);
     });
 
     it("goes once the view stays hidden after it came on screen, but not for main's blip at the swap", () => {
