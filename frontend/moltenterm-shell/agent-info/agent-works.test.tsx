@@ -89,7 +89,7 @@ describe("what works with an agent (FR-AGC-004)", () => {
             detailKey: "agentWorks.integration.kimiUsage",
         });
         expect(tOf(en)(usage!.detailKey)).toBe(
-            "Experimental — official but undocumented Kimi Code managed-usage source, verified with 2.6.3; shared .com setup only"
+            "Experimental — official but undocumented Kimi Code managed-usage source, verified with 2.6.3; official .com and .ai file-backed setups"
         );
         expect(tOf(fr)(usage!.detailKey)).toBe(
             "Expérimental — source officielle mais non documentée de l'usage géré de Kimi Code, vérifiée avec la version 2.6.3 ; configuration .com commune uniquement"

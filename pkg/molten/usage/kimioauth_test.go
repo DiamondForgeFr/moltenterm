@@ -295,6 +295,29 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return fn(req) }
 
+func TestKimiOAuthUsesTheConfiguredOfficialRegion(t *testing.T) {
+	src := MakeKimiOAuthSource()
+	src.connection = func() (kimiManagedConnection, error) {
+		return kimiManagedConnection{usageEndpoint: KimiAIUsageEndpoint}, nil
+	}
+	src.credentials = func(context.Context) (string, int64, error) { return fakeKimiToken, 0, nil }
+	var requested string
+	src.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requested = req.URL.String()
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(sampleKimiUsage)),
+		}, nil
+	})}
+	if _, err := src.Read(fetchCtx(), "k1"); err != nil {
+		t.Fatal(err)
+	}
+	if requested != KimiAIUsageEndpoint {
+		t.Errorf("requested %q", requested)
+	}
+}
+
 func TestKimiOAuthOfflineAndRateLimit(t *testing.T) {
 	f := newKimiOAuthFixture(t)
 	f.src.client = &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -383,6 +406,9 @@ func TestKimiOAuthEndpointGuardPrecedesManagedAndCredentials(t *testing.T) {
 	}
 	if _, err := prod.checkEndpoint(); err != nil {
 		t.Errorf("pinned production endpoint: %v", err)
+	}
+	if _, err := prod.checkEndpoint(KimiAIUsageEndpoint); err != nil {
+		t.Errorf("official AI production endpoint: %v", err)
 	}
 }
 

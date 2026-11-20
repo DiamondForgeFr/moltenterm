@@ -174,6 +174,10 @@ func (m *Manager) usageInfoCtx(parent context.Context, blockId string, agent str
 	info.Experimental = experimentalInfo(a, settings, res)
 	info.RefreshMs = usage.RefreshEveryOf(a, settings).Milliseconds()
 	info.Gauges, info.Snapshot, info.Reason, info.SourceName = res.State, res.Snapshot, res.Reason, res.SourceName
+	// A source with its own confirmation is not enabled yet, but the agent's gauges are: show its offer rather than off.
+	if info.Gauges == usage.GaugesOff && info.Experimental != nil && usage.GaugesOn(settings, agent) {
+		info.Gauges, info.Reason = usage.GaugesUnavailable, usage.ReasonWaiting
+	}
 	waiting := res.State == usage.GaugesUnavailable && res.Reason == usage.ReasonWaiting
 	// Values that stopped coming may be those of a relay the user took out of the settings: they show, with their
 	// age, only while the settings still run it.

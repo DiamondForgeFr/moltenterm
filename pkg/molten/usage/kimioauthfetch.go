@@ -17,12 +17,16 @@ import (
 	"time"
 )
 
-func (s *KimiOAuthSource) checkEndpoint() (*url.URL, error) {
-	u, err := url.Parse(s.endpoint)
+func (s *KimiOAuthSource) checkEndpoint(endpoint ...string) (*url.URL, error) {
+	candidate := s.endpoint
+	if len(endpoint) > 0 {
+		candidate = endpoint[0]
+	}
+	u, err := url.Parse(candidate)
 	if err != nil || u.Scheme != "https" || u.User != nil || u.Host == "" {
 		return nil, errEndpointRefused
 	}
-	if !s.anyEndpoint && u.String() != KimiUsageEndpoint {
+	if !s.anyEndpoint && u.String() != KimiUsageEndpoint && u.String() != KimiAIUsageEndpoint {
 		return nil, errEndpointRefused
 	}
 	if s.anyEndpoint && u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost" && u.Hostname() != "::1" {
@@ -32,11 +36,15 @@ func (s *KimiOAuthSource) checkEndpoint() (*url.URL, error) {
 }
 
 func (s *KimiOAuthSource) fetch(ctx context.Context) (UsageSnapshot, oauthOutcome) {
-	u, err := s.checkEndpoint()
+	endpoint := s.endpoint
+	if connection, ok := ctx.Value(kimiConnectionContextKey{}).(kimiManagedConnection); ok && !s.anyEndpoint && connection.usageEndpoint != "" {
+		endpoint = connection.usageEndpoint
+	}
+	u, err := s.checkEndpoint(endpoint)
 	if err != nil {
 		return UsageSnapshot{}, oauthOutcome{reason: ReasonFailed}
 	}
-	if err := s.managed(); err != nil {
+	if _, err := s.connection(); err != nil {
 		return UsageSnapshot{}, oauthOutcome{reason: ReasonOf(err)}
 	}
 	token, expiresAt, err := s.credentials(ctx)

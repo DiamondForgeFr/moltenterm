@@ -13,13 +13,16 @@ import (
 )
 
 const (
-	KimiOAuthSourceId = "kimi-oauth"
-	KimiUsageEndpoint = "https://api.kimi.com/coding/v1/usages"
+	KimiOAuthSourceId   = "kimi-oauth"
+	KimiUsageEndpoint   = "https://api.kimi.com/coding/v1/usages"
+	KimiAIUsageEndpoint = "https://api.kimi.ai/coding/v1/usages"
 )
+
+type kimiConnectionContextKey struct{}
 
 type KimiOAuthSource struct {
 	oauthEngine
-	managed func() error
+	connection func() (kimiManagedConnection, error)
 }
 
 var DefaultKimiOAuthSource = MakeKimiOAuthSource()
@@ -31,7 +34,7 @@ func MakeKimiOAuthSource() *KimiOAuthSource {
 		credentials: readKimiCredentials,
 		store:       kimiCredentialStore,
 		now:         time.Now,
-	}, managed: checkKimiManagedConfiguration}
+	}, connection: currentKimiManagedConnection}
 	s.fetchFn = s.fetch
 	return s
 }
@@ -61,11 +64,13 @@ func (s *KimiOAuthSource) Read(ctx context.Context, blockId string) (UsageSnapsh
 		s.invalidate(ReasonFailed)
 		return s.result()
 	}
-	if err := s.managed(); err != nil {
+	connection, err := s.connection()
+	if err != nil {
 		s.invalidate(ReasonOf(err))
 		return s.result()
 	}
 	s.eligible()
+	ctx = context.WithValue(ctx, kimiConnectionContextKey{}, connection)
 	return s.oauthEngine.Read(ctx, blockId)
 }
 
@@ -76,6 +81,7 @@ type KimiOAuthTestHooks struct {
 	Store       func() string
 	Now         func() time.Time
 	Managed     func() error
+	Connection  func() (kimiManagedConnection, error)
 }
 
 func (s *KimiOAuthSource) UseForTest(hooks KimiOAuthTestHooks) func() {
@@ -86,17 +92,19 @@ func (s *KimiOAuthSource) UseForTest(hooks KimiOAuthTestHooks) func() {
 		Endpoint: hooks.Endpoint, Client: hooks.Client, Credentials: hooks.Credentials, Store: hooks.Store, Now: hooks.Now,
 	})
 	s.lock.Lock()
-	previousManaged := s.managed
-	if hooks.Managed != nil {
-		s.managed = hooks.Managed
+	previousConnection := s.connection
+	if hooks.Connection != nil {
+		s.connection = hooks.Connection
+	} else if hooks.Managed != nil {
+		s.connection = func() (kimiManagedConnection, error) { return kimiManagedConnection{}, hooks.Managed() }
 	} else if hooks.Credentials != nil {
-		s.managed = func() error { return nil }
+		s.connection = func() (kimiManagedConnection, error) { return kimiManagedConnection{}, nil }
 	}
 	s.lock.Unlock()
 	return func() {
 		restoreEngine()
 		s.lock.Lock()
 		defer s.lock.Unlock()
-		s.managed = previousManaged
+		s.connection = previousConnection
 	}
 }
