@@ -14,8 +14,9 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useCallback, useMemo } from "react";
+import { usageWindowLabel } from "../companion/companion-gauges-model";
 import { agentName } from "../companion/companion-task-model";
-import { useT } from "../i18n/i18n";
+import { useLocale, useT } from "../i18n/i18n";
 import { UsageWeekGrid, UsageWeekRow } from "../usage-week/usage-week";
 import { UsageReadingsAtom, UsageUnreadableAtom, UsageUseAtom } from "./boss-usage";
 import { choiceOf, choicesOf, UsageChoice, UsageChoices } from "./brokk-usage-choice";
@@ -26,12 +27,14 @@ import { usageGrid, WeeklyUsage } from "./brokk-usage-model";
 // A provider's row in the shared week grid, named with its agent's display name. Its context menu is the developer's
 // choice of showing it always, hiding it, or leaving it to the rules (AC97, #2341).
 export function weekRow(u: WeeklyUsage, choices: UsageChoices): UsageWeekRow {
-    const { provider, readAt, old, stale, unreadable, ...line } = u;
+    const { provider, readAt, old, stale, unreadable, windowId, windowLabel, ...line } = u;
     const name = agentName(provider);
     return {
         key: provider,
         agent: provider,
         name,
+        window: windowId,
+        windowLabel: usageWindowLabel(windowLabel) || windowId,
         line: unreadable ? undefined : line,
         unreadable,
         readAt,
@@ -50,6 +53,7 @@ export function weekRow(u: WeeklyUsage, choices: UsageChoices): UsageWeekRow {
 
 export function UsageBlock({ now }: { now: number }) {
     const t = useT();
+    const locale = useLocale();
     const readings = useAtomValue(UsageReadingsAtom, { store: globalStore });
     const unreadable = useAtomValue(UsageUnreadableAtom, { store: globalStore });
     const use = useAtomValue(UsageUseAtom, { store: globalStore });
@@ -60,7 +64,7 @@ export function UsageBlock({ now }: { now: number }) {
         () => usageGrid(readings, now, unreadable, { use, choices }),
         [readings, now, unreadable, use, choices]
     );
-    const weekRows = useMemo(() => grid.rows.map((u) => weekRow(u, choices)), [grid, choices]);
+    const weekRows = useMemo(() => grid.rows.map((u) => weekRow(u, choices)), [grid, choices, locale]);
     const choose = useCallback(
         (provider: string, choice: UsageChoice) => fireAndForget(() => chooseUsage(provider, choice)),
         []

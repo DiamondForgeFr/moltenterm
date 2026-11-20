@@ -34,7 +34,7 @@ vi.mock("../tab-activity", () => ({
 }));
 vi.mock("../workspace-rail", () => ({ loadWorkspaceSources: vi.fn(async () => []) }));
 vi.mock("../companion/companion-task-model", () => ({
-    agentName: (id: string) => ({ claude: "Claude", codex: "Codex" })[id] ?? id,
+    agentName: (id: string) => ({ claude: "Claude", codex: "Codex", kimi: "Kimi Code" })[id] ?? id,
 }));
 vi.mock("../agent-state-store", async () => {
     const { atom } = await import("jotai");
@@ -276,6 +276,7 @@ function quiet() {
     globalStore.set(agents.dataAtom, { states: {}, versions: {} });
     globalStore.set(keep.stateAtom, EmptyKeepAwakeState);
     globalStore.set(UsageReadingsAtom, {});
+    globalStore.set(UsageUnreadableAtom, {});
     globalStore.set(UsageUseAtom, null);
     setSetting("boss:usageshow", undefined);
     setSetting("boss:usagehide", undefined);
@@ -1201,6 +1202,58 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(html).not.toContain("brokk-usage-bar");
     });
 
+    it("shows a cold global Kimi month with the generic icon and localized provider/window names", () => {
+        globalStore.set(UsageReadingsAtom, {
+            kimi: {
+                agent: "kimi",
+                source: "test",
+                readat: Date.now(),
+                windows: [
+                    { id: "session", label: "Current session", usedpercent: 90 },
+                    { id: "week", label: "This week", usedpercent: 40, resetsat: Date.now() + 2 * 24 * 60 * Min },
+                    {
+                        id: "month",
+                        label: "This month",
+                        usedpercent: 60,
+                        resetsat: Date.now() + 20 * 24 * 60 * Min,
+                    },
+                ],
+            },
+        });
+        const i18n = I18nModel.getInstance();
+        try {
+            globalStore.set(i18n.languageSettingAtom, "en");
+            let html = render();
+            expect(html.match(/data-testid="usage-week-row"/g)).toHaveLength(1);
+            expect(cellTag(html, "kimi")).toContain('data-window="month"');
+            expect(cellTag(html, "kimi")).toContain('aria-label="Kimi Code, This month, 60 %');
+            expect(html).toContain('data-testid="usage-week-percent">60 %</');
+            expect(html).toContain('data-logo="ai"');
+            expect(html).toContain('data-name="Kimi Code, This month"');
+            expect(html).toContain('aria-label="Show or hide Kimi Code"');
+            expect(html).not.toContain("90 %");
+            expect(html).not.toContain("40 %");
+
+            globalStore.set(i18n.languageSettingAtom, "fr");
+            html = render();
+            expect(cellTag(html, "kimi")).toContain('aria-label="Kimi Code, Ce mois-ci');
+            expect(html).toContain('data-name="Kimi Code, Ce mois-ci"');
+            expect(html).toContain('aria-label="Afficher ou masquer Kimi Code"');
+        } finally {
+            globalStore.set(i18n.languageSettingAtom, "");
+        }
+
+        globalStore.set(UsageReadingsAtom, {});
+        globalStore.set(UsageUnreadableAtom, { kimi: "signedout" });
+        const unavailable = render();
+        expect(cellTag(unavailable, "kimi")).toContain('data-unreadable="true"');
+        expect(cellTag(unavailable, "kimi")).not.toContain("data-window=");
+        expect(cellTag(unavailable, "kimi")).toContain('aria-label="Kimi Code, no reading:');
+        expect(unavailable).toContain('data-testid="usage-week-unreadable">no reading</');
+        expect(unavailable).not.toContain('data-testid="usage-week-percent"');
+        expect(unavailable).not.toContain("0 %");
+    });
+
     // #2341: FR-BOSS-009, AC93 to AC97.
     describe("the order of use, the providers not used lately and the stale readings", () => {
         const Day = 24 * 60 * Min;
@@ -1314,7 +1367,7 @@ describe("the block under the square (AC17 and AC20)", () => {
             expect(cellTag(html, "codex")).toContain('role="group"');
             // The button sits inside the row that carries the menu: the Menu key and Shift+F10 reach the row's handler.
             const row = html.indexOf(cellTag(html, "codex"));
-            expect(html.indexOf('data-name="Codex"', row)).toBeGreaterThan(row);
+            expect(html.indexOf('data-name="Codex, This week"', row)).toBeGreaterThan(row);
         });
 
         it("makes a row that cannot be read as reachable as the others", () => {
@@ -1377,7 +1430,10 @@ describe("the block under the square (AC17 and AC20)", () => {
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 40), codex: reading("codex", 20) });
         const html = render();
         const logos = [...html.matchAll(/<(?:span|button) [^>]*data-testid="usage-week-logo"[^>]*>/g)].map((m) => m[0]);
-        expect(logos.map((tag) => /data-name="([^"]*)"/.exec(tag)?.[1])).toEqual(["Claude", "Codex"]);
+        expect(logos.map((tag) => /data-name="([^"]*)"/.exec(tag)?.[1])).toEqual([
+            "Claude, This week",
+            "Codex, This week",
+        ]);
         expect(logos.every((tag) => !tag.includes("title="))).toBe(true);
         expect(attr(html, "brokk-usage", "title")).toBeUndefined();
         const grid = readFileSync(join(__dirname, "../usage-week/usage-week.tsx"), "utf8");
@@ -1400,7 +1456,7 @@ describe("the block under the square (AC17 and AC20)", () => {
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 73, resetsat) });
         const html = render();
         const day = new Date(resetsat).toLocaleDateString("en", { weekday: "long" });
-        expect(cellTag(html, "claude")).toContain(`aria-label="Claude, 73 %, resets ${day}"`);
+        expect(cellTag(html, "claude")).toContain(`aria-label="Claude, This week, 73 %, resets ${day}"`);
         // A row with a menu holds the button that opens it, so it is a group, not an image (#2341).
         expect(cellTag(html, "claude")).toContain('role="group"');
         expect(cellTag(html, "claude")).not.toContain("title=");
@@ -1572,7 +1628,7 @@ describe("the block under the square (AC17 and AC20)", () => {
         globalStore.set(UsageReadingsAtom, { codex: { ...reading("codex", 9), readat: Date.now() - 26 * 60 * Min } });
         let html = render();
         expect(cellTag(html, "codex")).toContain('data-old="true"');
-        expect(cellTag(html, "codex")).toMatch(/aria-label="Codex, 9 %, resets [A-Za-z]+, read [^"]+"/);
+        expect(cellTag(html, "codex")).toMatch(/aria-label="Codex, This week, 9 %, resets [A-Za-z]+, read [^"]+"/);
         expect(html).toMatch(/data-testid="usage-week-percent">9 %</);
         globalStore.set(UsageReadingsAtom, { codex: reading("codex", 9) });
         expect(cellTag(render(), "codex")).not.toContain("data-old");

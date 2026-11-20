@@ -92,6 +92,42 @@ describe("the weekly usage under the square (FR-BOSS-009, AC17 and AC20)", () =>
         expect(rows.map((r) => [r.provider, r.percent, r.windowMins])).toEqual([["codex", 47, 43200]]);
     });
 
+    it("selects Kimi's running calendar month and retains its id, raw label and reset", () => {
+        const resetsat = Now + 20 * Day;
+        const rows = weeklyUsage(
+            {
+                kimi: reading("kimi", [
+                    { id: "session", usedpercent: 90 },
+                    { id: "week", usedpercent: 50, resetsat: Now + 2 * Day },
+                    { id: "month", label: "This month", usedpercent: 60, resetsat },
+                ]),
+            },
+            Now
+        );
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+            provider: "kimi",
+            percent: 60,
+            windowId: "month",
+            windowLabel: "This month",
+            resetsAt: resetsat,
+        });
+    });
+
+    it("falls back to the running week when Kimi's month has expired", () => {
+        const rows = weeklyUsage(
+            {
+                kimi: reading("kimi", [
+                    { id: "session", usedpercent: 90 },
+                    { id: "week", usedpercent: 50, resetsat: Now + 2 * Day },
+                    { id: "month", label: "This month", usedpercent: 60, resetsat: Now - 1 },
+                ]),
+            },
+            Now
+        );
+        expect(rows[0]).toMatchObject({ percent: 50, windowId: "week", windowLabel: "week" });
+    });
+
     it("finds a week by its length when the reader gave it no name", () => {
         const rows = weeklyUsage(
             { codex: reading("codex", [{ id: "window:10080", usedpercent: 40, windowmins: 10080 }]) },
@@ -170,9 +206,9 @@ describe("the weekly usage under the square (FR-BOSS-009, AC17 and AC20)", () =>
             codex: "expired",
             claude: "failed",
         });
-        expect(rows.map((r) => [r.provider, r.unreadable ?? ""])).toEqual([
-            ["claude", ""],
-            ["codex", "expired"],
+        expect(rows.map((r) => [r.provider, r.unreadable ?? "", r.windowId, r.windowLabel])).toEqual([
+            ["claude", "", "week", "week"],
+            ["codex", "expired", undefined, undefined],
         ]);
     });
 
