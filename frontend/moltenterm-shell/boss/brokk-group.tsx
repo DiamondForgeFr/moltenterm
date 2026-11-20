@@ -104,6 +104,7 @@ import "./brokk-group.css";
 import { BrokkHubModel } from "./brokk-hub-store";
 import { BrokkKeepAwakePanel } from "./brokk-keepawake-panel";
 import { brokkMenuItems } from "./brokk-menu";
+import type { Slide } from "./brokk-mooring-model";
 import { buildNotes, consultedIds, noteFacts, NoteRow } from "./brokk-notes-model";
 import { NotificationsPanel } from "./brokk-notes-panel";
 import { PanelContentAttr, PanelHeadAttr } from "./brokk-panel-frame";
@@ -115,6 +116,7 @@ import { useBrokkActions } from "./use-brokk-actions";
 import { useAvatarKeys } from "./use-brokk-hub";
 import { useCardLive } from "./use-brokk-live";
 import { useBrokkMoment } from "./use-brokk-moment";
+import { useMooringSlide } from "./use-brokk-mooring";
 import { useTalkFace } from "./use-brokk-talk-face";
 
 // How often "up 12 min" and the ages are read again while the group shows.
@@ -165,6 +167,10 @@ export type GroupFrame = {
     origin: { x: number; y: number };
     // The ember thread from the face to the square: its left, its top and its width in the layer's coordinates.
     thread: { x: number; y: number; w: number };
+    // The sidebar's slide when the frame moved with it (#2421): the group and the thread move in its time and curve.
+    slide?: Slide;
+    // The layer's left edge on screen, which moves when the sidebar docks or undocks.
+    layerX?: number;
 };
 
 function focusIsAtHome(root: HTMLElement): boolean {
@@ -352,6 +358,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const brainstormingRef = useRef(brainstorming);
     brainstormingRef.current = brainstorming;
     const rootRef = useRef<HTMLDivElement>(null);
+    useMooringSlide(rootRef, frame, shown);
     const panelRef = useRef<HTMLDivElement>(null);
     const [now, setNow] = useState(Date.now());
     const [typing, setTyping] = useState(false);

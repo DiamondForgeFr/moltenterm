@@ -17,6 +17,7 @@ import { isMacOS } from "@/util/platformutil";
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { BrainstormLayer } from "../brainstorm/brainstorm-layer";
 import { prefersReducedMotion } from "../molten-motion";
@@ -24,12 +25,13 @@ import { NotificationHost } from "../notification-center";
 import { BossBubbleModel } from "./boss-store";
 import { BrokkAvatar } from "./brokk-avatar";
 import { hangingRightPx, Rect as ScreenRect } from "./brokk-avatar-model";
-import type { SidebarPlace } from "./brokk-edge-model";
+import type { EdgeShape, SidebarPlace } from "./brokk-edge-model";
 import { BrokkExpressionsModel } from "./brokk-expressions";
 import { BrokkGroup, GroupFrame, preloadUsageBlock } from "./brokk-group";
-import { dockedPlace, groupGeometry, groupPlace } from "./brokk-group-model";
+import { dockedPlace, groupGeometry } from "./brokk-group-model";
 import "./brokk-group.css";
 import { BrokkHubModel } from "./brokk-hub-store";
+import { DefaultPeekInsetPx, matrixXOf, mooredFrame, sameMooredFrame, Slide, slideOf } from "./brokk-mooring-model";
 import { BrokkSession } from "./brokk-session";
 
 // How long after the window is up the usage block of his group is loaded.
@@ -51,9 +53,37 @@ export function frameInset(layer: Element): number {
     return Number.isFinite(gap) && gap > 0 ? gap : 0;
 }
 
+function shiftOf(element: Element): number {
+    return matrixXOf(getComputedStyle(element).transform).tx;
+}
+
+function cssPx(element: Element, name: string, fallback: number): number {
+    const value = parseFloat(getComputedStyle(element).getPropertyValue(name));
+    return Number.isFinite(value) ? value : fallback;
+}
+
+// The sidebar's running slide, read from its CSS transitions, so the group moves in the same time and curve.
+function slideOfElement(element: Element): Slide {
+    const animations = typeof element.getAnimations === "function" ? element.getAnimations() : [];
+    return slideOf(
+        animations.map((animation) => {
+            const timing = animation.effect?.getComputedTiming?.();
+            return {
+                property: (animation as CSSTransition).transitionProperty ?? "",
+                running: animation.playState === "running",
+                durationMs: Number(timing?.activeDuration ?? 0),
+                elapsedMs: Number(timing?.localTime ?? 0) - Number(timing?.delay ?? 0),
+                easing: String(animation.effect?.getTiming?.().easing ?? ""),
+            };
+        })
+    );
+}
+
 // Where the group stands and where it arrives from, in the layer's coordinates: 8 px right of the sidebar and 8 px from
-// the top of the window area; from the title-bar face that opened it. It follows the window's size while it is open.
-// During a brainstorm the group docks at the window's top left, whatever the sidebar's strip (#2257).
+// the top of the window area; from the title-bar face that opened it. It follows the window's size while it is open,
+// and the sidebar as it hides, comes back, docks or collapses (#2421): measured as the sidebar starts to slide, the
+// frame is where the slide lands, and it carries the slide's time and curve for the group to move with it. During a
+// brainstorm the group docks at the window's top left, whatever the sidebar's strip (#2257).
 function useGroupFrame(
     layerRef: React.RefObject<HTMLDivElement>,
     open: boolean,
@@ -67,56 +97,59 @@ function useGroupFrame(
         if (!open || layer == null) {
             return;
         }
+        const sidebarElement = document.querySelector("[data-testid='workspace-sidebar']");
         const measure = () => {
-            const box = rectOf(layer);
             const avatar = document.querySelector("[data-brokk-avatar]");
-            const sidebar =
-                sidebarAt === "screen" || sidebarAt === "edge"
-                    ? document.querySelector("[data-testid='workspace-sidebar']")
-                    : null;
-            const g = groupGeometry();
-            // The strip of a collapsed sidebar (#2070) is the sidebar itself, slid out of the window but its strip: its
-            // measured box (transform included) gives its real right edge, whatever the strip's width (#2082), and the
-            // thread runs back to the face in the strip. The layer starts at that edge too (the content's margin).
-            const sidebarBox =
-                sidebar != null
-                    ? rectOf(sidebar)
-                    : sidebarAt === "edge"
-                      ? { left: box.left, top: box.top, width: 0, height: box.height }
-                      : null;
-            const place = groupPlace(
-                sidebarBox == null
-                    ? null
-                    : {
-                          x: sidebarBox.left - box.left,
-                          y: sidebarBox.top - box.top,
-                          w: sidebarBox.width,
-                          h: sidebarBox.height,
-                      },
-                { width: box.width, height: box.height },
-                g,
-                frameInset(layer)
-            );
-            const face = avatar == null ? null : rectOf(avatar);
-            const origin =
-                face == null
-                    ? null
-                    : { x: face.left + face.width / 2 - box.left, y: face.top + face.height / 2 - box.top };
-            // The thread runs from the face to the square's edge, level with the face, kept inside the square's height.
-            const faceRight = face == null ? 0 : face.left + face.width - box.left;
-            const thread =
-                sidebarBox != null && origin != null && place.left - faceRight > 0
-                    ? {
-                          x: faceRight,
-                          y: Math.min(Math.max(origin.y, place.top + 6), place.top + g.square - 6) - 1,
-                          w: place.left - faceRight,
-                      }
-                    : null;
-            setFrame({ place, origin, thread });
+            const sidebar = sidebarAt === "screen" || sidebarAt === "edge" ? sidebarElement : null;
+            const inset = frameInset(layer);
+            const moored = mooredFrame({
+                layer: rectOf(layer),
+                inset,
+                g: groupGeometry(),
+                // The strip of a collapsed sidebar (#2070) is the sidebar itself, slid out of the window but its strip:
+                // its box gives its real right edge, whatever the strip's width (#2082), and the thread runs back to the
+                // face in the strip. The layer starts at that edge too (the content's margin).
+                sidebar:
+                    sidebar == null
+                        ? null
+                        : {
+                              box: rectOf(sidebar),
+                              shift: shiftOf(sidebar),
+                              draw: {
+                                  hidden: sidebar.classList.contains("is-hidden"),
+                                  peek: sidebar.classList.contains("is-peek"),
+                                  edge: (sidebar.getAttribute("data-edge") as EdgeShape) ?? null,
+                              },
+                              gap: inset,
+                          },
+                edgeOnly: sidebar == null && sidebarAt === "edge",
+                face:
+                    avatar == null
+                        ? null
+                        : {
+                              box: rectOf(avatar),
+                              shift: shiftOf(avatar),
+                              edge: avatar.classList.contains("is-edge"),
+                              peekInset: cssPx(avatar, "--mt-peek-inset", DefaultPeekInsetPx),
+                          },
+            });
+            const slide = sidebar == null ? null : slideOfElement(sidebar);
+            setFrame((before) => (sameMooredFrame(before, moored) ? before : { ...moored, slide }));
         };
         measure();
         window.addEventListener("resize", measure);
-        return () => window.removeEventListener("resize", measure);
+        // The sidebar hides, floats out, docks or shows its strip by its class and its data-edge: the group follows.
+        // Drawn before the next paint: the layer has already moved with the content when the sidebar docks, and a frame
+        // drawn with the old place would show the group a sidebar's width away for a moment.
+        const remeasure = () => flushSync(measure);
+        const observer = typeof MutationObserver === "function" ? new MutationObserver(remeasure) : null;
+        if (observer != null && sidebarElement != null) {
+            observer.observe(sidebarElement, { attributes: true, attributeFilter: ["class", "data-edge"] });
+        }
+        return () => {
+            window.removeEventListener("resize", measure);
+            observer?.disconnect();
+        };
     }, [layerRef, open, sidebarAt]);
     return frame;
 }

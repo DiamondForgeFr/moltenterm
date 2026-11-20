@@ -62,6 +62,9 @@
     --mt-tether-time: var(--mt-duration-drop);
     --mt-tether-ease: cubic-bezier(0.2, 1.15, 0.4, 1);
     --mt-tether-fade: var(--mt-duration-show);
+    /* As the sidebar slides, the thread is moved and stretched from its left end (use-brokk-mooring.ts, #2421), so its
+       right end stays on the square's edge at every frame. */
+    transform-origin: 0 0;
 }
 
 /* What arrives from the face: it starts small, at the face, and snaps into place, by its step (--i) on the way in; it
