@@ -11,6 +11,7 @@ import { EmptyAgentStates } from "../agent-state-model";
 import type { LeadFacts, ReviewPr } from "../reviews/reviews-model";
 import type { AgentBarFacts, UpcomingAnswer } from "../reviews/reviews-upcoming-model";
 import {
+    addressKey,
     addZone,
     annotateRequest,
     annotateTargetOf,
@@ -19,7 +20,6 @@ import {
     clearAll,
     commentKeyAction,
     commitComment,
-    addressKey,
     discardPage,
     editZone,
     emptyState,
@@ -29,11 +29,11 @@ import {
     layerKeyAction,
     linkChip,
     linksOf,
+    markViews,
     MaxCommentChars,
     MaxLinksPerZone,
     MaxRefs,
     MaxRefsPerZone,
-    markViews,
     MaxZones,
     pagesOf,
     recipientsOf,

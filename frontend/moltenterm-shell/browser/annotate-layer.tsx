@@ -19,13 +19,15 @@ import { ReviewsModel } from "../reviews/reviews-store";
 import { upcomingGet } from "../reviews/reviews-upcoming-client";
 import { useWorkspaceReviews } from "../reviews/reviews-workspace";
 import { readWorkspaceProject } from "../workspace-project";
-import { type Captured, captureComments } from "./annotate-capture";
+import { captureComments, type Captured } from "./annotate-capture";
 import { GuestLink, readPlaced } from "./annotate-guest-link";
 import { LinkChips, RefThumbs } from "./annotate-layer-parts";
 import {
+    addZone,
     type AnnotateState,
     type AnnotateTarget,
     annotateTargetOf,
+    type Box,
     cancelEdit,
     clearAll,
     commentKeyAction,
@@ -48,8 +50,6 @@ import {
     type Size,
     type Zone,
     zoneNumber,
-    addZone,
-    type Box,
 } from "./annotate-model";
 import { annotateColor } from "./annotate-paint";
 import { attachReferences, fieldDragOver, fieldDrop, fieldPaste, MaxRefSourceBytes } from "./annotate-refs";

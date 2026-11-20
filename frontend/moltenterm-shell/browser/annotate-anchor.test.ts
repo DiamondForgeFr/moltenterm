@@ -17,8 +17,10 @@ import {
     gestureOf,
     hitMark,
     type NodeFacts,
+    overlap,
     pathFractions,
     pathPoints,
+    pickAnchorIndex,
     pointBox,
     resolveAnchor,
     scrollTarget,
@@ -187,7 +189,9 @@ describe("the gestures that place a mark", () => {
         ];
         const g = gestureOf("freehand", path[0], path[2], path, null);
         expect(g).toMatchObject({ kind: "place", mark: "freehand", box: { x: 100, y: 100, w: 120, h: 40 } });
-        expect(gestureOf("freehand", path[0], { x: 101, y: 100 }, [path[0], { x: 101, y: 100 }], null).kind).toBe("none");
+        expect(gestureOf("freehand", path[0], { x: 101, y: 100 }, [path[0], { x: 101, y: 100 }], null).kind).toBe(
+            "none"
+        );
     });
 
     it("never places a rectangle with the zone tool for a click, nor an outline with the point tool for a drag", () => {
@@ -197,7 +201,10 @@ describe("the gestures that place a mark", () => {
 
     it("edits the mark clicked, whatever the tool, the smaller of two on top of each other", () => {
         for (const tool of ["point", "zone", "freehand"] as const) {
-            expect(gestureOf(tool, { x: 160, y: 160 }, { x: 161, y: 160 }, [], hit(160, 160))).toEqual({ kind: "edit", id: 2 });
+            expect(gestureOf(tool, { x: 160, y: 160 }, { x: 161, y: 160 }, [], hit(160, 160))).toEqual({
+                kind: "edit",
+                id: 2,
+            });
         }
         expect(hit(300, 300)?.id).toBe(1);
         expect(hit(900, 900)).toBeNull();
@@ -207,6 +214,54 @@ describe("the gestures that place a mark", () => {
 
     it("draws a mark when dragged, even from inside another one", () => {
         expect(gestureOf("zone", { x: 160, y: 160 }, { x: 400, y: 380 }, [], hit(160, 160)).kind).toBe("place");
+    });
+});
+
+// The elements under the centre of a mark, from the one on top down to the document's body: a rectangle drawn around an input
+// belongs to the input (or its label), not to the section the form stands in, whose width would carry the mark away when
+// the page is resized.
+describe("the element a drawn mark is placed on", () => {
+    const section: Box = { x: 0, y: 900, w: 424, h: 1152 };
+    const form: Box = { x: 32, y: 1380, w: 360, h: 240 };
+    const label: Box = { x: 32, y: 1412, w: 360, h: 58 };
+    const input: Box = { x: 32, y: 1418, w: 360, h: 34 };
+    const stack = [input, label, form, section];
+
+    it("is the element the mark fits best: a rectangle drawn around an input, a little larger than it", () => {
+        const mark: Box = { x: 20, y: 1406, w: 384, h: 58 };
+        expect(overlap(label, mark)).toBeGreaterThan(0.7);
+        expect(overlap(label, mark)).toBeGreaterThan(overlap(input, mark));
+        expect(pickAnchorIndex(stack, mark)).toBe(1);
+    });
+
+    it("follows the input's container when the container is a better fit than the input", () => {
+        expect(pickAnchorIndex(stack, { x: 32, y: 1380, w: 360, h: 240 })).toBe(2);
+    });
+
+    it("is the smallest element that holds the whole mark when it fits none: a rectangle over several cards", () => {
+        const cards: Box[] = [
+            { x: 32, y: 2000, w: 100, h: 60 },
+            { x: 32, y: 1000, w: 360, h: 600 },
+            section,
+        ];
+        expect(pickAnchorIndex(cards, { x: 40, y: 1010, w: 300, h: 100 })).toBe(1);
+        expect(pickAnchorIndex([cards[0], section], { x: 40, y: 1010, w: 300, h: 100 })).toBe(1);
+    });
+
+    it("is none when nothing holds the mark, and none when nothing is under it", () => {
+        expect(pickAnchorIndex([{ x: 0, y: 0, w: 10, h: 10 }], { x: 500, y: 500, w: 50, h: 50 })).toBe(-1);
+        expect(pickAnchorIndex([], { x: 0, y: 0, w: 50, h: 50 })).toBe(-1);
+    });
+
+    it("keeps the mark on the input's label when the page is resized, instead of stretching it with the section", () => {
+        const mark: Box = { x: 20, y: 1406, w: 384, h: 58 };
+        const element = stack[pickAnchorIndex(stack, mark)];
+        const anchor = anchorOf(mark, { selector: "label", box: element }, false, []);
+        const wide = resolveAnchor(anchor, { elementBox: () => ({ x: 32, y: 1500, w: 420, h: 58 }) }).box;
+        // The mark is as large around the label as it was (384 for 360), not as large as the section became (424 to 1300).
+        expect(wide.w).toBeCloseTo((384 / 360) * 420, 5);
+        expect(wide.w).toBeLessThan(500);
+        expect(wide.y).toBeCloseTo(1500 - 6, 5);
     });
 });
 
@@ -264,7 +319,10 @@ describe("the capture of a mark at send time", () => {
         expect(small).toEqual({ x: 0, y: 0, w: 360, h: 240 });
         const huge = cropRegion({ x: 0, y: 0, w: 2000, h: 3000 }, Viewport, 120, min);
         expect(huge).toEqual({ x: 0, y: 0, w: 1000, h: 800 });
-        for (const box of [{ x: 950, y: 790, w: 100, h: 50 }, { x: -50, y: -40, w: 30, h: 30 }]) {
+        for (const box of [
+            { x: 950, y: 790, w: 100, h: 50 },
+            { x: -50, y: -40, w: 30, h: 30 },
+        ]) {
             const region = cropRegion(box, Viewport, 120, min);
             expect(boxContains({ x: 0, y: 0, ...Viewport }, region)).toBe(true);
         }
@@ -281,9 +339,7 @@ describe("the capture of a mark at send time", () => {
 });
 
 // What the selector builder reads of an element: a chain of facts from the element up to the root.
-function chain(
-    ...levels: Partial<Omit<NodeFacts, "parent">>[]
-): { node: NodeFacts; all: Record<string, number> } {
+function chain(...levels: Partial<Omit<NodeFacts, "parent">>[]): { node: NodeFacts; all: Record<string, number> } {
     let parent: NodeFacts = null;
     let node: NodeFacts = null;
     for (const level of levels) {
@@ -297,7 +353,12 @@ describe("naming an element with a CSS selector", () => {
     const always = () => true;
 
     it("is an id when the element has a stable one", () => {
-        const { node } = chain({ tag: "HTML" }, { tag: "BODY" }, { tag: "MAIN", id: "app" }, { tag: "H2", id: "pricing-title" });
+        const { node } = chain(
+            { tag: "HTML" },
+            { tag: "BODY" },
+            { tag: "MAIN", id: "app" },
+            { tag: "H2", id: "pricing-title" }
+        );
         expect(buildSelector(node, always)).toBe("#pricing-title");
     });
 
@@ -325,13 +386,24 @@ describe("naming an element with a CSS selector", () => {
 
     it("leaves out the classes and ids a build generated", () => {
         expect(["card", "Hero-title", "btn_primary"].every(stableName)).toBe(true);
-        expect(["css-1x2y3z4", "sc-bdVaJa", "a1b2c3d4e5f6", "id-12345", ":r1:", "x".repeat(70), ""].some(stableName)).toBe(false);
-        const { node } = chain({ tag: "HTML" }, { tag: "BODY" }, { tag: "P", id: ":r1:", classes: ["css-1x2y3z4", "note"] });
+        expect(
+            ["css-1x2y3z4", "sc-bdVaJa", "a1b2c3d4e5f6", "id-12345", ":r1:", "x".repeat(70), ""].some(stableName)
+        ).toBe(false);
+        const { node } = chain(
+            { tag: "HTML" },
+            { tag: "BODY" },
+            { tag: "P", id: ":r1:", classes: ["css-1x2y3z4", "note"] }
+        );
         expect(buildSelector(node, (s) => s === "body > p.note")).toBe("body > p.note");
     });
 
     it("stops climbing at an id, and says nothing when even that does not name it alone", () => {
-        const { node } = chain({ tag: "HTML" }, { tag: "BODY" }, { tag: "SECTION", id: "faq" }, { tag: "LI", sameTag: 4, indexOfTag: 3 });
+        const { node } = chain(
+            { tag: "HTML" },
+            { tag: "BODY" },
+            { tag: "SECTION", id: "faq" },
+            { tag: "LI", sameTag: 4, indexOfTag: 3 }
+        );
         expect(buildSelector(node, (s) => s === "#faq > li:nth-of-type(3)")).toBe("#faq > li:nth-of-type(3)");
         expect(buildSelector(node, () => false)).toBe("");
     });

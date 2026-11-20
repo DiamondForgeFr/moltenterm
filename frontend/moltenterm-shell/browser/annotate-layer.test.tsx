@@ -8,8 +8,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 import { I18nModel } from "../i18n/i18n";
-import { CommentField } from "./annotate-layer";
 import type { Captured } from "./annotate-capture";
+import { CommentField } from "./annotate-layer";
 import type { AnnotateTarget, Recipient, Zone } from "./annotate-model";
 import { type Outcome, ReviewView, type ReviewViewProps } from "./annotate-review";
 import { CaptureBar, CommentList, CommentToolbar, type CommentToolbarProps } from "./annotate-toolbar";
@@ -136,7 +136,9 @@ describe("the toolbar (FR-BRW-017 AC24)", () => {
         expect(html).toContain("Commenter un élément");
         expect(bar({ count: 2, leaveAsk: true })).toContain("Abandonner 2 commentaires ?");
         expect(bar({ paused: true })).toContain("En pause");
-        expect(bar({ count: 2, pageAsk: { count: 2, page: "localhost:5173/a", pages: 1 } })).toContain("Garder les 2 commentaires");
+        expect(bar({ count: 2, pageAsk: { count: 2, page: "localhost:5173/a", pages: 1 } })).toContain(
+            "Garder les 2 commentaires"
+        );
         expect(html).not.toMatch(/\b(Mac|macOS|Finder|Windows)\b/);
     });
 });
@@ -154,7 +156,13 @@ describe("the list of comments", () => {
     const zones: Zone[] = [
         Zone1,
         { ...Zone1, id: 2, kind: "point", comment: "", address: Page },
-        { ...Zone1, id: 3, kind: "freehand", comment: "Too close.\nSecond line", address: "http://localhost:5173/cart" },
+        {
+            ...Zone1,
+            id: 3,
+            kind: "freehand",
+            comment: "Too close.\nSecond line",
+            address: "http://localhost:5173/cart",
+        },
     ];
     const list = (editingId = 0, shown = zones) =>
         renderToStaticMarkup(

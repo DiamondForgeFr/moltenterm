@@ -14,9 +14,9 @@ import type { LeadFacts, RebaseAsk } from "../reviews/reviews-model";
 import { rebaseAskKey } from "../reviews/reviews-model";
 import { cardInputOf } from "../reviews/reviews-sections-model";
 import { type AgentBarFacts, branchAgents } from "../reviews/reviews-upcoming-model";
+import { type Anchor, type Box, type MarkKind, type MarkView, type Point, type Size } from "./annotate-wire";
 import { type TestContextAnswer } from "./test-context-model";
 import { type ProjectFacts, reviewPrOf, versionOfAnswer } from "./version-card-model";
-import { type Anchor, type Box, type MarkKind, type MarkView, type Point, type Size } from "./annotate-wire";
 
 export type { Box, Point, Size };
 export type Rect = Box;

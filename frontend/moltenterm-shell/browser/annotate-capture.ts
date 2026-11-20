@@ -6,19 +6,13 @@
 // own capturePage and draws the mark and its number on it; then the page's screens, set one under the other, give the
 // overview where the page allows it; at the end the overlay and the page's scroll position come back, whatever happened.
 
-import type { Zone } from "./annotate-model";
-import { sameAddress } from "./annotate-model";
 import { cropRegion, sliceOffsets } from "./annotate-anchor";
 import type { GuestLink } from "./annotate-guest-link";
-import { composeCrop, composeOverview, cropTier, type ImageLike, OverviewTier, type Slice } from "./annotate-paint";
+import type { Zone } from "./annotate-model";
+import { sameAddress } from "./annotate-model";
 import type { CanvasFactory } from "./annotate-paint";
-import {
-    type Box,
-    MaxOverviewScreens,
-    type OverviewMessage,
-    type PreparedMessage,
-    type Size,
-} from "./annotate-wire";
+import { composeCrop, composeOverview, cropTier, type ImageLike, OverviewTier, type Slice } from "./annotate-paint";
+import { type Box, MaxOverviewScreens, type OverviewMessage, type PreparedMessage, type Size } from "./annotate-wire";
 
 // The margin around a mark in a capture, in CSS pixels, and the least a capture holds, so a small mark shows its
 // surroundings.
@@ -28,7 +22,12 @@ export const CropMin: Size = { w: 360, h: 240 };
 // What the capture needs of the page's <webview>: the picture of a rectangle, given in the viewport's device-independent
 // pixels (the page's CSS pixels times its zoom).
 export type CaptureView = {
-    capturePage(rect?: { x: number; y: number; width: number; height: number }): Promise<{ isEmpty(): boolean; toDataURL(): string }>;
+    capturePage(rect?: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    }): Promise<{ isEmpty(): boolean; toDataURL(): string }>;
     getZoomFactor?(): number;
 };
 

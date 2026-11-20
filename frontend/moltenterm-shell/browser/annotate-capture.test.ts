@@ -6,11 +6,11 @@
 // canvases: nothing here waits on a clock.
 
 import { describe, expect, it } from "vitest";
-import { type CaptureEnv, captureComments, CropMin, CropPad } from "./annotate-capture";
-import type { GuestLink } from "./annotate-guest-link";
-import type { CanvasLike, ImageLike } from "./annotate-paint";
 import { cropRegion } from "./annotate-anchor";
+import { captureComments, CropMin, CropPad, type CaptureEnv } from "./annotate-capture";
+import type { GuestLink } from "./annotate-guest-link";
 import { addZone, commitComment, emptyState, type AnnotateState, type Zone } from "./annotate-model";
+import type { CanvasLike, ImageLike } from "./annotate-paint";
 import type { Anchor, Box, OverviewMessage, PreparedMessage, ToGuest } from "./annotate-wire";
 
 const Page = "http://localhost:3000/shop";
@@ -242,7 +242,10 @@ describe("what the capture leaves out, and puts back", () => {
         const { env } = makeEnv(page);
         const taken = await captureComments(env, zones);
         expect(Object.keys(taken.crops).map(Number)).toEqual([zones[0].id, zones[2].id]);
-        expect(page.log.filter((l) => l.startsWith("prepare"))).toEqual([`prepare ${zones[0].id}`, `prepare ${zones[2].id}`]);
+        expect(page.log.filter((l) => l.startsWith("prepare"))).toEqual([
+            `prepare ${zones[0].id}`,
+            `prepare ${zones[2].id}`,
+        ]);
     });
 
     it("numbers a mark as the report does: by its place in the whole list", async () => {

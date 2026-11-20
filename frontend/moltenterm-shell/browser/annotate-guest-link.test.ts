@@ -15,7 +15,9 @@ class FakeWebview implements LinkedWebview {
 
     send(channel: string, ...args: unknown[]) {
         if (!this.ready) {
-            throw new Error("the WebView must be attached to the DOM and the dom-ready event emitted before this method can be called");
+            throw new Error(
+                "the WebView must be attached to the DOM and the dom-ready event emitted before this method can be called"
+            );
         }
         this.sent.push({ channel, args });
     }
@@ -172,7 +174,9 @@ describe("a mark the page says it placed", () => {
     });
 
     it("is refused for an outline that is not numbers or has too many points", () => {
-        expect(readPlaced(placed({ kind: "freehand", anchor: anchor({ path: [0, 0, 1, 1] }) })).anchor.path).toEqual([0, 0, 1, 1]);
+        expect(readPlaced(placed({ kind: "freehand", anchor: anchor({ path: [0, 0, 1, 1] }) })).anchor.path).toEqual([
+            0, 0, 1, 1,
+        ]);
         expect(readPlaced(placed({ anchor: anchor({ path: [0, "a"] as unknown as number[] }) }))).toBeNull();
         expect(readPlaced(placed({ anchor: anchor({ path: new Array(MaxPathPoints * 2 + 2).fill(0.5) }) }))).toBeNull();
     });
