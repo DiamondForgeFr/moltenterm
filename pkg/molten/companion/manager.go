@@ -139,10 +139,14 @@ type CompanionView struct {
 	Ended   bool         `json:"ended,omitempty"`
 	Answers []AnswerInfo `json:"answers,omitempty"`
 	// Latest: in an event, its markdown is left out (Elided) when the answer did not change since the last event.
-	Latest  *AnswerView `json:"latest,omitempty"`
-	Files   []FileInfo  `json:"files,omitempty"`
-	Todos   []Todo      `json:"todos,omitempty"`
-	Pending []ToolCall  `json:"pending,omitempty"`
+	Latest *AnswerView `json:"latest,omitempty"`
+	Files  []FileInfo  `json:"files,omitempty"`
+	Todos  []Todo      `json:"todos,omitempty"`
+	// TodosBy: where Todos comes from, the agent's native task list or the plan it published (#2430); TodosAt: when
+	// that source was last updated (unix ms).
+	TodosBy string     `json:"todosby,omitempty"`
+	TodosAt int64      `json:"todosat,omitempty"`
+	Pending []ToolCall `json:"pending,omitempty"`
 	// Usage: the agent's usage page when it has a usage adapter (FR-SHELL-026); the view holds no URL of its own.
 	Usage *usage.UsagePage `json:"usage,omitempty"`
 	// Integration: what MoltenTerm's launcher added to this run, or why nothing (FR-SHELL-036).
@@ -234,6 +238,8 @@ type Manager struct {
 	identityAdapters map[string]Adapter
 	// refusedTranscripts: the transcript a hook's state report named and the companion refused, by block (#2142).
 	refusedTranscripts map[string]string
+	// plans: the plans the agents of the blocks published with `molten agent plan` (plan.go, #2430).
+	plans map[string]planEntry
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf          func(blockId string) (molten.AgentRunInfo, bool)
@@ -275,6 +281,7 @@ func MakeManager() *Manager {
 		idMisses:        map[string]time.Time{},
 		tracks:          map[string]*runTrack{},
 		subagentPaths:   map[string]bool{},
+		plans:           map[string]planEntry{},
 		adapterFor:      AdapterFor,
 		now:             time.Now,
 		tick:            tickInterval,
@@ -408,6 +415,7 @@ func (m *Manager) ForgetBlock(blockId string) {
 	delete(m.usageVisible, blockId)
 	delete(m.statusLines, blockId)
 	delete(m.refusedTranscripts, blockId)
+	delete(m.plans, blockId)
 	usage.DefaultStatusLineStore.Forget(blockId)
 }
 
@@ -1909,7 +1917,7 @@ func (w *watcher) viewKey() string {
 	if w.session != nil {
 		sv = w.session.Version
 	}
-	return fmt.Sprintf("%d/%d", w.version, sv)
+	return fmt.Sprintf("%d/%d/%d", w.version, sv, w.m.planVersion(w.blockId))
 }
 
 func (w *watcher) publishIfChanged() {
@@ -1979,7 +1987,8 @@ func (w *watcher) view(elide bool) CompanionView {
 		v.Latest = &latest
 	}
 	v.Files = w.session.Files()
-	v.Todos = w.session.Todos()
+	plan, _ := w.m.planFor(w.blockId, w.path)
+	v.Todos, v.TodosBy, v.TodosAt = chooseTasks(w.session.Todos(), w.session.TodosAt(), plan)
 	v.Pending = w.session.Pending()
 	v.Topics = w.session.Topics()
 	v.Subagents = w.session.Subagents()

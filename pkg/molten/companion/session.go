@@ -61,6 +61,8 @@ type Prompt struct {
 type Todo struct {
 	Text   string `json:"text"`
 	Status string `json:"status"`
+	// At: for a published plan step, when it was done, or when it became the current one (unix ms); 0 for a native task.
+	At int64 `json:"at,omitempty"`
 }
 
 type ToolCall struct {
@@ -708,6 +710,11 @@ func (s *Session) Diff(path string) (FileDiff, bool) {
 
 func (s *Session) Todos() []Todo {
 	return append([]Todo(nil), s.todos...)
+}
+
+// TodosAt is when the native task list was last written (unix ms, 0 when it was never).
+func (s *Session) TodosAt() int64 {
+	return s.todosAt
 }
 
 func (s *Session) Pending() []ToolCall {

@@ -32,6 +32,8 @@ const (
 	CompanionUsageEvent = "molten:companionusage"
 	// What `molten agent statusline` sends: the rate limit windows of Claude Code's status line input.
 	AgentStatusLineCommand = "moltenagentstatusline"
+	// What `molten agent plan` sends: a change of the plan its agent publishes, or a read of it (#2430).
+	CompanionPlanCommand = "moltencompanionplan"
 	// What `molten agent hook` sends at SubagentStart and SubagentStop (#988).
 	CompanionSubagentCommand = "moltencompanionsubagent"
 
@@ -64,4 +66,15 @@ type AgentSessionRequest struct {
 	Agent     string `json:"agent,omitempty"`
 	Path      string `json:"path"`
 	SessionId string `json:"sessionid,omitempty"`
+}
+
+// AgentPlanRequest is what `molten agent plan` sends (#2430): the operation on the plan of the agent in a block, and
+// its arguments. Op is one of the plan operations of pkg/molten/agentplan; Steps, Index and Text are read by the
+// operations that take them. The companion keeps the plan for the session the block shows.
+type AgentPlanRequest struct {
+	BlockId string   `json:"blockid"`
+	Op      string   `json:"op"`
+	Steps   []string `json:"steps,omitempty"`
+	Index   int      `json:"index,omitempty"`
+	Text    string   `json:"text,omitempty"`
 }
