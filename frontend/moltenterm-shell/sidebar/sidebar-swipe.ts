@@ -595,8 +595,9 @@ export function swipeWheel(state: SwipeState, ev: SwipeEvent, ctx: SwipeCtx): Sw
     return { ...grab(s, ev, ctx), released };
 }
 
-// What the screen shows for a position: the page's shift, the tint's share, the shadow and the ring. Under reduced
-// motion nothing slides and no tint fades; the ring still fills.
+// What the screen shows for a position: the page's shift, the neighbour's share (tint: how far the content has faded
+// into the neighbour's layout, #2407), the shadow and the ring. Under reduced motion nothing slides and nothing fades;
+// the ring still fills.
 export type SwipeLook = {
     pageX: number;
     // The neighbour's page on its side, or null when none comes in.

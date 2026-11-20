@@ -13,6 +13,9 @@ export const RendererEnvironmentNames = [
     // A test instance's local release feed (#1806, #1860): the renderer only learns that the build looks for releases;
     // Electron main alone decides whether the override is honoured (moltenterm-release-feed.ts).
     "MOLTENTERM_RELEASE_FEED_URL",
+    // The workspace switch's kill switch (#2375, #2407): 0 restores the switch before the picture, "picture" the one
+    // before the remembered layout. Main reads it for the picture, the renderer for the layout.
+    "MOLTENTERM_SWITCHPICTURE",
 ] as const;
 const rendererEnvironmentNames = new Set<string>(RendererEnvironmentNames);
 

@@ -168,10 +168,13 @@ import {
     cancelSwitchIntent,
     notifySwitchIntent,
     switchDirection,
+    setAutoSwitcher,
     switchFromSidebar,
     SwitchIntent,
     useSwitchArrival,
 } from "./sidebar-switch";
+import { clearLeave, leaveProgress, prepareLeave } from "../switch-layout/layout-frames";
+import { pruneLayouts, useRememberLayout } from "../switch-layout/layout-recorder";
 import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
 import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./temporary-clear";
@@ -2402,7 +2405,6 @@ type SwipeRefs = {
     content: React.RefObject<HTMLDivElement>;
     ghostPrev: React.RefObject<HTMLDivElement>;
     ghostNext: React.RefObject<HTMLDivElement>;
-    tint: React.RefObject<HTMLDivElement>;
     pullLeft: React.RefObject<HTMLDivElement>;
     pullRight: React.RefObject<HTMLDivElement>;
     shadowLeft: React.RefObject<HTMLDivElement>;
@@ -2411,10 +2413,6 @@ type SwipeRefs = {
 
 // The opt-in sidebar tint (FR-SHELL-115, Coulée decision 3): off by default, it tints the sidebar only.
 export const SidebarTintSettingKey = "moltenterm:sidebartint";
-
-// The frame colour (sidebar.css .mt-sb-frame) that fades in over the content during a swipe: cast iron for every
-// workspace (FR-SHELL-115), the opt-in sidebar tint staying on the sidebar, which is drawn above it.
-const FrameTint = "var(--mt-surface-0)";
 
 // The new-workspace page left by a swipe already stands in place: it does not slide in again.
 let skipNextPageSlide = false;
@@ -2454,7 +2452,7 @@ function useSidebarSwipe(refs: SwipeRefs, workspaces: SidebarWorkspaces): Sideba
             {
                 page: () => refs.content.current,
                 ghost: (side) => (side < 0 ? refs.ghostPrev : refs.ghostNext).current,
-                tint: () => refs.tint.current,
+                leave: { prepare: (id) => prepareLeave(id), progress: leaveProgress, clear: clearLeave },
                 pull: (side) => (side < 0 ? refs.pullLeft : refs.pullRight).current,
                 shadow: (side) => (side < 0 ? refs.shadowLeft : refs.shadowRight).current,
                 library: () => document.querySelector<HTMLElement>(".mt-lib"),
@@ -2469,10 +2467,6 @@ function useSidebarSwipe(refs: SwipeRefs, workspaces: SidebarWorkspaces): Sideba
                             globalStore.get(ViewPins.getInstance().draftAtom) != null ||
                             globalStore.get(model.projectPageAtom) != null,
                     };
-                },
-                tintColour: (id) => {
-                    const entry = latest.current.entries.find((w) => w.id === id);
-                    return entry == null ? null : FrameTint;
                 },
                 reduced: () => prefersReducedMotion(),
             },
@@ -2498,7 +2492,9 @@ function useSidebarSwipe(refs: SwipeRefs, workspaces: SidebarWorkspaces): Sideba
             }
         };
         document.addEventListener("visibilitychange", onVisibility);
+        setAutoSwitcher(controller);
         return () => {
+            setAutoSwitcher(null);
             aside?.removeEventListener("wheel", controller.onAsideWheel);
             window.removeEventListener("wheel", controller.onWindowWheel);
             document.removeEventListener("visibilitychange", onVisibility);
@@ -2633,7 +2629,6 @@ export function WorkspaceSidebar() {
     const viewportRef = useRef<HTMLDivElement>(null);
     const ghostPrevRef = useRef<HTMLDivElement>(null);
     const ghostNextRef = useRef<HTMLDivElement>(null);
-    const tintRef = useRef<HTMLDivElement>(null);
     const pullLeftRef = useRef<HTMLDivElement>(null);
     const pullRightRef = useRef<HTMLDivElement>(null);
     const shadowLeftRef = useRef<HTMLDivElement>(null);
@@ -2644,7 +2639,6 @@ export function WorkspaceSidebar() {
             content: contentRef,
             ghostPrev: ghostPrevRef,
             ghostNext: ghostNextRef,
-            tint: tintRef,
             pullLeft: pullLeftRef,
             pullRight: pullRightRef,
             shadowLeft: shadowLeftRef,
@@ -2679,10 +2673,12 @@ export function WorkspaceSidebar() {
         []
     );
     useSidebarCapture(ws?.oid, snapshotSource, libraryOpen);
+    useRememberLayout(ws?.oid, activeTabId);
     const workspaceIdsKey = workspaces.entries.map((w) => w.id).join(" ");
     useEffect(() => {
         if (workspaceIdsKey) {
             pruneSnapshots(workspaceIdsKey.split(" "));
+            pruneLayouts(workspaceIdsKey.split(" "));
         }
     }, [workspaceIdsKey]);
     useEffect(() => () => clearTimeout(peekTimerRef.current), []);
@@ -2765,7 +2761,6 @@ export function WorkspaceSidebar() {
                     <span className="mt-sb-place-strip mt-sb-edge-line" data-testid="sidebar-edge-line" aria-hidden />
                 </>
             ) : null}
-            <div ref={tintRef} className="mt-sb-swipe-tint" aria-hidden data-testid="sidebar-swipe-tint" />
             <aside
                 ref={asideRef}
                 aria-label={t("sidebar.label", { name })}

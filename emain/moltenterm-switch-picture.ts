@@ -92,6 +92,22 @@ export type SwitchPicture = {
 // What a switch goes to: a workspace (its active view) or one view.
 export type SwitchTarget = { workspaceId?: string; tabId?: string };
 
+// A sidebar switch whose view left faded into the target's remembered layout (#2407) says so on the intent channel just
+// before it asks the switch, and that switch shows no picture: the target wears the same layout instead, drawn by the
+// pages themselves. The mark is for the very next switch of the window to that workspace, a moment only.
+export const LayoutSwitchMaxMs = 2000;
+export type LayoutSwitchMark = { workspaceId: string; at: number };
+
+export function takesLayout(marked: LayoutSwitchMark, target: SwitchTarget, now: number): boolean {
+    return (
+        marked != null &&
+        target?.workspaceId != null &&
+        marked.workspaceId === target.workspaceId &&
+        now - marked.at >= 0 &&
+        now - marked.at < LayoutSwitchMaxMs
+    );
+}
+
 export class SwitchPictureStore {
     private entries = new Map<string, SwitchPicture>();
 

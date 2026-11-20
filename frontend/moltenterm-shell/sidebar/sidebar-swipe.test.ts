@@ -670,6 +670,13 @@ describe("sidebar switch record", () => {
         const key = parseSwitchIntent(JSON.stringify({ workspaceId: "w2", direction: -1, at: 1000 }));
         expect(arrivalOffset(key, Width, 1000)).toBe(-Width);
     });
+
+    it("tells the view a switch reached whether the view left faded into its remembered layout (#2407)", () => {
+        const at = { workspaceId: "w2", direction: 1, at: 1000 };
+        expect(parseSwitchIntent(JSON.stringify({ ...at, layout: true })).layout).toBe(true);
+        expect(parseSwitchIntent(JSON.stringify({ ...at, layout: "yes" })).layout).toBeUndefined();
+        expect(parseSwitchIntent(JSON.stringify(at)).layout).toBeUndefined();
+    });
 });
 
 describe("⌥1…⌥9", () => {

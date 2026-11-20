@@ -111,6 +111,110 @@ export function useSidebarSnapshot(workspaceId: string): SidebarSnapshot {
     return snap;
 }
 
+// The capture is of the screen's pixels: on a see-through look they hold the window's material (the frame's tint at
+// its alpha, its texture) under the sidebar's content. The swipe draws the capture over the same material, so the
+// material counted twice and the incoming sidebar came in darker than it is (#2407). The capturing view knows its own
+// material, so it takes it out: with P the captured pixel and B the material, both with straight alpha, P is the
+// content C over B, so C's alpha is (aP - aB) / (1 - aB) and its premultiplied colour P·aP - B·aB·(1 - aC). Where the
+// material is opaque nothing can be taken out, and nothing needs to be: an opaque pixel over an opaque frame is itself.
+export function uncomposite(pixels: Uint8ClampedArray, material: Uint8ClampedArray): void {
+    for (let i = 0; i + 3 < pixels.length; i += 4) {
+        const ab = material[i + 3] / 255;
+        if (ab >= 0.999) {
+            continue;
+        }
+        const ap = pixels[i + 3] / 255;
+        const ac = Math.max(0, Math.min(1, (ap - ab) / (1 - ab)));
+        if (ac <= 0.002) {
+            pixels[i] = 0;
+            pixels[i + 1] = 0;
+            pixels[i + 2] = 0;
+            pixels[i + 3] = 0;
+            continue;
+        }
+        const keep = ab * (1 - ac);
+        for (let c = 0; c < 3; c++) {
+            const premul = (pixels[i + c] / 255) * ap - (material[i + c] / 255) * keep;
+            pixels[i + c] = Math.round(Math.max(0, Math.min(1, premul / ac)) * 255);
+        }
+        pixels[i + 3] = Math.round(ac * 255);
+    }
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("image"));
+        img.src = src;
+    });
+}
+
+// The frame's material under the viewport, drawn as the page draws it: the tint, then the texture's tile repeated from
+// the frame's corner at its CSS size.
+async function drawMaterial(
+    ctx: CanvasRenderingContext2D,
+    frame: HTMLElement,
+    viewport: HTMLElement,
+    scale: number
+): Promise<void> {
+    const cs = getComputedStyle(frame);
+    const fr = frame.getBoundingClientRect();
+    const vr = viewport.getBoundingClientRect();
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.translate(fr.left - vr.left, fr.top - vr.top);
+    ctx.fillStyle = cs.backgroundColor;
+    ctx.fillRect(0, 0, fr.width, fr.height);
+    // The computed value quotes its URL, and an SVG tile holds parentheses of its own.
+    const m = /^url\("(.+)"\)$/.exec((cs.backgroundImage ?? "").trim());
+    if (m == null) {
+        return;
+    }
+    const tile = await loadImage(m[1]);
+    const [w, h] = (cs.backgroundSize || "").split(" ").map((v) => parseFloat(v));
+    const tw = w > 0 ? w : tile.naturalWidth;
+    const th = h > 0 ? h : tw;
+    const tileCanvas = document.createElement("canvas");
+    tileCanvas.width = Math.max(1, Math.round(tw * scale));
+    tileCanvas.height = Math.max(1, Math.round(th * scale));
+    tileCanvas.getContext("2d").drawImage(tile, 0, 0, tileCanvas.width, tileCanvas.height);
+    const pattern = ctx.createPattern(tileCanvas, "repeat");
+    pattern.setTransform(new DOMMatrix().scale(1 / scale));
+    ctx.fillStyle = pattern;
+    ctx.fillRect(0, 0, fr.width, fr.height);
+}
+
+// The capture with the window's material taken out (see uncomposite). The capture as it was when the view lets nothing
+// through, or when anything fails.
+export async function withoutMaterial(url: string, viewport: HTMLElement): Promise<string> {
+    const frame = viewport?.closest<HTMLElement>(".mt-sb-frame");
+    if (frame == null || !document.documentElement.classList.contains("mt-translucent")) {
+        return url;
+    }
+    try {
+        const img = await loadImage(url);
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        const scale = w / Math.max(1, viewport.getBoundingClientRect().width);
+        const shot = document.createElement("canvas");
+        shot.width = w;
+        shot.height = h;
+        const sctx = shot.getContext("2d", { willReadFrequently: true });
+        sctx.drawImage(img, 0, 0);
+        const back = document.createElement("canvas");
+        back.width = w;
+        back.height = h;
+        const bctx = back.getContext("2d", { willReadFrequently: true });
+        await drawMaterial(bctx, frame, viewport, scale);
+        const pixels = sctx.getImageData(0, 0, w, h);
+        uncomposite(pixels.data, bctx.getImageData(0, 0, w, h).data);
+        sctx.putImageData(pixels, 0, 0);
+        return shot.toDataURL("image/png");
+    } catch {
+        return url;
+    }
+}
+
 export type SidebarRestFacts = {
     hidden: boolean;
     // A page drawn in the sidebar's place: a pin's draft, a project page, the new-workspace page.
@@ -166,7 +270,8 @@ export function useSidebarCapture(workspaceId: string, source: SnapshotSource, r
                 height: Math.round(r.height),
             };
             try {
-                const url = await getApi().captureScreenshot(rect);
+                const captured = await getApi().captureScreenshot(rect);
+                const url = captured ? await withoutMaterial(captured, viewport) : captured;
                 // The page moved while the capture ran: it may show a half-slid frame, so it waits for the next rest.
                 if (!alive || !source.atRest() || !url || url.length > SnapshotMaxChars) {
                     return;

@@ -48,6 +48,8 @@ import {
     waitPanelsMounted,
     withDeadline,
     WindowSwitchPicture,
+    LayoutSwitchMaxMs,
+    takesLayout,
 } from "./moltenterm-switch-picture";
 
 const tokensCss = readFileSync("frontend/moltenterm-shell/tokens.css", "utf8");
@@ -1232,6 +1234,32 @@ describe("typing arms nothing, and a closed tab leaves no picture (#2375)", () =
         const host = source("emain/moltenterm-tabview-host.ts");
         const sweep = host.slice(host.indexOf("export function sweepDeletedTabViews"));
         expect(sweep.slice(0, sweep.indexOf("\n}\n"))).toContain("pruneDeletedSwitchPictures();");
+    });
+});
+
+describe("a switch that shows its remembered layout shows no picture (#2407)", () => {
+    const source = (path: string) => readFileSync(path, "utf8");
+
+    it("takes the layout only for the very next switch to the marked workspace, a moment after the mark", () => {
+        const mark = { workspaceId: "ws-b", at: 1000 };
+        expect(takesLayout(mark, { workspaceId: "ws-b" }, 1010)).toBe(true);
+        expect(takesLayout(mark, { workspaceId: "ws-c" }, 1010)).toBe(false);
+        expect(takesLayout(mark, { tabId: "tab-1" }, 1010)).toBe(false);
+        expect(takesLayout(mark, { workspaceId: "ws-b" }, 1000 + LayoutSwitchMaxMs)).toBe(false);
+        expect(takesLayout(null, { workspaceId: "ws-b" }, 1010)).toBe(false);
+    });
+
+    it("is marked by the sidebar on the intent channel, before it asks the switch, and lets the page know it is on screen", () => {
+        const live = source("emain/moltenterm-switch-picture-live.ts");
+        expect(live).toContain("layoutSwitches.set(win");
+        expect(live).toContain("takesLayout(marked, target");
+        expect(live).toContain("__mtSwitchLayoutOnScreen");
+        const sidebar = source("frontend/moltenterm-shell/sidebar/sidebar-switch.ts");
+        expect(sidebar.indexOf("layout: true })")).toBeGreaterThan(0);
+        expect(sidebar.indexOf("layout: true })")).toBeLessThan(sidebar.indexOf("getApi().switchWorkspace(workspaceId)"));
+        expect(source("frontend/moltenterm-shell/switch-layout/layout-frames.ts")).toContain(
+            "__mtSwitchLayoutOnScreen = arrivedOnScreen"
+        );
     });
 });
 

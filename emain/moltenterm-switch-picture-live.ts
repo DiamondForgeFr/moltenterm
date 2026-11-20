@@ -17,7 +17,9 @@ import {
     SwitchCoverGraceMs,
     SwitchEncodeDelayMs,
     encodeWaitMs,
+    LayoutSwitchMark,
     mountedBlocksScript,
+    takesLayout,
     PanelsMountMaxMs,
     quietUntilAfter,
     SwitchEncodeQueueMax,
@@ -46,6 +48,9 @@ const PendingChannel = "moltenterm-view-pending";
 
 // How long the view being held for the picture waits for its cover (a wedged renderer must not hold the switch).
 const CoverWaitMs = 80;
+
+// switch-layout/layout-frames.ts answers this in the page.
+const OnScreenScript = "window.__mtSwitchLayoutOnScreen && window.__mtSwitchLayoutOnScreen(), 0";
 
 const store = new SwitchPictureStore();
 const windowSwitches = new WeakMap<object, WindowSwitchPicture>();
@@ -276,8 +281,20 @@ function guarded<T>(what: string, fallback: T, fn: () => T): T {
     }
 }
 
+// A sidebar switch whose view left faded into the target's remembered layout (#2407) says so just before it asks the
+// switch: that switch shows no picture (takesLayout).
+const layoutSwitches = new WeakMap<object, LayoutSwitchMark>();
+
 export function beginSwitchPicture(win: WaveBrowserWindow, target: SwitchTarget): boolean {
     noteSwitchActivity();
+    const marked = layoutSwitches.get(win);
+    layoutSwitches.delete(win);
+    if (takesLayout(marked, target, Date.now())) {
+        // A picture left over from an intent on a dot goes: the screen shows the layout.
+        cancelSwitchPicture(win);
+        console.log(`[#2407] switch to ${target.workspaceId} shows its remembered layout, no picture`);
+        return false;
+    }
     return guarded("showing the picture", false, () => {
         const leaver = win.activeTabView;
         if (leaver == null) {
@@ -414,8 +431,13 @@ async function guardedAsync<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
     }
 }
 
-// The view is on screen: its picture dissolves once its panels have painted.
+// The view is on screen: its picture dissolves once its panels have painted, and the remembered layout it wears, if
+// any (#2407), lets each panel's frame go as that panel is ready. A view parked off screen is "visible" to its own page,
+// which therefore cannot tell this moment by itself.
 export function finishArrivingView(win: WaveBrowserWindow, view: WaveTabView) {
+    if (!view.isDestroyed && !view.webContents.isDestroyed()) {
+        view.webContents.executeJavaScript(OnScreenScript).catch((): void => null);
+    }
     const sw = windowSwitches.get(win);
     if (sw == null) {
         return;
@@ -512,6 +534,10 @@ export function initSwitchPicture() {
         const target = parseTarget(value);
         const view = win?.activeTabView;
         if (win == null || target == null || view == null || view.webContents.id !== event.sender.id) {
+            return;
+        }
+        if ((value as Record<string, unknown>).layout === true && target.workspaceId != null) {
+            layoutSwitches.set(win, { workspaceId: target.workspaceId, at: Date.now() });
             return;
         }
         noteSwitchActivity();

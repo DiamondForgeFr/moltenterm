@@ -3,9 +3,10 @@
 
 // The workspace swipe on screen (FR-SHELL-082, DS-SHELL-130, #1248): wheel events go through the pure machine of
 // sidebar-swipe.ts, and one requestAnimationFrame per display frame writes the result as transforms and opacities on
-// a few elements held by ref (the page, the neighbour's likeness, the tint, the ring, the edge shadow). No React
-// render happens while the fingers move. A switch is asked once the commit's settle landed on the neighbour's likeness
-// (#1261): the view that appears shows the same place at rest, and its frame already has the tint's colour.
+// a few elements held by ref (the page, the neighbour's likeness, the ring, the edge shadow) and as the content's fade
+// into the neighbour's remembered layout (#2407). No React render happens while the fingers move. A switch is asked
+// once the commit's settle landed on the neighbour's likeness (#1261): the view that appears shows the same place at
+// rest, wearing the same layout.
 
 import { canScrollX } from "../view360/carpet-wheel";
 import {
@@ -50,18 +51,25 @@ export function ringTurns(progress: number): { right: number; left: number } {
     return { right: Math.min(0.5, p) * 360, left: Math.max(0, p - 0.5) * 360 };
 }
 
+// The view's content during a swipe (#2407, switch-layout/layout-frames.ts): it fades out as the neighbour's remembered
+// layout fades in, by the swipe's progress. Nothing is laid over the frame or the sidebar.
+export type SwipeLeave = {
+    // Draws the workspace's frames over the content, not shown yet; false when it has no layout.
+    prepare(workspaceId: string): boolean;
+    progress(p: number): void;
+    clear(): void;
+};
+
 export type SwipeView = {
     page(): HTMLElement;
     ghost(side: -1 | 1): HTMLElement;
-    tint(): HTMLElement;
+    leave: SwipeLeave;
     pull(side: -1 | 1): HTMLElement;
     shadow(side: -1 | 1): HTMLElement;
     library(): HTMLElement;
     aside(): HTMLElement;
     // The bottom bar's order and the current workspace; the page open over the workspace page, if any.
     position(): { ids: string[]; activeId: string; creating: boolean; otherPage: boolean };
-    // The neighbour's frame colour, for the tint.
-    tintColour(workspaceId: string): string;
     reduced(): boolean;
 };
 
@@ -267,20 +275,52 @@ export class SidebarSwipeController {
         this.apply(swipeTick(this.state, performance.now(), this.gesture.ctx));
     }
 
-    // A fresh touch: the tint takes the neighbour's colour, the moved layers get their own compositing.
+    // A fresh touch: the neighbour's layout is drawn once the gesture shows which way it goes.
     private prepare() {
-        const g = this.gesture;
-        if (g == null || g.place === "library") {
+        this.dropLeave();
+    }
+
+    // The workspace whose remembered layout is over the content, and whether it had one to draw.
+    leaveFor: string = null;
+    leaveDrawn = false;
+
+    private leaveTo(workspaceId: string) {
+        if (this.leaveFor === workspaceId) {
             return;
         }
-        const tint = this.view.tint();
-        if (tint == null) {
-            return;
+        this.dropLeave();
+        this.leaveFor = workspaceId;
+        this.leaveDrawn = workspaceId != null && this.view.leave.prepare(workspaceId);
+    }
+
+    private dropLeave() {
+        if (this.leaveFor != null || this.leaveDrawn) {
+            this.view.leave.clear();
         }
-        // The new-workspace page goes back to its own workspace: no other colour.
-        const creating = g.ctx.sides === CreatePageSides;
-        tint.dataset.prev = creating ? "" : (this.view.tintColour(g.neighbourIds.prev) ?? "");
-        tint.dataset.next = creating ? "" : (this.view.tintColour(g.neighbourIds.next) ?? "");
+        this.leaveFor = null;
+        this.leaveDrawn = false;
+    }
+
+    // A dot's or a key's switch to a neighbour, played as this swipe's own settle (#2407): the sidebars come in edge to
+    // edge and the content fades into the neighbour's layout, eased, then the switch is asked where it lands.
+    autoSwitch(workspaceId: string, side: -1 | 1): boolean {
+        if (this.state.phase !== "idle" || this.busy() || this.view.reduced() || this.view.ghost(side) == null) {
+            return false;
+        }
+        const g = this.gestureFor("sidebar");
+        const neighbour = g == null ? null : side < 0 ? g.neighbourIds.prev : g.neighbourIds.next;
+        if (neighbour !== workspaceId || this.view.position().creating) {
+            return false;
+        }
+        this.gesture = g;
+        const at = performance.now();
+        const settle: SwipeSettle = { from: 0, to: side * g.ctx.width, v0: 0, at, commit: side, kind: "page" };
+        this.state = { ...initialSwipeState(), phase: "settling", settle, touch: this.state.touch };
+        this.switchingUntil = at + SwitchGiveUpMs;
+        this.pendingSwitch = { target: workspaceId, side };
+        this.prepare();
+        this.schedule();
+        return true;
     }
 
     private released(settle: SwipeSettle) {
@@ -321,6 +361,11 @@ export class SidebarSwipeController {
         this.switchingUntil = performance.now() + SwitchGiveUpMs;
         this.pendingSwitch = { target, side };
         if (this.view.reduced()) {
+            // No slide and no fade, the same steps: the layout at once, then the switch (#2407).
+            this.leaveTo(target);
+            if (this.leaveDrawn) {
+                this.view.leave.progress(1);
+            }
             this.askSwitch(Math.min(1, Math.abs(settle.from) / g.ctx.width), settle.v0);
         }
     }
@@ -340,6 +385,7 @@ export class SidebarSwipeController {
         this.actions.switchTo(pending.target, pending.side, {
             offset,
             v0,
+            layout: this.leaveDrawn && this.leaveFor === pending.target,
             absorb:
                 absorb == null
                     ? null
@@ -436,6 +482,10 @@ export class SidebarSwipeController {
                 // The settle landed on the neighbour: the switch goes now, and this view keeps the settled look until
                 // it leaves the screen.
                 this.state = { ...this.state, phase: "idle", settle: null };
+                // The last display frame of the settle stood a hair short of its end: the layout is wholly in.
+                if (this.leaveDrawn) {
+                    this.view.leave.progress(1);
+                }
                 this.askSwitch(1, 0);
                 setTimeout(() => {
                     if (this.state.phase === "idle" && this.switchingUntil !== 0) {
@@ -486,6 +536,7 @@ export class SidebarSwipeController {
     }
 
     private clearStyles() {
+        this.dropLeave();
         for (const el of this.moved) {
             el.style.transform = "";
             el.style.opacity = "";
@@ -529,16 +580,21 @@ export class SidebarSwipeController {
                 this.move(ghost, `translate3d(${side * g.ctx.width}px, 0, 0)`);
             }
         }
-        const tint = this.view.tint();
-        if (tint != null) {
-            const colour =
-                look.neighbour == null ? "" : look.neighbour.side < 0 ? tint.dataset.prev : tint.dataset.next;
-            // The browser normalises the colour it reads back: compare with the one written, or each frame rewrites it.
-            if (colour && tint.dataset.shown !== colour) {
-                tint.dataset.shown = colour;
-                tint.style.backgroundColor = colour;
+        // The content fades into the neighbour's layout by the same share (#2407); the new-workspace page goes back to
+        // its own workspace, whose content is already there.
+        const toward =
+            look.neighbour == null || g.ctx.sides === CreatePageSides
+                ? null
+                : look.neighbour.side < 0
+                  ? g.neighbourIds.prev
+                  : g.neighbourIds.next;
+        if (toward != null) {
+            this.leaveTo(toward);
+            if (this.leaveDrawn) {
+                this.view.leave.progress(look.tint);
             }
-            this.fade(tint, colour ? look.tint : 0);
+        } else if (this.leaveDrawn) {
+            this.view.leave.progress(0);
         }
         for (const side of [-1, 1] as const) {
             const ring = look.ring?.side === side ? look.ring : null;
