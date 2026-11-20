@@ -71,7 +71,7 @@ export function CommentToolbar(props: CommentToolbarProps) {
     const hint = paused ? t("browser.annotate.hint.paused") : t(`browser.annotate.hint.${tool}`);
     return (
         <div
-            className="pointer-events-none absolute bottom-3 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-col items-center gap-1.5"
+            className="pointer-events-none absolute inset-x-2 bottom-3 z-30 flex flex-col items-center gap-1.5"
             data-testid="browser-annotate-bar"
         >
             {count === 0 && pageAsk == null && !props.leaveAsk ? (
@@ -249,7 +249,7 @@ export function CaptureBar({ done, total, onCancel }: { done: number; total: num
     const t = useT();
     return (
         <div
-            className="pointer-events-auto absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-4 border border-border bg-surface-3 px-3 py-2 text-12 shadow-e2"
+            className="pointer-events-auto absolute inset-x-0 bottom-3 z-30 mx-auto flex w-fit max-w-[calc(100%-1rem)] items-center gap-3 rounded-4 border border-border bg-surface-3 px-3 py-2 text-12 shadow-e2"
             role="status"
             data-testid="browser-annotate-capturing"
         >
