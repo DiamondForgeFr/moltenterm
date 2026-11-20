@@ -41,9 +41,22 @@ describe("Even out the zones in the view's menu", () => {
         expect(view.evenZones).toHaveBeenCalledTimes(1);
     });
 
-    it("is disabled when the zones are already even", () => {
+    it("is disabled, with its reason shown, when the zones are already even", () => {
         const item = view360MenuItems(menuView(2, "even")).find((i) => i.label === "Even out the zones");
         expect(item.enabled).toBe(false);
+        expect(item.sublabel).toBe("The zones already have equal widths");
+        expect(item.tooltip).toBe("The zones already have equal widths");
+    });
+
+    it("says it has nothing to do when a single zone is in view", () => {
+        const item = view360MenuItems(menuView(1, "single")).find((i) => i.label === "Even out the zones");
+        expect(item.enabled).toBe(false);
+        expect(item.sublabel).toBe("One zone is in view: there is nothing to even out");
+    });
+
+    it("shows no reason while it can run", () => {
+        const item = view360MenuItems(menuView(2, null)).find((i) => i.label === "Even out the zones");
+        expect(item.sublabel).toBeUndefined();
     });
 
     it("is left out when the view has no 360 × N", () => {

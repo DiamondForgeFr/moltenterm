@@ -10,6 +10,7 @@ import {
     readZoneShares,
     roundShares,
     sharesOf,
+    withEvenZones,
     withZoneShares,
     zoneColumnWidthsPx,
     zonesAreEven,
@@ -118,6 +119,22 @@ describe("Even out the zones (AC20)", () => {
         for (const n of [1, 2, 3]) {
             expect(sum(evenPercents(n))).toBe(100);
         }
+    });
+});
+
+describe("the shares Even out the zones gives (AC20)", () => {
+    it("forgets the shares of two zones: exactly even is the default", () => {
+        expect(withEvenZones({ "2": [0.3, 0.7], "3": [0.2, 0.3, 0.5] }, 2)).toEqual({ "3": [0.2, 0.3, 0.5] });
+    });
+
+    it("keeps 33 / 34 / 33 for three zones, so the widths are what the message says", () => {
+        expect(withEvenZones({ "2": [0.3, 0.7], "3": [0.2, 0.3, 0.5] }, 3)).toEqual({
+            "2": [0.3, 0.7],
+            "3": [0.33, 0.34, 0.33],
+        });
+        const widths = zoneWidthsPx(1000, 3, withEvenZones({}, 3)["3"]);
+        expect(widths).toEqual([330, 340, 330]);
+        expect(zonesAreEven(withEvenZones({}, 3)["3"], 3)).toBe(true);
     });
 });
 

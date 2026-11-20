@@ -89,9 +89,14 @@ export function view360MenuItems(view360: View360Model): ContextMenuItem[] {
         });
     }
     if (globalStore.get(view360.shownPlacesAtom) != null) {
+        const why = view360.evenZonesWhy();
+        const reason =
+            why == null ? undefined : t(why === "single" ? "view360.zones.evenOutSingle" : "view360.zones.evenOutEven");
         menu.push({
             label: t("view360.zones.evenOut"),
-            enabled: view360.evenZonesWhy() == null,
+            enabled: why == null,
+            sublabel: reason,
+            tooltip: reason,
             click: () => view360.evenZones(),
         });
     }

@@ -275,25 +275,87 @@ describe("the zones' shares are remembered (FR-SHELL-123 AC19)", () => {
         expect(model.scrollLeft).toBe(model.layout.columns[1].x);
     });
 
-    it("lays nothing again while the zones are equal: the carpet moves as it always did", async () => {
-        const { model, pass, layoutModel } = makeModel(rowOf(7), { [View360PlacesMetaKey]: 2 }, 3600);
+    it("draws the border between the two zones in view once the carpet moved, the zones being equal", async () => {
+        const { model, pass, layoutModel, rootNode } = makeModel(rowOf(7), { [View360PlacesMetaKey]: 2 }, 3600);
+        layoutModel.updateTree = vi.fn(() => void pass());
+        const layout = pass();
+        expect(model.rootResizeHandles(rootNode, 10, []).map((h) => h.parentIndex)).toEqual([0, 1]);
+        model.scrollTo(layout.columns[1].x);
+        await vi.waitFor(() => expect(model.restColumnId).toBe("c2"), { timeout: 30000 });
+        expect(inView(model)).toEqual(["c2", "c3"]);
+        expect(model.layoutPage).toBe(1);
+        // The grip, then the border between c2 and c3: none at the band's left edge, where c1 is stored.
+        expect(model.rootResizeHandles(rootNode, 10, []).map((h) => h.parentIndex)).toEqual([0, 2]);
+    });
+
+    it("trades width between the two zones in view with that border once the carpet moved", async () => {
+        const { model, pass, layoutModel, rootNode } = makeModel(rowOf(7), { [View360PlacesMetaKey]: 2 }, 3600);
         layoutModel.updateTree = vi.fn(() => void pass());
         const layout = pass();
         model.scrollTo(layout.columns[1].x);
         await vi.waitFor(() => expect(model.restColumnId).toBe("c2"), { timeout: 30000 });
-        expect(layoutModel.updateTree).not.toHaveBeenCalled();
+        const [a] = zoneWidths(model, 1, 2);
+        const left = model.layout.viewport.left;
+        dragBorder(model, rootNode, 1, left + a + 150);
+        pass();
+        // The shares are kept to four digits: a pixel of rounding, and the two zones fill the band.
+        const [first, second] = zoneWidths(model, 1, 2);
+        expect(Math.abs(first - (a + 150))).toBeLessThanOrEqual(1);
+        expect(first + second).toBe(Math.floor(model.layout.viewport.width));
         expect(inView(model)).toEqual(["c2", "c3"]);
     });
 
-    it("forgets the shares of a number of zones when it is applied again", () => {
+    it("does not lay the zones again while the carpet is dragged, and once when it is let go", () => {
+        vi.useFakeTimers();
+        try {
+            const meta = { [View360PlacesMetaKey]: 2, [View360ZonesMetaKey]: { "2": [0.3, 0.7] } };
+            const { model, pass, layoutModel } = makeModel(rowOf(7), meta, 3600);
+            layoutModel.updateTree = vi.fn(() => void pass());
+            const layout = pass();
+            const band = layout.viewport.width;
+            const wide = layout.columns[1].width;
+            expect(wide / band).toBeCloseTo(0.7, 2);
+            // The strip's drag moves the scroll in the geometry it started from.
+            model.scrollTo(layout.columns[1].x);
+            vi.advanceTimersByTime(50);
+            expect(globalStore.get(model.freeScrollAtom)).toBe(true);
+            expect(layoutModel.updateTree).not.toHaveBeenCalled();
+            expect(model.layout.columns[1].width).toBe(wide);
+            expect(model.scrollLeft).toBe(layout.columns[1].x);
+            // Let go: the zones are laid from the column that rests in the first one.
+            vi.advanceTimersByTime(1000);
+            expect(layoutModel.updateTree).toHaveBeenCalledTimes(1);
+            expect(model.restColumnId).toBe("c2");
+            expect(model.layout.columns[1].width / band).toBeCloseTo(0.3, 2);
+            expect(model.scrollLeft).toBe(model.layout.columns[1].x);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("forgets the shares of a number of zones when that number is applied again", () => {
         const meta = { [View360PlacesMetaKey]: 2, [View360ZonesMetaKey]: { "2": [0.3, 0.7], "3": [0.2, 0.3, 0.5] } };
         const { model, pass } = makeModel(rowOf(7), meta, 3600);
         pass();
         expect(model.applyPlaces("b-c1", 2)).toBe(true);
         expect(model.zones()).toEqual({ "3": [0.2, 0.3, 0.5] });
-        const layout = pass();
+        pass();
         expect(new Set(zoneWidths(model, 0, 2)).size).toBe(1);
-        void layout;
+    });
+
+    it("keeps the shares of each number: 2 → 3 → 2 finds the zones of 2 as they were", () => {
+        const meta = { [View360PlacesMetaKey]: 2, [View360ZonesMetaKey]: { "2": [0.3, 0.7] } };
+        const { model, pass } = makeModel(rowOf(7), meta, 3600);
+        pass();
+        expect(model.applyPlaces("b-c1", 3)).toBe(true);
+        pass();
+        expect(model.zones()).toEqual({ "2": [0.3, 0.7] });
+        expect(new Set(zoneWidths(model, 0, 3)).size).toBe(1);
+        expect(model.applyPlaces("b-c1", 2)).toBe(true);
+        pass();
+        expect(model.zones()).toEqual({ "2": [0.3, 0.7] });
+        const [a, b] = zoneWidths(model, 0, 2);
+        expect(a / (a + b)).toBeCloseTo(0.3, 2);
     });
 
     it("gives them back with Undo of the apply", () => {
@@ -327,15 +389,35 @@ describe("Even out the zones (FR-SHELL-123 AC20)", () => {
         });
     });
 
-    it("reads 33 / 34 / 33 for three zones", () => {
+    it("gives three zones 33 / 34 / 33 percent of the band, as the message says", () => {
         const meta = { [View360PlacesMetaKey]: 3, [View360ZonesMetaKey]: { "3": [0.2, 0.3, 0.5] } };
         const { model, pass, layoutModel } = makeModel(rowOf(7), meta, 3600);
         layoutModel.updateTree = vi.fn(() => void pass());
-        pass();
-        model.evenZones();
+        const band = pass().viewport.width;
+        expect(model.evenZones()).toBe(true);
         expect(vi.mocked(showToast).mock.calls.at(-1)[0].message).toBe(
             "The 3 zones now share the width equally: 33 / 34 / 33 %."
         );
+        expect(model.zones()).toEqual({ "3": [0.33, 0.34, 0.33] });
+        const [a, b, c] = zoneWidths(model);
+        expect(a / band).toBeCloseTo(0.33, 2);
+        expect(b / band).toBeCloseTo(0.34, 2);
+        expect(c / band).toBeCloseTo(0.33, 2);
+        expect(a + b + c).toBeGreaterThanOrEqual(Math.floor(band) - 1);
+        // Even now: the action has nothing left to do, and Undo gives the widths back.
+        expect(model.evenZonesWhy()).toBe("even");
+        lastUndo()();
+        expect(model.zones()).toEqual({ "3": [0.2, 0.3, 0.5] });
+    });
+
+    it("draws the layout once for the action and once for its Undo", () => {
+        const { model, pass, layoutModel } = makeModel(rowOf(7), uneven, 3600);
+        layoutModel.updateTree = vi.fn(() => void pass());
+        pass();
+        model.evenZones();
+        expect(layoutModel.updateTree).toHaveBeenCalledTimes(1);
+        lastUndo()();
+        expect(layoutModel.updateTree).toHaveBeenCalledTimes(2);
     });
 
     it("is undone for 10 s: the zones take their widths back", () => {

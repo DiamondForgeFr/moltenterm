@@ -23,6 +23,9 @@ describe("on-demand modules stay out of the entry chunk (#2200)", () => {
         ["../view360/view360-carpet.tsx", "./view360-offer-card"],
         // The carpet's tab strip, edge peeks and their captures load when a tab is first drawn in 360 view (#2433).
         ["../view360/view360-carpet.tsx", "./view360-radar"],
+        // Both chunks are fetched ahead once a tab wants the 360 view, or when the window is idle, by dynamic imports (#2433).
+        ["../view360/view360-prefetch.ts", "./view360-radar"],
+        ["../view360/view360-prefetch.ts", "./view360-places-chooser"],
         // The chooser "Visible panels on the right" loads the first time a header button opens it (#2433).
         ["../view360/view360-places.tsx", "./view360-places-chooser"],
         ["../../molten/molten-start.ts", "./molten-validate"],

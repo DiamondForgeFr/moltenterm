@@ -13,7 +13,6 @@ import {
     columnIndexOf,
     insertIndexFor,
     keptColumnPx,
-    shrinkableColumns,
 } from "./add-beside-model";
 
 function leaf(id: string, size = 10): LayoutNode {
@@ -134,29 +133,8 @@ describe("whether the new column fits without the 360 view (#732)", () => {
         expect((sizes[1] / 100) * 1600).toBeGreaterThanOrEqual(SideColumnMinPx);
     });
 
-    it("Keep the grid (#1668): the columns give width down to their minimums, the new one an equal share", () => {
-        const columns = [term(1100), term(522)];
-        expect(besideFit(columns, 2, 560, 1630, 8)).toBe(null);
-        const sizes = besideFit(shrinkableColumns(columns), 2, 0, 1630, 8);
-        expect(sizes).toHaveLength(3);
-        const room = 1630 - 16;
-        const pxs = sizes.map((s) => (s / 100) * room);
-        expect(pxs.reduce((a, b) => a + b, 0)).toBeCloseTo(room);
-        expect(pxs[0]).toBeGreaterThanOrEqual(FirstColumnMinPx);
-        expect(pxs[1]).toBeGreaterThanOrEqual(SideColumnMinPx);
-        expect(pxs[2]).toBeGreaterThanOrEqual(SideColumnMinPx);
-        expect(pxs[2]).toBeCloseTo(room / 3);
-    });
-
-    it("Keep the grid keeps the first column's floor", () => {
-        const sizes = besideFit(shrinkableColumns([term(1150, 900), term(542)]), 2, 0, 1700, 8);
-        const pxs = sizes.map((s) => (s / 100) * (1700 - 16));
-        expect(pxs[0]).toBeGreaterThanOrEqual(900 - 0.5);
-        expect(pxs[1]).toBeGreaterThanOrEqual(SideColumnMinPx - 0.5);
-    });
-
-    it("columns that cannot fit even at their minimums leave nothing to share", () => {
-        expect(besideFit(shrinkableColumns([term(700), term(500)]), 2, 0, 1208, 8)).toBe(null);
+    it("says the new column does not fit beside columns that keep their carpet widths", () => {
+        expect(besideFit([term(1100), term(522)], 2, 560, 1630, 8)).toBe(null);
     });
 
     it("refuses odd inputs", () => {

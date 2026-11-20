@@ -225,6 +225,8 @@ export class LayoutModel {
     moltenAddedBlockIds: string[] = [];
     // MOLTENTERM-PATCH (#2433): added blocks whose size the add rule settled: the size remembered for their kind is not applied
     moltenSizedBlockIds: Set<string> = new Set();
+    // MOLTENTERM-PATCH (#2433): true while a panel the backend queued is being added (an agent's `wsh view`, a reopened panel)
+    moltenBackendAdd = false;
     // MOLTENTERM-PATCH (#614): the 360 view (fixed zone + carpet) of this tab
     moltenView360: View360Model;
     // MOLTENTERM-PATCH (#825): the tab's equalize button and its auto mode
@@ -486,7 +488,7 @@ export class LayoutModel {
                     magnified: action.magnified,
                     focused: action.focused,
                 };
-                this.treeReducer(insertNodeAction, false);
+                this.moltenBackendReduce(insertNodeAction);
                 break;
             }
             case LayoutTreeActionType.DeleteNode: {
@@ -515,7 +517,7 @@ export class LayoutModel {
                     magnified: action.magnified,
                     focused: action.focused,
                 };
-                this.treeReducer(insertAction, false);
+                this.moltenBackendReduce(insertAction);
                 break;
             }
             case LayoutTreeActionType.ClearTree: {
@@ -573,7 +575,7 @@ export class LayoutModel {
                     newNode: newNode,
                     position: action.position,
                 };
-                this.treeReducer(splitAction, false);
+                this.moltenBackendReduce(splitAction);
                 break;
             }
             case LayoutTreeActionType.SplitVertical: {
@@ -628,6 +630,16 @@ export class LayoutModel {
             default:
                 console.warn("unsupported layout action", action);
                 break;
+        }
+    }
+
+    // MOLTENTERM-PATCH (#2433): a panel the backend adds goes after the focused one under a 360 × N (DS-REV-012)
+    private moltenBackendReduce(action: LayoutTreeAction) {
+        this.moltenBackendAdd = true;
+        try {
+            this.treeReducer(action, false);
+        } finally {
+            this.moltenBackendAdd = false;
         }
     }
 
