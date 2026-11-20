@@ -347,6 +347,9 @@ var settings = []Setting{
 	// Agents, Coding agent (#845): the default of the Agent option in the panels that start an agent.
 	{Key: "moltenterm:codingagent", Section: SectionAgents, Group: "Coding agent", Label: "Default coding agent", Description: "The agent MoltenTerm starts for reviews, release notes and the companion when a project chose none.", Control: ControlSelect, UnsetLabel: "The first installed", Options: codingAgentOptions()},
 
+	// Agents, providers in use (#2431): the days of recent use that put an installed agent in use, first in the lists.
+	{Key: "moltenterm:providersusedays", Section: SectionAgents, Group: "Coding agent", Label: "Days of recent use", Description: "Installed agents used within these days lead the agent lists and Brokk's gauges; the others fold away.", Control: ControlNumber, Range: rng(1, 30, 1), Unit: "days", Default: 7},
+
 	// Terminal accessibility (#808): append to preserve existing row orders; the screen groups it under Behaviour.
 	{Key: "moltenterm:terminalscreenreader", Section: SectionTerminal, Group: "Behaviour", Label: "Screen reader support", Description: "Automatic follows system detection. On and Off override it, without restarting terminals.", Control: ControlSelect, Options: []Option{{Value: "auto", Label: "Automatic"}, {Value: "on", Label: "On"}, {Value: "off", Label: "Off"}}},
 

@@ -9,7 +9,7 @@ vi.mock("react-dom", async (importOriginal) => {
     return { ...actual, createPortal: (node: React.ReactNode) => node };
 });
 
-import { AgentChoiceDialog, answerAgentChoice, PendingChoice } from "./agent-choice";
+import { AgentChoiceDialog, answerAgentChoice, PendingChoice, pickedAgent } from "./agent-choice";
 
 beforeAll(() => {
     vi.stubGlobal("document", { body: {} });
@@ -115,5 +115,39 @@ describe("the agent choice options (#890, #930)", () => {
         expect(p.answer).not.toHaveBeenCalled();
         answerAgentChoice(p, "codex", "background");
         expect(p.answer).toHaveBeenCalledWith("background", "codex");
+    });
+});
+
+describe("the agents a resume offers (FR-AGC-004, #2431)", () => {
+    it("starts from the provider that made the pull request, when it is installed", () => {
+        expect(pickedAgent(pending({ agentid: "codex", prAgent: "Claude Code" }), null)).toBe("claude");
+        expect(pickedAgent(pending({ agentid: "codex", prAgent: "Claude Code via GLM" }), null)).toBe("claude");
+    });
+
+    it("falls back to the offer's agent when the provider that made the pull request is not installed", () => {
+        const p = pending({
+            agentid: "codex",
+            prAgent: "Kimi Code",
+            agents: [
+                { id: "claude", name: "Claude Code", installed: true },
+                { id: "codex", name: "Codex", installed: true },
+            ],
+        });
+        expect(pickedAgent(p, null)).toBe("codex");
+    });
+
+    it("folds the installed providers not in use under Other agents, and never lists an absent one", () => {
+        const html = render(
+            pending({
+                agents: [
+                    { id: "claude", name: "Claude Code", installed: true },
+                    { id: "codex", name: "Codex", installed: true },
+                    { id: "gemini", name: "Gemini", installed: false },
+                ],
+            })
+        );
+        expect(html).toContain('data-testid="agent-choice-others"');
+        expect(html).not.toContain('data-testid="agent-choice-agents"');
+        expect(html).not.toContain("Gemini");
     });
 });

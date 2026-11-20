@@ -3,14 +3,15 @@
 
 // The plan usage Brokk's group tells (FR-BOSS-009, AC17 and AC20, FR-BOSS-006, #2032): under the square, a week grid with
 // the main window of each provider that shares a reading (AC48 to AC51, #2100, the shared usage-week grid); behind a
-// click on that block, the detail of every window the former Usage tab listed. The providers come in the order of the
-// developer's use over the last 7 days, the unused ones on a plan that is not paid are left out and listed apart, and a
+// click on that block, the detail of every window the former Usage tab listed. The providers come most recently used
+// first, a provider with no use within the window set in Settings (#2431) is left out and listed apart, and a
 // reading too old to be current never looks live (AC93 to AC98, #2341). Pure, so the rules are tested without a window.
 //
 // It loads on demand, with the usage block of the group (brokk-usage-block.tsx) and the hub's usage visit
 // (brokk-usage-visit.ts), outside the JavaScript every view loads up front (NFR-PERF-003, bundle.initialJsMB): what the
 // hub reads at start is brokk-usage-choice.ts's.
 
+import { inUseWithin } from "../agent-info/providers-in-use";
 import { GaugeRow, gaugeRows, UsageSnapshot } from "../companion/companion-gauges-model";
 import { mainWindow, UsageWeekLine, usageWeekLine } from "../usage-week/usage-week-model";
 import { isStale, UseWindowMs } from "../usage-week/usage-week-stale";
@@ -35,8 +36,9 @@ export type AgentUseSummary = { at: number; agents: Record<string, AgentUse> };
 export { choiceOf, choicesOf };
 export type { UsageChoice, UsageChoices };
 
-// `use`: the agents' use by id; null before wavesrv has told it, when nothing can be said to be unused.
-export type UsageContext = { use?: Record<string, AgentUse>; choices?: UsageChoices };
+// `use`: the agents' use by id; null before wavesrv has told it, when nothing can be said to be unused. `windowMs`: the
+// window of recent use the developer set in Settings (#2431), 7 days when unset.
+export type UsageContext = { use?: Record<string, AgentUse>; choices?: UsageChoices; windowMs?: number };
 
 const NoUse: AgentUse = { workms: 0, sessions: 0, lastat: 0 };
 
@@ -71,8 +73,14 @@ export function planKind(plan: string): PlanKind {
 
 export type HiddenReason = "chosen" | "unused";
 
-// Why the grid leaves a provider out, "" when it shows: the developer's choice first; then no use and no reading for 7
-// days on a plan that is not paid (an unknown plan is not paid, since its last reading is then older than 7 days).
+// The last trace of a provider's use (Unix ms): its agents' last work or start, or its last reading, 0 when none.
+function lastUseOf(ctx: UsageContext, provider: string, readAt: number): number {
+    return Math.max(ctx?.use?.[provider]?.lastat ?? 0, readAt ?? 0);
+}
+
+// Why the grid leaves a provider out, "" when it shows: the developer's choice first; then no use and no reading within
+// the window set in Settings (#2431) on a plan that is not paid (an unknown plan is not paid, since its last reading is
+// then older than the window). A paid plan stays (#2341). An unknown use hides nothing: it is not the same as unused.
 export function hiddenReason(
     provider: string,
     plan: string,
@@ -90,8 +98,8 @@ export function hiddenReason(
     if (ctx?.use == null) {
         return "";
     }
-    const use = ctx.use[provider] ?? NoUse;
-    if (use.workms > 0 || use.sessions > 0 || readAt > now - UseWindowMs) {
+    const windowMs = ctx.windowMs ?? UseWindowMs;
+    if (inUseWithin(lastUseOf(ctx, provider, readAt), now, windowMs)) {
         return "";
     }
     return planKind(plan) === "paid" ? "" : "unused";
@@ -104,6 +112,8 @@ export type UsageProvider = {
     rows: GaugeRow[];
     // The fullest window, to rank providers.
     fullest: number;
+    // When its reading was taken (Unix ms), 0 when unknown: one of the traces that rank it by last use.
+    readAt: number;
 };
 
 // The latest reading of each provider: several agents of one provider share its plan (FR-SHELL-027).
@@ -122,26 +132,43 @@ function latestByProvider(readings: UsageReadings): Map<string, UsageSnapshot> {
     return latest;
 }
 
-// The order of the grid (AC93): the most used first, by the time its agents worked over the last 7 days, then by its
-// sessions (an agent that reports nothing of its work has no time), then by the fullest window, then by name.
-function byUse(ctx: UsageContext, a: { id: string; fullness: number }, b: { id: string; fullness: number }): number {
+type Ranked = { id: string; fullness: number; readAt: number };
+
+// The order of the grid (AC93, #2431): the most recently used first, by the last trace of its use (work, start or
+// reading); then the time its agents worked over the window, then its sessions (an agent that reports nothing of its
+// work has no time), then the fullest window, then by name.
+function byUse(ctx: UsageContext, a: Ranked, b: Ranked): number {
     const ua = ctx?.use?.[a.id] ?? NoUse;
     const ub = ctx?.use?.[b.id] ?? NoUse;
-    return ub.workms - ua.workms || ub.sessions - ua.sessions || b.fullness - a.fullness || (a.id < b.id ? -1 : 1);
+    return (
+        lastUseOf(ctx, b.id, b.readAt) - lastUseOf(ctx, a.id, a.readAt) ||
+        ub.workms - ua.workms ||
+        ub.sessions - ua.sessions ||
+        b.fullness - a.fullness ||
+        (a.id < b.id ? -1 : 1)
+    );
 }
 
-// One entry per provider that gave a reading with a window still running and that the grid shows, the most used first:
-// the detail panel.
+// One entry per provider that gave a reading with a window still running and that the grid shows, the most recently
+// used first: the detail panel.
 export function usageProviders(readings: UsageReadings, now: number, ctx?: UsageContext): UsageProvider[] {
     const providers: UsageProvider[] = [];
     for (const [id, snapshot] of latestByProvider(readings)) {
         const rows = gaugeRows(snapshot, now);
-        if (rows.length === 0 || hiddenReason(id, snapshot.plan ?? "", snapshot.readat ?? 0, ctx, now) !== "") {
+        const readAt = snapshot.readat ?? 0;
+        if (rows.length === 0 || hiddenReason(id, snapshot.plan ?? "", readAt, ctx, now) !== "") {
             continue;
         }
-        providers.push({ id, plan: snapshot.plan ?? "", rows, fullest: Math.max(...rows.map((row) => row.bar)) });
+        providers.push({
+            id,
+            plan: snapshot.plan ?? "",
+            rows,
+            fullest: Math.max(...rows.map((row) => row.bar)),
+            readAt,
+        });
     }
-    return providers.sort((a, b) => byUse(ctx, { id: a.id, fullness: a.fullest }, { id: b.id, fullness: b.fullest }));
+    const ranked = (p: UsageProvider): Ranked => ({ id: p.id, fullness: p.fullest, readAt: p.readAt });
+    return providers.sort((a, b) => byUse(ctx, ranked(a), ranked(b)));
 }
 
 // A reading older than this shows its age beside its percent (#2074).
@@ -207,10 +234,12 @@ export function usageGrid(
             },
         });
     }
-    const fullness = (c: Candidate) => (c.row.stale ? 0 : c.row.percent);
-    found.sort((a, b) =>
-        byUse(ctx, { id: a.row.provider, fullness: fullness(a) }, { id: b.row.provider, fullness: fullness(b) })
-    );
+    const ranked = (c: Candidate): Ranked => ({
+        id: c.row.provider,
+        fullness: c.row.stale ? 0 : c.row.percent,
+        readAt: c.row.readAt,
+    });
+    found.sort((a, b) => byUse(ctx, ranked(a), ranked(b)));
     const shown = new Set(found.map((c) => c.row.provider));
     const none: Candidate[] = [];
     for (const provider of Object.keys(unreadable ?? {}).sort()) {
@@ -242,8 +271,7 @@ export function usageGrid(
             rows.push(row);
             continue;
         }
-        const lastUse = Math.max(ctx?.use?.[row.provider]?.lastat ?? 0, row.readAt);
-        hidden.push({ provider: row.provider, plan, lastUse, reason });
+        hidden.push({ provider: row.provider, plan, lastUse: lastUseOf(ctx, row.provider, row.readAt), reason });
     }
     return { rows, hidden };
 }

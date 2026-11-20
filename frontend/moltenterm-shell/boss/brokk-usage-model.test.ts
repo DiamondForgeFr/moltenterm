@@ -301,6 +301,17 @@ describe("the usage grid is ordered by use (FR-BOSS-009, AC93)", () => {
         expect(ids(weeklyUsage(readings, Now, undefined, ctx))).toEqual(["a", "b", "c"]);
     });
 
+    it("puts the most recently used provider on top, whatever its work time (#2431)", () => {
+        const readings = {
+            a: reading("a", [{ id: "week", usedpercent: 10, resetsat: Now + 3 * Day }], Now - 3 * Day),
+            b: fresh("b", 10),
+        };
+        const ctx: UsageContext = {
+            use: { a: { workms: 50 * Minute, sessions: 9, lastat: Now - 3 * Day }, b: use(1, 1, 1) },
+        };
+        expect(ids(weeklyUsage(readings, Now, undefined, ctx))).toEqual(["b", "a"]);
+    });
+
     it("breaks a tie by the fullest window, then by name", () => {
         const readings = { b: fresh("b", 40), a: fresh("a", 40), c: fresh("c", 70) };
         const ctx: UsageContext = { use: { a: use(30), b: use(30), c: use(30) } };
@@ -333,7 +344,7 @@ describe("the usage grid is ordered by use (FR-BOSS-009, AC93)", () => {
     });
 });
 
-describe("a provider not used for 7 days and not paid is left out (FR-BOSS-009, AC95)", () => {
+describe("a provider not used within the window is left out (FR-BOSS-009, AC95, #2431)", () => {
     // The case of the ticket: a plan no longer paid, hardly used, a red 100 % first.
     it("hides a free plan with no use and no reading for 7 days, and lists it with its last reading", () => {
         const readings = { codex: monthly("codex", 100, 10, "free"), claude: fresh("claude", 30, "") };
@@ -354,6 +365,15 @@ describe("a provider not used for 7 days and not paid is left out (FR-BOSS-009, 
         const grid = usageGrid(readings, Now, undefined, { use: {} });
         expect(ids(grid.rows).sort()).toEqual(["claude", "codex"]);
         expect(grid.hidden).toEqual([]);
+    });
+
+    it("follows the window the developer set in Settings, 7 days when unset (#2431)", () => {
+        const readings = { codex: monthly("codex", 50, 5, "free") };
+        const withWindow = (windowMs?: number) =>
+            usageGrid(readings, Now, undefined, { use: { codex: use(1, 1, 3) }, windowMs });
+        expect(ids(withWindow().rows)).toEqual(["codex"]);
+        expect(ids(withWindow(7 * Day).rows)).toEqual(["codex"]);
+        expect(withWindow(2 * Day).hidden.map((h) => h.provider)).toEqual(["codex"]);
     });
 
     it("keeps a free plan that was used, or read, in the last 7 days", () => {

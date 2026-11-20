@@ -9,11 +9,18 @@
 // the default is selected and focused at open. Validate (or Enter) starts the agent in the selected mode; Cancel and
 // Escape start nothing.
 
-import { atoms } from "@/app/store/global";
+import { atoms, getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn } from "@/util/util";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useId, useRef, useState } from "react";
+import {
+    orderProviders,
+    preferredProviderId,
+    ProvidersUseDaysKey,
+    providersUseWindowMs,
+} from "../agent-info/providers-in-use";
+import { useProviderLastUse } from "../agent-info/providers-in-use-use";
 import { DialogFrame } from "../dialog-frame";
 import { t, useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
@@ -44,6 +51,8 @@ export type AgentChoiceRequest = {
     agentid?: string;
     agents?: { id: string; name: string; installed: boolean }[];
     missing?: string;
+    // The agent name the pull request's signature gives (#2431): a resume leads with the provider that made the PR.
+    prAgent?: string;
 };
 
 // The developer's answer: how the agent works, and the agent picked for this run when they switched.
@@ -166,7 +175,10 @@ export function pickedAgent(pending: AgentChoiceRequest, picked: string): string
     if (picked) {
         return picked;
     }
-    return pending.missing ? "" : (pending.agentid ?? "");
+    if (pending.missing) {
+        return "";
+    }
+    return preferredProviderId(pending.prAgent, pending.agents) || (pending.agentid ?? "");
 }
 
 // answerAgentChoice: Validate with the selected mode (or null for Cancel) answers the dialog; Validate does nothing
@@ -208,6 +220,7 @@ async function openReviewGesture(args: Record<string, any>) {
 
 export function AgentChoiceHost() {
     const pending = useAtomValue(AgentChoiceModel.getInstance().pendingAtom);
+    const windowMs = providersUseWindowMs(useAtomValue(getSettingsKeyAtom(ProvidersUseDaysKey)));
     useEffect(() => registerNotificationGesture(ReviewOpenGesture, openReviewGesture), []);
     useEffect(() => registerNotificationGesture(InvestigateGesture, investigateGesture), []);
     useEffect(() => registerNotificationGesture(ReviewsCardGesture, reviewsCardGesture), []);
@@ -215,17 +228,30 @@ export function AgentChoiceHost() {
     if (pending == null) {
         return null;
     }
-    return <AgentChoiceDialog key={`${pending.kind}:${pending.number}`} pending={pending} />;
+    return <AgentChoiceDialog key={`${pending.kind}:${pending.number}`} pending={pending} windowMs={windowMs} />;
 }
 
-export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
+export function AgentChoiceDialog({
+    pending,
+    windowMs = providersUseWindowMs(undefined),
+}: {
+    pending: PendingChoice;
+    windowMs?: number;
+}) {
     const t = useT();
     const defaultRef = useRef<HTMLButtonElement>(null);
     const [picked, setPicked] = useState<string>(null);
     const [selected, setSelected] = useState<AgentMode>(DefaultMode);
     const agent = pickedAgent(pending, picked);
     const installed = (pending.agents ?? []).filter((a) => a.installed);
-    const absent = (pending.agents ?? []).filter((a) => !a.installed);
+    const lastUse = useProviderLastUse();
+    const order = orderProviders(
+        pending.agents ?? [],
+        (id) => lastUse[id] ?? 0,
+        Date.now(),
+        windowMs,
+        preferredProviderId(pending.prAgent, pending.agents)
+    );
     const validate = () => answerAgentChoice(pending, picked, selected);
     useEffect(() => {
         defaultRef.current?.focus();
@@ -313,21 +339,33 @@ export function AgentChoiceDialog({ pending }: { pending: PendingChoice }) {
                         {t(installed.length > 0 ? "agentChoice.missing" : "agentChoice.missingNone", vars)}
                     </p>
                 ) : null}
-                {installed.length > 0 ? (
+                {order.shown.length > 0 ? (
                     <div className="flex flex-wrap items-center gap-2" data-testid="agent-choice-agents">
                         <span className="text-muted">{t("agentChoice.agent")}</span>
                         <SegmentedControl
                             label={t("agentChoice.agent")}
-                            segments={installed.map((a) => ({ value: a.id, label: a.name }))}
+                            segments={order.shown.map((a) => ({ value: a.id, label: a.name }))}
                             selected={agent}
                             onSelect={setPicked}
                         />
-                        {absent.map((a) => (
-                            <span key={a.id} className="text-11 text-muted">
-                                {t("agentChoice.notInstalled", { agent: a.name })}
-                            </span>
-                        ))}
                     </div>
+                ) : null}
+                {order.other.length > 0 ? (
+                    <details
+                        className="text-12"
+                        open={order.shown.length === 0 || order.other.some((a) => a.id === agent)}
+                        data-testid="agent-choice-others"
+                    >
+                        <summary className="cursor-pointer text-muted">{t("agentChoice.otherAgents")}</summary>
+                        <div className="mt-2">
+                            <SegmentedControl
+                                label={t("agentChoice.otherAgents")}
+                                segments={order.other.map((a) => ({ value: a.id, label: a.name }))}
+                                selected={agent}
+                                onSelect={setPicked}
+                            />
+                        </div>
+                    </details>
                 ) : null}
                 {picked != null && picked !== pending.agentid && !pending.missing ? (
                     <p className="text-11 text-muted">{t("agentChoice.thisRunOnly")}</p>

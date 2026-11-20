@@ -42,7 +42,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 152
+            "order": 153
           }
         },
         "app:globalhotkey": {
@@ -61,7 +61,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 168
+            "order": 169
           }
         },
         "app:defaultnewblock": {
@@ -202,7 +202,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 153
+            "order": 154
           }
         },
         "term:fontsize": {
@@ -814,7 +814,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 154
+            "order": 155
           }
         },
         "web:openlinksinternally": {
@@ -1013,35 +1013,35 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 155
+            "order": 156
           }
         },
         "autoupdate:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 162
+            "order": 163
           }
         },
         "autoupdate:intervalms": {
           "type": "number",
           "x-moltenterm": {
             "hidden": true,
-            "order": 163
+            "order": 164
           }
         },
         "autoupdate:installonquit": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 164
+            "order": 165
           }
         },
         "autoupdate:channel": {
           "type": "string",
           "x-moltenterm": {
             "hidden": true,
-            "order": 165
+            "order": 166
           }
         },
         "markdown:fontsize": {
@@ -1324,7 +1324,7 @@
           "description": "Each workspace's sidebar on the left replaces the tab bar, the workspace rail and the status bar; false brings the tab bar, the rail and the status bar back",
           "x-moltenterm": {
             "hidden": true,
-            "order": 169
+            "order": 170
           }
         },
         "app:newviewopen": {
@@ -1989,7 +1989,7 @@
           "description": "Coding agents (claude, codex) that Brokk's usage grid always shows, even when they were not used for 7 days and their plan is not paid. Set from a row's menu in the grid and from the Not used lately list",
           "x-moltenterm": {
             "hidden": true,
-            "order": 176
+            "order": 177
           }
         },
         "boss:usagehide": {
@@ -2000,7 +2000,7 @@
           "description": "Coding agents (claude, codex) that Brokk's usage grid never shows, even on a paid plan. Set from a row's menu in the grid",
           "x-moltenterm": {
             "hidden": true,
-            "order": 177
+            "order": 178
           }
         },
         "boss:brainstormsdir": {
@@ -2038,6 +2038,25 @@
             "description": "Only what stays in his own folder goes without asking, each a line in his window; the rest still asks.",
             "control": "toggle",
             "order": 76
+          }
+        },
+        "moltenterm:providersusedays": {
+          "type": "integer",
+          "description": "The days of recent use that put an installed agent in use: it leads the agent lists and Brokk's usage gauges, the others are folded under Other agents and hidden from the gauges. 7 when unset",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Coding agent",
+            "label": "Days of recent use",
+            "description": "Installed agents used within these days lead the agent lists and Brokk's gauges; the others fold away.",
+            "control": "number",
+            "range": {
+              "min": 1,
+              "max": 30,
+              "step": 1
+            },
+            "unit": "days",
+            "default": 7,
+            "order": 151
           }
         },
         "moltenterm:settingsreveal": {
@@ -2177,7 +2196,7 @@
                 "label": "Off"
               }
             ],
-            "order": 151
+            "order": 152
           }
         },
         "moltenterm:codingagent": {
@@ -2216,7 +2235,7 @@
           "description": "How the Integration panel sorts its pull requests: state (by state, the default when unset) or merge (the suggested merge order, which reruns the fewest CI runs). Set by the panel's switch",
           "x-moltenterm": {
             "hidden": true,
-            "order": 170
+            "order": 171
           }
         },
         "moltenterm:reviewsfolds": {
@@ -2227,7 +2246,7 @@
           "description": "The Integration panel's sections the developer opened (true) or folded (false), by section: yours, ready, agents, blocked, waiting, notes, leftovers, upcoming, merged. A section not listed follows its default. Set by the sections' headers",
           "x-moltenterm": {
             "hidden": true,
-            "order": 171
+            "order": 172
           }
         },
         "moltenterm:settingstab": {
@@ -2235,7 +2254,7 @@
           "description": "The tab the Settings screen opens on: the one the developer chose last (overview when unset). Set by the screen's tabs",
           "x-moltenterm": {
             "hidden": true,
-            "order": 172
+            "order": 173
           }
         },
         "moltenterm:materialsseen": {
@@ -2246,7 +2265,7 @@
           "description": "When the developer last saw each project's materials, by project, in milliseconds since 1970: newer materials are counted as new in the library. Set by opening the materials section",
           "x-moltenterm": {
             "hidden": true,
-            "order": 173
+            "order": 174
           }
         },
         "moltenterm:browserinspectorsize": {
@@ -2254,7 +2273,7 @@
           "description": "The share of a web page panel's page area its docked developer tools take, from 0.15 to 0.85 (0.4 when unset or out of range). Set by dragging the tools' divider",
           "x-moltenterm": {
             "hidden": true,
-            "order": 174
+            "order": 175
           }
         },
         "moltenterm:searchenginenote": {
@@ -2262,28 +2281,28 @@
           "description": "Whether the one-time note about the default search engine was shown in a web page panel (Searches use Brave Search, with a way to change it). Set by the panel the first time it shows the note",
           "x-moltenterm": {
             "hidden": true,
-            "order": 175
+            "order": 176
           }
         },
         "widget:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 156
+            "order": 157
           }
         },
         "widget:showhelp": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 167
+            "order": 168
           }
         },
         "window:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 157
+            "order": 158
           }
         },
         "window:fullscreenonlaunch": {
@@ -2604,21 +2623,21 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 158
+            "order": 159
           }
         },
         "telemetry:enabled": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 166
+            "order": 167
           }
         },
         "conn:*": {
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 159
+            "order": 160
           }
         },
         "conn:askbeforewshinstall": {
@@ -2661,7 +2680,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 160
+            "order": 161
           }
         },
         "debug:pprofport": {
@@ -2714,7 +2733,7 @@
           "type": "boolean",
           "x-moltenterm": {
             "hidden": true,
-            "order": 161
+            "order": 162
           }
         },
         "tsunami:scaffoldpath": {
