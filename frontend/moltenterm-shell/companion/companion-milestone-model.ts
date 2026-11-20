@@ -21,7 +21,8 @@ export const SummariesConsentKey = "molten:ticketsummaries";
 
 export type MilestoneState = "loading" | "ok" | "none" | "noforge";
 
-export type MilestoneTicket = { number: number; title: string; url?: string; sentence?: string };
+// status: the ticket's board column as the project names it (#2418), absent when it is on no board.
+export type MilestoneTicket = { number: number; title: string; url?: string; sentence?: string; status?: string };
 
 export type MilestoneInfo = {
     number: number;
@@ -285,25 +286,6 @@ export function todoLinks(todos: CompanionTodo[], agents: LinkAgent[]): Map<numb
         }
     });
     return links;
-}
-
-// The rows shown: the tickets an agent works on first, in the order their agents stand in (agents: the agents at work as
-// listed), so that their lines do not cross; then the others in the forge's order (the most recently updated first),
-// MaxMilestoneRows at most. more is the open tickets left out.
-export function previewTickets(
-    m: MilestoneInfo,
-    linked: Map<number, LinkAgent[]>,
-    agents?: LinkAgent[]
-): { rows: MilestoneTicket[]; more: number } {
-    const tickets = m?.tickets ?? [];
-    const place = new Map((agents ?? []).map((a, i) => [a.id, i]));
-    const rank = (t: MilestoneTicket) =>
-        Math.min(...(linked?.get(t.number) ?? []).map((a) => place.get(a.id) ?? Number.MAX_SAFE_INTEGER));
-    const first = tickets.filter((t) => linked?.has(t.number)).sort((a, b) => rank(a) - rank(b));
-    const rest = tickets.filter((t) => !linked?.has(t.number));
-    const rows = [...first, ...rest].slice(0, MaxMilestoneRows);
-    const remaining = Math.max(m?.remaining ?? 0, tickets.length);
-    return { rows, more: Math.max(0, remaining - rows.length) };
 }
 
 // The heat of a task's state, from the agent that works on it (FR-SHELL-116): working incandescent, waiting violet,

@@ -16,12 +16,18 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { AgentStateInfo } from "../agent-state-model";
+import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import { AgentStates } from "../agent-state-store";
 import { useLocale, useT } from "../i18n/i18n";
+import type { ReviewsAnswer } from "../reviews/reviews-model";
+import { SharedReviewsAnswersAtom, SharedUpcomingAnswersAtom } from "../reviews/reviews-state-atoms";
+import type { UpcomingAnswer } from "../reviews/reviews-upcoming-model";
 import { SectionBlock } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
 import { TabActivity, whileShown } from "../tab-activity";
 import { everyInPanel, panelActivityAtom, usePanelBlockId } from "../view360/offcarpet-model";
+import { AgentsBlockBody } from "./companion-agents";
+import { agentsRunKey, classifyTickets, HoldInputs, taskLists } from "./companion-holds-model";
 import { ColumnsBand, CompanionSectionId, defaultWorkBand, workLayout } from "./companion-layout";
 import {
     agentEnd,
@@ -38,7 +44,6 @@ import {
     MilestonesRoute,
     MilestonesView,
     offersSummaries,
-    previewTickets,
     samePaths,
     SummariesConsentKey,
     SummariesSettingKey,
@@ -47,8 +52,7 @@ import {
     wantedTickets,
 } from "./companion-milestone-model";
 import { CompanionView } from "./companion-model";
-import { useCompanionPref, useMilestoneChoice } from "./companion-prefs";
-import { AgentsList } from "./companion-recap";
+import { useCompanionPref, useMilestoneChoice, useTakenOpen } from "./companion-prefs";
 import { AgentRow, agentsView, finishedLabel } from "./companion-recap-model";
 import type { SessionSectionSlots } from "./companion-section";
 import { SummariesOffer, TasksBlock } from "./companion-tasks";
@@ -131,6 +135,45 @@ export function useMilestones(dir: string, want: number[], milestone: number): M
     return view;
 }
 
+// The agents of the project beyond this companion's (#2418): the Integration panel's placement of every agent on its
+// branch (the upcoming work) and the pull requests it follows, as the windows share them, and the agent states. Nothing
+// new is polled: the placement is asked on the milestone's own beat while the companion shows, wavesrv answers it from
+// its 20 s cache, and again at once, past the cache, when an agent starts or stops, as the Integration panel does.
+// runKey adds this companion's own running sub-agents to what makes the placement out of date.
+function useHoldsData(
+    dir: string,
+    runKey: string
+): { upcoming: UpcomingAnswer; reviews: ReviewsAnswer; states: AgentStatesData } {
+    const panelId = usePanelBlockId();
+    const upcomings = useAtomValue(SharedUpcomingAnswersAtom);
+    const reviews = useAtomValue(SharedReviewsAnswersAtom);
+    const states = useAtomValue(AgentStates.getInstance().dataAtom);
+    const agents = `${agentsRunKey(states)}|${runKey}`;
+    const seen = useRef<string>(null);
+    const ask = (force: boolean) => {
+        if (!dir || !onScreen(panelId)) {
+            return;
+        }
+        import("../reviews/reviews-upcoming-client")
+            .then((client) => client.upcomingGet(dir, force))
+            .catch((e) => console.log("companion: upcoming work", e));
+    };
+    useEffect(() => {
+        if (!dir) {
+            return;
+        }
+        ask(seen.current != null && seen.current !== agents);
+        seen.current = agents;
+    }, [dir, agents]);
+    useEffect(() => {
+        if (!dir) {
+            return;
+        }
+        return everyInPanel(panelId, whileShown(RefreshMs), () => ask(false), "companion-holds");
+    }, [dir, panelId]);
+    return { upcoming: upcomings[dir] ?? null, reviews: reviews[dir] ?? null, states };
+}
+
 function useWidth(ref: React.RefObject<HTMLElement>): number {
     const [width, setWidth] = useState(0);
     useLayoutEffect(() => {
@@ -187,6 +230,8 @@ export type CompanionWorkProps = {
     // The milestones as given instead of asked, and the tab as chosen instead of the remembered one (the tests).
     milestones?: MilestonesView;
     chosen?: number;
+    // What the windows know of the agents of the project, as given instead of read from the shared atoms (the tests).
+    holds?: Partial<Pick<HoldInputs, "upcoming" | "reviews" | "states">>;
 };
 
 export function CompanionWork(props: CompanionWorkProps) {
@@ -221,8 +266,24 @@ export function CompanionWork(props: CompanionWorkProps) {
     const list = milestones?.state === "ok" ? (milestones.milestones ?? []) : [];
     const m = chosenMilestone(list, props.chosen ?? remembered);
     const tickets = ticketLinks(m?.tickets, linkable);
-    const preview = m != null ? previewTickets(m, tickets, linkable) : null;
+    const known = useHoldsData(
+        showsTasks && m != null ? project : "",
+        [...(view?.subagents ?? [])]
+            .filter((s) => s.state === "running")
+            .map((s) => s.id)
+            .join(",")
+    );
+    const holds = classifyTickets(m?.tickets, {
+        mine: tickets,
+        ownBlockId: view?.blockid ?? "",
+        workspaceId: agentState?.workspaceid ?? "",
+        upcoming: props.holds?.upcoming ?? known.upcoming,
+        reviews: props.holds?.reviews ?? known.reviews,
+        states: props.holds?.states ?? known.states,
+    });
+    const preview = m != null ? taskLists(m, tickets, holds, linkable) : null;
     const wanted = wantedTickets(preview?.rows).join(",");
+    const [takenOpen, setTakenOpen] = useTakenOpen();
     useEffect(() => {
         setWant(wanted ? wanted.split(",").map(Number) : []);
     }, [wanted]);
@@ -265,8 +326,9 @@ export function CompanionWork(props: CompanionWorkProps) {
                 selected={m}
                 onSelect={choose}
                 width={rootWidth > 0 ? blockWidth : 0}
-                rows={preview?.rows ?? []}
-                more={preview?.more ?? 0}
+                lists={preview}
+                takenOpen={takenOpen}
+                onTakenChange={setTakenOpen}
                 phrasing={milestones?.phrasing === true}
                 offer={offer}
                 links={tickets}
@@ -285,8 +347,13 @@ export function CompanionWork(props: CompanionWorkProps) {
                 className="mt-cwork-block"
                 data-testid="companion-agents"
             >
-                <AgentsList rows={agents.rows} marks={{ ends, hot: lit, heat: agentHeat }} />
-                {ended ? <div className="text-11 text-muted">{ended}</div> : null}
+                <AgentsBlockBody
+                    rows={agents.rows}
+                    view={view}
+                    marks={{ ends, hot: lit, heat: agentHeat }}
+                    ended={ended}
+                    now={now}
+                />
             </SectionBlock>
         ),
     };

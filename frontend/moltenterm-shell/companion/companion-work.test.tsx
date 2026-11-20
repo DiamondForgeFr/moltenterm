@@ -5,6 +5,23 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { AgentStateInfo } from "../agent-state-model";
 import { I18nModel } from "../i18n/i18n";
+import {
+    AllLeads,
+    EveryLead,
+    Flore,
+    Jerome,
+    Julie,
+    linksOf,
+    nineOpen,
+    NineTickets,
+    panelOn,
+    Remy,
+    reviewsOf,
+    subagent,
+    ThisWorkspace,
+    upcomingOf,
+} from "./companion-holds-fixture";
+import { classifyTickets, taskLists } from "./companion-holds-model";
 import { ColumnsBand, TwoColumnMinWidth, workLayout } from "./companion-layout";
 import {
     agentEnd,
@@ -24,7 +41,6 @@ import {
     milestoneStanding,
     MilestonesView,
     offersSummaries,
-    previewTickets,
     splitTabs,
     tabLabel,
     tabRoom,
@@ -35,6 +51,7 @@ import {
 } from "./companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "./companion-model";
 import { agentsView } from "./companion-recap-model";
+import { TasksBlock } from "./companion-tasks";
 import { CompanionWork } from "./companion-work";
 
 vi.mock("@/app/store/global", async () => {
@@ -240,7 +257,7 @@ describe("the milestone block", () => {
         expect(html).toContain("Le total du panier ne s&#x27;affichera plus deux fois.");
         expect(html).toContain('title="Ticket title: Ticket 41 title"');
         expect(html).toContain(">Ticket 35 title<");
-        expect(html).toContain('data-testid="companion-milestone-more">and 4 more<');
+        expect(html).toContain('data-testid="companion-milestone-more">and 4 more to take<');
         expect(html).toContain("Open the milestone");
     });
 
@@ -284,19 +301,20 @@ describe("the milestone block", () => {
         const agents = linkAgents(agentsView(view, working, now).rows, view);
         const m = milestone(12);
         m.tickets = [...m.tickets.slice(3), ...m.tickets.slice(0, 3)];
-        const { rows, more } = previewTickets(m, ticketLinks(m.tickets, agents), agents);
+        const none = new Map();
+        const { rows, more } = taskLists(m, ticketLinks(m.tickets, agents), none, agents);
         expect(rows.slice(0, 2).map((r) => r.number)).toEqual([41, 38]);
         expect(rows).toHaveLength(MaxMilestoneRows);
         expect(more).toBe(4);
         // In the order their agents stand in, so that the lines do not cross, whatever the forge's order.
         m.tickets = [m.tickets.find((t) => t.number === 38), ...m.tickets.filter((t) => t.number !== 38)];
         expect(
-            previewTickets(m, ticketLinks(m.tickets, agents))
+            taskLists(m, ticketLinks(m.tickets, agents), none)
                 .rows.slice(0, 2)
                 .map((r) => r.number)
         ).toEqual([38, 41]);
         expect(
-            previewTickets(m, ticketLinks(m.tickets, agents), agents)
+            taskLists(m, ticketLinks(m.tickets, agents), none, agents)
                 .rows.slice(0, 2)
                 .map((r) => r.number)
         ).toEqual([41, 38]);
@@ -705,6 +723,226 @@ describe("blocks by width", () => {
     });
 });
 
+// Who works on what (#2418, TC-SHELL-018-8): the developer's case, Lead A's companion. A (Claude Code) has three
+// sub-agents on tickets 1 to 3, B (Kimi) two on 4 and 5, C (Claude Code) one on 6; 7 to 9 are free.
+describe("who works on what (#2418)", () => {
+    const leadState: AgentStateInfo = { ...Flore, blockid: "flore" };
+
+    function leadView(lead: AgentStateInfo, mine: number[]): CompanionView {
+        return {
+            blockid: lead.blockid,
+            version: 1,
+            status: "live",
+            agent: lead.agent,
+            agentname: lead.agentname,
+            session: { path: "/s.jsonl", linkedby: "hook", branch: "develop" },
+            todos: [],
+            subagents: mine.map((n, i) => ({
+                id: `s${n}`,
+                kind: i === 0 ? "sf-fix" : "sf-build",
+                description: `#${n} work on the ticket`,
+                branch: `feature/${n}-work`,
+                background: true,
+                state: "running" as const,
+                started: now - (i + 1) * 20 * Min,
+            })),
+        };
+    }
+
+    const nine: MilestonesView = { dir: "/shop", state: "ok", milestones: [nineOpen()] };
+    const holds = { upcoming: AllLeads, states: EveryLead };
+
+    function render(
+        lead: AgentStateInfo,
+        mine: number[],
+        width: number,
+        extra: Partial<React.ComponentProps<typeof CompanionWork>> = {}
+    ): string {
+        return renderToStaticMarkup(
+            <CompanionWork
+                view={leadView(lead, mine)}
+                agentState={{ ...lead, workspaceid: ThisWorkspace }}
+                dir="/shop"
+                now={now}
+                width={width}
+                milestones={nine}
+                holds={holds}
+                {...extra}
+            />
+        );
+    }
+
+    const ticketRows = (html: string) => [...html.matchAll(/data-link-end="ticket:(\d+)"/g)].map((m) => Number(m[1]));
+
+    it("lists A's own tickets, then the free ones, and the tickets other agents hold apart, under their owners", () => {
+        const html = render(Flore, [1, 2, 3], 1400);
+        expect(ticketRows(html)).toEqual([1, 2, 3, 7, 8, 9]);
+        expect(html).toContain('data-testid="companion-taken"');
+        expect(html).toContain(">Taken by others<");
+        const group = html.slice(
+            html.indexOf('data-testid="companion-taken"'),
+            html.indexOf('data-testid="companion-agents"')
+        );
+        expect(group.match(/data-testid="companion-taken-ticket"/g)).toHaveLength(3);
+        expect(group.match(/Jérôme · Kimi Code/g)).toHaveLength(2);
+        expect(group.match(/Julie · Claude Code/g)).toHaveLength(1);
+        expect(group).toContain("#4");
+        expect(group).toContain("#6");
+        // Sub-agents of their leads: said, and a click goes to the lead's panel.
+        expect(group.match(/title="Sub-agent of Jérôme"/g)).toHaveLength(2);
+        expect(group).toContain('title="Sub-agent of Julie"');
+        expect(group.match(/data-testid="companion-taken-owner"/g)).toHaveLength(3);
+        // Never work to do: no link end, no sentence, no chip.
+        expect(group).not.toContain("data-link-end");
+        expect(group).not.toContain("data-translated");
+        expect(html).not.toContain('data-link-end="ticket:4"');
+    });
+
+    it("lists B's own tickets in B's companion, and C's in C's, with the same free tickets", () => {
+        const b = render(Jerome, [4, 5], 1400);
+        expect(ticketRows(b)).toEqual([4, 5, 7, 8, 9]);
+        expect(b).toContain("Flore · Claude Code");
+        const c = render(Julie, [6], 1400);
+        expect(ticketRows(c)).toEqual([6, 7, 8, 9]);
+    });
+
+    it("counts the milestone's tickets by holder, and 'and N more to take' never counts what others hold", () => {
+        const html = render(Flore, [1, 2, 3], 1400);
+        expect(html).toContain('data-testid="companion-milestone-strip"');
+        expect(html).toContain(">9 left<");
+        expect(html).toContain('<span data-kind="mine">3 here</span>');
+        expect(html).toContain('<span data-kind="other">3 with others</span>');
+        expect(html).toContain('<span data-kind="free">3 to take</span>');
+        const squares = html.slice(html.indexOf("mt-cwork-squares"), html.indexOf("mt-cwork-counts"));
+        expect(squares.match(/data-kind="mine"/g)).toHaveLength(3);
+        expect(squares.match(/data-kind="other"/g)).toHaveLength(3);
+        expect(squares.match(/data-kind="free"/g)).toHaveLength(3);
+        expect(html).not.toContain('data-testid="companion-milestone-more"');
+        // The header keeps the real progress of the whole milestone.
+        expect(html).toContain('data-testid="companion-milestone-progress"');
+        expect(html).toContain('<span class="text-primary">3</span> / 12 done');
+    });
+
+    it("says the sections in French", () => {
+        const html = inFrench(() => render(Flore, [1, 2, 3], 1400));
+        expect(html).toContain(">Pris par d&#x27;autres<");
+        expect(html).toContain("3 chez d&#x27;autres");
+        expect(html).toContain("3 chez moi");
+        expect(html).toContain("3 à prendre");
+        expect(html).toContain("Reste 9");
+        expect(html).toContain('title="Sous-agent de Jérôme"');
+    });
+
+    it("folds the group to one line with the owners' names on a narrow block, and opens it when the developer did", () => {
+        const narrow = render(Flore, [1, 2, 3], 380);
+        expect(narrow).toContain('aria-expanded="false"');
+        expect(narrow).toContain("Jérôme, Julie");
+        expect(narrow).not.toContain('data-testid="companion-taken-ticket"');
+        expect(narrow).toContain('<span class="mt-cwork-n">3</span>');
+        const wide = render(Flore, [1, 2, 3], 1400);
+        expect(wide).toContain('aria-expanded="true"');
+        expect(wide).not.toContain('class="mt-cwork-names"');
+        const html = (open: boolean | undefined, width: number) =>
+            renderToStaticMarkup(
+                <TasksBlock
+                    loading={false}
+                    milestones={[nineOpen()]}
+                    selected={nineOpen()}
+                    onSelect={() => {}}
+                    width={width}
+                    lists={taskLists(
+                        nineOpen(),
+                        linksOf(1, 2, 3),
+                        classifyTickets(NineTickets, {
+                            mine: linksOf(1, 2, 3),
+                            ownBlockId: "flore",
+                            workspaceId: ThisWorkspace,
+                            upcoming: AllLeads,
+                            reviews: null,
+                            states: EveryLead,
+                        })
+                    )}
+                    takenOpen={open}
+                    onTakenChange={() => {}}
+                    phrasing={false}
+                    offer={null}
+                    links={linksOf(1, 2, 3)}
+                    todos={[]}
+                    todoAgents={new Map()}
+                    now={now}
+                    chips={false}
+                    lit={new Set()}
+                    ends={new Set()}
+                />
+            );
+        // His choice wins over the width, both ways.
+        expect(html(true, 300)).toContain('aria-expanded="true"');
+        expect(html(false, 900)).toContain('aria-expanded="false"');
+        expect(html(undefined, 900)).toContain('aria-expanded="true"');
+        expect(html(undefined, 300)).toContain('aria-expanded="false"');
+    });
+
+    it("names a taken ticket by its board status, its pull request or its branch when no agent holds it", () => {
+        const tickets = nineOpen();
+        tickets.tickets = tickets.tickets.map((t) => (t.number === 8 ? { ...t, status: "In progress" } : t));
+        const none = upcomingOf([], [{ branch: "feature/9-x", ticket: 9, ahead: 1, worktree: "/shop/.worktrees/9" }]);
+        const html = render(Flore, [], 1400, {
+            milestones: { dir: "/shop", state: "ok", milestones: [tickets] },
+            holds: {
+                upcoming: none,
+                states: EveryLead,
+                reviews: reviewsOf({
+                    number: 91,
+                    ticket: 7,
+                    branch: "feature/7-x",
+                    url: "https://example.test/pull/91",
+                }),
+            },
+        });
+        expect(ticketRows(html)).toEqual([1, 2, 3, 4, 5, 6]);
+        expect(html).toContain('data-testid="companion-taken-status">In progress<');
+        expect(html).toContain('data-testid="companion-taken-pr">PR #91<');
+        expect(html).toContain('data-testid="companion-taken-branch">On a branch<');
+        expect(html).not.toContain('data-testid="companion-taken-owner"');
+    });
+
+    it("takes a ticket an agent of another workspace holds out of the list without naming that agent", () => {
+        const html = render(Flore, [], 1400, {
+            holds: { upcoming: upcomingOf([panelOn(Remy, "feature/5-x")]), states: EveryLead },
+        });
+        expect(ticketRows(html)).not.toContain(5);
+        expect(html).toContain('data-testid="companion-taken-away">In another workspace<');
+        expect(html).not.toContain("Rémy");
+        expect(html).not.toContain("Codex");
+    });
+
+    it("gives a ticket back when its sub-agent finishes, and shows no group when nobody holds anything", () => {
+        const done = upcomingOf([panelOn(Jerome, "develop"), subagent(Jerome, 4, "done")]);
+        const html = render(Flore, [], 1400, { holds: { upcoming: done, states: EveryLead } });
+        expect(ticketRows(html)).toContain(4);
+        expect(html).not.toContain('data-testid="companion-taken"');
+        expect(html).not.toContain("companion-taken-head");
+    });
+
+    it("draws the agents with their initial, name and tool, and each sub-agent with its ticket, tier, model and duration", () => {
+        const html = render(Flore, [1, 2, 3], 1400, { agentState: { ...leadState, model: "claude-opus-5-5" } });
+        expect(html).toContain('data-testid="companion-agent-main"');
+        expect(html).toContain('<span class="mt-cwork-agent-name truncate" title="Flore · Claude Code">Flore</span>');
+        expect(html).toContain('<span class="mt-cwork-agent-tool truncate">Claude Code</span>');
+        expect(html).toContain('data-large="" aria-hidden="true">F<');
+        expect(html).toContain(">Sub-agents<");
+        expect(html.match(/data-testid="companion-subagent"/g)).toHaveLength(3);
+        expect(html).toContain('<span class="mt-cwork-sub-id">#1</span>work on the ticket');
+        expect(html).toContain("sf-fix · Opus 5.5 · background · 20 min");
+        expect(html).toContain("sf-build · Opus 5.5 · background · 40 min");
+        expect(html).toContain("sf-build · Opus 5.5 · background · 1 h 00");
+        expect(html).toContain('<span class="mt-cwork-sub-state" data-state="running">running</span>');
+        // A line leaves each task for the sub-agent building it.
+        expect(html).toContain('data-testid="companion-work-links"');
+        expect(html).toContain('data-link-end="agent:s1" data-linked=""');
+    });
+});
+
 describe("links from a task to its agent (#2392)", () => {
     const view = companionView("claude", "Claude Code");
     const agents = linkAgents(agentsView(view, working, now).rows, view);
@@ -744,7 +982,7 @@ describe("links from a task to its agent (#2392)", () => {
 
     it("draws a line per certain match when the blocks stand side by side, chips instead when they stack", () => {
         const m = milestone(12);
-        const rows = previewTickets(m, ticketLinks(m.tickets, agents)).rows;
+        const rows = taskLists(m, ticketLinks(m.tickets, agents), new Map()).rows;
         const links = drawnLinks(rows, ticketLinks(m.tickets, agents), todoLinks(view.todos, agents));
         expect(links.map((l) => `${l.from}>${l.to}:${l.heat}`)).toEqual([
             "ticket:41>agent:b:running",

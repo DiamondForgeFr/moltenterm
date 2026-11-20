@@ -12,9 +12,11 @@ import { cn, fireAndForget } from "@/util/util";
 import { useId } from "react";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { boardStatusText } from "../reviews/reviews-upcoming-model";
 import { StateMark, StateMarkKind } from "../state-mark";
 import { DominoLoader, SectionBlock, suiteTabId } from "../suite/suite";
 import { suiteIcon } from "../suite/suite-icons";
+import { ownerNames, stripSquares, TaskLists, TicketHold, TicketOwner } from "./companion-holds-model";
 import {
     daysLate,
     dueText,
@@ -33,6 +35,9 @@ import {
     todoEnd,
 } from "./companion-milestone-model";
 import { CompanionTodo, todoCounts } from "./companion-model";
+
+// The tickets other agents hold that the group lists, before it says how many more.
+const MaxTakenRows = 8;
 
 // The room the block's label pocket leaves the tabs: the icon tile's corner on the left, and the pocket's own padding
 // and gutter on the right (suite.css, --df-pocket-left, .df-pocket max-width).
@@ -93,9 +98,12 @@ export type TasksBlockProps = {
     onSelect: (number: number) => void;
     // The block's own width, from which the tabs that fit and the narrow forms follow.
     width: number;
-    // The rows shown of the selected milestone, and the open tickets left out.
-    rows: MilestoneTicket[];
-    more: number;
+    // The selected milestone's tickets by who holds them: the rows of work shown, and the group of those others hold.
+    lists: TaskLists;
+    // The group's fold state as the developer left it, undefined while he never chose: the block's width decides then
+    // (folded when narrow). onTakenChange is asked to remember his choice.
+    takenOpen: boolean | undefined;
+    onTakenChange: (open: boolean) => void;
     phrasing: boolean;
     offer: SummariesOffer;
     links: Map<number, LinkAgent[]>;
@@ -138,11 +146,25 @@ function StandingMark({ standing, text, size }: { standing: Standing; text?: str
 }
 
 export function TasksBlock(props: TasksBlockProps) {
-    const { loading, milestones, selected, onSelect, width, rows, more, todos, todoAgents, now, ...marks } = props;
+    const {
+        loading,
+        milestones,
+        selected,
+        onSelect,
+        width,
+        lists,
+        takenOpen,
+        onTakenChange,
+        todos,
+        todoAgents,
+        now,
+        ...marks
+    } = props;
     const t = useT();
     const tCount = useTCount();
     const panelId = useId();
     const compact = width > 0 && width < CompactBlockPx;
+    const takenShown = takenOpen ?? !compact;
     const tabbed = milestones.length > 0 && selected != null;
     const standings = milestones.map((m) => milestoneStanding(m, now));
     const room = tabRoom(
@@ -212,7 +234,7 @@ export function TasksBlock(props: TasksBlockProps) {
                     data-milestone={selected.number}
                     data-standing={milestoneStanding(selected, now) || undefined}
                 >
-                    <MilestoneHeader milestone={selected} now={now} compact={compact} />
+                    <MilestoneHeader milestone={selected} lists={lists} now={now} compact={compact} />
                     {marks.offer != null ? <Offer offer={marks.offer} /> : null}
                     {marks.phrasing ? (
                         <div
@@ -226,8 +248,9 @@ export function TasksBlock(props: TasksBlockProps) {
                     <div className="mt-cwork-flush">
                         <MilestoneBody
                             milestone={selected}
-                            rows={rows}
-                            more={more}
+                            lists={lists}
+                            takenOpen={takenShown}
+                            onToggleTaken={() => onTakenChange(!takenShown)}
                             links={marks.links}
                             compact={compact}
                             lit={marks.lit}
@@ -279,7 +302,49 @@ function OpenMilestone({ url }: { url: string }) {
     );
 }
 
-function MilestoneHeader({ milestone, now, compact }: { milestone: MilestoneInfo; now: number; compact: boolean }) {
+// The strip under the progress bar: one square per open ticket, this agent's (incandescent), another's (iron) and free
+// (hollow), then the three counts in words, so no state rests on its colour alone.
+function Strip({ lists, compact }: { lists: TaskLists; compact: boolean }) {
+    const t = useT();
+    const { counts } = lists;
+    const left = counts.mine + counts.taken + counts.free;
+    if (left <= 0) {
+        return null;
+    }
+    return (
+        <div className="mt-cwork-strip" data-compact={compact ? "" : undefined} data-testid="companion-milestone-strip">
+            {compact ? null : <span className="text-11 text-muted">{t("companion.work.left", { count: left })}</span>}
+            <span className="mt-cwork-squares" aria-hidden="true">
+                {stripSquares(counts).map((kind, i) => (
+                    <span key={i} data-kind={kind} />
+                ))}
+            </span>
+            <span className="mt-cwork-counts">
+                {counts.mine > 0 ? (
+                    <span data-kind="mine">{t("companion.work.countMine", { count: counts.mine })}</span>
+                ) : null}
+                {counts.taken > 0 ? (
+                    <span data-kind="other">{t("companion.work.countOthers", { count: counts.taken })}</span>
+                ) : null}
+                {counts.free > 0 ? (
+                    <span data-kind="free">{t("companion.work.countFree", { count: counts.free })}</span>
+                ) : null}
+            </span>
+        </div>
+    );
+}
+
+function MilestoneHeader({
+    milestone,
+    lists,
+    now,
+    compact,
+}: {
+    milestone: MilestoneInfo;
+    lists: TaskLists;
+    now: number;
+    compact: boolean;
+}) {
     const t = useT();
     const tCount = useTCount();
     const locale = useLocale();
@@ -350,6 +415,7 @@ function MilestoneHeader({ milestone, now, compact }: { milestone: MilestoneInfo
                 aria-valuenow={progress.closed}
                 style={{ "--mt-cwork-progress": progress.ratio.toFixed(3) } as React.CSSProperties}
             />
+            {lists != null && milestone.loaded !== false ? <Strip lists={lists} compact={compact} /> : null}
         </div>
     );
 }
@@ -393,15 +459,17 @@ function Offer({ offer }: { offer: SummariesOffer }) {
 
 function MilestoneBody({
     milestone,
-    rows,
-    more,
+    lists,
+    takenOpen,
+    onToggleTaken,
     links,
     compact,
     ...marks
 }: {
     milestone: MilestoneInfo;
-    rows: MilestoneTicket[];
-    more: number;
+    lists: TaskLists;
+    takenOpen: boolean;
+    onToggleTaken: () => void;
     links: Map<number, LinkAgent[]>;
     compact: boolean;
 } & EndMarks) {
@@ -425,14 +493,13 @@ function MilestoneBody({
             </div>
         );
     }
-    const mine = rows.filter((row) => links.has(row.number));
-    const free = rows.filter((row) => !links.has(row.number));
-    const freeCount = Math.max(0, milestone.remaining - mine.length);
+    const mine = lists.rows.filter((row) => links.has(row.number));
+    const free = lists.rows.filter((row) => !links.has(row.number));
     return (
         <>
             {mine.length > 0 ? (
                 <section className="mt-cwork-section" data-section="mine">
-                    <SectionHead label={t("companion.work.inProgressHere")} count={mine.length} />
+                    <SectionHead label={t("companion.work.inProgressHere")} count={lists.counts.mine} />
                     <ol>
                         {mine.map((row) => (
                             <TicketRow
@@ -448,7 +515,7 @@ function MilestoneBody({
             ) : null}
             {free.length > 0 ? (
                 <section className="mt-cwork-section" data-section="free">
-                    <SectionHead label={t("companion.work.toTake")} count={freeCount} />
+                    <SectionHead label={t("companion.work.toTake")} count={lists.counts.free} />
                     <ol>
                         {free.map((row) => (
                             <TicketRow key={row.number} ticket={row} agents={[]} compact={compact} {...marks} />
@@ -456,12 +523,160 @@ function MilestoneBody({
                     </ol>
                 </section>
             ) : null}
-            {more > 0 ? (
+            {lists.more > 0 ? (
                 <div className="mt-cwork-slim" data-testid="companion-milestone-more">
-                    {tCount("companion.work.more", more, { count: more })}
+                    {tCount("companion.work.more", lists.more, { count: lists.more })}
                 </div>
             ) : null}
+            {lists.taken.length > 0 ? (
+                <TakenGroup taken={lists.taken} open={takenOpen} onToggle={onToggleTaken} />
+            ) : null}
         </>
+    );
+}
+
+// What the Taken by others group says of a ticket's holder, on its right: the agent to go to, or, with no agent known,
+// the board column, the pull request or the worktree that says it is taken.
+function HoldTag({ hold }: { hold: TicketHold }) {
+    const t = useT();
+    switch (hold.kind) {
+        case "agent":
+            return <OwnerLink owner={hold.owner} />;
+        case "status":
+            return (
+                <span className="mt-cwork-tag" data-testid="companion-taken-status">
+                    {boardStatusText(t, hold.status)}
+                </span>
+            );
+        case "pr":
+            return hold.url ? (
+                <button
+                    type="button"
+                    className="mt-cwork-tag mt-cwork-tag-link"
+                    onClick={(e) => openPage(e, hold.url)}
+                    title={t("companion.work.openPr", { number: hold.pr })}
+                    data-testid="companion-taken-pr"
+                >
+                    {t("companion.work.pr", { number: hold.pr })}
+                </button>
+            ) : (
+                <span className="mt-cwork-tag" data-testid="companion-taken-pr">
+                    {hold.pr > 0 ? t("companion.work.pr", { number: hold.pr }) : t("companion.work.prDraft")}
+                </span>
+            );
+        case "branch":
+            return (
+                <span className="mt-cwork-tag" title={hold.branch} data-testid="companion-taken-branch">
+                    {t("companion.work.onBranch")}
+                </span>
+            );
+        case "away":
+            return (
+                <span className="mt-cwork-tag" title={t("companion.work.awayTitle")} data-testid="companion-taken-away">
+                    {t("companion.work.away")}
+                </span>
+            );
+    }
+    return null;
+}
+
+// The agent that holds the ticket: its first name and tool, "sub-agent of" its lead's name for a sub-agent. A click goes
+// to that agent's panel, as Go to the agent does in the Integration panel.
+function OwnerLink({ owner }: { owner: TicketOwner }) {
+    const t = useT();
+    const label = [owner.name, owner.tool].filter((s) => !!s).join(" · ") || t("companion.work.someAgent");
+    const title = owner.subagent
+        ? t("companion.work.subagentOf", { name: owner.name || t("companion.work.someAgent") })
+        : t("companion.work.goTo", { name: label });
+    return (
+        <button
+            type="button"
+            className="mt-cwork-owner"
+            title={title}
+            disabled={!owner.blockId}
+            onClick={(e) => goToAgent(e, owner.blockId)}
+            data-testid="companion-taken-owner"
+            data-subagent={owner.subagent ? "" : undefined}
+        >
+            <span className="mt-cwork-initial" aria-hidden="true">
+                {(owner.name || "?").slice(0, 1).toUpperCase()}
+            </span>
+            <span className="truncate">{label}</span>
+            {owner.subagent ? <span className="mt-cwork-sub">{t("companion.work.subagent")}</span> : null}
+        </button>
+    );
+}
+
+function goToAgent(e: React.MouseEvent, blockId: string) {
+    e.stopPropagation();
+    if (!blockId) {
+        return;
+    }
+    fireAndForget(async () => {
+        const { showPanel } = await import("../review/review-panels");
+        await showPanel(blockId);
+    });
+}
+
+// The tickets other agents hold, compact and apart: never work to do (no sentence, no link line, not in "and N more").
+// It folds to one line, with the owners' names, and opens on click.
+function TakenGroup({ taken, open, onToggle }: { taken: TaskLists["taken"]; open: boolean; onToggle: () => void }) {
+    const t = useT();
+    const tCount = useTCount();
+    const names = ownerNames(taken);
+    return (
+        <section className="mt-cwork-section" data-section="taken" data-testid="companion-taken">
+            <button
+                type="button"
+                className="mt-cwork-sec mt-cwork-sec-fold"
+                aria-expanded={open}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle();
+                }}
+                data-testid="companion-taken-head"
+            >
+                <i className={cn("fa fa-solid", open ? "fa-chevron-down" : "fa-chevron-right")} aria-hidden="true" />
+                <span>{t("companion.work.takenByOthers")}</span>
+                <span className="mt-cwork-n">{taken.length}</span>
+                {!open && names.length > 0 ? <span className="mt-cwork-names">{names.join(", ")}</span> : null}
+            </button>
+            {open ? (
+                <ul>
+                    {taken.slice(0, MaxTakenRows).map(({ ticket, hold }) => (
+                        <li
+                            key={ticket.number}
+                            className="mt-cwork-taken"
+                            data-testid="companion-taken-ticket"
+                            data-hold={hold.kind}
+                        >
+                            <span className="mt-cwork-mark" data-other="">
+                                <StateMark kind="running" label={t("companion.work.takenElsewhere")} />
+                            </span>
+                            <button
+                                type="button"
+                                className="mt-cwork-id"
+                                title={t("companion.work.openTicket", { number: ticket.number })}
+                                onClick={(e) => openPage(e, ticket.url)}
+                            >
+                                {`#${ticket.number}`}
+                            </button>
+                            <span className="mt-cwork-title truncate" title={ticket.title}>
+                                {ticket.title}
+                            </span>
+                            <HoldTag hold={hold} />
+                        </li>
+                    ))}
+                    {taken.length > MaxTakenRows ? (
+                        <li className="mt-cwork-slim" data-testid="companion-taken-more">
+                            {tCount("companion.work.takenMore", taken.length - MaxTakenRows, {
+                                count: taken.length - MaxTakenRows,
+                            })}
+                        </li>
+                    ) : null}
+                </ul>
+            ) : null}
+        </section>
     );
 }
 

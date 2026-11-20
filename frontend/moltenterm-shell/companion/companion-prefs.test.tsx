@@ -230,6 +230,15 @@ describe("the milestone tab the developer chose (#2416)", () => {
         await settleChoices();
     });
 
+    // #2418: the Taken by others group is open, folded, or never chosen (the block's width decides then).
+    it("reads whether the Taken by others group was left open or folded, and none when never chosen", () => {
+        expect(readCompanionPrefs({ takenopen: true }).takenopen).toBe(true);
+        expect(readCompanionPrefs({ takenopen: false }).takenopen).toBe(false);
+        expect(readCompanionPrefs({}).takenopen).toBeUndefined();
+        expect(readCompanionPrefs({ takenopen: "yes" }).takenopen).toBeUndefined();
+        expect(readCompanionPrefs(null).takenopen).toBeUndefined();
+    });
+
     it("ignores what a stored choice cannot hold, and keeps the rest", () => {
         expect(
             readCompanionPrefs({ milestonetabs: { "/shop": 14, "/blog": "3", "/x": -1, "/y": 1.5, "": 4 } })
