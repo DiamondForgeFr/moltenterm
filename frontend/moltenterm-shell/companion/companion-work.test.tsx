@@ -9,17 +9,25 @@ import { ColumnsBand, TwoColumnMinWidth, workLayout } from "./companion-layout";
 import {
     agentEnd,
     certainTicket,
+    chosenMilestone,
+    daysLate,
     drawnLinks,
     dueText,
     hotEnds,
     linkAgents,
     linkPath,
     MaxMilestoneRows,
+    MaxMilestoneTabs,
     MilestoneInfo,
     milestoneProgress,
+    milestoneReady,
+    milestoneStanding,
     MilestonesView,
     offersSummaries,
     previewTickets,
+    splitTabs,
+    tabLabel,
+    tabRoom,
     ticketEnd,
     ticketLinks,
     todoEnd,
@@ -32,8 +40,11 @@ import { CompanionWork } from "./companion-work";
 vi.mock("@/app/store/global", async () => {
     const { atom } = await import("jotai");
     const off = atom(false);
-    return { openLink: vi.fn(), getSettingsKeyAtom: () => off };
+    return { openLink: vi.fn(), getSettingsKeyAtom: () => off, getApi: () => ({}) };
 });
+vi.mock("@/app/store/contextmenu", () => ({
+    ContextMenuModel: { getInstance: () => ({ showContextMenu: vi.fn() }) },
+}));
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: vi.fn(() => () => {}) }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: { wshRpcCall: vi.fn() } }));
 vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: { SetMetaCommand: vi.fn(), SetConfigCommand: vi.fn() } }));
@@ -92,6 +103,7 @@ function milestone(tickets: number): MilestoneInfo {
         closed: 12,
         due: Date.UTC(2026, 10, 22, 8, 0, 0),
         remaining: tickets,
+        loaded: true,
         tickets: Array.from({ length: tickets }, (_, i) => {
             const number = [41, 38, 35][i] ?? 100 + i;
             return {
@@ -104,9 +116,63 @@ function milestone(tickets: number): MilestoneInfo {
     };
 }
 
-const withMilestone: MilestonesView = { dir: "/w", state: "ok", milestone: milestone(12) };
+// A milestone of the shop's forge as the tabs list it: v1.3.0 waits for its release (0 open, 36 closed), v1.4.0 has work.
+function released(): MilestoneInfo {
+    return {
+        number: 13,
+        title: "v1.3.0",
+        url: "https://github.com/example/shop/milestone/13",
+        open: 0,
+        closed: 36,
+        due: Date.UTC(2026, 10, 27),
+        remaining: 0,
+        loaded: true,
+        tickets: [],
+    };
+}
 
-function markup(view: CompanionView, milestones: MilestonesView, width: number, band?: ColumnsBand): string {
+function upcoming(): MilestoneInfo {
+    return {
+        number: 14,
+        title: "v1.4.0",
+        url: "https://github.com/example/shop/milestone/14",
+        open: 3,
+        closed: 1,
+        due: Date.UTC(2026, 11, 18),
+        remaining: 3,
+        loaded: true,
+        tickets: [201, 202, 203].map((number) => ({
+            number,
+            title: `Ticket ${number} title`,
+            url: `https://github.com/example/shop/issues/${number}`,
+        })),
+    };
+}
+
+// Open milestones numbered after their version: 1.1.0 ... 1.N.0, each with a ticket of its own.
+function manyMilestones(count: number): MilestoneInfo[] {
+    return Array.from({ length: count }, (_, i) => ({
+        number: 21 + i,
+        title: `1.${i + 1}.0`,
+        url: `https://github.com/example/shop/milestone/${21 + i}`,
+        open: 1,
+        closed: 0,
+        remaining: 1,
+        loaded: true,
+        tickets: [{ number: 300 + i, title: `Ticket ${300 + i} title` }],
+    }));
+}
+
+const withMilestone: MilestonesView = { dir: "/w", state: "ok", milestones: [milestone(12)] };
+const shopTabs: MilestonesView = { dir: "/w", state: "ok", milestones: [released(), upcoming()] };
+
+function markup(
+    view: CompanionView,
+    milestones: MilestonesView,
+    width: number,
+    band?: ColumnsBand,
+    chosen?: number
+): string {
     return renderToStaticMarkup(
         <CompanionWork
             view={view}
@@ -115,6 +181,7 @@ function markup(view: CompanionView, milestones: MilestonesView, width: number, 
             now={now}
             width={width}
             milestones={milestones}
+            chosen={chosen}
             band={band}
             slots={{ topics: <i data-slot="topics" /> }}
         />
@@ -202,7 +269,10 @@ describe("the milestone block", () => {
 
     it("reads in French", () => {
         const html = inFrench(() => markup(companionView("claude", "Claude Code"), withMilestone, 900));
-        expect(html).toContain(">Tâches<");
+        expect(html).toContain('aria-label="Tâches"');
+        expect(html).toContain('aria-label="Tâches par jalon"');
+        expect(html).toContain("En cours chez moi");
+        expect(html).toContain("À prendre");
         expect(html).toMatch(/Échéance le 22 nov/);
         expect(html).toContain("et 4 autres");
         expect(html).toContain("Ouvrir le jalon");
@@ -238,6 +308,253 @@ describe("the milestone block", () => {
         expect(dueText(Date.UTC(2026, 10, 10, 8), now, "en")?.kind).toBe("overdue");
         expect(dueText(Date.UTC(2027, 0, 10, 8), now, "en")).toEqual({ kind: "due", date: "Jan 10, 2027" });
         expect(dueText(0, now, "en")).toBeNull();
+    });
+});
+
+// The tabs of the milestones (#2416, TC-SHELL-018-7). The block's label is one tab per open milestone; each shows its own
+// state, and a finished one that waits for its release keeps its tab.
+describe("one tab per open milestone (#2416)", () => {
+    const view = companionView("claude", "Claude Code");
+
+    function tabsOf(html: string): { label: string; selected: boolean }[] {
+        return [...html.matchAll(/<button[^>]*role="tab"[^>]*aria-selected="(true|false)"[^>]*>(.*?)<\/button>/g)].map(
+            (m) => ({ label: /class="df-chip-text">([^<]*)</.exec(m[2])?.[1] ?? "", selected: m[1] === "true" })
+        );
+    }
+
+    it("shows v1.3.0 and v1.4.0 as two tabs, the oldest selected, v1.3.0 ready with 36/36 and no list", () => {
+        const html = markup(view, shopTabs, 1400);
+        expect(tabsOf(html)).toEqual([
+            { label: "v1.3.0", selected: true },
+            { label: "v1.4.0", selected: false },
+        ]);
+        expect(html).toContain('role="tablist" aria-label="Tasks by milestone"');
+        expect(html).toContain('data-milestone="13" data-standing="ready"');
+        expect(html).toContain('data-testid="companion-milestone-state"');
+        expect(html).toContain("Ready to release");
+        expect(html).toContain('title="36 of 36 closed" data-testid="companion-milestone-progress"');
+        expect(html).toContain('<span class="text-primary">36</span> / 36 done');
+        expect(html).toContain('data-testid="companion-milestone-ready"');
+        expect(html).toContain("No tickets left");
+        expect(html).toContain("Everything is merged. This milestone stays here until its release closes it.");
+        expect(html).toContain("Prepare the release");
+        expect(html).toContain("See the 36 tickets");
+        expect(html).not.toContain('data-testid="companion-milestone-ticket"');
+        expect(html).not.toContain("Ticket 201 title");
+        // The ready tab wears its dot; the other tab wears none.
+        const tabList = html.slice(
+            html.indexOf('role="tablist"'),
+            html.indexOf("</span></span>", html.indexOf("v1.4.0"))
+        );
+        expect(tabList.match(/data-state="ready"/g)).toHaveLength(1);
+        expect(tabList.indexOf('data-state="ready"')).toBeLessThan(tabList.indexOf("v1.4.0"));
+    });
+
+    it("keeps the tab, the count and the placeholder when the finished milestone is the only one", () => {
+        const html = markup(view, { dir: "/w", state: "ok", milestones: [released()] }, 380);
+        expect(tabsOf(html)).toEqual([{ label: "v1.3.0", selected: true }]);
+        expect(html).toContain('data-testid="companion-milestone-ready"');
+        expect(html).toContain('data-testid="companion-milestone-progress"');
+        expect(html).toContain(">36/36<");
+        expect(html).toContain("Open the milestone");
+    });
+
+    it("shows the other tab's own state and tickets once it is chosen", () => {
+        const html = markup(view, shopTabs, 1400, undefined, 14);
+        expect(tabsOf(html)).toEqual([
+            { label: "v1.3.0", selected: false },
+            { label: "v1.4.0", selected: true },
+        ]);
+        expect(html).toContain('data-milestone="14"');
+        expect(html).not.toContain('data-testid="companion-milestone-ready"');
+        expect(html).toContain("Ticket 201 title");
+        expect(html).toContain("Ticket 203 title");
+        expect(html).toContain('<span class="text-primary">1</span> / 4 done');
+        expect(html).toContain("Due Dec 18");
+        expect(html).not.toContain("Prepare the release");
+        // A choice that is no open milestone any more (its release closed it) falls to the oldest tab.
+        expect(tabsOf(markup(view, shopTabs, 1400, undefined, 99)).map((t) => t.selected)).toEqual([true, false]);
+    });
+
+    it("links a task to its agent only inside the selected tab", () => {
+        const onTicket: MilestonesView = {
+            dir: "/w",
+            state: "ok",
+            milestones: [released(), { ...milestone(12), number: 2, title: "v1.5.0" }],
+        };
+        const second = markup(view, onTicket, 900, undefined, 2);
+        expect(second).toContain('data-link-end="ticket:41" data-linked=""');
+        const first = markup(view, onTicket, 900, undefined, 13);
+        expect(first).not.toContain('data-link-end="ticket:41"');
+        expect(first).not.toContain('data-testid="companion-milestone-ticket"');
+        // The agent's own task in progress is the agent's, whichever tab shows.
+        expect(first).toContain('data-link-end="todo:1"');
+    });
+
+    it("says how late a milestone is, with a diamond and the words, and when a finished one is due", () => {
+        const late: MilestonesView = {
+            dir: "/w",
+            state: "ok",
+            milestones: [{ ...upcoming(), due: Date.UTC(2026, 9, 29) }],
+        };
+        const wide = markup(view, late, 1400);
+        expect(wide).toContain('data-standing="late"');
+        expect(wide).toContain("21 days late");
+        expect(wide).toContain('data-state="blocked"');
+        expect(wide).not.toContain('data-testid="companion-milestone-due"');
+        expect(markup(view, late, 380)).toContain("21 d late");
+        expect(inFrench(() => markup(view, late, 1400))).toContain("En retard de 21 jours");
+        expect(inFrench(() => markup(view, late, 380))).toContain("21 j de retard");
+        const ready = markup(view, shopTabs, 1400);
+        expect(ready).toContain("Due Nov 27");
+        expect(ready).not.toContain('data-state="blocked"');
+    });
+
+    it("reads in French: the ready badge, the placeholder and its actions", () => {
+        const html = inFrench(() => markup(view, shopTabs, 1400));
+        expect(html).toContain("Prête à sortir");
+        expect(html).toContain("Plus aucun ticket");
+        expect(html).toContain("Tout est mergé. Ce jalon reste ici jusqu&#x27;à sa release, qui le fermera.");
+        expect(html).toContain("Préparer la release");
+        expect(html).toContain("Voir les 36 tickets");
+        expect(html).toContain("/ 36 faits");
+        expect(html).toContain('aria-label="Tâches par jalon"');
+    });
+
+    it("keeps four tabs at most, the rest behind a +N chip, and the chosen tab always visible", () => {
+        const list = manyMilestones(6);
+        const wide = markup(view, { dir: "/w", state: "ok", milestones: list }, 1400);
+        expect(tabsOf(wide).map((t) => t.label)).toEqual(["1.1.0", "1.2.0", "1.3.0", "1.4.0"]);
+        expect(wide).toContain('aria-haspopup="menu"');
+        expect(wide).toContain(">+2<");
+        expect(wide).toContain('title="2 more milestones"');
+        const fifth = markup(view, { dir: "/w", state: "ok", milestones: list }, 1400, undefined, 25);
+        expect(tabsOf(fifth)).toEqual([
+            { label: "1.1.0", selected: false },
+            { label: "1.2.0", selected: false },
+            { label: "1.3.0", selected: false },
+            { label: "1.5.0", selected: true },
+        ]);
+        expect(fifth).toContain("Ticket 304 title");
+        const five = manyMilestones(5);
+        expect(markup(view, { dir: "/w", state: "ok", milestones: five }, 1400)).toContain(">+1<");
+        expect(markup(view, { dir: "/w", state: "ok", milestones: manyMilestones(4) }, 1400)).not.toContain(">+");
+    });
+
+    it("never wraps the tab row: a narrow block shows fewer tabs and the rest behind +N", () => {
+        const list = manyMilestones(4);
+        const stacked = markup(view, { dir: "/w", state: "ok", milestones: list }, 330);
+        const shown = tabsOf(stacked).length;
+        expect(shown).toBeGreaterThanOrEqual(1);
+        expect(shown).toBeLessThan(4);
+        expect(stacked).toContain(`>+${4 - shown}<`);
+        expect(tabsOf(markup(view, { dir: "/w", state: "ok", milestones: list }, 380))).toHaveLength(4);
+        const wide = markup(view, { dir: "/w", state: "ok", milestones: list }, 1400);
+        expect(tabsOf(wide)).toHaveLength(4);
+        expect(wide).not.toContain(">+");
+    });
+
+    it("waits for the tickets of a milestone past the first tabs, with the dominoes", () => {
+        const unread: MilestonesView = {
+            dir: "/w",
+            state: "ok",
+            milestones: [{ ...upcoming(), loaded: false, tickets: [] }],
+        };
+        const html = markup(view, unread, 900);
+        expect(html).toContain('data-testid="companion-milestone-loading"');
+        expect(html).toContain("df-dominos");
+        expect(html).not.toContain('data-testid="companion-milestone-ticket"');
+    });
+
+    it("shows a milestone with no issue at all as empty, never as ready", () => {
+        const empty: MilestoneInfo = { ...upcoming(), open: 0, closed: 0, remaining: 0, tickets: [] };
+        const html = markup(view, { dir: "/w", state: "ok", milestones: [empty] }, 900);
+        expect(html).toContain('data-testid="companion-milestone-empty"');
+        expect(html).toContain("No ticket in this milestone yet.");
+        expect(html).not.toContain("companion-milestone-ready");
+        expect(html).not.toContain("Ready to release");
+    });
+
+    it("keeps the agent's own tasks under the milestone, and alone when no milestone is open", () => {
+        const html = markup(view, shopTabs, 900);
+        expect(html).toContain('data-testid="companion-todos"');
+        expect(html.indexOf('data-testid="companion-milestone-ready"')).toBeLessThan(
+            html.indexOf('data-testid="companion-todos"')
+        );
+        const alone = markup(view, { dir: "/w", state: "none" }, 900);
+        expect(alone).toContain('data-testid="companion-todos"');
+        expect(alone).not.toContain('role="tablist"');
+        expect(alone).toContain(">Tasks<");
+    });
+
+    it("opens the milestone from the pocket on its bottom border", () => {
+        const html = markup(view, shopTabs, 900);
+        expect(html).toMatch(/df-pocket df-pocket-bottom[^>]*><button[^>]*data-testid="companion-milestone-open"/);
+    });
+});
+
+describe("the tabs' model (#2416)", () => {
+    const four = manyMilestones(4);
+    const six = manyMilestones(6);
+
+    it("opens on the oldest open milestone, or on the one the developer chose while it is open", () => {
+        expect(chosenMilestone(six, 0).number).toBe(21);
+        expect(chosenMilestone(six, 24).number).toBe(24);
+        expect(chosenMilestone(six, 999).number).toBe(21);
+        expect(chosenMilestone([], 24)).toBeNull();
+    });
+
+    it("splits the tabs from the +N menu, the chosen tab taking the last place when it comes later", () => {
+        const names = (list: MilestoneInfo[]) => list.map((m) => m.title);
+        expect(names(splitTabs(six, 21, 4).shown)).toEqual(["1.1.0", "1.2.0", "1.3.0", "1.4.0"]);
+        expect(names(splitTabs(six, 21, 4).more)).toEqual(["1.5.0", "1.6.0"]);
+        const chosen = splitTabs(six, 26, 4);
+        expect(names(chosen.shown)).toEqual(["1.1.0", "1.2.0", "1.3.0", "1.6.0"]);
+        expect(names(chosen.more)).toEqual(["1.4.0", "1.5.0"]);
+        expect(names(splitTabs(six, 21, 2).shown)).toEqual(["1.1.0", "1.2.0"]);
+        expect(names(splitTabs(six, 26, 2).shown)).toEqual(["1.1.0", "1.6.0"]);
+        expect(splitTabs(six, 21, 0).shown).toHaveLength(1);
+        expect(splitTabs(four, 21, 99).shown).toHaveLength(MaxMilestoneTabs);
+        expect(splitTabs(four, 21, 99).more).toEqual([]);
+        expect(splitTabs([], 0, 4)).toEqual({ shown: [], more: [] });
+    });
+
+    it("counts the tabs that fit a width, with room for the +N chip when they do not all fit", () => {
+        const tabs = (n: number) => Array.from({ length: n }, (_, i) => ({ label: `1.${i}.0`, marked: false }));
+        expect(tabRoom(tabs(2), 400)).toBe(2);
+        expect(tabRoom(tabs(4), 1000)).toBe(4);
+        expect(tabRoom(tabs(6), 1000)).toBe(4);
+        // Four tabs of this size need about 264 px. A width short of that keeps the ones that fit beside a +N chip.
+        expect(tabRoom(tabs(4), 330)).toBe(4);
+        expect(tabRoom(tabs(4), 250)).toBe(3);
+        expect(tabRoom(tabs(4), 200)).toBe(2);
+        expect(tabRoom(tabs(3), 10)).toBe(1);
+        expect(tabRoom([], 300)).toBe(0);
+        expect(tabRoom([{ label: "1.0.0", marked: true }], 80)).toBe(1);
+        expect(tabLabel("A very long milestone title")).toBe("A very long m…");
+        expect(tabLabel("v1.3.0")).toBe("v1.3.0");
+    });
+
+    it("tells a finished milestone from a late one, never both", () => {
+        const base = upcoming();
+        expect(milestoneReady(released())).toBe(true);
+        expect(milestoneReady({ ...base, open: 0, closed: 0 })).toBe(false);
+        expect(milestoneReady(base)).toBe(false);
+        expect(milestoneStanding(released(), now)).toBe("ready");
+        // A finished milestone past its due date is still ready: its work is done.
+        expect(milestoneStanding({ ...released(), due: Date.UTC(2026, 9, 1) }, now)).toBe("ready");
+        expect(milestoneStanding({ ...base, due: Date.UTC(2026, 9, 29) }, now)).toBe("late");
+        expect(milestoneStanding(base, now)).toBe("");
+        expect(milestoneStanding({ ...base, due: undefined }, now)).toBe("");
+        expect(milestoneStanding({ ...base, due: Date.UTC(2026, 10, 19, 8) }, now)).toBe("");
+    });
+
+    it("counts whole days late from the day the forge holds", () => {
+        expect(daysLate(Date.UTC(2026, 9, 29), now)).toBe(21);
+        expect(daysLate(Date.UTC(2026, 10, 18, 23, 59), now)).toBe(1);
+        expect(daysLate(Date.UTC(2026, 10, 19, 8), now)).toBe(0);
+        expect(daysLate(Date.UTC(2026, 11, 18), now)).toBe(0);
+        expect(daysLate(0, now)).toBe(0);
     });
 });
 

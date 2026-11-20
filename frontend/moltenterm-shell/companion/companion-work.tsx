@@ -1,68 +1,65 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The companion's work area (FR-SHELL-018, #2392): the Tasks block first (the project's active milestone, then the
+// The companion's work area (FR-SHELL-018, #2392, #2416): the Tasks block first (one tab per open milestone, then the
 // agent's own task list), the agents at work beside it when the companion is wide enough and under it otherwise, and a
 // line from each task in progress to the agent working on it, only on a certain match. Loaded on demand, out of the
 // startup bundle (companion-view.tsx).
 
 import { ClientModel } from "@/app/store/client-model";
-import { getSettingsKeyAtom, openLink } from "@/app/store/global";
+import { getSettingsKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { makeORef } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { cn, fireAndForget } from "@/util/util";
+import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../agent-state-model";
-import { useLocale, useT, useTCount } from "../i18n/i18n";
-import { MoltenWave } from "../molten-button";
-import { StateMark, StateMarkKind } from "../state-mark";
-import { DominoLoader, SectionBlock } from "../suite/suite";
+import { useLocale, useT } from "../i18n/i18n";
+import { SectionBlock } from "../suite/suite";
+import { suiteIcon } from "../suite/suite-icons";
 import { TabActivity, whileShown } from "../tab-activity";
 import { everyInPanel, panelActivityAtom, usePanelBlockId } from "../view360/offcarpet-model";
 import { ColumnsBand, CompanionSectionId, defaultWorkBand, workLayout } from "./companion-layout";
 import {
     agentEnd,
+    chosenMilestone,
     DrawnLink,
     drawnLinks,
-    dueText,
     heatOf,
     hotEnds,
-    LinkAgent,
     linkAgents,
     LinkPath,
     linkPath,
-    MilestoneInfo,
-    milestoneProgress,
     MilestonesEvent,
     MilestonesGetCommand,
     MilestonesRoute,
     MilestonesView,
-    MilestoneTicket,
     offersSummaries,
     previewTickets,
     samePaths,
     SummariesConsentKey,
     SummariesSettingKey,
-    ticketEnd,
     ticketLinks,
-    todoEnd,
     todoLinks,
     wantedTickets,
 } from "./companion-milestone-model";
-import { CompanionTodo, CompanionView, todoCounts } from "./companion-model";
-import { useCompanionPref } from "./companion-prefs";
+import { CompanionView } from "./companion-model";
+import { useCompanionPref, useMilestoneChoice } from "./companion-prefs";
 import { AgentsList } from "./companion-recap";
 import { AgentRow, agentsView, finishedLabel } from "./companion-recap-model";
 import type { SessionSectionSlots } from "./companion-section";
+import { SummariesOffer, TasksBlock } from "./companion-tasks";
 import "./companion-work.css";
 
 const RpcTimeoutMs = 5000;
 // While it shows, the block asks again on this beat; wavesrv reads the forge at most once a minute anyway.
 const RefreshMs = 30000;
+// The lane between the two columns, and the room each block keeps from its column (companion-work.css).
+const ColumnGapPx = 16;
+const BlockInsetPx = 32;
 
 function cleanDir(dir: string): string {
     const trimmed = (dir ?? "").trim();
@@ -75,10 +72,11 @@ function onScreen(panelId: string): boolean {
     return state === "active" || state === "visible";
 }
 
-// The project's active milestone, in the interface language: asked at once, on each change wavesrv announces or of the
+// The project's open milestones, in the interface language: asked at once, on each change wavesrv announces or of the
 // sentences' setting, and on a beat while the companion shows. Each ask says whether the companion is on screen: a
-// hidden one only gets what was read last, and never makes wavesrv read the forge or write sentences.
-export function useMilestones(dir: string, want: number[]): MilestonesView {
+// hidden one only gets what was read last, and never makes wavesrv read the forge or write sentences. milestone is the
+// tab shown: wavesrv reads its tickets at once when it is past the first tabs.
+export function useMilestones(dir: string, want: number[], milestone: number): MilestonesView {
     const locale = useLocale();
     const panelId = usePanelBlockId();
     const summaries = useAtomValue(getSettingsKeyAtom(SummariesSettingKey));
@@ -97,7 +95,7 @@ export function useMilestones(dir: string, want: number[]): MilestonesView {
                 try {
                     const next = await TabRpcClient.wshRpcCall(
                         MilestonesGetCommand,
-                        { dir: project, lang: locale, want: want ?? [], shown: onScreen(panelId) },
+                        { dir: project, lang: locale, want: want ?? [], milestone, shown: onScreen(panelId) },
                         { route: MilestonesRoute, timeout: RpcTimeoutMs }
                     );
                     if (!cancelled) {
@@ -113,7 +111,7 @@ export function useMilestones(dir: string, want: number[]): MilestonesView {
             cancelled = true;
             stop();
         };
-    }, [project, locale, wantKey, rev, panelId, summaries]);
+    }, [project, locale, wantKey, milestone, rev, panelId, summaries]);
     useEffect(() => {
         if (!project) {
             return;
@@ -174,16 +172,6 @@ function turnSummariesOn() {
     });
 }
 
-type SummariesOffer = { yes: () => void; no: () => void };
-
-function openPage(e: React.MouseEvent, url: string) {
-    // The block's own click handler would take the focus back from the browser panel the page opens in.
-    e.stopPropagation();
-    if (url?.startsWith("https://")) {
-        fireAndForget(() => openLink(url));
-    }
-}
-
 export type CompanionWorkProps = {
     view: CompanionView;
     agentState: AgentStateInfo;
@@ -196,8 +184,9 @@ export type CompanionWorkProps = {
     slots?: SessionSectionSlots;
     // A fixed width instead of the measured one (the tests, which have no layout).
     width?: number;
-    // The milestone as given instead of asked (the tests).
+    // The milestones as given instead of asked, and the tab as chosen instead of the remembered one (the tests).
     milestones?: MilestonesView;
+    chosen?: number;
 };
 
 export function CompanionWork(props: CompanionWorkProps) {
@@ -205,12 +194,16 @@ export function CompanionWork(props: CompanionWorkProps) {
     const t = useT();
     const rootRef = useRef<HTMLDivElement>(null);
     const measured = useWidth(rootRef);
-    const layout = workLayout(props.width ?? measured);
+    const rootWidth = props.width ?? measured;
+    const layout = workLayout(rootWidth);
     const band = props.band ?? defaultWorkBand();
-    // A band without the Tasks block (hidden or elsewhere in the layout, #2395) never asks for the milestone.
+    // A band without the Tasks block (hidden or elsewhere in the layout, #2395) never asks for the milestones.
     const showsTasks = band.ids.includes("tasks");
+    const project = cleanDir(dir);
+    const [remembered, choose] = useMilestoneChoice(project);
     const [want, setWant] = useState<number[]>([]);
-    const asked = useMilestones(props.milestones != null || !showsTasks ? "" : dir, want);
+    const [shown, setShown] = useState(0);
+    const asked = useMilestones(props.milestones != null || !showsTasks ? "" : dir, want, shown);
     const milestones = props.milestones ?? asked;
     const [offerAnswered, answerOffer] = useCompanionPref("summariesasked");
     const offer: SummariesOffer = offersSummaries(milestones, offerAnswered)
@@ -225,13 +218,18 @@ export function CompanionWork(props: CompanionWorkProps) {
     const [hot, setHot] = useState<string>(null);
     const agents = agentsView(view, agentState, now);
     const linkable = linkAgents(agents.rows, view);
-    const m = milestones?.state === "ok" ? milestones.milestone : null;
+    const list = milestones?.state === "ok" ? (milestones.milestones ?? []) : [];
+    const m = chosenMilestone(list, props.chosen ?? remembered);
     const tickets = ticketLinks(m?.tickets, linkable);
     const preview = m != null ? previewTickets(m, tickets, linkable) : null;
     const wanted = wantedTickets(preview?.rows).join(",");
     useEffect(() => {
         setWant(wanted ? wanted.split(",").map(Number) : []);
     }, [wanted]);
+    const shownNumber = m?.number ?? 0;
+    useEffect(() => {
+        setShown(shownNumber);
+    }, [shownNumber]);
     const todos = view?.todos ?? [];
     const todoAgents = todoLinks(todos, linkable);
     // Without the Tasks block in this band there is nothing to link an agent to.
@@ -256,47 +254,37 @@ export function CompanionWork(props: CompanionWorkProps) {
         sideOf("agents") != null &&
         sideOf("tasks") !== sideOf("agents");
     const chips = !sideBySide;
+    // The Tasks block's own width, from its column's: it decides how many tabs fit and which forms the header takes.
+    const blockWidth = Math.max(0, Math.floor(columns ? (rootWidth - ColumnGapPx) / 2 : rootWidth) - BlockInsetPx);
     const sections: Partial<Record<CompanionSectionId, React.ReactNode>> = {
         ...props.slots,
         tasks: hasTasks ? (
-            <SectionBlock title={t("companion.tasks")} className="mt-cwork-block" data-testid="companion-tasks">
-                {loading ? (
-                    <div
-                        className="flex items-center gap-2 text-12 text-muted"
-                        data-testid="companion-milestone-loading"
-                    >
-                        <DominoLoader size="card" />
-                        {t("companion.work.reading")}
-                    </div>
-                ) : null}
-                {m != null ? (
-                    <MilestoneSection
-                        milestone={m}
-                        rows={preview.rows}
-                        more={preview.more}
-                        phrasing={milestones.phrasing}
-                        offer={offer}
-                        links={tickets}
-                        chips={chips}
-                        lit={lit}
-                        ends={ends}
-                        now={now}
-                    />
-                ) : null}
-                {todos.length > 0 ? (
-                    <TodoList
-                        todos={todos}
-                        links={todoAgents}
-                        titled={m != null || loading}
-                        chips={chips}
-                        lit={lit}
-                        ends={ends}
-                    />
-                ) : null}
-            </SectionBlock>
+            <TasksBlock
+                loading={loading}
+                milestones={list}
+                selected={m}
+                onSelect={choose}
+                width={rootWidth > 0 ? blockWidth : 0}
+                rows={preview?.rows ?? []}
+                more={preview?.more ?? 0}
+                phrasing={milestones?.phrasing === true}
+                offer={offer}
+                links={tickets}
+                todos={todos}
+                todoAgents={todoAgents}
+                now={now}
+                chips={chips}
+                lit={lit}
+                ends={ends}
+            />
         ) : null,
         agents: (
-            <SectionBlock title={t("companion.agents.title")} className="mt-cwork-block" data-testid="companion-agents">
+            <SectionBlock
+                title={t("companion.agents.title")}
+                icon={suiteIcon("agent")}
+                className="mt-cwork-block"
+                data-testid="companion-agents"
+            >
                 <AgentsList rows={agents.rows} marks={{ ends, hot: lit, heat: agentHeat }} />
                 {ended ? <div className="text-11 text-muted">{ended}</div> : null}
             </SectionBlock>
@@ -334,276 +322,6 @@ export function CompanionWork(props: CompanionWorkProps) {
                 place(band.ids.filter(shows))
             )}
             {sideBySide && links.length > 0 ? <LinkLayer rootRef={rootRef} links={links} lit={lit} /> : null}
-        </div>
-    );
-}
-
-function LinkChip({ agent }: { agent: LinkAgent }) {
-    const t = useT();
-    return (
-        <span
-            className="mt-cwork-chip text-11"
-            data-heat={heatOf(agent.state)}
-            title={t("companion.work.linkTitle", { agent: agent.name })}
-            data-testid="companion-work-chip"
-        >
-            <span className="truncate">{t("companion.work.linkChip", { agent: agent.name })}</span>
-        </span>
-    );
-}
-
-type EndMarks = { chips: boolean; lit: Set<string>; ends: Set<string> };
-
-function endAttrs(end: string, heat: StateMarkKind, marks: EndMarks) {
-    return {
-        "data-link-end": end,
-        "data-linked": marks.ends.has(end) ? "" : undefined,
-        "data-link-hot": marks.lit.has(end) ? "" : undefined,
-        "data-heat": heat,
-    };
-}
-
-function MilestoneSection({
-    milestone,
-    rows,
-    more,
-    phrasing,
-    offer,
-    links,
-    now,
-    ...marks
-}: {
-    milestone: MilestoneInfo;
-    rows: MilestoneTicket[];
-    more: number;
-    phrasing: boolean;
-    offer: SummariesOffer;
-    links: Map<number, LinkAgent[]>;
-    now: number;
-} & EndMarks) {
-    const t = useT();
-    const tCount = useTCount();
-    const locale = useLocale();
-    const progress = milestoneProgress(milestone);
-    const progressTitle = t("companion.work.progressTitle", { closed: progress.closed, total: progress.total });
-    const due = dueText(milestone.due, now, locale);
-    const dueLabel =
-        due == null
-            ? ""
-            : due.kind === "today"
-              ? t("companion.work.dueToday")
-              : t(due.kind === "overdue" ? "companion.work.overdue" : "companion.work.due", { date: due.date });
-    return (
-        <div
-            className="flex flex-col gap-1.5"
-            aria-label={t("companion.work.milestone", { title: milestone.title })}
-            data-testid="companion-milestone"
-        >
-            <div className="flex min-w-0 items-center gap-2">
-                <i className="fa fa-solid fa-flag fa-fw shrink-0 text-11 text-secondary" aria-hidden="true" />
-                <button
-                    type="button"
-                    className="min-w-0 cursor-pointer truncate text-left text-12 font-semibold text-primary hover:underline"
-                    title={t("companion.work.openMilestone")}
-                    onClick={(e) => openPage(e, milestone.url)}
-                    data-testid="companion-milestone-title"
-                >
-                    {milestone.title}
-                </button>
-                {dueLabel ? (
-                    <span
-                        className={cn(
-                            "ml-auto shrink-0 rounded-4 border px-1.5 text-11 tabular-nums",
-                            due.kind === "overdue"
-                                ? "border-(--mt-state-blocked) text-(--mt-state-blocked-text)"
-                                : "border-border text-secondary"
-                        )}
-                        data-due={due.kind}
-                        data-testid="companion-milestone-due"
-                    >
-                        {dueLabel}
-                    </span>
-                ) : null}
-            </div>
-            <div className="flex items-center gap-2" title={progressTitle}>
-                <span
-                    className="mt-cwork-bar"
-                    role="progressbar"
-                    aria-label={progressTitle}
-                    aria-valuemin={0}
-                    aria-valuemax={progress.total}
-                    aria-valuenow={progress.closed}
-                    style={{ "--mt-cwork-progress": progress.ratio.toFixed(3) } as React.CSSProperties}
-                />
-                <span
-                    className="shrink-0 text-11 text-secondary tabular-nums"
-                    data-testid="companion-milestone-progress"
-                >
-                    {`${progress.closed}/${progress.total}`}
-                </span>
-            </div>
-            {offer != null ? (
-                <div
-                    className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-4 border border-border px-2 py-1.5 text-11 text-secondary"
-                    data-testid="companion-summaries-offer"
-                >
-                    <span className="min-w-0 flex-1 basis-48">{t("companion.work.offer")}</span>
-                    <span className="flex shrink-0 items-center gap-1">
-                        <button
-                            type="button"
-                            className="molten-btn cursor-pointer rounded-4 px-2 py-0.5 text-11"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                offer.yes();
-                            }}
-                            data-testid="companion-summaries-yes"
-                        >
-                            {t("companion.work.offerYes")}
-                            <MoltenWave />
-                        </button>
-                        <button
-                            type="button"
-                            className="cursor-pointer rounded-4 px-2 py-0.5 text-11 text-secondary hover:bg-hover hover:text-primary"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                offer.no();
-                            }}
-                            data-testid="companion-summaries-no"
-                        >
-                            {t("companion.work.offerNo")}
-                        </button>
-                    </span>
-                </div>
-            ) : null}
-            {phrasing ? (
-                <div className="flex items-center gap-1.5 text-11 text-muted" title={t("companion.work.phrasingTitle")}>
-                    <DominoLoader />
-                    {t("companion.work.phrasing")}
-                </div>
-            ) : null}
-            {rows.length === 0 ? (
-                <div className="text-12 text-muted">{t("companion.work.allDone")}</div>
-            ) : (
-                <ol className="flex flex-col gap-0.5">
-                    {rows.map((row) => (
-                        <TicketRow key={row.number} ticket={row} agents={links.get(row.number) ?? []} {...marks} />
-                    ))}
-                </ol>
-            )}
-            {more > 0 || milestone.url ? (
-                <div className="flex items-center gap-2 text-11">
-                    {more > 0 ? (
-                        <span className="text-muted" data-testid="companion-milestone-more">
-                            {tCount("companion.work.more", more, { count: more })}
-                        </span>
-                    ) : null}
-                    {milestone.url ? (
-                        <button
-                            type="button"
-                            className="ml-auto inline-flex cursor-pointer items-center gap-1 text-secondary hover:text-primary hover:underline"
-                            onClick={(e) => openPage(e, milestone.url)}
-                            data-testid="companion-milestone-open"
-                        >
-                            {t("companion.work.openMilestone")}
-                            <i className="fa fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
-                        </button>
-                    ) : null}
-                </div>
-            ) : null}
-        </div>
-    );
-}
-
-function TicketRow({ ticket, agents, ...marks }: { ticket: MilestoneTicket; agents: LinkAgent[] } & EndMarks) {
-    const t = useT();
-    const working = agents.length > 0;
-    const heat = working ? heatOf(agents[0].state) : "draft";
-    const text = ticket.sentence || ticket.title;
-    const title = ticket.sentence ? t("companion.work.ticketTitle", { title: ticket.title }) : ticket.title;
-    return (
-        <li
-            className="mt-cwork-end mt-cwork-row"
-            {...endAttrs(ticketEnd(ticket.number), heat, marks)}
-            data-testid="companion-milestone-ticket"
-        >
-            <StateMark
-                kind={heat}
-                label={working ? t("companion.work.inProgress") : t("companion.work.open")}
-                className="mt-1 shrink-0"
-            />
-            <button
-                type="button"
-                className="mt-px shrink-0 cursor-pointer font-mono text-11 text-secondary tabular-nums hover:text-primary hover:underline"
-                title={t("companion.work.openTicket", { number: ticket.number })}
-                onClick={(e) => openPage(e, ticket.url)}
-            >
-                {`#${ticket.number}`}
-            </button>
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span
-                    className="line-clamp-2 text-12 text-primary"
-                    title={title}
-                    data-translated={ticket.sentence ? "" : undefined}
-                    data-testid="companion-milestone-text"
-                >
-                    {text}
-                </span>
-                {marks.chips && working ? (
-                    <span className="flex flex-wrap gap-1">
-                        {agents.map((agent) => (
-                            <LinkChip key={agent.id} agent={agent} />
-                        ))}
-                    </span>
-                ) : null}
-            </span>
-        </li>
-    );
-}
-
-const TodoMarks: Record<string, StateMarkKind> = { completed: "ready", in_progress: "running", pending: "draft" };
-
-function TodoList({
-    todos,
-    links,
-    titled,
-    ...marks
-}: { todos: CompanionTodo[]; links: Map<number, LinkAgent>; titled: boolean } & EndMarks) {
-    const t = useT();
-    const { done, total } = todoCounts(todos);
-    return (
-        <div className="flex flex-col gap-1" data-testid="companion-todos">
-            <div className="flex items-center gap-2 text-11 text-muted">
-                {titled ? (
-                    <span className="font-semibold tracking-wide uppercase">{t("companion.work.ownTasks")}</span>
-                ) : null}
-                <span className="ml-auto tabular-nums">{`${done} / ${total}`}</span>
-            </div>
-            <ul className="flex flex-col gap-0.5">
-                {todos.map((todo, i) => {
-                    const agent = links.get(i);
-                    const heat = agent != null ? heatOf(agent.state) : (TodoMarks[todo.status] ?? "draft");
-                    return (
-                        <li key={i} className="mt-cwork-end mt-cwork-row" {...endAttrs(todoEnd(i), heat, marks)}>
-                            <StateMark kind={TodoMarks[todo.status] ?? "draft"} className="mt-1 shrink-0" />
-                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                <span
-                                    className={cn(
-                                        "text-12",
-                                        todo.status === "completed" ? "text-muted line-through" : "text-primary"
-                                    )}
-                                >
-                                    {todo.text}
-                                </span>
-                                {marks.chips && agent != null ? (
-                                    <span className="flex flex-wrap gap-1">
-                                        <LinkChip agent={agent} />
-                                    </span>
-                                ) : null}
-                            </span>
-                        </li>
-                    );
-                })}
-            </ul>
         </div>
     );
 }

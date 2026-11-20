@@ -314,6 +314,41 @@
         text-overflow: ellipsis;
     }
 
+    /* Tabs in the label pocket (#2416): the selected tab is the label chip, the others are off chips, the page's own
+       fill with a hairline and muted text, so the block's U line runs round the whole row and never behind a chip. */
+    .df-pocket-tabs {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--df-pocket-pad);
+        min-width: 0;
+    }
+
+    .df-chip-tab {
+        margin: 0;
+        font-family: inherit;
+        cursor: pointer;
+    }
+
+    .df-chip-tab:focus-visible {
+        outline: 2px solid color-mix(in srgb, var(--df-accent) 40%, transparent);
+        outline-offset: 2px;
+    }
+
+    .df-chip-off {
+        border-color: var(--df-line);
+        background: var(--df-page);
+        box-shadow: none;
+        color: var(--df-text-muted);
+        transition:
+            color var(--df-duration-fast) ease,
+            border-color var(--df-duration-fast) ease;
+    }
+
+    .df-chip-off:hover {
+        border-color: color-mix(in srgb, var(--df-text-muted) 45%, transparent);
+        color: var(--df-text);
+    }
+
     /* The block's identity icon in an accent square on the corner. */
     .df-icon-tile {
         position: absolute;

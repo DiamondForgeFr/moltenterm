@@ -8,9 +8,9 @@ import { Provider, type PrimitiveAtom } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { moveSection, resetLayout, setSectionHidden } from "./companion-arrange-model";
-import { CompanionPrefsMetaKey } from "./companion-files-model";
+import { CompanionPrefsMetaKey, MaxChosenTabs, readCompanionPrefs } from "./companion-files-model";
 import { DefaultCompanionLayout, SectionPlacement } from "./companion-layout";
-import { saveCompanionLayout, useCompanionLayout } from "./companion-prefs";
+import { saveCompanionLayout, saveMilestoneChoice, useCompanionLayout, useMilestoneChoice } from "./companion-prefs";
 
 vi.mock("@/app/store/client-model", async () => {
     const { atom } = await import("jotai");
@@ -138,5 +138,105 @@ describe("the companion's saved layout (#2395)", () => {
         });
         expect(shown()).toBe("files,usage,tasks,agents,permission,topics,answer,task");
         globalStore.set(metaAtom(), {});
+    });
+});
+
+function Choice({ dir }: { dir: string }) {
+    const [milestone] = useMilestoneChoice(dir);
+    return <i data-milestone={milestone} />;
+}
+
+function choice(dir: string): number {
+    return Number(
+        /data-milestone="(\d+)"/.exec(
+            renderToStaticMarkup(
+                <Provider store={globalStore}>
+                    <Choice dir={dir} />
+                </Provider>
+            )
+        )[1]
+    );
+}
+
+// A write that settled leaves the client's meta carrying the choice: the window stops holding its own copy.
+async function settleChoices() {
+    await settleWrites();
+    await vi.waitFor(() => expect(choice("/never-chosen")).toBe(0));
+    globalStore.set(metaAtom(), {});
+}
+
+describe("the milestone tab the developer chose (#2416)", () => {
+    it("is none while nothing was chosen, and shows a choice at once, for its project only", async () => {
+        expect(choice("/shop")).toBe(0);
+        saveMilestoneChoice("/shop", 14);
+        expect(choice("/shop")).toBe(14);
+        expect(choice("/blog")).toBe(0);
+        expect(setMeta).toHaveBeenCalledTimes(1);
+        await settleChoices();
+    });
+
+    it("writes it in the client's meta with the other choices, and keeps what other projects chose", async () => {
+        globalStore.set(metaAtom(), { [CompanionPrefsMetaKey]: { filesopen: true, milestonetabs: { "/blog": 3 } } });
+        saveMilestoneChoice("/shop", 14);
+        const prefs = written(0).meta[CompanionPrefsMetaKey] as unknown as {
+            filesopen: boolean;
+            milestonetabs: Record<string, number>;
+        };
+        expect(prefs.filesopen).toBe(true);
+        expect(prefs.milestonetabs).toEqual({ "/blog": 3, "/shop": 14 });
+        expect(choice("/blog")).toBe(3);
+        await settleChoices();
+    });
+
+    it("is read back from the client's meta after a restart, in every companion of the project", () => {
+        globalStore.set(metaAtom(), { [CompanionPrefsMetaKey]: { milestonetabs: { "/shop": 14 } } });
+        expect(choice("/shop")).toBe(14);
+        expect(choice("/shop")).toBe(14);
+        globalStore.set(metaAtom(), {});
+    });
+
+    it("writes nothing for the choice already in force, for no folder and for no milestone", async () => {
+        saveMilestoneChoice("/shop", 14);
+        saveMilestoneChoice("/shop", 14);
+        saveMilestoneChoice("", 14);
+        saveMilestoneChoice("/shop", 0);
+        saveMilestoneChoice("/shop", -2);
+        expect(setMeta).toHaveBeenCalledTimes(1);
+        await settleChoices();
+        globalStore.set(metaAtom(), { [CompanionPrefsMetaKey]: { milestonetabs: { "/shop": 14 } } });
+        saveMilestoneChoice("/shop", 14);
+        expect(setMeta).toHaveBeenCalledTimes(1);
+        globalStore.set(metaAtom(), {});
+    });
+
+    it("changes with a new choice, and keeps only the latest few projects", async () => {
+        saveMilestoneChoice("/shop", 14);
+        saveMilestoneChoice("/shop", 13);
+        expect(choice("/shop")).toBe(13);
+        await settleChoices();
+        for (let i = 0; i < MaxChosenTabs + 3; i++) {
+            saveMilestoneChoice(`/p${i}`, i + 1);
+        }
+        const kept = Object.keys(
+            (
+                written(setMeta.mock.calls.length - 1).meta[CompanionPrefsMetaKey] as unknown as {
+                    milestonetabs: Record<string, number>;
+                }
+            ).milestonetabs
+        );
+        expect(kept).toHaveLength(MaxChosenTabs);
+        expect(kept[0]).toBe("/p3");
+        expect(kept[kept.length - 1]).toBe(`/p${MaxChosenTabs + 2}`);
+        await settleChoices();
+    });
+
+    it("ignores what a stored choice cannot hold, and keeps the rest", () => {
+        expect(
+            readCompanionPrefs({ milestonetabs: { "/shop": 14, "/blog": "3", "/x": -1, "/y": 1.5, "": 4 } })
+                .milestonetabs
+        ).toEqual({ "/shop": 14 });
+        expect(readCompanionPrefs({ milestonetabs: ["/shop"] }).milestonetabs).toBeUndefined();
+        expect(readCompanionPrefs({ milestonetabs: {} }).milestonetabs).toBeUndefined();
+        expect(readCompanionPrefs({}).milestonetabs).toBeUndefined();
     });
 });

@@ -2112,8 +2112,31 @@
                 "one": "et {count} autre",
                 "other": "et {count} autres"
             },
-            "allDone": "Plus rien à faire dans ce jalon.",
+            "empty": "Aucun ticket dans ce jalon pour l'instant.",
             "reading": "Lecture du jalon…",
+            "tabsLabel": "Tâches par jalon",
+            "moreTabs": "+{count}",
+            "moreTabsTitle": {
+                "one": "{count} autre jalon",
+                "other": "{count} autres jalons"
+            },
+            "ready": "Prête à sortir",
+            "lateShort": "{count} j de retard",
+            "lateLong": {
+                "one": "En retard de {count} jour",
+                "other": "En retard de {count} jours"
+            },
+            "doneOf": "/ {total} faits",
+            "noneLeft": "Plus aucun ticket",
+            "noneLeftText": "Tout est mergé. Ce jalon reste ici jusqu'à sa release, qui le fermera.",
+            "prepareRelease": "Préparer la release",
+            "prepareReleaseTitle": "Ouvrir la vue Projet, où la release démarre",
+            "seeTickets": {
+                "one": "Voir le ticket",
+                "other": "Voir les {count} tickets"
+            },
+            "inProgressHere": "En cours chez moi",
+            "toTake": "À prendre",
             "phrasing": "Rédaction des résumés…",
             "phrasingTitle": "L'agent du projet écrit une phrase par ticket, dans la langue de l'interface. Les titres s'affichent en attendant.",
             "offer": "Expliquer chaque ticket en une phrase dans votre langue ? Utilise votre agent (petit modèle), au plus 24 fois par jour.",

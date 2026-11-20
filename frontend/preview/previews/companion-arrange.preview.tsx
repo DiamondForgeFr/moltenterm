@@ -82,20 +82,23 @@ const view: CompanionView = {
 const milestones: MilestonesView = {
     dir: "/shop",
     state: "ok",
-    milestone: {
-        number: 2,
-        title: "2.4.0",
-        url: "https://github.com/example/shop/milestone/2",
-        open: 6,
-        closed: 12,
-        due: Now + 3 * 24 * 60 * Min,
-        remaining: 6,
-        tickets: [41, 38, 35, 33].map((number) => ({
-            number,
-            title: `Ticket ${number} title`,
-            url: `https://github.com/example/shop/issues/${number}`,
-        })),
-    },
+    milestones: [
+        {
+            number: 2,
+            title: "2.4.0",
+            url: "https://github.com/example/shop/milestone/2",
+            open: 6,
+            closed: 12,
+            due: Now + 3 * 24 * 60 * Min,
+            remaining: 6,
+            loaded: true,
+            tickets: [41, 38, 35, 33].map((number) => ({
+                number,
+                title: `Ticket ${number} title`,
+                url: `https://github.com/example/shop/issues/${number}`,
+            })),
+        },
+    ],
 };
 
 // An arrangement worth showing: the work band first, the changed files lifted under it, the answer and the workspace

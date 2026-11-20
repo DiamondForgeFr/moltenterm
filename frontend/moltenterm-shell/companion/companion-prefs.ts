@@ -12,7 +12,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useState } from "react";
-import { CompanionPrefs, CompanionPrefsMetaKey, readCompanionPrefs } from "./companion-files-model";
+import { CompanionPrefs, CompanionPrefsMetaKey, readCompanionPrefs, withChosenTab } from "./companion-files-model";
 import {
     CompanionLayout,
     DefaultCompanionLayout,
@@ -66,6 +66,37 @@ export function useCompanionPref(
         rememberCompanionPrefs({ [key]: value });
     };
     return [chosen ?? stored, set];
+}
+
+// The milestone tabs just chosen, shown until the client's meta carries them (and kept when the write failed).
+const SavedTabs = atom<Record<string, number>>(null) as PrimitiveAtom<Record<string, number>>;
+
+function currentTabs(): Record<string, number> {
+    const meta = globalStore.get(clientAtom())?.meta?.[CompanionPrefsMetaKey];
+    return globalStore.get(SavedTabs) ?? readCompanionPrefs(meta).milestonetabs ?? {};
+}
+
+// The milestone tab the developer chose in a project's Tasks block (#2416): 0 while none was chosen. It is the same in
+// every companion of the project; a choice that is no open milestone any more falls to the oldest one
+// (chosenMilestone), so it lasts exactly while its milestone is open.
+export function useMilestoneChoice(dir: string): [number, (milestone: number) => void] {
+    const client = useAtomValue(clientAtom());
+    const saved = useAtomValue(SavedTabs);
+    const tabs = saved ?? readCompanionPrefs(client?.meta?.[CompanionPrefsMetaKey]).milestonetabs;
+    return [tabs?.[dir] ?? 0, (milestone: number) => saveMilestoneChoice(dir, milestone)];
+}
+
+export function saveMilestoneChoice(dir: string, milestone: number): void {
+    if (!dir || !(milestone > 0) || currentTabs()[dir] === milestone) {
+        return;
+    }
+    const next = withChosenTab(currentTabs(), dir, milestone);
+    globalStore.set(SavedTabs, next);
+    rememberCompanionPrefs({ milestonetabs: next }, () => {
+        if (globalStore.get(SavedTabs) === next) {
+            globalStore.set(SavedTabs, null);
+        }
+    });
 }
 
 // The layout just saved, shown until the client's meta carries it (and kept when the write failed, like the other
