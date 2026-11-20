@@ -22,6 +22,7 @@ const companionKimiToken = "kimi-FAKE-companion-managed-token-0123456789"
 type kimiUsageEnv struct {
 	*gaugesEnv
 	ep       *fakeUsageEndpoint
+	status   atomic.Int32
 	managed  atomic.Int32
 	creds    atomic.Int32
 	settings map[string]any
@@ -29,6 +30,10 @@ type kimiUsageEnv struct {
 
 func (e *kimiUsageEnv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.ep.hits.Add(1)
+	if status := e.status.Load(); status != 0 {
+		w.WriteHeader(int(status))
+		return
+	}
 	if r.Method != http.MethodGet || r.URL.Path != "/coding/v1/usages" || r.Header.Get("Authorization") != "Bearer "+companionKimiToken {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -79,6 +84,8 @@ func kimiUsageTestManager(t *testing.T) (*Manager, *kimiUsageEnv) {
 	t.Cleanup(srv.Close)
 	client := srv.Client()
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	usage.DefaultKimiOAuthSource.Clear()
+	usage.DefaultKimiOAuthSource.Resume()
 	t.Cleanup(usage.DefaultKimiOAuthSource.UseForTest(usage.KimiOAuthTestHooks{
 		Endpoint: srv.URL + "/coding/v1/usages",
 		Client:   client,
@@ -92,6 +99,7 @@ func kimiUsageTestManager(t *testing.T) (*Manager, *kimiUsageEnv) {
 			return nil
 		},
 	}))
+	t.Cleanup(usage.DefaultKimiOAuthSource.Clear)
 	return m, e
 }
 

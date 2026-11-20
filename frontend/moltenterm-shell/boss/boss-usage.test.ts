@@ -103,6 +103,25 @@ describe("the plan usage readings the peek tells (FR-BOSS-001, AC7)", () => {
         stop();
     });
 
+    it("keeps a cold-start Kimi reading when Codex is unavailable", async () => {
+        m.rpc.mockResolvedValue([
+            globalInfo("codex", "unavailable", undefined, "expired"),
+            globalInfo("kimi", "enabled", snapshot("kimi", 100, 60)),
+        ]);
+        const stop = startUsageReadings();
+        await vi.waitFor(() => expect(globalStore.get(UsageReadingsAtom).kimi?.windows[0].usedpercent).toBe(60));
+        expect(globalStore.get(UsageUnreadableAtom)).toEqual({ codex: "expired" });
+        stop();
+    });
+
+    it("clears a held Kimi reading and unreadable marker when its gauges turn off", () => {
+        const readings = applyUsageReading({}, globalInfo("kimi", "enabled", snapshot("kimi", 100, 60)));
+        const unreadable = applyUnreadable({}, globalInfo("kimi", "unavailable", undefined, "signedout"));
+        const off = globalInfo("kimi", "off");
+        expect(applyUsageReading(readings, off)).toEqual({});
+        expect(applyUnreadable(unreadable, off)).toEqual({});
+    });
+
     it("ignores an event without an agent", () => {
         const held = applyUsageReading({}, info("claude", "enabled", snapshot("claude", 100)));
         expect(applyUsageReading(held, info("", "enabled", snapshot("", 5)))).toBe(held);

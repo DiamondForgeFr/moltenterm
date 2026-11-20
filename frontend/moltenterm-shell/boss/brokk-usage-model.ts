@@ -150,6 +150,9 @@ export const UsageOldMs = 60 * 60 * 1000;
 // A provider's line in the week grid: its main window's, with the reading's age.
 export type WeeklyUsage = UsageWeekLine & {
     provider: string;
+    // The selected main window, before its raw label is localized for the interface.
+    windowId?: string;
+    windowLabel?: string;
     // When the reading was taken (Unix ms), 0 when unknown.
     readAt: number;
     // The reading is older than UsageOldMs: its age is told.
@@ -196,6 +199,8 @@ export function usageGrid(
             row: {
                 ...line,
                 provider,
+                windowId: main.id,
+                windowLabel: main.label,
                 readAt,
                 old: readAt > 0 && now - readAt > UsageOldMs,
                 stale: isStale(readAt, line.windowMins, now),

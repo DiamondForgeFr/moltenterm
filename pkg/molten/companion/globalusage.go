@@ -6,15 +6,16 @@ package companion
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 )
 
-// The global plan usage (FR-SHELL-029, #2074): Brokk is global, and so is a plan. wavesrv reads Codex's limits for the
-// whole app, from its folder, and publishes them without a block, so the gauge shows with no Codex terminal open.
-// The automatic reads start no process: only Brokk's window, while it shows, lets the app-server run.
+// The global plan usage (FR-SHELL-029, #2074): Brokk is global, and so is a plan. wavesrv reads each provider's limits for
+// the whole app and publishes them without a block, so the gauges show with no companion terminal open.
+// The automatic reads start no process or request: only Brokk's visible window lets a source fetch within its limits.
 
 const globalUsageInterval = 2 * time.Minute
 
@@ -49,6 +50,19 @@ func (m *Manager) globalCodexInfo(ctx context.Context) (UsageInfo, bool) {
 	return info, true
 }
 
+func (m *Manager) globalKimiInfo(ctx context.Context) (UsageInfo, bool) {
+	a := usage.For(molten.AgentIdKimi)
+	if a == nil {
+		return UsageInfo{}, false
+	}
+	info := UsageInfo{Agent: molten.AgentIdKimi, Global: true, PageURL: a.PageURL(), PageName: a.PageName(), HasGauges: usage.HasSources(a)}
+	ctx, cancel := context.WithTimeout(ctx, usageReadTimeout)
+	defer cancel()
+	res := usage.ReadGauges(ctx, a, m.currentSettings(), "", m.now().UnixMilli())
+	info.Gauges, info.Snapshot, info.Reason, info.SourceName = res.State, res.Snapshot, res.Reason, res.SourceName
+	return info, true
+}
+
 func (m *Manager) codexHome() string {
 	if m.codexHomeDir != nil {
 		return m.codexHomeDir()
@@ -64,18 +78,34 @@ func (m *Manager) codexGlobal(ctx context.Context, home string) (usage.UsageSnap
 }
 
 // GlobalUsage answers Brokk's request: the global readings, published too so every window has them. fetch: Brokk's
-// window shows, so the app-server may run within its limits (NFR-SHELL-013).
+// window shows, so each source may fetch within its limits (NFR-SHELL-013).
 func (m *Manager) GlobalUsage(fetch bool) []UsageInfo {
 	ctx := usage.WithFetch(context.Background(), fetch)
 	if !fetch {
 		ctx = usage.WithoutProcess(ctx)
 	}
-	info, ok := m.globalCodexInfo(ctx)
-	if !ok {
-		return []UsageInfo{}
+	var infos [2]UsageInfo
+	var present [2]bool
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		infos[0], present[0] = m.globalCodexInfo(ctx)
+	}()
+	go func() {
+		defer wg.Done()
+		infos[1], present[1] = m.globalKimiInfo(ctx)
+	}()
+	wg.Wait()
+	rtn := make([]UsageInfo, 0, len(infos))
+	for i, info := range infos {
+		if !present[i] {
+			continue
+		}
+		m.publishGlobalIfChanged(info)
+		rtn = append(rtn, info)
 	}
-	m.publishGlobalIfChanged(info)
-	return []UsageInfo{info}
+	return rtn
 }
 
 // publishGlobalIfChanged publishes a global reading that differs from the last one published; Brokk counts its age.
@@ -85,8 +115,8 @@ func (m *Manager) publishGlobalIfChanged(info UsageInfo) {
 		return
 	}
 	m.lock.Lock()
-	same := string(data) == m.globalPublished
-	m.globalPublished = string(data)
+	same := string(data) == m.globalPublished[info.Agent]
+	m.globalPublished[info.Agent] = string(data)
 	m.lock.Unlock()
 	if same {
 		return
@@ -94,7 +124,7 @@ func (m *Manager) publishGlobalIfChanged(info UsageInfo) {
 	m.publishBlockUsage(info)
 }
 
-// startGlobalUsage reads the global readings now and every two minutes, from the folder only.
+// startGlobalUsage reads the global readings now and every two minutes, without fetching or starting a process.
 func (m *Manager) startGlobalUsage() {
 	go everyRecovered("molten:companion:globalusage", globalUsageInterval, true, nil, func() { m.GlobalUsage(false) })
 }

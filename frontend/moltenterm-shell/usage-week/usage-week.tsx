@@ -41,8 +41,10 @@ export type UsageWeekRow = {
     key: string;
     // The agent whose logo the row shows.
     agent: string;
-    // Its display name: the logo's tooltip and the start of the row's accessible name.
+    // Its display name: the start of the logo's popover and the row's accessible name.
     name: string;
+    // The selected main window, already localized by the surface; the popover and accessible name compose it with name.
+    windowLabel?: string;
     // Absent when the reading cannot be read: the row then says so in one calm line.
     line?: UsageWeekLine;
     // Why the reading cannot be read (a companion gauges reason).
@@ -83,8 +85,19 @@ export function openRowMenu(e: React.MouseEvent): React.MouseEvent {
 // clips it. The logo is not clickable on its own. A row with a menu (#2341) makes its logo the button that opens it,
 // so the menu is reached from the keyboard too: Tab to the logo, then Enter or Space, the Menu key or Shift+F10 (which
 // the menu host turns into the row's own context menu); a pointer still opens it with the right button on the row.
-function AgentLogo({ agent, name, onMenu }: { agent: string; name: string; onMenu?: (e: React.MouseEvent) => void }) {
+function AgentLogo({
+    agent,
+    name,
+    windowLabel,
+    onMenu,
+}: {
+    agent: string;
+    name: string;
+    windowLabel?: string;
+    onMenu?: (e: React.MouseEvent) => void;
+}) {
     const t = useT();
+    const displayName = windowLabel ? t("usageWeek.providerWindow", { name, window: windowLabel }) : name;
     const claude = agent === "claude";
     const [open, setOpen] = useState(false);
     const { refs, floatingStyles, context } = useFloatingInPlace({
@@ -101,7 +114,7 @@ function AgentLogo({ agent, name, onMenu }: { agent: string; name: string; onMen
         className: "mt-uw-logo",
         "data-testid": "usage-week-logo",
         "data-logo": claude ? "claude" : "ai",
-        "data-name": name,
+        "data-name": displayName,
     };
     const icon = claude ? <ClaudeColorSvg /> : <i className={makeIconClass(AiIcon, true)} />;
     return (
@@ -136,7 +149,7 @@ function AgentLogo({ agent, name, onMenu }: { agent: string; name: string; onMen
                         data-testid="usage-week-name"
                         {...getFloatingProps()}
                     >
-                        {name}
+                        {displayName}
                     </span>
                 </FloatingPortal>
             ) : null}
@@ -158,7 +171,7 @@ function paceKind(line: UsageWeekLine): string {
 // What starts a row: the label of its window when the row has one, else the agent's logo.
 function RowLead({ row }: { row: UsageWeekRow }) {
     if (row.label == null) {
-        return <AgentLogo agent={row.agent} name={row.name} onMenu={row.onContextMenu} />;
+        return <AgentLogo agent={row.agent} name={row.name} windowLabel={row.windowLabel} onMenu={row.onContextMenu} />;
     }
     return (
         <span className="mt-uw-label" data-testid="usage-week-label">
@@ -261,10 +274,16 @@ export function UsageWeekGrid({
             <span aria-hidden />
             {rows.map((row) => {
                 const { line, name } = row;
+                const displayName = row.windowLabel
+                    ? t("usageWeek.providerWindow", { name, window: row.windowLabel })
+                    : name;
                 if (line == null) {
                     const label = row.unreadable
-                        ? t("usageWeek.rowUnreadable", { name, reason: usageReasonText(row.unreadable, row.agent) })
-                        : t("usageWeek.rowNoReading", { name });
+                        ? t("usageWeek.rowUnreadable", {
+                              name: displayName,
+                              reason: usageReasonText(row.unreadable, row.agent),
+                          })
+                        : t("usageWeek.rowNoReading", { name: displayName });
                     return (
                         <span
                             key={row.key}
@@ -289,8 +308,8 @@ export function UsageWeekGrid({
                 const age = row.old || row.stale ? relativeTime(row.readAt, now) : "";
                 const parts = [
                     day
-                        ? t("usageWeek.rowReset", { name, percent: line.percent, day })
-                        : t("usageWeek.row", { name, percent: line.percent }),
+                        ? t("usageWeek.rowReset", { name: displayName, percent: line.percent, day })
+                        : t("usageWeek.row", { name: displayName, percent: line.percent }),
                 ];
                 if (age) {
                     parts.push(t("usageWeek.rowAsOf", { ago: age }));

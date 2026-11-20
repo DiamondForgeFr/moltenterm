@@ -12951,6 +12951,7 @@
     },
     "usageWeek": {
         "percent": "{percent} %",
+        "providerWindow": "{name}, {window}",
         "dayUnit": "%",
         "unreadable": "no reading",
         "row": "{name}, {percent} %",

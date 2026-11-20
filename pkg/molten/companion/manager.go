@@ -251,10 +251,10 @@ type Manager struct {
 	openFiles      func(pid int32) []string
 	procTable      func() (*proctree.Table, error)
 	settings       func() *wconfig.SettingsType
-	// The global Codex reading (globalusage.go): its folder and its read, replaced in tests.
+	// The global provider readings (globalusage.go): Codex's folder and read, replaced in tests.
 	codexHomeDir    func() string
 	readCodexGlobal func(ctx context.Context, home string) (usage.UsageSnapshot, error)
-	globalPublished string
+	globalPublished map[string]string
 	now             func() time.Time
 	tick            time.Duration
 	idleTick        time.Duration
@@ -262,22 +262,23 @@ type Manager struct {
 
 func MakeManager() *Manager {
 	return &Manager{
-		watchers:       map[string]*watcher{},
-		reports:        map[string]sessionReport{},
-		picks:          map[string]sessionPick{},
-		claims:         map[string]sessionClaim{},
-		earlier:        map[string][]EarlierSession{},
-		usagePublished: map[string]time.Time{},
-		usageVisible:   map[string]bool{},
-		statusLines:    map[string]*statusLineGate{},
-		statusLineGap:  statusLineMinGap,
-		idMisses:       map[string]time.Time{},
-		tracks:         map[string]*runTrack{},
-		subagentPaths:  map[string]bool{},
-		adapterFor:     AdapterFor,
-		now:            time.Now,
-		tick:           tickInterval,
-		idleTick:       idleTickInterval,
+		watchers:        map[string]*watcher{},
+		reports:         map[string]sessionReport{},
+		picks:           map[string]sessionPick{},
+		claims:          map[string]sessionClaim{},
+		earlier:         map[string][]EarlierSession{},
+		usagePublished:  map[string]time.Time{},
+		globalPublished: map[string]string{},
+		usageVisible:    map[string]bool{},
+		statusLines:     map[string]*statusLineGate{},
+		statusLineGap:   statusLineMinGap,
+		idMisses:        map[string]time.Time{},
+		tracks:          map[string]*runTrack{},
+		subagentPaths:   map[string]bool{},
+		adapterFor:      AdapterFor,
+		now:             time.Now,
+		tick:            tickInterval,
+		idleTick:        idleTickInterval,
 	}
 }
 
