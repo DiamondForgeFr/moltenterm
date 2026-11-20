@@ -87,7 +87,7 @@ describe("the header's wiring (#1544)", () => {
 });
 
 describe("the 360 chooser's dismissal (#1544)", () => {
-    const source = readFileSync(resolve(__dirname, "../view360/view360-places.tsx"), "utf8");
+    const source = readFileSync(resolve(__dirname, "../view360/view360-places-chooser.tsx"), "utf8");
 
     it("uses the shared floating primitive and the dismissal of the app's other popovers", () => {
         expect(source).toContain("useFloatingInPlace(");
