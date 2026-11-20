@@ -227,6 +227,7 @@ import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
 import { ClearCacheKind, ClearSiteKind, siteOriginOf } from "./site-data";
 import { isSiteAsk, SitePermissionModel } from "./site-permission-store";
 import { TestContextChip } from "./test-context";
+import { PanelWaitingMaxMs } from "../switch-layout/panel-ready";
 
 export { MoltentermBrowserView };
 
@@ -1905,6 +1906,14 @@ function TabWebview({
     offCarpet: boolean;
 }) {
     const ref = useRef<WebviewTag>(null);
+    // The page's first load ended (loaded, failed, or its process gone): until then a workspace switch's frame keeps
+    // its domino over the panel (panel-ready.ts, #2438).
+    const [firstLoadEnded, setFirstLoadEnded] = useState(false);
+    // A page that never stops loading waits for nobody after this.
+    useEffect(() => {
+        const timer = setTimeout(() => setFirstLoadEnded(true), PanelWaitingMaxMs);
+        return () => clearTimeout(timer);
+    }, []);
     const shownRef = useRef(shown);
     shownRef.current = shown;
     const offCarpetRef = useRef(offCarpet);
@@ -2025,6 +2034,7 @@ function TabWebview({
             model.errors.noteStart(tab.id);
         };
         const onStopLoading = () => {
+            setFirstLoadEnded(true);
             model.loads.noteStop(tab.id);
             noteSiteLoading(model.blockId, false);
             model.errors.noteStop(tab.id);
@@ -2034,6 +2044,7 @@ function TabWebview({
             if (!isPageFailure(e)) {
                 return;
             }
+            setFirstLoadEnded(true);
             model.lifecycle.finishRestoring(tab.id);
             const url = e.validatedURL || webview.getURL();
             model.errors.noteFailure(tab.id, { url, code: e.errorCode, description: e.errorDescription });
@@ -2054,6 +2065,7 @@ function TabWebview({
         };
         // The 360 carpet keeps the page's previous thumbnail while its process is gone (#1814).
         const onProcessGone = (e: any) => {
+            setFirstLoadEnded(true);
             if ((e.details?.reason ?? e.reason) !== "clean-exit") {
                 model.loads.noteCrash(tab.id);
             }
@@ -2152,6 +2164,7 @@ function TabWebview({
             src={initialUrl}
             data-blockid={model.blockId}
             data-browsertab={tab.id}
+            data-df-waiting={active && !firstLoadEnded ? "" : undefined}
             preload={webviewPreloadUrl()}
             // @ts-expect-error React types allowpopups as a boolean, Chromium's webview tag expects a string.
             allowpopups="true"

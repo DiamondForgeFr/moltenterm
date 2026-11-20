@@ -37,6 +37,7 @@ import {
     TermCacheBaseDelayMs,
     TermCacheSlowLogMs,
 } from "../../../moltenterm-shell/term-cache-pace"; // MOLTENTERM-PATCH (#849)
+import { markPanelReady, markPanelWaiting, PanelWaitingMaxMs } from "../../../moltenterm-shell/switch-layout/panel-ready"; // MOLTENTERM-PATCH (#2438)
 import {
     decideResize,
     decideWebglLossRecovery,
@@ -121,6 +122,7 @@ export class TermWrap {
     webglLossTimes: number[] = []; // MOLTENTERM-PATCH (#290)
     isDisposed: boolean = false; // MOLTENTERM-PATCH (#290)
     hiddenWebglTimer: ReturnType<typeof setTimeout> = null; // MOLTENTERM-PATCH (#454)
+    drawnTimer: ReturnType<typeof setTimeout> = null; // MOLTENTERM-PATCH (#2438)
     webglReleasedWhileHidden: boolean = false; // MOLTENTERM-PATCH (#454)
     controllerSizeSync: ControllerSizeSync; // MOLTENTERM-PATCH (#451)
     pasteActive: boolean = false;
@@ -318,6 +320,9 @@ export class TermWrap {
         this.mainFileSubject = null;
         this.heldData = [];
         this.handleResize_debounced = debounce(50, this.handleResize.bind(this));
+        // MOLTENTERM-PATCH (#2438): a switch's frame keeps its domino until the terminal has drawn something.
+        markPanelWaiting(this.connectElem);
+        this.drawnTimer = setTimeout(() => this.noteDrawn(), PanelWaitingMaxMs);
         this.terminal.open(this.connectElem);
         this.disposeAccessibility = bindTerminalAccessibility(this.terminal); // MOLTENTERM-PATCH (#808)
         // MOLTENTERM-PATCH (#119): clean copy in agent terminals and links to the files a terminal mentions.
@@ -490,6 +495,9 @@ export class TermWrap {
 
         try {
             await this.loadInitialTerminalData();
+        } catch (e) {
+            this.noteDrawn(); // MOLTENTERM-PATCH (#2438): nothing to restore, nothing to wait for
+            throw e;
         } finally {
             this.loaded = true;
         }
@@ -500,6 +508,7 @@ export class TermWrap {
         this.isDisposed = true; // MOLTENTERM-PATCH (#290)
         this.disposeAccessibility?.(); // MOLTENTERM-PATCH (#808): detach before xterm is disposed.
         clearTimeout(this.hiddenWebglTimer); // MOLTENTERM-PATCH (#454)
+        clearTimeout(this.drawnTimer); // MOLTENTERM-PATCH (#2438)
         this.promptMarkers.forEach((marker) => {
             try {
                 marker.dispose();
@@ -571,9 +580,19 @@ export class TermWrap {
                 this.dataBytesProcessed += data.length;
             }
             this.lastUpdated = Date.now();
+            if (data.length > 0) {
+                this.noteDrawn(); // MOLTENTERM-PATCH (#2438): restored scrollback or first output
+            }
             resolve();
         });
         return prtn;
+    }
+
+    // MOLTENTERM-PATCH (#2438): the terminal's content is there (panel-ready.ts).
+    noteDrawn() {
+        clearTimeout(this.drawnTimer);
+        this.drawnTimer = null;
+        markPanelReady(this.connectElem);
     }
 
     async loadInitialTerminalData(): Promise<void> {

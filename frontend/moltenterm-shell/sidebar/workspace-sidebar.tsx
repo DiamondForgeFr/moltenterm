@@ -160,7 +160,7 @@ import {
     SidebarMinWidth,
     type SidebarTabSplit,
 } from "./sidebar-model";
-import { pruneSnapshots, sidebarAtRest, SnapshotSource, useSidebarCapture } from "./sidebar-snapshot";
+import { landSidebar, pruneSnapshots, sidebarAtRest, SnapshotSource, useSidebarCapture } from "./sidebar-snapshot";
 import { SidebarModel } from "./sidebar-store";
 import { centredScroll, manyDots } from "./sidebar-swipe";
 import { SidebarSwipeController } from "./sidebar-swipe-view";
@@ -2681,7 +2681,14 @@ export function WorkspaceSidebar() {
     );
     const swipe = useSidebarSwipe(swipeRefs, workspaces);
     const neighbours = useSwipeNeighbours(workspaces, draft != null);
-    const onArrive = useCallback((intent: SwitchIntent) => swipe.arrived(intent), [swipe]);
+    const onArrive = useCallback(
+        (intent: SwitchIntent) => {
+            // The side panel the switch slid in may be behind this one: it comes in without a row popping in (#2438).
+            landSidebar(viewportRef.current, intent.workspaceId);
+            swipe.arrived(intent);
+        },
+        [swipe]
+    );
     usePageSlide(contentRef, draft != null);
     useSwitchArrival(contentRef, onArrive);
     const restRef = useRef<() => boolean>(null);

@@ -271,10 +271,14 @@ export type DominoLoaderProps = {
 // The suite's working indicator, the falling dominoes (#739). Shared source: Notulia's
 // src/components/ui/domino-loader.tsx and the .dominos / .domino-loader rules of its src/index.css, themselves a port
 // of LoaderPiece.vue from the DiamondForge design system. Keep the geometry and timing in step between the apps.
+// The card and large sizes stand where content is to come (a first draw): they say so with data-df-waiting, which the
+// app reads to keep a panel's frame until its content is there (MoltenTerm's panel-ready.ts). The inline size is a busy
+// mark next to content already drawn.
 export function DominoLoader({ size = "inline", label, className }: DominoLoaderProps) {
     return (
         <span
             className={joinClasses(DominoSizeClass[size] ?? DominoSizeClass.inline, className)}
+            data-df-waiting={size === "card" || size === "large" ? "" : undefined}
             role={label ? "status" : undefined}
             aria-label={label || undefined}
             aria-hidden={label ? undefined : true}

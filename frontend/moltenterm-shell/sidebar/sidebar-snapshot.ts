@@ -6,8 +6,8 @@
 // differed from the real one (another header height, other rows), and the swipe jumped when the real view replaced
 // it. Each view now captures its own sidebar's page at rest (the Electron API's captureScreenshot, of its own view)
 // and shares it through localStorage, which every view of the app reads and is told about by a storage event. The
-// swipe slides that capture in and lands on it; the view that appears shows the same pixels, unless the workspace
-// changed while it was hidden.
+// swipe slides that capture in and lands on it; the view that appears shows the same pixels. A hidden view keeps
+// capturing after each change (#2438), and one whose capture is still behind fades its sidebar in on landing.
 
 import { getApi } from "@/app/store/global";
 import { useEffect, useState } from "react";
@@ -64,15 +64,17 @@ function readKey(key: string): string {
     }
 }
 
-function writeKey(key: string, value: string) {
+function writeKey(key: string, value: string): boolean {
     try {
         if (value == null) {
             window.localStorage.removeItem(key);
         } else {
             window.localStorage.setItem(key, value);
         }
+        return true;
     } catch {
         // A full storage keeps the likeness.
+        return false;
     }
 }
 
@@ -133,74 +135,190 @@ export type SnapshotSource = {
     atRest(): boolean;
 };
 
-// Captures this view's sidebar once it stays still on screen, after each change. A change of restKey (something
+// What this view knows of its own sidebar's capture (#2438): when its rows last changed, and when the capture it last
+// wrote was taken. A view starts with its rows just drawn and no capture of its own.
+type CaptureClock = { changedAt: number; capturedAt: number };
+const clocks = new Map<string, CaptureClock>();
+
+function clockOf(workspaceId: string): CaptureClock {
+    let c = clocks.get(workspaceId);
+    if (c == null) {
+        c = { changedAt: Date.now(), capturedAt: 0 };
+        clocks.set(workspaceId, c);
+    }
+    return c;
+}
+
+export function noteSidebarChanged(workspaceId: string, at: number = Date.now()) {
+    clockOf(workspaceId).changedAt = at;
+}
+
+export function noteSidebarCaptured(workspaceId: string, takenAt: number) {
+    clockOf(workspaceId).capturedAt = takenAt;
+}
+
+// The capture the switch slid in shows what the sidebar shows now: one that fits, taken after its last change.
+export function sidebarCaptureCurrent(workspaceId: string, width: number, height: number): boolean {
+    if (!snapshotFits(readSnapshot(workspaceId), width, height)) {
+        return false;
+    }
+    const c = clockOf(workspaceId);
+    return c.capturedAt > 0 && c.capturedAt >= c.changedAt;
+}
+
+export function resetSidebarClocks() {
+    clocks.clear();
+}
+
+const FallbackLandMs = 120;
+
+function landMs(): number {
+    const v = getComputedStyle(document.documentElement).getPropertyValue("--mt-duration-fast").trim();
+    const m = /^([\d.]+)(ms|s)$/.exec(v);
+    if (m == null) {
+        return FallbackLandMs;
+    }
+    return m[2] === "s" ? parseFloat(m[1]) * 1000 : parseFloat(m[1]);
+}
+
+function reducedMotion(): boolean {
+    return (
+        document.documentElement.classList.contains("prefers-reduced-motion") ||
+        (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false)
+    );
+}
+
+export const LandingPictureClass = "mt-sb-landing-picture";
+
+// A switch landed on this view (#2438): the side panel the switch slid in was its capture. When that capture is not
+// what the sidebar shows now (missing, of another size, older than its last change), the real sidebar comes in by a
+// short fade, from the capture when one fits, so no row pops in. Returns how it came in.
+export function landSidebar(viewport: HTMLElement, workspaceId: string): "current" | "picture" | "fade" | "none" {
+    if (viewport == null || !workspaceId) {
+        return "none";
+    }
+    const r = viewport.getBoundingClientRect();
+    const width = Math.round(r.width);
+    const height = Math.round(r.height);
+    if (sidebarCaptureCurrent(workspaceId, width, height)) {
+        return "current";
+    }
+    if (reducedMotion()) {
+        return "none";
+    }
+    const ms = landMs();
+    const snap = readSnapshot(workspaceId);
+    if (snapshotFits(snap, width, height)) {
+        const img = document.createElement("img");
+        img.className = LandingPictureClass;
+        img.src = snap.url;
+        img.alt = "";
+        img.setAttribute("aria-hidden", "true");
+        img.draggable = false;
+        Object.assign(img.style, {
+            position: "absolute",
+            top: "0",
+            left: "0",
+            width: `${snap.width}px`,
+            height: `${snap.height}px`,
+            maxWidth: "none",
+            pointerEvents: "none",
+            zIndex: "5",
+        });
+        viewport.appendChild(img);
+        if (img.animate == null) {
+            img.remove();
+            return "picture";
+        }
+        img.style.opacity = "0";
+        const a = img.animate([{ opacity: 1 }, { opacity: 0 }], { duration: ms, easing: "linear" });
+        a.onfinish = () => img.remove();
+        a.oncancel = () => img.remove();
+        return "picture";
+    }
+    viewport.animate?.([{ opacity: 0 }, { opacity: 1 }], { duration: ms, easing: "linear" });
+    return "fade";
+}
+
+// Captures this view's sidebar once it stays still, after each change, also while the view is hidden (#2438: a hidden
+// workspace's agents and statuses change, and the switch to it slides in this capture). A change of restKey (something
 // drawn over the sidebar outside it, like the library) asks for a capture too: what covered it is gone.
 export function useSidebarCapture(workspaceId: string, source: SnapshotSource, restKey?: unknown) {
-    useEffect(() => {
-        const viewport = source.viewport();
-        if (!workspaceId || viewport == null || getApi()?.captureScreenshot == null) {
+    useEffect(() => startSidebarCapture(workspaceId, source), [workspaceId, source, restKey]);
+}
+
+// The capture's loop, apart from React. Returns its stop.
+export function startSidebarCapture(workspaceId: string, source: SnapshotSource): () => void {
+    const viewport = source.viewport();
+    if (!workspaceId || viewport == null || getApi()?.captureScreenshot == null) {
+        return undefined;
+    }
+    let timer: ReturnType<typeof setTimeout> = null;
+    let lastAt = 0;
+    let alive = true;
+    const capture = async () => {
+        timer = null;
+        if (!alive) {
             return;
         }
-        let timer: ReturnType<typeof setTimeout> = null;
-        let lastAt = 0;
-        let alive = true;
-        const capture = async () => {
-            timer = null;
-            if (!alive || document.visibilityState !== "visible") {
+        const wait = lastAt + SnapshotMinGapMs - Date.now();
+        if (wait > 0 || !source.atRest()) {
+            schedule(Math.max(wait, SnapshotSettleMs));
+            return;
+        }
+        const r = viewport.getBoundingClientRect();
+        if (r.width < 1 || r.height < 1) {
+            return;
+        }
+        const takenAt = Date.now();
+        lastAt = takenAt;
+        const rect = {
+            x: Math.round(r.left),
+            y: Math.round(r.top),
+            width: Math.round(r.width),
+            height: Math.round(r.height),
+        };
+        try {
+            const captured = await getApi().captureScreenshot(rect);
+            // The window's material goes out of the capture (#2407, sidebar-material.ts, loaded only here).
+            const url = captured
+                ? await (await import("./sidebar-material")).withoutMaterial(captured, viewport)
+                : captured;
+            // The page moved while the capture ran: it may show a half-slid frame, so it waits for the next rest.
+            if (!alive || !source.atRest() || !url || url.length > SnapshotMaxChars) {
                 return;
             }
-            const wait = lastAt + SnapshotMinGapMs - Date.now();
-            if (wait > 0 || !source.atRest()) {
-                schedule(Math.max(wait, SnapshotSettleMs));
-                return;
+            const snap: SidebarSnapshot = { url, width: rect.width, height: rect.height, at: Date.now() };
+            if (writeKey(snapshotKey(workspaceId), JSON.stringify(snap))) {
+                noteSidebarCaptured(workspaceId, takenAt);
             }
-            const r = viewport.getBoundingClientRect();
-            if (r.width < 1 || r.height < 1) {
-                return;
-            }
-            lastAt = Date.now();
-            const rect = {
-                x: Math.round(r.left),
-                y: Math.round(r.top),
-                width: Math.round(r.width),
-                height: Math.round(r.height),
-            };
-            try {
-                const captured = await getApi().captureScreenshot(rect);
-                // The window's material goes out of the capture (#2407, sidebar-material.ts, loaded only here).
-                const url = captured
-                    ? await (await import("./sidebar-material")).withoutMaterial(captured, viewport)
-                    : captured;
-                // The page moved while the capture ran: it may show a half-slid frame, so it waits for the next rest.
-                if (!alive || !source.atRest() || !url || url.length > SnapshotMaxChars) {
-                    return;
-                }
-                const snap: SidebarSnapshot = { url, width: rect.width, height: rect.height, at: Date.now() };
-                writeKey(snapshotKey(workspaceId), JSON.stringify(snap));
-            } catch {
-                // The likeness stays.
-            }
-        };
-        const schedule = (ms = SnapshotSettleMs) => {
-            clearTimeout(timer);
-            timer = setTimeout(capture, ms);
-        };
-        const observer = new MutationObserver(() => schedule());
-        observer.observe(viewport, { subtree: true, childList: true, attributes: true, characterData: true });
-        const onVisibility = () => {
-            if (document.visibilityState === "visible") {
-                schedule();
-            }
-        };
-        document.addEventListener("visibilitychange", onVisibility);
-        window.addEventListener("resize", onVisibility);
+        } catch {
+            // The likeness stays.
+        }
+    };
+    const schedule = (ms = SnapshotSettleMs) => {
+        clearTimeout(timer);
+        timer = setTimeout(capture, ms);
+    };
+    clockOf(workspaceId);
+    const observer = new MutationObserver(() => {
+        noteSidebarChanged(workspaceId);
         schedule();
-        return () => {
-            alive = false;
-            clearTimeout(timer);
-            observer.disconnect();
-            document.removeEventListener("visibilitychange", onVisibility);
-            window.removeEventListener("resize", onVisibility);
-        };
-    }, [workspaceId, source, restKey]);
+    });
+    observer.observe(viewport, { subtree: true, childList: true, attributes: true, characterData: true });
+    const onVisibility = () => {
+        if (document.visibilityState === "visible") {
+            schedule();
+        }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("resize", onVisibility);
+    schedule();
+    return () => {
+        alive = false;
+        clearTimeout(timer);
+        observer.disconnect();
+        document.removeEventListener("visibilitychange", onVisibility);
+        window.removeEventListener("resize", onVisibility);
+    };
 }
