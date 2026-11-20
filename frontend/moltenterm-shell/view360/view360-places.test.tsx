@@ -10,15 +10,8 @@ import { carpetPlacesItems } from "../command-panel/providers/carpet-places";
 import { CarpetGroup, GroupAll, GroupPages } from "./carpet-group";
 import { placeOptions } from "./carpet-places";
 import type { PanelPlacement, View360Model } from "./view360-model";
-import {
-    CarpetHeaderButton,
-    chooserChoices,
-    EvenZonesRow,
-    groupPlanLines,
-    headerPlacement,
-    optionCaption,
-    optionsWhy,
-} from "./view360-places";
+import { CarpetHeaderButton, headerPlacement } from "./view360-places";
+import { chooserChoices, EvenZonesRow, groupPlanLines, optionCaption, optionsWhy } from "./view360-places-chooser";
 
 const fake = vi.hoisted(() => ({ view360: null as unknown }));
 
@@ -122,7 +115,7 @@ describe("Even out the zones, where the chooser and the command panel offer it (
     });
 
     it("stands in the chooser's Already in 360 view section, after the pins and before Leave", () => {
-        const source = readFileSync(resolve(__dirname, "view360-places.tsx"), "utf8");
+        const source = readFileSync(resolve(__dirname, "view360-places-chooser.tsx"), "utf8");
         const section = source.indexOf('t("view360.places.already")');
         expect(section).toBeGreaterThan(0);
         expect(source.indexOf("<EvenZonesRow", section)).toBeGreaterThan(

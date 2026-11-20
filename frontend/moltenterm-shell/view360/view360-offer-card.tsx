@@ -18,7 +18,7 @@ import { CarpetIcon } from "./view360-icon";
 import { OfferGrid } from "./view360-meta";
 import type { View360Model } from "./view360-model";
 import type { OfferState, ScreenOffer } from "./view360-offer";
-import { PlaceCount } from "./view360-places";
+import { PlaceCount } from "./view360-places-chooser";
 import "./view360.css";
 
 const AccentButton = "molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12";

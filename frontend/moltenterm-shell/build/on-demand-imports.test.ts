@@ -21,6 +21,10 @@ describe("on-demand modules stay out of the entry chunk (#2200)", () => {
         ["../reviews/reviews-launch.tsx", "./reviews-launch-dialogs"],
         ["../reviews/reviews-owners.tsx", "./reviews-owners-menu"],
         ["../view360/view360-carpet.tsx", "./view360-offer-card"],
+        // The carpet's tab strip, edge peeks and their captures load when a tab is first drawn in 360 view (#2433).
+        ["../view360/view360-carpet.tsx", "./view360-radar"],
+        // The chooser "Visible panels on the right" loads the first time a header button opens it (#2433).
+        ["../view360/view360-places.tsx", "./view360-places-chooser"],
         ["../../molten/molten-start.ts", "./molten-validate"],
         // Brokk's thought in 3D (FR-BOSS-010 AC19, NFR-BOSS-009, #2246): three.js and the scene load when the mode first
         // opens, never with the window.
