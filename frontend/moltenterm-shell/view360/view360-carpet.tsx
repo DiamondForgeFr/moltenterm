@@ -15,12 +15,15 @@ import { Rect } from "./carpet-model";
 import { canScrollX, horizontalWheelDelta, routeHorizontalWheel, wheelDeltaPx } from "./carpet-wheel";
 import type { View360Model } from "./view360-model";
 import { CarpetSensors } from "./view360-offcarpet";
-import { View360Radar } from "./view360-radar";
 import "./view360.css";
 
 // Loaded on demand: the offers of the first time only show until the developer answers them, so their cards stay out of
 // the JS every tab view loads up front (NFR-PERF-003, bundle.initialJsMB).
 const View360Offers = lazy(() => import("./view360-offer-card").then((m) => ({ default: m.View360Offers })));
+
+// The tab strip, the edge peeks and their captures load the first time a tab is drawn in 360 view (#2433): a tab in the
+// grid never needs them.
+const View360Radar = lazy(() => import("./view360-radar").then((m) => ({ default: m.View360Radar })));
 
 function OffersHost({ view360 }: { view360: View360Model }) {
     const offer = useAtomValue(view360.offerAtom);
@@ -135,7 +138,9 @@ export const View360Overlay = memo(({ layoutModel }: { layoutModel: LayoutModel 
                         }}
                     />
                 )}
-                <View360Radar layoutModel={layoutModel} layout={layout} />
+                <Suspense fallback={null}>
+                    <View360Radar layoutModel={layoutModel} layout={layout} />
+                </Suspense>
             </div>
             <OffersHost view360={view360} />
         </>

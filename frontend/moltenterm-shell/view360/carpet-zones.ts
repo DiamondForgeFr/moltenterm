@@ -59,10 +59,10 @@ export function withZoneShares(stored: ZoneShares, n: number, shares: number[]):
 }
 
 export function roundShares(shares: number[]): number[] {
-    const rounded = shares.map((s) => Math.round(s * ShareDigits) / ShareDigits);
-    const rest = 1 - rounded.slice(0, -1).reduce((acc, s) => acc + s, 0);
-    rounded[rounded.length - 1] = Math.round(rest * ShareDigits) / ShareDigits;
-    return rounded;
+    const parts = shares.map((s) => Math.round(s * ShareDigits) / ShareDigits);
+    const rest = 1 - parts.slice(0, -1).reduce((acc, s) => acc + s, 0);
+    parts[parts.length - 1] = Math.round(rest * ShareDigits) / ShareDigits;
+    return parts;
 }
 
 // Whether the zones read as equal: every share within a hundredth of the band of an equal part. No shares is even.
