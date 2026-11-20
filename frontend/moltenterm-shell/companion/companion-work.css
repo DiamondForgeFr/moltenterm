@@ -10,13 +10,15 @@
 .mt-cwork {
     --df-block-gap: 0px;
     --df-block-pad: 12px;
-    --df-block-pad-top: 22px;
+    --df-block-pad-top: 30px;
     --df-pocket-left: 12px;
     --df-block-content-gap: 10px;
+    /* The blocks sit 28 px apart, the suite's compact spacing (#2416). */
+    --mt-cwork-gap: 28px;
     position: relative;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    row-gap: 24px;
+    row-gap: var(--mt-cwork-gap);
     padding: 22px 0 4px;
 }
 
@@ -46,16 +48,23 @@
 .mt-cwork-col {
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: var(--mt-cwork-gap);
     min-width: 0;
 }
 
-/* The blocks keep 12 px from the companion's edges; the other sections of a band inset themselves. */
+/* The blocks keep 12 px from the companion's edges; the other sections of a band inset themselves. A block with its
+   icon tile (the tile hangs 16 px out of the corner) keeps 20 px on the left, and its tabs start after the tile. */
 .mt-cwork > .df-block,
 .mt-cwork-col > .df-block {
     margin-block: 0;
     margin-inline: 12px;
     min-width: 0;
+}
+
+.mt-cwork > .df-block:has(> .df-icon-tile),
+.mt-cwork-col > .df-block:has(> .df-icon-tile) {
+    --df-pocket-left: 32px;
+    margin-inline-start: 20px;
 }
 
 .mt-cwork [data-heat="running"] {
@@ -78,13 +87,174 @@
     --mt-cwork-heat: var(--mt-state-draft);
 }
 
+/* The Tasks block's lists run flush with the block's edges, divided by hairlines, and close the block (the suite's
+   rows). The hairline is the kit's: 60 % of the block's line. */
+.mt-cwork-flush {
+    --mt-cwork-hair: color-mix(in srgb, var(--df-line) 60%, transparent);
+    margin: 0 calc(var(--df-block-pad) * -1) calc(var(--df-block-pad) * -1);
+    border-radius: 0 0 var(--df-radius-lg) var(--df-radius-lg);
+    overflow: hidden;
+}
+
+.mt-cwork-flush > * {
+    border-top: 1px solid var(--mt-cwork-hair);
+}
+
+.mt-cwork-flush[data-bare] > :first-child {
+    border-top: 0;
+}
+
+.mt-cwork-flush ol,
+.mt-cwork-flush ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.mt-cwork-section > ol,
+.mt-cwork-section > ul {
+    display: flex;
+    flex-direction: column;
+}
+
+/* A section's head: its name in small capitals and its count in mono. */
+.mt-cwork-sec {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 var(--df-block-pad);
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.mt-cwork-sec[data-quiet] {
+    height: 22px;
+}
+
+.mt-cwork-n {
+    font-family: var(--font-mono, monospace);
+    font-weight: var(--mt-weight-medium);
+    letter-spacing: 0;
+}
+
 .mt-cwork-row {
     display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 9px var(--df-block-pad);
+    border-top: 1px solid var(--mt-cwork-hair);
+}
+
+.mt-cwork-row[data-compact] {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 4px;
+    min-height: 0;
+}
+
+.mt-cwork-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mt-cwork-head[data-top] {
     align-items: flex-start;
-    gap: 6px;
-    margin: 0 -4px;
-    padding: 3px 4px;
-    border-radius: var(--mt-radius-control);
+}
+
+/* The state mark of a row: the working arc and the ready dot at 12 px, the hollow dot of a ticket nobody holds at 9 px,
+   in a fixed box so the rows' texts line up. */
+.mt-cwork-mark {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 17px;
+    --mt-mark: 12px;
+}
+
+.mt-cwork-mark[data-free] {
+    --mt-mark: 9px;
+}
+
+.mt-cwork-id {
+    flex: none;
+    min-width: 44px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--mt-text-2);
+    cursor: pointer;
+    font-family: var(--font-mono, monospace);
+    font-size: var(--mt-text-11);
+    line-height: 17px;
+    text-align: left;
+}
+
+.mt-cwork-id:hover {
+    text-decoration: underline;
+}
+
+.mt-cwork-id[data-mine] {
+    color: var(--mt-state-running);
+}
+
+.mt-cwork-row[data-compact] .mt-cwork-id {
+    min-width: 0;
+}
+
+.mt-cwork-text {
+    display: -webkit-box;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-12);
+    line-height: 17px;
+}
+
+.mt-cwork-text[data-free] {
+    color: var(--mt-text-2);
+}
+
+.mt-cwork-text .mt-cwork-id {
+    margin-right: 6px;
+}
+
+.mt-cwork-row[data-compact] > .mt-cwork-text {
+    padding-left: 20px;
+}
+
+.mt-cwork-chips {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 50%;
+}
+
+.mt-cwork-slim {
+    padding: 8px var(--df-block-pad) 8px 34px;
+    border-top: 1px solid var(--mt-cwork-hair);
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-cwork-empty {
+    padding: 14px var(--df-block-pad);
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-12);
 }
 
 /* Both ends of a link light together while the pointer is on one of them or on its line. */
@@ -96,13 +266,108 @@
     background-color: color-mix(in srgb, var(--mt-cwork-heat, var(--mt-state-running)) 12%, transparent);
 }
 
+/* The milestone's header: its name, its state with its shape, its due date and its count. */
+.mt-cwork-name {
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-20);
+    font-weight: var(--mt-weight-semibold);
+    letter-spacing: -0.01em;
+    line-height: 24px;
+}
+
+.mt-cwork-name[data-compact] {
+    font-size: var(--mt-text-15);
+}
+
+.mt-cwork-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-cwork-state[data-standing="late"] {
+    color: var(--mt-state-blocked-text);
+}
+
+.mt-cwork-state[data-standing="ready"] {
+    color: var(--mt-state-ready);
+}
+
+.mt-cwork-state .mt-state-mark,
+.mt-cwork-tabmark {
+    --mt-mark: 7px;
+}
+
 .mt-cwork-bar {
     position: relative;
-    flex: 1;
+    flex: none;
+    width: 100%;
     height: 4px;
     overflow: hidden;
     border-radius: var(--mt-radius-control);
     background: color-mix(in srgb, var(--mt-text-3) 25%, transparent);
+}
+
+/* A finished milestone's placeholder: a patina ring with a check, a line, and the one action in orange. */
+.mt-cwork-ready {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 26px var(--df-block-pad) 28px;
+    text-align: center;
+}
+
+.mt-cwork-ring {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid color-mix(in srgb, var(--mt-state-ready) 45%, transparent);
+    border-radius: 9999px;
+    color: var(--mt-state-ready);
+    font-size: var(--mt-text-15);
+}
+
+.mt-cwork-ready-title {
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-15);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-cwork-ready-text {
+    max-width: 360px;
+    margin: 0;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-12);
+    line-height: 18px;
+}
+
+/* "Open the milestone" in the pocket on the bottom border: a link, so the action colour. */
+.mt-cwork-foot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 4px;
+    border: 0;
+    background: none;
+    color: var(--mt-action-text, var(--mt-action));
+    cursor: pointer;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-cwork-foot:hover {
+    text-decoration: underline;
+}
+
+.mt-cwork-foot i {
+    font-size: var(--mt-text-11);
 }
 
 .mt-cwork-bar::after {

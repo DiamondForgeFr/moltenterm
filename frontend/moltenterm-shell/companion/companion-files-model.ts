@@ -18,7 +18,28 @@ export type CompanionPrefs = {
     summariesasked?: boolean;
     // The developer's own arrangement of the sections (#2395); absent means the default layout.
     layout?: CompanionLayout;
+    // The milestone tab the developer chose in the Tasks block, per project folder (#2416): the number of the milestone,
+    // kept while it is open. The oldest ones leave beyond MaxChosenTabs.
+    milestonetabs?: Record<string, number>;
 };
+
+export const MaxChosenTabs = 32;
+
+function readMilestoneTabs(value: unknown): Record<string, number> {
+    if (value == null || typeof value !== "object" || Array.isArray(value)) {
+        return undefined;
+    }
+    const entries = Object.entries(value as Record<string, unknown>).filter(
+        ([dir, n]) => dir !== "" && typeof n === "number" && Number.isInteger(n) && n > 0
+    ) as [string, number][];
+    return entries.length > 0 ? Object.fromEntries(entries.slice(-MaxChosenTabs)) : undefined;
+}
+
+// The choices with this one added as the most recent, the oldest left out beyond MaxChosenTabs.
+export function withChosenTab(tabs: Record<string, number>, dir: string, milestone: number): Record<string, number> {
+    const kept = Object.entries(tabs ?? {}).filter(([d]) => d !== dir);
+    return Object.fromEntries([...kept, [dir, milestone]].slice(-MaxChosenTabs));
+}
 
 export function readCompanionPrefs(value: unknown): CompanionPrefs {
     if (value == null || typeof value !== "object" || Array.isArray(value)) {
@@ -30,6 +51,7 @@ export function readCompanionPrefs(value: unknown): CompanionPrefs {
         usagedetails: prefs.usagedetails === true,
         summariesasked: prefs.summariesasked === true,
         layout: readStoredLayout(prefs.layout) ?? undefined,
+        milestonetabs: readMilestoneTabs(prefs.milestonetabs),
     };
 }
 

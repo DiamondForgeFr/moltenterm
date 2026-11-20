@@ -20,9 +20,28 @@ export function GlowRing({ on }: { on?: boolean }) {
     return <span className="df-glow" data-on={on ? "" : undefined} aria-hidden />;
 }
 
+// One tab of a block's label (#2416): the pocket holds a chip per tab. mark is a small state shape drawn after the
+// label (a dot, a diamond); it never carries a state alone, so the caller gives the tab a title that says it.
+export type SuiteTab = { value: string; label: string; mark?: React.ReactNode; title?: string };
+
+// Tabs in the label pocket, in place of the single chip. The selected tab is the label chip, the others are off chips;
+// "more" is one more off chip at the end, for the tabs that do not fit.
+export type SuiteTabs = {
+    label: string;
+    // The id of the panel the tabs switch: a tab's own id is `${panelId}-tab-${value}` (suiteTabId), for the panel's
+    // aria-labelledby.
+    panelId?: string;
+    tabs: SuiteTab[];
+    selected: string;
+    onSelect: (value: string) => void;
+    more?: { label: string; title?: string; onOpen: (e: React.MouseEvent<HTMLButtonElement>) => void };
+};
+
 export type SectionBlockProps = Omit<React.HTMLAttributes<HTMLElement>, "title"> & {
     // The label chip on the top border; a block without one has no pocket.
     title?: string;
+    // The label as tabs instead of one chip: the block is named by the tab list.
+    tabs?: SuiteTabs;
     icon?: SuiteIcon;
     description?: React.ReactNode;
     // An action straddling the bottom border, right side.
@@ -35,8 +54,63 @@ export type SectionBlockProps = Omit<React.HTMLAttributes<HTMLElement>, "title">
     children?: React.ReactNode;
 };
 
+export function suiteTabId(panelId: string, value: string): string {
+    return `${panelId}-tab-${value}`;
+}
+
+// The tabs of a block's label: one tab stop on the selected tab, the arrows and Home / End move and choose
+// (WAI-ARIA tabs with automatic activation, the way ToggleGroup moves).
+function BlockTabs({ tabs }: { tabs: SuiteTabs }) {
+    const listRef = useRef<HTMLSpanElement>(null);
+    const selectedIndex = tabs.tabs.findIndex((t) => t.value === tabs.selected);
+    const tabStop = selectedIndex < 0 ? 0 : selectedIndex;
+    const onKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
+        const nodes = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? []);
+        const next = nextToggleIndex(e.key, nodes.indexOf(document.activeElement as HTMLElement), tabs.tabs.length);
+        if (next < 0) {
+            return;
+        }
+        e.preventDefault();
+        nodes[next]?.focus();
+        tabs.onSelect(tabs.tabs[next].value);
+    };
+    return (
+        <span ref={listRef} role="tablist" aria-label={tabs.label} className="df-pocket-tabs" onKeyDown={onKeyDown}>
+            {tabs.tabs.map((tab, i) => (
+                <button
+                    key={tab.value}
+                    type="button"
+                    role="tab"
+                    id={tabs.panelId ? suiteTabId(tabs.panelId, tab.value) : undefined}
+                    aria-selected={tab.value === tabs.selected}
+                    aria-controls={tabs.panelId}
+                    tabIndex={i === tabStop ? 0 : -1}
+                    title={tab.title}
+                    className={joinClasses("df-chip", "df-chip-tab", tab.value !== tabs.selected && "df-chip-off")}
+                    onClick={() => tabs.onSelect(tab.value)}
+                >
+                    <span className="df-chip-text">{tab.label}</span>
+                    {tab.mark}
+                </button>
+            ))}
+            {tabs.more ? (
+                <button
+                    type="button"
+                    aria-haspopup="menu"
+                    title={tabs.more.title}
+                    className="df-chip df-chip-tab df-chip-off"
+                    onClick={tabs.more.onOpen}
+                >
+                    {tabs.more.label}
+                </button>
+            ) : null}
+        </span>
+    );
+}
+
 export function SectionBlock({
     title,
+    tabs,
     icon: Icon,
     description,
     footer,
@@ -51,14 +125,15 @@ export function SectionBlock({
     const blockRef = useRef<HTMLElement>(null);
     const pocketRef = useRef<HTMLSpanElement>(null);
     const footerRef = useRef<HTMLSpanElement>(null);
-    useNotchWidths(blockRef, pocketRef, footerRef, !!title, !!footer);
+    const named = !!title || tabs != null;
+    useNotchWidths(blockRef, pocketRef, footerRef, named, !!footer);
     return (
         <section
             ref={blockRef}
-            aria-labelledby={title ? headingId : undefined}
+            aria-labelledby={title && tabs == null ? headingId : undefined}
             {...rest}
             className={joinClasses("df-block", className)}
-            data-untitled={title ? undefined : ""}
+            data-untitled={named ? undefined : ""}
             data-footer={footer ? "" : undefined}
             data-tone={tone}
             data-chip-case={titleCase === "as-is" ? "as-is" : undefined}
@@ -69,7 +144,11 @@ export function SectionBlock({
                     <Icon strokeWidth={2} aria-hidden />
                 </span>
             ) : null}
-            {title ? (
+            {tabs != null ? (
+                <span className="df-pocket" ref={pocketRef}>
+                    <BlockTabs tabs={tabs} />
+                </span>
+            ) : title ? (
                 <span className="df-pocket" ref={pocketRef}>
                     <span className="df-chip">
                         <h3 id={headingId} className="df-chip-text">

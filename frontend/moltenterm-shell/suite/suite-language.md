@@ -53,8 +53,9 @@ Unset, the kit falls back to `--df-accent`, as Notulia does. The terminal stays 
 
 ## Using the kit in MoltenTerm
 
-- Components (`suite.tsx`): `SectionBlock` (title chip, `icon`, `description`, `footer` straddling the bottom border,
-  `glow`, `tone="danger"`, `titleCase="as-is"`), `BlockRows`, `OptionList` + `OptionRow`, `RadioDot`, `ToggleGroup`,
+- Components (`suite.tsx`): `SectionBlock` (title chip, or `tabs` in the pocket instead of the chip: the selected tab
+  is the label chip, the others are off chips, an optional "+N" chip last; `icon`, `description`, `footer` straddling
+  the bottom border, `glow`, `tone="danger"`, `titleCase="as-is"`), `BlockRows`, `OptionList` + `OptionRow`, `RadioDot`, `ToggleGroup`,
   `GlowRing`, `SuiteSignature` (the "MoltenTerm 1.0.0 · A DiamondForge product" line, #740: the app passes its name,
   version and translated label; it sits only in quiet places, the end of Settings' sidebar and under the version in
   the version history, never in the status bar or the tab bar).

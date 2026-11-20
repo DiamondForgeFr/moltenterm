@@ -16,6 +16,7 @@ import {
     SectionBlock,
     snapToCycle,
     SuiteSignature,
+    suiteTabId,
     ToggleGroup,
 } from "./suite";
 import { suiteIcon, SuiteIcons } from "./suite-icons";
@@ -88,6 +89,66 @@ describe("DiamondForge suite kit (#658)", () => {
         expect(renderToStaticMarkup(<SectionBlock title="my_token" titleCase="as-is" />)).toContain(
             'data-chip-case="as-is"'
         );
+    });
+
+    // #2416: a block's label can be a row of tabs. The selected tab is the label chip, the others are off chips, one tab
+    // stop on the selected one, and the block is named by the caller, not by a heading.
+    it("draws tabs in the label pocket: one label chip, off chips, a +N chip, one tab stop", () => {
+        const html = renderToStaticMarkup(
+            <SectionBlock
+                aria-label="Tasks"
+                icon={suiteIcon("tasks")}
+                tabs={{
+                    label: "Tasks by milestone",
+                    panelId: "p1",
+                    tabs: [
+                        { value: "13", label: "v1.3.0", mark: <i data-mark="" />, title: "Ready" },
+                        { value: "14", label: "v1.4.0" },
+                    ],
+                    selected: "14",
+                    onSelect: () => {},
+                    more: { label: "+2", title: "2 more milestones", onOpen: () => {} },
+                }}
+            >
+                x
+            </SectionBlock>
+        );
+        expect(html).not.toContain("<h3");
+        expect(html).not.toContain("aria-labelledby");
+        expect(html).toContain('role="tablist" aria-label="Tasks by milestone"');
+        const tabs = [...html.matchAll(/<button type="button" role="tab"([^>]*)>/g)].map((m) => m[1]);
+        expect(tabs).toHaveLength(2);
+        expect(tabs[0]).toContain('id="p1-tab-13"');
+        expect(tabs[0]).toContain('aria-selected="false"');
+        expect(tabs[0]).toContain('tabindex="-1"');
+        expect(tabs[0]).toContain('class="df-chip df-chip-tab df-chip-off"');
+        expect(tabs[1]).toContain('aria-selected="true"');
+        expect(tabs[1]).toContain('aria-controls="p1"');
+        expect(tabs[1]).toContain('tabindex="0"');
+        expect(tabs[1]).toContain('class="df-chip df-chip-tab"');
+        expect(html).toContain('data-mark=""');
+        expect(html).toContain('aria-haspopup="menu"');
+        expect(html).toContain(">+2</button>");
+        expect(html).not.toContain("data-untitled");
+        expect(suiteTabId("p1", "13")).toBe("p1-tab-13");
+    });
+
+    it("leaves the first tab the stop when none is selected, and draws no more chip without one", () => {
+        const html = renderToStaticMarkup(
+            <SectionBlock
+                tabs={{
+                    label: "T",
+                    tabs: [
+                        { value: "a", label: "A" },
+                        { value: "b", label: "B" },
+                    ],
+                    selected: "z",
+                    onSelect: () => {},
+                }}
+            />
+        );
+        expect(html.match(/tabindex="0"/g)).toHaveLength(1);
+        expect(html).not.toContain("aria-haspopup");
     });
 
     it("marks the selected option row with its label, as a real radio", () => {

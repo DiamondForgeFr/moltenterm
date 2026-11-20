@@ -2112,8 +2112,31 @@
                 "one": "and {count} more",
                 "other": "and {count} more"
             },
-            "allDone": "Nothing left to do in this milestone.",
+            "empty": "No ticket in this milestone yet.",
             "reading": "Reading the milestone…",
+            "tabsLabel": "Tasks by milestone",
+            "moreTabs": "+{count}",
+            "moreTabsTitle": {
+                "one": "{count} more milestone",
+                "other": "{count} more milestones"
+            },
+            "ready": "Ready to release",
+            "lateShort": "{count} d late",
+            "lateLong": {
+                "one": "{count} day late",
+                "other": "{count} days late"
+            },
+            "doneOf": "/ {total} done",
+            "noneLeft": "No tickets left",
+            "noneLeftText": "Everything is merged. This milestone stays here until its release closes it.",
+            "prepareRelease": "Prepare the release",
+            "prepareReleaseTitle": "Open the Project view, where the release starts",
+            "seeTickets": {
+                "one": "See the ticket",
+                "other": "See the {count} tickets"
+            },
+            "inProgressHere": "In progress here",
+            "toTake": "To take",
             "phrasing": "Writing the summaries…",
             "phrasingTitle": "The project's agent writes one sentence per ticket, in the interface language. The titles show meanwhile.",
             "offer": "Explain each ticket in one sentence in your language? Uses your agent (a small model), at most 24 times a day.",

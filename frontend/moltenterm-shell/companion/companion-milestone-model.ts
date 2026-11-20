@@ -1,9 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The companion's Tasks block (FR-SHELL-018, #2392): the project's active milestone as wavesrv reads it
-// (pkg/molten/milestones), the agent's own task list, and the links from a task in progress to the agent working on it.
-// A link is drawn only on a certain match, never guessed. Pure, so it is tested without a window.
+// The companion's Tasks block (FR-SHELL-018, #2392, #2416): the project's open milestones as wavesrv reads them
+// (pkg/molten/milestones), one tab each, the agent's own task list, and the links from a task in progress to the agent
+// working on it. A link is drawn only on a certain match, never guessed. Pure, so it is tested without a window.
 
 import type { StateMarkKind } from "../state-mark";
 import { CompanionTodo, CompanionView } from "./companion-model";
@@ -33,12 +33,15 @@ export type MilestoneInfo = {
     due?: number;
     remaining: number;
     tickets: MilestoneTicket[];
+    // Its tickets were read: one with no open issue has none to read, one past the first tabs is read once selected.
+    loaded?: boolean;
 };
 
 export type MilestonesView = {
     dir: string;
     state: MilestoneState;
-    milestone?: MilestoneInfo;
+    // Every open milestone, in the order of the tabs (the oldest version first).
+    milestones?: MilestoneInfo[];
     // summaries: the developer turned the sentences on and confirmed it; phrasable: the project's agent can write them.
     summaries?: boolean;
     phrasable?: boolean;
@@ -49,7 +52,109 @@ export type MilestonesView = {
 // The one-time offer to explain each ticket in one sentence (#2392): shown above the milestone's tickets while the
 // sentences are off, the project's agent can write them and the offer was never answered.
 export function offersSummaries(view: MilestonesView, asked: boolean): boolean {
-    return view?.state === "ok" && view.milestone != null && view.phrasable === true && !view.summaries && !asked;
+    return (
+        view?.state === "ok" &&
+        (view.milestones?.length ?? 0) > 0 &&
+        view.phrasable === true &&
+        !view.summaries &&
+        !asked
+    );
+}
+
+// The most tabs a companion shows (pkg/molten/milestones/forge.go ticketMilestones): the others are in the "+N" menu.
+export const MaxMilestoneTabs = 4;
+
+// A milestone whose work is all merged: no open issue left, at least one closed. It keeps its tab until its release
+// closes the milestone (#2416); one with no issue at all has nothing to ship.
+export function milestoneReady(m: MilestoneInfo): boolean {
+    return m != null && (m.open ?? 0) <= 0 && (m.closed ?? 0) > 0;
+}
+
+// The tab shown: the one the developer chose while its milestone is still open, else the oldest open milestone (the
+// release being prepared). None without a milestone.
+export function chosenMilestone(list: MilestoneInfo[], chosen: number): MilestoneInfo {
+    const milestones = list ?? [];
+    return milestones.find((m) => m.number === chosen) ?? milestones[0] ?? null;
+}
+
+export type TabSplit = { shown: MilestoneInfo[]; more: MilestoneInfo[] };
+
+// The tabs drawn and those in the "+N" menu. room is how many tabs fit (MaxMilestoneTabs at most, one at least): the
+// first ones, in order; the selected one is always drawn, in the last place when it comes later, so what is shown is
+// what is chosen.
+export function splitTabs(list: MilestoneInfo[], selected: number, room: number): TabSplit {
+    const milestones = list ?? [];
+    const limit = Math.max(1, Math.min(MaxMilestoneTabs, Math.floor(room || 0), milestones.length));
+    let shown = milestones.slice(0, limit);
+    const picked = milestones.find((m) => m.number === selected);
+    if (picked != null && !shown.includes(picked)) {
+        shown = [...shown.slice(0, limit - 1), picked];
+    }
+    const place = new Map(milestones.map((m, i) => [m.number, i]));
+    shown.sort((a, b) => place.get(a.number) - place.get(b.number));
+    return { shown, more: milestones.filter((m) => !shown.includes(m)) };
+}
+
+// How many tabs fit in a width, from the length of their names: the chip's padding and border, its label at 11 px
+// semibold with its tracking, and the small shape of a late or ready milestone. A row that does not fit whole leaves
+// room for the "+N" chip. The tab row never wraps.
+const TabLabelMax = 14;
+const TabCharPx = 7.9;
+const TabChipPx = 22;
+const TabMarkPx = 13;
+const TabGapPx = 6;
+const TabMorePx = 38;
+
+export function tabLabel(title: string): string {
+    const text = (title ?? "").trim();
+    return text.length > TabLabelMax ? `${text.slice(0, TabLabelMax - 1)}…` : text;
+}
+
+export function tabRoom(tabs: { label: string; marked: boolean }[], available: number): number {
+    const widths = (tabs ?? []).map(
+        (t) => TabChipPx + Math.min(t.label.length, TabLabelMax) * TabCharPx + (t.marked ? TabMarkPx : 0)
+    );
+    const fits = (budget: number) => {
+        let used = 0;
+        let count = 0;
+        for (const w of widths) {
+            const next = used + (count > 0 ? TabGapPx : 0) + w;
+            if (next > budget) {
+                break;
+            }
+            used = next;
+            count++;
+        }
+        return count;
+    };
+    if (widths.length <= MaxMilestoneTabs && fits(available) === widths.length) {
+        return widths.length;
+    }
+    return Math.max(1, Math.min(MaxMilestoneTabs, fits(available - TabMorePx - TabGapPx)));
+}
+
+export type Standing = "ready" | "late" | "";
+
+// The heat of a milestone, always paired with a shape and a word: a finished one is ready (patina dot), a late one has
+// work left past its due date (ember diamond). A finished milestone is never late: its work is done.
+export function milestoneStanding(m: MilestoneInfo, now: number): Standing {
+    if (m == null) {
+        return "";
+    }
+    if (milestoneReady(m)) {
+        return "ready";
+    }
+    return (m.open ?? 0) > 0 && daysLate(m.due, now) > 0 ? "late" : "";
+}
+
+// Whole days past the due date, from the day the forge holds (UTC); 0 when it is not due yet, due today or has none.
+export function daysLate(due: number, now: number): number {
+    if (!(due > 0)) {
+        return 0;
+    }
+    const day = Date.parse(dayOf(due));
+    const today = Date.parse(dayOf(now));
+    return Math.max(0, Math.round((today - day) / 86400000));
 }
 
 export type MilestonesSignal = { dir: string; rev: number };
