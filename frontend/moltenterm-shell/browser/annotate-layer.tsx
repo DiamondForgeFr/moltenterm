@@ -407,6 +407,12 @@ function AnnotateLayer({
                   pages: undecided.length,
               }
             : null;
+    useEffect(() => {
+        // The question, and the review, replace the toolbar that held the focus: the layer takes it, so Escape answers them.
+        if (leaveAsk || phase === "review") {
+            rootRef.current?.focus();
+        }
+    }, [leaveAsk, phase]);
     const leave = () => (state.zones.length > 0 ? setLeaveAsk(true) : onClose());
     const leaveRef = useRef(leave);
     leaveRef.current = leave;
