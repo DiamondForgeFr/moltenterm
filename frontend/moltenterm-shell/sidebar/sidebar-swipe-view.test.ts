@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Box, overlapArea } from "../switch-layout/layout-memory";
 import { ringTurns, SidebarSwipeController, SwipeActions, SwipeView } from "./sidebar-swipe-view";
 
 function fakeElement(width = 240, holds?: string): HTMLElement {
@@ -23,20 +24,32 @@ function fakeElement(width = 240, holds?: string): HTMLElement {
     } as unknown as HTMLElement;
 }
 
+type LeaveRecord = { drawnFor: string; progress: number; seen: number[]; clears: number };
+
 type Fixture = {
     controller: SidebarSwipeController;
     actions: { [K in keyof SwipeActions]: ReturnType<typeof vi.fn> };
     pull: (side: -1 | 1) => HTMLElement;
     view: SwipeView;
+    leave: LeaveRecord;
+    el: (key: string) => HTMLElement;
 };
 
 function fixture(
-    opts: { ids?: string[]; activeId?: string; creating?: boolean; reduced?: boolean; libraryOpen?: boolean } = {}
+    opts: {
+        ids?: string[];
+        activeId?: string;
+        creating?: boolean;
+        reduced?: boolean;
+        libraryOpen?: boolean;
+        noLayout?: boolean;
+    } = {}
 ): Fixture {
     const page = fakeElement();
     const aside = fakeElement(240, "aside");
     const libraryEl = fakeElement(1200, "library");
     let library = opts.libraryOpen ? libraryEl : null;
+    const leave: LeaveRecord = { drawnFor: null, progress: 0, seen: [], clears: 0 };
     const els = new Map<string, HTMLElement>();
     const el = (key: string) => {
         if (!els.has(key)) {
@@ -47,7 +60,22 @@ function fixture(
     const view: SwipeView = {
         page: () => page,
         ghost: (side) => el(`ghost${side}`),
-        tint: () => el("tint"),
+        leave: {
+            prepare: (id) => {
+                leave.drawnFor = id;
+                leave.progress = 0;
+                return opts.noLayout !== true;
+            },
+            progress: (p) => {
+                leave.progress = p;
+                leave.seen.push(p);
+            },
+            clear: () => {
+                leave.drawnFor = null;
+                leave.progress = 0;
+                leave.clears++;
+            },
+        },
         pull: (side) => el(`pull${side}`),
         shadow: (side) => el(`shadow${side}`),
         library: () => library,
@@ -58,7 +86,6 @@ function fixture(
             creating: opts.creating ?? false,
             otherPage: false,
         }),
-        tintColour: (id) => (id ? `tint-${id}` : null),
         reduced: () => opts.reduced ?? false,
     };
     const actions = {
@@ -72,7 +99,7 @@ function fixture(
         startCreate: vi.fn(),
         leaveCreate: vi.fn(),
     };
-    return { controller: new SidebarSwipeController(view, actions), actions, pull: view.pull, view };
+    return { controller: new SidebarSwipeController(view, actions), actions, pull: view.pull, view, leave, el };
 }
 
 // Feeds deltas every 8 ms on the faked clock, as a 120 Hz trackpad does.
@@ -424,5 +451,131 @@ describe("the pull's ring", () => {
         expect(ringTurns(0.25)).toEqual({ right: 90, left: 0 });
         expect(ringTurns(0.75)).toEqual({ right: 180, left: 90 });
         expect(ringTurns(2)).toEqual({ right: 180, left: 180 });
+    });
+});
+
+describe("side panels edge to edge, the content into the next layout (FR-SHELL-082, #2407)", () => {
+    beforeEach(() => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance", "Date"] });
+        vi.stubGlobal("requestAnimationFrame", (fn: FrameRequestCallback) =>
+            setTimeout(() => fn(performance.now()), 16)
+        );
+        vi.stubGlobal("cancelAnimationFrame", (id: any) => clearTimeout(id));
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+    });
+
+    const Width = 240;
+    type Frame = { page: Box; ghost: Box; progress: number };
+
+    function shiftOf(el: HTMLElement): number {
+        const m = /translate3d\((-?[\d.e-]+)px/.exec(el.style.transform ?? "");
+        return m == null ? null : parseFloat(m[1]);
+    }
+
+    function rect(x: number): Box {
+        return { left: x, top: 0, width: Width, height: 600 };
+    }
+
+    // The rectangles of the page and of the neighbour coming in, as the last display frame drew them.
+    function sample(f: Fixture, side: -1 | 1, out: Frame[]) {
+        const px = shiftOf(f.view.page());
+        const gx = shiftOf(f.el(`ghost${side}`));
+        if (px != null && gx != null) {
+            out.push({ page: rect(px), ghost: rect(gx), progress: f.leave.progress });
+        }
+    }
+
+    function runFrames(f: Fixture, side: -1 | 1, out: Frame[], count = 60) {
+        for (let i = 0; i < count; i++) {
+            vi.advanceTimersByTime(16);
+            sample(f, side, out);
+        }
+    }
+
+    it("never overlaps the outgoing and the incoming sidebars at any step of a slow scroll, its settle included", () => {
+        const f = fixture();
+        const frames: Frame[] = [];
+        // A slow two-finger scroll: 3 px every 16 ms, then the release and the settle.
+        for (let i = 0; i < 40; i++) {
+            f.controller.handle(3, 0, performance.now(), "sidebar");
+            vi.advanceTimersByTime(16);
+            sample(f, 1, frames);
+        }
+        runFrames(f, 1, frames);
+        expect(frames.length).toBeGreaterThan(40);
+        for (const fr of frames) {
+            expect(overlapArea(fr.page, fr.ghost)).toBeLessThanOrEqual(0);
+            // Edge to edge: the incoming panel starts where the outgoing one ends, no gap either.
+            expect(Math.abs(fr.ghost.left - (fr.page.left + fr.page.width))).toBeLessThan(0.5);
+            // The content has faded into the next layout by the share the sidebar travelled (wholly in once landed).
+            if (fr.progress < 1) {
+                expect(fr.progress).toBeCloseTo(-fr.page.left / Width, 5);
+            }
+        }
+        // The slow scroll moved it slowly: 3 px a frame while the fingers moved.
+        expect(Math.abs(frames[1].page.left - frames[0].page.left)).toBeLessThanOrEqual(3.01);
+        expect(f.actions.switchTo).toHaveBeenCalledTimes(1);
+        expect(f.actions.switchTo.mock.calls[0][2]).toMatchObject({ offset: 1, layout: true });
+        expect(f.leave.drawnFor).toBe("c");
+    });
+
+    it("puts everything back exactly as it was when the gesture is let go half way", () => {
+        const f = fixture();
+        for (let i = 0; i < 12; i++) {
+            f.controller.handle(4, 0, performance.now(), "sidebar");
+            vi.advanceTimersByTime(16);
+        }
+        expect(f.leave.progress).toBeGreaterThan(0.1);
+        vi.advanceTimersByTime(2000);
+        expect(f.actions.switchTo).not.toHaveBeenCalled();
+        expect(f.view.page().style.transform).toBe("");
+        expect(f.el("ghost1").style.transform).toBe("");
+        expect(f.leave.drawnFor).toBeNull();
+        expect(f.leave.progress).toBe(0);
+        expect(f.leave.clears).toBeGreaterThan(0);
+        expect(f.controller.state.phase).toBe("idle");
+    });
+
+    it("plays a dot's switch to a neighbour as the swipe's own eased settle, then asks the switch", () => {
+        const f = fixture();
+        const frames: Frame[] = [];
+        expect(f.controller.autoSwitch("c", 1)).toBe(true);
+        runFrames(f, 1, frames);
+        expect(frames.length).toBeGreaterThan(5);
+        for (const fr of frames) {
+            expect(overlapArea(fr.page, fr.ghost)).toBeLessThanOrEqual(0);
+        }
+        const seen = f.leave.seen;
+        expect(seen[seen.length - 1]).toBe(1);
+        for (let i = 1; i < seen.length; i++) {
+            expect(seen[i]).toBeGreaterThanOrEqual(seen[i - 1] - 1e-9);
+        }
+        expect(f.actions.switchTo).toHaveBeenCalledWith("c", 1, expect.objectContaining({ offset: 1, layout: true }));
+    });
+
+    it("leaves a dot's switch to a workspace that is not a neighbour, or under reduced motion, to the cross-fade", () => {
+        expect(fixture().controller.autoSwitch("a", 1)).toBe(false);
+        expect(fixture({ reduced: true }).controller.autoSwitch("c", 1)).toBe(false);
+    });
+
+    it("under reduced motion shows the layout at once, then switches: the same steps without the slide", () => {
+        const f = fixture({ reduced: true });
+        feed(f.controller, Array(14).fill(12));
+        vi.advanceTimersByTime(200);
+        expect(f.leave.seen).toContain(1);
+        expect(f.actions.switchTo.mock.calls[0][2]).toMatchObject({ layout: true });
+        expect(shiftOf(f.view.page()) ?? 0).toBe(0);
+    });
+
+    it("tells the switch there is no layout when the neighbour has none yet", () => {
+        const f = fixture({ noLayout: true });
+        f.controller.autoSwitch("c", 1);
+        runFrames(f, 1, []);
+        expect(f.actions.switchTo.mock.calls[0][2]).toMatchObject({ layout: false });
+        expect(f.leave.seen).toEqual([]);
     });
 });

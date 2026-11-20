@@ -46,6 +46,7 @@ import { startCarpetThumbCleanup } from "./moltenterm-shell/view360/carpet-thumb
 import { startMoltentermI18n, whenMoltentermI18nReady } from "./moltenterm-shell/i18n/i18n-start"; // MOLTENTERM-PATCH (#623, #1213)
 import { reconnectWSIfClosed } from "./moltenterm-shell/ws-health"; // MOLTENTERM-PATCH (#223)
 import { primeWindowLook } from "./moltenterm-shell/window-look"; // MOLTENTERM-PATCH (#2390)
+import { wearSwitchArrival } from "./moltenterm-shell/switch-layout/layout-arrival"; // MOLTENTERM-PATCH (#2407)
 import { startWosResync } from "./moltenterm-shell/wos-resync"; // MOLTENTERM-PATCH (#1950)
 import { pinTabWorkspace } from "./moltenterm-shell/tab-workspace"; // MOLTENTERM-PATCH (#447)
 import { TabActivity } from "./moltenterm-shell/tab-activity"; // MOLTENTERM-PATCH (#455)
@@ -116,6 +117,7 @@ async function initWaveWrap(initOpts: WaveInitOpts) {
 
 async function reinitWave() {
     console.log("Reinit Wave");
+    wearSwitchArrival(globalStore.get(atoms.workspace)?.oid, savedInitOpts?.tabId); // MOLTENTERM-PATCH (#2407): before it is on screen
     getApi().sendLog("Reinit Wave");
     if (reconnectWSIfClosed(globalWS, "reinit")) {
         getApi().sendLog("Reinit Wave: websocket was closed, reconnecting"); // MOLTENTERM-PATCH (#223)
@@ -235,6 +237,7 @@ async function initWave(initOpts: WaveInitOpts) {
     startAppTheme(atoms.settingsAtom); // MOLTENTERM-PATCH (#1341): the interface theme, before the first render
     await startMoltentermI18n(); // MOLTENTERM-PATCH (#623, #1213): the interface language, loaded before the first render
     await primeWindowLook(); // MOLTENTERM-PATCH (#2390): the workspace's look drawn and sent before the first paint
+    wearSwitchArrival(globalStore.get(atoms.workspace)?.oid, initOpts.tabId); // MOLTENTERM-PATCH (#2407): the remembered layout's frames before the first paint
     const reactElem = createElement(App, { onFirstRender: firstRenderResolveFn }, null);
     const elem = document.getElementById("main");
     const root = createRoot(elem);

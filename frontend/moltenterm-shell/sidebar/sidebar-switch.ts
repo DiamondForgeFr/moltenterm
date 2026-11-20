@@ -12,6 +12,7 @@ import { useAtomValue } from "jotai";
 import { useEffect } from "react";
 import { prefersReducedMotion } from "../molten-motion";
 import { settleFrames, SettleMs, settleOffset, SwipeAbsorb, SwipeSettle, workspaceAtNumber } from "./sidebar-swipe";
+import { clearLeave, holdLeave, leaving, playLeave, prepareLeave } from "../switch-layout/layout-frames";
 import { makeSwitchIntent } from "./switch-intent";
 
 export const SwitchIntentKey = "moltenterm:sidebar-switch";
@@ -29,10 +30,12 @@ export type SwitchIntent = {
     v0?: number;
     // The gesture's momentum, on the Date.now() clock: the new view absorbs its rest.
     absorb?: SwipeAbsorb;
+    // The view left faded into the target's remembered layout (#2407): the target wears the same frames.
+    layout?: boolean;
 };
 
 // What a swipe hands to the switch.
-export type SwitchSwipe = { offset: number; v0: number; absorb: SwipeAbsorb };
+export type SwitchSwipe = { offset: number; v0: number; absorb: SwipeAbsorb; layout?: boolean };
 
 function readStorage(key: string): string {
     try {
@@ -85,6 +88,9 @@ export function parseSwitchIntent(raw: string): SwitchIntent {
         if (finite(a?.sign) != null && finite(a?.lastAbs) != null && finite(a?.lastAt) != null) {
             intent.absorb = { sign: Math.sign(a.sign), lastAbs: a.lastAbs, lastAt: a.lastAt };
         }
+        if (v.layout === true) {
+            intent.layout = true;
+        }
         return intent;
     } catch {
         return null;
@@ -124,9 +130,47 @@ export function frameElement(): HTMLElement {
     return document.querySelector<HTMLElement>(".mt-sb-frame");
 }
 
+// The swipe of the view on screen, which plays a dot's or a key's switch to a neighbour as its own settle (#2407).
+export type AutoSwitcher = { autoSwitch(workspaceId: string, side: -1 | 1): boolean };
+let autoSwitcher: AutoSwitcher = null;
+
+export function setAutoSwitcher(s: AutoSwitcher) {
+    autoSwitcher = s;
+}
+
+let switchToken = 0;
+
+// A dot or a key (FR-SHELL-082, #2407): the same steps as a swipe, eased. A neighbour comes in by the swipe's own
+// settle; any other workspace by the content's cross-fade into its remembered layout; then the switch.
 export function switchFromSidebar(workspaceId: string, direction: -1 | 1, swipe?: SwitchSwipe) {
     if (!workspaceId || workspaceId === globalStore.get(atoms.workspace)?.oid) {
         return;
+    }
+    const token = ++switchToken;
+    if (swipe != null) {
+        askSwitch(workspaceId, direction, swipe);
+        return;
+    }
+    if (autoSwitcher?.autoSwitch(workspaceId, direction)) {
+        return;
+    }
+    if (!prepareLeave(workspaceId)) {
+        askSwitch(workspaceId, direction, undefined);
+        return;
+    }
+    playLeave().then(() => {
+        if (token !== switchToken || !leaving()) {
+            return;
+        }
+        askSwitch(workspaceId, direction, { offset: 0, v0: 0, absorb: null, layout: true });
+    });
+}
+
+function askSwitch(workspaceId: string, direction: -1 | 1, swipe: SwitchSwipe) {
+    if (swipe?.layout) {
+        holdLeave();
+    } else {
+        clearLeave();
     }
     const frame = frameElement();
     // A swipe that landed showed the new workspace's tint over the frame already: no colour to fade from (#1261).
@@ -139,9 +183,16 @@ export function switchFromSidebar(workspaceId: string, direction: -1 | 1, swipe?
         if (swipe.absorb != null) {
             intent.absorb = swipe.absorb;
         }
+        if (swipe.layout) {
+            intent.layout = true;
+        }
     }
     writeStorage(SwitchIntentKey, JSON.stringify(intent));
     dotIntent.leave();
+    // The view left shows the target's layout, not its picture: main is told before the switch (same channel, in order).
+    if (intent.layout) {
+        (getApi() as any).moltentermSwitchIntent?.({ workspaceId, layout: true });
+    }
     getApi().switchWorkspace(workspaceId);
 }
 

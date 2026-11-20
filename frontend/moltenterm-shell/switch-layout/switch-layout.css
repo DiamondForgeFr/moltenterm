@@ -1,0 +1,50 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The remembered layout's frames during a workspace switch (FR-SHELL-082, #2407, layout-frames.ts): the panels'
+   outlines at their sizes, without content. Each frame is opaque like a panel (its tint under the panel's own
+   background), so a frame over a panel, or a panel over the window's material, never adds up a see-through. The
+   layers never take the pointer. Above the content area (an isolated stacking context), under the floating sidebar. */
+.mt-sl-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    pointer-events: none;
+    will-change: opacity;
+}
+
+.mt-sl-frame {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-sizing: border-box;
+    border-radius: var(--block-border-radius, 8px);
+    background-color: var(--mt-frame-tint, var(--mt-surface-0));
+    background-image: linear-gradient(var(--block-bg-color, transparent), var(--block-bg-color, transparent));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mt-veil, #fff) 8%, transparent);
+}
+
+/* The domino shows only for a panel that is still not ready after a moment: a warm view's panels are ready at once and
+   never flash it. */
+.mt-sl-frame > .df-dominos {
+    opacity: 0;
+    animation: mt-sl-wait-in var(--mt-duration-fast, 120ms) linear 160ms forwards;
+}
+
+@keyframes mt-sl-wait-in {
+    to {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sl-frame > .df-dominos {
+        animation-duration: 0s;
+    }
+}
+
+.prefers-reduced-motion .mt-sl-frame > .df-dominos {
+    animation-duration: 0s;
+}
