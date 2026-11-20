@@ -8,11 +8,22 @@ const state = vi.hoisted(() => ({
     outdated: null as unknown,
     offer: null as unknown,
     linked: [] as { blockId: string; path: string }[],
+    labels: {} as Record<string, string>,
 }));
 
 vi.mock("@/app/store/jotaiStore", async () => {
     const { createStore } = await import("jotai");
     return { globalStore: createStore() };
+});
+vi.mock("../../i18n/i18n", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../../i18n/i18n")>();
+    return {
+        ...actual,
+        t: (key: string, vars?: any) => {
+            const label = state.labels[key];
+            return label ? label.replace("{agent}", String(vars?.agent ?? "")) : actual.t(key, vars);
+        },
+    };
 });
 vi.mock("../../termupdate/termupdate-store", () => ({
     TermUpdates: {
@@ -44,6 +55,7 @@ describe("proposals in the command panel (FR-SHELL-052)", () => {
         state.outdated = null;
         state.offer = null;
         state.linked = [];
+        state.labels = {};
         HeaderProposals.getInstance().setWorktreeOffer("b1", "");
     });
 
@@ -64,6 +76,24 @@ describe("proposals in the command panel (FR-SHELL-052)", () => {
             "Link the worktree agent-a77",
         ]);
         expect(got.every((s) => s.tone === "accent")).toBe(true);
+    });
+
+    it("labels restart, definition update, repair and compatibility proposals distinctly", () => {
+        state.labels = {
+            "cmdpanel.proposals.restartHooks": "Restart {agent} to activate hooks",
+            "cmdpanel.proposals.updateHooks": "Update MoltenTerm hooks",
+            "cmdpanel.proposals.repairHooks": "Repair MoltenTerm hooks",
+            "cmdpanel.proposals.reviewHooks": "Review {agent} hook compatibility",
+        };
+        for (const [fields, label] of [
+            [{ status: "installed-not-reporting" }, "Restart Kimi Code to activate hooks"],
+            [{ updatekind: "definition" }, "Update MoltenTerm hooks"],
+            [{ updatekind: "repair" }, "Repair MoltenTerm hooks"],
+            [{ updatekind: "compatibility" }, "Review Kimi Code hook compatibility"],
+        ] as const) {
+            state.offer = { agent: "kimi", agentname: "Kimi Code", ...fields };
+            expect(proposalSuggestions(ctx())[0].label).toBe(label);
+        }
     });
 
     it("asks the header to open the dialog of the proposal chosen", () => {

@@ -8,20 +8,25 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import {
+    AgentHookApplyCommand,
     AgentHookDismissCommand,
+    AgentHookMutationResult,
     AgentHookOffer,
     AgentHookOfferCommand,
+    AgentHookRemoveCommand,
     AgentStatesDocCommand,
     dismissedWith,
+    hookDismissalId,
     visibleHookOffer,
 } from "./agent-hooks-model";
 import { AgentStatesRoute } from "./agent-state-model";
 import { AgentStates } from "./agent-state-store";
 
 const RpcTimeoutMs = 5000;
+const MutationRpcTimeoutMs = 15000;
 
-function agentCall<T>(command: string, data: any): Promise<T> {
-    return TabRpcClient.wshRpcCall(command, data, { route: AgentStatesRoute, timeout: RpcTimeoutMs });
+function agentCall<T>(command: string, data: any, timeout = RpcTimeoutMs): Promise<T> {
+    return TabRpcClient.wshRpcCall(command, data, { route: AgentStatesRoute, timeout });
 }
 
 export class AgentHookOffers {
@@ -29,6 +34,7 @@ export class AgentHookOffers {
 
     offersAtom = atom({}) as PrimitiveAtom<Record<string, AgentHookOffer>>;
     dismissedAtom = atom([]) as PrimitiveAtom<string[]>;
+    detailsAtoms = new Map<string, Atom<AgentHookOffer>>();
     visibleAtoms = new Map<string, Atom<AgentHookOffer>>();
 
     private constructor() {}
@@ -38,6 +44,15 @@ export class AgentHookOffers {
             AgentHookOffers.instance = new AgentHookOffers();
         }
         return AgentHookOffers.instance;
+    }
+
+    detailsAtom(blockId: string): Atom<AgentHookOffer> {
+        let rtn = this.detailsAtoms.get(blockId);
+        if (rtn == null) {
+            rtn = atom((get) => get(this.offersAtom)[blockId] ?? null);
+            this.detailsAtoms.set(blockId, rtn);
+        }
+        return rtn;
     }
 
     visibleAtom(blockId: string): Atom<AgentHookOffer> {
@@ -60,15 +75,40 @@ export class AgentHookOffers {
         try {
             this.setOffer(blockId, await agentCall<AgentHookOffer>(AgentHookOfferCommand, { blockid: blockId }));
         } catch (e) {
-            // No offer is better than a wrong one.
+            // Keep the last complete status: a transient probe failure must not remove Integration management.
             console.log("agent hook offer", e);
-            this.setOffer(blockId, null);
         }
     }
 
-    async dismiss(agent: string): Promise<void> {
-        globalStore.set(this.dismissedAtom, dismissedWith(globalStore.get(this.dismissedAtom), agent));
-        await agentCall(AgentHookDismissCommand, { agent });
+    async dismiss(agent: string, updateKey?: string): Promise<void> {
+        const id = hookDismissalId(agent, updateKey);
+        globalStore.set(this.dismissedAtom, dismissedWith(globalStore.get(this.dismissedAtom), id));
+        await agentCall(AgentHookDismissCommand, { agent, updatekey: updateKey });
+    }
+
+    private async mutate(command: string, offer: AgentHookOffer, action: string): Promise<AgentHookMutationResult> {
+        const result = await agentCall<AgentHookMutationResult>(
+            command,
+            {
+                blockid: offer.blockid,
+                action,
+                updatekey: offer.updatekey,
+                expecteddigest: offer.configdigest,
+            },
+            MutationRpcTimeoutMs
+        );
+        if (result?.offer != null) {
+            this.setOffer(offer.blockid, result.offer);
+        }
+        return result;
+    }
+
+    apply(offer: AgentHookOffer): Promise<AgentHookMutationResult> {
+        return this.mutate(AgentHookApplyCommand, offer, offer.action);
+    }
+
+    remove(offer: AgentHookOffer): Promise<AgentHookMutationResult> {
+        return this.mutate(AgentHookRemoveCommand, offer, "remove");
     }
 
     // doc: another agent guide, such as agent-integrations.md (FR-SHELL-040); agent-states.md when omitted.

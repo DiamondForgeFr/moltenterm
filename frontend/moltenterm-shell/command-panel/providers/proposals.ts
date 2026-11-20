@@ -8,6 +8,7 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { fireAndForget } from "@/util/util";
+import { hookProposalTextKey } from "../../agent-hooks-model";
 import { AgentHookOffers } from "../../agent-hooks-store";
 import { HeaderProposals } from "../../header/header-proposals";
 import { t } from "../../i18n/i18n";
@@ -35,7 +36,7 @@ export function proposalSuggestions(ctx: PanelContext): PanelSuggestion[] {
     if (offer != null) {
         rtn.push({
             id: "molten:hooks",
-            label: t("cmdpanel.proposals.setupHooks", { agent: offer.agentname || offer.agent }),
+            label: t(hookProposalTextKey(offer), { agent: offer.agentname || offer.agent }),
             icon: "plug",
             tone: "accent",
             run: () => proposals.request(blockId, "hooks"),

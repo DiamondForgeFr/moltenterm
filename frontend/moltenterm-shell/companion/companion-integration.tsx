@@ -1,15 +1,16 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// "Integrated by MoltenTerm" in the session bar and the details it opens (FR-SHELL-040-AC3, DS-SHELL-051): what the
-// launcher added to this run and what it left alone, the guide, and the switches that turn it off from the next
-// launch.
+// Integration details generalize launcher additions and persistent hook management. Both entry points open the same
+// controlled AgentHookOfferDialog; a persistent provider never fabricates a launcher report or per-run settings.
 
 import { atoms } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { hookApplyTextKey } from "../agent-hooks-model";
 import { AgentHookOffers } from "../agent-hooks-store";
+import { AgentHookOfferDialog } from "../agent-hooks-ui";
 import { writeSettings } from "../command-panel/bindings";
 import { useT } from "../i18n/i18n";
 import { openFileInPreview } from "../term-copy/term-copy";
@@ -27,13 +28,21 @@ import { CompanionIntegrationItem, CompanionView, integrationItemText } from "./
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2.5 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
 
-export function IntegratedBadge({ onOpen, className }: { onOpen: () => void; className?: string }) {
+export function IntegratedBadge({
+    onOpen,
+    className,
+    persistent = false,
+}: {
+    onOpen: () => void;
+    className?: string;
+    persistent?: boolean;
+}) {
     const t = useT();
     return (
         <button
             type="button"
             onClick={onOpen}
-            title={t("companion.integration.badgeTitle")}
+            title={t(persistent ? "companion.integration.persistentBadgeTitle" : "companion.integration.badgeTitle")}
             className={cn(
                 "cursor-pointer rounded-6 px-1 py-0.5 text-11 whitespace-nowrap text-secondary hover:bg-hover hover:text-primary",
                 className
@@ -41,7 +50,7 @@ export function IntegratedBadge({ onOpen, className }: { onOpen: () => void; cla
             data-testid="companion-integrated"
         >
             <i className="fa fa-solid fa-plug mr-1 text-11" aria-hidden />
-            {t("companion.integration.title")}
+            {t(persistent ? "companion.integration.persistentTitle" : "companion.integration.title")}
         </button>
     );
 }
@@ -72,14 +81,21 @@ export function IntegrationDetails({
     onClose: () => void;
 }) {
     const t = useT();
+    const offers = AgentHookOffers.getInstance();
+    const hookOffer = useAtomValue(offers.detailsAtom(target));
     const settings = useAtomValue(atoms.settingsAtom) as Record<string, unknown>;
     const [error, setError] = useState<string>(null);
+    const [dialogOpen, setDialogOpen] = useState(false);
     const integration = view.integration;
-    const agent = integration?.agent || view.agent;
-    const name = view.agentname || agent;
+    const persistent = hookOffer?.persistent === true;
+    const agent = hookOffer?.agent || integration?.agent || view.agent;
+    const name = hookOffer?.agentname || view.agentname || agent;
     const setting = integrationSetting(settings, agent);
     const settingText = integrationSettingText(setting, name);
     const via = integrationVia(integration);
+    useEffect(() => {
+        fireAndForget(() => offers.refresh(target));
+    }, [target]);
     const write = (data: Record<string, unknown>) =>
         fireAndForget(async () => {
             try {
@@ -98,91 +114,176 @@ export function IntegrationDetails({
                 setError(String(e?.message ?? e));
             }
         });
+    const dismiss = () => {
+        setDialogOpen(false);
+        fireAndForget(() => offers.dismiss(hookOffer.agent, hookOffer.updatekind ? hookOffer.updatekey : undefined));
+    };
     return (
-        <div className="flex h-full w-full flex-col gap-3 overflow-y-auto p-4" data-testid="companion-integration">
-            <div className="flex items-start gap-2">
-                <button
-                    type="button"
-                    onClick={onClose}
-                    aria-label={t("companion.history.back")}
-                    title={t("companion.history.back")}
-                    className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
-                    data-testid="companion-integration-back"
-                >
-                    <i className="fa fa-solid fa-arrow-left" />
-                </button>
-                <div>
-                    <div className="text-13 leading-5 font-medium text-primary">{t("companion.integration.title")}</div>
-                    <div className="text-12 text-secondary">{t("companion.integration.hint", { name })}</div>
-                </div>
-            </div>
-            {integration?.added?.length ? (
-                <div className="flex flex-col gap-1.5">
-                    <div className="text-11 font-semibold tracking-wide text-muted uppercase">
-                        {t("companion.integration.added")}
-                    </div>
-                    <ItemList items={integration.added} testId="companion-integration-added" />
-                </div>
-            ) : null}
-            {integration?.skipped?.length ? (
-                <div className="flex flex-col gap-1.5">
-                    <div className="text-11 font-semibold tracking-wide text-muted uppercase">
-                        {t("companion.integration.skipped")}
-                    </div>
-                    <ItemList items={integration.skipped} testId="companion-integration-skipped" />
-                </div>
-            ) : null}
-            <div className="flex flex-col gap-1 text-11 text-muted">
-                {integration?.realpath ? (
+        <>
+            <div className="flex h-full w-full flex-col gap-3 overflow-y-auto p-4" data-testid="companion-integration">
+                <div className="flex items-start gap-2">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label={t("companion.history.back")}
+                        title={t("companion.history.back")}
+                        className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
+                        data-testid="companion-integration-back"
+                    >
+                        <i className="fa fa-solid fa-arrow-left" />
+                    </button>
                     <div>
-                        {t("companion.integration.runs")}{" "}
-                        <span className="font-mono break-all">{integration.realpath}</span>
+                        <div className="text-13 leading-5 font-medium text-primary">
+                            {t(persistent ? "companion.integration.persistentTitle" : "companion.integration.title")}
+                        </div>
+                        <div className="text-12 text-secondary">
+                            {t(persistent ? "companion.integration.persistentHint" : "companion.integration.hint", {
+                                name,
+                            })}
+                        </div>
+                    </div>
+                </div>
+                {integration?.added?.length ? (
+                    <div className="flex flex-col gap-1.5">
+                        <div className="text-11 font-semibold tracking-wide text-muted uppercase">
+                            {t("companion.integration.added")}
+                        </div>
+                        <ItemList items={integration.added} testId="companion-integration-added" />
                     </div>
                 ) : null}
-                {via.map((v) => (
-                    <div key={v} className="font-mono break-all">
-                        {v}
+                {integration?.skipped?.length ? (
+                    <div className="flex flex-col gap-1.5">
+                        <div className="text-11 font-semibold tracking-wide text-muted uppercase">
+                            {t("companion.integration.skipped")}
+                        </div>
+                        <ItemList items={integration.skipped} testId="companion-integration-skipped" />
                     </div>
-                ))}
-            </div>
-            <div className="flex flex-col gap-2 border-t border-border pt-3">
-                {settingText ? (
-                    <div className="text-12 text-secondary" data-testid="companion-integration-off">
-                        {settingText}
+                ) : null}
+                {integration != null ? (
+                    <div className="flex flex-col gap-1 text-11 text-muted">
+                        {integration.realpath ? (
+                            <div>
+                                {t("companion.integration.runs")}{" "}
+                                <span className="font-mono break-all">{integration.realpath}</span>
+                            </div>
+                        ) : null}
+                        {via.map((v) => (
+                            <div key={v} className="font-mono break-all">
+                                {v}
+                            </div>
+                        ))}
                     </div>
-                ) : (
-                    <div className="text-12 text-secondary">{t("companion.integration.nextLaunch")}</div>
-                )}
-                <div className="flex flex-wrap items-center gap-2">
-                    {setting === "on" ? (
-                        <>
+                ) : null}
+                {persistent ? (
+                    <div
+                        className="flex flex-col gap-2 border-t border-border pt-3"
+                        data-testid="companion-persistent-hooks"
+                    >
+                        <div className="text-12 font-medium text-primary" data-testid="companion-persistent-status">
+                            {t(`agent.hooks.status.${hookOffer.status ?? "absent"}`, { name })}
+                        </div>
+                        <div className="text-12 text-secondary">
+                            {t(`agent.hooks.explanation.${hookOffer.status ?? "absent"}`, { name })}
+                        </div>
+                        <div className="text-11 text-muted">
+                            {t("agent.hooks.exactFile")} <code className="font-mono break-all">{hookOffer.file}</code>
+                        </div>
+                        <div className="flex flex-col gap-1 text-11 text-muted">
+                            {hookOffer.currentkimiversion ? (
+                                <div>{t("agent.hooks.currentVersion", { version: hookOffer.currentkimiversion })}</div>
+                            ) : null}
+                            {hookOffer.installedkimiversion ? (
+                                <div>
+                                    {t("agent.hooks.installedVersion", { version: hookOffer.installedkimiversion })}
+                                </div>
+                            ) : null}
+                            {hookOffer.definitionversion ? (
+                                <div>
+                                    {t("agent.hooks.definitionVersion", {
+                                        version: hookOffer.installeddefinitionversion || hookOffer.definitionversion,
+                                        target: hookOffer.definitionversion,
+                                    })}
+                                </div>
+                            ) : null}
+                            {hookOffer.events?.length ? (
+                                <div>{t("agent.hooks.eventCount", { count: hookOffer.events.length })}</div>
+                            ) : null}
+                        </div>
+                        {hookOffer.errorcode ? (
+                            <div className="text-12 text-warning">{t(`agent.hooks.error.${hookOffer.errorcode}`)}</div>
+                        ) : null}
+                        <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
                                 className={PlainButton}
-                                onClick={() => write(turnOffForAgent(settings, agent))}
-                                data-testid="companion-integration-turnoff-agent"
+                                onClick={() => setDialogOpen(true)}
+                                data-testid="companion-persistent-manage"
                             >
-                                {t("companion.integration.turnOffAgent", { name })}
+                                {t(
+                                    hookOffer.canapply
+                                        ? hookApplyTextKey(hookOffer)
+                                        : hookOffer.action === "review"
+                                          ? "agent.hooks.review"
+                                          : "agent.hooks.manage"
+                                )}
                             </button>
-                            <button
-                                type="button"
-                                className={PlainButton}
-                                onClick={() => write(turnOffForEveryAgent())}
-                                data-testid="companion-integration-turnoff-all"
-                            >
-                                {t("companion.integration.turnOffAll")}
-                            </button>
-                        </>
-                    ) : (
-                        <button
-                            type="button"
-                            className={PlainButton}
-                            onClick={() => write(turnOnForAgent(settings, agent))}
-                            data-testid="companion-integration-turnon"
-                        >
-                            {t("companion.integration.turnOn")}
-                        </button>
-                    )}
+                            {hookOffer.canremove ? (
+                                <button
+                                    type="button"
+                                    className={PlainButton}
+                                    onClick={() => setDialogOpen(true)}
+                                    data-testid="companion-persistent-remove"
+                                >
+                                    {t("agent.hooks.remove")}
+                                </button>
+                            ) : null}
+                        </div>
+                        <div className="text-11 text-muted">{t("agent.hooks.persistentRestart", { name })}</div>
+                    </div>
+                ) : null}
+                {integration != null ? (
+                    <div className="flex flex-col gap-2 border-t border-border pt-3">
+                        {settingText ? (
+                            <div className="text-12 text-secondary" data-testid="companion-integration-off">
+                                {settingText}
+                            </div>
+                        ) : (
+                            <div className="text-12 text-secondary">{t("companion.integration.nextLaunch")}</div>
+                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                            {setting === "on" ? (
+                                <>
+                                    <button
+                                        type="button"
+                                        className={PlainButton}
+                                        onClick={() => write(turnOffForAgent(settings, agent))}
+                                        data-testid="companion-integration-turnoff-agent"
+                                    >
+                                        {t("companion.integration.turnOffAgent", { name })}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={PlainButton}
+                                        onClick={() => write(turnOffForEveryAgent())}
+                                        data-testid="companion-integration-turnoff-all"
+                                    >
+                                        {t("companion.integration.turnOffAll")}
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    type="button"
+                                    className={PlainButton}
+                                    onClick={() => write(turnOnForAgent(settings, agent))}
+                                    data-testid="companion-integration-turnon"
+                                >
+                                    {t("companion.integration.turnOn")}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
                     <button
                         type="button"
                         className="cursor-pointer rounded-6 px-2 py-1 text-12 text-accent hover:underline"
@@ -194,6 +295,14 @@ export function IntegrationDetails({
                 </div>
                 {error ? <div className="text-12 text-danger">{error}</div> : null}
             </div>
-        </div>
+            {dialogOpen && hookOffer != null ? (
+                <AgentHookOfferDialog
+                    blockId={target}
+                    offer={hookOffer}
+                    onClose={() => setDialogOpen(false)}
+                    onDismiss={dismiss}
+                />
+            ) : null}
+        </>
     );
 }

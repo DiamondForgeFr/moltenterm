@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
-import { AgentHookOffer, dismissedWith, hookOfferQueryKey, hookOfferTexts, visibleHookOffer } from "./agent-hooks-model";
+import {
+    AgentHookOffer,
+    dismissedWith,
+    hookOfferQueryKey,
+    hookOfferTexts,
+    hookProposalTextKey,
+    visibleHookOffer,
+} from "./agent-hooks-model";
 import { AgentStateInfo } from "./agent-state-model";
 import { translate } from "./i18n/i18n-core";
 
@@ -37,12 +44,44 @@ describe("hook setup offer", () => {
         expect(visibleHookOffer(null, offer, [])).toBeNull();
     });
 
-    it("asks again when the agent changes, never once it is hooked", () => {
-        expect(hookOfferQueryKey(claude)).toBe("claude");
-        expect(hookOfferQueryKey({ ...claude, state: "working", version: 9 })).toBe("claude");
-        expect(hookOfferQueryKey({ ...claude, agent: "codex" })).toBe("codex");
-        expect(hookOfferQueryKey({ ...claude, hooked: true })).toBe("");
+    it("refreshes on an agent change and when hooks start reporting", () => {
+        expect(hookOfferQueryKey(claude)).toBe("claude:unreported");
+        expect(hookOfferQueryKey({ ...claude, state: "working", version: 9 })).toBe("claude:unreported");
+        expect(hookOfferQueryKey({ ...claude, agent: "codex" })).toBe("codex:unreported");
+        expect(hookOfferQueryKey({ ...claude, hooked: true })).toBe("claude:reporting");
         expect(hookOfferQueryKey(null)).toBe("");
+    });
+
+    it("keeps persistent updates and repairs visible after reports", () => {
+        const persistent: AgentHookOffer = {
+            ...offer,
+            agent: "kimi",
+            persistent: true,
+            show: true,
+            status: "definition-update",
+            updatekind: "definition",
+            updatekey: "revision-1",
+        };
+        expect(visibleHookOffer({ ...claude, agent: "kimi", hooked: true }, persistent, [])).toBe(persistent);
+        expect(
+            visibleHookOffer({ ...claude, agent: "kimi", hooked: true }, persistent, ["kimi:revision-1"])
+        ).toBeNull();
+        const revised = { ...persistent, updatekey: "revision-2" };
+        expect(visibleHookOffer({ ...claude, agent: "kimi", hooked: true }, revised, ["kimi:revision-1"])).toBe(
+            revised
+        );
+        const reporting = { ...persistent, status: "reporting" as const, updatekind: undefined };
+        expect(visibleHookOffer({ ...claude, agent: "kimi", hooked: true }, reporting, [])).toBeNull();
+    });
+
+    it("distinguishes setup, restart, definition update, repair and compatibility labels", () => {
+        expect(hookProposalTextKey(offer)).toBe("cmdpanel.proposals.setupHooks");
+        expect(hookProposalTextKey({ ...offer, status: "installed-not-reporting" })).toBe(
+            "cmdpanel.proposals.restartHooks"
+        );
+        expect(hookProposalTextKey({ ...offer, updatekind: "definition" })).toBe("cmdpanel.proposals.updateHooks");
+        expect(hookProposalTextKey({ ...offer, updatekind: "repair" })).toBe("cmdpanel.proposals.repairHooks");
+        expect(hookProposalTextKey({ ...offer, updatekind: "compatibility" })).toBe("cmdpanel.proposals.reviewHooks");
     });
 
     it("words the offer in the interface language for Claude Code and Codex (#988)", () => {
@@ -55,8 +94,13 @@ describe("hook setup offer", () => {
             expect(texts.also).toContain("/hooks");
         }
         expect(hookOfferTexts(codex, (key) => translate("fr", key)).brings).toContain("terminé");
-        expect(hookOfferTexts({ ...offer, brings: "theirs" }, (key) => translate("fr", key)).also).toContain(".claude/settings.json");
-        expect(hookOfferTexts({ ...offer, agent: "gemini", brings: "b", also: "a" }, (key) => key)).toEqual({ brings: "b", also: "a" });
+        expect(hookOfferTexts({ ...offer, brings: "theirs" }, (key) => translate("fr", key)).also).toContain(
+            ".claude/settings.json"
+        );
+        expect(hookOfferTexts({ ...offer, agent: "gemini", brings: "b", also: "a" }, (key) => key)).toEqual({
+            brings: "b",
+            also: "a",
+        });
     });
 
     it("remembers each dismissed agent once", () => {

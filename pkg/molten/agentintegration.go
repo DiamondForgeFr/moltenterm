@@ -38,7 +38,7 @@ const (
 	CodexStateHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent hook --agent codex || true`
 	// Seconds: the handler waits 5 s at most for each of its (at most two) calls to wavesrv.
 	CodexStateHookTimeout = 15
-	// Kimi Code has no MoltenTerm launcher: this is the command of the config.toml recipe the developer applies.
+	// Kimi Code has no MoltenTerm launcher: this is the command of the qualified persistent config.toml block and manual recipe.
 	KimiStateHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent hook --agent kimi || true`
 	KimiStateHookTimeout = 15
 

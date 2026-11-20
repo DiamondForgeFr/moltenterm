@@ -51,6 +51,8 @@ export const ProviderSubjectPrefixes: Record<string, string> = {
     "companion.gauges.source.": "a usage source's own name, after the product it reads",
     "companion.gauges.kimi.": "the Kimi adapter's own source, credential scope and limitations",
     "companion.gauges.reason.kimi.": "the Kimi adapter's own availability reasons",
+    "agent.hooks.": "an agent adapter's own hook contract, target file and lifecycle",
+    "companion.integration.persistent": "a persistent hook adapter's own product and lifecycle",
 };
 
 function providerSubject(key: string): boolean {

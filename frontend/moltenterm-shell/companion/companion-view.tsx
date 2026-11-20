@@ -16,6 +16,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
 import { Fragment, lazy, memo, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
+import { AgentHookOffers } from "../agent-hooks-store";
 import { goToAgent } from "../agent-info/agent-info-hooks";
 import { agentProviderLabel, agentProviderName, type AgentStateInfo } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
@@ -58,6 +59,7 @@ import {
     CompanionTodo,
     CompanionToolCall,
     CompanionView,
+    hasIntegrationDetails,
     integrationProblem,
     isIntegrated,
     MoltentermCompanionView,
@@ -101,7 +103,7 @@ export class CompanionViewModel implements ViewModel {
     // The folder's sessions to pick from, opened by Choose from the folder's sessions, the session bar or the command
     // panel's Linked session (FR-SHELL-049).
     historyAtom = atom(false) as PrimitiveAtom<boolean>;
-    // What MoltenTerm added to this run, opened by Integrated by MoltenTerm (FR-SHELL-040-AC3).
+    // Launcher additions or persistent hook management, opened by the Integration badge.
     integrationAtom = atom(false) as PrimitiveAtom<boolean>;
     // The arranging mode, opened by the Arrange button of the session bar (#2395).
     arrangeAtom = atom(false) as PrimitiveAtom<boolean>;
@@ -233,6 +235,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const t = useT();
     const target = useAtomValue(model.targetAtom);
     const agentState = useBlockAgentState(target);
+    const hookOffer = useAtomValue(AgentHookOffers.getInstance().detailsAtom(target));
     const terminal = useAtomValueSafe(target ? getWaveObjectAtom<Block>(makeORef("block", target)) : null);
     const companion = useCompanion(target);
     const { error, viewId, setView } = companion;
@@ -272,6 +275,12 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         setIntegrationOpen(false);
         setArranging(false);
     }, [target, view?.agent]);
+    useEffect(() => {
+        if (target && view?.agent) {
+            fireAndForget(() => AgentHookOffers.getInstance().refresh(target));
+        }
+    }, [target, view?.agent]);
+    const integrationDetails = hasIntegrationDetails(view, hookOffer);
     const startAgent = (agent: CompanionAgent, key: string, explicit: boolean) => {
         setCustomOpen(false);
         actions.run(t("companion.didNotStart", { name: agent.name }), () =>
@@ -365,7 +374,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
             </WithUsage>
         );
     }
-    if (integrationOpen && isIntegrated(view)) {
+    if (integrationOpen && integrationDetails) {
         return <IntegrationDetails view={view} target={target} onClose={() => setIntegrationOpen(false)} />;
     }
     const message = statusMessage(view);
@@ -405,7 +414,12 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 details={message.raw}
             >
                 <IntegrationNotice view={view} />
-                {isIntegrated(view) ? <IntegratedBadge onOpen={() => setIntegrationOpen(true)} /> : null}
+                {integrationDetails ? (
+                    <IntegratedBadge
+                        onOpen={() => setIntegrationOpen(true)}
+                        persistent={!isIntegrated(view) && hookOffer?.persistent === true}
+                    />
+                ) : null}
                 {/* The plan usage section above already stands for usage while it shows. */}
                 {withUsage ? null : <UsageButton view={view} variant="button" />}
             </EmptyState>
@@ -428,6 +442,8 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
                 setArranging(false);
                 setIntegrationOpen(true);
             }}
+            integrationDetails={integrationDetails}
+            persistentIntegration={!isIntegrated(view) && hookOffer?.persistent === true}
             onBackToCurrent={() =>
                 fireAndForget(async () => {
                     try {

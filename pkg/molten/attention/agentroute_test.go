@@ -20,7 +20,7 @@ func TestAgentRouteCallers(t *testing.T) {
 		t.Fatal(err)
 	}
 	routetest.MustRefuse(t, link, append([]routetest.From{e.Terminal()}, e.Forged()...), molten.AgentStatesCommand, nil)
-	for _, command := range []string{molten.AgentHookOfferCommand, molten.AgentHookDismissCommand, molten.AgentStatesDocCommand} {
+	for _, command := range []string{molten.AgentHookOfferCommand, molten.AgentHookDismissCommand, molten.AgentHookApplyCommand, molten.AgentHookRemoveCommand, molten.AgentStatesDocCommand} {
 		routetest.MustRefuse(t, link, e.NonWindows(), command, map[string]any{"blockid": "b1", "agent": "claude"})
 	}
 	for _, from := range []routetest.From{e.Window(), e.Electron()} {

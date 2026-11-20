@@ -4,6 +4,7 @@
 // The agent companion (FR-SHELL-018, DS-SHELL-019): what wavesrv reads of the agent session of a terminal
 // (pkg/molten/companion), and the pure rules of its view. Pure, so they are tested without a window.
 
+import type { AgentHookOffer } from "../agent-hooks-model";
 import { getLocale, t } from "../i18n/i18n";
 import { ServerText, serverText } from "../i18n/server-text";
 
@@ -287,6 +288,11 @@ export function linksItsSession(view: CompanionView): boolean {
 export function isIntegrated(view: CompanionView): boolean {
     const integration = view?.integration;
     return integration != null && !integration.stepaside && (integration.added?.length ?? 0) > 0;
+}
+
+// Integration management includes persistent hook providers, without manufacturing a launcher report for them.
+export function hasIntegrationDetails(view: CompanionView, hookOffer?: AgentHookOffer): boolean {
+    return isIntegrated(view) || hookOffer?.persistent === true;
 }
 
 export type CompanionUsagePage = { pageurl: string; pagename: string };

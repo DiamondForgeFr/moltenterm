@@ -10,7 +10,13 @@ import {
     turnOffForEveryAgent,
     turnOnForAgent,
 } from "./companion-integration-model";
-import { CompanionView, integrationProblem, isIntegrated, statusMessage } from "./companion-model";
+import {
+    CompanionView,
+    hasIntegrationDetails,
+    integrationProblem,
+    isIntegrated,
+    statusMessage,
+} from "./companion-model";
 
 const added = [
     { kind: "statehooks", name: "Agent state hooks (Stop)" },
@@ -29,6 +35,22 @@ describe("the integration of a run (FR-SHELL-040)", () => {
         );
         expect(isIntegrated(view({ agent: "claude", realpath: "/c", added: [] }))).toBe(false);
         expect(isIntegrated(view(null))).toBe(false);
+    });
+
+    it("gives persistent hooks Integration access without a fake launcher report", () => {
+        const kimi = view(null);
+        const persistent = {
+            blockid: "b1",
+            agent: "kimi",
+            show: false,
+            persistent: true,
+            status: "reporting" as const,
+        };
+        expect(isIntegrated(kimi)).toBe(false);
+        expect(hasIntegrationDetails(kimi)).toBe(false);
+        expect(hasIntegrationDetails(kimi, persistent)).toBe(true);
+        expect(kimi.integration).toBeNull();
+        expect(hasIntegrationDetails(view({ agent: "claude", realpath: "/c", added }), persistent)).toBe(true);
     });
 
     it("does not call the user's own choice a problem", () => {

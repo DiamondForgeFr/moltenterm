@@ -69,12 +69,16 @@ func AgentHookOffer(ctx context.Context, blockId string) (molten.AgentHookOffer,
 		return offer, err
 	}
 	cwd := block.Meta.GetString(waveobj.MetaKey_CmdCwd, "")
-	rtn := molten.MakeAgentHookOffer(env, run.Agent, wavebase.ExpandHomeDirSafe(cwd), defaultAgentStates.isAgentHooked(run.Agent))
+	detection := molten.AgentHookDetection{}
+	if run.Agent == molten.AgentIdKimi {
+		detection = molten.DetectKimiHookVersion(ctx)
+	}
+	rtn := molten.MakeAgentHookOfferDetected(env, run.Agent, wavebase.ExpandHomeDirSafe(cwd), defaultAgentStates.isAgentHooked(run.Agent), detection)
 	rtn.BlockId = blockId
 	return rtn, nil
 }
 
-func DismissAgentHookOffer(agent string) error {
+func DismissAgentHookOffer(agent string, updateKey string) error {
 	if !molten.ValidAgentId(agent) {
 		return fmt.Errorf("invalid agent name %q", agent)
 	}
@@ -82,5 +86,28 @@ func DismissAgentHookOffer(agent string) error {
 	if err != nil {
 		return err
 	}
+	if updateKey != "" {
+		return molten.DeclineAgentHookUpdate(env.DataDir, agent, updateKey)
+	}
 	return molten.DeclineAgentHooksOffer(env.DataDir, agent)
+}
+
+func mutateAgentHook(ctx context.Context, req molten.AgentHookMutationRequest, remove bool) (molten.AgentHookMutationResult, error) {
+	offer, err := AgentHookOffer(ctx, req.BlockId)
+	if err != nil {
+		return molten.AgentHookMutationResult{}, err
+	}
+	if offer.Agent != molten.AgentIdKimi || !offer.Persistent {
+		return molten.AgentHookMutationResult{}, fmt.Errorf("managed hook mutation is only available for a local Kimi Code run")
+	}
+	env, err := hookOfferEnv()
+	if err != nil {
+		return molten.AgentHookMutationResult{}, err
+	}
+	detection := molten.DetectKimiHookVersion(ctx)
+	hooked := defaultAgentStates.isAgentHooked(molten.AgentIdKimi)
+	if remove {
+		return molten.RemoveAgentHookMutation(env, req, hooked, detection)
+	}
+	return molten.ApplyAgentHookMutation(env, req, hooked, detection)
 }

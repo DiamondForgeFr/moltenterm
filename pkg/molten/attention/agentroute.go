@@ -22,7 +22,8 @@ import (
 // command names, like Mission Control (pkg/molten/mission/route.go): nothing is declared in pkg/wshrpc.
 
 const (
-	agentReportTimeout = 5 * time.Second
+	agentReportTimeout       = 5 * time.Second
+	agentHookMutationTimeout = 15 * time.Second
 	// The job status and the controller status a terminal whose shell ended reports.
 	shellStatusDone = "done"
 )
@@ -108,7 +109,23 @@ func handleAgentCommand(command string, caller localroute.Caller, data any) (any
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
 			return nil, err
 		}
-		return nil, DismissAgentHookOffer(req.Agent)
+		return nil, DismissAgentHookOffer(req.Agent, req.UpdateKey)
+	case molten.AgentHookApplyCommand:
+		var req molten.AgentHookMutationRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), agentHookMutationTimeout)
+		defer cancel()
+		return mutateAgentHook(ctx, req, false)
+	case molten.AgentHookRemoveCommand:
+		var req molten.AgentHookMutationRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), agentHookMutationTimeout)
+		defer cancel()
+		return mutateAgentHook(ctx, req, true)
 	case molten.AgentStatesDocCommand:
 		var req molten.AgentDocRequest
 		if data != nil {

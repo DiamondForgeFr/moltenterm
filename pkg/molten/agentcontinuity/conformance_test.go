@@ -128,7 +128,7 @@ var conformanceCases = map[string]map[string][]string{
 	molten.AgentIdKimi: {
 		FeatDetect:       {adapterConf, refMolten + "TestMatchAgentCommand", refMolten + "TestFindAgentProcess"},
 		FeatState:        {hookConf},
-		FeatHooksOffer:   {refMolten + "TestKimiHooksDetection", refMolten + "TestHookOfferRules"},
+		FeatHooksOffer:   {refMolten + "TestKimiHooksDetection", refMolten + "TestHookOfferRules", refMolten + "TestKimiManagedInstallLifecycle", refMolten + "TestKimiManagedMutationPreservesUserBytesAndPermissions", refMolten + "TestKimiManagedDriftAndCompatibilityPrecedeReports", refMolten + "TestKimiManagedFailsClosedWithoutMutation"},
 		FeatUsage:        {adapterConf, "pkg/molten/usage:TestKimiOAuthRequestWindowsAndCredits", "pkg/molten/companion:TestKimiUsageRequiresBothOptIns"},
 		FeatTurnNotify:   {hookConf},
 		FeatHandoff:      {"pkg/molten/agenthandoff:TestBriefFilesLinksAndSnapshots", "pkg/molten/agentnames:TestTakeGivesDistinctNames"},

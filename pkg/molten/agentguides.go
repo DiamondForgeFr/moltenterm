@@ -33,6 +33,8 @@ type agentGuidesState struct {
 	// Agent state ids (claude, codex), not guide profile ids.
 	HooksDeclined []string `json:"hooksdeclined,omitempty"`
 	HooksSeen     []string `json:"hooksseen,omitempty"`
+	// agent + ":" + revision key; unlike HooksDeclined these suppress only one reviewed revision.
+	HookUpdatesDeclined []string `json:"hookupdatesdeclined,omitempty"`
 }
 
 type AgentSyncResult struct {
@@ -144,6 +146,30 @@ func AgentHooksSeen(dataDir string, agent string) bool {
 
 func MarkAgentHooksSeen(dataDir string, agent string) error {
 	return agentGuidesListAdd(dataDir, hooksSeenList, agent)
+}
+
+func hookUpdateDismissalId(agent string, updateKey string) string {
+	if agent == "" || updateKey == "" {
+		return ""
+	}
+	return agent + ":" + updateKey
+}
+
+func IsAgentHookUpdateDeclined(dataDir string, agent string, updateKey string) bool {
+	id := hookUpdateDismissalId(agent, updateKey)
+	return id != "" && agentGuidesListHas(dataDir, func(state *agentGuidesState) *[]string {
+		return &state.HookUpdatesDeclined
+	}, id)
+}
+
+func DeclineAgentHookUpdate(dataDir string, agent string, updateKey string) error {
+	id := hookUpdateDismissalId(agent, updateKey)
+	if id == "" {
+		return fmt.Errorf("a hook update dismissal needs its agent and revision key")
+	}
+	return agentGuidesListAdd(dataDir, func(state *agentGuidesState) *[]string {
+		return &state.HookUpdatesDeclined
+	}, id)
 }
 
 // SyncAgentGuides installs the guides for every agent found in pathList that the user did not decline and whose
