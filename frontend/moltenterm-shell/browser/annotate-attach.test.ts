@@ -15,6 +15,7 @@ import {
     emptyState,
     MaxRefs,
     MaxRefsPerZone,
+    type Placed,
     refCount,
     refTitleTemplate,
 } from "./annotate-model";
@@ -33,7 +34,11 @@ import {
     RefHeaderBytes,
 } from "./annotate-refs";
 
-const Box = { x: 0.1, y: 0.2, w: 0.3, h: 0.25 };
+const Box: Placed = {
+    kind: "zone",
+    address: "http://localhost:5173/shop",
+    anchor: { box: { x: 100, y: 200, w: 300, h: 150 }, selector: "", rel: null, fixed: false, path: null },
+};
 
 function png(w: number, h: number): Uint8Array {
     const b = new Uint8Array(33);
@@ -378,8 +383,8 @@ describe("the title of a reference image's material", () => {
     });
 
     it("reads as a title in each language", () => {
-        expect(refTitleTemplate(t)).toBe("Annotated page, zone {zone}: reference {n}");
+        expect(refTitleTemplate(t)).toBe("Commented page, comment {zone}: reference {n}");
         I18nModel.getInstance().setLanguageSetting("fr");
-        expect(refTitleTemplate(t)).toBe("Page annotée, zone {zone} : référence {n}");
+        expect(refTitleTemplate(t)).toBe("Page commentée, commentaire {zone} : référence {n}");
     });
 });

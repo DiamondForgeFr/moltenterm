@@ -2477,8 +2477,8 @@
             "browser-stop-other": "Arrêter le chargement de la page",
             "browser-inspect": "Inspecter la page",
             "browser-inspect-other": "Inspecter la page",
-            "browser-annotate": "Annoter la page",
-            "browser-annotate-other": "Annoter la page",
+            "browser-annotate": "Commenter la page",
+            "browser-annotate-other": "Commenter la page",
             "companion": "Compagnon de l'agent",
             "palette": "Palette de commandes",
             "command-panel": "Les commandes du panneau actif",
@@ -2987,38 +2987,64 @@
         },
         "reloading": "Rechargement de la page…",
         "annotate": {
-            "button": "Annoter",
-            "buttonTitle": "Annoter la page : y dessiner des zones et les envoyer à un agent ({shortcut})",
-            "menu": "Annoter la page",
-            "layerLabel": "Annotation de la page",
-            "capturing": "Capture de la page…",
-            "captureFailed": "La page n'a pas pu être capturée. Affichez son onglet et réessayez.",
+            "button": "Commenter",
+            "buttonTitle": "Commenter cette page ({shortcut})",
+            "buttonOff": "On ne peut commenter que des pages web",
+            "layerLabel": "Commentaires sur la page",
             "close": "Fermer",
-            "hint": "Dessinez une zone autour de ce qu'il faut changer, puis écrivez votre commentaire.",
+            "hint": {
+                "point": "Cliquez sur un élément pour le commenter.",
+                "zone": "Tracez un rectangle autour de ce qu'il faut changer.",
+                "freehand": "Dessinez un contour autour de ce qu'il faut changer.",
+                "paused": "En pause : la page fonctionne normalement. Reprenez pour ajouter des commentaires."
+            },
+            "tool": {
+                "point": "Commenter un élément",
+                "zone": "Commenter une zone",
+                "freehand": "Commenter un contour"
+            },
+            "pause": "Pause : utiliser la page normalement",
+            "resume": "Reprendre les commentaires",
+            "list": {
+                "toggle": "Afficher la liste des commentaires",
+                "title": "Commentaires",
+                "empty": "Aucun commentaire pour l'instant.",
+                "go": "Aller à ce commentaire",
+                "edit": "Modifier ce commentaire",
+                "erase": "Effacer ce commentaire",
+                "noText": "Pas encore de texte",
+                "elsewhere": "Sur {page}"
+            },
+            "ask": {
+                "title": {
+                    "one": "La page a changé. Garder le commentaire laissé sur {page} ?",
+                    "other": "La page a changé. Garder les {count} commentaires laissés sur {page} ?"
+                },
+                "pages": "{count} autres pages",
+                "keep": "Garder",
+                "discard": "Abandonner",
+                "note": "Les commentaires gardés partent dans le rapport avec l'adresse de leur page, sans image."
+            },
             "tray": {
                 "zones": {
-                    "one": "{count} zone",
-                    "other": "{count} zones"
+                    "one": "{count} commentaire",
+                    "other": "{count} commentaires"
                 },
                 "clear": "Tout effacer",
                 "review": "Relire et envoyer",
                 "leaveAsk": {
-                    "one": "Abandonner {count} zone ?",
-                    "other": "Abandonner {count} zones ?"
+                    "one": "Abandonner {count} commentaire ?",
+                    "other": "Abandonner {count} commentaires ?"
                 },
                 "discard": "Abandonner",
-                "keep": "Continuer à dessiner",
-                "full": "C'est le maximum de zones d'un rapport ({count})."
-            },
-            "zone": {
-                "label": "Zone {n}",
-                "labelWith": "Zone {n} : {comment}"
+                "keep": "Continuer à commenter",
+                "full": "C'est le maximum de commentaires d'un rapport ({count})."
             },
             "field": {
-                "title": "Zone {n}",
+                "title": "Commentaire {n}",
                 "placeholder": "Qu'est-ce qui ne va pas ici ?",
                 "hint": "Entrée valide, Maj+Entrée ajoute une ligne",
-                "erase": "Effacer cette zone",
+                "erase": "Effacer ce commentaire",
                 "refsHint": "Collez ou déposez une image (jusqu'à {count}) pour montrer ce que vous avez en tête. Un lien reste un lien."
             },
             "ref": {
@@ -3030,30 +3056,44 @@
                     "size": "Cette image est trop lourde pour être jointe (plus de {limit} Mo).",
                     "decode": "Cette image est vide ou n'a pas pu être lue.",
                     "large": "Cette image est trop lourde pour être jointe.",
-                    "zone": "Une zone porte au plus {count} images.",
+                    "zone": "Un commentaire porte au plus {count} images.",
                     "report": "Un rapport porte au plus {count} images."
                 }
             },
             "review": {
                 "references": "Références",
-                "zone": "Zone {n}",
+                "zone": "Commentaire {n}",
                 "title": "Ce qui sera envoyé",
-                "back": "Retour au dessin",
+                "back": "Retour aux commentaires",
                 "to": "À",
                 "page": "Page",
-                "image": "Image annotée",
+                "overview": "Vue d'ensemble de la page",
+                "capture": "Où c'est",
+                "capturing": "Capture de la page… {done} sur {total}",
+                "cancel": "Annuler",
+                "noImage": {
+                    "elsewhere": "Pas d'image : sa page n'est plus affichée.",
+                    "failed": "Pas d'image : la page n'en a pas donné."
+                },
+                "noOverview": {
+                    "tall": "Pas de vue d'ensemble : la page fait plus de {screens} écrans de haut.",
+                    "inner": "Pas de vue d'ensemble : la page défile dans l'une de ses zones.",
+                    "failed": "Pas de vue d'ensemble : la page n'a pas pu être capturée en entier."
+                },
+                "onPage": "Sur {page}",
                 "report": "Ce que l'agent lit",
                 "reportNote": "MoltenTerm ajoute son propre en-tête et demande une ligne de résultat.",
                 "loading": "Préparation du rapport…",
                 "failed": "Le rapport n'a pas pu être préparé : {error}",
+                "tooLarge": "Les images sont trop lourdes pour un seul rapport. Effacez quelques commentaires ou images de référence.",
                 "send": "Envoyer à {name}",
                 "sending": "Envoi…",
                 "copy": "Copier le rapport",
-                "copied": "Rapport copié. L'image est conservée dans les matériaux de ce projet.",
+                "copied": "Rapport copié. Les images sont conservées dans les matériaux de ce projet.",
                 "copyFailed": "Le rapport n'a pas pu être copié : {error}",
                 "noAgent": "Aucun agent ne tourne pour ce projet en ce moment. Copiez le rapport pour le donner à l'un d'eux.",
                 "pick": "Envoyer à un autre agent",
-                "leadNote": "{name} devra confier les zones aux bons agents."
+                "leadNote": "{name} devra confier les commentaires aux bons agents."
             },
             "why": {
                 "works": "travaille sur {branch}",
@@ -3066,7 +3106,7 @@
                 "delivered": "{name} l'a reçu.",
                 "typed": "La demande est saisie dans l'invite de {name} : appuyez sur Entrée là-bas pour l'envoyer.",
                 "queued": "{name} est occupé : la demande sera saisie quand son invite sera libre.",
-                "kept": "L'image est conservée dans les matériaux de ce projet, pas dans ses fichiers.",
+                "kept": "Les images sont conservées dans les matériaux de ce projet, pas dans ses fichiers.",
                 "done": "Terminé"
             },
             "gone": "{name} ne tourne plus. Choisissez un autre agent ou copiez le rapport.",
@@ -3075,8 +3115,9 @@
                 "project": "{name} travaille sur un autre projet : rien n'a été envoyé."
             },
             "sendFailed": "Rien n'a été envoyé : {error}",
-            "materialTitle": "Page annotée : {where}",
-            "refTitle": "Page annotée, zone {zone} : référence {n}"
+            "materialTitle": "Page commentée : {where}, vue d'ensemble",
+            "captureTitle": "Page commentée : commentaire {zone}",
+            "refTitle": "Page commentée, commentaire {zone} : référence {n}"
         },
         "testContext": {
             "cardTitle": "La version que vous regardez",

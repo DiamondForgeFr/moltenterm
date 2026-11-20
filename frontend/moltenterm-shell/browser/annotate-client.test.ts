@@ -1,60 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The capture of the page and the clipboard (FR-BRW-017 AC12, #2327).
+// The clipboard (FR-BRW-017 AC12, #2327).
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { type ClipboardLike, copyTextLater, takeCapture } from "./annotate-client";
-
-const Png = "data:image/png;base64," + "A".repeat(300);
-
-describe("the picture of the page", () => {
-    it("is the page's own, which holds nothing the window draws over it, and the window's is not even asked", async () => {
-        const window = vi.fn(async () => Png);
-        const taken = await takeCapture(async () => Png, window);
-        expect(taken).toEqual({ url: Png, own: true });
-        expect(window).not.toHaveBeenCalled();
-    });
-
-    it("is the window's picture of the panel when the page gives none, empty or failing", async () => {
-        const other = "data:image/png;base64," + "B".repeat(300);
-        expect(
-            await takeCapture(
-                async () => "",
-                async () => other
-            )
-        ).toEqual({ url: other, own: false });
-        expect(
-            await takeCapture(
-                async () => "data:image/png;base64,AA",
-                async () => other
-            )
-        ).toEqual({
-            url: other,
-            own: false,
-        });
-        expect(
-            await takeCapture(
-                async () => {
-                    throw new Error("not loaded");
-                },
-                async () => other
-            )
-        ).toEqual({ url: other, own: false });
-        expect(await takeCapture(null, async () => other)).toEqual({ url: other, own: false });
-    });
-
-    it("is nothing when neither can be taken", async () => {
-        expect(
-            await takeCapture(
-                async () => "",
-                async () => {
-                    throw new Error("hidden window");
-                }
-            )
-        ).toEqual({ url: "", own: false });
-    });
-});
+import { type ClipboardLike, copyTextLater } from "./annotate-client";
 
 type Item = { type: string; blob: Promise<Blob> };
 

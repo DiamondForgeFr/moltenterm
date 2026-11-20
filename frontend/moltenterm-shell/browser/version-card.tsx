@@ -11,6 +11,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
+import { MessageSquarePlus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { errorPhrase, joinPhrases, type Phrase, phrase, useWordPhrase } from "../i18n/phrase";
@@ -430,7 +431,7 @@ function PrSection({ data, onOpenReviews, onOpenPr, onAnnotate }: VersionCardVie
                             onClick={onAnnotate}
                             data-testid="browser-version-annotate"
                         >
-                            <i className="fa fa-solid fa-vector-square text-11" aria-hidden />
+                            <MessageSquarePlus size={13} strokeWidth={2} aria-hidden />
                             {t("browser.annotate.button")}
                         </button>
                     ) : null}

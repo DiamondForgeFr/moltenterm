@@ -2477,8 +2477,8 @@
             "browser-stop-other": "Stop loading the page",
             "browser-inspect": "Inspect the page",
             "browser-inspect-other": "Inspect the page",
-            "browser-annotate": "Annotate the page",
-            "browser-annotate-other": "Annotate the page",
+            "browser-annotate": "Comment on the page",
+            "browser-annotate-other": "Comment on the page",
             "companion": "Agent companion",
             "palette": "Command palette",
             "command-panel": "The focused panel's commands",
@@ -2987,38 +2987,64 @@
         },
         "reloading": "Reloading the page…",
         "annotate": {
-            "button": "Annotate",
-            "buttonTitle": "Annotate the page: draw zones on it and send them to an agent ({shortcut})",
-            "menu": "Annotate the page",
-            "layerLabel": "Annotating the page",
-            "capturing": "Capturing the page…",
-            "captureFailed": "The page could not be captured. Show its tab and try again.",
+            "button": "Comment",
+            "buttonTitle": "Comment on this page ({shortcut})",
+            "buttonOff": "Comments work on web pages only",
+            "layerLabel": "Commenting on the page",
             "close": "Close",
-            "hint": "Draw a zone around what to change, then type your comment.",
+            "hint": {
+                "point": "Click an element to comment on it.",
+                "zone": "Drag a rectangle around what to change.",
+                "freehand": "Draw an outline around what to change.",
+                "paused": "Paused: the page works as usual. Resume to add comments."
+            },
+            "tool": {
+                "point": "Comment on an element",
+                "zone": "Comment on a zone",
+                "freehand": "Comment on an outline"
+            },
+            "pause": "Pause: use the page as usual",
+            "resume": "Resume commenting",
+            "list": {
+                "toggle": "Show the list of comments",
+                "title": "Comments",
+                "empty": "No comment yet.",
+                "go": "Scroll to this comment",
+                "edit": "Edit this comment",
+                "erase": "Erase this comment",
+                "noText": "No text yet",
+                "elsewhere": "On {page}"
+            },
             "tray": {
                 "zones": {
-                    "one": "{count} zone",
-                    "other": "{count} zones"
+                    "one": "{count} comment",
+                    "other": "{count} comments"
                 },
                 "clear": "Clear all",
                 "review": "Review and send",
                 "leaveAsk": {
-                    "one": "Discard {count} zone?",
-                    "other": "Discard {count} zones?"
+                    "one": "Discard {count} comment?",
+                    "other": "Discard {count} comments?"
                 },
                 "discard": "Discard",
-                "keep": "Keep drawing",
-                "full": "That is the most zones one report holds ({count})."
+                "keep": "Keep commenting",
+                "full": "That is the most comments one report holds ({count})."
             },
-            "zone": {
-                "label": "Zone {n}",
-                "labelWith": "Zone {n}: {comment}"
+            "ask": {
+                "title": {
+                    "one": "The page changed. Keep the comment you left on {page}?",
+                    "other": "The page changed. Keep the {count} comments you left on {page}?"
+                },
+                "pages": "{count} other pages",
+                "keep": "Keep",
+                "discard": "Discard",
+                "note": "Kept comments go in the report with their page's address, without an image."
             },
             "field": {
-                "title": "Zone {n}",
+                "title": "Comment {n}",
                 "placeholder": "What is wrong here?",
                 "hint": "Enter validates, Shift+Enter adds a line",
-                "erase": "Erase this zone",
+                "erase": "Erase this comment",
                 "refsHint": "Paste or drop an image (up to {count}) to show what you have in mind. A link stays a link."
             },
             "ref": {
@@ -3030,30 +3056,44 @@
                     "size": "That image is too large to attach (over {limit} MB).",
                     "decode": "That image is empty or could not be read.",
                     "large": "That image is too large to attach.",
-                    "zone": "A zone holds at most {count} images.",
+                    "zone": "A comment holds at most {count} images.",
                     "report": "A report holds at most {count} images."
                 }
             },
             "review": {
                 "references": "References",
-                "zone": "Zone {n}",
+                "zone": "Comment {n}",
                 "title": "What will be sent",
-                "back": "Back to drawing",
+                "back": "Back to commenting",
                 "to": "To",
                 "page": "Page",
-                "image": "Annotated image",
+                "overview": "Overview of the page",
+                "capture": "Where it is",
+                "capturing": "Capturing the page… {done} of {total}",
+                "cancel": "Cancel",
+                "noImage": {
+                    "elsewhere": "No image: its page is no longer shown.",
+                    "failed": "No image: the page gave no picture of it."
+                },
+                "noOverview": {
+                    "tall": "No overview: the page is taller than {screens} screens.",
+                    "inner": "No overview: the page scrolls inside one of its areas.",
+                    "failed": "No overview: the page could not be captured whole."
+                },
+                "onPage": "On {page}",
                 "report": "What the agent reads",
                 "reportNote": "MoltenTerm adds its own header and asks for a one-line outcome.",
                 "loading": "Preparing the report…",
                 "failed": "The report could not be prepared: {error}",
+                "tooLarge": "The images are too large for one report. Erase a few comments or reference images.",
                 "send": "Send to {name}",
                 "sending": "Sending…",
                 "copy": "Copy the report",
-                "copied": "Report copied. The image is kept in this project's materials.",
+                "copied": "Report copied. The images are kept in this project's materials.",
                 "copyFailed": "The report could not be copied: {error}",
                 "noAgent": "No agent runs for this project right now. Copy the report to give it to one.",
                 "pick": "Send to another agent",
-                "leadNote": "{name} will be asked to hand the zones to the right agents."
+                "leadNote": "{name} will be asked to hand the comments to the right agents."
             },
             "why": {
                 "works": "works on {branch}",
@@ -3066,7 +3106,7 @@
                 "delivered": "{name} has it.",
                 "typed": "The request is typed in {name}'s prompt: press Enter there to send it.",
                 "queued": "{name} is busy: the request is typed when their prompt is free.",
-                "kept": "The image is kept in this project's materials, not in its files.",
+                "kept": "The images are kept in this project's materials, not in its files.",
                 "done": "Done"
             },
             "gone": "{name} no longer runs. Choose another agent or copy the report.",
@@ -3075,8 +3115,9 @@
                 "project": "{name} works on another project: nothing was sent."
             },
             "sendFailed": "Nothing was sent: {error}",
-            "materialTitle": "Annotated page: {where}",
-            "refTitle": "Annotated page, zone {zone}: reference {n}"
+            "materialTitle": "Commented page: {where}, overview",
+            "captureTitle": "Commented page: comment {zone}",
+            "refTitle": "Commented page, comment {zone}: reference {n}"
         },
         "testContext": {
             "cardTitle": "The version you are looking at",

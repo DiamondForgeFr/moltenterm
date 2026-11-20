@@ -19,12 +19,13 @@ import {
     clearAll,
     commentKeyAction,
     commitComment,
-    dragRect,
+    addressKey,
+    discardPage,
     editZone,
     emptyState,
     eraseZone,
+    excerptOf,
     fieldPlacement,
-    gestureOf,
     layerKeyAction,
     linkChip,
     linksOf,
@@ -32,17 +33,20 @@ import {
     MaxLinksPerZone,
     MaxRefs,
     MaxRefsPerZone,
+    markViews,
     MaxZones,
-    MinZonePx,
+    pagesOf,
     recipientsOf,
     refCount,
     removeRef,
     resolveRecipient,
+    sameAddress,
     setComment,
-    zoneAt,
     zoneNumber,
+    zonesOfPage,
     zonesWire,
     type AnnotateState,
+    type Placed,
     type RecipientInput,
 } from "./annotate-model";
 import type { TestContextAnswer } from "./test-context-model";
@@ -54,38 +58,40 @@ const Fixtures: { name: string; comment: string; hosts: string[] }[] = JSON.pars
 );
 
 const Stage = { w: 1000, h: 600 };
-const Box = { x: 0.1, y: 0.2, w: 0.3, h: 0.25 };
+const Page = "http://localhost:5173/shop";
+// A mark as the page's overlay reports it: a rectangle in page coordinates on an element of the page.
+const Box: Placed = {
+    kind: "zone",
+    address: Page,
+    anchor: {
+        box: { x: 100, y: 1200, w: 300, h: 150 },
+        selector: "main > .card:nth-of-type(2)",
+        rel: { x: 0.1, y: 0.2, w: 0.3, h: 0.25 },
+        fixed: false,
+        path: null,
+    },
+};
 
 function drawn(...comments: string[]): AnnotateState {
     let state = emptyState();
     comments.forEach((comment, i) => {
-        state = addZone(state, { ...Box, x: 0.05 * (i + 1) });
+        state = addZone(state, { ...Box, anchor: { ...Box.anchor, box: { ...Box.anchor.box, x: 50 * (i + 1) } } });
         state = setComment(state, state.editing.id, comment);
         state = commitComment(state, state.editing.id);
     });
     return state;
 }
 
-describe("drawing a zone", () => {
-    it("makes a rectangle of the stage's fractions from two points, whichever way it is dragged", () => {
-        expect(dragRect({ x: 100, y: 120 }, { x: 400, y: 270 }, Stage)).toEqual({ x: 0.1, y: 0.2, w: 0.3, h: 0.25 });
-        expect(dragRect({ x: 400, y: 270 }, { x: 100, y: 120 }, Stage)).toEqual({ x: 0.1, y: 0.2, w: 0.3, h: 0.25 });
+describe("placing a mark", () => {
+    it("keeps the mark's kind, its anchor and the page it is on", () => {
+        const state = addZone(emptyState(), Box);
+        expect(state.zones[0]).toMatchObject({ kind: "zone", address: Page, comment: "", refs: [] });
+        expect(state.zones[0].anchor).toEqual(Box.anchor);
     });
 
-    it("keeps the rectangle inside the stage", () => {
-        const rect = dragRect({ x: 900, y: 500 }, { x: 1300, y: 900 }, Stage);
-        expect(rect.x + rect.w).toBeCloseTo(1);
-        expect(rect.y + rect.h).toBeCloseTo(1);
-        const before = dragRect({ x: -50, y: -20 }, { x: 100, y: 60 }, Stage);
-        expect(before.x).toBe(0);
-        expect(before.y).toBe(0);
-    });
-
-    it("takes a drag shorter than a few pixels, in either direction, for a click", () => {
-        expect(dragRect({ x: 10, y: 10 }, { x: 10 + MinZonePx - 1, y: 300 }, Stage)).toBeNull();
-        expect(dragRect({ x: 10, y: 10 }, { x: 300, y: 10 + MinZonePx - 1 }, Stage)).toBeNull();
-        expect(dragRect({ x: 10, y: 10 }, { x: 10 + MinZonePx, y: 10 + MinZonePx }, Stage)).not.toBeNull();
-        expect(dragRect({ x: 10, y: 10 }, { x: 300, y: 300 }, { w: 0, h: 0 })).toBeNull();
+    it("places nothing without an anchor", () => {
+        expect(addZone(emptyState(), null).zones).toEqual([]);
+        expect(addZone(emptyState(), { ...Box, anchor: null }).zones).toEqual([]);
     });
 
     it("opens the comment field of the new zone, numbered after the others", () => {
@@ -157,7 +163,7 @@ describe("erasing zones", () => {
             [1, "two"],
             [2, "three"],
         ]);
-        expect(zonesWire(state.zones)).toEqual([{ comment: "two" }, { comment: "three" }]);
+        expect(zonesWire(state.zones).map((z) => z.comment)).toEqual(["two", "three"]);
     });
 
     it("closes the field of the zone erased, and only that one", () => {
@@ -176,24 +182,63 @@ describe("erasing zones", () => {
     });
 });
 
-describe("a press and a release on the stage", () => {
-    const state = drawn("one", "two");
+describe("the pages the comments are on (FR-BRW-017 AC27)", () => {
+    const Other = "http://localhost:5173/cart";
+    const mixed = (): AnnotateState => {
+        let state = drawn("one", "two");
+        state = addZone(state, { ...Box, address: Other });
+        return commitComment(setComment(state, state.editing.id, "three"), state.editing.id);
+    };
 
-    it("draws a zone when dragged, even from inside another one", () => {
-        const g = gestureOf({ x: 120, y: 150 }, { x: 600, y: 400 }, Stage, state.zones);
-        expect(g.kind).toBe("draw");
+    it("takes two addresses for one page when only their fragment differs", () => {
+        expect(addressKey(`${Page}#reviews`)).toBe(Page);
+        expect(sameAddress(`${Page}#a`, `${Page}#b`)).toBe(true);
+        expect(sameAddress(`${Page}?tab=1`, `${Page}?tab=2`)).toBe(false);
+        expect(sameAddress(Page, Other)).toBe(false);
     });
 
-    it("edits the zone clicked, the smaller of two on top of each other", () => {
-        const inner = addZone(state, { x: 0.06, y: 0.21, w: 0.04, h: 0.05 });
-        const g = gestureOf({ x: 70, y: 140 }, { x: 72, y: 141 }, Stage, inner.zones);
-        expect(g).toEqual({ kind: "edit", id: inner.zones[2].id });
-        expect(zoneAt(inner.zones, { x: 0.07, y: 0.22 }).id).toBe(inner.zones[2].id);
+    it("lists the pages in the order they were first commented, with how many comments each holds", () => {
+        expect(pagesOf(mixed().zones)).toEqual([
+            { address: Page, count: 2 },
+            { address: Other, count: 1 },
+        ]);
+        expect(zonesOfPage(mixed().zones, `${Page}#top`).map((z) => z.comment)).toEqual(["one", "two"]);
     });
 
-    it("does nothing on a click outside every zone, or on a drag too thin to be one", () => {
-        expect(gestureOf({ x: 900, y: 550 }, { x: 901, y: 551 }, Stage, state.zones).kind).toBe("none");
-        expect(gestureOf({ x: 120, y: 150 }, { x: 420, y: 152 }, Stage, state.zones).kind).toBe("none");
+    it("draws on the page shown the marks of its own comments, numbered as the report numbers them", () => {
+        const state = mixed();
+        expect(markViews(state, Page).map((m) => [m.id, m.n])).toEqual([
+            [state.zones[0].id, 1],
+            [state.zones[1].id, 2],
+        ]);
+        expect(markViews(state, Other).map((m) => m.n)).toEqual([3]);
+        expect(markViews(state, "http://localhost:5173/none")).toEqual([]);
+    });
+
+    it("marks the comment being edited as the active one", () => {
+        const state = mixed();
+        expect(markViews(state, Page).map((m) => m.active)).toEqual([false, false]);
+        const open = editZone(state, state.zones[0].id);
+        expect(markViews(open, Page).map((m) => m.active)).toEqual([true, false]);
+    });
+
+    it("drops the comments of a page when the developer discards them, and only those", () => {
+        const next = discardPage(mixed(), Page);
+        expect(next.zones.map((z) => z.comment)).toEqual(["three"]);
+        expect(pagesOf(next.zones)).toEqual([{ address: Other, count: 1 }]);
+    });
+
+    it("closes the field of a comment that goes with its page", () => {
+        let state = addZone(emptyState(), Box);
+        expect(discardPage(state, Page).editing).toBeNull();
+        state = addZone(commitComment(state, state.zones[0].id), { ...Box, address: Other });
+        expect(discardPage(state, Page).editing?.id).toBe(state.zones[1].id);
+    });
+
+    it("reads the first line of a comment for a list, cut when long", () => {
+        expect(excerptOf("  first line\nsecond  ")).toBe("first line");
+        expect(excerptOf("")).toBe("");
+        expect(excerptOf("x".repeat(100), 10)).toBe("xxxxxxxxx…");
     });
 });
 
@@ -202,21 +247,31 @@ describe("the comment field's place", () => {
     const inside = (p: { x: number; y: number }) =>
         p.x >= 0 && p.y >= 0 && p.x + field.w <= Stage.w && p.y + field.h <= Stage.h;
 
-    it("is beside the zone, on its right when there is room", () => {
-        const at = fieldPlacement({ x: 0.1, y: 0.2, w: 0.2, h: 0.2 }, Stage, field);
-        expect(at.x).toBeGreaterThan(0.3 * Stage.w);
-        expect(at.y).toBe(0.2 * Stage.h);
+    it("is beside the mark, on its right when there is room", () => {
+        const at = fieldPlacement({ x: 100, y: 120, w: 200, h: 120 }, Stage, field);
+        expect(at.x).toBeGreaterThan(300);
+        expect(at.y).toBe(120);
     });
 
-    it("goes to the left, then under or over the zone, when the right has no room, and stays in the stage", () => {
-        const right = fieldPlacement({ x: 0.7, y: 0.2, w: 0.25, h: 0.2 }, Stage, field);
-        expect(right.x + field.w).toBeLessThanOrEqual(0.7 * Stage.w);
-        const wide = fieldPlacement({ x: 0.02, y: 0.1, w: 0.96, h: 0.3 }, Stage, field);
-        expect(wide.y).toBeGreaterThan(0.4 * Stage.h);
-        const low = fieldPlacement({ x: 0.02, y: 0.7, w: 0.96, h: 0.28 }, Stage, field);
-        expect(low.y + field.h).toBeLessThanOrEqual(0.7 * Stage.h);
+    it("goes to the left, then under or over the mark, when the right has no room, and stays in the stage", () => {
+        const right = fieldPlacement({ x: 700, y: 120, w: 250, h: 120 }, Stage, field);
+        expect(right.x + field.w).toBeLessThanOrEqual(700);
+        const wide = fieldPlacement({ x: 20, y: 60, w: 960, h: 180 }, Stage, field);
+        expect(wide.y).toBeGreaterThan(240);
+        const low = fieldPlacement({ x: 20, y: 420, w: 960, h: 170 }, Stage, field);
+        expect(low.y + field.h).toBeLessThanOrEqual(420);
         for (const at of [right, wide, low]) {
             expect(inside(at)).toBe(true);
+        }
+    });
+
+    it("stays in the stage for a mark that scrolled out of the page's view", () => {
+        for (const box of [
+            { x: 100, y: -900, w: 200, h: 120 },
+            { x: 100, y: 5000, w: 200, h: 120 },
+            { x: -400, y: 100, w: 100, h: 50 },
+        ]) {
+            expect(inside(fieldPlacement(box, Stage, field))).toBe(true);
         }
     });
 });
@@ -630,8 +685,38 @@ describe("reference images", () => {
         let state = drawn("one", "two");
         state = attachRef(state, state.zones[1].id, Img(1)).state;
         state = attachRef(state, state.zones[1].id, Img(2)).state;
-        expect(zonesWire(state.zones)).toEqual([{ comment: "one" }, { comment: "two", images: [Img(1), Img(2)] }]);
-        expect(zonesWire(state.zones, true)).toEqual([{ comment: "one" }, { comment: "two", imagecount: 2 }]);
+        const mark = { kind: "zone", address: Page, selector: "main > .card:nth-of-type(2)" };
+        expect(zonesWire(state.zones)).toEqual([
+            { comment: "one", ...mark },
+            { comment: "two", ...mark, images: [Img(1), Img(2)] },
+        ]);
+        expect(zonesWire(state.zones, true)).toEqual([
+            { comment: "one", ...mark },
+            { comment: "two", ...mark, imagecount: 2 },
+        ]);
+    });
+
+    it("sends the picture taken of each comment's place, and only that there is one for a preview", () => {
+        const state = drawn("one", "two");
+        const captures = { [state.zones[0].id]: "data:image/png;base64,CCCC" };
+        expect(zonesWire(state.zones, false, captures).map((z) => [z.capture, z.captured])).toEqual([
+            ["data:image/png;base64,CCCC", undefined],
+            [undefined, undefined],
+        ]);
+        expect(zonesWire(state.zones, true, captures).map((z) => [z.capture, z.captured])).toEqual([
+            [undefined, true],
+            [undefined, undefined],
+        ]);
+    });
+
+    it("names the page a comment is on without its fragment, and leaves out a selector that is empty", () => {
+        let state = addZone(emptyState(), {
+            ...Box,
+            address: `${Page}#reviews`,
+            anchor: { ...Box.anchor, selector: "", rel: null },
+        });
+        state = commitComment(state, state.editing.id);
+        expect(zonesWire(state.zones)).toEqual([{ comment: "", kind: "zone", address: Page }]);
     });
 });
 
@@ -710,23 +795,52 @@ describe("what wavesrv is asked", () => {
     const zones = drawn("  The title is cut.  ", "").zones;
     const to = { blockId: "b-camille", name: "Camille", agent: "claude", why: "pr" as const, lead: true };
 
-    it("sends the zones' comments in order, trimmed, with the recipient and its role, and the image only to keep it", () => {
-        const preview = annotateRequest("preview", target, zones, { to, image: "data:image/png;base64,AAAA" });
+    it("sends the zones' comments in order, trimmed, with the recipient and its role, and the images only to keep them", () => {
+        const captures = { [zones[0].id]: "data:image/png;base64,CCCC" };
+        const preview = annotateRequest("preview", target, zones, {
+            to,
+            overview: "data:image/png;base64,AAAA",
+            captures,
+        });
+        const mark = { kind: "zone", address: Page, selector: "main > .card:nth-of-type(2)" };
         expect(preview).toEqual({
             action: "preview",
             address: Answer.url,
             root: "/w/shop-wt/a",
             branch: "feature/1-a",
             workspaceid: Ws,
-            zones: [{ comment: "The title is cut." }, { comment: "" }],
+            hasoverview: true,
+            zones: [
+                { comment: "The title is cut.", ...mark, captured: true },
+                { comment: "", ...mark },
+            ],
             to: { blockid: "b-camille", firstname: "Camille", agent: "claude", lead: true },
         });
-        const send = annotateRequest("send", target, zones, { to, image: "data:image/png;base64,AAAA", title: "T" });
-        expect(send).toMatchObject({ action: "send", image: "data:image/png;base64,AAAA", title: "T" });
+        const send = annotateRequest("send", target, zones, {
+            to,
+            overview: "data:image/png;base64,AAAA",
+            captures,
+            title: "T",
+            captureTitle: "C {zone}",
+        });
+        expect(send).toMatchObject({
+            action: "send",
+            overview: "data:image/png;base64,AAAA",
+            title: "T",
+            capturetitle: "C {zone}",
+        });
+        expect(send.zones[0].capture).toBe("data:image/png;base64,CCCC");
+        expect(send.hasoverview).toBeUndefined();
+    });
+
+    it("sends no overview when the page gave none", () => {
+        const send = annotateRequest("send", target, zones, { to, title: "T" });
+        expect(send.overview).toBeUndefined();
+        expect(annotateRequest("preview", target, zones, {}).hasoverview).toBe(false);
     });
 
     it("names the project's folder when the page has no checkout", () => {
-        const req = annotateRequest("copy", { ...target, root: "" }, zones, { image: "i", title: "T" });
+        const req = annotateRequest("copy", { ...target, root: "" }, zones, { overview: "i", title: "T" });
         expect(req.root).toBeUndefined();
         expect(req.dir).toBe(Dir);
         expect(req.to).toBeUndefined();

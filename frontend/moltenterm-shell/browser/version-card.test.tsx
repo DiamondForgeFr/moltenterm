@@ -205,11 +205,12 @@ describe("the version card (#2326)", () => {
         expect(html).not.toContain('data-testid="browser-test-context-details"');
     });
 
-    it("offers Annotate in the actions beside the pull request's, with its shortcut, when the page can be annotated (#2327)", () => {
+    it("offers Comment in the actions beside the pull request's, with the header's icon and its shortcut, when the page can be commented on (#2327, #2422)", () => {
         const html = draw("Human Testing", { onAnnotate: Noop });
         expect(html).toContain('data-testid="browser-version-annotate"');
-        expect(html).toContain(">Annotate<");
-        expect(html).toContain("draw zones on it and send them to an agent (");
+        expect(html).toContain(">Comment<");
+        expect(html).toContain("lucide-message-square-plus");
+        expect(html).toContain("Comment on this page (");
         expect(html.indexOf("Open in Integration")).toBeLessThan(
             html.indexOf('data-testid="browser-version-annotate"')
         );
