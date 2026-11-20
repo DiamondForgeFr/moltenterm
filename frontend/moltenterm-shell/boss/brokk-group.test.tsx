@@ -1256,6 +1256,27 @@ describe("the block under the square (AC17 and AC20)", () => {
 
     // #2341: FR-BOSS-009, AC93 to AC97.
     describe("the order of use, the providers not used lately and the stale readings", () => {
+        it("gives every gauge row a logo: Claude Code's, and the AI glyph for each other provider, Kimi Code included (#2431)", () => {
+            globalStore.set(UsageReadingsAtom, {
+                claude: reading("claude", 35),
+                codex: monthly("codex", 62, 3, "free"),
+                kimi: monthly("kimi", 20, 1, "free"),
+            });
+            globalStore.set(UsageUseAtom, {
+                claude: use(20),
+                codex: { workms: 0, sessions: 1, lastat: Date.now() - 3 * Day },
+                kimi: { workms: 0, sessions: 1, lastat: Date.now() - 60 * Min },
+            });
+            const html = render();
+            const logos = [...html.matchAll(/data-testid="usage-week-logo"[^>]*>([\s\S]*?)<\/(?:span|button)>/g)];
+            expect(logos).toHaveLength(3);
+            for (const logo of logos) {
+                expect(logo[1].trim()).not.toBe("");
+            }
+            expect(html).toMatch(/data-logo="claude"/);
+            expect(html.match(/data-logo="ai"/g)).toHaveLength(2);
+        });
+
         const Day = 24 * 60 * Min;
         const use = (workMinutes: number) => ({ workms: workMinutes * Min, sessions: 1, lastat: Date.now() - Day });
         // A paid 30-day window read some days ago: it still runs, so the reading shows, however old.
