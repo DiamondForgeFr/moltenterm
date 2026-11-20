@@ -223,7 +223,7 @@ export function TasksBlock(props: TasksBlockProps) {
                             {t("companion.work.phrasing")}
                         </div>
                     ) : null}
-                    <div className="mt-cwork-flush" data-last={todos.length === 0 ? "" : undefined}>
+                    <div className="mt-cwork-flush">
                         <MilestoneBody
                             milestone={selected}
                             rows={rows}
@@ -248,7 +248,7 @@ export function TasksBlock(props: TasksBlockProps) {
                     </div>
                 </div>
             ) : todos.length > 0 ? (
-                <div className="mt-cwork-flush" data-last="" data-bare="">
+                <div className="mt-cwork-flush" data-bare="">
                     <TodoList
                         todos={todos}
                         links={todoAgents}
