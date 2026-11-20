@@ -108,6 +108,10 @@ Tests run in parallel on loaded machines (CI, full local runs): a test must pass
 - `origin` is Moltenterm. `upstream` is Wave Terminal, fetch-only, without tags.
 - `gh` resolves a remote named `upstream` before `origin`. Pin the default repository once per clone with `gh repo set-default DiamondForgeFr/moltenterm`, otherwise ticket and PR commands target Wave's repository.
 
+## Task list
+
+For any work of three steps or more, keep your native task list up to date (Claude Code's todo or task tools, Codex's plan, Kimi's todo list): one item per step, marked in progress and done as you go. The developer follows your progress in the agent companion's "Tasks" section, which shows only that list.
+
 ## Agent shell
 
 Shell habits that keep agent sessions from stopping on a permission prompt. The first two rules are generic and temporary: they move into the harness instructions when DiamondForgeFr/SaasFoundryAI#947 ships.
