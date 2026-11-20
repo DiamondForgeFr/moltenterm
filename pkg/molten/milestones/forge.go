@@ -16,25 +16,29 @@ import (
 )
 
 // The forge as the user's gh reads it in the project's folder: the repository is the one gh resolves there (its default
-// repository first, as every other gh call of MoltenTerm). Two calls per read: the open milestones with their counts of
-// issues (GraphQL counts issues apart from pull requests, where the REST milestone mixes both), then the open issues of
-// the active one, newest update first.
+// repository first, as every other gh call of MoltenTerm). One call lists the open milestones with their counts of issues
+// (GraphQL counts issues apart from pull requests, where the REST milestone mixes both); then one call per milestone
+// whose tickets the companion needs: the open issues, newest update first. Those are the first ticketMilestones of the
+// tabs' order, and the ones a window selected (#2416): a project with many open milestones does not read them all every
+// minute.
 
 const (
 	// One page of the forge's API: a project with more open tickets in one milestone counts the rest from the
 	// milestone's own count.
 	maxTickets = 100
-	// More open milestones than this would be one page more; the active one is among the first hundred the forge lists.
+	// More open milestones than this would be one page more; the first hundred the forge lists are shown.
 	maxMilestones = 100
-	// A milestone overdue by more than this is left behind: it loses to every milestone that is not.
-	staleOverdue = 60 * 24 * time.Hour
+	// The tabs a companion shows at most (frontend: MaxMilestoneTabs): their tickets are read with every read.
+	ticketMilestones = 4
+	// The milestones past those whose tickets a window asked for, the least recently asked one leaving first.
+	maxSelected = 4
 )
 
 // milestonesQuery lists the open milestones and, for each, its open and closed issues alone (#2392).
 var milestonesQuery = fmt.Sprintf(`query($owner: String!, $name: String!) {
   repository(owner: $owner, name: $name) {
     milestones(first: %d, states: OPEN) {
-      nodes { number title url dueOn updatedAt open: issues(states: OPEN) { totalCount } closed: issues(states: CLOSED) { totalCount } }
+      nodes { number title url dueOn open: issues(states: OPEN) { totalCount } closed: issues(states: CLOSED) { totalCount } }
     }
   }
 }`, maxMilestones)
@@ -46,13 +50,12 @@ type issueCount struct {
 }
 
 type forgeMilestone struct {
-	Number    int        `json:"number"`
-	Title     string     `json:"title"`
-	Url       string     `json:"url"`
-	DueOn     string     `json:"dueOn"`
-	UpdatedAt string     `json:"updatedAt"`
-	Open      issueCount `json:"open"`
-	Closed    issueCount `json:"closed"`
+	Number int        `json:"number"`
+	Title  string     `json:"title"`
+	Url    string     `json:"url"`
+	DueOn  string     `json:"dueOn"`
+	Open   issueCount `json:"open"`
+	Closed issueCount `json:"closed"`
 }
 
 type milestonesAnswer struct {
@@ -79,54 +82,6 @@ func parseTime(s string) time.Time {
 		return time.Time{}
 	}
 	return t
-}
-
-// The active milestone (#2392), the first of this order among the open ones:
-//  1. one with open issues left comes before one with none;
-//  2. one overdue by more than 60 days comes after every other (a forgotten milestone is not the one at work);
-//  3. a dated one comes before an undated one;
-//  4. the nearest due date: the earliest, a recently overdue one included, since it is still the one to finish;
-//  5. the most recent activity (its last update);
-//  6. the lowest number.
-func before(a *forgeMilestone, b *forgeMilestone, now time.Time) bool {
-	if (a.Open.TotalCount > 0) != (b.Open.TotalCount > 0) {
-		return a.Open.TotalCount > 0
-	}
-	ad, bd := parseTime(a.DueOn), parseTime(b.DueOn)
-	aStale, bStale := stale(ad, now), stale(bd, now)
-	if aStale != bStale {
-		return !aStale
-	}
-	if ad.IsZero() != bd.IsZero() {
-		return !ad.IsZero()
-	}
-	if !ad.Equal(bd) {
-		return ad.Before(bd)
-	}
-	au, bu := parseTime(a.UpdatedAt), parseTime(b.UpdatedAt)
-	if !au.Equal(bu) {
-		return au.After(bu)
-	}
-	return a.Number < b.Number
-}
-
-func stale(due time.Time, now time.Time) bool {
-	return !due.IsZero() && now.Sub(due) > staleOverdue
-}
-
-// pickActive is the project's active milestone among its open ones; nil when there is none.
-func pickActive(list []forgeMilestone, now time.Time) *forgeMilestone {
-	var best *forgeMilestone
-	for i := range list {
-		m := &list[i]
-		if m.Number <= 0 {
-			continue
-		}
-		if best == nil || before(m, best, now) {
-			best = m
-		}
-	}
-	return best
 }
 
 // repoOf is the repository's web address a milestone's names: the key of its tickets' sentences.
@@ -183,7 +138,37 @@ func openMilestones(ctx context.Context, gh ghFunc, dir string) ([]forgeMileston
 	return answer.Data.Repository.Milestones.Nodes, nil
 }
 
-func readForge(ctx context.Context, gh ghFunc, dir string, now time.Time) readResult {
+// openTickets are the open issues of one milestone, newest update first, pull requests left out.
+func openTickets(ctx context.Context, gh ghFunc, dir string, number int) ([]Ticket, error) {
+	out, err := gh(ctx, dir, "api", fmt.Sprintf("repos/{owner}/{repo}/issues?milestone=%d&state=open&sort=updated&direction=desc&per_page=%d", number, maxTickets))
+	if err != nil {
+		return nil, err
+	}
+	var issues []forgeIssue
+	if err := json.Unmarshal(out, &issues); err != nil {
+		return nil, errors.New("gh api issues: unreadable answer")
+	}
+	tickets := []Ticket{}
+	for _, issue := range issues {
+		if issue.Number <= 0 || (len(issue.PullRequest) > 0 && string(issue.PullRequest) != "null") {
+			continue
+		}
+		title := cutRunes(oneLine(issue.Title), maxTitleRunes)
+		excerpt := cleanExcerpt(issue.Body)
+		tickets = append(tickets, Ticket{
+			Number:  issue.Number,
+			Title:   title,
+			Url:     httpsOnly(issue.HtmlUrl),
+			excerpt: excerpt,
+			hash:    contentHash(title, excerpt),
+		})
+	}
+	return tickets, nil
+}
+
+// readForge reads every open milestone, in the tabs' order, and the tickets of the first ticketMilestones of them and of
+// those in selected. A milestone with no open issue has nothing to read: its tickets are all there is to know.
+func readForge(ctx context.Context, gh ghFunc, dir string, selected []int) readResult {
 	if gh == nil {
 		return readResult{state: StateNoForge}
 	}
@@ -194,44 +179,40 @@ func readForge(ctx context.Context, gh ghFunc, dir string, now time.Time) readRe
 		}
 		return readResult{err: err}
 	}
-	active := pickActive(list, now)
-	if active == nil {
+	ordered := orderMilestones(list)
+	if len(ordered) == 0 {
 		return readResult{state: StateNone}
 	}
-	m := &Milestone{
-		Number:    active.Number,
-		Title:     cutRunes(oneLine(active.Title), maxTitleRunes),
-		Url:       httpsOnly(active.Url),
-		Open:      max(0, active.Open.TotalCount),
-		Closed:    max(0, active.Closed.TotalCount),
-		Due:       unixMs(parseTime(active.DueOn)),
-		Remaining: max(0, active.Open.TotalCount),
-		Tickets:   []Ticket{},
+	asked := make(map[int]bool, len(selected))
+	for _, n := range selected {
+		asked[n] = true
 	}
-	if active.Open.TotalCount > 0 {
-		out, err := gh(ctx, dir, "api", fmt.Sprintf("repos/{owner}/{repo}/issues?milestone=%d&state=open&sort=updated&direction=desc&per_page=%d", active.Number, maxTickets))
-		if err != nil {
-			return readResult{err: err}
+	milestones := make([]Milestone, 0, len(ordered))
+	repo := ""
+	for i, fm := range ordered {
+		if repo == "" {
+			repo = repoOf(fm.Url)
 		}
-		var issues []forgeIssue
-		if err := json.Unmarshal(out, &issues); err != nil {
-			return readResult{err: errors.New("gh api issues: unreadable answer")}
+		m := Milestone{
+			Number:    fm.Number,
+			Title:     cutRunes(oneLine(fm.Title), maxTitleRunes),
+			Url:       httpsOnly(fm.Url),
+			Open:      max(0, fm.Open.TotalCount),
+			Closed:    max(0, fm.Closed.TotalCount),
+			Due:       unixMs(parseTime(fm.DueOn)),
+			Remaining: max(0, fm.Open.TotalCount),
+			Tickets:   []Ticket{},
+			Loaded:    fm.Open.TotalCount <= 0,
 		}
-		for _, issue := range issues {
-			if issue.Number <= 0 || (len(issue.PullRequest) > 0 && string(issue.PullRequest) != "null") {
-				continue
+		if fm.Open.TotalCount > 0 && (i < ticketMilestones || asked[fm.Number]) {
+			tickets, err := openTickets(ctx, gh, dir, fm.Number)
+			if err != nil {
+				return readResult{err: err}
 			}
-			title := cutRunes(oneLine(issue.Title), maxTitleRunes)
-			excerpt := cleanExcerpt(issue.Body)
-			m.Tickets = append(m.Tickets, Ticket{
-				Number:  issue.Number,
-				Title:   title,
-				Url:     httpsOnly(issue.HtmlUrl),
-				excerpt: excerpt,
-				hash:    contentHash(title, excerpt),
-			})
+			m.Tickets, m.Loaded = tickets, true
+			m.Remaining = max(m.Remaining, len(tickets))
 		}
-		m.Remaining = max(m.Remaining, len(m.Tickets))
+		milestones = append(milestones, m)
 	}
-	return readResult{state: StateOk, repo: repoOf(active.Url), milestone: m}
+	return readResult{state: StateOk, repo: repo, milestones: milestones}
 }

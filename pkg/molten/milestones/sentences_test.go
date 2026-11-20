@@ -97,7 +97,7 @@ func TestSentencesAreCachedPerTicketContentAndLanguage(t *testing.T) {
 	if agent.count() != 1 {
 		t.Fatalf("batches: %d, want 1", agent.count())
 	}
-	got := sentences(view.Milestone)
+	got := sentences(view.first())
 	if got[41] != "Sentence fr for ticket 41, written by claude." || got[38] == "" || got[35] == "" {
 		t.Errorf("sentences: %v", got)
 	}
@@ -108,8 +108,8 @@ func TestSentencesAreCachedPerTicketContentAndLanguage(t *testing.T) {
 		t.Errorf("an unchanged ticket was asked again: %d batches", agent.count())
 	}
 	view = f.get("en", shown...)
-	if agent.count() != 2 || sentences(view.Milestone)[41] != "Sentence en for ticket 41, written by claude." {
-		t.Errorf("another language: %d batches, %v", agent.count(), sentences(view.Milestone))
+	if agent.count() != 2 || sentences(view.first())[41] != "Sentence en for ticket 41, written by claude." {
+		t.Errorf("another language: %d batches, %v", agent.count(), sentences(view.first()))
 	}
 
 	// A comment or a label: the ticket moves on the forge, what is sent of it does not.
@@ -137,8 +137,8 @@ func TestSentencesAreCachedPerTicketContentAndLanguage(t *testing.T) {
 	if prompt := agent.last(); !strings.Contains(prompt, "#41\n") || strings.Contains(prompt, "#38\n") {
 		t.Errorf("only the retitled ticket is asked again:\n%s", prompt)
 	}
-	if sentences(view.Milestone)[41] == "" {
-		t.Errorf("the retitled ticket has its new sentence: %v", sentences(view.Milestone))
+	if sentences(view.first())[41] == "" {
+		t.Errorf("the retitled ticket has its new sentence: %v", sentences(view.first()))
 	}
 
 	// After a restart, the sentences kept on disk are not asked again.
@@ -150,8 +150,8 @@ func TestSentencesAreCachedPerTicketContentAndLanguage(t *testing.T) {
 	again := makeFixture(t, forge, restarted)
 	again.readMilestone(t)
 	view = again.get("fr", shown...)
-	if agent.count() != 3 || sentences(view.Milestone)[38] == "" {
-		t.Errorf("after a restart: %d batches, %v", agent.count(), sentences(view.Milestone))
+	if agent.count() != 3 || sentences(view.first())[38] == "" {
+		t.Errorf("after a restart: %d batches, %v", agent.count(), sentences(view.first()))
 	}
 }
 
@@ -162,7 +162,7 @@ func TestAFailedBatchLeavesTheTitles(t *testing.T) {
 	f := makeFixture(t, shopForge(), phrasingEnv(agent))
 	f.readMilestone(t)
 	view := f.get("fr", shown...)
-	for _, ticket := range view.Milestone.Tickets {
+	for _, ticket := range view.first().Tickets {
 		if ticket.Sentence != "" || ticket.Title == "" {
 			t.Errorf("ticket: %+v", ticket)
 		}
@@ -280,18 +280,18 @@ func TestNothingIsWrittenUntilTurnedOn(t *testing.T) {
 	f := makeFixture(t, shopForge(), env)
 	f.readMilestone(t)
 	view := f.get("fr", shown...)
-	if agent.count() != 0 || view.Summaries || !view.Phrasable || sentences(view.Milestone)[41] != "" {
+	if agent.count() != 0 || view.Summaries || !view.Phrasable || sentences(view.first())[41] != "" {
 		t.Fatalf("off: %d batches, summaries %v, phrasable %v", agent.count(), view.Summaries, view.Phrasable)
 	}
 	on = true
 	view = f.get("fr", shown...)
-	if agent.count() != 1 || !view.Summaries || sentences(view.Milestone)[41] == "" {
-		t.Fatalf("turned on: %d batches, %v", agent.count(), sentences(view.Milestone))
+	if agent.count() != 1 || !view.Summaries || sentences(view.first())[41] == "" {
+		t.Fatalf("turned on: %d batches, %v", agent.count(), sentences(view.first()))
 	}
 	on = false
 	view = f.get("fr", shown...)
-	if sentences(view.Milestone)[41] != "" {
-		t.Errorf("turned off again, a sentence written earlier still shows: %v", sentences(view.Milestone))
+	if sentences(view.first())[41] != "" {
+		t.Errorf("turned off again, a sentence written earlier still shows: %v", sentences(view.first()))
 	}
 }
 
@@ -362,7 +362,7 @@ func TestTheShownTicketsArePhrased(t *testing.T) {
 	f := makeFixture(t, shopForge(), phrasingEnv(agent))
 	f.readMilestone(t)
 	view := f.get("fr", 35, 999)
-	got := sentences(view.Milestone)
+	got := sentences(view.first())
 	if got[35] == "" || got[41] != "" || got[38] != "" {
 		t.Errorf("sentences: %v", got)
 	}
@@ -381,7 +381,7 @@ func TestNoSentenceWithoutTheShownRows(t *testing.T) {
 	f := makeFixture(t, shopForge(), phrasingEnv(agent))
 	f.readMilestone(t)
 	view := f.get("fr")
-	if agent.count() != 0 || view.Phrasing || sentences(view.Milestone)[41] != "" {
+	if agent.count() != 0 || view.Phrasing || sentences(view.first())[41] != "" {
 		t.Errorf("without the shown rows: %d batches, phrasing %v", agent.count(), view.Phrasing)
 	}
 }
