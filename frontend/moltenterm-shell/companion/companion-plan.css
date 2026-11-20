@@ -28,7 +28,7 @@
 .mt-plan-seg {
     flex: 1;
     height: 4px;
-    border-radius: 2px;
+    border-radius: var(--mt-radius-control);
     background: var(--mt-surface-3);
 }
 
