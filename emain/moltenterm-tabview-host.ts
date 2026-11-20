@@ -24,6 +24,7 @@ import { ActionRun, isSuperseded, readinessDeadlineMs } from "./moltenterm-actio
 import { hostsBrowserPage, hostsControlledTab } from "./moltenterm-browseragent";
 import { onAppIpc } from "./moltenterm-privileged-ipc";
 import { acquireReadyView, awaitViewInitialized } from "./moltenterm-spare-ready";
+import { watchLandedView } from "./moltenterm-switch-landing-live";
 import {
     beginShowingTabView,
     endShowingTabView,
@@ -591,6 +592,9 @@ async function setTabViewIntoWindow(
         }
         positionWindowTabViews(win);
         finishArrivingView(win, tabView); // its switch picture dissolves once it has painted (#2375)
+        if (oldActiveView != null) {
+            watchLandedView(win, tabView); // the switch ends on the view, visible and opaque (#2419)
+        }
     } else {
         console.log("reusing an existing tab, calling wave-init", tabView.waveTabId);
         // A page that decoded its switch picture ahead of the click wears it before its reinit, so the frames it draws
@@ -617,6 +621,9 @@ async function setTabViewIntoWindow(
         finishArrivingView(win, tabView);
         // A long-hidden view can come back black (#223).
         checkReusedTabViewPainted(win, tabView);
+        if (oldActiveView != null) {
+            watchLandedView(win, tabView); // the switch ends on the view, visible and opaque (#2419)
+        }
     }
 
     // something is causing the new tab to lose focus so it requires manual refocusing

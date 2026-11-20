@@ -43,6 +43,7 @@ import {
     waitingScript,
     clearSwitchScript,
     SwitchClearAfterMs,
+    SwitchFadeId,
     mountedBlocksScript,
     PanelsMountMaxMs,
     waitPanelsMounted,
@@ -238,6 +239,16 @@ describe("what counts as settled", () => {
     });
 });
 
+type FakeAnimation = {
+    id: string;
+    el: FakeEl;
+    frames: any;
+    opts: any;
+    running: boolean;
+    finish: () => void;
+    cancel: () => void;
+};
+
 // A page just big enough for the scripts: elements, attributes, the page's tokens, animate() recorded.
 type FakeEl = {
     tagName: string;
@@ -260,6 +271,8 @@ type FakeEl = {
     hasAttribute(k: string): boolean;
     querySelector(sel: string): FakeEl;
     animate(frames: unknown, opts: unknown): { onfinish?: () => void; oncancel?: () => void };
+    // The animations still running on the element: a page that leaves the screen runs none to its end (#2419).
+    getAnimations(): FakeAnimation[];
     decode(): Promise<void>;
 };
 
@@ -279,7 +292,7 @@ function fakePage(
     } = {}
 ) {
     const decodeGates: (() => void)[] = [];
-    const animations:{ el: FakeEl; frames: any; opts: any; finish: () => void }[] = [];
+    const animations: FakeAnimation[] = [];
     const timers: (() => void)[] = [];
     const delays: number[] = [];
     const root = makeEl("html");
@@ -339,10 +352,31 @@ function fakePage(
                 };
                 return walk(el);
             },
-            animate(frames, o) {
+            animate(frames, o: any) {
                 const a: { onfinish?: () => void; oncancel?: () => void } = {};
-                animations.push({ el, frames, opts: o, finish: () => a.onfinish?.() });
+                const anim: FakeAnimation = {
+                    id: o?.id ?? "",
+                    el,
+                    frames,
+                    opts: o,
+                    running: true,
+                    finish: () => {
+                        anim.running = false;
+                        a.onfinish?.();
+                    },
+                    cancel: () => {
+                        if (!anim.running) {
+                            return;
+                        }
+                        anim.running = false;
+                        a.oncancel?.();
+                    },
+                };
+                animations.push(anim);
                 return a;
+            },
+            getAnimations() {
+                return animations.filter((x) => x.el === el && x.running);
             },
             decode() {
                 if (!opts.slowDecode) {
@@ -456,7 +490,7 @@ describe("the picture script on the view being left", () => {
         expect(layer.style.opacity).toBe("1");
         expect(page.animations).toHaveLength(1);
         expect(page.animations[0].frames).toEqual([{ opacity: 0 }, { opacity: 1 }]);
-        expect(page.animations[0].opts).toEqual({ duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" });
+        expect(page.animations[0].opts).toEqual({ duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)", id: SwitchFadeId });
     });
 
     it("follows the token when it is slowed down, and the constants when the page cannot answer", async () => {
@@ -467,7 +501,11 @@ describe("the picture script on the view being left", () => {
         const bare = fakePage();
         bare.run(showPictureScript(false));
         await flush();
-        expect(bare.animations[0].opts).toEqual({ duration: SwitchMotion.fadeInMs, easing: SwitchMotion.easing });
+        expect(bare.animations[0].opts).toEqual({
+            duration: SwitchMotion.fadeInMs,
+            easing: SwitchMotion.easing,
+            id: SwitchFadeId,
+        });
     });
 
     it("appears at once under reduced motion: no animation, still no empty frame", async () => {
@@ -547,6 +585,41 @@ describe("the picture script on the view being left", () => {
         page.run(removeOverlayScript(false));
         expect(page.byId("main").style.opacity).toBe("");
         expect(page.byId("mt-switch-overlay")).toBeNull();
+    });
+
+    // #2419: a view left within the cross-fade goes off screen with its content's fade-out still running. A page off
+    // screen runs no animation to its end, so the fade stayed, frozen near 0, holding the content invisible whatever
+    // its own opacity said: the view came back on its next switch drawn as nothing but the window's material. Seen in
+    // the soak of 200 switches as a page whose #main computed to 0.002, its inline opacity "" and one animation on it.
+    it("leaves no fade of the content running when its view goes off screen in the middle of the cross-fade", async () => {
+        const page = fakePage({ tokens: Tokens, withMain: true });
+        page.run(showPictureScript(true));
+        await flush();
+        const main = page.byId("main");
+        expect(main.getAnimations().map((a) => a.id)).toEqual([SwitchFadeId]);
+        expect(page.run(removeOverlayScript(false))).toBe("ok");
+        expect(main.style.opacity).toBe("");
+        expect(main.getAnimations()).toEqual([]);
+    });
+
+    it("stops a fade of the content left running even once its overlay is gone, and main's last clear does too", async () => {
+        const page = fakePage({ tokens: Tokens, withMain: true });
+        page.run(showPictureScript(true));
+        await flush();
+        const main = page.byId("main");
+        page.byId("mt-switch-overlay").remove();
+        main.style.opacity = "";
+        expect(page.run(removeOverlayScript(false))).toBe("content-fading");
+        expect(main.getAnimations()).toEqual([]);
+
+        const left = fakePage({ tokens: Tokens, withMain: true });
+        left.run(showPictureScript(true));
+        await flush();
+        left.byId("mt-switch-overlay").remove();
+        left.byId("main").style.opacity = "";
+        expect(left.run(clearSwitchScript())).toBe("content-fading");
+        expect(left.byId("main").getAnimations()).toEqual([]);
+        expect(left.run(clearSwitchScript())).toBe("clean");
     });
 
     it("leaves the page's own content alone under an opaque picture", async () => {
@@ -688,7 +761,7 @@ describe("the cover on the target", () => {
         const done = page.run(uncoverScript()) as Promise<string>;
         expect(page.root.hasAttribute(CoverAttribute)).toBe(false);
         expect(page.animations[0].frames).toEqual([{ opacity: 1 }, { opacity: 0 }]);
-        expect(page.animations[0].opts).toEqual({ duration: 120, easing: "cubic-bezier(0.2, 0, 0, 1)" });
+        expect(page.animations[0].opts).toEqual({ duration: 120, easing: "cubic-bezier(0.2, 0, 0, 1)", id: SwitchFadeId });
         expect(page.byId("mt-switch-cover")).not.toBeNull();
         page.animations[0].finish();
         expect(await done).toBe("ok");

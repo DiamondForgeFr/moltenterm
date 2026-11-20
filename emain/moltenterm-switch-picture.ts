@@ -245,6 +245,8 @@ export function swallowsKey(input: SwitchKeyInput): boolean {
 // --- the scripts run in the views
 
 const OverlayId = "mt-switch-overlay";
+// The id of every fade the scripts start, so the ones still running can be told from the page's own animations.
+export const SwitchFadeId = "mt-switch-fade";
 const WaitId = "mt-switch-wait";
 const CoverId = "mt-switch-cover";
 // The app's React root: what a see-through view's own content is, kept out of sight under its picture.
@@ -278,8 +280,15 @@ var dissolveMs = cssMs("--mt-duration-fast", ${SwitchMotion.dissolveMs});
 function fade(el, from, to, ms, done) {
   if (reduced || !(ms > 0) || !el.animate) { el.style.opacity = String(to); if (done) done(); return; }
   el.style.opacity = String(to);
-  var a = el.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing: ease });
+  var a = el.animate([{ opacity: from }, { opacity: to }], { duration: ms, easing: ease, id: ${JSON.stringify(SwitchFadeId)} });
   if (done) { a.onfinish = done; a.oncancel = done; }
+}
+// A fade of the switch still running on el goes (#2419): a page left while its content faded out keeps the animation
+// frozen where it was, holding the content near 0 whatever its own opacity says, and nothing else ever cancels it.
+function stopFades(el) {
+  var n = 0;
+  if (el && el.getAnimations) el.getAnimations().forEach(function (a) { if (a.id === ${JSON.stringify(SwitchFadeId)}) { a.cancel(); n++; } });
+  return n;
 }
 // The picture's blob URL, made by the preload from the bytes main sent. A message sent just before this script may still
 // be in the queue: the script yields to it a few times (a message channel is never throttled, a timer in a hidden page is).
@@ -359,11 +368,12 @@ export function removeOverlayScript(fadeOut: boolean): string {
 window.${OverlayToken} = (window.${OverlayToken} || 0) + 1;
 window.__mtSwitchArmed = null;
 forgetPicture();
-var ov = d.getElementById(${JSON.stringify(OverlayId)});
-if (!ov) return "none";
-var w = d.getElementById(${JSON.stringify(WaitId)}); if (w) w.remove();
 var m = d.getElementById(${JSON.stringify(RootId)});
-var held = !!m && m.style.opacity === "0";
+var fading = stopFades(m) > 0;
+var ov = d.getElementById(${JSON.stringify(OverlayId)});
+if (!ov) { if (fading) m.style.opacity = ""; return fading ? "content-fading" : "none"; }
+var w = d.getElementById(${JSON.stringify(WaitId)}); if (w) w.remove();
+var held = !!m && (fading || m.style.opacity === "0");
 var through = ov.getAttribute(${JSON.stringify(ThroughAttribute)});
 if (through != null) { var bg = through.split("|"); root.style.background = bg[0]; d.body.style.background = bg[1] || ""; }
 var gone = function () { ov.remove(); };
@@ -394,7 +404,10 @@ var c = d.getElementById(${JSON.stringify(CoverId)}); if (c) { found.push("cover
 var w = d.getElementById(${JSON.stringify(WaitId)}); if (w) { found.push("wait"); w.remove(); }
 if (root.hasAttribute(${JSON.stringify(CoverAttribute)})) { found.push("cover-mark"); root.removeAttribute(${JSON.stringify(CoverAttribute)}); }
 var m = d.getElementById(${JSON.stringify(RootId)});
-if (m && m.style.opacity !== "" && m.style.opacity != null) { found.push("content-hidden"); if (m.getAnimations) m.getAnimations().forEach(function (a) { a.cancel(); }); m.style.opacity = ""; }
+var hidden = !!m && m.style.opacity !== "" && m.style.opacity != null, fading = 0;
+if (m && m.getAnimations) m.getAnimations().forEach(function (a) { if (hidden || a.id === ${JSON.stringify(SwitchFadeId)}) { a.cancel(); fading++; } });
+if (hidden) { found.push("content-hidden"); m.style.opacity = ""; }
+else if (fading > 0) found.push("content-fading");
 return found.length ? found.join(",") : "clean";
 } catch (e) { return "error:" + e; } })()`;
 }
@@ -898,7 +911,16 @@ export class WindowSwitchPicture {
         this.deps.holdKeys(cur.leaver, false);
         this.forget(cur.leaver);
         if (cur.leaver.isLive()) {
-            fire(cur.leaver, removeOverlayScript(false));
+            // every end of a switch step is logged, so a view left invisible shows which step did not end (#2419)
+            const leaverId = cur.leaver.id;
+            cur.leaver
+                .run(removeOverlayScript(false))
+                .then((answer) =>
+                    this.deps.log(
+                        `[#2419] switch to ${tabId}: picture taken off the view left ${leaverId} (${String(answer)})`
+                    )
+                )
+                .catch((): void => null);
         }
         this.current = null;
         const covered = Array.from(cur.covered);

@@ -12,7 +12,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentStateInfo } from "../agent-state-model";
 import { ArrivalDeps, ArrivalShownGraceMs, PanelArrival } from "./panel-arrival-model";
 import { markPour, notifyViewPour, onViewPour, pourWaitMs, resetPourMomentForTest } from "./pour-moment";
-import { parseCssTime, playPour, PourAnimationId, PourFromOpacity, pourKeyframes, PourShiftPx } from "./view-pour";
+import {
+    logPourEnd,
+    parseCssTime,
+    playPour,
+    PourAnimationId,
+    PourFromOpacity,
+    pourKeyframes,
+    PourShiftPx,
+} from "./view-pour";
 import {
     isAgentWorking,
     snapTurnToGrid,
@@ -134,6 +142,29 @@ describe("the view pour (FR-SHELL-112)", () => {
         expect(playPour(instant.el, "x")).toBeNull();
         expect(instant.animate).not.toHaveBeenCalled();
         expect(pourWaitMs()).toBe(0);
+    });
+
+    it("logs its end with the content's opacity, so a switch left invisible shows which side did not end (#2419)", async () => {
+        const main = { id: "main" };
+        const doc = {
+            getElementById: (id: string) => (id === "main" ? main : null),
+            defaultView: { getComputedStyle: () => ({ opacity: "0.25" }) },
+        };
+        (main as any).ownerDocument = doc;
+        const el = { ownerDocument: doc } as unknown as HTMLElement;
+        const sent: string[] = [];
+        logPourEnd({ finished: Promise.resolve() } as unknown as Animation, el, (m) => sent.push(m));
+        logPourEnd({ finished: Promise.reject(new Error("cancelled")) } as unknown as Animation, el, (m) =>
+            sent.push(m)
+        );
+        logPourEnd(null, el, (m) => sent.push(m));
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(sent.sort()).toEqual([
+            "[#2419] pour cancelled, content opacity 0.25",
+            "[#2419] pour finished, content opacity 0.25",
+            "[#2419] pour not played, content opacity 0.25",
+        ]);
     });
 
     it("never goes below 70 % under the switch picture: its dissolve shows a view that is already there (#2375)", () => {
