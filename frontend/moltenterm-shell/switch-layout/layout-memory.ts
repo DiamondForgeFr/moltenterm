@@ -5,8 +5,9 @@
 // frames before its views are mounted, so the old view fades into the new one's layout instead of cutting to it. It is
 // the frames' geometry only, never a picture: each panel's block id, kind and place as shares of the content area,
 // plus the content area's insets from the window's edges (the sidebar and the frame's margins keep their pixel sizes
-// when the window is resized, the panels share what is left). It lives in localStorage, which every view of the app
-// reads and which outlives a restart.
+// when the window is resized, the panels share what is left). This module reads and writes this run's copy, in
+// localStorage, which every view reads at once; layout-store.ts also keeps it in the workspace's meta, which outlives a
+// restart (the pages' session, and its localStorage, are kept in memory only).
 
 export const LayoutKeyPrefix = "moltenterm:switch-layout:";
 // A layout this old is still the best guess of where the panels are: it is only dropped with its workspace.

@@ -66,10 +66,9 @@ describe("the remembered layout of a workspace (FR-SHELL-082, #2407)", () => {
         expect(layout.panels[0].w).toBe(1);
     });
 
-    it("survives a restart and is drawn proportionally in a smaller window, never at its old pixel sizes", () => {
+    it("is read back from this run's copy and drawn proportionally in a smaller window, never at its old pixel sizes", () => {
         const disk = diskStorage();
         writeLayout(measureLayout("ws-alpha", "tab-1", Content, Window, Blocks, 1), disk);
-        // The app restarts: nothing in memory, the same storage.
         const read = readLayout("ws-alpha", disk);
         expect(read).not.toBeNull();
         expect(read.panels).toHaveLength(3);

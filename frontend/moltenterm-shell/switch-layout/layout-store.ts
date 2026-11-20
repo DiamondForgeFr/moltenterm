@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // Where a workspace's remembered layout is kept (#2407): on the workspace itself, in its meta, so that it outlives a
-// restart (the pages' localStorage, a file:// origin, is not kept across one), with a copy in localStorage that every
+// restart (the pages' session is kept in memory only, #1763: its localStorage is gone after one), with a copy in localStorage that every
 // view of this run reads at once, before the workspace object has reached it.
 
 import { RpcApi } from "@/app/store/wshclientapi";
