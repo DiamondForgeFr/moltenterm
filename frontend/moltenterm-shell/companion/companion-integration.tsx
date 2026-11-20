@@ -7,10 +7,9 @@
 import { atoms } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { hookApplyTextKey } from "../agent-hooks-model";
 import { AgentHookOffers } from "../agent-hooks-store";
-import { AgentHookOfferDialog } from "../agent-hooks-ui";
 import { writeSettings } from "../command-panel/bindings";
 import { useT } from "../i18n/i18n";
 import { openFileInPreview } from "../term-copy/term-copy";
@@ -24,6 +23,8 @@ import {
     turnOnForAgent,
 } from "./companion-integration-model";
 import { CompanionIntegrationItem, CompanionView, integrationItemText } from "./companion-model";
+
+const AgentHookOfferDialog = lazy(() => import("../agent-hooks-ui").then((m) => ({ default: m.AgentHookOfferDialog })));
 
 const PlainButton =
     "cursor-pointer rounded-6 border border-border px-2.5 py-1 text-12 text-secondary hover:bg-hover hover:text-primary";
@@ -296,12 +297,14 @@ export function IntegrationDetails({
                 {error ? <div className="text-12 text-danger">{error}</div> : null}
             </div>
             {dialogOpen && hookOffer != null ? (
-                <AgentHookOfferDialog
-                    blockId={target}
-                    offer={hookOffer}
-                    onClose={() => setDialogOpen(false)}
-                    onDismiss={dismiss}
-                />
+                <Suspense fallback={null}>
+                    <AgentHookOfferDialog
+                        blockId={target}
+                        offer={hookOffer}
+                        onClose={() => setDialogOpen(false)}
+                        onDismiss={dismiss}
+                    />
+                </Suspense>
             ) : null}
         </>
     );
