@@ -15,7 +15,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
-import { Fragment, lazy, memo, Suspense, useEffect, useId, useMemo, useState } from "react";
+import { Fragment, lazy, memo, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { goToAgent } from "../agent-info/agent-info-hooks";
 import { agentProviderLabel, agentProviderName, type AgentStateInfo } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
@@ -69,6 +69,7 @@ import {
     todoCounts,
 } from "./companion-model";
 import { PermissionRequestCard, permissionTerminalOf } from "./companion-permission";
+import { saveCompanionLayout, useCompanionLayout } from "./companion-prefs";
 import { AgentsSection, RecentTopicsSection } from "./companion-recap";
 import { SectionTitle, SessionSections, SessionSectionSlots } from "./companion-section";
 import { CompanionSessions } from "./companion-session-store";
@@ -102,6 +103,8 @@ export class CompanionViewModel implements ViewModel {
     historyAtom = atom(false) as PrimitiveAtom<boolean>;
     // What MoltenTerm added to this run, opened by Integrated by MoltenTerm (FR-SHELL-040-AC3).
     integrationAtom = atom(false) as PrimitiveAtom<boolean>;
+    // The arranging mode, opened by the Arrange button of the session bar (#2395).
+    arrangeAtom = atom(false) as PrimitiveAtom<boolean>;
     targetAtom = atom<string>((get) => {
         const block = get(getWaveObjectAtom<Block>(makeORef("block", this.blockId)));
         return (block?.meta?.[CompanionTargetMetaKey] as string) ?? null;
@@ -239,6 +242,9 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     const view = provider && companion.view?.usage != null ? { ...companion.view, usage: undefined } : companion.view;
     const [history, setHistory] = useAtom(model.historyAtom);
     const [integrationOpen, setIntegrationOpen] = useAtom(model.integrationAtom);
+    const [arranging, setArranging] = useAtom(model.arrangeAtom);
+    const layout = useCompanionLayout();
+    const arrangeButton = useRef<HTMLButtonElement>(null);
     const fullConfig = useAtomValue(atoms.fullConfigAtom);
     const workspace = useAtomValue(atoms.workspace);
     const agentChoices = useAtomValue(CodingAgentModel.getInstance().choicesAtom);
@@ -264,6 +270,7 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     useEffect(() => {
         setHistory(false);
         setIntegrationOpen(false);
+        setArranging(false);
     }, [target, view?.agent]);
     const startAgent = (agent: CompanionAgent, key: string, explicit: boolean) => {
         setCustomOpen(false);
@@ -405,10 +412,66 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         );
         return withUsage ? <WithUsage usage={usage}>{empty}</WithUsage> : empty;
     }
+    const leaveArranging = () => {
+        setArranging(false);
+        queueMicrotask(() => arrangeButton.current?.focus());
+    };
+    const bar = (
+        <SessionBar
+            view={view}
+            name={agentState?.firstname || provider ? agentProviderLabel(agentState, view.agentname) : view.agentname}
+            onHistory={() => {
+                setArranging(false);
+                setHistory(true);
+            }}
+            onIntegration={() => {
+                setArranging(false);
+                setIntegrationOpen(true);
+            }}
+            onBackToCurrent={() =>
+                fireAndForget(async () => {
+                    try {
+                        setView(
+                            await companionCall<CompanionView>(CompanionPickCommand, {
+                                blockid: target,
+                                viewid: viewId,
+                                path: "",
+                            })
+                        );
+                    } catch (e) {
+                        console.log("companion: back to the current session", e);
+                    }
+                })
+            }
+            onArrange={() => (arranging ? leaveArranging() : setArranging(true))}
+            arranging={arranging}
+            arrangeRef={arrangeButton}
+        />
+    );
+    if (arranging) {
+        return (
+            <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
+                {bar}
+                <Suspense
+                    fallback={
+                        <div className="p-3 text-12 text-muted">
+                            <DominoLoader className="mr-1.5" />
+                            {t("companion.arrange.loading")}
+                        </div>
+                    }
+                >
+                    <CompanionArrange layout={layout} onSave={saveCompanionLayout} onDone={leaveArranging} />
+                </Suspense>
+            </div>
+        );
+    }
     // The sections by their ids (companion-layout.ts); the Tasks block and the agents at work come from the work area.
+    // A section with nothing to show is null, so it takes no place in a column either.
+    const request = permissionRequest(view.pending, agentState?.state);
     const slots: SessionSectionSlots = {
         usage,
-        permission: <PermissionCard pending={view.pending} target={target} agentState={agentState} />,
+        permission:
+            request != null ? <PermissionCard pending={view.pending} target={target} agentState={agentState} /> : null,
         topics: <RecentTopicsSection view={view} now={Date.now()} />,
         answer: <AnswerSection key={view.session?.path} target={target} view={view} />,
         task: <WorkspaceTaskSection target={target} companionId={model.blockId} companion={view} />,
@@ -424,33 +487,12 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
     };
     return (
         <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
-            <SessionBar
-                view={view}
-                name={
-                    agentState?.firstname || provider ? agentProviderLabel(agentState, view.agentname) : view.agentname
-                }
-                onHistory={() => setHistory(true)}
-                onIntegration={() => setIntegrationOpen(true)}
-                onBackToCurrent={() =>
-                    fireAndForget(async () => {
-                        try {
-                            setView(
-                                await companionCall<CompanionView>(CompanionPickCommand, {
-                                    blockid: target,
-                                    viewid: viewId,
-                                    path: "",
-                                })
-                            );
-                        } catch (e) {
-                            console.log("companion: back to the current session", e);
-                        }
-                    })
-                }
-            />
+            {bar}
             <GuessNotice session={session} onHistory={() => setHistory(true)} />
             <IntegrationNotice view={view} className="mx-3 mt-2" />
             <SessionSections
                 slots={slots}
+                layout={layout}
                 columns={(band) => (
                     <WorkArea
                         view={view}
@@ -468,6 +510,9 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
 // A band of two columns, the Tasks block and the agents at work among its sections (#2392), loads on demand, out of the
 // startup bundle; until then its sections show stacked, in the layout's order, as on a narrow companion.
 const CompanionWork = lazy(() => import("./companion-work").then((m) => ({ default: m.CompanionWork })));
+
+// The arranging mode (#2395) loads only when the developer opens it.
+const CompanionArrange = lazy(() => import("./companion-arrange").then((m) => ({ default: m.CompanionArrange })));
 
 function WorkArea({
     view,

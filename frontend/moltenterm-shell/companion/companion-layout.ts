@@ -1,11 +1,12 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The companion's sections and where they go (FR-SHELL-018, #2392): one registry of stable ids, one layout that says
-// in what order the sections come and in which column each one stands, and the defaults, here and nowhere else. A
-// layout is a list: "full" sections span the companion; consecutive "left" and "right" sections form a band of two
-// columns when the companion is wide enough (TwoColumnMinWidth), and stack in the list's order when it is narrow.
-// Pure, so it is tested without a window.
+// The companion's sections and where they go (FR-SHELL-018, #2392, #2395): one registry of stable ids, one layout that
+// says in what order the sections come, which are shown and in which column each one stands, and the defaults, here
+// and nowhere else. A layout is a list: "full" sections span the companion; consecutive "left" and "right" sections
+// form a band of two columns when the companion is wide enough (TwoColumnMinWidth), and stack in the list's order when
+// it is narrow. The developer's own layout (#2395) is the same list, kept in the client's settings; the arranging
+// mode edits it (companion-arrange-model.ts). Pure, so it is tested without a window.
 
 // The registry: an id never changes once shipped, since a developer's own layout will name it.
 export const CompanionSectionIds = [
@@ -73,6 +74,32 @@ export function normalizeLayout(layout: readonly SectionPlacement[]): CompanionL
     return rtn;
 }
 
+// The layout the developer stored, as it can be used; null when none was stored (or it holds nothing), which means the
+// defaults.
+export function readStoredLayout(value: unknown): CompanionLayout {
+    if (!Array.isArray(value) || value.length === 0) {
+        return null;
+    }
+    return normalizeLayout(value as SectionPlacement[]);
+}
+
+export function sameLayout(a: CompanionLayout, b: CompanionLayout): boolean {
+    const x = normalizeLayout(a);
+    const y = normalizeLayout(b);
+    return (
+        x.length === y.length &&
+        x.every((p, i) => p.id === y[i].id && p.column === y[i].column && !p.hidden === !y[i].hidden)
+    );
+}
+
+export function isDefaultLayout(layout: CompanionLayout): boolean {
+    return sameLayout(layout, DefaultCompanionLayout);
+}
+
+// The Tasks block and the agents at work are drawn by the work area from the session, not from a slot: even at full
+// width they come as a band of their own.
+const WorkSections = new Set<CompanionSectionId>(["tasks", "agents"]);
+
 export type FullBand = { kind: "full"; id: CompanionSectionId };
 
 // Two columns: ids is the list's order (the stacked one), left and right each column's.
@@ -95,7 +122,11 @@ export function sectionBands(layout: CompanionLayout, present: (id: CompanionSec
         }
         if (p.column === "full") {
             columns = null;
-            bands.push({ kind: "full", id: p.id });
+            bands.push(
+                WorkSections.has(p.id)
+                    ? { kind: "columns", ids: [p.id], left: [p.id], right: [] }
+                    : { kind: "full", id: p.id }
+            );
             continue;
         }
         if (columns == null) {

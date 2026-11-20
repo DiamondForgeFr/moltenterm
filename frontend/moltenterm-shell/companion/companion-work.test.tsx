@@ -261,7 +261,7 @@ describe("blocks by width", () => {
         expect(narrow).not.toContain("data-column");
     });
 
-    // #2395 will let the developer arrange the sections: the area draws any band of the layout model.
+    // #2395: the developer arranges the sections, and the area draws any band of the layout model.
     it("draws another band: its columns, its other sections, a line across whichever side the agents stand", () => {
         const view = companionView("claude", "Claude Code");
         const swapped: ColumnsBand = {
@@ -288,6 +288,103 @@ describe("blocks by width", () => {
         expect(stacked.indexOf('data-testid="companion-agents"')).toBeLessThan(
             stacked.indexOf('data-testid="companion-tasks"')
         );
+    });
+
+    // #2395: a developer who hides the Tasks block (the band has only the agents) or the agents at work.
+    it("draws no line, no mark and no chip once the Tasks block is hidden; the agents stand alone", () => {
+        const view = companionView("claude", "Claude Code");
+        const agentsOnly: ColumnsBand = { kind: "columns", ids: ["agents"], left: [], right: ["agents"] };
+        for (const width of [380, 900]) {
+            const html = markup(view, withMilestone, width, agentsOnly);
+            expect(html).toContain('data-testid="companion-agents"');
+            expect(html).not.toContain('data-testid="companion-tasks"');
+            expect(html).not.toContain('data-testid="companion-work-links"');
+            expect(html).not.toContain('data-testid="companion-work-chip"');
+            expect(html).not.toContain("data-linked");
+        }
+    });
+
+    it("keeps the chips on the tasks when the agents at work are hidden: a link needs both blocks side by side", () => {
+        const view = companionView("claude", "Claude Code");
+        const tasksOnly: ColumnsBand = { kind: "columns", ids: ["tasks"], left: ["tasks"], right: [] };
+        for (const width of [380, 900]) {
+            const html = markup(view, withMilestone, width, tasksOnly);
+            expect(html).toContain('data-testid="companion-tasks"');
+            expect(html).not.toContain('data-testid="companion-agents"');
+            expect(html).not.toContain('data-testid="companion-work-links"');
+            expect(html.match(/data-testid="companion-work-chip"/g)).toHaveLength(3);
+        }
+    });
+
+    it("draws a line only when the two blocks stand in the two columns of one band", () => {
+        const view = companionView("claude", "Claude Code");
+        const rightAndLeft: ColumnsBand = {
+            kind: "columns",
+            ids: ["agents", "tasks"],
+            left: ["agents"],
+            right: ["tasks"],
+        };
+        expect(markup(view, withMilestone, 900, rightAndLeft)).toContain('data-testid="companion-work-links"');
+        const oneColumn: ColumnsBand = {
+            kind: "columns",
+            ids: ["tasks", "agents", "topics"],
+            left: ["tasks", "agents"],
+            right: ["topics"],
+        };
+        expect(markup(view, withMilestone, 900, oneColumn)).not.toContain('data-testid="companion-work-links"');
+        const oneAgentColumn: ColumnsBand = {
+            kind: "columns",
+            ids: ["topics", "agents"],
+            left: ["topics"],
+            right: ["agents"],
+        };
+        expect(markup(view, withMilestone, 900, oneAgentColumn)).not.toContain('data-testid="companion-work-links"');
+        // The Tasks block hidden while the agents stand in a column of a band of two: nothing to link to.
+        const withoutTasks: ColumnsBand = {
+            kind: "columns",
+            ids: ["agents", "topics"],
+            left: ["agents"],
+            right: ["topics"],
+        };
+        const html = markup(view, withMilestone, 900, withoutTasks);
+        expect(html).toContain("data-both");
+        expect(html).not.toContain('data-testid="companion-work-links"');
+        expect(html).not.toContain("data-linked");
+    });
+
+    it("leaves no gap for a band whose sections have nothing to show", () => {
+        const view = { ...companionView("claude", "Claude Code"), todos: [] };
+        const permissionOnly: ColumnsBand = { kind: "columns", ids: ["permission"], left: ["permission"], right: [] };
+        const draw = (permission: React.ReactNode) =>
+            renderToStaticMarkup(
+                <CompanionWork
+                    view={view}
+                    agentState={working}
+                    dir="/w"
+                    now={now}
+                    width={900}
+                    milestones={withMilestone}
+                    band={permissionOnly}
+                    slots={{ permission }}
+                />
+            );
+        expect(draw(null)).toContain('data-empty=""');
+        expect(draw(<i data-slot="permission" />)).not.toContain("data-empty");
+    });
+
+    it("puts any section in a column, the Tasks block and the agents at work among them", () => {
+        const view = companionView("claude", "Claude Code");
+        const mixed: ColumnsBand = {
+            kind: "columns",
+            ids: ["topics", "tasks", "agents"],
+            left: ["topics", "tasks"],
+            right: ["agents"],
+        };
+        const html = markup(view, withMilestone, 900, mixed);
+        expect(columnOf(html, "companion-tasks")).toBe("left");
+        expect(columnOf(html, "companion-agents")).toBe("right");
+        expect(html.indexOf('data-slot="topics"')).toBeLessThan(html.indexOf('data-testid="companion-tasks"'));
+        expect(html).toContain('data-testid="companion-work-links"');
     });
 });
 

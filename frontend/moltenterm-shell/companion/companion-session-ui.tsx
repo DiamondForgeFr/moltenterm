@@ -132,6 +132,9 @@ export function SessionBar({
     onHistory,
     onIntegration,
     onBackToCurrent,
+    onArrange,
+    arranging,
+    arrangeRef,
 }: {
     view: CompanionView;
     // name: the agent's label, with the session's first name ("Jérôme · Claude Code", FR-CONT-014).
@@ -142,6 +145,10 @@ export function SessionBar({
     onIntegration?: () => void;
     // Leaves an earlier session the user chose for the one the agent runs (#600).
     onBackToCurrent?: () => void;
+    // Turns the arranging mode on, or off when it is on (#2395): the button says which.
+    onArrange?: () => void;
+    arranging?: boolean;
+    arrangeRef?: React.Ref<HTMLButtonElement>;
 }) {
     const t = useT();
     const session = view.session;
@@ -195,6 +202,23 @@ export function SessionBar({
                     <IntegratedBadge onOpen={onIntegration} className="-my-0.5" />
                 ) : null}
                 <UsageButton view={view} className="-my-0.5" />
+                {onArrange != null ? (
+                    <button
+                        type="button"
+                        ref={arrangeRef}
+                        onClick={onArrange}
+                        aria-label={t("companion.arrange.open")}
+                        aria-pressed={arranging === true}
+                        title={t("companion.arrange.open")}
+                        className={cn(
+                            "-my-0.5 flex cursor-pointer items-center gap-1 rounded-6 px-1 py-0.5 hover:bg-hover hover:text-primary",
+                            arranging ? "bg-hover text-primary" : "text-secondary"
+                        )}
+                        data-testid="companion-arrange-open"
+                    >
+                        <i className="fa fa-solid fa-table-columns" aria-hidden="true" />
+                    </button>
+                ) : null}
                 <button
                     type="button"
                     onClick={onHistory}
