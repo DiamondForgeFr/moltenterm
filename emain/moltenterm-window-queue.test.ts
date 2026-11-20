@@ -159,6 +159,25 @@ class FakeWebContents {
     unsavedWork = false;
     scripts: string[] = [];
     executeJavaScript(script?: string): Promise<unknown> {
+        // The landing check of a switch (#2419): a page drawn whole, at full opacity.
+        if (typeof script === "string" && script.includes("mt-frame-content")) {
+            h.trace.push(`js ${this.id} landing`);
+            if (script.includes("visibilityState")) {
+                return Promise.resolve({
+                    html: 1,
+                    body: 1,
+                    bodyVisibility: "visible",
+                    main: 1,
+                    content: 1,
+                    coverMark: false,
+                    overlay: false,
+                    cover: false,
+                    leaving: false,
+                    shown: true,
+                });
+            }
+            return Promise.resolve("clean");
+        }
         if (typeof script === "string" && script.includes("mt-switch") || script?.includes("count()")) {
             this.scripts.push(script);
             h.trace.push(`js ${this.id} ${script.includes("count()") ? "settle" : scriptKind(script)}`);
@@ -1776,7 +1795,9 @@ describe("the switch picture (#2375)", () => {
         h.trace = [];
         ipc("switch-workspace", fresh.oid);
         await vi.advanceTimersByTimeAsync(3000);
-        expect(h.trace.filter((e) => e.startsWith("js") && !e.endsWith("settle"))).toEqual([]);
+        expect(h.trace.filter((e) => e.startsWith("js") && !e.endsWith("settle") && !e.endsWith("landing"))).toEqual(
+            []
+        );
         expect(h.onScreen()).toBe(fresh.activetabid);
     });
 
