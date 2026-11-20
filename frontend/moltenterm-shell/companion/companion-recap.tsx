@@ -7,6 +7,7 @@
 import { cn } from "@/util/util";
 import { AgentStateDotClasses, AgentStateInfo } from "../agent-state-model";
 import { useT } from "../i18n/i18n";
+import type { LinkAgent } from "./companion-milestone-model";
 import { CompanionView } from "./companion-model";
 import { AgentRow, agentsView, finishedLabel, topicRows } from "./companion-recap-model";
 import { SectionTitle } from "./companion-section";
@@ -83,6 +84,9 @@ export type AgentLinkMarks = {
     ends?: ReadonlySet<string>;
     hot?: ReadonlySet<string>;
     heat?: (row: AgentRow) => string;
+    // The plan's steps that link to an agent (#2418, #2430), and whether a link shows as a chip rather than a line.
+    chips?: boolean;
+    todoLinks?: ReadonlyMap<number, LinkAgent>;
 };
 
 function AgentCard({ row, marks }: { row: AgentRow; marks?: AgentLinkMarks }) {

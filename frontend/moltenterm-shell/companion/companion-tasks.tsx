@@ -32,9 +32,7 @@ import {
     tabLabel,
     tabRoom,
     ticketEnd,
-    todoEnd,
 } from "./companion-milestone-model";
-import { CompanionTodo, todoCounts } from "./companion-model";
 
 // The tickets other agents hold that the group lists, before it says how many more.
 const MaxTakenRows = 8;
@@ -65,7 +63,7 @@ function openProjectView(e: React.MouseEvent) {
 
 export type SummariesOffer = { yes: () => void; no: () => void };
 
-export type EndMarks = { chips: boolean; lit: Set<string>; ends: Set<string> };
+export type EndMarks = { chips: boolean; lit: ReadonlySet<string>; ends: ReadonlySet<string> };
 
 export function endAttrs(end: string, heat: StateMarkKind, marks: EndMarks) {
     return {
@@ -107,8 +105,6 @@ export type TasksBlockProps = {
     phrasing: boolean;
     offer: SummariesOffer;
     links: Map<number, LinkAgent[]>;
-    todos: CompanionTodo[];
-    todoAgents: Map<number, LinkAgent>;
     now: number;
 } & EndMarks;
 
@@ -146,20 +142,7 @@ function StandingMark({ standing, text, size }: { standing: Standing; text?: str
 }
 
 export function TasksBlock(props: TasksBlockProps) {
-    const {
-        loading,
-        milestones,
-        selected,
-        onSelect,
-        width,
-        lists,
-        takenOpen,
-        onTakenChange,
-        todos,
-        todoAgents,
-        now,
-        ...marks
-    } = props;
+    const { loading, milestones, selected, onSelect, width, lists, takenOpen, onTakenChange, now, ...marks } = props;
     const t = useT();
     const tCount = useTCount();
     const panelId = useId();
@@ -257,30 +240,7 @@ export function TasksBlock(props: TasksBlockProps) {
                             ends={marks.ends}
                             chips={marks.chips}
                         />
-                        {todos.length > 0 ? (
-                            <TodoList
-                                todos={todos}
-                                links={todoAgents}
-                                titled
-                                compact={compact}
-                                chips={marks.chips}
-                                lit={marks.lit}
-                                ends={marks.ends}
-                            />
-                        ) : null}
                     </div>
-                </div>
-            ) : todos.length > 0 ? (
-                <div className="mt-cwork-flush" data-bare="">
-                    <TodoList
-                        todos={todos}
-                        links={todoAgents}
-                        titled={loading}
-                        compact={compact}
-                        chips={marks.chips}
-                        lit={marks.lit}
-                        ends={marks.ends}
-                    />
                 </div>
             ) : null}
         </SectionBlock>
@@ -814,66 +774,5 @@ function TicketRow({
                 </>
             )}
         </li>
-    );
-}
-
-const TodoMarks: Record<string, StateMarkKind> = { completed: "ready", in_progress: "running", pending: "draft" };
-
-export function TodoList({
-    todos,
-    links,
-    titled,
-    compact,
-    ...marks
-}: {
-    todos: CompanionTodo[];
-    links: Map<number, LinkAgent>;
-    titled: boolean;
-    compact: boolean;
-} & EndMarks) {
-    const t = useT();
-    const { done, total } = todoCounts(todos);
-    return (
-        <section className="mt-cwork-section" data-section="todos" data-testid="companion-todos">
-            {titled ? (
-                <div className="mt-cwork-sec">
-                    <span>{t("companion.work.ownTasks")}</span>
-                    <span className="mt-cwork-n">{`${done} / ${total}`}</span>
-                </div>
-            ) : (
-                <div className="mt-cwork-sec" data-quiet="">
-                    <span className="mt-cwork-n ml-auto">{`${done} / ${total}`}</span>
-                </div>
-            )}
-            <ul>
-                {todos.map((todo, i) => {
-                    const agent = links.get(i);
-                    const heat = agent != null ? heatOf(agent.state) : (TodoMarks[todo.status] ?? "draft");
-                    return (
-                        <li
-                            key={i}
-                            className="mt-cwork-end mt-cwork-row"
-                            data-compact={compact ? "" : undefined}
-                            {...endAttrs(todoEnd(i), heat, marks)}
-                        >
-                            <span className="mt-cwork-mark" data-free={todo.status === "pending" ? "" : undefined}>
-                                <StateMark kind={TodoMarks[todo.status] ?? "draft"} />
-                            </span>
-                            <span
-                                className={cn("mt-cwork-text", todo.status === "completed" && "line-through")}
-                                data-free={todo.status === "completed" || todo.status === "pending" ? "" : undefined}
-                            >
-                                {todo.text}
-                            </span>
-                            {marks.chips && agent != null ? (
-                                <span className="mt-cwork-chips">
-                                    <LinkChip agent={agent} />
-                                </span>
-                            ) : null}
-                        </li>
-                    );
-                })}
-            </ul>
-        </section>
     );
 }

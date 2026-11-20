@@ -36,6 +36,7 @@ import {
     drawnLinks,
     heatOf,
     hotEnds,
+    LinkAgent,
     linkAgents,
     LinkPath,
     linkPath,
@@ -292,13 +293,14 @@ export function CompanionWork(props: CompanionWorkProps) {
         setShown(shownNumber);
     }, [shownNumber]);
     const todos = view?.todos ?? [];
-    const todoAgents = todoLinks(todos, linkable);
+    // The plan's steps link to the agents only while the Tasks block is in this band (#2395): hiding it hides the lines.
+    const todoAgents = showsTasks ? todoLinks(todos, linkable) : new Map<number, LinkAgent>();
     // Without the Tasks block in this band there is nothing to link an agent to.
     const links = showsTasks ? drawnLinks(preview?.rows, tickets, todoAgents) : [];
     const lit = hotEnds(links, hot);
     const ends = new Set(links.flatMap((l) => [l.from, l.to]));
     const loading = milestones?.state === "loading";
-    const hasTasks = loading || m != null || todos.length > 0;
+    const hasTasks = loading || m != null;
     const ended = finishedLabel(agents.finished, agents.failed);
     const agentHeat = (row: AgentRow) => (ends.has(agentEnd(row.id)) ? heatOf(row.state) : undefined);
     const shows = (id: CompanionSectionId) =>
@@ -332,8 +334,6 @@ export function CompanionWork(props: CompanionWorkProps) {
                 phrasing={milestones?.phrasing === true}
                 offer={offer}
                 links={tickets}
-                todos={todos}
-                todoAgents={todoAgents}
                 now={now}
                 chips={chips}
                 lit={lit}
@@ -350,7 +350,7 @@ export function CompanionWork(props: CompanionWorkProps) {
                 <AgentsBlockBody
                     rows={agents.rows}
                     view={view}
-                    marks={{ ends, hot: lit, heat: agentHeat }}
+                    marks={{ ends, hot: lit, heat: agentHeat, chips, todoLinks: todoAgents }}
                     ended={ended}
                     now={now}
                 />

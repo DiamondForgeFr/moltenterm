@@ -11,6 +11,7 @@ import { durationText } from "../reviews/reviews-upcoming-model";
 import { StateMark } from "../state-mark";
 import { agentEnd, certainTicket, heatOf } from "./companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "./companion-model";
+import { PlanSection } from "./companion-plan";
 import type { AgentLinkMarks } from "./companion-recap";
 import type { AgentRow } from "./companion-recap-model";
 
@@ -151,6 +152,25 @@ export function AgentsBlockBody({
                     {ended ? <div className="mt-cwork-slim mt-cwork-slim-start">{ended}</div> : null}
                 </div>
             ) : null}
+            {main != null ? (
+                <PlanSection
+                    todos={view?.todos ?? []}
+                    name={mainName(main)}
+                    updatedAt={view?.todosAt}
+                    now={now}
+                    links={marks?.todoLinks}
+                    marks={{
+                        chips: marks?.chips === true,
+                        lit: marks?.hot ?? new Set(),
+                        ends: marks?.ends ?? new Set(),
+                    }}
+                />
+            ) : null}
         </>
     );
+}
+
+// The main agent's first name, as its card shows it (the plan's heading names it).
+export function mainName(row: AgentRow): string {
+    return (row.first || row.tool || row.name).trim();
 }
