@@ -681,7 +681,7 @@
             "section": "advanced",
             "group": "Agents",
             "label": "Kimi Code managed limits (experimental)",
-            "description": "Read managed limits from Kimi Code's undocumented endpoint for its configured .com or .ai region with its file-backed OAuth sign-in.",
+            "description": "Read Kimi Code's managed limits for its official .com or .ai region with its file-backed OAuth sign-in.",
             "control": "toggle",
             "order": 135
           }
