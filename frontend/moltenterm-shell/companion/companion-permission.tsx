@@ -33,7 +33,7 @@ export function PermissionRequestCard({
     }
     return (
         <div
-            className="m-3 mb-0 rounded-4 border border-warning/60 bg-warning/10 p-2"
+            className="mx-(--mt-companion-inset) mt-3 rounded-4 border border-warning/60 bg-warning/10 p-2"
             data-testid="companion-permission"
         >
             <div className="mb-1 text-12 font-medium text-warning">

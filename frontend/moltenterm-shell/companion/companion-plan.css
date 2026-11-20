@@ -7,7 +7,7 @@
    working arc, a hollow dot). Reduced motion stops the pulse. */
 
 .mt-plan {
-    --mt-plan-pad: var(--df-block-pad, 12px);
+    --mt-plan-pad: var(--df-block-pad, var(--mt-companion-inset));
 }
 
 .mt-plan-ago {
