@@ -25,6 +25,8 @@ import {
     agentsRunKey,
     classifyTickets,
     HoldInputs,
+    HoldKind,
+    holdGroup,
     MaxStripSquares,
     ownerNames,
     statusStarted,
@@ -122,6 +124,39 @@ describe("a ticket held by no agent MoltenTerm knows", () => {
         for (const status of ["", "Backlog", " backlog ", "Ready", "Todo", "To do", undefined]) {
             expect(statusStarted(status)).toBe(false);
         }
+    });
+
+    it("is idle, not with others, while no live agent works on it (#2454)", () => {
+        const tickets = ticketsOf(1, 2, 3, 4).map((t, i) => ({ ...t, status: ["In progress", "In review", "", ""][i] }));
+        const m = { number: 1, title: "1.1.0", open: 4, closed: 0, remaining: 4, tickets };
+        const lists = taskLists(m, new Map(), classifyTickets(tickets, inputs(Flore, [], { upcoming: answer })));
+        expect(lists.idle.map((h) => h.ticket.number)).toEqual([1, 2]);
+        expect(lists.taken).toEqual([]);
+        expect(lists.counts).toEqual({ mine: 0, taken: 0, idle: 2, free: 2 });
+        expect(lists.rows.map((r) => r.number)).toEqual([3, 4]);
+        expect(lists.more).toBe(0);
+        expect(holdGroup("agent")).toBe("other");
+        expect(holdGroup("away")).toBe("other");
+        expect(["status", "pr", "branch"].map((k) => holdGroup(k as HoldKind))).toEqual(["idle", "idle", "idle"]);
+        expect(holdGroup("mine")).toBe("mine");
+        expect(holdGroup("free")).toBe("free");
+    });
+
+    it("stays with others while another session's live agent holds it, In progress or not (#2454)", () => {
+        const tickets = ticketsOf(4, 6).map((t) => ({ ...t, status: "In progress" }));
+        const m = { number: 1, title: "1.1.0", open: 2, closed: 0, remaining: 2, tickets };
+        const lists = taskLists(m, linksOf(), classifyTickets(tickets, inputs(Flore, [])));
+        expect(lists.taken.map((h) => h.ticket.number)).toEqual([4, 6]);
+        expect(lists.idle).toEqual([]);
+        expect(lists.counts).toEqual({ mine: 0, taken: 2, idle: 0, free: 0 });
+    });
+
+    it("keeps this session's sub-agents' tickets here even when they are In progress (#2454)", () => {
+        const tickets = ticketsOf(1, 2).map((t) => ({ ...t, status: "In progress" }));
+        const m = { number: 1, title: "1.1.0", open: 2, closed: 0, remaining: 2, tickets };
+        const lists = taskLists(m, linksOf(1, 2), classifyTickets(tickets, inputs(Flore, [1, 2])));
+        expect(lists.mine.map((t) => t.number)).toEqual([1, 2]);
+        expect(lists.counts).toEqual({ mine: 2, taken: 0, idle: 0, free: 0 });
     });
 
     it("is hidden everywhere but in the companion of the agent working on its branch", () => {
@@ -271,7 +306,7 @@ describe("the lists and counts of a milestone", () => {
         expect(lists.rows).toHaveLength(MaxMilestoneRows);
         expect(lists.rows.map((t) => t.number)).toEqual([1, 2, 3, 7, 8, 9, 10, 11]);
         // 41 open: 3 here, 3 with others, the other 35 free; 5 of them shown.
-        expect(lists.counts).toEqual({ mine: 3, taken: 3, free: 35 });
+        expect(lists.counts).toEqual({ mine: 3, taken: 3, idle: 0, free: 35 });
         expect(lists.more).toBe(30);
         const noneFree = taskLists(
             { ...nineOpen(), tickets: ticketsOf(4, 5, 6), remaining: 3, open: 3 },
@@ -279,7 +314,7 @@ describe("the lists and counts of a milestone", () => {
             classifyTickets(ticketsOf(4, 5, 6), inputs(Flore, []))
         );
         expect(noneFree.more).toBe(0);
-        expect(noneFree.counts).toEqual({ mine: 0, taken: 3, free: 0 });
+        expect(noneFree.counts).toEqual({ mine: 0, taken: 3, idle: 0, free: 0 });
         expect(noneFree.rows).toEqual([]);
     });
 
@@ -297,11 +332,20 @@ describe("the lists and counts of a milestone", () => {
         expect(ownerNames([])).toEqual([]);
     });
 
-    it("draws one square per open ticket, this agent's first, then another's, then free, thirty at most", () => {
-        expect(stripSquares({ mine: 2, taken: 1, free: 3 })).toEqual(["mine", "mine", "other", "free", "free", "free"]);
-        expect(stripSquares({ mine: 0, taken: 0, free: 0 })).toEqual([]);
-        expect(stripSquares({ mine: 3, taken: 3, free: 100 })).toHaveLength(MaxStripSquares);
-        expect(stripSquares({ mine: 40, taken: 0, free: 0 }).every((s) => s === "mine")).toBe(true);
+    it("draws one square per open ticket, this agent's first, then another's, then idle, then free, thirty at most", () => {
+        expect(stripSquares({ mine: 2, taken: 1, idle: 2, free: 3 })).toEqual([
+            "mine",
+            "mine",
+            "other",
+            "idle",
+            "idle",
+            "free",
+            "free",
+            "free",
+        ]);
+        expect(stripSquares({ mine: 0, taken: 0, idle: 0, free: 0 })).toEqual([]);
+        expect(stripSquares({ mine: 3, taken: 3, idle: 0, free: 100 })).toHaveLength(MaxStripSquares);
+        expect(stripSquares({ mine: 40, taken: 0, idle: 0, free: 0 }).every((s) => s === "mine")).toBe(true);
     });
 
     it("tells that the agents changed from the runs the windows know, not from their states", () => {

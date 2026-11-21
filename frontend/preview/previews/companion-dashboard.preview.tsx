@@ -133,7 +133,8 @@ const milestones: MilestonesView = {
                 ticket(827, "An unknown setting shows read-only"),
                 ticket(829, "The search ignores accents"),
                 ticket(830, "A deep link opens one option"),
-                ticket(833, "Recent options come first"),
+                // In progress on the board with nobody at work on it: idle (#2454). wavesrv already left the epics out.
+                { ...ticket(833, "Recent options come first"), status: "In progress" },
                 ticket(818, "Export the settings to a file"),
             ],
         },

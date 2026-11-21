@@ -347,6 +347,11 @@
     background: color-mix(in srgb, var(--mt-state-draft) 70%, var(--mt-surface-3));
 }
 
+/* In progress with nobody on it (#2454): the iron of another's, dimmed. */
+.mt-cwork-squares > [data-kind="idle"] {
+    background: color-mix(in srgb, var(--mt-state-draft) 28%, transparent);
+}
+
 .mt-cwork-squares > [data-kind="free"] {
     border: 1.5px solid var(--mt-state-draft);
 }
@@ -366,6 +371,7 @@
     color: var(--mt-text-2);
 }
 
+.mt-cwork-counts > [data-kind="idle"],
 .mt-cwork-counts > [data-kind="free"] {
     color: var(--mt-text-3);
 }
@@ -413,6 +419,10 @@
     min-height: 32px;
     padding: 4px var(--df-block-pad);
     border-top: 1px solid var(--mt-cwork-hair);
+}
+
+.mt-cwork-mark[data-idle] {
+    opacity: 0.55;
 }
 
 .mt-cwork-mark[data-other] .mt-state-mark.is-running {

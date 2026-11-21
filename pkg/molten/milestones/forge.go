@@ -74,6 +74,10 @@ type forgeIssue struct {
 	HtmlUrl     string          `json:"html_url"`
 	Body        string          `json:"body"`
 	PullRequest json.RawMessage `json:"pull_request"`
+	// Type is the issue's type (epics.go), absent on a repository without issue types.
+	Type *struct {
+		Name string `json:"name"`
+	} `json:"type"`
 }
 
 func parseTime(s string) time.Time {
@@ -138,19 +142,24 @@ func openMilestones(ctx context.Context, gh ghFunc, dir string) ([]forgeMileston
 	return answer.Data.Repository.Milestones.Nodes, nil
 }
 
-// openTickets are the open issues of one milestone, newest update first, pull requests left out.
-func openTickets(ctx context.Context, gh ghFunc, dir string, number int) ([]Ticket, error) {
+// openTickets are the open issues of one milestone, newest update first, pull requests and epics left out; epics is
+// how many open epics the read held.
+func openTickets(ctx context.Context, gh ghFunc, dir string, number int) (tickets []Ticket, epics int, err error) {
 	out, err := gh(ctx, dir, "api", fmt.Sprintf("repos/{owner}/{repo}/issues?milestone=%d&state=open&sort=updated&direction=desc&per_page=%d", number, maxTickets))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	var issues []forgeIssue
 	if err := json.Unmarshal(out, &issues); err != nil {
-		return nil, errors.New("gh api issues: unreadable answer")
+		return nil, 0, errors.New("gh api issues: unreadable answer")
 	}
-	tickets := []Ticket{}
+	tickets = []Ticket{}
 	for _, issue := range issues {
 		if issue.Number <= 0 || (len(issue.PullRequest) > 0 && string(issue.PullRequest) != "null") {
+			continue
+		}
+		if issue.Type != nil && isEpicType(issue.Type.Name) {
+			epics++
 			continue
 		}
 		title := cutRunes(oneLine(issue.Title), maxTitleRunes)
@@ -163,7 +172,7 @@ func openTickets(ctx context.Context, gh ghFunc, dir string, number int) ([]Tick
 			hash:    contentHash(title, excerpt),
 		})
 	}
-	return tickets, nil
+	return tickets, epics, nil
 }
 
 // readForge reads every open milestone, in the tabs' order, and the tickets of the first ticketMilestones of them and of
@@ -187,6 +196,7 @@ func readForge(ctx context.Context, gh ghFunc, dir string, selected []int) readR
 	for _, n := range selected {
 		asked[n] = true
 	}
+	epics, counted := readEpicCounts(ctx, gh, dir, ordered)
 	milestones := make([]Milestone, 0, len(ordered))
 	repo := ""
 	for i, fm := range ordered {
@@ -194,24 +204,28 @@ func readForge(ctx context.Context, gh ghFunc, dir string, selected []int) readR
 			repo = repoOf(fm.Url)
 		}
 		m := Milestone{
-			Number:    fm.Number,
-			Title:     cutRunes(oneLine(fm.Title), maxTitleRunes),
-			Url:       httpsOnly(fm.Url),
-			Open:      max(0, fm.Open.TotalCount),
-			Closed:    max(0, fm.Closed.TotalCount),
-			Due:       unixMs(parseTime(fm.DueOn)),
-			Remaining: max(0, fm.Open.TotalCount),
-			Tickets:   []Ticket{},
-			Loaded:    fm.Open.TotalCount <= 0,
+			Number:  fm.Number,
+			Title:   cutRunes(oneLine(fm.Title), maxTitleRunes),
+			Url:     httpsOnly(fm.Url),
+			Open:    max(0, fm.Open.TotalCount-epics[fm.Number].open),
+			Closed:  max(0, fm.Closed.TotalCount-epics[fm.Number].closed),
+			Due:     unixMs(parseTime(fm.DueOn)),
+			Tickets: []Ticket{},
+			Loaded:  fm.Open.TotalCount <= 0,
 		}
 		if fm.Open.TotalCount > 0 && (i < ticketMilestones || asked[fm.Number]) {
-			tickets, err := openTickets(ctx, gh, dir, fm.Number)
+			tickets, seen, err := openTickets(ctx, gh, dir, fm.Number)
 			if err != nil {
 				return readResult{err: err}
 			}
 			m.Tickets, m.Loaded = tickets, true
-			m.Remaining = max(m.Remaining, len(tickets))
+			if !counted {
+				m.Open = max(0, m.Open-seen)
+			}
 		}
+		// A milestone whose open issues are all epics has no ticket to read.
+		m.Loaded = m.Loaded || m.Open <= 0
+		m.Remaining = max(m.Open, len(m.Tickets))
 		milestones = append(milestones, m)
 	}
 	var numbers []int

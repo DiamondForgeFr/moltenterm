@@ -45,6 +45,26 @@ export type TicketHold =
 
 export type HoldKind = TicketHold["kind"];
 
+// Where a hold puts a ticket (#2454): this agent's work, another live holder's ("with others"), taken with nobody at work
+// on it ("in progress, nobody on it"), or free. Only a live agent makes a ticket another's: a board status, a pull
+// request or a worktree branch with no agent at work on it is idle.
+export type HoldGroup = "mine" | "other" | "idle" | "free";
+
+export function holdGroup(kind: HoldKind): HoldGroup {
+    switch (kind) {
+        case "mine":
+            return "mine";
+        case "agent":
+        case "away":
+            return "other";
+        case "status":
+        case "pr":
+        case "branch":
+            return "idle";
+    }
+    return "free";
+}
+
 export type HoldInputs = {
     // The tickets this companion's agent or its sub-agents work on (ticketLinks).
     mine: Map<number, LinkAgent[]>;
@@ -208,15 +228,19 @@ export type TaskLists = {
     mine: MilestoneTicket[];
     // The tickets nobody holds, in the forge's order (the most recently updated first).
     free: MilestoneTicket[];
-    // The tickets another holds, in the forge's order: never work to do.
-    taken: { ticket: MilestoneTicket; hold: TicketHold }[];
+    // The tickets another live agent holds, in the forge's order: never work to do.
+    taken: HeldTicket[];
+    // The tickets taken that nobody works on (#2454), in the forge's order: never work to do either.
+    idle: HeldTicket[];
     // The rows of work shown (mine first, then free), MaxMilestoneRows at most.
     rows: MilestoneTicket[];
     // The tickets nobody holds that are not in rows.
     more: number;
     // The count of each, the milestone's whole open tickets (a read holds at most a hundred): what is not read is free.
-    counts: { mine: number; taken: number; free: number };
+    counts: { mine: number; taken: number; idle: number; free: number };
 };
+
+export type HeldTicket = { ticket: MilestoneTicket; hold: TicketHold };
 
 export function taskLists(
     m: MilestoneInfo,
@@ -228,24 +252,26 @@ export function taskLists(
     const place = new Map((agents ?? []).map((a, i) => [a.id, i]));
     const rank = (t: MilestoneTicket) =>
         Math.min(...(links?.get(t.number) ?? []).map((a) => place.get(a.id) ?? Number.MAX_SAFE_INTEGER));
-    const kindOf = (t: MilestoneTicket): HoldKind =>
-        links?.has(t.number) ? "mine" : (holds?.get(t.number)?.kind ?? "free");
-    const mine = tickets.filter((t) => kindOf(t) === "mine").sort((a, b) => rank(a) - rank(b));
-    const free = tickets.filter((t) => kindOf(t) === "free");
-    const taken = tickets
-        .filter((t) => kindOf(t) !== "mine" && kindOf(t) !== "free")
-        .map((ticket) => ({ ticket, hold: holds.get(ticket.number) }));
+    const groupOf = (t: MilestoneTicket): HoldGroup =>
+        links?.has(t.number) ? "mine" : holdGroup(holds?.get(t.number)?.kind ?? "free");
+    const held = (group: HoldGroup) =>
+        tickets.filter((t) => groupOf(t) === group).map((ticket) => ({ ticket, hold: holds.get(ticket.number) }));
+    const mine = tickets.filter((t) => groupOf(t) === "mine").sort((a, b) => rank(a) - rank(b));
+    const free = tickets.filter((t) => groupOf(t) === "free");
+    const taken = held("other");
+    const idle = held("idle");
     const rows = [...mine, ...free].slice(0, MaxMilestoneRows);
     const remaining = Math.max(m?.remaining ?? 0, tickets.length);
-    const freeCount = Math.max(free.length, remaining - mine.length - taken.length);
+    const freeCount = Math.max(free.length, remaining - mine.length - taken.length - idle.length);
     const freeShown = rows.length - Math.min(rows.length, mine.length);
     return {
         mine,
         free,
         taken,
+        idle,
         rows,
         more: Math.max(0, freeCount - freeShown),
-        counts: { mine: mine.length, taken: taken.length, free: freeCount },
+        counts: { mine: mine.length, taken: taken.length, idle: idle.length, free: freeCount },
     };
 }
 
@@ -261,16 +287,17 @@ export function ownerNames(taken: TaskLists["taken"]): string[] {
     return names;
 }
 
-// One square per open ticket for the milestone's strip: this agent's, another's, free; MaxStripSquares at most, since
-// the counts beside the strip carry the rest.
+// One square per open ticket for the milestone's strip: this agent's, another's, idle (dimmed), free; MaxStripSquares at
+// most, since the counts beside the strip carry the rest.
 export const MaxStripSquares = 30;
 
-export type StripSquare = "mine" | "other" | "free";
+export type StripSquare = "mine" | "other" | "idle" | "free";
 
 export function stripSquares(counts: TaskLists["counts"]): StripSquare[] {
     const squares: StripSquare[] = [
         ...Array<StripSquare>(counts.mine).fill("mine"),
         ...Array<StripSquare>(counts.taken).fill("other"),
+        ...Array<StripSquare>(counts.idle).fill("idle"),
         ...Array<StripSquare>(counts.free).fill("free"),
     ];
     return squares.slice(0, MaxStripSquares);

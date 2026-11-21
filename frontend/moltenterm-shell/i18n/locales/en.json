@@ -2234,8 +2234,11 @@
             "left": "{count} left",
             "countMine": "{count} here",
             "countOthers": "{count} with others",
+            "countIdle": "{count} idle",
             "countFree": "{count} to take",
             "takenByOthers": "Taken by others",
+            "idleGroup": "In progress, nobody on it",
+            "openTheTicket": "Open the ticket",
             "takenMore": {
                 "one": "and {count} more",
                 "other": "and {count} more"

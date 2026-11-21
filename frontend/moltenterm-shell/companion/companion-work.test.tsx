@@ -803,28 +803,83 @@ describe("who works on what (#2418)", () => {
         expect(html(undefined, 300)).toContain('aria-expanded="false"');
     });
 
-    it("names a taken ticket by its board status, its pull request or its branch when no agent holds it", () => {
+    // #2454: a ticket taken by its board status, its pull request or its branch, with no live agent on it, is idle, not
+    // "with others": its own folded group, a dimmed square and a count, never work to take.
+    const idleSetup = () => {
         const tickets = nineOpen();
-        tickets.tickets = tickets.tickets.map((t) => (t.number === 8 ? { ...t, status: "In progress" } : t));
+        tickets.tickets = tickets.tickets.map((t) =>
+            t.number === 8 ? { ...t, status: "In progress", url: "https://example.test/issues/8" } : t
+        );
         const none = upcomingOf([], [{ branch: "feature/9-x", ticket: 9, ahead: 1, worktree: "/shop/.worktrees/9" }]);
-        const html = render(Flore, [], 1400, {
-            milestones: { dir: "/shop", state: "ok", milestones: [tickets] },
-            holds: {
-                upcoming: none,
-                states: EveryLead,
-                reviews: reviewsOf({
-                    number: 91,
-                    ticket: 7,
-                    branch: "feature/7-x",
-                    url: "https://example.test/pull/91",
-                }),
-            },
-        });
+        const reviews = reviewsOf({ number: 91, ticket: 7, branch: "feature/7-x", url: "https://example.test/pull/91" });
+        return { tickets, holds: { upcoming: none, states: EveryLead, reviews } };
+    };
+
+    it("shows a ticket taken with nobody on it as idle, folded apart, never with others (#2454)", () => {
+        const { tickets, holds } = idleSetup();
+        const html = render(Flore, [], 1400, { milestones: { dir: "/shop", state: "ok", milestones: [tickets] }, holds });
         expect(ticketRows(html)).toEqual([1, 2, 3, 4, 5, 6]);
+        expect(html).not.toContain('data-testid="companion-taken"');
+        expect(html).not.toContain("with others");
+        expect(html).toContain('<span data-kind="idle">3 idle</span>');
+        expect(html.match(/<span data-kind="idle"><\/span>/g)).toHaveLength(3);
+        expect(html).toContain(">In progress, nobody on it<");
+        expect(html).toContain('data-testid="companion-idle-head"');
+        expect(html).not.toContain('data-testid="companion-idle-ticket"');
+    });
+
+    it("lists each idle ticket, opened, with what says it is taken and Open the ticket (#2454)", () => {
+        const { tickets, holds } = idleSetup();
+        const html = renderToStaticMarkup(
+            <TasksBlock
+                loading={false}
+                milestones={[tickets]}
+                selected={tickets}
+                onSelect={() => {}}
+                width={700}
+                lists={taskLists(
+                    tickets,
+                    new Map(),
+                    classifyTickets(tickets.tickets, {
+                        mine: new Map(),
+                        ownBlockId: "flore",
+                        workspaceId: ThisWorkspace,
+                        ...holds,
+                    })
+                )}
+                takenOpen={undefined}
+                onTakenChange={() => {}}
+                idleOpen={true}
+                onIdleChange={() => {}}
+                phrasing={false}
+                offer={null}
+                links={new Map()}
+                now={now}
+                chips={false}
+                lit={new Set()}
+                ends={new Set()}
+            />
+        );
+        expect(html.match(/data-testid="companion-idle-ticket"/g)).toHaveLength(3);
         expect(html).toContain('data-testid="companion-taken-status">In progress<');
         expect(html).toContain('data-testid="companion-taken-pr">PR #91<');
         expect(html).toContain('data-testid="companion-taken-branch">On a branch<');
         expect(html).not.toContain('data-testid="companion-taken-owner"');
+        expect(html).toContain('title="Open ticket #8" data-testid="companion-idle-open">Open the ticket<');
+    });
+
+    it("keeps a ticket another live agent holds with others, and this session's sub-agents here (#2454)", () => {
+        const { tickets } = idleSetup();
+        const withLive = tickets.tickets.map((t) => (t.number === 4 ? { ...t, status: "In progress" } : t));
+        const m = { ...tickets, tickets: withLive };
+        const html = render(Flore, [1, 2, 3], 1400, {
+            milestones: { dir: "/shop", state: "ok", milestones: [m] },
+        });
+        // Ticket 4 is In progress on the board and Jérôme's sub-agent works on it: a live holder, so with others.
+        expect(html).toContain('<span data-kind="other">3 with others</span>');
+        expect(html).toContain('<span data-kind="mine">3 here</span>');
+        expect(ticketRows(html).slice(0, 3)).toEqual([1, 2, 3]);
+        expect(html).toContain('<span data-kind="idle">1 idle</span>');
     });
 
     it("takes a ticket an agent of another workspace holds out of the list without naming that agent", () => {
