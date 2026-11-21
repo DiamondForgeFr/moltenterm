@@ -9,7 +9,7 @@
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { Flag } from "lucide-react";
+import { ExternalLink, Flag } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
@@ -18,7 +18,15 @@ import { StateMark, StateMarkKind } from "../state-mark";
 import { DominoLoader, nextToggleIndex, suiteTabId, SuiteTabs } from "../suite/suite";
 import { CompanionBlock, FootLink, MoreButton } from "./companion-block";
 import { capList } from "./companion-flow-model";
-import { ownerNames, stripSquares, TaskLists, TicketHold, TicketOwner } from "./companion-holds-model";
+import {
+    HeldTicket,
+    ownerNames,
+    statusInProgress,
+    stripSquares,
+    TaskLists,
+    TicketHold,
+    TicketOwner,
+} from "./companion-holds-model";
 import {
     daysLate,
     dueText,
@@ -114,6 +122,8 @@ export type TasksBlockProps = {
     onTakenChange: (open: boolean) => void;
     // The "In progress, nobody on it" group's fold state (#2454): folded until the developer opens it.
     idleOpen?: boolean;
+    reviewOpen?: boolean;
+    onReviewChange?: (open: boolean) => void;
     onIdleChange?: (open: boolean) => void;
     phrasing: boolean;
     offer: SummariesOffer;
@@ -168,6 +178,8 @@ export function TasksBlock(props: TasksBlockProps) {
         takenOpen,
         onTakenChange,
         idleOpen,
+        reviewOpen,
+        onReviewChange,
         onIdleChange,
         now,
         flowId,
@@ -269,6 +281,8 @@ export function TasksBlock(props: TasksBlockProps) {
                             onToggleTaken={() => onTakenChange(!takenShown)}
                             idleOpen={idleOpen === true}
                             onToggleIdle={() => onIdleChange?.(idleOpen !== true)}
+                            reviewOpen={reviewOpen === true}
+                            onToggleReview={() => onReviewChange?.(reviewOpen !== true)}
                             links={marks.links}
                             compact={compact}
                             lit={marks.lit}
@@ -356,7 +370,7 @@ function OpenMilestone({ url }: { url: string }) {
 function Strip({ lists, compact }: { lists: TaskLists; compact: boolean }) {
     const t = useT();
     const { counts } = lists;
-    const left = counts.mine + counts.taken + counts.idle + counts.free;
+    const left = counts.mine + counts.taken + counts.review + counts.idle + counts.free;
     if (left <= 0) {
         return null;
     }
@@ -374,6 +388,9 @@ function Strip({ lists, compact }: { lists: TaskLists; compact: boolean }) {
                 ) : null}
                 {counts.taken > 0 ? (
                     <span data-kind="other">{t("companion.work.countOthers", { count: counts.taken })}</span>
+                ) : null}
+                {counts.review > 0 ? (
+                    <span data-kind="review">{t("companion.work.countReview", { count: counts.review })}</span>
                 ) : null}
                 {counts.idle > 0 ? (
                     <span data-kind="idle">{t("companion.work.countIdle", { count: counts.idle })}</span>
@@ -515,6 +532,8 @@ function MilestoneBody({
     takenOpen,
     onToggleTaken,
     idleOpen,
+    reviewOpen,
+    onToggleReview,
     onToggleIdle,
     links,
     compact,
@@ -526,6 +545,8 @@ function MilestoneBody({
     onToggleTaken: () => void;
     idleOpen: boolean;
     onToggleIdle: () => void;
+    reviewOpen: boolean;
+    onToggleReview: () => void;
     links: Map<number, LinkAgent[]>;
     compact: boolean;
 } & EndMarks) {
@@ -598,7 +619,12 @@ function MilestoneBody({
             {lists.taken.length > 0 ? (
                 <TakenGroup taken={lists.taken} open={takenOpen} onToggle={onToggleTaken} />
             ) : null}
-            {lists.idle?.length > 0 ? <IdleGroup idle={lists.idle} open={idleOpen} onToggle={onToggleIdle} /> : null}
+            {lists.review?.length > 0 ? (
+                <HeldGroup kind="review" held={lists.review} open={reviewOpen} onToggle={onToggleReview} />
+            ) : null}
+            {lists.idle?.length > 0 ? (
+                <HeldGroup kind="idle" held={lists.idle} open={idleOpen} onToggle={onToggleIdle} />
+            ) : null}
         </>
     );
 }
@@ -749,13 +775,27 @@ function TakenGroup({ taken, open, onToggle }: { taken: TaskLists["taken"]; open
 }
 
 // The tickets taken that nobody works on (#2454): in progress on the board, with a pull request or a worktree branch,
-// but no live agent on them. Never work to do: folded to one line until the developer opens it, then one slim line per
-// ticket with what says it is taken and "Open the ticket", so he can close it or pick it up.
-function IdleGroup({ idle, open, onToggle }: { idle: TaskLists["idle"]; open: boolean; onToggle: () => void }) {
+// but no live agent on them; and the tickets in review with their open pull request, which wait for the developer. Never
+// work to do: each folds to one line until the developer opens it, then one row per ticket laid out like the
+// milestone's rows (its number, then its whole title, never cut for a chip), with one action at the row's end: the pull
+// request to review, or the ticket to close or pick up.
+type HeldKind = "idle" | "review";
+
+function HeldGroup({
+    kind,
+    held,
+    open,
+    onToggle,
+}: {
+    kind: HeldKind;
+    held: HeldTicket[];
+    open: boolean;
+    onToggle: () => void;
+}) {
     const t = useT();
     const tCount = useTCount();
     return (
-        <section className="mt-cwork-section" data-section="idle" data-testid="companion-idle">
+        <section className="mt-cwork-section" data-section={kind} data-testid={`companion-${kind}`}>
             <button
                 type="button"
                 className="mt-cwork-sec mt-cwork-sec-fold"
@@ -764,52 +804,102 @@ function IdleGroup({ idle, open, onToggle }: { idle: TaskLists["idle"]; open: bo
                     e.stopPropagation();
                     onToggle();
                 }}
-                data-testid="companion-idle-head"
+                data-testid={`companion-${kind}-head`}
             >
                 <i className={cn("fa fa-solid", open ? "fa-chevron-down" : "fa-chevron-right")} aria-hidden="true" />
-                <span>{t("companion.work.idleGroup")}</span>
-                <span className="mt-cwork-n">{idle.length}</span>
+                <span>{t(kind === "review" ? "companion.work.reviewGroup" : "companion.work.idleGroup")}</span>
+                <span className="mt-cwork-n">{held.length}</span>
             </button>
             {open ? (
-                <ul>
-                    {idle.slice(0, MaxTakenRows).map(({ ticket, hold }) => (
-                        <li
-                            key={ticket.number}
-                            className="mt-cwork-taken"
-                            data-testid="companion-idle-ticket"
-                            data-hold={hold.kind}
-                        >
-                            <span className="mt-cwork-mark" data-idle="">
-                                <StateMark kind="draft" label={t("companion.work.idleGroup")} />
-                            </span>
-                            <span className="mt-cwork-id">{`#${ticket.number}`}</span>
-                            <span className="mt-cwork-title truncate" title={ticket.title}>
-                                {ticket.title}
-                            </span>
-                            <HoldTag hold={hold} />
-                            {ticket.url ? (
-                                <button
-                                    type="button"
-                                    className="mt-cwork-tag mt-cwork-tag-link"
-                                    title={t("companion.work.openTicket", { number: ticket.number })}
-                                    onClick={(e) => openPage(e, ticket.url)}
-                                    data-testid="companion-idle-open"
-                                >
-                                    {t("companion.work.openTheTicket")}
-                                </button>
-                            ) : null}
-                        </li>
+                <ol>
+                    {held.slice(0, MaxTakenRows).map((h) => (
+                        <HeldRow key={h.ticket.number} kind={kind} held={h} />
                     ))}
-                    {idle.length > MaxTakenRows ? (
-                        <li className="mt-cwork-slim" data-testid="companion-idle-more">
-                            {tCount("companion.work.takenMore", idle.length - MaxTakenRows, {
-                                count: idle.length - MaxTakenRows,
+                    {held.length > MaxTakenRows ? (
+                        <li className="mt-cwork-slim" data-testid={`companion-${kind}-more`}>
+                            {tCount("companion.work.takenMore", held.length - MaxTakenRows, {
+                                count: held.length - MaxTakenRows,
                             })}
                         </li>
                     ) : null}
-                </ul>
+                </ol>
             ) : null}
         </section>
+    );
+}
+
+// What says an idle ticket is taken, when the group's title does not already say it: its board column unless it is In
+// progress, its pull request or its branch.
+function IdleChip({ hold }: { hold: TicketHold }) {
+    if (hold.kind === "status" && statusInProgress(hold.status)) {
+        return null;
+    }
+    if (hold.kind !== "status" && hold.kind !== "pr" && hold.kind !== "branch") {
+        return null;
+    }
+    return <HoldTag hold={hold} />;
+}
+
+function HeldRow({ kind, held }: { kind: HeldKind; held: HeldTicket }) {
+    const t = useT();
+    const { ticket, hold } = held;
+    const review = kind === "review" && hold.kind === "review" ? hold : null;
+    const prTitle = review != null ? t("companion.work.openPr", { number: review.pr }) : "";
+    return (
+        <li className="mt-cwork-row" data-compact="" data-testid={`companion-${kind}-ticket`} data-hold={hold.kind}>
+            <div className="mt-cwork-head">
+                <span className="mt-cwork-mark" data-idle={kind === "idle" ? "" : undefined}>
+                    <StateMark
+                        kind={kind === "review" ? "waiting" : "draft"}
+                        label={t(kind === "review" ? "companion.work.reviewGroup" : "companion.work.idleGroup")}
+                    />
+                </span>
+                <button
+                    type="button"
+                    className="mt-cwork-id"
+                    title={t("companion.work.openTicket", { number: ticket.number })}
+                    onClick={(e) => openPage(e, ticket.url)}
+                >
+                    {`#${ticket.number}`}
+                </button>
+                <span className="grow" />
+                {kind === "idle" ? <IdleChip hold={hold} /> : null}
+                {review != null ? (
+                    review.url ? (
+                        <button
+                            type="button"
+                            className="mt-cwork-tag mt-cwork-tag-link"
+                            title={prTitle}
+                            onClick={(e) => openPage(e, review.url)}
+                            data-testid="companion-review-pr"
+                        >
+                            {t("companion.work.pr", { number: review.pr })}
+                        </button>
+                    ) : (
+                        <span className="mt-cwork-tag" data-testid="companion-review-pr">
+                            {review.pr > 0
+                                ? t("companion.work.pr", { number: review.pr })
+                                : t("companion.work.prDraft")}
+                        </span>
+                    )
+                ) : null}
+                {kind === "idle" && ticket.url ? (
+                    <button
+                        type="button"
+                        className="mt-cwork-tool"
+                        title={t("companion.work.openTicket", { number: ticket.number })}
+                        aria-label={t("companion.work.openTicket", { number: ticket.number })}
+                        onClick={(e) => openPage(e, ticket.url)}
+                        data-testid="companion-idle-open"
+                    >
+                        <ExternalLink size={13} strokeWidth={2} aria-hidden />
+                    </button>
+                ) : null}
+            </div>
+            <span className="mt-cwork-text" data-free="" data-full="" data-testid={`companion-${kind}-title`}>
+                {ticket.title}
+            </span>
+        </li>
     );
 }
 

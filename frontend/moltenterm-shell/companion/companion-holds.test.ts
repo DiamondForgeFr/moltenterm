@@ -24,11 +24,13 @@ import {
 import {
     agentsRunKey,
     classifyTickets,
+    holdGroup,
     HoldInputs,
     HoldKind,
-    holdGroup,
     MaxStripSquares,
     ownerNames,
+    statusInProgress,
+    statusInReview,
     statusStarted,
     stripSquares,
     taskLists,
@@ -127,12 +129,15 @@ describe("a ticket held by no agent MoltenTerm knows", () => {
     });
 
     it("is idle, not with others, while no live agent works on it (#2454)", () => {
-        const tickets = ticketsOf(1, 2, 3, 4).map((t, i) => ({ ...t, status: ["In progress", "In review", "", ""][i] }));
+        const tickets = ticketsOf(1, 2, 3, 4).map((t, i) => ({
+            ...t,
+            status: ["In progress", "In review", "", ""][i],
+        }));
         const m = { number: 1, title: "1.1.0", open: 4, closed: 0, remaining: 4, tickets };
         const lists = taskLists(m, new Map(), classifyTickets(tickets, inputs(Flore, [], { upcoming: answer })));
         expect(lists.idle.map((h) => h.ticket.number)).toEqual([1, 2]);
         expect(lists.taken).toEqual([]);
-        expect(lists.counts).toEqual({ mine: 0, taken: 0, idle: 2, free: 2 });
+        expect(lists.counts).toEqual({ mine: 0, taken: 0, review: 0, idle: 2, free: 2 });
         expect(lists.rows.map((r) => r.number)).toEqual([3, 4]);
         expect(lists.more).toBe(0);
         expect(holdGroup("agent")).toBe("other");
@@ -148,7 +153,7 @@ describe("a ticket held by no agent MoltenTerm knows", () => {
         const lists = taskLists(m, linksOf(), classifyTickets(tickets, inputs(Flore, [])));
         expect(lists.taken.map((h) => h.ticket.number)).toEqual([4, 6]);
         expect(lists.idle).toEqual([]);
-        expect(lists.counts).toEqual({ mine: 0, taken: 2, idle: 0, free: 0 });
+        expect(lists.counts).toEqual({ mine: 0, taken: 2, review: 0, idle: 0, free: 0 });
     });
 
     it("keeps this session's sub-agents' tickets here even when they are In progress (#2454)", () => {
@@ -156,7 +161,7 @@ describe("a ticket held by no agent MoltenTerm knows", () => {
         const m = { number: 1, title: "1.1.0", open: 2, closed: 0, remaining: 2, tickets };
         const lists = taskLists(m, linksOf(1, 2), classifyTickets(tickets, inputs(Flore, [1, 2])));
         expect(lists.mine.map((t) => t.number)).toEqual([1, 2]);
-        expect(lists.counts).toEqual({ mine: 2, taken: 0, idle: 0, free: 0 });
+        expect(lists.counts).toEqual({ mine: 2, taken: 0, review: 0, idle: 0, free: 0 });
     });
 
     it("is hidden everywhere but in the companion of the agent working on its branch", () => {
@@ -202,12 +207,35 @@ describe("a ticket held by no agent MoltenTerm knows", () => {
         expect(holds.get(8)).toEqual({ kind: "free" });
     });
 
-    it("shows its board status before its pull request, and an agent before both", () => {
+    it("is to review when In review with its open pull request, and an agent comes before both (#2454)", () => {
         const tickets = ticketsOf(4, 7).map((t) => ({ ...t, status: "In review" }));
         const reviews = reviewsOf({ number: 91, ticket: 7, branch: "feature/7-x" }, { number: 94, ticket: 4 });
         const holds = classifyTickets(tickets, inputs(Flore, [], { reviews }));
-        expect(holds.get(7)?.kind).toBe("status");
+        expect(holds.get(7)).toEqual({ kind: "review", pr: 91, url: undefined, status: "In review" });
         expect(holds.get(4)?.kind).toBe("agent");
+    });
+
+    it("tells to review from idle: In review with a PR, In review without one, AI testing with no agent (#2454)", () => {
+        const tickets = ticketsOf(1, 2, 3, 5).map((t, i) => ({
+            ...t,
+            status: ["In review", "In review", "AI testing", "Backlog"][i],
+        }));
+        const reviews = reviewsOf(
+            { number: 91, ticket: 1, branch: "feature/1-x", url: "https://example.test/pull/91" },
+            { number: 95, ticket: 5, branch: "feature/5-x" }
+        );
+        const holds = classifyTickets(tickets, inputs(Flore, [], { upcoming: answer, reviews }));
+        expect(kinds(holds)).toBe("1:review 2:status 3:status 5:pr");
+        const m = { number: 1, title: "1.1.0", open: 4, closed: 0, remaining: 4, tickets };
+        const lists = taskLists(m, new Map(), holds);
+        expect(lists.review.map((h) => h.ticket.number)).toEqual([1]);
+        expect(lists.idle.map((h) => h.ticket.number)).toEqual([2, 3, 5]);
+        expect(lists.counts).toEqual({ mine: 0, taken: 0, review: 1, idle: 3, free: 0 });
+        expect(stripSquares(lists.counts)).toEqual(["review", "idle", "idle", "idle"]);
+        expect(statusInReview("Code review")).toBe(true);
+        expect(statusInReview("In progress")).toBe(false);
+        expect(statusInProgress(" in  progress ")).toBe(true);
+        expect(statusInProgress("AI testing")).toBe(false);
     });
 });
 
@@ -306,7 +334,7 @@ describe("the lists and counts of a milestone", () => {
         expect(lists.rows).toHaveLength(MaxMilestoneRows);
         expect(lists.rows.map((t) => t.number)).toEqual([1, 2, 3, 7, 8, 9, 10, 11]);
         // 41 open: 3 here, 3 with others, the other 35 free; 5 of them shown.
-        expect(lists.counts).toEqual({ mine: 3, taken: 3, idle: 0, free: 35 });
+        expect(lists.counts).toEqual({ mine: 3, taken: 3, review: 0, idle: 0, free: 35 });
         expect(lists.more).toBe(30);
         const noneFree = taskLists(
             { ...nineOpen(), tickets: ticketsOf(4, 5, 6), remaining: 3, open: 3 },
@@ -314,7 +342,7 @@ describe("the lists and counts of a milestone", () => {
             classifyTickets(ticketsOf(4, 5, 6), inputs(Flore, []))
         );
         expect(noneFree.more).toBe(0);
-        expect(noneFree.counts).toEqual({ mine: 0, taken: 3, idle: 0, free: 0 });
+        expect(noneFree.counts).toEqual({ mine: 0, taken: 3, review: 0, idle: 0, free: 0 });
         expect(noneFree.rows).toEqual([]);
     });
 
@@ -333,7 +361,7 @@ describe("the lists and counts of a milestone", () => {
     });
 
     it("draws one square per open ticket, this agent's first, then another's, then idle, then free, thirty at most", () => {
-        expect(stripSquares({ mine: 2, taken: 1, idle: 2, free: 3 })).toEqual([
+        expect(stripSquares({ mine: 2, taken: 1, review: 0, idle: 2, free: 3 })).toEqual([
             "mine",
             "mine",
             "other",
@@ -343,9 +371,9 @@ describe("the lists and counts of a milestone", () => {
             "free",
             "free",
         ]);
-        expect(stripSquares({ mine: 0, taken: 0, idle: 0, free: 0 })).toEqual([]);
-        expect(stripSquares({ mine: 3, taken: 3, idle: 0, free: 100 })).toHaveLength(MaxStripSquares);
-        expect(stripSquares({ mine: 40, taken: 0, idle: 0, free: 0 }).every((s) => s === "mine")).toBe(true);
+        expect(stripSquares({ mine: 0, taken: 0, review: 0, idle: 0, free: 0 })).toEqual([]);
+        expect(stripSquares({ mine: 3, taken: 3, review: 0, idle: 0, free: 100 })).toHaveLength(MaxStripSquares);
+        expect(stripSquares({ mine: 40, taken: 0, review: 0, idle: 0, free: 0 }).every((s) => s === "mine")).toBe(true);
     });
 
     it("tells that the agents changed from the runs the windows know, not from their states", () => {

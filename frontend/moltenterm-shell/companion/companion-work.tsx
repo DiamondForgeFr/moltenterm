@@ -264,6 +264,7 @@ export function CompanionWork(props: CompanionWorkProps) {
     const wanted = wantedTickets(preview?.rows).join(",");
     const [takenOpen, setTakenOpen] = useTakenOpen();
     const [idleOpen, setIdleOpen] = useCompanionPref("idleopen");
+    const [reviewOpen, setReviewOpen] = useCompanionPref("reviewopen");
     useEffect(() => {
         setWant(wanted ? wanted.split(",").map(Number) : []);
     }, [wanted]);
@@ -307,6 +308,8 @@ export function CompanionWork(props: CompanionWorkProps) {
                     onTakenChange={setTakenOpen}
                     idleOpen={idleOpen}
                     onIdleChange={setIdleOpen}
+                    reviewOpen={reviewOpen}
+                    onReviewChange={setReviewOpen}
                     phrasing={milestones?.phrasing === true}
                     offer={offer}
                     links={tickets}

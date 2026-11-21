@@ -40,15 +40,19 @@ export type TicketHold =
     | { kind: "status"; status: string }
     | { kind: "pr"; pr: number; url?: string }
     | { kind: "branch"; branch: string }
+    // In review on the board with an open pull request and no agent at work (#2454): it waits for the developer to
+    // review and merge it, which is no idle ticket.
+    | { kind: "review"; pr: number; url?: string; status: string }
     // Nobody holds it.
     | { kind: "free" };
 
 export type HoldKind = TicketHold["kind"];
 
-// Where a hold puts a ticket (#2454): this agent's work, another live holder's ("with others"), taken with nobody at work
-// on it ("in progress, nobody on it"), or free. Only a live agent makes a ticket another's: a board status, a pull
-// request or a worktree branch with no agent at work on it is idle.
-export type HoldGroup = "mine" | "other" | "idle" | "free";
+// Where a hold puts a ticket (#2454): this agent's work, another live holder's ("with others"), waiting for the
+// developer's review ("to review"), taken with nobody at work on it ("in progress, nobody on it"), or free. Only a live
+// agent makes a ticket another's: a board status, a pull request or a worktree branch with no agent at work on it is
+// idle, except a ticket in review with its open pull request.
+export type HoldGroup = "mine" | "other" | "review" | "idle" | "free";
 
 export function holdGroup(kind: HoldKind): HoldGroup {
     switch (kind) {
@@ -57,12 +61,24 @@ export function holdGroup(kind: HoldKind): HoldGroup {
         case "agent":
         case "away":
             return "other";
+        case "review":
+            return "review";
         case "status":
         case "pr":
         case "branch":
             return "idle";
     }
     return "free";
+}
+
+// A board column where the work waits for its review: "In review", "Code review"...
+export function statusInReview(status: string): boolean {
+    return /\breview\b/.test((status ?? "").trim().toLowerCase());
+}
+
+// The board's In progress column, which the idle group's own title already says.
+export function statusInProgress(status: string): boolean {
+    return (status ?? "").trim().replace(/\s+/g, " ").toLowerCase() === "in progress";
 }
 
 export type HoldInputs = {
@@ -201,6 +217,8 @@ export function classifyTickets(tickets: MilestoneTicket[], inputs: HoldInputs):
             holds.set(n, { kind: "agent", owner: here });
         } else if (owners.length > 0) {
             holds.set(n, { kind: "away" });
+        } else if (pr != null && statusInReview(ticket.status)) {
+            holds.set(n, { kind: "review", pr: pr.number, url: pr.url, status: ticket.status });
         } else if (statusStarted(ticket.status)) {
             holds.set(n, { kind: "status", status: ticket.status });
         } else if (pr != null) {
@@ -230,6 +248,8 @@ export type TaskLists = {
     free: MilestoneTicket[];
     // The tickets another live agent holds, in the forge's order: never work to do.
     taken: HeldTicket[];
+    // The tickets in review with their open pull request (#2454), waiting for the developer: never work to do.
+    review: HeldTicket[];
     // The tickets taken that nobody works on (#2454), in the forge's order: never work to do either.
     idle: HeldTicket[];
     // The rows of work shown (mine first, then free), MaxMilestoneRows at most.
@@ -237,7 +257,7 @@ export type TaskLists = {
     // The tickets nobody holds that are not in rows.
     more: number;
     // The count of each, the milestone's whole open tickets (a read holds at most a hundred): what is not read is free.
-    counts: { mine: number; taken: number; idle: number; free: number };
+    counts: { mine: number; taken: number; review: number; idle: number; free: number };
 };
 
 export type HeldTicket = { ticket: MilestoneTicket; hold: TicketHold };
@@ -259,19 +279,27 @@ export function taskLists(
     const mine = tickets.filter((t) => groupOf(t) === "mine").sort((a, b) => rank(a) - rank(b));
     const free = tickets.filter((t) => groupOf(t) === "free");
     const taken = held("other");
+    const review = held("review");
     const idle = held("idle");
     const rows = [...mine, ...free].slice(0, MaxMilestoneRows);
     const remaining = Math.max(m?.remaining ?? 0, tickets.length);
-    const freeCount = Math.max(free.length, remaining - mine.length - taken.length - idle.length);
+    const freeCount = Math.max(free.length, remaining - mine.length - taken.length - review.length - idle.length);
     const freeShown = rows.length - Math.min(rows.length, mine.length);
     return {
         mine,
         free,
         taken,
+        review,
         idle,
         rows,
         more: Math.max(0, freeCount - freeShown),
-        counts: { mine: mine.length, taken: taken.length, idle: idle.length, free: freeCount },
+        counts: {
+            mine: mine.length,
+            taken: taken.length,
+            review: review.length,
+            idle: idle.length,
+            free: freeCount,
+        },
     };
 }
 
@@ -287,16 +315,17 @@ export function ownerNames(taken: TaskLists["taken"]): string[] {
     return names;
 }
 
-// One square per open ticket for the milestone's strip: this agent's, another's, idle (dimmed), free; MaxStripSquares at
-// most, since the counts beside the strip carry the rest.
+// One square per open ticket for the milestone's strip: this agent's, another's, to review, idle (dimmed), free;
+// MaxStripSquares at most, since the counts beside the strip carry the rest.
 export const MaxStripSquares = 30;
 
-export type StripSquare = "mine" | "other" | "idle" | "free";
+export type StripSquare = "mine" | "other" | "review" | "idle" | "free";
 
 export function stripSquares(counts: TaskLists["counts"]): StripSquare[] {
     const squares: StripSquare[] = [
         ...Array<StripSquare>(counts.mine).fill("mine"),
         ...Array<StripSquare>(counts.taken).fill("other"),
+        ...Array<StripSquare>(counts.review).fill("review"),
         ...Array<StripSquare>(counts.idle).fill("idle"),
         ...Array<StripSquare>(counts.free).fill("free"),
     ];
