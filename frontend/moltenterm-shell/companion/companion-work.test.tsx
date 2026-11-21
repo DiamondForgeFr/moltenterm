@@ -937,12 +937,14 @@ describe("links from a task to its agent (#2392)", () => {
         const chips = [...html.matchAll(/data-testid="companion-work-chip">(.*?)<\/span><\/span>/g)].map((m) =>
             m[1].replace(/<[^>]+>/g, "")
         );
-        expect(chips).toContain("→ general-purpose · Sonnet 4.5");
+        expect(chips).toContain("→ general-purpose· Sonnet 4.5");
         expect(chips.some((c) => c.startsWith("→ Claude Code"))).toBe(true);
         expect(chips.join("|")).not.toContain("Build the receipt");
         // The type never gives way: it sits whole, the model alone may truncate.
         expect(html).toContain('<span class="shrink-0">→ general-purpose</span>');
-        expect(html).toContain('<span class="min-w-0 truncate"> · Sonnet 4.5</span>');
+        expect(html).toContain('<span class="min-w-0 truncate">· Sonnet 4.5</span>');
+        // The chip's gap stands for the space before the dot, which a flex item would drop.
+        expect(html).toMatch(/class="mt-cwork-chip gap-1 text-11"/);
     });
 
     it("draws no line and no chip without a certain match", () => {

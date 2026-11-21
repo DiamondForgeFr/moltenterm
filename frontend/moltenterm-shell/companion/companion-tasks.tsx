@@ -86,13 +86,14 @@ export function LinkChip({ agent }: { agent: LinkAgent }) {
     const full = model ? `${who} · ${model}` : who;
     return (
         <span
-            className="mt-cwork-chip text-11"
+            className="mt-cwork-chip gap-1 text-11"
             data-heat={heatOf(agent.state)}
             title={t("companion.work.linkTitle", { agent: full })}
             data-testid="companion-work-chip"
         >
             <span className={model ? "shrink-0" : "truncate"}>{t("companion.work.linkChip", { agent: who })}</span>
-            {model ? <span className="min-w-0 truncate">{` · ${model}`}</span> : null}
+            {/* A flex item drops a leading space: the gap holds the space before the dot. */}
+            {model ? <span className="min-w-0 truncate">{`· ${model}`}</span> : null}
         </span>
     );
 }

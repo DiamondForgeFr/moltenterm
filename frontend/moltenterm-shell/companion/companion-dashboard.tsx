@@ -131,7 +131,10 @@ export function CompanionDashboard(props: CompanionDashboardProps) {
     );
     return (
         <div className="mt-cdash" data-testid="companion" data-columns={cols.columns}>
-            <CompanionHero {...props} />
+            <CompanionHero
+                {...props}
+                usageBlockShown={normalizeLayout(props.layout).some((p) => p.id === "usage" && !p.hidden)}
+            />
             {arranging ? (
                 <ArrangingFlow {...props} onColumns={onColumns} />
             ) : (
@@ -166,6 +169,16 @@ function Flow({
     const itemsRef = useRef(items);
     itemsRef.current = items;
     const observer = useRef<ResizeObserver>(null);
+    // The blocks the observer watches, so a block that leaves the flow is let go.
+    const observed = useRef(new Set<Element>());
+    const entering = useRef(new Set<ReturnType<typeof setTimeout>>());
+    useEffect(
+        () => () => {
+            entering.current.forEach((timer) => clearTimeout(timer));
+            entering.current.clear();
+        },
+        []
+    );
     const place = useCallback(() => {
         const flow = flowRef.current;
         // The companion whose width the flow divides (the flow may sit in a wrapper of no box of its own).
@@ -219,7 +232,11 @@ function Flow({
                 el.dataset.placed = "";
                 if (laid.current) {
                     el.dataset.entering = "";
-                    setTimeout(() => delete el.dataset.entering, 400);
+                    const timer = setTimeout(() => {
+                        entering.current.delete(timer);
+                        delete el.dataset.entering;
+                    }, 400);
+                    entering.current.add(timer);
                 }
             } else if (el.style.transform !== transform) {
                 el.style.transform = transform;
@@ -237,20 +254,36 @@ function Flow({
         }
         const ro = new ResizeObserver(() => place());
         observer.current = ro;
+        observed.current.clear();
         if (flow.closest(".mt-cdash")) {
             ro.observe(flow.closest(".mt-cdash"));
         }
         return () => {
             ro.disconnect();
             observer.current = null;
+            observed.current.clear();
             clearTimeout(reflow.current);
         };
     }, [place]);
-    // After each render: the blocks that appeared are observed, and everything is placed again.
+    // After each render: the blocks that appeared are observed, those that left are let go, and everything is placed
+    // again.
     useLayoutEffect(() => {
-        flowRef.current
-            ?.querySelectorAll<HTMLElement>(":scope > [data-flow-id]")
-            .forEach((el) => observer.current?.observe(el));
+        const ro = observer.current;
+        if (ro != null) {
+            const now = new Set<Element>(flowRef.current?.querySelectorAll(":scope > [data-flow-id]") ?? []);
+            observed.current.forEach((el) => {
+                if (!now.has(el)) {
+                    ro.unobserve(el);
+                    observed.current.delete(el);
+                }
+            });
+            now.forEach((el) => {
+                if (!observed.current.has(el)) {
+                    ro.observe(el);
+                    observed.current.add(el);
+                }
+            });
+        }
         place();
     });
     return (

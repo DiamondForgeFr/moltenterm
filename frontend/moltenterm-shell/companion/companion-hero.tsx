@@ -36,6 +36,8 @@ export type CompanionHeroProps = {
     onIntegration: () => void;
     onHistory: () => void;
     onBackToCurrent: () => void;
+    // The usage block shows in the flow (not hidden by the layout).
+    usageBlockShown?: boolean;
 };
 
 // The hero's state, as a shape and a colour of the heat scale: at work, waiting for the developer, finished.
@@ -77,7 +79,8 @@ export function CompanionHero(props: CompanionHeroProps) {
     const current = (view.todos ?? []).find((todo) => todo.status === "in_progress");
     const taskLine = current ? t("companion.agents.task", { text: current.text }) : null;
     const lines = hasPlan ? row.lines.filter((line) => line !== taskLine) : row.lines;
-    const usageShown = props.provider === "" && view.usage != null && !!view.agent;
+    // The usage block carries the link to the usage page; while it is hidden or not drawn, the hero keeps it.
+    const usageShown = props.usageBlockShown === true && props.provider === "" && view.usage != null && !!view.agent;
     const historyTitle =
         earlier > 0
             ? t(earlier === 1 ? "companion.bar.historyEarlierOne" : "companion.bar.historyEarlierOther", {

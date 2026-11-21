@@ -236,6 +236,33 @@ describe("agents at work", () => {
         expect(html).not.toContain('data-testid="companion-integrated"');
     });
 
+    it("keeps the way to the usage page in the hero while the usage block is hidden or not drawn (#2441)", () => {
+        const noop = () => {};
+        const withUsage: CompanionView = {
+            ...view,
+            usage: { pageurl: "https://claude.ai/settings/usage", pagename: "Claude usage" },
+        };
+        const hero = (usageBlockShown: boolean) =>
+            renderToStaticMarkup(
+                <CompanionHero
+                    view={withUsage}
+                    agentState={working}
+                    provider=""
+                    arranging={false}
+                    onArrange={noop}
+                    onLeaveArranging={noop}
+                    integrationDetails={false}
+                    persistentIntegration={false}
+                    onIntegration={noop}
+                    onHistory={noop}
+                    onBackToCurrent={noop}
+                    usageBlockShown={usageBlockShown}
+                />
+            );
+        expect(hero(false)).toContain('data-testid="companion-usage"');
+        expect(hero(true)).not.toContain('data-testid="companion-usage"');
+    });
+
     it("keeps the task line when there is no plan to show the step, and says Hooked up in a word (#2441)", () => {
         const noop = () => {};
         const plain = { ...view, todos: [], topics: [] };
