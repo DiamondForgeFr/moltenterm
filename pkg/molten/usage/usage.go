@@ -35,6 +35,9 @@ const (
 	ReasonFormat   = "format"
 	ReasonExpired  = "expired"
 	ReasonFailed   = "failed"
+
+	// A day of a deduced week MoltenTerm holds no reading for (#2451): unknown, never 0 %.
+	DeducedDayUnknown = -1
 )
 
 // UsageAdapter is what MoltenTerm knows of one agent's plan usage.
@@ -139,6 +142,8 @@ type UsageSnapshot struct {
 	Windows []UsageWindow `json:"windows,omitempty"`
 	Credits *UsageCredits `json:"credits,omitempty"`
 	ReadAt  int64         `json:"readat"`
+	// Stale names why the source could not read again and kept its last reading (ReasonTokenExpired, #2451).
+	Stale string `json:"stale,omitempty"`
 }
 
 type UsageWindow struct {
@@ -148,6 +153,10 @@ type UsageWindow struct {
 	// ResetsAt is in Unix milliseconds; 0 when the source does not tell.
 	ResetsAt   int64 `json:"resetsat,omitempty"`
 	WindowMins int64 `json:"windowmins,omitempty"`
+	// Deduced: MoltenTerm computed the window from another one (a week from the month, #2451). Days is then each
+	// day's use, Monday first, in percent of a seventh of the window; DeducedDayUnknown for a day with no reading.
+	Deduced bool      `json:"deduced,omitempty"`
+	Days    []float64 `json:"days,omitempty"`
 }
 
 type UsageMonthlySpend struct {
@@ -199,6 +208,9 @@ func MergeSnapshots(agent string, snapshots []UsageSnapshot, nowMs int64) (Usage
 			continue
 		}
 		sources = append(sources, snap.Source)
+		if merged.Stale == "" {
+			merged.Stale = snap.Stale
+		}
 		if snap.ReadAt > 0 && (merged.ReadAt == 0 || snap.ReadAt < merged.ReadAt) {
 			merged.ReadAt = snap.ReadAt
 		}

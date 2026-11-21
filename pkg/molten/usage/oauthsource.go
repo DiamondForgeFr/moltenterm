@@ -38,11 +38,13 @@ type oauthCall struct {
 	done   chan struct{}
 }
 
-// oauthOutcome is how a call ended: a reason when it gave nothing, and how long to wait after a 429.
+// oauthOutcome is how a call ended: a reason when it gave nothing, and how long to wait after a 429. stale: the call
+// gave an earlier reading back, and why it could not read a fresh one.
 type oauthOutcome struct {
 	reason      string
 	rateLimited bool
 	retryAfter  time.Duration
+	stale       string
 }
 
 // oauthEngine keeps a source's snapshots and call state in memory only. Stopped means Clear was called: no call runs
@@ -58,8 +60,12 @@ type oauthEngine struct {
 	blockedUntil time.Time
 	backoff      time.Duration
 	call         *oauthCall
+	// credStamp is the credential file's metadata at the last look; credChanged lets the next call run without waiting
+	// for the automatic interval (the agent refreshed its token, #2451).
+	credStamp   string
+	credChanged bool
 
-	fetchFn     func(context.Context) (UsageSnapshot, oauthOutcome)
+	fetchFn    func(context.Context) (UsageSnapshot, oauthOutcome)
 	endpoint    string
 	anyEndpoint bool
 	client      *http.Client
@@ -123,6 +129,27 @@ func (e *oauthEngine) invalidate(reason string) {
 	e.snap, e.reason = nil, reason
 }
 
+// noteCredentials compares the credential file's metadata with the last look: a change means the agent wrote a new
+// token, which the next call may read at once. An empty stamp (no file) changes nothing.
+func (e *oauthEngine) noteCredentials(stamp string) {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	if stamp == "" {
+		return
+	}
+	if e.credStamp != "" && stamp != e.credStamp {
+		e.credChanged = true
+	}
+	e.credStamp = stamp
+}
+
+// isStale tells whether the reading in memory is an earlier one kept because no fresh one could be read.
+func (e *oauthEngine) isStale() bool {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	return e.snap != nil && e.snap.Stale != "" && e.reason == ""
+}
+
 func (e *oauthEngine) eligible() {
 	e.lock.Lock()
 	defer e.lock.Unlock()
@@ -165,12 +192,13 @@ func (e *oauthEngine) prepareCall(ctx context.Context) (*oauthCall, uint64, bool
 		return nil, e.generation, false
 	}
 	interval := oauthAutoInterval
-	if IsRefresh(ctx) {
+	if IsRefresh(ctx) || e.credChanged {
 		interval = oauthManualInterval
 	}
 	if !e.lastCall.IsZero() && now.Sub(e.lastCall) < interval {
 		return nil, e.generation, false
 	}
+	e.credChanged = false
 	callCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), oauthFetchTimeout)
 	call := &oauthCall{ctx: callCtx, cancel: cancel, done: make(chan struct{})}
 	e.call, e.lastCall = call, now
@@ -205,7 +233,11 @@ func (e *oauthEngine) finishCall(call *oauthCall, gen uint64, snap UsageSnapshot
 	}
 	e.invalidated = false
 	if outcome.reason == "" {
-		e.snap, e.reason, e.backoff, e.blockedUntil = &snap, "", 0, time.Time{}
+		snap.Stale = outcome.stale
+		e.snap, e.reason = &snap, ""
+		if outcome.stale == "" {
+			e.backoff, e.blockedUntil = 0, time.Time{}
+		}
 		return
 	}
 	e.snap, e.reason = nil, outcome.reason
@@ -219,6 +251,17 @@ func (e *oauthEngine) finishCall(call *oauthCall, gen uint64, snap UsageSnapshot
 	}
 	wait = min(max(wait, oauthManualInterval), oauthBackoffMax)
 	e.blockedUntil = e.now().Add(wait)
+}
+
+// lastGood is the reading in memory, nil when there is none.
+func (e *oauthEngine) lastGood() *UsageSnapshot {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	if e.snap == nil {
+		return nil
+	}
+	snap := cloneSnapshot(*e.snap)
+	return &snap
 }
 
 func (e *oauthEngine) result() (UsageSnapshot, error) {

@@ -68,7 +68,7 @@ func TestClaudeStatusLineSource(t *testing.T) {
 		t.Fatalf("enabled: %+v", res)
 	}
 	got := fmt.Sprintf("%+v", res.Snapshot.Windows)
-	want := "[{Id:session Label:Current session UsedPercent:23.5 ResetsAt:1738000600000 WindowMins:300} {Id:week Label:This week UsedPercent:41.2 ResetsAt:1738400000000 WindowMins:10080}]"
+	want := "[{Id:session Label:Current session UsedPercent:23.5 ResetsAt:1738000600000 WindowMins:300 Deduced:false Days:[]} {Id:week Label:This week UsedPercent:41.2 ResetsAt:1738400000000 WindowMins:10080 Deduced:false Days:[]}]"
 	if got != want {
 		t.Errorf("windows:\n%s\nwant\n%s", got, want)
 	}
