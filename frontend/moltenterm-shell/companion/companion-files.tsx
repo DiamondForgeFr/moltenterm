@@ -4,7 +4,8 @@
 // The files the agent changed in the session (FR-SHELL-018, #555, #2441), as a block of the dashboard: the project's
 // files by their path relative to it (the folder quiet, the name bright), six then "Show all", then the files outside
 // the project grouped last and tagged. The filter in the block's tools narrows the list as you type. Each file shows
-// its diff and opens in the preview at its first change.
+// its diff and opens in the preview at its first change. A path too long for its row gives up the start of its folder,
+// never its file name; its tooltip holds the whole path (#2450).
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
@@ -218,7 +219,7 @@ function FileRow({
                         onToggle();
                     }}
                     className="mt-cdash-fbutton"
-                    title={shown.dir + shown.name}
+                    title={shown.outside ? file.path : shown.dir + shown.name}
                     aria-expanded={open}
                     data-file-toggle=""
                 >
@@ -226,7 +227,11 @@ function FileRow({
                         {kind.text}
                     </span>
                     <span className="mt-cdash-fpath">
-                        <span className="mt-cdash-fdir">{shown.dir}</span>
+                        {shown.dir ? (
+                            <span className="mt-cdash-fdir" dir="rtl">
+                                <bdi>{shown.dir}</bdi>
+                            </span>
+                        ) : null}
                         <span className="mt-cdash-fname">{shown.name}</span>
                     </span>
                 </button>

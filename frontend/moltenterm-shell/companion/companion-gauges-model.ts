@@ -5,7 +5,7 @@
 // limits (pkg/molten/usage) and the pure rules of their section. Pure, so they are tested without a window.
 
 import { getLocale, t } from "../i18n/i18n";
-import { UsageWeekLine, usageWeekLine } from "../usage-week/usage-week-model";
+import { dayFiguresText, UsageWeekLine, usageWeekLine } from "../usage-week/usage-week-model";
 import { relativeTime } from "./companion-model";
 
 // must match pkg/molten/usage/usage.go and pkg/molten/companion/usage.go
@@ -249,6 +249,11 @@ export function usageWindowLabel(label: string): string {
 // The window's name for a narrow column, as the companion's week grid labels its rows (#2102).
 export function usageWindowShortLabel(label: string): string {
     return windowWords(label, true);
+}
+
+// The line of a row's tooltip that tells the figure of each day, for the minimal form, which draws none (#2450).
+export function daysTitle(line: UsageWeekLine): string {
+    return t("usageWeek.daysTitle", { days: dayFiguresText(line.percent, line.start) });
 }
 
 // A window past its reset no longer holds: it is dropped between two reports, as wavesrv drops it.

@@ -11,6 +11,7 @@ import {
     readStoredLayout,
     sameLayout,
     SectionPlacement,
+    usageOf,
 } from "./companion-layout";
 
 describe("the companion's sections (#2392, #2441)", () => {
@@ -153,5 +154,92 @@ describe("the developer's own layout (#2395, #2441)", () => {
         expect(readCompanionPrefs({ filesopen: true, layout: own }).layout).toEqual(own);
         expect(readCompanionPrefs({ filesopen: true }).layout).toBeUndefined();
         expect(readCompanionPrefs({ layout: "files" }).layout).toBeUndefined();
+    });
+});
+
+describe("the usage block's minimal form and its attaching (#2450)", () => {
+    const usageOfStored = (value: unknown) => readStoredLayout(value).find((p) => p.id === "usage");
+    const full = { shown: true, minimal: false, attached: false };
+
+    it("reads a layout saved without them as the full block, standing on its own: the default", () => {
+        const before = [
+            { id: "usage", span: "flow" },
+            { id: "files", span: "full", hidden: true },
+        ];
+        expect(usageOfStored(before)).toEqual({ id: "usage", span: "flow" });
+        expect(usageOf(readStoredLayout(before))).toEqual(full);
+        expect(usageOf(DefaultCompanionLayout)).toEqual(full);
+        // A layout of #2395, whose placements said a column, reads the same way.
+        expect(usageOf(readStoredLayout([{ id: "usage", column: "full" }]))).toEqual(full);
+        expect(isDefaultLayout(readStoredLayout(DefaultCompanionLayout.map((p) => ({ ...p }))))).toBe(true);
+    });
+
+    it("keeps the two choices as the developer saved them, and a layout round trips whole", () => {
+        const saved = [
+            { id: "files", span: "full" },
+            { id: "usage", span: "full", minimal: true, attached: true },
+            { id: "tasks", span: "flow", hidden: true },
+        ];
+        expect(usageOfStored(saved)).toEqual({ id: "usage", span: "full", minimal: true, attached: true });
+        const once = readStoredLayout(saved);
+        expect(readStoredLayout(JSON.parse(JSON.stringify(once)))).toEqual(once);
+        expect(usageOf(once)).toEqual({ shown: true, minimal: true, attached: true });
+        expect(usageOfStored([{ id: "usage", span: "flow", minimal: true }])).toEqual({
+            id: "usage",
+            span: "flow",
+            minimal: true,
+        });
+        expect(usageOfStored([{ id: "usage", span: "flow", attached: true }])).toEqual({
+            id: "usage",
+            span: "flow",
+            attached: true,
+        });
+    });
+
+    it("stores only a choice that is true, and only for the usage block", () => {
+        expect(usageOfStored([{ id: "usage", span: "flow", minimal: false, attached: "yes" }])).toEqual({
+            id: "usage",
+            span: "flow",
+        });
+        const other = readStoredLayout([{ id: "files", span: "flow", minimal: true, attached: true }]);
+        expect(other.find((p) => p.id === "files")).toEqual({ id: "files", span: "flow" });
+    });
+
+    it("compares layouts by them: a layout that is minimal or attached is no longer the default", () => {
+        const minimal = DefaultCompanionLayout.map((p) => (p.id === "usage" ? { ...p, minimal: true } : p));
+        const attached = DefaultCompanionLayout.map((p) => (p.id === "usage" ? { ...p, attached: true } : p));
+        expect(sameLayout(DefaultCompanionLayout, minimal)).toBe(false);
+        expect(sameLayout(DefaultCompanionLayout, attached)).toBe(false);
+        expect(sameLayout(minimal, attached)).toBe(false);
+        expect(
+            sameLayout(
+                minimal,
+                minimal.map((p) => ({ ...p }))
+            )
+        ).toBe(true);
+        expect(isDefaultLayout(minimal)).toBe(false);
+        expect(isDefaultLayout(attached)).toBe(false);
+    });
+
+    it("says a hidden usage stands nowhere, attached or not, and keeps the choices for when it shows", () => {
+        const hidden = readStoredLayout([{ id: "usage", span: "flow", hidden: true, minimal: true, attached: true }]);
+        expect(usageOf(hidden)).toEqual({ shown: false, minimal: true, attached: false });
+        expect(hidden.find((p) => p.id === "usage")).toEqual({
+            id: "usage",
+            span: "flow",
+            hidden: true,
+            minimal: true,
+            attached: true,
+        });
+    });
+
+    it("keeps them among the companion's other remembered choices", () => {
+        const layout = [{ id: "usage", span: "flow", minimal: true, attached: true }];
+        expect(readCompanionPrefs({ filesopen: true, layout }).layout.find((p) => p.id === "usage")).toEqual({
+            id: "usage",
+            span: "flow",
+            minimal: true,
+            attached: true,
+        });
     });
 });

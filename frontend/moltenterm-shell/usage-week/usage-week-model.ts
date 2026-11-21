@@ -8,6 +8,7 @@
 // gauges (#2102).
 
 import type { UsageWindow } from "../companion/companion-gauges-model";
+import { getLocale, t } from "../i18n/i18n";
 
 export const WeekWindowId = "week";
 export const MonthWindowId = "month";
@@ -174,6 +175,21 @@ export function dayFills(percent: number, start = 0): number[] {
 // They are the blocks' fills, so the two can never disagree.
 export function dayShares(percent: number, start = 0): number[] {
     return dayFills(percent, start).map((fill) => Math.round(fill * 100));
+}
+
+// The day figures as one sentence, for a row that draws no figure under its blocks (#2450): "Mon 100 %, Tue 100 %, Wed
+// 69 %, Thu 0 %…", Monday first, the days in the interface language. They are the figures dayShares gives.
+export function dayFiguresText(percent: number, start = 0): string {
+    const locale = getLocale();
+    return dayShares(percent, start)
+        .map((share, i) =>
+            t("usageWeek.dayFigure", {
+                // 2024-01-01 was a Monday.
+                day: new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: "short" }),
+                share,
+            })
+        )
+        .join(", ");
 }
 
 // The pace of a window: what it consumed against what the time gone since its last reset allows (two days into a week

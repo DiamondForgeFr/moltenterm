@@ -21,6 +21,7 @@ import { UsageWeekGrid, UsageWeekRow } from "../usage-week/usage-week";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
     CompanionUsageInfo,
+    daysTitle,
     experimentalLabel,
     experimentalView,
     ExperimentalView,
@@ -210,9 +211,26 @@ function usePlanUsage(target: string, agent: string, now: number) {
 }
 
 // The usage in a block of the dashboard (#2441): its tools go to the block's tools notch, its body inside the block.
-export type UsageFrame = (parts: { tools: ReactNode; body: ReactNode; state: string }) => ReactNode;
+// State "hidden" is a usage with nothing to show (no gauges for the agent, no reading yet): the frame draws no block for
+// it, and the main agent's block, which carries an attached usage (#2450), draws no row.
+export type UsageFrameParts = { tools: ReactNode; body: ReactNode; state: string };
+export type UsageFrame = (parts: UsageFrameParts) => ReactNode;
 
-export function PlanUsageSection({ target, agent, frame }: { target: string; agent: string; frame?: UsageFrame }) {
+// The usage's three forms (#2450): the full block; its window rows alone, still a block of its own; and the same rows
+// attached to the main agent's block, whose tools then carry what the usage block's would.
+export type UsageForm = "full" | "minimal" | "attached";
+
+export function PlanUsageSection({
+    target,
+    agent,
+    frame,
+    form,
+}: {
+    target: string;
+    agent: string;
+    frame?: UsageFrame;
+    form?: UsageForm;
+}) {
     // The views are built by the model with t(): reading the language re-renders the section when it changes.
     useT();
     const now = useNow(ClockTickMs);
@@ -242,20 +260,24 @@ export function PlanUsageSection({ target, agent, frame }: { target: string; age
             compact={!details}
             onDetails={setDetails}
             frame={frame}
+            form={form}
         />
     );
 }
 
 // FR-AGC-008: a session behind another provider has none of its agent's plan gauges; one muted line says why, in place
-// of the section.
-export function ProviderUsageNote({ provider, native }: { provider: string; native: string }) {
+// of the section. bare: inside the main agent's block, which carries the inset and the hairline (#2450).
+export function ProviderUsageNote({ provider, native, bare }: { provider: string; native: string; bare?: boolean }) {
     const t = useT();
     const hint = native
         ? t("companion.gauges.providerHint", { provider, native })
         : t("companion.gauges.providerHintPlain", { provider });
     return (
         <div
-            className="flex shrink-0 items-center gap-2 border-b border-border px-(--mt-companion-inset) py-1 text-11 text-muted"
+            className={cn(
+                "flex shrink-0 items-center gap-2 text-11 text-muted",
+                !bare && "border-b border-border px-(--mt-companion-inset) py-1"
+            )}
             data-testid="companion-plan-usage"
             data-state="provider"
             title={hint}
@@ -281,13 +303,16 @@ export type PlanUsageActions = {
 
 // A window's row in the week grid: the agent is the session's, so the row is labelled by its window in place of a logo.
 // The exact percent and the reset time stay in its tooltip, with the source and age (`about`) when the form has no
-// header to say them; the details form (`detailed`) shows the reset under the row.
+// header to say them; the details form (`detailed`) shows the reset under the row. The minimal form (#2450) draws no
+// figure and no reset line: its tooltip tells the figure of each day too.
 function weekRow(
     view: Extract<GaugesView, { kind: "enabled" }>,
     row: GaugeRow,
     about: string,
-    detailed: boolean
+    detailed: boolean,
+    minimal = false
 ): UsageWeekRow {
+    const days = minimal ? daysTitle(row.line) : "";
     return {
         key: row.id,
         agent: view.agent,
@@ -295,7 +320,7 @@ function weekRow(
         window: row.id,
         label: row.shortLabel,
         line: row.line,
-        title: [`${row.label}: ${row.percent}`, row.resets, about].filter((s) => !!s).join("\n"),
+        title: [`${row.label}: ${row.percent}`, row.resets, days, about].filter((s) => !!s).join("\n"),
         note: detailed ? row.resets : undefined,
     };
 }
@@ -314,6 +339,7 @@ export function PlanUsageBody({
     compact,
     onDetails,
     frame,
+    form,
 }: {
     view: GaugesView;
     experimental?: ExperimentalView;
@@ -322,6 +348,7 @@ export function PlanUsageBody({
     refreshing?: boolean;
     compact?: boolean;
     frame?: UsageFrame;
+    form?: UsageForm;
 } & PlanUsageActions) {
     const t = useT();
     const extra = (
@@ -333,7 +360,7 @@ export function PlanUsageBody({
         />
     );
     if (view.kind === "hidden") {
-        return null;
+        return frame != null ? frame({ tools: null, body: null, state: "hidden" }) : null;
     }
     if (frame != null) {
         return (
@@ -346,6 +373,7 @@ export function PlanUsageBody({
                 onHide={onHide}
                 onRefresh={onRefresh}
                 frame={frame}
+                form={form ?? "full"}
             />
         );
     }
@@ -440,7 +468,10 @@ export function PlanUsageBody({
 }
 
 // The usage as a block of the dashboard (#2441): the week day by day for every limit, its source and age, and the
-// refresh and hide tools in the block's tools notch.
+// refresh and hide tools in the block's tools notch. In the minimal form and attached to the main agent (#2450), a
+// reading is its window rows alone; a details tool unfolds the full block in its place, for as long as this one shows,
+// so the legend, the figures and the model limits stay one click away without touching the saved choice. Attached, the
+// tools are the main agent's, and "Hide" (turn the gauges off) is not among them: it stays on the block.
 function FramedUsage({
     view,
     extra,
@@ -450,6 +481,7 @@ function FramedUsage({
     onHide,
     onRefresh,
     frame,
+    form,
 }: {
     view: Exclude<GaugesView, { kind: "hidden" }>;
     extra: ReactNode;
@@ -459,9 +491,13 @@ function FramedUsage({
     onHide: () => void;
     onRefresh: () => void;
     frame: UsageFrame;
+    form: UsageForm;
 }) {
     const t = useT();
-    const hide = (
+    const [unfolded, setUnfolded] = useState(false);
+    const attached = form === "attached";
+    const rowsOnly = form !== "full" && !unfolded;
+    const hide = attached ? null : (
         <button type="button" className="mt-cb-tool" onClick={onHide} data-testid="companion-plan-usage-hide">
             {t("companion.gauges.hideShort")}
         </button>
@@ -513,14 +549,37 @@ function FramedUsage({
         state: "enabled",
         tools: (
             <>
-                {view.age ? <span className="mt-cb-tool-meta">{view.age}</span> : null}
+                {form === "full" ? null : (
+                    <button
+                        type="button"
+                        className="mt-cb-tool"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setUnfolded(!unfolded);
+                        }}
+                        title={t(unfolded ? "companion.gauges.compact" : "companion.gauges.details")}
+                        aria-label={t(unfolded ? "companion.gauges.compact" : "companion.gauges.details")}
+                        aria-expanded={unfolded}
+                        data-testid="companion-plan-usage-unfold"
+                    >
+                        <i
+                            className={cn("fa fa-solid", unfolded ? "fa-chevron-up" : "fa-chevron-down")}
+                            aria-hidden="true"
+                        />
+                    </button>
+                )}
+                {rowsOnly || !view.age ? null : <span className="mt-cb-tool-meta">{view.age}</span>}
                 <button
                     type="button"
                     className="mt-cb-tool"
-                    onClick={onRefresh}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onRefresh();
+                    }}
                     title={t("companion.gauges.refresh")}
                     aria-label={t("companion.gauges.refresh")}
                     aria-busy={refreshing || undefined}
+                    data-testid="companion-plan-usage-refresh"
                 >
                     {refreshing ? (
                         <DominoLoader className="mt-dominos-icon" />
@@ -528,10 +587,12 @@ function FramedUsage({
                         <i className="fa fa-solid fa-rotate-right" aria-hidden="true" />
                     )}
                 </button>
-                {hide}
+                {rowsOnly ? null : hide}
             </>
         ),
-        body: (
+        body: rowsOnly ? (
+            <MinimalGauges view={view} />
+        ) : (
             <div
                 className="flex flex-col gap-2.5"
                 aria-label={t("companion.gauges.title")}
@@ -568,6 +629,40 @@ function FramedUsage({
             </div>
         ),
     });
+}
+
+// The minimal form (#2450): one week-grid row per usage window, nothing else. Each row is its label, its seven blocks
+// (today's pace colours, the reset day's ring, today's mark) and its percent at the right; the reset, the figure of each
+// day and the source are in the row's tooltip and its accessible name. A reading of credits alone, with no window, shows
+// the credits line, which is then the only thing there is to read.
+function MinimalGauges({ view }: { view: Extract<GaugesView, { kind: "enabled" }> }) {
+    const t = useT();
+    const about = [view.source ? t("companion.gauges.from", { source: view.source }) : "", view.age]
+        .filter((s) => !!s)
+        .join(" · ");
+    return (
+        <div
+            role="group"
+            aria-label={t("companion.gauges.title")}
+            data-testid="companion-plan-usage"
+            data-state="enabled"
+            data-minimal="true"
+        >
+            <div data-testid="companion-gauges">
+                {view.rows.length > 0 ? (
+                    <UsageWeekGrid
+                        rows={view.rows.map((row) => weekRow(view, row, about, false, true))}
+                        now={view.now}
+                        minimal
+                    />
+                ) : (
+                    <div className="text-11 text-secondary" data-testid="companion-plan-usage-credits">
+                        {view.credits}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }
 
 function ExperimentalSourceBadge() {

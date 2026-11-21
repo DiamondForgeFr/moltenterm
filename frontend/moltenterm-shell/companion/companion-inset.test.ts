@@ -195,6 +195,7 @@ describe("the companion's one inset (#2440, #2441)", () => {
             [dash, ".mt-cdash-frow"],
             [dash, ".mt-cb-more"],
             [dash, ".mt-cb-foot"],
+            [dash, ".mt-cdash-hero-usage"],
         ] as const) {
             expect(horizontal(rules, selector), selector).toContain(CompanionInsetPx);
         }
@@ -212,6 +213,47 @@ describe("the companion's one inset (#2440, #2441)", () => {
                 selector
             ).toEqual([FlowGapYPx, FlowGutterPx, 0]);
         }
+    });
+
+    it("runs the usage attached to the main agent to the block's edges, under a hairline, on the inset (#2450)", () => {
+        const row = ruleFor(dash, ".mt-cdash-hero-usage");
+        const margin = row.decls.get("margin").split(/\s+(?![^(]*\))/);
+        // Out to the block's own edges, as the foot of a block runs, and closing it.
+        expect(lengthOf(margin[1], dashScope)).toBe(-CompanionInsetPx);
+        expect(lengthOf(margin[2], dashScope)).toBe(-CompanionInsetPx);
+        expect(horizontal(dash, ".mt-cdash-hero-usage")).toContain(CompanionInsetPx);
+        expect(row.decls.get("border-top")).toBe(ruleFor(dash, ".mt-cb-foot").decls.get("border-top"));
+    });
+
+    // The scroller of the companion is a column (companion-view.tsx): a child with a min-height that is a percentage
+    // shrinks to the scroller's height unless it says it does not, and its blocks, which the flow places, then overflow
+    // it, taking its bottom space with them (#2450). A browser lays this out; here the stylesheet is read.
+    it("leaves under the last block the gutter the sides have, held by the dashboard and never by a block", () => {
+        const sides = ruleFor(dash, ".mt-cdash-flow")
+            .decls.get("margin")
+            .split(/\s+(?![^(]*\))/)
+            .map((v) => lengthOf(v, dashScope));
+        expect(sides[1]).toBe(FlowGutterPx);
+        const root = ruleFor(dash, ".mt-cdash");
+        expect(lengthOf(root.decls.get("padding-bottom"), dashScope)).toBe(sides[1]);
+        expect(root.decls.get("flex-shrink")).toBe("0");
+        expect(root.decls.get("min-height")).toBe("100%");
+        // Not a margin of the flow, which could collapse in the scroller, and not a space on a block, which the last
+        // block, whichever it is and in whichever column, would have to carry.
+        for (const selector of [".mt-cdash-flow", ".mt-cdash-flow > .mt-cb", ".mt-cb"]) {
+            const decls = ruleFor(dash, selector).decls;
+            expect(
+                [...decls.keys()].filter((prop) => /^(margin|padding)-bottom$/.test(prop)),
+                selector
+            ).toEqual([]);
+        }
+        expect(sides[2]).toBe(0);
+        // The scroller adds no space of its own, which would double it.
+        const scroller = /className="([^"]*)"\s+data-testid="companion-scroll"/.exec(
+            SourceText.get("companion-view.tsx")
+        );
+        expect(scroller?.[1]).toBeDefined();
+        expect(scroller[1].split(/\s+/).filter((c) => /^(p|pb|py)-/.test(c))).toEqual([]);
     });
 
     it("keeps one 6 px gap in a notch: between its chips, from its chips to the U, and the U's spread", () => {

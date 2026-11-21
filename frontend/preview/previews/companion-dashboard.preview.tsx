@@ -3,10 +3,13 @@
 
 // The agent companion as the main agent's dashboard (#2441, FR-SHELL-018) on invented data, in one frame as wide as the
 // companion. The frame holds the real dashboard: hero, flow, blocks and arranging mode.
-// ?w=420|760|1200 the width, ?theme=light, ?agents=N more sub-agents, ?agent=waiting|idle, ?arrange=1, ?lang=fr.
+// ?w=420|760|1200 the width, ?theme=light, ?agents=N more sub-agents, ?agent=waiting|idle, ?arrange=1, ?lang=fr,
+// ?usage=minimal|attached the plan usage's form (#2450), ?h=N a frame N px high holding the dashboard in the scroller the
+// app gives it (?scroll=end scrolled to the bottom).
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
+import { setUsageAttached, setUsageMinimal } from "../../moltenterm-shell/companion/companion-arrange-model";
 import { CompanionDashboard } from "../../moltenterm-shell/companion/companion-dashboard";
 import { CompanionUsageInfo, gaugesView } from "../../moltenterm-shell/companion/companion-gauges-model";
 import {
@@ -40,6 +43,15 @@ if (query.get("theme") === "light") {
 const Width = Number(query.get("w")) || 760;
 const Extra = Number(query.get("agents")) || 0;
 const AgentMode = query.get("agent") ?? "running";
+const UsageForm = query.get("usage");
+const FrameHeight = Number(query.get("h")) || 0;
+
+function startLayout(): CompanionLayout {
+    if (UsageForm === "attached") {
+        return setUsageAttached(setUsageMinimal(DefaultCompanionLayout, true), true);
+    }
+    return setUsageMinimal(DefaultCompanionLayout, UsageForm === "minimal");
+}
 
 const Names = ["Jade", "Noah", "Lou", "Ines", "Arthur", "Lena", "Sacha", "Mael", "Rose", "Hugo"];
 const Tasks = [
@@ -267,44 +279,80 @@ const view: CompanionView = {
         { path: "/work/lantern/docs/settings.md", kind: "update", added: 18, removed: 4, edits: 1 },
         { path: "/work/lantern/src/settings/legacy-filter.ts", kind: "delete", added: 0, removed: 57, edits: 1 },
         { path: "/tmp/lantern-fixture/seed.json", kind: "add", added: 40, removed: 0, edits: 1 },
+        {
+            path: "/private/tmp/agent-501/-work-lantern/1f0c2a9e-4b7d-4c1e-9a52-7d3e8f60b1c4/scratchpad/ticket-usage-slim.md",
+            kind: "add",
+            added: 31,
+            removed: 0,
+            edits: 1,
+        },
+        {
+            path: "/home/dev/.agent/projects/-work-lantern-settings/memory/settings-search-decisions.md",
+            kind: "update",
+            added: 6,
+            removed: 2,
+            edits: 1,
+        },
     ],
 };
 
 export function CompanionDashboardPreview() {
-    const [layout, setLayout] = useState<CompanionLayout>(DefaultCompanionLayout);
+    const [layout, setLayout] = useState<CompanionLayout>(startLayout);
     const [arranging, setArranging] = useState(query.get("arrange") === "1");
     const arrangeRef = useRef<HTMLButtonElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
     const none = () => {};
     // The usage reads its words when the language is loaded.
     useT();
+    // The blocks are placed after the first paint: the bottom is looked for until it stops moving.
+    useEffect(() => {
+        const scroller = scrollRef.current;
+        if (scroller == null || query.get("scroll") !== "end") {
+            return;
+        }
+        const timer = setInterval(() => {
+            scroller.scrollTop = scroller.scrollHeight;
+        }, 100);
+        return () => clearInterval(timer);
+    }, []);
     return (
         <div className="p-4" data-testid="companion-dashboard-preview">
             <div
                 className="flex flex-col overflow-hidden rounded-6 border border-border"
-                style={{ width: Width }}
+                style={{ width: Width, height: FrameHeight > 0 ? FrameHeight : undefined }}
                 data-testid="companion-frame"
             >
-                <CompanionDashboard
-                    view={view}
-                    target="preview-terminal"
-                    companionId="preview-companion"
-                    agentState={agentState}
-                    provider=""
-                    dir=""
-                    folder="/work/lantern"
-                    layout={layout}
-                    onSaveLayout={setLayout}
-                    arranging={arranging}
-                    onArrange={() => setArranging(true)}
-                    onLeaveArranging={() => setArranging(false)}
-                    arrangeRef={arrangeRef}
-                    integrationDetails={true}
-                    persistentIntegration={false}
-                    onIntegration={none}
-                    onHistory={none}
-                    onBackToCurrent={none}
-                    fixtures={{ milestones, holds, usage: gaugesView(usage, Now), task }}
-                />
+                <div
+                    ref={scrollRef}
+                    className={
+                        FrameHeight > 0
+                            ? "flex h-full min-h-0 w-full flex-col overflow-y-auto"
+                            : "flex min-h-0 w-full flex-col"
+                    }
+                    data-testid="companion-scroll"
+                >
+                    <CompanionDashboard
+                        view={view}
+                        target="preview-terminal"
+                        companionId="preview-companion"
+                        agentState={agentState}
+                        provider=""
+                        dir=""
+                        folder="/work/lantern"
+                        layout={layout}
+                        onSaveLayout={setLayout}
+                        arranging={arranging}
+                        onArrange={() => setArranging(true)}
+                        onLeaveArranging={() => setArranging(false)}
+                        arrangeRef={arrangeRef}
+                        integrationDetails={true}
+                        persistentIntegration={false}
+                        onIntegration={none}
+                        onHistory={none}
+                        onBackToCurrent={none}
+                        fixtures={{ milestones, holds, usage: gaugesView(usage, Now), task }}
+                    />
+                </div>
             </div>
         </div>
     );
