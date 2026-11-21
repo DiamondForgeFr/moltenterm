@@ -7,7 +7,8 @@
 // ?usage=minimal|attached the plan usage's form (#2450), ?h=N a frame N px high holding the dashboard in the scroller the
 // app gives it (?scroll=end scrolled to the bottom), ?images=1 the messages name pasted images "[Image #N]" (#2455; the
 // chips read a small synthetic image drawn here, ?images=none gives them none), ?tip=<test id>[&tipat=N] (or
-// ?tipsel=<css selector>) a popover held open on the Nth such element (the screenshots' way of hovering).
+// ?tipsel=<css selector>) a popover held open on the Nth such element (the screenshots' way of hovering),
+// ?usage-agent=kimi|kimi-stale Kimi's usage (#2451).
 
 import { useEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
@@ -200,6 +201,70 @@ const usage: CompanionUsageInfo = {
         ],
     },
 };
+
+// ?usage-agent=kimi|kimi-stale (#2451): Kimi's managed usage, a 5-hour window, the week deduced from the month (recorded
+// from two days ago, so the days before are unknown) and the month; kimi-stale is the same reading kept 40 min after its
+// token expired.
+const UsageAgent = query.get("usage-agent") ?? "";
+const Today = (new Date(Now).getDay() + 6) % 7;
+const DeducedDays = Array.from({ length: 7 }, (_, i) =>
+    i > Today ? 0 : i < Today - 2 ? -1 : [130, 85, 60][Today - i]
+);
+const NextMonday = (() => {
+    const d = new Date(Now);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 7 - Today);
+    return d.getTime();
+})();
+const NextMonth = (() => {
+    const d = new Date(Now);
+    return new Date(d.getFullYear(), d.getMonth() + 1, 1, 1, 0).getTime();
+})();
+
+function kimiUsage(stale: boolean): CompanionUsageInfo {
+    const known = DeducedDays.filter((d) => d > 0);
+    return {
+        blockid: "preview-terminal",
+        agent: "kimi",
+        pageurl: "https://www.kimi.ai/code/console",
+        pagename: "Kimi usage",
+        hasgauges: true,
+        gauges: "enabled",
+        sourcename: "Kimi Code managed usage endpoint",
+        snapshot: {
+            agent: "kimi",
+            source: "kimi-oauth",
+            readat: Now - (stale ? 40 : 2) * Min,
+            stale: stale ? "tokenexpired" : undefined,
+            windows: [
+                {
+                    id: "session",
+                    label: "Current session",
+                    usedpercent: 0.15,
+                    resetsat: Now + Hour + 20 * Min,
+                    windowmins: 300,
+                },
+                {
+                    id: "week",
+                    label: "Week (from the month)",
+                    usedpercent: Math.round((known.reduce((a, b) => a + b, 0) / 7) * 10) / 10,
+                    resetsat: NextMonday,
+                    windowmins: 10080,
+                    deduced: true,
+                    days: DeducedDays,
+                },
+                { id: "month", label: "This month", usedpercent: 31, resetsat: NextMonth },
+            ],
+        },
+    };
+}
+
+function usageFixture(): CompanionUsageInfo {
+    if (UsageAgent === "kimi" || UsageAgent === "kimi-stale") {
+        return kimiUsage(UsageAgent === "kimi-stale");
+    }
+    return usage;
+}
 
 const task: TaskView = {
     workspaceid: "ws-preview",
@@ -447,7 +512,7 @@ export function CompanionDashboardPreview() {
                             onIntegration={none}
                             onHistory={none}
                             onBackToCurrent={none}
-                            fixtures={{ milestones, holds, usage: gaugesView(usage, Now), task }}
+                            fixtures={{ milestones, holds, usage: gaugesView(usageFixture(), Now), task }}
                         />
                     </CompanionTips>
                 </div>

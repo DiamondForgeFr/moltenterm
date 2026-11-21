@@ -2418,6 +2418,7 @@
                 "month": "Ce mois-ci",
                 "spend": "Limite de dépenses",
                 "model": "Cette semaine ({name})",
+                "weekDeduced": "Semaine (d'après le mois)",
                 "extra": "{name} {window}",
                 "hour": "{count} h",
                 "day": "{count} j",
@@ -2428,7 +2429,8 @@
                 "week": "Semaine",
                 "month": "Mois",
                 "spend": "Dépenses",
-                "model": "Semaine ({name})"
+                "model": "Semaine ({name})",
+                "weekDeduced": "Semaine (d'après le mois)"
             },
             "reason": {
                 "notsetup": "Ligne d'état non configurée",
@@ -2473,9 +2475,13 @@
                 "experimentalExplanation": "Lit aussi les trois fenêtres de limites gérées, le solde booster et les dépenses mensuelles depuis le point d'accès non documenté de Kimi Code correspondant à la région .com ou .ai configurée.",
                 "rowLabel": "Limites gérées, booster et dépenses mensuelles",
                 "unavailable": "Utilisation gérée indisponible",
+                "staleRefresh": "Il sera actualisé la prochaine fois que Kimi Code tournera.",
                 "experimentalStatement": "MoltenTerm lira uniquement access_token et expires_at depuis {where}. Il envoie le jeton d'accès uniquement au point d'accès officiel d'utilisation gérée de la région .com ou .ai configurée. Il ne renouvelle ni ne modifie jamais les identifiants, ne conserve pas le jeton et ne l'expose ni aux journaux, ni aux RPC, ni au stockage. Seules les connexions gérées officielles .com et .ai, stockées dans un fichier, sont prises en charge : le fichier partagé ou propre à l'environnement indiqué par la configuration est lu ; le trousseau, les fournisseurs personnalisés, les hôtes arbitraires et les clés API ne le sont pas. Comportement expérimental et non documenté vérifié avec la version officielle 2.6.3 de Kimi Code (source : {source}) ; il peut cesser de fonctionner."
             },
             "updated": "Mise à jour {ago}",
+            "staleRefresh": "Il sera actualisé la prochaine fois que l'agent tournera.",
+            "staleLine": "Dernier relevé, mis à jour {ago}. {when}",
+            "deducedExplain": "Déduite par MoltenTerm du mois, seule fenêtre que donne le fournisseur. Le budget de la semaine est la limite mensuelle × 7 ÷ les jours de la fenêtre mensuelle en cours. MoltenTerm note la part du mois utilisée au premier et au dernier relevé de chaque jour, sur cet ordinateur, et l'usage d'un jour est la hausse entre les relevés. La semaine commence le lundi ; au-delà de 100 %, elle utilise plus que sa part du mois. Les jours d'avant le premier relevé restent vides.",
             "title": "Utilisation de l'abonnement",
             "show": "Afficher l'utilisation de l'abonnement",
             "unavailable": "Utilisation de l'abonnement indisponible",
@@ -13201,13 +13207,15 @@
     "usageWeek": {
         "dayUnit": " %",
         "percent": "{percent} %",
+        "percentBelowOne": "< 1 %",
+        "dayUnknown": "{day} inconnu",
         "providerWindow": "{name}, {window}",
         "dayFigure": "{day} {share} %",
         "rowDays": "par jour : {days}",
         "daysTitle": "Par jour : {days}",
         "unreadable": "aucun relevé",
-        "row": "{name}, {percent} %",
-        "rowReset": "{name}, {percent} %, remise à zéro {day}",
+        "row": "{name}, {percent}",
+        "rowReset": "{name}, {percent}, remise à zéro {day}",
         "rowAsOf": "relevé {ago}",
         "stale": "Relevé {ago}",
         "choice": {

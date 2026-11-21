@@ -24,12 +24,14 @@ import { useFloatingInPlace } from "../floating-in-place";
 import { useLocale, useT } from "../i18n/i18n";
 import { anchoredMenuEvent, buttonMenuAnchor } from "../menu/menu-anchor";
 import {
-    dayFiguresText,
-    dayFills,
-    dayShares,
+    DayUnknown,
     legendColours,
+    lineDayFiguresText,
+    lineDayFills,
+    lineDayShares,
     paceColour,
     PaceRedAt,
+    percentText,
     resetDay,
     UnusedBlueFrom,
     UsageWeekLine,
@@ -69,6 +71,8 @@ export type UsageWeekRow = {
     title?: string;
     // A line under the row, across the grid.
     note?: string;
+    // A plain gauge's reset, short ("in 1 h 20 min"), at the end of its bar (#2451).
+    resets?: string;
 };
 
 // How long the pointer rests on a logo before its name shows.
@@ -233,14 +237,42 @@ function DayFigures({ line }: { line: UsageWeekLine }) {
     return (
         <>
             <span aria-hidden />
-            {dayShares(line.percent, line.start).map((share, i) => (
-                <span key={i} className="mt-uw-share" aria-hidden data-testid="usage-week-share" data-share={share}>
-                    {share}
-                    <span className="mt-uw-unit">{t("usageWeek.dayUnit")}</span>
-                </span>
-            ))}
+            {lineDayShares(line).map((share, i) =>
+                share == null ? (
+                    <span
+                        key={i}
+                        className="mt-uw-share"
+                        aria-hidden
+                        data-testid="usage-week-share"
+                        data-unknown="true"
+                    />
+                ) : (
+                    <span key={i} className="mt-uw-share" aria-hidden data-testid="usage-week-share" data-share={share}>
+                        {share}
+                        <span className="mt-uw-unit">{t("usageWeek.dayUnit")}</span>
+                    </span>
+                )
+            )}
             <span aria-hidden />
         </>
+    );
+}
+
+// A window the seven days say nothing of (a five-hour session, a month, #2451): one bar across the day columns, filled to
+// the used share in the pace colour, its reset at the end.
+function PlainGauge({ line, resets }: { line: UsageWeekLine; resets?: string }) {
+    const fill = Math.min(100, Math.max(0, line.used ?? line.percent));
+    return (
+        <span className="mt-uw-gauge" data-testid="usage-week-gauge">
+            <span className="mt-uw-gauge-bar">
+                <i style={{ width: `${Math.round(fill * 10) / 10}%` }} />
+            </span>
+            {resets ? (
+                <span className="mt-uw-gauge-reset" data-testid="usage-week-gauge-reset">
+                    {resets}
+                </span>
+            ) : null}
+        </span>
     );
 }
 
@@ -328,13 +360,17 @@ export function UsageWeekGrid({
                 }
                 const day = resetDay(line.resetsAt, locale);
                 const age = row.old || row.stale ? relativeTime(row.readAt, now) : "";
+                const percent = percentText(line);
                 const parts = [
-                    day
-                        ? t("usageWeek.rowReset", { name: displayName, percent: line.percent, day })
-                        : t("usageWeek.row", { name: displayName, percent: line.percent }),
+                    day && !line.plain
+                        ? t("usageWeek.rowReset", { name: displayName, percent, day })
+                        : t("usageWeek.row", { name: displayName, percent }),
                 ];
-                if (minimal) {
-                    parts.push(t("usageWeek.rowDays", { days: dayFiguresText(line.percent, line.start) }));
+                if (line.plain && row.resets) {
+                    parts.push(row.resets);
+                }
+                if (minimal && !line.plain) {
+                    parts.push(t("usageWeek.rowDays", { days: lineDayFiguresText(line) }));
                 }
                 if (age) {
                     parts.push(t("usageWeek.rowAsOf", { ago: age }));
@@ -354,24 +390,39 @@ export function UsageWeekGrid({
                         data-testid="usage-week-row"
                         data-provider={row.agent}
                         data-window={row.window}
+                        data-plain={line.plain ? "true" : undefined}
+                        data-deduced={line.days != null ? "true" : undefined}
                         onContextMenu={row.onContextMenu}
                     >
                         <RowLead row={row} />
-                        {dayFills(line.percent, line.start).map((fill, i) => (
-                            <span
-                                key={i}
-                                className={cn("mt-uw-cell", i === today && "is-today", i === line.start && "is-reset")}
-                                data-testid="usage-week-block"
-                                data-today={i === today ? "true" : undefined}
-                                data-reset={i === line.start ? "true" : undefined}
-                            >
-                                <i style={{ width: `${Math.round(fill * 1000) / 10}%` }} />
-                            </span>
-                        ))}
+                        {line.plain ? (
+                            <PlainGauge line={line} resets={row.resets} />
+                        ) : (
+                            lineDayFills(line).map((fill, i) => {
+                                const unknown = line.days?.[i] === DayUnknown;
+                                return (
+                                    <span
+                                        key={i}
+                                        className={cn(
+                                            "mt-uw-cell",
+                                            i === today && "is-today",
+                                            i === line.start && "is-reset",
+                                            unknown && "is-unknown"
+                                        )}
+                                        data-testid="usage-week-block"
+                                        data-today={i === today ? "true" : undefined}
+                                        data-reset={i === line.start ? "true" : undefined}
+                                        data-unknown={unknown ? "true" : undefined}
+                                    >
+                                        <i style={{ width: `${Math.round(fill * 1000) / 10}%` }} />
+                                    </span>
+                                );
+                            })
+                        )}
                         <b className="mt-uw-pct" data-testid="usage-week-percent">
-                            {t("usageWeek.percent", { percent: line.percent })}
+                            {percent}
                         </b>
-                        {dayFigures && !minimal ? <DayFigures line={line} /> : null}
+                        {dayFigures && !minimal && !line.plain ? <DayFigures line={line} /> : null}
                         {row.note ? (
                             <span className="mt-uw-detail" data-testid="usage-week-note">
                                 {row.note}

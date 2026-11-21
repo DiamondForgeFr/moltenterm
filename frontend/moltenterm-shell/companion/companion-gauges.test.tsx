@@ -86,6 +86,9 @@ const percentsOf = (html: string): string[] =>
     [...html.matchAll(/data-testid="usage-week-percent">([^<]*)</g)].map((m) => m[1]);
 const noteOf = (html: string, window: string): string =>
     /data-testid="usage-week-note">([^<]*)</.exec(rowHtml(html, window))?.[1] ?? "";
+// A plain gauge's reset, at the end of its bar (#2451).
+const gaugeResetOf = (html: string, window: string): string =>
+    /data-testid="usage-week-gauge-reset">([^<]*)</.exec(rowHtml(html, window))?.[1] ?? "";
 const initialsOf = (html: string): string =>
     [...html.matchAll(/data-testid="usage-week-day"[^>]*>([^<]*)</g)].map((m) => m[1]).join("");
 // The seven day blocks of a row, Monday first: their fill and whether the reset ring stands on them.
@@ -215,9 +218,11 @@ describe("plan usage section", () => {
         expect(html).toContain("From the Claude Code status line");
         expect(html).toContain("Updated 3 min ago");
         expect(labelsOf(html)).toEqual(["Session", "Week"]);
-        expect(html).toContain('aria-label="Current session, 24 %, resets Tuesday"');
+        // The 5-hour session is a plain gauge (#2451): its reset at the end of its bar, no reset day.
+        expect(html).toContain('aria-label="Current session, 24 %, in 2 h 14 min"');
         expect(html).toContain('data-tip="Current session: 23.5 % used\nResets in 2 h 14 min"');
-        expect(noteOf(html, "session")).toBe("Resets in 2 h 14 min");
+        expect(gaugeResetOf(html, "session")).toBe("in 2 h 14 min");
+        expect(noteOf(html, "session")).toBe("");
         expect(html).toContain('aria-label="This week, 82 %, resets Friday"');
         expect(noteOf(html, "week")).toBe("Resets Fri 10:00");
         expect(percentsOf(html)).toEqual(["24 %", "82 %"]);
@@ -338,7 +343,7 @@ describe("Codex plan usage", () => {
         expect(html).toContain("Updated 3 min ago");
         expect(labelsOf(html)).toEqual(["5-hour", "Week"]);
         expect(html).toContain('data-tip="5-hour: 12.5 % used\nResets in 3 h"');
-        expect(noteOf(html, "session")).toBe("Resets in 3 h");
+        expect(gaugeResetOf(html, "session")).toBe("in 3 h");
         expect(percentsOf(html)).toEqual(["13 %", "96 %"]);
         expect(rowTag(html, "week")).toContain('data-pace="red"');
         expect(html).toContain("Credits: 17.5 left");
@@ -449,16 +454,9 @@ describe("the companion's usage week grid (#2102)", () => {
             { fill: 0, reset: false },
             { fill: 100, reset: true },
         ]);
-        // The 5-hour session last reset this morning, on Tuesday.
-        expect(blocksOf(markup(enabled), "session").map((b) => b.reset)).toEqual([
-            false,
-            true,
-            false,
-            false,
-            false,
-            false,
-            false,
-        ]);
+        // The 5-hour session says nothing of the week's days: a plain gauge, no blocks, no ring (#2451).
+        expect(blocksOf(markup(enabled), "session")).toEqual([]);
+        expect(rowTag(markup(enabled), "session")).toContain('data-plain="true"');
     });
 
     it("follows Brokk's pace colours, a per-model week being paced against a week", () => {
@@ -790,9 +788,9 @@ describe("the share of each day under its block (#2164)", () => {
             [100, "100%"],
             [100, "100%"],
         ]);
-        // The session's 24 % is 1.68 days' worth from its Tuesday: Tuesday full, Wednesday 68 %.
-        expect(sharesOf(html, "session").map(([share]) => share)).toEqual([0, 100, 68, 0, 0, 0, 0]);
-        expect(html.match(/data-testid="usage-week-share"/g)).toHaveLength(14);
+        // The session is a plain gauge (#2451): no day, no figure.
+        expect(sharesOf(html, "session")).toEqual([]);
+        expect(html.match(/data-testid="usage-week-share"/g)).toHaveLength(7);
     });
 
     it("lines them up with the blocks: a figure is the fill of the block above it", () => {
@@ -847,7 +845,7 @@ describe("the share of each day under its block (#2164)", () => {
     it("keeps the figures calm: muted, never coloured by the pace, and hidden from assistive technology", () => {
         const html = markup(enabled);
         const tags = [...html.matchAll(/<span class="mt-uw-share"[^>]*>/g)].map((m) => m[0]);
-        expect(tags).toHaveLength(14);
+        expect(tags).toHaveLength(7);
         for (const tag of tags) {
             expect(tag).not.toContain("style=");
             expect(tag).not.toContain("--mt-uw-pace");
@@ -902,7 +900,7 @@ describe("the share of each day under its block (#2164)", () => {
     it("shows the same figures in the compact form, and nothing else there (#2186)", () => {
         const compact = compactOf(enabled);
         expect(compact).toContain('data-testid="usage-week"');
-        expect(compact.match(/data-testid="usage-week-share"/g)).toHaveLength(14);
+        expect(compact.match(/data-testid="usage-week-share"/g)).toHaveLength(7);
         expect(sharesOf(compact, "week")).toEqual(sharesOf(markup(enabled), "week"));
         expect(sharesOf(compact, "session")).toEqual(sharesOf(markup(enabled), "session"));
         expect(compact).not.toContain("usage-week-legend");
@@ -963,7 +961,11 @@ describe("Kimi managed plan usage", () => {
         const html = markup(kimi);
         expect(windowsOf(html)).toEqual(["session", "week", "month"]);
         expect(labelsOf(html)).toEqual(["Session", "Week", "Month"]);
-        expect(noteOf(html, "month")).toContain("Resets");
+        expect(gaugeResetOf(html, "month")).toMatch(/^Sun 1 Nov, 00:00$/);
+        expect(rowTag(html, "month")).toContain("Resets Sun 1 Nov, 00:00");
+        expect(rowTag(html, "month")).toContain('data-plain="true"');
+        expect(rowTag(html, "session")).toContain('data-plain="true"');
+        expect(rowTag(html, "week")).not.toContain("data-plain");
         expect(html).toContain("Booster balance: $12.35");
         expect(html).toContain("Monthly spending: $5.43 of $20.00");
         expect(html).not.toContain("month_code");

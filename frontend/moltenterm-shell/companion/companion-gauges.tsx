@@ -312,7 +312,9 @@ function weekRow(
     detailed: boolean,
     minimal = false
 ): UsageWeekRow {
-    const days = minimal ? daysTitle(row.line) : "";
+    // A plain gauge (#2451) says its reset at the end of its bar, in every form; it has no days to tell.
+    const plain = row.line.plain;
+    const days = minimal && !plain ? daysTitle(row.line) : "";
     return {
         key: row.id,
         agent: view.agent,
@@ -320,9 +322,22 @@ function weekRow(
         window: row.id,
         label: row.shortLabel,
         line: row.line,
-        title: [`${row.label}: ${row.percent}`, row.resets, days, about].filter((s) => !!s).join("\n"),
-        note: detailed ? row.resets : undefined,
+        title: [`${row.label}: ${row.percent}`, row.resets, days, row.explain, about].filter((s) => !!s).join("\n"),
+        note: detailed && !plain ? row.resets : undefined,
+        resets: plain ? row.resetsShort : undefined,
     };
+}
+
+// The line of a reading kept because no fresh one could be read (#2451): its age and when it comes back.
+function StaleNote({ text }: { text: string }) {
+    if (!text) {
+        return null;
+    }
+    return (
+        <p className="m-0 text-11 leading-snug text-muted" data-testid="companion-plan-usage-stale">
+            {text}
+        </p>
+    );
 }
 
 export function PlanUsageBody({
@@ -453,6 +468,11 @@ export function PlanUsageBody({
                     dayFigures
                 />
             </div>
+            {view.stale ? (
+                <div className="mt-1.5">
+                    <StaleNote text={view.stale} />
+                </div>
+            ) : null}
             {view.rows.length > 0 ? (
                 <p className="mt-1.5 text-11 leading-snug text-muted" data-testid="companion-plan-usage-explain">
                     {t("companion.gauges.explain")}
@@ -617,6 +637,7 @@ function FramedUsage({
                         dayFigures
                     />
                 </div>
+                <StaleNote text={view.stale} />
                 {view.rows.length > 0 ? (
                     <p className="m-0 text-11 leading-snug text-muted" data-testid="companion-plan-usage-explain">
                         {t("companion.gauges.explain")}
@@ -664,6 +685,11 @@ function MinimalGauges({ view }: { view: Extract<GaugesView, { kind: "enabled" }
                     </div>
                 )}
             </div>
+            {view.stale ? (
+                <div className="mt-1">
+                    <StaleNote text={view.stale} />
+                </div>
+            ) : null}
         </div>
     );
 }
@@ -866,6 +892,7 @@ function CompactGauges({ view, onDetails }: { view: Extract<GaugesView, { kind: 
                     />
                 ) : null}
             </div>
+            <StaleNote text={view.stale} />
             {/* In the grid's empty corner, over the initials' line, so the rows keep the whole width. */}
             <button
                 type="button"

@@ -20,10 +20,10 @@
 }
 
 /* A surface that shows one agent labels each row by its window (#2102): the first column takes what a short label needs,
-   up to 6.25rem, and the label is cut with an ellipsis when the room is short. The day blocks keep a minimum width, so a
+   up to 8.75rem ("Week (from the month)", #2451), and the label is cut with an ellipsis when the room is short. The day blocks keep a minimum width, so a
    narrow panel shortens the labels, never the blocks. */
 .mt-uw[data-labelled="true"] {
-    --mt-uw-first: minmax(0, 6.25rem);
+    --mt-uw-first: minmax(0, 8.75rem);
     --mt-uw-block-min: 12px;
 }
 
@@ -172,6 +172,61 @@ button.mt-uw-logo:focus-visible {
     100% {
         background-position: -60% 0;
     }
+}
+
+/* A day a week deduced from the month holds no reading for (#2451): a dimmed empty block, never a 0 %. */
+.mt-uw-cell.is-unknown {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+    opacity: 0.55;
+}
+
+.mt-uw-cell.is-unknown.is-today {
+    box-shadow:
+        inset 0 0 0 1px var(--mt-line-2),
+        0 0 0 1px color-mix(in srgb, var(--mt-text-1) 35%, transparent);
+}
+
+/* A plain gauge (#2451): a window the seven days say nothing of takes the day columns with one bar of the blocks'
+   height, and its reset, short and muted, at the end of it. */
+.mt-uw-gauge {
+    display: flex;
+    grid-column: span 7;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mt-uw-gauge-bar {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 24px;
+    height: var(--mt-uw-block-h);
+    overflow: hidden;
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-line-2);
+}
+
+.mt-uw-gauge-bar i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--mt-uw-pace, var(--color-success));
+}
+
+.mt-uw-gauge-reset {
+    flex: 0 1 auto;
+    max-width: 65%;
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-uw-row[data-stale="true"] .mt-uw-gauge-bar i {
+    background: var(--mt-text-3);
+    opacity: 0.45;
 }
 
 .mt-uw-pct {
