@@ -23,6 +23,8 @@ export type CompanionPrefs = {
     takenopen?: boolean;
     // The "In progress, nobody on it" group is open, as the developer left it (#2454); absent while he never chose: folded.
     idleopen?: boolean;
+    // The "To review" group is open (#2454); absent while he never chose: folded.
+    reviewopen?: boolean;
     // The milestone tab the developer chose in the Tasks block, per project folder (#2416): the number of the milestone,
     // kept while it is open. The oldest ones leave beyond MaxChosenTabs.
     milestonetabs?: Record<string, number>;
@@ -58,6 +60,7 @@ export function readCompanionPrefs(value: unknown): CompanionPrefs {
         layout: readStoredLayout(prefs.layout) ?? undefined,
         takenopen: typeof prefs.takenopen === "boolean" ? prefs.takenopen : undefined,
         idleopen: prefs.idleopen === true ? true : undefined,
+        reviewopen: prefs.reviewopen === true ? true : undefined,
         milestonetabs: readMilestoneTabs(prefs.milestonetabs),
     };
 }

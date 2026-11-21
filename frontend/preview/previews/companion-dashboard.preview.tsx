@@ -15,6 +15,7 @@ import { CompanionUsageInfo, gaugesView } from "../../moltenterm-shell/companion
 import {
     agentState as leadState,
     panelOn,
+    reviewsOf,
     statesOf,
     subagent,
     ThisWorkspace,
@@ -132,7 +133,7 @@ const milestones: MilestonesView = {
                 ticket(824, "Imported settings keep their order"),
                 ticket(827, "An unknown setting shows read-only"),
                 ticket(829, "The search ignores accents"),
-                ticket(830, "A deep link opens one option"),
+                { ...ticket(830, "A deep link opens one option"), status: "In review" },
                 // In progress on the board with nobody at work on it: idle (#2454). wavesrv already left the epics out.
                 { ...ticket(833, "Recent options come first"), status: "In progress" },
                 ticket(818, "Export the settings to a file"),
@@ -187,6 +188,13 @@ const bastien = leadState("bastien", "claude", "Claude Code", "Bastien");
 const holds = {
     upcoming: upcomingOf([panelOn(bastien, "develop"), subagent(bastien, 818)]),
     states: statesOf(bastien),
+    // #830 is In review with its open pull request: the "To review" group (#2454).
+    reviews: reviewsOf({
+        number: 912,
+        ticket: 830,
+        branch: "feature/830-deep-link",
+        url: "https://github.com/example/lantern/pull/912",
+    }),
 };
 
 const agentState: AgentStateInfo = {

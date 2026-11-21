@@ -2234,11 +2234,12 @@
             "left": "Reste {count}",
             "countMine": "{count} chez moi",
             "countOthers": "{count} chez d'autres",
+            "countReview": "{count} à relire",
             "countIdle": "{count} à l'arrêt",
             "countFree": "{count} à prendre",
             "takenByOthers": "Pris par d'autres",
             "idleGroup": "En cours, personne dessus",
-            "openTheTicket": "Ouvrir le ticket",
+            "reviewGroup": "À relire",
             "takenMore": {
                 "one": "et {count} autre",
                 "other": "et {count} autres"

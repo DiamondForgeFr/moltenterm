@@ -352,6 +352,11 @@
     background: color-mix(in srgb, var(--mt-state-draft) 28%, transparent);
 }
 
+/* In review with its open pull request (#2454): waiting for the developer, in the action colour, softened. */
+.mt-cwork-squares > [data-kind="review"] {
+    background: color-mix(in srgb, var(--mt-action) 45%, transparent);
+}
+
 .mt-cwork-squares > [data-kind="free"] {
     border: 1.5px solid var(--mt-state-draft);
 }
@@ -368,6 +373,10 @@
 }
 
 .mt-cwork-counts > [data-kind="other"] {
+    color: var(--mt-text-2);
+}
+
+.mt-cwork-counts > [data-kind="review"] {
     color: var(--mt-text-2);
 }
 
@@ -423,6 +432,40 @@
 
 .mt-cwork-mark[data-idle] {
     opacity: 0.55;
+}
+
+/* A held ticket's title (#2454) is shown whole: its chips stand on the line above. */
+.mt-cwork-text[data-full] {
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+}
+
+/* The one action of a held ticket's row, a small icon at its end. */
+.mt-cwork-tool {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: none;
+    color: var(--mt-text-3);
+    cursor: pointer;
+}
+
+.mt-cwork-tool:hover {
+    background: var(--mt-cwork-hair);
+    color: var(--mt-text-1);
+}
+
+.mt-cwork-tool:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--mt-action) 50%, transparent);
+    outline-offset: 1px;
 }
 
 .mt-cwork-mark[data-other] .mt-state-mark.is-running {

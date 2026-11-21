@@ -804,53 +804,46 @@ describe("who works on what (#2418)", () => {
     });
 
     // #2454: a ticket taken by its board status, its pull request or its branch, with no live agent on it, is idle, not
-    // "with others": its own folded group, a dimmed square and a count, never work to take.
+    // "with others": its own folded group, a dimmed square and a count, never work to take. A ticket In review with its
+    // open pull request waits for the developer: "To review".
     const idleSetup = () => {
         const tickets = nineOpen();
+        const status: Record<number, string> = { 5: "AI testing", 6: "In review", 8: "In progress" };
         tickets.tickets = tickets.tickets.map((t) =>
-            t.number === 8 ? { ...t, status: "In progress", url: "https://example.test/issues/8" } : t
+            status[t.number] ? { ...t, status: status[t.number], url: `https://example.test/issues/${t.number}` } : t
         );
         const none = upcomingOf([], [{ branch: "feature/9-x", ticket: 9, ahead: 1, worktree: "/shop/.worktrees/9" }]);
-        const reviews = reviewsOf({ number: 91, ticket: 7, branch: "feature/7-x", url: "https://example.test/pull/91" });
+        const reviews = reviewsOf(
+            { number: 91, ticket: 7, branch: "feature/7-x", url: "https://example.test/pull/91" },
+            { number: 96, ticket: 6, branch: "feature/6-x", url: "https://example.test/pull/96" }
+        );
         return { tickets, holds: { upcoming: none, states: EveryLead, reviews } };
     };
 
-    it("shows a ticket taken with nobody on it as idle, folded apart, never with others (#2454)", () => {
-        const { tickets, holds } = idleSetup();
-        const html = render(Flore, [], 1400, { milestones: { dir: "/shop", state: "ok", milestones: [tickets] }, holds });
-        expect(ticketRows(html)).toEqual([1, 2, 3, 4, 5, 6]);
-        expect(html).not.toContain('data-testid="companion-taken"');
-        expect(html).not.toContain("with others");
-        expect(html).toContain('<span data-kind="idle">3 idle</span>');
-        expect(html.match(/<span data-kind="idle"><\/span>/g)).toHaveLength(3);
-        expect(html).toContain(">In progress, nobody on it<");
-        expect(html).toContain('data-testid="companion-idle-head"');
-        expect(html).not.toContain('data-testid="companion-idle-ticket"');
-    });
-
-    it("lists each idle ticket, opened, with what says it is taken and Open the ticket (#2454)", () => {
-        const { tickets, holds } = idleSetup();
-        const html = renderToStaticMarkup(
+    const openBlock = (setup: ReturnType<typeof idleSetup>) =>
+        renderToStaticMarkup(
             <TasksBlock
                 loading={false}
-                milestones={[tickets]}
-                selected={tickets}
+                milestones={[setup.tickets]}
+                selected={setup.tickets}
                 onSelect={() => {}}
                 width={700}
                 lists={taskLists(
-                    tickets,
+                    setup.tickets,
                     new Map(),
-                    classifyTickets(tickets.tickets, {
+                    classifyTickets(setup.tickets.tickets, {
                         mine: new Map(),
                         ownBlockId: "flore",
                         workspaceId: ThisWorkspace,
-                        ...holds,
+                        ...setup.holds,
                     })
                 )}
                 takenOpen={undefined}
                 onTakenChange={() => {}}
                 idleOpen={true}
                 onIdleChange={() => {}}
+                reviewOpen={true}
+                onReviewChange={() => {}}
                 phrasing={false}
                 offer={null}
                 links={new Map()}
@@ -860,12 +853,57 @@ describe("who works on what (#2418)", () => {
                 ends={new Set()}
             />
         );
-        expect(html.match(/data-testid="companion-idle-ticket"/g)).toHaveLength(3);
-        expect(html).toContain('data-testid="companion-taken-status">In progress<');
+
+    it("shows a ticket taken with nobody on it as idle, folded apart, never with others (#2454)", () => {
+        const { tickets, holds } = idleSetup();
+        const html = render(Flore, [], 1400, {
+            milestones: { dir: "/shop", state: "ok", milestones: [tickets] },
+            holds,
+        });
+        expect(ticketRows(html)).toEqual([1, 2, 3, 4]);
+        expect(html).not.toContain('data-testid="companion-taken"');
+        expect(html).not.toContain("with others");
+        expect(html).toContain('<span data-kind="idle">4 idle</span>');
+        expect(html).toContain('<span data-kind="review">1 to review</span>');
+        expect(html.match(/<span data-kind="idle"><\/span>/g)).toHaveLength(4);
+        expect(html.match(/<span data-kind="review"><\/span>/g)).toHaveLength(1);
+        expect(html).toContain(">In progress, nobody on it<");
+        expect(html).toContain(">To review<");
+        // To review comes after Taken by others' place and before the idle group.
+        expect(html.indexOf('data-testid="companion-review"')).toBeLessThan(
+            html.indexOf('data-testid="companion-idle"')
+        );
+        expect(html).not.toContain('data-testid="companion-idle-ticket"');
+        expect(html).not.toContain('data-testid="companion-review-ticket"');
+    });
+
+    it("lists a ticket in review with its pull request, the title whole (#2454)", () => {
+        const html = openBlock(idleSetup());
+        const group = html.slice(
+            html.indexOf('data-testid="companion-review"'),
+            html.indexOf('data-testid="companion-idle"')
+        );
+        expect(group.match(/data-testid="companion-review-ticket"/g)).toHaveLength(1);
+        expect(group).toContain('title="Open pull request #96" data-testid="companion-review-pr">PR #96<');
+        expect(group).toContain('data-full="" data-testid="companion-review-title">');
+    });
+
+    it("lists each idle ticket, opened, with what says it is taken and Open the ticket (#2454)", () => {
+        const html = openBlock(idleSetup());
+        expect(html.match(/data-testid="companion-idle-ticket"/g)).toHaveLength(4);
+        // The group's title says In progress: only another column has its chip.
+        expect(html).not.toContain('data-testid="companion-taken-status">In progress<');
+        expect(html).toContain('data-testid="companion-taken-status">AI testing<');
         expect(html).toContain('data-testid="companion-taken-pr">PR #91<');
         expect(html).toContain('data-testid="companion-taken-branch">On a branch<');
         expect(html).not.toContain('data-testid="companion-taken-owner"');
-        expect(html).toContain('title="Open ticket #8" data-testid="companion-idle-open">Open the ticket<');
+        expect(html).toContain('aria-label="Open ticket #8" data-testid="companion-idle-open"');
+        expect(html.match(/data-full="" data-testid="companion-idle-title"/g)).toHaveLength(4);
+    });
+
+    it("keeps the idle rows' titles out of the chips' way (#2454)", () => {
+        const html = openBlock(idleSetup());
+        expect(html).not.toMatch(/mt-cwork-title truncate/);
     });
 
     it("keeps a ticket another live agent holds with others, and this session's sub-agents here (#2454)", () => {
