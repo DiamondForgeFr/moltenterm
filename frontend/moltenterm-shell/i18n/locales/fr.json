@@ -2132,6 +2132,13 @@
             "latestButton": "Dernière",
             "copy": "Copier la réponse en markdown"
         },
+        "image": {
+            "chip": "Image #{n}",
+            "alt": "Image collée {n}",
+            "title": "Image collée #{n}",
+            "unavailable": "Image indisponible",
+            "size": "{width} × {height} px · {bytes}"
+        },
         "loading": "Chargement…",
         "tasks": "Tâches",
         "dash": {
@@ -11055,7 +11062,8 @@
             "noagentruns": "Aucun agent ne tourne dans ce terminal.",
             "nocompanionfor": "Il n'y a pas de compagnon pour {agent}.",
             "answergone": "Cette réponse n'est plus conservée.",
-            "nofilechange": "Ce fichier n'a pas été modifié dans la session."
+            "nofilechange": "Ce fichier n'a pas été modifié dans la session.",
+            "noimage": "Cette image n'est pas dans la transcription de la session."
         },
         "integration": {
             "name": {

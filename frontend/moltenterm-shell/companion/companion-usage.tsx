@@ -42,7 +42,7 @@ export function UsageButton({
     return (
         <button
             type="button"
-            title={action.title}
+            data-tip={action.title}
             aria-label={action.title}
             onClick={(e) => {
                 // The block's own click handler would take the focus back from the browser panel the page opens in,

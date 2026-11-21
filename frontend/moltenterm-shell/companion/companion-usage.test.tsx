@@ -68,7 +68,7 @@ describe("companion usage action", () => {
     it("renders a keyboard-reachable button with the page in its tooltip", () => {
         const html = renderToStaticMarkup(<UsageButton view={claude} />);
         expect(html).toMatch(/^<button type="button"/);
-        expect(html).toContain('title="Open Claude usage"');
+        expect(html).toContain('data-tip="Open Claude usage"');
         expect(html).toContain('aria-label="Open Claude usage"');
         expect(html).toContain("cursor-pointer");
         expect(html).toContain(">Usage<");

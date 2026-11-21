@@ -216,7 +216,7 @@ describe("plan usage section", () => {
         expect(html).toContain("Updated 3 min ago");
         expect(labelsOf(html)).toEqual(["Session", "Week"]);
         expect(html).toContain('aria-label="Current session, 24 %, resets Tuesday"');
-        expect(html).toContain('title="Current session: 23.5 % used\nResets in 2 h 14 min"');
+        expect(html).toContain('data-tip="Current session: 23.5 % used\nResets in 2 h 14 min"');
         expect(noteOf(html, "session")).toBe("Resets in 2 h 14 min");
         expect(html).toContain('aria-label="This week, 82 %, resets Friday"');
         expect(noteOf(html, "week")).toBe("Resets Fri 10:00");
@@ -234,7 +234,7 @@ describe("plan usage section", () => {
         expect(windowsOf(html)).toEqual(["session", "week"]);
         expect(percentsOf(html)).toEqual(["24 %", "82 %"]);
         expect(html).toContain(
-            'title="This week: 82 % used\nResets Fri 10:00\nFrom the Claude Code status line · Updated 3 min ago"'
+            'data-tip="This week: 82 % used\nResets Fri 10:00\nFrom the Claude Code status line · Updated 3 min ago"'
         );
         expect(html).not.toContain('data-testid="usage-week-note"');
         expect(html).toContain('aria-label="Plan usage details"');
@@ -270,7 +270,7 @@ describe("plan usage section", () => {
     it("collapses to one muted line on failure, with the reason as tooltip and Hide kept", () => {
         const html = markup({ ...enabled, gauges: "unavailable", reason: "noplan", snapshot: undefined });
         expect(html).toContain('data-state="unavailable"');
-        expect(html).toContain('title="Not on a Pro or Max plan"');
+        expect(html).toContain('data-tip="Not on a Pro or Max plan"');
         expect(html).toContain("Plan usage unavailable");
         expect(html).toMatch(/aria-label="Hide plan usage"[^>]*>Hide<\/button>/);
         expect(html).not.toContain('role="meter"');
@@ -337,7 +337,7 @@ describe("Codex plan usage", () => {
         expect(html).toContain("From the Codex session log");
         expect(html).toContain("Updated 3 min ago");
         expect(labelsOf(html)).toEqual(["5-hour", "Week"]);
-        expect(html).toContain('title="5-hour: 12.5 % used\nResets in 3 h"');
+        expect(html).toContain('data-tip="5-hour: 12.5 % used\nResets in 3 h"');
         expect(noteOf(html, "session")).toBe("Resets in 3 h");
         expect(percentsOf(html)).toEqual(["13 %", "96 %"]);
         expect(rowTag(html, "week")).toContain('data-pace="red"');
@@ -369,7 +369,7 @@ describe("Codex plan usage", () => {
         expect(usageReasonText("format", "codex")).toBe(usageReasonText("format"));
         expect(usageReasonText("noplan", "claude")).toBe("Not on a Pro or Max plan");
         const html = markup({ ...codex, gauges: "unavailable", reason: "waiting", snapshot: undefined });
-        expect(html).toContain('title="Waiting for the agent: the limits come with its next response"');
+        expect(html).toContain('data-tip="Waiting for the agent: the limits come with its next response"');
         const expired = { ...codex, snapshot: { ...codex.snapshot, credits: undefined } };
         expect(gaugesView(expired, now + 5 * 24 * Hour)).toEqual({
             kind: "unavailable",
@@ -584,7 +584,7 @@ describe("the legend, the explanation and the source line (#2123)", () => {
             html.lastIndexOf('data-testid="usage-week-row"')
         );
         expect(html).toContain(
-            'title="More than the time gone allows, orange towards red. At this pace the window may run out before it resets"'
+            'data-tip="More than the time gone allows, orange towards red. At this pace the window may run out before it resets"'
         );
     });
 
@@ -1000,7 +1000,7 @@ describe("the minimal week grid (#2450)", () => {
         },
         { key: "month", agent: "claude", name: "This month", window: "month", label: "Month", line: line(3, 4) },
     ];
-    const html = (props: { minimal?: boolean; legend?: boolean; dayFigures?: boolean }) =>
+    const html = (props: { minimal?: boolean; legend?: boolean; dayFigures?: boolean; popovers?: boolean }) =>
         renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} {...props} />);
 
     it("tells the figure of each day as a sentence, Monday first, from the blocks' own fills", () => {
@@ -1052,5 +1052,15 @@ describe("the minimal week grid (#2450)", () => {
         expect(rowTag(html({ dayFigures: true }), "week")).not.toContain("per day");
         // The surface's own tooltip is kept.
         expect(rowTag(minimal, "week")).toContain('title="tip"');
+    });
+
+    it("says a row's title and the legend's in a panel's popover when it asks (#2455)", () => {
+        const popovers = html({ minimal: true, legend: true, popovers: true });
+        expect(rowTag(popovers, "week")).toContain('data-tip="tip"');
+        expect(popovers).not.toContain(" title=");
+        const full = html({ legend: true, dayFigures: true, popovers: true });
+        expect(full).not.toContain(" title=");
+        expect(full).toContain('data-tip="');
+        expect(html({ legend: true })).toContain(" title=");
     });
 });

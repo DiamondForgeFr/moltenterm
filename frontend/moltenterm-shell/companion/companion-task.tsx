@@ -239,7 +239,7 @@ export function WorkspaceTaskCard({
     const updated = relativeTime(view.updated, now);
     const framed = frame != null;
     const updatedNode = updated ? (
-        <span className="text-11 text-muted" title={new Date(view.updated).toLocaleString()}>
+        <span className="text-11 text-muted" data-tip={new Date(view.updated).toLocaleString()}>
             {t("companion.history.updatedAgo", { ago: updated })}
         </span>
     ) : null;
@@ -264,7 +264,7 @@ export function WorkspaceTaskCard({
                     {summary.goal ? (
                         <div
                             className={framed ? "mt-cdash-task-goal line-clamp-3" : "line-clamp-3 text-primary"}
-                            title={summary.goal}
+                            data-tip={summary.goal}
                         >
                             {summary.goal}
                         </div>

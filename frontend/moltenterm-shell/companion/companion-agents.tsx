@@ -58,11 +58,11 @@ function SubAgent({
                 <StateMark kind={heatOf(row.state)} />
             </span>
             <span className="mt-cwork-sub-body">
-                <span className="mt-cwork-sub-title truncate" title={sub?.description || row.name}>
+                <span className="mt-cwork-sub-title truncate" data-tip={sub?.description || row.name}>
                     {ticket > 0 ? <span className="mt-cwork-sub-id">{`#${ticket}`}</span> : null}
                     {title}
                 </span>
-                <span className="mt-cwork-sub-meta truncate" title={row.configTitle || undefined}>
+                <span className="mt-cwork-sub-meta truncate" data-tip={row.configTitle || undefined}>
                     <span data-testid="companion-subagent-model">{meta.join(" · ")}</span>
                 </span>
             </span>

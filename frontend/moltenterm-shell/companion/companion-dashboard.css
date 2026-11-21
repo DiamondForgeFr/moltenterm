@@ -307,6 +307,10 @@ button.mt-cb-chip-off:hover {
     height: 14px;
 }
 
+.mt-cb-tool i[data-copied] {
+    color: var(--success-color);
+}
+
 .mt-cb-tool-meta {
     min-width: 0;
     overflow: hidden;

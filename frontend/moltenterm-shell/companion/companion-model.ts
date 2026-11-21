@@ -7,6 +7,7 @@
 import type { AgentHookOffer } from "../agent-hooks-model";
 import { getLocale, t } from "../i18n/i18n";
 import { ServerText, serverText } from "../i18n/server-text";
+import { imageLinks } from "./companion-tips-model";
 
 // must match pkg/molten/agentcompanion.go
 export const CompanionRoute = "molten:companion";
@@ -20,6 +21,8 @@ export const CompanionPickCommand = "moltencompanionpick";
 export const CompanionSessionsCommand = "moltencompanionsessions";
 export const CompanionAnswerCommand = "moltencompanionanswer";
 export const CompanionDiffCommand = "moltencompaniondiff";
+// A pasted image of the session, for the chip of its "[Image #N]" placeholder (#2455); data is base64.
+export const CompanionImageCommand = "moltencompanionimage";
 export const CompanionUsageCommand = "moltencompanionusage";
 export const CompanionUsageGaugesCommand = "moltencompanionusagegauges";
 export const CompanionUsageExperimentalCommand = "moltencompanionusageexperimental";
@@ -596,7 +599,8 @@ const MediaTagRegex = /<(\/?)(picture|source|img|video|audio|iframe|object|embed
 // Wave's markdown keeps raw <picture>, <source> and <img>: a browser loads a srcset by itself, and an <img> without
 // a src breaks the markdown component. Outside fenced code blocks (CommonMark fences: a closing fence uses the
 // opening character, at least as many times) these tags are shown as text, so an answer never makes the window
-// reach the network. Inside fences they are code, already text.
+// reach the network. Inside fences they are code, already text. A pasted image's placeholder, "[Image #N]", becomes a
+// link the answer shows as a chip (#2455); inside code it stays as written.
 export function companionMarkdown(markdown: string): string {
     if (!markdown) {
         return "";
@@ -617,7 +621,7 @@ export function companionMarkdown(markdown: string): string {
                 fence = open[1];
                 return line;
             }
-            return line.replace(MediaTagRegex, "&lt;$1$2");
+            return imageLinks(line.replace(MediaTagRegex, "&lt;$1$2"));
         })
         .join("\n");
 }

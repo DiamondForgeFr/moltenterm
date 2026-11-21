@@ -16,6 +16,7 @@ export function SegmentedControl<T extends string>({
     selected,
     onSelect,
     className,
+    popovers,
 }: {
     label: string;
     segments: Segment<T>[];
@@ -23,6 +24,8 @@ export function SegmentedControl<T extends string>({
     selected: T;
     onSelect: (value: T) => void;
     className?: string;
+    // The segments' titles are said by a panel's popovers (data-tip, as the companion's) instead of the system tooltip.
+    popovers?: boolean;
 }) {
     const groupRef = useRef<HTMLDivElement>(null);
     const values = segments.map((s) => s.value);
@@ -54,7 +57,8 @@ export function SegmentedControl<T extends string>({
                         type="button"
                         role="radio"
                         aria-checked={checked}
-                        title={segment.title}
+                        title={popovers ? undefined : segment.title}
+                        data-tip={popovers ? segment.title : undefined}
                         tabIndex={i === tabStop ? 0 : -1}
                         onClick={() => onSelect(segment.value)}
                         className={cn(

@@ -17,6 +17,7 @@ import { DominoLoader, GlowRing } from "../suite/suite";
 import { mainName } from "./companion-agents";
 import { BlockTool, CompanionBlock } from "./companion-block";
 import type { UsageFrameParts } from "./companion-gauges";
+import { MessageText } from "./companion-image-chip";
 import { IntegratedBadge } from "./companion-integration";
 import { linkAgents, todoLinks } from "./companion-milestone-model";
 import { CompanionView, guessHint, integrationProblem, linkLabel, sessionTitle, startedLabel } from "./companion-model";
@@ -102,7 +103,7 @@ export function CompanionHero(props: CompanionHeroProps) {
             icon={<i className={makeIconClass(AiIcon, true)} aria-hidden="true" />}
             data-agent={agent}
             data-testid="companion-session-bar"
-            title={[session?.path, session?.format].filter((s) => !!s).join("\n") || undefined}
+            data-tip={[session?.path, session?.format].filter((s) => !!s).join("\n") || undefined}
             tools={
                 <>
                     {props.integrationDetails ? (
@@ -117,7 +118,7 @@ export function CompanionHero(props: CompanionHeroProps) {
                     {attached?.tools}
                     <BlockTool
                         label={t("companion.bar.history")}
-                        title={historyTitle}
+                        tip={historyTitle}
                         onClick={props.onHistory}
                         testId="companion-history-open"
                     >
@@ -150,7 +151,7 @@ export function CompanionHero(props: CompanionHeroProps) {
                         </span>
                         <div className="mt-cdash-names">
                             <div className="mt-cdash-name-line">
-                                <span className="mt-cdash-name" title={row.name} data-testid="companion-agent-main">
+                                <span className="mt-cdash-name" data-tip={row.name} data-testid="companion-agent-main">
                                     {first}
                                 </span>
                                 {tool ? <span className="mt-cdash-provider">{tool}</span> : null}
@@ -160,7 +161,7 @@ export function CompanionHero(props: CompanionHeroProps) {
                                     <span
                                         className="mt-cdash-tag"
                                         data-mono=""
-                                        title={row.configTitle || undefined}
+                                        data-tip={row.configTitle || undefined}
                                         data-testid="companion-model-effort"
                                     >
                                         {row.config}
@@ -181,7 +182,7 @@ export function CompanionHero(props: CompanionHeroProps) {
                                 {row.hint ? (
                                     <span
                                         className="text-11 text-muted"
-                                        title={row.hint.title}
+                                        data-tip={row.hint.title}
                                         data-testid="companion-proportion"
                                         data-proportion={row.hint.kind}
                                     >
@@ -192,14 +193,14 @@ export function CompanionHero(props: CompanionHeroProps) {
                         </div>
                     </div>
                     {subject ? (
-                        <p className="mt-cdash-subject" title={subject} data-testid="companion-session-title">
-                            {subject}
+                        <p className="mt-cdash-subject" data-tip={subject} data-testid="companion-session-title">
+                            <MessageText text={subject} />
                         </p>
                     ) : null}
                     {lines.length > 0 ? (
                         <div className="mt-cdash-meta" data-testid="companion-agent-lines">
                             {lines.map((line, i) => (
-                                <span key={i} className="truncate" title={line}>
+                                <span key={i} className="truncate" data-tip={line}>
                                     {line}
                                 </span>
                             ))}

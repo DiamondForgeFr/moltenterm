@@ -200,7 +200,7 @@ function LegendSwatch({ legend, colours }: { legend: LegendKey; colours: ReturnT
     );
 }
 
-export function UsageWeekLegend() {
+export function UsageWeekLegend({ popovers }: { popovers?: boolean }) {
     const t = useT();
     const colours = legendColours();
     return (
@@ -211,7 +211,13 @@ export function UsageWeekLegend() {
             data-testid="usage-week-legend"
         >
             {LegendKeys.map((key) => (
-                <span key={key} className="mt-uw-key" title={t(`usageWeek.legend.title.${key}`)} data-key={key}>
+                <span
+                    key={key}
+                    className="mt-uw-key"
+                    title={popovers ? undefined : t(`usageWeek.legend.title.${key}`)}
+                    data-tip={popovers ? t(`usageWeek.legend.title.${key}`) : undefined}
+                    data-key={key}
+                >
                     <LegendSwatch legend={key} colours={colours} />
                     {t(`usageWeek.legend.${key}`)}
                 </span>
@@ -247,12 +253,16 @@ export function UsageWeekGrid({
     legend,
     dayFigures,
     minimal,
+    popovers,
 }: {
     rows: UsageWeekRow[];
     now: number;
     legend?: boolean;
     dayFigures?: boolean;
     minimal?: boolean;
+    // The titles of the rows and of the legend are said by a panel's popovers (data-tip, the companion's) instead of the
+    // system tooltip.
+    popovers?: boolean;
 }) {
     const t = useT();
     const locale = useLocale();
@@ -301,7 +311,8 @@ export function UsageWeekGrid({
                             className="mt-uw-row"
                             role={row.onContextMenu ? "group" : "img"}
                             aria-label={label}
-                            title={row.title}
+                            title={popovers ? undefined : row.title}
+                            data-tip={popovers ? row.title : undefined}
                             data-testid="usage-week-row"
                             data-provider={row.agent}
                             data-window={row.window}
@@ -334,7 +345,8 @@ export function UsageWeekGrid({
                         className="mt-uw-row"
                         role={row.onContextMenu ? "group" : "img"}
                         aria-label={parts.join(", ")}
-                        title={row.title}
+                        title={popovers ? undefined : row.title}
+                        data-tip={popovers ? row.title : undefined}
                         style={{ "--mt-uw-pace": paceColour(line.pace, line.unused) } as CSSProperties}
                         data-pace={paceKind(line)}
                         data-old={row.old ? "true" : undefined}
@@ -373,7 +385,7 @@ export function UsageWeekGrid({
                     </span>
                 );
             })}
-            {legend && !minimal ? <UsageWeekLegend /> : null}
+            {legend && !minimal ? <UsageWeekLegend popovers={popovers} /> : null}
         </span>
     );
 }
