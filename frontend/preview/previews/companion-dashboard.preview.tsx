@@ -9,6 +9,14 @@ import { useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
 import { CompanionDashboard } from "../../moltenterm-shell/companion/companion-dashboard";
 import { CompanionUsageInfo, gaugesView } from "../../moltenterm-shell/companion/companion-gauges-model";
+import {
+    agentState as leadState,
+    panelOn,
+    statesOf,
+    subagent,
+    ThisWorkspace,
+    upcomingOf,
+} from "../../moltenterm-shell/companion/companion-holds-fixture";
 import { CompanionLayout, DefaultCompanionLayout } from "../../moltenterm-shell/companion/companion-layout";
 import { MilestonesView } from "../../moltenterm-shell/companion/companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "../../moltenterm-shell/companion/companion-model";
@@ -114,6 +122,7 @@ const milestones: MilestonesView = {
                 ticket(829, "The search ignores accents"),
                 ticket(830, "A deep link opens one option"),
                 ticket(833, "Recent options come first"),
+                ticket(818, "Export the settings to a file"),
             ],
         },
         { number: 5, title: "1.5.0", open: 8, closed: 0, remaining: 8, tickets: [] },
@@ -160,11 +169,19 @@ const task: TaskView = {
     ],
 } as TaskView;
 
+// Another lead of the workspace, whose sub-agent holds #818: the milestone's "Taken by others" group.
+const bastien = leadState("bastien", "claude", "Claude Code", "Bastien");
+const holds = {
+    upcoming: upcomingOf([panelOn(bastien, "develop"), subagent(bastien, 818)]),
+    states: statesOf(bastien),
+};
+
 const agentState: AgentStateInfo = {
     blockid: "preview-terminal",
     agent: "claude",
     agentname: "Claude Code",
     firstname: "Heloise",
+    workspaceid: ThisWorkspace,
     state: AgentMode === "waiting" ? "waiting" : AgentMode === "idle" ? "idle" : "working",
     model: "claude-opus-4-5",
     modelname: "Opus",
@@ -286,7 +303,7 @@ export function CompanionDashboardPreview() {
                     onIntegration={none}
                     onHistory={none}
                     onBackToCurrent={none}
-                    fixtures={{ milestones, usage: gaugesView(usage, Now), task }}
+                    fixtures={{ milestones, holds, usage: gaugesView(usage, Now), task }}
                 />
             </div>
         </div>
