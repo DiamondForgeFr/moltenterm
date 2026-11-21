@@ -24,7 +24,7 @@ func TestRouteCallers(t *testing.T) {
 	for _, command := range []string{
 		molten.CompanionOpenCommand, molten.CompanionCloseCommand, molten.CompanionPickCommand, molten.CompanionSessionsCommand,
 		molten.CompanionAnswerCommand, molten.CompanionDiffCommand, molten.CompanionUsageCommand, molten.CompanionUsageGaugesCommand,
-		molten.CompanionUsageExperimentalCommand,
+		molten.CompanionUsageExperimentalCommand, molten.CompanionImageCommand,
 	} {
 		routetest.MustRefuse(t, link, e.NonWindows(), command, view)
 	}
