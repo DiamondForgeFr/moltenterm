@@ -472,8 +472,8 @@ describe("the plan usage, minimal and attached (#2450)", () => {
             expect(arranging).toContain(">Minimale<");
             expect(arranging).toContain("Rattaché à l&#x27;agent principal, les lignes seules");
             const minimal = flowBlock(shown(minimalLayout), "usage");
-            expect(minimal).toContain("par jour :");
-            expect(minimal).toContain("Par jour :");
+            expect(minimal).toContain("par jour :");
+            expect(minimal).toContain("Par jour :");
         } finally {
             i18n.setLanguageSetting("");
         }
