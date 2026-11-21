@@ -51,7 +51,37 @@ export type UsageWeekLine = {
     windowMins: number;
     // The block of the last reset, where the fill starts (0 for Monday); -1 without a reset time.
     start: number;
+    // The used share as the reader gave it, unrounded: a share under 1 % reads "< 1 %" (#2451).
+    used?: number;
+    // A window that is neither weekly nor deduced (a five-hour session, a month) draws one plain gauge, not the seven
+    // days (#2451). The companion sets it (isWeekWindow); Brokk's group draws every provider's main window on the week.
+    plain?: boolean;
+    // A week deduced from the month (#2451): each day's own use, Monday first, in percent of a seventh of the week;
+    // DayUnknown for a day MoltenTerm holds no reading for. Absent for any other window.
+    days?: number[];
 };
+
+// must match DeducedDayUnknown in pkg/molten/usage/usage.go
+export const DayUnknown = -1;
+
+// The windows the seven days tell something of: a week (Claude's per-model weeks included) and a week deduced from the
+// month. Any other window is a plain gauge (#2451).
+export function isWeekWindow(window: UsageWindow): boolean {
+    return (
+        window.deduced === true ||
+        window.id === WeekWindowId ||
+        isModelWindow(window) ||
+        windowLength(window) === WeekMins
+    );
+}
+
+// The percent as a row shows it: "< 1 %" for a share above 0 and under 1 %, never "0 %" (#2451).
+export function percentText(line: Pick<UsageWeekLine, "percent" | "used">): string {
+    if (line.used > 0 && line.used < 1) {
+        return t("usageWeek.percentBelowOne");
+    }
+    return t("usageWeek.percent", { percent: line.percent });
+}
 
 function isModelWindow(window: UsageWindow): boolean {
     return window.id?.startsWith(ModelWindowPrefix) === true;
@@ -192,6 +222,38 @@ export function dayFiguresText(percent: number, start = 0): string {
         .join(", ");
 }
 
+// How full each day block of a line is: a deduced week fills each day by its own use (an unknown day stays empty),
+// any other week spreads its total from the reset day (dayFills).
+export function lineDayFills(line: UsageWeekLine): number[] {
+    if (line.days == null) {
+        return dayFills(line.percent, line.start);
+    }
+    return line.days.map((d) => (d > 0 ? Math.min(1, d / 100) : 0));
+}
+
+// The figure under each day block of a line; null for a day a deduced week does not know.
+export function lineDayShares(line: UsageWeekLine): number[] {
+    if (line.days == null) {
+        return dayShares(line.percent, line.start);
+    }
+    return line.days.map((d) => (d === DayUnknown ? null : Math.round(d)));
+}
+
+// The day figures of a line as one sentence (dayFiguresText); an unknown day says so.
+export function lineDayFiguresText(line: UsageWeekLine): string {
+    if (line.days == null) {
+        return dayFiguresText(line.percent, line.start);
+    }
+    const locale = getLocale();
+    return lineDayShares(line)
+        .map((share, i) => {
+            // 2024-01-01 was a Monday.
+            const day = new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: "short" });
+            return share == null ? t("usageWeek.dayUnknown", { day }) : t("usageWeek.dayFigure", { day, share });
+        })
+        .join(", ");
+}
+
 // The pace of a window: what it consumed against what the time gone since its last reset allows (two days into a week
 // allow 28.5 %). Without a reset time or a length the pace is unknown: a nearly spent window reads as far ahead, any
 // other as on pace.
@@ -269,7 +331,9 @@ function windowAllowedPercent(window: UsageWindow, now: number): number {
 
 // The line one window draws. A month uses calendar arithmetic in local time, never a fixed duration.
 export function usageWeekLine(window: UsageWindow, now: number): UsageWeekLine {
-    const percent = Math.round(Math.min(100, Math.max(0, window.usedpercent)));
+    const used = Math.max(0, window.usedpercent);
+    // A deduced week can pass its budget (#2451); a provider's own share stops at 100.
+    const percent = Math.round(window.deduced ? used : Math.min(100, used));
     const resetsAt = window.resetsat ?? 0;
     const windowMins = windowLength(window);
     const allowed = windowAllowedPercent(window, now);
@@ -286,6 +350,8 @@ export function usageWeekLine(window: UsageWindow, now: number): UsageWeekLine {
         resetsAt,
         windowMins,
         start,
+        used,
+        days: window.deduced && Array.isArray(window.days) && window.days.length === 7 ? window.days : undefined,
     };
 }
 

@@ -5,11 +5,20 @@
 // limits (pkg/molten/usage) and the pure rules of their section. Pure, so they are tested without a window.
 
 import { getLocale, t } from "../i18n/i18n";
-import { dayFiguresText, UsageWeekLine, usageWeekLine } from "../usage-week/usage-week-model";
+import { isWeekWindow, lineDayFiguresText, UsageWeekLine, usageWeekLine } from "../usage-week/usage-week-model";
 import { relativeTime } from "./companion-model";
 
 // must match pkg/molten/usage/usage.go and pkg/molten/companion/usage.go
-export type UsageWindow = { id: string; label: string; usedpercent: number; resetsat?: number; windowmins?: number };
+// deduced and days: a week MoltenTerm deduces from the month (#2451), each day's use in percent of a seventh of it.
+export type UsageWindow = {
+    id: string;
+    label: string;
+    usedpercent: number;
+    resetsat?: number;
+    windowmins?: number;
+    deduced?: boolean;
+    days?: number[];
+};
 export type UsageMonthlySpend = { used: number; limit: number; limitenabled: boolean; unit?: string };
 // Codex gives a balance (as text) or unlimited credits instead of used and limit. Kimi adds monthly spending.
 export type UsageCredits = {
@@ -28,6 +37,8 @@ export type UsageSnapshot = {
     windows?: UsageWindow[];
     credits?: UsageCredits;
     readat: number;
+    // Why the source kept its last reading instead of a fresh one ("tokenexpired", #2451).
+    stale?: UsageReason;
 };
 export type UsageSetup = { source: string; file: string; current?: string; language: string; snippet: string };
 export type UsageReason =
@@ -138,6 +149,8 @@ export type GaugeRow = {
     resets: string;
     resetsShort: string;
     line: UsageWeekLine;
+    // How the row is computed, when MoltenTerm deduced it (#2451).
+    explain: string;
 };
 
 export type GaugesView =
@@ -145,7 +158,17 @@ export type GaugesView =
     | { kind: "off" }
     | { kind: "setup"; setup: UsageSetup }
     | { kind: "unavailable"; reason: string }
-    | { kind: "enabled"; agent: string; now: number; rows: GaugeRow[]; source: string; age: string; credits: string };
+    | {
+          kind: "enabled";
+          agent: string;
+          now: number;
+          rows: GaugeRow[];
+          source: string;
+          age: string;
+          credits: string;
+          // The plain line of a reading kept because no fresh one could be read (#2451), with its age; "" otherwise.
+          stale?: string;
+      };
 
 export function gaugeLevel(percent: number): GaugeLevel {
     if (percent >= 95) {
@@ -215,6 +238,7 @@ const WindowLabelNames: Record<string, string> = {
     "This week": "week",
     "This month": "month",
     "Spend limit": "spend",
+    "Week (from the month)": "weekDeduced",
 };
 
 // The readers name a window in English ("This week", "This week (Opus)", "5-hour", "GPT-5 5-hour"): the words they
@@ -253,7 +277,12 @@ export function usageWindowShortLabel(label: string): string {
 
 // The line of a row's tooltip that tells the figure of each day, for the minimal form, which draws none (#2450).
 export function daysTitle(line: UsageWeekLine): string {
-    return t("usageWeek.daysTitle", { days: dayFiguresText(line.percent, line.start) });
+    return t("usageWeek.daysTitle", { days: lineDayFiguresText(line) });
+}
+
+// How a week deduced from the month is computed, for its row's tooltip (#2451); "" for any other window.
+export function deducedTitle(window: UsageWindow): string {
+    return window?.deduced ? t("companion.gauges.deducedExplain") : "";
 }
 
 // A window past its reset no longer holds: it is dropped between two reports, as wavesrv drops it.
@@ -270,7 +299,8 @@ export function gaugeRows(snapshot: UsageSnapshot, now: number): GaugeRow[] {
             level: gaugeLevel(w.usedpercent),
             resets: resetText(w.resetsat, now),
             resetsShort: resetShortText(w.resetsat, now),
-            line: usageWeekLine(w, now),
+            line: { ...usageWeekLine(w, now), plain: !isWeekWindow(w) },
+            explain: deducedTitle(w),
         }));
 }
 
@@ -414,15 +444,26 @@ export function gaugesView(info: CompanionUsageInfo, now: number): GaugesView {
         return { kind: "unavailable", reason: usageReasonText("expired", info.agent) };
     }
     const at = info.snapshot?.readat;
+    const age = at ? t("companion.gauges.updated", { ago: relativeTime(at, now) }) : "";
     return {
         kind: "enabled",
         agent: info.agent,
         now,
         rows,
         source: usageSourcesText(info),
-        age: at ? t("companion.gauges.updated", { ago: relativeTime(at, now) }) : "",
+        age,
         credits,
+        stale: staleText(info.snapshot?.stale, info.agent, at, now),
     };
+}
+
+// A kept reading says its age and when it comes back: the agent refreshes its own sign-in, MoltenTerm never does.
+export function staleText(stale: string, agent: string, readAt: number, now: number): string {
+    if (!stale) {
+        return "";
+    }
+    const when = t(agent === "kimi" ? "companion.gauges.kimi.staleRefresh" : "companion.gauges.staleRefresh");
+    return readAt > 0 ? t("companion.gauges.staleLine", { ago: relativeTime(readAt, now), when }) : when;
 }
 
 // must match usageStaleAfter in pkg/molten/companion/usage.go
