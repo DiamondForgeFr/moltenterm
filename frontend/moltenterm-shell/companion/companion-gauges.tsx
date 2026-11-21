@@ -280,7 +280,7 @@ export function ProviderUsageNote({ provider, native, bare }: { provider: string
             )}
             data-testid="companion-plan-usage"
             data-state="provider"
-            title={hint}
+            data-tip={hint}
         >
             <i className="fa fa-solid fa-gauge" aria-hidden="true" />
             <span>
@@ -406,7 +406,7 @@ export function PlanUsageBody({
             >
                 <div className="flex items-center gap-2">
                     <i className="fa fa-solid fa-gauge" aria-hidden="true" />
-                    <span title={view.reason}>
+                    <span data-tip={view.reason}>
                         {t("companion.gauges.unavailable")}
                         <span className="sr-only">: {view.reason}</span>
                     </span>
@@ -446,6 +446,7 @@ export function PlanUsageBody({
             />
             <div className="mt-1.5" data-testid="companion-gauges">
                 <UsageWeekGrid
+                    popovers
                     rows={view.rows.map((row) => weekRow(view, row, "", true))}
                     now={view.now}
                     legend={view.rows.length > 0}
@@ -529,7 +530,7 @@ function FramedUsage({
             tools: hide,
             body: (
                 <div data-testid="companion-plan-usage" data-state="unavailable">
-                    <div className="mt-cb-empty" title={view.reason}>
+                    <div className="mt-cb-empty" data-tip={view.reason}>
                         {t("companion.gauges.unavailable")}
                         <span className="sr-only">: {view.reason}</span>
                     </div>
@@ -557,7 +558,7 @@ function FramedUsage({
                             e.stopPropagation();
                             setUnfolded(!unfolded);
                         }}
-                        title={t(unfolded ? "companion.gauges.compact" : "companion.gauges.details")}
+                        data-tip={t(unfolded ? "companion.gauges.compact" : "companion.gauges.details")}
                         aria-label={t(unfolded ? "companion.gauges.compact" : "companion.gauges.details")}
                         aria-expanded={unfolded}
                         data-testid="companion-plan-usage-unfold"
@@ -576,7 +577,7 @@ function FramedUsage({
                         e.stopPropagation();
                         onRefresh();
                     }}
-                    title={t("companion.gauges.refresh")}
+                    data-tip={t("companion.gauges.refresh")}
                     aria-label={t("companion.gauges.refresh")}
                     aria-busy={refreshing || undefined}
                     data-testid="companion-plan-usage-refresh"
@@ -609,6 +610,7 @@ function FramedUsage({
                 </div>
                 <div data-testid="companion-gauges">
                     <UsageWeekGrid
+                        popovers
                         rows={view.rows.map((row) => weekRow(view, row, "", true))}
                         now={view.now}
                         legend={view.rows.length > 0}
@@ -651,6 +653,7 @@ function MinimalGauges({ view }: { view: Extract<GaugesView, { kind: "enabled" }
             <div data-testid="companion-gauges">
                 {view.rows.length > 0 ? (
                     <UsageWeekGrid
+                        popovers
                         rows={view.rows.map((row) => weekRow(view, row, about, false, true))}
                         now={view.now}
                         minimal
@@ -670,7 +673,7 @@ function ExperimentalSourceBadge() {
     return (
         <span
             className="rounded-4 border border-warning/50 px-1 text-11 font-medium tracking-wide text-warning"
-            title={t("companion.gauges.experimentalSourceTitle")}
+            data-tip={t("companion.gauges.experimentalSourceTitle")}
         >
             {experimentalLabel()}
         </span>
@@ -707,7 +710,7 @@ export function ExperimentalRow({
                     </button>
                 </div>
                 {view.reason ? (
-                    <div className="mt-0.5 text-muted" title={view.reason}>
+                    <div className="mt-0.5 text-muted" data-tip={view.reason}>
                         {view.unavailable}
                         <span className="sr-only">: {view.reason}</span>
                     </div>
@@ -767,7 +770,7 @@ function ExperimentalBadge() {
     return (
         <span
             className="rounded-4 border border-warning/50 px-1 text-11 font-medium tracking-wide text-warning uppercase"
-            title={t("companion.gauges.experimentalTitle")}
+            data-tip={t("companion.gauges.experimentalTitle")}
         >
             {t("companion.gauges.experimental")}
         </span>
@@ -802,7 +805,7 @@ function GaugesHeader({
                     type="button"
                     className={GhostButton}
                     onClick={onRefresh}
-                    title={t("companion.gauges.refresh")}
+                    data-tip={t("companion.gauges.refresh")}
                     aria-label={t("companion.gauges.refresh")}
                     aria-busy={refreshing || undefined}
                 >
@@ -820,7 +823,7 @@ function GaugesHeader({
                         type="button"
                         className={GhostButton}
                         onClick={onLess}
-                        title={t("companion.gauges.compact")}
+                        data-tip={t("companion.gauges.compact")}
                         aria-label={t("companion.gauges.compact")}
                         data-testid="companion-plan-usage-less"
                     >
@@ -856,6 +859,7 @@ function CompactGauges({ view, onDetails }: { view: Extract<GaugesView, { kind: 
                 ) : null}
                 {rows.length > 0 ? (
                     <UsageWeekGrid
+                        popovers
                         rows={rows.map((row) => weekRow(view, row, about, false))}
                         now={view.now}
                         dayFigures
@@ -867,7 +871,7 @@ function CompactGauges({ view, onDetails }: { view: Extract<GaugesView, { kind: 
                 type="button"
                 className={cn(GhostButton, "absolute top-1 right-3")}
                 onClick={onDetails}
-                title={more > 0 ? t("companion.gauges.detailsMore", { count: more }) : t("companion.gauges.details")}
+                data-tip={more > 0 ? t("companion.gauges.detailsMore", { count: more }) : t("companion.gauges.details")}
                 aria-label={t("companion.gauges.details")}
                 data-testid="companion-plan-usage-details"
             >

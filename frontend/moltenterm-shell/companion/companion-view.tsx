@@ -62,6 +62,7 @@ import {
 import { saveCompanionLayout, useCompanionLayout } from "./companion-prefs";
 import { CompanionSessions } from "./companion-session-store";
 import { SessionHistoryList } from "./companion-session-ui";
+import { CompanionTips } from "./companion-tips";
 import { UsageButton } from "./companion-usage";
 
 export { MoltentermCompanionView };
@@ -216,7 +217,19 @@ function useCompanion(target: string): {
     return { view, error, viewId, setView };
 }
 
-function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
+// The panel's popovers (#2455) serve every state of the companion: the dashboard, the history, the integration page and
+// the empty states.
+function CompanionPanel(props: ViewComponentProps<CompanionViewModel>) {
+    const target = useAtomValue(props.model.targetAtom);
+    const session = useAtomValue(CompanionSessions.getInstance().sessionAtom(target));
+    return (
+        <CompanionTips target={target} session={session?.path ?? ""}>
+            <CompanionPanelBody {...props} />
+        </CompanionTips>
+    );
+}
+
+function CompanionPanelBody({ model }: ViewComponentProps<CompanionViewModel>) {
     const t = useT();
     const target = useAtomValue(model.targetAtom);
     const agentState = useBlockAgentState(target);

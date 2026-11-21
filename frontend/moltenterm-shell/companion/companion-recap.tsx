@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { useT, useTCount } from "../i18n/i18n";
 import { MoreButton } from "./companion-block";
+import { MessageText } from "./companion-image-chip";
 import type { LinkAgent } from "./companion-milestone-model";
 import { CompanionView } from "./companion-model";
 import { AgentRow, topicRows } from "./companion-recap-model";
@@ -25,7 +26,7 @@ export function RecentTopicsSection({ view, now }: { view: CompanionView; now: n
     return (
         <div className="flex flex-col gap-1.5" data-testid="companion-topics">
             {name ? (
-                <div className="truncate text-12 text-secondary" title={name} data-testid="companion-name">
+                <div className="truncate text-12 text-secondary" data-tip={name} data-testid="companion-name">
                     {name}
                 </div>
             ) : null}
@@ -34,9 +35,11 @@ export function RecentTopicsSection({ view, now }: { view: CompanionView; now: n
             ) : (
                 <ol className="mt-cwork-flush" data-bare={name ? undefined : ""}>
                     {shown.map((row) => (
-                        <li key={row.key} className="mt-cdash-topic" title={row.title} data-testid="companion-topic">
+                        <li key={row.key} className="mt-cdash-topic" data-tip={row.title} data-testid="companion-topic">
                             <span className="mt-cdash-topic-body">
-                                <span className="mt-cdash-topic-text">{row.text}</span>
+                                <span className="mt-cdash-topic-text">
+                                    <MessageText text={row.text} at={row.at} />
+                                </span>
                                 {row.facts.length > 0 ? (
                                     <span className="mt-cdash-topic-meta tabular-nums">{row.facts.join(" · ")}</span>
                                 ) : null}

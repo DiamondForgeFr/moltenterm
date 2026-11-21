@@ -5,8 +5,8 @@
 // in a notch on the top border (a brass icon tile, the label chip or tabs, then count chips), its tools on their own
 // chip in a notch on the right, its content, and its one link as its last row. Display only.
 
-import { cn } from "@/util/util";
-import { forwardRef, useId } from "react";
+import { cn, makeIconClass } from "@/util/util";
+import { forwardRef, useEffect, useId, useRef, useState } from "react";
 
 export type CompanionBlockProps = {
     // The block's place in the flow (data-flow-id), which the flow measures and positions.
@@ -73,15 +73,15 @@ export const CompanionBlock = forwardRef<HTMLElement, CompanionBlockProps>(funct
     );
 });
 
-export function CountChip({ children, title }: { children: React.ReactNode; title?: string }) {
+export function CountChip({ children, tip }: { children: React.ReactNode; tip?: string }) {
     return (
-        <span className="mt-cb-chip mt-cb-chip-off" data-mono="" title={title}>
+        <span className="mt-cb-chip mt-cb-chip-off" data-mono="" data-tip={tip}>
             {children}
         </span>
     );
 }
 
-// A ghost tool of the tools chip: an icon (or a short text) with its name for assistive technology and the tooltip.
+// A ghost tool of the tools chip: an icon (or a short text) with its name for assistive technology and the popover.
 export function BlockTool({
     label,
     onClick,
@@ -92,7 +92,7 @@ export function BlockTool({
     testId,
     buttonRef,
     marker,
-    title,
+    tip,
 }: {
     label: string;
     onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -104,8 +104,8 @@ export function BlockTool({
     buttonRef?: React.Ref<HTMLButtonElement>;
     // A name the arranging mode finds the tool by, to give it the focus back after a move.
     marker?: string;
-    // A tooltip that says more than the name.
-    title?: string;
+    // A popover that says more than the name.
+    tip?: string;
 }) {
     return (
         <button
@@ -113,7 +113,7 @@ export function BlockTool({
             type="button"
             className={cn("mt-cb-tool", className)}
             aria-label={label}
-            title={title ?? label}
+            data-tip={tip ?? label}
             disabled={disabled}
             aria-pressed={pressed}
             onClick={(e) => {
@@ -125,6 +125,33 @@ export function BlockTool({
         >
             {children}
         </button>
+    );
+}
+
+// A copy tool: the icon turns into a check for two seconds once it copied.
+export function CopyTool({ label, onCopy }: { label: string; onCopy: () => void }) {
+    const [copied, setCopied] = useState(false);
+    const timer = useRef(0);
+    useEffect(() => () => window.clearTimeout(timer.current), []);
+    return (
+        <BlockTool
+            label={label}
+            onClick={() => {
+                if (copied) {
+                    return;
+                }
+                setCopied(true);
+                timer.current = window.setTimeout(() => setCopied(false), 2000);
+                onCopy();
+            }}
+            testId="companion-copy"
+        >
+            <i
+                className={makeIconClass(copied ? "check" : "copy", true)}
+                data-copied={copied ? "" : undefined}
+                aria-hidden="true"
+            />
+        </BlockTool>
     );
 }
 

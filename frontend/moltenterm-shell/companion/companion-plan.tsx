@@ -73,7 +73,7 @@ export function PlanSection({
                     <span
                         className="mt-cdash-plan-time truncate"
                         data-quiet={current ? undefined : ""}
-                        title={updated || undefined}
+                        data-tip={updated || undefined}
                         data-testid="companion-plan-updated"
                     >
                         {time}
@@ -148,10 +148,10 @@ function PlanStep({
         >
             <span className="mt-plan-mark">
                 {kind === "done" ? <DoneMark label={t("companion.plan.done")} /> : null}
-                {kind === "current" ? <StateMark kind="running" label={t("companion.plan.current")} /> : null}
-                {kind === "todo" ? <StateMark kind="draft" label={t("companion.plan.todo")} /> : null}
+                {kind === "current" ? <StateMark popovers kind="running" label={t("companion.plan.current")} /> : null}
+                {kind === "todo" ? <StateMark popovers kind="draft" label={t("companion.plan.todo")} /> : null}
             </span>
-            <span className="mt-plan-text truncate" title={todo.text}>
+            <span className="mt-plan-text truncate" data-tip={todo.text}>
                 {todo.text}
             </span>
             {marks.chips && agent != null ? <LinkChip agent={agent} /> : null}

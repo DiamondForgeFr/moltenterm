@@ -88,7 +88,7 @@ export function LinkChip({ agent }: { agent: LinkAgent }) {
         <span
             className="mt-cwork-chip gap-1 text-11"
             data-heat={heatOf(agent.state)}
-            title={t("companion.work.linkTitle", { agent: full })}
+            data-tip={t("companion.work.linkTitle", { agent: full })}
             data-testid="companion-work-chip"
         >
             <span className={model ? "shrink-0" : "truncate"}>{t("companion.work.linkChip", { agent: who })}</span>
@@ -147,6 +147,7 @@ function StandingMark({ standing, text, size }: { standing: Standing; text?: str
     }
     return (
         <StateMark
+            popovers
             kind={standing === "ready" ? "ready" : "blocked"}
             label={text}
             className={size === "tab" ? "mt-cwork-tabmark" : undefined}
@@ -250,7 +251,7 @@ export function TasksBlock(props: TasksBlockProps) {
                     {marks.phrasing ? (
                         <div
                             className="flex items-center gap-1.5 text-11 text-muted"
-                            title={t("companion.work.phrasingTitle")}
+                            data-tip={t("companion.work.phrasingTitle")}
                         >
                             <DominoLoader />
                             {t("companion.work.phrasing")}
@@ -308,7 +309,7 @@ function BlockTabs({ tabs }: { tabs: SuiteTabs }) {
                     aria-selected={tab.value === tabs.selected}
                     aria-controls={tabs.panelId}
                     tabIndex={i === tabStop ? 0 : -1}
-                    title={tab.title}
+                    data-tip={tab.title}
                     className={cn("mt-cb-chip", tab.value !== tabs.selected && "mt-cb-chip-off")}
                     onClick={(e) => {
                         e.stopPropagation();
@@ -323,7 +324,7 @@ function BlockTabs({ tabs }: { tabs: SuiteTabs }) {
                 <button
                     type="button"
                     aria-haspopup="menu"
-                    title={tabs.more.title}
+                    data-tip={tabs.more.title}
                     className="mt-cb-chip mt-cb-chip-off"
                     data-mono=""
                     onClick={tabs.more.onOpen}
@@ -408,7 +409,7 @@ function MilestoneHeader({
                 <span
                     className="mt-cwork-name min-w-0 truncate"
                     data-compact={compact ? "" : undefined}
-                    title={milestone.title}
+                    data-tip={milestone.title}
                     data-testid="companion-milestone-title"
                 >
                     {milestone.title}
@@ -417,7 +418,7 @@ function MilestoneHeader({
                     <span
                         className="mt-cwork-state"
                         data-standing={standing}
-                        title={due != null ? t("companion.work.due", { date: due.date }) : undefined}
+                        data-tip={due != null ? t("companion.work.due", { date: due.date }) : undefined}
                         data-testid="companion-milestone-state"
                     >
                         <StandingMark standing={standing} />
@@ -435,7 +436,7 @@ function MilestoneHeader({
                 ) : null}
                 <span
                     className="ml-auto shrink-0 font-mono text-11 text-muted tabular-nums"
-                    title={progressTitle}
+                    data-tip={progressTitle}
                     data-testid="companion-milestone-progress"
                 >
                     {compact ? (
@@ -607,7 +608,7 @@ function HoldTag({ hold }: { hold: TicketHold }) {
                     type="button"
                     className="mt-cwork-tag mt-cwork-tag-link"
                     onClick={(e) => openPage(e, hold.url)}
-                    title={t("companion.work.openPr", { number: hold.pr })}
+                    data-tip={t("companion.work.openPr", { number: hold.pr })}
                     data-testid="companion-taken-pr"
                 >
                     {t("companion.work.pr", { number: hold.pr })}
@@ -619,13 +620,17 @@ function HoldTag({ hold }: { hold: TicketHold }) {
             );
         case "branch":
             return (
-                <span className="mt-cwork-tag" title={hold.branch} data-testid="companion-taken-branch">
+                <span className="mt-cwork-tag" data-tip={hold.branch} data-testid="companion-taken-branch">
                     {t("companion.work.onBranch")}
                 </span>
             );
         case "away":
             return (
-                <span className="mt-cwork-tag" title={t("companion.work.awayTitle")} data-testid="companion-taken-away">
+                <span
+                    className="mt-cwork-tag"
+                    data-tip={t("companion.work.awayTitle")}
+                    data-testid="companion-taken-away"
+                >
                     {t("companion.work.away")}
                 </span>
             );
@@ -645,7 +650,7 @@ function OwnerLink({ owner }: { owner: TicketOwner }) {
         <button
             type="button"
             className="mt-cwork-owner"
-            title={title}
+            data-tip={title}
             disabled={!owner.blockId}
             onClick={(e) => goToAgent(e, owner.blockId)}
             data-testid="companion-taken-owner"
@@ -704,17 +709,17 @@ function TakenGroup({ taken, open, onToggle }: { taken: TaskLists["taken"]; open
                             data-hold={hold.kind}
                         >
                             <span className="mt-cwork-mark" data-other="">
-                                <StateMark kind="running" label={t("companion.work.takenElsewhere")} />
+                                <StateMark popovers kind="running" label={t("companion.work.takenElsewhere")} />
                             </span>
                             <button
                                 type="button"
                                 className="mt-cwork-id"
-                                title={t("companion.work.openTicket", { number: ticket.number })}
+                                data-tip={t("companion.work.openTicket", { number: ticket.number })}
                                 onClick={(e) => openPage(e, ticket.url)}
                             >
                                 {`#${ticket.number}`}
                             </button>
-                            <span className="mt-cwork-title truncate" title={ticket.title}>
+                            <span className="mt-cwork-title truncate" data-tip={ticket.title}>
                                 {ticket.title}
                             </span>
                             <HoldTag hold={hold} />
@@ -758,7 +763,7 @@ function ReadyPlaceholder({ milestone }: { milestone: MilestoneInfo }) {
                 <button
                     type="button"
                     className="molten-btn cursor-pointer rounded-4 px-3 py-1 text-12"
-                    title={t("companion.work.prepareReleaseTitle")}
+                    data-tip={t("companion.work.prepareReleaseTitle")}
                     onClick={openProjectView}
                     data-testid="companion-milestone-prepare"
                 >
@@ -793,7 +798,11 @@ function TicketRow({
     const title = ticket.sentence ? t("companion.work.ticketTitle", { title: ticket.title }) : ticket.title;
     const mark = (
         <span className="mt-cwork-mark" data-free={working ? undefined : ""}>
-            <StateMark kind={heat} label={working ? t("companion.work.inProgress") : t("companion.work.open")} />
+            <StateMark
+                popovers
+                kind={heat}
+                label={working ? t("companion.work.inProgress") : t("companion.work.open")}
+            />
         </span>
     );
     const id = (
@@ -801,7 +810,7 @@ function TicketRow({
             type="button"
             className="mt-cwork-id"
             data-mine={working ? "" : undefined}
-            title={t("companion.work.openTicket", { number: ticket.number })}
+            data-tip={t("companion.work.openTicket", { number: ticket.number })}
             onClick={(e) => openPage(e, ticket.url)}
         >
             {`#${ticket.number}`}
@@ -811,7 +820,7 @@ function TicketRow({
         <span
             className="mt-cwork-text"
             data-free={working ? undefined : ""}
-            title={title}
+            data-tip={title}
             data-translated={ticket.sentence ? "" : undefined}
             data-testid="companion-milestone-text"
         >
@@ -850,7 +859,7 @@ function TicketRow({
                         <span
                             className="mt-cwork-text"
                             data-free=""
-                            title={title}
+                            data-tip={title}
                             data-testid="companion-milestone-text"
                         >
                             {id}

@@ -2132,6 +2132,13 @@
             "latestButton": "Latest",
             "copy": "Copy the answer as markdown"
         },
+        "image": {
+            "chip": "Image #{n}",
+            "alt": "Pasted image {n}",
+            "title": "Pasted image #{n}",
+            "unavailable": "Image unavailable",
+            "size": "{width} × {height} px · {bytes}"
+        },
         "loading": "Loading…",
         "tasks": "Tasks",
         "dash": {
@@ -11051,7 +11058,8 @@
             "noagentruns": "No agent runs in this terminal.",
             "nocompanionfor": "There is no companion for {agent}.",
             "answergone": "This answer is no longer kept.",
-            "nofilechange": "This file was not changed in the session."
+            "nofilechange": "This file was not changed in the session.",
+            "noimage": "This image is not in the session's transcript."
         },
         "integration": {
             "name": {

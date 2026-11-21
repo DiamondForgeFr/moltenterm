@@ -116,7 +116,7 @@ export function FilesSection({
                 type="button"
                 className="mt-cb-tool"
                 aria-label={t("companion.files.filterLabel")}
-                title={t("companion.files.filterLabel")}
+                data-tip={t("companion.files.filterLabel")}
                 aria-pressed={filtering}
                 onClick={(e) => {
                     e.stopPropagation();
@@ -219,11 +219,11 @@ function FileRow({
                         onToggle();
                     }}
                     className="mt-cdash-fbutton"
-                    title={shown.outside ? file.path : shown.dir + shown.name}
+                    data-tip={shown.outside ? file.path : shown.dir + shown.name}
                     aria-expanded={open}
                     data-file-toggle=""
                 >
-                    <span className="mt-cdash-fkind" data-kind={file.kind} title={t(kind.titleKey)}>
+                    <span className="mt-cdash-fkind" data-kind={file.kind} data-tip={t(kind.titleKey)}>
                         {kind.text}
                     </span>
                     <span className="mt-cdash-fpath">
@@ -247,7 +247,7 @@ function FileRow({
                             openAtChange();
                         }}
                         className="mt-cb-tool mt-cdash-fopen"
-                        title={t("companion.files.open")}
+                        data-tip={t("companion.files.open")}
                         aria-label={t("companion.files.openPath", { path: shown.dir + shown.name })}
                     >
                         <i className="fa fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />

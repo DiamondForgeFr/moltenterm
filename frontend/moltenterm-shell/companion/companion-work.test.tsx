@@ -268,7 +268,7 @@ describe("the milestone block", () => {
         expect(html).toContain("Due Nov 22");
         expect(html.match(/data-testid="companion-milestone-ticket"/g)).toHaveLength(MaxMilestoneRows);
         expect(html).toContain("Le total du panier ne s&#x27;affichera plus deux fois.");
-        expect(html).toContain('title="Ticket title: Ticket 41 title"');
+        expect(html).toContain('data-tip="Ticket title: Ticket 41 title"');
         expect(html).toContain(">Ticket 35 title<");
         expect(html).toContain('data-testid="companion-milestone-more">and 4 more to take<');
         expect(html).toContain("Open the milestone");
@@ -362,7 +362,7 @@ describe("one tab per open milestone (#2416)", () => {
         expect(html).toContain('data-milestone="13" data-standing="ready"');
         expect(html).toContain('data-testid="companion-milestone-state"');
         expect(html).toContain("Ready to release");
-        expect(html).toContain('title="36 of 36 closed" data-testid="companion-milestone-progress"');
+        expect(html).toContain('data-tip="36 of 36 closed" data-testid="companion-milestone-progress"');
         expect(html).toContain('<span class="text-primary">36</span> / 36 done');
         expect(html).toContain('data-testid="companion-milestone-ready"');
         expect(html).toContain("No tickets left");
@@ -455,7 +455,7 @@ describe("one tab per open milestone (#2416)", () => {
         expect(tabsOf(wide).map((t) => t.label)).toEqual(["1.1.0", "1.2.0", "1.3.0", "1.4.0"]);
         expect(wide).toContain('aria-haspopup="menu"');
         expect(wide).toContain(">+2<");
-        expect(wide).toContain('title="2 more milestones"');
+        expect(wide).toContain('data-tip="2 more milestones"');
         const fifth = markup(view, { dir: "/w", state: "ok", milestones: list }, 1400, undefined, 25);
         expect(tabsOf(fifth)).toEqual([
             { label: "1.1.0", selected: false },
@@ -712,8 +712,8 @@ describe("who works on what (#2418)", () => {
         expect(group).toContain("#4");
         expect(group).toContain("#6");
         // Sub-agents of their leads: said, and a click goes to the lead's panel.
-        expect(group.match(/title="Sub-agent of Jérôme"/g)).toHaveLength(2);
-        expect(group).toContain('title="Sub-agent of Julie"');
+        expect(group.match(/data-tip="Sub-agent of Jérôme"/g)).toHaveLength(2);
+        expect(group).toContain('data-tip="Sub-agent of Julie"');
         expect(group.match(/data-testid="companion-taken-owner"/g)).toHaveLength(3);
         // Never work to do: no link end, no sentence, no chip.
         expect(group).not.toContain("data-link-end");
@@ -753,7 +753,7 @@ describe("who works on what (#2418)", () => {
         expect(html).toContain("3 chez moi");
         expect(html).toContain("3 à prendre");
         expect(html).toContain("Reste 9");
-        expect(html).toContain('title="Sous-agent de Jérôme"');
+        expect(html).toContain('data-tip="Sous-agent de Jérôme"');
     });
 
     it("folds the group to one line with the owners' names on a narrow block, and opens it when the developer did", () => {

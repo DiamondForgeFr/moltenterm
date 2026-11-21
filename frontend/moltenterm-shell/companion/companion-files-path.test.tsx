@@ -75,7 +75,7 @@ function rowsOf(html: string): string[] {
 
 const dirOf = (row: string) => /<span class="mt-cdash-fdir" dir="rtl"><bdi>([^<]*)<\/bdi><\/span>/.exec(row)?.[1];
 const nameOf = (row: string) => /<span class="mt-cdash-fname">([^<]*)<\/span>/.exec(row)?.[1];
-const titleOf = (row: string) => /class="mt-cdash-fbutton" title="([^"]*)"/.exec(row)?.[1];
+const titleOf = (row: string) => /class="mt-cdash-fbutton" data-tip="([^"]*)"/.exec(row)?.[1];
 
 describe("a changed file's path in its row (#2450)", () => {
     const rows = rowsOf(markup());

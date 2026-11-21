@@ -6,7 +6,6 @@
 // the agents at work side by side as a linked pair, and the arranging mode in place. Loaded on demand, out of the
 // startup bundle (companion-view.tsx).
 
-import { CopyButton } from "@/app/element/copybutton";
 import { Markdown } from "@/app/element/markdown";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
@@ -35,7 +34,7 @@ import {
     setUsageMinimal,
     usageSummaryKey,
 } from "./companion-arrange-model";
-import { BlockTool, CompanionBlock, CountChip, FootLink } from "./companion-block";
+import { BlockTool, CompanionBlock, CopyTool, CountChip, FootLink } from "./companion-block";
 import "./companion-dashboard.css";
 import { FilesSection } from "./companion-files";
 import { FlowAssign, flowLayout, FlowPlacedEvent } from "./companion-flow-model";
@@ -624,10 +623,9 @@ function AnswerBlock({ target, view }: { target: string; view: CompanionView }) 
                         {t("companion.answer.latestButton")}
                     </button>
                 ) : null}
-                <CopyButton
-                    className="mt-cb-tool"
-                    title={t("companion.answer.copy")}
-                    onClick={() => fireAndForget(() => navigator.clipboard.writeText(shown?.markdown ?? ""))}
+                <CopyTool
+                    label={t("companion.answer.copy")}
+                    onCopy={() => fireAndForget(() => navigator.clipboard.writeText(shown?.markdown ?? ""))}
                 />
             </>
         );
@@ -647,6 +645,7 @@ function AnswerBlock({ target, view }: { target: string; view: CompanionView }) 
                     <div
                         className="mt-cdash-answer"
                         data-folded={long && !full ? "" : undefined}
+                        data-image-at={shown?.at || undefined}
                         data-testid="companion-answer"
                     >
                         {shown ? (
@@ -756,6 +755,7 @@ function UsageOptions({
         >
             <fieldset disabled={attached} className="m-0 min-w-0 border-0 p-0 disabled:opacity-40">
                 <SegmentedControl<"full" | "minimal">
+                    popovers
                     label={t("companion.arrange.form", { name })}
                     segments={[
                         {
@@ -777,7 +777,7 @@ function UsageOptions({
                 type="button"
                 className="molten-btn-ghost inline-flex h-row cursor-pointer items-center gap-1.5 rounded-4 border border-border px-3 text-12 aria-pressed:bg-hover aria-pressed:text-primary"
                 aria-pressed={attached}
-                title={t("companion.arrange.attachHelp")}
+                data-tip={t("companion.arrange.attachHelp")}
                 onClick={() => onAttached(!attached)}
                 data-testid="companion-arrange-attach"
             >
@@ -929,7 +929,7 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                                         className="mt-cb-tool mt-cb-grip"
                                         data-arrange="handle"
                                         aria-label={t("companion.arrange.handle", { name })}
-                                        title={t("companion.arrange.handleHelp")}
+                                        data-tip={t("companion.arrange.handleHelp")}
                                         onKeyDown={(e) => {
                                             const to = handleTarget(e.key, i, draft.length);
                                             if (to == null) {
@@ -954,7 +954,7 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                                     <>
                                         <span
                                             className="mt-cb-tool-meta shrink-0"
-                                            title={t("companion.arrange.rankTitle")}
+                                            data-tip={t("companion.arrange.rankTitle")}
                                             data-testid="companion-arrange-rank"
                                         >
                                             {t("companion.arrange.rank", { position, total })}
@@ -1014,7 +1014,7 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                                     </>
                                 }
                             >
-                                <div className="mt-cb-sum" title={sum.text}>
+                                <div className="mt-cb-sum" data-tip={sum.text}>
                                     {sum.text}
                                 </div>
                                 {p.id === "usage" ? (

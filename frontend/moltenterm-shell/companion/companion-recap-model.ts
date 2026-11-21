@@ -25,7 +25,8 @@ export function branchTicket(branch: string): string {
     return m == null ? "" : `#${m[1]}`;
 }
 
-export type TopicRow = { key: string; text: string; facts: string[]; title: string };
+// at: when the prompt was typed, which tells a pasted image's chip which message holds it (#2455).
+export type TopicRow = { key: string; text: string; facts: string[]; title: string; at: number };
 
 // Each topic is the user's own prompt; its facts are the ticket of its branch, the files it changed, the PRs it
 // opened and when it was last worked on.
@@ -45,6 +46,7 @@ export function topicRows(topics: CompanionTopic[], now: number): TopicRow[] {
         return {
             key: `${topic.at ?? 0}:${i}`,
             text: topic.text,
+            at: topic.at ?? 0,
             facts,
             title: [topic.text, topic.branch ? t("companion.branch", { branch: topic.branch }) : ""]
                 .filter((s) => !!s)

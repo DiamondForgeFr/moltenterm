@@ -48,7 +48,7 @@ export function IntegratedBadge({
             <button
                 type="button"
                 onClick={onOpen}
-                title={full}
+                data-tip={full}
                 aria-label={full}
                 className={className}
                 data-testid="companion-integrated"
@@ -62,7 +62,7 @@ export function IntegratedBadge({
         <button
             type="button"
             onClick={onOpen}
-            title={t(persistent ? "companion.integration.persistentBadgeTitle" : "companion.integration.badgeTitle")}
+            data-tip={t(persistent ? "companion.integration.persistentBadgeTitle" : "companion.integration.badgeTitle")}
             className={cn(
                 "cursor-pointer rounded-6 px-1 py-0.5 text-11 whitespace-nowrap text-secondary hover:bg-hover hover:text-primary",
                 className
@@ -146,7 +146,7 @@ export function IntegrationDetails({
                         type="button"
                         onClick={onClose}
                         aria-label={t("companion.history.back")}
-                        title={t("companion.history.back")}
+                        data-tip={t("companion.history.back")}
                         className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                         data-testid="companion-integration-back"
                     >

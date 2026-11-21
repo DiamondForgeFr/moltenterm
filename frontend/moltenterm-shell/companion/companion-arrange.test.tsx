@@ -321,7 +321,7 @@ describe("the plan usage, minimal and attached (#2450)", () => {
             /aria-label="This week, 63 %, resets [A-Za-z]+, per day: (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %(, (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %){6}"/
         );
         expect(usage).toMatch(/aria-label="This week \(Fable\), 12 %, resets [A-Za-z]+, per day: /);
-        const title = /title="(This week: 63 % used[^"]*)"/.exec(usage)?.[1] ?? "";
+        const title = /data-tip="(This week: 63 % used[^"]*)"/.exec(usage)?.[1] ?? "";
         expect(title).toContain("Resets ");
         expect(title).toMatch(/Per day: (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %(, (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %){6}/);
         expect(title).toContain("From the Claude Code status line");

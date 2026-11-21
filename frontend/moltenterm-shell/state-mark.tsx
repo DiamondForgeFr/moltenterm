@@ -19,11 +19,14 @@ export function StateMark({
     label,
     className,
     testId,
+    popovers,
 }: {
     kind: StateMarkKind;
     label?: string;
     className?: string;
     testId?: string;
+    // The label shows in a panel's popover (data-tip, the companion's) instead of the system tooltip.
+    popovers?: boolean;
 }) {
     const running = kind === "running";
     useWorkingBeat(running);
@@ -32,7 +35,8 @@ export function StateMark({
             className={cn("mt-state-mark", `is-${kind}`, running && "mt-beat-turn", className)}
             role={label ? "img" : undefined}
             aria-label={label || undefined}
-            title={label || undefined}
+            title={popovers ? undefined : label || undefined}
+            data-tip={popovers ? label || undefined : undefined}
             aria-hidden={label ? undefined : true}
             data-state={kind}
             data-testid={testId}

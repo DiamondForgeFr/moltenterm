@@ -5,7 +5,9 @@
 // companion. The frame holds the real dashboard: hero, flow, blocks and arranging mode.
 // ?w=420|760|1200 the width, ?theme=light, ?agents=N more sub-agents, ?agent=waiting|idle, ?arrange=1, ?lang=fr,
 // ?usage=minimal|attached the plan usage's form (#2450), ?h=N a frame N px high holding the dashboard in the scroller the
-// app gives it (?scroll=end scrolled to the bottom).
+// app gives it (?scroll=end scrolled to the bottom), ?images=1 the messages name pasted images "[Image #N]" (#2455; the
+// chips read a small synthetic image drawn here, ?images=none gives them none), ?tip=<test id>[&tipat=N] a popover held
+// open on the Nth element of that test id (the screenshots' way of hovering).
 
 import { useEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
@@ -24,6 +26,8 @@ import { CompanionLayout, DefaultCompanionLayout } from "../../moltenterm-shell/
 import { MilestonesView } from "../../moltenterm-shell/companion/companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "../../moltenterm-shell/companion/companion-model";
 import { TaskView } from "../../moltenterm-shell/companion/companion-task-model";
+import { CompanionTips } from "../../moltenterm-shell/companion/companion-tips";
+import type { CompanionImage } from "../../moltenterm-shell/companion/companion-tips-model";
 import { I18nModel, useT } from "../../moltenterm-shell/i18n/i18n";
 
 import "../../moltenterm-shell/molten-button.css";
@@ -45,6 +49,39 @@ const Extra = Number(query.get("agents")) || 0;
 const AgentMode = query.get("agent") ?? "running";
 const UsageForm = query.get("usage");
 const FrameHeight = Number(query.get("h")) || 0;
+const Images = query.get("images");
+const HeldTip = query.get("tip");
+const HeldTipAt = Number(query.get("tipat")) || 0;
+
+// A small synthetic picture (a drawing of a settings page) for the chips of ?images=1: nothing of anyone's.
+function syntheticImage(n: number): Promise<CompanionImage> {
+    if (Images === "none") {
+        return Promise.reject(new Error("no such image"));
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 400;
+    const ctx = canvas.getContext("2d");
+    const fill = ctx.createLinearGradient(0, 0, 640, 400);
+    fill.addColorStop(0, "#27303f");
+    fill.addColorStop(1, "#4a3a5c");
+    ctx.fillStyle = fill;
+    ctx.fillRect(0, 0, 640, 400);
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillRect(24, 24, 160, 352);
+    for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = i === n % 6 ? "rgba(255,170,90,0.85)" : "rgba(255,255,255,0.35)";
+        ctx.fillRect(40, 48 + i * 40, 128, 14);
+        ctx.fillStyle = "rgba(255,255,255,0.22)";
+        ctx.fillRect(216, 48 + i * 40, 280 + ((i * 53) % 120), 14);
+    }
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.font = "20px sans-serif";
+    ctx.fillText(`Synthetic screenshot #${n}`, 216, 352);
+    return Promise.resolve({ mime: "image/png", data: canvas.toDataURL("image/png").split(",")[1] });
+}
+
+const imagesOn = Images != null;
 
 function startLayout(): CompanionLayout {
     if (UsageForm === "attached") {
@@ -296,6 +333,33 @@ const view: CompanionView = {
     ],
 };
 
+// ?images=1: the messages the companion shows name pasted images.
+function withImages(v: CompanionView): CompanionView {
+    return {
+        ...v,
+        session: {
+            ...v.session,
+            title: "Redo the settings page like [Image #1]: each option says what it changes, and a search filters them as you type.",
+        },
+        topics: v.topics.map((topic, i) =>
+            i === 0
+                ? {
+                      ...topic,
+                      text: "Write the filter's tests, then compare the page with [Image #2] and [Image #3].",
+                      at: Now - 3 * Min,
+                  }
+                : topic
+        ),
+        latest: {
+            ...v.latest,
+            at: Now - Min,
+            markdown: v.latest.markdown.replace("I built", "As in [Image #2], I built"),
+        },
+    };
+}
+
+const shownView = imagesOn ? withImages(view) : view;
+
 export function CompanionDashboardPreview() {
     const [layout, setLayout] = useState<CompanionLayout>(startLayout);
     const [arranging, setArranging] = useState(query.get("arrange") === "1");
@@ -315,6 +379,23 @@ export function CompanionDashboardPreview() {
         }, 100);
         return () => clearInterval(timer);
     }, []);
+    // ?tip=<test id>: the pointer rests on the element once the blocks are placed, as a screenshot needs it.
+    useEffect(() => {
+        if (!HeldTip) {
+            return;
+        }
+        let tries = 0;
+        const timer = setInterval(() => {
+            const element = document.querySelectorAll(`[data-testid="${HeldTip}"]`)[HeldTipAt];
+            if (element != null) {
+                element.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }));
+                clearInterval(timer);
+            } else if (++tries > 100) {
+                clearInterval(timer);
+            }
+        }, 150);
+        return () => clearInterval(timer);
+    }, []);
     return (
         <div className="p-4" data-testid="companion-dashboard-preview">
             <div
@@ -331,27 +412,29 @@ export function CompanionDashboardPreview() {
                     }
                     data-testid="companion-scroll"
                 >
-                    <CompanionDashboard
-                        view={view}
-                        target="preview-terminal"
-                        companionId="preview-companion"
-                        agentState={agentState}
-                        provider=""
-                        dir=""
-                        folder="/work/lantern"
-                        layout={layout}
-                        onSaveLayout={setLayout}
-                        arranging={arranging}
-                        onArrange={() => setArranging(true)}
-                        onLeaveArranging={() => setArranging(false)}
-                        arrangeRef={arrangeRef}
-                        integrationDetails={true}
-                        persistentIntegration={false}
-                        onIntegration={none}
-                        onHistory={none}
-                        onBackToCurrent={none}
-                        fixtures={{ milestones, holds, usage: gaugesView(usage, Now), task }}
-                    />
+                    <CompanionTips target="preview-terminal" session="s1" loadImage={syntheticImage}>
+                        <CompanionDashboard
+                            view={shownView}
+                            target="preview-terminal"
+                            companionId="preview-companion"
+                            agentState={agentState}
+                            provider=""
+                            dir=""
+                            folder="/work/lantern"
+                            layout={layout}
+                            onSaveLayout={setLayout}
+                            arranging={arranging}
+                            onArrange={() => setArranging(true)}
+                            onLeaveArranging={() => setArranging(false)}
+                            arrangeRef={arrangeRef}
+                            integrationDetails={true}
+                            persistentIntegration={false}
+                            onIntegration={none}
+                            onHistory={none}
+                            onBackToCurrent={none}
+                            fixtures={{ milestones, holds, usage: gaugesView(usage, Now), task }}
+                        />
+                    </CompanionTips>
                 </div>
             </div>
         </div>

@@ -30,7 +30,7 @@ export function SessionHistoryList({
                     type="button"
                     onClick={onClose}
                     aria-label={t("companion.history.back")}
-                    title={t("companion.history.back")}
+                    data-tip={t("companion.history.back")}
                     className="cursor-pointer rounded-6 px-1.5 py-0.5 text-12 text-secondary hover:bg-hover hover:text-primary"
                     data-testid="companion-history-back"
                 >
