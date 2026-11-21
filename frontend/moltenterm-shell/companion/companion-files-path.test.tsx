@@ -113,7 +113,11 @@ describe("a changed file's path in its row (#2450)", () => {
             const found = new Map<string, string>();
             postcss.parse(css).walkRules((rule) => {
                 if (rule.selector.replace(/\s+/g, " ").trim() === selector) {
-                    rule.each((node) => node.type === "decl" && found.set(node.prop, node.value));
+                    rule.each((node) => {
+                        if (node.type === "decl") {
+                            found.set(node.prop, node.value);
+                        }
+                    });
                 }
             });
             return found;
