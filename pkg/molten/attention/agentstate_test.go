@@ -529,6 +529,31 @@ func TestHookedKimiCompletionBell(t *testing.T) {
 	}
 }
 
+func TestHookedKimiLateEventsOfCompletedTurn(t *testing.T) {
+	t.Parallel()
+	for _, lateState := range []string{molten.AgentStateWaiting, molten.AgentStateWorking} {
+		t.Run(lateState, func(t *testing.T) {
+			t.Parallel()
+			h := makeAgentHarness()
+			h.out("b1", cmdMark("kimi"))
+			for _, state := range []string{molten.AgentStateWorking, molten.AgentStateDone, lateState} {
+				if _, _, err := h.states.report(molten.AgentStateRequest{BlockId: "b1", State: state, Agent: molten.AgentIdKimi, TurnId: "turn-1"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := h.state("b1"); got != molten.AgentStateDone {
+				t.Fatalf("late %s after Stop: %q, want done", lateState, got)
+			}
+			if _, _, err := h.states.report(molten.AgentStateRequest{BlockId: "b1", State: molten.AgentStateWaiting, Agent: molten.AgentIdKimi, TurnId: "turn-2"}); err != nil {
+				t.Fatal(err)
+			}
+			if got := h.state("b1"); got != molten.AgentStateWaiting {
+				t.Fatalf("a new turn's genuine wait: %q, want waiting", got)
+			}
+		})
+	}
+}
+
 func TestHookedKimiBellAndPermissionHooks(t *testing.T) {
 	t.Parallel()
 	t.Run("PermissionRequest before BEL", func(t *testing.T) {

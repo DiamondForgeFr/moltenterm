@@ -148,6 +148,8 @@ type agentRecord struct {
 	pidStart int64
 	// fromActivity: the working state came from the pane's output activity (agentactivity.go), which also ends it.
 	fromActivity bool
+	// endedTurns: hook turns whose Stop already came; a late event of one cannot reopen its waiting state.
+	endedTurns map[string]bool
 	// settings: the run's model and effort level as the agent reported them (#549); a new record starts without.
 	settings molten.AgentSettings
 	// firstName: the pane's agent name (FR-CONT-014), held from the names allocator while the record lives.
@@ -476,8 +478,23 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.pid, rec.pidStart = 0, 0
 		rec.settings = molten.AgentSettings{}
 		rec.subagents = nil
+		rec.endedTurns = nil
 		a.forgetCommandsLocked(req.BlockId, rec)
 		a.markDirtyLocked(req.BlockId)
+	}
+	if req.Start {
+		rec.endedTurns = nil
+	}
+	if rec.agent == molten.AgentIdKimi && req.TurnId != "" {
+		if rec.endedTurns[req.TurnId] {
+			return nil, "", nil
+		}
+		if req.State == molten.AgentStateDone || req.State == molten.AgentStateError {
+			if rec.endedTurns == nil {
+				rec.endedTurns = map[string]bool{}
+			}
+			rec.endedTurns[req.TurnId] = true
+		}
 	}
 	a.providerLocked(req, rec)
 	if !req.TurnEnd {

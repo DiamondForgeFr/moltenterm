@@ -43,7 +43,7 @@ func TestRunHookEvent(t *testing.T) {
 			}},
 		{"compaction: the link only", `{"session_id":"019a","transcript_path":"/t.jsonl","hook_event_name":"SessionStart","source":"compact"}`,
 			[]hookCall{{CompanionSessionCommand, CompanionRoute, `{"blockid":"b","agent":"codex","path":"/t.jsonl"}`}}},
-		{"prompt", `{"hook_event_name":"UserPromptSubmit","prompt":"fix it","turn_id":"t1"}`,
+		{"prompt", `{"hook_event_name":"UserPromptSubmit","prompt":"fix it"}`,
 			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"working","agent":"codex"}`}}},
 		{"tool", `{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls"},"tool_response":{"output":"a\nb"}}`,
 			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"working","agent":"codex"}`}}},
@@ -87,6 +87,28 @@ func TestRunHookEvent(t *testing.T) {
 				t.Errorf("%s: call %d %+v, want %+v", tc.name, i, calls[i], tc.want[i])
 			}
 		}
+	}
+}
+
+func TestKimiHooksCarryTurnId(t *testing.T) {
+	for _, tc := range []struct {
+		event string
+		state string
+	}{
+		{"PermissionRequest", AgentStateWaiting},
+		{"PermissionResult", AgentStateWorking},
+		{"Stop", AgentStateDone},
+	} {
+		t.Run(tc.event, func(t *testing.T) {
+			var calls []hookCall
+			input := `{"hook_event_name":"` + tc.event + `","turn_id":"turn-1"}`
+			if err := RunHookEvent(ReadHookInput(strings.NewReader(input)), "kimi", "b", recordCalls(&calls)); err != nil {
+				t.Fatal(err)
+			}
+			if len(calls) != 1 || calls[0].data != `{"blockid":"b","state":"`+tc.state+`","agent":"kimi","turnid":"turn-1"}` {
+				t.Fatalf("calls %+v", calls)
+			}
+		})
 	}
 }
 

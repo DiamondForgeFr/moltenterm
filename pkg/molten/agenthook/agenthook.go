@@ -35,6 +35,7 @@ type AgentStateRequest struct {
 	Message string `json:"message,omitempty"`
 	TurnEnd bool   `json:"turnend,omitempty"`
 	Start   bool   `json:"start,omitempty"`
+	TurnId  string `json:"turnid,omitempty"`
 	// Subagent: the report is a sub-agent's (its agent_id), not the pane's main session's (#1092).
 	Subagent string `json:"subagent,omitempty"`
 	// Provider: the host Claude Code talks to when it is not Anthropic's (FR-AGC-008, provider.go); a start report
