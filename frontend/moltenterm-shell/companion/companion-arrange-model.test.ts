@@ -12,8 +12,17 @@ import {
     SectionNameKeys,
     setSectionHidden,
     setSectionSpan,
+    setUsageAttached,
+    setUsageMinimal,
+    usageSummaryKey,
 } from "./companion-arrange-model";
-import { CompanionLayout, CompanionSectionIds, DefaultCompanionLayout, isDefaultLayout } from "./companion-layout";
+import {
+    CompanionLayout,
+    CompanionSectionIds,
+    DefaultCompanionLayout,
+    isDefaultLayout,
+    usageOf,
+} from "./companion-layout";
 
 const ids = (layout: CompanionLayout) => layout.map((p) => p.id);
 const Default = ["permission", "tasks", "agents", "usage", "topics", "answer", "task", "files"];
@@ -131,6 +140,86 @@ describe("arranging the companion's sections (#2395, #2441)", () => {
         for (const key of ["ArrowLeft", "ArrowRight", "Enter", " ", "Tab", "a", "Escape"]) {
             expect(handleTarget(key, 3, 8)).toBeNull();
         }
+    });
+
+    it("gives the usage its minimal form and takes it back, nothing else changing", () => {
+        const minimal = setUsageMinimal(DefaultCompanionLayout, true);
+        expect(minimal.find((p) => p.id === "usage")).toEqual({ id: "usage", span: "flow", minimal: true });
+        expect(ids(minimal)).toEqual(Default);
+        expect(usageOf(minimal)).toEqual({ shown: true, minimal: true, attached: false });
+        expect(isDefaultLayout(minimal)).toBe(false);
+        const full = setUsageMinimal(minimal, false);
+        expect(full.find((p) => p.id === "usage")).toEqual({ id: "usage", span: "flow" });
+        expect(isDefaultLayout(full)).toBe(true);
+        expect(DefaultCompanionLayout.find((p) => p.id === "usage")).toEqual({ id: "usage", span: "flow" });
+    });
+
+    it("attaches the usage to the main agent and detaches it, at the rank, size and span it had", () => {
+        const arranged = setSectionSpan(
+            moveSection(setUsageMinimal(DefaultCompanionLayout, true), 3, 1),
+            "usage",
+            "full"
+        );
+        const attached = setUsageAttached(arranged, true);
+        expect(usageOf(attached)).toEqual({ shown: true, minimal: true, attached: true });
+        // It keeps its place in the list while it stands in the hero, so the day it leaves the hero it comes back to it.
+        expect(ids(attached)).toEqual(ids(arranged));
+        expect(attached.find((p) => p.id === "usage")).toEqual({
+            id: "usage",
+            span: "full",
+            minimal: true,
+            attached: true,
+        });
+        expect(setUsageAttached(attached, false)).toEqual(arranged);
+        expect(positionOf(setUsageAttached(attached, false), "usage")).toEqual({ position: 2, total: 8 });
+    });
+
+    it("keeps the choices of the usage when it moves, is hidden and shown, or goes back to the flow", () => {
+        const attached = setUsageAttached(setUsageMinimal(DefaultCompanionLayout, true), true);
+        const moved = moveSection(attached, 3, 0);
+        expect(moved[0]).toEqual({ id: "usage", span: "flow", minimal: true, attached: true });
+        const hidden = setSectionHidden(attached, "usage", true);
+        expect(usageOf(hidden)).toEqual({ shown: false, minimal: true, attached: false });
+        const shown = setSectionHidden(hidden, "usage", false);
+        expect(shown).toEqual(attached);
+        expect(setSectionSpan(attached, "usage", "full").find((p) => p.id === "usage")).toEqual({
+            id: "usage",
+            span: "full",
+            minimal: true,
+            attached: true,
+        });
+    });
+
+    it("saves an attaching when the mode is left, and nothing for one undone", () => {
+        const saved: CompanionLayout[] = [];
+        const commit = makeLayoutCommit(DefaultCompanionLayout, (layout) => saved.push(layout));
+        const attached = setUsageAttached(DefaultCompanionLayout, true);
+        expect(commit(setUsageAttached(attached, false))).toBe(false);
+        expect(commit(attached)).toBe(true);
+        expect(saved).toEqual([attached]);
+        expect(commit(resetLayout())).toBe(true);
+        expect(isDefaultLayout(saved[1])).toBe(true);
+    });
+
+    it("goes back to the full block standing on its own with the rest of the defaults", () => {
+        const arranged = setUsageAttached(setUsageMinimal(DefaultCompanionLayout, true), true);
+        expect(isDefaultLayout(arranged)).toBe(false);
+        expect(usageOf(resetLayout())).toEqual({ shown: true, minimal: false, attached: false });
+    });
+
+    it("puts back a usage block the layout forgot before the choice applies, like any other section", () => {
+        const without = DefaultCompanionLayout.filter((p) => p.id !== "usage");
+        expect(usageOf(without)).toEqual({ shown: true, minimal: false, attached: false });
+        const attached = setUsageAttached(without, true);
+        expect(ids(attached).sort()).toEqual([...CompanionSectionIds].sort());
+        expect(usageOf(attached)).toEqual({ shown: true, minimal: false, attached: true });
+    });
+
+    it("tells in its summary line how the usage is drawn", () => {
+        expect(usageSummaryKey({})).toBe("companion.dash.sum.usage");
+        expect(usageSummaryKey({ minimal: true })).toBe("companion.dash.sum.usageMinimal");
+        expect(usageSummaryKey({ attached: true })).toBe("companion.dash.sum.usageAttached");
+        expect(usageSummaryKey({ minimal: true, attached: true })).toBe("companion.dash.sum.usageAttached");
     });
 
     it("lets the keyboard reach any order: every section can be moved to every place", () => {

@@ -24,6 +24,7 @@ import { useFloatingInPlace } from "../floating-in-place";
 import { useLocale, useT } from "../i18n/i18n";
 import { anchoredMenuEvent, buttonMenuAnchor } from "../menu/menu-anchor";
 import {
+    dayFiguresText,
     dayFills,
     dayShares,
     legendColours,
@@ -237,16 +238,21 @@ function DayFigures({ line }: { line: UsageWeekLine }) {
     );
 }
 
+// minimal is the form of #2450: the rows alone, each a label, its seven blocks and its percent, with no day initials on
+// top, no figures under the blocks and no legend. The row's accessible name carries what the form leaves out, the reset
+// day and the figure of each day; a surface that wants them in a tooltip gives the row its title.
 export function UsageWeekGrid({
     rows,
     now,
     legend,
     dayFigures,
+    minimal,
 }: {
     rows: UsageWeekRow[];
     now: number;
     legend?: boolean;
     dayFigures?: boolean;
+    minimal?: boolean;
 }) {
     const t = useT();
     const locale = useLocale();
@@ -256,22 +262,27 @@ export function UsageWeekGrid({
         <span
             className="mt-uw"
             data-labelled={labelled ? "true" : undefined}
-            data-figures={dayFigures ? "true" : undefined}
+            data-figures={dayFigures && !minimal ? "true" : undefined}
+            data-minimal={minimal ? "true" : undefined}
             data-testid="usage-week"
         >
-            <span aria-hidden />
-            {WeekDayKeys.map((key, i) => (
-                <span
-                    key={key}
-                    className="mt-uw-day"
-                    aria-hidden
-                    data-testid="usage-week-day"
-                    data-today={i === today ? "true" : undefined}
-                >
-                    {t(`usageWeek.day.${key}`)}
-                </span>
-            ))}
-            <span aria-hidden />
+            {minimal ? null : (
+                <>
+                    <span aria-hidden />
+                    {WeekDayKeys.map((key, i) => (
+                        <span
+                            key={key}
+                            className="mt-uw-day"
+                            aria-hidden
+                            data-testid="usage-week-day"
+                            data-today={i === today ? "true" : undefined}
+                        >
+                            {t(`usageWeek.day.${key}`)}
+                        </span>
+                    ))}
+                    <span aria-hidden />
+                </>
+            )}
             {rows.map((row) => {
                 const { line, name } = row;
                 const displayName = row.windowLabel
@@ -311,6 +322,9 @@ export function UsageWeekGrid({
                         ? t("usageWeek.rowReset", { name: displayName, percent: line.percent, day })
                         : t("usageWeek.row", { name: displayName, percent: line.percent }),
                 ];
+                if (minimal) {
+                    parts.push(t("usageWeek.rowDays", { days: dayFiguresText(line.percent, line.start) }));
+                }
                 if (age) {
                     parts.push(t("usageWeek.rowAsOf", { ago: age }));
                 }
@@ -345,7 +359,7 @@ export function UsageWeekGrid({
                         <b className="mt-uw-pct" data-testid="usage-week-percent">
                             {t("usageWeek.percent", { percent: line.percent })}
                         </b>
-                        {dayFigures ? <DayFigures line={line} /> : null}
+                        {dayFigures && !minimal ? <DayFigures line={line} /> : null}
                         {row.note ? (
                             <span className="mt-uw-detail" data-testid="usage-week-note">
                                 {row.note}
@@ -359,7 +373,7 @@ export function UsageWeekGrid({
                     </span>
                 );
             })}
-            {legend ? <UsageWeekLegend /> : null}
+            {legend && !minimal ? <UsageWeekLegend /> : null}
         </span>
     );
 }

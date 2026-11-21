@@ -1,8 +1,8 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// What the arranging mode does to a layout (FR-SHELL-018, #2395, #2441): move a section, show or hide it, set it full width or fluid,
-// go back to the defaults. Each edit takes a layout and gives a new, usable one (companion-layout.ts keeps the
+// What the arranging mode does to a layout (FR-SHELL-018, #2395, #2441, #2450): move a section, show or hide it, set it full
+// width or fluid, give the usage its minimal form or attach it to the main agent, go back to the defaults. Each edit takes a layout and gives a new, usable one (companion-layout.ts keeps the
 // registry and what a stored layout may hold); none of them runs on its own. Loaded with the arranging mode, out of the
 // startup bundle. Pure, so it is tested without a window.
 
@@ -30,6 +30,15 @@ export const SectionNameKeys: Record<CompanionSectionId, string> = {
 
 export function resetLayout(): CompanionLayout {
     return DefaultCompanionLayout;
+}
+
+// The usage's summary line while arranging says its form (#2450), since its two choices change what it draws and
+// where; attached says it all, whatever its size.
+export function usageSummaryKey(placement: Pick<SectionPlacement, "minimal" | "attached">): string {
+    if (placement.attached === true) {
+        return "companion.dash.sum.usageAttached";
+    }
+    return placement.minimal === true ? "companion.dash.sum.usageMinimal" : "companion.dash.sum.usage";
 }
 
 // What leaving the mode saves: the drafted layout, once, when it differs from the one the mode opened with (or the last
@@ -82,6 +91,16 @@ export function setSectionSpan(layout: CompanionLayout, id: CompanionSectionId, 
 
 export function setSectionHidden(layout: CompanionLayout, id: CompanionSectionId, hidden: boolean): CompanionLayout {
     return editSection(layout, id, (p) => ({ ...p, hidden }));
+}
+
+// The usage block's two choices (#2450). Its rank, span and hidden state stay where they are whichever it takes: an
+// attached block keeps its place in the list, so detaching returns it there, in the size it was left.
+export function setUsageMinimal(layout: CompanionLayout, minimal: boolean): CompanionLayout {
+    return editSection(layout, "usage", (p) => ({ ...p, minimal }));
+}
+
+export function setUsageAttached(layout: CompanionLayout, attached: boolean): CompanionLayout {
+    return editSection(layout, "usage", (p) => ({ ...p, attached }));
 }
 
 // Where a section stands in the list, for the screen reader's "2 of 8".

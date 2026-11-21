@@ -9,7 +9,7 @@
 import { CopyButton } from "@/app/element/copybutton";
 import { Markdown } from "@/app/element/markdown";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { fireAndForget } from "@/util/util";
+import { cn, fireAndForget } from "@/util/util";
 import { Bot, ClipboardCheck, FileText, Flag, FolderGit2, Gauge, MessagesSquare } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { goToAgent } from "../agent-info/agent-info-hooks";
@@ -17,6 +17,7 @@ import type { AgentStateInfo } from "../agent-state-model";
 import { useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
+import { SegmentedControl } from "../segmented-control";
 import { StateMark } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
 import { getHomeDir } from "../tab-identity-ui";
@@ -30,15 +31,25 @@ import {
     SectionNameKeys,
     setSectionHidden,
     setSectionSpan,
+    setUsageAttached,
+    setUsageMinimal,
+    usageSummaryKey,
 } from "./companion-arrange-model";
 import { BlockTool, CompanionBlock, CountChip, FootLink } from "./companion-block";
 import "./companion-dashboard.css";
 import { FilesSection } from "./companion-files";
 import { FlowAssign, flowLayout, FlowPlacedEvent } from "./companion-flow-model";
-import { PlanUsageBody, PlanUsageSection, ProviderUsageNote } from "./companion-gauges";
+import {
+    PlanUsageBody,
+    PlanUsageSection,
+    ProviderUsageNote,
+    UsageForm,
+    UsageFrame,
+    UsageFrameParts,
+} from "./companion-gauges";
 import type { GaugesView } from "./companion-gauges-model";
 import { CompanionHero } from "./companion-hero";
-import { CompanionLayout, CompanionSectionId, isDefaultLayout, normalizeLayout } from "./companion-layout";
+import { CompanionLayout, CompanionSectionId, isDefaultLayout, normalizeLayout, usageOf } from "./companion-layout";
 import { MilestonesView } from "./companion-milestone-model";
 import {
     CompanionAnswer,
@@ -55,7 +66,7 @@ import { RecentTopicsSection } from "./companion-recap";
 import { agentsView, finishedLabel, mainAgentRow } from "./companion-recap-model";
 import { TaskFrameFn, WorkspaceTaskCard, WorkspaceTaskSection } from "./companion-task";
 import { taskSessionLabel, TaskView } from "./companion-task-model";
-import { openUsagePage } from "./companion-usage";
+import { openUsagePage, UsageButton } from "./companion-usage";
 import { CompanionWork, CompanionWorkProps } from "./companion-work";
 
 const RpcTimeoutMs = 5000;
@@ -129,12 +140,28 @@ export function CompanionDashboard(props: CompanionDashboardProps) {
             ),
         []
     );
+    // The usage attached to the main agent (#2450) is drawn by the hero, through the usage's own source, so its refresh
+    // and its states keep working; while arranging every block, this one included, is a folded line of the list.
+    const usage = usageOf(props.layout);
+    const attached = usage.attached && !arranging;
+    const hero = (parts?: UsageFrameParts) => (
+        <CompanionHero {...props} usageBlockShown={usage.shown && !attached} usage={parts} />
+    );
     return (
         <div className="mt-cdash" data-testid="companion" data-columns={cols.columns}>
-            <CompanionHero
-                {...props}
-                usageBlockShown={normalizeLayout(props.layout).some((p) => p.id === "usage" && !p.hidden)}
-            />
+            {attached ? (
+                <UsageSource
+                    view={props.view}
+                    target={props.target}
+                    provider={props.provider}
+                    agentState={props.agentState}
+                    fixture={props.fixtures?.usage}
+                    form="attached"
+                    render={hero}
+                />
+            ) : (
+                hero()
+            )}
             {arranging ? (
                 <ArrangingFlow {...props} onColumns={onColumns} />
             ) : (
@@ -298,7 +325,9 @@ function SessionFlow(props: CompanionDashboardProps & { cols: Columns; onColumns
     const t = useT();
     const flowRef = useRef<HTMLDivElement>(null);
     const placements = normalizeLayout(layout);
-    const visible = placements.filter((p) => !p.hidden);
+    // An attached usage leaves the flow for the main agent's block (#2450); its placement keeps its rank for the day it
+    // comes back.
+    const visible = placements.filter((p) => !p.hidden && !(p.id === "usage" && p.attached));
     const shows = (id: CompanionSectionId) => visible.some((p) => p.id === id);
     const items: FlowItem[] = visible.map((p) => ({ id: p.id, full: p.span === "full" }));
     const now = Date.now();
@@ -341,6 +370,7 @@ function SessionFlow(props: CompanionDashboardProps & { cols: Columns; onColumns
                 provider={props.provider}
                 agentState={agentState}
                 fixture={props.fixtures?.usage}
+                minimal={placements.find((p) => p.id === "usage")?.minimal === true}
             />
         ),
         topics: (
@@ -435,57 +465,95 @@ function SessionFlow(props: CompanionDashboardProps & { cols: Columns; onColumns
     );
 }
 
+type UsageSourceProps = {
+    view: CompanionView;
+    target: string;
+    provider: string;
+    agentState: AgentStateInfo;
+    fixture?: GaugesView;
+    form: UsageForm;
+    render: UsageFrame;
+};
+
+// Where the plan usage comes from (the session's other provider, a fixture, the agent's own gauges), given to `render`
+// as the parts a block draws it with: the usage block's frame stands alone in the flow, the main agent's block takes
+// them when the usage is attached to it (#2450). A usage with nothing to show is rendered as the state "hidden".
+function UsageSource({ view, target, provider, agentState, fixture, form, render }: UsageSourceProps) {
+    if (provider) {
+        return render({
+            tools: null,
+            body: (
+                <ProviderUsageNote
+                    provider={provider}
+                    native={agentState?.nativeprovider ?? ""}
+                    bare={form === "attached"}
+                />
+            ),
+            state: "provider",
+        });
+    }
+    if (fixture != null) {
+        const none = () => {};
+        return <PlanUsageBody view={fixture} onShow={none} onHide={none} onRefresh={none} frame={render} form={form} />;
+    }
+    if (view.usage == null || !view.agent) {
+        return render({ tools: null, body: null, state: "hidden" });
+    }
+    return <PlanUsageSection target={target} agent={view.agent} frame={render} form={form} />;
+}
+
+// The usage block, standing on its own in the flow. Minimal (#2450), it draws the window rows alone; its foot link, the
+// usage page, then rides in its tools, with the refresh, so no row of the block is spent on it.
 function UsageBlock({
     view,
     target,
     provider,
     agentState,
     fixture,
-}: {
-    view: CompanionView;
-    target: string;
-    provider: string;
-    agentState: AgentStateInfo;
-    fixture?: GaugesView;
-}) {
+    minimal,
+}: Omit<UsageSourceProps, "form" | "render"> & { minimal: boolean }) {
     const t = useT();
     const action = usageAction(view);
-    const foot = action ? (
-        <FootLink onClick={() => openUsagePage(view)} testId="companion-usage">
-            {t("companion.dash.openUsage")}
-        </FootLink>
-    ) : null;
-    const frame = (tools: React.ReactNode, body: React.ReactNode) => (
-        <CompanionBlock
-            flowId="usage"
-            label={t("companion.gauges.title")}
-            icon={SectionTiles.usage}
-            tools={tools}
-            foot={foot}
-            data-testid="companion-usage-block"
-        >
-            {body}
-        </CompanionBlock>
-    );
-    if (provider) {
-        return frame(null, <ProviderUsageNote provider={provider} native={agentState?.nativeprovider ?? ""} />);
-    }
-    if (fixture != null) {
-        const none = () => {};
-        return (
-            <PlanUsageBody
-                view={fixture}
-                onShow={none}
-                onHide={none}
-                onRefresh={none}
-                frame={({ tools, body }) => frame(tools, body)}
-            />
+    const foot =
+        action && !minimal ? (
+            <FootLink onClick={() => openUsagePage(view)} testId="companion-usage">
+                {t("companion.dash.openUsage")}
+            </FootLink>
+        ) : null;
+    const frame: UsageFrame = ({ tools, body, state }) =>
+        state === "hidden" ? null : (
+            <CompanionBlock
+                flowId="usage"
+                label={t("companion.gauges.title")}
+                icon={SectionTiles.usage}
+                tools={
+                    minimal ? (
+                        <>
+                            <UsageButton view={view} className="mt-cb-tool" />
+                            {tools}
+                        </>
+                    ) : (
+                        tools
+                    )
+                }
+                foot={foot}
+                data-testid="companion-usage-block"
+                data-form={minimal ? "minimal" : "full"}
+            >
+                {body}
+            </CompanionBlock>
         );
-    }
-    if (view.usage == null || !view.agent) {
-        return null;
-    }
-    return <PlanUsageSection target={target} agent={view.agent} frame={({ tools, body }) => frame(tools, body)} />;
+    return (
+        <UsageSource
+            view={view}
+            target={target}
+            provider={provider}
+            agentState={agentState}
+            fixture={fixture}
+            form={minimal ? "minimal" : "full"}
+            render={frame}
+        />
+    );
 }
 
 // The latest answer follows the session; browsing back pins an earlier one until "Latest".
@@ -661,6 +729,65 @@ function useSummaries(view: CompanionView, agentState: AgentStateInfo, provider:
     return sums;
 }
 
+// The usage block's two choices while arranging (#2450), in the block's body: they have words, and a block one column
+// wide has no room in its tools for two more tools beside the rank, Up, Down, full width and the eye. The size (Full or
+// Minimal) is the block's own while it stands on its own, so it waits while the block is attached; it is kept for the
+// day the block is detached.
+function UsageOptions({
+    name,
+    minimal,
+    attached,
+    onMinimal,
+    onAttached,
+}: {
+    name: string;
+    minimal: boolean;
+    attached: boolean;
+    onMinimal: (minimal: boolean) => void;
+    onAttached: (attached: boolean) => void;
+}) {
+    const t = useT();
+    return (
+        <div
+            role="group"
+            aria-label={t("companion.arrange.usageOptions", { name })}
+            className="mt-cdash-options"
+            data-testid="companion-arrange-usage-options"
+        >
+            <fieldset disabled={attached} className="m-0 min-w-0 border-0 p-0 disabled:opacity-40">
+                <SegmentedControl<"full" | "minimal">
+                    label={t("companion.arrange.form", { name })}
+                    segments={[
+                        {
+                            value: "full",
+                            label: t("companion.arrange.formFull"),
+                            title: t("companion.arrange.formFullHelp"),
+                        },
+                        {
+                            value: "minimal",
+                            label: t("companion.arrange.formMinimal"),
+                            title: t("companion.arrange.formMinimalHelp"),
+                        },
+                    ]}
+                    selected={minimal ? "minimal" : "full"}
+                    onSelect={(form) => onMinimal(form === "minimal")}
+                />
+            </fieldset>
+            <button
+                type="button"
+                className="molten-btn-ghost inline-flex h-row cursor-pointer items-center gap-1.5 rounded-4 border border-border px-3 text-12 aria-pressed:bg-hover aria-pressed:text-primary"
+                aria-pressed={attached}
+                title={t("companion.arrange.attachHelp")}
+                onClick={() => onAttached(!attached)}
+                data-testid="companion-arrange-attach"
+            >
+                <i className={cn("fa fa-solid", attached ? "fa-check" : "fa-paperclip")} aria-hidden="true" />
+                {t("companion.arrange.attach")}
+            </button>
+        </div>
+    );
+}
+
 // The arranging mode in place (#2395, #2441): every block folds to its label and one line, with its rank, Up and Down
 // (the arrows, Home and End on its handle), full width or fluid, and the eye. The changes are drafted here and saved
 // when the mode is left, however it is left (Done, Escape, the Arrange tool, the pane closing).
@@ -782,7 +909,8 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                         const shown = !p.hidden;
                         const full = p.span === "full";
                         const { position, total } = positionOf(draft, p.id);
-                        const sum = sums[p.id];
+                        const sum =
+                            p.id === "usage" && !sums.usage.absent ? { text: t(usageSummaryKey(p)) } : sums[p.id];
                         return (
                             <CompanionBlock
                                 key={p.id}
@@ -889,6 +1017,39 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                                 <div className="mt-cb-sum" title={sum.text}>
                                     {sum.text}
                                 </div>
+                                {p.id === "usage" ? (
+                                    <UsageOptions
+                                        name={name}
+                                        minimal={p.minimal === true}
+                                        attached={p.attached === true}
+                                        onMinimal={(minimal) => {
+                                            setDraft(setUsageMinimal(draft, minimal));
+                                            announce(
+                                                t(
+                                                    minimal
+                                                        ? "companion.arrange.minimalOn"
+                                                        : "companion.arrange.minimalOff",
+                                                    {
+                                                        name,
+                                                    }
+                                                )
+                                            );
+                                        }}
+                                        onAttached={(attached) => {
+                                            setDraft(setUsageAttached(draft, attached));
+                                            announce(
+                                                t(
+                                                    attached
+                                                        ? "companion.arrange.attachOn"
+                                                        : "companion.arrange.attachOff",
+                                                    {
+                                                        name,
+                                                    }
+                                                )
+                                            );
+                                        }}
+                                    />
+                                ) : null}
                             </CompanionBlock>
                         );
                     })}

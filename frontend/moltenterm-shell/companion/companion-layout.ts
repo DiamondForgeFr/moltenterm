@@ -24,7 +24,16 @@ export type CompanionSectionId = (typeof CompanionSectionIds)[number];
 // "flow": the block takes one column of the flow; "full": it spans every column.
 export type CompanionSpan = "flow" | "full";
 
-export type SectionPlacement = { id: CompanionSectionId; span: CompanionSpan; hidden?: boolean };
+// minimal and attached belong to the usage block alone (#2450): its window rows only, and its place in the main agent's
+// block in place of the flow. A section that is neither keeps neither; each is stored only when set, so the default
+// (the full block, standing on its own) is the absence of both.
+export type SectionPlacement = {
+    id: CompanionSectionId;
+    span: CompanionSpan;
+    hidden?: boolean;
+    minimal?: boolean;
+    attached?: boolean;
+};
 
 export type CompanionLayout = readonly SectionPlacement[];
 
@@ -54,10 +63,18 @@ export function defaultSpan(id: CompanionSectionId): CompanionSpan {
 // A stored placement: the current form, or the one #2395 stored, whose column (full, left or right) said where a
 // section stood in a band. A band of two columns is now the flow itself, so an old placement takes its section's
 // default span; its order and its hidden flag are kept.
-type StoredPlacement = { id?: unknown; span?: unknown; column?: unknown; hidden?: unknown };
+type StoredPlacement = {
+    id?: unknown;
+    span?: unknown;
+    column?: unknown;
+    hidden?: unknown;
+    minimal?: unknown;
+    attached?: unknown;
+};
 
 // A layout as it can be used: every registered section once, in the given order; an unknown id is dropped, an unknown
-// span takes the default, a section the layout forgets takes its default place at the end.
+// span takes the default, a section the layout forgets takes its default place at the end. A layout stored before #2450
+// has neither usage flag: its usage block reads as full and standing on its own.
 export function normalizeLayout(layout: readonly StoredPlacement[]): CompanionLayout {
     const known = new Set<string>(CompanionSectionIds);
     const seen = new Set<string>();
@@ -69,7 +86,14 @@ export function normalizeLayout(layout: readonly StoredPlacement[]): CompanionLa
         const id = p.id as CompanionSectionId;
         seen.add(id);
         const span = typeof p.span === "string" && Spans.has(p.span) ? (p.span as CompanionSpan) : defaultSpan(id);
-        rtn.push({ id, span, ...(p.hidden === true ? { hidden: true } : {}) });
+        const usage = id === "usage";
+        rtn.push({
+            id,
+            span,
+            ...(p.hidden === true ? { hidden: true } : {}),
+            ...(usage && p.minimal === true ? { minimal: true } : {}),
+            ...(usage && p.attached === true ? { attached: true } : {}),
+        });
     }
     for (const p of DefaultCompanionLayout) {
         if (!seen.has(p.id)) {
@@ -93,8 +117,23 @@ export function sameLayout(a: CompanionLayout, b: CompanionLayout): boolean {
     const y = normalizeLayout(b);
     return (
         x.length === y.length &&
-        x.every((p, i) => p.id === y[i].id && p.span === y[i].span && !p.hidden === !y[i].hidden)
+        x.every(
+            (p, i) =>
+                p.id === y[i].id &&
+                p.span === y[i].span &&
+                !p.hidden === !y[i].hidden &&
+                !p.minimal === !y[i].minimal &&
+                !p.attached === !y[i].attached
+        )
     );
+}
+
+// What a layout says of the usage block (#2450). It stands in the main agent's block only while it is attached and not
+// hidden: a hidden usage shows nowhere, attached or not.
+export function usageOf(layout: CompanionLayout): { shown: boolean; minimal: boolean; attached: boolean } {
+    const p = normalizeLayout(layout).find((placement) => placement.id === "usage");
+    const shown = p != null && !p.hidden;
+    return { shown, minimal: p?.minimal === true, attached: shown && p?.attached === true };
 }
 
 export function isDefaultLayout(layout: CompanionLayout): boolean {

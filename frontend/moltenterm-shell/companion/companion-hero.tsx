@@ -4,7 +4,8 @@
 // The hero of the companion's dashboard (FR-SHELL-018, #2441): the main agent across every column, in place of the
 // session bar. Its identity (initial, name, provider, model and effort, state, the session's subject and how it is
 // linked, the session's states), then its plan; its tools are the Integration badge, the session history and Arrange.
-// The turning light while it works, a violet border while it waits for the developer.
+// The turning light while it works, a violet border while it waits for the developer. The plan usage, when the developer
+// attached it (#2450), is its last row, after a hairline, and its usage page and refresh tools stand among the hero's.
 
 import { makeIconClass } from "@/util/util";
 import type { AgentStateInfo } from "../agent-state-model";
@@ -15,6 +16,7 @@ import { StateMark, StateMarkKind } from "../state-mark";
 import { DominoLoader, GlowRing } from "../suite/suite";
 import { mainName } from "./companion-agents";
 import { BlockTool, CompanionBlock } from "./companion-block";
+import type { UsageFrameParts } from "./companion-gauges";
 import { IntegratedBadge } from "./companion-integration";
 import { linkAgents, todoLinks } from "./companion-milestone-model";
 import { CompanionView, guessHint, integrationProblem, linkLabel, sessionTitle, startedLabel } from "./companion-model";
@@ -36,8 +38,12 @@ export type CompanionHeroProps = {
     onIntegration: () => void;
     onHistory: () => void;
     onBackToCurrent: () => void;
-    // The usage block shows in the flow (not hidden by the layout).
+    // The usage block shows in the flow (not hidden by the layout, not attached to the hero).
     usageBlockShown?: boolean;
+    // The usage attached to the main agent (#2450): what the usage block would have drawn, its rows being the hero's last
+    // row and its tools standing among the hero's. Absent while the usage stands on its own, and while arranging, which
+    // folds every block to a line.
+    usage?: UsageFrameParts;
 };
 
 // The hero's state, as a shape and a colour of the heat scale: at work, waiting for the developer, finished.
@@ -81,6 +87,7 @@ export function CompanionHero(props: CompanionHeroProps) {
     const lines = hasPlan ? row.lines.filter((line) => line !== taskLine) : row.lines;
     // The usage block carries the link to the usage page; while it is hidden or not drawn, the hero keeps it.
     const usageShown = props.usageBlockShown === true && props.provider === "" && view.usage != null && !!view.agent;
+    const attached = props.usage != null && props.usage.state !== "hidden" && !arranging ? props.usage : null;
     const historyTitle =
         earlier > 0
             ? t(earlier === 1 ? "companion.bar.historyEarlierOne" : "companion.bar.historyEarlierOther", {
@@ -107,6 +114,7 @@ export function CompanionHero(props: CompanionHeroProps) {
                         />
                     ) : null}
                     {usageShown ? null : <UsageButton view={view} className="mt-cb-tool" />}
+                    {attached?.tools}
                     <BlockTool
                         label={t("companion.bar.history")}
                         title={historyTitle}
@@ -236,6 +244,11 @@ export function CompanionHero(props: CompanionHeroProps) {
                     />
                 ) : null}
             </div>
+            {attached?.body != null ? (
+                <div className="mt-cdash-hero-usage" data-testid="companion-hero-usage" data-state={attached.state}>
+                    {attached.body}
+                </div>
+            ) : null}
         </CompanionBlock>
     );
 }

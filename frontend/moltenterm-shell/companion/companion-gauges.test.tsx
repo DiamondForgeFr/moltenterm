@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { I18nModel } from "../i18n/i18n";
 import { UsageWeekGrid } from "../usage-week/usage-week";
-import { legendColours, paceColour, paceRatio, UnusedBlueAt } from "../usage-week/usage-week-model";
+import { dayFiguresText, legendColours, paceColour, paceRatio, UnusedBlueAt } from "../usage-week/usage-week-model";
 import { PlanUsageBody } from "./companion-gauges";
 import {
     CompanionUsageInfo,
@@ -976,5 +976,81 @@ describe("Kimi managed plan usage", () => {
         expect(usageReasonText("noplan", "kimi")).toContain("no managed plan limits or booster wallet");
         expect(usageReasonText("unsupported", "kimi")).toContain("official .com or .ai file-backed managed sign-in");
         expect(usageReasonText("unsupported", "claude")).toBe("This sign-in configuration is not supported");
+    });
+});
+
+describe("the minimal week grid (#2450)", () => {
+    const line = (percent: number, start: number) => ({
+        percent,
+        pace: 1,
+        unused: 0,
+        resetsAt: now + 3 * 24 * Hour,
+        windowMins: 10080,
+        start,
+    });
+    const rows = [
+        {
+            key: "week",
+            agent: "claude",
+            name: "This week",
+            window: "week",
+            label: "Week",
+            line: line(67, 1),
+            title: "tip",
+        },
+        { key: "month", agent: "claude", name: "This month", window: "month", label: "Month", line: line(3, 4) },
+    ];
+    const html = (props: { minimal?: boolean; legend?: boolean; dayFigures?: boolean }) =>
+        renderToStaticMarkup(<UsageWeekGrid rows={rows} now={now} {...props} />);
+
+    it("tells the figure of each day as a sentence, Monday first, from the blocks' own fills", () => {
+        expect(dayFiguresText(67, 1)).toBe("Mon 0 %, Tue 100 %, Wed 100 %, Thu 100 %, Fri 100 %, Sat 69 %, Sun 0 %");
+        expect(dayFiguresText(0, 0)).toBe("Mon 0 %, Tue 0 %, Wed 0 %, Thu 0 %, Fri 0 %, Sat 0 %, Sun 0 %");
+        // Without a reset time the fill starts on Monday, as the blocks do.
+        expect(dayFiguresText(20, -1)).toBe("Mon 100 %, Tue 40 %, Wed 0 %, Thu 0 %, Fri 0 %, Sat 0 %, Sun 0 %");
+        const i18n = I18nModel.getInstance();
+        try {
+            i18n.setLanguageSetting("fr");
+            expect(dayFiguresText(67, 1)).toMatch(/^lun\.? 0 %, mar\.? 100 %/);
+        } finally {
+            i18n.setLanguageSetting("");
+        }
+    });
+
+    it("draws the rows alone: a label, seven blocks and a percent, with no day letters, figures or legend", () => {
+        const minimal = html({ minimal: true, legend: true, dayFigures: true });
+        expect(minimal).toContain('data-minimal="true"');
+        expect(labelsOf(minimal)).toEqual(["Week", "Month"]);
+        expect(percentsOf(minimal)).toEqual(["67 %", "3 %"]);
+        expect(blocksOf(minimal, "week")).toHaveLength(7);
+        expect(blocksOf(minimal, "week").filter((b) => b.reset)).toHaveLength(1);
+        expect(minimal).not.toContain('data-testid="usage-week-day"');
+        expect(minimal).not.toContain('data-testid="usage-week-share"');
+        expect(minimal).not.toContain('data-testid="usage-week-legend"');
+        expect(minimal).not.toContain("data-figures");
+        const full = html({ legend: true, dayFigures: true });
+        expect(initialsOf(full)).toBe("MTWTFSS");
+        expect(full).toContain('data-testid="usage-week-share"');
+        expect(full).toContain('data-testid="usage-week-legend"');
+        expect(full).not.toContain("data-minimal");
+    });
+
+    it("keeps today's mark and the reset day's ring on the rows", () => {
+        const minimal = html({ minimal: true });
+        expect(minimal.match(/data-today="true"/g)).toHaveLength(2);
+        expect(blocksOf(minimal, "week")[1].reset).toBe(true);
+        expect(blocksOf(minimal, "month")[4].reset).toBe(true);
+    });
+
+    it("names each row with its percent, its reset day and the figure of each day, which the form does not draw", () => {
+        const minimal = html({ minimal: true });
+        expect(rowTag(minimal, "week")).toMatch(
+            /aria-label="This week, 67 %, resets [A-Za-z]+, per day: Mon 0 %, Tue 100 %, Wed 100 %, Thu 100 %, Fri 100 %, Sat 69 %, Sun 0 %"/
+        );
+        expect(rowTag(minimal, "month")).toContain("per day: Mon 0 %, Tue 0 %, Wed 0 %, Thu 0 %, Fri 21 %, Sat 0 %");
+        // The full grid draws the figures under its blocks, so a row's name does not repeat them.
+        expect(rowTag(html({ dayFigures: true }), "week")).not.toContain("per day");
+        // The surface's own tooltip is kept.
+        expect(rowTag(minimal, "week")).toContain('title="tip"');
     });
 });

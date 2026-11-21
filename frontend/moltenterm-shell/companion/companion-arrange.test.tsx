@@ -5,8 +5,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentStateInfo } from "../agent-state-model";
 import { I18nModel } from "../i18n/i18n";
-import { moveSection, setSectionHidden, setSectionSpan } from "./companion-arrange-model";
+import {
+    moveSection,
+    setSectionHidden,
+    setSectionSpan,
+    setUsageAttached,
+    setUsageMinimal,
+} from "./companion-arrange-model";
 import { CompanionDashboard, CompanionDashboardProps } from "./companion-dashboard";
+import { CompanionUsageInfo, gaugesView } from "./companion-gauges-model";
 import { CompanionLayout, CompanionSectionIds, DefaultCompanionLayout } from "./companion-layout";
 import { CompanionView } from "./companion-model";
 
@@ -199,5 +206,276 @@ describe("the dashboard (#2441)", () => {
     it("leaves a hidden block out of the flow", () => {
         const html = markup(setSectionHidden(DefaultCompanionLayout, "topics", true), { arranging: false });
         expect(html).not.toContain('data-flow-id="topics"');
+    });
+});
+
+// The plan usage in its minimal form and attached to the main agent (#2450), on synthetic readings: a week and the week
+// of a model.
+describe("the plan usage, minimal and attached (#2450)", () => {
+    const Hour = 60 * 60 * 1000;
+    const reading: CompanionUsageInfo = {
+        blockid: "t1",
+        agent: "claude",
+        pageurl: "https://claude.ai/settings/usage",
+        pagename: "Claude usage",
+        hasgauges: true,
+        gauges: "enabled",
+        sourcename: "Claude Code status line",
+        snapshot: {
+            agent: "claude",
+            source: "claude-statusline",
+            readat: now - 2 * 60_000,
+            windows: [
+                { id: "week", label: "This week", usedpercent: 63, resetsat: now + 4 * 24 * Hour, windowmins: 10080 },
+                {
+                    id: "model:fable",
+                    label: "This week (Fable)",
+                    usedpercent: 12,
+                    resetsat: now + 4 * 24 * Hour,
+                    windowmins: 10080,
+                },
+            ],
+        },
+    };
+    const withUsage: CompanionView = {
+        ...view,
+        usage: { pageurl: reading.pageurl, pagename: reading.pagename } as CompanionView["usage"],
+    };
+    const shown = (layout: CompanionLayout, extra: Partial<CompanionDashboardProps> = {}) =>
+        markup(layout, {
+            arranging: false,
+            view: withUsage,
+            fixtures: { milestones: { dir: "/w", state: "none" }, usage: gaugesView(reading, now) },
+            ...extra,
+        });
+    const minimalLayout = setUsageMinimal(DefaultCompanionLayout, true);
+    const attachedLayout = setUsageAttached(minimalLayout, true);
+
+    // A block of the flow, up to the next one; the hero, up to the flow.
+    const flowBlock = (html: string, id: string): string => {
+        const at = html.indexOf(`data-flow-id="${id}"`);
+        expect(at, `a block ${id}`).toBeGreaterThan(-1);
+        const start = html.lastIndexOf("<section", at);
+        const next = html.indexOf("data-flow-id=", at + 1);
+        return html.slice(start, next < 0 ? undefined : html.lastIndexOf("<section", next));
+    };
+    const heroOf = (html: string): string => {
+        const at = html.indexOf('data-testid="companion-session-bar"');
+        expect(at).toBeGreaterThan(-1);
+        return html.slice(html.lastIndexOf("<section", at), html.indexOf('data-testid="companion-flow"'));
+    };
+    const flowIds = (html: string) => [...html.matchAll(/data-flow-id="([a-z]+)"/g)].map((m) => m[1]);
+    const count = (html: string, mark: string) => html.split(mark).length - 1;
+    const labelsOf = (html: string) => [...html.matchAll(/data-testid="usage-week-label">([^<]*)</g)].map((m) => m[1]);
+    const percentsOf = (html: string) =>
+        [...html.matchAll(/data-testid="usage-week-percent">([^<]*)</g)].map((m) => m[1]);
+    // What the full block adds to the rows: the day letters, the figures, the legend, the paragraph and the rest.
+    const Extras = [
+        'data-testid="usage-week-day"',
+        'data-testid="usage-week-share"',
+        'data-testid="usage-week-legend"',
+        'data-testid="usage-week-note"',
+        'data-testid="companion-plan-usage-explain"',
+        "Experimental",
+        'class="mt-cb-foot"',
+    ];
+
+    it("stays the full block, standing on its own, by default", () => {
+        const html = shown(DefaultCompanionLayout);
+        expect(flowIds(html)).toEqual(["agents", "usage", "topics", "answer", "files"]);
+        const usage = flowBlock(html, "usage");
+        expect(usage).toContain('data-form="full"');
+        expect(count(usage, 'data-testid="usage-week-day"')).toBe(7);
+        expect(count(usage, 'data-testid="usage-week-share"')).toBe(14);
+        for (const extra of Extras) {
+            expect(usage, extra).toContain(extra);
+        }
+        // Its link to the usage page is its foot, and the main agent's block does not repeat it.
+        expect(usage).toMatch(/class="mt-cb-foot"[^]*data-testid="companion-usage"/);
+        expect(heroOf(html)).not.toContain('data-testid="companion-usage"');
+        expect(heroOf(html)).not.toContain('data-testid="companion-hero-usage"');
+    });
+
+    it("draws the minimal form as its window rows alone: a label, a strip and a percentage each", () => {
+        const html = shown(minimalLayout);
+        expect(flowIds(html)).toEqual(["agents", "usage", "topics", "answer", "files"]);
+        const usage = flowBlock(html, "usage");
+        expect(usage).toContain('data-form="minimal"');
+        expect(labelsOf(usage)).toEqual(["Week", "Week (Fable)"]);
+        expect(percentsOf(usage)).toEqual(["63 %", "12 %"]);
+        expect(count(usage, 'data-testid="usage-week-row"')).toBe(2);
+        expect(count(usage, 'data-testid="usage-week-block"')).toBe(14);
+        // Today's mark and the reset day's ring stay on the strip.
+        expect(count(usage, 'data-today="true"')).toBe(2);
+        expect(count(usage, 'data-reset="true"')).toBe(2);
+        for (const extra of Extras) {
+            expect(usage, extra).not.toContain(extra);
+        }
+        expect(usage).not.toContain('data-testid="companion-plan-usage-credits"');
+        expect(usage).not.toContain(">Hide<");
+    });
+
+    it("gives the reset and the figure of each day in the row's tooltip and accessible name", () => {
+        const usage = flowBlock(shown(minimalLayout), "usage");
+        expect(usage).toMatch(
+            /aria-label="This week, 63 %, resets [A-Za-z]+, per day: (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %(, (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %){6}"/
+        );
+        expect(usage).toMatch(/aria-label="This week \(Fable\), 12 %, resets [A-Za-z]+, per day: /);
+        const title = /title="(This week: 63 % used[^"]*)"/.exec(usage)?.[1] ?? "";
+        expect(title).toContain("Resets ");
+        expect(title).toMatch(/Per day: (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %(, (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %){6}/);
+        expect(title).toContain("From the Claude Code status line");
+        // The full block draws the figures, so its rows say them once.
+        const full = flowBlock(shown(DefaultCompanionLayout), "usage");
+        expect(full).not.toContain("per day:");
+        expect(full).not.toContain("Per day:");
+    });
+
+    it("keeps the usage page, the refresh and the full block one click away from the minimal form", () => {
+        const usage = flowBlock(shown(minimalLayout), "usage");
+        expect(usage).toContain('aria-label="Open Claude usage"');
+        expect(usage).toContain('aria-label="Refresh plan usage"');
+        expect(usage).toMatch(
+            /aria-label="Plan usage details"[^>]*aria-expanded="false"|aria-expanded="false"[^>]*aria-label="Plan usage details"/
+        );
+        // Rows alone while it is folded; the full block is what unfolds, so the model limits are among its extras.
+        expect(usage).not.toContain("companion-plan-usage-experimental");
+    });
+
+    it("leaves the flow when attached, and is the last row of the main agent's block", () => {
+        const html = shown(attachedLayout);
+        expect(flowIds(html)).toEqual(["agents", "topics", "answer", "files"]);
+        expect(html).not.toContain('data-testid="companion-usage-block"');
+        const hero = heroOf(html);
+        expect(hero).toContain('data-testid="companion-hero-usage"');
+        expect(hero).toContain('class="mt-cdash-hero-usage"');
+        const row = hero.slice(hero.indexOf('data-testid="companion-hero-usage"'));
+        expect(labelsOf(row)).toEqual(["Week", "Week (Fable)"]);
+        expect(percentsOf(row)).toEqual(["63 %", "12 %"]);
+        expect(count(row, 'data-testid="usage-week-block"')).toBe(14);
+        for (const extra of Extras) {
+            expect(hero, extra).not.toContain(extra);
+        }
+        // Under its meta line (when it started, how the session is linked, its branch), and nothing after it.
+        expect(hero.indexOf('data-testid="companion-link"')).toBeGreaterThan(-1);
+        expect(hero.indexOf('data-testid="companion-link"')).toBeLessThan(hero.indexOf("companion-hero-usage"));
+        expect(hero.slice(hero.indexOf("companion-hero-usage"))).not.toContain("mt-cdash-id");
+    });
+
+    it("keeps the usage page and the refresh among the main agent's tools when attached", () => {
+        const hero = heroOf(shown(attachedLayout));
+        const tools = hero.slice(hero.indexOf('data-side="tools"'), hero.indexOf('data-testid="companion-hero-usage"'));
+        expect(tools).toContain('aria-label="Open Claude usage"');
+        expect(tools).toContain('data-testid="companion-usage"');
+        expect(tools).toContain('aria-label="Refresh plan usage"');
+        expect(tools).toContain('aria-label="Plan usage details"');
+        // "Hide" turns the gauges off: it stays on the block, never among the main agent's tools.
+        expect(tools).not.toContain(">Hide<");
+        // The history and Arrange stay where they were.
+        expect(tools).toContain('data-testid="companion-history-open"');
+        expect(tools).toContain('data-testid="companion-arrange-open"');
+    });
+
+    it("keeps the usage page reachable whatever its form: one link, never two", () => {
+        for (const layout of [DefaultCompanionLayout, minimalLayout, attachedLayout]) {
+            const html = shown(layout);
+            expect(count(html, 'data-testid="companion-usage"'), JSON.stringify(layout[3])).toBe(1);
+        }
+        const hidden = shown(setSectionHidden(attachedLayout, "usage", true));
+        // A hidden usage draws nowhere, as the hero keeps the link it always kept.
+        expect(count(hidden, 'data-testid="companion-usage"')).toBe(1);
+        expect(heroOf(hidden)).toContain('data-testid="companion-usage"');
+        expect(heroOf(hidden)).not.toContain('data-testid="companion-hero-usage"');
+        expect(flowIds(hidden)).not.toContain("usage");
+    });
+
+    it("returns to its saved rank and size when detached", () => {
+        const arranged = moveSection(minimalLayout, 3, 0);
+        const attached = setUsageAttached(arranged, true);
+        expect(flowIds(shown(attached))).toEqual(["agents", "topics", "answer", "files"]);
+        const detached = shown(setUsageAttached(attached, false));
+        expect(flowIds(detached)).toEqual(["usage", "agents", "topics", "answer", "files"]);
+        expect(flowBlock(detached, "usage")).toContain('data-form="minimal"');
+        expect(heroOf(detached)).not.toContain('data-testid="companion-hero-usage"');
+    });
+
+    it("draws the note of another provider in the main agent's block when attached", () => {
+        const html = shown(attachedLayout, { provider: "other-lab" });
+        const hero = heroOf(html);
+        expect(hero).toContain('data-testid="companion-hero-usage"');
+        expect(hero).toContain('data-state="provider"');
+        expect(hero).toContain("No plan usage for other-lab");
+        // The hero carries the inset and the hairline: the note has neither of its own.
+        const row = hero.slice(hero.indexOf('data-testid="companion-hero-usage"'));
+        expect(row).not.toContain("border-b");
+        expect(row).not.toContain("px-(--mt-companion-inset)");
+    });
+
+    it("draws nothing for a usage that has nothing to show, attached or not", () => {
+        const none = shown(attachedLayout, {
+            fixtures: { milestones: { dir: "/w", state: "none" }, usage: { kind: "hidden" } },
+        });
+        expect(heroOf(none)).not.toContain('data-testid="companion-hero-usage"');
+        expect(flowIds(none)).toEqual(["agents", "topics", "answer", "files"]);
+        const off = shown(attachedLayout, {
+            fixtures: { milestones: { dir: "/w", state: "none" }, usage: { kind: "off" } },
+        });
+        // The states that are no reading keep their way to turn the gauges on, in the main agent's block.
+        expect(heroOf(off)).toContain('data-testid="companion-plan-usage-show"');
+        expect(heroOf(off)).toContain('data-state="off"');
+    });
+
+    it("offers the two choices on the usage block alone while arranging, with names and pressed states", () => {
+        const html = shown(DefaultCompanionLayout, { arranging: true });
+        expect(count(html, 'data-testid="companion-arrange-usage-options"')).toBe(1);
+        const usage = block(html, "usage");
+        expect(usage).toContain('role="group" aria-label="Options of Plan usage"');
+        expect(usage).toContain('role="radiogroup" aria-label="Form of Plan usage"');
+        expect(usage).toMatch(/role="radio" aria-checked="true"[^>]*>Full</);
+        expect(usage).toMatch(/role="radio" aria-checked="false"[^>]*>Minimal</);
+        expect(usage).toMatch(/aria-pressed="false"[^>]*data-testid="companion-arrange-attach"/);
+        expect(usage).toContain(">Attach to the main agent<");
+        expect(usage).toContain("The plan&#x27;s usage, day by day");
+        expect(usage).not.toContain("<fieldset disabled");
+        for (const id of ["tasks", "files", "permission"]) {
+            expect(block(html, id)).not.toContain("companion-arrange-usage-options");
+        }
+    });
+
+    it("says in the block's summary line, and in its choices, what the arranged usage is", () => {
+        const minimal = block(shown(minimalLayout, { arranging: true }), "usage");
+        expect(minimal).toContain("The plan&#x27;s usage, the rows only");
+        expect(minimal).toMatch(/role="radio" aria-checked="true"[^>]*>Minimal</);
+        const attached = block(shown(attachedLayout, { arranging: true }), "usage");
+        expect(attached).toContain("Attached to the main agent, the rows only");
+        expect(attached).toMatch(/aria-pressed="true"[^>]*data-testid="companion-arrange-attach"/);
+        // The size is for the block standing on its own: it waits, and is kept for the day the block is detached.
+        expect(attached).toContain("<fieldset disabled");
+        expect(attached).toMatch(/role="radio" aria-checked="true"[^>]*>Minimal</);
+    });
+
+    it("folds every block to a line while arranging, the attached usage included", () => {
+        const html = shown(attachedLayout, { arranging: true });
+        expect(html).not.toContain('data-testid="companion-hero-usage"');
+        expect(html).not.toContain('data-testid="usage-week"');
+        expect(order(html)).toEqual(attachedLayout.map((p) => p.id));
+        expect(block(html, "usage")).toContain('data-section="usage"');
+    });
+
+    it("reads in French", () => {
+        const i18n = I18nModel.getInstance();
+        try {
+            i18n.setLanguageSetting("fr");
+            const arranging = block(shown(attachedLayout, { arranging: true }), "usage");
+            expect(arranging).toContain("Rattacher à l&#x27;agent principal");
+            expect(arranging).toContain("Forme d&#x27;Utilisation");
+            expect(arranging).toContain(">Minimale<");
+            expect(arranging).toContain("Rattaché à l&#x27;agent principal, les lignes seules");
+            const minimal = flowBlock(shown(minimalLayout), "usage");
+            expect(minimal).toContain("par jour :");
+            expect(minimal).toContain("Par jour :");
+        } finally {
+            i18n.setLanguageSetting("");
+        }
     });
 });

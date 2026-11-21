@@ -26,6 +26,10 @@
     position: relative;
     display: flex;
     flex-direction: column;
+    /* The scroller (companion-view.tsx) is a column too: a child with a min-height that is a percentage shrinks to the
+       scroller's height, and its blocks, placed by the flow, overflow it, taking the bottom space with them. It never
+       shrinks, so the space under the last block, whichever block ends last, is the gutter the sides have (#2450). */
+    flex-shrink: 0;
     min-height: 100%;
     padding-bottom: var(--mt-cdash-gutter);
     background: var(--mt-cdash-page);
@@ -371,6 +375,14 @@ button.mt-cb-chip-off:hover {
     white-space: nowrap;
 }
 
+/* The usage block's own choices while arranging (#2450): its size and its attaching, under its summary line. */
+.mt-cdash-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
 .mt-cb[data-absent] .mt-cb-sum {
     color: var(--mt-text-3);
     font-style: italic;
@@ -460,6 +472,15 @@ button.mt-cb-chip-off:hover {
         border-top: 0;
         border-left: 1px solid var(--mt-cdash-hair);
     }
+}
+
+/* The plan usage attached to the main agent (#2450): the hero's last row, under its meta line, after a hairline, with the
+   block's own inset. Like the foot of a block, it runs to the block's edges and closes it. */
+.mt-cdash-hero-usage {
+    position: relative;
+    margin: 0 calc(var(--mt-companion-inset) * -1) calc(var(--mt-companion-inset) * -1);
+    padding: 8px var(--mt-companion-inset) 10px;
+    border-top: 1px solid var(--mt-cdash-hair);
 }
 
 .mt-cdash-id {
@@ -999,22 +1020,34 @@ button.mt-cb-chip-off:hover {
     color: var(--mt-state-blocked-text);
 }
 
+/* The name is what tells two files apart, so it is never cut: the folder gives way before it, from its start (an
+   ellipsis, then the folders nearest the file). The folder is right-to-left only so that its overflow, and its ellipsis,
+   are at its start; its text is a <bdi>, which keeps the text and its slashes in reading order (#2450). */
 .mt-cdash-fpath {
+    display: flex;
     flex: 1;
     min-width: 0;
     overflow: hidden;
     font-family: var(--font-mono, monospace);
     font-size: var(--mt-text-12);
-    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .mt-cdash-fdir {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
     color: var(--mt-text-3);
+    text-align: left;
+    text-overflow: ellipsis;
 }
 
 .mt-cdash-fname {
+    flex: none;
+    max-width: 100%;
+    overflow: hidden;
     color: var(--mt-text-1);
+    text-overflow: ellipsis;
 }
 
 .mt-cdash-fdelta {
