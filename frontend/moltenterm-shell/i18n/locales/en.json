@@ -2333,6 +2333,8 @@
             "agentOff": "Turned off for {name} from the next launch. This session keeps it until it ends.",
             "badgeTitle": "What MoltenTerm added to this run, and how to turn it off",
             "title": "Hooked up by MoltenTerm",
+            "short": "Hooked up",
+            "persistentShort": "Hooks",
             "hint": "Added to this run of {name} only, through its own per-run options. Your files are not edited.",
             "persistentTitle": "Kimi Code hooks",
             "persistentBadgeTitle": "Manage persistent Kimi Code hooks",

@@ -214,7 +214,17 @@ export function certainTicket(branch: string, description: string): number {
     return leadingTicket(description);
 }
 
-export type LinkAgent = { id: string; name: string; state: AgentRowState; ticket: number; description: string };
+// kind and model: what a sub-agent is (its type and its model, as its row says it), which the "→" chip names it by
+// (#2441): a sub-agent has no first name, and its description is the task the chip stands beside.
+export type LinkAgent = {
+    id: string;
+    name: string;
+    state: AgentRowState;
+    ticket: number;
+    description: string;
+    kind?: string;
+    model?: string;
+};
 
 // The agents at work a task can link to: the main agent by its session's branch only (its topic is no certainty), each
 // sub-agent by its own branch, then its own description.
@@ -238,6 +248,9 @@ export function linkAgents(rows: AgentRow[], view: CompanionView): LinkAgent[] {
             state: row.state,
             ticket: certainTicket(sub?.branch ?? row.branch, description),
             description,
+            kind: (sub?.kind ?? "").trim(),
+            // The row's model and effort start with the model, its own or its parent's.
+            model: (row.config ?? "").split(" · ")[0].trim(),
         };
     });
 }

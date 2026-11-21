@@ -135,10 +135,9 @@ function PlanStep({
     const meta =
         kind === "done" && at > 0
             ? new Date(at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
-            : kind === "current"
-              ? at > 0
-                  ? t("companion.plan.inProgressFor", { duration: durationText(t, now - at) })
-                  : t("companion.plan.inProgress")
+            : kind === "current" && at > 0
+              ? // The plan's head already says "in progress": the step gives its duration only (#2441).
+                durationText(t, now - at)
               : "";
     return (
         <li

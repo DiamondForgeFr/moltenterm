@@ -56,6 +56,36 @@ describe("PlanSection (#2430)", () => {
         expect(html).toContain("Plan · 4 / 6");
     });
 
+    it("gives the current step its duration only, the head saying it is in progress (#2441)", () => {
+        const html = markup(steps("completed", "in_progress", "pending"));
+        const current = /data-state="current"[^]*?<\/li>/.exec(html)?.[0] ?? "";
+        expect(current).toContain('class="mt-plan-meta">1 min<');
+        expect(current).not.toContain("in progress");
+        expect(html.match(/in progress/g)).toHaveLength(1);
+    });
+
+    it("names who works on a step on its chip, never the step again (#2441)", () => {
+        const html = markup(steps("in_progress"), {
+            links: new Map([
+                [
+                    0,
+                    {
+                        id: "s1",
+                        name: "Wire the filter",
+                        state: "running",
+                        ticket: 0,
+                        description: "Wire the filter",
+                        kind: "Explore",
+                        model: "Haiku 4.5",
+                    },
+                ],
+            ]),
+            marks: { chips: true, lit: new Set(), ends: new Set() },
+        });
+        expect(html).toContain('<span class="shrink-0">→ Explore</span>');
+        expect(html).not.toContain("→ Wire the filter");
+    });
+
     it("shows nothing for a plan without steps", () => {
         expect(markup([])).toBe("");
     });

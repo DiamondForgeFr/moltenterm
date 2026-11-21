@@ -76,16 +76,23 @@ export function endAttrs(end: string, heat: StateMarkKind, marks: EndMarks) {
     };
 }
 
+// Who works on it, never what (#2441): the main agent by its name, a sub-agent by its type and its model (it has no
+// first name, and its description is the task the chip stands beside). The type stays whole; the model gives way.
 export function LinkChip({ agent }: { agent: LinkAgent }) {
     const t = useT();
+    const sub = agent.kind != null;
+    const who = sub ? agent.kind || t("companion.agents.subagent") : agent.name;
+    const model = sub ? (agent.model ?? "") : "";
+    const full = model ? `${who} · ${model}` : who;
     return (
         <span
             className="mt-cwork-chip text-11"
             data-heat={heatOf(agent.state)}
-            title={t("companion.work.linkTitle", { agent: agent.name })}
+            title={t("companion.work.linkTitle", { agent: full })}
             data-testid="companion-work-chip"
         >
-            <span className="truncate">{t("companion.work.linkChip", { agent: agent.name })}</span>
+            <span className={model ? "shrink-0" : "truncate"}>{t("companion.work.linkChip", { agent: who })}</span>
+            {model ? <span className="min-w-0 truncate">{` · ${model}`}</span> : null}
         </span>
     );
 }

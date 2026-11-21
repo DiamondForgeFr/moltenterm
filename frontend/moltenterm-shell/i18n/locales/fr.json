@@ -2333,6 +2333,8 @@
             "agentOff": "Désactivée pour {name} à partir du prochain lancement. Cette session la garde jusqu'à sa fin.",
             "badgeTitle": "Ce que MoltenTerm a ajouté à cette exécution, et comment le désactiver",
             "title": "Connecté par MoltenTerm",
+            "short": "Branché",
+            "persistentShort": "Hooks",
             "hint": "Ajouté à cette exécution de {name} uniquement, par ses propres options d'exécution. Vos fichiers ne sont pas modifiés.",
             "persistentTitle": "Hooks de Kimi Code",
             "persistentBadgeTitle": "Gérer les hooks persistants de Kimi Code",

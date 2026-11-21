@@ -229,6 +229,34 @@ describe("agents at work", () => {
         // The AI sparkle names the main agent; the robot stays for the sub-agents.
         expect(html).toContain("fa-sparkles");
         expect(html).toContain("Main agent");
+        // The plan beside the identity shows the step in progress: no "Task:" line repeats it (#2441).
+        expect(html).toContain('data-testid="companion-plan"');
+        expect(html).not.toContain("Task: ");
+        // The tools say "Hooked up" in a word only when MoltenTerm hooked the run; none here.
+        expect(html).not.toContain('data-testid="companion-integrated"');
+    });
+
+    it("keeps the task line when there is no plan to show the step, and says Hooked up in a word (#2441)", () => {
+        const noop = () => {};
+        const plain = { ...view, todos: [], topics: [] };
+        const html = renderToStaticMarkup(
+            <CompanionHero
+                view={plain}
+                agentState={working}
+                provider=""
+                arranging={false}
+                onArrange={noop}
+                onLeaveArranging={noop}
+                integrationDetails={true}
+                persistentIntegration={false}
+                onIntegration={noop}
+                onHistory={noop}
+                onBackToCurrent={noop}
+            />
+        );
+        expect(html).not.toContain('data-testid="companion-plan"');
+        expect(html).toMatch(/aria-label="Hooked up by MoltenTerm"[^>]*data-testid="companion-integrated"/);
+        expect(html).toMatch(/fa-plug[^<]*<\/i>Hooked up<\/button>/);
     });
 });
 

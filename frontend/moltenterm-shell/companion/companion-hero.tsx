@@ -73,6 +73,10 @@ export function CompanionHero(props: CompanionHeroProps) {
     const agents = agentsView(view, agentState, now);
     const steps = todoLinks(view.todos ?? [], linkAgents(agents.rows, view));
     const hasPlan = (view.todos?.length ?? 0) > 0;
+    // The plan beside it already shows the step in progress: its "Task:" line would say it twice (#2441).
+    const current = (view.todos ?? []).find((todo) => todo.status === "in_progress");
+    const taskLine = current ? t("companion.agents.task", { text: current.text }) : null;
+    const lines = hasPlan ? row.lines.filter((line) => line !== taskLine) : row.lines;
     const usageShown = props.provider === "" && view.usage != null && !!view.agent;
     const historyTitle =
         earlier > 0
@@ -94,6 +98,7 @@ export function CompanionHero(props: CompanionHeroProps) {
                     {props.integrationDetails ? (
                         <IntegratedBadge
                             onOpen={props.onIntegration}
+                            short
                             persistent={props.persistentIntegration}
                             className="mt-cb-tool"
                         />
@@ -180,9 +185,9 @@ export function CompanionHero(props: CompanionHeroProps) {
                             {subject}
                         </p>
                     ) : null}
-                    {row.lines.length > 0 ? (
+                    {lines.length > 0 ? (
                         <div className="mt-cdash-meta" data-testid="companion-agent-lines">
-                            {row.lines.map((line, i) => (
+                            {lines.map((line, i) => (
                                 <span key={i} className="truncate" title={line}>
                                     {line}
                                 </span>

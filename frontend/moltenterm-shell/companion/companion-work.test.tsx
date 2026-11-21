@@ -911,8 +911,38 @@ describe("links from a task to its agent (#2392)", () => {
         const narrow = markup(view, withMilestone, 380);
         expect(narrow).not.toContain('data-testid="companion-work-links"');
         expect(narrow.match(/data-testid="companion-work-chip"/g)).toHaveLength(2);
-        expect(narrow).toContain("→ #41 fix the checkout total");
+        // The chip says who, never what: no task text repeats the row it stands on (#2441).
+        expect(narrow).not.toContain("→ #41");
         expect(narrow).not.toContain("→ Compare #35 with #41");
+    });
+
+    it("names a sub-agent on the chip by its type and its model, the main agent by its name (#2441)", () => {
+        const typed: CompanionView = {
+            ...view,
+            session: { ...view.session, branch: "feature/41-checkout" },
+            subagents: [
+                {
+                    id: "e",
+                    description: "#38 Build the receipt e-mail",
+                    kind: "general-purpose",
+                    model: "claude-sonnet-4-5",
+                    effort: "medium",
+                    background: true,
+                    state: "running",
+                    started: now - Min,
+                },
+            ],
+        };
+        const html = markup(typed, withMilestone, 380);
+        const chips = [...html.matchAll(/data-testid="companion-work-chip">(.*?)<\/span><\/span>/g)].map((m) =>
+            m[1].replace(/<[^>]+>/g, "")
+        );
+        expect(chips).toContain("→ general-purpose · Sonnet 4.5");
+        expect(chips.some((c) => c.startsWith("→ Claude Code"))).toBe(true);
+        expect(chips.join("|")).not.toContain("Build the receipt");
+        // The type never gives way: it sits whole, the model alone may truncate.
+        expect(html).toContain('<span class="shrink-0">→ general-purpose</span>');
+        expect(html).toContain('<span class="min-w-0 truncate"> · Sonnet 4.5</span>');
     });
 
     it("draws no line and no chip without a certain match", () => {

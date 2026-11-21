@@ -104,11 +104,13 @@
 
 /* When both notches do not fit, the tools give way first (their texts truncate), then the label. */
 .mt-cb-notch[data-side="label"] {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
+    max-width: 68%;
 }
 
 .mt-cb-notch[data-side="tools"] {
-    flex: 0 3 auto;
+    flex: 0 1 auto;
+    min-width: 0;
     margin-left: auto;
 }
 

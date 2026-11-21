@@ -33,12 +33,31 @@ export function IntegratedBadge({
     onOpen,
     className,
     persistent = false,
+    short = false,
 }: {
     onOpen: () => void;
     className?: string;
     persistent?: boolean;
+    // The hero's tools say it in a word, the full name in the tooltip and for assistive technology (#2441).
+    short?: boolean;
 }) {
     const t = useT();
+    const full = t(persistent ? "companion.integration.persistentTitle" : "companion.integration.title");
+    if (short) {
+        return (
+            <button
+                type="button"
+                onClick={onOpen}
+                title={full}
+                aria-label={full}
+                className={className}
+                data-testid="companion-integrated"
+            >
+                <i className="fa fa-solid fa-plug text-11" aria-hidden />
+                {t(persistent ? "companion.integration.persistentShort" : "companion.integration.short")}
+            </button>
+        );
+    }
     return (
         <button
             type="button"
