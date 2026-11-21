@@ -322,6 +322,8 @@ type AgentStateRequest struct {
 	Message string `json:"message,omitempty"`
 	TurnEnd bool   `json:"turnend,omitempty"`
 	Start   bool   `json:"start,omitempty"`
+	// TurnId identifies the hook's turn when the agent provides one; a completed turn rejects its late state reports.
+	TurnId string `json:"turnid,omitempty"`
 	// Subagent: the report is about a sub-agent of the pane's session (its agent_id, #1092), never the main session's
 	// state: working means it runs, done that it stopped.
 	Subagent string `json:"subagent,omitempty"`

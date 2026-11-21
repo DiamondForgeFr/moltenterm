@@ -146,7 +146,7 @@ func makeHookCaller(token string) (HookCaller, func()) {
 // does not know reports nothing.
 func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller) error {
 	state := func(s string, message string) error {
-		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: s, Agent: agent, Message: message})
+		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: s, Agent: agent, Message: message, TurnId: input.TurnId})
 	}
 	// A hook fired inside a sub-agent carries its agent_id (#1092): its work is the sub-agent's, the main session's
 	// prompt may be idle. An input without agent_id is the main session's, whatever the agent.
@@ -163,12 +163,12 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 		if input.HookEventName == HookEventPostToolUse && input.BackgroundTaskId != "" {
 			return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{
 				BlockId: blockId, State: AgentStateWorking, Agent: agent, BackgroundTask: input.BackgroundTaskId,
-				BackgroundDescription: input.ToolDescription, Transcript: absPath(input.TranscriptPath),
+				BackgroundDescription: input.ToolDescription, Transcript: absPath(input.TranscriptPath), TurnId: input.TurnId,
 			})
 		}
 		// The transcript rides with the state (#2142): a wavesrv restarted since SessionStart links the pane again
 		// from it, without a request of its own.
-		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateWorking, Agent: agent, Transcript: absPath(input.TranscriptPath)})
+		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateWorking, Agent: agent, Transcript: absPath(input.TranscriptPath), TurnId: input.TurnId})
 	case HookEventNotification:
 		// A sub-agent's question too: it shows in the main session's terminal, which waits for the developer.
 		if !ClaudeNotificationWaits(input) {
@@ -181,7 +181,7 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 		if input.AgentId != "" {
 			return subagent(AgentStateDone)
 		}
-		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateDone, Agent: agent, Transcript: absPath(input.TranscriptPath)})
+		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateDone, Agent: agent, Transcript: absPath(input.TranscriptPath), TurnId: input.TurnId})
 	case HookEventStopFailure:
 		return state(AgentStateError, input.Message)
 	case HookEventSubagentStart, HookEventSubagentStop:
@@ -265,6 +265,8 @@ func (input *HookInput) field(key string) *string {
 		return &input.Message
 	case "session_id":
 		return &input.SessionId
+	case "turn_id":
+		return &input.TurnId
 	case "transcript_path":
 		return &input.TranscriptPath
 	case "source":

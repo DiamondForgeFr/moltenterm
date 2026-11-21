@@ -31,6 +31,7 @@ type HookInput struct {
 	NotificationType    string `json:"notification_type"`
 	Message             string `json:"message"`
 	SessionId           string `json:"session_id"`
+	TurnId              string `json:"turn_id"`
 	TranscriptPath      string `json:"transcript_path"`
 	Source              string `json:"source"`
 	AgentId             string `json:"agent_id"`
