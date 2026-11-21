@@ -252,7 +252,9 @@ function FileRow({
                     >
                         <i className="fa fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
                     </button>
-                ) : null}
+                ) : (
+                    <span className="mt-cdash-fopen-slot" aria-hidden="true" />
+                )}
             </div>
             {open ? <FileDiffView target={target} path={file.path} edits={file.edits} /> : null}
         </div>

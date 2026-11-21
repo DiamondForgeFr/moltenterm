@@ -35,7 +35,25 @@ const files = [
     file(Long, "add"),
     file(Notes),
     file("/tmp/seed.json", "add"),
+    file("/w/src/old-filter.ts", "delete"),
 ];
+
+// The dashboard's stylesheet, read while the file is collected (collection has no timeout, #2274).
+const CssRules = postcss.parse(readFileSync(join(__dirname, "companion-dashboard.css"), "utf8"));
+
+function decls(selector: string): Map<string, string> {
+    const found = new Map<string, string>();
+    CssRules.walkRules((rule) => {
+        if (rule.selector.replace(/\s+/g, " ").trim() === selector) {
+            rule.each((node) => {
+                if (node.type === "decl") {
+                    found.set(node.prop, node.value);
+                }
+            });
+        }
+    });
+    return found;
+}
 
 function markup(): string {
     return renderToStaticMarkup(
@@ -77,7 +95,7 @@ describe("a changed file's path in its row (#2450)", () => {
 
     it("draws the file name whole in its own span and the folder before it, dimmed, from its start", () => {
         // The project's files come first, then the group outside the project.
-        expect(rows).toHaveLength(5);
+        expect(rows).toHaveLength(6);
         const outside = rows.filter((row) => row.startsWith(' data-outside=""'));
         expect(outside).toHaveLength(3);
         expect(nameOf(outside[0])).toBe("ticket-usage-slim.md");
@@ -108,20 +126,6 @@ describe("a changed file's path in its row (#2450)", () => {
     });
 
     it("lays a long path out so that its folder gives way, from its start, before its name does", () => {
-        const css = readFileSync(join(__dirname, "companion-dashboard.css"), "utf8");
-        const decls = (selector: string): Map<string, string> => {
-            const found = new Map<string, string>();
-            postcss.parse(css).walkRules((rule) => {
-                if (rule.selector.replace(/\s+/g, " ").trim() === selector) {
-                    rule.each((node) => {
-                        if (node.type === "decl") {
-                            found.set(node.prop, node.value);
-                        }
-                    });
-                }
-            });
-            return found;
-        };
         const path = decls(".mt-cdash-fpath");
         expect(path.get("display")).toBe("flex");
         expect(path.get("overflow")).toBe("hidden");
@@ -138,5 +142,58 @@ describe("a changed file's path in its row (#2450)", () => {
         expect(name.get("flex")).toBe("none");
         expect(name.get("max-width")).toBe("100%");
         expect(name.get("text-overflow")).toBe("ellipsis");
+    });
+});
+
+// The counts of a row (#2450): a right-aligned column at the row's end, after the path, which takes the remaining width,
+// and the tag; the numbers are right-aligned in tabular figures, so those of every row stand one under the other.
+describe("a changed file's counts in its row (#2450)", () => {
+    const rows = rowsOf(markup());
+
+    it("puts the path, which takes the width left, then the tag, then the counts, then the open tool", () => {
+        const outside = rows.find((row) => nameOf(row) === "ticket-usage-slim.md");
+        const at = [
+            'class="mt-cdash-fbutton"',
+            'class="mt-cdash-tag"',
+            'class="mt-cdash-fdelta"',
+            "mt-cdash-fopen",
+        ].map((mark) => outside.indexOf(mark));
+        expect(at.every((i) => i > -1)).toBe(true);
+        expect([...at].sort((a, b) => a - b)).toEqual(at);
+        const button = decls(".mt-cdash-fbutton");
+        expect(button.get("flex")).toBe("1");
+        expect(button.get("min-width")).toBe("0");
+        expect(decls(".mt-cdash-fpath").get("flex")).toBe("1");
+        expect(decls(".mt-cdash-frow").get("display")).toBe("flex");
+        // The row's own children never grow past their content, so the path alone takes what is left.
+        expect(decls(".mt-cdash-fdelta").get("flex")).toBe("none");
+    });
+
+    it("sets the added and the removed counts in two right-aligned tracks of tabular figures", () => {
+        const delta = decls(".mt-cdash-fdelta");
+        expect(delta.get("display")).toBe("grid");
+        expect(delta.get("grid-template-columns")).toBe("minmax(4ch, auto) minmax(3ch, auto)");
+        expect(delta.get("font-variant-numeric")).toBe("tabular-nums");
+        expect(delta.get("font-family")).toContain("mono");
+        expect(decls(".mt-cdash-fdelta > [data-add], .mt-cdash-fdelta > [data-del]").get("text-align")).toBe("right");
+        for (const row of rows) {
+            expect(row).toMatch(
+                /<span class="mt-cdash-fdelta"><span data-add="">\+\d+<\/span> <span data-del="">−\d+<\/span>/
+            );
+        }
+    });
+
+    it("keeps the open tool's place on a row that has none, so a deleted file's counts line up with the others'", () => {
+        const deleted = rows.find((row) => nameOf(row) === "old-filter.ts");
+        expect(deleted).toBeDefined();
+        expect(deleted).toContain('class="mt-cdash-fopen-slot"');
+        expect(deleted).not.toContain('mt-cdash-fopen"');
+        for (const row of rows.filter((r) => r !== deleted)) {
+            expect(row).toContain('mt-cdash-fopen"');
+            expect(row).not.toContain("mt-cdash-fopen-slot");
+        }
+        const slot = decls(".mt-cdash-fopen-slot");
+        expect(slot.get("width")).toBe(decls(".mt-cb-tool").get("min-width"));
+        expect(slot.get("flex")).toBe("none");
     });
 });

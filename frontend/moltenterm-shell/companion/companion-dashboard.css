@@ -1050,11 +1050,30 @@ button.mt-cb-chip-off:hover {
     text-overflow: ellipsis;
 }
 
+/* The counts are a column of their own, at the row's right end, whatever the path before them: the added (three digits
+   and the sign) and the removed (two digits and the sign) each right-aligned in a track, in tabular figures, so the
+   numbers of every row stand one under the other (#2450). The open tool's place is kept on a row that has none (a
+   deleted file). A bigger number widens its own row's track, which is rare enough to lose the alignment for. */
 .mt-cdash-fdelta {
+    display: grid;
     flex: none;
+    grid-template-columns: minmax(4ch, auto) minmax(3ch, auto);
+    column-gap: 1ch;
     font-family: var(--font-mono, monospace);
     font-size: var(--mt-text-11);
+    font-variant-numeric: tabular-nums;
     white-space: nowrap;
+}
+
+.mt-cdash-fdelta > [data-add],
+.mt-cdash-fdelta > [data-del] {
+    text-align: right;
+}
+
+.mt-cdash-fopen-slot {
+    flex: none;
+    width: 20px;
+    height: 20px;
 }
 
 .mt-cdash-fdelta > [data-add] {
