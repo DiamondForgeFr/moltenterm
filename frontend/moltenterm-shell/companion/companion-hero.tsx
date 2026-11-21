@@ -103,7 +103,6 @@ export function CompanionHero(props: CompanionHeroProps) {
             icon={<i className={makeIconClass(AiIcon, true)} aria-hidden="true" />}
             data-agent={agent}
             data-testid="companion-session-bar"
-            data-tip={[session?.path, session?.format].filter((s) => !!s).join("\n") || undefined}
             tools={
                 <>
                     {props.integrationDetails ? (
@@ -151,7 +150,7 @@ export function CompanionHero(props: CompanionHeroProps) {
                         </span>
                         <div className="mt-cdash-names">
                             <div className="mt-cdash-name-line">
-                                <span className="mt-cdash-name" data-tip={row.name} data-testid="companion-agent-main">
+                                <span className="mt-cdash-name" data-testid="companion-agent-main">
                                     {first}
                                 </span>
                                 {tool ? <span className="mt-cdash-provider">{tool}</span> : null}
@@ -209,7 +208,11 @@ export function CompanionHero(props: CompanionHeroProps) {
                     <div className="mt-cdash-meta">
                         {[
                             started,
-                            <span key="link" data-testid="companion-link">
+                            <span
+                                key="link"
+                                data-tip={[session?.path, session?.format].filter((s) => !!s).join("\n") || undefined}
+                                data-testid="companion-link"
+                            >
                                 {linkLabel(session)}
                             </span>,
                             session?.branch ? (

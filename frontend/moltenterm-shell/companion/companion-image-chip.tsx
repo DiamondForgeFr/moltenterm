@@ -8,7 +8,7 @@
 import { ImageIcon } from "lucide-react";
 import { Fragment } from "react";
 import { useT } from "../i18n/i18n";
-import { ImageAtAttr, ImageAttr, messageParts } from "./companion-tips-model";
+import { ImageAtAttr, ImageAttr, messageParts, pastedImageNumber } from "./companion-tips-model";
 
 export function ImageChip({ n, at }: { n: number; at?: number }) {
     const t = useT();
@@ -19,6 +19,13 @@ export function ImageChip({ n, at }: { n: number; at?: number }) {
             {t("companion.image.chip", { n })}
         </button>
     );
+}
+
+// The chip an answer's markdown link to #mt-image-N stands for (companionMarkdown), null for any other link: the markdown
+// renderer draws the placeholder as the chip of the hero and the topics, a list item's included.
+export function pastedImageChip(href: string): React.ReactElement {
+    const n = pastedImageNumber(href);
+    return n > 0 ? <ImageChip n={n} /> : null;
 }
 
 // MessageText: the text of a message, a chip in place of each of its image placeholders. at: the message's time.

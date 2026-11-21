@@ -23,9 +23,10 @@ import {
     ImageCache,
     ImageCacheBytes,
     imageLinks,
-    imageNumber,
     imageSource,
     messageParts,
+    tipAdds,
+    tipRepeats,
     tipTargetOf,
 } from "./companion-tips-model";
 
@@ -273,23 +274,45 @@ describe("the chips of pasted images (#2455)", () => {
 
 // ── Which element asks for a popover, and what it says ───────────────────────────────────────────────────────────────
 
-// Just enough of an element for the lookup: attributes, a parent and the three selectors it asks for.
-class FakeElement {
+// Just enough of an element for the lookup: attributes, a parent, its text, the room its text has and the attribute
+// selectors it asks for.
+class FakeNode {
+    parent: FakeNode = null;
+    kids: FakeNode[] = [];
     constructor(
-        public tag: string,
-        public attrs: Record<string, string>,
-        public parent: FakeElement = null,
-        public kids: FakeElement[] = []
-    ) {
-        parent?.kids.push(this);
+        public attrs: Record<string, string> = {},
+        public text = "",
+        // What the box holds and what it shows: a text cut by an ellipsis or a line count holds more than it shows.
+        public box = { scrollWidth: 100, clientWidth: 100, scrollHeight: 20, clientHeight: 20 },
+        public srOnly = false
+    ) {}
+    add(kid: FakeNode): FakeNode {
+        kid.parent = this;
+        this.kids.push(kid);
+        return kid;
+    }
+    get scrollWidth() {
+        return this.box.scrollWidth;
+    }
+    get clientWidth() {
+        return this.box.clientWidth;
+    }
+    get scrollHeight() {
+        return this.box.scrollHeight;
+    }
+    get clientHeight() {
+        return this.box.clientHeight;
     }
     get parentElement() {
         return this.parent;
     }
+    get textContent(): string {
+        return this.text + this.kids.map((k) => k.textContent).join("");
+    }
     getAttribute(name: string): string {
         return this.attrs[name] ?? null;
     }
-    contains(other: FakeElement): boolean {
+    contains(other: FakeNode): boolean {
         for (let el = other; el != null; el = el.parent) {
             if (el === this) {
                 return true;
@@ -297,62 +320,146 @@ class FakeElement {
         }
         return false;
     }
-    private matches(selector: string): boolean {
-        for (const part of selector.split(",").map((s) => s.trim())) {
-            const anchor = /^a\[href\^="([^"]*)"\]$/.exec(part);
-            if (anchor != null) {
-                if (this.tag === "a" && (this.attrs["href"] ?? "").startsWith(anchor[1])) {
-                    return true;
-                }
-                continue;
-            }
-            const attr = /^\[([\w-]+)\]$/.exec(part);
-            if (attr != null && this.attrs[attr[1]] != null) {
-                return true;
-            }
-        }
-        return false;
+    private all(): FakeNode[] {
+        return this.kids.flatMap((k) => [k, ...k.all()]);
     }
-    closest(selector: string): FakeElement {
+    querySelectorAll(selector: string): FakeNode[] {
+        return selector === ".sr-only" ? this.all().filter((n) => n.srOnly) : this.all();
+    }
+    querySelector(selector: string): FakeNode {
+        return this.querySelectorAll(selector)[0] ?? null;
+    }
+    cloneNode(): FakeNode {
+        const copy = new FakeNode({ ...this.attrs }, this.text, { ...this.box }, this.srOnly);
+        this.kids.forEach((k) => copy.add(k.cloneNode()));
+        return copy;
+    }
+    remove() {
+        this.parent.kids = this.parent.kids.filter((k) => k !== this);
+    }
+    private matches(selector: string): boolean {
+        return selector.split(",").some((part) => {
+            const attr = /^\[([\w-]+)\]$/.exec(part.trim());
+            return attr != null && this.attrs[attr[1]] != null;
+        });
+    }
+    closest(selector: string): FakeNode {
         return this.matches(selector) ? this : (this.parent?.closest(selector) ?? null);
     }
 }
 
+const Cut = { scrollWidth: 240, clientWidth: 120, scrollHeight: 20, clientHeight: 20 };
+const Clamped = { scrollWidth: 120, clientWidth: 120, scrollHeight: 51, clientHeight: 34 };
+
 describe("which element asks for a popover (#2455)", () => {
-    const panel = new FakeElement("div", {});
-    const row = new FakeElement("li", { "data-tip": "Branch: feature/1" }, panel);
-    const word = new FakeElement("span", {}, row);
-    const chip = new FakeElement("button", { [ImageAttr]: "4", [ImageAtAttr]: "1700" }, row);
-    const answer = new FakeElement("div", { [ImageAtAttr]: "555" }, panel);
-    const link = new FakeElement("a", { href: "#mt-image-12" }, answer);
-    const plain = new FakeElement("a", { href: "#heading" }, answer);
-    const outside = new FakeElement("span", { "data-tip": "elsewhere" });
+    const always = () => true;
+    const panel = new FakeNode();
+    const row = panel.add(new FakeNode({ "data-tip": "Branch: feature/1" }, "Fix the total"));
+    const word = row.add(new FakeNode());
+    const chip = row.add(new FakeNode({ [ImageAttr]: "4", [ImageAtAttr]: "1700" }, "Image #4"));
+    const outside = new FakeNode({ "data-tip": "elsewhere" });
 
     it("reads the nearest element above the pointer", () => {
-        expect(tipTargetOf(word as any, panel as any)).toEqual({
+        expect(tipTargetOf(word as any, panel as any, always)).toEqual({
             kind: "text",
             element: row,
             text: "Branch: feature/1",
         });
-        expect(tipTargetOf(row as any, panel as any)?.kind).toBe("text");
+        expect(tipTargetOf(row as any, panel as any, always)?.kind).toBe("text");
     });
 
     it("prefers a chip inside a row to the row's own text, and reads its message's time", () => {
-        expect(tipTargetOf(chip as any, panel as any)).toEqual({ kind: "image", element: chip, n: 4, at: 1700 });
+        expect(tipTargetOf(chip as any, panel as any, always)).toEqual({
+            kind: "image",
+            element: chip,
+            n: 4,
+            at: 1700,
+        });
     });
 
-    it("reads an answer's link as a chip, its time from the answer block", () => {
-        expect(tipTargetOf(link as any, panel as any)).toEqual({ kind: "image", element: link, n: 12, at: 555 });
-        expect(imageNumber(link as any)).toBe(12);
-        expect(tipTargetOf(plain as any, panel as any)).toBeNull();
+    it("reads the time of a chip from the nearest block that names one", () => {
+        const answer = panel.add(new FakeNode({ [ImageAtAttr]: "555" }));
+        const inList = answer.add(new FakeNode({ [ImageAttr]: "12" }));
+        expect(tipTargetOf(inList as any, panel as any, always)).toEqual({
+            kind: "image",
+            element: inList,
+            n: 12,
+            at: 555,
+        });
     });
 
     it("asks for nothing outside the panel, over text without a popover or without a target", () => {
-        expect(tipTargetOf(outside as any, panel as any)).toBeNull();
-        expect(tipTargetOf(panel as any, panel as any)).toBeNull();
-        expect(tipTargetOf(null, panel as any)).toBeNull();
-        const empty = new FakeElement("span", { "data-tip": "" }, panel);
-        expect(tipTargetOf(empty as any, panel as any)).toBeNull();
+        expect(tipTargetOf(outside as any, panel as any, always)).toBeNull();
+        expect(tipTargetOf(panel as any, panel as any, always)).toBeNull();
+        expect(tipTargetOf(null, panel as any, always)).toBeNull();
+        const empty = panel.add(new FakeNode({ "data-tip": "" }));
+        expect(tipTargetOf(empty as any, panel as any, always)).toBeNull();
+    });
+
+    it("passes over a popover that adds nothing and asks the element above that has one", () => {
+        const list = new FakeNode();
+        const group = list.add(new FakeNode({ "data-tip": "The whole group, with its branch" }, "Group"));
+        const title = group.add(new FakeNode({ "data-tip": "Search the settings" }, "Search the settings"));
+        expect(tipTargetOf(title as any, list as any)).toEqual({
+            kind: "text",
+            element: group,
+            text: "The whole group, with its branch",
+        });
+        const alone = new FakeNode();
+        const lone = alone.add(new FakeNode({ "data-tip": "Search the settings" }, "Search the settings"));
+        expect(tipTargetOf(lone as any, alone as any)).toBeNull();
+    });
+});
+
+describe("a popover opens only when it adds something (#2455)", () => {
+    it("compares the lines of the popover with what the element shows", () => {
+        expect(tipRepeats("Imported settings keep their order", "Imported settings keep their order")).toBe(true);
+        expect(tipRepeats("#824Imported settings", "#824 Imported settings")).toBe(true);
+        expect(tipRepeats("Redo it like Image #1: now", "Redo it like [Image #1]: now")).toBe(true);
+        expect(tipRepeats("Imported settings", "Ticket title: Imported settings")).toBe(false);
+        expect(tipRepeats("Week 63 %", "This week: 62.8 % used\nResets Fri 10:00")).toBe(false);
+        expect(tipRepeats("Fix the total · 2 files", "Fix the total\nBranch: feature/41")).toBe(false);
+        expect(tipRepeats("", "Refresh")).toBe(false);
+        expect(tipRepeats("anything", "")).toBe(false);
+    });
+
+    it("gives no popover to a row title shown in full with nothing more to say", () => {
+        const row = new FakeNode(
+            { "data-tip": "Imported settings keep their order" },
+            "Imported settings keep their order"
+        );
+        expect(tipAdds(row as any, "Imported settings keep their order")).toBe(false);
+    });
+
+    it("gives one to a title that is cut: by an ellipsis, by a clamped line count or inside the element", () => {
+        const cutRow = new FakeNode({}, "Imported settings keep their order", Cut);
+        expect(tipAdds(cutRow as any, "Imported settings keep their order")).toBe(true);
+        const clamped = new FakeNode({}, "A long prompt that takes three lines", Clamped);
+        expect(tipAdds(clamped as any, "A long prompt that takes three lines")).toBe(true);
+        const li = new FakeNode();
+        li.add(new FakeNode({}, "A long prompt", Clamped));
+        li.add(new FakeNode({}, " · 2 files"));
+        expect(tipAdds(li as any, "A long prompt")).toBe(true);
+    });
+
+    it("gives one that says more than the element shows", () => {
+        const row = new FakeNode({}, "Imported settings keep their order");
+        expect(tipAdds(row as any, "Ticket title: Imported settings keep their order")).toBe(true);
+        const week = new FakeNode({}, "Week 63 %");
+        expect(tipAdds(week as any, "This week: 62.8 % used\nResets Fri 10:00\nPer day: Mon 0 %")).toBe(true);
+        const path = new FakeNode({}, "settings/search-index.ts");
+        expect(tipAdds(path as any, "/work/lantern/src/settings/search-index.ts")).toBe(true);
+    });
+
+    it("gives one to an icon alone: the name of its action", () => {
+        const tool = new FakeNode({}, "");
+        expect(tipAdds(tool as any, "Copy the answer as markdown")).toBe(true);
+    });
+
+    it("does not count what only a screen reader gets as shown", () => {
+        const note = new FakeNode({}, "Plan usage: Kimi");
+        note.add(new FakeNode({}, ": Behind another provider, so not this agent's usage", undefined, true));
+        expect(tipAdds(note as any, "Behind another provider, so not this agent's usage")).toBe(true);
     });
 });
 
