@@ -48,8 +48,13 @@ type fakeForge struct {
 	// project scope).
 	statuses  map[int]string
 	statusErr error
-	calls     int
-	log       []string
+	// issueTypes: the repository's issue types, nil for a forge that does not answer them (#2454); epics: the open and
+	// closed issues of each type in each milestone, by milestone number and type; epicErr fails the call counting them.
+	issueTypes []string
+	epics      map[int]map[string]epicCount
+	epicErr    error
+	calls      int
+	log        []string
 }
 
 var statusTicketRegex = regexp.MustCompile(`t(\d+): issue\(number: \d+\)`)
@@ -64,6 +69,46 @@ func (f *fakeForge) statusAnswerOf(query string) ([]byte, error) {
 			nodes = append(nodes, map[string]any{"status": map[string]any{"name": name}})
 		}
 		repository["t"+m[1]] = map[string]any{"projectItems": map[string]any{"nodes": nodes}}
+	}
+	return json.Marshal(map[string]any{"data": map[string]any{"repository": repository}})
+}
+
+func (f *fakeForge) issueTypesAnswer() ([]byte, error) {
+	if f.issueTypes == nil {
+		return nil, errors.New("gh: Field 'issueTypes' doesn't exist on type 'Repository'")
+	}
+	nodes := []any{}
+	for _, name := range f.issueTypes {
+		nodes = append(nodes, map[string]any{"name": name})
+	}
+	return json.Marshal(map[string]any{"data": map[string]any{"repository": map[string]any{"issueTypes": map[string]any{"nodes": nodes}}}})
+}
+
+var epicMilestoneRegex = regexp.MustCompile(`m(\d+): milestone\(number: \d+\)`)
+
+// epicAnswerOf counts, for each milestone the query names, the issues of each type its -f eN=<type> variables give.
+func (f *fakeForge) epicAnswerOf(query string, vars []string) ([]byte, error) {
+	var types []string
+	for i := 0; i+1 < len(vars); i += 2 {
+		if vars[i] != "-f" {
+			return nil, fmt.Errorf("unexpected epic variable %v", vars)
+		}
+		name, value, _ := strings.Cut(vars[i+1], "=")
+		if name != fmt.Sprintf("e%d", len(types)) || strings.Contains(query, value) {
+			return nil, fmt.Errorf("a type name must go as a variable: %v", vars)
+		}
+		types = append(types, value)
+	}
+	repository := map[string]any{}
+	for _, m := range epicMilestoneRegex.FindAllStringSubmatch(query, -1) {
+		number, _ := strconv.Atoi(m[1])
+		counts := map[string]any{}
+		for i, name := range types {
+			c := f.epics[number][name]
+			counts[fmt.Sprintf("o%d", i)] = map[string]any{"totalCount": c.open}
+			counts[fmt.Sprintf("c%d", i)] = map[string]any{"totalCount": c.closed}
+		}
+		repository["m"+m[1]] = counts
 	}
 	return json.Marshal(map[string]any{"data": map[string]any{"repository": repository}})
 }
@@ -99,6 +144,15 @@ func (f *fakeForge) gh(_ context.Context, _ string, args ...string) ([]byte, err
 			return nil, f.statusErr
 		}
 		return f.statusAnswerOf(args[3])
+	}
+	if len(args) == 8 && args[1] == "graphql" && strings.Contains(args[3], "issueTypes(first:") {
+		return f.issueTypesAnswer()
+	}
+	if len(args) > 8 && args[1] == "graphql" && strings.Contains(args[3], "filterBy: {type:") {
+		if f.epicErr != nil {
+			return nil, f.epicErr
+		}
+		return f.epicAnswerOf(args[3], args[8:])
 	}
 	if len(args) != 2 || args[0] != "api" {
 		return nil, fmt.Errorf("unexpected gh call %v", args)
@@ -433,9 +487,9 @@ func TestAMilestonePastTheTabsIsReadWhenSelected(t *testing.T) {
 	if got := view.byTitle("1.5.0"); !got.Loaded || fmt.Sprint(ticketNumbers(got)) != "[500]" {
 		t.Errorf("the selected tab: %+v", got)
 	}
-	// One read: the milestones, the tickets of the first four and the selected one's, and the board's statuses.
-	if forge.count() != calls+7 {
-		t.Errorf("gh calls: %d, want %d", forge.count(), calls+7)
+	// One read: the milestones, the issue types (#2454), the tickets of the first four and the selected one's, and the board's statuses.
+	if forge.count() != calls+8 {
+		t.Errorf("gh calls: %d, want %d", forge.count(), calls+8)
 	}
 	if view.byTitle("1.6.0").Loaded {
 		t.Error("a milestone nobody selected was read")
@@ -447,8 +501,8 @@ func TestAMilestonePastTheTabsIsReadWhenSelected(t *testing.T) {
 	f.svc.Get(GetRequest{Dir: f.dir, Shown: true, Milestone: 999})
 	f.svc.Get(GetRequest{Dir: f.dir, Shown: true, Milestone: 1})
 	f.svc.waitIdle()
-	if forge.count() != calls+14 {
-		t.Errorf("a number that is no milestone, or a tab already read, started a read: %d calls, want %d", forge.count(), calls+14)
+	if forge.count() != calls+16 {
+		t.Errorf("a number that is no milestone, or a tab already read, started a read: %d calls, want %d", forge.count(), calls+16)
 	}
 }
 

@@ -263,6 +263,7 @@ export function CompanionWork(props: CompanionWorkProps) {
     const preview = m != null ? taskLists(m, tickets, holds, linkable) : null;
     const wanted = wantedTickets(preview?.rows).join(",");
     const [takenOpen, setTakenOpen] = useTakenOpen();
+    const [idleOpen, setIdleOpen] = useCompanionPref("idleopen");
     useEffect(() => {
         setWant(wanted ? wanted.split(",").map(Number) : []);
     }, [wanted]);
@@ -304,6 +305,8 @@ export function CompanionWork(props: CompanionWorkProps) {
                     lists={preview}
                     takenOpen={takenOpen}
                     onTakenChange={setTakenOpen}
+                    idleOpen={idleOpen}
+                    onIdleChange={setIdleOpen}
                     phrasing={milestones?.phrasing === true}
                     offer={offer}
                     links={tickets}

@@ -56,7 +56,7 @@ function rememberCompanionPrefs(patch: CompanionPrefs, onWritten?: () => void): 
 }
 
 export function useCompanionPref(
-    key: "filesopen" | "usagedetails" | "summariesasked"
+    key: "filesopen" | "usagedetails" | "summariesasked" | "idleopen"
 ): [boolean, (value: boolean) => void] {
     const client = useAtomValue(clientAtom());
     const stored = readCompanionPrefs(client?.meta?.[CompanionPrefsMetaKey])[key] === true;
