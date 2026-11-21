@@ -65,7 +65,7 @@ type oauthEngine struct {
 	credStamp   string
 	credChanged bool
 
-	fetchFn    func(context.Context) (UsageSnapshot, oauthOutcome)
+	fetchFn     func(context.Context) (UsageSnapshot, oauthOutcome)
 	endpoint    string
 	anyEndpoint bool
 	client      *http.Client
