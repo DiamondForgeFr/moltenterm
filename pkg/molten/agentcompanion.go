@@ -20,6 +20,8 @@ const (
 	CompanionUsageCommand   = "moltencompanionusage"
 	// A sub-agent's last message and transcript, for its card (FR-SHELL-104).
 	CompanionSubagentDetailCommand = "moltencompanionsubagentdetail"
+	// A pasted image of the session's transcript, for the chip of its "[Image #N]" placeholder (#2455).
+	CompanionImageCommand = "moltencompanionimage"
 	// The sessions of a block's folder, its current one first: the companion's history.
 	CompanionSessionsCommand = "moltencompanionsessions"
 	// Show or hide plan usage for the agent of a block (FR-SHELL-027).

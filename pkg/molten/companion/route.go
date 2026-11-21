@@ -53,6 +53,14 @@ type diffRequest struct {
 	Path    string `json:"path"`
 }
 
+// imageRequest names an image by its number in the session, never by a path. At: the time of the message that holds
+// its placeholder (Unix ms), when the window knows it.
+type imageRequest struct {
+	BlockId string `json:"blockid"`
+	N       int    `json:"n"`
+	At      int64  `json:"at,omitempty"`
+}
+
 type subagentDetailRequest struct {
 	BlockId string `json:"blockid"`
 	Id      string `json:"id"`
@@ -139,6 +147,12 @@ func (l *routeLink) handle(command string, caller localroute.Caller, data any) (
 			return nil, err
 		}
 		return l.m.Diff(req.BlockId, req.Path)
+	case molten.CompanionImageCommand:
+		var req imageRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.m.Image(req.BlockId, req.N, req.At)
 	case molten.CompanionSubagentDetailCommand:
 		var req subagentDetailRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {

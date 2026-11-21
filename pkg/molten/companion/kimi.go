@@ -464,7 +464,7 @@ func (a *KimiAdapter) parseKimiMessage(rec map[string]any, s *Session, at int64)
 	if str(msg, "role") != "user" || str(obj(msg, "origin"), "kind") != "user" {
 		return
 	}
-	text := kimiContentText(msg["content"])
+	text := kimiPromptText(msg["content"], &s.kimiImages)
 	s.NoteCommand(commandName(text))
 	s.StartTurn(at)
 	if clean := titlePrompt(text); clean != "" && !s.PromptInTurn(clean) {

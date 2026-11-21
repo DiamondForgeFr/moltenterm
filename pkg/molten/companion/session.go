@@ -144,6 +144,8 @@ type Session struct {
 	turnsEnded int
 	// turnOpen: a turn started, or the agent wrote in it, and its end is not recorded yet (#2257).
 	turnOpen bool
+	// kimiImages: the images Kimi Code's user messages held so far, which numbers the next one's placeholder (#2455).
+	kimiImages int
 	// recordAt: the time of the record being parsed, for the changes whose call does not carry it.
 	recordAt int64
 	// startedAt: the time of the first record; firstCommand: the first slash command, the title until a prompt.
