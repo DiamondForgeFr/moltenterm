@@ -72,10 +72,9 @@
     animation: mt-fade-in var(--mt-duration-fade) linear;
 }
 
-/* A pasted image's chip (#2455): the placeholder "[Image #N]" of a message, small and inline, in the action colour of
-   the companion's links. In an answer it is the markdown link the placeholder was made (#mt-image-N). */
-.mt-cdash-imgchip,
-.mt-cdash-answer a[href^="#mt-image-"] {
+/* A pasted image's chip (#2455): the placeholder "[Image #N]" of a message, small and inline: in a topic, in the hero's
+   subject and in the latest answer, where the markdown renderer draws the link the placeholder was made as this chip. */
+.mt-cdash-imgchip {
     display: inline-flex;
     align-items: baseline;
     gap: 3px;
@@ -94,14 +93,11 @@
     white-space: nowrap;
 }
 
-.mt-cdash-imgchip:hover,
-.mt-cdash-answer a[href^="#mt-image-"]:hover {
+.mt-cdash-imgchip:hover {
     border-color: var(--mt-text-3);
-    text-decoration: none;
 }
 
-.mt-cdash-imgchip:focus-visible,
-.mt-cdash-answer a[href^="#mt-image-"]:focus-visible {
+.mt-cdash-imgchip:focus-visible {
     outline: 1px solid var(--mt-text-3);
     outline-offset: 1px;
 }

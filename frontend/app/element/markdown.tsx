@@ -11,6 +11,7 @@ import {
     withoutRemoteCandidates, // MOLTENTERM-PATCH (#2045)
 } from "@/app/element/markdown-util";
 import { isRemoteImage, RemoteImageLink } from "../../moltenterm-shell/remote-image"; // MOLTENTERM-PATCH (#2045)
+import { pastedImageChip } from "../../moltenterm-shell/companion/companion-image-chip"; // MOLTENTERM-PATCH (#2455)
 import remarkMermaidToTag from "@/app/element/remark-mermaid-to-tag";
 import { boundNumber, useAtomValueSafe, cn } from "@/util/util";
 import clsx from "clsx";
@@ -48,6 +49,11 @@ const Link = ({
     props: React.AnchorHTMLAttributes<HTMLAnchorElement>;
     setFocusedHeading: (href: string) => void;
 }) => {
+    // MOLTENTERM-PATCH (#2455): the companion's answer links an "[Image #N]" placeholder to #mt-image-N: it is the chip of a pasted image.
+    const imageChip = pastedImageChip(props.href);
+    if (imageChip != null) {
+        return imageChip;
+    }
     const onClick = (e: React.MouseEvent) => {
         e.preventDefault();
         if (props.href.startsWith("#")) {

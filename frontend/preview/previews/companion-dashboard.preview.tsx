@@ -6,8 +6,8 @@
 // ?w=420|760|1200 the width, ?theme=light, ?agents=N more sub-agents, ?agent=waiting|idle, ?arrange=1, ?lang=fr,
 // ?usage=minimal|attached the plan usage's form (#2450), ?h=N a frame N px high holding the dashboard in the scroller the
 // app gives it (?scroll=end scrolled to the bottom), ?images=1 the messages name pasted images "[Image #N]" (#2455; the
-// chips read a small synthetic image drawn here, ?images=none gives them none), ?tip=<test id>[&tipat=N] a popover held
-// open on the Nth element of that test id (the screenshots' way of hovering).
+// chips read a small synthetic image drawn here, ?images=none gives them none), ?tip=<test id>[&tipat=N] (or
+// ?tipsel=<css selector>) a popover held open on the Nth such element (the screenshots' way of hovering).
 
 import { useEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
@@ -52,6 +52,7 @@ const UsageForm = query.get("usage");
 const FrameHeight = Number(query.get("h")) || 0;
 const Images = query.get("images");
 const HeldTip = query.get("tip");
+const HeldSelector = query.get("tipsel");
 const HeldTipAt = Number(query.get("tipat")) || 0;
 
 // A small synthetic picture (a drawing of a settings page) for the chips of ?images=1: nothing of anyone's.
@@ -362,7 +363,12 @@ function withImages(v: CompanionView): CompanionView {
         latest: {
             ...v.latest,
             at: Now - Min,
-            markdown: v.latest.markdown.replace("I built", "As in [Image #2], I built"),
+            markdown: v.latest.markdown
+                .replace("I built", "As in [Image #2], I built")
+                .replace(
+                    "- The search field filters the options as you type.",
+                    "- The search field filters the options as you type, as in [Image #3]."
+                ),
         },
     };
 }
@@ -390,12 +396,12 @@ export function CompanionDashboardPreview() {
     }, []);
     // ?tip=<test id>: the pointer rests on the element once the blocks are placed, as a screenshot needs it.
     useEffect(() => {
-        if (!HeldTip) {
+        if (!HeldTip && !HeldSelector) {
             return;
         }
         let tries = 0;
         const timer = setInterval(() => {
-            const element = document.querySelectorAll(`[data-testid="${HeldTip}"]`)[HeldTipAt];
+            const element = document.querySelectorAll(HeldSelector || `[data-testid="${HeldTip}"]`)[HeldTipAt];
             if (element != null) {
                 element.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "mouse" }));
                 clearInterval(timer);

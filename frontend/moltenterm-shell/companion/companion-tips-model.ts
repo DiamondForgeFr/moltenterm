@@ -4,7 +4,10 @@
 // The companion's popovers (FR-SHELL-018, #2455), pure: which element asks for one, what it says, how long it waits.
 // An element names its hover text with data-tip instead of a native title (a test lists the companion's sources for
 // any title left); a pasted image's chip names its number with data-image, and the answer's markdown, whose links are
-// the only elements it can place, gets #mt-image-N links from imageLinks.
+// the only elements it can place, gets #mt-image-N links from imageLinks, which its renderer draws as the same chip.
+//
+// A popover opens only when it adds something to what the element shows: its text is cut on screen, or it says more
+// than the element does (a full path, an exact date, the name of an action on an icon). tipAdds decides.
 
 // The text of an element's popover. A line break starts a new line in it.
 export const TipAttr = "data-tip";
@@ -40,13 +43,9 @@ function elementOf(node: EventTarget): Element {
     return (node as Node).parentElement ?? null;
 }
 
-// imageNumber is the number a chip names: its data-image, or the one its answer link's address holds.
-export function imageNumber(element: Element): number {
-    const attr = Number(element.getAttribute(ImageAttr));
-    if (attr > 0) {
-        return attr;
-    }
-    const m = AnswerImageHref.exec(element.getAttribute("href") ?? "");
+// The number an answer's link to #mt-image-N names, 0 for any other address.
+export function pastedImageNumber(href: string): number {
+    const m = AnswerImageHref.exec(href ?? "");
     return m == null ? 0 : Number(m[1]);
 }
 
@@ -56,19 +55,75 @@ export function imageTime(element: Element): number {
     return at > 0 ? at : 0;
 }
 
-// tipTargetOf is what the nearest element at or above a node asks to show, null when none asks.
-export function tipTargetOf(node: EventTarget, within: Element = null): TipTarget {
-    const start = elementOf(node);
-    const element = start?.closest(`[${TipAttr}], [${ImageAttr}], a[href^="#mt-image-"]`) as HTMLElement;
-    if (element == null || (within != null && !within.contains(element))) {
-        return null;
+// The text an element shows, without what only a screen reader gets.
+function visibleTextOf(element: Element): string {
+    if (typeof element.querySelector !== "function" || element.querySelector(".sr-only") == null) {
+        return element.textContent ?? "";
     }
-    const n = imageNumber(element);
-    if (n > 0) {
-        return { kind: "image", element, n, at: imageTime(element) };
+    const copy = element.cloneNode(true) as Element;
+    copy.querySelectorAll(".sr-only").forEach((hidden) => hidden.remove());
+    return copy.textContent ?? "";
+}
+
+// Whitespace and the brackets of a placeholder do not tell a text from what the element shows ("[Image #2]" shows as
+// the chip "Image #2").
+function plain(text: string): string {
+    return text.replace(/[\s[\]]+/g, "");
+}
+
+// tipRepeats: every line of the popover's text is already in the text the element shows.
+export function tipRepeats(shown: string, tip: string): boolean {
+    const visible = plain(shown ?? "");
+    const lines = (tip ?? "")
+        .split("\n")
+        .map(plain)
+        .filter((line) => line !== "");
+    return lines.length > 0 && lines.every((line) => visible.includes(line));
+}
+
+const MaxClipChecks = 200;
+
+function clippedBox(element: Element): boolean {
+    if (element.scrollWidth <= element.clientWidth + 1 && element.scrollHeight <= element.clientHeight + 1) {
+        return false;
     }
-    const text = element.getAttribute(TipAttr);
-    return text ? { kind: "text", element, text } : null;
+    if (typeof getComputedStyle !== "function") {
+        return true;
+    }
+    const style = getComputedStyle(element);
+    return style.overflowX !== "visible" || style.overflowY !== "visible";
+}
+
+// isClipped: the element, or something inside it, shows less than its text: an ellipsis, a clamped line count.
+export function isClipped(element: Element): boolean {
+    if (clippedBox(element)) {
+        return true;
+    }
+    const inside = typeof element.querySelectorAll === "function" ? Array.from(element.querySelectorAll("*")) : [];
+    return inside.slice(0, MaxClipChecks).some(clippedBox);
+}
+
+// tipAdds: the popover is worth opening. It repeats nothing the element already shows in full.
+export function tipAdds(element: Element, text: string): boolean {
+    return !tipRepeats(visibleTextOf(element), text) || isClipped(element);
+}
+
+// tipTargetOf is what the nearest element at or above a node asks to show, null when none asks. A popover that adds
+// nothing to its element is passed over: the next element above that has one that adds is asked instead.
+export function tipTargetOf(node: EventTarget, within: Element = null, adds = tipAdds): TipTarget {
+    let element = elementOf(node)?.closest(`[${TipAttr}], [${ImageAttr}]`) as HTMLElement;
+    while (element != null && (within == null || within.contains(element))) {
+        const n = Number(element.getAttribute(ImageAttr));
+        if (n > 0) {
+            return { kind: "image", element, n, at: imageTime(element) };
+        }
+        const text = element.getAttribute(TipAttr);
+        if (text && adds(element, text)) {
+            return { kind: "text", element, text };
+        }
+        element = element.parentElement?.closest(`[${TipAttr}], [${ImageAttr}]`) as HTMLElement;
+    }
+    return null;
 }
 
 // The message text as parts: the text between the placeholders and the numbers the placeholders name.
