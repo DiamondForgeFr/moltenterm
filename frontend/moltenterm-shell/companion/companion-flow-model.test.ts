@@ -102,7 +102,7 @@ describe("the flow's invariants at 420, 760 and 1200 px (#2441)", () => {
         expect(r.items.map((p) => p.column)).toEqual([0, 1, 2, 1]);
     });
 
-    it("chooses the columns again only when the structure changes", () => {
+    it("keeps each block's column while the column count stays: only a new block is placed anew", () => {
         const blocks = blocksOf([300, 100, 100, 50]);
         const first = flowLayout(blocks, 1200);
         // b1 grows past b0: sticky, b3 stays under b1.
@@ -112,13 +112,41 @@ describe("the flow's invariants at 420, 760 and 1200 px (#2441)", () => {
             first.assign
         );
         expect(grown.items.find((p) => p.id === "b3").column).toBe(1);
-        // A block hidden is a new structure: the shortest columns are chosen again.
+        // A block hidden leaves the others where they stand.
         const fewer = flowLayout(
             blocks.filter((b) => b.id !== "b2").map((b) => (b.id === "b1" ? { ...b, height: 900 } : b)),
             1200,
             grown.assign
         );
-        expect(fewer.items.find((p) => p.id === "b3").column).toBe(2);
+        expect(fewer.items.map((p) => [p.id, p.column])).toEqual([
+            ["b0", 0],
+            ["b1", 1],
+            ["b3", 1],
+        ]);
+        // Another column count chooses the columns again.
+        expect(flowLayout(blocks, 760, fewer.assign).items.map((p) => p.column)).toEqual([0, 1, 1, 1]);
+    });
+
+    it("never swaps the columns as the permission request comes and goes, whatever the heights became", () => {
+        const topics: FlowBlock = { id: "topics", height: 120 };
+        const files: FlowBlock = { id: "files", height: 300 };
+        const answer: FlowBlock = { id: "answer", height: 80 };
+        const permission: FlowBlock = { id: "permission", height: 140, full: true };
+        let r = flowLayout([topics, files, answer], 760);
+        const columns = () => Object.fromEntries(r.items.map((p) => [p.id, p.column]));
+        const start = columns();
+        expect(start).toEqual({ topics: 0, files: 1, answer: 0 });
+        // Topics grows past files: a fresh pass would now put answer under files.
+        const taller = { ...topics, height: 600 };
+        r = flowLayout([taller, files, answer], 760, r.assign);
+        expect(columns()).toEqual(start);
+        for (let i = 0; i < 3; i++) {
+            r = flowLayout([permission, taller, files, answer], 760, r.assign);
+            expect(columns()).toEqual({ ...start, permission: 0 });
+            expect(r.items.find((p) => p.id === "answer").y).toBe(140 + FlowGapYPx + 600 + FlowGapYPx);
+            r = flowLayout([taller, files, answer], 760, r.assign);
+            expect(columns()).toEqual(start);
+        }
     });
 
     it("leaves nothing for an empty flow", () => {

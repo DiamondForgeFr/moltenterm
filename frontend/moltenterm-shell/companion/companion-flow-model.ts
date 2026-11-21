@@ -3,8 +3,9 @@
 
 // The companion's flow (FR-SHELL-018, #2441): its blocks in columns by the companion's width, each into the shortest
 // column in the arranged order, a full-width block under the tallest column across them all, and the milestone with the
-// agents at work side by side as a pair. A column is chosen again only on a structural change (the key below): a block
-// that grows pushes the blocks under it in its column and nothing else. Pure, so it is tested without a window.
+// agents at work side by side as a pair. A block keeps its column while the column count and the mode stay; only a
+// block that appears is placed anew. A block that grows pushes the blocks under it in its column and nothing else.
+// Pure, so it is tested without a window.
 
 // One visible gutter everywhere: the companion's edges, between columns, and from a block's bottom to the top of the
 // next block's label, which stands half a notch (18 px) above its border.
@@ -58,6 +59,11 @@ export function flowKey(blocks: FlowBlock[], columns: number, arranging: boolean
     return `${columns}|${blocks.map((b) => b.id + (b.full ? "*" : "")).join(",")}|${arranging ? "a" : ""}`;
 }
 
+function sameFrame(key: string, columns: number, arranging: boolean): boolean {
+    const parts = (key ?? "").split("|");
+    return parts[0] === String(columns) && parts[parts.length - 1] === (arranging ? "a" : "");
+}
+
 // Where each block goes, x and y from the flow's top left corner (inside the companion's gutter). previous is the
 // assignment the last call returned: its columns hold while the structure's key is the same.
 export function flowLayout(
@@ -71,7 +77,9 @@ export function flowLayout(
     const innerWidth = Math.max(0, companionWidth - 2 * FlowGutterPx);
     const columnWidth = Math.max(0, (innerWidth - FlowGutterPx * (n - 1)) / n);
     const key = flowKey(blocks, n, arranging);
-    const sticky = previous?.key === key ? previous.columns : {};
+    // While the column count and the mode stay, each block keeps its column: a block that appears or goes (the
+    // permission request with each approval) places only itself, so the others never swap back and forth.
+    const sticky = previous != null && sameFrame(previous.key, n, arranging) ? previous.columns : {};
     const columns: Record<string, number> = {};
     const tops = new Array<number>(n).fill(0);
     const byId = new Map(blocks.map((b) => [b.id, b]));
