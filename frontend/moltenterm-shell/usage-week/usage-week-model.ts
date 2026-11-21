@@ -64,6 +64,21 @@ export type UsageWeekLine = {
 // must match DeducedDayUnknown in pkg/molten/usage/usage.go
 export const DayUnknown = -1;
 
+// The narrowest day block a figure fits under without touching its neighbour's: three tabular digits at 11 px ("130")
+// and a little air (#2451).
+export const MinFigureBlockPx = 24;
+// What the grid takes beside its seven blocks: the label column at its widest (6.25rem), the percent (52 px) and the
+// eight 3 px gaps between the nine columns.
+const GridChromePx = 100 + 52 + 8 * 3;
+// The grid width under which the figures go (usage-week.css, @container max-width): below it a block is narrower than
+// MinFigureBlockPx.
+export const DayFiguresMinGridPx = GridChromePx + 7 * MinFigureBlockPx;
+
+// How wide each day block is in a grid of that width.
+export function dayBlockPx(gridPx: number): number {
+    return (gridPx - GridChromePx) / 7;
+}
+
 // The windows the seven days tell something of: a week (Claude's per-model weeks included) and a week deduced from the
 // month. Any other window is a plain gauge (#2451).
 export function isWeekWindow(window: UsageWindow): boolean {

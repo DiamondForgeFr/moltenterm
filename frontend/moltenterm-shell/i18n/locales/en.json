@@ -2430,7 +2430,8 @@
                 "month": "Month",
                 "spend": "Spend",
                 "model": "Week ({name})",
-                "weekDeduced": "Week (from the month)"
+                "weekDeduced": "Week",
+                "fromMonth": "from the month"
             },
             "reason": {
                 "notsetup": "Status line not set up",
@@ -2481,7 +2482,12 @@
             "updated": "Updated {ago}",
             "staleRefresh": "It refreshes the next time the agent runs.",
             "staleLine": "Last reading, updated {ago}. {when}",
-            "deducedExplain": "Deduced by MoltenTerm from the month, which is all the provider gives: the week's budget is the monthly limit × 7 ÷ the days of the current monthly window. MoltenTerm records the monthly share used at each day's first and latest reading, on this computer, and a day's use is the rise between readings. The week starts on Monday; above 100 %, it uses more than its share of the month. Days before MoltenTerm recorded anything are left empty.",
+            "countDays": "{count} d",
+            "countHours": "{count} h",
+            "monthResetInDays": "Monthly reset in {count} days, {when}",
+            "monthResetInDay": "Monthly reset in {count} day, {when}",
+            "monthResetInHours": "Monthly reset in {count} h, {when}",
+            "deducedExplain": "Deduced by MoltenTerm from the month, which is all the provider gives: the week's budget is the monthly limit × 7 ÷ the days of the current monthly window. MoltenTerm records the monthly share used at each day's first and latest reading, on this computer, and a day's use is the rise between readings. The week starts on Monday only for this calculation: what resets is the month, whose reset day is ringed in the week that holds it. Above 100 %, the week uses more than its share of the month. Days before MoltenTerm recorded anything are left empty.",
             "title": "Plan usage",
             "show": "Show plan usage",
             "unavailable": "Plan usage unavailable",

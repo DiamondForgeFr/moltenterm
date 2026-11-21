@@ -325,10 +325,11 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         expect(title).toContain("Resets ");
         expect(title).toMatch(/Per day: (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %(, (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %){6}/);
         expect(title).toContain("From the Claude Code status line");
-        // The full block draws the figures, so its rows say them once.
+        // The full block draws the figures, so its rows' accessible names do not repeat them; its tooltip keeps them,
+        // since a narrow grid hides the figures (#2451).
         const full = flowBlock(shown(DefaultCompanionLayout), "usage");
         expect(full).not.toContain("per day:");
-        expect(full).not.toContain("Per day:");
+        expect(full).toMatch(/title="This week: 63 % used[^"]*Per day: /);
     });
 
     it("keeps the usage page, the refresh and the full block one click away from the minimal form", () => {

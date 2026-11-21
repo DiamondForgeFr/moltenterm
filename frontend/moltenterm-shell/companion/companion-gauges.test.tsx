@@ -238,8 +238,8 @@ describe("plan usage section", () => {
         expect(html).toContain('data-compact="true"');
         expect(windowsOf(html)).toEqual(["session", "week"]);
         expect(percentsOf(html)).toEqual(["24 %", "82 %"]);
-        expect(html).toContain(
-            'data-tip="This week: 82 % used\nResets Fri 10:00\nFrom the Claude Code status line · Updated 3 min ago"'
+        expect(html).toMatch(
+            /data-tip="This week: 82 % used\nResets Fri 10:00\nPer day: [^"\n]+\nFrom the Claude Code status line · Updated 3 min ago"/
         );
         expect(html).not.toContain('data-testid="usage-week-note"');
         expect(html).toContain('aria-label="Plan usage details"');

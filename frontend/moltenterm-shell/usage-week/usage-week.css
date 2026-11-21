@@ -20,10 +20,10 @@
 }
 
 /* A surface that shows one agent labels each row by its window (#2102): the first column takes what a short label needs,
-   up to 8.75rem ("Week (from the month)", #2451), and the label is cut with an ellipsis when the room is short. The day blocks keep a minimum width, so a
+   up to 6.25rem, and the label is cut with an ellipsis when the room is short. The day blocks keep a minimum width, so a
    narrow panel shortens the labels, never the blocks. */
 .mt-uw[data-labelled="true"] {
-    --mt-uw-first: minmax(0, 8.75rem);
+    --mt-uw-first: minmax(0, 6.25rem);
     --mt-uw-block-min: 12px;
 }
 
@@ -35,6 +35,17 @@
     line-height: 1.2;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* A label on two lines (#2451): its window, and under it a small dimmed word of how it is known ("from the month"). */
+.mt-uw-label-sub {
+    display: block;
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 1.1;
+    opacity: 0.85;
+    text-overflow: ellipsis;
 }
 
 /* A line under a row, across the grid: closer to its row than the rows are to each other. */
@@ -229,6 +240,26 @@ button.mt-uw-logo:focus-visible {
     opacity: 0.45;
 }
 
+/* A percent with a small count before it (#2451): the count to a monthly reset, dimmed, in a chip the size of the
+   text. */
+.mt-uw-pct-chipped {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.mt-uw-chip {
+    padding: 0 4px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+}
+
 .mt-uw-pct {
     color: var(--mt-uw-pace, var(--mt-text-1));
     font-weight: 600;
@@ -263,6 +294,16 @@ button.mt-uw-logo:focus-visible {
 @container (min-width: 400px) {
     .mt-uw-unit {
         display: inline;
+    }
+}
+
+/* Under DayFiguresMinGridPx (usage-week-model.ts) a day block is too narrow for "100" or "130": the figures would run
+   into each other, so their whole line goes (the two pads with them, so the grid keeps its columns) and they stay in
+   the row's tooltip (#2451). */
+@container (max-width: 343.98px) {
+    .mt-uw-share,
+    .mt-uw-share-pad {
+        display: none;
     }
 }
 

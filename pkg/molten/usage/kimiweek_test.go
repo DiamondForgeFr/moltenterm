@@ -226,6 +226,52 @@ func TestKimiNeverWritesUnderKimiHome(t *testing.T) {
 	}
 }
 
+func TestKimiReadingsGoOnlyWhenTheSourceTurnsOff(t *testing.T) {
+	history := filepath.Join(t.TempDir(), kimiHistoryDir, kimiHistoryFile)
+	exists := func() bool {
+		_, err := os.Stat(history)
+		return err == nil
+	}
+	f := newKimiWeekFixture(t, history, nil, nil)
+	a := kimiTestAdapter{f.src}
+	if _, err := f.src.Read(fetchCtx(), "k1"); err != nil || !exists() {
+		t.Fatalf("a reading is recorded: %v", err)
+	}
+	// An unrelated edit of settings.json, the source still on.
+	unrelated := kimiOn()
+	unrelated.CompanionUsageClaudeOAuth = true
+	SyncSources(a, unrelated)
+	if !exists() {
+		t.Fatal("an unrelated settings change never wipes the readings")
+	}
+	// The gauges turned off for Kimi: on to off.
+	SyncSources(a, &wconfig.SettingsType{CompanionUsageKimiOAuth: true})
+	if exists() {
+		t.Fatal("removing kimi from companion:usagegauges deletes the readings")
+	}
+	// Off and still off: another edit while off keeps what exists.
+	f.src.history.record(UsageSnapshot{Agent: "kimi", Windows: []UsageWindow{novemberMonth()}}, f.clock.now())
+	SyncSources(a, &wconfig.SettingsType{CompanionUsageKimiOAuth: true, TermFontSize: 13})
+	if !exists() {
+		t.Fatal("off to off is no transition")
+	}
+
+	// MoltenTerm starting with the source off: nothing is known yet, nothing goes.
+	restarted := newKimiWeekFixture(t, history, nil, nil)
+	SyncSources(kimiTestAdapter{restarted.src}, &wconfig.SettingsType{})
+	if !exists() {
+		t.Fatal("a source never seen on deletes nothing")
+	}
+	// The source's own opt-in turned off after it was on.
+	SyncSources(kimiTestAdapter{restarted.src}, kimiOn())
+	off := kimiOn()
+	off.CompanionUsageKimiOAuth = false
+	SyncSources(kimiTestAdapter{restarted.src}, off)
+	if exists() {
+		t.Fatal("companion:usagekimioauth turned off deletes the readings")
+	}
+}
+
 func TestKimiReadingGetsTheDeducedWeekBeforeTheMonth(t *testing.T) {
 	f := newKimiWeekFixture(t, filepath.Join(t.TempDir(), kimiHistoryFile), nil, nil)
 	snap, err := f.src.Read(fetchCtx(), "k1")

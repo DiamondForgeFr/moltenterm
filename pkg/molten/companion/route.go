@@ -303,6 +303,9 @@ func Start() {
 	m.startProcessLinks()
 	usage.DefaultCodexUsage.SetTranscript(m.CodexLimits)
 	wconfig.GetWatcher().RegisterUpdateHandler(func(config wconfig.FullConfigType) {
+		if settingsUnreadable(config) {
+			return
+		}
 		m.settingsChanged(&config.Settings)
 		go func() {
 			defer func() {
