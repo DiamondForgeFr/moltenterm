@@ -87,8 +87,8 @@ describe("the companion's saved layout (#2395)", () => {
         const prefs = written(0).meta[CompanionPrefsMetaKey];
         expect(prefs.filesopen).toBe(true);
         expect(prefs.layout.map((p) => p.id)).toEqual(arranged.map((p) => p.id));
-        expect(prefs.layout.find((p) => p.id === "answer")).toEqual({ id: "answer", column: "full", hidden: true });
-        expect(shown()).toBe("files,usage,tasks,agents,permission,topics,answer!,task");
+        expect(prefs.layout.find((p) => p.id === "answer")).toEqual({ id: "answer", span: "flow", hidden: true });
+        expect(shown()).toBe("files,permission,tasks,agents,usage,topics,answer!,task");
         await settleWrites();
     });
 
@@ -101,14 +101,14 @@ describe("the companion's saved layout (#2395)", () => {
         globalStore.set(metaAtom(), { [CompanionPrefsMetaKey]: { layout: arranged } });
         saveCompanionLayout(arranged);
         expect(setMeta).toHaveBeenCalledTimes(1);
-        expect(shown()).toBe("files,usage,tasks,agents,permission,topics,answer,task");
+        expect(shown()).toBe("files,permission,tasks,agents,usage,topics,answer,task");
         globalStore.set(metaAtom(), {});
     });
 
     it("keeps the layout across a restart: it is read back from the client's meta, in every companion", () => {
         const arranged = setSectionHidden(moveSection(DefaultCompanionLayout, 4, 0), "files", true);
         globalStore.set(metaAtom(), { [CompanionPrefsMetaKey]: { filesopen: false, layout: arranged } });
-        expect(shown()).toBe("topics,usage,tasks,agents,permission,answer,task,files!");
+        expect(shown()).toBe("topics,permission,tasks,agents,usage,answer,task,files!");
         globalStore.set(metaAtom(), {});
     });
 
@@ -130,13 +130,13 @@ describe("the companion's saved layout (#2395)", () => {
         globalStore.set(metaAtom(), {
             [CompanionPrefsMetaKey]: {
                 layout: [
-                    { id: "files", column: "full" },
-                    { id: "gone", column: "full" },
-                    { id: "tasks", column: "middle" },
+                    { id: "files", span: "flow" },
+                    { id: "gone", span: "full" },
+                    { id: "tasks", span: "middle" },
                 ],
             },
         });
-        expect(shown()).toBe("files,usage,tasks,agents,permission,topics,answer,task");
+        expect(shown()).toBe("files,tasks,permission,agents,usage,topics,answer,task");
         globalStore.set(metaAtom(), {});
     });
 });

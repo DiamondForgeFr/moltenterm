@@ -9,13 +9,15 @@
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { openLink } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { useId } from "react";
+import { Flag } from "lucide-react";
+import { useId, useRef, useState } from "react";
 import { useLocale, useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { boardStatusText } from "../reviews/reviews-upcoming-model";
 import { StateMark, StateMarkKind } from "../state-mark";
-import { DominoLoader, SectionBlock, suiteTabId } from "../suite/suite";
-import { suiteIcon } from "../suite/suite-icons";
+import { DominoLoader, nextToggleIndex, suiteTabId, SuiteTabs } from "../suite/suite";
+import { CompanionBlock, FootLink, MoreButton } from "./companion-block";
+import { capList } from "./companion-flow-model";
 import { ownerNames, stripSquares, TaskLists, TicketHold, TicketOwner } from "./companion-holds-model";
 import {
     daysLate,
@@ -106,6 +108,9 @@ export type TasksBlockProps = {
     offer: SummariesOffer;
     links: Map<number, LinkAgent[]>;
     now: number;
+    // The block's place in the companion's flow, and what the flow attaches to it (the pointer on its link ends).
+    flowId?: string;
+    blockProps?: React.HTMLAttributes<HTMLElement>;
 } & EndMarks;
 
 function standingText(
@@ -142,7 +147,20 @@ function StandingMark({ standing, text, size }: { standing: Standing; text?: str
 }
 
 export function TasksBlock(props: TasksBlockProps) {
-    const { loading, milestones, selected, onSelect, width, lists, takenOpen, onTakenChange, now, ...marks } = props;
+    const {
+        loading,
+        milestones,
+        selected,
+        onSelect,
+        width,
+        lists,
+        takenOpen,
+        onTakenChange,
+        now,
+        flowId,
+        blockProps,
+        ...marks
+    } = props;
     const t = useT();
     const tCount = useTCount();
     const panelId = useId();
@@ -192,14 +210,16 @@ export function TasksBlock(props: TasksBlockProps) {
         : undefined;
     const footer = tabbed && selected.url ? <OpenMilestone url={selected.url} /> : undefined;
     return (
-        <SectionBlock
-            title={tabbed ? undefined : t("companion.tasks")}
-            tabs={tabs}
-            icon={suiteIcon("tasks")}
-            footer={footer}
+        <CompanionBlock
+            flowId={flowId}
+            label={tabbed ? undefined : t("companion.tasks")}
+            tabs={tabs != null ? <BlockTabs tabs={tabs} /> : undefined}
+            icon={<Flag strokeWidth={2} aria-hidden />}
+            foot={footer}
             aria-label={tabbed ? t("companion.tasks") : undefined}
             className="mt-cwork-block"
             data-testid="companion-tasks"
+            {...blockProps}
         >
             {loading ? (
                 <div className="flex items-center gap-2 text-12 text-muted" data-testid="companion-milestone-loading">
@@ -243,22 +263,76 @@ export function TasksBlock(props: TasksBlockProps) {
                     </div>
                 </div>
             ) : null}
-        </SectionBlock>
+        </CompanionBlock>
+    );
+}
+
+// The tabs of the block's label: one tab stop on the selected tab, the arrows and Home / End move and choose (WAI-ARIA
+// tabs with automatic activation, as the suite's blocks have them).
+function BlockTabs({ tabs }: { tabs: SuiteTabs }) {
+    const listRef = useRef<HTMLSpanElement>(null);
+    const selectedIndex = tabs.tabs.findIndex((tab) => tab.value === tabs.selected);
+    const tabStop = selectedIndex < 0 ? 0 : selectedIndex;
+    const onKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
+        const nodes = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? []);
+        const next = nextToggleIndex(e.key, nodes.indexOf(document.activeElement as HTMLElement), tabs.tabs.length);
+        if (next < 0) {
+            return;
+        }
+        e.preventDefault();
+        nodes[next]?.focus();
+        tabs.onSelect(tabs.tabs[next].value);
+    };
+    return (
+        <span
+            ref={listRef}
+            role="tablist"
+            aria-label={tabs.label}
+            className="flex min-w-0 items-center gap-1.5"
+            onKeyDown={onKeyDown}
+        >
+            {tabs.tabs.map((tab, i) => (
+                <button
+                    key={tab.value}
+                    type="button"
+                    role="tab"
+                    id={tabs.panelId ? suiteTabId(tabs.panelId, tab.value) : undefined}
+                    aria-selected={tab.value === tabs.selected}
+                    aria-controls={tabs.panelId}
+                    tabIndex={i === tabStop ? 0 : -1}
+                    title={tab.title}
+                    className={cn("mt-cb-chip", tab.value !== tabs.selected && "mt-cb-chip-off")}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        tabs.onSelect(tab.value);
+                    }}
+                >
+                    <span className="mt-cb-chip-text">{tab.label}</span>
+                    {tab.mark}
+                </button>
+            ))}
+            {tabs.more ? (
+                <button
+                    type="button"
+                    aria-haspopup="menu"
+                    title={tabs.more.title}
+                    className="mt-cb-chip mt-cb-chip-off"
+                    data-mono=""
+                    onClick={tabs.more.onOpen}
+                >
+                    {tabs.more.label}
+                </button>
+            ) : null}
+        </span>
     );
 }
 
 function OpenMilestone({ url }: { url: string }) {
     const t = useT();
     return (
-        <button
-            type="button"
-            className="mt-cwork-foot"
-            onClick={(e) => openPage(e, url)}
-            data-testid="companion-milestone-open"
-        >
+        <FootLink onClick={(e) => openPage(e, url)} testId="companion-milestone-open">
             {t("companion.work.openMilestone")}
-            <i className="fa fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
-        </button>
+        </FootLink>
     );
 }
 
@@ -435,6 +509,7 @@ function MilestoneBody({
 } & EndMarks) {
     const t = useT();
     const tCount = useTCount();
+    const [mineOpen, setMineOpen] = useState(false);
     if (milestoneReady(milestone)) {
         return <ReadyPlaceholder milestone={milestone} />;
     }
@@ -453,15 +528,17 @@ function MilestoneBody({
             </div>
         );
     }
-    const mine = lists.rows.filter((row) => links.has(row.number));
+    // Every ticket in progress here, eight at a time (#2441); the free ones fill what is left of the rows.
+    const allMine = lists.mine?.length > 0 ? lists.mine : lists.rows.filter((row) => links.has(row.number));
+    const mine = capList(allMine, mineOpen);
     const free = lists.rows.filter((row) => !links.has(row.number));
     return (
         <>
-            {mine.length > 0 ? (
+            {mine.shown.length > 0 ? (
                 <section className="mt-cwork-section" data-section="mine">
                     <SectionHead label={t("companion.work.inProgressHere")} count={lists.counts.mine} />
                     <ol>
-                        {mine.map((row) => (
+                        {mine.shown.map((row) => (
                             <TicketRow
                                 key={row.number}
                                 ticket={row}
@@ -471,6 +548,14 @@ function MilestoneBody({
                             />
                         ))}
                     </ol>
+                    <MoreButton
+                        more={mine.more}
+                        open={mineOpen}
+                        onToggle={() => setMineOpen(!mineOpen)}
+                        label={tCount("companion.dash.andMore", mine.more, { count: mine.more })}
+                        lessLabel={t("companion.dash.showLess")}
+                        testId="companion-milestone-mine-more"
+                    />
                 </section>
             ) : null}
             {free.length > 0 ? (

@@ -1,0 +1,294 @@
+// Copyright 2026, DiamondForge
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// The agent companion as the main agent's dashboard (#2441, FR-SHELL-018) on invented data, in one frame as wide as the
+// companion. The frame holds the real dashboard: hero, flow, blocks and arranging mode.
+// ?w=420|760|1200 the width, ?theme=light, ?agents=N more sub-agents, ?agent=waiting|idle, ?arrange=1, ?lang=fr.
+
+import { useRef, useState } from "react";
+import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
+import { CompanionDashboard } from "../../moltenterm-shell/companion/companion-dashboard";
+import { CompanionUsageInfo, gaugesView } from "../../moltenterm-shell/companion/companion-gauges-model";
+import { CompanionLayout, DefaultCompanionLayout } from "../../moltenterm-shell/companion/companion-layout";
+import { MilestonesView } from "../../moltenterm-shell/companion/companion-milestone-model";
+import { CompanionSubagent, CompanionView } from "../../moltenterm-shell/companion/companion-model";
+import { TaskView } from "../../moltenterm-shell/companion/companion-task-model";
+import { I18nModel, useT } from "../../moltenterm-shell/i18n/i18n";
+
+import "../../moltenterm-shell/molten-button.css";
+import "../../moltenterm-shell/moltenterm-shell.css";
+
+const Min = 60 * 1000;
+const Hour = 60 * Min;
+const Now = Date.now();
+
+const query = new URLSearchParams(globalThis.location?.search);
+if (query.get("lang")) {
+    I18nModel.getInstance().setLanguageSetting(query.get("lang"));
+}
+if (query.get("theme") === "light") {
+    globalThis.document?.documentElement.classList.add("mt-light", "df-light");
+}
+const Width = Number(query.get("w")) || 760;
+const Extra = Number(query.get("agents")) || 0;
+const AgentMode = query.get("agent") ?? "running";
+
+const Names = ["Jade", "Noah", "Lou", "Ines", "Arthur", "Lena", "Sacha", "Mael", "Rose", "Hugo"];
+const Tasks = [
+    "Read the labels in English again",
+    "Time the filter over 400 options",
+    "Fix the order of imported sections",
+    "Add the search's keyboard shortcuts",
+    "Check the contrast in the light theme",
+    "Write the search's documentation",
+    "Clean the old settings up",
+    "Test the import of a broken file",
+    "Translate the options' descriptions",
+    "Profile the page's first render",
+];
+
+const subagents: CompanionSubagent[] = [
+    {
+        id: "olivia",
+        description: "#815 Wire the filter into the page",
+        kind: "general-purpose",
+        model: "claude-sonnet-4-5",
+        effort: "medium",
+        branch: "feature/815-settings-filter",
+        state: "running",
+        started: Now - 9 * Min,
+    },
+    {
+        id: "malo",
+        description: "Find the labels without a translation",
+        kind: "Explore",
+        model: "claude-haiku-4-5",
+        effort: "low",
+        background: true,
+        state: "running",
+        started: Now - 2 * Min,
+    },
+    { id: "ines", description: "Read the settings page", state: "done", started: Now - 30 * Min, ended: Now - 8 * Min },
+    ...Array.from({ length: Extra }, (_, i): CompanionSubagent => {
+        const linked = i % 2 === 0;
+        return {
+            id: `extra-${i}`,
+            description: `${linked ? `#${850 + i} ` : ""}${Tasks[i % Tasks.length]}`,
+            kind: i % 3 === 0 ? "Explore" : "general-purpose",
+            model: i % 2 ? "claude-haiku-4-5" : "claude-sonnet-4-5",
+            effort: i % 2 ? "low" : "medium",
+            branch: linked ? `feature/${850 + i}-${Names[i % Names.length].toLowerCase()}` : undefined,
+            background: i % 3 === 0,
+            state: "running",
+            started: Now - (i + 1) * Min,
+        };
+    }),
+];
+
+const ticket = (number: number, title: string) => ({
+    number,
+    title,
+    url: `https://github.com/example/lantern/issues/${number}`,
+});
+
+const milestones: MilestonesView = {
+    dir: "/work/lantern",
+    state: "ok",
+    milestones: [
+        {
+            number: 4,
+            title: "1.4.0",
+            url: "https://github.com/example/lantern/milestone/4",
+            open: 12 + Math.ceil(Extra / 2),
+            closed: 34,
+            due: Now - 2 * 24 * Hour,
+            remaining: 12 + Math.ceil(Extra / 2),
+            loaded: true,
+            tickets: [
+                ticket(812, "Search the settings"),
+                ticket(815, "The filter folds the sections without a match"),
+                ...Array.from({ length: Math.ceil(Extra / 2) }, (_, i) => ticket(850 + 2 * i, Tasks[(2 * i) % 10])),
+                ticket(821, "The search shortcut puts the cursor in the field"),
+                ticket(824, "Imported settings keep their order"),
+                ticket(827, "An unknown setting shows read-only"),
+                ticket(829, "The search ignores accents"),
+                ticket(830, "A deep link opens one option"),
+                ticket(833, "Recent options come first"),
+            ],
+        },
+        { number: 5, title: "1.5.0", open: 8, closed: 0, remaining: 8, tickets: [] },
+    ],
+};
+
+const usage: CompanionUsageInfo = {
+    blockid: "preview-terminal",
+    agent: "claude",
+    pageurl: "https://claude.ai/settings/usage",
+    pagename: "Claude usage",
+    hasgauges: true,
+    gauges: "enabled",
+    sourcename: "Claude Code status line",
+    snapshot: {
+        agent: "claude",
+        source: "claude-statusline",
+        readat: Now - 2 * Min,
+        windows: [
+            { id: "session", label: "Current session", usedpercent: 35, resetsat: Now + 3 * Hour, windowmins: 300 },
+            { id: "week", label: "This week", usedpercent: 63, resetsat: Now + 4 * 24 * Hour, windowmins: 10080 },
+            { id: "opus", label: "Opus this week", usedpercent: 12, resetsat: Now + 4 * 24 * Hour, windowmins: 10080 },
+        ],
+    },
+};
+
+const task: TaskView = {
+    workspaceid: "ws-preview",
+    path: "/work/lantern/.molten/task.md",
+    exists: true,
+    updated: Now - 40 * Min,
+    versions: 2,
+    redactions: 0,
+    transcript: { agent: "claude", session: "s0", path: "/work/sessions/s0.jsonl" },
+    sections: [
+        {
+            name: "Goal",
+            owner: "auto",
+            text: "Ship the settings search (#812) before the 1.4.0 freeze, without breaking the settings import.",
+        },
+        { name: "Plan and progress", owner: "auto", text: "- [x] a\n- [x] b\n- [x] c\n- [ ] d\n- [ ] e" },
+        { name: "Next steps", owner: "auto", text: "- Write the filter's tests" },
+        { name: "Last transcript", owner: "auto", text: "- Agent: Claude Code" },
+    ],
+} as TaskView;
+
+const agentState: AgentStateInfo = {
+    blockid: "preview-terminal",
+    agent: "claude",
+    agentname: "Claude Code",
+    firstname: "Heloise",
+    state: AgentMode === "waiting" ? "waiting" : AgentMode === "idle" ? "idle" : "working",
+    model: "claude-opus-4-5",
+    modelname: "Opus",
+    effort: "high",
+    version: 1,
+};
+
+const view: CompanionView = {
+    blockid: "preview-terminal",
+    version: 1,
+    status: "live",
+    agent: "claude",
+    agentname: "Claude Code",
+    usage: { pageurl: "https://claude.ai/settings/usage", pagename: "Claude usage" } as CompanionView["usage"],
+    session: {
+        path: "/work/sessions/s1.jsonl",
+        linkedby: "hook",
+        branch: "feature/812-settings-search",
+        started: Now - 52 * Min,
+        lastprompt: Now - 12 * Min,
+        title: "Redo the settings page: each option says what it changes, a search filters the options as you type, and the translations follow in both languages.",
+    },
+    earlier: [{ path: "/work/sessions/s0.jsonl" }, { path: "/work/sessions/sa.jsonl" }] as CompanionView["earlier"],
+    todos: [
+        { text: "Read the current settings page", status: "completed", at: Now - 45 * Min },
+        { text: "Write requirement FR-SET-021", status: "completed", at: Now - 32 * Min },
+        { text: "Build the search index", status: "completed", at: Now - 19 * Min },
+        { text: "Write the search filter's tests", status: "in_progress", at: Now - 6 * Min },
+        { text: "#815 Wire the filter into the page", status: "in_progress", at: Now - 9 * Min },
+        { text: "Translate the new labels", status: "pending" },
+        { text: "Review and open the pull request", status: "pending" },
+    ],
+    todosAt: Now - Min,
+    subagents,
+    pending:
+        AgentMode === "waiting"
+            ? [
+                  {
+                      id: "p1",
+                      tool: "Bash",
+                      args: '{"command":"npm run test -- src/settings/__tests__/search-index.test.ts --reporter=verbose"}',
+                  },
+              ]
+            : undefined,
+    topics: [
+        {
+            text: "Write the filter's tests: case, accents, synonyms, and a hidden option that never shows.",
+            files: 4,
+            last: Now - 3 * Min,
+        },
+        {
+            text: "Build the index from the labels and the descriptions, in both languages.",
+            files: 3,
+            last: Now - 22 * Min,
+        },
+        { text: "Write the search requirement before coding.", files: 1, last: Now - 34 * Min },
+        { text: "Redo the settings page: each option says what it changes…", last: Now - 40 * Min },
+        { text: "Show me the settings without a description.", last: Now - 55 * Min },
+        { text: "List the 1.4.0 tickets that touch the settings.", last: Now - 62 * Min },
+    ],
+    answers: [
+        { index: 1, preview: "" },
+        { index: 2, preview: "" },
+        { index: 3, preview: "" },
+    ],
+    latest: {
+        index: 3,
+        markdown:
+            "I built the settings' search index (`search-index.ts`): each option is indexed by its label, its description and its keywords, in both languages.\n\nThe tests cover case, accents and synonyms. The filter still has to be wired into the page.\n\n**What changes for you**\n\n- The search field filters the options as you type.\n- A section without a match folds, its title stays visible.\n- The shortcut puts the cursor in the field.\n- A hidden option never shows in the results.\n\nNext: Olivia wires the filter (#815) while I write the last tests. I will show you the page once both are green.",
+    },
+    files: [
+        { path: "/work/lantern/src/settings/settings-page.tsx", kind: "update", added: 84, removed: 31, edits: 3 },
+        { path: "/work/lantern/src/settings/search-index.ts", kind: "add", added: 142, removed: 0, edits: 2 },
+        {
+            path: "/work/lantern/src/settings/__tests__/search-index.test.ts",
+            kind: "add",
+            added: 96,
+            removed: 0,
+            edits: 1,
+        },
+        { path: "/work/lantern/locales/fr.json", kind: "update", added: 12, removed: 2, edits: 1 },
+        { path: "/work/lantern/locales/en.json", kind: "update", added: 12, removed: 2, edits: 1 },
+        { path: "/work/lantern/docs/settings.md", kind: "update", added: 18, removed: 4, edits: 1 },
+        { path: "/work/lantern/src/settings/legacy-filter.ts", kind: "delete", added: 0, removed: 57, edits: 1 },
+        { path: "/tmp/lantern-fixture/seed.json", kind: "add", added: 40, removed: 0, edits: 1 },
+    ],
+};
+
+export function CompanionDashboardPreview() {
+    const [layout, setLayout] = useState<CompanionLayout>(DefaultCompanionLayout);
+    const [arranging, setArranging] = useState(query.get("arrange") === "1");
+    const arrangeRef = useRef<HTMLButtonElement>(null);
+    const none = () => {};
+    // The usage reads its words when the language is loaded.
+    useT();
+    return (
+        <div className="p-4" data-testid="companion-dashboard-preview">
+            <div
+                className="flex flex-col overflow-hidden rounded-6 border border-border"
+                style={{ width: Width }}
+                data-testid="companion-frame"
+            >
+                <CompanionDashboard
+                    view={view}
+                    target="preview-terminal"
+                    companionId="preview-companion"
+                    agentState={agentState}
+                    provider=""
+                    dir=""
+                    folder="/work/lantern"
+                    layout={layout}
+                    onSaveLayout={setLayout}
+                    arranging={arranging}
+                    onArrange={() => setArranging(true)}
+                    onLeaveArranging={() => setArranging(false)}
+                    arrangeRef={arrangeRef}
+                    integrationDetails={true}
+                    persistentIntegration={false}
+                    onIntegration={none}
+                    onHistory={none}
+                    onBackToCurrent={none}
+                    fixtures={{ milestones, usage: gaugesView(usage, Now), task }}
+                />
+            </div>
+        </div>
+    );
+}

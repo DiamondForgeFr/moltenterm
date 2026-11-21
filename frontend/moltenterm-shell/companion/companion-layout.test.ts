@@ -6,18 +6,14 @@ import { readCompanionPrefs } from "./companion-files-model";
 import {
     CompanionSectionIds,
     DefaultCompanionLayout,
-    defaultWorkBand,
     isDefaultLayout,
     normalizeLayout,
     readStoredLayout,
     sameLayout,
-    sectionBands,
     SectionPlacement,
 } from "./companion-layout";
 
-const all = () => true;
-
-describe("the companion's sections (#2392, ready for #2395)", () => {
+describe("the companion's sections (#2392, #2441)", () => {
     it("registers each section once under a stable id", () => {
         expect([...CompanionSectionIds]).toEqual([
             "usage",
@@ -32,57 +28,40 @@ describe("the companion's sections (#2392, ready for #2395)", () => {
         expect(DefaultCompanionLayout.map((p) => p.id).sort()).toEqual([...CompanionSectionIds].sort());
     });
 
-    it("puts the Tasks block first, on the left, the agents at work on the right, the rest full width", () => {
-        expect(sectionBands(DefaultCompanionLayout, all)).toEqual([
-            { kind: "full", id: "usage" },
-            { kind: "columns", ids: ["tasks", "agents"], left: ["tasks"], right: ["agents"] },
-            { kind: "full", id: "permission" },
-            { kind: "full", id: "topics" },
-            { kind: "full", id: "answer" },
-            { kind: "full", id: "task" },
-            { kind: "full", id: "files" },
-        ]);
-        expect(defaultWorkBand()).toEqual({
-            kind: "columns",
-            ids: ["tasks", "agents"],
-            left: ["tasks"],
-            right: ["agents"],
-        });
-    });
-
-    it("leaves out the hidden sections and those with nothing to show", () => {
-        const layout: SectionPlacement[] = DefaultCompanionLayout.map((p) =>
-            p.id === "topics" ? { ...p, hidden: true } : p
-        );
-        const bands = sectionBands(layout, (id) => id !== "usage");
-        expect(bands.map((b) => (b.kind === "full" ? b.id : b.ids.join("+")))).toEqual([
-            "tasks+agents",
+    it("puts what the developer acts on first: the permission request across the companion, then the pair", () => {
+        expect(DefaultCompanionLayout.map((p) => p.id)).toEqual([
             "permission",
+            "tasks",
+            "agents",
+            "usage",
+            "topics",
             "answer",
             "task",
             "files",
         ]);
+        expect(DefaultCompanionLayout.filter((p) => p.span === "full").map((p) => p.id)).toEqual(["permission"]);
     });
 
-    it("keeps a layout usable: unknown ids and columns dropped, each section once, forgotten ones at their default", () => {
+    it("keeps a layout usable: unknown ids dropped, unknown spans at the default, each section once", () => {
         const layout = normalizeLayout([
-            { id: "files", column: "left" },
-            { id: "nope" as never, column: "full" },
-            { id: "files", column: "right" },
-            { id: "agents", column: "middle" as never },
-            { id: "tasks", column: "right", hidden: true },
+            { id: "files", span: "full" },
+            { id: "nope" as never, span: "full" },
+            { id: "files", span: "flow" },
+            { id: "agents", span: "middle" as never },
+            { id: "tasks", span: "flow", hidden: true },
         ]);
-        expect(layout.slice(0, 2)).toEqual([
-            { id: "files", column: "left" },
-            { id: "tasks", column: "right", hidden: true },
+        expect(layout.slice(0, 3)).toEqual([
+            { id: "files", span: "full" },
+            { id: "agents", span: "flow" },
+            { id: "tasks", span: "flow", hidden: true },
         ]);
         expect(layout.map((p) => p.id).sort()).toEqual([...CompanionSectionIds].sort());
-        expect(layout.find((p) => p.id === "agents")).toEqual({ id: "agents", column: "right" });
+        expect(layout.find((p) => p.id === "permission")).toEqual({ id: "permission", span: "full" });
     });
 });
 
-describe("the developer's own layout (#2395)", () => {
-    const own: SectionPlacement[] = [
+describe("a layout stored by #2395 (left, right and full columns)", () => {
+    const old = [
         { id: "files", column: "full" },
         { id: "answer", column: "left", hidden: true },
         { id: "tasks", column: "left" },
@@ -93,27 +72,56 @@ describe("the developer's own layout (#2395)", () => {
         { id: "task", column: "full" },
     ];
 
+    it("keeps its order and its hidden sections, every column becoming the section's default span", () => {
+        expect(readStoredLayout(old)).toEqual([
+            { id: "files", span: "flow" },
+            { id: "answer", span: "flow", hidden: true },
+            { id: "tasks", span: "flow" },
+            { id: "permission", span: "full" },
+            { id: "agents", span: "flow" },
+            { id: "usage", span: "flow" },
+            { id: "topics", span: "flow" },
+            { id: "task", span: "flow" },
+        ]);
+    });
+
+    it("reads through the companion's remembered choices", () => {
+        expect(readCompanionPrefs({ layout: old }).layout[1]).toEqual({ id: "answer", span: "flow", hidden: true });
+    });
+});
+
+describe("the developer's own layout (#2395, #2441)", () => {
+    const own: SectionPlacement[] = [
+        { id: "files", span: "full" },
+        { id: "answer", span: "flow", hidden: true },
+        { id: "tasks", span: "flow" },
+        { id: "permission", span: "flow" },
+        { id: "agents", span: "flow" },
+        { id: "usage", span: "flow" },
+        { id: "topics", span: "full" },
+        { id: "task", span: "flow" },
+    ];
+
     it("reads a stored layout, and none as the defaults", () => {
         expect(readStoredLayout(undefined)).toBeNull();
         expect(readStoredLayout(null)).toBeNull();
         expect(readStoredLayout([])).toBeNull();
         expect(readStoredLayout("files,answer")).toBeNull();
-        expect(readStoredLayout({ id: "files", column: "full" })).toBeNull();
+        expect(readStoredLayout({ id: "files", span: "full" })).toBeNull();
         expect(readStoredLayout(own)).toEqual(own);
     });
 
     it("keeps a stored layout usable when sections were added or removed since it was saved", () => {
         const stored = readStoredLayout([
-            { id: "files", column: "full" },
-            { id: "retired", column: "full" },
-            { id: "tasks", column: "left" },
+            { id: "files", span: "flow" },
+            { id: "retired", span: "full" },
+            { id: "tasks", span: "flow" },
         ]);
         expect(stored.slice(0, 2).map((p) => p.id)).toEqual(["files", "tasks"]);
         expect(stored.map((p) => p.id).sort()).toEqual([...CompanionSectionIds].sort());
-        expect(stored.find((p) => p.id === "agents")).toEqual({ id: "agents", column: "right" });
     });
 
-    it("compares layouts by order, column and visibility, never by how they were written", () => {
+    it("compares layouts by order, span and visibility, never by how they were written", () => {
         expect(
             sameLayout(
                 own,
@@ -124,13 +132,13 @@ describe("the developer's own layout (#2395)", () => {
         expect(
             sameLayout(
                 own,
-                own.map((p) => (p.id === "files" ? { ...p, column: "left" } : p))
+                own.map((p) => (p.id === "files" ? { ...p, span: "flow" } : p))
             )
         ).toBe(false);
         expect(
             sameLayout(
                 own,
-                own.map((p) => (p.id === "answer" ? { id: p.id, column: p.column } : p))
+                own.map((p) => (p.id === "answer" ? { id: p.id, span: p.span } : p))
             )
         ).toBe(false);
         expect(isDefaultLayout(DefaultCompanionLayout)).toBe(true);
@@ -145,40 +153,5 @@ describe("the developer's own layout (#2395)", () => {
         expect(readCompanionPrefs({ filesopen: true, layout: own }).layout).toEqual(own);
         expect(readCompanionPrefs({ filesopen: true }).layout).toBeUndefined();
         expect(readCompanionPrefs({ layout: "files" }).layout).toBeUndefined();
-    });
-
-    it("forms the bands of the layout: the hidden section gone, the columns where they were put", () => {
-        const bands = sectionBands(own, (id) => id !== "usage");
-        expect(bands.map((b) => (b.kind === "full" ? b.id : `${b.ids.join("+")}`))).toEqual([
-            "files",
-            "tasks+permission+agents",
-            "topics",
-            "task",
-        ]);
-        expect(bands[1]).toEqual({
-            kind: "columns",
-            ids: ["tasks", "permission", "agents"],
-            left: ["tasks"],
-            right: ["permission", "agents"],
-        });
-    });
-
-    // The Tasks block and the agents at work are drawn by the work area, never from a slot: at full width they come as
-    // a band of their own, which neither joins the columns around it nor breaks them.
-    it("gives the Tasks block and the agents at work a band of their own at full width", () => {
-        const layout: SectionPlacement[] = [
-            { id: "tasks", column: "full" },
-            { id: "topics", column: "left" },
-            { id: "answer", column: "right" },
-            { id: "agents", column: "full" },
-            { id: "files", column: "full" },
-        ];
-        const present = (id: string) => layout.some((p) => p.id === id);
-        expect(sectionBands(layout, present)).toEqual([
-            { kind: "columns", ids: ["tasks"], left: ["tasks"], right: [] },
-            { kind: "columns", ids: ["topics", "answer"], left: ["topics"], right: ["answer"] },
-            { kind: "columns", ids: ["agents"], left: ["agents"], right: [] },
-            { kind: "full", id: "files" },
-        ]);
     });
 });

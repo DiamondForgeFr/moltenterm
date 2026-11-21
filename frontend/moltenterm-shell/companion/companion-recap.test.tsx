@@ -4,13 +4,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { AgentStateInfo } from "../agent-state-model";
-import { FilesSection } from "./companion-files";
-import { filterFiles, fuzzyScore, readCompanionPrefs } from "./companion-files-model";
-import { ColumnsBand, SectionPlacement } from "./companion-layout";
+import { FilesSection, FilesShown } from "./companion-files";
+import { fileGroups, filterFiles, fuzzyScore, readCompanionPrefs } from "./companion-files-model";
+import { CompanionHero } from "./companion-hero";
 import { CompanionFile, CompanionView } from "./companion-model";
-import { AgentsSection, RecentTopicsSection } from "./companion-recap";
+import { RecentTopicsSection } from "./companion-recap";
 import { agentsView, branchTicket, finishedLabel, mainAgentRow, topicRows } from "./companion-recap-model";
-import { SessionSections } from "./companion-section";
 
 vi.mock("@/app/store/wos", () => ({ makeORef: (t: string, id: string) => `${t}:${id}` }));
 vi.mock("@/app/store/wps", () => ({ waveEventSubscribeSingle: () => () => {} }));
@@ -104,7 +103,6 @@ describe("recent topics", () => {
 
     it("renders the session's own name and the topics, newest first", () => {
         const html = renderToStaticMarkup(<RecentTopicsSection view={view} now={now} />);
-        expect(html).toContain("Recent topics");
         expect(html).toContain(">Checkout fixes and release notes<");
         expect(html.indexOf("Write the release notes for 2.4")).toBeLessThan(html.indexOf("Fix the checkout total"));
         expect(html).toContain("#43 · 1 file · 2 min ago");
@@ -206,22 +204,31 @@ describe("agents at work", () => {
         expect(mainAgentRow({ ...view, session }, working).config).toBe("Opus · high");
     });
 
-    it("renders the ticket line and the hint", () => {
+    it("shows the main agent's ticket, its complexity and the hint in the hero (#2441)", () => {
         const session = { ...view.session, ticket: 7, complexity: "low" };
+        const noop = () => {};
         const html = renderToStaticMarkup(
-            <AgentsSection view={{ ...view, session, subagents: [] }} agentState={working} now={now} />
+            <CompanionHero
+                view={{ ...view, session, subagents: [] }}
+                agentState={working}
+                provider=""
+                arranging={false}
+                onArrange={noop}
+                onLeaveArranging={noop}
+                integrationDetails={false}
+                persistentIntegration={false}
+                onIntegration={noop}
+                onHistory={noop}
+                onBackToCurrent={noop}
+            />
         );
         expect(html).toContain("#7 · complexity: low");
         expect(html).toContain('data-proportion="over"');
         expect(html).toContain("More than a low ticket needs");
-    });
-
-    it("renders the main session and its sub-agents", () => {
-        const html = renderToStaticMarkup(<AgentsSection view={view} agentState={working} now={now} />);
-        expect(html).toContain("Agents at work");
         expect(html).toContain('data-testid="companion-model-effort">Opus · high<');
-        expect(html.match(/data-testid="companion-subagent"/g)).toHaveLength(2);
-        expect(html).toContain("1 finished · 1 failed");
+        // The AI sparkle names the main agent; the robot stays for the sub-agents.
+        expect(html).toContain("fa-sparkles");
+        expect(html).toContain("Main agent");
     });
 });
 
@@ -255,87 +262,72 @@ describe("changed files", () => {
         expect(readCompanionPrefs([true])).toEqual({});
     });
 
-    it("is collapsed by default with its count, the list and the filter hidden", () => {
-        const html = renderToStaticMarkup(<FilesSection target="t1" companionId="c1" files={files} folder="/w" />);
-        expect(html).toContain('aria-expanded="false"');
-        expect(html).toContain('data-testid="companion-files-count">4<');
-        expect(html).not.toContain('data-testid="companion-files-filter"');
-        expect(html).not.toContain("CHANGELOG.md");
-    });
-});
+    const outside: CompanionFile[] = [
+        ...files,
+        { path: "/home/dev/.config/lantern/settings.json", kind: "update", added: 3, removed: 1, edits: 1 },
+        { path: "/tmp/lantern-fixture/seed.json", kind: "add", added: 40, removed: 0, edits: 1 },
+    ];
 
-function slotOrder(html: string): string[] {
-    return [...html.matchAll(/data-slot="(\w+)"/g)].map((m) => m[1]);
-}
-
-describe("the companion's order (#555, PR #557, #2392)", () => {
-    const slot = (name: string) => <i data-slot={name} />;
-    const columns = (band: ColumnsBand) => <i data-slot={`columns_${band.ids.join("_")}`} />;
-
-    it("puts the plan usage and the band of the tasks and the agents first, the topics after, the changed files last", () => {
-        const html = renderToStaticMarkup(
-            <SessionSections
-                slots={{
-                    usage: slot("usage"),
-                    permission: slot("permission"),
-                    topics: slot("topics"),
-                    answer: slot("answer"),
-                    task: slot("task"),
-                    files: slot("files"),
-                }}
-                columns={columns}
-            />
-        );
-        expect(slotOrder(html)).toEqual([
-            "usage",
-            "columns_tasks_agents",
-            "permission",
-            "topics",
-            "answer",
-            "task",
-            "files",
+    it("shows paths relative to the project, the files outside it grouped last, from ~ under the home folder (#2441)", () => {
+        const groups = fileGroups(outside, "/w", "/home/dev");
+        expect(groups.inside.map((f) => f.dir + f.name)).toEqual([
+            "src/emails/receipt.tsx",
+            "src/checkout.ts",
+            "CHANGELOG.md",
+            "src/cart/checkout-button.tsx",
+        ]);
+        expect(groups.inside[0]).toMatchObject({ dir: "src/emails/", name: "receipt.tsx", outside: false });
+        expect(groups.outside.map((f) => f.dir + f.name)).toEqual([
+            "~/.config/lantern/settings.json",
+            "/tmp/lantern-fixture/seed.json",
         ]);
     });
 
-    it("starts with the tasks and the agents when the plan usage does not show", () => {
+    it("draws the files in their block: relative paths, the outside group tagged, the filter in the tools", () => {
+        let tools: React.ReactNode = null;
         const html = renderToStaticMarkup(
-            <SessionSections slots={{ usage: null, topics: slot("topics"), files: slot("files") }} columns={columns} />
-        );
-        expect(slotOrder(html)).toEqual(["columns_tasks_agents", "topics", "files"]);
-    });
-
-    it("follows another layout: its order, its hidden sections, its bands", () => {
-        const html = renderToStaticMarkup(
-            <SessionSections
-                slots={{ usage: slot("usage"), topics: slot("topics"), files: slot("files") }}
-                columns={columns}
-                layout={[
-                    { id: "files", column: "full" },
-                    { id: "agents", column: "left" },
-                    { id: "topics", column: "right" },
-                    { id: "tasks", column: "right" },
-                    { id: "usage", column: "full", hidden: true },
-                ]}
+            <FilesSection
+                target="t1"
+                companionId="c1"
+                files={outside}
+                folder="/w"
+                home="/home/dev"
+                frame={(parts) => {
+                    tools = parts.tools;
+                    return <div data-count={parts.count}>{parts.body}</div>;
+                }}
             />
         );
-        expect(slotOrder(html)).toEqual(["files", "columns_agents_topics_tasks"]);
+        expect(html).toContain('data-count="6"');
+        expect(html).toContain(">src/emails/<");
+        expect(html).not.toContain("/w/src");
+        expect(html).toContain("Outside the project");
+        expect(html.match(/>outside</g)).toHaveLength(2);
+        expect(html).toContain(">~/.config/lantern/<");
+        expect(renderToStaticMarkup(<>{tools}</>)).toContain('data-testid="companion-files-toggle"');
     });
 
-    // #2395: the Tasks block and the agents at work come from the work area, never from a slot, at any width of column.
-    it("draws the Tasks block at full width through the work area, and leaves it out once hidden", () => {
-        const slots = { topics: slot("topics"), files: slot("files") };
-        const layout: SectionPlacement[] = [
-            { id: "files", column: "full" },
-            { id: "tasks", column: "full" },
-            { id: "topics", column: "full" },
-            { id: "agents", column: "full", hidden: true },
-        ];
-        expect(
-            slotOrder(renderToStaticMarkup(<SessionSections slots={slots} columns={columns} layout={layout} />))
-        ).toEqual(["files", "columns_tasks", "topics"]);
-        const hidden = layout.map((p) => (p.id === "tasks" ? { ...p, hidden: true } : p));
-        expect(
-            slotOrder(renderToStaticMarkup(<SessionSections slots={slots} columns={columns} layout={hidden} />))
-        ).toEqual(["files", "topics"]);
+    it("lists six files of the project, then Show all", () => {
+        const many: CompanionFile[] = Array.from({ length: 9 }, (_, i) => ({
+            path: `/w/src/f${i}.ts`,
+            kind: "update",
+            added: 1,
+            removed: 0,
+            edits: 1,
+        }));
+        const html = renderToStaticMarkup(
+            <FilesSection target="t1" companionId="c1" files={many} folder="/w" frame={(p) => <>{p.body}</>} />
+        );
+        expect(html.match(/data-testid="companion-file"/g)).toHaveLength(FilesShown);
+        expect(html).toContain("Show all (9 in the project)");
+    });
+});
+
+describe("recent topics in their block (#2441)", () => {
+    it("shows four topics, then Show N more", () => {
+        const topics = Array.from({ length: 6 }, (_, i) => ({ text: `Topic ${i}`, last: now - i * Min }));
+        const html = renderToStaticMarkup(<RecentTopicsSection view={{ ...view, topics }} now={now} />);
+        expect(html.match(/data-testid="companion-topic"/g)).toHaveLength(4);
+        expect(html).toContain("Show 2 more");
     });
 });

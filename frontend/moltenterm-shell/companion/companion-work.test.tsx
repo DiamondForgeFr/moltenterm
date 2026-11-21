@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { AgentStateInfo } from "../agent-state-model";
 import { I18nModel } from "../i18n/i18n";
+import { columnsFor, flowLayout, ListCap, TwoColumnsFromPx } from "./companion-flow-model";
 import {
     AllLeads,
     EveryLead,
@@ -22,7 +23,6 @@ import {
     upcomingOf,
 } from "./companion-holds-fixture";
 import { classifyTickets, taskLists } from "./companion-holds-model";
-import { ColumnsBand, TwoColumnMinWidth, workLayout } from "./companion-layout";
 import {
     agentEnd,
     certainTicket,
@@ -183,24 +183,33 @@ function manyMilestones(count: number): MilestoneInfo[] {
 const withMilestone: MilestonesView = { dir: "/w", state: "ok", milestones: [milestone(12)] };
 const shopTabs: MilestonesView = { dir: "/w", state: "ok", milestones: [released(), upcoming()] };
 
-function markup(
-    view: CompanionView,
-    milestones: MilestonesView,
-    width: number,
-    band?: ColumnsBand,
-    chosen?: number
-): string {
+// Which of the pair the layout shows (#2395), and whether they stand side by side.
+type Pair = { tasks?: boolean; agents?: boolean };
+
+// A companion this wide, as the flow lays out the pair (companion-flow-model.ts): side by side from two columns, each
+// block a column wide, the whole flow wide in one column.
+function markup(view: CompanionView, milestones: MilestonesView, width: number, pair?: Pair, chosen?: number): string {
+    const columns = columnsFor(width);
+    const shows = { tasks: pair?.tasks !== false, agents: pair?.agents !== false };
+    const flow = flowLayout(
+        [
+            { id: "tasks", height: 100 },
+            { id: "agents", height: 100 },
+        ].filter((b) => shows[b.id as keyof typeof shows]),
+        width
+    );
     return renderToStaticMarkup(
         <CompanionWork
             view={view}
             agentState={working}
             dir="/w"
             now={now}
-            width={width}
+            width={Math.floor(columns > 1 ? flow.columnWidth : flow.innerWidth)}
+            paired={flow.paired}
+            showTasks={shows.tasks}
+            showAgents={shows.agents}
             milestones={milestones}
             chosen={chosen}
-            band={band}
-            slots={{ topics: <i data-slot="topics" /> }}
         />
     );
 }
@@ -297,7 +306,6 @@ describe("the milestone block", () => {
         expect(html).toMatch(/Échéance le 22 nov/);
         expect(html).toContain("et 4 autres");
         expect(html).toContain("Ouvrir le jalon");
-        expect(html).toMatch(/Plan de /);
     });
 
     it("puts the tickets an agent works on first", () => {
@@ -340,7 +348,7 @@ describe("one tab per open milestone (#2416)", () => {
 
     function tabsOf(html: string): { label: string; selected: boolean }[] {
         return [...html.matchAll(/<button[^>]*role="tab"[^>]*aria-selected="(true|false)"[^>]*>(.*?)<\/button>/g)].map(
-            (m) => ({ label: /class="df-chip-text">([^<]*)</.exec(m[2])?.[1] ?? "", selected: m[1] === "true" })
+            (m) => ({ label: /class="mt-cb-chip-text">([^<]*)</.exec(m[2])?.[1] ?? "", selected: m[1] === "true" })
         );
     }
 
@@ -409,8 +417,6 @@ describe("one tab per open milestone (#2416)", () => {
         const first = markup(view, onTicket, 900, undefined, 13);
         expect(first).not.toContain('data-link-end="ticket:41"');
         expect(first).not.toContain('data-testid="companion-milestone-ticket"');
-        // The agent's own task in progress is the agent's, whichever tab shows.
-        expect(first).toContain('data-link-end="todo:1"');
     });
 
     it("says how late a milestone is, with a diamond and the words, and when a finished one is due", () => {
@@ -497,21 +503,18 @@ describe("one tab per open milestone (#2416)", () => {
         expect(html).not.toContain("Ready to release");
     });
 
-    it("keeps the agent's own plan under the agents, and alone when no milestone is open (#2430)", () => {
+    it("leaves the plan to the hero (#2441): the pair draws the milestone and the sub-agents only", () => {
         const html = markup(view, shopTabs, 900);
-        expect(html).toContain('data-testid="companion-plan"');
-        expect(html.indexOf('data-testid="companion-milestone-ready"')).toBeLessThan(
-            html.indexOf('data-testid="companion-plan"')
-        );
+        expect(html).not.toContain('data-testid="companion-plan"');
+        expect(html).toContain('data-testid="companion-milestone-ready"');
         const alone = markup(view, { dir: "/w", state: "none" }, 900);
-        expect(alone).toContain('data-testid="companion-plan"');
-        expect(alone).not.toContain('role="tablist"');
         expect(alone).not.toContain('data-testid="companion-tasks"');
+        expect(alone).toContain('data-testid="companion-agents"');
     });
 
-    it("opens the milestone from the pocket on its bottom border", () => {
+    it("opens the milestone from the last row of its block", () => {
         const html = markup(view, shopTabs, 900);
-        expect(html).toMatch(/df-pocket df-pocket-bottom[^>]*><button[^>]*data-testid="companion-milestone-open"/);
+        expect(html).toMatch(/class="mt-cb-foot"><button[^>]*data-testid="companion-milestone-open"/);
     });
 });
 
@@ -580,61 +583,29 @@ describe("the tabs' model (#2416)", () => {
     });
 });
 
-function columnOf(html: string, testId: string): string {
-    const at = html.indexOf(`data-testid="${testId}"`);
-    const left = html.lastIndexOf('data-column="left"', at);
-    const right = html.lastIndexOf('data-column="right"', at);
-    return left < 0 && right < 0 ? "" : left > right ? "left" : "right";
-}
-
-describe("blocks by width", () => {
-    it("stands side by side from the documented width, Tasks left and agents right; stacked below it", () => {
-        expect(workLayout(TwoColumnMinWidth - 1)).toBe("stacked");
-        expect(workLayout(TwoColumnMinWidth)).toBe("columns");
-        const wide = markup(companionView("claude", "Claude Code"), withMilestone, 900);
-        expect(wide).toContain('data-layout="columns" data-both=""');
-        expect(columnOf(wide, "companion-tasks")).toBe("left");
-        expect(columnOf(wide, "companion-agents")).toBe("right");
-        const narrow = markup(companionView("claude", "Claude Code"), withMilestone, 380);
-        expect(narrow).toContain('data-layout="stacked"');
-        expect(narrow).not.toContain("data-column");
-    });
-
-    // #2395: the developer arranges the sections, and the area draws any band of the layout model.
-    it("draws another band: its columns, its other sections, a line across whichever side the agents stand", () => {
+describe("the linked pair in the flow (#2441)", () => {
+    it("stands side by side from two columns, its lines drawn; flows in one column, the chips carrying the links", () => {
+        expect(columnsFor(TwoColumnsFromPx - 1)).toBe(1);
+        expect(columnsFor(TwoColumnsFromPx)).toBe(2);
         const view = companionView("claude", "Claude Code");
-        const swapped: ColumnsBand = {
-            kind: "columns",
-            ids: ["agents", "topics", "tasks"],
-            left: ["agents"],
-            right: ["topics", "tasks"],
-        };
-        const html = markup(view, withMilestone, 900, swapped);
-        expect(columnOf(html, "companion-agents")).toBe("left");
-        expect(columnOf(html, "companion-tasks")).toBe("right");
-        expect(html.indexOf('data-slot="topics"')).toBeLessThan(html.indexOf('data-testid="companion-tasks"'));
-        expect(html).toContain('data-testid="companion-work-links"');
-        const together: ColumnsBand = {
-            kind: "columns",
-            ids: ["tasks", "agents", "topics"],
-            left: ["tasks", "agents"],
-            right: ["topics"],
-        };
-        const same = markup(view, withMilestone, 900, together);
-        expect(same).not.toContain('data-testid="companion-work-links"');
-        expect(same.match(/data-testid="companion-work-chip"/g)).toHaveLength(3);
-        const stacked = markup(view, withMilestone, 380, swapped);
-        expect(stacked.indexOf('data-testid="companion-agents"')).toBeLessThan(
-            stacked.indexOf('data-testid="companion-tasks"')
+        const wide = markup(view, withMilestone, 900);
+        expect(wide.indexOf('data-testid="companion-tasks"')).toBeLessThan(
+            wide.indexOf('data-testid="companion-agents"')
         );
+        expect(wide).toContain('data-testid="companion-work-links"');
+        expect(wide).toContain('data-flow-id="tasks"');
+        expect(wide).toContain('data-flow-id="agents"');
+        const narrow = markup(view, withMilestone, 380);
+        expect(narrow).not.toContain('data-testid="companion-work-links"');
+        expect(narrow.match(/data-testid="companion-work-chip"/g)).toHaveLength(2);
+        // The chips stay beside the lines: "→ name" says who works on a ticket at any width.
+        expect(wide.match(/data-testid="companion-work-chip"/g)).toHaveLength(2);
     });
 
-    // #2395: a developer who hides the Tasks block (the band has only the agents) or the agents at work.
-    it("draws no line, no mark and no chip once the Tasks block is hidden; the agents stand alone", () => {
+    it("draws no line, no mark and no chip once the milestone is hidden; the agents stand alone", () => {
         const view = companionView("claude", "Claude Code");
-        const agentsOnly: ColumnsBand = { kind: "columns", ids: ["agents"], left: [], right: ["agents"] };
         for (const width of [380, 900]) {
-            const html = markup(view, withMilestone, width, agentsOnly);
+            const html = markup(view, withMilestone, width, { tasks: false });
             expect(html).toContain('data-testid="companion-agents"');
             expect(html).not.toContain('data-testid="companion-tasks"');
             expect(html).not.toContain('data-testid="companion-work-links"');
@@ -643,88 +614,34 @@ describe("blocks by width", () => {
         }
     });
 
-    it("keeps the chips on the tasks when the agents at work are hidden: a link needs both blocks side by side", () => {
+    it("keeps the chips on the tickets when the agents at work are hidden, and draws no line", () => {
         const view = companionView("claude", "Claude Code");
-        const tasksOnly: ColumnsBand = { kind: "columns", ids: ["tasks"], left: ["tasks"], right: [] };
         for (const width of [380, 900]) {
-            const html = markup(view, withMilestone, width, tasksOnly);
+            const html = markup(view, withMilestone, width, { agents: false });
             expect(html).toContain('data-testid="companion-tasks"');
             expect(html).not.toContain('data-testid="companion-agents"');
             expect(html).not.toContain('data-testid="companion-work-links"');
-            // The two milestone tickets with an agent; the plan's own chip sits in the agents block, hidden here.
             expect(html.match(/data-testid="companion-work-chip"/g)).toHaveLength(2);
         }
     });
 
-    it("draws a line only when the two blocks stand in the two columns of one band", () => {
-        const view = companionView("claude", "Claude Code");
-        const rightAndLeft: ColumnsBand = {
-            kind: "columns",
-            ids: ["agents", "tasks"],
-            left: ["agents"],
-            right: ["tasks"],
-        };
-        expect(markup(view, withMilestone, 900, rightAndLeft)).toContain('data-testid="companion-work-links"');
-        const oneColumn: ColumnsBand = {
-            kind: "columns",
-            ids: ["tasks", "agents", "topics"],
-            left: ["tasks", "agents"],
-            right: ["topics"],
-        };
-        expect(markup(view, withMilestone, 900, oneColumn)).not.toContain('data-testid="companion-work-links"');
-        const oneAgentColumn: ColumnsBand = {
-            kind: "columns",
-            ids: ["topics", "agents"],
-            left: ["topics"],
-            right: ["agents"],
-        };
-        expect(markup(view, withMilestone, 900, oneAgentColumn)).not.toContain('data-testid="companion-work-links"');
-        // The Tasks block hidden while the agents stand in a column of a band of two: nothing to link to.
-        const withoutTasks: ColumnsBand = {
-            kind: "columns",
-            ids: ["agents", "topics"],
-            left: ["agents"],
-            right: ["topics"],
-        };
-        const html = markup(view, withMilestone, 900, withoutTasks);
-        expect(html).toContain("data-both");
-        expect(html).not.toContain('data-testid="companion-work-links"');
-        expect(html).not.toContain("data-linked");
+    it("lists the sub-agents only, the main agent being the hero, eight then 'and N more'", () => {
+        const many: CompanionSubagent[] = Array.from({ length: 11 }, (_, i) => ({
+            id: `s${i}`,
+            description: `Task ${i}`,
+            state: "running",
+            started: now - (i + 1) * Min,
+        }));
+        const html = markup({ ...companionView("claude", "Claude Code"), subagents: many }, withMilestone, 900);
+        expect(html).not.toContain('data-testid="companion-agent-main"');
+        expect(html.match(/data-testid="companion-subagent"/g)).toHaveLength(ListCap);
+        expect(html).toContain('data-testid="companion-subagents-more"');
+        expect(html).toContain("and 3 more");
     });
 
-    it("leaves no gap for a band whose sections have nothing to show", () => {
-        const view = { ...companionView("claude", "Claude Code"), todos: [] };
-        const permissionOnly: ColumnsBand = { kind: "columns", ids: ["permission"], left: ["permission"], right: [] };
-        const draw = (permission: React.ReactNode) =>
-            renderToStaticMarkup(
-                <CompanionWork
-                    view={view}
-                    agentState={working}
-                    dir="/w"
-                    now={now}
-                    width={900}
-                    milestones={withMilestone}
-                    band={permissionOnly}
-                    slots={{ permission }}
-                />
-            );
-        expect(draw(null)).toContain('data-empty=""');
-        expect(draw(<i data-slot="permission" />)).not.toContain("data-empty");
-    });
-
-    it("puts any section in a column, the Tasks block and the agents at work among them", () => {
-        const view = companionView("claude", "Claude Code");
-        const mixed: ColumnsBand = {
-            kind: "columns",
-            ids: ["topics", "tasks", "agents"],
-            left: ["topics", "tasks"],
-            right: ["agents"],
-        };
-        const html = markup(view, withMilestone, 900, mixed);
-        expect(columnOf(html, "companion-tasks")).toBe("left");
-        expect(columnOf(html, "companion-agents")).toBe("right");
-        expect(html.indexOf('data-slot="topics"')).toBeLessThan(html.indexOf('data-testid="companion-tasks"'));
-        expect(html).toContain('data-testid="companion-work-links"');
+    it("says so when the main agent has no sub-agent yet", () => {
+        const html = markup({ ...companionView("claude", "Claude Code"), subagents: [] }, withMilestone, 900);
+        expect(html).toContain('data-testid="companion-subagents-none"');
     });
 });
 
@@ -769,7 +686,8 @@ describe("who works on what (#2418)", () => {
                 agentState={{ ...lead, workspaceid: ThisWorkspace }}
                 dir="/shop"
                 now={now}
-                width={width}
+                width={width >= TwoColumnsFromPx ? Math.floor((width - 72) / 2) : width - 48}
+                paired={width >= TwoColumnsFromPx}
                 milestones={nine}
                 holds={holds}
                 {...extra}
@@ -927,13 +845,8 @@ describe("who works on what (#2418)", () => {
         expect(html).not.toContain("companion-taken-head");
     });
 
-    it("draws the agents with their initial, name and tool, and each sub-agent with its ticket, tier, model and duration", () => {
+    it("draws each sub-agent with its ticket, tier, model and duration, the main agent being the hero (#2441)", () => {
         const html = render(Flore, [1, 2, 3], 1400, { agentState: { ...leadState, model: "claude-opus-5-5" } });
-        expect(html).toContain('data-testid="companion-agent-main"');
-        expect(html).toContain('<span class="mt-cwork-agent-name truncate" title="Flore · Claude Code">Flore</span>');
-        expect(html).toContain('<span class="mt-cwork-agent-tool truncate">Claude Code</span>');
-        expect(html).toContain('data-large="" aria-hidden="true">F<');
-        expect(html).toContain(">Sub-agents<");
         expect(html.match(/data-testid="companion-subagent"/g)).toHaveLength(3);
         expect(html).toContain('<span class="mt-cwork-sub-id">#1</span>work on the ticket');
         expect(html).toContain("sf-fix · Opus 5.5 · background · 20 min");
@@ -983,7 +896,7 @@ describe("links from a task to its agent (#2392)", () => {
         expect(todoLinks([{ text: "Review docs", status: "in_progress" }], agents).size).toBe(0);
     });
 
-    it("draws a line per certain match when the blocks stand side by side, chips instead when they stack", () => {
+    it("draws a line per certain match when the blocks stand side by side, the chips at every width", () => {
         const m = milestone(12);
         const rows = taskLists(m, ticketLinks(m.tickets, agents), new Map()).rows;
         const links = drawnLinks(rows, ticketLinks(m.tickets, agents), todoLinks(view.todos, agents));
@@ -994,12 +907,11 @@ describe("links from a task to its agent (#2392)", () => {
         ]);
         const wide = markup(view, withMilestone, 900);
         expect(wide).toContain('data-testid="companion-work-links"');
-        expect(wide).not.toContain('data-testid="companion-work-chip"');
+        expect(wide.match(/data-testid="companion-work-chip"/g)).toHaveLength(2);
         const narrow = markup(view, withMilestone, 380);
         expect(narrow).not.toContain('data-testid="companion-work-links"');
-        expect(narrow.match(/data-testid="companion-work-chip"/g)).toHaveLength(3);
+        expect(narrow.match(/data-testid="companion-work-chip"/g)).toHaveLength(2);
         expect(narrow).toContain("→ #41 fix the checkout total");
-        expect(narrow).toContain("→ Review the docs");
         expect(narrow).not.toContain("→ Compare #35 with #41");
     });
 

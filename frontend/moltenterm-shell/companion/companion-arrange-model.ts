@@ -1,15 +1,15 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// What the arranging mode does to a layout (FR-SHELL-018, #2395): move a section, show or hide it, put it in a column,
+// What the arranging mode does to a layout (FR-SHELL-018, #2395, #2441): move a section, show or hide it, set it full width or fluid,
 // go back to the defaults. Each edit takes a layout and gives a new, usable one (companion-layout.ts keeps the
 // registry and what a stored layout may hold); none of them runs on its own. Loaded with the arranging mode, out of the
 // startup bundle. Pure, so it is tested without a window.
 
 import {
-    CompanionColumn,
     CompanionLayout,
     CompanionSectionId,
+    CompanionSpan,
     DefaultCompanionLayout,
     normalizeLayout,
     sameLayout,
@@ -27,9 +27,6 @@ export const SectionNameKeys: Record<CompanionSectionId, string> = {
     task: "companion.task.title",
     files: "companion.files.title",
 };
-
-// The column choices, in the order the arranging mode offers them.
-export const ColumnChoices: readonly CompanionColumn[] = ["full", "left", "right"];
 
 export function resetLayout(): CompanionLayout {
     return DefaultCompanionLayout;
@@ -78,12 +75,9 @@ function editSection(
     return normalizeLayout(normalizeLayout(layout).map((p) => (p.id === id ? edit(p) : p)));
 }
 
-export function setSectionColumn(
-    layout: CompanionLayout,
-    id: CompanionSectionId,
-    column: CompanionColumn
-): CompanionLayout {
-    return editSection(layout, id, (p) => ({ ...p, column }));
+// Full width spans every column of the flow; fluid takes one column (#2441).
+export function setSectionSpan(layout: CompanionLayout, id: CompanionSectionId, span: CompanionSpan): CompanionLayout {
+    return editSection(layout, id, (p) => ({ ...p, span }));
 }
 
 export function setSectionHidden(layout: CompanionLayout, id: CompanionSectionId, hidden: boolean): CompanionLayout {

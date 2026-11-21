@@ -1,12 +1,11 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The companion's sections and where they go (FR-SHELL-018, #2392, #2395): one registry of stable ids, one layout that
-// says in what order the sections come, which are shown and in which column each one stands, and the defaults, here
-// and nowhere else. A layout is a list: "full" sections span the companion; consecutive "left" and "right" sections
-// form a band of two columns when the companion is wide enough (TwoColumnMinWidth), and stack in the list's order when
-// it is narrow. The developer's own layout (#2395) is the same list, kept in the client's settings; the arranging
-// mode edits it (companion-arrange-model.ts). Pure, so it is tested without a window.
+// The companion's sections and how they are arranged (FR-SHELL-018, #2392, #2395, #2441): one registry of stable ids,
+// one layout that says in what order the sections come, which are shown and whether each one flows in a column or
+// spans the companion, and the defaults, here and nowhere else. The flow places them (companion-flow-model.ts). The
+// developer's own layout (#2395) is the same list, kept in the client's settings; the arranging mode edits it
+// (companion-arrange-model.ts). Pure, so it is tested without a window.
 
 // The registry: an id never changes once shipped, since a developer's own layout will name it.
 export const CompanionSectionIds = [
@@ -22,57 +21,55 @@ export const CompanionSectionIds = [
 
 export type CompanionSectionId = (typeof CompanionSectionIds)[number];
 
-export type CompanionColumn = "full" | "left" | "right";
+// "flow": the block takes one column of the flow; "full": it spans every column.
+export type CompanionSpan = "flow" | "full";
 
-export type SectionPlacement = { id: CompanionSectionId; column: CompanionColumn; hidden?: boolean };
+export type SectionPlacement = { id: CompanionSectionId; span: CompanionSpan; hidden?: boolean };
 
 export type CompanionLayout = readonly SectionPlacement[];
 
-// The defaults (#555, PR #557, then #2392): the plan usage; the Tasks block on the left, the agents at work on the
-// right; the permission request, the topics, the answer and the workspace task; the changed files last.
+// The defaults (#2441): what the developer acts on first (the permission request across the companion, right under
+// the hero; the milestone and the agents at work, a pair), then the usage, and the history and reference.
 export const DefaultCompanionLayout: CompanionLayout = [
-    { id: "usage", column: "full" },
-    { id: "tasks", column: "left" },
-    { id: "agents", column: "right" },
-    { id: "permission", column: "full" },
-    { id: "topics", column: "full" },
-    { id: "answer", column: "full" },
-    { id: "task", column: "full" },
-    { id: "files", column: "full" },
+    { id: "permission", span: "full" },
+    { id: "tasks", span: "flow" },
+    { id: "agents", span: "flow" },
+    { id: "usage", span: "flow" },
+    { id: "topics", span: "flow" },
+    { id: "answer", span: "flow" },
+    { id: "task", span: "flow" },
+    { id: "files", span: "flow" },
 ];
 
-// From this width a band's two columns stand side by side: two columns of about 250 px, the lane the link lines cross
-// between them and the companion's padding. Narrower, they stack.
-export const TwoColumnMinWidth = 560;
-
 // The companion's one horizontal inset in px: --mt-companion-inset (tokens.css), which companion-inset.test.ts keeps
-// equal to this. A block with its icon tile keeps the inset on the right and, on the left, the inset plus what the
-// tile hangs out of the block's 1 px border (16 - 1), so the tile's left edge lies on the inset; the Tasks block's width
-// is its column's minus both.
+// equal to this.
 export const CompanionInsetPx = 12;
-export const TileHangPx = 15;
-export const BlockInsetPx = 2 * CompanionInsetPx + TileHangPx;
 
-export type WorkLayout = "columns" | "stacked";
+const Spans = new Set<string>(["flow", "full"]);
 
-export function workLayout(width: number): WorkLayout {
-    return width >= TwoColumnMinWidth ? "columns" : "stacked";
+export function defaultSpan(id: CompanionSectionId): CompanionSpan {
+    return DefaultCompanionLayout.find((p) => p.id === id)?.span ?? "flow";
 }
 
-const Columns = new Set<CompanionColumn>(["full", "left", "right"]);
+// A stored placement: the current form, or the one #2395 stored, whose column (full, left or right) said where a
+// section stood in a band. A band of two columns is now the flow itself, so an old placement takes its section's
+// default span; its order and its hidden flag are kept.
+type StoredPlacement = { id?: unknown; span?: unknown; column?: unknown; hidden?: unknown };
 
-// A layout as it can be used: every registered section once, in the given order; an unknown id or column is dropped,
-// a section the layout forgets takes its default place at the end.
-export function normalizeLayout(layout: readonly SectionPlacement[]): CompanionLayout {
+// A layout as it can be used: every registered section once, in the given order; an unknown id is dropped, an unknown
+// span takes the default, a section the layout forgets takes its default place at the end.
+export function normalizeLayout(layout: readonly StoredPlacement[]): CompanionLayout {
     const known = new Set<string>(CompanionSectionIds);
     const seen = new Set<string>();
     const rtn: SectionPlacement[] = [];
     for (const p of layout ?? []) {
-        if (p == null || !known.has(p.id) || seen.has(p.id) || !Columns.has(p.column)) {
+        if (p == null || typeof p.id !== "string" || !known.has(p.id) || seen.has(p.id)) {
             continue;
         }
-        seen.add(p.id);
-        rtn.push({ id: p.id, column: p.column, ...(p.hidden ? { hidden: true } : {}) });
+        const id = p.id as CompanionSectionId;
+        seen.add(id);
+        const span = typeof p.span === "string" && Spans.has(p.span) ? (p.span as CompanionSpan) : defaultSpan(id);
+        rtn.push({ id, span, ...(p.hidden === true ? { hidden: true } : {}) });
     }
     for (const p of DefaultCompanionLayout) {
         if (!seen.has(p.id)) {
@@ -88,7 +85,7 @@ export function readStoredLayout(value: unknown): CompanionLayout {
     if (!Array.isArray(value) || value.length === 0) {
         return null;
     }
-    return normalizeLayout(value as SectionPlacement[]);
+    return normalizeLayout(value as StoredPlacement[]);
 }
 
 export function sameLayout(a: CompanionLayout, b: CompanionLayout): boolean {
@@ -96,59 +93,10 @@ export function sameLayout(a: CompanionLayout, b: CompanionLayout): boolean {
     const y = normalizeLayout(b);
     return (
         x.length === y.length &&
-        x.every((p, i) => p.id === y[i].id && p.column === y[i].column && !p.hidden === !y[i].hidden)
+        x.every((p, i) => p.id === y[i].id && p.span === y[i].span && !p.hidden === !y[i].hidden)
     );
 }
 
 export function isDefaultLayout(layout: CompanionLayout): boolean {
     return sameLayout(layout, DefaultCompanionLayout);
-}
-
-// The Tasks block and the agents at work are drawn by the work area from the session, not from a slot: even at full
-// width they come as a band of their own.
-const WorkSections = new Set<CompanionSectionId>(["tasks", "agents"]);
-
-export type FullBand = { kind: "full"; id: CompanionSectionId };
-
-// Two columns: ids is the list's order (the stacked one), left and right each column's.
-export type ColumnsBand = {
-    kind: "columns";
-    ids: CompanionSectionId[];
-    left: CompanionSectionId[];
-    right: CompanionSectionId[];
-};
-
-export type SectionBand = FullBand | ColumnsBand;
-
-// The bands a layout gives, the hidden sections and those with nothing to show (present says) left out.
-export function sectionBands(layout: CompanionLayout, present: (id: CompanionSectionId) => boolean): SectionBand[] {
-    const bands: SectionBand[] = [];
-    let columns: ColumnsBand = null;
-    for (const p of normalizeLayout(layout)) {
-        if (p.hidden || !present(p.id)) {
-            continue;
-        }
-        if (p.column === "full") {
-            columns = null;
-            bands.push(
-                WorkSections.has(p.id)
-                    ? { kind: "columns", ids: [p.id], left: [p.id], right: [] }
-                    : { kind: "full", id: p.id }
-            );
-            continue;
-        }
-        if (columns == null) {
-            columns = { kind: "columns", ids: [], left: [], right: [] };
-            bands.push(columns);
-        }
-        columns.ids.push(p.id);
-        columns[p.column].push(p.id);
-    }
-    return bands;
-}
-
-// The band that holds the Tasks block and the agents at work, as the defaults place them.
-export function defaultWorkBand(): ColumnsBand {
-    const band = sectionBands(DefaultCompanionLayout, (id) => id === "tasks" || id === "agents")[0];
-    return band as ColumnsBand;
 }
