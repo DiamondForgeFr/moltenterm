@@ -1,26 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// How the companion names the session it shows and lets the user choose another (DS-SHELL-060): the session bar
-// (title, start time, how it was linked, history button), the hint of a guessed link, and the history list.
+// How the companion lets the user choose another session (DS-SHELL-060): the history list. The session it shows is
+// named by the dashboard's hero (companion-hero.tsx).
 
 import { cn } from "@/util/util";
 import { useT } from "../i18n/i18n";
 import { DominoLoader } from "../suite/suite";
-import { IntegratedBadge } from "./companion-integration";
-import {
-    candidateTitle,
-    CompanionCandidate,
-    CompanionSession,
-    CompanionView,
-    guessHint,
-    historyGroups,
-    linkLabel,
-    relativeTime,
-    sessionTitle,
-    startedLabel,
-} from "./companion-model";
-import { UsageButton } from "./companion-usage";
+import { candidateTitle, CompanionCandidate, historyGroups, relativeTime } from "./companion-model";
 
 export function SessionHistoryList({
     sessions,
@@ -120,160 +107,5 @@ function HistoryItem({ c, now, onPick }: { c: CompanionCandidate; now: number; o
                     .join(" · ")}
             </span>
         </button>
-    );
-}
-
-// The session's name and start time, so the terminal's agent label and this bar can be matched at a glance.
-export function SessionBar({
-    view,
-    name,
-    modelEffort,
-    onHistory,
-    onIntegration,
-    integrationDetails = false,
-    persistentIntegration = false,
-    onBackToCurrent,
-    onArrange,
-    arranging,
-    arrangeRef,
-}: {
-    view: CompanionView;
-    // name: the agent's label, with the session's first name ("Jérôme · Claude Code", FR-CONT-014).
-    name?: string;
-    // The agent's model and effort as it reported them ("Opus · high", #549).
-    modelEffort?: string;
-    onHistory: () => void;
-    onIntegration?: () => void;
-    integrationDetails?: boolean;
-    persistentIntegration?: boolean;
-    // Leaves an earlier session the user chose for the one the agent runs (#600).
-    onBackToCurrent?: () => void;
-    // Turns the arranging mode on, or off when it is on (#2395): the button says which.
-    onArrange?: () => void;
-    arranging?: boolean;
-    arrangeRef?: React.Ref<HTMLButtonElement>;
-}) {
-    const t = useT();
-    const session = view.session;
-    const started = startedLabel(session?.started, Date.now());
-    const earlierCount = view.earlier?.length ?? 0;
-    return (
-        <div
-            className="flex shrink-0 items-center gap-2 border-b border-border px-(--mt-companion-inset) py-1.5 text-11 text-muted"
-            title={[session?.path, session?.format].filter((s) => !!s).join("\n")}
-            data-testid="companion-session-bar"
-        >
-            <span className="shrink-0 font-medium text-secondary">{name || view.agentname}</span>
-            {modelEffort ? (
-                <span className="shrink-0" data-testid="companion-model-effort">
-                    {modelEffort}
-                </span>
-            ) : null}
-            <span className="min-w-0 truncate text-primary" data-testid="companion-session-title">
-                {sessionTitle(session)}
-            </span>
-            {started ? <span className="shrink-0">{started}</span> : null}
-            <span className={cn("shrink-0", session?.linkedby === "guessed" && "italic")} data-testid="companion-link">
-                {linkLabel(session)}
-            </span>
-            <div className="ml-auto flex shrink-0 items-center gap-2">
-                {session?.earlier ? (
-                    <span className="flex items-center gap-1.5" data-testid="companion-earlier">
-                        <span className="rounded-4 border border-border px-1.5 text-secondary">
-                            {t("companion.bar.earlierSession")}
-                        </span>
-                        {onBackToCurrent != null ? (
-                            <button
-                                type="button"
-                                onClick={onBackToCurrent}
-                                className="cursor-pointer text-accent hover:underline"
-                                data-testid="companion-back-to-current"
-                            >
-                                {t("companion.bar.backToCurrent")}
-                            </button>
-                        ) : null}
-                    </span>
-                ) : null}
-                {view.ended ? <span className="text-warning">{t("companion.bar.ended")}</span> : null}
-                {view.status === "loading" ? (
-                    <span>
-                        <DominoLoader className="mr-1" />
-                        {t("companion.bar.reading")}
-                    </span>
-                ) : null}
-                {onIntegration != null && integrationDetails ? (
-                    <IntegratedBadge onOpen={onIntegration} persistent={persistentIntegration} className="-my-0.5" />
-                ) : null}
-                <UsageButton view={view} className="-my-0.5" />
-                {onArrange != null ? (
-                    <button
-                        type="button"
-                        ref={arrangeRef}
-                        onClick={onArrange}
-                        aria-label={t("companion.arrange.open")}
-                        aria-pressed={arranging === true}
-                        title={t("companion.arrange.open")}
-                        className={cn(
-                            "-my-0.5 flex cursor-pointer items-center gap-1 rounded-6 px-1 py-0.5 hover:bg-hover hover:text-primary",
-                            arranging ? "bg-hover text-primary" : "text-secondary"
-                        )}
-                        data-testid="companion-arrange-open"
-                    >
-                        <i className="fa fa-solid fa-table-columns" aria-hidden="true" />
-                    </button>
-                ) : null}
-                <button
-                    type="button"
-                    onClick={onHistory}
-                    aria-label={t("companion.bar.history")}
-                    title={
-                        earlierCount > 0
-                            ? t(
-                                  earlierCount === 1
-                                      ? "companion.bar.historyEarlierOne"
-                                      : "companion.bar.historyEarlierOther",
-                                  {
-                                      count: earlierCount,
-                                  }
-                              )
-                            : t("companion.bar.historyChoose")
-                    }
-                    className="-my-0.5 flex cursor-pointer items-center gap-1 rounded-6 px-1 py-0.5 text-secondary hover:bg-hover hover:text-primary"
-                    data-testid="companion-history-open"
-                >
-                    <i className="fa fa-solid fa-clock-rotate-left" />
-                    {earlierCount > 0 ? (
-                        <span className="text-11 tabular-nums" data-testid="companion-earlier-count">
-                            {earlierCount}
-                        </span>
-                    ) : null}
-                </button>
-            </div>
-        </div>
-    );
-}
-
-// A guessed session says how it was chosen and offers the history.
-export function GuessNotice({ session, onHistory }: { session: CompanionSession; onHistory: () => void }) {
-    const t = useT();
-    const hint = guessHint(session);
-    if (hint == null) {
-        return null;
-    }
-    return (
-        <div
-            className="mx-(--mt-companion-inset) mt-1.5 flex items-center gap-2 text-11 text-muted"
-            data-testid="companion-guess"
-        >
-            <span className="min-w-0 truncate">{hint}</span>
-            <button
-                type="button"
-                onClick={onHistory}
-                className="shrink-0 cursor-pointer text-accent hover:underline"
-                data-testid="companion-guess-change"
-            >
-                {t("companion.guess.notThis")}
-            </button>
-        </div>
     );
 }

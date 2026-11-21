@@ -1,10 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The companion's work area (FR-SHELL-018, #2392, #2416): the Tasks block first (one tab per open milestone, then the
-// agent's own task list), the agents at work beside it when the companion is wide enough and under it otherwise, and a
-// line from each task in progress to the agent working on it, only on a certain match. Loaded on demand, out of the
-// startup bundle (companion-view.tsx).
+// The companion's linked pair (FR-SHELL-018, #2392, #2416, #2441): the milestone block (one tab per open milestone) and
+// the agents at work, two blocks of the dashboard's flow, which stands them side by side from two columns; then a line
+// from each ticket in progress to the sub-agent working on it, only on a certain match, while they stand side by side.
+// Loaded with the dashboard, out of the startup bundle (companion-view.tsx).
 
 import { ClientModel } from "@/app/store/client-model";
 import { getSettingsKeyAtom } from "@/app/store/global";
@@ -15,20 +15,20 @@ import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Bot } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { useLocale, useT } from "../i18n/i18n";
 import type { ReviewsAnswer } from "../reviews/reviews-model";
 import { SharedReviewsAnswersAtom, SharedUpcomingAnswersAtom } from "../reviews/reviews-state-atoms";
 import type { UpcomingAnswer } from "../reviews/reviews-upcoming-model";
-import { SectionBlock } from "../suite/suite";
-import { suiteIcon } from "../suite/suite-icons";
 import { TabActivity, whileShown } from "../tab-activity";
 import { everyInPanel, panelActivityAtom, usePanelBlockId } from "../view360/offcarpet-model";
 import { AgentsBlockBody } from "./companion-agents";
+import { CompanionBlock, CountChip } from "./companion-block";
+import { FlowPlacedEvent, linesOnHover } from "./companion-flow-model";
 import { agentsRunKey, classifyTickets, HoldInputs, taskLists } from "./companion-holds-model";
-import { BlockInsetPx, ColumnsBand, CompanionSectionId, defaultWorkBand, workLayout } from "./companion-layout";
 import {
     agentEnd,
     chosenMilestone,
@@ -49,21 +49,17 @@ import {
     SummariesConsentKey,
     SummariesSettingKey,
     ticketLinks,
-    todoLinks,
     wantedTickets,
 } from "./companion-milestone-model";
 import { CompanionView } from "./companion-model";
 import { useCompanionPref, useMilestoneChoice, useTakenOpen } from "./companion-prefs";
 import { AgentRow, agentsView, finishedLabel } from "./companion-recap-model";
-import type { SessionSectionSlots } from "./companion-section";
 import { SummariesOffer, TasksBlock } from "./companion-tasks";
 import "./companion-work.css";
 
 const RpcTimeoutMs = 5000;
 // While it shows, the block asks again on this beat; wavesrv reads the forge at most once a minute anyway.
 const RefreshMs = 30000;
-// The lane between the two columns (companion-work.css); the room each block keeps from its column is BlockInsetPx.
-const ColumnGapPx = 16;
 
 function cleanDir(dir: string): string {
     const trimmed = (dir ?? "").trim();
@@ -174,25 +170,6 @@ function useHoldsData(
     return { upcoming: upcomings[dir] ?? null, reviews: reviews[dir] ?? null, states };
 }
 
-function useWidth(ref: React.RefObject<HTMLElement>): number {
-    const [width, setWidth] = useState(0);
-    useLayoutEffect(() => {
-        const el = ref.current;
-        if (el == null) {
-            return;
-        }
-        const measure = () => setWidth(Math.round(el.getBoundingClientRect().width));
-        measure();
-        if (typeof ResizeObserver === "undefined") {
-            return;
-        }
-        const observer = new ResizeObserver(measure);
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, []);
-    return width;
-}
-
 function linkKeyOf(target: EventTarget): string {
     const el = (target as Element)?.closest?.("[data-link-id],[data-link-end]");
     if (el == null) {
@@ -221,12 +198,17 @@ export type CompanionWorkProps = {
     // The project's folder, where wavesrv reads its forge.
     dir: string;
     now: number;
-    // The band of the layout this area draws (companion-layout.ts), the defaults' without one, and what its other
-    // sections show.
-    band?: ColumnsBand;
-    slots?: SessionSectionSlots;
-    // A fixed width instead of the measured one (the tests, which have no layout).
+    // Which of the two blocks the layout shows (#2395: a hidden one draws nothing, and no line).
+    showTasks?: boolean;
+    showAgents?: boolean;
+    // The width of the milestone block (its column's, from the flow): it decides how many tabs fit and the narrow forms.
     width?: number;
+    // The two blocks stand side by side (the flow's pair): the lines join a ticket to its sub-agent.
+    paired?: boolean;
+    // The flow the two blocks stand in, which the lines are drawn over.
+    flowRef?: React.RefObject<HTMLElement>;
+    // The main agent's first name, for the agents' empty line.
+    lead?: string;
     // The milestones as given instead of asked, and the tab as chosen instead of the remembered one (the tests).
     milestones?: MilestonesView;
     chosen?: number;
@@ -237,13 +219,10 @@ export type CompanionWorkProps = {
 export function CompanionWork(props: CompanionWorkProps) {
     const { view, agentState, dir, now } = props;
     const t = useT();
-    const rootRef = useRef<HTMLDivElement>(null);
-    const measured = useWidth(rootRef);
-    const rootWidth = props.width ?? measured;
-    const layout = workLayout(rootWidth);
-    const band = props.band ?? defaultWorkBand();
-    // A band without the Tasks block (hidden or elsewhere in the layout, #2395) never asks for the milestones.
-    const showsTasks = band.ids.includes("tasks");
+    const width = props.width ?? 0;
+    // A hidden milestone block (#2395) never asks for the milestones.
+    const showsTasks = props.showTasks !== false;
+    const showsAgents = props.showAgents !== false;
     const project = cleanDir(dir);
     const [remembered, choose] = useMilestoneChoice(project);
     const [want, setWant] = useState<number[]>([]);
@@ -291,104 +270,71 @@ export function CompanionWork(props: CompanionWorkProps) {
     useEffect(() => {
         setShown(shownNumber);
     }, [shownNumber]);
-    const todos = view?.todos ?? [];
-    // The plan's steps link to the agents only while the Tasks block is in this band (#2395): hiding it hides the lines.
-    const todoAgents = showsTasks ? todoLinks(todos, linkable) : new Map<number, LinkAgent>();
-    // Without the Tasks block in this band there is nothing to link an agent to.
-    const links = showsTasks ? drawnLinks(preview?.rows, tickets, todoAgents) : [];
+    // A ticket links to a sub-agent only while both blocks show (#2395): hiding one hides the lines and the chips.
+    const links = showsTasks && showsAgents ? drawnLinks(preview?.rows, tickets, new Map<number, LinkAgent>()) : [];
     const lit = hotEnds(links, hot);
     const ends = new Set(links.flatMap((l) => [l.from, l.to]));
     const loading = milestones?.state === "loading";
-    const hasTasks = loading || m != null;
+    const hasTasks = showsTasks && (loading || m != null);
     const ended = finishedLabel(agents.finished, agents.failed);
     const agentHeat = (row: AgentRow) => (ends.has(agentEnd(row.id)) ? heatOf(row.state) : undefined);
-    const shows = (id: CompanionSectionId) =>
-        id === "tasks" ? hasTasks : id === "agents" || props.slots?.[id] != null;
-    const left = band.left.filter(shows);
-    const right = band.right.filter(shows);
-    const columns = layout === "columns" && left.length > 0 && right.length > 0;
-    // A line needs the tasks and the agents in the two columns; anywhere else, the chips say who works on what.
-    const sideOf = (id: CompanionSectionId) => (left.includes(id) ? "left" : right.includes(id) ? "right" : null);
-    const sideBySide =
-        columns &&
-        hasTasks &&
-        sideOf("tasks") != null &&
-        sideOf("agents") != null &&
-        sideOf("tasks") !== sideOf("agents");
-    const chips = !sideBySide;
-    // The Tasks block's own width, from its column's: it decides how many tabs fit and which forms the header takes.
-    const blockWidth = Math.max(0, Math.floor(columns ? (rootWidth - ColumnGapPx) / 2 : rootWidth) - BlockInsetPx);
-    const sections: Partial<Record<CompanionSectionId, React.ReactNode>> = {
-        ...props.slots,
-        tasks: hasTasks ? (
-            <TasksBlock
-                loading={loading}
-                milestones={list}
-                selected={m}
-                onSelect={choose}
-                width={rootWidth > 0 ? blockWidth : 0}
-                lists={preview}
-                takenOpen={takenOpen}
-                onTakenChange={setTakenOpen}
-                phrasing={milestones?.phrasing === true}
-                offer={offer}
-                links={tickets}
-                now={now}
-                chips={chips}
-                lit={lit}
-                ends={ends}
-            />
-        ) : null,
-        agents: (
-            <SectionBlock
-                title={t("companion.agents.title")}
-                icon={suiteIcon("agent")}
-                className="mt-cwork-block"
-                data-testid="companion-agents"
-            >
-                <AgentsBlockBody
-                    rows={agents.rows}
-                    view={view}
-                    marks={{ ends, hot: lit, heat: agentHeat, chips, todoLinks: todoAgents }}
-                    ended={ended}
-                    now={now}
-                />
-            </SectionBlock>
-        ),
+    // The lines need the two blocks side by side; the "→ name" chips always say who works on what.
+    const sideBySide = props.paired === true && hasTasks && showsAgents;
+    const pointer: React.HTMLAttributes<HTMLElement> = {
+        onPointerOver: (e) => {
+            const key = linkKeyOf(e.target);
+            if (key !== hot) {
+                setHot(key);
+            }
+        },
+        onPointerLeave: () => setHot(null),
     };
-    const place = (ids: CompanionSectionId[]) => ids.map((id) => <Fragment key={id}>{sections[id]}</Fragment>);
-    // A band whose sections all have nothing to show takes no room; the root stays mounted so its width is measured.
-    const empty = !band.ids.some(shows);
+    const running = agents.rows.filter((r) => !r.main).length;
     return (
-        <div
-            ref={rootRef}
-            className="mt-cwork"
-            data-layout={layout}
-            data-both={columns ? "" : undefined}
-            data-empty={empty ? "" : undefined}
-            data-testid="companion-work"
-            onPointerOver={(e) => {
-                const key = linkKeyOf(e.target);
-                if (key !== hot) {
-                    setHot(key);
-                }
-            }}
-            onPointerLeave={() => setHot(null)}
-        >
-            {columns ? (
-                <>
-                    <div className="mt-cwork-col" data-column="left">
-                        {place(left)}
-                    </div>
-                    <div className="mt-cwork-col" data-column="right">
-                        {place(right)}
-                    </div>
-                </>
-            ) : (
-                place(band.ids.filter(shows))
-            )}
-            {sideBySide && links.length > 0 ? <LinkLayer rootRef={rootRef} links={links} lit={lit} /> : null}
-        </div>
+        <>
+            {hasTasks ? (
+                <TasksBlock
+                    flowId="tasks"
+                    blockProps={pointer}
+                    loading={loading}
+                    milestones={list}
+                    selected={m}
+                    onSelect={choose}
+                    width={width}
+                    lists={preview}
+                    takenOpen={takenOpen}
+                    onTakenChange={setTakenOpen}
+                    phrasing={milestones?.phrasing === true}
+                    offer={offer}
+                    links={tickets}
+                    now={now}
+                    chips={true}
+                    lit={lit}
+                    ends={ends}
+                />
+            ) : null}
+            {showsAgents ? (
+                <CompanionBlock
+                    flowId="agents"
+                    label={t("companion.agents.title")}
+                    icon={<Bot strokeWidth={2} aria-hidden />}
+                    chips={running > 0 ? <CountChip>{running}</CountChip> : null}
+                    className="mt-cwork-block"
+                    data-testid="companion-agents"
+                    {...pointer}
+                >
+                    <AgentsBlockBody
+                        rows={agents.rows}
+                        view={view}
+                        marks={{ ends, hot: lit, heat: agentHeat, chips: true }}
+                        ended={ended}
+                        now={now}
+                        lead={props.lead}
+                    />
+                </CompanionBlock>
+            ) : null}
+            {sideBySide && links.length > 0 ? <LinkLayer rootRef={props.flowRef} links={links} lit={lit} /> : null}
+        </>
     );
 }
 
@@ -408,7 +354,7 @@ function LinkLayer({
     links,
     lit,
 }: {
-    rootRef: React.RefObject<HTMLDivElement>;
+    rootRef: React.RefObject<HTMLElement>;
     links: DrawnLink[];
     lit: Set<string>;
 }) {
@@ -416,7 +362,7 @@ function LinkLayer({
     const schedule = useRef<() => void>(null);
     const key = links.map((l) => `${l.id}:${l.heat}`).join("|");
     useLayoutEffect(() => {
-        const root = rootRef.current;
+        const root = rootRef?.current;
         if (root == null) {
             return;
         }
@@ -446,8 +392,11 @@ function LinkLayer({
         const scroller = scrollParent(root);
         scroller?.addEventListener("scroll", later, { passive: true });
         root.addEventListener("scroll", later, { capture: true, passive: true });
+        // The flow moves its blocks by transform, which no observer sees: it says when it placed them.
+        root.addEventListener(FlowPlacedEvent, later);
         window.addEventListener("resize", later);
         return () => {
+            root.removeEventListener(FlowPlacedEvent, later);
             schedule.current = null;
             if (frame !== 0) {
                 cancelAnimationFrame(frame);
@@ -463,7 +412,12 @@ function LinkLayer({
         schedule.current?.();
     });
     return (
-        <svg className="mt-cwork-links" aria-hidden="true" data-testid="companion-work-links">
+        <svg
+            className="mt-cwork-links"
+            aria-hidden="true"
+            data-on-hover={linesOnHover(paths.length) ? "" : undefined}
+            data-testid="companion-work-links"
+        >
             {paths.map((p) => (
                 <g
                     key={p.id}

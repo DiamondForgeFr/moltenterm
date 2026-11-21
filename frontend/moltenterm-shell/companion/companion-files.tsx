@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The files the agent changed in the session (FR-SHELL-018), at the bottom of the companion and collapsed by default
-// (#555): the count shows; expanded, a filter field narrows the list as you type. Each file shows its diff and opens
-// in the preview at its first change.
+// The files the agent changed in the session (FR-SHELL-018, #555, #2441), as a block of the dashboard: the project's
+// files by their path relative to it (the folder quiet, the name bright), six then "Show all", then the files outside
+// the project grouped last and tagged. The filter in the block's tools narrows the list as you type. Each file shows
+// its diff and opens in the preview at its first change.
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
@@ -11,24 +12,22 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { DominoLoader } from "../suite/suite";
-import { filterFiles } from "./companion-files-model";
+import { MoreButton } from "./companion-block";
+import { fileGroups, filterFiles, ShownFile } from "./companion-files-model";
 import {
     CompanionDiff,
     CompanionDiffCommand,
     CompanionFile,
     CompanionRoute,
     diffLineKind,
-    displayPath,
     firstChangedLine,
 } from "./companion-model";
 import { openChangedFile } from "./companion-open";
 import { useCompanionPref } from "./companion-prefs";
 
 const RpcTimeoutMs = 5000;
-
-// A file's row (px-2) lets its hover fill reach 8 px past its text: the list gives up that much of the companion's
-// inset, so the texts of the rows, their diffs and their messages start on the inset like every other section.
-const RowListPad = "px-[calc(var(--mt-companion-inset)_-_0.5rem)]";
+// The project's files the block lists before "Show all".
+export const FilesShown = 6;
 
 function diffCall(target: string, path: string): Promise<CompanionDiff> {
     return TabRpcClient.wshRpcCall(
@@ -38,48 +37,55 @@ function diffCall(target: string, path: string): Promise<CompanionDiff> {
     );
 }
 
-const KindLabels: Record<string, { text: string; className: string; titleKey: string }> = {
-    add: { text: "A", className: "text-success", titleKey: "companion.files.added" },
-    update: { text: "M", className: "text-warning", titleKey: "companion.files.modified" },
-    delete: { text: "D", className: "text-danger", titleKey: "companion.files.deleted" },
+const KindLabels: Record<string, { text: string; titleKey: string }> = {
+    add: { text: "A", titleKey: "companion.files.added" },
+    update: { text: "M", titleKey: "companion.files.modified" },
+    delete: { text: "D", titleKey: "companion.files.deleted" },
 };
+
+export type FilesFrame = (parts: { tools: React.ReactNode; body: React.ReactNode; count: number }) => React.ReactNode;
 
 export function FilesSection({
     target,
     companionId,
     files,
     folder,
+    home,
+    frame,
 }: {
     target: string;
     companionId: string;
     files: CompanionFile[];
     folder: string;
+    // The home folder, for the files outside the project.
+    home?: string;
+    frame: FilesFrame;
 }) {
     const t = useT();
-    const [listOpen, setListOpen] = useCompanionPref("filesopen");
+    const [all, setAll] = useCompanionPref("filesopen");
+    const [filtering, setFiltering] = useState(false);
     const [query, setQuery] = useState("");
     const [open, setOpen] = useState<string>(null);
-    const [focusOnOpen, setFocusOnOpen] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
-    const listRef = useRef<HTMLUListElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
     const count = files?.length ?? 0;
-    const shown = filterFiles(files, query, folder);
+    const matched = filterFiles(files, query, folder);
+    const groups = fileGroups(matched, folder, home ?? "");
+    const capped = !all && !query && groups.inside.length > FilesShown + 1;
+    const inside = capped ? groups.inside.slice(0, FilesShown) : groups.inside;
     useEffect(() => {
-        if (listOpen && focusOnOpen) {
+        if (filtering) {
             inputRef.current?.focus();
-            setFocusOnOpen(false);
         }
-    }, [listOpen, focusOnOpen]);
-    const toggleList = () => {
-        setFocusOnOpen(!listOpen);
-        setListOpen(!listOpen);
-    };
+    }, [filtering]);
     const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
             if (query) {
-                e.preventDefault();
-                e.stopPropagation();
                 setQuery("");
+            } else {
+                setFiltering(false);
             }
             return;
         }
@@ -88,93 +94,108 @@ export function FilesSection({
             listRef.current?.querySelector<HTMLButtonElement>("button[data-file-toggle]")?.focus();
             return;
         }
-        if (e.key === "Enter" && shown.length > 0) {
+        if (e.key === "Enter" && matched.length > 0) {
             e.preventDefault();
-            setOpen(open === shown[0].path ? null : shown[0].path);
+            setOpen(open === matched[0].path ? null : matched[0].path);
         }
     };
-    return (
-        <section aria-label={t("companion.files.title")} className="pb-3" data-testid="companion-files-section">
+    const row = (f: ShownFile) => (
+        <FileRow
+            key={f.file.path}
+            target={target}
+            companionId={companionId}
+            shown={f}
+            open={open === f.file.path}
+            onToggle={() => setOpen(open === f.file.path ? null : f.file.path)}
+        />
+    );
+    const tools =
+        count > 0 ? (
             <button
                 type="button"
-                onClick={toggleList}
-                aria-expanded={listOpen}
-                className="flex w-full cursor-pointer items-center gap-2 px-(--mt-companion-inset) pt-3 pb-1 text-left hover:text-primary"
+                className="mt-cb-tool"
+                aria-label={t("companion.files.filterLabel")}
+                title={t("companion.files.filterLabel")}
+                aria-pressed={filtering}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setFiltering(!filtering);
+                    if (filtering) {
+                        setQuery("");
+                    }
+                }}
                 data-testid="companion-files-toggle"
             >
-                <i
-                    className={cn(
-                        "fa fa-solid fa-fw text-11 text-muted",
-                        listOpen ? "fa-chevron-down" : "fa-chevron-right"
-                    )}
-                    aria-hidden="true"
-                />
-                <span className="text-11 font-semibold tracking-wide text-muted uppercase">
-                    {t("companion.files.title")}
-                </span>
-                <span className="ml-auto text-11 text-muted tabular-nums" data-testid="companion-files-count">
-                    {count}
-                </span>
+                <i className="fa fa-solid fa-magnifying-glass" aria-hidden="true" />
             </button>
-            {!listOpen ? null : count === 0 ? (
-                <div className="px-(--mt-companion-inset) text-12 text-muted">{t("companion.files.none")}</div>
-            ) : (
-                <>
-                    <div className="px-(--mt-companion-inset) pb-1">
-                        <input
-                            ref={inputRef}
-                            type="search"
-                            value={query}
-                            onChange={(e) => setQuery(e.target.value)}
-                            onKeyDown={onKeyDown}
-                            placeholder={t("companion.files.filter")}
-                            aria-label={t("companion.files.filterLabel")}
-                            spellCheck={false}
-                            className="w-full rounded-4 border border-border bg-transparent px-2 py-1 font-mono text-12 text-primary outline-none placeholder:text-muted focus:border-accent/70"
-                            data-testid="companion-files-filter"
-                        />
+        ) : null;
+    const body =
+        count === 0 ? (
+            <div className="mt-cb-empty" data-testid="companion-files-section">
+                {t("companion.files.none")}
+            </div>
+        ) : (
+            <div className="flex flex-col gap-2" data-testid="companion-files-section">
+                {filtering ? (
+                    <input
+                        ref={inputRef}
+                        type="search"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        onKeyDown={onKeyDown}
+                        placeholder={t("companion.files.filter")}
+                        aria-label={t("companion.files.filterLabel")}
+                        spellCheck={false}
+                        className="mt-cdash-filter"
+                        data-testid="companion-files-filter"
+                    />
+                ) : null}
+                {matched.length === 0 ? (
+                    <div className="mt-cb-empty">{t("companion.files.noMatch")}</div>
+                ) : (
+                    <div ref={listRef} className="mt-cwork-flush" data-bare="" data-testid="companion-files">
+                        {inside.map(row)}
+                        {groups.inside.length > FilesShown + 1 && !query ? (
+                            <MoreButton
+                                more={groups.inside.length - inside.length}
+                                open={all}
+                                onToggle={() => setAll(!all)}
+                                label={t("companion.dash.filesAll", { count: groups.inside.length })}
+                                lessLabel={t("companion.dash.showLess")}
+                                testId="companion-files-all"
+                            />
+                        ) : null}
+                        {groups.outside.length > 0 ? (
+                            <section data-testid="companion-files-outside">
+                                <div className="mt-cwork-sec mt-cdash-sec-top">
+                                    <span>{t("companion.dash.outside")}</span>
+                                    <span className="mt-cwork-n">{groups.outside.length}</span>
+                                </div>
+                                {groups.outside.map(row)}
+                            </section>
+                        ) : null}
                     </div>
-                    {shown.length === 0 ? (
-                        <div className="px-(--mt-companion-inset) text-12 text-muted">
-                            {t("companion.files.noMatch")}
-                        </div>
-                    ) : (
-                        <ul ref={listRef} className={cn("flex flex-col", RowListPad)} data-testid="companion-files">
-                            {shown.map((f) => (
-                                <FileRow
-                                    key={f.path}
-                                    target={target}
-                                    companionId={companionId}
-                                    file={f}
-                                    folder={folder}
-                                    open={open === f.path}
-                                    onToggle={() => setOpen(open === f.path ? null : f.path)}
-                                />
-                            ))}
-                        </ul>
-                    )}
-                </>
-            )}
-        </section>
-    );
+                )}
+            </div>
+        );
+    return <>{frame({ tools, body, count })}</>;
 }
 
 function FileRow({
     target,
     companionId,
-    file,
-    folder,
+    shown,
     open,
     onToggle,
 }: {
     target: string;
     companionId: string;
-    file: CompanionFile;
-    folder: string;
+    shown: ShownFile;
     open: boolean;
     onToggle: () => void;
 }) {
     const t = useT();
+    const file = shown.file;
     const kind = KindLabels[file.kind] ?? KindLabels.update;
     // The preview opens at the line the first change of the file starts.
     const openAtChange = () =>
@@ -188,48 +209,48 @@ function FileRow({
             openChangedFile(file.path, line, companionId);
         });
     return (
-        <li className="flex flex-col">
-            <div className="group flex items-center gap-2 rounded-6 px-2 py-1 hover:bg-hover">
+        <div className="mt-cdash-file" data-testid="companion-file" data-outside={shown.outside ? "" : undefined}>
+            <div className="mt-cdash-frow">
                 <button
                     type="button"
-                    onClick={onToggle}
-                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
-                    title={file.path}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggle();
+                    }}
+                    className="mt-cdash-fbutton"
+                    title={shown.dir + shown.name}
                     aria-expanded={open}
                     data-file-toggle=""
                 >
-                    <i
-                        className={cn(
-                            "fa fa-solid fa-fw text-11 text-muted",
-                            open ? "fa-chevron-down" : "fa-chevron-right"
-                        )}
-                    />
-                    <span
-                        className={cn("w-3 shrink-0 font-mono text-11 font-semibold", kind.className)}
-                        title={t(kind.titleKey)}
-                    >
+                    <span className="mt-cdash-fkind" data-kind={file.kind} title={t(kind.titleKey)}>
                         {kind.text}
                     </span>
-                    <span className="truncate font-mono text-12 text-primary">{displayPath(file.path, folder)}</span>
+                    <span className="mt-cdash-fpath">
+                        <span className="mt-cdash-fdir">{shown.dir}</span>
+                        <span className="mt-cdash-fname">{shown.name}</span>
+                    </span>
                 </button>
-                <span className="shrink-0 font-mono text-11 tabular-nums">
-                    <span className="text-success">+{file.added}</span>{" "}
-                    <span className="text-danger">−{file.removed}</span>
+                {shown.outside ? <span className="mt-cdash-tag">{t("companion.dash.outsideTag")}</span> : null}
+                <span className="mt-cdash-fdelta">
+                    <span data-add="">+{file.added}</span> <span data-del="">−{file.removed}</span>
                 </span>
                 {file.kind !== "delete" ? (
                     <button
                         type="button"
-                        onClick={openAtChange}
-                        className="cursor-pointer rounded-6 px-1 text-11 text-secondary hover:text-primary"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            openAtChange();
+                        }}
+                        className="mt-cb-tool mt-cdash-fopen"
                         title={t("companion.files.open")}
-                        aria-label={t("companion.files.openPath", { path: file.path })}
+                        aria-label={t("companion.files.openPath", { path: shown.dir + shown.name })}
                     >
-                        <i className="fa fa-solid fa-arrow-up-right-from-square" />
+                        <i className="fa fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
                     </button>
                 ) : null}
             </div>
             {open ? <FileDiffView target={target} path={file.path} edits={file.edits} /> : null}
-        </li>
+        </div>
     );
 }
 
@@ -258,11 +279,11 @@ function FileDiffView({ target, path, edits }: { target: string; path: string; e
         };
     }, [target, path, edits]);
     if (error) {
-        return <div className="px-2 text-12 text-danger">{error}</div>;
+        return <div className="px-(--mt-companion-inset) pb-2 text-12 text-danger">{error}</div>;
     }
     if (diff == null) {
         return (
-            <div className="px-2 text-12 text-muted">
+            <div className="px-(--mt-companion-inset) pb-2 text-12 text-muted">
                 <DominoLoader className="mr-1.5" />
                 {t("companion.loading")}
             </div>
@@ -271,7 +292,7 @@ function FileDiffView({ target, path, edits }: { target: string; path: string; e
     const lines = diff.diff ? diff.diff.replace(/\n$/, "").split("\n") : [];
     return (
         <div
-            className="mx-2 mb-2 overflow-x-auto rounded-4 border border-border bg-black/20"
+            className="mx-(--mt-companion-inset) mb-2 overflow-x-auto rounded-4 border border-border bg-black/20"
             data-testid="companion-diff"
         >
             {diff.truncated ? (

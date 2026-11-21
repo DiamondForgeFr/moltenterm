@@ -1,0 +1,1057 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The companion as the main agent's dashboard (FR-SHELL-018, #2441): the hero, then the blocks in a flow of one to
+   three columns (companion-flow-model.ts places them). Every section is the same block: a framed surface whose label,
+   a filled chip led by a brass icon tile, sits in a notch on its top border, the border breaking under it and a U of
+   the page colour hugging its lower half; its tools ride on their own chip in a notch on the right; its one link is
+   the block's last row. One 24 px gutter shows everywhere. Role tokens only (tokens.css): the light theme swaps them. */
+
+.mt-cdash {
+    --mt-cdash-page: var(--mt-surface-1);
+    --mt-cdash-gutter: 24px;
+    /* From a block's bottom to the next block's border: the gutter plus the half notch its label stands above it. */
+    --mt-cdash-gap-y: 42px;
+    --mt-cdash-notch: 36px;
+    --mt-cdash-notch-gap: 6px;
+    --mt-cdash-tile: 24px;
+    --mt-cdash-hair: color-mix(in srgb, var(--mt-line-2) 60%, transparent);
+    --mt-cdash-chip-fill: color-mix(in srgb, var(--mt-text-1) 16%, var(--mt-surface-2));
+    --mt-cdash-chip-edge: color-mix(in srgb, var(--mt-text-1) 22%, transparent);
+    --mt-cdash-chip-shadow: 0 5px 8px -5px color-mix(in srgb, var(--mt-sink) 45%, transparent);
+    /* The rows and lists of the milestone and the agents (companion-work.css) read the suite's slots. */
+    --df-block-pad: var(--mt-companion-inset);
+    --df-line: var(--mt-line-2);
+    --df-radius-lg: var(--mt-radius-control);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    padding-bottom: var(--mt-cdash-gutter);
+    background: var(--mt-cdash-page);
+    color: var(--mt-text-1);
+}
+
+.mt-cdash [data-heat="running"] {
+    --mt-cwork-heat: var(--mt-state-running);
+}
+
+.mt-cdash [data-heat="waiting"] {
+    --mt-cwork-heat: var(--mt-state-waiting);
+}
+
+.mt-cdash [data-heat="blocked"] {
+    --mt-cwork-heat: var(--mt-state-blocked);
+}
+
+.mt-cdash [data-heat="ready"] {
+    --mt-cwork-heat: var(--mt-state-ready);
+}
+
+.mt-cdash [data-heat="draft"] {
+    --mt-cwork-heat: var(--mt-state-draft);
+}
+
+/* ── The block ─────────────────────────────────────────────────────────────────────────────────────────────────── */
+
+.mt-cb {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    min-width: 0;
+    padding: 28px var(--mt-companion-inset) var(--mt-companion-inset);
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-2);
+    color: var(--mt-text-1);
+    container-type: inline-size;
+}
+
+.mt-cb[data-tone="waiting"] {
+    --mt-cb-edge: color-mix(in srgb, var(--mt-state-waiting) 60%, transparent);
+    border-color: var(--mt-cb-edge);
+}
+
+/* The notches' row: the label notch on the left, the tools' on the right, on the top border. The label truncates
+   before it reaches the tools. */
+.mt-cb-head {
+    position: absolute;
+    z-index: 2;
+    top: calc(var(--mt-cdash-notch) / -2);
+    right: var(--mt-companion-inset);
+    left: var(--mt-companion-inset);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: var(--mt-cdash-notch);
+    pointer-events: none;
+}
+
+.mt-cb-notch {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--mt-cdash-notch-gap);
+    min-width: 0;
+    height: 100%;
+    padding: 0 var(--mt-cdash-notch-gap);
+    pointer-events: auto;
+    /* Above the border the page shows: the border breaks under the notch. */
+    background: linear-gradient(to bottom, var(--mt-cdash-page) calc(50% + 1px), transparent calc(50% + 1px));
+}
+
+/* When both notches do not fit, the tools give way first (their texts truncate), then the label. */
+.mt-cb-notch[data-side="label"] {
+    flex: 0 1 auto;
+}
+
+.mt-cb-notch[data-side="tools"] {
+    flex: 0 3 auto;
+    margin-left: auto;
+}
+
+/* The U: a frame around the chips, one gap away and filled with the page, kept below the border only. Its corners are
+   the chips' radius grown by the gap, as a spread shadow draws them. */
+.mt-cb-notch::before {
+    content: "";
+    position: absolute;
+    z-index: -2;
+    inset: var(--mt-cdash-notch-gap);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-cdash-page);
+    box-shadow:
+        0 0 0 calc(var(--mt-cdash-notch-gap) - 1px) var(--mt-cdash-page),
+        0 0 0 var(--mt-cdash-notch-gap) var(--mt-cb-edge, var(--mt-line-2));
+    clip-path: inset(50% -8px -8px -8px);
+    pointer-events: none;
+}
+
+.mt-cb-notch > * {
+    position: relative;
+}
+
+.mt-cb-tile {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: var(--mt-cdash-tile);
+    height: var(--mt-cdash-tile);
+    box-sizing: border-box;
+    /* Brass, not the chips' grey: an icon reads as an icon, never as one more label (the heat scale, no new colour). */
+    border: 1px solid color-mix(in srgb, var(--mt-state-running) 45%, transparent);
+    border-radius: var(--mt-radius-control);
+    background: linear-gradient(
+        to bottom right,
+        color-mix(in srgb, var(--mt-state-running) 26%, var(--mt-surface-3)),
+        color-mix(in srgb, var(--mt-state-running) 12%, var(--mt-surface-2))
+    );
+    color: color-mix(in srgb, var(--mt-state-running) 80%, var(--mt-text-1));
+    font-size: var(--mt-text-12);
+}
+
+.mt-cb-tile > svg {
+    width: 14px;
+    height: 14px;
+}
+
+.mt-cb-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    height: 24px;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0 10px;
+    border: 1px solid var(--mt-cdash-chip-edge);
+    border-radius: var(--mt-radius-control);
+    background: linear-gradient(
+        to bottom,
+        var(--mt-cdash-chip-fill),
+        color-mix(in srgb, var(--mt-cdash-chip-fill) 85%, var(--mt-surface-2))
+    );
+    box-shadow: var(--mt-cdash-chip-shadow);
+    color: var(--mt-text-1);
+    font-family: inherit;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.mt-cb-chip > .mt-cb-chip-text,
+.mt-cb-chip > h2,
+.mt-cb-chip > h3 {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    font: inherit;
+    text-overflow: ellipsis;
+}
+
+/* A label keeps a few letters before the tools take the room. */
+.mt-cb-notch[data-side="label"] .mt-cb-chip:not(.mt-cb-chip-off) {
+    flex: 0 1 auto;
+    min-width: 6em;
+}
+
+.mt-cb[data-tone="waiting"] .mt-cb-chip:not(.mt-cb-chip-off) {
+    border-color: var(--mt-cb-edge);
+}
+
+button.mt-cb-chip {
+    cursor: pointer;
+}
+
+.mt-cb-chip[aria-selected="true"] {
+    box-shadow: var(--mt-selected-line-action), var(--mt-cdash-chip-shadow);
+}
+
+/* An off chip: a count, another tab, "+N". */
+.mt-cb-chip-off {
+    flex: none;
+    padding: 0 7px;
+    border-color: var(--mt-line-2);
+    background: var(--mt-cdash-page);
+    box-shadow: none;
+    color: var(--mt-text-3);
+    font-weight: var(--mt-weight-medium);
+}
+
+.mt-cb-chip-off[data-mono] {
+    font-family: var(--font-mono, monospace);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+button.mt-cb-chip-off:hover {
+    color: var(--mt-text-1);
+}
+
+/* The tools ride on a chip of their own. */
+.mt-cb-tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    overflow: hidden;
+    height: 24px;
+    box-sizing: border-box;
+    padding: 0 4px;
+    border: 1px solid var(--mt-cdash-chip-edge);
+    border-radius: var(--mt-radius-control);
+    background: linear-gradient(
+        to bottom,
+        var(--mt-cdash-chip-fill),
+        color-mix(in srgb, var(--mt-cdash-chip-fill) 85%, var(--mt-surface-2))
+    );
+    box-shadow: var(--mt-cdash-chip-shadow);
+}
+
+.mt-cb-tool {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 20px;
+    height: 20px;
+    margin: 0;
+    padding: 0 4px;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: transparent;
+    color: var(--mt-text-2);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+    transition:
+        color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-cb-tool:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+    color: var(--mt-text-1);
+}
+
+.mt-cb-tool:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.mt-cb-tool[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--mt-veil) 12%, transparent);
+    color: var(--mt-text-1);
+}
+
+.mt-cb-tool:focus-visible,
+.mt-cb-chip:focus-visible,
+.mt-cb-foot-link:focus-visible {
+    outline: 2px solid var(--mt-focus);
+    outline-offset: 1px;
+}
+
+.mt-cb-tool > svg {
+    width: 14px;
+    height: 14px;
+}
+
+.mt-cb-tool-meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 2px;
+    color: var(--mt-text-3);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+}
+
+.mt-cb-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+/* The block's one link: its last row, inside, under a hairline. */
+.mt-cb-foot {
+    display: flex;
+    justify-content: flex-end;
+    margin: 10px calc(var(--mt-companion-inset) * -1) calc(var(--mt-companion-inset) * -1);
+    padding: 4px var(--mt-companion-inset);
+    border-top: 1px solid var(--mt-cdash-hair);
+}
+
+.mt-cb-foot-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    margin: 0;
+    padding: 0 4px;
+    border: 0;
+    background: none;
+    color: var(--mt-action-text);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    white-space: nowrap;
+}
+
+.mt-cb-foot-link:hover {
+    text-decoration: underline;
+}
+
+/* Lists flush with the block's edges close it; with a link row after them, the row closes it. */
+.mt-cb-body > .mt-cwork-flush:last-child,
+.mt-cb-body > :last-child > .mt-cwork-flush:last-child {
+    margin-bottom: calc(var(--mt-companion-inset) * -1);
+}
+
+.mt-cb[data-foot] .mt-cb-body > .mt-cwork-flush:last-child,
+.mt-cb[data-foot] .mt-cb-body > :last-child > .mt-cwork-flush:last-child {
+    margin-bottom: -10px;
+    border-radius: 0;
+}
+
+.mt-cb-sum {
+    overflow: hidden;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-12);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-cb[data-absent] .mt-cb-sum {
+    color: var(--mt-text-3);
+    font-style: italic;
+}
+
+.mt-cb[data-hidden] {
+    opacity: 0.5;
+}
+
+.mt-cb-empty {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-12);
+    line-height: 18px;
+}
+
+/* "And N more", "Show less": a quiet line that grows or shrinks its list. */
+.mt-cb-more {
+    display: block;
+    width: 100%;
+    margin: 0;
+    padding: 8px var(--mt-companion-inset);
+    border: 0;
+    border-top: 1px solid var(--mt-cdash-hair);
+    background: none;
+    color: var(--mt-text-3);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--mt-text-11);
+    text-align: left;
+}
+
+.mt-cwork-flush > * > .mt-cb-more:only-child {
+    border-top: 0;
+}
+
+.mt-cb-more:hover {
+    color: var(--mt-text-1);
+}
+
+/* ── The hero: the main agent ──────────────────────────────────────────────────────────────────────────────────── */
+
+.mt-cdash-hero {
+    --df-accent: var(--mt-state-running);
+    margin: var(--mt-cdash-gap-y) var(--mt-cdash-gutter) 0;
+    container-name: mt-hero;
+}
+
+.mt-cdash-hero[data-agent="waiting"] {
+    --mt-cb-edge: color-mix(in srgb, var(--mt-state-waiting) 60%, transparent);
+    border-color: var(--mt-cb-edge);
+}
+
+/* A faint incandescent wash in the top-left corner while the agent works. */
+.mt-cdash-heat {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+        90% 120% at 0% 0%,
+        color-mix(in srgb, var(--mt-state-running) 9%, transparent),
+        transparent 62%
+    );
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--mt-duration-slow) var(--mt-ease);
+}
+
+.mt-cdash-hero[data-agent="running"] > .mt-cdash-heat {
+    opacity: 1;
+}
+
+.mt-cdash-hero-grid {
+    position: relative;
+    display: grid;
+    gap: 12px;
+}
+
+@container mt-hero (min-width: 600px) {
+    .mt-cdash-hero-grid[data-plan] {
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+        gap: 24px;
+    }
+
+    .mt-cdash-hero-grid[data-plan] > .mt-cdash-plan {
+        padding-top: 0;
+        padding-left: 24px;
+        border-top: 0;
+        border-left: 1px solid var(--mt-cdash-hair);
+    }
+}
+
+.mt-cdash-id {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.mt-cdash-id-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.mt-cdash-avatar {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    box-sizing: border-box;
+    border: 1px solid var(--mt-cdash-chip-edge);
+    border-radius: var(--mt-radius-control);
+    background: linear-gradient(
+        to bottom right,
+        var(--mt-cdash-chip-fill),
+        color-mix(in srgb, var(--mt-cdash-chip-fill) 70%, var(--mt-sink))
+    );
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-15);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-cdash-names {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.mt-cdash-name-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.mt-cdash-name {
+    overflow: hidden;
+    font-size: var(--mt-text-20);
+    font-weight: var(--mt-weight-semibold);
+    letter-spacing: -0.01em;
+    line-height: 24px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-cdash-provider {
+    overflow: hidden;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-12);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-cdash-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+}
+
+.mt-cdash-tag {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    height: 18px;
+    box-sizing: border-box;
+    padding: 0 6px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+}
+
+.mt-cdash-tag[data-mono] {
+    font-family: var(--font-mono, monospace);
+}
+
+.mt-cdash-state {
+    --mt-mark: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    white-space: nowrap;
+}
+
+.mt-cdash-state[data-state="running"] {
+    color: var(--mt-state-running);
+}
+
+.mt-cdash-state[data-state="waiting"] {
+    color: var(--mt-state-waiting);
+}
+
+.mt-cdash-state[data-state="ready"] {
+    color: var(--mt-state-ready);
+}
+
+.mt-cdash-state[data-state="blocked"] {
+    color: var(--mt-state-blocked-text);
+}
+
+.mt-cdash-state[data-state="draft"] {
+    color: var(--mt-text-3);
+}
+
+.mt-cdash-subject {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-13);
+    line-height: 19px;
+}
+
+.mt-cdash-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 16px;
+}
+
+.mt-cdash-meta [data-mono] {
+    color: var(--mt-text-2);
+    font-family: var(--font-mono, monospace);
+}
+
+.mt-cdash-link {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--mt-action-text);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--mt-text-11);
+}
+
+.mt-cdash-link:hover {
+    text-decoration: underline;
+}
+
+.mt-cdash-warn {
+    color: var(--mt-state-warning);
+}
+
+/* The plan, the hero's second zone. */
+.mt-cdash-plan {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--mt-cdash-hair);
+    --mt-plan-pad: 0px;
+}
+
+.mt-cdash-plan-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.mt-cdash-plan-time {
+    margin-left: auto;
+    color: var(--mt-state-running);
+    font-weight: var(--mt-weight-medium);
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+}
+
+.mt-cdash-plan-time[data-quiet] {
+    color: var(--mt-text-3);
+}
+
+.mt-cdash-plan .mt-plan-strip {
+    margin: 0;
+    padding: 0;
+}
+
+.mt-cdash-plan .mt-plan-list {
+    margin-top: 2px;
+}
+
+.mt-cdash-plan .mt-plan-step {
+    min-height: 26px;
+    padding-right: 6px;
+    overflow: hidden;
+}
+
+.mt-cdash-plan .mt-cwork-chip {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 45%;
+}
+
+.mt-plan-fold-button {
+    gap: 6px;
+    width: 100%;
+    margin: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+}
+
+.mt-plan-fold-button:hover {
+    color: var(--mt-text-1);
+}
+
+/* The turning light round the hero while the agent works; MoltenTerm's own reduced motion stops it too. */
+.prefers-reduced-motion .mt-cdash .df-glow::before {
+    animation: none;
+}
+
+/* ── The arranging bar ─────────────────────────────────────────────────────────────────────────────────────────── */
+
+.mt-cdash-arrbar {
+    margin: var(--mt-cdash-gap-y) var(--mt-cdash-gutter) 0;
+}
+
+.mt-cdash-arrbar-in {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+}
+
+.mt-cdash-arrbar-in > p {
+    flex: 1 1 260px;
+    margin: 0;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-12);
+    line-height: 18px;
+}
+
+.mt-cdash-arrbar-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.mt-cb-grip {
+    cursor: grab;
+}
+
+/* ── The flow ──────────────────────────────────────────────────────────────────────────────────────────────────── */
+
+.mt-cdash-flow {
+    position: relative;
+    margin: var(--mt-cdash-gap-y) var(--mt-cdash-gutter) 0;
+}
+
+.mt-cdash-flow > .mt-cb {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+/* A structural change: the blocks travel to their new place; growth follows frame by frame, with no transition. */
+.mt-cdash-flow[data-reflowing] > .mt-cb {
+    transition: transform var(--mt-duration-slow) var(--mt-ease);
+}
+
+.mt-cdash-flow > .mt-cb[data-entering] {
+    animation: mt-cdash-in var(--mt-duration-flow) var(--mt-ease);
+}
+
+@keyframes mt-cdash-in {
+    from {
+        opacity: 0;
+        translate: 0 8px;
+    }
+    to {
+        opacity: 1;
+        translate: 0 0;
+    }
+}
+
+/* The lines between the milestone and the agents hide while blocks travel. */
+.mt-cdash-flow[data-reflowing] > .mt-cwork-links {
+    opacity: 0;
+}
+
+.mt-cdash-flow > .mt-cwork-links {
+    z-index: 3;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
+}
+
+/* Beyond six lines, a line shows only while one of its rows is pointed at. */
+.mt-cwork-links[data-on-hover] g:not([data-link-hot]) {
+    display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-cdash-flow[data-reflowing] > .mt-cb {
+        transition: none;
+    }
+
+    .mt-cdash-flow > .mt-cb[data-entering] {
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-cdash-flow[data-reflowing] > .mt-cb {
+    transition: none;
+}
+
+.prefers-reduced-motion .mt-cdash-flow > .mt-cb[data-entering] {
+    animation: none;
+}
+
+/* ── Sections ──────────────────────────────────────────────────────────────────────────────────────────────────── */
+
+.mt-cdash-perm-line {
+    font-size: var(--mt-text-13);
+    line-height: 19px;
+}
+
+.mt-cdash-perm-line [data-mono] {
+    font-family: var(--font-mono, monospace);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-cdash-perm-args {
+    max-height: 132px;
+    margin: 0;
+    overflow: auto;
+    padding: 8px 10px;
+    border: 1px solid var(--mt-line-1);
+    border-radius: var(--mt-radius-control);
+    background: color-mix(in srgb, var(--mt-sink) 28%, transparent);
+    color: var(--mt-text-2);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--mt-text-11);
+    line-height: 16px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.mt-cdash-act {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+}
+
+.mt-cdash-act > span {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-cdash-topic {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px var(--mt-companion-inset);
+    border-top: 1px solid var(--mt-cdash-hair);
+}
+
+.mt-cdash-topic-time {
+    flex: none;
+    width: 36px;
+    color: var(--mt-text-3);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--mt-text-11);
+    line-height: 17px;
+}
+
+.mt-cdash-topic-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.mt-cdash-topic-text {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-12);
+    line-height: 17px;
+}
+
+.mt-cdash-topic-meta {
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-cdash-answer {
+    position: relative;
+    overflow: hidden;
+}
+
+.mt-cdash-answer[data-folded] {
+    max-height: 180px;
+}
+
+.mt-cdash-answer[data-folded]::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 28px;
+    background: linear-gradient(transparent, var(--mt-surface-2));
+    pointer-events: none;
+}
+
+.mt-cdash-readmore {
+    align-self: flex-start;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--mt-text-2);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-cdash-readmore:hover {
+    color: var(--mt-text-1);
+    text-decoration: underline;
+}
+
+.mt-cdash-prov {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-cdash-task-goal {
+    font-size: var(--mt-text-13);
+    line-height: 19px;
+}
+
+.mt-cb[data-other-session] .mt-cdash-task-goal {
+    color: var(--mt-text-2);
+}
+
+.mt-cdash-sec-top {
+    border-top: 1px solid var(--mt-cdash-hair);
+}
+
+/* Changed files: the folder in text-3, the name in text-1. */
+.mt-cdash-file {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--mt-cdash-hair);
+}
+
+.mt-cdash-frow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    min-height: 32px;
+    padding: 4px var(--mt-companion-inset);
+}
+
+.mt-cdash-frow:hover {
+    background: color-mix(in srgb, var(--mt-veil) 4%, transparent);
+}
+
+.mt-cdash-fbutton {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+}
+
+.mt-cdash-fkind {
+    flex: none;
+    width: 12px;
+    font-family: var(--font-mono, monospace);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+}
+
+.mt-cdash-fkind[data-kind="add"] {
+    color: var(--mt-state-ready);
+}
+
+.mt-cdash-fkind[data-kind="update"] {
+    color: var(--mt-text-2);
+}
+
+.mt-cdash-fkind[data-kind="delete"] {
+    color: var(--mt-state-blocked-text);
+}
+
+.mt-cdash-fpath {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    font-family: var(--font-mono, monospace);
+    font-size: var(--mt-text-12);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-cdash-fdir {
+    color: var(--mt-text-3);
+}
+
+.mt-cdash-fname {
+    color: var(--mt-text-1);
+}
+
+.mt-cdash-fdelta {
+    flex: none;
+    font-family: var(--font-mono, monospace);
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+}
+
+.mt-cdash-fdelta > [data-add] {
+    color: var(--mt-state-ready);
+}
+
+.mt-cdash-fdelta > [data-del] {
+    color: var(--mt-state-blocked-text);
+}
+
+.mt-cdash-fopen {
+    opacity: 0;
+}
+
+.mt-cdash-frow:hover .mt-cdash-fopen,
+.mt-cdash-fopen:focus-visible {
+    opacity: 1;
+}
+
+.mt-cdash-filter {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    outline: none;
+    background: transparent;
+    color: var(--mt-text-1);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--mt-text-12);
+}
+
+.mt-cdash-filter:focus {
+    border-color: var(--mt-focus);
+}

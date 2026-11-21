@@ -5,8 +5,6 @@
 // it from the agent's own transcript. Display only: nothing is sent to the agent.
 
 import type { BlockNodeModel } from "@/app/block/blocktypes";
-import { CopyButton } from "@/app/element/copybutton";
-import { Markdown } from "@/app/element/markdown";
 import { ClientModel } from "@/app/store/client-model";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms } from "@/app/store/global";
@@ -15,10 +13,9 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import { atom, PrimitiveAtom, useAtom, useAtomValue } from "jotai";
-import { Fragment, lazy, memo, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { AgentHookOffers } from "../agent-hooks-store";
-import { goToAgent } from "../agent-info/agent-info-hooks";
-import { agentProviderLabel, agentProviderName, type AgentStateInfo } from "../agent-state-model";
+import { agentProviderName } from "../agent-state-model";
 import { useBlockAgentState } from "../agent-state-ui";
 import { CodingAgentModel } from "../coding-agent/coding-agent";
 import { EmptyState, EmptyStateAction } from "../empty-state";
@@ -40,41 +37,31 @@ import {
     StartOption,
     tabAttachCandidates,
 } from "./companion-attach";
-import { FilesSection } from "./companion-files";
 import { PlanUsageSection, ProviderUsageNote } from "./companion-gauges";
 import { IntegratedBadge, IntegrationDetails } from "./companion-integration";
-import type { ColumnsBand } from "./companion-layout";
 import {
     CompanionAnswer,
     CompanionAnswerCommand,
     CompanionCandidate,
     CompanionCloseCommand,
     CompanionEvent,
-    companionMarkdown,
     CompanionOpenCommand,
     CompanionPickCommand,
     CompanionRoute,
     CompanionSessionsCommand,
     CompanionTargetMetaKey,
-    CompanionToolCall,
     CompanionView,
     hasIntegrationDetails,
     integrationProblem,
     isIntegrated,
     MoltentermCompanionView,
     needsLatest,
-    neighbourAnswer,
     newerView,
-    permissionRequest,
     statusMessage,
 } from "./companion-model";
-import { PermissionRequestCard, permissionTerminalOf } from "./companion-permission";
 import { saveCompanionLayout, useCompanionLayout } from "./companion-prefs";
-import { AgentsSection, RecentTopicsSection } from "./companion-recap";
-import { SectionTitle, SessionSections, SessionSectionSlots } from "./companion-section";
 import { CompanionSessions } from "./companion-session-store";
-import { GuessNotice, SessionBar, SessionHistoryList } from "./companion-session-ui";
-import { WorkspaceTaskSection } from "./companion-task";
+import { SessionHistoryList } from "./companion-session-ui";
 import { UsageButton } from "./companion-usage";
 
 export { MoltentermCompanionView };
@@ -428,135 +415,63 @@ function CompanionPanel({ model }: ViewComponentProps<CompanionViewModel>) {
         setArranging(false);
         queueMicrotask(() => arrangeButton.current?.focus());
     };
-    const bar = (
-        <SessionBar
-            view={view}
-            name={agentState?.firstname || provider ? agentProviderLabel(agentState, view.agentname) : view.agentname}
-            onHistory={() => {
-                setArranging(false);
-                setHistory(true);
-            }}
-            onIntegration={() => {
-                setArranging(false);
-                setIntegrationOpen(true);
-            }}
-            integrationDetails={integrationDetails}
-            persistentIntegration={!isIntegrated(view) && hookOffer?.persistent === true}
-            onBackToCurrent={() =>
-                fireAndForget(async () => {
-                    try {
-                        setView(
-                            await companionCall<CompanionView>(CompanionPickCommand, {
-                                blockid: target,
-                                viewid: viewId,
-                                path: "",
-                            })
-                        );
-                    } catch (e) {
-                        console.log("companion: back to the current session", e);
-                    }
-                })
-            }
-            onArrange={() => (arranging ? leaveArranging() : setArranging(true))}
-            arranging={arranging}
-            arrangeRef={arrangeButton}
-        />
-    );
-    if (arranging) {
-        return (
-            <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
-                {bar}
-                <Suspense
-                    fallback={
-                        <div className="px-(--mt-companion-inset) py-3 text-12 text-muted">
-                            <DominoLoader className="mr-1.5" />
-                            {t("companion.arrange.loading")}
-                        </div>
-                    }
-                >
-                    <CompanionArrange layout={layout} onSave={saveCompanionLayout} onDone={leaveArranging} />
-                </Suspense>
-            </div>
-        );
-    }
-    // The sections by their ids (companion-layout.ts); the Tasks block and the agents at work come from the work area.
-    // A section with nothing to show is null, so it takes no place in a column either.
-    const request = permissionRequest(view.pending, agentState?.state);
-    const slots: SessionSectionSlots = {
-        usage,
-        permission:
-            request != null ? <PermissionCard pending={view.pending} target={target} agentState={agentState} /> : null,
-        topics: <RecentTopicsSection view={view} now={Date.now()} />,
-        answer: <AnswerSection key={view.session?.path} target={target} view={view} />,
-        task: <WorkspaceTaskSection target={target} companionId={model.blockId} companion={view} />,
-        files: (
-            <FilesSection
-                key={`files:${view.session?.path}`}
-                target={target}
-                companionId={model.blockId}
-                files={view.files}
-                folder={folder}
-            />
-        ),
-    };
     return (
-        <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion">
-            {bar}
-            <GuessNotice session={session} onHistory={() => setHistory(true)} />
-            <IntegrationNotice view={view} className="mx-(--mt-companion-inset) mt-2" />
-            <SessionSections
-                slots={slots}
-                layout={layout}
-                columns={(band) => (
-                    <WorkArea
-                        view={view}
-                        agentState={agentState}
-                        dir={projectDir || folder}
-                        band={band}
-                        slots={slots}
-                    />
-                )}
-            />
+        <div className="flex h-full min-h-0 w-full flex-col overflow-y-auto" data-testid="companion-scroll">
+            <Suspense
+                fallback={
+                    <div className="px-(--mt-companion-inset) py-3 text-12 text-muted">
+                        <DominoLoader className="mr-1.5" />
+                        {t("companion.loading")}
+                    </div>
+                }
+            >
+                <CompanionDashboard
+                    view={view}
+                    target={target}
+                    companionId={model.blockId}
+                    agentState={agentState}
+                    provider={provider}
+                    dir={projectDir || folder}
+                    folder={folder}
+                    layout={layout}
+                    onSaveLayout={saveCompanionLayout}
+                    arranging={arranging}
+                    onArrange={() => setArranging(true)}
+                    onLeaveArranging={leaveArranging}
+                    arrangeRef={arrangeButton}
+                    integrationDetails={integrationDetails}
+                    persistentIntegration={!isIntegrated(view) && hookOffer?.persistent === true}
+                    onHistory={() => {
+                        setArranging(false);
+                        setHistory(true);
+                    }}
+                    onIntegration={() => {
+                        setArranging(false);
+                        setIntegrationOpen(true);
+                    }}
+                    onBackToCurrent={() =>
+                        fireAndForget(async () => {
+                            try {
+                                setView(
+                                    await companionCall<CompanionView>(CompanionPickCommand, {
+                                        blockid: target,
+                                        viewid: viewId,
+                                        path: "",
+                                    })
+                                );
+                            } catch (e) {
+                                console.log("companion: back to the current session", e);
+                            }
+                        })
+                    }
+                />
+            </Suspense>
         </div>
     );
 }
 
-// A band of two columns, the Tasks block and the agents at work among its sections (#2392), loads on demand, out of the
-// startup bundle; until then its sections show stacked, in the layout's order, as on a narrow companion.
-const CompanionWork = lazy(() => import("./companion-work").then((m) => ({ default: m.CompanionWork })));
-
-// The arranging mode (#2395) loads only when the developer opens it.
-const CompanionArrange = lazy(() => import("./companion-arrange").then((m) => ({ default: m.CompanionArrange })));
-
-function WorkArea({
-    view,
-    agentState,
-    dir,
-    band,
-    slots,
-}: {
-    view: CompanionView;
-    agentState: AgentStateInfo;
-    dir: string;
-    band: ColumnsBand;
-    slots: SessionSectionSlots;
-}) {
-    const now = Date.now();
-    const stacked = band.ids.map((id) => (
-        <Fragment key={id}>
-            {id === "tasks" ? null : id === "agents" ? (
-                <AgentsSection view={view} agentState={agentState} now={now} />
-            ) : (
-                slots[id]
-            )}
-        </Fragment>
-    ));
-    return (
-        <Suspense fallback={stacked}>
-            <CompanionWork view={view} agentState={agentState} dir={dir} now={now} band={band} slots={slots} />
-        </Suspense>
-    );
-}
+// The dashboard (#2441): the hero, the blocks' flow and the arranging mode, loaded on demand, out of the startup bundle.
+const CompanionDashboard = lazy(() => import("./companion-dashboard").then((m) => ({ default: m.CompanionDashboard })));
 
 function WithUsage({ usage, children }: { usage: React.ReactNode; children: React.ReactNode }) {
     if (usage == null) {
@@ -793,159 +708,3 @@ function IntegrationNotice({ view, className }: { view: CompanionView; className
         </div>
     );
 }
-
-// The way to the terminal is the one notifications and the agent tree take: its workspace, its tab, then its pane,
-// focused.
-function PermissionCard({
-    pending,
-    target,
-    agentState,
-}: {
-    pending: CompanionToolCall[];
-    target: string;
-    agentState: AgentStateInfo;
-}) {
-    const t = useT();
-    const request = permissionRequest(pending, agentState?.state);
-    const showTerminal = () => fireAndForget(() => goToAgent(permissionTerminalOf(target, agentState)));
-    return <PermissionRequestCard request={request} t={t} onShowTerminal={showTerminal} />;
-}
-
-function NavButton({
-    label,
-    icon,
-    disabled,
-    onClick,
-}: {
-    label: string;
-    icon: string;
-    disabled: boolean;
-    onClick: () => void;
-}) {
-    return (
-        <button
-            type="button"
-            aria-label={label}
-            title={label}
-            disabled={disabled}
-            onClick={onClick}
-            className={cn(
-                "rounded-4 px-1.5 py-0.5 text-12 text-secondary",
-                disabled ? "opacity-40" : "cursor-pointer hover:bg-hover hover:text-primary"
-            )}
-        >
-            <i className={`fa fa-solid fa-${icon}`} />
-        </button>
-    );
-}
-
-// The latest answer follows the session; browsing back pins an earlier one until "Latest".
-function AnswerSection({ target, view }: { target: string; view: CompanionView }) {
-    const t = useT();
-    const [pinned, setPinned] = useState<number>(null);
-    const [earlier, setEarlier] = useState<CompanionAnswer>(null);
-    const [error, setError] = useState<string>(null);
-    const answers = view.answers ?? [];
-    const latest = view.latest;
-    useEffect(() => {
-        setEarlier(null);
-        setError(null);
-        if (pinned == null) {
-            return;
-        }
-        let cancelled = false;
-        fireAndForget(async () => {
-            try {
-                const a = await companionCall<CompanionAnswer>(CompanionAnswerCommand, {
-                    blockid: target,
-                    index: pinned,
-                });
-                if (!cancelled) {
-                    setEarlier(a);
-                }
-            } catch (e) {
-                if (!cancelled) {
-                    setError(serverErrorText(e));
-                }
-            }
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [target, pinned]);
-    const shown = pinned == null ? latest : earlier;
-    const current = shown?.index ?? latest?.index;
-    const pos = answers.findIndex((a) => a.index === current);
-    const go = (step: -1 | 1) => {
-        const next = neighbourAnswer(answers, current, step);
-        if (next == null) {
-            return;
-        }
-        setPinned(next === latest?.index ? null : next);
-    };
-    const markdown = useMemo(() => companionMarkdown(shown?.markdown), [shown?.markdown]);
-    if (latest == null) {
-        return (
-            <>
-                <SectionTitle>{t("companion.answer.title")}</SectionTitle>
-                <div className="px-(--mt-companion-inset) text-12 text-muted">{t("companion.answer.none")}</div>
-            </>
-        );
-    }
-    return (
-        <>
-            <SectionTitle
-                right={
-                    <>
-                        <NavButton
-                            label={t("companion.answer.earlier")}
-                            icon="chevron-left"
-                            disabled={pos <= 0}
-                            onClick={() => go(-1)}
-                        />
-                        <span className="text-11 text-muted tabular-nums" data-testid="companion-answer-pos">
-                            {pos + 1} / {answers.length}
-                        </span>
-                        <NavButton
-                            label={t("companion.answer.later")}
-                            icon="chevron-right"
-                            disabled={pos < 0 || pos >= answers.length - 1}
-                            onClick={() => go(1)}
-                        />
-                        {pinned != null ? (
-                            <button
-                                type="button"
-                                onClick={() => setPinned(null)}
-                                className="cursor-pointer rounded-6 px-1.5 py-0.5 text-11 text-accent hover:bg-hover"
-                            >
-                                {t("companion.answer.latestButton")}
-                            </button>
-                        ) : null}
-                        <CopyButton
-                            title={t("companion.answer.copy")}
-                            onClick={() => fireAndForget(() => navigator.clipboard.writeText(shown?.markdown ?? ""))}
-                        />
-                    </>
-                }
-            >
-                {pinned == null ? t("companion.answer.latest") : t("companion.answer.earlier")}
-            </SectionTitle>
-            {error ? <div className="px-(--mt-companion-inset) text-12 text-danger">{error}</div> : null}
-            <div className="px-(--mt-companion-inset)" data-testid="companion-answer">
-                {shown ? (
-                    <AnswerMarkdown markdown={markdown} />
-                ) : (
-                    <div className="text-12 text-muted">
-                        <DominoLoader className="mr-1.5" />
-                        {t("companion.loading")}
-                    </div>
-                )}
-            </div>
-        </>
-    );
-}
-
-const AnswerMarkdown = memo(({ markdown }: { markdown: string }) => {
-    return <Markdown text={markdown} scrollable={false} fontSizeOverride={13} fixedFontSizeOverride={12} />;
-});
-AnswerMarkdown.displayName = "AnswerMarkdown";

@@ -2134,29 +2134,72 @@
         },
         "loading": "Chargement…",
         "tasks": "Tâches",
+        "dash": {
+            "mainAgent": "Agent principal",
+            "noSubagents": "Aucun sous-agent pour l'instant. Ceux que {name} lance s'affichent ici.",
+            "noSubagentsPlain": "Aucun sous-agent pour l'instant.",
+            "andMore": {
+                "one": "et {count} autre",
+                "other": "et {count} autres"
+            },
+            "showMore": {
+                "one": "Montrer {count} de plus",
+                "other": "Montrer {count} de plus"
+            },
+            "showLess": "Montrer moins",
+            "filesAll": "Tout voir ({count} dans le projet)",
+            "outside": "Hors du projet",
+            "outsideTag": "hors projet",
+            "wantsToRun": "{name} veut exécuter",
+            "wantsToRunPlain": "L'agent veut exécuter",
+            "usageOff": "L'usage du forfait est masqué dans les compagnons.",
+            "openUsage": "Ouvrir la page d'usage",
+            "readAll": "Tout lire",
+            "readLess": "Réduire",
+            "sum": {
+                "permission": "Apparaît quand l'agent demande une autorisation",
+                "tasks": "Les jalons ouverts du projet et leurs tickets",
+                "agents": {
+                    "one": "{count} sous-agent au travail",
+                    "other": "{count} sous-agents au travail"
+                },
+                "usage": "L'usage du forfait, jour par jour",
+                "usageNone": "Apparaît quand l'agent donne son usage",
+                "topics": {
+                    "one": "{count} sujet",
+                    "other": "{count} sujets"
+                },
+                "answers": {
+                    "one": "{count} réponse dans la session",
+                    "other": "{count} réponses dans la session"
+                },
+                "task": "Le point de reprise de l'espace",
+                "files": {
+                    "one": "{count} fichier modifié",
+                    "other": "{count} fichiers modifiés"
+                }
+            }
+        },
         "arrange": {
             "open": "Agencer le compagnon",
             "title": "Agencer le compagnon",
-            "loading": "Ouverture de l'agencement…",
-            "hint": "Faites glisser une section par sa poignée, ou placez le focus sur la poignée et appuyez sur la flèche haut ou bas. Une section sans rien à montrer ne prend pas de place.",
-            "columnsHint": "Gauche et droite se placent côte à côte à partir de {width} px de large ; plus étroit, les sections s'empilent dans cet ordre.",
-            "saves": "Terminé enregistre l'agencement pour tous les compagnons.",
-            "list": "Sections du compagnon",
+            "hint": "Chaque bloc a sa priorité (1 = en premier) : montez-le ou descendez-le avec ses flèches, faites-lui prendre toute la largeur ou laissez-le dans le flux (↔), masquez-le avec l'œil. Le jalon et les agents au travail restent côte à côte pour garder leurs liens, tant qu'aucun des deux ne prend toute la largeur. Terminé enregistre l'agencement pour tous les compagnons.",
             "handle": "Déplacer {name}",
-            "handleHelp": "Les flèches haut et bas la déplacent, Début et Fin l'envoient aux extrémités.",
+            "handleHelp": "Les flèches haut et bas le déplacent, Début et Fin l'envoient aux extrémités.",
             "show": "Afficher {name}",
-            "shown": "Visible",
             "hidden": "Masqué",
-            "column": "{name} : colonne",
-            "columnFull": "Pleine largeur",
-            "columnLeft": "Gauche",
-            "columnRight": "Droite",
+            "rank": "{position} / {total}",
+            "rankTitle": "Priorité d'affichage",
+            "up": "Monter {name}",
+            "down": "Descendre {name}",
+            "wide": "Pleine largeur pour {name}",
+            "wideOn": "{name} prend toute la largeur.",
+            "wideOff": "{name} revient dans le flux.",
             "moved": "{name} : position {position} sur {total}.",
             "first": "{name} : déjà en première position.",
             "last": "{name} : déjà en dernière position.",
             "shownNow": "{name} : affichage activé.",
             "hiddenNow": "{name} : affichage désactivé.",
-            "columnNow": "{name} : {column}.",
             "reset": "Revenir à l'agencement par défaut",
             "resetDone": "Agencement par défaut rétabli.",
             "done": "Terminé"
@@ -2248,6 +2291,7 @@
         "branch": "Branche : {branch}",
         "plan": {
             "title": "Plan de {name}",
+            "head": "Plan · {done} / {total}",
             "updated": "mis à jour {time}",
             "inProgress": "en cours",
             "inProgressFor": "en cours · {duration}",

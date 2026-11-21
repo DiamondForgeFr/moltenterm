@@ -209,7 +209,10 @@ function usePlanUsage(target: string, agent: string, now: number) {
     };
 }
 
-export function PlanUsageSection({ target, agent }: { target: string; agent: string }) {
+// The usage in a block of the dashboard (#2441): its tools go to the block's tools notch, its body inside the block.
+export type UsageFrame = (parts: { tools: ReactNode; body: ReactNode; state: string }) => ReactNode;
+
+export function PlanUsageSection({ target, agent, frame }: { target: string; agent: string; frame?: UsageFrame }) {
     // The views are built by the model with t(): reading the language re-renders the section when it changes.
     useT();
     const now = useNow(ClockTickMs);
@@ -238,6 +241,7 @@ export function PlanUsageSection({ target, agent }: { target: string; agent: str
             onExperimental={setExperimental}
             compact={!details}
             onDetails={setDetails}
+            frame={frame}
         />
     );
 }
@@ -309,6 +313,7 @@ export function PlanUsageBody({
     onConfirming,
     compact,
     onDetails,
+    frame,
 }: {
     view: GaugesView;
     experimental?: ExperimentalView;
@@ -316,6 +321,7 @@ export function PlanUsageBody({
     failed?: boolean;
     refreshing?: boolean;
     compact?: boolean;
+    frame?: UsageFrame;
 } & PlanUsageActions) {
     const t = useT();
     const extra = (
@@ -328,6 +334,20 @@ export function PlanUsageBody({
     );
     if (view.kind === "hidden") {
         return null;
+    }
+    if (frame != null) {
+        return (
+            <FramedUsage
+                view={view}
+                extra={extra}
+                failed={failed}
+                refreshing={refreshing}
+                onShow={onShow}
+                onHide={onHide}
+                onRefresh={onRefresh}
+                frame={frame}
+            />
+        );
     }
     if (view.kind === "off") {
         return (
@@ -417,6 +437,137 @@ export function PlanUsageBody({
             {extra}
         </section>
     );
+}
+
+// The usage as a block of the dashboard (#2441): the week day by day for every limit, its source and age, and the
+// refresh and hide tools in the block's tools notch.
+function FramedUsage({
+    view,
+    extra,
+    failed,
+    refreshing,
+    onShow,
+    onHide,
+    onRefresh,
+    frame,
+}: {
+    view: Exclude<GaugesView, { kind: "hidden" }>;
+    extra: ReactNode;
+    failed?: boolean;
+    refreshing?: boolean;
+    onShow: () => void;
+    onHide: () => void;
+    onRefresh: () => void;
+    frame: UsageFrame;
+}) {
+    const t = useT();
+    const hide = (
+        <button type="button" className="mt-cb-tool" onClick={onHide} data-testid="companion-plan-usage-hide">
+            {t("companion.gauges.hideShort")}
+        </button>
+    );
+    if (view.kind === "off") {
+        return frame({
+            state: "off",
+            tools: (
+                <button
+                    type="button"
+                    className="mt-cb-tool"
+                    aria-label={t("companion.gauges.show")}
+                    onClick={onShow}
+                    data-testid="companion-plan-usage-show"
+                >
+                    {t("companion.gauges.showShort")}
+                </button>
+            ),
+            body: (
+                <div className="mt-cb-empty" data-testid="companion-plan-usage" data-state="off">
+                    {t("companion.dash.usageOff")}
+                </div>
+            ),
+        });
+    }
+    if (view.kind === "unavailable") {
+        return frame({
+            state: "unavailable",
+            tools: hide,
+            body: (
+                <div data-testid="companion-plan-usage" data-state="unavailable">
+                    <div className="mt-cb-empty" title={view.reason}>
+                        {t("companion.gauges.unavailable")}
+                        <span className="sr-only">: {view.reason}</span>
+                    </div>
+                    {extra}
+                </div>
+            ),
+        });
+    }
+    if (view.kind === "setup") {
+        return frame({
+            state: "setup",
+            tools: null,
+            body: <StatusLineSetupCard setup={view.setup} failed={failed} onHide={onHide} extra={extra} bare />,
+        });
+    }
+    return frame({
+        state: "enabled",
+        tools: (
+            <>
+                {view.age ? <span className="mt-cb-tool-meta">{view.age}</span> : null}
+                <button
+                    type="button"
+                    className="mt-cb-tool"
+                    onClick={onRefresh}
+                    title={t("companion.gauges.refresh")}
+                    aria-label={t("companion.gauges.refresh")}
+                    aria-busy={refreshing || undefined}
+                >
+                    {refreshing ? (
+                        <DominoLoader className="mt-dominos-icon" />
+                    ) : (
+                        <i className="fa fa-solid fa-rotate-right" aria-hidden="true" />
+                    )}
+                </button>
+                {hide}
+            </>
+        ),
+        body: (
+            <div
+                className="flex flex-col gap-2.5"
+                aria-label={t("companion.gauges.title")}
+                data-testid="companion-plan-usage"
+                data-state="enabled"
+            >
+                <div className="flex flex-wrap items-center gap-2">
+                    <ExperimentalBadge />
+                    {view.source ? (
+                        <span className="text-11 text-muted">
+                            {t("companion.gauges.from", { source: view.source })}
+                        </span>
+                    ) : null}
+                </div>
+                <div data-testid="companion-gauges">
+                    <UsageWeekGrid
+                        rows={view.rows.map((row) => weekRow(view, row, "", true))}
+                        now={view.now}
+                        legend={view.rows.length > 0}
+                        dayFigures
+                    />
+                </div>
+                {view.rows.length > 0 ? (
+                    <p className="m-0 text-11 leading-snug text-muted" data-testid="companion-plan-usage-explain">
+                        {t("companion.gauges.explain")}
+                    </p>
+                ) : null}
+                {view.credits ? (
+                    <div className="text-11 text-secondary" data-testid="companion-plan-usage-credits">
+                        {view.credits}
+                    </div>
+                ) : null}
+                {extra}
+            </div>
+        ),
+    });
 }
 
 function ExperimentalSourceBadge() {
@@ -637,11 +788,14 @@ function StatusLineSetupCard({
     failed,
     onHide,
     extra,
+    bare,
 }: {
     setup: UsageSetup;
     failed?: boolean;
     onHide: () => void;
     extra?: ReactNode;
+    // Inside a dashboard block, which carries the title and the inset (#2441).
+    bare?: boolean;
 }) {
     const t = useT();
     const [copied, setCopied] = useState(false);
@@ -656,15 +810,17 @@ function StatusLineSetupCard({
         });
     return (
         <section
-            className="shrink-0 border-b border-border px-(--mt-companion-inset) pt-2 pb-3 text-12"
+            className={cn("shrink-0 text-12", !bare && "border-b border-border px-(--mt-companion-inset) pt-2 pb-3")}
             aria-label={t("companion.gauges.setupLabel")}
             data-testid="companion-plan-usage"
             data-state="setup"
         >
             <div className="flex items-center gap-2">
-                <span className="text-11 font-semibold tracking-wide text-muted uppercase">
-                    {t("companion.gauges.title")}
-                </span>
+                {bare ? null : (
+                    <span className="text-11 font-semibold tracking-wide text-muted uppercase">
+                        {t("companion.gauges.title")}
+                    </span>
+                )}
                 <ExperimentalBadge />
             </div>
             <p className="mt-1.5 text-secondary">{t("companion.gauges.setupIntro")}</p>

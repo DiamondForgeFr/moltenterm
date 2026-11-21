@@ -4,11 +4,53 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { CompanionHero, CompanionHeroProps } from "./companion-hero";
 import { CompanionCandidate, CompanionView, historyGroups, sessionRelation } from "./companion-model";
 import { CompanionSessions } from "./companion-session-store";
-import { GuessNotice, SessionBar, SessionHistoryList } from "./companion-session-ui";
+import { SessionHistoryList } from "./companion-session-ui";
 
 vi.mock("@/app/store/global", () => ({ openLink: vi.fn() }));
+
+// The hero names the session in place of the session bar (#2441).
+function SessionBar({
+    view,
+    modelEffort,
+    onHistory,
+    onBackToCurrent,
+}: {
+    view: CompanionView;
+    modelEffort?: string;
+    onHistory: () => void;
+    onBackToCurrent?: () => void;
+}) {
+    const [modelname, effort] = (modelEffort ?? "").split(" · ");
+    const props: CompanionHeroProps = {
+        view,
+        agentState: {
+            blockid: "b",
+            agent: "claude",
+            agentname: "Claude Code",
+            state: "working",
+            version: 1,
+            modelname: modelname || undefined,
+            effort: effort || undefined,
+        },
+        provider: "",
+        arranging: false,
+        onArrange: onHistory,
+        onLeaveArranging: onHistory,
+        integrationDetails: false,
+        persistentIntegration: false,
+        onIntegration: onHistory,
+        onHistory,
+        onBackToCurrent: onBackToCurrent ?? onHistory,
+    };
+    return <CompanionHero {...props} />;
+}
+
+function GuessNotice({ session, onHistory }: { session: CompanionView["session"]; onHistory: () => void }) {
+    return <SessionBar view={{ ...guessed, session }} onHistory={onHistory} />;
+}
 
 const noop = () => {};
 const now = Date.now();
@@ -59,9 +101,9 @@ describe("the companion's session bar (DS-SHELL-060)", () => {
         const html = renderToStaticMarkup(<GuessNotice session={guessed.session} onHistory={noop} />);
         expect(html).toContain("started after this terminal");
         expect(html).toContain("Not this session?");
-        expect(renderToStaticMarkup(<GuessNotice session={{ path: "p", linkedby: "hook" }} onHistory={noop} />)).toBe(
-            ""
-        );
+        expect(
+            renderToStaticMarkup(<GuessNotice session={{ path: "p", linkedby: "hook" }} onHistory={noop} />)
+        ).not.toContain("Not this session?");
     });
 });
 

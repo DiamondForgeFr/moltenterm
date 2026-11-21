@@ -2134,29 +2134,72 @@
         },
         "loading": "Loading…",
         "tasks": "Tasks",
+        "dash": {
+            "mainAgent": "Main agent",
+            "noSubagents": "No sub-agent yet. Those {name} starts show here.",
+            "noSubagentsPlain": "No sub-agent yet.",
+            "andMore": {
+                "one": "and {count} more",
+                "other": "and {count} more"
+            },
+            "showMore": {
+                "one": "Show {count} more",
+                "other": "Show {count} more"
+            },
+            "showLess": "Show less",
+            "filesAll": "Show all ({count} in the project)",
+            "outside": "Outside the project",
+            "outsideTag": "outside",
+            "wantsToRun": "{name} wants to run",
+            "wantsToRunPlain": "The agent wants to run",
+            "usageOff": "The plan usage is hidden in the companions.",
+            "openUsage": "Open the usage page",
+            "readAll": "Read all",
+            "readLess": "Read less",
+            "sum": {
+                "permission": "Shows when the agent asks for a permission",
+                "tasks": "The project's open milestones and their tickets",
+                "agents": {
+                    "one": "{count} sub-agent at work",
+                    "other": "{count} sub-agents at work"
+                },
+                "usage": "The plan's usage, day by day",
+                "usageNone": "Shows when the agent gives its usage",
+                "topics": {
+                    "one": "{count} topic",
+                    "other": "{count} topics"
+                },
+                "answers": {
+                    "one": "{count} answer in the session",
+                    "other": "{count} answers in the session"
+                },
+                "task": "The workspace's task checkpoint",
+                "files": {
+                    "one": "{count} file changed",
+                    "other": "{count} files changed"
+                }
+            }
+        },
         "arrange": {
             "open": "Arrange the companion",
             "title": "Arrange the companion",
-            "loading": "Opening the arrangement…",
-            "hint": "Drag a section by its handle, or focus the handle and press the up or down arrow. A section with nothing to show takes no place.",
-            "columnsHint": "Left and right sit side by side from {width} px wide; narrower, the sections stack in this order.",
-            "saves": "Done saves the arrangement for every companion.",
-            "list": "Sections of the companion",
+            "hint": "Each block has its priority (1 comes first): move it up or down with its arrows, give it the full width or leave it in the flow (↔), hide it with the eye. The milestone and the agents at work stay side by side to keep their lines, while neither takes the full width. Done saves the arrangement for every companion.",
             "handle": "Move {name}",
             "handleHelp": "The up and down arrows move it, Home and End take it to the ends.",
             "show": "Show {name}",
-            "shown": "Visible",
             "hidden": "Hidden",
-            "column": "{name}: column",
-            "columnFull": "Full width",
-            "columnLeft": "Left",
-            "columnRight": "Right",
+            "rank": "{position} / {total}",
+            "rankTitle": "Display priority",
+            "up": "Move {name} up",
+            "down": "Move {name} down",
+            "wide": "Full width for {name}",
+            "wideOn": "{name} takes the full width.",
+            "wideOff": "{name} goes back to the flow.",
             "moved": "{name} moved to position {position} of {total}.",
             "first": "{name} is already first.",
             "last": "{name} is already last.",
             "shownNow": "{name} shown.",
             "hiddenNow": "{name} hidden.",
-            "columnNow": "{name}: {column}.",
             "reset": "Reset to the default layout",
             "resetDone": "Default layout restored.",
             "done": "Done"
@@ -2248,6 +2291,7 @@
         "branch": "Branch: {branch}",
         "plan": {
             "title": "Plan of {name}",
+            "head": "Plan · {done} / {total}",
             "updated": "updated {time}",
             "inProgress": "in progress",
             "inProgressFor": "in progress · {duration}",

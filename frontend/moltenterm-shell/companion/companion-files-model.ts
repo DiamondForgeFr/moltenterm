@@ -90,6 +90,44 @@ export function fuzzyScore(path: string, query: string): number {
     return Math.max(1, 1000 - gaps);
 }
 
+// A changed file as the dashboard lists it (#2441): its path relative to the project, split into folder and name; a
+// file outside the project shows from ~ when it is under the home folder, else in full.
+export type ShownFile = { file: CompanionFile; dir: string; name: string; outside: boolean };
+
+function homePath(path: string, home: string): string {
+    const h = (home ?? "").replace(/\/+$/, "");
+    if (!h) {
+        return path;
+    }
+    if (path === h) {
+        return "~";
+    }
+    return path.startsWith(h + "/") ? "~" + path.slice(h.length) : path;
+}
+
+export function shownFile(file: CompanionFile, folder: string, home: string): ShownFile {
+    const relative = displayPath(file.path, folder);
+    const outside = !!folder && relative === file.path && file.path.startsWith("/");
+    const shown = outside ? homePath(file.path, home) : relative;
+    const cut = shown.lastIndexOf("/");
+    return {
+        file,
+        dir: cut >= 0 ? shown.slice(0, cut + 1) : "",
+        name: cut >= 0 ? shown.slice(cut + 1) : shown,
+        outside,
+    };
+}
+
+// The project's files first, in their order, then the files outside it, grouped last.
+export function fileGroups(
+    files: CompanionFile[],
+    folder: string,
+    home: string
+): { inside: ShownFile[]; outside: ShownFile[] } {
+    const shown = (files ?? []).map((f) => shownFile(f, folder, home));
+    return { inside: shown.filter((f) => !f.outside), outside: shown.filter((f) => f.outside) };
+}
+
 // The files that match, best first; without a query, all of them in their order (newest change first).
 export function filterFiles(files: CompanionFile[], query: string, folder: string): CompanionFile[] {
     const list = files ?? [];

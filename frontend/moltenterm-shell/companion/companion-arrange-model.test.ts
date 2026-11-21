@@ -3,7 +3,6 @@
 
 import { describe, expect, it } from "vitest";
 import {
-    ColumnChoices,
     handleTarget,
     makeLayoutCommit,
     moveSection,
@@ -11,47 +10,38 @@ import {
     positionOf,
     resetLayout,
     SectionNameKeys,
-    setSectionColumn,
     setSectionHidden,
+    setSectionSpan,
 } from "./companion-arrange-model";
-import {
-    CompanionLayout,
-    CompanionSectionIds,
-    DefaultCompanionLayout,
-    isDefaultLayout,
-    sectionBands,
-} from "./companion-layout";
+import { CompanionLayout, CompanionSectionIds, DefaultCompanionLayout, isDefaultLayout } from "./companion-layout";
 
 const ids = (layout: CompanionLayout) => layout.map((p) => p.id);
-const all = () => true;
+const Default = ["permission", "tasks", "agents", "usage", "topics", "answer", "task", "files"];
 
-describe("arranging the companion's sections (#2395)", () => {
+describe("arranging the companion's sections (#2395, #2441)", () => {
     it("names every registered section, by the title it carries in the companion", () => {
         expect(Object.keys(SectionNameKeys).sort()).toEqual([...CompanionSectionIds].sort());
-        expect([...ColumnChoices]).toEqual(["full", "left", "right"]);
     });
 
     it("moves a section to the place it is dropped, the others keeping their order", () => {
-        const moved = moveSection(DefaultCompanionLayout, 7, 2);
-        expect(ids(moved)).toEqual(["usage", "tasks", "files", "agents", "permission", "topics", "answer", "task"]);
-        expect(ids(moveSection(DefaultCompanionLayout, 0, 7))).toEqual([
-            "tasks",
-            "agents",
+        expect(ids(moveSection(DefaultCompanionLayout, 7, 2))).toEqual([
             "permission",
+            "tasks",
+            "files",
+            "agents",
+            "usage",
             "topics",
             "answer",
             "task",
-            "files",
-            "usage",
         ]);
-        expect(ids(moveSection(DefaultCompanionLayout, 3, 3))).toEqual(ids(DefaultCompanionLayout));
+        expect(ids(moveSection(DefaultCompanionLayout, 0, 7))).toEqual([...Default.slice(1), "permission"]);
+        expect(ids(moveSection(DefaultCompanionLayout, 3, 3))).toEqual(Default);
     });
 
-    it("keeps each section's column and visibility when it moves", () => {
-        const layout = setSectionHidden(setSectionColumn(DefaultCompanionLayout, "files", "right"), "files", true);
-        const moved = moveSection(layout, 7, 0);
-        expect(moved[0]).toEqual({ id: "files", column: "right", hidden: true });
-        expect(DefaultCompanionLayout[7]).toEqual({ id: "files", column: "full" });
+    it("keeps each section's span and visibility when it moves", () => {
+        const layout = setSectionHidden(setSectionSpan(DefaultCompanionLayout, "files", "full"), "files", true);
+        expect(moveSection(layout, 7, 0)[0]).toEqual({ id: "files", span: "full", hidden: true });
+        expect(DefaultCompanionLayout[7]).toEqual({ id: "files", span: "flow" });
     });
 
     it("never loses or duplicates a section, whatever it is asked", () => {
@@ -66,60 +56,41 @@ describe("arranging the companion's sections (#2395)", () => {
             expect(ids(moveSection(DefaultCompanionLayout, from, to)).sort()).toEqual([...CompanionSectionIds].sort());
         }
         expect(ids(moveSection(DefaultCompanionLayout, 2, 99))[7]).toBe("agents");
-        expect(ids(moveSection(DefaultCompanionLayout, 99, 0))).toEqual(ids(DefaultCompanionLayout));
+        expect(ids(moveSection(DefaultCompanionLayout, 99, 0))).toEqual(Default);
     });
 
     it("moves a section one place up or down, and stays at the ends", () => {
-        expect(ids(moveSectionBy(DefaultCompanionLayout, "agents", -1))).toEqual([
-            "usage",
+        expect(ids(moveSectionBy(DefaultCompanionLayout, "agents", -1)).slice(0, 3)).toEqual([
+            "permission",
             "agents",
             "tasks",
-            "permission",
-            "topics",
-            "answer",
-            "task",
-            "files",
         ]);
         expect(ids(moveSectionBy(DefaultCompanionLayout, "tasks", 1))[2]).toBe("tasks");
-        expect(ids(moveSectionBy(DefaultCompanionLayout, "usage", -1))).toEqual(ids(DefaultCompanionLayout));
-        expect(ids(moveSectionBy(DefaultCompanionLayout, "files", 1))).toEqual(ids(DefaultCompanionLayout));
+        expect(ids(moveSectionBy(DefaultCompanionLayout, "permission", -1))).toEqual(Default);
+        expect(ids(moveSectionBy(DefaultCompanionLayout, "files", 1))).toEqual(Default);
     });
 
-    it("shows and hides a section, and the hidden one leaves its band", () => {
+    it("shows and hides a section", () => {
         const hidden = setSectionHidden(DefaultCompanionLayout, "tasks", true);
-        expect(hidden.find((p) => p.id === "tasks")).toEqual({ id: "tasks", column: "left", hidden: true });
-        expect(sectionBands(hidden, all)[1]).toEqual({ kind: "columns", ids: ["agents"], left: [], right: ["agents"] });
+        expect(hidden.find((p) => p.id === "tasks")).toEqual({ id: "tasks", span: "flow", hidden: true });
         const shown = setSectionHidden(hidden, "tasks", false);
-        expect(shown.find((p) => p.id === "tasks")).toEqual({ id: "tasks", column: "left" });
+        expect(shown.find((p) => p.id === "tasks")).toEqual({ id: "tasks", span: "flow" });
         expect(isDefaultLayout(shown)).toBe(true);
     });
 
-    it("puts a section in a column, full width included", () => {
-        const left = setSectionColumn(DefaultCompanionLayout, "topics", "left");
-        expect(sectionBands(left, all).map((b) => (b.kind === "full" ? b.id : b.ids.join("+")))).toEqual([
-            "usage",
-            "tasks+agents",
-            "permission",
-            "topics",
-            "answer",
-            "task",
-            "files",
-        ]);
-        const together = moveSection(left, 4, 2);
-        expect(sectionBands(together, all).map((b) => (b.kind === "full" ? b.id : b.ids.join("+")))[1]).toBe(
-            "tasks+topics+agents"
-        );
-        expect(setSectionColumn(DefaultCompanionLayout, "agents", "full").find((p) => p.id === "agents").column).toBe(
-            "full"
-        );
-        expect(isDefaultLayout(setSectionColumn(left, "topics", "full"))).toBe(true);
+    it("sets a section full width or fluid", () => {
+        const wide = setSectionSpan(DefaultCompanionLayout, "topics", "full");
+        expect(wide.find((p) => p.id === "topics").span).toBe("full");
+        expect(isDefaultLayout(setSectionSpan(wide, "topics", "flow"))).toBe(true);
+        expect(setSectionSpan(DefaultCompanionLayout, "permission", "flow")[0]).toEqual({
+            id: "permission",
+            span: "flow",
+        });
     });
 
     it("ignores an edit to a section it does not know", () => {
-        expect(ids(setSectionHidden(DefaultCompanionLayout, "nope" as never, true))).toEqual(
-            ids(DefaultCompanionLayout)
-        );
-        expect(isDefaultLayout(setSectionColumn(DefaultCompanionLayout, "nope" as never, "left"))).toBe(true);
+        expect(ids(setSectionHidden(DefaultCompanionLayout, "nope" as never, true))).toEqual(Default);
+        expect(isDefaultLayout(setSectionSpan(DefaultCompanionLayout, "nope" as never, "full"))).toBe(true);
     });
 
     it("goes back to the default layout, whatever was arranged", () => {
@@ -145,12 +116,11 @@ describe("arranging the companion's sections (#2395)", () => {
         expect(isDefaultLayout(saved[1])).toBe(true);
     });
 
-    it("says where a section stands, for the screen reader", () => {
+    it("says where a section stands, for its rank and the screen reader", () => {
         expect(positionOf(DefaultCompanionLayout, "tasks")).toEqual({ position: 2, total: 8 });
         expect(positionOf(moveSection(DefaultCompanionLayout, 7, 0), "files")).toEqual({ position: 1, total: 8 });
     });
 
-    // The handle's keyboard: the drag's twin, with or without Alt.
     it("takes the up and down arrows, Home and End on a handle, and no other key", () => {
         expect(handleTarget("ArrowUp", 3, 8)).toBe(2);
         expect(handleTarget("ArrowDown", 3, 8)).toBe(4);

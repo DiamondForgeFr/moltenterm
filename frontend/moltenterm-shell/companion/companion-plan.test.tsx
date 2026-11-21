@@ -32,10 +32,10 @@ describe("PlanSection (#2430)", () => {
         expect(html).toContain("updated 2 min ago");
     });
 
-    it("shows one row per step with its state, and the strip one segment per step", () => {
+    it("shows one row per step still to come with its state, and the strip one segment per step", () => {
         const html = markup(steps("completed", "in_progress", "pending"));
-        expect(html.match(/data-testid="companion-plan-step"/g)).toHaveLength(3);
-        expect(html).toContain('data-state="done"');
+        expect(html.match(/data-testid="companion-plan-step"/g)).toHaveLength(2);
+        expect(html).toContain("1 step done");
         expect(html).toContain('data-state="current"');
         expect(html).toContain('data-state="todo"');
         expect(html.match(/class="mt-plan-seg"/g)).toHaveLength(3);
@@ -46,12 +46,14 @@ describe("PlanSection (#2430)", () => {
         expect(html).toContain("in progress · 1 min");
     });
 
-    it("folds done steps beyond three into one line and keeps the current step", () => {
+    it("folds the done steps into one line that unfolds, and keeps the current step and those to do (#2441)", () => {
         const html = markup(steps("completed", "completed", "completed", "completed", "in_progress", "pending"));
         expect(html).toContain('data-testid="companion-plan-folded"');
-        expect(html).toContain("1 step done");
-        expect(html.match(/data-testid="companion-plan-step"/g)).toHaveLength(5);
+        expect(html).toContain('aria-expanded="false"');
+        expect(html).toContain("4 steps done");
+        expect(html.match(/data-testid="companion-plan-step"/g)).toHaveLength(2);
         expect(html).toContain('data-state="current"');
+        expect(html).toContain("Plan · 4 / 6");
     });
 
     it("shows nothing for a plan without steps", () => {

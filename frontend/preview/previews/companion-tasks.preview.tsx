@@ -5,9 +5,9 @@
 // beside the agents at work, a finished one that waits for its release, and the narrow companion with its +N chip. The
 // frames hold the real work area. ?lang=fr shows them in French.
 
+import { useRef } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
 import { AllLeads, EveryLead, Flore } from "../../moltenterm-shell/companion/companion-holds-fixture";
-import { ColumnsBand } from "../../moltenterm-shell/companion/companion-layout";
 import { MilestoneInfo, MilestonesView } from "../../moltenterm-shell/companion/companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "../../moltenterm-shell/companion/companion-model";
 import { CompanionWork } from "../../moltenterm-shell/companion/companion-work";
@@ -162,7 +162,8 @@ const MainView: MilestonesView = { dir: "/shop", state: "ok", milestones: [late,
 const ReadyView: MilestonesView = { dir: "/shop", state: "ok", milestones: [released, upcoming] };
 const NarrowView: MilestonesView = { dir: "/shop", state: "ok", milestones: [late, next, later, ideas, backlog] };
 
-const TasksOnly: ColumnsBand = { kind: "columns", ids: ["tasks"], left: ["tasks"], right: [] };
+// The milestone block alone, the agents at work hidden.
+const TasksOnly = true;
 
 // Who works on what (#2418): Flore (Claude Code) leads three sub-agents on tickets 1 to 3; Jérôme (Kimi) has two on 4 and
 // 5, Julie (Claude Code) one on 6; 7 to 12 are free.
@@ -238,35 +239,37 @@ function Frame({
     name,
     width,
     milestones,
-    band,
+    tasksOnly,
     chosen,
     asLead,
 }: {
     name: string;
     width: number;
     milestones: MilestonesView;
-    band?: ColumnsBand;
+    tasksOnly?: boolean;
     chosen?: number;
     asLead?: boolean;
 }) {
+    const pairRef = useRef<HTMLDivElement>(null);
     return (
         <div className="flex flex-col gap-1">
             <div className="text-11 text-muted">{name}</div>
-            <div
-                className="overflow-hidden bg-surface-1 pb-6 text-primary"
-                style={{ width }}
-                data-testid={`companion-frame-${name}`}
-            >
-                <CompanionWork
-                    view={asLead ? holdsView : view}
-                    agentState={asLead ? flore : agentState}
-                    dir=""
-                    now={Now}
-                    band={band}
-                    milestones={milestones}
-                    chosen={chosen}
-                    holds={asLead ? holds : undefined}
-                />
+            <div className="mt-cdash overflow-hidden" style={{ width }} data-testid={`companion-frame-${name}`}>
+                <div ref={pairRef} className="relative flex items-start gap-6 px-6 pt-12 *:min-w-0 *:flex-1">
+                    <CompanionWork
+                        flowRef={pairRef}
+                        view={asLead ? holdsView : view}
+                        agentState={asLead ? flore : agentState}
+                        dir=""
+                        now={Now}
+                        showAgents={!tasksOnly}
+                        width={tasksOnly ? width - 48 : Math.floor((width - 72) / 2)}
+                        paired={!tasksOnly}
+                        milestones={milestones}
+                        chosen={chosen}
+                        holds={asLead ? holds : undefined}
+                    />
+                </div>
             </div>
         </div>
     );
@@ -280,9 +283,9 @@ export function CompanionTasksPreview() {
     return (
         <div className="flex flex-col gap-6 p-4" data-testid="companion-tasks-preview">
             {shows("main") ? <Frame name="main" width={1240} milestones={MainView} /> : null}
-            {shows("ready") ? <Frame name="ready" width={820} milestones={ReadyView} band={TasksOnly} /> : null}
+            {shows("ready") ? <Frame name="ready" width={820} milestones={ReadyView} tasksOnly={TasksOnly} /> : null}
             {shows("other-tab") ? (
-                <Frame name="other-tab" width={820} milestones={ReadyView} band={TasksOnly} chosen={14} />
+                <Frame name="other-tab" width={820} milestones={ReadyView} tasksOnly={TasksOnly} chosen={14} />
             ) : null}
             {shows("narrow") ? <Frame name="narrow" width={420} milestones={NarrowView} /> : null}
             {shows("holds") ? <Frame name="holds" width={1240} milestones={HoldsMilestones} asLead /> : null}

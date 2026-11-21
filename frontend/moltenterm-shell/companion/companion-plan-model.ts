@@ -26,11 +26,11 @@ export function planRowKind(status: TodoStatus): PlanRowKind {
 }
 
 // The steps to list: the current step and every step to do always, the last PlanDoneShown done steps, the earlier done
-// ones folded.
-export function planView(todos: CompanionTodo[]): PlanView {
+// ones folded. The hero folds every done step until the developer unfolds them (doneShown, #2441).
+export function planView(todos: CompanionTodo[], doneShown: number = PlanDoneShown): PlanView {
     const list = todos ?? [];
     const done = list.flatMap((todo, index) => (todo.status === "completed" ? [index] : []));
-    const folded = new Set(done.slice(0, Math.max(0, done.length - PlanDoneShown)));
+    const folded = new Set(done.slice(0, Math.max(0, done.length - doneShown)));
     const rows: PlanRow[] = [];
     list.forEach((todo, index) => {
         if (!folded.has(index)) {

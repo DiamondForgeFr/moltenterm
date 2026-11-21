@@ -6,7 +6,8 @@
 // a vertical rail: done (a patina check, its time), the current step (the working arc, "in progress · N min"), to do (a
 // hollow iron dot). The rail turns from patina to iron at the current step. Display only.
 
-import type { CSSProperties } from "react";
+import { cn } from "@/util/util";
+import { useState, type CSSProperties } from "react";
 import { getLocale, useT, useTCount } from "../i18n/i18n";
 import { durationText } from "../reviews/reviews-upcoming-model";
 import { StateMark, StateMarkKind } from "../state-mark";
@@ -40,28 +41,42 @@ export function PlanSection({
 }) {
     const t = useT();
     const tc = useTCount();
+    const [unfolded, setUnfolded] = useState(false);
     if (todos == null || todos.length === 0) {
         return null;
     }
     const { done, total } = todoCounts(todos);
-    const view = planView(todos);
+    // The hero's plan folds every done step into one line that unfolds (#2441).
+    const view = planView(todos, unfolded ? total : 0);
     const stop = railStop(view);
     const strip = planStrip(todos);
     const locale = getLocale();
     const linkMarks = marks ?? NoMarks;
+    const current = todos.find((todo) => todo.status === "in_progress");
+    const updated = updatedAt ? t("companion.plan.updated", { time: relativeTime(updatedAt, now) }) : "";
+    const time = current
+        ? current.at > 0
+            ? t("companion.plan.inProgressFor", { duration: durationText(t, now - current.at) })
+            : t("companion.plan.inProgress")
+        : updated;
+    const doneCount = todos.filter((todo) => todo.status === "completed").length;
     return (
         <section
-            className="mt-cwork-section mt-plan"
+            className="mt-cdash-plan mt-plan"
             data-section="plan"
             data-testid="companion-plan"
             aria-label={t("companion.plan.title", { name })}
         >
-            <div className="mt-cwork-sec">
-                <span className="truncate">{t("companion.plan.title", { name })}</span>
-                <span className="mt-cwork-n">{`${done} / ${total}`}</span>
-                {updatedAt ? (
-                    <span className="mt-plan-ago ml-auto truncate" data-testid="companion-plan-updated">
-                        {t("companion.plan.updated", { time: relativeTime(updatedAt, now) })}
+            <div className="mt-cdash-plan-head">
+                <span className="truncate">{t("companion.plan.head", { done, total })}</span>
+                {time ? (
+                    <span
+                        className="mt-cdash-plan-time truncate"
+                        data-quiet={current ? undefined : ""}
+                        title={updated || undefined}
+                        data-testid="companion-plan-updated"
+                    >
+                        {time}
                     </span>
                 ) : null}
             </div>
@@ -71,9 +86,24 @@ export function PlanSection({
                 ))}
             </div>
             <ol className="mt-plan-list" style={{ "--mt-plan-stop": `${stop}%` } as CSSProperties}>
-                {view.folded > 0 ? (
-                    <li className="mt-plan-fold" data-testid="companion-plan-folded">
-                        {tc("companion.plan.folded", view.folded, { count: view.folded })}
+                {doneCount > 0 ? (
+                    <li>
+                        <button
+                            type="button"
+                            className="mt-plan-fold mt-plan-fold-button"
+                            aria-expanded={unfolded}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setUnfolded(!unfolded);
+                            }}
+                            data-testid="companion-plan-folded"
+                        >
+                            <span>{tc("companion.plan.folded", doneCount, { count: doneCount })}</span>
+                            <i
+                                className={cn("fa fa-solid", unfolded ? "fa-chevron-up" : "fa-chevron-down")}
+                                aria-hidden="true"
+                            />
+                        </button>
                     </li>
                 ) : null}
                 {view.rows.map((row) => (
