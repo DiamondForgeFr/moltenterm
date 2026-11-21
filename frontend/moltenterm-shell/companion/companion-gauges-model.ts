@@ -5,7 +5,14 @@
 // limits (pkg/molten/usage) and the pure rules of their section. Pure, so they are tested without a window.
 
 import { getLocale, t } from "../i18n/i18n";
-import { isWeekWindow, lineDayFiguresText, UsageWeekLine, usageWeekLine } from "../usage-week/usage-week-model";
+import {
+    isWeekWindow,
+    lineDayFiguresText,
+    MonthWindowId,
+    UsageWeekLine,
+    usageWeekLine,
+    weekdayIndex,
+} from "../usage-week/usage-week-model";
 import { relativeTime } from "./companion-model";
 
 // must match pkg/molten/usage/usage.go and pkg/molten/companion/usage.go
@@ -151,6 +158,10 @@ export type GaugeRow = {
     line: UsageWeekLine;
     // How the row is computed, when MoltenTerm deduced it (#2451).
     explain: string;
+    // The narrow column's second line, for a deduced row ("from the month", #2451); "" otherwise.
+    subLabel: string;
+    // A deduced week's count to the monthly reset ("29 d", "5 h") and its exact date in words; absent otherwise.
+    countdown?: { text: string; title: string };
 };
 
 export type GaugesView =
@@ -285,11 +296,68 @@ export function deducedTitle(window: UsageWindow): string {
     return window?.deduced ? t("companion.gauges.deducedExplain") : "";
 }
 
+const DayMs = 24 * HourMs;
+
+// The count to a monthly reset (#2451): whole days ("29 d", as Kimi Code's own /status says "29d 5h"), hours under a
+// day ("5 h"); its tooltip gives the date and time. Null without a reset to come.
+export function monthCountdown(resetsAt: number, now: number): { text: string; title: string } {
+    const ms = (resetsAt || 0) - now;
+    if (!resetsAt || ms <= 0) {
+        return null;
+    }
+    const d = new Date(resetsAt);
+    const when = `${weekdayName(d)} ${d.getDate()} ${monthName(d)}, ${clockTime(d)}`;
+    if (ms < DayMs) {
+        const count = Math.max(1, Math.ceil(ms / HourMs));
+        return {
+            text: t("companion.gauges.countHours", { count }),
+            title: t("companion.gauges.monthResetInHours", { count, when }),
+        };
+    }
+    const count = Math.floor(ms / DayMs);
+    return {
+        text: t("companion.gauges.countDays", { count }),
+        title: t(count === 1 ? "companion.gauges.monthResetInDay" : "companion.gauges.monthResetInDays", {
+            count,
+            when,
+        }),
+    };
+}
+
+// Monday 00:00 of the week holding `at`, local time.
+function weekStart(at: number): number {
+    const d = new Date(at);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - weekdayIndex(d.getTime()));
+    return d.getTime();
+}
+
+// A week deduced from the month (#2451) starts on Monday only for its calculation: what resets is the month. Its ring
+// sits on the day the monthly window resets, and only in the week holding that day; its reset line and its count tell
+// the month's reset.
+function deducedWeekRow(row: GaugeRow, month: UsageWindow, now: number): GaugeRow {
+    const resetsAt = month?.resetsat ?? 0;
+    const from = weekStart(now);
+    const to = new Date(from);
+    to.setDate(to.getDate() + 7);
+    const ring = resetsAt >= from && resetsAt < to.getTime() ? weekdayIndex(resetsAt) : -1;
+    return {
+        ...row,
+        resets: resetText(resetsAt, now),
+        resetsShort: resetShortText(resetsAt, now),
+        line: { ...row.line, start: ring },
+        countdown: monthCountdown(resetsAt, now) ?? undefined,
+    };
+}
+
 // A window past its reset no longer holds: it is dropped between two reports, as wavesrv drops it.
 export function gaugeRows(snapshot: UsageSnapshot, now: number): GaugeRow[] {
-    return (snapshot?.windows ?? [])
-        .filter((w) => w != null && Number.isFinite(w.usedpercent) && !(w.resetsat > 0 && w.resetsat <= now))
-        .map((w) => ({
+    const windows = (snapshot?.windows ?? []).filter(
+        (w) => w != null && Number.isFinite(w.usedpercent) && !(w.resetsat > 0 && w.resetsat <= now)
+    );
+    const month = windows.find((w) => w.id === MonthWindowId);
+    return windows.map((w) => {
+        const row: GaugeRow = {
             id: w.id,
             label: usageWindowLabel(w.label) || w.id,
             shortLabel: usageWindowShortLabel(w.label) || w.id,
@@ -301,7 +369,10 @@ export function gaugeRows(snapshot: UsageSnapshot, now: number): GaugeRow[] {
             resetsShort: resetShortText(w.resetsat, now),
             line: { ...usageWeekLine(w, now), plain: !isWeekWindow(w) },
             explain: deducedTitle(w),
-        }));
+            subLabel: w.deduced ? t("companion.gauges.windowShort.fromMonth") : "",
+        };
+        return w.deduced ? deducedWeekRow(row, month, now) : row;
+    });
 }
 
 function creditAmount(value: number, unit: string): string {

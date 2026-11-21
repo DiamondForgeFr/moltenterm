@@ -8,7 +8,7 @@
 // app gives it (?scroll=end scrolled to the bottom), ?images=1 the messages name pasted images "[Image #N]" (#2455; the
 // chips read a small synthetic image drawn here, ?images=none gives them none), ?tip=<test id>[&tipat=N] (or
 // ?tipsel=<css selector>) a popover held open on the Nth such element (the screenshots' way of hovering),
-// ?usage-agent=kimi|kimi-stale Kimi's usage (#2451).
+// ?usage-agent=kimi|kimi-stale|kimi-ring Kimi's usage (#2451).
 
 import { useEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
@@ -220,8 +220,18 @@ const NextMonth = (() => {
     const d = new Date(Now);
     return new Date(d.getFullYear(), d.getMonth() + 1, 1, 1, 0).getTime();
 })();
+// kimi-ring: the month resets within this week (tomorrow 01:00, or in 3 h on a Sunday), so the deduced week rings.
+const ResetThisWeek = (() => {
+    if (Today === 6) {
+        return Now + 3 * Hour;
+    }
+    const d = new Date(Now);
+    d.setHours(1, 0, 0, 0);
+    d.setDate(d.getDate() + 1);
+    return d.getTime();
+})();
 
-function kimiUsage(stale: boolean): CompanionUsageInfo {
+function kimiUsage(stale: boolean, monthReset = NextMonth): CompanionUsageInfo {
     const known = DeducedDays.filter((d) => d > 0);
     return {
         blockid: "preview-terminal",
@@ -253,7 +263,7 @@ function kimiUsage(stale: boolean): CompanionUsageInfo {
                     deduced: true,
                     days: DeducedDays,
                 },
-                { id: "month", label: "This month", usedpercent: 31, resetsat: NextMonth },
+                { id: "month", label: "This month", usedpercent: 31, resetsat: monthReset },
             ],
         },
     };
@@ -262,6 +272,9 @@ function kimiUsage(stale: boolean): CompanionUsageInfo {
 function usageFixture(): CompanionUsageInfo {
     if (UsageAgent === "kimi" || UsageAgent === "kimi-stale") {
         return kimiUsage(UsageAgent === "kimi-stale");
+    }
+    if (UsageAgent === "kimi-ring") {
+        return kimiUsage(false, ResetThisWeek);
     }
     return usage;
 }

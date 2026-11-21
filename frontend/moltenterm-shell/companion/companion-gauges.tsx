@@ -18,6 +18,7 @@ import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { UsageWeekGrid, UsageWeekRow } from "../usage-week/usage-week";
+import { MonthWindowId } from "../usage-week/usage-week-model";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
     CompanionUsageInfo,
@@ -303,28 +304,35 @@ export type PlanUsageActions = {
 
 // A window's row in the week grid: the agent is the session's, so the row is labelled by its window in place of a logo.
 // The exact percent and the reset time stay in its tooltip, with the source and age (`about`) when the form has no
-// header to say them; the details form (`detailed`) shows the reset under the row. The minimal form (#2450) draws no
-// figure and no reset line: its tooltip tells the figure of each day too.
+// header to say them; the details form (`detailed`) shows the reset under the row. The tooltip tells the figure of each
+// day in every form: the minimal form (#2450) draws none, and a narrow grid hides them (#2451).
 function weekRow(
     view: Extract<GaugesView, { kind: "enabled" }>,
     row: GaugeRow,
     about: string,
-    detailed: boolean,
-    minimal = false
+    detailed: boolean
 ): UsageWeekRow {
     // A plain gauge (#2451) says its reset at the end of its bar, in every form; it has no days to tell.
     const plain = row.line.plain;
-    const days = minimal && !plain ? daysTitle(row.line) : "";
+    // The day figures are always in the tooltip: a narrow grid hides them under the blocks (#2451).
+    const days = plain ? "" : daysTitle(row.line);
+    // In the forms without a reset line, the deduced week's count already says when the month resets: the month's bar
+    // keeps its reset in its tooltip only (#2451).
+    const counted = !detailed && row.id === MonthWindowId && view.rows.some((r) => r.countdown != null);
     return {
         key: row.id,
         agent: view.agent,
         name: row.label,
         window: row.id,
         label: row.shortLabel,
+        sublabel: row.subLabel || undefined,
         line: row.line,
-        title: [`${row.label}: ${row.percent}`, row.resets, days, row.explain, about].filter((s) => !!s).join("\n"),
+        title: [`${row.label}: ${row.percent}`, row.countdown?.title ?? row.resets, days, row.explain, about]
+            .filter((s) => !!s)
+            .join("\n"),
         note: detailed && !plain ? row.resets : undefined,
-        resets: plain ? row.resetsShort : undefined,
+        resets: plain && !counted ? row.resetsShort : undefined,
+        chip: row.countdown,
     };
 }
 
@@ -675,7 +683,7 @@ function MinimalGauges({ view }: { view: Extract<GaugesView, { kind: "enabled" }
                 {view.rows.length > 0 ? (
                     <UsageWeekGrid
                         popovers
-                        rows={view.rows.map((row) => weekRow(view, row, about, false, true))}
+                        rows={view.rows.map((row) => weekRow(view, row, about, false))}
                         now={view.now}
                         minimal
                     />

@@ -4,8 +4,12 @@
 // Kimi's windows in the companion (#2451): a week deduced from the month drawn like Claude's week, the 5-hour and
 // monthly windows as plain gauges, "< 1 %" for a small share, and a kept reading that tells its age.
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { I18nModel } from "../i18n/i18n";
+import { dayBlockPx, DayFiguresMinGridPx, MinFigureBlockPx } from "../usage-week/usage-week-model";
 import { PlanUsageBody, UsageFrame } from "./companion-gauges";
 import { CompanionUsageInfo, gaugeRows, gaugesView } from "./companion-gauges-model";
 
@@ -188,13 +192,18 @@ describe("a share under 1 % (#2451)", () => {
 });
 
 describe("a week deduced from the month (#2451)", () => {
-    it("is drawn like a weekly row: seven days, the ring on Monday, the pace colour, the percent past 100", () => {
+    it("is drawn like a weekly row: seven days, the pace colour, the percent past 100, no ring outside the reset's week", () => {
         const html = markup(kimi);
         expect(rowTag(html, "week")).toContain('data-deduced="true"');
-        expect(html).toContain('data-testid="usage-week-label">Week (from the month)<');
+        // Two lines in the narrow label column: "Week", and a small dimmed "from the month" under it.
+        expect(html).toContain(
+            'data-testid="usage-week-label">Week<span class="mt-uw-label-sub" data-testid="usage-week-sublabel">from the month</span>'
+        );
+        expect(rowTag(html, "week")).toContain('aria-label="Week (from the month), 129 %');
         const blocks = blocksOf(html, "week");
         expect(blocks).toHaveLength(7);
-        expect(blocks.map((b) => b.reset)).toEqual([true, false, false, false, false, false, false]);
+        // Monday only starts the calculation; the month resets on Tuesday 1 December, in a later week.
+        expect(blocks.map((b) => b.reset)).toEqual([false, false, false, false, false, false, false]);
         expect(blocks.map((b) => b.fill)).toEqual([0, 0, 100, 100, 0, 0, 0]);
         expect(percentOf(html, "week")).toBe("129 %");
         expect(rowTag(html, "week")).toMatch(/data-pace="(above|red)"/);
@@ -241,5 +250,127 @@ describe("a reading kept while the token has expired (#2451)", () => {
     it("says nothing of the kind for a fresh reading", () => {
         expect(markup(kimi)).not.toContain("companion-plan-usage-stale");
         expect(framed(kimi, "minimal")).not.toContain("companion-plan-usage-stale");
+    });
+});
+
+// The same reading with the month resetting at `resetsAt`, for any agent (the rule is the window's, not the provider's).
+function withMonthReset(resetsAt: number, agent = "kimi"): CompanionUsageInfo {
+    return {
+        ...kimi,
+        agent,
+        snapshot: {
+            ...kimi.snapshot,
+            agent,
+            windows: kimi.snapshot.windows.map((w) => (w.id === "month" ? { ...w, resetsat: resetsAt } : w)),
+        },
+    };
+}
+
+describe("the monthly reset on the deduced week (#2451)", () => {
+    // Saturday 21 November 2026, 01:00: inside the week of Thursday 19 November.
+    const saturday = new Date(2026, 10, 21, 1, 0).getTime();
+
+    it("rings only the day the month resets, and only in the week that holds it", () => {
+        const ring = (info: CompanionUsageInfo) => blocksOf(markup(info), "week").map((b) => b.reset);
+        expect(ring(withMonthReset(saturday))).toEqual([false, false, false, false, false, true, false]);
+        expect(ring(kimi)).toEqual(Array(7).fill(false));
+        // Next week's Monday is outside this week.
+        expect(ring(withMonthReset(new Date(2026, 10, 23, 1, 0).getTime()))).toEqual(Array(7).fill(false));
+        // Keyed on the window, not on the provider: another agent's deduced week follows the same rule.
+        expect(ring(withMonthReset(saturday, "someagent"))).toEqual([false, false, false, false, false, true, false]);
+        // A weekly window keeps its ring every week, on its own reset day.
+        expect(blocksOf(markup(claude), "week").map((b) => b.reset)).toEqual([
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+        ]);
+    });
+
+    it("tells the month's reset under the row, never Monday's", () => {
+        const html = markup(withMonthReset(saturday));
+        const note = /data-testid="usage-week-note">([^<]*)</.exec(rowHtml(html, "week"))?.[1];
+        expect(note).toBe("Resets Sat 01:00");
+        expect(markup(kimi)).toContain(">Resets Tue 1 Dec, 01:00<");
+        expect(rowHtml(markup(kimi), "week")).not.toContain("Mon 00:00");
+    });
+
+    it("counts the days to the reset, and the hours under a day", () => {
+        const html = markup(kimi);
+        // 11 days and 13 hours to Tuesday 1 December, 01:00.
+        expect(/data-testid="usage-week-chip">([^<]*)</.exec(rowHtml(html, "week"))?.[1]).toBe("11 d");
+        expect(rowHtml(html, "week")).toContain('title="Monthly reset in 11 days, Tue 1 Dec, 01:00"');
+        const soon = markup(withMonthReset(now + 4 * Hour + 30 * Min));
+        expect(/data-testid="usage-week-chip">([^<]*)</.exec(rowHtml(soon, "week"))?.[1]).toBe("5 h");
+        expect(rowHtml(soon, "week")).toMatch(/title="Monthly reset in 5 h, Thu 19 Nov, 16:30"/);
+        const i18n = I18nModel.getInstance();
+        try {
+            i18n.setLanguageSetting("fr");
+            expect(/data-testid="usage-week-chip">([^<]*)</.exec(rowHtml(markup(kimi), "week"))?.[1]).toBe("11 j");
+        } finally {
+            i18n.setLanguageSetting("");
+        }
+    });
+
+    it("shows the count in the full, minimal and attached forms, and on no other row", () => {
+        for (const html of [markup(kimi), framed(kimi, "full"), framed(kimi, "minimal"), framed(kimi, "attached")]) {
+            expect(rowHtml(html, "week")).toContain('data-testid="usage-week-chip"');
+            expect(rowHtml(html, "month")).not.toContain("usage-week-chip");
+            expect(rowTag(html, "week")).toContain("Monthly reset in 11 days");
+        }
+        expect(markup(claude)).not.toContain("usage-week-chip");
+    });
+
+    it("leaves the month's reset to the count in the forms without a reset line, keeping it in its tooltip", () => {
+        for (const form of ["minimal", "attached"] as const) {
+            const html = framed(kimi, form);
+            expect(rowHtml(html, "month")).not.toContain("usage-week-gauge-reset");
+            expect(rowTag(html, "month")).toContain("Resets Tue 1 Dec, 01:00");
+        }
+        expect(rowHtml(markup(kimi), "month")).toContain(">Tue 1 Dec, 01:00<");
+    });
+});
+
+describe("the day figures in a narrow grid (#2451)", () => {
+    const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+
+    it("hides the figures' whole line below the grid width where a block can hold one", () => {
+        // The threshold is where a day block is exactly MinFigureBlockPx wide.
+        expect(dayBlockPx(DayFiguresMinGridPx)).toBe(MinFigureBlockPx);
+        // A ~340 px column (760 px companion, two columns) leaves ~310 px to the grid: too narrow, the figures go.
+        expect(dayBlockPx(310)).toBeLessThan(MinFigureBlockPx);
+        const rule = new RegExp(
+            `@container \\(max-width: ${DayFiguresMinGridPx - 0.02}px\\) \\{\\s*\\.mt-uw-share,\\s*\\.mt-uw-share-pad \\{([^}]*)\\}`
+        ).exec(css);
+        expect(rule?.[1]).toContain("display: none");
+    });
+
+    it("removes the two pads with the figures, so the rows below keep their columns", () => {
+        const html = markup(kimi);
+        const line =
+            /<span class="mt-uw-share-pad"[^>]*><\/span>(<span class="mt-uw-share"[^>]*>.*?<\/span>){7}<span class="mt-uw-share-pad"/.exec(
+                html
+            );
+        expect(line).not.toBeNull();
+    });
+
+    it("keeps the figures in the row's tooltip in the full form", () => {
+        expect(rowTag(markup(claude), "week")).toMatch(/title="[^"]*Per day: Mon 0 %, Tue 100 %/);
+        expect(rowTag(markup(kimi), "week")).toMatch(/title="[^"]*Per day: Mon unknown, Tue unknown, Wed 240 %/);
+    });
+
+    it("labels the deduced week in French on two lines", () => {
+        const i18n = I18nModel.getInstance();
+        try {
+            i18n.setLanguageSetting("fr");
+            expect(markup(kimi)).toContain(
+                'data-testid="usage-week-label">Semaine<span class="mt-uw-label-sub" data-testid="usage-week-sublabel">d&#x27;après le mois</span>'
+            );
+        } finally {
+            i18n.setLanguageSetting("");
+        }
     });
 });

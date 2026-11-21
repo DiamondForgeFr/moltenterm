@@ -67,6 +67,11 @@ export type UsageWeekRow = {
     // The window in a short form: it takes the logo's place. Cut with an ellipsis when the space runs out; `name` is the
     // whole of it.
     label?: string;
+    // A small dimmed second line under the label, how the window is known ("from the month", #2451).
+    sublabel?: string;
+    // A small dimmed count before the percent ("29 d" to a monthly reset, #2451); its title says the date. It replaces
+    // the reset day in the row's accessible name.
+    chip?: { text: string; title: string };
     // The row's tooltip, for a surface that has more to say about a window than the grid.
     title?: string;
     // A line under the row, across the grid.
@@ -181,6 +186,11 @@ function RowLead({ row }: { row: UsageWeekRow }) {
     return (
         <span className="mt-uw-label" data-testid="usage-week-label">
             {row.label}
+            {row.sublabel ? (
+                <span className="mt-uw-label-sub" data-testid="usage-week-sublabel">
+                    {row.sublabel}
+                </span>
+            ) : null}
         </span>
     );
 }
@@ -236,7 +246,7 @@ function DayFigures({ line }: { line: UsageWeekLine }) {
     const t = useT();
     return (
         <>
-            <span aria-hidden />
+            <span className="mt-uw-share-pad" aria-hidden />
             {lineDayShares(line).map((share, i) =>
                 share == null ? (
                     <span
@@ -253,7 +263,7 @@ function DayFigures({ line }: { line: UsageWeekLine }) {
                     </span>
                 )
             )}
-            <span aria-hidden />
+            <span className="mt-uw-share-pad" aria-hidden />
         </>
     );
 }
@@ -362,10 +372,13 @@ export function UsageWeekGrid({
                 const age = row.old || row.stale ? relativeTime(row.readAt, now) : "";
                 const percent = percentText(line);
                 const parts = [
-                    day && !line.plain
+                    day && !line.plain && row.chip == null
                         ? t("usageWeek.rowReset", { name: displayName, percent, day })
                         : t("usageWeek.row", { name: displayName, percent }),
                 ];
+                if (row.chip) {
+                    parts.push(row.chip.title);
+                }
                 if (line.plain && row.resets) {
                     parts.push(row.resets);
                 }
@@ -419,9 +432,20 @@ export function UsageWeekGrid({
                                 );
                             })
                         )}
-                        <b className="mt-uw-pct" data-testid="usage-week-percent">
-                            {percent}
-                        </b>
+                        {row.chip ? (
+                            <span className="mt-uw-pct-chipped">
+                                <span className="mt-uw-chip" title={row.chip.title} data-testid="usage-week-chip">
+                                    {row.chip.text}
+                                </span>
+                                <b className="mt-uw-pct" data-testid="usage-week-percent">
+                                    {percent}
+                                </b>
+                            </span>
+                        ) : (
+                            <b className="mt-uw-pct" data-testid="usage-week-percent">
+                                {percent}
+                            </b>
+                        )}
                         {dayFigures && !minimal && !line.plain ? <DayFigures line={line} /> : null}
                         {row.note ? (
                             <span className="mt-uw-detail" data-testid="usage-week-note">

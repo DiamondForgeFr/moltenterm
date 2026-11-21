@@ -6,6 +6,7 @@ package companion
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
@@ -368,6 +369,17 @@ func (m *Manager) publishBlockUsage(info UsageInfo) {
 		return
 	}
 	m.publishUsage(info)
+}
+
+// settingsUnreadable tells a settings.json that failed to read: its values then fall back to the defaults, which would
+// read as every source turned off and clear what the sources recorded (#2451). The sources wait for a readable file.
+func settingsUnreadable(config wconfig.FullConfigType) bool {
+	for _, e := range config.ConfigErrors {
+		if filepath.Base(e.File) == "settings.json" {
+			return true
+		}
+	}
+	return false
 }
 
 // settingsChanged clears what a source read once the user turned it off (the agent's gauges or the source's own

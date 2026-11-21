@@ -2430,7 +2430,8 @@
                 "month": "Mois",
                 "spend": "Dépenses",
                 "model": "Semaine ({name})",
-                "weekDeduced": "Semaine (d'après le mois)"
+                "weekDeduced": "Semaine",
+                "fromMonth": "d'après le mois"
             },
             "reason": {
                 "notsetup": "Ligne d'état non configurée",
@@ -2481,7 +2482,12 @@
             "updated": "Mise à jour {ago}",
             "staleRefresh": "Il sera actualisé la prochaine fois que l'agent tournera.",
             "staleLine": "Dernier relevé, mis à jour {ago}. {when}",
-            "deducedExplain": "Déduite par MoltenTerm du mois, seule fenêtre que donne le fournisseur. Le budget de la semaine est la limite mensuelle × 7 ÷ les jours de la fenêtre mensuelle en cours. MoltenTerm note la part du mois utilisée au premier et au dernier relevé de chaque jour, sur cet ordinateur, et l'usage d'un jour est la hausse entre les relevés. La semaine commence le lundi ; au-delà de 100 %, elle utilise plus que sa part du mois. Les jours d'avant le premier relevé restent vides.",
+            "countDays": "{count} j",
+            "countHours": "{count} h",
+            "monthResetInDays": "Remise à zéro mensuelle dans {count} jours, {when}",
+            "monthResetInDay": "Remise à zéro mensuelle dans {count} jour, {when}",
+            "monthResetInHours": "Remise à zéro mensuelle dans {count} h, {when}",
+            "deducedExplain": "Déduite par MoltenTerm du mois, seule fenêtre que donne le fournisseur. Le budget de la semaine est la limite mensuelle × 7 ÷ les jours de la fenêtre mensuelle en cours. MoltenTerm note la part du mois utilisée au premier et au dernier relevé de chaque jour, sur cet ordinateur, et l'usage d'un jour est la hausse entre les relevés. La semaine commence le lundi pour ce calcul seulement : c'est le mois qui se remet à zéro, et son jour de remise à zéro est cerclé dans la semaine qui le contient. Au-delà de 100 %, la semaine utilise plus que sa part du mois. Les jours d'avant le premier relevé restent vides.",
             "title": "Utilisation de l'abonnement",
             "show": "Afficher l'utilisation de l'abonnement",
             "unavailable": "Utilisation de l'abonnement indisponible",

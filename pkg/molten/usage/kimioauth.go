@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,12 +27,21 @@ type kimiConnectionContextKey struct{}
 // Code wrote a new token: a look compares the credential file's metadata and calls out only when it changed.
 const kimiStaleRecheck = 30 * time.Second
 
+const (
+	kimiSourceUnknown = ""
+	kimiSourceOn      = "on"
+	kimiSourceOff     = "off"
+)
+
 type KimiOAuthSource struct {
 	oauthEngine
 	connection func() (kimiManagedConnection, error)
 	// stamp gives the credential file's metadata, never its content; "" when there is no file.
 	stamp   func(path string) string
 	history *kimiHistory
+	// on is what the source last knew of its opt-in (kimiSourceUnknown until told), for Clear's on-to-off rule.
+	onLock sync.Mutex
+	on     string
 }
 
 func credentialFileStamp(path string) string {
@@ -81,10 +91,33 @@ func (s *KimiOAuthSource) fetchKeepingLast(ctx context.Context) (UsageSnapshot, 
 	return *last, oauthOutcome{stale: ReasonTokenExpired}
 }
 
-// Clear forgets the readings too, the file included (NFR-SHELL-011).
+// Clear forgets what the source read. The recorded readings, file included (NFR-SHELL-011), go only when the source
+// goes from on to off: SyncSources clears every source that is off at each settings change, and an unrelated edit of
+// settings.json must never wipe the week's history.
 func (s *KimiOAuthSource) Clear() {
 	s.oauthEngine.Clear()
-	s.history.clear()
+	if s.setOn(false) {
+		s.history.clear()
+	}
+}
+
+// Resume follows the source turned on (or still on).
+func (s *KimiOAuthSource) Resume() {
+	s.oauthEngine.Resume()
+	s.setOn(true)
+}
+
+// setOn records whether the source is on and tells whether it just went from on to off. Before anything told it
+// (MoltenTerm starting), the state is unknown and turning off is no transition.
+func (s *KimiOAuthSource) setOn(on bool) bool {
+	s.onLock.Lock()
+	defer s.onLock.Unlock()
+	wasOn := s.on == kimiSourceOn
+	s.on = kimiSourceOff
+	if on {
+		s.on = kimiSourceOn
+	}
+	return wasOn && !on
 }
 
 func (s *KimiOAuthSource) Id() string       { return KimiOAuthSourceId }
@@ -123,6 +156,8 @@ func (s *KimiOAuthSource) Read(ctx context.Context, blockId string) (UsageSnapsh
 		return s.result()
 	}
 	s.eligible()
+	// Only a source turned on is read (EnabledSources).
+	s.setOn(true)
 	if CanFetch(ctx) {
 		path := connection.credentialPath
 		if path == "" {
