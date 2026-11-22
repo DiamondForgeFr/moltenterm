@@ -164,6 +164,9 @@ export type GaugeRow = {
     countdown?: { text: string; title: string };
 };
 
+// A usage window the developer can show or hide (#2462): its key, its name as the block shows it, and whether its row shows.
+export type UsageWindowChoice = { id: string; label: string; shown: boolean };
+
 export type GaugesView =
     | { kind: "hidden" }
     | { kind: "off" }
@@ -173,7 +176,10 @@ export type GaugesView =
           kind: "enabled";
           agent: string;
           now: number;
+          // The rows that show. gaugesView gives every window; withRowChoice (companion-usage-rows-model.ts) leaves the
+          // ones the developer chose to show, and says which windows there were.
           rows: GaugeRow[];
+          listed?: UsageWindowChoice[];
           source: string;
           age: string;
           credits: string;

@@ -24,15 +24,21 @@ export type CompanionSectionId = (typeof CompanionSectionIds)[number];
 // "flow": the block takes one column of the flow; "full": it spans every column.
 export type CompanionSpan = "flow" | "full";
 
-// minimal and attached belong to the usage block alone (#2450): its window rows only, and its place in the main agent's
-// block in place of the flow. A section that is neither keeps neither; each is stored only when set, so the default
-// (the full block, standing on its own) is the absence of both.
+// The usage windows the developer hid (#2462): per provider (the agent whose plan it is, "claude", "kimi"), the keys of
+// the windows ("session", "week", "model:fable"), never their labels, so that a translated label keeps the choice. A
+// window that is not listed is shown, which is also what a window the provider starts to report later does.
+export type HiddenUsageRows = Record<string, string[]>;
+
+// minimal, attached and hiddenrows belong to the usage block alone (#2450, #2462): its window rows only, its place in the
+// main agent's block in place of the flow, and the rows it leaves out. A section that has none keeps none; each is
+// stored only when set, so the default (the full block, standing on its own, every row) is the absence of all three.
 export type SectionPlacement = {
     id: CompanionSectionId;
     span: CompanionSpan;
     hidden?: boolean;
     minimal?: boolean;
     attached?: boolean;
+    hiddenrows?: HiddenUsageRows;
 };
 
 export type CompanionLayout = readonly SectionPlacement[];
@@ -70,11 +76,44 @@ type StoredPlacement = {
     hidden?: unknown;
     minimal?: unknown;
     attached?: unknown;
+    hiddenrows?: unknown;
 };
+
+const MaxHiddenProviders = 16;
+const MaxHiddenPerProvider = 32;
+const MaxHiddenKeyLength = 64;
+
+function hiddenKey(value: unknown): value is string {
+    return typeof value === "string" && value !== "" && value.length <= MaxHiddenKeyLength;
+}
+
+// The rows a stored placement hides, in one canonical form (providers and keys in order, every key once, nothing empty), so
+// that two layouts that hide the same rows are the same layout; undefined when it hides none. What is not a provider's
+// list of keys is dropped, and so is what exceeds a sane count: a stored layout is data the app did not write itself.
+export function readHiddenRows(value: unknown): HiddenUsageRows {
+    if (value == null || typeof value !== "object" || Array.isArray(value)) {
+        return undefined;
+    }
+    const rtn: HiddenUsageRows = {};
+    for (const provider of Object.keys(value).sort()) {
+        if (!hiddenKey(provider) || Object.keys(rtn).length >= MaxHiddenProviders) {
+            continue;
+        }
+        const keys = (value as Record<string, unknown>)[provider];
+        if (!Array.isArray(keys)) {
+            continue;
+        }
+        const own = [...new Set(keys.filter(hiddenKey))].sort().slice(0, MaxHiddenPerProvider);
+        if (own.length > 0) {
+            rtn[provider] = own;
+        }
+    }
+    return Object.keys(rtn).length > 0 ? rtn : undefined;
+}
 
 // A layout as it can be used: every registered section once, in the given order; an unknown id is dropped, an unknown
 // span takes the default, a section the layout forgets takes its default place at the end. A layout stored before #2450
-// has neither usage flag: its usage block reads as full and standing on its own.
+// has neither usage flag: its usage block reads as full and standing on its own. One stored before #2462 hides no row.
 export function normalizeLayout(layout: readonly StoredPlacement[]): CompanionLayout {
     const known = new Set<string>(CompanionSectionIds);
     const seen = new Set<string>();
@@ -87,12 +126,14 @@ export function normalizeLayout(layout: readonly StoredPlacement[]): CompanionLa
         seen.add(id);
         const span = typeof p.span === "string" && Spans.has(p.span) ? (p.span as CompanionSpan) : defaultSpan(id);
         const usage = id === "usage";
+        const hiddenrows = usage ? readHiddenRows(p.hiddenrows) : undefined;
         rtn.push({
             id,
             span,
             ...(p.hidden === true ? { hidden: true } : {}),
             ...(usage && p.minimal === true ? { minimal: true } : {}),
             ...(usage && p.attached === true ? { attached: true } : {}),
+            ...(hiddenrows != null ? { hiddenrows } : {}),
         });
     }
     for (const p of DefaultCompanionLayout) {
@@ -123,7 +164,8 @@ export function sameLayout(a: CompanionLayout, b: CompanionLayout): boolean {
                 p.span === y[i].span &&
                 !p.hidden === !y[i].hidden &&
                 !p.minimal === !y[i].minimal &&
-                !p.attached === !y[i].attached
+                !p.attached === !y[i].attached &&
+                JSON.stringify(p.hiddenrows ?? null) === JSON.stringify(y[i].hiddenrows ?? null)
         )
     );
 }
