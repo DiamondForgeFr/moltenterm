@@ -434,7 +434,12 @@ export function UsageWeekGrid({
                         )}
                         {row.chip ? (
                             <span className="mt-uw-pct-chipped">
-                                <span className="mt-uw-chip" title={row.chip.title} data-testid="usage-week-chip">
+                                <span
+                                    className="mt-uw-chip"
+                                    title={popovers ? undefined : row.chip.title}
+                                    data-tip={popovers ? row.chip.title : undefined}
+                                    data-testid="usage-week-chip"
+                                >
                                     {row.chip.text}
                                 </span>
                                 <b className="mt-uw-pct" data-testid="usage-week-percent">

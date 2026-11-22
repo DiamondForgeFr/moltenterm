@@ -862,7 +862,7 @@ function HeldRow({ kind, held }: { kind: HeldKind; held: HeldTicket }) {
                 <button
                     type="button"
                     className="mt-cwork-id"
-                    title={t("companion.work.openTicket", { number: ticket.number })}
+                    data-tip={t("companion.work.openTicket", { number: ticket.number })}
                     onClick={(e) => openPage(e, ticket.url)}
                 >
                     {`#${ticket.number}`}
@@ -874,7 +874,7 @@ function HeldRow({ kind, held }: { kind: HeldKind; held: HeldTicket }) {
                         <button
                             type="button"
                             className="mt-cwork-tag mt-cwork-tag-link"
-                            title={prTitle}
+                            data-tip={prTitle}
                             onClick={(e) => openPage(e, review.url)}
                             data-testid="companion-review-pr"
                         >
@@ -892,7 +892,7 @@ function HeldRow({ kind, held }: { kind: HeldKind; held: HeldTicket }) {
                     <button
                         type="button"
                         className="mt-cwork-tool"
-                        title={t("companion.work.openTicket", { number: ticket.number })}
+                        data-tip={t("companion.work.openTicket", { number: ticket.number })}
                         aria-label={t("companion.work.openTicket", { number: ticket.number })}
                         onClick={(e) => openPage(e, ticket.url)}
                         data-testid="companion-idle-open"
