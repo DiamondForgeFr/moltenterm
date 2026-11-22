@@ -7,7 +7,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { I18nModel } from "../i18n/i18n";
 import { UsageWeekGrid } from "../usage-week/usage-week";
-import { dayFiguresText, legendColours, paceColour, paceRatio, UnusedBlueAt } from "../usage-week/usage-week-model";
+import {
+    dayFiguresText,
+    legendColours,
+    MinFigureBlockPx,
+    MinUnitBlockPx,
+    paceColour,
+    paceRatio,
+    UnusedBlueAt,
+} from "../usage-week/usage-week-model";
 import { PlanUsageBody } from "./companion-gauges";
 import {
     CompanionUsageInfo,
@@ -84,8 +92,9 @@ const labelsOf = (html: string): string[] =>
     [...html.matchAll(/data-testid="usage-week-label">([^<]*)</g)].map((m) => m[1]);
 const percentsOf = (html: string): string[] =>
     [...html.matchAll(/data-testid="usage-week-percent">([^<]*)</g)].map((m) => m[1]);
-const noteOf = (html: string, window: string): string =>
-    /data-testid="usage-week-note">([^<]*)</.exec(rowHtml(html, window))?.[1] ?? "";
+// The reset icon of a row (#2458): the words its popover and its accessible name say.
+const resetOf = (html: string, window: string): string =>
+    /<span class="mt-uw-reset"[^>]*aria-label="([^"]*)"/.exec(rowHtml(html, window))?.[1] ?? "";
 // A plain gauge's reset, at the end of its bar (#2451).
 const gaugeResetOf = (html: string, window: string): string =>
     /data-testid="usage-week-gauge-reset">([^<]*)</.exec(rowHtml(html, window))?.[1] ?? "";
@@ -222,9 +231,9 @@ describe("plan usage section", () => {
         expect(html).toContain('aria-label="Current session, 24 %, in 2 h 14 min"');
         expect(html).toContain('data-tip="Current session: 23.5 % used\nResets in 2 h 14 min"');
         expect(gaugeResetOf(html, "session")).toBe("in 2 h 14 min");
-        expect(noteOf(html, "session")).toBe("");
+        expect(resetOf(html, "session")).toBe("");
         expect(html).toContain('aria-label="This week, 82 %, resets Friday"');
-        expect(noteOf(html, "week")).toBe("Resets Fri 10:00");
+        expect(resetOf(html, "week")).toBe("Resets Fri 10:00");
         expect(percentsOf(html)).toEqual(["24 %", "82 %"]);
         expect(html).toContain('aria-label="Refresh plan usage"');
         expect(html).toContain(">Hide</button>");
@@ -241,7 +250,7 @@ describe("plan usage section", () => {
         expect(html).toMatch(
             /data-tip="This week: 82 % used\nResets Fri 10:00\nPer day: [^"\n]+\nFrom the Claude Code status line · Updated 3 min ago"/
         );
-        expect(html).not.toContain('data-testid="usage-week-note"');
+        expect(resetOf(html, "week")).toBe("Resets Fri 10:00");
         expect(html).toContain('aria-label="Plan usage details"');
         expect(html).not.toContain("Experimental");
         expect(html).not.toContain(">Hide</button>");
@@ -503,13 +512,115 @@ describe("the companion's usage week grid (#2102)", () => {
         ]);
     });
 
-    it("tells the reset in the row's tooltip, and under the row in the details form only", () => {
+    it("tells the reset in the row's tooltip and by a small icon in every form, never as a line under the row (#2458)", () => {
         const compact = renderToStaticMarkup(
             <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact onDetails={() => {}} />
         );
-        expect(compact).not.toContain('data-testid="usage-week-note"');
-        expect(rowTag(compact, "week")).toContain("Resets Fri 10:00");
-        expect(noteOf(markup(enabled), "week")).toBe("Resets Fri 10:00");
+        for (const html of [compact, markup(enabled)]) {
+            expect(html).not.toContain('data-testid="usage-week-note"');
+            expect(html).not.toContain("mt-uw-detail");
+            expect(rowTag(html, "week")).toContain("Resets Fri 10:00");
+            expect(resetOf(html, "week")).toBe("Resets Fri 10:00");
+            expect(html.match(/data-testid="usage-week-reset"/g)).toHaveLength(1);
+        }
+    });
+
+    it("makes the reset icon a keyboard-reachable image the companion's popover describes (#2458)", () => {
+        const html = markup(enabled);
+        expect(html).toContain(
+            '<span class="mt-uw-reset" role="img" tabindex="0" aria-label="Resets Fri 10:00" data-tip="Resets Fri 10:00" data-testid="usage-week-reset"><i class="fa fa-solid fa-rotate-left" aria-hidden="true"></i></span>'
+        );
+        // It sits before the percent, inside the end of its own row, and the row holding a focusable child is a group.
+        const week = rowHtml(html, "week");
+        expect(week.indexOf("usage-week-reset")).toBeGreaterThan(week.indexOf("usage-week-block"));
+        expect(week.indexOf("usage-week-reset")).toBeLessThan(week.indexOf("usage-week-percent"));
+        expect(rowTag(html, "week")).toContain('role="group"');
+        // A plain gauge says its reset at the end of its bar and has no icon.
+        expect(rowHtml(html, "session")).not.toContain("usage-week-reset");
+        expect(rowTag(html, "session")).toContain('role="img"');
+        // Without a reset time there is nothing to say: no icon.
+        const open: CompanionUsageInfo = {
+            ...enabled,
+            snapshot: { ...enabled.snapshot, windows: [{ id: "week", label: "This week", usedpercent: 40 }] },
+        };
+        expect(markup(open)).not.toContain("usage-week-reset");
+    });
+
+    it("says the reset in the interface language", () => {
+        const i18n = I18nModel.getInstance();
+        try {
+            i18n.setLanguageSetting("fr");
+            expect(resetOf(markup(enabled), "week")).toMatch(/^Remise à zéro ven\.? 10:00$/);
+        } finally {
+            i18n.setLanguageSetting("");
+        }
+    });
+
+    // The browser sizes the column (fit-content: the widest label shown, up to the cap), which a markup test cannot
+    // measure: it holds the rule and what the rule needs, and the screenshots of #2458 hold the measures.
+    describe("the label column (#2458)", () => {
+        const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
+            /\/\*[\s\S]*?\*\//g,
+            ""
+        );
+        const only = (...windows: CompanionUsageInfo["snapshot"]["windows"]): CompanionUsageInfo => ({
+            ...enabled,
+            snapshot: { ...enabled.snapshot, windows },
+        });
+        const week = {
+            id: "week",
+            label: "This week",
+            usedpercent: 40,
+            resetsat: now + 3 * 24 * Hour,
+            windowmins: 10080,
+        };
+
+        it("is as wide as the widest label shown, up to a cap, in every form: never a fixed width", () => {
+            const labelled = /\n\.mt-uw\[data-labelled="true"\] \{([^}]*)\}/.exec(css)?.[1] ?? "";
+            expect(labelled).toContain("--mt-uw-first: fit-content(6.25rem)");
+            expect(labelled).not.toMatch(/--mt-uw-first:\s*(minmax|\d)/);
+            expect(css).toMatch(
+                /grid-template-columns:\s*var\(--mt-uw-first\) repeat\(7, minmax\(var\(--mt-uw-block-min\), 1fr\)\)/
+            );
+            // A grid of logos (Brokk's) keeps its 18 px column.
+            expect(/\n\.mt-uw \{([^}]*)\}/.exec(css)?.[1]).toContain("--mt-uw-first: 18px");
+        });
+
+        it("holds one short label whole, and the row's popover says the full name", () => {
+            const html = markup(only(week));
+            expect(labelsOf(html)).toEqual(["Week"]);
+            expect(html).toContain('data-labelled="true"');
+            expect(rowTag(html, "week")).toContain('data-tip="This week: 40 % used');
+        });
+
+        it("keeps a long label whole in the markup, cut by the stylesheet, its full name in the row's popover", () => {
+            const long = {
+                id: "model:extended",
+                label: "This week (Extended Opus limits)",
+                usedpercent: 28,
+                resetsat: now + 3 * 24 * Hour,
+                windowmins: 10080,
+            };
+            const html = markup(only(week, long));
+            expect(labelsOf(html)).toEqual(["Week", "Week (Extended Opus limits)"]);
+            expect(rowTag(html, "model:extended")).toContain('data-tip="This week (Extended Opus limits): 28 % used');
+            const label = /\n\.mt-uw-label \{([^}]*)\}/.exec(css)?.[1] ?? "";
+            expect(label).toContain("overflow: hidden");
+            expect(label).toContain("text-overflow: ellipsis");
+            expect(label).toContain("white-space: nowrap");
+            expect(label).toContain("min-width: 0");
+        });
+
+        it("serves several windows from one column: every label is a cell of the same grid, in every form", () => {
+            const html = markup(enabled);
+            expect(html.match(/data-testid="usage-week"/g)).toHaveLength(1);
+            expect(labelsOf(html)).toEqual(["Session", "Week"]);
+            const compact = renderToStaticMarkup(
+                <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact onDetails={() => {}} />
+            );
+            expect(compact.match(/data-labelled="true"/g)).toHaveLength(1);
+            expect(labelsOf(compact)).toEqual(["Session", "Week"]);
+        });
     });
 
     it("names a window in a short form for a narrow column, and keeps the whole name for the row", () => {
@@ -651,16 +762,16 @@ describe("the legend, the explanation and the source line (#2123)", () => {
         expect(html).toContain('class="mt-uw-cell is-reset"');
     });
 
-    it("explains a row, its blocks, the percentage, the reset line and the day figures, in the interface language", () => {
+    it("explains a row, its blocks, the percentage, the reset icon and the day figures, in the interface language", () => {
         const english = explainOf(markup(enabled));
         expect(english).toBe(
-            'A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the "Resets" line says when the window starts again. The small figures under the blocks spread that total over the days from the reset, one seventh each, so they tell how many days\' worth has been used.'
+            "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the reset icon before it says when the window starts again. The small figures under the blocks spread that total over the days from the reset, one seventh each, so they tell how many days' worth has been used."
         );
         expect(english.split(". ")).toHaveLength(3);
         inFrench(() => {
             const html = markup(enabled);
             expect(explainOf(html)).toBe(
-                "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; la ligne « Remise à zéro » indique quand la fenêtre repart. Les petits chiffres sous les blocs répartissent ce total sur les jours depuis la remise à zéro, un septième chacun : ils disent combien de journées ont été utilisées."
+                "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; l'icône de remise à zéro qui le précède indique quand la fenêtre repart. Les petits chiffres sous les blocs répartissent ce total sur les jours depuis la remise à zéro, un septième chacun : ils disent combien de journées ont été utilisées."
             );
             expect(keysOf(html).map(([, label]) => label)).toEqual([
                 "Aujourd'hui",
@@ -763,7 +874,7 @@ describe("the share of each day under its block (#2164)", () => {
     const sharesOf = (html: string, window: string): [number, string][] =>
         [
             ...rowHtml(html, window).matchAll(
-                /<span class="mt-uw-share"[^>]*data-testid="usage-week-share" data-share="(\d+)">(\d+)<span class="mt-uw-unit">([^<]*)<\/span>/g
+                /<span class="mt-uw-share"[^>]*data-testid="usage-week-share" data-share="(\d+)"><span class="mt-uw-fig">(\d+)<span class="mt-uw-unit">([^<]*)<\/span>/g
             ),
         ].map((m) => [Number(m[1]), `${m[2]}${m[3]}`]);
     const compactOf = (info: CompanionUsageInfo): string =>
@@ -857,21 +968,38 @@ describe("the share of each day under its block (#2164)", () => {
         );
         const rule = /\n\.mt-uw-share \{([^}]*)\}/.exec(css)?.[1] ?? "";
         expect(rule).toContain("color: var(--mt-text-3)");
-        expect(rule).toContain("justify-content: flex-end");
+        expect(rule).toContain("justify-content: center");
         expect(rule).not.toContain("--mt-uw-pace");
         expect(rowTag(html, "week")).not.toContain("share");
     });
 
     // A block is about 20 px wide in a narrow panel: "100%" would run into its neighbour's figure, the bare number fits.
-    it("shows the unit only where the grid is wide enough for it", () => {
+    // Each figure is told by the width of its own block (#2458), so the label column and the percent's, which are as
+    // wide as what they hold, never make the figures leave too early or stay too long.
+    it("shows the unit and the figure by the width of their own block", () => {
         const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
             /\/\*[\s\S]*?\*\//g,
             ""
         );
-        expect(/\n\.mt-uw\[data-figures="true"\] \{([^}]*)\}/.exec(css)?.[1]).toContain("container-type: inline-size");
+        expect(/\n\.mt-uw-share \{([^}]*)\}/.exec(css)?.[1]).toContain("container-type: inline-size");
+        expect(/\n\.mt-uw\[data-figures="true"\] \{([^}]*)\}/.exec(css)?.[1]).not.toContain("container-type");
         expect(/\n\.mt-uw-unit \{([^}]*)\}/.exec(css)?.[1]).toContain("display: none");
-        expect(/@container \(min-width: 400px\) \{\s*\.mt-uw-unit \{([^}]*)\}/.exec(css)?.[1]).toContain(
-            "display: inline"
+        expect(
+            new RegExp(`@container \\(min-width: ${MinUnitBlockPx}px\\) \\{\\s*\\.mt-uw-unit \\{([^}]*)\\}`).exec(
+                css
+            )?.[1]
+        ).toContain("display: inline");
+        expect(
+            new RegExp(
+                `@container \\(max-width: ${MinFigureBlockPx - 0.02}px\\) \\{\\s*\\.mt-uw-fig \\{([^}]*)\\}`
+            ).exec(css)?.[1]
+        ).toContain("display: none");
+        // The unit needs a wider block than the figure, which needs one wider than its own neighbour's gap.
+        expect(MinUnitBlockPx).toBeGreaterThan(MinFigureBlockPx);
+        // A grid with figures spaces its rows by margin, so a line of figures that leaves takes no gap with it.
+        expect(/\n\.mt-uw\[data-figures="true"\] \{([^}]*)\}/.exec(css)?.[1]).toContain("row-gap: 0");
+        expect(/\.mt-uw\[data-figures="true"\] \.mt-uw-row > \* \{([^}]*)\}/.exec(css)?.[1]).toContain(
+            "margin-top: 7px"
         );
         expect(markup(enabled)).toContain('data-figures="true"');
         expect(compactOf(enabled)).toContain('data-figures="true"');
@@ -1019,17 +1147,17 @@ describe("the minimal week grid (#2450)", () => {
         }
     });
 
-    it("draws the rows alone: a label, seven blocks and a percent, with no day letters, figures or legend", () => {
+    it("draws the rows with their days and no legend: a label, the day letters, seven blocks, the figures and a percent (#2458)", () => {
         const minimal = html({ minimal: true, legend: true, dayFigures: true });
         expect(minimal).toContain('data-minimal="true"');
         expect(labelsOf(minimal)).toEqual(["Week", "Month"]);
         expect(percentsOf(minimal)).toEqual(["67 %", "3 %"]);
         expect(blocksOf(minimal, "week")).toHaveLength(7);
         expect(blocksOf(minimal, "week").filter((b) => b.reset)).toHaveLength(1);
-        expect(minimal).not.toContain('data-testid="usage-week-day"');
-        expect(minimal).not.toContain('data-testid="usage-week-share"');
+        expect(initialsOf(minimal)).toBe("MTWTFSS");
+        expect(minimal.match(/data-testid="usage-week-share"/g)).toHaveLength(14);
+        expect(minimal).toContain('data-figures="true"');
         expect(minimal).not.toContain('data-testid="usage-week-legend"');
-        expect(minimal).not.toContain("data-figures");
         const full = html({ legend: true, dayFigures: true });
         expect(initialsOf(full)).toBe("MTWTFSS");
         expect(full).toContain('data-testid="usage-week-share"');
@@ -1037,14 +1165,25 @@ describe("the minimal week grid (#2450)", () => {
         expect(full).not.toContain("data-minimal");
     });
 
+    it("keeps the letters on a grid without figures, and the figures only where a surface asks for them", () => {
+        for (const minimal of [true, false]) {
+            const bare = html({ minimal });
+            expect(initialsOf(bare)).toBe("MTWTFSS");
+            expect(bare).not.toContain("usage-week-share");
+            expect(bare).not.toContain("data-figures");
+        }
+    });
+
     it("keeps today's mark and the reset day's ring on the rows", () => {
         const minimal = html({ minimal: true });
-        expect(minimal.match(/data-today="true"/g)).toHaveLength(2);
+        // Two rows and the day letters above them: today is marked on each.
+        expect(minimal.match(/data-today="true"/g)).toHaveLength(3);
+        expect(minimal.match(/data-testid="usage-week-block"[^>]*data-today="true"/g)).toHaveLength(2);
         expect(blocksOf(minimal, "week")[1].reset).toBe(true);
         expect(blocksOf(minimal, "month")[4].reset).toBe(true);
     });
 
-    it("names each row with its percent, its reset day and the figure of each day, which the form does not draw", () => {
+    it("names each row with its percent, its reset day and the figure of each day, which a narrow grid does not draw", () => {
         const minimal = html({ minimal: true });
         expect(rowTag(minimal, "week")).toMatch(
             /aria-label="This week, 67 %, resets [A-Za-z]+, per day: Mon 0 %, Tue 100 %, Wed 100 %, Thu 100 %, Fri 100 %, Sat 69 %, Sun 0 %"/
@@ -1054,6 +1193,22 @@ describe("the minimal week grid (#2450)", () => {
         expect(rowTag(html({ dayFigures: true }), "week")).not.toContain("per day");
         // The surface's own tooltip is kept.
         expect(rowTag(minimal, "week")).toContain('title="tip"');
+    });
+
+    it("draws a reset icon before the percent when the surface gives a row its reset, and only then", () => {
+        const withReset = rows.map((row) => ({ ...row, reset: "Resets Fri 10:00" }));
+        const markup = renderToStaticMarkup(<UsageWeekGrid rows={withReset} now={now} minimal dayFigures popovers />);
+        expect(markup.match(/data-testid="usage-week-reset"/g)).toHaveLength(2);
+        expect(rowTag(markup, "week")).toContain('role="group"');
+        expect(rowTag(html({ minimal: true }), "week")).toContain('role="img"');
+        expect(html({ minimal: true })).not.toContain("usage-week-reset");
+        // Brokk's grid gives no reset: it keeps its rows as they are.
+        const brokk = readFileSync(join(__dirname, "../boss/brokk-usage-block.tsx"), "utf8");
+        expect(brokk).not.toContain("reset:");
+        // Without the companion's popovers the icon says its words as the system tooltip.
+        const system = renderToStaticMarkup(<UsageWeekGrid rows={withReset} now={now} />);
+        expect(system).toContain('title="Resets Fri 10:00"');
+        expect(system).not.toContain('data-tip="Resets');
     });
 
     it("says a row's title and the legend's in a panel's popover when it asks (#2455)", () => {

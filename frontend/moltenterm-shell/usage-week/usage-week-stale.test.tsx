@@ -46,12 +46,6 @@ describe("a stale row of the week grid", () => {
         expect(tag(markup)).toContain("read 40 min ago");
     });
 
-    it("leaves a line the surface wrote to the surface", () => {
-        const markup = html([row({ stale: true, note: "A note" })]);
-        expect(markup).toContain('data-testid="usage-week-note"');
-        expect(markup).not.toContain("usage-week-stale");
-    });
-
     it("leaves the pace colour, the sheen and the figures' strength to the stylesheet", () => {
         const css = readFileSync(join(__dirname, "usage-week.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
         expect(css).toMatch(/\.mt-uw-row\[data-stale="true"\] \.mt-uw-cell i \{[^}]*background: var\(--mt-text-3\)/);

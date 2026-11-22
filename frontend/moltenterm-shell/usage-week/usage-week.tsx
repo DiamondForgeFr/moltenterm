@@ -11,7 +11,9 @@
 // its surface gives it a tooltip; each row has an accessible name. A surface that has room for it asks for the legend
 // under the rows (#2123): swatches made of the grid's own blocks, so they follow it. A surface that wants the share of
 // each day asks for the figures under the blocks (#2164): one small muted number a block, in a line of its own. A row
-// whose reading is stale (#2341) is faded, takes no pace colour and tells its age on a line under it.
+// whose reading is stale (#2341) is faded, takes no pace colour and tells its age on a line under it. A surface that
+// labels its rows by window gets a label column as wide as its widest label (#2458), and gives a row a small reset icon
+// before its percent for the reset time.
 
 import ClaudeColorSvg from "@/app/asset/claude-color.svg";
 import { cn, makeIconClass } from "@/util/util";
@@ -74,8 +76,9 @@ export type UsageWeekRow = {
     chip?: { text: string; title: string };
     // The row's tooltip, for a surface that has more to say about a window than the grid.
     title?: string;
-    // A line under the row, across the grid.
-    note?: string;
+    // When the window resets, in words ("Resets Thu 14:55"): a small icon before the percent (#2458) whose popover says
+    // it, reached from the keyboard. It is the row's own element, so the row becomes a group, not an image.
+    reset?: string;
     // A plain gauge's reset, short ("in 1 h 20 min"), at the end of its bar (#2451).
     resets?: string;
 };
@@ -241,7 +244,9 @@ export function UsageWeekLegend({ popovers }: { popovers?: boolean }) {
 }
 
 // The line of figures under a row's blocks, across the grid's columns: the lead's and the percent's stay empty. It is
-// decoration for the eye: the row's accessible name already carries the percent.
+// decoration for the eye: the row's accessible name already carries the percent. Each cell is a container of its own
+// width, which is its block's: the figure inside leaves when the block is too narrow for it (usage-week.css), whatever
+// the width of the label column and of the percent's.
 function DayFigures({ line }: { line: UsageWeekLine }) {
     const t = useT();
     return (
@@ -258,13 +263,34 @@ function DayFigures({ line }: { line: UsageWeekLine }) {
                     />
                 ) : (
                     <span key={i} className="mt-uw-share" aria-hidden data-testid="usage-week-share" data-share={share}>
-                        {share}
-                        <span className="mt-uw-unit">{t("usageWeek.dayUnit")}</span>
+                        <span className="mt-uw-fig">
+                            {share}
+                            <span className="mt-uw-unit">{t("usageWeek.dayUnit")}</span>
+                        </span>
                     </span>
                 )
             )}
             <span className="mt-uw-share-pad" aria-hidden />
         </>
+    );
+}
+
+// The reset time as a small icon (#2458), in place of a line of words under the row: the companion's popover says it
+// on hover and on keyboard focus, and the icon is named by the same words. Focusable, so the popover is not for the
+// pointer alone.
+function ResetIcon({ text, popovers }: { text: string; popovers?: boolean }) {
+    return (
+        <span
+            className="mt-uw-reset"
+            role="img"
+            tabIndex={0}
+            aria-label={text}
+            title={popovers ? undefined : text}
+            data-tip={popovers ? text : undefined}
+            data-testid="usage-week-reset"
+        >
+            <i className="fa fa-solid fa-rotate-left" aria-hidden="true" />
+        </span>
     );
 }
 
@@ -286,9 +312,10 @@ function PlainGauge({ line, resets }: { line: UsageWeekLine; resets?: string }) 
     );
 }
 
-// minimal is the form of #2450: the rows alone, each a label, its seven blocks and its percent, with no day initials on
-// top, no figures under the blocks and no legend. The row's accessible name carries what the form leaves out, the reset
-// day and the figure of each day; a surface that wants them in a tooltip gives the row its title.
+// minimal is the form of #2450: the rows and nothing else, with no legend or line under them. Its rows keep their day
+// initials on top and their figures under the blocks (#2458), but its accessible names also carry the figure of each
+// day, for the form is the one a surface draws in a narrow place, where the figures may not fit; a surface that wants
+// more in a tooltip gives the row its title.
 export function UsageWeekGrid({
     rows,
     now,
@@ -314,27 +341,23 @@ export function UsageWeekGrid({
         <span
             className="mt-uw"
             data-labelled={labelled ? "true" : undefined}
-            data-figures={dayFigures && !minimal ? "true" : undefined}
+            data-figures={dayFigures ? "true" : undefined}
             data-minimal={minimal ? "true" : undefined}
             data-testid="usage-week"
         >
-            {minimal ? null : (
-                <>
-                    <span aria-hidden />
-                    {WeekDayKeys.map((key, i) => (
-                        <span
-                            key={key}
-                            className="mt-uw-day"
-                            aria-hidden
-                            data-testid="usage-week-day"
-                            data-today={i === today ? "true" : undefined}
-                        >
-                            {t(`usageWeek.day.${key}`)}
-                        </span>
-                    ))}
-                    <span aria-hidden />
-                </>
-            )}
+            <span aria-hidden />
+            {WeekDayKeys.map((key, i) => (
+                <span
+                    key={key}
+                    className="mt-uw-day"
+                    aria-hidden
+                    data-testid="usage-week-day"
+                    data-today={i === today ? "true" : undefined}
+                >
+                    {t(`usageWeek.day.${key}`)}
+                </span>
+            ))}
+            <span aria-hidden />
             {rows.map((row) => {
                 const { line, name } = row;
                 const displayName = row.windowLabel
@@ -388,11 +411,17 @@ export function UsageWeekGrid({
                 if (age) {
                     parts.push(t("usageWeek.rowAsOf", { ago: age }));
                 }
+                const hasReset = !line.plain && !!row.reset;
+                const percentEl = (
+                    <b className="mt-uw-pct" data-testid="usage-week-percent">
+                        {percent}
+                    </b>
+                );
                 return (
                     <span
                         key={row.key}
                         className="mt-uw-row"
-                        role={row.onContextMenu ? "group" : "img"}
+                        role={row.onContextMenu || hasReset ? "group" : "img"}
                         aria-label={parts.join(", ")}
                         title={popovers ? undefined : row.title}
                         data-tip={popovers ? row.title : undefined}
@@ -432,32 +461,26 @@ export function UsageWeekGrid({
                                 );
                             })
                         )}
-                        {row.chip ? (
+                        {row.chip || hasReset ? (
                             <span className="mt-uw-pct-chipped">
-                                <span
-                                    className="mt-uw-chip"
-                                    title={popovers ? undefined : row.chip.title}
-                                    data-tip={popovers ? row.chip.title : undefined}
-                                    data-testid="usage-week-chip"
-                                >
-                                    {row.chip.text}
-                                </span>
-                                <b className="mt-uw-pct" data-testid="usage-week-percent">
-                                    {percent}
-                                </b>
+                                {hasReset ? <ResetIcon text={row.reset} popovers={popovers} /> : null}
+                                {row.chip ? (
+                                    <span
+                                        className="mt-uw-chip"
+                                        title={popovers ? undefined : row.chip.title}
+                                        data-tip={popovers ? row.chip.title : undefined}
+                                        data-testid="usage-week-chip"
+                                    >
+                                        {row.chip.text}
+                                    </span>
+                                ) : null}
+                                {percentEl}
                             </span>
                         ) : (
-                            <b className="mt-uw-pct" data-testid="usage-week-percent">
-                                {percent}
-                            </b>
+                            percentEl
                         )}
-                        {dayFigures && !minimal && !line.plain ? <DayFigures line={line} /> : null}
-                        {row.note ? (
-                            <span className="mt-uw-detail" data-testid="usage-week-note">
-                                {row.note}
-                            </span>
-                        ) : null}
-                        {row.stale && !row.note ? (
+                        {dayFigures && !line.plain ? <DayFigures line={line} /> : null}
+                        {row.stale ? (
                             <span className="mt-uw-detail" data-testid="usage-week-stale">
                                 {t("usageWeek.stale", { ago: age })}
                             </span>

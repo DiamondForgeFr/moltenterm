@@ -304,21 +304,22 @@ export type PlanUsageActions = {
 
 // A window's row in the week grid: the agent is the session's, so the row is labelled by its window in place of a logo.
 // The exact percent and the reset time stay in its tooltip, with the source and age (`about`) when the form has no
-// header to say them; the details form (`detailed`) shows the reset under the row. The tooltip tells the figure of each
-// day in every form: the minimal form (#2450) draws none, and a narrow grid hides them (#2451).
+// header to say them; the reset is also a small icon at the end of the row (#2458), in every form (`full` is the form
+// that keeps the month's own bar showing its reset). The tooltip tells the figure of each day in every form: a narrow
+// grid hides them under the blocks (#2451).
 function weekRow(
     view: Extract<GaugesView, { kind: "enabled" }>,
     row: GaugeRow,
     about: string,
-    detailed: boolean
+    full: boolean
 ): UsageWeekRow {
     // A plain gauge (#2451) says its reset at the end of its bar, in every form; it has no days to tell.
     const plain = row.line.plain;
     // The day figures are always in the tooltip: a narrow grid hides them under the blocks (#2451).
     const days = plain ? "" : daysTitle(row.line);
-    // In the forms without a reset line, the deduced week's count already says when the month resets: the month's bar
-    // keeps its reset in its tooltip only (#2451).
-    const counted = !detailed && row.id === MonthWindowId && view.rows.some((r) => r.countdown != null);
+    // In the forms without the full block's reset line on the month's bar, the deduced week's count already says when
+    // the month resets: the month's bar keeps its reset in its tooltip only (#2451).
+    const counted = !full && row.id === MonthWindowId && view.rows.some((r) => r.countdown != null);
     return {
         key: row.id,
         agent: view.agent,
@@ -330,7 +331,7 @@ function weekRow(
         title: [`${row.label}: ${row.percent}`, row.countdown?.title ?? row.resets, days, row.explain, about]
             .filter((s) => !!s)
             .join("\n"),
-        note: detailed && !plain ? row.resets : undefined,
+        reset: plain ? undefined : row.resets || undefined,
         resets: plain && !counted ? row.resetsShort : undefined,
         chip: row.countdown,
     };
@@ -498,9 +499,10 @@ export function PlanUsageBody({
 
 // The usage as a block of the dashboard (#2441): the week day by day for every limit, its source and age, and the
 // refresh and hide tools in the block's tools notch. In the minimal form and attached to the main agent (#2450), a
-// reading is its window rows alone; a details tool unfolds the full block in its place, for as long as this one shows,
-// so the legend, the figures and the model limits stay one click away without touching the saved choice. Attached, the
-// tools are the main agent's, and "Hide" (turn the gauges off) is not among them: it stays on the block.
+// reading is its window rows alone, with their days (#2458); a details tool unfolds the full block in its place, for as
+// long as this one shows, so the legend, the paragraph and the model limits stay one click away without touching the
+// saved choice. Attached, the tools are the main agent's, and "Hide" (turn the gauges off) is not among them: it stays
+// on the block.
 function FramedUsage({
     view,
     extra,
@@ -662,10 +664,11 @@ function FramedUsage({
     });
 }
 
-// The minimal form (#2450): one week-grid row per usage window, nothing else. Each row is its label, its seven blocks
-// (today's pace colours, the reset day's ring, today's mark) and its percent at the right; the reset, the figure of each
-// day and the source are in the row's tooltip and its accessible name. A reading of credits alone, with no window, shows
-// the credits line, which is then the only thing there is to read.
+// The minimal form (#2450): one week-grid row per usage window, and no legend, paragraph, source line or foot link. Each
+// row is its label, the day letters above its seven blocks (today's pace colours, the reset day's ring, today's mark),
+// the figure of each day under them (#2458) and its percent at the right, with the reset time behind its small icon;
+// the source is in the row's tooltip and its accessible name. A reading of credits alone, with no window, shows the
+// credits line, which is then the only thing there is to read.
 function MinimalGauges({ view }: { view: Extract<GaugesView, { kind: "enabled" }> }) {
     const t = useT();
     const about = [view.source ? t("companion.gauges.from", { source: view.source }) : "", view.age]
@@ -686,6 +689,7 @@ function MinimalGauges({ view }: { view: Extract<GaugesView, { kind: "enabled" }
                         rows={view.rows.map((row) => weekRow(view, row, about, false))}
                         now={view.now}
                         minimal
+                        dayFigures
                     />
                 ) : (
                     <div className="text-11 text-secondary" data-testid="companion-plan-usage-credits">
