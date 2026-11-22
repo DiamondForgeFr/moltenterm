@@ -16,7 +16,17 @@ import {
     securityFixture,
     verificationFixture,
 } from "./fixtures.mjs";
-import { builderArgs, packageRelease } from "./package.mjs";
+import {
+    builderArgs,
+    classifyBuilderFailure,
+    FAILURE_AGREEMENT,
+    FAILURE_AUTH,
+    FAILURE_PACKAGING,
+    FAILURE_REJECTED,
+    FAILURE_UNKNOWN,
+    FAILURE_UNREACHABLE,
+    packageRelease,
+} from "./package.mjs";
 import { withSigningSession } from "./session.mjs";
 
 // Every command of one run, in order: security (session), the builder process, then Apple tools (finalization).
@@ -32,7 +42,16 @@ function recorder(events) {
 
 async function release(
     projectDir,
-    { events = [], builder, notarize, env = fakeEnv, extraArgs = [], verifyDelivery, writeEvidence } = {}
+    {
+        events = [],
+        builder,
+        notarize,
+        env = fakeEnv,
+        extraArgs = [],
+        verifyDelivery,
+        writeEvidence,
+        log = () => {},
+    } = {}
 ) {
     const { security, run } = recorder(events);
     builder ??= fakeBuilder(projectDir, { events });
@@ -55,7 +74,7 @@ async function release(
         builderCli: "/dummy/electron-builder/cli.js",
         verifyDelivery,
         writeEvidence,
-        log: () => {},
+        log,
         runProcess: builder.runProcess,
         session: (sessionEnv, body) =>
             withSigningSession(sessionEnv, body, {
@@ -252,4 +271,90 @@ test("stale delivery evidence is refused before signing or building", async (t) 
     const { promise } = await release(projectDir, { events });
     await assert.rejects(promise, /run task clean/);
     assert.deepEqual(events, []);
+});
+
+const Secret = "dummy-secret-password";
+const ArbitraryLine = "/Users/runner/work/private-path TEAMID1234 arbitrary builder text";
+
+// A builder that fails the way the real one does: a generic error whose captured output rides on it, not enumerable.
+function failingBuilder(output) {
+    const calls = [];
+    return {
+        calls,
+        async runProcess(file, args, options) {
+            calls.push({ file, args, options });
+            const error = new Error("Signing packaging failed");
+            Object.defineProperty(error, "output", { value: output, enumerable: false, configurable: true });
+            throw error;
+        },
+    };
+}
+
+const FailureCases = [
+    ["packaging", `Error: Electron download failed: ENOENT ${ArbitraryLine}`, FAILURE_PACKAGING],
+    [
+        "agreement",
+        `Failed to notarize via notarytool. Error: HTTP status code: 403. A required agreement is missing or has expired. ${Secret}`,
+        FAILURE_AGREEMENT,
+    ],
+    ["auth", `notarytool: Error: HTTP status code: 401. Invalid credentials. ${ArbitraryLine}`, FAILURE_AUTH],
+    ["rejected", `Failed to notarize via notarytool: status: Invalid ${Secret}`, FAILURE_REJECTED],
+    ["unreachable", `notarytool submit: ETIMEDOUT ${ArbitraryLine}`, FAILURE_UNREACHABLE],
+    ["unknown", `something odd happened ${Secret} ${ArbitraryLine}`, FAILURE_UNKNOWN],
+    ["unknown notary", `notarytool exploded in a new way ${Secret}`, FAILURE_UNKNOWN],
+];
+
+test("a builder failure outside the sign hook is named with one fixed label and nothing else", async (t) => {
+    for (const [name, output, label] of FailureCases) {
+        const projectDir = await projectFixture(t);
+        const logs = [];
+        const { promise } = await release(projectDir, {
+            builder: failingBuilder(output),
+            log: (message) => logs.push(message),
+        });
+        await assert.rejects(promise, (error) => {
+            assert.equal(error.message, "Signing session failed", name);
+            assert.doesNotMatch(String(error.stack), /dummy-secret-password|private-path|TEAMID1234/);
+            assert.equal(Object.hasOwn(error, "output"), false);
+            return true;
+        });
+        const failure = logs.filter((line) => line.startsWith("::error::The builder failed"));
+        assert.deepEqual(failure, [`::error::The builder failed outside the sign hook: ${label}`], name);
+        const everything = logs.join("\n");
+        assert.doesNotMatch(everything, /dummy-secret-password|private-path|TEAMID1234|arbitrary|HTTP status|ENOENT/);
+    }
+});
+
+test("a hook stage keeps priority and the captured text is still dropped", async (t) => {
+    const projectDir = await projectFixture(t);
+    const logs = [];
+    const builder = failingBuilder(`notarytool HTTP status code: 403 ${Secret}`);
+    const { promise } = await release(projectDir, { builder, log: (message) => logs.push(message) });
+    await assert.rejects(promise, /Signing session failed/);
+    assert.equal(builder.calls[0].options.capture, true);
+    assert.equal(logs.filter((line) => line.includes("builder failed")).length, 1);
+    assert.doesNotMatch(logs.join("\n"), new RegExp(Secret));
+});
+
+test("the builder is run with capture so its output can be classified in memory", async (t) => {
+    const projectDir = await projectFixture(t);
+    const { promise, builder } = await release(projectDir);
+    await promise;
+    assert.equal(builder.calls[0].options.capture, true);
+});
+
+test("classification never returns text taken from the output", () => {
+    const labels = new Set([
+        FAILURE_PACKAGING,
+        FAILURE_AGREEMENT,
+        FAILURE_AUTH,
+        FAILURE_REJECTED,
+        FAILURE_UNREACHABLE,
+        FAILURE_UNKNOWN,
+    ]);
+    for (const output of [undefined, null, "", 42, ...FailureCases.map(([, text]) => text)])
+        assert.ok(labels.has(classifyBuilderFailure(output)));
+    assert.equal(classifyBuilderFailure(undefined), FAILURE_UNKNOWN);
+    // A network error with no notarization in it is a packaging problem (an Electron download), not the notary's.
+    assert.equal(classifyBuilderFailure("download electron zip ETIMEDOUT"), FAILURE_PACKAGING);
 });

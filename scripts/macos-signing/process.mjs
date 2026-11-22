@@ -8,6 +8,11 @@ import { setTimeout as pause } from "node:timers/promises";
 
 // Normally drain the owned group before cleanup; OS failure aborts and revokes owned credentials best-effort.
 // Raw builder output is deliberately not forwarded: upstream errors/debug output can contain credentials.
+// With `capture`, the output is read into a bounded in-memory tail only so the caller can map it to a fixed label: it
+// is attached to a failure as the non-enumerable `output` property, and the caller must drop it after classifying.
+export const CaptureLimit = 64 * 1024;
+const StreamSettleMs = 1000;
+
 export async function runOwnedProcess(
     file,
     args,
@@ -15,6 +20,7 @@ export async function runOwnedProcess(
         env,
         cwd,
         signal,
+        capture = false,
         start = spawn,
         kill = process.kill.bind(process),
         wait = pause,
@@ -26,7 +32,12 @@ export async function runOwnedProcess(
     if (signal?.aborted) throw new Error("Signing packaging interrupted");
     let child;
     try {
-        child = start(file, args, { env, cwd, detached: true, stdio: "ignore" });
+        child = start(file, args, {
+            env,
+            cwd,
+            detached: true,
+            stdio: capture ? ["ignore", "pipe", "pipe"] : "ignore",
+        });
     } catch {
         throw new Error("Signing packaging could not start");
     }
@@ -34,14 +45,30 @@ export async function runOwnedProcess(
         failed = false,
         aborted = false,
         parentClosed = false,
+        tail = "",
         stop;
+    const streams = capture ? [child.stdout, child.stderr].filter(Boolean) : [];
+    const streamsEnded = Promise.all(
+        streams.map(
+            (stream) =>
+                new Promise((resolve) => {
+                    stream.setEncoding?.("utf8");
+                    stream.on("data", (chunk) => {
+                        tail = (tail + chunk).slice(-CaptureLimit);
+                    });
+                    stream.once("close", resolve);
+                    stream.once("error", resolve);
+                })
+        )
+    );
     const closed = new Promise((resolve) => {
         child.once("error", () => {
             failed = true;
             parentClosed = true;
             resolve();
         });
-        child.once("close", (exitCode) => {
+        // A descendant holding the pipes open must not keep a finished parent from being drained and killed.
+        child.once(capture ? "exit" : "close", (exitCode) => {
             code = exitCode;
             parentClosed = true;
             resolve();
@@ -118,9 +145,15 @@ export async function runOwnedProcess(
         if (aborted || signal?.aborted) throw new Error("Signing packaging interrupted");
         if (failed || code !== 0) throw new Error("Signing packaging failed");
     } catch {
-        throw new Error(
+        const error = new Error(
             aborted ? "Signing packaging interrupted or process cleanup failed" : "Signing packaging failed"
         );
+        if (capture && !aborted) {
+            // The group is gone by now, so its pipes end at once; the cap only bounds a stuck stream.
+            await Promise.race([streamsEnded, pause(StreamSettleMs)]);
+            Object.defineProperty(error, "output", { value: tail, enumerable: false, configurable: true });
+        }
+        throw error;
     } finally {
         signal?.removeEventListener("abort", onAbort);
     }

@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
-import { runOwnedProcess } from "./process.mjs";
+import { CaptureLimit, runOwnedProcess } from "./process.mjs";
 
 function fakeProcess() {
     const child = new EventEmitter();
@@ -166,4 +166,34 @@ test("persistent probe/kill errors and stubborn groups fail within an injected d
         assert.equal(tick, 100);
         assert.ok(calls < 20);
     }
+});
+
+test("capture reads a bounded tail into a hidden property of the failure and never into its message", async () => {
+    const fake = fakeProcess();
+    fake.child.stdout = new EventEmitter();
+    fake.child.stderr = new EventEmitter();
+    const promise = runOwnedProcess("node", [], { ...fake, capture: true });
+    fake.setAlive(false);
+    fake.child.stdout.emit("data", `${"x".repeat(CaptureLimit)}start`);
+    fake.child.stderr.emit("data", "notarytool: dummy-secret-password");
+    fake.child.emit("exit", 1);
+    fake.child.stdout.emit("close");
+    fake.child.stderr.emit("close");
+    await assert.rejects(promise, (error) => {
+        assert.equal(error.message, "Signing packaging failed");
+        assert.equal(Object.keys(error).includes("output"), false);
+        assert.ok(error.output.length <= CaptureLimit);
+        assert.match(error.output, /dummy-secret-password$/);
+        assert.doesNotMatch(error.message + error.stack, /dummy-secret-password/);
+        return true;
+    });
+    assert.deepEqual(fake.started.options.stdio, ["ignore", "pipe", "pipe"]);
+});
+
+test("without capture nothing is read and the failure carries no output", async () => {
+    const fake = fakeProcess();
+    const promise = runOwnedProcess("node", [], fake);
+    fake.setAlive(false);
+    fake.child.emit("close", 1);
+    await assert.rejects(promise, (error) => !("output" in error));
 });
