@@ -19,11 +19,12 @@
     padding: 2px 0;
 }
 
-/* A surface that shows one agent labels each row by its window (#2102): the first column takes what a short label needs,
-   up to 6.25rem, and the label is cut with an ellipsis when the room is short. The day blocks keep a minimum width, so a
-   narrow panel shortens the labels, never the blocks. */
+/* A surface that shows one agent labels each row by its window (#2102): the first column is as wide as the widest label
+   shown, up to 6.25rem (#2458), so the blocks start right after the labels it has, never after the longest label of any
+   provider; a longer label is cut with an ellipsis, and so is one the room is too short for. The day blocks keep a
+   minimum width, so a narrow panel shortens the labels, never the blocks. */
 .mt-uw[data-labelled="true"] {
-    --mt-uw-first: minmax(0, 6.25rem);
+    --mt-uw-first: fit-content(6.25rem);
     --mt-uw-block-min: 12px;
 }
 
@@ -240,8 +241,8 @@ button.mt-uw-logo:focus-visible {
     opacity: 0.45;
 }
 
-/* A percent with a small count before it (#2451): the count to a monthly reset, dimmed, in a chip the size of the
-   text. */
+/* A percent with what comes before it at the end of a row: the reset icon (#2458), then the count to a monthly reset
+   (#2451), dimmed, in a chip the size of the text. */
 .mt-uw-pct-chipped {
     display: inline-flex;
     align-items: center;
@@ -269,17 +270,40 @@ button.mt-uw-logo:focus-visible {
 }
 
 /* The share of each day under its block (#2164): a line of its own across the grid's columns, closer to its row than the
-   rows are to each other. Muted, never pace-coloured. Flex-end keeps the figure right-aligned. A block is about 20 px
-   wide in a narrow panel, which "100%" would overflow into its neighbour's figure: the unit shows only when the grid is
-   wide enough for it, the bare number always fits. */
+   rows are to each other. Muted, never pace-coloured. The figure is centred under its block, as the day letter is over
+   it: the minimal form and the form attached to the main agent draw blocks wider than a figure (#2458).
+   A grid with figures spaces its rows by the top margin of their cells, not by a row gap: the line of figures can then
+   go without leaving a gap of its own behind (an empty line is no taller than 0, and a row gap would still be there). */
 .mt-uw[data-figures="true"] {
-    container-type: inline-size;
+    row-gap: 0;
 }
 
+.mt-uw[data-figures="true"] .mt-uw-row > * {
+    margin-top: 7px;
+}
+
+.mt-uw[data-figures="true"] .mt-uw-row > .mt-uw-share,
+.mt-uw[data-figures="true"] .mt-uw-row > .mt-uw-share-pad {
+    margin-top: 0;
+}
+
+.mt-uw[data-figures="true"] .mt-uw-row > .mt-uw-detail {
+    margin-top: 3px;
+}
+
+.mt-uw[data-figures="true"] .mt-uw-legend {
+    margin-top: 9px;
+}
+
+/* Each cell of the figures is a container of the width of its block (#2458): the figure inside it is hidden by the
+   block's own width, which is what it needs, wherever the label column and the percent's end (MinFigureBlockPx and
+   MinUnitBlockPx, usage-week-model.ts). A block is about 20 px wide in a narrow panel: "100%" would run into its
+   neighbour's figure, so the unit shows only on a wider block, and the bare number leaves when even it does not fit; it
+   stays in the row's popover. */
 .mt-uw-share {
+    container-type: inline-size;
     display: flex;
-    justify-content: flex-end;
-    margin-top: -6px;
+    justify-content: center;
     color: var(--mt-text-3);
     font-size: var(--mt-text-11);
     font-variant-numeric: tabular-nums;
@@ -287,24 +311,48 @@ button.mt-uw-logo:focus-visible {
     white-space: nowrap;
 }
 
+.mt-uw-fig {
+    margin-top: 1px;
+}
+
 .mt-uw-unit {
     display: none;
 }
 
-@container (min-width: 400px) {
+@container (min-width: 32px) {
     .mt-uw-unit {
         display: inline;
     }
 }
 
-/* Under DayFiguresMinGridPx (usage-week-model.ts) a day block is too narrow for "100" or "130": the figures would run
-   into each other, so their whole line goes (the two pads with them, so the grid keeps its columns) and they stay in
-   the row's tooltip (#2451). */
-@container (max-width: 343.98px) {
-    .mt-uw-share,
-    .mt-uw-share-pad {
+@container (max-width: 21.98px) {
+    .mt-uw-fig {
         display: none;
     }
+}
+
+/* The reset time as a small icon before the percent (#2458), in the muted colour of the figures; its popover is the
+   companion's, and the keyboard reaches it. */
+.mt-uw-reset {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: var(--mt-radius-control);
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-uw-reset:hover {
+    color: var(--mt-text-1);
+}
+
+.mt-uw-reset:focus-visible {
+    color: var(--mt-text-1);
+    outline: 1px solid var(--mt-action);
+    outline-offset: 1px;
 }
 
 /* The legend under the rows (#2123), across the whole grid. Its swatches are the grid's own blocks (.mt-uw-cell, with

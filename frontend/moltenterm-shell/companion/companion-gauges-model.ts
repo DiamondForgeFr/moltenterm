@@ -286,7 +286,7 @@ export function usageWindowShortLabel(label: string): string {
     return windowWords(label, true);
 }
 
-// The line of a row's tooltip that tells the figure of each day, for the minimal form, which draws none (#2450).
+// The line of a row's tooltip that tells the figure of each day, for a grid too narrow to draw them (#2450, #2458).
 export function daysTitle(line: UsageWeekLine): string {
     return t("usageWeek.daysTitle", { days: lineDayFiguresText(line) });
 }

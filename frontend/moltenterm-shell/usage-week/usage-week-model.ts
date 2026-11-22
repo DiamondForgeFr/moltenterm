@@ -65,19 +65,11 @@ export type UsageWeekLine = {
 export const DayUnknown = -1;
 
 // The narrowest day block a figure fits under without touching its neighbour's: three tabular digits at 11 px ("130")
-// and a little air (#2451).
-export const MinFigureBlockPx = 24;
-// What the grid takes beside its seven blocks: the label column at its widest (6.25rem), the percent (52 px) and the
-// eight 3 px gaps between the nine columns.
-const GridChromePx = 100 + 52 + 8 * 3;
-// The grid width under which the figures go (usage-week.css, @container max-width): below it a block is narrower than
-// MinFigureBlockPx.
-export const DayFiguresMinGridPx = GridChromePx + 7 * MinFigureBlockPx;
-
-// How wide each day block is in a grid of that width.
-export function dayBlockPx(gridPx: number): number {
-    return (gridPx - GridChromePx) / 7;
-}
+// and a little air (#2451, #2458). usage-week.css hides the figure of a block narrower than this (@container
+// max-width, MinFigureBlockPx less 0.02), by the width of that block, whatever the label column and the percent take.
+export const MinFigureBlockPx = 22;
+// The block width from which a figure also shows its "%" unit (usage-week.css, @container min-width).
+export const MinUnitBlockPx = 32;
 
 // The windows the seven days tell something of: a week (Claude's per-model weeks included) and a week deduced from the
 // month. Any other window is a plain gauge (#2451).

@@ -269,16 +269,16 @@ describe("the plan usage, minimal and attached (#2450)", () => {
     const labelsOf = (html: string) => [...html.matchAll(/data-testid="usage-week-label">([^<]*)</g)].map((m) => m[1]);
     const percentsOf = (html: string) =>
         [...html.matchAll(/data-testid="usage-week-percent">([^<]*)</g)].map((m) => m[1]);
-    // What the full block adds to the rows: the day letters, the figures, the legend, the paragraph and the rest.
+    // What the full block adds to the rows: the legend, the paragraph and the rest (#2458: the day letters and the
+    // figures are the rows' own, so the minimal form and the form attached to the main agent keep them).
     const Extras = [
-        'data-testid="usage-week-day"',
-        'data-testid="usage-week-share"',
         'data-testid="usage-week-legend"',
-        'data-testid="usage-week-note"',
         'data-testid="companion-plan-usage-explain"',
         "Experimental",
         'class="mt-cb-foot"',
     ];
+    // What the rows have in every form.
+    const Days = ['data-testid="usage-week-day"', 'data-testid="usage-week-share"'];
 
     it("stays the full block, standing on its own, by default", () => {
         const html = shown(DefaultCompanionLayout);
@@ -296,7 +296,7 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         expect(heroOf(html)).not.toContain('data-testid="companion-hero-usage"');
     });
 
-    it("draws the minimal form as its window rows alone: a label, a strip and a percentage each", () => {
+    it("draws the minimal form as its window rows with their days: a label, the letters, a strip, the figures and a percentage", () => {
         const html = shown(minimalLayout);
         expect(flowIds(html)).toEqual(["agents", "usage", "topics", "answer", "files"]);
         const usage = flowBlock(html, "usage");
@@ -305,14 +305,36 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         expect(percentsOf(usage)).toEqual(["63 %", "12 %"]);
         expect(count(usage, 'data-testid="usage-week-row"')).toBe(2);
         expect(count(usage, 'data-testid="usage-week-block"')).toBe(14);
-        // Today's mark and the reset day's ring stay on the strip.
-        expect(count(usage, 'data-today="true"')).toBe(2);
+        // The day letters over the strips (today's in bold) and the figure of each day under the blocks (#2458).
+        expect(count(usage, 'data-testid="usage-week-day"')).toBe(7);
+        expect(count(usage, 'data-testid="usage-week-share"')).toBe(14);
+        // Today's mark, on the letter and on each strip, and the reset day's ring stay.
+        expect(count(usage, 'data-today="true"')).toBe(3);
         expect(count(usage, 'data-reset="true"')).toBe(2);
+        // The reset is a small icon on each row, never a line under it.
+        expect(count(usage, 'data-testid="usage-week-reset"')).toBe(2);
+        expect(usage).not.toContain("usage-week-note");
         for (const extra of Extras) {
             expect(usage, extra).not.toContain(extra);
         }
         expect(usage).not.toContain('data-testid="companion-plan-usage-credits"');
         expect(usage).not.toContain(">Hide<");
+    });
+
+    it("draws the same days in the full, the minimal and the attached forms, so the rows read alike", () => {
+        const forms = [
+            flowBlock(shown(DefaultCompanionLayout), "usage"),
+            flowBlock(shown(minimalLayout), "usage"),
+            heroOf(shown(attachedLayout)),
+        ];
+        for (const form of forms) {
+            for (const day of Days) {
+                expect(form, day).toContain(day);
+            }
+            expect(count(form, 'data-testid="usage-week-reset"')).toBe(2);
+            expect(count(form, 'data-testid="usage-week-share"')).toBe(14);
+            expect(form).not.toContain("usage-week-note");
+        }
     });
 
     it("gives the reset and the figure of each day in the row's tooltip and accessible name", () => {
@@ -354,6 +376,9 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         expect(labelsOf(row)).toEqual(["Week", "Week (Fable)"]);
         expect(percentsOf(row)).toEqual(["63 %", "12 %"]);
         expect(count(row, 'data-testid="usage-week-block"')).toBe(14);
+        // The rows keep their days here too (#2458).
+        expect(count(row, 'data-testid="usage-week-day"')).toBe(7);
+        expect(count(row, 'data-testid="usage-week-share"')).toBe(14);
         for (const extra of Extras) {
             expect(hero, extra).not.toContain(extra);
         }

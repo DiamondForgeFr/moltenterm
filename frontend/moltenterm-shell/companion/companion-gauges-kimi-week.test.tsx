@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { I18nModel } from "../i18n/i18n";
-import { dayBlockPx, DayFiguresMinGridPx, MinFigureBlockPx } from "../usage-week/usage-week-model";
+import { MinFigureBlockPx } from "../usage-week/usage-week-model";
 import { PlanUsageBody, UsageFrame } from "./companion-gauges";
 import { CompanionUsageInfo, gaugeRows, gaugesView } from "./companion-gauges-model";
 
@@ -127,6 +127,9 @@ const blocksOf = (html: string, window: string) =>
     );
 const percentOf = (html: string, window: string): string =>
     /data-testid="usage-week-percent">([^<]*)</.exec(rowHtml(html, window))?.[1] ?? "";
+// The words of a row's reset icon (#2458).
+const resetOf = (html: string, window: string): string =>
+    /<span class="mt-uw-reset"[^>]*aria-label="([^"]*)"/.exec(rowHtml(html, window))?.[1] ?? "";
 const sharesOf = (html: string, window: string): string[] =>
     [...rowHtml(html, window).matchAll(/<span class="mt-uw-share"[^>]*?(data-unknown="true"|data-share="(\d+)")/g)].map(
         (m) => m[2] ?? "unknown"
@@ -290,12 +293,27 @@ describe("the monthly reset on the deduced week (#2451)", () => {
         ]);
     });
 
-    it("tells the month's reset under the row, never Monday's", () => {
+    it("tells the month's reset with the row's reset icon, never Monday's (#2458)", () => {
         const html = markup(withMonthReset(saturday));
-        const note = /data-testid="usage-week-note">([^<]*)</.exec(rowHtml(html, "week"))?.[1];
-        expect(note).toBe("Resets Sat 01:00");
-        expect(markup(kimi)).toContain(">Resets Tue 1 Dec, 01:00<");
+        expect(resetOf(html, "week")).toBe("Resets Sat 01:00");
+        expect(resetOf(markup(kimi), "week")).toBe("Resets Tue 1 Dec, 01:00");
         expect(rowHtml(markup(kimi), "week")).not.toContain("Mon 00:00");
+        // No line of words is left under the row.
+        expect(markup(kimi)).not.toContain("usage-week-note");
+    });
+
+    it("keeps the count to the monthly reset beside the reset icon, in every form (#2458)", () => {
+        for (const html of [markup(kimi), framed(kimi, "full"), framed(kimi, "minimal"), framed(kimi, "attached")]) {
+            const week = rowHtml(html, "week");
+            expect(resetOf(html, "week")).toBe("Resets Tue 1 Dec, 01:00");
+            expect(week).toContain('data-testid="usage-week-chip"');
+            // The icon, then the count, then the percent.
+            expect(week.indexOf("usage-week-reset")).toBeLessThan(week.indexOf("usage-week-chip"));
+            expect(week.indexOf("usage-week-chip")).toBeLessThan(week.indexOf("usage-week-percent"));
+            // The 5-hour window and the month are plain gauges and keep no icon.
+            expect(rowHtml(html, "session")).not.toContain("usage-week-reset");
+            expect(rowHtml(html, "month")).not.toContain("usage-week-reset");
+        }
     });
 
     it("counts the days to the reset, and the hours under a day", () => {
@@ -337,24 +355,27 @@ describe("the monthly reset on the deduced week (#2451)", () => {
 describe("the day figures in a narrow grid (#2451)", () => {
     const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
-    it("hides the figures' whole line below the grid width where a block can hold one", () => {
-        // The threshold is where a day block is exactly MinFigureBlockPx wide.
-        expect(dayBlockPx(DayFiguresMinGridPx)).toBe(MinFigureBlockPx);
-        // A ~340 px column (760 px companion, two columns) leaves ~310 px to the grid: too narrow, the figures go.
-        expect(dayBlockPx(310)).toBeLessThan(MinFigureBlockPx);
+    it("hides a figure when its own block is too narrow to hold it, whatever the label column takes (#2458)", () => {
+        // The query is on the block's own width: a container per cell of the figures' line.
         const rule = new RegExp(
-            `@container \\(max-width: ${DayFiguresMinGridPx - 0.02}px\\) \\{\\s*\\.mt-uw-share,\\s*\\.mt-uw-share-pad \\{([^}]*)\\}`
+            `@container \\(max-width: ${MinFigureBlockPx - 0.02}px\\) \\{\\s*\\.mt-uw-fig \\{([^}]*)\\}`
         ).exec(css);
         expect(rule?.[1]).toContain("display: none");
+        expect(css).not.toMatch(/@container \(max-width: 3\d\d(\.\d+)?px\)/);
+        expect(css).not.toContain("DayFiguresMinGridPx");
     });
 
-    it("removes the two pads with the figures, so the rows below keep their columns", () => {
+    it("keeps the pads and the cells of the figures' line when the figures leave, so the rows below keep their columns", () => {
         const html = markup(kimi);
         const line =
             /<span class="mt-uw-share-pad"[^>]*><\/span>(<span class="mt-uw-share"[^>]*>.*?<\/span>){7}<span class="mt-uw-share-pad"/.exec(
                 html
             );
         expect(line).not.toBeNull();
+        // The figure is the cell's inner span, the one the query hides: the cell itself stays, empty.
+        expect(html).toContain(
+            '<span class="mt-uw-share" aria-hidden="true" data-testid="usage-week-share" data-share="240"><span class="mt-uw-fig">240<span class="mt-uw-unit">%</span></span></span>'
+        );
     });
 
     it("keeps the figures in the row's tooltip in the full form", () => {

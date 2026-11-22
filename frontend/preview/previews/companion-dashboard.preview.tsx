@@ -8,7 +8,8 @@
 // app gives it (?scroll=end scrolled to the bottom), ?images=1 the messages name pasted images "[Image #N]" (#2455; the
 // chips read a small synthetic image drawn here, ?images=none gives them none), ?tip=<test id>[&tipat=N] (or
 // ?tipsel=<css selector>) a popover held open on the Nth such element (the screenshots' way of hovering),
-// ?usage-agent=kimi|kimi-stale|kimi-ring Kimi's usage (#2451).
+// ?usage-agent=kimi|kimi-stale|kimi-ring Kimi's usage (#2451), ?usage-labels=short|long the width of the label column
+// (#2458).
 
 import { useEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
@@ -269,12 +270,40 @@ function kimiUsage(stale: boolean, monthReset = NextMonth): CompanionUsageInfo {
     };
 }
 
+// ?usage-labels=short|long (#2458): the label column of Claude's rows. short is the week alone, the shortest label there
+// is; long adds a window whose label is longer than the column's cap, which cuts it.
+const UsageLabels = query.get("usage-labels") ?? "";
+
 function usageFixture(): CompanionUsageInfo {
     if (UsageAgent === "kimi" || UsageAgent === "kimi-stale") {
         return kimiUsage(UsageAgent === "kimi-stale");
     }
     if (UsageAgent === "kimi-ring") {
         return kimiUsage(false, ResetThisWeek);
+    }
+    if (UsageLabels === "short") {
+        return {
+            ...usage,
+            snapshot: { ...usage.snapshot, windows: usage.snapshot.windows.filter((w) => w.id === "week") },
+        };
+    }
+    if (UsageLabels === "long") {
+        return {
+            ...usage,
+            snapshot: {
+                ...usage.snapshot,
+                windows: [
+                    ...usage.snapshot.windows.slice(0, 2),
+                    {
+                        id: "model:extended",
+                        label: "This week (Extended Opus limits)",
+                        usedpercent: 28,
+                        resetsat: Now + 4 * 24 * Hour,
+                        windowmins: 10080,
+                    },
+                ],
+            },
+        };
     }
     return usage;
 }
