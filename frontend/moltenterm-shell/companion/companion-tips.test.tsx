@@ -28,6 +28,7 @@ import {
     messageParts,
     tipAdds,
     tipRepeats,
+    TipScopeAttr,
     tipTargetOf,
 } from "./companion-tips-model";
 
@@ -395,6 +396,19 @@ describe("which element asks for a popover (#2455)", () => {
         expect(tipTargetOf(null, panel as any, always)).toBeNull();
         const empty = panel.add(new FakeNode({ "data-tip": "" }));
         expect(tipTargetOf(empty as any, panel as any, always)).toBeNull();
+    });
+
+    it("serves an element of a popover portalled out of the panel only where the part it sits in is marked (#2462)", () => {
+        const marked = new FakeNode({ [TipScopeAttr]: "" });
+        const inside = marked.add(new FakeNode({ "data-tip": "At least one row stays shown" }, "Week"));
+        expect(tipTargetOf(inside as any, panel as any, always)).toEqual({
+            kind: "text",
+            element: inside,
+            text: "At least one row stays shown",
+        });
+        const unmarked = new FakeNode();
+        const beside = unmarked.add(new FakeNode({ "data-tip": "At least one row stays shown" }, "Week"));
+        expect(tipTargetOf(beside as any, panel as any, always)).toBeNull();
     });
 
     it("passes over a popover that adds nothing and asks the element above that has one", () => {

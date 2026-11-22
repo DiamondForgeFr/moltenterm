@@ -16,6 +16,10 @@ export const TipAttr = "data-tip";
 export const ImageAttr = "data-image";
 export const ImageAtAttr = "data-image-at";
 
+// A popover portalled out of the panel (the settings of a block, #2462) marks the part it holds: the elements inside it
+// are served by the panel's popovers too, though the panel's own box does not hold them.
+export const TipScopeAttr = "data-tip-scope";
+
 // What a drag of a block dispatches on the document when it starts (#2459): an open popover closes, as it does on a press,
 // since the pointer that carries the block was never pressed on the element the popover describes.
 export const CloseTipsEvent = "mt-companion-tips-close";
@@ -116,7 +120,8 @@ export function tipAdds(element: Element, text: string): boolean {
 // nothing to its element is passed over: the next element above that has one that adds is asked instead.
 export function tipTargetOf(node: EventTarget, within: Element = null, adds = tipAdds): TipTarget {
     let element = elementOf(node)?.closest(`[${TipAttr}], [${ImageAttr}]`) as HTMLElement;
-    while (element != null && (within == null || within.contains(element))) {
+    const served = (el: Element) => within == null || within.contains(el) || el.closest(`[${TipScopeAttr}]`) != null;
+    while (element != null && served(element)) {
         const n = Number(element.getAttribute(ImageAttr));
         if (n > 0) {
             return { kind: "image", element, n, at: imageTime(element) };

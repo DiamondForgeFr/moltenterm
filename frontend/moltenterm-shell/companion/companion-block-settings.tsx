@@ -3,8 +3,9 @@
 
 // The settings of a block while arranging (FR-SHELL-018, #2459): the gear on the block opens a compact popover, of the
 // companion's popover look, with the block's own options (companion-block-options.ts lists them: every block's Show and
-// Full width, the plan usage's form and attaching, the milestone block's groups, the files' list). It takes the focus
-// when it opens, closes on Escape (and only it: the mode stays) or a press outside, and gives the focus back to the gear.
+// Full width, the plan usage's form and attaching, the milestone block's groups, the files' list), and under them the
+// plan usage's "Rows shown" (#2462). It takes the focus when it opens, closes on Escape (and only it: the mode stays) or a
+// press outside, and gives the focus back to the gear.
 // Loaded with the arranging mode, out of the startup bundle.
 
 import { useId, useRef, useState } from "react";
@@ -14,7 +15,17 @@ import { SegmentedControl } from "../segmented-control";
 import { BlockTool } from "./companion-block";
 import { BlockOption, optionsOf, optionValue, PrefDefaults } from "./companion-block-options";
 import type { CompanionPrefs } from "./companion-files-model";
+import type { UsageWindowChoice } from "./companion-gauges-model";
 import type { CompanionSectionId, SectionPlacement } from "./companion-layout";
+import { TipScopeAttr } from "./companion-tips-model";
+import { UsageRowsChoice } from "./companion-usage-rows";
+
+// The plan usage's rows (#2462): the windows its provider reports, each with whether its row shows in the draft, and the
+// way to show or hide one. Only the usage block has them.
+export type BlockRows = {
+    choices: readonly UsageWindowChoice[];
+    onSet: (id: string, hide: boolean) => void;
+};
 
 export type BlockSettingsProps = {
     id: CompanionSectionId;
@@ -25,6 +36,7 @@ export type BlockSettingsProps = {
     defaults?: PrefDefaults;
     // An option was set: the arranging mode drafts a layout option, saves a preference, and announces it.
     onChange: (option: BlockOption, value: boolean) => void;
+    rows?: BlockRows;
 };
 
 export function BlockSettings(props: BlockSettingsProps) {
@@ -67,11 +79,13 @@ export function SettingsBody({
     prefs,
     defaults,
     onChange,
+    rows,
     onClose,
 }: BlockSettingsProps & { onClose: () => void }) {
     return (
         <div
             className="mt-cb-settings-body"
+            {...{ [TipScopeAttr]: "" }}
             data-testid="companion-settings"
             onKeyDown={(e) => {
                 if (e.key !== "Escape") {
@@ -93,6 +107,9 @@ export function SettingsBody({
                     onChange={onChange}
                 />
             ))}
+            {id === "usage" && rows != null ? (
+                <UsageRowsChoice choices={rows.choices} onSet={rows.onSet} separated />
+            ) : null}
         </div>
     );
 }

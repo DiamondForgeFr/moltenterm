@@ -2536,6 +2536,24 @@
             "explain": "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; l'icône de remise à zéro qui le précède indique quand la fenêtre repart. Les petits chiffres sous les blocs répartissent ce total sur les jours depuis la remise à zéro, un septième chacun : ils disent combien de journées ont été utilisées.",
             "details": "Détails de l'utilisation de l'abonnement",
             "detailsMore": "Détails de l'utilisation de l'abonnement ({count} de plus)",
+            "rows": {
+                "title": "Lignes affichées",
+                "tool": "Choisir les lignes affichées",
+                "toolHidden": {
+                    "one": "Choisir les lignes affichées ({count} ligne masquée)",
+                    "other": "Choisir les lignes affichées ({count} lignes masquées)"
+                },
+                "dialog": "Lignes affichées de {name}",
+                "hidden": {
+                    "one": "{count} ligne masquée",
+                    "other": "{count} lignes masquées"
+                },
+                "allShown": "Toutes les lignes sont affichées",
+                "lastOne": "Au moins une ligne reste affichée",
+                "none": "Les lignes apparaissent une fois l'utilisation de l'abonnement lue.",
+                "nowShown": "Ligne {label} affichée",
+                "nowHidden": "Ligne {label} masquée"
+            },
             "setupLabel": "Configuration de l'utilisation de l'abonnement",
             "setupIntro": "L'agent donne les limites de votre abonnement à sa ligne d'état. Enveloppez votre ligne d'état dans le relais de MoltenTerm et les jauges s'affichent ici.",
             "setupReplace": "Remplacez l'entrée statusLine de",

@@ -5,7 +5,8 @@
    hairline border, the shell's shadow) with the companion blocks' radius. It never takes the pointer, so the element it
    describes keeps both the hover and the click. */
 .mt-tip-pos {
-    z-index: 1000;
+    /* Over the settings popovers portalled out of the panel (#2462), which stand at 9500, and under the dialogs. */
+    z-index: 9550;
     pointer-events: none;
 }
 

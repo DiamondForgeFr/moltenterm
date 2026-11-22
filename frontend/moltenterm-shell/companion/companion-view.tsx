@@ -64,6 +64,7 @@ import { CompanionSessions } from "./companion-session-store";
 import { SessionHistoryList } from "./companion-session-ui";
 import { CompanionTips } from "./companion-tips";
 import { UsageButton } from "./companion-usage";
+import { hiddenRowsOf } from "./companion-usage-rows-model";
 
 export { MoltentermCompanionView };
 
@@ -355,7 +356,7 @@ function CompanionPanelBody({ model }: ViewComponentProps<CompanionViewModel>) {
     const usage = provider ? (
         <ProviderUsageNote provider={provider} native={agentState?.nativeprovider ?? ""} />
     ) : view?.usage != null && view.agent ? (
-        <PlanUsageSection target={target} agent={view.agent} />
+        <PlanUsageSection target={target} agent={view.agent} rows={{ hidden: hiddenRowsOf(layout, view.agent) }} />
     ) : null;
     if (history) {
         return (
