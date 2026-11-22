@@ -1,10 +1,11 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// What the arranging mode does to a layout (FR-SHELL-018, #2395, #2441, #2450): move a section, show or hide it, set it full
-// width or fluid, give the usage its minimal form or attach it to the main agent, go back to the defaults. Each edit takes a layout and gives a new, usable one (companion-layout.ts keeps the
-// registry and what a stored layout may hold); none of them runs on its own. Loaded with the arranging mode, out of the
-// startup bundle. Pure, so it is tested without a window.
+// What the arranging mode does to a layout (FR-SHELL-018, #2395, #2441, #2450, #2459): move a section, drop a carried one
+// (in the list, or on the main agent's block), show or hide it, set it full width or fluid, give the usage its minimal
+// form or attach it to the main agent, go back to the defaults. Each edit takes a layout and gives a new, usable one
+// (companion-layout.ts keeps the registry and what a stored layout may hold); none of them runs on its own. Loaded with
+// the arranging mode, out of the startup bundle. Pure, so it is tested without a window.
 
 import {
     CompanionLayout,
