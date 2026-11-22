@@ -29,6 +29,7 @@ import "./companion-dashboard.css";
 import { startLongPress, startsPress } from "./companion-drag-model";
 import { FilesSection } from "./companion-files";
 import { FlowAssign, flowLayout, FlowPlacedEvent, keepsColumns, layoutIdOf } from "./companion-flow-model";
+import { FlowBlockSelector, FlowWatch, watchFlow } from "./companion-flow-watch";
 import {
     PlanUsageBody,
     PlanUsageSection,
@@ -293,9 +294,7 @@ function Flow({
     const draggingRef = useRef(dragging);
     draggingRef.current = dragging;
     const lastDragging = useRef<string>(null);
-    const observer = useRef<ResizeObserver>(null);
-    // The blocks the observer watches, so a block that leaves the flow is let go.
-    const observed = useRef(new Set<Element>());
+    const watch = useRef<FlowWatch>(null);
     const entering = useRef(new Set<ReturnType<typeof setTimeout>>());
     useEffect(
         () => () => {
@@ -319,7 +318,7 @@ function Flow({
         // block it stands for (#2467).
         const els = new Map<string, HTMLElement>();
         const layoutIds = new Map<string, string>();
-        flow.querySelectorAll<HTMLElement>(":scope > [data-flow-id]").forEach((el) => {
+        flow.querySelectorAll<HTMLElement>(FlowBlockSelector).forEach((el) => {
             const id = layoutIdOf(el.dataset.flowId, el.dataset.ghost != null);
             els.set(id, el);
             layoutIds.set(el.dataset.flowId, id);
@@ -415,43 +414,22 @@ function Flow({
         onColumns({ columns: r.columns, columnWidth: r.columnWidth, paired: r.paired });
         flow.dispatchEvent(new Event(FlowPlacedEvent));
     }, [onColumns]);
+    // A block a section draws on its own state comes, changes or goes with no render of the flow (#2466): the watch
+    // places it before it is painted (companion-flow-watch.ts).
     useLayoutEffect(() => {
         const flow = flowRef.current;
-        if (flow == null || typeof ResizeObserver === "undefined") {
-            return;
-        }
-        const ro = new ResizeObserver(() => place());
-        observer.current = ro;
-        observed.current.clear();
-        if (flow.closest(".mt-cdash")) {
-            ro.observe(flow.closest(".mt-cdash"));
-        }
+        const w = watchFlow(flow, flow?.closest(".mt-cdash"), place);
+        watch.current = w;
         return () => {
-            ro.disconnect();
-            observer.current = null;
-            observed.current.clear();
+            w.stop();
+            watch.current = null;
             clearTimeout(reflow.current);
         };
     }, [place]);
     // After each render: the blocks that appeared are observed, those that left are let go, and everything is placed
     // again.
     useLayoutEffect(() => {
-        const ro = observer.current;
-        if (ro != null) {
-            const now = new Set<Element>(flowRef.current?.querySelectorAll(":scope > [data-flow-id]") ?? []);
-            observed.current.forEach((el) => {
-                if (!now.has(el)) {
-                    ro.unobserve(el);
-                    observed.current.delete(el);
-                }
-            });
-            now.forEach((el) => {
-                if (!observed.current.has(el)) {
-                    ro.observe(el);
-                    observed.current.add(el);
-                }
-            });
-        }
+        watch.current?.sync();
         place();
     });
     return (
