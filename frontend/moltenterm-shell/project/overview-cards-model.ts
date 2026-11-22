@@ -9,7 +9,7 @@ import { CompanionView } from "../companion/companion-model";
 import { AgentRow, agentsView } from "../companion/companion-recap-model";
 import { getLocale, t, tCount } from "../i18n/i18n";
 import { branchCi, CiState, CiStatusLabels } from "../mission/ci-model";
-import { Milestone, milestoneKey, releaseNotesText } from "../mission/github";
+import { GithubRelease, Milestone, milestoneKey, releaseNotesText } from "../mission/github";
 import {
     GithubState,
     MissionGit,
@@ -19,6 +19,7 @@ import {
     RunRecord,
     RunStateLabels,
 } from "../mission/mission-model";
+import type { ReleaseRun } from "../mission/release-run";
 import { ReleaseState } from "../mission/versions";
 
 const TypeRegex = /^([a-z]+)(\([^)]*\))?!?:/;
@@ -357,30 +358,66 @@ export function buildNowLine(build: RunRecord, inBand: boolean, now = Date.now()
     };
 }
 
-// The latest release the history holds, a candidate or a public one: "published 4 min ago". While a release is a row
-// of the band, its line says where to look. null when the project has never released.
+// The release in the band, as its Now line reads it: where it is, from its phases.
+export type RunningRelease = { tag: string; failed?: boolean; building?: boolean; published?: boolean };
+
+export function runningRelease(run: Pick<ReleaseRun, "tag" | "current" | "phases">): RunningRelease {
+    const phase = (id: string) => run.phases.find((p) => p.id === id);
+    return {
+        tag: run.tag,
+        failed: run.phases.some((p) => p.status === "failed"),
+        building: run.current === "build",
+        published: phase("publish")?.status === "done",
+    };
+}
+
+// The latest release the history holds, a candidate or a public one. A tag is not a publication (#2368): "published
+// 4 min ago" only once its GitHub release exists and is not a draft, "tag pushed 4 min ago" while that is not known.
+// While a release is a row of the band, its line says where it is and where to look. null when the project has never
+// released. releases: the project's GitHub releases, null when they were not read.
 export function releaseNowLine(
     state: ReleaseState,
-    running: { tag: string; failed?: boolean } | null,
-    now = Date.now()
+    running: RunningRelease | null,
+    now = Date.now(),
+    releases: readonly GithubRelease[] = null
 ): NowLine {
     if (running != null) {
-        return {
-            label: t("project.now.release", { tag: running.tag }),
-            text: running.failed ? t("project.now.failedAbove") : t("project.now.runningAbove"),
-            tone: running.failed ? "failure" : "running",
-        };
+        const label = t("project.now.release", { tag: running.tag });
+        if (running.failed) {
+            return { label, text: t("project.now.failedAbove"), tone: "failure" };
+        }
+        const text = running.published
+            ? t("project.now.publishedAbove")
+            : running.building
+              ? t("project.now.buildingAbove")
+              : t("project.now.runningAbove");
+        return { label, text, tone: "running" };
     }
     const tags = [state?.lastRc, state?.lastPublic].filter((tag) => tag != null);
     const latest = tags.sort((a, b) => Date.parse(b.date) - Date.parse(a.date))[0];
     if (latest == null) {
         return null;
     }
+    const label = t("project.now.release", { tag: latest.name });
+    const release = (releases ?? []).find((r) => r.tagName === latest.name);
+    if (release != null && !release.isDraft) {
+        const when = release.publishedAt || latest.date;
+        const ago = agoText(Date.parse(when), now);
+        return {
+            label,
+            text: ago ? t("project.now.published", { ago }) : t("project.now.publishedUndated"),
+            tone: "success",
+            title: formatWhen(when),
+        };
+    }
+    if (release != null) {
+        return { label, text: t("project.now.draftRelease"), tone: "neutral", title: formatWhen(latest.date) };
+    }
     const ago = agoText(Date.parse(latest.date), now);
     return {
-        label: t("project.now.release", { tag: latest.name }),
-        text: ago ? t("project.now.published", { ago }) : t("project.now.publishedUndated"),
-        tone: "success",
+        label,
+        text: ago ? t("project.now.tagPushed", { ago }) : t("project.now.tagPushedUndated"),
+        tone: "neutral",
         title: formatWhen(latest.date),
     };
 }

@@ -66,6 +66,8 @@ type ReleaseGhRun struct {
 	Conclusion   string `json:"conclusion"`
 	Url          string `json:"url"`
 	CreatedAt    string `json:"createdAt"`
+	// The run's attempt: above 1 once its failed jobs were run again (#2368).
+	Attempt int `json:"attempt,omitempty"`
 }
 
 type ReleaseGhJob struct {
@@ -310,7 +312,7 @@ func (r *Runs) notesPath(ctx context.Context, dir string, p *molten.Pipeline, ta
 }
 
 func (r *Runs) readGithubRelease(ctx context.Context, dir string, facts *ReleaseFacts) {
-	out, err := ghJson(ctx, r.git, dir, "run", "list", "--limit", "30", "--json", "databaseId,workflowName,headBranch,status,conclusion,url,createdAt")
+	out, err := ghJson(ctx, r.git, dir, "run", "list", "--limit", "30", "--json", "databaseId,workflowName,headBranch,status,conclusion,url,createdAt,attempt")
 	if err != nil && isNotGithubError(err) {
 		facts.NoGithub = true
 		return

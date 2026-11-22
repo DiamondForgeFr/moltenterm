@@ -51,6 +51,7 @@ import {
     OverviewSection,
     releaseNowLine,
     releasesView,
+    runningRelease,
     trunkCiLine,
 } from "./overview-cards-model";
 import { ProjectCardProps } from "./project-context";
@@ -322,13 +323,12 @@ export function NowCard({ project, pipeline, runs, ci, startBuild, snapshot, rel
     const inBand = buildInBand(lastBuild);
     const buildLine = buildNowLine(lastBuild, inBand, now);
     const followed = releaseFollow?.run ?? null;
+    const github = snapshot?.github;
     const releaseLine = releaseNowLine(
         state,
-        followed && {
-            tag: followed.tag,
-            failed: followed.phases.some((p) => p.status === "failed"),
-        },
-        now
+        followed && runningRelease(followed),
+        now,
+        github?.state === "ok" && github.errors?.releases == null ? (github.releases ?? []) : null
     );
     const rebuildable = lastBuild != null && !inBand && (pipeline?.builds ?? []).some((b) => b.id === lastBuild.stepid);
     const folder = lastBuild != null && !!lastBuild.artifact && deliveredBy(lastBuild, delivered) != null;

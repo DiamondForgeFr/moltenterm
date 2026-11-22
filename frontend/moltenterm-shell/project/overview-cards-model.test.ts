@@ -23,6 +23,7 @@ import {
     releaseBars,
     releaseNowLine,
     releasesView,
+    runningRelease,
     trunkCiLine,
 } from "./overview-cards-model";
 
@@ -373,19 +374,75 @@ describe("the Now card's flat lines (#2188)", () => {
         });
     });
 
-    it("says when the latest release was published, a candidate or a public one", () => {
+    const ghRelease = (tagName: string, publishedAt: string, isDraft = false) =>
+        ({
+            tagName,
+            name: tagName,
+            isDraft,
+            isPrerelease: false,
+            isLatest: false,
+            publishedAt,
+            createdAt: publishedAt,
+        }) as any;
+
+    it("says when the latest release was published, a candidate or a public one, once its GitHub release exists", () => {
         const rc = tag("v1.0.0-12", new Date(Now - 4 * 60_000).toISOString());
         const pub = tag("v0.9.0", new Date(Now - 5 * 86_400_000).toISOString());
-        expect(releaseNowLine(state(rc, pub), null, Now)).toMatchObject({
+        const releases = [ghRelease("v1.0.0-12", rc.date), ghRelease("v0.9.0", pub.date)];
+        expect(releaseNowLine(state(rc, pub), null, Now, releases)).toMatchObject({
             label: "Release v1.0.0-12",
             text: "published 4 minutes ago",
             tone: "success",
         });
-        expect(releaseNowLine(state(null, pub), null, Now)).toMatchObject({
+        expect(releaseNowLine(state(null, pub), null, Now, releases)).toMatchObject({
             label: "Release v0.9.0",
             text: "published 5 days ago",
         });
-        expect(releaseNowLine(state(pub, rc), null, Now).label).toBe("Release v1.0.0-12");
+        expect(releaseNowLine(state(pub, rc), null, Now, releases).label).toBe("Release v1.0.0-12");
+    });
+
+    // #2368: v1.0.0-12's build failed, so GitHub has no release of it; the tag alone never says published.
+    it("says tag pushed while the tag has no GitHub release, or the releases were not read", () => {
+        const rc = tag("v1.0.0-12", new Date(Now - 2 * 3_600_000).toISOString());
+        const older = [ghRelease("v1.0.0-11", new Date(Now - 86_400_000).toISOString())];
+        expect(releaseNowLine(state(rc, null), null, Now, older)).toMatchObject({
+            label: "Release v1.0.0-12",
+            text: "tag pushed 2 hours ago",
+            tone: "neutral",
+        });
+        expect(releaseNowLine(state(rc, null), null, Now)).toMatchObject({ text: "tag pushed 2 hours ago" });
+        expect(releaseNowLine(state(rc, null), null, Now, [ghRelease("v1.0.0-12", "", true)])).toMatchObject({
+            text: "draft release, not published yet",
+            tone: "neutral",
+        });
+    });
+
+    it("says where the release in the band is: building, failed or published", () => {
+        expect(releaseNowLine(state(null, null), { tag: "v1.0.0-12", building: true }, Now).text).toBe(
+            "building, see above"
+        );
+        expect(releaseNowLine(state(null, null), { tag: "v1.0.0-12", published: true }, Now).text).toBe(
+            "published, see above"
+        );
+        const phases = (build: string, publish: string) =>
+            [
+                { id: "prepare", status: "done" },
+                { id: "cut", status: "done" },
+                { id: "build", status: build },
+                { id: "publish", status: publish },
+                { id: "back", status: "todo" },
+            ] as any;
+        expect(runningRelease({ tag: "v1.0.0-12", current: "build", phases: phases("failed", "todo") })).toEqual({
+            tag: "v1.0.0-12",
+            failed: true,
+            building: true,
+            published: false,
+        });
+        expect(runningRelease({ tag: "v1.0.0-12", current: "back", phases: phases("done", "done") })).toMatchObject({
+            failed: false,
+            building: false,
+            published: true,
+        });
     });
 
     it("has no release line for a project that never released", () => {

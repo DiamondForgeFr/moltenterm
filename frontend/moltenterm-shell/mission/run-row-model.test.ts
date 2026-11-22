@@ -244,6 +244,77 @@ describe("releaseBandRow", () => {
         expect(row.tone).toBe("failed");
         expect(row.phases.find((p) => p.current)).toMatchObject({ status: "failed", progress: "failed" });
     });
+
+    // #2368: v1.0.0-12's macOS job failed; the row said nothing but its timer.
+    const macosFailed: ReleaseFacts = {
+        ...base,
+        runs: [{ ...base.runs[0], status: "completed", conclusion: "failure", attempt: 2 }],
+        jobs: [
+            { name: "macOS", status: "completed", conclusion: "failure", startedAt: "", completedAt: "", url: "" },
+            { name: "Linux", status: "completed", conclusion: "success", startedAt: "", completedAt: "", url: "" },
+            {
+                name: "GitHub release",
+                status: "completed",
+                conclusion: "skipped",
+                startedAt: "",
+                completedAt: "",
+                url: "",
+            },
+        ],
+    };
+
+    it("names the failed jobs on the row, and offers to rerun them after a confirmation and to investigate", () => {
+        const rr = releaseRun(macosFailed, []);
+        const row = releaseBandRow(rr, macosFailed.jobs, 0);
+        expect(row.tone).toBe("failed");
+        expect(row.note).toBe("Failed: macOS.");
+        const build = rr.phases.find((p) => p.id === "build");
+        expect(build.action).toMatchObject({ kind: "rerun", label: "Rerun the failed jobs" });
+        expect(build.action.kind === "rerun" && build.action.confirm).toContain("v1.0.0-12");
+        expect(build.action.kind === "rerun" && build.action.confirm).toContain("macOS");
+        expect(build.failure).toMatchObject({ step: "release", runs: [{ runid: 1 }] });
+    });
+
+    it("says a rerun runs, with its attempt and the jobs done out of the total", () => {
+        const rerun: ReleaseFacts = {
+            ...macosFailed,
+            runs: [{ ...base.runs[0], status: "in_progress", conclusion: "", attempt: 3 }],
+            jobs: [
+                { name: "macOS", status: "in_progress", conclusion: "", startedAt: "", completedAt: "", url: "" },
+                { name: "Linux", status: "completed", conclusion: "success", startedAt: "", completedAt: "", url: "" },
+            ],
+        };
+        const rr = releaseRun(rerun, []);
+        const row = releaseBandRow(rr, rerun.jobs, 0);
+        expect(row.tone).toBe("working");
+        expect(row.note).toBe("Rerun · attempt 3");
+        expect(row.phases.find((p) => p.current)).toMatchObject({ label: "Build", status: "running", progress: "1/2" });
+        expect(rr.phases.find((p) => p.id === "build").expect).toBe("Rerun, attempt 3: 1/2 jobs done.");
+    });
+
+    it("says a first run goes on without a note, and names a job that failed while the others run", () => {
+        expect(releaseBandRow(releaseRun(base, []), base.jobs, 0).note).toBe("");
+        const halfFailed: ReleaseFacts = {
+            ...base,
+            jobs: [{ ...base.jobs[0], name: "macOS", conclusion: "failure" }, base.jobs[1]],
+        };
+        expect(releaseBandRow(releaseRun(halfFailed, []), halfFailed.jobs, 0).note).toBe("Failed: macOS.");
+    });
+
+    it("goes on to the publish phase once the GitHub release exists", () => {
+        const published: ReleaseFacts = {
+            ...base,
+            runs: [{ ...base.runs[0], status: "completed", conclusion: "success" }],
+            jobs: base.jobs.map((j) => ({ ...j, status: "completed", conclusion: "success" })),
+            release: { tagName: "v1.0.0-12", isDraft: false, isPrerelease: true, url: "https://example.test/r" },
+        };
+        const rr = releaseRun(published, []);
+        expect(rr.phases.find((p) => p.id === "publish").status).toBe("done");
+        const row = releaseBandRow(rr, published.jobs, 0);
+        expect(row.tone).toBe("waiting");
+        expect(row.note).toBe("");
+        expect(row.phases.find((p) => p.current).label).toBe("Back");
+    });
 });
 
 describe("durationText", () => {

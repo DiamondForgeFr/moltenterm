@@ -121,3 +121,54 @@ describe("the release card's pending actions (#952)", () => {
         expect(other).not.toContain("df-domino-loader");
     });
 });
+
+// #2368: v1.0.0-12's macOS job failed twice; the Project view's row showed only a timer.
+describe("a release whose build failed, as a row of the band", () => {
+    const failedBuild: ReleaseFacts = {
+        tag: "v1.0.0-12",
+        version: "1.0.0-12",
+        channel: "rc",
+        tagexists: true,
+        steps: {},
+        runs: [
+            {
+                databaseId: 44267546792,
+                workflowName: "Release",
+                headBranch: "v1.0.0-12",
+                status: "completed",
+                conclusion: "failure",
+                url: "https://github.com/o/r/actions/runs/44267546792",
+                createdAt: "2026-11-18T08:30:17Z",
+                attempt: 2,
+            },
+        ],
+        jobs: [
+            { name: "macOS", status: "completed", conclusion: "failure", startedAt: "", completedAt: "", url: "" },
+            { name: "Linux", status: "completed", conclusion: "success", startedAt: "", completedAt: "", url: "" },
+        ],
+        ontrunk: false,
+    };
+
+    it("is in the failure colour, names the failed job and unfolds its rerun and investigate actions", () => {
+        const run = releaseRun(failedBuild, []);
+        const html = renderToStaticMarkup(
+            <ReleaseRunPanel
+                run={run}
+                jobs={failedBuild.jobs}
+                actions={{
+                    ...actions,
+                    rerunRuns: async () => {},
+                    resolve: async () => ({ result: null, tab: "" }),
+                }}
+                lock={lockAt("")}
+            />
+        );
+        expect(tagOf(html, "release-run")).toContain('data-tone="failed"');
+        expect(html).toContain("Failed: macOS.");
+        expect(tagOf(html, "release-run-details")).toContain('aria-expanded="true"');
+        expect(html).toContain('data-testid="release-run-detail-build"');
+        expect(tagOf(html, "release-run-action")).not.toContain('disabled=""');
+        expect(html).toContain("Rerun the failed jobs");
+        expect(html).toContain('data-testid="release-run-together"');
+    });
+});

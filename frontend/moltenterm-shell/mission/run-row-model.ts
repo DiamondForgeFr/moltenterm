@@ -167,6 +167,24 @@ export function releaseContext(run: ReleaseRun): string {
     return cut?.status === "done" ? t("project.band.releaseTagged", { channel }) : channel;
 }
 
+// What the row says under its name (#2368): why the release stopped (the failed step, the failed jobs), or that its
+// failed jobs run again, with the attempt. A row that only goes on says nothing more than its bar.
+export function releaseNote(run: ReleaseRun): string {
+    const failed = run.phases.find((p) => p.status === "failed");
+    if (failed != null) {
+        return failed.cause ?? failed.expect ?? "";
+    }
+    const current = run.phases.find((p) => p.id === run.current);
+    if (current == null) {
+        return "";
+    }
+    const parts = [
+        current.attempt > 1 ? t("project.band.rerunAttempt", { attempt: current.attempt }) : "",
+        current.status === "running" ? (current.cause ?? "") : "",
+    ];
+    return parts.filter((s) => s).join(" · ");
+}
+
 export function releaseBandRow(run: ReleaseRun, jobs: readonly ReleaseGhJob[], startedat: number): BandRow {
     const { done, total } = jobsDone(jobs);
     const phases = run.phases.map((p): RowPhase => {
@@ -198,7 +216,7 @@ export function releaseBandRow(run: ReleaseRun, jobs: readonly ReleaseGhJob[], s
         tone: failed ? "failed" : waiting ? "waiting" : "working",
         name: t("project.band.release", { tag: run.tag }),
         context: releaseContext(run),
-        note: "",
+        note: releaseNote(run),
         phases,
         startedat,
         endedat: 0,
