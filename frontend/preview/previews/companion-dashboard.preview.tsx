@@ -10,11 +10,16 @@
 // ?tipsel=<css selector>) a popover held open on the Nth such element (the screenshots' way of hovering),
 // ?usage-agent=kimi|kimi-stale|kimi-ring Kimi's usage (#2451), ?usage-labels=short|long the width of the label column
 // (#2458; ?usage-labels=fable is Claude's week and the week of a model), ?rows-hidden=session,month the usage rows the
-// layout starts with hidden for the provider shown (#2462).
+// layout starts with hidden for the provider shown (#2462), ?hide=answer,files the sections the layout starts with
+// hidden and ?without=milestone,task,usage the blocks that have nothing to show (#2467: their ghosts, while arranging).
 
 import { useEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
-import { setUsageAttached, setUsageMinimal } from "../../moltenterm-shell/companion/companion-arrange-model";
+import {
+    setSectionHidden,
+    setUsageAttached,
+    setUsageMinimal,
+} from "../../moltenterm-shell/companion/companion-arrange-model";
 import { CompanionDashboard } from "../../moltenterm-shell/companion/companion-dashboard";
 import { CompanionUsageInfo, gaugesView } from "../../moltenterm-shell/companion/companion-gauges-model";
 import {
@@ -26,7 +31,11 @@ import {
     ThisWorkspace,
     upcomingOf,
 } from "../../moltenterm-shell/companion/companion-holds-fixture";
-import { CompanionLayout, DefaultCompanionLayout } from "../../moltenterm-shell/companion/companion-layout";
+import {
+    CompanionLayout,
+    CompanionSectionId,
+    DefaultCompanionLayout,
+} from "../../moltenterm-shell/companion/companion-layout";
 import { MilestonesView } from "../../moltenterm-shell/companion/companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "../../moltenterm-shell/companion/companion-model";
 import { TaskView } from "../../moltenterm-shell/companion/companion-task-model";
@@ -92,13 +101,19 @@ const imagesOn = Images != null;
 // ?rows-hidden=session,month (#2462): the usage rows the layout starts with hidden, for the provider of the usage shown.
 const RowsHidden = (query.get("rows-hidden") ?? "").split(",").filter((id) => id !== "");
 
+// ?hide=answer,files (#2467): the sections the layout starts with hidden; ?without=milestone,task,usage: the blocks that
+// have nothing to show.
+const HiddenSections = (query.get("hide") ?? "").split(",").filter((id) => id !== "") as CompanionSectionId[];
+const Without = (query.get("without") ?? "").split(",").filter((id) => id !== "");
+
 function startLayout(): CompanionLayout {
     const base =
         UsageForm === "attached"
             ? setUsageAttached(setUsageMinimal(DefaultCompanionLayout, true), true)
             : setUsageMinimal(DefaultCompanionLayout, UsageForm === "minimal");
     const reported = usageFixture().snapshot.windows.map((w) => w.id);
-    return RowsHidden.reduce((layout, id) => setUsageRowHidden(layout, UsageProvider, id, true, reported), base);
+    const rows = RowsHidden.reduce((layout, id) => setUsageRowHidden(layout, UsageProvider, id, true, reported), base);
+    return HiddenSections.reduce((layout, id) => setSectionHidden(layout, id, true), rows);
 }
 
 const Names = ["Jade", "Noah", "Lou", "Ines", "Arthur", "Lena", "Sacha", "Mael", "Rose", "Hugo"];
@@ -507,7 +522,8 @@ function withImages(v: CompanionView): CompanionView {
     };
 }
 
-const shownView = imagesOn ? withImages(view) : view;
+const withImagesView = imagesOn ? withImages(view) : view;
+const shownView: CompanionView = Without.includes("usage") ? { ...withImagesView, usage: undefined } : withImagesView;
 
 export function CompanionDashboardPreview() {
     const [layout, setLayout] = useState<CompanionLayout>(startLayout);
@@ -581,7 +597,14 @@ export function CompanionDashboardPreview() {
                             onIntegration={none}
                             onHistory={none}
                             onBackToCurrent={none}
-                            fixtures={{ milestones, holds, usage: gaugesView(usageFixture(), Now), task }}
+                            fixtures={{
+                                milestones: Without.includes("milestone")
+                                    ? { dir: "/work/lantern", state: "none" }
+                                    : milestones,
+                                holds,
+                                usage: Without.includes("usage") ? undefined : gaugesView(usageFixture(), Now),
+                                task: Without.includes("task") ? undefined : task,
+                            }}
                         />
                     </CompanionTips>
                 </div>

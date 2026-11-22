@@ -2162,37 +2162,22 @@
             "usageOff": "The plan usage is hidden in the companions.",
             "openUsage": "Open the usage page",
             "readAll": "Read all",
-            "readLess": "Read less",
-            "sum": {
-                "permission": "Shows when the agent asks for a permission",
-                "tasks": "The project's open milestones and their tickets",
-                "agents": {
-                    "one": "{count} sub-agent at work",
-                    "other": "{count} sub-agents at work"
-                },
-                "usage": "The plan's usage, day by day",
-                "usageMinimal": "The plan's usage, the rows only",
-                "usageAttached": "Attached to the main agent, the rows only",
-                "usageNone": "Shows when the agent gives its usage",
-                "topics": {
-                    "one": "{count} topic",
-                    "other": "{count} topics"
-                },
-                "answers": {
-                    "one": "{count} answer in the session",
-                    "other": "{count} answers in the session"
-                },
-                "task": "The workspace's task checkpoint",
-                "files": {
-                    "one": "{count} file changed",
-                    "other": "{count} files changed"
-                }
-            }
+            "readLess": "Read less"
         },
         "arrange": {
             "open": "Arrange the companion",
             "title": "Arrange the companion",
-            "hint": "Drag a block to move it, the others make room. Its buttons hide it, give it the full width or open its settings. Drop the plan usage on the main agent's block to attach it. Done saves the arrangement for every companion.",
+            "hint": "Drag a block to move it, the others make room. Done saves it for every companion.",
+            "when": {
+                "permission": "Shown when the agent asks for a permission",
+                "tasks": "Shown when the project has an open milestone",
+                "usage": "Shown when the agent gives its usage",
+                "task": "Shown when the workspace has a task"
+            },
+            "hiddenBody": "Hidden. The eye puts it back at its rank.",
+            "detach": "Detach {name} from the main agent",
+            "detachHelp": "A click puts it back in the list at its rank, or drag it to where it should go.",
+            "attachedControls": "Controls of the plan usage attached to the main agent",
             "handleAt": "Move {name}, position {position} of {total}",
             "handleHelp": "The up and down arrows move it, Home and End take it to the ends.",
             "settings": "Settings of {name}",
@@ -2237,7 +2222,7 @@
                 "setOn": "{name}: {option} on.",
                 "setOff": "{name}: {option} off."
             },
-            "reset": "Reset to the default layout",
+            "reset": "Reset to default",
             "resetDone": "Default layout restored.",
             "done": "Done"
         },

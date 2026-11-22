@@ -206,13 +206,29 @@ describe("the companion's one inset (#2440, #2441)", () => {
         expect(lengthOf("var(--mt-cdash-gap-y)", dashScope)).toBe(FlowGapYPx);
         expect(lengthOf("var(--mt-cdash-notch)", dashScope) / 2).toBe(FlowNotchRisePx);
         expect(FlowGapYPx - FlowNotchRisePx).toBe(FlowGutterPx);
-        for (const selector of [".mt-cdash-hero", ".mt-cdash-flow", ".mt-cdash-arrbar"]) {
+        for (const selector of [".mt-cdash-hero", ".mt-cdash-flow"]) {
             const margin = ruleFor(dash, selector).decls.get("margin").split(/\s+/);
             expect(
                 margin.map((v) => lengthOf(v, dashScope)),
                 selector
             ).toEqual([FlowGapYPx, FlowGutterPx, 0]);
         }
+    });
+
+    // The arranging mode's help (#2467) is laid over the top gutter and takes no room: the blocks stand where they stood.
+    it("lays the arranging bar over the top gutter, in a wrapper of no height, above the label chip", () => {
+        const wrapper = ruleFor(dash, ".mt-cdash-arrbar").decls;
+        expect(wrapper.get("position")).toBe("sticky");
+        expect(wrapper.get("top")).toBe("0");
+        expect(wrapper.get("height")).toBe("0");
+        expect(wrapper.has("margin")).toBe(false);
+        const bar = ruleFor(dash, ".mt-cdash-arrbar-in").decls;
+        expect(bar.get("position")).toBe("absolute");
+        // The label chip stands on the border, half the notch above it and centred in it.
+        const notch = lengthOf("var(--mt-cdash-notch)", dashScope);
+        const chip = lengthOf(ruleFor(dash, ".mt-cb-chip").decls.get("height"), dashScope);
+        const chipTop = FlowGapYPx - notch / 2 + (notch - chip) / 2;
+        expect(lengthOf(bar.get("height"), dashScope)).toBeLessThanOrEqual(chipTop);
     });
 
     it("runs the usage attached to the main agent to the block's edges, under a hairline, on the inset (#2450)", () => {

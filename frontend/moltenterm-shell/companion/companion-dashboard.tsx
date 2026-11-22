@@ -3,59 +3,32 @@
 
 // The companion as the main agent's dashboard (FR-SHELL-018, #2441): the hero (the agent, its session and its plan),
 // then every section as the same block in a flow of one to three columns (companion-flow-model.ts), the milestone and
-// the agents at work side by side as a linked pair, and the arranging mode in place. Loaded on demand, out of the
-// startup bundle (companion-view.tsx).
+// the agents at work side by side as a linked pair, and the arranging mode in place. Arranging keeps the dashboard as it
+// is (#2467): the same blocks, in the same flow, with their real content held still under the controls the mode lays over
+// them (companion-arrange-chrome.tsx), and a ghost where a block has nothing to show or is hidden (companion-ghost.tsx).
+// Loaded on demand, out of the startup bundle (companion-view.tsx).
 
 import { Markdown } from "@/app/element/markdown";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
-import { Bot, ClipboardCheck, FileText, Flag, FolderGit2, Gauge, MessagesSquare } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { goToAgent } from "../agent-info/agent-info-hooks";
 import type { AgentStateInfo } from "../agent-state-model";
-import { useT, useTCount } from "../i18n/i18n";
+import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
-import { MoltenWave } from "../molten-button";
-import { StateMark } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
 import { getHomeDir } from "../tab-identity-ui";
-import { autoScrollStep } from "../workspace-rail-drag";
 import { mainName } from "./companion-agents";
-import {
-    dropSection,
-    handleTarget,
-    makeLayoutCommit,
-    moveSection,
-    positionOf,
-    resetLayout,
-    SectionNameKeys,
-    usageSummaryKey,
-} from "./companion-arrange-model";
+import { ArrangeBar, ArrangeNote, useArrangeChrome } from "./companion-arrange-chrome";
+import { ArrangeContext } from "./companion-arrange-context";
+import { flowEntries, resetLayout, SectionNameKeys } from "./companion-arrange-model";
+import { useArrangeSession } from "./companion-arrange-session";
 import { BlockTool, CompanionBlock, CopyTool, CountChip, FootLink } from "./companion-block";
-import {
-    BlockOption,
-    BlockOptionKey,
-    BlockPrefKey,
-    optionAnnouncement,
-    optionsOf,
-    PrefDefaults,
-    setLayoutOption,
-} from "./companion-block-options";
-import { BlockSettings } from "./companion-block-settings";
+import { Pickup, SectionIdSet, useBlockDrag, ZoneState } from "./companion-block-drag";
 import "./companion-dashboard.css";
-import {
-    dragCorner,
-    dropIndexAt,
-    passedDragStart,
-    Point,
-    pointInBox,
-    startLongPress,
-    startsPress,
-    ZoneSlackPx,
-} from "./companion-drag-model";
+import { startLongPress, startsPress } from "./companion-drag-model";
 import { FilesSection } from "./companion-files";
-import { FlowAssign, flowLayout, FlowPlacedEvent } from "./companion-flow-model";
+import { FlowAssign, flowLayout, FlowPlacedEvent, keepsColumns, layoutIdOf } from "./companion-flow-model";
 import {
     PlanUsageBody,
     PlanUsageSection,
@@ -64,16 +37,10 @@ import {
     UsageFrame,
     UsageFrameParts,
 } from "./companion-gauges";
-import type { GaugesView, UsageWindowChoice } from "./companion-gauges-model";
+import type { GaugesView } from "./companion-gauges-model";
+import { ArrangeGhost } from "./companion-ghost";
 import { CompanionHero } from "./companion-hero";
-import {
-    CompanionLayout,
-    CompanionSectionId,
-    CompanionSectionIds,
-    isDefaultLayout,
-    normalizeLayout,
-    usageOf,
-} from "./companion-layout";
+import { CompanionLayout, CompanionSectionId, usageOf } from "./companion-layout";
 import { MilestonesView } from "./companion-milestone-model";
 import {
     CompanionAnswer,
@@ -86,27 +53,16 @@ import {
     usageAction,
 } from "./companion-model";
 import { PermissionRequestCard, permissionTerminalOf } from "./companion-permission";
-import { useBlockPrefs } from "./companion-prefs";
 import { RecentTopicsSection } from "./companion-recap";
-import { agentsView, finishedLabel, mainAgentRow } from "./companion-recap-model";
+import { mainAgentRow } from "./companion-recap-model";
+import { SectionTiles } from "./companion-section-tiles";
 import { TaskFrameFn, WorkspaceTaskCard, WorkspaceTaskSection } from "./companion-task";
 import { taskSessionLabel, TaskView } from "./companion-task-model";
-import { CompactBlockPx } from "./companion-tasks";
-import { CloseTipsEvent } from "./companion-tips-model";
 import { openUsagePage, UsageButton } from "./companion-usage";
-import {
-    hiddenRowsOf,
-    setUsageRowHidden,
-    UsageRowsProps,
-    usageRowsProps,
-    windowChoices,
-    withRowChoice,
-} from "./companion-usage-rows-model";
+import { UsageRowsProps, usageRowsProps, withRowChoice } from "./companion-usage-rows-model";
 import { CompanionWork, CompanionWorkProps } from "./companion-work";
 
 const RpcTimeoutMs = 5000;
-// A zero-width space: appended to a sentence, it makes the live region's text new without changing what is read.
-const InvisibleMark = String.fromCharCode(0x200b);
 // Past this many characters an answer shows its first lines over a fade, and "Read all" grows the block.
 const LongAnswer = 600;
 
@@ -150,35 +106,9 @@ export type DashboardFixtures = {
 
 type Columns = { columns: number; columnWidth: number; paired: boolean };
 
-// What a long press on a block's icon hands to the arranging mode (#2459): the block it picked up, the pointer that holds
-// it, where that pointer is, and where on the block it took hold. `released` says the pointer went up before the mode
-// had mounted, so that nothing is carried that nobody holds.
-export type Pickup = {
-    id: CompanionSectionId;
-    pointerId: number;
-    x: number;
-    y: number;
-    grab: Point;
-    released: boolean;
-};
-
-// What the arranging mode tells the hero about the zone: the drafted usage block shows and is attached, and the
-// drag carries it, over the zone or not.
-type ZoneState = { shown: boolean; attached: boolean; active: boolean; over: boolean };
-
-const SectionTiles: Record<CompanionSectionId, React.ReactNode> = {
-    permission: <StateMark kind="waiting" />,
-    tasks: <Flag strokeWidth={2} aria-hidden />,
-    agents: <Bot strokeWidth={2} aria-hidden />,
-    usage: <Gauge strokeWidth={2} aria-hidden />,
-    topics: <MessagesSquare strokeWidth={2} aria-hidden />,
-    answer: <FileText strokeWidth={2} aria-hidden />,
-    task: <ClipboardCheck strokeWidth={2} aria-hidden />,
-    files: <FolderGit2 strokeWidth={2} aria-hidden />,
-};
-
 export function CompanionDashboard(props: CompanionDashboardProps) {
     const { arranging } = props;
+    const t = useT();
     const [cols, setCols] = useState<Columns>({ columns: 1, columnWidth: 0, paired: false });
     const onColumns = useCallback(
         (next: Columns) =>
@@ -191,26 +121,67 @@ export function CompanionDashboard(props: CompanionDashboardProps) {
             ),
         []
     );
-    // The usage attached to the main agent (#2450) is drawn by the hero, through the usage's own source, so its refresh
-    // and its states keep working; while arranging every block, this one included, is a folded line of the list.
-    const usage = usageOf(props.layout);
-    const attached = usage.attached && !arranging;
-    const [pickup, setPickup] = useState<Pickup>(null);
-    const [zone, setZone] = useState<ZoneState>({
-        shown: usage.shown,
-        attached: usage.attached,
-        active: false,
-        over: false,
-    });
+    const flowRef = useRef<HTMLDivElement>(null);
     const zoneRef = useRef<HTMLDivElement>(null);
+    const titleRef = useRef<HTMLSpanElement>(null);
+    // While arranging every block, the main agent's included, is drawn from the draft: a move, a hide or an attach shows
+    // in the dashboard's own layout as it is made (#2467).
+    const session = useArrangeSession(props.layout, arranging, props.onSaveLayout, props.onLeaveArranging);
+    const layout = session.layout;
+    const usage = usageOf(layout);
+    const [pickup, setPickup] = useState<Pickup>(null);
+    const [zone, setZone] = useState<ZoneState>({ active: false, over: false });
+    const onZone = useCallback((patch: Partial<ZoneState>) => setZone((cur) => ({ ...cur, ...patch })), []);
+    const onPickupDone = useCallback(() => setPickup(null), []);
+    const drag = useBlockDrag({
+        arranging,
+        flowRef,
+        draftRef: session.draftRef,
+        setDraft: session.setDraft,
+        onZone,
+        announce: session.announce,
+        nameOf: (id) => t(SectionNameKeys[id]),
+        pickup,
+        onPickupDone,
+    });
+    const usageAgent = props.view.agent ?? "";
+    const chrome = useArrangeChrome({
+        arranging,
+        session,
+        flowRef,
+        dragging: drag.dragging,
+        onDetachDown: drag.onDetachDown,
+        columns: cols.columns,
+        columnWidth: cols.columnWidth,
+        usageAgent,
+    });
+    useEffect(() => {
+        if (arranging) {
+            titleRef.current?.focus({ preventScroll: true });
+        }
+    }, [arranging]);
+    // The usage's rows are chosen where the dashboard draws them: saved at once outside the mode, drafted with the layout
+    // while arranging, which also hears the windows the provider reports for the block's settings (#2462).
+    const rows = useMemo<UsageRowsProps>(
+        () =>
+            arranging
+                ? { ...usageRowsProps(layout, usageAgent, session.setDraft), onListed: session.setWindows }
+                : usageRowsProps(layout, usageAgent, props.onSaveLayout),
+        [arranging, layout, usageAgent, session.setDraft, session.setWindows, props.onSaveLayout]
+    );
+    // The usage attached to the main agent (#2450) is drawn by the hero, through the usage's own source, so its refresh
+    // and its states keep working.
+    const attached = usage.attached;
     const hero = (parts?: UsageFrameParts) => (
         <CompanionHero
             {...props}
+            onLeaveArranging={session.leave}
             usageBlockShown={usage.shown && !attached}
             usage={parts}
+            attachedControls={chrome.attached}
             attachZone={
-                arranging && zone.shown
-                    ? { ref: zoneRef, active: zone.active, over: zone.over, attached: zone.attached }
+                arranging && usage.shown
+                    ? { ref: zoneRef, active: zone.active, over: zone.over, attached: usage.attached }
                     : null
             }
         />
@@ -219,57 +190,78 @@ export function CompanionDashboard(props: CompanionDashboardProps) {
         setPickup(picked);
         props.onArrange();
     };
-    const onPickupDone = useCallback(() => setPickup(null), []);
-    const onZone = useCallback((patch: Partial<ZoneState>) => setZone((cur) => ({ ...cur, ...patch })), []);
     return (
-        <div
-            className="mt-cdash"
-            data-testid="companion"
-            data-columns={cols.columns}
-            data-arranging={arranging ? "" : undefined}
-            onClick={(e) => {
-                // A click on the dashboard's own ground, between the blocks, leaves the mode (#2459).
-                const ground =
-                    e.target === e.currentTarget || (e.target as Element).classList.contains("mt-cdash-flow");
-                if (arranging && ground) {
-                    props.onLeaveArranging();
+        <ArrangeContext.Provider value={chrome.value}>
+            <div
+                className="mt-cdash"
+                data-testid="companion"
+                data-columns={cols.columns}
+                data-arranging={arranging ? "" : undefined}
+                onClick={(e) => {
+                    // A click on the dashboard's own ground, between the blocks, leaves the mode (#2459).
+                    const ground =
+                        e.target === e.currentTarget || (e.target as Element).classList.contains("mt-cdash-flow");
+                    if (arranging && ground) {
+                        session.leave();
+                    }
+                }}
+                onKeyDown={
+                    arranging
+                        ? (e) => {
+                              if (e.key === "Escape") {
+                                  e.stopPropagation();
+                                  session.leave();
+                              }
+                          }
+                        : undefined
                 }
-            }}
-        >
-            {attached ? (
-                <UsageSource
-                    view={props.view}
-                    target={props.target}
-                    provider={props.provider}
-                    agentState={props.agentState}
-                    fixture={props.fixtures?.usage}
-                    form="attached"
-                    render={hero}
-                    rows={usageRowsProps(props.layout, props.view.agent ?? "", props.onSaveLayout)}
-                />
-            ) : (
-                hero()
-            )}
-            {arranging ? (
-                <ArrangingFlow
+            >
+                {arranging ? (
+                    <ArrangeBar
+                        layout={layout}
+                        titleRef={titleRef}
+                        onReset={() => {
+                            session.setDraft(resetLayout());
+                            session.announce(t("companion.arrange.resetDone"));
+                        }}
+                        onDone={session.leave}
+                    />
+                ) : null}
+                {attached ? (
+                    <UsageSource
+                        view={props.view}
+                        target={props.target}
+                        provider={props.provider}
+                        agentState={props.agentState}
+                        fixture={props.fixtures?.usage}
+                        form="attached"
+                        render={hero}
+                        rows={rows}
+                    />
+                ) : (
+                    hero()
+                )}
+                <DashboardFlow
                     {...props}
+                    layout={layout}
+                    rows={rows}
                     cols={cols}
                     onColumns={onColumns}
-                    pickup={pickup}
-                    onPickupDone={onPickupDone}
-                    zoneRef={zoneRef}
-                    onZone={onZone}
+                    flowRef={flowRef}
+                    dragging={drag.dragging}
+                    onArrangePointerDown={drag.onPointerDown}
+                    onPickUp={pickUp}
                 />
-            ) : (
-                <SessionFlow {...props} cols={cols} onColumns={onColumns} onPickUp={pickUp} />
-            )}
-        </div>
+                {arranging ? <ArrangeNote note={session.note} /> : null}
+            </div>
+        </ArrangeContext.Provider>
     );
 }
 
 // ── The flow ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-type FlowItem = { id: string; full: boolean };
+// tail: a hidden block's ghost at the end of the arranging mode's flow (#2467), which holds no rank.
+type FlowItem = { id: string; full: boolean; tail?: boolean };
 
 // Places the blocks it holds (its [data-flow-id] children) with flowLayout: each takes its column's width, then its
 // measured height decides where the next goes. A structural change lets the blocks travel; growth follows at once.
@@ -292,6 +284,8 @@ function Flow({
     children: React.ReactNode;
 }) {
     const assign = useRef<FlowAssign>(null);
+    // The blocks that hold a rank, as the last placement had them: the columns hold while they keep their order.
+    const ranked = useRef<Pick<FlowItem, "id" | "full">[]>([]);
     const laid = useRef(false);
     const reflow = useRef<ReturnType<typeof setTimeout>>(null);
     const itemsRef = useRef(items);
@@ -321,14 +315,21 @@ function Flow({
         if (width <= 0) {
             return;
         }
+        // The blocks by the id the flow lays them out under, which a ghost of the pair's blocks does not share with the
+        // block it stands for (#2467).
         const els = new Map<string, HTMLElement>();
-        flow.querySelectorAll<HTMLElement>(":scope > [data-flow-id]").forEach((el) => els.set(el.dataset.flowId, el));
-        const blocks = itemsRef.current.filter((i) => els.has(i.id));
+        const layoutIds = new Map<string, string>();
+        flow.querySelectorAll<HTMLElement>(":scope > [data-flow-id]").forEach((el) => {
+            const id = layoutIdOf(el.dataset.flowId, el.dataset.ghost != null);
+            els.set(id, el);
+            layoutIds.set(el.dataset.flowId, id);
+        });
+        const blocks = itemsRef.current
+            .filter((i) => layoutIds.has(i.id))
+            .map((i) => ({ ...i, id: layoutIds.get(i.id) }));
         const widths = flowLayout(
             blocks.map((b) => ({ ...b, height: 0 })),
-            width,
-            undefined,
-            { arranging }
+            width
         );
         for (const p of widths.items) {
             const el = els.get(p.id);
@@ -337,17 +338,30 @@ function Flow({
                 el.style.width = w;
             }
         }
-        // While arranging, a block's column follows its rank at once, so that dropping a block where the drag shows
-        // it gives the rank it was dropped at (#2459); the live flow keeps each block's column (companion-flow-model.ts).
+        // The blocks keep their columns while the ones that hold a rank keep their order, as the arranging mode leaves
+        // them when it opens (#2467); a block moved or widened is placed by its rank, so that a drop where the drag
+        // shows a block gives the rank it was dropped at (#2459). A hidden block's ghost is placed after the others
+        // every time.
+        const order = blocks.filter((b) => !b.tail);
+        const tails = new Set(blocks.filter((b) => b.tail).map((b) => b.id));
+        const previous =
+            assign.current != null && keepsColumns(ranked.current, order)
+                ? {
+                      key: assign.current.key,
+                      columns: Object.fromEntries(
+                          Object.entries(assign.current.columns).filter(([id]) => !tails.has(id))
+                      ),
+                  }
+                : undefined;
         const r = flowLayout(
             blocks.map((b) => ({ ...b, height: els.get(b.id).offsetHeight })),
             width,
-            arranging ? undefined : assign.current,
-            { arranging }
+            previous
         );
-        const carried = draggingRef.current;
-        const settled = lastDragging.current != null && carried == null;
-        lastDragging.current = carried ?? null;
+        ranked.current = order;
+        const carried = layoutIds.get(draggingRef.current) ?? draggingRef.current;
+        const settled = lastDragging.current != null && draggingRef.current == null;
+        lastDragging.current = draggingRef.current ?? null;
         if (laid.current && ((assign.current != null && assign.current.key !== r.assign.key) || settled)) {
             flow.dataset.reflowing = "";
             clearTimeout(reflow.current);
@@ -400,7 +414,7 @@ function Flow({
         laid.current = true;
         onColumns({ columns: r.columns, columnWidth: r.columnWidth, paired: r.paired });
         flow.dispatchEvent(new Event(FlowPlacedEvent));
-    }, [arranging, onColumns]);
+    }, [onColumns]);
     useLayoutEffect(() => {
         const flow = flowRef.current;
         if (flow == null || typeof ResizeObserver === "undefined") {
@@ -454,8 +468,6 @@ function Flow({
         </div>
     );
 }
-
-const SectionIdSet = new Set<string>(CompanionSectionIds);
 
 // A press on the icon of a block, held for LongPressMs nearly where it began, picks the block up (#2459): it hands the
 // arranging mode the block and the pointer, which goes on dragging it without lifting. A shorter press, or one that
@@ -544,23 +556,27 @@ function useLongPressPickUp(onPickUp: (pickup: Pickup) => void): React.HTMLAttri
     };
 }
 
-function SessionFlow(
+// The blocks of the dashboard, in the flow, the same ones in the normal view and while arranging (#2467): the arranging
+// mode only adds the hidden blocks' ghosts after them, and a ghost in the place of a block with nothing to show, and
+// leaves the rest to the controls the blocks read from the arranging context.
+function DashboardFlow(
     props: CompanionDashboardProps & {
+        rows: UsageRowsProps;
         cols: Columns;
         onColumns: (cols: Columns) => void;
+        flowRef: React.RefObject<HTMLDivElement>;
+        dragging: CompanionSectionId;
+        onArrangePointerDown: (e: React.PointerEvent<HTMLElement>) => void;
         onPickUp: (pickup: Pickup) => void;
     }
 ) {
-    const { view, agentState, target, layout, cols } = props;
+    const { view, agentState, target, layout, cols, arranging, flowRef } = props;
     const t = useT();
-    const flowRef = useRef<HTMLDivElement>(null);
     const pickUpProps = useLongPressPickUp(props.onPickUp);
-    const placements = normalizeLayout(layout);
-    // An attached usage leaves the flow for the main agent's block (#2450); its placement keeps its rank for the day it
-    // comes back.
-    const visible = placements.filter((p) => !p.hidden && !(p.id === "usage" && p.attached));
-    const shows = (id: CompanionSectionId) => visible.some((p) => p.id === id);
-    const items: FlowItem[] = visible.map((p) => ({ id: p.id, full: p.span === "full" }));
+    const entries = flowEntries(layout, arranging);
+    const ranked = entries.filter((e) => !e.tail);
+    const shows = (id: CompanionSectionId) => ranked.some((e) => e.id === id);
+    const items: FlowItem[] = entries.map((e) => ({ id: e.id, full: e.full, tail: e.tail }));
     const now = Date.now();
     const lead = mainName(mainAgentRow(view, agentState));
     const request = permissionRequest(view.pending, agentState?.state);
@@ -592,7 +608,9 @@ function SessionFlow(
                         onShowTerminal={() => fireAndForget(() => goToAgent(permissionTerminalOf(target, agentState)))}
                     />
                 </CompanionBlock>
-            ) : null,
+            ) : (
+                <ArrangeGhost key="permission" id="permission" kind="when" />
+            ),
         usage: (
             <UsageBlock
                 key="usage"
@@ -601,8 +619,8 @@ function SessionFlow(
                 provider={props.provider}
                 agentState={agentState}
                 fixture={props.fixtures?.usage}
-                minimal={placements.find((p) => p.id === "usage")?.minimal === true}
-                rows={usageRowsProps(layout, view.agent ?? "", props.onSaveLayout)}
+                minimal={layout.find((p) => p.id === "usage")?.minimal === true}
+                rows={props.rows}
             />
         ),
         topics: (
@@ -666,11 +684,21 @@ function SessionFlow(
             />
         ),
     };
-    const pairAt = visible.findIndex((p) => p.id === "tasks" || p.id === "agents");
+    const pairAt = ranked.findIndex((e) => e.id === "tasks" || e.id === "agents");
     return (
-        <Flow items={items} arranging={false} flowProps={pickUpProps} onColumns={props.onColumns} flowRef={flowRef}>
-            {visible.map((p, i) => {
-                if (p.id === "tasks" || p.id === "agents") {
+        <Flow
+            items={items}
+            arranging={arranging}
+            dragging={props.dragging}
+            flowProps={arranging ? { onPointerDown: props.onArrangePointerDown } : pickUpProps}
+            onColumns={props.onColumns}
+            flowRef={flowRef}
+        >
+            {entries.map((e, i) => {
+                if (e.tail) {
+                    return <ArrangeGhost key={`hidden:${e.id}`} id={e.id} kind="hidden" />;
+                }
+                if (e.id === "tasks" || e.id === "agents") {
                     return i === pairAt ? (
                         <CompanionWork
                             key="pair"
@@ -691,7 +719,7 @@ function SessionFlow(
                         />
                     ) : null;
                 }
-                return blocks[p.id] ?? null;
+                return blocks[e.id] ?? null;
             })}
         </Flow>
     );
@@ -747,7 +775,8 @@ function UsageSource({ view, target, provider, agentState, fixture, form, render
 }
 
 // The usage block, standing on its own in the flow. Minimal (#2450), it draws the window rows alone; its foot link, the
-// usage page, then rides in its tools, with the refresh, so no row of the block is spent on it.
+// usage page, then rides in its tools, with the refresh, so no row of the block is spent on it. With nothing to show it
+// draws nothing, but for the arranging mode's ghost (#2467).
 function UsageBlock({
     view,
     target,
@@ -766,7 +795,9 @@ function UsageBlock({
             </FootLink>
         ) : null;
     const frame: UsageFrame = ({ tools, body, state }) =>
-        state === "hidden" ? null : (
+        state === "hidden" ? (
+            <ArrangeGhost id="usage" kind="when" />
+        ) : (
             <CompanionBlock
                 flowId="usage"
                 label={t("companion.gauges.title")}
@@ -928,609 +959,3 @@ const AnswerMarkdown = memo(({ markdown }: { markdown: string }) => {
     return <Markdown text={markdown} scrollable={false} fontSizeOverride={13} fixedFontSizeOverride={12} />;
 });
 AnswerMarkdown.displayName = "AnswerMarkdown";
-
-// ── Arranging ────────────────────────────────────────────────────────────────────────────────────────────────────────
-
-// What each block says while arranging, in one line: what it holds now, or when it shows.
-function useSummaries(view: CompanionView, agentState: AgentStateInfo, provider: string) {
-    const t = useT();
-    const tCount = useTCount();
-    const now = Date.now();
-    const agents = agentsView(view, agentState, now);
-    const running = agents.rows.filter((r) => !r.main).length;
-    const ended = finishedLabel(agents.finished, agents.failed);
-    const request = permissionRequest(view.pending, agentState?.state);
-    const lead = mainName(mainAgentRow(view, agentState));
-    const topics = view.topics?.length ?? 0;
-    const answers = view.answers?.length ?? 0;
-    const files = view.files?.length ?? 0;
-    const usage = !!provider || (view.usage != null && !!view.agent);
-    const sums: Record<CompanionSectionId, { text: string; absent?: boolean }> = {
-        permission: request
-            ? { text: `${t("companion.dash.wantsToRun", { name: lead })} ${request.tool}` }
-            : { text: t("companion.dash.sum.permission"), absent: true },
-        tasks: { text: t("companion.dash.sum.tasks") },
-        agents: {
-            text: [tCount("companion.dash.sum.agents", running, { count: running }), ended]
-                .filter((s) => !!s)
-                .join(" · "),
-        },
-        usage: usage
-            ? { text: t("companion.dash.sum.usage") }
-            : { text: t("companion.dash.sum.usageNone"), absent: true },
-        topics:
-            topics > 0
-                ? { text: tCount("companion.dash.sum.topics", topics, { count: topics }) }
-                : { text: t("companion.topics.empty"), absent: true },
-        answer:
-            answers > 0
-                ? { text: tCount("companion.dash.sum.answers", answers, { count: answers }) }
-                : { text: t("companion.answer.none"), absent: true },
-        task: { text: t("companion.dash.sum.task") },
-        files:
-            files > 0
-                ? { text: tCount("companion.dash.sum.files", files, { count: files }) }
-                : { text: t("companion.files.none"), absent: true },
-    };
-    return sums;
-}
-
-function scrollParentOf(el: HTMLElement): HTMLElement {
-    for (let p = el?.parentElement; p != null; p = p.parentElement) {
-        const overflow = getComputedStyle(p).overflowY;
-        if ((overflow === "auto" || overflow === "scroll") && p.scrollHeight > p.clientHeight) {
-            return p;
-        }
-    }
-    return null;
-}
-
-type BlockDragOptions = {
-    flowRef: React.RefObject<HTMLDivElement>;
-    zoneRef: React.RefObject<HTMLDivElement>;
-    draftRef: React.RefObject<CompanionLayout>;
-    setDraft: (layout: CompanionLayout) => void;
-    onZone: (zone: Partial<ZoneState>) => void;
-    announce: (text: string) => void;
-    nameOf: (id: CompanionSectionId) => string;
-    pickup: Pickup;
-    onPickupDone: () => void;
-};
-
-// Carrying a block with a pointer while arranging (#2459). A press on a block's header is a click until the pointer
-// moves a few pixels, then the block is carried: it follows the pointer, the others make room as the flow places the
-// drafted order (companion-drag-model.ts says which rank the pointer is at), and the drop sets the rank. The usage block
-// dropped on the main agent's block is attached, and one that leaves it is detached. Escape puts the block back where
-// the drag found it. The listeners are the window's, so that a block picked up by a long press, whose first block was
-// replaced by the arranging mode's, goes on being carried by the same pointer.
-function useBlockDrag(options: BlockDragOptions) {
-    const t = useT();
-    const [dragging, setDragging] = useState<CompanionSectionId>(null);
-    const stop = useRef<() => void>(null);
-    const followRef = useRef<() => void>(null);
-    // The block goes under the pointer again once what the drag changed has taken its room (the zone, the slot).
-    useLayoutEffect(() => followRef.current?.(), [dragging]);
-    const latest = useRef(options);
-    latest.current = options;
-    const tRef = useRef(t);
-    tRef.current = t;
-    useEffect(() => () => stop.current?.(), []);
-
-    const arm = useCallback((id: CompanionSectionId, pointerId: number, from: Point, grab: Point, carried: boolean) => {
-        stop.current?.();
-        const o = () => latest.current;
-        const flow = o().flowRef.current;
-        if (flow == null) {
-            return;
-        }
-        const blockOf = (blockId: string) => flow.querySelector<HTMLElement>(`:scope > [data-flow-id="${blockId}"]`);
-        const snapshot = o().draftRef.current;
-        const scroller = scrollParentOf(flow);
-        const listeners: [string, EventListener, boolean?][] = [];
-        let last = from;
-        let begun = false;
-        let over = false;
-        let frame = 0;
-        const setDraft = (next: CompanionLayout) => {
-            o().draftRef.current = next;
-            o().setDraft(next);
-        };
-        const follow = () => {
-            const el = blockOf(id);
-            const f = o().flowRef.current;
-            if (el == null || f == null) {
-                return;
-            }
-            const origin = f.getBoundingClientRect();
-            const corner = dragCorner({ x: last.x - origin.left, y: last.y - origin.top }, grab);
-            el.style.transform = `translate(${corner.x}px, ${corner.y}px)`;
-            // The whole main agent's block takes the drop, so that a drop near the zone counts.
-            const hero = id === "usage" ? f.closest(".mt-cdash")?.querySelector<HTMLElement>(".mt-cdash-hero") : null;
-            const box = hero?.getBoundingClientRect();
-            const nowOver =
-                box != null &&
-                pointInBox(last, { x: box.left, y: box.top, width: box.width, height: box.height }, ZoneSlackPx);
-            if (nowOver !== over) {
-                over = nowOver;
-                o().onZone({ over });
-            }
-            const width = f.closest<HTMLElement>(".mt-cdash")?.clientWidth ?? 0;
-            if (over || width <= 0) {
-                return;
-            }
-            const draft = o().draftRef.current;
-            const blocks = draft.map((p) => ({
-                id: p.id,
-                full: p.span === "full",
-                height: blockOf(p.id)?.offsetHeight ?? 0,
-            }));
-            const index = dropIndexAt(blocks, id, width, {
-                x: corner.x + el.offsetWidth / 2,
-                y: corner.y + el.offsetHeight / 2,
-            });
-            const at = draft.findIndex((p) => p.id === id);
-            if (index >= 0 && index !== at) {
-                setDraft(moveSection(draft, at, index));
-            }
-        };
-        const tick = () => {
-            frame = requestAnimationFrame(() => {
-                const area = scroller?.getBoundingClientRect();
-                const step = area == null ? 0 : autoScrollStep(last.y, area.top, area.bottom);
-                if (step !== 0) {
-                    scroller.scrollTop += step;
-                    follow();
-                }
-                tick();
-            });
-        };
-        const begin = () => {
-            begun = true;
-            document.dispatchEvent(new Event(CloseTipsEvent));
-            const show = () => {
-                o().onZone({ active: id === "usage", over: false });
-                setDragging(id);
-            };
-            // The zone takes room in the main agent's block: it is there before the block is placed under the pointer.
-            // A block picked up by a long press begins in a layout effect, where nothing can be flushed.
-            if (carried) {
-                show();
-            } else {
-                flushSync(show);
-            }
-            o().announce(tRef.current("companion.arrange.picked", { name: o().nameOf(id) }));
-            tick();
-            follow();
-        };
-        followRef.current = follow;
-        const release = () => {
-            followRef.current = null;
-            cancelAnimationFrame(frame);
-            listeners.forEach(([type, fn, capture]) => window.removeEventListener(type, fn, capture));
-            listeners.length = 0;
-            stop.current = null;
-        };
-        const finish = (drop: boolean) => {
-            release();
-            if (!begun) {
-                return;
-            }
-            // The click that ends a drag is not a click on whatever is under the pointer.
-            const eat = (ev: Event) => {
-                ev.stopPropagation();
-                ev.preventDefault();
-            };
-            window.addEventListener("click", eat, true);
-            setTimeout(() => window.removeEventListener("click", eat, true), 0);
-            const name = o().nameOf(id);
-            if (!drop) {
-                setDraft(snapshot);
-                o().announce(tRef.current("companion.arrange.putBack", { name }));
-            } else {
-                const draft = o().draftRef.current;
-                const attached = draft.find((p) => p.id === id)?.attached === true;
-                const index = draft.findIndex((p) => p.id === id);
-                if (over && id === "usage") {
-                    setDraft(dropSection(draft, id, { to: "attach" }));
-                    o().announce(tRef.current("companion.arrange.attachOn", { name }));
-                } else {
-                    setDraft(dropSection(draft, id, { to: "list", index }));
-                    o().announce(
-                        attached && id === "usage"
-                            ? tRef.current("companion.arrange.attachOff", { name })
-                            : tRef.current("companion.arrange.moved", {
-                                  name,
-                                  position: index + 1,
-                                  total: draft.length,
-                              })
-                    );
-                }
-            }
-            setDragging(null);
-            o().onZone({ active: false, over: false });
-        };
-        const watch = (type: string, fn: (ev: any) => void, capture?: boolean) => {
-            listeners.push([type, fn, capture]);
-            window.addEventListener(type, fn, capture);
-        };
-        watch("pointermove", (ev: PointerEvent) => {
-            if (ev.pointerId !== pointerId) {
-                return;
-            }
-            // A button released out of the window never came: nothing is carried that no hand holds.
-            if (ev.pointerType === "mouse" && ev.buttons === 0) {
-                finish(true);
-                return;
-            }
-            last = { x: ev.clientX, y: ev.clientY };
-            if (!begun && passedDragStart(from, last)) {
-                begin();
-                return;
-            }
-            if (begun) {
-                follow();
-            }
-        });
-        watch("pointerup", (ev: PointerEvent) => ev.pointerId === pointerId && finish(true));
-        watch("pointercancel", (ev: PointerEvent) => ev.pointerId === pointerId && finish(false));
-        watch(
-            "keydown",
-            (ev: KeyboardEvent) => {
-                if (ev.key === "Escape" && begun) {
-                    ev.stopPropagation();
-                    ev.preventDefault();
-                    finish(false);
-                }
-            },
-            true
-        );
-        stop.current = release;
-        if (carried) {
-            begin();
-        }
-    }, []);
-
-    // A block picked up by a long press: the mode has just mounted, the pointer is still down.
-    useLayoutEffect(() => {
-        const { pickup, flowRef, onPickupDone } = latest.current;
-        if (pickup == null) {
-            return;
-        }
-        onPickupDone();
-        const el = flowRef.current?.querySelector<HTMLElement>(`:scope > [data-flow-id="${pickup.id}"]`);
-        if (el == null || pickup.released) {
-            return;
-        }
-        const grab = { x: Math.min(pickup.grab.x, Math.max(0, el.offsetWidth - 12)), y: pickup.grab.y };
-        arm(pickup.id, pickup.pointerId, { x: pickup.x, y: pickup.y }, grab, true);
-    }, []);
-
-    const onPointerDown = (e: React.PointerEvent<HTMLElement>) => {
-        const target = e.target as Element;
-        const block = target.closest<HTMLElement>("[data-flow-id]");
-        const id = block?.dataset.flowId;
-        if (block == null || !SectionIdSet.has(id) || !startsPress(e.nativeEvent)) {
-            return;
-        }
-        // Anything of the block holds it but its own controls, which keep their click.
-        const control =
-            "button:not([data-arrange='handle']), a, input, select, textarea, fieldset, [role='radiogroup']";
-        if (target.closest(control) != null) {
-            return;
-        }
-        const box = block.getBoundingClientRect();
-        arm(
-            id as CompanionSectionId,
-            e.pointerId,
-            { x: e.clientX, y: e.clientY },
-            { x: e.clientX - box.left, y: e.clientY - box.top },
-            false
-        );
-    };
-    return { dragging, onPointerDown };
-}
-
-// The frame of a copy of the usage that is only listened to (#2462): it draws nothing.
-const NoUsageFrame: UsageFrame = () => null;
-
-// The arranging mode in place (#2395, #2441, #2459): every block folds to its label and one line, with its rank, Up and
-// Down (the arrows, Home and End on its handle), full width or fluid, and the eye, and is carried by its header to
-// the rank it is dropped at. The changes are drafted here and saved when the mode is left, however it is left (Done,
-// Escape, a click on the ground, the Arrange tool, the pane closing).
-function ArrangingFlow(
-    props: CompanionDashboardProps & {
-        cols: Columns;
-        onColumns: (cols: Columns) => void;
-        pickup: Pickup;
-        onPickupDone: () => void;
-        zoneRef: React.RefObject<HTMLDivElement>;
-        onZone: (zone: Partial<ZoneState>) => void;
-    }
-) {
-    const { layout, onSaveLayout, onLeaveArranging, view, agentState, provider } = props;
-    const t = useT();
-    const flowRef = useRef<HTMLDivElement>(null);
-    const titleRef = useRef<HTMLHeadingElement>(null);
-    const [draft, setDraft] = useState<CompanionLayout>(() => normalizeLayout(layout));
-    const [note, setNote] = useState("");
-    const announced = useRef(false);
-    const focusAfter = useRef<{ id: CompanionSectionId; what: string }>(null);
-    const draftRef = useRef(draft);
-    draftRef.current = draft;
-    const saveRef = useRef(onSaveLayout);
-    saveRef.current = onSaveLayout;
-    const committer = useRef<(draft: CompanionLayout) => boolean>(null);
-    committer.current ??= makeLayoutCommit(draft, (next) => saveRef.current(next));
-    const sums = useSummaries(view, agentState, provider);
-    useEffect(() => {
-        titleRef.current?.focus({ preventScroll: true });
-        return () => {
-            committer.current(draftRef.current);
-        };
-    }, []);
-    useLayoutEffect(() => {
-        const after = focusAfter.current;
-        if (after == null) {
-            return;
-        }
-        focusAfter.current = null;
-        flowRef.current
-            ?.querySelector<HTMLElement>(`[data-flow-id="${after.id}"] [data-arrange="${after.what}"]`)
-            ?.focus();
-    }, [draft]);
-    const leave = () => {
-        committer.current(draftRef.current);
-        onLeaveArranging();
-    };
-    const announce = (text: string) => {
-        announced.current = !announced.current;
-        setNote(announced.current ? `${text}${InvisibleMark}` : text);
-    };
-    const nameOf = (id: CompanionSectionId) => t(SectionNameKeys[id]);
-    const drag = useBlockDrag({
-        flowRef,
-        zoneRef: props.zoneRef,
-        draftRef,
-        setDraft,
-        onZone: props.onZone,
-        announce,
-        nameOf,
-        pickup: props.pickup,
-        onPickupDone: props.onPickupDone,
-    });
-    const draftUsage = usageOf(draft);
-    const { onZone } = props;
-    useEffect(() => {
-        onZone({ shown: draftUsage.shown, attached: draftUsage.attached });
-    }, [onZone, draftUsage.shown, draftUsage.attached]);
-    const move = (id: CompanionSectionId, to: number, what: string) => {
-        const from = draft.findIndex((p) => p.id === id);
-        const target = Math.max(0, Math.min(draft.length - 1, to));
-        if (target === from) {
-            announce(t(from === 0 ? "companion.arrange.first" : "companion.arrange.last", { name: nameOf(id) }));
-            return;
-        }
-        const next = moveSection(draft, from, target);
-        focusAfter.current = { id, what };
-        setDraft(next);
-        announce(t("companion.arrange.moved", { name: nameOf(id), position: target + 1, total: next.length }));
-    };
-    const isDefault = isDefaultLayout(draft);
-    const items: FlowItem[] = draft.map((p) => ({ id: p.id, full: p.span === "full" }));
-    // The usage's rows (#2462): the windows its provider reports are heard from a copy of the usage that draws nothing,
-    // since the usage block is folded to a line while arranging, and the choice is drafted with the layout.
-    const [windows, setWindows] = useState<UsageWindowChoice[]>([]);
-    const usageAgent = view.agent ?? "";
-    const rowChoices = windowChoices(windows, hiddenRowsOf(draft, usageAgent));
-    const listenRows = useMemo<UsageRowsProps>(() => ({ hidden: [], onListed: setWindows }), []);
-    const { prefs, set: setPref } = useBlockPrefs();
-    // The Taken by others group opens by itself while the milestone block is wide (#2418): so it reads in its option.
-    const tasksWidth =
-        props.cols.columns >= 2 && draft.find((p) => p.id === "tasks")?.span === "full" ? 0 : props.cols.columnWidth;
-    const prefDefaults: PrefDefaults = { takenopen: !(tasksWidth > 0 && tasksWidth < CompactBlockPx) };
-    const optionOf = (id: CompanionSectionId, key: BlockOptionKey) => optionsOf(id).find((o) => o.key === key);
-    // An option set, from the block's own buttons or its settings: a layout option is drafted with the layout, a
-    // preference is saved as it is set; both are announced.
-    const change = (id: CompanionSectionId, option: BlockOption, value: boolean) => {
-        const name = nameOf(id);
-        if (option.store === "layout") {
-            setDraft(setLayoutOption(draft, id, option, value));
-            announce(t(optionAnnouncement(option, value), { name }));
-            return;
-        }
-        setPref(option.key as BlockPrefKey, value);
-        announce(t(optionAnnouncement(option, value), { name, option: t(option.labelKey) }));
-    };
-    return (
-        <>
-            <CompanionBlock
-                className="mt-cdash-arrbar"
-                label={
-                    <span ref={titleRef} tabIndex={-1} className="outline-none">
-                        {t("companion.arrange.title")}
-                    </span>
-                }
-                icon={<i className="fa fa-solid fa-table-columns" aria-hidden="true" />}
-                data-testid="companion-arrange"
-                onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                        e.stopPropagation();
-                        leave();
-                    }
-                }}
-            >
-                <div className="mt-cdash-arrbar-in">
-                    <p>{t("companion.arrange.hint")}</p>
-                    <div className="mt-cdash-arrbar-actions">
-                        <button
-                            type="button"
-                            className="molten-btn-ghost inline-flex h-row cursor-pointer items-center gap-1.5 rounded-4 border border-border px-3 text-12 aria-disabled:cursor-default aria-disabled:opacity-40"
-                            aria-disabled={isDefault}
-                            onClick={() => {
-                                if (isDefault) {
-                                    return;
-                                }
-                                setDraft(resetLayout());
-                                announce(t("companion.arrange.resetDone"));
-                            }}
-                            data-testid="companion-arrange-reset"
-                        >
-                            {t("companion.arrange.reset")}
-                        </button>
-                        <button
-                            type="button"
-                            className="molten-btn inline-flex h-row cursor-pointer items-center gap-1.5 rounded-4 px-3 text-12 font-medium"
-                            onClick={leave}
-                            data-testid="companion-arrange-done"
-                        >
-                            {t("companion.arrange.done")}
-                            <MoltenWave />
-                        </button>
-                    </div>
-                </div>
-            </CompanionBlock>
-            <div
-                className="contents"
-                onKeyDown={(e) => {
-                    if (e.key === "Escape") {
-                        e.stopPropagation();
-                        leave();
-                    }
-                }}
-            >
-                <Flow
-                    items={items}
-                    arranging={true}
-                    dragging={drag.dragging}
-                    flowProps={{ onPointerDown: drag.onPointerDown }}
-                    onColumns={props.onColumns}
-                    flowRef={flowRef}
-                >
-                    {draft.map((p, i) => {
-                        const name = nameOf(p.id);
-                        const shown = !p.hidden;
-                        const full = p.span === "full";
-                        const { position, total } = positionOf(draft, p.id);
-                        const sum =
-                            p.id === "usage" && !sums.usage.absent ? { text: t(usageSummaryKey(p)) } : sums[p.id];
-                        return (
-                            <CompanionBlock
-                                key={p.id}
-                                flowId={p.id}
-                                label={name}
-                                icon={SectionTiles[p.id]}
-                                tone={p.id === "permission" ? "waiting" : undefined}
-                                data-hidden={shown ? undefined : ""}
-                                data-dragging={drag.dragging === p.id ? "" : undefined}
-                                data-absent={sum.absent ? "" : undefined}
-                                data-testid="companion-arrange-row"
-                                data-section={p.id}
-                                data-span={p.span}
-                                grip={
-                                    <button
-                                        type="button"
-                                        className="mt-cb-grip"
-                                        data-arrange="handle"
-                                        aria-label={t("companion.arrange.handleAt", { name, position, total })}
-                                        data-tip={t("companion.arrange.handleHelp")}
-                                        onKeyDown={(e) => {
-                                            const to = handleTarget(e.key, i, draft.length);
-                                            if (to == null) {
-                                                return;
-                                            }
-                                            e.preventDefault();
-                                            move(p.id, to, "handle");
-                                        }}
-                                        data-testid="companion-arrange-handle"
-                                    >
-                                        <i className="fa-solid fa-ellipsis" aria-hidden="true" />
-                                    </button>
-                                }
-                                chips={
-                                    shown ? null : (
-                                        <span className="mt-cb-chip mt-cb-chip-off">
-                                            {t("companion.arrange.hidden")}
-                                        </span>
-                                    )
-                                }
-                                tools={
-                                    <>
-                                        <BlockTool
-                                            label={t("companion.arrange.show", { name })}
-                                            pressed={shown}
-                                            marker="show"
-                                            onClick={() => change(p.id, optionOf(p.id, "shown"), !shown)}
-                                            testId="companion-arrange-switch"
-                                        >
-                                            <i
-                                                className={shown ? "fa fa-solid fa-eye" : "fa fa-solid fa-eye-slash"}
-                                                aria-hidden="true"
-                                            />
-                                        </BlockTool>
-                                        <BlockTool
-                                            label={t("companion.arrange.wide", { name })}
-                                            pressed={full}
-                                            marker="wide"
-                                            onClick={() => change(p.id, optionOf(p.id, "wide"), !full)}
-                                            testId="companion-arrange-wide"
-                                        >
-                                            <i className="fa fa-solid fa-arrows-left-right" aria-hidden="true" />
-                                        </BlockTool>
-                                        <BlockSettings
-                                            id={p.id}
-                                            name={name}
-                                            placement={p}
-                                            prefs={prefs}
-                                            defaults={prefDefaults}
-                                            onChange={(option, value) => change(p.id, option, value)}
-                                            rows={
-                                                p.id === "usage"
-                                                    ? {
-                                                          choices: rowChoices,
-                                                          onSet: (id, hide) =>
-                                                              setDraft(
-                                                                  setUsageRowHidden(
-                                                                      draft,
-                                                                      usageAgent,
-                                                                      id,
-                                                                      hide,
-                                                                      windows.map((w) => w.id)
-                                                                  )
-                                                              ),
-                                                      }
-                                                    : undefined
-                                            }
-                                        />
-                                    </>
-                                }
-                            >
-                                <div className="mt-cb-sum" data-tip={sum.text}>
-                                    {sum.text}
-                                </div>
-                            </CompanionBlock>
-                        );
-                    })}
-                </Flow>
-            </div>
-            <UsageSource
-                view={view}
-                target={props.target}
-                provider={provider}
-                agentState={agentState}
-                fixture={props.fixtures?.usage}
-                form="minimal"
-                render={NoUsageFrame}
-                rows={listenRows}
-            />
-            <div
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-                className="sr-only"
-                data-testid="companion-arrange-note"
-            >
-                {note}
-            </div>
-        </>
-    );
-}

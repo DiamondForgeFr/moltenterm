@@ -20,6 +20,7 @@ import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
 import { whileShown } from "../tab-activity";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
+import { ArrangeGhost } from "./companion-ghost";
 import { CompanionView, relativeTime, sessionRelation } from "./companion-model";
 import { SectionTitle } from "./companion-section";
 import {
@@ -147,7 +148,7 @@ export function WorkspaceTaskSection({
     const [actionError, setActionError] = useState<string>(null);
     if (view == null) {
         if (!error) {
-            return null;
+            return <ArrangeGhost id="task" kind="when" />;
         }
         if (frame != null) {
             return frame({
