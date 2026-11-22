@@ -110,7 +110,11 @@ export function useArrangeChrome(o: ArrangeChromeOptions): ArrangeChrome {
             label={t("companion.arrange.show", { name: nameOf(id) })}
             pressed={shown}
             marker="show"
-            onClick={() => change(id, optionOf(id, "shown"), !shown)}
+            onClick={() => {
+                // The block and its ghost take each other's place: the eye that was pressed is the one that has the focus.
+                focusAfter.current = { id, what: "show" };
+                change(id, optionOf(id, "shown"), !shown);
+            }}
             testId="companion-arrange-switch"
         >
             <i className={shown ? "fa fa-solid fa-eye" : "fa fa-solid fa-eye-slash"} aria-hidden="true" />
