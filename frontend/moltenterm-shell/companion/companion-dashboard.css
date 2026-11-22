@@ -379,14 +379,6 @@ button.mt-cb-chip-off:hover {
     white-space: nowrap;
 }
 
-/* The usage block's own choices while arranging (#2450): its size and its attaching, under its summary line. */
-.mt-cdash-options {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-}
-
 .mt-cb[data-absent] .mt-cb-sum {
     color: var(--mt-text-3);
     font-style: italic;
