@@ -3,25 +3,31 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    ConditionalWhenKeys,
     dropSection,
+    flowEntries,
+    FlowEntry,
     handleTarget,
     makeLayoutCommit,
+    moveRanked,
     moveSection,
     moveSectionBy,
     positionOf,
+    rankedIds,
     resetLayout,
     SectionNameKeys,
     setSectionHidden,
     setSectionSpan,
     setUsageAttached,
     setUsageMinimal,
-    usageSummaryKey,
 } from "./companion-arrange-model";
+import { flowLayout, FlowResult, keepsColumns, layoutIdOf } from "./companion-flow-model";
 import {
     CompanionLayout,
     CompanionSectionIds,
     DefaultCompanionLayout,
     isDefaultLayout,
+    normalizeLayout,
     usageOf,
 } from "./companion-layout";
 
@@ -216,13 +222,6 @@ describe("arranging the companion's sections (#2395, #2441)", () => {
         expect(usageOf(attached)).toEqual({ shown: true, minimal: false, attached: true });
     });
 
-    it("tells in its summary line how the usage is drawn", () => {
-        expect(usageSummaryKey({})).toBe("companion.dash.sum.usage");
-        expect(usageSummaryKey({ minimal: true })).toBe("companion.dash.sum.usageMinimal");
-        expect(usageSummaryKey({ attached: true })).toBe("companion.dash.sum.usageAttached");
-        expect(usageSummaryKey({ minimal: true, attached: true })).toBe("companion.dash.sum.usageAttached");
-    });
-
     it("lets the keyboard reach any order: every section can be moved to every place", () => {
         for (let from = 0; from < 8; from++) {
             for (let to = 0; to < 8; to++) {
@@ -231,12 +230,247 @@ describe("arranging the companion's sections (#2395, #2441)", () => {
                 const id = layout[from].id;
                 for (let guard = 0; guard < 20 && at !== to; guard++) {
                     const next = handleTarget(to > at ? "ArrowDown" : "ArrowUp", at, 8);
-                    layout = moveSection(layout, at, next);
+                    layout = moveRanked(layout, id, next);
                     at = next;
                 }
                 expect(ids(layout)[to]).toBe(id);
             }
         }
+    });
+});
+
+// The flow lays the same blocks out in the normal view and while arranging (#2467).
+describe("what the flow lays out, in both modes (#2467)", () => {
+    const entryIds = (layout: CompanionLayout, arranging: boolean) =>
+        flowEntries(layout, arranging).map((e) => e.id + (e.tail ? "~" : "") + (e.full ? "*" : ""));
+
+    it("lays the blocks that show out in their rank, the same in both modes", () => {
+        expect(entryIds(DefaultCompanionLayout, false)).toEqual([
+            "permission*",
+            "tasks",
+            "agents",
+            "usage",
+            "topics",
+            "answer",
+            "task",
+            "files",
+        ]);
+        expect(entryIds(DefaultCompanionLayout, true)).toEqual(entryIds(DefaultCompanionLayout, false));
+    });
+
+    it("puts the hidden blocks after the others while arranging, as ghosts that hold no rank, and not at all otherwise", () => {
+        const hidden = setSectionHidden(setSectionHidden(DefaultCompanionLayout, "tasks", true), "answer", true);
+        expect(entryIds(hidden, false)).toEqual(["permission*", "agents", "usage", "topics", "task", "files"]);
+        expect(entryIds(hidden, true)).toEqual([
+            "permission*",
+            "agents",
+            "usage",
+            "topics",
+            "task",
+            "files",
+            "tasks~",
+            "answer~",
+        ]);
+        expect(rankedIds(hidden)).toEqual(["permission", "agents", "usage", "topics", "task", "files"]);
+        // A hidden block takes no span in the flow, whatever it had.
+        expect(flowEntries(setSectionSpan(hidden, "tasks", "full"), true).find((e) => e.id === "tasks").full).toBe(
+            false
+        );
+    });
+
+    it("leaves the usage attached to the main agent out of the flow, hidden or not", () => {
+        const attached = setUsageAttached(DefaultCompanionLayout, true);
+        expect(entryIds(attached, true)).not.toContain("usage");
+        expect(rankedIds(attached)).not.toContain("usage");
+        expect(entryIds(setSectionHidden(attached, "usage", true), true)).toContain("usage~");
+    });
+
+    it("moves a section to a rank among the sections that hold one, the hidden ones staying where the list keeps them", () => {
+        const hidden = setSectionHidden(DefaultCompanionLayout, "agents", true);
+        // Ranks: permission, tasks, usage, topics, answer, task, files.
+        expect(ids(moveRanked(hidden, "files", 2))).toEqual([
+            "permission",
+            "tasks",
+            "agents",
+            "files",
+            "usage",
+            "topics",
+            "answer",
+            "task",
+        ]);
+        expect(rankedIds(moveRanked(hidden, "files", 2))).toEqual([
+            "permission",
+            "tasks",
+            "files",
+            "usage",
+            "topics",
+            "answer",
+            "task",
+        ]);
+        expect(rankedIds(moveRanked(hidden, "permission", 6))).toEqual([
+            "tasks",
+            "usage",
+            "topics",
+            "answer",
+            "task",
+            "files",
+            "permission",
+        ]);
+        expect(ids(moveRanked(hidden, "permission", 99))[7]).toBe("permission");
+        expect(moveRanked(hidden, "tasks", 1)).toEqual(normalizeLayout(hidden));
+    });
+
+    it("moves a section to every rank, never losing or doubling one, whatever it is asked", () => {
+        const layout = setSectionHidden(setUsageAttached(DefaultCompanionLayout, true), "topics", true);
+        const ranked = rankedIds(layout);
+        for (const id of ranked) {
+            for (let rank = -2; rank <= ranked.length + 2; rank++) {
+                const next = moveRanked(layout, id, rank);
+                expect(ids(next).sort()).toEqual([...CompanionSectionIds].sort());
+                const expected = Math.min(Math.max(rank, 0), ranked.length - 1);
+                expect(rankedIds(next).indexOf(id)).toBe(expected);
+                expect(next.find((p) => p.id === "topics").hidden).toBe(true);
+                expect(next.find((p) => p.id === "usage").attached).toBe(true);
+            }
+        }
+        // A section that holds no rank has none to take, and a bad rank is no rank.
+        expect(moveRanked(layout, "topics", 0)).toEqual(normalizeLayout(layout));
+        expect(moveRanked(layout, "usage", 0)).toEqual(normalizeLayout(layout));
+        expect(moveRanked(layout, "files", Number.NaN)).toEqual(normalizeLayout(layout));
+    });
+
+    it("counts the position among the sections that hold a rank, for the screen reader", () => {
+        const hidden = setSectionHidden(DefaultCompanionLayout, "agents", true);
+        expect(positionOf(hidden, "usage")).toEqual({ position: 3, total: 7 });
+        expect(positionOf(hidden, "files")).toEqual({ position: 7, total: 7 });
+    });
+
+    it("says when each section that can have nothing to show shows", () => {
+        expect(Object.keys(ConditionalWhenKeys).sort()).toEqual(["permission", "task", "tasks", "usage"]);
+        for (const key of Object.values(ConditionalWhenKeys)) {
+            expect(key).toMatch(/^companion\.arrange\.when\./);
+        }
+    });
+});
+
+// Entering the arranging mode moves no block (#2467): the model of the layout, with the columns the flow holds, the same
+// widths and the same blocks as the normal view.
+describe("arranging moves no block of the dashboard (#2467)", () => {
+    // The heights of the real blocks, and of the compact ghost of a block with nothing to show.
+    const Real: Record<string, number> = {
+        permission: 150,
+        tasks: 320,
+        agents: 190,
+        usage: 230,
+        topics: 170,
+        answer: 280,
+        task: 120,
+        files: 260,
+    };
+    const GhostHeight = 56;
+    type Laid = { entries: FlowEntry[]; result: FlowResult; order: { id: string; full: boolean }[] };
+
+    // What the dashboard's flow does: the blocks that have something to show are real, the others a ghost while
+    // arranging and nothing otherwise; the columns of the last placement hold while the blocks keep their order.
+    function lay(
+        layout: CompanionLayout,
+        arranging: boolean,
+        width: number,
+        absent: string[],
+        previous?: Laid,
+        heights: Record<string, number> = Real
+    ): Laid {
+        const entries = flowEntries(layout, arranging).filter((e) => arranging || !absent.includes(e.id));
+        const ghost = (e: FlowEntry) => e.tail === true || absent.includes(e.id);
+        const blocks = entries.map((e) => ({
+            id: layoutIdOf(e.id, ghost(e)),
+            full: e.full,
+            height: ghost(e) ? GhostHeight : heights[e.id],
+        }));
+        const order = blocks.filter((_, i) => !entries[i].tail);
+        const kept = previous != null && keepsColumns(previous.order, order) ? previous.result.assign : undefined;
+        return { entries, order, result: flowLayout(blocks, width, kept) };
+    }
+
+    const where = (laid: Laid, id: string) => laid.result.items.find((p) => p.id === id);
+    const Layouts: Record<string, CompanionLayout> = {
+        default: DefaultCompanionLayout,
+        arranged: setSectionSpan(moveSection(DefaultCompanionLayout, 7, 2), "topics", "full"),
+        hiddenSome: setSectionHidden(setSectionHidden(DefaultCompanionLayout, "topics", true), "usage", true),
+        wideAgents: setSectionSpan(DefaultCompanionLayout, "agents", "full"),
+        attached: setUsageAttached(DefaultCompanionLayout, true),
+    };
+
+    for (const width of [420, 760, 1200]) {
+        for (const [name, layout] of Object.entries(Layouts)) {
+            it(`keeps every block where the normal view has it at ${width} px, ${name} layout, all of them with something to show`, () => {
+                const normal = lay(layout, false, width, []);
+                const arranging = lay(layout, true, width, [], normal);
+                for (const entry of normal.entries) {
+                    expect(where(arranging, entry.id), entry.id).toEqual(where(normal, entry.id));
+                }
+                expect(arranging.result.paired).toBe(normal.result.paired);
+                expect(arranging.result.columns).toBe(normal.result.columns);
+            });
+
+            it(`keeps them where they were when the columns were chosen by the blocks that came and went, at ${width} px, ${name} layout`, () => {
+                // The permission request came and went, and the blocks below it grew: the columns the normal view holds
+                // are not what a fresh pass by rank would give. Entering the mode keeps them.
+                const first = lay(layout, false, width, ["permission"]);
+                const grown = { ...Real, topics: 700, files: 40 };
+                const held = lay(layout, false, width, ["permission"], first, grown);
+                const arranging = lay(layout, true, width, ["permission"], held, grown);
+                for (const entry of held.entries) {
+                    expect(where(arranging, entry.id).column, entry.id).toBe(where(held, entry.id).column);
+                    expect(where(arranging, entry.id).x, entry.id).toBe(where(held, entry.id).x);
+                    expect(where(arranging, entry.id).width, entry.id).toBe(where(held, entry.id).width);
+                }
+            });
+        }
+
+        it(`puts a ghost in the place of a block with nothing to show, at its rank, without changing any block's column or width, at ${width} px`, () => {
+            // The permission request, the workspace task and the milestone have nothing to show.
+            const absent = ["permission", "tasks", "task"];
+            const normal = lay(DefaultCompanionLayout, false, width, absent);
+            const arranging = lay(DefaultCompanionLayout, true, width, absent, normal);
+            expect(arranging.entries.map((e) => e.id)).toEqual(
+                flowEntries(DefaultCompanionLayout, true).map((e) => e.id)
+            );
+            for (const entry of normal.entries) {
+                const before = where(normal, entry.id);
+                const after = where(arranging, entry.id);
+                expect([after.column, after.x, after.width, after.full], entry.id).toEqual([
+                    before.column,
+                    before.x,
+                    before.width,
+                    before.full,
+                ]);
+            }
+            // Each ghost stands at its rank: between the blocks that come before and after it in the layout.
+            const permission = where(arranging, "permission");
+            expect(permission.y).toBe(0);
+            expect(permission.full).toBe(width >= 640);
+        });
+
+        it(`keeps the blocks that show where they are when a block is hidden: its ghost only comes after them, at ${width} px`, () => {
+            const layout = setSectionHidden(DefaultCompanionLayout, "answer", true);
+            const normal = lay(layout, false, width, []);
+            const arranging = lay(layout, true, width, [], normal);
+            for (const entry of normal.entries) {
+                expect(where(arranging, entry.id), entry.id).toEqual(where(normal, entry.id));
+            }
+            const ghost = where(arranging, "answer");
+            expect(ghost.y).toBeGreaterThanOrEqual(0);
+            expect(arranging.entries[arranging.entries.length - 1].id).toBe("answer");
+        });
+    }
+
+    it("lays a block out by its rank once it is moved, so that the slot a drag shows is where the drop lands", () => {
+        const normal = lay(DefaultCompanionLayout, false, 760, []);
+        const moved = moveRanked(DefaultCompanionLayout, "files", 1);
+        const arranging = lay(moved, true, 760, [], normal);
+        const fresh = lay(moved, true, 760, []);
+        expect(arranging.result.items).toEqual(fresh.result.items);
     });
 });
 

@@ -3,9 +3,9 @@
 
 // The companion's flow (FR-SHELL-018, #2441): its blocks in columns by the companion's width, each into the shortest
 // column in the arranged order, a full-width block under the tallest column across them all, and the milestone with the
-// agents at work side by side as a pair. A block keeps its column while the column count and the mode stay; only a
-// block that appears is placed anew. A block that grows pushes the blocks under it in its column and nothing else.
-// Pure, so it is tested without a window.
+// agents at work side by side as a pair. A block keeps its column while the column count stays; only a block that
+// appears is placed anew. A block that grows pushes the blocks under it in its column and nothing else. The arranging
+// mode lays the same blocks out in the same way (#2467). Pure, so it is tested without a window.
 
 // One visible gutter everywhere: the companion's edges, between columns, and from a block's bottom to the top of the
 // next block's label, which stands half a notch (18 px) above its border.
@@ -41,11 +41,9 @@ export type FlowResult = {
     items: FlowPlacement[];
     height: number;
     assign: FlowAssign;
-    // The pair stands side by side (from two columns, neither of the two at full width, not while arranging).
+    // The pair stands side by side (from two columns, neither of the two at full width).
     paired: boolean;
 };
-
-export type FlowOptions = { arranging?: boolean };
 
 // The columns for a companion this wide (its whole width, gutters included).
 export function columnsFor(companionWidth: number): number {
@@ -55,37 +53,53 @@ export function columnsFor(companionWidth: number): number {
     return companionWidth >= TwoColumnsFromPx ? 2 : 1;
 }
 
-export function flowKey(blocks: FlowBlock[], columns: number, arranging: boolean): string {
-    return `${columns}|${blocks.map((b) => b.id + (b.full ? "*" : "")).join(",")}|${arranging ? "a" : ""}`;
+export function flowKey(blocks: FlowBlock[], columns: number): string {
+    return `${columns}|${blocks.map((b) => b.id + (b.full ? "*" : "")).join(",")}`;
 }
 
-function sameFrame(key: string, columns: number, arranging: boolean): boolean {
-    const parts = (key ?? "").split("|");
-    return parts[0] === String(columns) && parts[parts.length - 1] === (arranging ? "a" : "");
+function sameFrame(key: string, columns: number): boolean {
+    return (key ?? "").split("|")[0] === String(columns);
+}
+
+// Whether the columns a flow chose hold for the blocks it lays out now (#2467): they do while the blocks that stay keep
+// their order and their width setting, whatever came or went around them, as the permission request does with each
+// approval. A block moved, or set full width or fluid, chooses the columns again, by rank.
+export function keepsColumns(
+    previous: readonly Pick<FlowBlock, "id" | "full">[],
+    next: readonly Pick<FlowBlock, "id" | "full">[]
+): boolean {
+    const was = new Map(previous.map((b) => [b.id, b.full === true]));
+    const stayed = next.filter((b) => was.has(b.id));
+    if (stayed.some((b) => was.get(b.id) !== (b.full === true))) {
+        return false;
+    }
+    const now = new Set(next.map((b) => b.id));
+    const before = previous.filter((b) => now.has(b.id));
+    return stayed.length === before.length && stayed.every((b, i) => b.id === before[i].id);
+}
+
+// The ghost the arranging mode draws for the milestone or the agents at work (#2467) is no part of their pair: it stands in
+// the flow like any other block, so that the block that shows keeps the place it has in the normal view instead of being
+// drawn up beside a ghost. The flow lays it out under this id.
+export function layoutIdOf(id: string, ghost: boolean): string {
+    return ghost && (PairIds as readonly string[]).includes(id) ? `ghost:${id}` : id;
 }
 
 // Where each block goes, x and y from the flow's top left corner (inside the companion's gutter). previous is the
-// assignment the last call returned: its columns hold while the structure's key is the same.
-export function flowLayout(
-    blocks: FlowBlock[],
-    companionWidth: number,
-    previous?: FlowAssign,
-    options?: FlowOptions
-): FlowResult {
-    const arranging = options?.arranging === true;
+// assignment the last call returned: its columns hold while the column count is the same.
+export function flowLayout(blocks: FlowBlock[], companionWidth: number, previous?: FlowAssign): FlowResult {
     const n = columnsFor(companionWidth);
     const innerWidth = Math.max(0, companionWidth - 2 * FlowGutterPx);
     const columnWidth = Math.max(0, (innerWidth - FlowGutterPx * (n - 1)) / n);
-    const key = flowKey(blocks, n, arranging);
-    // While the column count and the mode stay, each block keeps its column: a block that appears or goes (the
-    // permission request with each approval) places only itself, so the others never swap back and forth.
-    const sticky = previous != null && sameFrame(previous.key, n, arranging) ? previous.columns : {};
+    const key = flowKey(blocks, n);
+    // While the column count stays, each block keeps its column: a block that appears or goes (the permission request
+    // with each approval) places only itself, so the others never swap back and forth.
+    const sticky = previous != null && sameFrame(previous.key, n) ? previous.columns : {};
     const columns: Record<string, number> = {};
     const tops = new Array<number>(n).fill(0);
     const byId = new Map(blocks.map((b) => [b.id, b]));
     const [left, right] = PairIds;
-    const paired =
-        n >= 2 && !arranging && byId.has(left) && byId.has(right) && !byId.get(left).full && !byId.get(right).full;
+    const paired = n >= 2 && byId.has(left) && byId.has(right) && !byId.get(left).full && !byId.get(right).full;
     const placed = new Map<string, FlowPlacement>();
     const put = (b: FlowBlock, column: number, y: number, full: boolean) => {
         columns[b.id] = column;

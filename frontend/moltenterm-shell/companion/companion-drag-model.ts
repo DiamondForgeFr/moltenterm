@@ -126,7 +126,7 @@ export function dropIndexAt(blocks: FlowBlock[], draggedId: string, companionWid
     let bestDistance = Infinity;
     for (let i = 0; i <= others.length; i++) {
         const order = [...others.slice(0, i), dragged, ...others.slice(i)];
-        const slot = flowLayout(order, companionWidth, undefined, { arranging: true }).items[i];
+        const slot = flowLayout(order, companionWidth).items[i];
         const distance = Math.hypot(
             center.x - (slot.x + slot.width / 2),
             center.y - (slot.y + Math.max(0, dragged.height) / 2)
