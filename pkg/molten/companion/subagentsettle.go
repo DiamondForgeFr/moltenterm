@@ -90,6 +90,12 @@ func (s *Session) SettleSubagentFiles(ids []SubagentIdentity, now int64) bool {
 				sa.agentId = cutString(id.AgentId, 200)
 			}
 		}
+		if sa == nil && id.CallId == "" {
+			sa = s.unnamedSubagent(id.Description)
+			if sa != nil {
+				sa.agentId = cutString(id.AgentId, 200)
+			}
+		}
 		if sa == nil {
 			if s.addFileSubagent(id, now) {
 				changed = true
@@ -114,14 +120,41 @@ func (s *Session) SettleSubagentFiles(ids []SubagentIdentity, now int64) bool {
 	return changed
 }
 
-// addFileSubagent lists a sub-agent the transcript read never started, while its files say it runs.
+// unnamedSubagent is the one running call whose result has not yet named its agent and whose description is this
+// one, nil when none or several match: files that do not name their call are matched by description alone.
+func (s *Session) unnamedSubagent(description string) *subagent {
+	description = cutRunes(oneLine(description), MaxSubagentText)
+	if description == "" {
+		return nil
+	}
+	var rtn *subagent
+	for _, sa := range s.subagents {
+		if sa.agentId != "" || sa.description != description || (sa.state != SubagentRunning && sa.state != SubagentQuiet) {
+			continue
+		}
+		if rtn != nil {
+			return nil
+		}
+		rtn = sa
+	}
+	return rtn
+}
+
+// addFileSubagent lists a sub-agent the transcript read never started, while its files say it runs. Its row takes the
+// id of the call that started it when its files name it (#2468): Claude Code writes an agent's meta file as it
+// launches it, and may write the call into the parent's transcript only once the whole message ends (the other calls
+// of a message that launches several agents), so the call found later lands on this row instead of adding another.
 func (s *Session) addFileSubagent(id SubagentIdentity, now int64) bool {
 	if id.Finished || id.LastWrite <= 0 || now-id.LastWrite > SubagentQuietAfter.Milliseconds() {
 		return false
 	}
 	agentId := cutString(id.AgentId, 200)
+	rowId := agentId
+	if id.CallId != "" {
+		rowId = cutString(id.CallId, 200)
+	}
 	s.subagents = append(s.subagents, &subagent{
-		id: agentId, agentId: agentId, description: cutRunes(oneLine(id.Description), MaxSubagentText),
+		id: rowId, agentId: agentId, description: cutRunes(oneLine(id.Description), MaxSubagentText),
 		kind: cutString(id.Kind, 100), model: cutString(id.Model, 100), effort: cutString(id.Effort, 40),
 		background: true, state: SubagentRunning, started: id.Started, found: true,
 	})
