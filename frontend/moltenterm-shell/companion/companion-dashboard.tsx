@@ -64,7 +64,7 @@ import {
     UsageFrame,
     UsageFrameParts,
 } from "./companion-gauges";
-import type { GaugesView } from "./companion-gauges-model";
+import type { GaugesView, UsageWindowChoice } from "./companion-gauges-model";
 import { CompanionHero } from "./companion-hero";
 import {
     CompanionLayout,
@@ -94,6 +94,14 @@ import { taskSessionLabel, TaskView } from "./companion-task-model";
 import { CompactBlockPx } from "./companion-tasks";
 import { CloseTipsEvent } from "./companion-tips-model";
 import { openUsagePage, UsageButton } from "./companion-usage";
+import {
+    hiddenRowsOf,
+    setUsageRowHidden,
+    UsageRowsProps,
+    usageRowsProps,
+    windowChoices,
+    withRowChoice,
+} from "./companion-usage-rows-model";
 import { CompanionWork, CompanionWorkProps } from "./companion-work";
 
 const RpcTimeoutMs = 5000;
@@ -237,6 +245,7 @@ export function CompanionDashboard(props: CompanionDashboardProps) {
                     fixture={props.fixtures?.usage}
                     form="attached"
                     render={hero}
+                    rows={usageRowsProps(props.layout, props.view.agent ?? "", props.onSaveLayout)}
                 />
             ) : (
                 hero()
@@ -593,6 +602,7 @@ function SessionFlow(
                 agentState={agentState}
                 fixture={props.fixtures?.usage}
                 minimal={placements.find((p) => p.id === "usage")?.minimal === true}
+                rows={usageRowsProps(layout, view.agent ?? "", props.onSaveLayout)}
             />
         ),
         topics: (
@@ -695,12 +705,14 @@ type UsageSourceProps = {
     fixture?: GaugesView;
     form: UsageForm;
     render: UsageFrame;
+    // The rows the developer chose to show, and how to change them (#2462).
+    rows?: UsageRowsProps;
 };
 
 // Where the plan usage comes from (the session's other provider, a fixture, the agent's own gauges), given to `render`
 // as the parts a block draws it with: the usage block's frame stands alone in the flow, the main agent's block takes
 // them when the usage is attached to it (#2450). A usage with nothing to show is rendered as the state "hidden".
-function UsageSource({ view, target, provider, agentState, fixture, form, render }: UsageSourceProps) {
+function UsageSource({ view, target, provider, agentState, fixture, form, render, rows }: UsageSourceProps) {
     if (provider) {
         return render({
             tools: null,
@@ -716,12 +728,22 @@ function UsageSource({ view, target, provider, agentState, fixture, form, render
     }
     if (fixture != null) {
         const none = () => {};
-        return <PlanUsageBody view={fixture} onShow={none} onHide={none} onRefresh={none} frame={render} form={form} />;
+        return (
+            <PlanUsageBody
+                view={withRowChoice(fixture, rows?.hidden ?? [])}
+                rows={rows}
+                onShow={none}
+                onHide={none}
+                onRefresh={none}
+                frame={render}
+                form={form}
+            />
+        );
     }
     if (view.usage == null || !view.agent) {
         return render({ tools: null, body: null, state: "hidden" });
     }
-    return <PlanUsageSection target={target} agent={view.agent} frame={render} form={form} />;
+    return <PlanUsageSection target={target} agent={view.agent} frame={render} form={form} rows={rows} />;
 }
 
 // The usage block, standing on its own in the flow. Minimal (#2450), it draws the window rows alone; its foot link, the
@@ -733,6 +755,7 @@ function UsageBlock({
     agentState,
     fixture,
     minimal,
+    rows,
 }: Omit<UsageSourceProps, "form" | "render"> & { minimal: boolean }) {
     const t = useT();
     const action = usageAction(view);
@@ -774,6 +797,7 @@ function UsageBlock({
             fixture={fixture}
             form={minimal ? "minimal" : "full"}
             render={frame}
+            rows={rows}
         />
     );
 }
@@ -1206,6 +1230,9 @@ function useBlockDrag(options: BlockDragOptions) {
     return { dragging, onPointerDown };
 }
 
+// The frame of a copy of the usage that is only listened to (#2462): it draws nothing.
+const NoUsageFrame: UsageFrame = () => null;
+
 // The arranging mode in place (#2395, #2441, #2459): every block folds to its label and one line, with its rank, Up and
 // Down (the arrows, Home and End on its handle), full width or fluid, and the eye, and is carried by its header to
 // the rank it is dropped at. The changes are drafted here and saved when the mode is left, however it is left (Done,
@@ -1290,6 +1317,12 @@ function ArrangingFlow(
     };
     const isDefault = isDefaultLayout(draft);
     const items: FlowItem[] = draft.map((p) => ({ id: p.id, full: p.span === "full" }));
+    // The usage's rows (#2462): the windows its provider reports are heard from a copy of the usage that draws nothing,
+    // since the usage block is folded to a line while arranging, and the choice is drafted with the layout.
+    const [windows, setWindows] = useState<UsageWindowChoice[]>([]);
+    const usageAgent = view.agent ?? "";
+    const rowChoices = windowChoices(windows, hiddenRowsOf(draft, usageAgent));
+    const listenRows = useMemo<UsageRowsProps>(() => ({ hidden: [], onListed: setWindows }), []);
     const { prefs, set: setPref } = useBlockPrefs();
     // The Taken by others group opens by itself while the milestone block is wide (#2418): so it reads in its option.
     const tasksWidth =
@@ -1450,6 +1483,23 @@ function ArrangingFlow(
                                             prefs={prefs}
                                             defaults={prefDefaults}
                                             onChange={(option, value) => change(p.id, option, value)}
+                                            rows={
+                                                p.id === "usage"
+                                                    ? {
+                                                          choices: rowChoices,
+                                                          onSet: (id, hide) =>
+                                                              setDraft(
+                                                                  setUsageRowHidden(
+                                                                      draft,
+                                                                      usageAgent,
+                                                                      id,
+                                                                      hide,
+                                                                      windows.map((w) => w.id)
+                                                                  )
+                                                              ),
+                                                      }
+                                                    : undefined
+                                            }
                                         />
                                     </>
                                 }
@@ -1462,6 +1512,16 @@ function ArrangingFlow(
                     })}
                 </Flow>
             </div>
+            <UsageSource
+                view={view}
+                target={props.target}
+                provider={provider}
+                agentState={agentState}
+                fixture={props.fixtures?.usage}
+                form="minimal"
+                render={NoUsageFrame}
+                rows={listenRows}
+            />
             <div
                 role="status"
                 aria-live="polite"

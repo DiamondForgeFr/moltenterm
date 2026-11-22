@@ -9,7 +9,8 @@
 // chips read a small synthetic image drawn here, ?images=none gives them none), ?tip=<test id>[&tipat=N] (or
 // ?tipsel=<css selector>) a popover held open on the Nth such element (the screenshots' way of hovering),
 // ?usage-agent=kimi|kimi-stale|kimi-ring Kimi's usage (#2451), ?usage-labels=short|long the width of the label column
-// (#2458).
+// (#2458; ?usage-labels=fable is Claude's week and the week of a model), ?rows-hidden=session,month the usage rows the
+// layout starts with hidden for the provider shown (#2462).
 
 import { useEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
@@ -31,6 +32,7 @@ import { CompanionSubagent, CompanionView } from "../../moltenterm-shell/compani
 import { TaskView } from "../../moltenterm-shell/companion/companion-task-model";
 import { CompanionTips } from "../../moltenterm-shell/companion/companion-tips";
 import type { CompanionImage } from "../../moltenterm-shell/companion/companion-tips-model";
+import { setUsageRowHidden } from "../../moltenterm-shell/companion/companion-usage-rows-model";
 import { I18nModel, useT } from "../../moltenterm-shell/i18n/i18n";
 
 import "../../moltenterm-shell/molten-button.css";
@@ -87,11 +89,16 @@ function syntheticImage(n: number): Promise<CompanionImage> {
 
 const imagesOn = Images != null;
 
+// ?rows-hidden=session,month (#2462): the usage rows the layout starts with hidden, for the provider of the usage shown.
+const RowsHidden = (query.get("rows-hidden") ?? "").split(",").filter((id) => id !== "");
+
 function startLayout(): CompanionLayout {
-    if (UsageForm === "attached") {
-        return setUsageAttached(setUsageMinimal(DefaultCompanionLayout, true), true);
-    }
-    return setUsageMinimal(DefaultCompanionLayout, UsageForm === "minimal");
+    const base =
+        UsageForm === "attached"
+            ? setUsageAttached(setUsageMinimal(DefaultCompanionLayout, true), true)
+            : setUsageMinimal(DefaultCompanionLayout, UsageForm === "minimal");
+    const reported = usageFixture().snapshot.windows.map((w) => w.id);
+    return RowsHidden.reduce((layout, id) => setUsageRowHidden(layout, UsageProvider, id, true, reported), base);
 }
 
 const Names = ["Jade", "Noah", "Lou", "Ines", "Arthur", "Lena", "Sacha", "Mael", "Rose", "Hugo"];
@@ -207,6 +214,8 @@ const usage: CompanionUsageInfo = {
 // from two days ago, so the days before are unknown) and the month; kimi-stale is the same reading kept 40 min after its
 // token expired.
 const UsageAgent = query.get("usage-agent") ?? "";
+// The provider whose plan the usage shows, the key of the rows the layout hides (#2462).
+const UsageProvider = UsageAgent.startsWith("kimi") ? "kimi" : "claude";
 const Today = (new Date(Now).getDay() + 6) % 7;
 const DeducedDays = Array.from({ length: 7 }, (_, i) =>
     i > Today ? 0 : i < Today - 2 ? -1 : [130, 85, 60][Today - i]
@@ -280,6 +289,24 @@ function usageFixture(): CompanionUsageInfo {
     }
     if (UsageAgent === "kimi-ring") {
         return kimiUsage(false, ResetThisWeek);
+    }
+    if (UsageLabels === "fable") {
+        return {
+            ...usage,
+            snapshot: {
+                ...usage.snapshot,
+                windows: [
+                    usage.snapshot.windows[1],
+                    {
+                        id: "model:fable",
+                        label: "This week (Fable)",
+                        usedpercent: 12,
+                        resetsat: Now + 4 * 24 * Hour,
+                        windowmins: 10080,
+                    },
+                ],
+            },
+        };
     }
     if (UsageLabels === "short") {
         return {
@@ -359,7 +386,7 @@ const view: CompanionView = {
     blockid: "preview-terminal",
     version: 1,
     status: "live",
-    agent: "claude",
+    agent: UsageProvider,
     agentname: "Claude Code",
     usage: { pageurl: "https://claude.ai/settings/usage", pagename: "Claude usage" } as CompanionView["usage"],
     session: {

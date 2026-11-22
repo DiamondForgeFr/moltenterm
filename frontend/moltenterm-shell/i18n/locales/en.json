@@ -2536,6 +2536,24 @@
             "explain": "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the reset icon before it says when the window starts again. The small figures under the blocks spread that total over the days from the reset, one seventh each, so they tell how many days' worth has been used.",
             "details": "Plan usage details",
             "detailsMore": "Plan usage details ({count} more)",
+            "rows": {
+                "title": "Rows shown",
+                "tool": "Choose the rows shown",
+                "toolHidden": {
+                    "one": "Choose the rows shown ({count} row hidden)",
+                    "other": "Choose the rows shown ({count} rows hidden)"
+                },
+                "dialog": "Rows shown of {name}",
+                "hidden": {
+                    "one": "{count} row hidden",
+                    "other": "{count} rows hidden"
+                },
+                "allShown": "Every row is shown",
+                "lastOne": "At least one row stays shown",
+                "none": "The rows appear once the plan's usage is read.",
+                "nowShown": "{label} row shown",
+                "nowHidden": "{label} row hidden"
+            },
             "setupLabel": "Plan usage setup",
             "setupIntro": "The agent gives your plan's limits to its status line. Wrap your status line in MoltenTerm's relay and the gauges show here.",
             "setupReplace": "Replace the statusLine entry in",

@@ -1128,6 +1128,39 @@ button.mt-cb-setting:focus-visible {
     background: var(--mt-surface-2);
 }
 
+/* The plan usage's rows (#2462): a switch per window, in the settings popover under the block's options (separated) or
+   alone in the popover of the usage block's rows tool. The switch of the last row that shows stays on and says why. */
+.mt-cb-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mt-cb-rows-separated {
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--mt-line-2);
+}
+
+.mt-cb-rows-note {
+    margin: 2px 4px 0;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 1.35;
+}
+
+button.mt-cb-setting[aria-disabled="true"] {
+    cursor: default;
+}
+
+button.mt-cb-setting[aria-disabled="true"]:hover {
+    background: none;
+}
+
+.mt-cb-setting[aria-disabled="true"] > .mt-cb-switch {
+    opacity: 0.5;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .mt-cb-settings {
         animation: mt-fade-in var(--mt-duration-fade) linear;

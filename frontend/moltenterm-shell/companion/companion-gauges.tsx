@@ -42,6 +42,8 @@ import {
     CompanionUsageGaugesCommand,
 } from "./companion-model";
 import { useCompanionPref } from "./companion-prefs";
+import { UsageRowsTool } from "./companion-usage-rows";
+import { UsageRowsProps, withRowChoice } from "./companion-usage-rows-model";
 
 const RpcTimeoutMs = 12000;
 // While the setup shows, the settings are looked at again this often, read-only: pasting the snippet is detected
@@ -226,11 +228,14 @@ export function PlanUsageSection({
     agent,
     frame,
     form,
+    rows,
 }: {
     target: string;
     agent: string;
     frame?: UsageFrame;
     form?: UsageForm;
+    // The rows the developer chose to show (#2462); every row without it.
+    rows?: UsageRowsProps;
 }) {
     // The views are built by the model with t(): reading the language re-renders the section when it changes.
     useT();
@@ -248,7 +253,8 @@ export function PlanUsageSection({
     }, [offered]);
     return (
         <PlanUsageBody
-            view={gaugesView(info, now)}
+            view={withRowChoice(gaugesView(info, now), rows?.hidden ?? [])}
+            rows={rows}
             experimental={experimental}
             confirming={confirming}
             onConfirming={setConfirming}
@@ -364,6 +370,7 @@ export function PlanUsageBody({
     onDetails,
     frame,
     form,
+    rows,
 }: {
     view: GaugesView;
     experimental?: ExperimentalView;
@@ -373,8 +380,16 @@ export function PlanUsageBody({
     compact?: boolean;
     frame?: UsageFrame;
     form?: UsageForm;
+    // The rows the view leaves out are chosen where the frame offers it (#2462).
+    rows?: UsageRowsProps;
 } & PlanUsageActions) {
     const t = useT();
+    const listed = view.kind === "enabled" ? (view.listed ?? []) : [];
+    const listedKey = JSON.stringify(listed);
+    const onListed = rows?.onListed;
+    useEffect(() => {
+        onListed?.(listed);
+    }, [onListed, listedKey]);
     const extra = (
         <ExperimentalRow
             view={experimental}
@@ -398,6 +413,7 @@ export function PlanUsageBody({
                 onRefresh={onRefresh}
                 frame={frame}
                 form={form ?? "full"}
+                rows={rows}
             />
         );
     }
@@ -513,6 +529,7 @@ function FramedUsage({
     onRefresh,
     frame,
     form,
+    rows,
 }: {
     view: Exclude<GaugesView, { kind: "hidden" }>;
     extra: ReactNode;
@@ -523,6 +540,7 @@ function FramedUsage({
     onRefresh: () => void;
     frame: UsageFrame;
     form: UsageForm;
+    rows?: UsageRowsProps;
 }) {
     const t = useT();
     const [unfolded, setUnfolded] = useState(false);
@@ -576,6 +594,22 @@ function FramedUsage({
             body: <StatusLineSetupCard setup={view.setup} failed={failed} onHide={onHide} extra={extra} bare />,
         });
     }
+    // The choice of the rows (#2462) is among the tools while the block draws its rows alone, where they have room; in the
+    // full block the tools chip already holds the age, the refresh and Hide, so it stands in the line of the source.
+    const rowsTool =
+        rows?.onSet != null && (view.listed?.length ?? 0) > 1 ? (
+            <UsageRowsTool
+                choices={view.listed}
+                name={t("companion.gauges.title")}
+                onSet={(id, hide) =>
+                    rows.onSet(
+                        id,
+                        hide,
+                        view.listed.map((choice) => choice.id)
+                    )
+                }
+            />
+        ) : null;
     return frame({
         state: "enabled",
         tools: (
@@ -600,6 +634,7 @@ function FramedUsage({
                     </button>
                 )}
                 {rowsOnly || !view.age ? null : <span className="mt-cb-tool-meta">{view.age}</span>}
+                {rowsOnly ? rowsTool : null}
                 <button
                     type="button"
                     className="mt-cb-tool"
@@ -630,13 +665,16 @@ function FramedUsage({
                 data-testid="companion-plan-usage"
                 data-state="enabled"
             >
-                <div className="flex flex-wrap items-center gap-2">
-                    <ExperimentalBadge />
-                    {view.source ? (
-                        <span className="text-11 text-muted">
-                            {t("companion.gauges.from", { source: view.source })}
-                        </span>
-                    ) : null}
+                <div className="flex items-start gap-2">
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                        <ExperimentalBadge />
+                        {view.source ? (
+                            <span className="text-11 text-muted">
+                                {t("companion.gauges.from", { source: view.source })}
+                            </span>
+                        ) : null}
+                    </div>
+                    {rowsTool != null ? <span className="flex shrink-0">{rowsTool}</span> : null}
                 </div>
                 <div data-testid="companion-gauges">
                     <UsageWeekGrid
