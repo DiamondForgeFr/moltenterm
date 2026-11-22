@@ -117,6 +117,9 @@ func TestPaneWatchedTreeProbesOncePerChange(t *testing.T) {
 	}
 	commit(t, clone, "b.txt", "feat(#2): second")
 	w.waitChange(t, clone)
+	// Requests that share a tree while no change reaches it share one probe: a double probe of one change fails here.
+	seqBefore, _ := w.watch.Seq(clone)
+	probesBefore := git.count("status")
 	var wg sync.WaitGroup
 	for j := 0; j < 4; j++ {
 		wg.Add(1)
@@ -126,9 +129,20 @@ func TestPaneWatchedTreeProbesOncePerChange(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+	seqAfter, _ := w.watch.Seq(clone)
+	if seqBefore == seqAfter && git.count("status")-probesBefore > 1 {
+		t.Fatalf("requests sharing one unchanged tree probed %d times", git.count("status")-probesBefore)
+	}
+	// A commit's writes can reach the watch in two bursts under load. Each burst is a change the watch reports and
+	// the pane probes again, so this checks that the commit was probed and answered, not how many times.
 	after, _ := w.panes.Get(PaneRequest{Dir: clone})
-	if git.count("status") != 2 || after.Ahead != 1 || after.Sha == first.Sha {
-		t.Fatalf("after a commit: %d probes, %+v", git.count("status"), after)
+	for after.Ahead != 1 || after.Sha == first.Sha {
+		// A probe that read the branch before git moved it answers the old commit: the next change is the branch's.
+		w.waitChange(t, clone)
+		after, _ = w.panes.Get(PaneRequest{Dir: clone})
+	}
+	if git.count("status") < 2 {
+		t.Fatalf("the commit was not probed: %d probes, %+v", git.count("status"), after)
 	}
 	// A file edited outside a terminal changes no git file: it shows within paneWatchedMaxAge.
 	os.WriteFile(filepath.Join(clone, "edited.txt"), []byte("x"), 0644)
@@ -136,15 +150,17 @@ func TestPaneWatchedTreeProbesOncePerChange(t *testing.T) {
 	if state, _ := w.panes.Get(PaneRequest{Dir: clone}); state.Dirty {
 		t.Fatal("probed before the edit could be known")
 	}
+	probes := git.count("status")
 	w.advance(paneWatchedMaxAge)
-	if state, _ := w.panes.Get(PaneRequest{Dir: clone}); !state.Dirty || git.count("status") != 3 {
-		t.Fatalf("the edit after the watched max age: %+v, %d probes", state, git.count("status"))
+	if state, _ := w.panes.Get(PaneRequest{Dir: clone}); !state.Dirty || git.count("status") <= probes {
+		t.Fatalf("the edit after the watched max age: %+v, %d probes before", state, probes)
 	}
 	// A prompt back still probes.
+	probes = git.count("status")
 	w.advance(2 * time.Second)
 	w.panes.Get(PaneRequest{Dir: clone, Fresh: true})
-	if git.count("status") != 4 {
-		t.Fatalf("a fresh request did not probe: %d", git.count("status"))
+	if git.count("status") <= probes {
+		t.Fatalf("a fresh request did not probe: %d", probes)
 	}
 }
 
