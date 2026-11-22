@@ -33,6 +33,38 @@ const AppFolders = { arm64: "mac-arm64", x64: "mac" };
 
 const defaultProjectDir = fileURLToPath(new URL("../../", import.meta.url));
 
+export const FAILURE_PACKAGING = "packaging (no notarization started)";
+export const FAILURE_AGREEMENT = "app notarization: agreement missing or expired (Apple HTTP 403)";
+export const FAILURE_AUTH = "app notarization: authentication refused (API key)";
+export const FAILURE_REJECTED = "app notarization: rejected (invalid)";
+export const FAILURE_UNREACHABLE = "app notarization: service unreachable or timed out";
+export const FAILURE_UNKNOWN = "unknown";
+
+const NotaryMarker = /notari[sz]|notary/i;
+const NotaryAgreement =
+    /agreement[^\n]{0,80}(?:missing|expired)|(?:missing|expired)[^\n]{0,80}agreement|HTTP status code:?\s*403/i;
+const NotaryAuth =
+    /HTTP status code:?\s*401|unauthori[sz]ed|invalid (?:credentials|api key|issuer|key)|authentication (?:failed|error|refused)|not authori[sz]ed/i;
+const NotaryRejected =
+    /status:\s*invalid|notari[sz]ation[^\n]{0,40}(?:invalid|rejected)|package invalid|rejected the submission/i;
+const NotaryUnreachable =
+    /timed? ?out|ETIMEDOUT|ENOTFOUND|ECONNRESET|ECONNREFUSED|ENETUNREACH|EAI_AGAIN|network connection|internet connection appears to be offline|HTTP status code:?\s*5\d\d|service unavailable/i;
+const PackagingSignal =
+    /electron|download|ENOENT|app-builder|asar|rebuild|packag|cannot find module|npm err|ENOSPC|EACCES|disk/i;
+
+// Maps the builder's captured output to one fixed label. The output itself is never logged: only the label is.
+export function classifyBuilderFailure(output) {
+    const text = typeof output === "string" ? output : "";
+    if (NotaryMarker.test(text)) {
+        if (NotaryAgreement.test(text)) return FAILURE_AGREEMENT;
+        if (NotaryAuth.test(text)) return FAILURE_AUTH;
+        if (NotaryRejected.test(text)) return FAILURE_REJECTED;
+        if (NotaryUnreachable.test(text)) return FAILURE_UNREACHABLE;
+        return FAILURE_UNKNOWN;
+    }
+    return PackagingSignal.test(text) ? FAILURE_PACKAGING : FAILURE_UNKNOWN;
+}
+
 // Only the update-file provider may be chosen: the publish policy, identity and hooks come from the config file.
 export function builderArgs(extra) {
     for (const arg of extra) {
@@ -132,13 +164,21 @@ export async function packageRelease({
             );
             // The session reports any failure as "Signing session failed": name the stage first, with fixed labels only.
             try {
-                await runProcess(process.execPath, [cli, ...args], { env: builderEnv, cwd: projectDir, signal });
+                await runProcess(process.execPath, [cli, ...args], {
+                    env: builderEnv,
+                    cwd: projectDir,
+                    signal,
+                    capture: true,
+                });
             } catch (error) {
                 const hookStage = await readStage(scoped.CSC_KEYCHAIN);
+                const label = classifyBuilderFailure(error?.output);
+                // The captured text must not travel with the error any further than this block.
+                if (error && "output" in error) delete error.output;
                 log(
                     hookStage
                         ? `::error::The builder failed in the ${hookStage}`
-                        : "::error::The builder failed outside the sign hook (packaging, or its notarization of an app)"
+                        : `::error::The builder failed outside the sign hook: ${label}`
                 );
                 throw error;
             }

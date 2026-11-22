@@ -89,10 +89,13 @@ write DMG hashes taken before notarization.
 
 ## Process and cleanup
 
-The builder runs in a detached process group with ignored stdio. Only the fixed progress messages of `package.mjs` are
-logged: raw command errors, builder debug output, argv and environment are never forwarded, because upstream
-diagnostics can contain credentials. A failed Developer ID build therefore says only which stage failed; reproduce it
-with the local fallback (RELEASE.md) to see the builder's own output.
+The builder runs in a detached process group with no inherited stdio; its output is read into a bounded in-memory tail
+(64 KiB) and never forwarded. Only the fixed progress messages of `package.mjs` are logged: raw command errors, builder
+debug output, argv and environment never reach the log, because upstream diagnostics can contain credentials. A failed
+Developer ID build says which stage failed: a sign hook stage, or, outside the hook, one fixed label that
+`classifyBuilderFailure` picks from the captured tail (then dropped): packaging, app notarization with the agreement
+missing or expired (HTTP 403), authentication refused, rejected (invalid), service unreachable or timed out, or
+`unknown`. Reproduce it with the local fallback (RELEASE.md) to see the builder's own output.
 
 Cancellation sends TERM to the owned process group, escalates to KILL after five seconds, and waits for both the parent
 and the group to be gone before keychain cleanup. Persistent OS or probe errors, or a group that is never reaped, fail
