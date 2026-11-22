@@ -353,13 +353,12 @@ describe("the flow through a session's changes (#2466)", () => {
     ];
     const without = (...ids: string[]) => all.filter((b) => !ids.includes(b.id));
     // The first open (the milestone, the usage and the task not read yet), their answers, the permission request,
-    // arranging (every block folded to a line), resizes, the task cleared and the milestone grown.
-    const steps: { blocks: FlowBlock[]; width: number; arranging?: boolean }[] = [
+    // resizes, the task cleared and the milestone grown. Arranging lays out the same blocks at their real size (#2467).
+    const steps: { blocks: FlowBlock[]; width: number }[] = [
         { blocks: without("permission", "tasks", "usage", "task"), width: 968 },
         { blocks: without("permission", "usage", "task"), width: 968 },
         { blocks: without("permission"), width: 968 },
         { blocks: all, width: 968 },
-        { blocks: all.map((b) => ({ ...b, height: 40 })), width: 968, arranging: true },
         { blocks: without("permission"), width: 968 },
         { blocks: without("permission"), width: 684 },
         { blocks: without("permission", "task"), width: 684 },
@@ -374,7 +373,7 @@ describe("the flow through a session's changes (#2466)", () => {
     it("never draws two blocks over each other, each at its column's width", () => {
         let previous: FlowResult = null;
         for (const step of steps) {
-            const r = flowLayout(step.blocks, step.width, previous?.assign, { arranging: step.arranging });
+            const r = flowLayout(step.blocks, step.width, previous?.assign);
             expect(overlaps(r, step.blocks)).toEqual([]);
             for (const p of r.items) {
                 expect(p.width).toBe(p.full && r.columns >= 2 ? r.innerWidth : r.columnWidth);
