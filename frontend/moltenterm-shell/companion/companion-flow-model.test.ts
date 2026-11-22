@@ -10,6 +10,8 @@ import {
     FlowGutterPx,
     flowLayout,
     FlowResult,
+    keepsColumns,
+    layoutIdOf,
     linesOnHover,
 } from "./companion-flow-model";
 
@@ -236,11 +238,73 @@ describe("the milestone and the agents at work, a pair (#2441)", () => {
         expect([t.column, a.column, t.y, a.y]).toEqual([0, 1, 0, 0]);
     });
 
-    it("flows like the others in one column, while arranging, or when one of the two takes the full width", () => {
+    it("flows like the others in one column, or when one of the two takes the full width", () => {
         expect(flowLayout(pairSet, 420).paired).toBe(false);
-        expect(flowLayout(pairSet, 1200, undefined, { arranging: true }).paired).toBe(false);
         const wide = pairSet.map((b) => (b.id === "agents" ? { ...b, full: true } : b));
         expect(flowLayout(wide, 1200).paired).toBe(false);
+    });
+});
+
+describe("the columns hold while the blocks keep their order (#2467)", () => {
+    // "p*" is a block of the full width.
+    const list = (...ids: string[]) => ids.map((id) => ({ id: id.replace("*", ""), full: id.endsWith("*") }));
+
+    it("holds for the same blocks, and for blocks that come or go around the ones that stay", () => {
+        expect(keepsColumns(list(), list())).toBe(true);
+        expect(keepsColumns(list(), list("a", "b"))).toBe(true);
+        expect(keepsColumns(list("a", "b", "c"), list("a", "b", "c"))).toBe(true);
+        // The permission request comes and goes; a ghost is put in the place of a block with nothing to show.
+        expect(keepsColumns(list("a", "b", "c"), list("p*", "a", "b", "c"))).toBe(true);
+        expect(keepsColumns(list("p*", "a", "b", "c"), list("a", "b", "c"))).toBe(true);
+        expect(keepsColumns(list("a", "b", "c"), list("a", "g", "b", "c"))).toBe(true);
+        expect(keepsColumns(list("a", "b", "c"), list("a", "c"))).toBe(true);
+    });
+
+    it("does not hold for a block that moved, or that took or left the full width", () => {
+        expect(keepsColumns(list("a", "b", "c"), list("a", "c", "b"))).toBe(false);
+        expect(keepsColumns(list("a", "b", "c"), list("c", "a", "b"))).toBe(false);
+        expect(keepsColumns(list("a", "b", "c"), list("a", "b*", "c"))).toBe(false);
+        expect(keepsColumns(list("a", "b*", "c"), list("a", "b", "c"))).toBe(false);
+    });
+
+    it("keeps the ghost of the milestone or of the agents out of their pair", () => {
+        expect(layoutIdOf("tasks", false)).toBe("tasks");
+        expect(layoutIdOf("tasks", true)).toBe("ghost:tasks");
+        expect(layoutIdOf("agents", true)).toBe("ghost:agents");
+        expect(layoutIdOf("answer", true)).toBe("answer");
+        const withGhost: FlowBlock[] = [
+            { id: "usage", height: 100 },
+            { id: layoutIdOf("tasks", true), height: 56 },
+            { id: "agents", height: 190 },
+            { id: "topics", height: 120 },
+        ];
+        const alone = flowLayout(
+            withGhost.filter((b) => !b.id.startsWith("ghost")),
+            1200
+        );
+        // The agents stay in the column they have without the ghost, which is only another block of the flow.
+        const next = flowLayout(withGhost, 1200, alone.assign);
+        expect(next.paired).toBe(false);
+        expect(next.items.find((p) => p.id === "agents").column).toBe(
+            alone.items.find((p) => p.id === "agents").column
+        );
+    });
+
+    it("lets a block that moved choose its column by its rank, and the others keep theirs when nothing moved", () => {
+        const blocks: FlowBlock[] = [
+            { id: "a", height: 300 },
+            { id: "b", height: 100 },
+            { id: "c", height: 100 },
+            { id: "d", height: 50 },
+        ];
+        const first = flowLayout(blocks, 760);
+        const grown = blocks.map((b) => (b.id === "b" ? { ...b, height: 600 } : b));
+        const kept = keepsColumns(blocks, grown) ? first.assign : undefined;
+        expect(flowLayout(grown, 760, kept).items.map((p) => p.column)).toEqual(first.items.map((p) => p.column));
+        const moved = [blocks[1], blocks[0], blocks[2], blocks[3]];
+        const fresh = keepsColumns(blocks, moved) ? first.assign : undefined;
+        expect(fresh).toBeUndefined();
+        expect(flowLayout(moved, 760, fresh).items.map((p) => p.column)).toEqual([0, 1, 0, 0]);
     });
 });
 

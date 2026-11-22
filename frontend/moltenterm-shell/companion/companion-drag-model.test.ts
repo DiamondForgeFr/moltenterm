@@ -16,7 +16,7 @@ import {
     startLongPress,
     startsPress,
 } from "./companion-drag-model";
-import { FlowBlock, flowLayout } from "./companion-flow-model";
+import { FlowBlock, flowLayout, PairIds } from "./companion-flow-model";
 
 // Timers that only run when the test says so: no wall clock anywhere, so the machine's load decides nothing.
 function fakeTimers() {
@@ -168,7 +168,7 @@ describe("the drag itself (#2459)", () => {
     });
 });
 
-// Heights as the arranging mode draws them: every block folded to its header and one line, the options taller.
+// Heights of the blocks as the flow lays them out, the main ones taller than the ghosts of the blocks with nothing to show.
 const Folded: FlowBlock[] = [
     { id: "permission", height: 60, full: true },
     { id: "tasks", height: 60 },
@@ -187,7 +187,7 @@ function centerOf(blocks: FlowBlock[], id: string, index: number, width: number)
     const dragged = blocks.find((b) => b.id === id);
     const others = blocks.filter((b) => b.id !== id);
     const order = [...others.slice(0, index), dragged, ...others.slice(index)];
-    const slot = flowLayout(order, width, undefined, { arranging: true }).items[index];
+    const slot = flowLayout(order, width).items[index];
     return { x: slot.x + slot.width / 2, y: slot.y + dragged.height / 2 };
 }
 
@@ -199,12 +199,13 @@ describe("where a dragged block lands in the list (#2459)", () => {
                 for (let index = 0; index < Folded.length; index++) {
                     const center = centerOf(Folded, dragged.id, index, width);
                     const got = dropIndexAt(Folded, dragged.id, width, center);
-                    // Two indexes can give a full-width block the same place (between two blocks that stand side by
-                    // side): the slot is what the pointer covers, so either index is right.
+                    // Two indexes can give the same place to a full-width block, or beside the pair (a block between
+                    // the milestone and the agents stands under both): the slot is what the pointer covers, so either
+                    // index is right.
                     expect(centerOf(Folded, dragged.id, got, width), `${dragged.id} to ${index} in ${columns}`).toEqual(
                         center
                     );
-                    if (!dragged.full) {
+                    if (!dragged.full && !PairIds.includes(dragged.id) && columns === 1) {
                         expect(got, `${dragged.id} to ${index} in ${columns}`).toBe(index);
                     }
                 }
@@ -281,7 +282,7 @@ describe("where a dragged block lands in the list (#2459)", () => {
             { id: "c", height: 120 },
             { id: "d", height: 120 },
         ];
-        const right = flowLayout(blocks, width, undefined, { arranging: true }).items;
+        const right = flowLayout(blocks, width).items;
         expect(right.map((p) => p.column)).toEqual([0, 1, 0, 1]);
         const overB = { x: right[1].x + right[1].width / 2, y: right[1].y + 60 };
         expect(dropIndexAt(blocks, "c", width, overB)).toBe(1);
