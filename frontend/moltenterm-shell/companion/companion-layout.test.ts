@@ -243,3 +243,81 @@ describe("the usage block's minimal form and its attaching (#2450)", () => {
         });
     });
 });
+
+describe("the usage rows the developer hid (#2462)", () => {
+    const usageOfStored = (value: unknown) => readStoredLayout(value).find((p) => p.id === "usage");
+
+    it("reads a layout saved before them as hiding nothing: the default", () => {
+        expect(usageOfStored([{ id: "usage", span: "flow", minimal: true }]).hiddenrows).toBeUndefined();
+        expect(isDefaultLayout(readStoredLayout(DefaultCompanionLayout.map((p) => ({ ...p }))))).toBe(true);
+    });
+
+    it("keeps the keys hidden per provider, in one canonical order, and a layout round trips whole", () => {
+        const saved = [
+            {
+                id: "usage",
+                span: "flow",
+                hiddenrows: { kimi: ["month", "session", "month"], claude: ["model:fable"] },
+            },
+        ];
+        const once = readStoredLayout(saved);
+        expect(usageOfStored(saved).hiddenrows).toEqual({ claude: ["model:fable"], kimi: ["month", "session"] });
+        expect(Object.keys(usageOfStored(saved).hiddenrows)).toEqual(["claude", "kimi"]);
+        expect(readStoredLayout(JSON.parse(JSON.stringify(once)))).toEqual(once);
+    });
+
+    it("drops what is not a provider's list of keys, an empty list and a key that is no text", () => {
+        const stored = (hiddenrows: unknown) => usageOfStored([{ id: "usage", span: "flow", hiddenrows }]);
+        expect(stored("week")).toEqual({ id: "usage", span: "flow" });
+        expect(stored(["week"])).toEqual({ id: "usage", span: "flow" });
+        expect(stored({ kimi: [] })).toEqual({ id: "usage", span: "flow" });
+        expect(stored({ kimi: "month", "": ["week"] })).toEqual({ id: "usage", span: "flow" });
+        expect(stored({ kimi: ["", 3, null, "month", { id: "week" }], claude: 7 }).hiddenrows).toEqual({
+            kimi: ["month"],
+        });
+    });
+
+    it("bounds what a stored layout can make the app keep", () => {
+        const many = Array.from({ length: 80 }, (_, i) => `model:${String(i).padStart(2, "0")}`);
+        const long = "x".repeat(200);
+        const rows = usageOfStored([{ id: "usage", span: "flow", hiddenrows: { kimi: [...many, long] } }]).hiddenrows;
+        expect(rows.kimi).toHaveLength(32);
+        expect(rows.kimi).not.toContain(long);
+        const providers = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`p${i}`, ["week"]]));
+        expect(
+            Object.keys(usageOfStored([{ id: "usage", span: "flow", hiddenrows: providers }]).hiddenrows)
+        ).toHaveLength(16);
+    });
+
+    it("stores them for the usage block alone", () => {
+        const other = readStoredLayout([{ id: "files", span: "flow", hiddenrows: { kimi: ["month"] } }]);
+        expect(other.find((p) => p.id === "files")).toEqual({ id: "files", span: "flow" });
+    });
+
+    it("compares layouts by them, whatever the order the keys came in", () => {
+        const hide = (hiddenrows: unknown) =>
+            readStoredLayout(
+                DefaultCompanionLayout.map((p) => ({ ...p, ...(p.id === "usage" ? { hiddenrows } : {}) }))
+            );
+        const month = hide({ kimi: ["month"] });
+        expect(sameLayout(DefaultCompanionLayout, month)).toBe(false);
+        expect(isDefaultLayout(month)).toBe(false);
+        expect(sameLayout(month, hide({ kimi: ["session"] }))).toBe(false);
+        expect(sameLayout(month, hide({ claude: ["week"] }))).toBe(false);
+        expect(
+            sameLayout(
+                hide({ kimi: ["session", "month"], claude: ["week"] }),
+                hide({ claude: ["week"], kimi: ["month", "session"] })
+            )
+        ).toBe(true);
+    });
+
+    it("keeps them among the companion's other remembered choices", () => {
+        const layout = [{ id: "usage", span: "flow", hiddenrows: { kimi: ["month"] } }];
+        expect(readCompanionPrefs({ filesopen: true, layout }).layout.find((p) => p.id === "usage")).toEqual({
+            id: "usage",
+            span: "flow",
+            hiddenrows: { kimi: ["month"] },
+        });
+    });
+});
