@@ -331,11 +331,18 @@ func (s *Session) StartSubagent(id string, description string, kind string, mode
 	}
 	sa.description = cutRunes(oneLine(description), MaxSubagentText)
 	sa.kind = cutString(kind, 100)
-	sa.model = cutString(model, 100)
-	sa.effort = cutString(effort, 40)
+	if model != "" || !sa.found {
+		sa.model = cutString(model, 100)
+	}
+	if effort != "" || !sa.found {
+		sa.effort = cutString(effort, 40)
+	}
 	sa.background = background
 	sa.state = SubagentRunning
 	sa.started = at
+	// A row its own files added before the call reached the transcript (#2468) is now a recorded agent: its parent's
+	// records tell its end.
+	sa.found = false
 	s.touch()
 }
 
@@ -359,6 +366,36 @@ func (s *Session) SetSubagentId(callId string, agentId string) {
 		return
 	}
 	sa.agentId = cutString(agentId, 200)
+	s.mergeSubagentRows(sa)
+}
+
+// mergeSubagentRows folds into the call's row another row of the same agent (#2468): its own files listed it while
+// the transcript had not yet named its call, the call's result then gives its agent id. The call's row keeps its
+// start and state; the files' row only fills what the call's row lacks.
+func (s *Session) mergeSubagentRows(sa *subagent) {
+	for i, other := range s.subagents {
+		if other == sa || other.agentId != sa.agentId {
+			continue
+		}
+		if sa.worktree == "" {
+			sa.worktree = other.worktree
+		}
+		if sa.branch == "" {
+			sa.branch = other.branch
+		}
+		if sa.model == "" {
+			sa.model = other.model
+		}
+		if sa.effort == "" {
+			sa.effort = other.effort
+		}
+		if sa.started == 0 {
+			sa.started = other.started
+		}
+		s.subagents = append(s.subagents[:i:i], s.subagents[i+1:]...)
+		s.touch()
+		return
+	}
 }
 
 // QuietSubagents settles the background agents whose end the transcript did not tell: one that wrote nothing for
