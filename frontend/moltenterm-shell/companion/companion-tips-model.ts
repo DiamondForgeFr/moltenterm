@@ -126,6 +126,48 @@ export function tipTargetOf(node: EventTarget, within: Element = null, adds = ti
     return null;
 }
 
+export type TipRect = {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+};
+
+// The box a popover about an element stands on (#2458). An element with `display: contents` (a row of the usage grid,
+// whose cells are the grid's own) has no box: its rectangle is empty and sits at the page's corner, where the popover
+// about the row stood. It stands on the union of the boxes of what the element holds instead. null: nothing to stand on.
+export function contentsRect(
+    element: Element,
+    displayOf: (e: Element) => string = (e) => getComputedStyle(e).display
+): TipRect {
+    const boxes: DOMRect[] = [];
+    const collect = (parent: Element) => {
+        for (const child of Array.from(parent.children)) {
+            if (displayOf(child) === "contents") {
+                collect(child);
+                continue;
+            }
+            const r = child.getBoundingClientRect();
+            if (r.width > 0 || r.height > 0) {
+                boxes.push(r);
+            }
+        }
+    };
+    collect(element);
+    if (boxes.length === 0) {
+        return null;
+    }
+    const left = Math.min(...boxes.map((r) => r.left));
+    const top = Math.min(...boxes.map((r) => r.top));
+    const right = Math.max(...boxes.map((r) => r.right));
+    const bottom = Math.max(...boxes.map((r) => r.bottom));
+    return { x: left, y: top, width: right - left, height: bottom - top, top, right, bottom, left };
+}
+
 // The message text as parts: the text between the placeholders and the numbers the placeholders name.
 export type MessagePart = { text: string } | { image: number };
 

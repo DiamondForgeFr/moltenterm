@@ -9,8 +9,28 @@
 // element keeps both: a click on an image's chip opens the image full size.
 
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { autoUpdate, flip, FloatingPortal, offset, shift, size, type UseFloatingOptions } from "@floating-ui/react";
-import { lazy, Suspense, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+    autoUpdate,
+    flip,
+    FloatingPortal,
+    offset,
+    shift,
+    size,
+    type UseFloatingOptions,
+    type VirtualElement,
+} from "@floating-ui/react";
+import {
+    lazy,
+    Suspense,
+    useCallback,
+    useContext,
+    useEffect,
+    useId,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { formatSize } from "../downloads/downloads-format";
 import { useFloatingInPlace } from "../floating-in-place";
 import { useT } from "../i18n/i18n";
@@ -20,6 +40,7 @@ import { ImageAccess, ImageAccessContext, useChipImage, useImagePixels } from ".
 import { CompanionImageCommand, CompanionRoute } from "./companion-model";
 import {
     CompanionImage,
+    contentsRect,
     FocusDelayMs,
     HoverDelayMs,
     imageBytes,
@@ -256,6 +277,18 @@ function TipsHost({
     );
 }
 
+// What the popover is placed against when the element has no box of its own (display: contents): the boxes it holds.
+// null for any other element, which is placed against itself.
+function tipPlacement(element: HTMLElement): VirtualElement {
+    if (getComputedStyle(element).display !== "contents") {
+        return null;
+    }
+    return {
+        contextElement: element,
+        getBoundingClientRect: () => (contentsRect(element) ?? element.getBoundingClientRect()) as DOMRect,
+    };
+}
+
 function TipSurface({
     target,
     id,
@@ -270,6 +303,7 @@ function TipSurface({
     onText: (next: TipTarget) => void;
 }) {
     const detect = { boundary: boundary ?? undefined, padding: 6 };
+    const placement = useMemo(() => tipPlacement(target.element), [target.element]);
     const options: Partial<UseFloatingOptions> = {
         open: true,
         placement: "top",
@@ -289,6 +323,9 @@ function TipSurface({
         whileElementsMounted: autoUpdate,
     };
     const { refs, floatingStyles } = useFloatingInPlace(options);
+    useLayoutEffect(() => {
+        refs.setPositionReference(placement);
+    }, [refs, placement]);
     useEffect(
         () =>
             TabActivity.getInstance().every(

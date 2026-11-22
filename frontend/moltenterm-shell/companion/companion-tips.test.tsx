@@ -16,6 +16,7 @@ import { companionMarkdown, CompanionView } from "./companion-model";
 import { topicRows } from "./companion-recap-model";
 import { ImageTip, ImageTipView } from "./companion-tips";
 import {
+    contentsRect,
     hasImagePlaceholder,
     ImageAtAttr,
     ImageAttr,
@@ -408,6 +409,60 @@ describe("which element asks for a popover (#2455)", () => {
         const alone = new FakeNode();
         const lone = alone.add(new FakeNode({ "data-tip": "Search the settings" }, "Search the settings"));
         expect(tipTargetOf(lone as any, alone as any)).toBeNull();
+    });
+});
+
+// A row of the usage grid is display: contents: its own rectangle is empty and at the page's corner (#2458).
+describe("the box a popover stands on", () => {
+    type Box = { left: number; top: number; right: number; bottom: number };
+    class FakeBox {
+        children: FakeBox[] = [];
+        constructor(
+            public display: string,
+            private box: Box = null
+        ) {}
+        add(child: FakeBox): FakeBox {
+            this.children.push(child);
+            return child;
+        }
+        getBoundingClientRect() {
+            const b = this.box ?? { left: 0, top: 0, right: 0, bottom: 0 };
+            return { ...b, x: b.left, y: b.top, width: b.right - b.left, height: b.bottom - b.top };
+        }
+    }
+    const displayOf = (e: unknown) => (e as FakeBox).display;
+
+    it("is the union of the boxes of what a display: contents element holds, nested ones too", () => {
+        const row = new FakeBox("contents");
+        row.add(new FakeBox("block", { left: 40, top: 100, right: 140, bottom: 113 }));
+        row.add(new FakeBox("block", { left: 144, top: 102, right: 300, bottom: 108 }));
+        const group = row.add(new FakeBox("contents"));
+        group.add(new FakeBox("flex", { left: 304, top: 98, right: 360, bottom: 116 }));
+        row.add(new FakeBox("block", { left: 144, top: 118, right: 300, bottom: 130 }));
+        expect(contentsRect(row as any, displayOf)).toEqual({
+            x: 40,
+            y: 98,
+            width: 320,
+            height: 32,
+            top: 98,
+            right: 360,
+            bottom: 130,
+            left: 40,
+        });
+    });
+
+    it("leaves out what has no box and says there is none when nothing holds one", () => {
+        const row = new FakeBox("contents");
+        row.add(new FakeBox("block"));
+        expect(contentsRect(row as any, displayOf)).toBeNull();
+        row.add(new FakeBox("block", { left: 5, top: 6, right: 25, bottom: 16 }));
+        expect(contentsRect(row as any, displayOf)).toMatchObject({ left: 5, top: 6, width: 20, height: 10 });
+    });
+
+    it("is used by the popover's surface for such an element only", () => {
+        const source = readFileSync(join(__dirname, "companion-tips.tsx"), "utf8");
+        expect(source).toContain('getComputedStyle(element).display !== "contents"');
+        expect(source).toContain("refs.setPositionReference(placement)");
     });
 });
 
