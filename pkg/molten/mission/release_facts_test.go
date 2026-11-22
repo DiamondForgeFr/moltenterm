@@ -209,3 +209,32 @@ func TestTerminalReleaseCanBeDismissed(t *testing.T) {
 		t.Fatalf("a newer tag is followed again: %+v", facts)
 	}
 }
+
+// #2368: the tag's run says which attempt it is, so a rerun of its failed jobs can be told from the first run.
+func TestReleaseRunsCarryTheirAttempt(t *testing.T) {
+	t.Parallel()
+	var asked string
+	r := &Runs{git: func(ctx context.Context, dir string, name string, args ...string) ([]byte, error) {
+		if name != "gh" {
+			return nil, errors.New("only gh")
+		}
+		joined := strings.Join(args, " ")
+		switch {
+		case strings.HasPrefix(joined, "run list"):
+			asked = joined
+			return []byte(`[{"databaseId":7,"workflowName":"Release","headBranch":"v1.0.0-12","status":"in_progress","conclusion":"","url":"u","createdAt":"2026-11-18T08:30:17Z","attempt":2},
+				{"databaseId":6,"workflowName":"CI","headBranch":"develop","status":"completed","conclusion":"success","url":"u","createdAt":"2026-11-18T08:00:00Z","attempt":1}]`), nil
+		case strings.HasPrefix(joined, "run view"):
+			return []byte(`{"jobs":[]}`), nil
+		}
+		return nil, errors.New("not found")
+	}}
+	facts := ReleaseFacts{Tag: "v1.0.0-12", Trunk: "develop"}
+	r.readGithubRelease(context.Background(), "", &facts)
+	if !strings.Contains(asked, "attempt") {
+		t.Fatalf("the attempt is not asked for: %q", asked)
+	}
+	if len(facts.Runs) != 1 || facts.Runs[0].Attempt != 2 {
+		t.Fatalf("the tag's run and its attempt: %+v", facts.Runs)
+	}
+}

@@ -304,7 +304,7 @@ function ActionButton({
     const [notice, setNotice] = useState<string>(null); // an i18n key, worded at render: the language may change meanwhile
     const [unproved, setUnproved] = useState<ManualCheckFailure>(null);
     const [forcing, setForcing] = useState(false);
-    const confirm = action.kind === "step" || action.kind === "dispatch" ? action.confirm : null;
+    const confirm = action.kind === "prepare" ? null : action.confirm;
     const key = `${plain ? "redo" : "action"}:${action.label}`;
     const busy = lock.pending === key;
     // The warning stays up while its check runs again: the list is replaced by the new one, or goes once recorded.

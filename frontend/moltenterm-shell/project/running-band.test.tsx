@@ -301,7 +301,9 @@ describe("the Now card, flat (AC-1, AC-4)", () => {
 
     it("says a run in the band is running, see above, and holds no block of its own", () => {
         const html = now(props({ runs: [build(), earlier], releaseFollow: follow() }));
-        expect(html.match(/running, see above/g)).toHaveLength(2);
+        expect(html.match(/running, see above/g)).toHaveLength(1);
+        // The release builds on GitHub: its line says so (#2368).
+        expect(html).toContain("building, see above");
         for (const gone of ["build-run", "release-run", "bg-gradient", "rounded-6 border", "border-yellow"]) {
             expect(html, gone).not.toContain(gone);
         }

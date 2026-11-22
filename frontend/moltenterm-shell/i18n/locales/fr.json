@@ -5240,6 +5240,8 @@
             "githubUnread": "Impossible de lire GitHub.",
             "waitingRun": "En attente d'une exécution GitHub lancée par {tag}…",
             "jobsDone": "{done}/{total} jobs terminés.",
+            "rerunJobsDone": "Relance, tentative {attempt} : {done}/{total} jobs terminés.",
+            "rerunConfirm": "Relancer les jobs en échec de {tag} ({jobs}) ? Les autres jobs gardent leur résultat.",
             "builtOnGithub": "Compilé sur GitHub.",
             "rerunOrFix": "Relancez les jobs en échec, ou corrigez et coupez de nouveau.",
             "failedJobs": "En échec : {jobs}.",
@@ -7338,10 +7340,15 @@
             "commit": "Commit {sha}",
             "runningAbove": "en cours, voir au-dessus",
             "failedAbove": "échec, voir au-dessus",
+            "buildingAbove": "compilation en cours, voir au-dessus",
+            "publishedAbove": "publiée, voir au-dessus",
             "rebuild": "Relancer",
             "release": "Release {tag}",
             "published": "publiée {ago}",
-            "publishedUndated": "publiée"
+            "publishedUndated": "publiée",
+            "tagPushed": "tag poussé {ago}",
+            "tagPushedUndated": "tag poussé",
+            "draftRelease": "release en brouillon, pas encore publiée"
         },
         "work": {
             "jobs": "{done}/{total} jobs",
@@ -7366,6 +7373,7 @@
             "releaseCandidate": "release candidate",
             "releasePublic": "release publique",
             "releaseTagged": "{channel} · tag poussé",
+            "rerunAttempt": "Relance · tentative {attempt}",
             "seeOnGithub": "Voir sur GitHub",
             "details": "Détails",
             "duration": {

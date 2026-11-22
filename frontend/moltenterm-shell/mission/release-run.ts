@@ -36,6 +36,8 @@ export type ReleaseGhRun = {
     conclusion: string;
     url: string;
     createdAt: string;
+    // Above 1 once the run's failed jobs were run again (#2368).
+    attempt?: number;
 };
 
 export type ReleaseGhJob = {
@@ -114,7 +116,7 @@ export type PhaseAction =
     // force: a manual step recorded although its check failed, the developer having confirmed it (#1095).
     | { kind: "step"; step: string; label: string; confirm?: string; busy?: string; force?: boolean }
     | { kind: "prepare"; label: string; busy?: string }
-    | { kind: "rerun"; label: string; busy?: string }
+    | { kind: "rerun"; label: string; confirm?: string; busy?: string }
     | { kind: "dispatch"; workflow: string; label: string; confirm: string; busy?: string };
 
 export type Phase = {
@@ -139,6 +141,8 @@ export type Phase = {
     scope?: ChangelogScope;
     // An environment waiting for its approval on GitHub.
     approval?: ReleaseApproval;
+    // The release workflow runs again after a rerun of its failed jobs: the attempt it is at (#2368).
+    attempt?: number;
 };
 
 // A GitHub run a failed step names: the trunk's CI a promotion waited on, or the release workflow's run.
@@ -570,11 +574,20 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
     if (latest.some((r) => r.status !== "completed")) {
         const jobs = facts.jobs ?? [];
         const done = jobs.filter((j) => j.status === "completed").length;
+        const total = jobs.length || "?";
+        const attempt = Math.max(0, ...latest.filter((r) => r.status !== "completed").map((r) => r.attempt ?? 0));
+        // A job can fail while the others still run: said now, rather than once the whole run ended.
+        const failedSoFar = jobs.filter((j) => FailedConclusions.has(j.conclusion)).map((j) => j.name);
         return {
             ...base,
             links,
             status: "running",
-            expect: t("mc.releaseRun.jobsDone", { done, total: jobs.length || "?" }),
+            expect:
+                attempt > 1
+                    ? t("mc.releaseRun.rerunJobsDone", { attempt, done, total })
+                    : t("mc.releaseRun.jobsDone", { done, total }),
+            cause: failedSoFar.length ? t("mc.releaseRun.failedJobs", { jobs: failedSoFar.join(", ") }) : undefined,
+            attempt: attempt > 1 ? attempt : undefined,
         };
     }
     const red = latest.filter((r) => FailedConclusions.has(r.conclusion));
@@ -593,7 +606,15 @@ function build(facts: ReleaseFacts, tag: string, steps: PipelineReleaseStep[]): 
                   workflows: red.map((r) => r.workflowName).join(", "),
                   conclusion: red[0].conclusion,
               }),
-        action: { kind: "rerun", label: t("mc.remote.rerunFailed"), busy: t("mc.releaseRun.pending.rerunning") },
+        action: {
+            kind: "rerun",
+            label: t("mc.remote.rerunFailed"),
+            confirm: t("mc.releaseRun.rerunConfirm", {
+                tag,
+                jobs: failedJobs.join(", ") || red.map((r) => r.workflowName).join(", "),
+            }),
+            busy: t("mc.releaseRun.pending.rerunning"),
+        },
         failure: {
             step: red.map((r) => r.workflowName).join(", "),
             runs: red.map((r) => ({ name: r.workflowName, runid: r.databaseId, url: r.url })),

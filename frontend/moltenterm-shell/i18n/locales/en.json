@@ -5240,6 +5240,8 @@
             "githubUnread": "GitHub could not be read.",
             "waitingRun": "Waiting for a GitHub run started by {tag}…",
             "jobsDone": "{done}/{total} jobs done.",
+            "rerunJobsDone": "Rerun, attempt {attempt}: {done}/{total} jobs done.",
+            "rerunConfirm": "Run the failed jobs of {tag} again ({jobs})? The other jobs keep their result.",
             "builtOnGithub": "Built on GitHub.",
             "rerunOrFix": "Rerun the failed jobs, or fix and cut again.",
             "failedJobs": "Failed: {jobs}.",
@@ -7338,10 +7340,15 @@
             "commit": "Commit {sha}",
             "runningAbove": "running, see above",
             "failedAbove": "failed, see above",
+            "buildingAbove": "building, see above",
+            "publishedAbove": "published, see above",
             "rebuild": "Rebuild",
             "release": "Release {tag}",
             "published": "published {ago}",
-            "publishedUndated": "published"
+            "publishedUndated": "published",
+            "tagPushed": "tag pushed {ago}",
+            "tagPushedUndated": "tag pushed",
+            "draftRelease": "draft release, not published yet"
         },
         "work": {
             "jobs": "{done}/{total} jobs",
@@ -7366,6 +7373,7 @@
             "releaseCandidate": "release candidate",
             "releasePublic": "public release",
             "releaseTagged": "{channel} · tag pushed",
+            "rerunAttempt": "Rerun · attempt {attempt}",
             "seeOnGithub": "See on GitHub",
             "details": "Details",
             "duration": {
