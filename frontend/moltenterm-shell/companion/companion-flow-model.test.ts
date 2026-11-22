@@ -322,3 +322,65 @@ describe("the dashboard's lists and lines (#2441)", () => {
         expect(capList(list.slice(0, 8), false)).toEqual({ shown: list.slice(0, 8), more: 0 });
     });
 });
+
+// The flow as the companion lives it (#2466): blocks that appear and go on their sections' own state, the arranging mode
+// entered and left, the companion resized. Each call takes the previous call's assignment, as the dashboard does.
+describe("the flow through a session's changes (#2466)", () => {
+    const overlaps = (r: FlowResult, blocks: FlowBlock[]) => {
+        const height = new Map(blocks.map((b) => [b.id, b.height]));
+        const list = r.items.map((p) => ({ id: p.id, x: p.x, y: p.y, w: p.width, h: height.get(p.id) }));
+        const hits: string[] = [];
+        for (let i = 0; i < list.length; i++) {
+            for (let j = i + 1; j < list.length; j++) {
+                const a = list[i];
+                const b = list[j];
+                if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) {
+                    hits.push(`${a.id}/${b.id}`);
+                }
+            }
+        }
+        return hits;
+    };
+    const all: FlowBlock[] = [
+        { id: "permission", height: 90, full: true },
+        { id: "tasks", height: 343 },
+        { id: "agents", height: 78 },
+        { id: "usage", height: 389 },
+        { id: "topics", height: 161 },
+        { id: "answer", height: 101 },
+        { id: "task", height: 214 },
+        { id: "files", height: 128 },
+    ];
+    const without = (...ids: string[]) => all.filter((b) => !ids.includes(b.id));
+    // The first open (the milestone, the usage and the task not read yet), their answers, the permission request,
+    // arranging (every block folded to a line), resizes, the task cleared and the milestone grown.
+    const steps: { blocks: FlowBlock[]; width: number; arranging?: boolean }[] = [
+        { blocks: without("permission", "tasks", "usage", "task"), width: 968 },
+        { blocks: without("permission", "usage", "task"), width: 968 },
+        { blocks: without("permission"), width: 968 },
+        { blocks: all, width: 968 },
+        { blocks: all.map((b) => ({ ...b, height: 40 })), width: 968, arranging: true },
+        { blocks: without("permission"), width: 968 },
+        { blocks: without("permission"), width: 684 },
+        { blocks: without("permission", "task"), width: 684 },
+        {
+            blocks: without("permission", "task").map((b) => (b.id === "tasks" ? { ...b, height: 520 } : b)),
+            width: 684,
+        },
+        { blocks: without("permission", "task"), width: 468 },
+        { blocks: all, width: 1200 },
+    ];
+
+    it("never draws two blocks over each other, each at its column's width", () => {
+        let previous: FlowResult = null;
+        for (const step of steps) {
+            const r = flowLayout(step.blocks, step.width, previous?.assign, { arranging: step.arranging });
+            expect(overlaps(r, step.blocks)).toEqual([]);
+            for (const p of r.items) {
+                expect(p.width).toBe(p.full && r.columns >= 2 ? r.innerWidth : r.columnWidth);
+                expect(p.width).toBeGreaterThan(100);
+            }
+            previous = r;
+        }
+    });
+});
