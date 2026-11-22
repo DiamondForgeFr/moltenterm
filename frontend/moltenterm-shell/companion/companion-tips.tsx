@@ -19,6 +19,7 @@ import { always, TabActivity } from "../tab-activity";
 import { ImageAccess, ImageAccessContext, useChipImage, useImagePixels } from "./companion-image-access";
 import { CompanionImageCommand, CompanionRoute } from "./companion-model";
 import {
+    CloseTipsEvent,
     CompanionImage,
     FocusDelayMs,
     HoverDelayMs,
@@ -157,6 +158,10 @@ function TipsHost({
         [access, show]
     );
     useEffect(() => close, [close]);
+    useEffect(() => {
+        document.addEventListener(CloseTipsEvent, close);
+        return () => document.removeEventListener(CloseTipsEvent, close);
+    }, [close]);
 
     useEffect(() => {
         if (!asked) {

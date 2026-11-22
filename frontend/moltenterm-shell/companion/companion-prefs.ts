@@ -12,6 +12,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useState } from "react";
+import type { BlockPrefKey } from "./companion-block-options";
 import { CompanionPrefs, CompanionPrefsMetaKey, readCompanionPrefs, withChosenTab } from "./companion-files-model";
 import {
     CompanionLayout,
@@ -66,6 +67,22 @@ export function useCompanionPref(
         rememberCompanionPrefs({ [key]: value });
     };
     return [chosen ?? stored, set];
+}
+
+// The preferences that are a block's options (#2459), read and set where the arranging mode's settings popover lists
+// them: the same store, the same write, and the same showing at once as the hooks above, which every block reads from.
+// Reading is the stored choices over which the ones just made lie, until the client's meta carries them.
+export function useBlockPrefs(): { prefs: CompanionPrefs; set: (key: BlockPrefKey, value: boolean) => void } {
+    const client = useAtomValue(clientAtom());
+    const [chosen, setChosen] = useState<Partial<Record<BlockPrefKey, boolean>>>({});
+    const stored = readCompanionPrefs(client?.meta?.[CompanionPrefsMetaKey]);
+    return {
+        prefs: { ...stored, ...chosen },
+        set: (key, value) => {
+            setChosen((cur) => ({ ...cur, [key]: value }));
+            rememberCompanionPrefs({ [key]: value });
+        },
+    };
 }
 
 // Whether the Taken by others group is open, as the developer left it (#2418): undefined while he never chose, so the

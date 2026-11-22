@@ -25,6 +25,18 @@ import { PlanSection } from "./companion-plan";
 import { AgentRow, agentsView, mainAgentRow } from "./companion-recap-model";
 import { UsageButton } from "./companion-usage";
 
+// The drop zone of the main agent's block (#2459): drawn at its bottom while the usage block is carried, where it is
+// dropped to be attached.
+export type AttachZone = {
+    ref: React.RefObject<HTMLDivElement>;
+    // The usage block is being carried: the zone shows.
+    active: boolean;
+    // The carried block is over it.
+    over: boolean;
+    // The usage block is attached already: the zone says so, and dragging it out detaches it.
+    attached: boolean;
+};
+
 export type CompanionHeroProps = {
     view: CompanionView;
     agentState: AgentStateInfo;
@@ -45,6 +57,8 @@ export type CompanionHeroProps = {
     // row and its tools standing among the hero's. Absent while the usage stands on its own, and while arranging, which
     // folds every block to a line.
     usage?: UsageFrameParts;
+    // The place to drop the usage block on while arranging (#2459); absent otherwise.
+    attachZone?: AttachZone;
 };
 
 // The hero's state, as a shape and a colour of the heat scale: at work, waiting for the developer, finished.
@@ -251,6 +265,19 @@ export function CompanionHero(props: CompanionHeroProps) {
             {attached?.body != null ? (
                 <div className="mt-cdash-hero-usage" data-testid="companion-hero-usage" data-state={attached.state}>
                     {attached.body}
+                </div>
+            ) : null}
+            {props.attachZone?.active ? (
+                <div
+                    ref={props.attachZone.ref}
+                    className="mt-cdash-zone"
+                    data-active={props.attachZone.active ? "" : undefined}
+                    data-over={props.attachZone.over ? "" : undefined}
+                    data-attached={props.attachZone.attached ? "" : undefined}
+                    data-testid="companion-attach-zone"
+                >
+                    <i className="fa fa-solid fa-paperclip" aria-hidden="true" />
+                    {t(props.attachZone.attached ? "companion.arrange.zoneAttached" : "companion.arrange.zone")}
                 </div>
             ) : null}
         </CompanionBlock>

@@ -103,6 +103,28 @@ export function setUsageAttached(layout: CompanionLayout, attached: boolean): Co
     return editSection(layout, "usage", (p) => ({ ...p, attached }));
 }
 
+// Where a dragged section is dropped (#2459): in the list, at an index, or on the main agent's block, which only the usage
+// block can be attached to.
+export type SectionDrop = { to: "list"; index: number } | { to: "attach" };
+
+// What a drop does to the layout. In the list the section takes the rank it is dropped at, and an attached usage block
+// that leaves the main agent's block is detached by it; on the main agent's block the usage block is attached and keeps
+// its rank for the day it is detached (#2450), and any other section is left where it was.
+export function dropSection(layout: CompanionLayout, id: CompanionSectionId, drop: SectionDrop): CompanionLayout {
+    const list = normalizeLayout(layout);
+    if (drop.to === "attach") {
+        return id === "usage" ? setUsageAttached(list, true) : list;
+    }
+    const moved = moveSection(
+        list,
+        list.findIndex((p) => p.id === id),
+        drop.index
+    );
+    return id === "usage" && list.find((p) => p.id === "usage")?.attached === true
+        ? setUsageAttached(moved, false)
+        : moved;
+}
+
 // Where a section stands in the list, for the screen reader's "2 of 8".
 export function positionOf(layout: CompanionLayout, id: CompanionSectionId): { position: number; total: number } {
     const list = normalizeLayout(layout);
