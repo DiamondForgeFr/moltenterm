@@ -2162,37 +2162,22 @@
             "usageOff": "L'usage du forfait est masqué dans les compagnons.",
             "openUsage": "Ouvrir la page d'usage",
             "readAll": "Tout lire",
-            "readLess": "Réduire",
-            "sum": {
-                "permission": "Apparaît quand l'agent demande une autorisation",
-                "tasks": "Les jalons ouverts du projet et leurs tickets",
-                "agents": {
-                    "one": "{count} sous-agent au travail",
-                    "other": "{count} sous-agents au travail"
-                },
-                "usage": "L'usage du forfait, jour par jour",
-                "usageMinimal": "L'usage du forfait, les lignes seules",
-                "usageAttached": "Rattaché à l'agent principal, les lignes seules",
-                "usageNone": "Apparaît quand l'agent donne son usage",
-                "topics": {
-                    "one": "{count} sujet",
-                    "other": "{count} sujets"
-                },
-                "answers": {
-                    "one": "{count} réponse dans la session",
-                    "other": "{count} réponses dans la session"
-                },
-                "task": "Le point de reprise de l'espace",
-                "files": {
-                    "one": "{count} fichier modifié",
-                    "other": "{count} fichiers modifiés"
-                }
-            }
+            "readLess": "Réduire"
         },
         "arrange": {
             "open": "Agencer le compagnon",
             "title": "Agencer le compagnon",
-            "hint": "Faites glisser un bloc pour le déplacer, les autres lui font de la place. Ses boutons le masquent, lui donnent toute la largeur ou ouvrent ses réglages. Déposez l'usage du forfait sur le bloc de l'agent principal pour le rattacher. Terminé enregistre l'agencement pour tous les compagnons.",
+            "hint": "Faites glisser un bloc pour le déplacer, les autres lui font de la place. Terminé l'enregistre pour tous les compagnons.",
+            "when": {
+                "permission": "Affiché quand l'agent demande une autorisation",
+                "tasks": "Affiché quand le projet a un jalon ouvert",
+                "usage": "Affiché quand l'agent donne son usage",
+                "task": "Affiché quand l'espace a un point de reprise"
+            },
+            "hiddenBody": "Masqué. L'œil le remet à son rang.",
+            "detach": "Détacher {name} de l'agent principal",
+            "detachHelp": "Un clic le remet dans la liste à son rang, ou faites-le glisser à sa place.",
+            "attachedControls": "Commandes de l'usage du forfait rattaché à l'agent principal",
             "handleAt": "Déplacer {name}, position {position} sur {total}",
             "handleHelp": "Les flèches haut et bas le déplacent, Début et Fin l'envoient aux extrémités.",
             "settings": "Réglages de {name}",
@@ -2237,7 +2222,7 @@
             "last": "{name} : déjà en dernière position.",
             "shownNow": "{name} : affichage activé.",
             "hiddenNow": "{name} : affichage désactivé.",
-            "reset": "Revenir à l'agencement par défaut",
+            "reset": "Rétablir par défaut",
             "resetDone": "Agencement par défaut rétabli.",
             "done": "Terminé"
         },

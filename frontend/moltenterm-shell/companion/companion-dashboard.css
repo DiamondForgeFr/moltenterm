@@ -134,7 +134,8 @@
     pointer-events: none;
 }
 
-.mt-cb-notch > * {
+.mt-cb-notch > *,
+.mt-cb-notch > .contents > * {
     position: relative;
 }
 
@@ -379,13 +380,26 @@ button.mt-cb-chip-off:hover {
     white-space: nowrap;
 }
 
-.mt-cb[data-absent] .mt-cb-sum {
+/* The ghost of a block (#2467): where the arranging mode would show a block that has nothing to show, or that is hidden.
+   Compact, a dashed outline on the page, with the same label chip and the same controls on its top border as a block. */
+.mt-cb-ghost {
+    padding-top: 22px;
+    padding-bottom: 10px;
+    border-style: dashed;
+    background: transparent;
+}
+
+.mt-cb-ghost[data-tone="waiting"] {
+    border-color: var(--mt-line-2);
+}
+
+.mt-cb-ghost .mt-cb-sum {
     color: var(--mt-text-3);
     font-style: italic;
 }
 
 .mt-cb[data-hidden] {
-    opacity: 0.5;
+    opacity: 0.75;
 }
 
 .mt-cb-empty {
@@ -722,29 +736,67 @@ button.mt-cb-chip-off:hover {
 
 /* ── The arranging bar ─────────────────────────────────────────────────────────────────────────────────────────── */
 
+/* The help of the arranging mode (#2467): a slim bar laid over the top gutter of the companion, in a zero-height sticky
+   wrapper, so that it takes none of the dashboard's room (every block stands where it stood) and stays in view while the
+   companion scrolls. Above the blocks, and below the popovers. */
 .mt-cdash-arrbar {
-    margin: var(--mt-cdash-gap-y) var(--mt-cdash-gutter) 0;
+    position: sticky;
+    z-index: 40;
+    top: 0;
+    flex: none;
+    height: 0;
 }
 
 .mt-cdash-arrbar-in {
+    position: absolute;
+    inset: 0 0 auto;
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 10px 16px;
-}
-
-.mt-cdash-arrbar-in > p {
-    flex: 1 1 260px;
-    margin: 0;
-    color: var(--mt-text-2);
-    font-size: var(--mt-text-12);
-    line-height: 18px;
-}
-
-.mt-cdash-arrbar-actions {
-    display: flex;
     gap: 8px;
-    margin-left: auto;
+    height: 28px;
+    box-sizing: border-box;
+    padding: 0 var(--mt-cdash-gutter);
+    border-bottom: 1px solid var(--mt-line-2);
+    background: color-mix(in srgb, var(--mt-cdash-page) 94%, transparent);
+    box-shadow: 0 2px 8px -4px color-mix(in srgb, var(--mt-sink) 55%, transparent);
+    backdrop-filter: blur(6px);
+}
+
+.mt-cdash-arrbar-icon {
+    flex: none;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+/* The hint gives way first: it is cut with an ellipsis, and its popover says it whole. */
+.mt-cdash-arrbar-hint {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-cdash-arrbar-btn {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0 10px;
+    border-radius: var(--mt-radius-control);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+}
+
+.mt-cdash-arrbar-btn.molten-btn-ghost {
+    border: 1px solid var(--mt-line-2);
 }
 
 /* The handle of a block while arranging (#2459): a small pill on the top border, between the label and the buttons. It
@@ -784,8 +836,9 @@ button.mt-cb-chip-off:hover {
     outline-offset: 1px;
 }
 
-/* The block's three buttons while arranging, hide, full width and settings, as round buttons on its top border. */
-.mt-cdash-flow[data-arranging] .mt-cb-tools {
+/* The block's three buttons while arranging, hide, full width and settings, as round buttons on its top border; the usage
+   attached to the main agent wears the same on its row's hairline (#2467). */
+.mt-cdash-flow[data-arranging] .mt-cb-head .mt-cb-tools {
     height: 26px;
     gap: 6px;
     padding: 0;
@@ -795,7 +848,9 @@ button.mt-cb-chip-off:hover {
     box-shadow: none;
 }
 
-.mt-cdash-flow[data-arranging] .mt-cb-tool {
+/* Only the tools of the head: a tool in a block's content (a file's, the usage's rows) is content, and keeps its size. */
+.mt-cdash-flow[data-arranging] .mt-cb-head .mt-cb-tool,
+.mt-cdash-attached-chrome .mt-cb-tool {
     width: 26px;
     min-width: 26px;
     height: 26px;
@@ -807,14 +862,50 @@ button.mt-cb-chip-off:hover {
     font-size: var(--mt-text-11);
 }
 
-.mt-cdash-flow[data-arranging] .mt-cb-tool[aria-pressed="false"] {
+.mt-cdash-flow[data-arranging] .mt-cb-head .mt-cb-tool[aria-pressed="false"],
+.mt-cdash-attached-chrome .mt-cb-tool[aria-pressed="false"] {
     color: var(--mt-text-3);
 }
 
-.mt-cdash-flow[data-arranging] .mt-cb-tool[data-arrange="wide"][aria-pressed="true"],
-.mt-cdash-flow[data-arranging] .mt-cb-tool[aria-expanded="true"] {
+.mt-cdash-flow[data-arranging] .mt-cb-head .mt-cb-tool[data-arrange="wide"][aria-pressed="true"],
+.mt-cdash-flow[data-arranging] .mt-cb-head .mt-cb-tool[aria-expanded="true"],
+.mt-cdash-attached-chrome .mt-cb-tool[aria-expanded="true"] {
     border-color: var(--mt-action-text);
     color: var(--mt-action-text);
+}
+
+/* The usage attached to the main agent while arranging (#2467): its handle, eye and gear sit on its row's hairline, over
+   the row, so that the main agent's block keeps its size. */
+.mt-cdash-hero-usage[data-arranged] {
+    position: relative;
+}
+
+.mt-cdash-attached-chrome {
+    position: absolute;
+    z-index: 2;
+    top: -13px;
+    right: var(--mt-companion-inset);
+    left: var(--mt-companion-inset);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    height: 26px;
+    pointer-events: none;
+}
+
+.mt-cdash-attached-chrome > * {
+    pointer-events: auto;
+}
+
+.mt-cdash-attached-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.mt-cdash-attached-chrome .mt-cb-grip {
+    height: 20px;
 }
 
 /* ── The flow ──────────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -904,8 +995,31 @@ button.mt-cb-chip-off:hover {
     cursor: grab;
 }
 
+.mt-cdash-flow[data-arranging] > .mt-cb[data-hidden] {
+    cursor: default;
+}
+
 .mt-cdash-flow[data-arranging] .mt-cb-head {
     touch-action: none;
+}
+
+/* The blocks keep their real content while arranging (#2467), dimmed a little and held still: a click on it goes to the
+   arranging, not to the content (the block's elements are inert too, which keeps the keyboard out of them). The main
+   agent's block is held the same way; the controls on the top borders are not part of what is held. */
+.mt-cdash-flow[data-arranging] > .mt-cb > .mt-cb-body,
+.mt-cdash-flow[data-arranging] > .mt-cb > .mt-cb-foot,
+.mt-cdash[data-arranging] .mt-cdash-hero-grid,
+.mt-cdash[data-arranging] .mt-cdash-hero-usage-body {
+    opacity: 0.78;
+    pointer-events: none;
+}
+
+.mt-cdash-flow[data-arranging] > .mt-cb-ghost > .mt-cb-body {
+    opacity: 1;
+}
+
+.mt-cdash-flow[data-arranging] > .mt-cwork-links {
+    pointer-events: none;
 }
 
 /* The jiggle that says "movable", on the rotate property so that it never fights the flow's transform. */

@@ -28,6 +28,7 @@ import { everyInPanel, panelActivityAtom, usePanelBlockId } from "../view360/off
 import { AgentsBlockBody } from "./companion-agents";
 import { CompanionBlock, CountChip } from "./companion-block";
 import { FlowPlacedEvent, linesOnHover } from "./companion-flow-model";
+import { ArrangeGhost } from "./companion-ghost";
 import { agentsRunKey, classifyTickets, HoldInputs, taskLists } from "./companion-holds-model";
 import {
     agentEnd,
@@ -318,6 +319,8 @@ export function CompanionWork(props: CompanionWorkProps) {
                     lit={lit}
                     ends={ends}
                 />
+            ) : showsTasks ? (
+                <ArrangeGhost id="tasks" kind="when" />
             ) : null}
             {showsAgents ? (
                 <CompanionBlock

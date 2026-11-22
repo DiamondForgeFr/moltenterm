@@ -394,11 +394,17 @@ describe("the choice in the dashboard (#2462)", () => {
         expect(markup(kimi, layout)).toContain(">Open the usage page<");
     });
 
-    it("draws nothing of the usage while arranging: the block is a line, and its rows are in its settings", () => {
-        const html = markup(kimi, DefaultCompanionLayout, { arranging: true });
-        expect(labelsOf(html)).toEqual([]);
-        expect(html).not.toContain("companion-usage-rows-tool");
-        expect(html).not.toContain('data-testid="companion-usage-rows"');
+    it("draws the rows chosen in the usage while arranging, held still, the choice being in the block's settings", () => {
+        const layout = hide(DefaultCompanionLayout, "kimi", ["session", "month"], ["session", "week", "month"]);
+        const html = markup(kimi, layout, { arranging: true });
+        const usage = flowBlock(html, "usage");
+        expect(labelsOf(usage)).toEqual(["Week"]);
+        // The block's own tools give way to the arranging controls (#2467); the rows tool of the full form is in its
+        // content, which is held still.
+        expect(usage.indexOf("companion-usage-rows-tool")).toBeGreaterThan(usage.indexOf('class="mt-cb-body"'));
+        expect(usage).toContain('data-testid="companion-arrange-settings"');
+        expect(usage).toContain('data-testid="companion-arrange-handle"');
+        expect(usage).toMatch(/class="mt-cb-body" inert=""/);
     });
 
     const settingsOf = (

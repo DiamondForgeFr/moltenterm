@@ -3,10 +3,13 @@
 
 // The one block every section of the companion is drawn in (FR-SHELL-018, #2441, companion-dashboard.css): its label
 // in a notch on the top border (a brass icon tile, the label chip or tabs, then count chips), its tools on their own
-// chip in a notch on the right, its content, and its one link as its last row. Display only.
+// chip in a notch on the right, its content, and its one link as its last row. Display only. While the dashboard is
+// arranged (#2467) a block of the flow wears the arranging controls on its top border in place of its tools, and its
+// content is held still under them (companion-arrange-context.ts).
 
 import { cn, makeIconClass } from "@/util/util";
-import { forwardRef, useEffect, useId, useRef, useState } from "react";
+import { forwardRef, useContext, useEffect, useId, useRef, useState } from "react";
+import { ArrangeContext } from "./companion-arrange-context";
 
 export type CompanionBlockProps = {
     // The block's place in the flow (data-flow-id), which the flow measures and positions.
@@ -35,11 +38,16 @@ export const CompanionBlock = forwardRef<HTMLElement, CompanionBlockProps>(funct
 ) {
     const headingId = useId();
     const Heading = heading;
+    const arrange = useContext(ArrangeContext);
+    const chrome = flowId != null ? arrange?.chromeOf(flowId) : null;
+    const gripShown = chrome != null ? chrome.grip : grip;
+    const toolsShown = chrome != null ? chrome.tools : tools;
     return (
         <section
             ref={ref}
             aria-labelledby={label != null && tabs == null && rest["aria-label"] == null ? headingId : undefined}
             {...rest}
+            {...chrome?.attrs}
             className={cn("mt-cb", className)}
             data-flow-id={flowId}
             data-tone={tone}
@@ -52,23 +60,32 @@ export const CompanionBlock = forwardRef<HTMLElement, CompanionBlockProps>(funct
                             {icon}
                         </span>
                     ) : null}
-                    {tabs ??
-                        (label != null ? (
-                            <span className="mt-cb-chip">
-                                <Heading id={headingId}>{label}</Heading>
-                            </span>
-                        ) : null)}
+                    {tabs != null ? (
+                        <span className="contents" inert={chrome != null}>
+                            {tabs}
+                        </span>
+                    ) : label != null ? (
+                        <span className="mt-cb-chip">
+                            <Heading id={headingId}>{label}</Heading>
+                        </span>
+                    ) : null}
                     {chips}
                 </span>
-                {grip != null ? <span className="mt-cb-grip-slot">{grip}</span> : null}
-                {tools != null ? (
+                {gripShown != null ? <span className="mt-cb-grip-slot">{gripShown}</span> : null}
+                {toolsShown != null ? (
                     <span className="mt-cb-notch" data-side="tools">
-                        <span className="mt-cb-tools">{tools}</span>
+                        <span className="mt-cb-tools">{toolsShown}</span>
                     </span>
                 ) : null}
             </div>
-            <div className="mt-cb-body">{children}</div>
-            {foot ? <div className="mt-cb-foot">{foot}</div> : null}
+            <div className="mt-cb-body" inert={chrome != null}>
+                {children}
+            </div>
+            {foot ? (
+                <div className="mt-cb-foot" inert={chrome != null}>
+                    {foot}
+                </div>
+            ) : null}
         </section>
     );
 });

@@ -54,11 +54,13 @@ export type CompanionHeroProps = {
     // The usage block shows in the flow (not hidden by the layout, not attached to the hero).
     usageBlockShown?: boolean;
     // The usage attached to the main agent (#2450): what the usage block would have drawn, its rows being the hero's last
-    // row and its tools standing among the hero's. Absent while the usage stands on its own, and while arranging, which
-    // folds every block to a line.
+    // row and its tools standing among the hero's. Absent while the usage stands on its own.
     usage?: UsageFrameParts;
     // The place to drop the usage block on while arranging (#2459); absent otherwise.
     attachZone?: AttachZone;
+    // While arranging (#2467) the attached usage keeps its row, held still, with its own controls: the handle that detaches
+    // it, the eye and the gear. A usage with no reading draws nothing outside the mode; in it, a line says when it shows.
+    attachedControls?: React.ReactNode;
 };
 
 // The hero's state, as a shape and a colour of the heat scale: at work, waiting for the developer, finished.
@@ -102,7 +104,8 @@ export function CompanionHero(props: CompanionHeroProps) {
     const lines = hasPlan ? row.lines.filter((line) => line !== taskLine) : row.lines;
     // The usage block carries the link to the usage page; while it is hidden or not drawn, the hero keeps it.
     const usageShown = props.usageBlockShown === true && props.provider === "" && view.usage != null && !!view.agent;
-    const attached = props.usage != null && props.usage.state !== "hidden" && !arranging ? props.usage : null;
+    const attached = props.usage != null && props.usage.state !== "hidden" ? props.usage : null;
+    const controls = arranging && props.usage != null ? (props.attachedControls ?? null) : null;
     const historyTitle =
         earlier > 0
             ? t(earlier === 1 ? "companion.bar.historyEarlierOne" : "companion.bar.historyEarlierOther", {
@@ -156,7 +159,7 @@ export function CompanionHero(props: CompanionHeroProps) {
         >
             <GlowRing on={agent === "running"} />
             <span className="mt-cdash-heat" aria-hidden="true" />
-            <div className="mt-cdash-hero-grid" data-plan={hasPlan && !arranging ? "" : undefined}>
+            <div className="mt-cdash-hero-grid" data-plan={hasPlan ? "" : undefined} inert={arranging}>
                 <div className="mt-cdash-id">
                     <div className="mt-cdash-id-head">
                         <span className="mt-cdash-avatar" aria-hidden="true">
@@ -251,7 +254,7 @@ export function CompanionHero(props: CompanionHeroProps) {
                         onBackToCurrent={props.onBackToCurrent}
                     />
                 </div>
-                {hasPlan && !arranging ? (
+                {hasPlan ? (
                     <PlanSection
                         todos={view.todos}
                         name={first}
@@ -262,9 +265,17 @@ export function CompanionHero(props: CompanionHeroProps) {
                     />
                 ) : null}
             </div>
-            {attached?.body != null ? (
-                <div className="mt-cdash-hero-usage" data-testid="companion-hero-usage" data-state={attached.state}>
-                    {attached.body}
+            {attached?.body != null || controls != null ? (
+                <div
+                    className="mt-cdash-hero-usage"
+                    data-testid="companion-hero-usage"
+                    data-state={attached?.state ?? "hidden"}
+                    data-arranged={controls != null ? "" : undefined}
+                >
+                    {controls}
+                    <div className="mt-cdash-hero-usage-body" inert={arranging}>
+                        {attached?.body ?? <div className="mt-cb-sum">{t("companion.arrange.when.usage")}</div>}
+                    </div>
                 </div>
             ) : null}
             {props.attachZone?.active ? (
