@@ -755,8 +755,74 @@ button.mt-cb-chip-off:hover {
     margin-left: auto;
 }
 
+/* The handle of a block while arranging (#2459): a small pill on the top border, between the label and the buttons. It
+   takes the keyboard (the arrows, Home and End) and the pointer alike; the block as a whole is what the pointer carries. */
+.mt-cb-grip-slot {
+    display: flex;
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
+    pointer-events: none;
+}
+
 .mt-cb-grip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    height: 18px;
+    margin: 0;
+    padding: 0 8px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: 9999px;
+    background: var(--mt-surface-3);
+    color: var(--mt-text-3);
     cursor: grab;
+    font-size: var(--mt-text-11);
+    pointer-events: auto;
+    transition: color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-cb-grip:hover {
+    color: var(--mt-text-1);
+}
+
+.mt-cb-grip:focus-visible {
+    outline: 2px solid var(--mt-focus);
+    outline-offset: 1px;
+}
+
+/* The block's three buttons while arranging, hide, full width and settings, as round buttons on its top border. */
+.mt-cdash-flow[data-arranging] .mt-cb-tools {
+    height: 26px;
+    gap: 6px;
+    padding: 0;
+    overflow: visible;
+    border: 0;
+    background: none;
+    box-shadow: none;
+}
+
+.mt-cdash-flow[data-arranging] .mt-cb-tool {
+    width: 26px;
+    min-width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--mt-line-2);
+    border-radius: 9999px;
+    background: var(--mt-surface-3);
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--mt-sink) 45%, transparent);
+    font-size: var(--mt-text-11);
+}
+
+.mt-cdash-flow[data-arranging] .mt-cb-tool[aria-pressed="false"] {
+    color: var(--mt-text-3);
+}
+
+.mt-cdash-flow[data-arranging] .mt-cb-tool[data-arrange="wide"][aria-pressed="true"],
+.mt-cdash-flow[data-arranging] .mt-cb-tool[aria-expanded="true"] {
+    border-color: var(--mt-action-text);
+    color: var(--mt-action-text);
 }
 
 /* ── The flow ──────────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -823,6 +889,307 @@ button.mt-cb-chip-off:hover {
 
 .prefers-reduced-motion .mt-cdash-flow > .mt-cb[data-entering] {
     animation: none;
+}
+
+/* ── Carrying a block (#2459) ──────────────────────────────────────────────────────────────────────────────────── */
+
+/* A block's icon is where a long press picks it up: a finger that rests on it is no scroll, and the system's menu and
+   selection stay out of the press. */
+.mt-cdash-flow:not([data-arranging]) .mt-cb-tile {
+    -webkit-touch-callout: none;
+    touch-action: none;
+    user-select: none;
+}
+
+/* While arranging every block is a thing to hold: the pointer says so, a header takes a finger, and the text stays
+   unselected under a drag. */
+.mt-cdash-flow[data-arranging] {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.mt-cdash-flow[data-arranging] > .mt-cb {
+    cursor: grab;
+}
+
+.mt-cdash-flow[data-arranging] .mt-cb-head {
+    touch-action: none;
+}
+
+/* The jiggle that says "movable", on the rotate property so that it never fights the flow's transform. */
+.mt-cdash-flow[data-arranging] > .mt-cb:not([data-dragging]) {
+    animation: mt-cdash-jiggle 0.3s ease-in-out infinite alternate;
+}
+
+.mt-cdash-flow[data-arranging] > .mt-cb:not([data-dragging]):nth-child(2n) {
+    animation-delay: -0.12s;
+    animation-direction: alternate-reverse;
+}
+
+.mt-cdash-flow[data-arranging] > .mt-cb:not([data-dragging]):nth-child(3n) {
+    animation-duration: 0.34s;
+}
+
+@keyframes mt-cdash-jiggle {
+    from {
+        rotate: -0.3deg;
+    }
+    to {
+        rotate: 0.3deg;
+    }
+}
+
+/* The block in the hand: lifted over the others, which go on without it. The flow's transitions never reach it: it
+   follows the pointer frame by frame. */
+.mt-cdash-flow > .mt-cb[data-dragging],
+.mt-cdash-flow[data-reflowing] > .mt-cb[data-dragging] {
+    z-index: 20;
+    cursor: grabbing;
+    scale: 1.015;
+    box-shadow: var(--mt-shadow-command);
+    transition: none;
+}
+
+.mt-cdash-flow[data-dragging] {
+    cursor: grabbing;
+}
+
+.mt-cdash-flow[data-dragging] > .mt-cb,
+.mt-cdash:has(.mt-cdash-flow[data-dragging]) .mt-cdash-hero {
+    pointer-events: none;
+}
+
+/* The drop zone at the bottom of the main agent's block, there while the usage block is in the hand: a dashed place in
+   the action colour, lit when the block is over it. */
+.mt-cdash-zone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px;
+    border: 1.5px dashed var(--mt-action-text);
+    border-radius: var(--mt-radius-control);
+    background: color-mix(in srgb, var(--mt-action-wash) 55%, transparent);
+    color: var(--mt-action-text);
+    font-size: var(--mt-text-12);
+    line-height: 18px;
+    text-align: center;
+    transition:
+        border-color var(--mt-duration-fast) var(--mt-ease),
+        background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-cdash-zone[data-over] {
+    border-style: solid;
+    background: var(--mt-action-wash);
+}
+
+/* Where the carried block will land: a dashed slot in the action colour, which the flow places where the block would
+   stand and moves with the others. */
+.mt-cdash-slot {
+    position: absolute;
+    top: 0;
+    left: 0;
+    box-sizing: border-box;
+    border: 1.5px dashed var(--mt-action-text);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-action-wash);
+    pointer-events: none;
+}
+
+.mt-cdash-flow[data-reflowing] > .mt-cdash-slot {
+    transition: transform var(--mt-duration-slow) var(--mt-ease);
+}
+
+/* The long press on a block's icon: a ring in the action colour fills round the icon for as long as the press needs
+   (LongPressMs, companion-drag-model.ts), and the block is picked up when it closes. */
+@property --mt-press {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 0%;
+}
+
+.mt-cb-tile[data-pressing]::after {
+    content: "";
+    position: absolute;
+    inset: -5px;
+    padding: 2px;
+    border-radius: calc(var(--mt-radius-control) + 5px);
+    background: conic-gradient(var(--mt-accent) var(--mt-press), transparent 0);
+    pointer-events: none;
+    -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+        linear-gradient(#000 0 0) content-box exclude,
+        linear-gradient(#000 0 0);
+    animation: mt-press-fill 500ms linear forwards;
+}
+
+@keyframes mt-press-fill {
+    to {
+        --mt-press: 100%;
+    }
+}
+
+/* The settings of a block (#2459): a compact popover of the companion's popover look (companion-tips.css), portalled out
+   of the pane, so it stands on the shell's tokens alone. */
+.mt-cb-settings {
+    box-sizing: border-box;
+    width: 250px;
+    padding: var(--mt-companion-inset);
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-3);
+    box-shadow: var(--mt-shadow-command);
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-12);
+    animation: mt-tip-rise var(--mt-duration-fade) var(--mt-ease);
+}
+
+.mt-cb-settings-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mt-cb-settings-title {
+    margin: 0 0 4px;
+    overflow: hidden;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    font-weight: var(--mt-weight-semibold);
+    letter-spacing: 0.08em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.mt-cb-setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 28px;
+    margin: 0;
+    padding: 2px 4px;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+}
+
+button.mt-cb-setting {
+    cursor: pointer;
+}
+
+button.mt-cb-setting:hover {
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+}
+
+button.mt-cb-setting:focus-visible {
+    outline: 2px solid var(--mt-focus);
+    outline-offset: 1px;
+}
+
+.mt-cb-setting-label {
+    min-width: 0;
+    line-height: 1.35;
+}
+
+/* The switch of the shell's other panels (command-panel.css), with its own name: this stylesheet loads on its own. */
+.mt-cb-switch {
+    position: relative;
+    flex: 0 0 26px;
+    width: 26px;
+    height: 16px;
+    border-radius: 9999px;
+    background: var(--mt-line-2);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-cb-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 9999px;
+    background: var(--mt-text-main);
+    transition: transform var(--mt-duration-fast) var(--mt-ease);
+}
+
+.mt-cb-switch[data-on] {
+    background: var(--mt-accent);
+}
+
+.mt-cb-switch[data-on]::after {
+    transform: translateX(10px);
+}
+
+.mt-light .mt-cb-switch[data-on]::after {
+    background: var(--mt-surface-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-cb-settings {
+        animation: mt-fade-in var(--mt-duration-fade) linear;
+    }
+}
+
+.prefers-reduced-motion .mt-cb-settings {
+    animation: mt-fade-in var(--mt-duration-fade) linear;
+}
+
+/* Reduced motion: nothing jiggles, nothing grows or turns under the hand, the ring stands whole, and the zone, the slot
+   and the switch change without a transition. */
+@media (prefers-reduced-motion: reduce) {
+    .mt-cdash-flow[data-arranging] > .mt-cb:not([data-dragging]) {
+        animation: none;
+    }
+
+    .mt-cdash-flow > .mt-cb[data-dragging] {
+        rotate: none;
+        scale: none;
+    }
+
+    .mt-cb-tile[data-pressing]::after {
+        --mt-press: 100%;
+        animation: none;
+    }
+
+    .mt-cdash-zone,
+    .mt-cdash-flow[data-reflowing] > .mt-cdash-slot,
+    .mt-cb-switch,
+    .mt-cb-switch::after {
+        transition: none;
+    }
+}
+
+.prefers-reduced-motion .mt-cdash-flow[data-arranging] > .mt-cb:not([data-dragging]) {
+    animation: none;
+}
+
+.prefers-reduced-motion .mt-cdash-flow > .mt-cb[data-dragging] {
+    rotate: none;
+    scale: none;
+}
+
+.prefers-reduced-motion .mt-cb-tile[data-pressing]::after {
+    --mt-press: 100%;
+    animation: none;
+}
+
+.prefers-reduced-motion .mt-cdash-zone,
+.prefers-reduced-motion .mt-cdash-flow[data-reflowing] > .mt-cdash-slot,
+.prefers-reduced-motion .mt-cb-switch,
+.prefers-reduced-motion .mt-cb-switch::after {
+    transition: none;
 }
 
 /* ── Sections ──────────────────────────────────────────────────────────────────────────────────────────────────── */

@@ -4,17 +4,21 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentStateInfo } from "../agent-state-model";
-import { I18nModel } from "../i18n/i18n";
+import { I18nModel, t } from "../i18n/i18n";
 import {
     moveSection,
+    SectionNameKeys,
     setSectionHidden,
     setSectionSpan,
     setUsageAttached,
     setUsageMinimal,
 } from "./companion-arrange-model";
+import { SettingsBody } from "./companion-block-settings";
 import { CompanionDashboard, CompanionDashboardProps } from "./companion-dashboard";
+import type { CompanionPrefs } from "./companion-files-model";
 import { CompanionUsageInfo, gaugesView } from "./companion-gauges-model";
-import { CompanionLayout, CompanionSectionIds, DefaultCompanionLayout } from "./companion-layout";
+import { CompanionHero } from "./companion-hero";
+import { CompanionLayout, CompanionSectionId, CompanionSectionIds, DefaultCompanionLayout } from "./companion-layout";
 import { CompanionView } from "./companion-model";
 
 vi.mock("@/app/store/global", async () => {
@@ -103,23 +107,40 @@ function order(html: string): string[] {
 }
 
 describe("arranging the dashboard in place (#2395, #2441)", () => {
-    it("folds every block to its label and one line, in the layout's order, with its rank and its tools", () => {
+    it("folds every block to its label and one line, in the layout's order, with its handle and its three buttons", () => {
         const html = markup(DefaultCompanionLayout);
         expect(order(html)).toEqual(DefaultCompanionLayout.map((p) => p.id));
         const n = CompanionSectionIds.length;
         expect(html.match(/data-testid="companion-arrange-handle"/g)).toHaveLength(n);
         expect(html.match(/data-testid="companion-arrange-switch"/g)).toHaveLength(n);
         expect(html.match(/data-testid="companion-arrange-wide"/g)).toHaveLength(n);
+        expect(html.match(/data-testid="companion-arrange-settings"/g)).toHaveLength(n);
         const tasks = block(html, "tasks");
-        expect(tasks).toContain('data-testid="companion-arrange-rank">2 / 8<');
-        expect(tasks).toContain('aria-label="Move Tasks"');
-        expect(tasks).toContain('aria-label="Move Tasks up"');
-        expect(tasks).toContain('aria-label="Move Tasks down"');
+        // The rank is in the handle's name, for the screen reader: no number, Up or Down is drawn (#2459).
+        expect(tasks).toContain('aria-label="Move Tasks, position 2 of 8"');
         expect(tasks).toContain('aria-label="Full width for Tasks"');
         expect(tasks).toContain('aria-label="Show Tasks"');
+        expect(tasks).toContain('aria-label="Settings of Tasks"');
+        expect(tasks).not.toContain("companion-arrange-rank");
+        expect(tasks).not.toContain("Move Tasks up");
+        expect(tasks).not.toContain("Move Tasks down");
         expect(tasks).toContain("The project&#x27;s open milestones and their tickets");
         // Nothing but the summary while arranging: no milestone, no list.
         expect(html).not.toContain('data-testid="companion-milestone"');
+    });
+
+    it("draws the settings button closed, naming the dialog it opens, and keeps the settings out of the block", () => {
+        const html = markup(DefaultCompanionLayout);
+        for (const id of CompanionSectionIds) {
+            const settings = block(html, id);
+            expect(settings).toMatch(
+                /aria-haspopup="dialog"[^>]*aria-expanded="false"|aria-expanded="false"[^>]*aria-haspopup="dialog"/
+            );
+            expect(settings).not.toContain('role="dialog"');
+        }
+        expect(html).not.toContain("companion-arrange-usage-options");
+        expect(html).not.toContain('data-testid="companion-arrange-attach"');
+        expect(html).not.toContain('role="radiogroup"');
     });
 
     it("sets the permission request full width by default, and says when it shows", () => {
@@ -142,7 +163,7 @@ describe("arranging the dashboard in place (#2395, #2441)", () => {
         );
         const html = markup(arranged);
         expect(order(html)[0]).toBe("files");
-        expect(block(html, "files")).toContain('data-testid="companion-arrange-rank">1 / 8<');
+        expect(block(html, "files")).toContain('aria-label="Move Files changed, position 1 of 8"');
         expect(block(html, "topics")).toContain('data-span="full"');
         const usage = block(html, "usage");
         expect(usage).toContain('data-hidden=""');
@@ -171,6 +192,8 @@ describe("arranging the dashboard in place (#2395, #2441)", () => {
             expect(html).toContain("Agent principal");
             expect(html).toContain("Revenir à l");
             expect(html).toContain("Pleine largeur pour");
+            expect(html).toContain("Réglages de");
+            expect(html).toContain("position 2 sur 8");
         } finally {
             i18n.setLanguageSetting("");
         }
@@ -426,33 +449,115 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         expect(heroOf(off)).toContain('data-state="off"');
     });
 
-    it("offers the two choices on the usage block alone while arranging, with names and pressed states", () => {
-        const html = shown(DefaultCompanionLayout, { arranging: true });
-        expect(count(html, 'data-testid="companion-arrange-usage-options"')).toBe(1);
-        const usage = block(html, "usage");
-        expect(usage).toContain('role="group" aria-label="Options of Plan usage"');
-        expect(usage).toContain('role="radiogroup" aria-label="Form of Plan usage"');
-        expect(usage).toMatch(/role="radio" aria-checked="true"[^>]*>Full</);
-        expect(usage).toMatch(/role="radio" aria-checked="false"[^>]*>Minimal</);
-        expect(usage).toMatch(/aria-pressed="false"[^>]*data-testid="companion-arrange-attach"/);
-        expect(usage).toContain(">Attach to the main agent<");
-        expect(usage).toContain("The plan&#x27;s usage, day by day");
-        expect(usage).not.toContain("<fieldset disabled");
-        for (const id of ["tasks", "files", "permission"]) {
-            expect(block(html, id)).not.toContain("companion-arrange-usage-options");
+    // The settings popover's content, as the gear opens it.
+    const settingsOf = (id: CompanionSectionId, layout: CompanionLayout, prefs: CompanionPrefs = {}) =>
+        renderToStaticMarkup(
+            <SettingsBody
+                id={id}
+                name={t(SectionNameKeys[id])}
+                placement={layout.find((p) => p.id === id)}
+                prefs={prefs}
+                onChange={noop}
+                onClose={noop}
+            />
+        );
+
+    it("offers the usage's two choices in its settings, with names and states", () => {
+        const html = settingsOf("usage", DefaultCompanionLayout);
+        expect(html).toContain('<h3 class="mt-cb-settings-title">Plan usage</h3>');
+        expect(html).toMatch(/role="switch" aria-checked="true"[^>]*data-testid="companion-setting-shown"/);
+        expect(html).toMatch(/role="switch" aria-checked="false"[^>]*data-testid="companion-setting-wide"/);
+        expect(html).toContain('role="radiogroup" aria-label="Form of Plan usage"');
+        expect(html).toMatch(/role="radio" aria-checked="true"[^>]*>Full</);
+        expect(html).toMatch(/role="radio" aria-checked="false"[^>]*>Minimal</);
+        expect(html).toMatch(/role="switch" aria-checked="false"[^>]*data-testid="companion-setting-attached"/);
+        expect(html).toContain(">Attach to the main agent<");
+        expect(html).not.toContain("<fieldset disabled");
+    });
+
+    it("says in the block's summary line, and in its settings, what the arranged usage is", () => {
+        const minimal = block(shown(minimalLayout, { arranging: true }), "usage");
+        expect(minimal).toContain("The plan&#x27;s usage, the rows only");
+        expect(settingsOf("usage", minimalLayout)).toMatch(/role="radio" aria-checked="true"[^>]*>Minimal</);
+        const attached = block(shown(attachedLayout, { arranging: true }), "usage");
+        expect(attached).toContain("Attached to the main agent, the rows only");
+        const settings = settingsOf("usage", attachedLayout);
+        expect(settings).toMatch(/role="switch" aria-checked="true"[^>]*data-testid="companion-setting-attached"/);
+        // The size is for the block standing on its own: it waits, and is kept for the day the block is detached.
+        expect(settings).toContain("<fieldset disabled");
+        expect(settings).toMatch(/role="radio" aria-checked="true"[^>]*>Minimal</);
+    });
+
+    it("gives every other block Show and Full width, and the options it already had, none new", () => {
+        const wide = (html: string, on: boolean) =>
+            expect(html).toMatch(
+                new RegExp(`role="switch" aria-checked="${on}"[^>]*data-testid="companion-setting-wide"`)
+            );
+        for (const id of CompanionSectionIds) {
+            const html = settingsOf(id, DefaultCompanionLayout);
+            expect(html, id).toContain('data-testid="companion-setting-shown"');
+            wide(html, id === "permission");
+            expect(html.includes("companion-setting-minimal"), id).toBe(id === "usage");
+            expect(html.includes("companion-setting-attached"), id).toBe(id === "usage");
+        }
+        const tasks = settingsOf("tasks", DefaultCompanionLayout, { reviewopen: true, takenopen: false });
+        expect(tasks).toContain(">Open the group Taken by others<");
+        expect(tasks).toContain(">Open the group To review<");
+        expect(tasks).toContain(">Open the group In progress, nobody on it<");
+        expect(tasks).toMatch(/role="switch" aria-checked="true"[^>]*data-testid="companion-setting-reviewopen"/);
+        expect(tasks).toMatch(/role="switch" aria-checked="false"[^>]*data-testid="companion-setting-takenopen"/);
+        const files = settingsOf("files", DefaultCompanionLayout, { filesopen: true });
+        expect(files).toContain(">List every changed file<");
+        expect(files).toMatch(/role="switch" aria-checked="true"[^>]*data-testid="companion-setting-filesopen"/);
+        for (const id of ["agents", "topics", "answer", "task", "permission"] as const) {
+            expect(settingsOf(id, DefaultCompanionLayout).match(/role="switch"/g), id).toHaveLength(2);
         }
     });
 
-    it("says in the block's summary line, and in its choices, what the arranged usage is", () => {
-        const minimal = block(shown(minimalLayout, { arranging: true }), "usage");
-        expect(minimal).toContain("The plan&#x27;s usage, the rows only");
-        expect(minimal).toMatch(/role="radio" aria-checked="true"[^>]*>Minimal</);
-        const attached = block(shown(attachedLayout, { arranging: true }), "usage");
-        expect(attached).toContain("Attached to the main agent, the rows only");
-        expect(attached).toMatch(/aria-pressed="true"[^>]*data-testid="companion-arrange-attach"/);
-        // The size is for the block standing on its own: it waits, and is kept for the day the block is detached.
-        expect(attached).toContain("<fieldset disabled");
-        expect(attached).toMatch(/role="radio" aria-checked="true"[^>]*>Minimal</);
+    it("shows a hidden block's settings with Show off", () => {
+        const html = settingsOf("topics", setSectionHidden(DefaultCompanionLayout, "topics", true));
+        expect(html).toMatch(/role="switch" aria-checked="false"[^>]*data-testid="companion-setting-shown"/);
+    });
+
+    it("hosts a drop zone at the bottom of the main agent's block only while the usage block is carried", () => {
+        const hero = (zone: { active: boolean; over: boolean; attached: boolean } | null) =>
+            renderToStaticMarkup(
+                <CompanionHero
+                    view={view}
+                    agentState={agentState}
+                    provider=""
+                    arranging={true}
+                    onArrange={noop}
+                    onLeaveArranging={noop}
+                    integrationDetails={false}
+                    persistentIntegration={false}
+                    onIntegration={noop}
+                    onHistory={noop}
+                    onBackToCurrent={noop}
+                    attachZone={zone == null ? null : { ref: { current: null }, ...zone }}
+                />
+            );
+        expect(hero(null)).not.toContain("companion-attach-zone");
+        expect(hero({ active: false, over: false, attached: false })).not.toContain("companion-attach-zone");
+        const carried = hero({ active: true, over: false, attached: false });
+        expect(carried).toContain('data-testid="companion-attach-zone"');
+        expect(carried).toContain("Drop the plan usage here to attach it to the main agent");
+        expect(carried).not.toContain("data-over");
+        expect(hero({ active: true, over: true, attached: false })).toMatch(
+            /data-over=""[^>]*data-testid="companion-attach-zone"/
+        );
+        const attached = hero({ active: true, over: false, attached: true });
+        expect(attached).toContain("data-attached");
+        expect(attached).toContain("Drag it out into the list to detach it");
+        // The zone is the last thing of the block, under the identity (and under the attached usage's rows).
+        expect(carried.indexOf('data-testid="companion-link"')).toBeLessThan(carried.indexOf("companion-attach-zone"));
+    });
+
+    it("draws no drop zone in the dashboard before a block is carried, attached or not", () => {
+        for (const layout of [DefaultCompanionLayout, attachedLayout]) {
+            expect(shown(layout, { arranging: true })).not.toContain("companion-attach-zone");
+            expect(shown(layout, { arranging: false })).not.toContain("companion-attach-zone");
+        }
     });
 
     it("folds every block to a line while arranging, the attached usage included", () => {
@@ -468,10 +573,12 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         try {
             i18n.setLanguageSetting("fr");
             const arranging = block(shown(attachedLayout, { arranging: true }), "usage");
-            expect(arranging).toContain("Rattacher à l&#x27;agent principal");
-            expect(arranging).toContain("Forme d&#x27;Utilisation");
-            expect(arranging).toContain(">Minimale<");
             expect(arranging).toContain("Rattaché à l&#x27;agent principal, les lignes seules");
+            const settings = settingsOf("usage", attachedLayout);
+            expect(settings).toContain("Rattacher à l&#x27;agent principal");
+            expect(settings).toContain("Forme d&#x27;Utilisation");
+            expect(settings).toContain(">Minimale<");
+            expect(settings).toContain(">Afficher dans le tableau de bord<");
             const minimal = flowBlock(shown(minimalLayout), "usage");
             expect(minimal).toContain("par jour :");
             expect(minimal).toContain("Par jour :");

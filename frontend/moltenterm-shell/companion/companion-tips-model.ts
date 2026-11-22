@@ -16,6 +16,10 @@ export const TipAttr = "data-tip";
 export const ImageAttr = "data-image";
 export const ImageAtAttr = "data-image-at";
 
+// What a drag of a block dispatches on the document when it starts (#2459): an open popover closes, as it does on a press,
+// since the pointer that carries the block was never pressed on the element the popover describes.
+export const CloseTipsEvent = "mt-companion-tips-close";
+
 // Opens after a pause when the pointer rests on an element, sooner when the keyboard focuses it.
 export const HoverDelayMs = 350;
 export const FocusDelayMs = 120;

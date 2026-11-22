@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    dropSection,
     handleTarget,
     makeLayoutCommit,
     moveSection,
@@ -236,5 +237,85 @@ describe("arranging the companion's sections (#2395, #2441)", () => {
                 expect(ids(layout)[to]).toBe(id);
             }
         }
+    });
+});
+
+describe("dropping a dragged section (#2459)", () => {
+    it("sets the rank of the section dropped in the list, the others keeping their order", () => {
+        for (let from = 0; from < 8; from++) {
+            for (let to = 0; to < 8; to++) {
+                const id = DefaultCompanionLayout[from].id;
+                const dropped = dropSection(DefaultCompanionLayout, id, { to: "list", index: to });
+                expect(dropped).toEqual(moveSection(DefaultCompanionLayout, from, to));
+                expect(ids(dropped)[to]).toBe(id);
+            }
+        }
+    });
+
+    it("keeps every choice of the section it moves, and never loses or doubles one", () => {
+        const arranged = setUsageMinimal(setSectionSpan(DefaultCompanionLayout, "files", "full"), true);
+        const dropped = dropSection(arranged, "files", { to: "list", index: 0 });
+        expect(dropped[0]).toEqual({ id: "files", span: "full" });
+        expect(dropped.find((p) => p.id === "usage")).toEqual({ id: "usage", span: "flow", minimal: true });
+        expect(ids(dropped).sort()).toEqual([...CompanionSectionIds].sort());
+    });
+
+    it("attaches the usage dropped on the main agent's block, at the rank it had", () => {
+        const arranged = setUsageMinimal(moveSection(DefaultCompanionLayout, 3, 1), true);
+        const dropped = dropSection(arranged, "usage", { to: "attach" });
+        expect(usageOf(dropped)).toEqual({ shown: true, minimal: true, attached: true });
+        expect(ids(dropped)).toEqual(ids(arranged));
+        expect(setUsageAttached(dropped, false)).toEqual(arranged);
+    });
+
+    it("leaves any other section where it was when it is dropped on the main agent's block", () => {
+        for (const id of CompanionSectionIds.filter((s) => s !== "usage")) {
+            expect(dropSection(DefaultCompanionLayout, id, { to: "attach" })).toEqual(DefaultCompanionLayout);
+        }
+    });
+
+    it("detaches the attached usage dragged out into the list, at the rank it is dropped, in the size it was left", () => {
+        const attached = setUsageAttached(setUsageMinimal(DefaultCompanionLayout, true), true);
+        const dropped = dropSection(attached, "usage", { to: "list", index: 1 });
+        expect(usageOf(dropped)).toEqual({ shown: true, minimal: true, attached: false });
+        expect(positionOf(dropped, "usage")).toEqual({ position: 2, total: 8 });
+        expect(dropped.find((p) => p.id === "usage")).toEqual({ id: "usage", span: "flow", minimal: true });
+    });
+
+    it("detaches it even when it is dropped at the rank it already has, since it left the main agent's block", () => {
+        const attached = setUsageAttached(DefaultCompanionLayout, true);
+        const dropped = dropSection(attached, "usage", { to: "list", index: 3 });
+        expect(usageOf(dropped).attached).toBe(false);
+        expect(isDefaultLayout(dropped)).toBe(true);
+    });
+
+    it("does not attach the usage by moving it in the list, nor detach it when another section moves", () => {
+        const dropped = dropSection(DefaultCompanionLayout, "usage", { to: "list", index: 0 });
+        expect(usageOf(dropped).attached).toBe(false);
+        const attached = setUsageAttached(DefaultCompanionLayout, true);
+        expect(usageOf(dropSection(attached, "files", { to: "list", index: 0 })).attached).toBe(true);
+    });
+
+    it("keeps the usage's hidden state when a drop attaches it", () => {
+        const hidden = setSectionHidden(DefaultCompanionLayout, "usage", true);
+        expect(dropSection(hidden, "usage", { to: "attach" }).find((p) => p.id === "usage")).toEqual({
+            id: "usage",
+            span: "flow",
+            hidden: true,
+            attached: true,
+        });
+    });
+
+    it("saves what the drops made when the mode is left", () => {
+        const saved: CompanionLayout[] = [];
+        const commit = makeLayoutCommit(DefaultCompanionLayout, (layout) => saved.push(layout));
+        const afterMove = dropSection(DefaultCompanionLayout, "files", { to: "list", index: 0 });
+        const afterAttach = dropSection(afterMove, "usage", { to: "attach" });
+        expect(commit(afterAttach)).toBe(true);
+        expect(saved).toEqual([afterAttach]);
+        expect(ids(saved[0])[0]).toBe("files");
+        expect(usageOf(saved[0]).attached).toBe(true);
+        expect(commit(dropSection(afterAttach, "usage", { to: "list", index: 3 }))).toBe(true);
+        expect(usageOf(saved[1]).attached).toBe(false);
     });
 });

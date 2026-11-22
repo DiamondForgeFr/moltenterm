@@ -17,7 +17,7 @@ export type CompanionBlockProps = {
     tabs?: React.ReactNode;
     // Off chips after the label: a count, "Hidden".
     chips?: React.ReactNode;
-    // A handle before the tile, while arranging.
+    // A handle between the label and the tools, while arranging (#2459): it stands in the room those two leave.
     grip?: React.ReactNode;
     tools?: React.ReactNode;
     foot?: React.ReactNode;
@@ -47,7 +47,6 @@ export const CompanionBlock = forwardRef<HTMLElement, CompanionBlockProps>(funct
         >
             <div className="mt-cb-head">
                 <span className="mt-cb-notch" data-side="label">
-                    {grip}
                     {icon != null ? (
                         <span className="mt-cb-tile" aria-hidden="true">
                             {icon}
@@ -61,6 +60,7 @@ export const CompanionBlock = forwardRef<HTMLElement, CompanionBlockProps>(funct
                         ) : null)}
                     {chips}
                 </span>
+                {grip != null ? <span className="mt-cb-grip-slot">{grip}</span> : null}
                 {tools != null ? (
                     <span className="mt-cb-notch" data-side="tools">
                         <span className="mt-cb-tools">{tools}</span>
@@ -93,6 +93,7 @@ export function BlockTool({
     buttonRef,
     marker,
     tip,
+    opens,
 }: {
     label: string;
     onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
@@ -106,6 +107,8 @@ export function BlockTool({
     marker?: string;
     // A popover that says more than the name.
     tip?: string;
+    // The tool opens a dialog (#2459): it says so, and whether it is open.
+    opens?: { open: boolean };
 }) {
     return (
         <button
@@ -115,7 +118,9 @@ export function BlockTool({
             aria-label={label}
             data-tip={tip ?? label}
             disabled={disabled}
-            aria-pressed={pressed}
+            aria-pressed={opens == null ? pressed : undefined}
+            aria-haspopup={opens != null ? "dialog" : undefined}
+            aria-expanded={opens != null ? opens.open : undefined}
             onClick={(e) => {
                 e.stopPropagation();
                 onClick(e);

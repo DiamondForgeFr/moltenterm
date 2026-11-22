@@ -8,34 +8,52 @@
 
 import { Markdown } from "@/app/element/markdown";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { cn, fireAndForget } from "@/util/util";
+import { fireAndForget } from "@/util/util";
 import { Bot, ClipboardCheck, FileText, Flag, FolderGit2, Gauge, MessagesSquare } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { goToAgent } from "../agent-info/agent-info-hooks";
 import type { AgentStateInfo } from "../agent-state-model";
 import { useT, useTCount } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
 import { MoltenWave } from "../molten-button";
-import { SegmentedControl } from "../segmented-control";
 import { StateMark } from "../state-mark";
 import { DominoLoader } from "../suite/suite";
 import { getHomeDir } from "../tab-identity-ui";
+import { autoScrollStep } from "../workspace-rail-drag";
 import { mainName } from "./companion-agents";
 import {
+    dropSection,
     handleTarget,
     makeLayoutCommit,
     moveSection,
     positionOf,
     resetLayout,
     SectionNameKeys,
-    setSectionHidden,
-    setSectionSpan,
-    setUsageAttached,
-    setUsageMinimal,
     usageSummaryKey,
 } from "./companion-arrange-model";
 import { BlockTool, CompanionBlock, CopyTool, CountChip, FootLink } from "./companion-block";
+import {
+    BlockOption,
+    BlockOptionKey,
+    BlockPrefKey,
+    optionAnnouncement,
+    optionsOf,
+    PrefDefaults,
+    setLayoutOption,
+} from "./companion-block-options";
+import { BlockSettings } from "./companion-block-settings";
 import "./companion-dashboard.css";
+import {
+    dragCorner,
+    dropIndexAt,
+    passedDragStart,
+    Point,
+    pointInBox,
+    startLongPress,
+    startsPress,
+    ZoneSlackPx,
+} from "./companion-drag-model";
 import { FilesSection } from "./companion-files";
 import { FlowAssign, flowLayout, FlowPlacedEvent } from "./companion-flow-model";
 import {
@@ -48,7 +66,14 @@ import {
 } from "./companion-gauges";
 import type { GaugesView } from "./companion-gauges-model";
 import { CompanionHero } from "./companion-hero";
-import { CompanionLayout, CompanionSectionId, isDefaultLayout, normalizeLayout, usageOf } from "./companion-layout";
+import {
+    CompanionLayout,
+    CompanionSectionId,
+    CompanionSectionIds,
+    isDefaultLayout,
+    normalizeLayout,
+    usageOf,
+} from "./companion-layout";
 import { MilestonesView } from "./companion-milestone-model";
 import {
     CompanionAnswer,
@@ -61,10 +86,13 @@ import {
     usageAction,
 } from "./companion-model";
 import { PermissionRequestCard, permissionTerminalOf } from "./companion-permission";
+import { useBlockPrefs } from "./companion-prefs";
 import { RecentTopicsSection } from "./companion-recap";
 import { agentsView, finishedLabel, mainAgentRow } from "./companion-recap-model";
 import { TaskFrameFn, WorkspaceTaskCard, WorkspaceTaskSection } from "./companion-task";
 import { taskSessionLabel, TaskView } from "./companion-task-model";
+import { CompactBlockPx } from "./companion-tasks";
+import { CloseTipsEvent } from "./companion-tips-model";
 import { openUsagePage, UsageButton } from "./companion-usage";
 import { CompanionWork, CompanionWorkProps } from "./companion-work";
 
@@ -114,6 +142,22 @@ export type DashboardFixtures = {
 
 type Columns = { columns: number; columnWidth: number; paired: boolean };
 
+// What a long press on a block's icon hands to the arranging mode (#2459): the block it picked up, the pointer that holds
+// it, where that pointer is, and where on the block it took hold. `released` says the pointer went up before the mode
+// had mounted, so that nothing is carried that nobody holds.
+export type Pickup = {
+    id: CompanionSectionId;
+    pointerId: number;
+    x: number;
+    y: number;
+    grab: Point;
+    released: boolean;
+};
+
+// What the arranging mode tells the hero about the zone: the drafted usage block shows and is attached, and the
+// drag carries it, over the zone or not.
+type ZoneState = { shown: boolean; attached: boolean; active: boolean; over: boolean };
+
 const SectionTiles: Record<CompanionSectionId, React.ReactNode> = {
     permission: <StateMark kind="waiting" />,
     tasks: <Flag strokeWidth={2} aria-hidden />,
@@ -143,11 +187,47 @@ export function CompanionDashboard(props: CompanionDashboardProps) {
     // and its states keep working; while arranging every block, this one included, is a folded line of the list.
     const usage = usageOf(props.layout);
     const attached = usage.attached && !arranging;
+    const [pickup, setPickup] = useState<Pickup>(null);
+    const [zone, setZone] = useState<ZoneState>({
+        shown: usage.shown,
+        attached: usage.attached,
+        active: false,
+        over: false,
+    });
+    const zoneRef = useRef<HTMLDivElement>(null);
     const hero = (parts?: UsageFrameParts) => (
-        <CompanionHero {...props} usageBlockShown={usage.shown && !attached} usage={parts} />
+        <CompanionHero
+            {...props}
+            usageBlockShown={usage.shown && !attached}
+            usage={parts}
+            attachZone={
+                arranging && zone.shown
+                    ? { ref: zoneRef, active: zone.active, over: zone.over, attached: zone.attached }
+                    : null
+            }
+        />
     );
+    const pickUp = (picked: Pickup) => {
+        setPickup(picked);
+        props.onArrange();
+    };
+    const onPickupDone = useCallback(() => setPickup(null), []);
+    const onZone = useCallback((patch: Partial<ZoneState>) => setZone((cur) => ({ ...cur, ...patch })), []);
     return (
-        <div className="mt-cdash" data-testid="companion" data-columns={cols.columns}>
+        <div
+            className="mt-cdash"
+            data-testid="companion"
+            data-columns={cols.columns}
+            data-arranging={arranging ? "" : undefined}
+            onClick={(e) => {
+                // A click on the dashboard's own ground, between the blocks, leaves the mode (#2459).
+                const ground =
+                    e.target === e.currentTarget || (e.target as Element).classList.contains("mt-cdash-flow");
+                if (arranging && ground) {
+                    props.onLeaveArranging();
+                }
+            }}
+        >
             {attached ? (
                 <UsageSource
                     view={props.view}
@@ -162,9 +242,17 @@ export function CompanionDashboard(props: CompanionDashboardProps) {
                 hero()
             )}
             {arranging ? (
-                <ArrangingFlow {...props} onColumns={onColumns} />
+                <ArrangingFlow
+                    {...props}
+                    cols={cols}
+                    onColumns={onColumns}
+                    pickup={pickup}
+                    onPickupDone={onPickupDone}
+                    zoneRef={zoneRef}
+                    onZone={onZone}
+                />
             ) : (
-                <SessionFlow {...props} cols={cols} onColumns={onColumns} />
+                <SessionFlow {...props} cols={cols} onColumns={onColumns} onPickUp={pickUp} />
             )}
         </div>
     );
@@ -179,12 +267,17 @@ type FlowItem = { id: string; full: boolean };
 function Flow({
     items,
     arranging,
+    dragging,
+    flowProps,
     onColumns,
     flowRef,
     children,
 }: {
     items: FlowItem[];
     arranging: boolean;
+    // The block a pointer carries (#2459): the drag places it, the flow leaves it where the pointer put it.
+    dragging?: string;
+    flowProps?: React.HTMLAttributes<HTMLDivElement>;
     onColumns: (cols: Columns) => void;
     flowRef: React.RefObject<HTMLDivElement>;
     children: React.ReactNode;
@@ -194,6 +287,9 @@ function Flow({
     const reflow = useRef<ReturnType<typeof setTimeout>>(null);
     const itemsRef = useRef(items);
     itemsRef.current = items;
+    const draggingRef = useRef(dragging);
+    draggingRef.current = dragging;
+    const lastDragging = useRef<string>(null);
     const observer = useRef<ResizeObserver>(null);
     // The blocks the observer watches, so a block that leaves the flow is let go.
     const observed = useRef(new Set<Element>());
@@ -232,13 +328,18 @@ function Flow({
                 el.style.width = w;
             }
         }
+        // While arranging, a block's column follows its rank at once, so that dropping a block where the drag shows
+        // it gives the rank it was dropped at (#2459); the live flow keeps each block's column (companion-flow-model.ts).
         const r = flowLayout(
             blocks.map((b) => ({ ...b, height: els.get(b.id).offsetHeight })),
             width,
-            assign.current,
+            arranging ? undefined : assign.current,
             { arranging }
         );
-        if (laid.current && assign.current != null && assign.current.key !== r.assign.key) {
+        const carried = draggingRef.current;
+        const settled = lastDragging.current != null && carried == null;
+        lastDragging.current = carried ?? null;
+        if (laid.current && ((assign.current != null && assign.current.key !== r.assign.key) || settled)) {
             flow.dataset.reflowing = "";
             clearTimeout(reflow.current);
             reflow.current = setTimeout(() => {
@@ -249,6 +350,24 @@ function Flow({
         assign.current = r.assign;
         for (const p of r.items) {
             const el = els.get(p.id);
+            if (p.id === carried) {
+                const slot = flow.querySelector<HTMLElement>(":scope > .mt-cdash-slot");
+                if (slot != null) {
+                    slot.style.width = `${p.width}px`;
+                    slot.style.height = `${el.offsetHeight}px`;
+                    const to = `translate(${p.x}px, ${p.y}px)`;
+                    if (slot.dataset.placed == null) {
+                        slot.style.transition = "none";
+                        slot.style.transform = to;
+                        void slot.offsetWidth;
+                        slot.style.transition = "";
+                        slot.dataset.placed = "";
+                    } else if (slot.style.transform !== to) {
+                        slot.style.transform = to;
+                    }
+                }
+                continue;
+            }
             const transform = `translate(${p.x}px, ${p.y}px)`;
             if (el.dataset.placed == null) {
                 el.style.transition = "none";
@@ -313,16 +432,120 @@ function Flow({
         place();
     });
     return (
-        <div ref={flowRef} className="mt-cdash-flow" data-testid="companion-flow">
+        <div
+            {...flowProps}
+            ref={flowRef}
+            className="mt-cdash-flow"
+            data-testid="companion-flow"
+            data-arranging={arranging ? "" : undefined}
+            data-dragging={dragging ?? undefined}
+        >
             {children}
+            {dragging != null ? <div className="mt-cdash-slot" aria-hidden="true" /> : null}
         </div>
     );
 }
 
-function SessionFlow(props: CompanionDashboardProps & { cols: Columns; onColumns: (cols: Columns) => void }) {
+const SectionIdSet = new Set<string>(CompanionSectionIds);
+
+// A press on the icon of a block, held for LongPressMs nearly where it began, picks the block up (#2459): it hands the
+// arranging mode the block and the pointer, which goes on dragging it without lifting. A shorter press, or one that
+// moves, does nothing, and a click on the icon is the click it always was. One press at a time, the primary pointer's.
+function useLongPressPickUp(onPickUp: (pickup: Pickup) => void): React.HTMLAttributes<HTMLElement> {
+    const stop = useRef<() => void>(null);
+    const pick = useRef(onPickUp);
+    pick.current = onPickUp;
+    useEffect(() => () => stop.current?.(), []);
+    return {
+        onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+            const tile = (e.target as Element).closest?.(".mt-cb-tile") as HTMLElement;
+            const block = tile?.closest<HTMLElement>("[data-flow-id]");
+            const id = block?.dataset.flowId;
+            if (block == null || !SectionIdSet.has(id) || !startsPress(e.nativeEvent)) {
+                return;
+            }
+            stop.current?.();
+            const pointerId = e.pointerId;
+            const box = block.getBoundingClientRect();
+            const grab = { x: e.clientX - box.left, y: e.clientY - box.top };
+            const listeners: [string, (ev: PointerEvent) => void][] = [];
+            // The ring that fills round the icon while the press lasts (companion-dashboard.css).
+            tile.setAttribute("data-pressing", "");
+            const end = () => {
+                tile.removeAttribute("data-pressing");
+                listeners.forEach(([type, fn]) => window.removeEventListener(type, fn));
+                listeners.length = 0;
+                stop.current = null;
+            };
+            const press = startLongPress({
+                x: e.clientX,
+                y: e.clientY,
+                onFire: (at) => {
+                    end();
+                    const picked: Pickup = {
+                        id: id as CompanionSectionId,
+                        pointerId,
+                        x: at.x,
+                        y: at.y,
+                        grab,
+                        released: false,
+                    };
+                    // Until the arranging mode takes the pointer over, a release is only noted.
+                    const note = (ev: PointerEvent) => {
+                        if (ev.pointerId !== pointerId) {
+                            return;
+                        }
+                        picked.released = true;
+                        window.removeEventListener("pointerup", note);
+                        window.removeEventListener("pointercancel", note);
+                    };
+                    window.addEventListener("pointerup", note);
+                    window.addEventListener("pointercancel", note);
+                    pick.current(picked);
+                },
+            });
+            const watch = (type: string, fn: (ev: PointerEvent) => void) => {
+                listeners.push([type, fn]);
+                window.addEventListener(type, fn);
+            };
+            watch("pointermove", (ev) => ev.pointerId === pointerId && press.move(ev.clientX, ev.clientY));
+            watch("pointerup", (ev) => {
+                if (ev.pointerId === pointerId) {
+                    press.release();
+                    end();
+                }
+            });
+            watch("pointercancel", (ev) => {
+                if (ev.pointerId === pointerId) {
+                    press.cancel();
+                    end();
+                }
+            });
+            stop.current = () => {
+                press.cancel();
+                end();
+            };
+        },
+        // A long press on a touch screen or a pen opens the system's menu, over the block it picks up.
+        onContextMenu: (e: React.MouseEvent<HTMLElement>) => {
+            if ((e.target as Element).closest?.(".mt-cb-tile") != null) {
+                e.preventDefault();
+            }
+        },
+    };
+}
+
+function SessionFlow(
+    props: CompanionDashboardProps & {
+        cols: Columns;
+        onColumns: (cols: Columns) => void;
+        onPickUp: (pickup: Pickup) => void;
+    }
+) {
     const { view, agentState, target, layout, cols } = props;
     const t = useT();
     const flowRef = useRef<HTMLDivElement>(null);
+    const pickUpProps = useLongPressPickUp(props.onPickUp);
     const placements = normalizeLayout(layout);
     // An attached usage leaves the flow for the main agent's block (#2450); its placement keeps its rank for the day it
     // comes back.
@@ -435,7 +658,7 @@ function SessionFlow(props: CompanionDashboardProps & { cols: Columns; onColumns
     };
     const pairAt = visible.findIndex((p) => p.id === "tasks" || p.id === "agents");
     return (
-        <Flow items={items} arranging={false} onColumns={props.onColumns} flowRef={flowRef}>
+        <Flow items={items} arranging={false} flowProps={pickUpProps} onColumns={props.onColumns} flowRef={flowRef}>
             {visible.map((p, i) => {
                 if (p.id === "tasks" || p.id === "agents") {
                     return i === pairAt ? (
@@ -728,70 +951,275 @@ function useSummaries(view: CompanionView, agentState: AgentStateInfo, provider:
     return sums;
 }
 
-// The usage block's two choices while arranging (#2450), in the block's body: they have words, and a block one column
-// wide has no room in its tools for two more tools beside the rank, Up, Down, full width and the eye. The size (Full or
-// Minimal) is the block's own while it stands on its own, so it waits while the block is attached; it is kept for the
-// day the block is detached.
-function UsageOptions({
-    name,
-    minimal,
-    attached,
-    onMinimal,
-    onAttached,
-}: {
-    name: string;
-    minimal: boolean;
-    attached: boolean;
-    onMinimal: (minimal: boolean) => void;
-    onAttached: (attached: boolean) => void;
-}) {
-    const t = useT();
-    return (
-        <div
-            role="group"
-            aria-label={t("companion.arrange.usageOptions", { name })}
-            className="mt-cdash-options"
-            data-testid="companion-arrange-usage-options"
-        >
-            <fieldset disabled={attached} className="m-0 min-w-0 border-0 p-0 disabled:opacity-40">
-                <SegmentedControl<"full" | "minimal">
-                    popovers
-                    label={t("companion.arrange.form", { name })}
-                    segments={[
-                        {
-                            value: "full",
-                            label: t("companion.arrange.formFull"),
-                            title: t("companion.arrange.formFullHelp"),
-                        },
-                        {
-                            value: "minimal",
-                            label: t("companion.arrange.formMinimal"),
-                            title: t("companion.arrange.formMinimalHelp"),
-                        },
-                    ]}
-                    selected={minimal ? "minimal" : "full"}
-                    onSelect={(form) => onMinimal(form === "minimal")}
-                />
-            </fieldset>
-            <button
-                type="button"
-                className="molten-btn-ghost inline-flex h-row cursor-pointer items-center gap-1.5 rounded-4 border border-border px-3 text-12 aria-pressed:bg-hover aria-pressed:text-primary"
-                aria-pressed={attached}
-                data-tip={t("companion.arrange.attachHelp")}
-                onClick={() => onAttached(!attached)}
-                data-testid="companion-arrange-attach"
-            >
-                <i className={cn("fa fa-solid", attached ? "fa-check" : "fa-paperclip")} aria-hidden="true" />
-                {t("companion.arrange.attach")}
-            </button>
-        </div>
-    );
+function scrollParentOf(el: HTMLElement): HTMLElement {
+    for (let p = el?.parentElement; p != null; p = p.parentElement) {
+        const overflow = getComputedStyle(p).overflowY;
+        if ((overflow === "auto" || overflow === "scroll") && p.scrollHeight > p.clientHeight) {
+            return p;
+        }
+    }
+    return null;
 }
 
-// The arranging mode in place (#2395, #2441): every block folds to its label and one line, with its rank, Up and Down
-// (the arrows, Home and End on its handle), full width or fluid, and the eye. The changes are drafted here and saved
-// when the mode is left, however it is left (Done, Escape, the Arrange tool, the pane closing).
-function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Columns) => void }) {
+type BlockDragOptions = {
+    flowRef: React.RefObject<HTMLDivElement>;
+    zoneRef: React.RefObject<HTMLDivElement>;
+    draftRef: React.RefObject<CompanionLayout>;
+    setDraft: (layout: CompanionLayout) => void;
+    onZone: (zone: Partial<ZoneState>) => void;
+    announce: (text: string) => void;
+    nameOf: (id: CompanionSectionId) => string;
+    pickup: Pickup;
+    onPickupDone: () => void;
+};
+
+// Carrying a block with a pointer while arranging (#2459). A press on a block's header is a click until the pointer
+// moves a few pixels, then the block is carried: it follows the pointer, the others make room as the flow places the
+// drafted order (companion-drag-model.ts says which rank the pointer is at), and the drop sets the rank. The usage block
+// dropped on the main agent's block is attached, and one that leaves it is detached. Escape puts the block back where
+// the drag found it. The listeners are the window's, so that a block picked up by a long press, whose first block was
+// replaced by the arranging mode's, goes on being carried by the same pointer.
+function useBlockDrag(options: BlockDragOptions) {
+    const t = useT();
+    const [dragging, setDragging] = useState<CompanionSectionId>(null);
+    const stop = useRef<() => void>(null);
+    const followRef = useRef<() => void>(null);
+    // The block goes under the pointer again once what the drag changed has taken its room (the zone, the slot).
+    useLayoutEffect(() => followRef.current?.(), [dragging]);
+    const latest = useRef(options);
+    latest.current = options;
+    const tRef = useRef(t);
+    tRef.current = t;
+    useEffect(() => () => stop.current?.(), []);
+
+    const arm = useCallback((id: CompanionSectionId, pointerId: number, from: Point, grab: Point, carried: boolean) => {
+        stop.current?.();
+        const o = () => latest.current;
+        const flow = o().flowRef.current;
+        if (flow == null) {
+            return;
+        }
+        const blockOf = (blockId: string) => flow.querySelector<HTMLElement>(`:scope > [data-flow-id="${blockId}"]`);
+        const snapshot = o().draftRef.current;
+        const scroller = scrollParentOf(flow);
+        const listeners: [string, EventListener, boolean?][] = [];
+        let last = from;
+        let begun = false;
+        let over = false;
+        let frame = 0;
+        const setDraft = (next: CompanionLayout) => {
+            o().draftRef.current = next;
+            o().setDraft(next);
+        };
+        const follow = () => {
+            const el = blockOf(id);
+            const f = o().flowRef.current;
+            if (el == null || f == null) {
+                return;
+            }
+            const origin = f.getBoundingClientRect();
+            const corner = dragCorner({ x: last.x - origin.left, y: last.y - origin.top }, grab);
+            el.style.transform = `translate(${corner.x}px, ${corner.y}px)`;
+            // The whole main agent's block takes the drop, so that a drop near the zone counts.
+            const hero = id === "usage" ? f.closest(".mt-cdash")?.querySelector<HTMLElement>(".mt-cdash-hero") : null;
+            const box = hero?.getBoundingClientRect();
+            const nowOver =
+                box != null &&
+                pointInBox(last, { x: box.left, y: box.top, width: box.width, height: box.height }, ZoneSlackPx);
+            if (nowOver !== over) {
+                over = nowOver;
+                o().onZone({ over });
+            }
+            const width = f.closest<HTMLElement>(".mt-cdash")?.clientWidth ?? 0;
+            if (over || width <= 0) {
+                return;
+            }
+            const draft = o().draftRef.current;
+            const blocks = draft.map((p) => ({
+                id: p.id,
+                full: p.span === "full",
+                height: blockOf(p.id)?.offsetHeight ?? 0,
+            }));
+            const index = dropIndexAt(blocks, id, width, {
+                x: corner.x + el.offsetWidth / 2,
+                y: corner.y + el.offsetHeight / 2,
+            });
+            const at = draft.findIndex((p) => p.id === id);
+            if (index >= 0 && index !== at) {
+                setDraft(moveSection(draft, at, index));
+            }
+        };
+        const tick = () => {
+            frame = requestAnimationFrame(() => {
+                const area = scroller?.getBoundingClientRect();
+                const step = area == null ? 0 : autoScrollStep(last.y, area.top, area.bottom);
+                if (step !== 0) {
+                    scroller.scrollTop += step;
+                    follow();
+                }
+                tick();
+            });
+        };
+        const begin = () => {
+            begun = true;
+            document.dispatchEvent(new Event(CloseTipsEvent));
+            const show = () => {
+                o().onZone({ active: id === "usage", over: false });
+                setDragging(id);
+            };
+            // The zone takes room in the main agent's block: it is there before the block is placed under the pointer.
+            // A block picked up by a long press begins in a layout effect, where nothing can be flushed.
+            if (carried) {
+                show();
+            } else {
+                flushSync(show);
+            }
+            o().announce(tRef.current("companion.arrange.picked", { name: o().nameOf(id) }));
+            tick();
+            follow();
+        };
+        followRef.current = follow;
+        const release = () => {
+            followRef.current = null;
+            cancelAnimationFrame(frame);
+            listeners.forEach(([type, fn, capture]) => window.removeEventListener(type, fn, capture));
+            listeners.length = 0;
+            stop.current = null;
+        };
+        const finish = (drop: boolean) => {
+            release();
+            if (!begun) {
+                return;
+            }
+            // The click that ends a drag is not a click on whatever is under the pointer.
+            const eat = (ev: Event) => {
+                ev.stopPropagation();
+                ev.preventDefault();
+            };
+            window.addEventListener("click", eat, true);
+            setTimeout(() => window.removeEventListener("click", eat, true), 0);
+            const name = o().nameOf(id);
+            if (!drop) {
+                setDraft(snapshot);
+                o().announce(tRef.current("companion.arrange.putBack", { name }));
+            } else {
+                const draft = o().draftRef.current;
+                const attached = draft.find((p) => p.id === id)?.attached === true;
+                const index = draft.findIndex((p) => p.id === id);
+                if (over && id === "usage") {
+                    setDraft(dropSection(draft, id, { to: "attach" }));
+                    o().announce(tRef.current("companion.arrange.attachOn", { name }));
+                } else {
+                    setDraft(dropSection(draft, id, { to: "list", index }));
+                    o().announce(
+                        attached && id === "usage"
+                            ? tRef.current("companion.arrange.attachOff", { name })
+                            : tRef.current("companion.arrange.moved", {
+                                  name,
+                                  position: index + 1,
+                                  total: draft.length,
+                              })
+                    );
+                }
+            }
+            setDragging(null);
+            o().onZone({ active: false, over: false });
+        };
+        const watch = (type: string, fn: (ev: any) => void, capture?: boolean) => {
+            listeners.push([type, fn, capture]);
+            window.addEventListener(type, fn, capture);
+        };
+        watch("pointermove", (ev: PointerEvent) => {
+            if (ev.pointerId !== pointerId) {
+                return;
+            }
+            // A button released out of the window never came: nothing is carried that no hand holds.
+            if (ev.pointerType === "mouse" && ev.buttons === 0) {
+                finish(true);
+                return;
+            }
+            last = { x: ev.clientX, y: ev.clientY };
+            if (!begun && passedDragStart(from, last)) {
+                begin();
+                return;
+            }
+            if (begun) {
+                follow();
+            }
+        });
+        watch("pointerup", (ev: PointerEvent) => ev.pointerId === pointerId && finish(true));
+        watch("pointercancel", (ev: PointerEvent) => ev.pointerId === pointerId && finish(false));
+        watch(
+            "keydown",
+            (ev: KeyboardEvent) => {
+                if (ev.key === "Escape" && begun) {
+                    ev.stopPropagation();
+                    ev.preventDefault();
+                    finish(false);
+                }
+            },
+            true
+        );
+        stop.current = release;
+        if (carried) {
+            begin();
+        }
+    }, []);
+
+    // A block picked up by a long press: the mode has just mounted, the pointer is still down.
+    useLayoutEffect(() => {
+        const { pickup, flowRef, onPickupDone } = latest.current;
+        if (pickup == null) {
+            return;
+        }
+        onPickupDone();
+        const el = flowRef.current?.querySelector<HTMLElement>(`:scope > [data-flow-id="${pickup.id}"]`);
+        if (el == null || pickup.released) {
+            return;
+        }
+        const grab = { x: Math.min(pickup.grab.x, Math.max(0, el.offsetWidth - 12)), y: pickup.grab.y };
+        arm(pickup.id, pickup.pointerId, { x: pickup.x, y: pickup.y }, grab, true);
+    }, []);
+
+    const onPointerDown = (e: React.PointerEvent<HTMLElement>) => {
+        const target = e.target as Element;
+        const block = target.closest<HTMLElement>("[data-flow-id]");
+        const id = block?.dataset.flowId;
+        if (block == null || !SectionIdSet.has(id) || !startsPress(e.nativeEvent)) {
+            return;
+        }
+        // Anything of the block holds it but its own controls, which keep their click.
+        const control =
+            "button:not([data-arrange='handle']), a, input, select, textarea, fieldset, [role='radiogroup']";
+        if (target.closest(control) != null) {
+            return;
+        }
+        const box = block.getBoundingClientRect();
+        arm(
+            id as CompanionSectionId,
+            e.pointerId,
+            { x: e.clientX, y: e.clientY },
+            { x: e.clientX - box.left, y: e.clientY - box.top },
+            false
+        );
+    };
+    return { dragging, onPointerDown };
+}
+
+// The arranging mode in place (#2395, #2441, #2459): every block folds to its label and one line, with its rank, Up and
+// Down (the arrows, Home and End on its handle), full width or fluid, and the eye, and is carried by its header to
+// the rank it is dropped at. The changes are drafted here and saved when the mode is left, however it is left (Done,
+// Escape, a click on the ground, the Arrange tool, the pane closing).
+function ArrangingFlow(
+    props: CompanionDashboardProps & {
+        cols: Columns;
+        onColumns: (cols: Columns) => void;
+        pickup: Pickup;
+        onPickupDone: () => void;
+        zoneRef: React.RefObject<HTMLDivElement>;
+        onZone: (zone: Partial<ZoneState>) => void;
+    }
+) {
     const { layout, onSaveLayout, onLeaveArranging, view, agentState, provider } = props;
     const t = useT();
     const flowRef = useRef<HTMLDivElement>(null);
@@ -832,6 +1260,22 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
         setNote(announced.current ? `${text}${InvisibleMark}` : text);
     };
     const nameOf = (id: CompanionSectionId) => t(SectionNameKeys[id]);
+    const drag = useBlockDrag({
+        flowRef,
+        zoneRef: props.zoneRef,
+        draftRef,
+        setDraft,
+        onZone: props.onZone,
+        announce,
+        nameOf,
+        pickup: props.pickup,
+        onPickupDone: props.onPickupDone,
+    });
+    const draftUsage = usageOf(draft);
+    const { onZone } = props;
+    useEffect(() => {
+        onZone({ shown: draftUsage.shown, attached: draftUsage.attached });
+    }, [onZone, draftUsage.shown, draftUsage.attached]);
     const move = (id: CompanionSectionId, to: number, what: string) => {
         const from = draft.findIndex((p) => p.id === id);
         const target = Math.max(0, Math.min(draft.length - 1, to));
@@ -846,6 +1290,24 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
     };
     const isDefault = isDefaultLayout(draft);
     const items: FlowItem[] = draft.map((p) => ({ id: p.id, full: p.span === "full" }));
+    const { prefs, set: setPref } = useBlockPrefs();
+    // The Taken by others group opens by itself while the milestone block is wide (#2418): so it reads in its option.
+    const tasksWidth =
+        props.cols.columns >= 2 && draft.find((p) => p.id === "tasks")?.span === "full" ? 0 : props.cols.columnWidth;
+    const prefDefaults: PrefDefaults = { takenopen: !(tasksWidth > 0 && tasksWidth < CompactBlockPx) };
+    const optionOf = (id: CompanionSectionId, key: BlockOptionKey) => optionsOf(id).find((o) => o.key === key);
+    // An option set, from the block's own buttons or its settings: a layout option is drafted with the layout, a
+    // preference is saved as it is set; both are announced.
+    const change = (id: CompanionSectionId, option: BlockOption, value: boolean) => {
+        const name = nameOf(id);
+        if (option.store === "layout") {
+            setDraft(setLayoutOption(draft, id, option, value));
+            announce(t(optionAnnouncement(option, value), { name }));
+            return;
+        }
+        setPref(option.key as BlockPrefKey, value);
+        announce(t(optionAnnouncement(option, value), { name, option: t(option.labelKey) }));
+    };
     return (
         <>
             <CompanionBlock
@@ -903,7 +1365,14 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                     }
                 }}
             >
-                <Flow items={items} arranging={true} onColumns={props.onColumns} flowRef={flowRef}>
+                <Flow
+                    items={items}
+                    arranging={true}
+                    dragging={drag.dragging}
+                    flowProps={{ onPointerDown: drag.onPointerDown }}
+                    onColumns={props.onColumns}
+                    flowRef={flowRef}
+                >
                     {draft.map((p, i) => {
                         const name = nameOf(p.id);
                         const shown = !p.hidden;
@@ -919,6 +1388,7 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                                 icon={SectionTiles[p.id]}
                                 tone={p.id === "permission" ? "waiting" : undefined}
                                 data-hidden={shown ? undefined : ""}
+                                data-dragging={drag.dragging === p.id ? "" : undefined}
                                 data-absent={sum.absent ? "" : undefined}
                                 data-testid="companion-arrange-row"
                                 data-section={p.id}
@@ -926,9 +1396,9 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                                 grip={
                                     <button
                                         type="button"
-                                        className="mt-cb-tool mt-cb-grip"
+                                        className="mt-cb-grip"
                                         data-arrange="handle"
-                                        aria-label={t("companion.arrange.handle", { name })}
+                                        aria-label={t("companion.arrange.handleAt", { name, position, total })}
                                         data-tip={t("companion.arrange.handleHelp")}
                                         onKeyDown={(e) => {
                                             const to = handleTarget(e.key, i, draft.length);
@@ -940,7 +1410,7 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                                         }}
                                         data-testid="companion-arrange-handle"
                                     >
-                                        <i className="fa-solid fa-grip-vertical" aria-hidden="true" />
+                                        <i className="fa-solid fa-ellipsis" aria-hidden="true" />
                                     </button>
                                 }
                                 chips={
@@ -952,58 +1422,11 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                                 }
                                 tools={
                                     <>
-                                        <span
-                                            className="mt-cb-tool-meta shrink-0"
-                                            data-tip={t("companion.arrange.rankTitle")}
-                                            data-testid="companion-arrange-rank"
-                                        >
-                                            {t("companion.arrange.rank", { position, total })}
-                                        </span>
-                                        <BlockTool
-                                            label={t("companion.arrange.up", { name })}
-                                            marker="up"
-                                            onClick={() => move(p.id, i - 1, "up")}
-                                        >
-                                            <i className="fa fa-solid fa-arrow-up" aria-hidden="true" />
-                                        </BlockTool>
-                                        <BlockTool
-                                            label={t("companion.arrange.down", { name })}
-                                            marker="down"
-                                            onClick={() => move(p.id, i + 1, "down")}
-                                        >
-                                            <i className="fa fa-solid fa-arrow-down" aria-hidden="true" />
-                                        </BlockTool>
-                                        <BlockTool
-                                            label={t("companion.arrange.wide", { name })}
-                                            pressed={full}
-                                            onClick={() => {
-                                                setDraft(setSectionSpan(draft, p.id, full ? "flow" : "full"));
-                                                announce(
-                                                    t(full ? "companion.arrange.wideOff" : "companion.arrange.wideOn", {
-                                                        name,
-                                                    })
-                                                );
-                                            }}
-                                            testId="companion-arrange-wide"
-                                        >
-                                            <i className="fa fa-solid fa-arrows-left-right" aria-hidden="true" />
-                                        </BlockTool>
                                         <BlockTool
                                             label={t("companion.arrange.show", { name })}
                                             pressed={shown}
-                                            onClick={() => {
-                                                setDraft(setSectionHidden(draft, p.id, shown));
-                                                announce(
-                                                    t(
-                                                        shown
-                                                            ? "companion.arrange.hiddenNow"
-                                                            : "companion.arrange.shownNow",
-                                                        {
-                                                            name,
-                                                        }
-                                                    )
-                                                );
-                                            }}
+                                            marker="show"
+                                            onClick={() => change(p.id, optionOf(p.id, "shown"), !shown)}
                                             testId="companion-arrange-switch"
                                         >
                                             <i
@@ -1011,45 +1434,29 @@ function ArrangingFlow(props: CompanionDashboardProps & { onColumns: (cols: Colu
                                                 aria-hidden="true"
                                             />
                                         </BlockTool>
+                                        <BlockTool
+                                            label={t("companion.arrange.wide", { name })}
+                                            pressed={full}
+                                            marker="wide"
+                                            onClick={() => change(p.id, optionOf(p.id, "wide"), !full)}
+                                            testId="companion-arrange-wide"
+                                        >
+                                            <i className="fa fa-solid fa-arrows-left-right" aria-hidden="true" />
+                                        </BlockTool>
+                                        <BlockSettings
+                                            id={p.id}
+                                            name={name}
+                                            placement={p}
+                                            prefs={prefs}
+                                            defaults={prefDefaults}
+                                            onChange={(option, value) => change(p.id, option, value)}
+                                        />
                                     </>
                                 }
                             >
                                 <div className="mt-cb-sum" data-tip={sum.text}>
                                     {sum.text}
                                 </div>
-                                {p.id === "usage" ? (
-                                    <UsageOptions
-                                        name={name}
-                                        minimal={p.minimal === true}
-                                        attached={p.attached === true}
-                                        onMinimal={(minimal) => {
-                                            setDraft(setUsageMinimal(draft, minimal));
-                                            announce(
-                                                t(
-                                                    minimal
-                                                        ? "companion.arrange.minimalOn"
-                                                        : "companion.arrange.minimalOff",
-                                                    {
-                                                        name,
-                                                    }
-                                                )
-                                            );
-                                        }}
-                                        onAttached={(attached) => {
-                                            setDraft(setUsageAttached(draft, attached));
-                                            announce(
-                                                t(
-                                                    attached
-                                                        ? "companion.arrange.attachOn"
-                                                        : "companion.arrange.attachOff",
-                                                    {
-                                                        name,
-                                                    }
-                                                )
-                                            );
-                                        }}
-                                    />
-                                ) : null}
                             </CompanionBlock>
                         );
                     })}
