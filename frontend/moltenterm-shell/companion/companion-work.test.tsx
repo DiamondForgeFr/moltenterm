@@ -884,7 +884,7 @@ describe("who works on what (#2418)", () => {
             html.indexOf('data-testid="companion-idle"')
         );
         expect(group.match(/data-testid="companion-review-ticket"/g)).toHaveLength(1);
-        expect(group).toContain('title="Open pull request #96" data-testid="companion-review-pr">PR #96<');
+        expect(group).toContain('data-tip="Open pull request #96" data-testid="companion-review-pr">PR #96<');
         expect(group).toContain('data-full="" data-testid="companion-review-title">');
     });
 

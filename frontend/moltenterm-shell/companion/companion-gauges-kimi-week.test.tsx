@@ -302,10 +302,10 @@ describe("the monthly reset on the deduced week (#2451)", () => {
         const html = markup(kimi);
         // 11 days and 13 hours to Tuesday 1 December, 01:00.
         expect(/data-testid="usage-week-chip">([^<]*)</.exec(rowHtml(html, "week"))?.[1]).toBe("11 d");
-        expect(rowHtml(html, "week")).toContain('title="Monthly reset in 11 days, Tue 1 Dec, 01:00"');
+        expect(rowHtml(html, "week")).toContain('data-tip="Monthly reset in 11 days, Tue 1 Dec, 01:00"');
         const soon = markup(withMonthReset(now + 4 * Hour + 30 * Min));
         expect(/data-testid="usage-week-chip">([^<]*)</.exec(rowHtml(soon, "week"))?.[1]).toBe("5 h");
-        expect(rowHtml(soon, "week")).toMatch(/title="Monthly reset in 5 h, Thu 19 Nov, 16:30"/);
+        expect(rowHtml(soon, "week")).toMatch(/data-tip="Monthly reset in 5 h, Thu 19 Nov, 16:30"/);
         const i18n = I18nModel.getInstance();
         try {
             i18n.setLanguageSetting("fr");
@@ -358,8 +358,8 @@ describe("the day figures in a narrow grid (#2451)", () => {
     });
 
     it("keeps the figures in the row's tooltip in the full form", () => {
-        expect(rowTag(markup(claude), "week")).toMatch(/title="[^"]*Per day: Mon 0 %, Tue 100 %/);
-        expect(rowTag(markup(kimi), "week")).toMatch(/title="[^"]*Per day: Mon unknown, Tue unknown, Wed 240 %/);
+        expect(rowTag(markup(claude), "week")).toMatch(/data-tip="[^"]*Per day: Mon 0 %, Tue 100 %/);
+        expect(rowTag(markup(kimi), "week")).toMatch(/data-tip="[^"]*Per day: Mon unknown, Tue unknown, Wed 240 %/);
     });
 
     it("labels the deduced week in French on two lines", () => {

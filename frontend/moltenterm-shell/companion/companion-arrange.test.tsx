@@ -329,7 +329,7 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         // since a narrow grid hides the figures (#2451).
         const full = flowBlock(shown(DefaultCompanionLayout), "usage");
         expect(full).not.toContain("per day:");
-        expect(full).toMatch(/title="This week: 63 % used[^"]*Per day: /);
+        expect(full).toMatch(/data-tip="This week: 63 % used[^"]*Per day: /);
     });
 
     it("keeps the usage page, the refresh and the full block one click away from the minimal form", () => {
