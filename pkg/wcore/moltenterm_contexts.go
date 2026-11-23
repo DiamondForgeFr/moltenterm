@@ -60,7 +60,7 @@ func ReadContexts(ctx context.Context) (contexts.State, error) {
 func ApplyContexts(ctx context.Context, change contexts.Change) (contexts.State, error) {
 	var written contexts.State
 	var clientId string
-	var listChanged bool
+	var listChanged, rosterChanged bool
 	var movedIds []string
 	err := withContextsLock(func() error {
 		return wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
@@ -75,6 +75,7 @@ func ApplyContexts(ctx context.Context, change contexts.Change) (contexts.State,
 			}
 			written = next
 			listChanged = !contexts.SameContexts(next.Contexts, state.Contexts)
+			rosterChanged = !contexts.SameIgnoringLast(next.Contexts, state.Contexts)
 			movedIds = slices.Clone(moved)
 			if !listChanged && len(moved) == 0 {
 				return nil
@@ -112,7 +113,9 @@ func ApplyContexts(ctx context.Context, change contexts.Change) (contexts.State,
 	for _, id := range movedIds {
 		SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Workspace, id))
 	}
-	if listChanged || len(movedIds) > 0 {
+	// Remembering the workspace a context last showed changes no rail: it does not make every window read every workspace
+	// again.
+	if rosterChanged || len(movedIds) > 0 {
 		wps.Broker.Publish(wps.WaveEvent{Event: wps.Event_WorkspaceUpdate})
 	}
 	return written, nil
