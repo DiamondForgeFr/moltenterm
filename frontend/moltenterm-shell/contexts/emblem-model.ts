@@ -45,24 +45,44 @@ export type EmblemMatches = {
     hidden: number;
 };
 
+// Lower case, accents out: "Écriture" finds "ecriture".
+export function plainText(text: string): string {
+    return text
+        .normalize("NFD")
+        .replace(/[̀-ͯ]/g, "")
+        .toLowerCase();
+}
+
 function tokensOf(query: string): string[] {
-    return query
-        .toLowerCase()
+    return plainText(query)
         .split(/[\s-]+/)
         .filter((token) => token !== "");
 }
 
-// Icons whose name holds every word of the query, the ones that start with it first, then the shorter names. No query
-// shows the suggestions that exist in the catalog.
-export function matchEmblems(names: readonly string[], query: string, limit: number = EmblemResultLimit): EmblemMatches {
+// Icons whose name or whose words (an activity, in English or French: emblem-keywords.ts) hold every word of the query.
+// The names that match come first, the exact name, then the ones that start with it, then the shorter names; the icons
+// found by their words follow, the shorter names first. No query shows the suggestions that exist in the catalog.
+export function matchEmblems(
+    names: readonly string[],
+    query: string,
+    limit: number = EmblemResultLimit,
+    keywords: Readonly<Record<string, readonly string[]>> = {}
+): EmblemMatches {
     const tokens = tokensOf(query);
     if (tokens.length === 0) {
         const known = new Set(names);
         return { shown: SuggestedEmblems.filter((name) => known.has(name)), hidden: 0 };
     }
     const joined = tokens.join("-");
-    const found = names.filter((name) => tokens.every((token) => name.includes(token)));
-    const rank = (name: string) => (name === joined ? 0 : name.startsWith(tokens[0]) ? 1 : 2);
+    const inName = (name: string, token: string) => name.includes(token);
+    const inWords = (name: string, token: string) => (keywords[name] ?? []).some((word) => word.startsWith(token));
+    const found = names.filter((name) => tokens.every((token) => inName(name, token) || inWords(name, token)));
+    const rank = (name: string) => {
+        if (!tokens.every((token) => inName(name, token))) {
+            return 3;
+        }
+        return name === joined ? 0 : name.startsWith(tokens[0]) ? 1 : 2;
+    };
     found.sort((a, b) => rank(a) - rank(b) || a.length - b.length || (a < b ? -1 : 1));
     return { shown: found.slice(0, limit), hidden: Math.max(0, found.length - limit) };
 }

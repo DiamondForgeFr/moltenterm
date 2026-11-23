@@ -13452,7 +13452,7 @@
             "choose": "Choose an emblem",
             "current": "Emblem: {name}",
             "search": "Search the icons",
-            "searchPlaceholder": "Search icons, e.g. book",
+            "searchPlaceholder": "Search an activity or an icon, e.g. travel",
             "none": "No icon matches “{query}”.",
             "more": "{count} more: keep typing to narrow them down."
         }

@@ -13452,7 +13452,7 @@
             "choose": "Choisir un emblème",
             "current": "Emblème : {name}",
             "search": "Chercher parmi les icônes",
-            "searchPlaceholder": "Chercher une icône, par exemple book",
+            "searchPlaceholder": "Chercher une activité ou une icône, par exemple voyage",
             "none": "Aucune icône ne correspond à « {query} ».",
             "more": "{count} de plus : précisez la recherche."
         }
