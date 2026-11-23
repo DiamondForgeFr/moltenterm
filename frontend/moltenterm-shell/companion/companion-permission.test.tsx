@@ -66,7 +66,7 @@ const held: PermitRequest = {
     deadline: 1_000_000 + 112_000,
 };
 
-function card(over: Partial<React.ComponentProps<typeof PermitRequestCard>> = {}, req: PermitRequest = held) {
+function card(over: { agent?: string; now?: number; busy?: boolean; error?: string } = {}, req: PermitRequest = held) {
     return {
         request: req,
         t,
