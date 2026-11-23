@@ -53,6 +53,8 @@ export const CssSurfaces: [string, string, string][] = [
 // Surfaces that draw it in a class string take the shared class: file → [classes, one of which it must hold].
 export const ClassSurfaces: [string, string[]][] = [
     ["frontend/moltenterm-shell/sidebar/workspace-sidebar.tsx", ["mt-sb-selected", "mt-selected "]],
+    ["frontend/moltenterm-shell/contexts/ribbon-menu.tsx", ['"mt-selected"']],
+    ["frontend/moltenterm-shell/contexts/manage-contexts.tsx", ["mt-selected-action"]],
     ["frontend/moltenterm-shell/workspace-views/workspace-views-settings.tsx", ["mt-sb-selected"]],
     ["frontend/moltenterm-shell/settings/settings-screen.tsx", ["mt-selected-action"]],
     ["frontend/moltenterm-shell/mission/cicd-view.tsx", ["mt-selected-action"]],

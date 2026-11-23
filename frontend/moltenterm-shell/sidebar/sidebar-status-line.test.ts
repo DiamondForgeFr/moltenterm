@@ -19,14 +19,23 @@ describe("the sidebar's status line chip (DS-SHELL-127, #1293)", () => {
         expect(source).toMatch(/!hidden && "border-t border-line pt-1\.5"[\s\S]{0,80}sidebar-bottom-bar/);
     });
 
-    it("passes every status chip, in the sidebar and in the status bar, through statusBarMarker", () => {
-        for (const file of ["./workspace-sidebar.tsx", "../status-bar.tsx"]) {
-            const source = readFileSync(new URL(file, import.meta.url), "utf8");
-            const chips = source.match(/<WorktreeChip marker=\{[^}]*\}/g) ?? [];
-            expect(chips.length, file).toBeGreaterThan(0);
-            for (const chip of chips) {
-                expect(chip, file).toMatch(/marker=\{statusBarMarker\(/);
-            }
+    it("passes every status chip, in the status bar and in the panel headers, through statusBarMarker", () => {
+        const bar = readFileSync(new URL("../status-bar.tsx", import.meta.url), "utf8");
+        const chips = bar.match(/<WorktreeChip marker=\{[^}]*\}/g) ?? [];
+        expect(chips.length).toBeGreaterThan(0);
+        for (const chip of chips) {
+            expect(chip).toMatch(/marker=\{statusBarMarker\(/);
         }
+        const headerModel = readFileSync(new URL("../header/header-model.ts", import.meta.url), "utf8");
+        expect(headerModel).toMatch(/const chip = statusBarMarker\(input\.marker\)/);
+    });
+
+    // #2476 (FR-SHELL-159, FR-SHELL-160): the branch, CI and pull request moved into the panels' headers, and the
+    // ribbon took the line's left.
+    it("draws no branch line any more: the context's ribbon is on its left, the build badge on its right", () => {
+        const source = readFileSync(new URL("./workspace-sidebar.tsx", import.meta.url), "utf8");
+        expect(source).not.toMatch(/BranchSection|sidebar-branch|useFocusedPane/);
+        expect(source).toMatch(/data-testid="sidebar-status-line"[\s\S]{0,200}<ContextRibbonHost mode="sidebar"/);
+        expect(source).toMatch(/data-testid="build-badge"/);
     });
 });
