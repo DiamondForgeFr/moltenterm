@@ -295,8 +295,8 @@ func TestReleaseTicketIsMadeOnceByTwoConcurrentResolutions(t *testing.T) {
 		startLock.Lock()
 		started := creatingStarted
 		startLock.Unlock()
-		if started && strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues?milestone=12") {
-			// The second resolution looks while the first has not finished: nothing kept it out.
+		if started && strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues?state=open") {
+			// The second resolution has looked everywhere while the first has not finished: nothing kept it out.
 			signal()
 		}
 		if !strings.HasPrefix(joined, "issue create") {
