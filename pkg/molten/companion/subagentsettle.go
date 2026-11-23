@@ -38,10 +38,16 @@ func (a *ClaudeAdapter) SubagentFile(sessionPath string, agentId string) (Subage
 		return SubagentIdentity{}, false
 	}
 	metaAt, written := info.ModTime().UnixMilli(), int64(0)
-	if t, err := os.Lstat(filepath.Join(dir, "agent-"+agentId+".jsonl")); err == nil && t.Mode().IsRegular() {
+	transcript := filepath.Join(dir, "agent-"+agentId+".jsonl")
+	t, err := os.Lstat(transcript)
+	if err == nil && t.Mode().IsRegular() {
 		written = t.ModTime().UnixMilli()
 	}
-	return claudeIdentity(agentId, meta, metaAt, written), true
+	id := claudeIdentity(agentId, meta, metaAt, written)
+	if id.Finished && written > 0 && claudeWaitsOnBackground(transcript, t) {
+		id.Finished, id.Ended, id.Waiting = false, 0, true
+	}
+	return id, true
 }
 
 // settledAgentIds are the agent ids of the session's sub-agents still taken for running or quiet, which their files

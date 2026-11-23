@@ -52,6 +52,9 @@ type SubagentIdentity struct {
 	CallId string
 	// Ended: when its files say it finished (Claude Code: its meta file's write), 0 when they do not (#2397).
 	Ended int64
+	// Waiting: its last turn ended on background work of its own that has not reported yet (#2498): it runs on,
+	// although its meta says finished, and goes quiet only after SubagentWaitingQuietAfter of silence.
+	Waiting bool
 }
 
 // SubagentLister is an adapter that lists a session's sub-agents from their own files.
@@ -248,6 +251,9 @@ func (a *ClaudeAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 			if id.Worktree == "" {
 				id.Worktree = facts.cwd
 			}
+			if id.Finished && claudeWaitsOnBackground(path, f.info) {
+				id.Finished, id.Ended, id.Waiting = false, 0, true
+			}
 		}
 		id.Model, id.Effort = a.withAgentDefinition(id.Model, id.Effort, meta.AgentType, id.Worktree)
 		rtn = append(rtn, id)
@@ -302,8 +308,12 @@ func identityState(id SubagentIdentity, now time.Time) string {
 	if id.Finished {
 		return SubagentDone
 	}
+	quietAfter := SubagentQuietAfter
+	if id.Waiting {
+		quietAfter = SubagentWaitingQuietAfter
+	}
 	last := max(id.LastWrite, id.Started)
-	if last > 0 && now.UnixMilli()-last > SubagentQuietAfter.Milliseconds() {
+	if last > 0 && now.UnixMilli()-last > quietAfter.Milliseconds() {
 		return SubagentQuiet
 	}
 	return SubagentRunning
@@ -328,7 +338,8 @@ func ApplyHookSubagents(ids []SubagentIdentity, hooks []SubagentHookEvent, now t
 		id := &ids[i]
 		// A stop is not an end when the agent wrote its transcript well after it (#2397): an agent stops its turn and
 		// goes on (its own background work, a SendMessage resume) without a new start.
-		if at, ok := stopAt[id.AgentId]; ok && at >= startAt[id.AgentId] && id.LastWrite-at <= SubagentReviveAfter.Milliseconds() {
+		// Nor is the stop of a turn that ended on the agent's own background work (#2498).
+		if at, ok := stopAt[id.AgentId]; ok && !id.Waiting && at >= startAt[id.AgentId] && id.LastWrite-at <= SubagentReviveAfter.Milliseconds() {
 			id.Finished = true
 			if id.LastWrite == 0 || at < id.LastWrite {
 				id.LastWrite = at
@@ -376,6 +387,7 @@ func PaneSubagents(blockId string) []SubagentIdentity {
 }
 
 func (m *Manager) PaneSubagents(blockId string, hooks []SubagentHookEvent) []SubagentIdentity {
+	hooks = m.runHooks(blockId, hooks)
 	agent, path, ok := m.LinkedSession(blockId)
 	if !ok && len(hooks) > 0 {
 		agent = hooks[len(hooks)-1].Agent
@@ -397,6 +409,29 @@ func (m *Manager) PaneSubagents(blockId string, hooks []SubagentHookEvent) []Sub
 		return nil
 	}
 	return ApplyHookSubagents(lister.ListSubagents(path), hooks, m.now())
+}
+
+// runHooks keeps the hook reports of the agent that runs in the block now (#2498): the block's log keeps every report
+// until the terminal closes, so an agent run there before (a Claude Code session, then Kimi Code in the same
+// terminal) would otherwise lend its session's sub-agents to the agent that runs now. A report names its agent; one
+// from before the run's start is an earlier run's.
+func (m *Manager) runHooks(blockId string, hooks []SubagentHookEvent) []SubagentHookEvent {
+	if m.runOf == nil || len(hooks) == 0 {
+		return hooks
+	}
+	run, ok := m.runOf(blockId)
+	if !ok {
+		return nil
+	}
+	since := time.UnixMilli(run.Started).Add(-reportSlack).UnixMilli()
+	var rtn []SubagentHookEvent
+	for _, h := range hooks {
+		if (h.Agent != "" && h.Agent != run.Agent) || (run.Started > 0 && h.At < since) {
+			continue
+		}
+		rtn = append(rtn, h)
+	}
+	return rtn
 }
 
 // identityAdapter keeps one adapter per agent, so a Codex adapter's rollout headers stay cached between reads.
