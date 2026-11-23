@@ -75,6 +75,17 @@ describe("the ribbon's stylesheet", () => {
         expect(Css).toMatch(/\.mt-ribbon\.is-rolled:is\(:hover, :focus-visible, \[aria-expanded="true"\]\) \.mt-ribbon-name/);
     });
 
+    // #2476: rolled at rest it is its emblem and nothing more, and the collapsed ribbon starts below the header row and a
+    // margin, whatever a panel's header holds: the pointer or the focus unrolls it over the content, never over a header.
+    it("takes only its emblem's room at rest, and never reaches the header row", () => {
+        expect(Css).toMatch(/\.mt-ribbon\.is-rolled \.mt-ribbon-name \{[^}]*max-width: 0;[^}]*opacity: 0;[^}]*margin-left: -6px/);
+        expect(Css).not.toMatch(/\.mt-ribbon\.is-rolled \{[^}]*[^-]width:/);
+        const edge = Css.match(/\.mt-ribbon-edge \{([^}]*)\}/)?.[1] ?? "";
+        expect(edge).toMatch(/top: calc\(var\(--mt-frame-gap, 8px\) \+ var\(--header-height, 28px\) \+ [1-9]\d*px\)/);
+        expect(edge).toMatch(/left: 0;/);
+        expect(edge).toMatch(/position: absolute;/);
+    });
+
     it("sits under the first panel's header, and animates only through the duration tokens, which reduced motion zeroes", () => {
         expect(Css).toMatch(/\.mt-ribbon-edge \{[^}]*top: calc\(var\(--mt-frame-gap, 8px\) \+ var\(--header-height, 28px\)/);
         const durations = Css.match(/\d+m?s\b/g) ?? [];

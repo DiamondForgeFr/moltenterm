@@ -4,6 +4,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import type { PrimitiveAtom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { I18nModel } from "./i18n/i18n";
 import { setWindowTitleTab } from "./window-title";
 
 const h = vi.hoisted(() => ({
@@ -49,11 +50,22 @@ describe("the window title names the context", () => {
     });
 
     afterEach(() => {
+        I18nModel.getInstance().setLanguageSetting("");
         vi.unstubAllGlobals();
     });
 
     it("shows the default context in the interface language before any is stored", () => {
         setWindowTitleTab(tab);
+        expect(doc.title).toBe("MoltenTerm — My workshop - Release");
+    });
+
+    it("follows a change of the interface language, the default context's name being the language's own text", () => {
+        I18nModel.getInstance().setLanguageSetting("en");
+        setWindowTitleTab(tab);
+        expect(doc.title).toBe("MoltenTerm — My workshop - Release");
+        I18nModel.getInstance().setLanguageSetting("fr");
+        expect(doc.title).toBe("MoltenTerm — Mon atelier - Release");
+        I18nModel.getInstance().setLanguageSetting("en");
         expect(doc.title).toBe("MoltenTerm — My workshop - Release");
     });
 
