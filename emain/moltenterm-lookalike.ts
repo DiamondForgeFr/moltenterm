@@ -24,6 +24,8 @@ export const LookalikeKnownChannel = "moltenterm-lookalike-known";
 export const LookalikeHeldChannel = "moltenterm-lookalike-held";
 // renderer to Electron main (application frame only): (guest web contents id) the developer continues to the held domain
 export const LookalikeContinueChannel = "moltenterm-lookalike-continue";
+// Electron main to the renderer holding the webview: (guest web contents id, LookalikeHold) a navigation was just held
+export const LookalikeHeldEventChannel = "moltenterm-lookalike-held-event";
 
 const LookalikeFolder = "lookalike";
 
@@ -58,6 +60,11 @@ function onBeforeRequest(
         const hold = theGate().check(guest.id, details.url);
         if (hold != null) {
             console.log("lookalike: held a navigation");
+            // A navigation a page starts is cancelled without a failed load the panel could hear, so main says so.
+            const host = guest.hostWebContents;
+            if (host != null && !host.isDestroyed()) {
+                host.send(LookalikeHeldEventChannel, guest.id, hold);
+            }
         }
         callback(hold != null ? { cancel: true } : {});
     } catch (e) {

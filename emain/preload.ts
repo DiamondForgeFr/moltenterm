@@ -436,6 +436,12 @@ ipcRenderer.on("moltenterm-client-certificate-done", (e, requestId) => {
     );
 });
 
+// MOLTENTERM-PATCH (#2482): a navigation of a page was held as a lookalike domain (emain/moltenterm-lookalike.ts); the
+// panel tab's webview shows the warning.
+ipcRenderer.on("moltenterm-lookalike-held-event", (e, webContentsId, hold) => {
+    webviewByContentsId(webContentsId)?.dispatchEvent(new CustomEvent("moltenterm-lookalike-held", { detail: hold }));
+});
+
 // MOLTENTERM-PATCH (#1980): how a page is served changed (emain/moltenterm-connection.ts); the panel tab's webview shows it.
 ipcRenderer.on("moltenterm-connection-state", (e, webContentsId, state) => {
     webviewByContentsId(webContentsId)?.dispatchEvent(new CustomEvent("moltenterm-connection", { detail: state }));
