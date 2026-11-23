@@ -1,0 +1,382 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The companion's permission request and the main agent's autonomous mode (FR-SHELL-018, FR-SHELL-063, #2474): the
+   request's three answers, the deny list's strip, the Permissions control and its menu, and the steel blue the main
+   agent block wears while its session approves its own requests. Role tokens only (tokens.css): the light theme swaps
+   them. */
+
+/* ── The permission block ──────────────────────────────────────────────────────────────────────────────────────── */
+
+.mt-cdash-perm-meta {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 15px;
+}
+
+.mt-cdash-perm-error {
+    color: var(--mt-state-blocked-text);
+}
+
+.mt-cdash-perm-text {
+    max-height: 168px;
+    color: var(--mt-text-1);
+}
+
+.mt-cdash-perm-text:focus-visible {
+    outline: 2px solid var(--mt-focus);
+    outline-offset: 1px;
+}
+
+.mt-cdash-perm-act {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+}
+
+.mt-cdash-perm-act > button:disabled {
+    cursor: default;
+}
+
+/* The quiet countdown stands at the right of the answers, and under them when they leave it no room. */
+.mt-cdash-perm-count {
+    margin-left: auto;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* What the deny list keeps for the developer: a warm strip with a triangle, never a button that allows. */
+.mt-cdash-perm-strip {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid color-mix(in srgb, var(--mt-state-warning) 50%, transparent);
+    border-radius: var(--mt-radius-control);
+    background: color-mix(in srgb, var(--mt-state-warning) 12%, transparent);
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-12);
+    line-height: 17px;
+}
+
+.mt-cdash-perm-strip > i {
+    flex: none;
+    margin-top: 2px;
+    color: var(--mt-state-warning);
+}
+
+/* ── The Permissions control ───────────────────────────────────────────────────────────────────────────────────── */
+
+.mt-cdash-perm-tool {
+    gap: 5px;
+    padding: 0 6px;
+}
+
+.mt-cdash-perm-tool-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mt-cdash-perm-chevron {
+    opacity: 0.7;
+}
+
+.mt-cdash-perm-tool-on {
+    color: var(--mt-state-autonomous);
+}
+
+/* The hero keeps the shield and the chevron where its tools have no room for the words (the name stays on the button). */
+@container mt-hero (max-width: 560px) {
+    .mt-cdash-perm-tool-text {
+        display: none;
+    }
+}
+
+.mt-cb-settings.mt-cdash-perm-menu {
+    width: 320px;
+}
+
+.mt-perm-menu {
+    gap: 2px;
+}
+
+.mt-perm-menu .mt-cb-settings-title {
+    overflow: visible;
+    white-space: normal;
+}
+
+.mt-perm-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    padding: 8px 6px;
+    border: 0;
+    border-radius: var(--mt-radius-control);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+}
+
+button.mt-perm-row {
+    cursor: pointer;
+}
+
+button.mt-perm-row:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--mt-veil) 9%, transparent);
+}
+
+button.mt-perm-row:focus-visible,
+.mt-perm-chip:focus-visible {
+    outline: 2px solid var(--mt-focus);
+    outline-offset: 1px;
+}
+
+button.mt-perm-row:disabled,
+.mt-perm-row[aria-disabled="true"] {
+    cursor: default;
+    opacity: 0.5;
+}
+
+/* A radio dot keeps its own mark: it is not the selected-one liseré. */
+.mt-perm-radio {
+    flex: none;
+    box-sizing: border-box;
+    width: 14px;
+    height: 14px;
+    margin-top: 2px;
+    border: 1.5px solid var(--mt-line-control);
+    border-radius: 50%;
+}
+
+.mt-perm-radio[data-on] {
+    border-color: var(--mt-action-text);
+    background: radial-gradient(circle, var(--mt-action-text) 0 3.5px, transparent 4px);
+}
+
+.mt-perm-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.mt-perm-label {
+    font-weight: var(--mt-weight-medium);
+}
+
+.mt-perm-sub {
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.mt-perm-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.mt-perm-chip {
+    margin: 0;
+    padding: 2px 9px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: none;
+    color: var(--mt-text-2);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--mt-text-11);
+}
+
+.mt-perm-chip:hover:not(:disabled) {
+    border-color: var(--mt-line-control);
+    color: var(--mt-text-1);
+}
+
+.mt-perm-chip[aria-pressed="true"] {
+    border-color: var(--mt-action-text);
+    color: var(--mt-action-text);
+}
+
+.mt-perm-chip:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+.mt-perm-foot {
+    margin: 4px 6px 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--mt-cdash-hair);
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+    line-height: 1.35;
+}
+
+.mt-perm-foot + .mt-perm-foot {
+    margin-top: 0;
+    padding-top: 4px;
+    border-top: 0;
+}
+
+.mt-perm-error {
+    color: var(--mt-state-blocked-text);
+}
+
+/* ── The autonomous mode ───────────────────────────────────────────────────────────────────────────────────────── */
+
+/* The main agent block turns steel blue while its session approves its own requests: its turning light, its label chip,
+   a soft glow on its border, and the state text of work. Waiting for the developer keeps the violet border. Under reduced
+   motion the light stands still (suite.css, companion-dashboard.css). */
+.mt-cdash-hero[data-autonomous] {
+    --df-accent: var(--mt-state-autonomous);
+}
+
+.mt-cdash-hero[data-autonomous]:not([data-agent="waiting"]) {
+    --mt-cb-edge: color-mix(in srgb, var(--mt-state-autonomous) 55%, transparent);
+    border-color: var(--mt-cb-edge);
+    box-shadow:
+        0 0 0 1px color-mix(in srgb, var(--mt-state-autonomous) 16%, transparent),
+        0 0 22px -6px color-mix(in srgb, var(--mt-state-autonomous) 38%, transparent);
+}
+
+.mt-cdash-hero[data-autonomous][data-agent="running"] > .mt-cdash-heat {
+    background: radial-gradient(
+        90% 120% at 0% 0%,
+        color-mix(in srgb, var(--mt-state-autonomous) 9%, transparent),
+        transparent 62%
+    );
+}
+
+.mt-cdash-hero[data-autonomous] .mt-cb-notch[data-side="label"] .mt-cb-chip:not(.mt-cb-chip-off) {
+    border-color: var(--mt-state-autonomous-edge);
+    background: var(--mt-state-autonomous-wash);
+    color: var(--mt-state-autonomous);
+}
+
+.mt-cdash-hero[data-autonomous] .mt-cdash-state[data-state="running"] {
+    color: var(--mt-state-autonomous);
+}
+
+/* The header chip: a shield, how long the session runs on its own, and Stop. */
+.mt-cb-chip.mt-cdash-auto-chip {
+    flex: 0 1 auto;
+    gap: 6px;
+    min-width: 0;
+    padding: 0 3px 0 8px;
+    overflow: hidden;
+    border-color: var(--mt-state-autonomous-edge);
+    background: var(--mt-state-autonomous-wash);
+    color: var(--mt-state-autonomous);
+    font-weight: var(--mt-weight-medium);
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.mt-cdash-auto-chip > i {
+    flex: none;
+}
+
+.mt-cdash-auto-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mt-cdash-auto-stop {
+    flex: none;
+    height: 18px;
+    margin: 0;
+    padding: 0 8px;
+    border: 1px solid var(--mt-state-autonomous-edge);
+    border-radius: var(--mt-radius-control);
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+}
+
+.mt-cdash-auto-stop:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--mt-state-autonomous) 16%, transparent);
+}
+
+.mt-cdash-auto-stop:focus-visible {
+    outline: 2px solid var(--mt-focus);
+    outline-offset: 1px;
+}
+
+.mt-cdash-auto-stop:disabled {
+    cursor: default;
+    opacity: 0.6;
+}
+
+/* What it approved on its own, under the hero's meta lines, and the list. */
+.mt-cdash-autoline {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mt-cdash-autoline-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    color: var(--mt-state-autonomous);
+    font-size: var(--mt-text-11);
+}
+
+.mt-cdash-autoline .mt-cdash-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.mt-cdash-autolist {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--mt-cdash-hair);
+    list-style: none;
+}
+
+.mt-cdash-autolist > li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--mt-cdash-hair);
+    font-size: var(--mt-text-11);
+}
+
+.mt-cdash-autolist-time {
+    flex: none;
+    width: 44px;
+    color: var(--mt-text-3);
+    font-family: var(--font-mono, monospace);
+}
+
+.mt-cdash-autolist-tool {
+    flex: none;
+    color: var(--mt-text-2);
+    font-family: var(--font-mono, monospace);
+}
+
+.mt-cdash-autolist-detail {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--mt-text-2);
+    font-family: var(--font-mono, monospace);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

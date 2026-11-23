@@ -12,6 +12,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { atom, PrimitiveAtom, useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 import { KeepAwakeRefresh } from "../keepawake-refresh";
+import { TabActivity, whileShown } from "../tab-activity";
 import {
     applyPermitState,
     EmptyPermitState,
@@ -155,23 +156,22 @@ export function usePermitState(): PermitState {
 
 const NoWatch: PermitWatch = { blockid: "", available: false, holds: false };
 
+type Scheduler = Pick<TabActivity, "every">;
+
 // While the companion of a terminal shows in a window that can be seen, the window says so every few seconds: that is
-// what makes wavesrv hold the terminal's requests for it. A hidden window says nothing, so no request waits for a click
-// nobody can make. Returns what ends it.
-export function startPermitWatch(model: PermitModel, blockId: string, doc: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener"> = document): () => void {
+// what makes wavesrv hold the terminal's requests for it. The tab activity pauses it while another view is on screen or
+// the window is minimised, so no request waits for a click nobody can make, and says it again at once when the view
+// comes back. Returns what ends it.
+export function startPermitWatch(
+    model: PermitModel,
+    blockId: string,
+    activity: Scheduler = TabActivity.getInstance()
+): () => void {
     const tell = () => {
-        if (doc.visibilityState === "hidden") {
-            return;
-        }
         model.watch(blockId).catch((e) => console.log("permission gate: watch failed", e));
     };
     tell();
-    const timer = setInterval(tell, PermitWatchEveryMs);
-    doc.addEventListener("visibilitychange", tell);
-    return () => {
-        clearInterval(timer);
-        doc.removeEventListener("visibilitychange", tell);
-    };
+    return activity.every(whileShown(PermitWatchEveryMs), tell, "permit-watch");
 }
 
 export function usePermitWatch(blockId: string): PermitWatch {
@@ -181,7 +181,7 @@ export function usePermitWatch(blockId: string): PermitWatch {
     return watches[blockId] ?? NoWatch;
 }
 
-// A clock for what counts down on screen: ticks while `active`, once a second.
+// A clock for what counts down on screen: ticks while `active` and the view shows, once a second.
 export function useTick(active: boolean, everyMs = 1000): number {
     const [now, setNow] = useState(() => Date.now());
     useEffect(() => {
@@ -189,8 +189,7 @@ export function useTick(active: boolean, everyMs = 1000): number {
             return;
         }
         setNow(Date.now());
-        const timer = setInterval(() => setNow(Date.now()), everyMs);
-        return () => clearInterval(timer);
+        return TabActivity.getInstance().every(whileShown(everyMs), () => setNow(Date.now()), "permit-tick");
     }, [active, everyMs]);
     return now;
 }

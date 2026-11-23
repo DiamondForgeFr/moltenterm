@@ -2123,6 +2123,77 @@
         "permissionRequest": "Demande d'autorisation",
         "answerInTerminal": "Répondez-y dans le terminal.",
         "goToTerminal": "Aller au terminal",
+        "permit": {
+            "agentPlain": "L'agent",
+            "line": {
+                "command": "{name} veut lancer une commande",
+                "edit": "{name} veut modifier un fichier",
+                "read": "{name} veut lire des fichiers",
+                "web": "{name} veut accéder au web",
+                "tool": "{name} veut utiliser un outil"
+            },
+            "meta": "Outil : {tool} · dossier : {folder}",
+            "metaTool": "Outil : {tool}",
+            "clipped": "Les textes longs sont affichés coupés ici ; l'agent exécute le tout.",
+            "allow": "Autoriser",
+            "deny": "Refuser",
+            "terminal": "Répondre dans le terminal",
+            "countdown": "Repasse au terminal dans {time}",
+            "actions": "Répondre à la demande de {name}",
+            "failed": "La réponse n'est pas passée. Répondez dans le terminal.",
+            "gone": "Cette demande a déjà reçu sa réponse.",
+            "denyList": "{reason}. Celle-ci se valide toujours dans le terminal, même en mode autonome.",
+            "denyListPlain": "Celle-ci se valide toujours dans le terminal, même en mode autonome.",
+            "denyListLabel": "Se valide dans le terminal seulement",
+            "tool": "Autorisations : {mode}",
+            "toolLabel": "Autorisations de {name} : {mode}",
+            "toolTip": "Quand {name} demande une autorisation",
+            "mode": {
+                "ask": "me demander",
+                "for": "automatique",
+                "always": "toujours"
+            },
+            "menu": {
+                "title": "Quand {name} demande une autorisation",
+                "ask": "Me demander",
+                "askSub": "Dans le compagnon, puis le terminal",
+                "for": "Valider automatiquement pendant…",
+                "periods": "Durée de la validation automatique",
+                "period15m": "15 min",
+                "period1h": "1 h",
+                "period4h": "4 h",
+                "periodTonight": "Jusqu'à ce soir",
+                "until": "Jusqu'à {time}",
+                "always": "Toujours valider automatiquement",
+                "alwaysSub": "Pour cette session de {name}",
+                "foot": "Les commandes sensibles (poussée forcée, suppression…) demandent toujours.",
+                "dialog": "Autorisations de {name}",
+                "unavailable": "Indisponible ici : {reason}",
+                "unavailablePlain": "Indisponible pour cette session d'agent.",
+                "failed": "Le choix n'est pas passé.",
+                "saidAsk": "{name} vous redemande.",
+                "saidFor": "{name} valide automatiquement pendant {period}.",
+                "saidAlways": "{name} valide automatiquement, toujours."
+            },
+            "chip": {
+                "for": "Autonome · encore {time}",
+                "always": "Autonome · toujours",
+                "label": "Mode autonome",
+                "stop": "Arrêter",
+                "stopLabel": "Arrêter le mode autonome : {name} vous redemande"
+            },
+            "approved": {
+                "one": "{count} autorisation validée automatiquement depuis {time}",
+                "other": "{count} autorisations validées automatiquement depuis {time}"
+            },
+            "list": {
+                "none": "Rien de validé automatiquement depuis {time}",
+                "show": "voir la liste",
+                "hide": "masquer la liste",
+                "title": "Validées automatiquement"
+            },
+            "restart": "Redémarrez l'agent pour répondre d'ici"
+        },
         "answer": {
             "title": "Réponse",
             "none": "Pas encore de réponse dans cette session.",

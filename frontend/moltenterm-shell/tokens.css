@@ -118,6 +118,13 @@
     --mt-state-warning: #e8d46a;
     --mt-state-info: #7faee6;
 
+    /* Autonomous mode (#2474): an agent session that approves its own permissions. Steel blue, a state of its own: not
+       the action orange, not the waiting violet. The main agent block's turning light, label chip and header chip wear
+       it; the wash and the edge are the chip's fill and outline. */
+    --mt-state-autonomous: #7db4e6;
+    --mt-state-autonomous-wash: #1b2530;
+    --mt-state-autonomous-edge: #3f5a73;
+
     /* Text on the warning fill (the warning button). */
     --mt-state-warning-fg: #000000;
 
@@ -280,6 +287,9 @@
     --mt-state-waiting: #6e52c8;
     --mt-state-warning: #765a00;
     --mt-state-info: #2f66b0;
+    --mt-state-autonomous: #2b6199;
+    --mt-state-autonomous-wash: #e5eef7;
+    --mt-state-autonomous-edge: #9bb8d4;
     --mt-state-warning-fg: #ffffff;
     --mt-state-fg: #ffffff;
     --mt-state-blocked-fg: #ffffff;
@@ -332,6 +342,9 @@
     --mt-state-waiting: #b59cf5;
     --mt-state-warning: #e8d46a;
     --mt-state-info: #7faee6;
+    --mt-state-autonomous: #7db4e6;
+    --mt-state-autonomous-wash: #1b2530;
+    --mt-state-autonomous-edge: #3f5a73;
     --mt-state-warning-fg: #000000;
     --mt-state-fg: #000000;
     --mt-state-blocked-fg: #f7f7f7;
