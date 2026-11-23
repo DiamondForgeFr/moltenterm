@@ -14,7 +14,6 @@ import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { getTabModelByTabId } from "@/app/store/tab-model";
 import { getObjectValue, makeORef, useWaveObjectValue } from "@/app/store/wos";
-import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { TabEnv } from "@/app/tab/tab";
@@ -96,7 +95,7 @@ import { WorkspaceIcon } from "../workspace-icon";
 import { workspaceIconSource } from "../workspace-icon-model";
 import { moveWorkspace, neighbourMove, RailMove, slotMove } from "../workspace-order";
 import { readWorkspaceProject } from "../workspace-project";
-import { loadWorkspaceSources, WorkspaceRailHosts } from "../workspace-rail";
+import { WorkspaceRailHosts } from "../workspace-rail";
 import {
     isSavedWorkspace,
     makeWorkspaceRailEntries,
@@ -105,6 +104,7 @@ import {
 } from "../workspace-rail-model";
 import { askDeleteWorkspace, askResetWorkspace } from "../workspace-reset";
 import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model";
+import { readWorkspaceSources, subscribeWorkspaceSources } from "../workspace-sources";
 import { closeTabAskingFirst } from "../worktree-close";
 import { useTabTreesTooltip } from "../worktree-ui";
 import { EmptyWorkspace } from "./empty-workspace";
@@ -284,18 +284,27 @@ function useWorkspaceEntries(): WorkspaceRailEntry[] {
     const active = useAtomValue(atoms.workspace);
     const contexts = useContexts();
     const [sources, setSources] = useState<WorkspaceRailSource[]>(readCachedSources);
-    const refresh = useCallback(() => {
-        fireAndForget(async () => {
-            const loaded = await loadWorkspaceSources();
-            writeCachedSources(loaded);
-            setSources(loaded);
-        });
-    }, []);
+    // The page reads the workspaces once for the sidebar, Brokk's scope and the switch keys (workspace-sources.ts).
+    useEffect(
+        () =>
+            subscribeWorkspaceSources((loaded) => {
+                writeCachedSources(loaded);
+                setSources(loaded);
+            }),
+        []
+    );
+    // The name, icon or colour of the workspace on screen sends no event: read again, but not on mount, where the
+    // subscription has just asked.
+    const mounted = useRef(false);
     useEffect(() => {
-        refresh();
-        return waveEventSubscribeSingle({ eventType: "workspace:update", handler: refresh });
-    }, [refresh]);
-    useEffect(refresh, [active?.oid, active?.name, active?.icon, active?.color, refresh]);
+        if (!mounted.current) {
+            mounted.current = true;
+            return;
+        }
+        fireAndForget(async () => {
+            await readWorkspaceSources({ fresh: true });
+        });
+    }, [active?.oid, active?.name, active?.icon, active?.color]);
     return makeWorkspaceRailEntries(sources, active, contexts);
 }
 

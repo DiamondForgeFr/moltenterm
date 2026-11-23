@@ -12,8 +12,7 @@
 
 import { atoms, getApi } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
-import { WorkspaceService } from "@/app/store/services";
-import { getWaveObjectAtom, makeORef, useWaveObjectValue } from "@/app/store/wos";
+import { makeORef, useWaveObjectValue } from "@/app/store/wos";
 import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
@@ -88,18 +87,10 @@ import { railMoveKey } from "./workspace-rail-drag";
 import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "./workspace-rail-model";
 import { askDeleteWorkspace, askResetWorkspace, WorkspaceResetHost, WorkspaceUndoHost } from "./workspace-reset";
 import { canCloseWorkspace, lastWorkspaceReason } from "./workspace-reset-model";
+import { loadWorkspaceSources } from "./workspace-sources";
 import { WorktreeCloseHost } from "./worktree-close";
 
-export async function loadWorkspaceSources(): Promise<WorkspaceRailSource[]> {
-    const list = await WorkspaceService.ListWorkspaces();
-    const sources: WorkspaceRailSource[] = [];
-    for (const entry of list ?? []) {
-        // Wave's switcher does the same: the object atom must exist before the editor writes through it.
-        globalStore.get(getWaveObjectAtom(makeORef("workspace", entry.workspaceid)));
-        sources.push({ workspace: await WorkspaceService.GetWorkspace(entry.workspaceid), windowId: entry.windowid });
-    }
-    return sources;
-}
+export { loadWorkspaceSources };
 
 type Anchor = { top: number; left: number };
 

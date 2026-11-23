@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
     agentsAtom: null as PrimitiveAtom<unknown>,
     workspaces: {} as Record<string, any>,
     onEvent: null as () => void,
+    listCalls: 0,
+    getCalls: 0,
 }));
 
 vi.mock("@/app/store/jotaiStore", async () => {
@@ -29,10 +31,23 @@ vi.mock("@/app/store/client-model", async () => {
 });
 vi.mock("@/app/store/services", () => ({
     WorkspaceService: {
-        ListWorkspaces: async () => Object.keys(h.workspaces).map((workspaceid) => ({ workspaceid })),
-        GetWorkspace: async (id: string) => h.workspaces[id] ?? null,
+        ListWorkspaces: async () => {
+            h.listCalls++;
+            return Object.keys(h.workspaces).map((workspaceid) => ({ workspaceid }));
+        },
+        GetWorkspace: async (id: string) => {
+            h.getCalls++;
+            return h.workspaces[id] ?? null;
+        },
     },
 }));
+vi.mock("@/app/store/wos", async () => {
+    const { atom } = await import("jotai");
+    return {
+        getWaveObjectAtom: () => atom(null),
+        makeORef: (otype: string, oid: string) => `${otype}:${oid}`,
+    };
+});
 vi.mock("@/app/store/wps", () => ({
     waveEventSubscribeSingle: (sub: { handler: () => void }) => {
         h.onEvent = sub.handler;
@@ -45,6 +60,7 @@ vi.mock("../agent-state-store", async () => {
     return { AgentStates: { getInstance: () => ({ dataAtom: h.agentsAtom }) } };
 });
 
+import { resetWorkspaceSourcesForTest, subscribeWorkspaceSources } from "../workspace-sources";
 import { ContextScope } from "./context-scope";
 
 function workspace(oid: string, context: string, dir = ""): any {
@@ -66,6 +82,9 @@ const agents = {
 describe("Brokk's scope in a window", () => {
     beforeEach(() => {
         ContextScope.resetInstance();
+        resetWorkspaceSourcesForTest();
+        h.listCalls = 0;
+        h.getCalls = 0;
         h.workspaces = { w1: workspace("w1", ""), w2: workspace("w2", "two") };
         h.store.set(h.clientAtom, { meta: { "molten:contexts": [{ id: "one" }, { id: "two", name: "Two" }] } });
         h.store.set(h.workspaceAtom, h.workspaces.w1);
@@ -99,6 +118,26 @@ describe("Brokk's scope in a window", () => {
         await until(() =>
             expect(Object.keys(h.store.get(scope.scopedAgentsAtom).states).sort()).toEqual(["b1", "b2"])
         );
+    });
+
+    // The sidebar of the page reads the same workspaces: Brokk's scope follows that read instead of making its own.
+    it("shares one read of the workspaces with the sidebar, at the start and at each change", async () => {
+        const seen: number[] = [];
+        subscribeWorkspaceSources((sources) => seen.push(sources.length));
+        const scope = ContextScope.getInstance();
+        scope.start();
+        await until(() => expect(Object.keys(h.store.get(scope.scopedAgentsAtom).states)).toEqual(["b1"]));
+        expect(h.listCalls).toBe(1);
+        expect(h.getCalls).toBe(2);
+
+        h.workspaces.w2 = workspace("w2", "");
+        h.onEvent();
+        await until(() =>
+            expect(Object.keys(h.store.get(scope.scopedAgentsAtom).states).sort()).toEqual(["b1", "b2"])
+        );
+        expect(seen.length).toBe(2);
+        expect(h.listCalls).toBe(2);
+        expect(h.getCalls).toBe(4);
     });
 
     it("starts once", async () => {

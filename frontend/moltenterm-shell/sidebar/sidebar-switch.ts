@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { contextIdOf } from "../contexts/context-model";
 import { getContexts, getWindowContextId } from "../contexts/context-store";
 import { prefersReducedMotion } from "../molten-motion";
+import { readWorkspaceSources } from "../workspace-sources";
 import { settleFrames, SettleMs, settleOffset, SwipeAbsorb, SwipeSettle, workspaceAtNumber } from "./sidebar-swipe";
 import { clearLeave, holdLeave, playLeave, prepareLeave } from "../switch-layout/layout-frames";
 import { makeSwitchIntent } from "./switch-intent";
@@ -294,22 +295,18 @@ export async function sidebarWorkspaceIds(): Promise<string[]> {
     return ids;
 }
 
-// The ids the switcher lists, which ⌥1…⌥9 count: those of the window's context (FR-SHELL-158).
+// The ids the switcher lists, which ⌥1…⌥9 count: those of the window's context (FR-SHELL-158). They come from the
+// workspaces the page already reads for its sidebar (workspace-sources.ts), not from a call for each workspace.
 export async function windowContextWorkspaceIds(): Promise<string[]> {
-    const all = await sidebarWorkspaceIds();
+    const sources = await readWorkspaceSources();
     const contexts = getContexts();
     const current = getWindowContextId();
     const activeId = globalStore.get(atoms.workspace)?.oid;
-    const kept: string[] = [];
-    for (const id of all) {
-        if (id === activeId) {
-            kept.push(id);
-            continue;
-        }
-        const ws = await WorkspaceService.GetWorkspace(id).catch((): Workspace => null);
-        if (ws != null && contextIdOf(contexts, ws.meta) === current) {
-            kept.push(id);
-        }
+    const kept = sources
+        .filter((s) => s.workspace?.oid === activeId || contextIdOf(contexts, s.workspace?.meta) === current)
+        .map((s) => s.workspace.oid);
+    if (activeId && !kept.includes(activeId)) {
+        kept.unshift(activeId);
     }
     return kept;
 }
