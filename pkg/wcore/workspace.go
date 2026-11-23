@@ -143,7 +143,8 @@ func DeleteWorkspace(ctx context.Context, workspaceId string, force bool) (bool,
 		return false, "", nil
 	}
 
-	noticeKeptWorktrees := moltenKeptWorktreesNotice(ctx, workspace) // MOLTENTERM-PATCH (#134)
+	contextLanding := moltenContextLanding(ctx, workspaceId, workspaces) // MOLTENTERM-PATCH (#2476): the window stays in its context
+	noticeKeptWorktrees := moltenKeptWorktreesNotice(ctx, workspace)     // MOLTENTERM-PATCH (#134)
 	for _, tabId := range workspace.TabIds {
 		log.Printf("deleting tab %s\n", tabId)
 		_, err := DeleteTab(ctx, workspaceId, tabId, false)
@@ -183,6 +184,9 @@ func DeleteWorkspace(ctx context.Context, workspaceId string, force bool) (bool,
 			}
 		}
 
+		if contextLanding != "" {
+			UnclaimedWorkspace = contextLanding // MOLTENTERM-PATCH (#2476)
+		}
 		if UnclaimedWorkspace != "" {
 			return true, UnclaimedWorkspace, nil
 		} else {

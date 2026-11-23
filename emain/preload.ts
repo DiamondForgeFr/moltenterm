@@ -128,6 +128,7 @@ contextBridge.exposeInMainWorld("api", {
     revealNativePath: (filePath: string) => ipcRenderer.send("reveal-native-path", filePath), // MOLTENTERM-PATCH (#1575)
     copyFileToClipboard: (filePath: string) => ipcRenderer.invoke("moltenterm-copy-file", filePath), // MOLTENTERM-PATCH (#2115): emain/moltenterm-file-clipboard.ts
     openThirdPartyNotices: () => ipcRenderer.invoke("moltenterm-open-third-party-notices"), // MOLTENTERM-PATCH (#2126)
+    openWorkspaceWindow: (workspaceId: string) => ipcRenderer.invoke("moltenterm-open-workspace-window", workspaceId), // MOLTENTERM-PATCH (#2476): emain/moltenterm-contexts-ipc.ts
     captureScreenshot: (rect: Rectangle, opts?: { width?: number; flatSkipTop?: number }) =>
         ipcRenderer.invoke("capture-screenshot", rect, opts), // MOLTENTERM-PATCH (#1545, #1814): optional thumbnail width, flat-frame check
     setKeyboardChordMode: () => ipcRenderer.send("set-keyboard-chord-mode"),

@@ -157,6 +157,7 @@ declare global {
         revealNativePath(filePath: string): void; // reveal-native-path; MOLTENTERM-PATCH (#1575)
         copyFileToClipboard(filePath: string): Promise<"copied" | "unsupported" | "invalid" | "failed">; // moltenterm-copy-file; MOLTENTERM-PATCH (#2115): puts the file itself on the clipboard (FR-FILE-005)
         openThirdPartyNotices: () => Promise<boolean>; // moltenterm-open-third-party-notices; MOLTENTERM-PATCH (#2126): false when the build holds no notices file
+        openWorkspaceWindow: (workspaceId: string) => Promise<"opened" | "focused" | "invalid">; // moltenterm-open-workspace-window; MOLTENTERM-PATCH (#2476): "Open a context in a new window" opens a window on a workspace, or brings the window that shows it forward
         captureScreenshot(rect: Electron.Rectangle, opts?: { width?: number; flatSkipTop?: number }): Promise<string>; // capture-screenshot; MOLTENTERM-PATCH (#1545, #1814): optional thumbnail width (a JPEG), and the share of the top left out when a frame of one flat colour is refused (the answer is then "")
         setKeyboardChordMode: () => void; // set-keyboard-chord-mode
         clearWebviewStorage: (webContentsId: number) => Promise<void>; // clear-webview-storage

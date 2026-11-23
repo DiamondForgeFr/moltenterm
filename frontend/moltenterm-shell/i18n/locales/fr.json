@@ -13302,5 +13302,8 @@
             "sat": "S",
             "sun": "D"
         }
+    },
+    "contexts": {
+        "defaultName": "Mon atelier"
     }
 }

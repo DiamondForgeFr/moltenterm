@@ -45,4 +45,30 @@ describe("makeWorkspaceRailEntries", () => {
         expect(makeWorkspaceRailEntries(null, null)).toEqual([]);
         expect(makeWorkspaceRailEntries([{ workspace: null, windowId: "" }], null)).toEqual([]);
     });
+
+    it("gives each entry its context, the first one when the workspace names none (FR-SHELL-158)", () => {
+        const contexts = [{ id: "first" }, { id: "second" }];
+        const inSecond = { ...ws("b", "Beta", "star"), meta: { "molten:context": "second" } } as Workspace;
+        const gone = { ...ws("c", "Gamma", "star"), meta: { "molten:context": "deleted" } } as Workspace;
+        const entries = makeWorkspaceRailEntries(
+            [
+                { workspace: ws("a", "Alpha", "rocket"), windowId: "" },
+                { workspace: inSecond, windowId: "" },
+                { workspace: gone, windowId: "" },
+            ],
+            ws("tmp"),
+            contexts
+        );
+        expect(entries.map((e) => [e.id, e.contextId])).toEqual([
+            ["tmp", "first"],
+            ["a", "first"],
+            ["b", "second"],
+            ["c", "first"],
+        ]);
+    });
+
+    it("leaves the context empty when the entries were made without the contexts", () => {
+        const entries = makeWorkspaceRailEntries([{ workspace: ws("a", "Alpha", "rocket"), windowId: "" }], null);
+        expect(entries[0].contextId).toBe("");
+    });
 });
