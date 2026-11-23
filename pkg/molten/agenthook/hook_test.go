@@ -33,12 +33,12 @@ func TestRunHookEvent(t *testing.T) {
 	}{
 		{"codex session start", `{"session_id":"019a","transcript_path":"/h/.codex/sessions/2026/10/23/rollout-x.jsonl","cwd":"/w","hook_event_name":"SessionStart","model":"gpt-5.4","permission_mode":"default","source":"startup"}`,
 			[]hookCall{
-				{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"idle","agent":"codex","start":true}`},
+				{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"idle","agent":"codex","start":true,"sessionid":"019a"}`},
 				{CompanionSessionCommand, CompanionRoute, `{"blockid":"b","agent":"codex","path":"/h/.codex/sessions/2026/10/23/rollout-x.jsonl"}`},
 			}},
 		{"no transcript: the id", `{"session_id":"019a","transcript_path":null,"hook_event_name":"SessionStart","source":"resume"}`,
 			[]hookCall{
-				{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"idle","agent":"codex","start":true}`},
+				{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"idle","agent":"codex","start":true,"sessionid":"019a"}`},
 				{CompanionSessionCommand, CompanionRoute, `{"blockid":"b","agent":"codex","path":"","sessionid":"019a"}`},
 			}},
 		{"compaction: the link only", `{"session_id":"019a","transcript_path":"/t.jsonl","hook_event_name":"SessionStart","source":"compact"}`,
@@ -49,6 +49,12 @@ func TestRunHookEvent(t *testing.T) {
 			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"working","agent":"codex"}`}}},
 		{"stop", `{"hook_event_name":"Stop","stop_hook_active":false,"last_assistant_message":"Done."}`,
 			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"done","agent":"codex"}`}}},
+		// #2474: the main session's reports carry the session's id, which is what an autonomous mode is checked against;
+		// a sub-agent's never do.
+		{"prompt with its session", `{"session_id":"019a","hook_event_name":"UserPromptSubmit","prompt":"fix it"}`,
+			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"working","agent":"codex","sessionid":"019a"}`}}},
+		{"stop with its session", `{"session_id":"019a","hook_event_name":"Stop"}`,
+			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"done","agent":"codex","sessionid":"019a"}`}}},
 		{"permission notification", `{"hook_event_name":"Notification","notification_type":"permission_prompt","message":"Claude needs your permission"}`,
 			[]hookCall{{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"waiting","agent":"codex","message":"Claude needs your permission"}`}}},
 		{"idle reminder", `{"hook_event_name":"Notification","notification_type":"idle_prompt","message":"Claude is waiting for your input"}`, nil},
@@ -119,7 +125,7 @@ func TestKimiSessionStartLinksBySessionId(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []hookCall{
-		{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"idle","agent":"kimi","start":true}`},
+		{AgentStateSetCommand, AgentStatesRoute, `{"blockid":"b","state":"idle","agent":"kimi","start":true,"sessionid":"session_abc"}`},
 		{CompanionSessionCommand, CompanionRoute, `{"blockid":"b","agent":"kimi","path":"","sessionid":"session_abc"}`},
 	}
 	if len(calls) != len(want) || calls[0] != want[0] || calls[1] != want[1] {
@@ -177,7 +183,7 @@ func TestRunFastHook(t *testing.T) {
 	}
 	var state AgentStateRequest
 	json.Unmarshal(reqs[1].Data, &state)
-	if state != (AgentStateRequest{BlockId: "block-1", State: AgentStateIdle, Agent: "codex", Start: true}) {
+	if state != (AgentStateRequest{BlockId: "block-1", State: AgentStateIdle, Agent: "codex", Start: true, SessionId: "s"}) {
 		t.Fatalf("state %+v", state)
 	}
 

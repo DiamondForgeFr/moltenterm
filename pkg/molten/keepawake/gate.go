@@ -31,9 +31,12 @@ import (
 //   - Nothing is held for a request the deny list keeps for the developer, nor while no window shows the terminal's
 //     companion, nor for a run whose hook has not the budget to wait (molten.AgentIntegrationReport.CanHoldApprovals): the
 //     agent's own prompt answers those at once, as before.
-//   - An autonomous mode belongs to one terminal and one agent session id. It is never inherited by a new session; a
-//     period ends by itself; "always" is the only one kept across a restart, in a file of the data folder, for that
-//     session id.
+//   - A request is opened in one call, which answers at once, and awaited in a second the hook makes only when the first
+//     said the request is held: a slow wavesrv costs a prompt that is not held no more than the short budget it always had.
+//   - An autonomous mode belongs to one terminal, one agent session id and one run of the agent (its process). It is never
+//     inherited by a new session nor by a new run of the same session (`claude --continue`, `--resume`, `--session-id`);
+//     a period ends by itself; "always" is the only one kept across a restart of MoltenTerm, in a file of the data folder,
+//     for that session and the run that goes on.
 
 const (
 	GateRoute = "molten:agentpermit"
@@ -81,6 +84,8 @@ const (
 	terminalKeep = 10 * time.Minute
 	// A held request is not shown for less than this: the hook's own budget may leave no more.
 	minHold = 2 * time.Second
+	// A request that left the list (answered, released) stays here for its hook, which awaits it in a second call.
+	parkKeep = 30 * time.Second
 
 	maxGateRequests = 50
 	maxAlways       = 100
@@ -93,8 +98,34 @@ const (
 	tonightFromHour = 21
 	morningHour     = 6
 
+	// Start times of one process, read at different times, differ by what a platform rounds.
+	runStartTolerance = 1000
+
 	gateDenyMessage = "The developer denied this in MoltenTerm."
 )
+
+// RunRef is a run of an agent in a terminal: its process, and when it started to tell a reused pid apart.
+type RunRef struct {
+	Pid     int32 `json:"runpid,omitempty"`
+	StartMs int64 `json:"runstart,omitempty"`
+}
+
+// Known: the run can be told from another.
+func (r RunRef) Known() bool {
+	return r.Pid > 0
+}
+
+// SameRun tells whether a and b are one process.
+func SameRun(a RunRef, b RunRef) bool {
+	if !a.Known() || a.Pid != b.Pid {
+		return false
+	}
+	if a.StartMs <= 0 || b.StartMs <= 0 {
+		return true
+	}
+	diff := a.StartMs - b.StartMs
+	return diff > -runStartTolerance && diff < runStartTolerance
+}
 
 // GateRequest is a request as the windows show it.
 type GateRequest struct {
@@ -104,7 +135,8 @@ type GateRequest struct {
 	Agent     string         `json:"agent,omitempty"`
 	Tool      string         `json:"tool"`
 	ToolInput map[string]any `json:"toolinput,omitempty"`
-	// Clipped: a text of the input is shown cut.
+	// Clipped: a text of the input is shown cut. Such a request is never allowed from a window: what the developer
+	// cannot read in full is answered in the terminal.
 	Clipped bool   `json:"clipped,omitempty"`
 	Cwd     string `json:"cwd,omitempty"`
 	// At is when the request came, Unix milliseconds; Deadline when a held one goes back to the agent's prompt.
@@ -116,7 +148,7 @@ type GateRequest struct {
 	ReasonText *uimsg.Text `json:"reasontext,omitempty"`
 }
 
-// Autonomy is a session whose requests are approved without asking.
+// Autonomy is a session whose requests are approved without asking, for the run it was set in.
 type Autonomy struct {
 	BlockId   string `json:"blockid"`
 	SessionId string `json:"sessionid"`
@@ -127,6 +159,13 @@ type Autonomy struct {
 	Until int64 `json:"until,omitempty"`
 	// Approved: how many requests it approved since Since.
 	Approved int `json:"approved"`
+	// The run it was set in: another run of the agent in the terminal, whatever its session, does not have it.
+	RunPid   int32 `json:"runpid,omitempty"`
+	RunStart int64 `json:"runstart,omitempty"`
+}
+
+func (a Autonomy) run() RunRef {
+	return RunRef{Pid: a.RunPid, StartMs: a.RunStart}
 }
 
 type GateState struct {
@@ -146,14 +185,15 @@ type GateResult struct {
 	Status string `json:"status"`
 }
 
-// GateModeRequest is a window's choice for one agent session. Agent is set by the route from what it knows of the
-// terminal, never read from the caller.
+// GateModeRequest is a window's choice for one agent session. Agent and Run are set by the route from what it knows of
+// the terminal's agent, never read from the caller.
 type GateModeRequest struct {
 	BlockId   string `json:"blockid"`
 	SessionId string `json:"sessionid"`
 	Mode      string `json:"mode"`
 	Period    string `json:"period,omitempty"`
 	Agent     string `json:"-"`
+	Run       RunRef `json:"-"`
 }
 
 type GateModeResult struct {
@@ -184,7 +224,11 @@ type GateEnv struct {
 	// Moved tells whether the agent of a terminal went on after at (Unix milliseconds): the request was answered
 	// elsewhere, or the agent ended.
 	Moved func(blockId string, at int64) bool
-	// LoadAlways and SaveAlways keep the "always" sessions across a restart; nil keeps them in memory only.
+	// RunOf tells the run of the agent in a terminal now; false when none runs there or MoltenTerm cannot tell it from
+	// another (its process is not known).
+	RunOf func(blockId string) (RunRef, bool)
+	// LoadAlways and SaveAlways keep the "always" sessions across a restart; nil keeps them in memory only. SaveAlways
+	// is called outside the gate's lock, in the order of the changes.
 	LoadAlways func() []Autonomy
 	SaveAlways func([]Autonomy)
 	// Approved is told of a held request a session's new mode allowed, so that it is logged like the others.
@@ -197,11 +241,14 @@ type gateDecision struct {
 
 type gateEntry struct {
 	view GateRequest
-	// answer receives the developer's decision of a held request; release is closed when it goes back to the agent.
-	answer  chan gateDecision
-	release chan struct{}
+	// answer receives the developer's decision of a held request; finished is closed when the request left the list,
+	// answered or not; stop ends its deadline's timer.
+	answer   chan gateDecision
+	finished chan struct{}
+	stop     func()
 	// taken: the request left the gate's list (answered, released, replaced or dropped).
-	taken bool
+	taken    bool
+	parkedAt time.Time
 }
 
 type gateMode struct {
@@ -216,8 +263,16 @@ type Gate struct {
 	lock    sync.Mutex
 	version int64
 	pending map[string]*gateEntry
-	modes   map[string]*gateMode
-	leases  map[string]time.Time
+	// parked: held requests that left the list, until their hook awaited them or parkKeep passed.
+	parked map[string]*gateEntry
+	modes  map[string]*gateMode
+	leases map[string]time.Time
+	// seen: the run last seen alive in a terminal, to tell its end from MoltenTerm not knowing it yet after a restart.
+	seen map[string]RunRef
+
+	saveLock sync.Mutex
+	saveSeq  int64
+	saved    int64
 }
 
 func realTimer(d time.Duration) (<-chan time.Time, func()) {
@@ -235,7 +290,10 @@ func MakeGate(env GateEnv) *Gate {
 	if env.Timer == nil {
 		env.Timer = realTimer
 	}
-	g := &Gate{env: env, pending: map[string]*gateEntry{}, modes: map[string]*gateMode{}, leases: map[string]time.Time{}}
+	g := &Gate{
+		env: env, pending: map[string]*gateEntry{}, parked: map[string]*gateEntry{}, modes: map[string]*gateMode{},
+		leases: map[string]time.Time{}, seen: map[string]RunRef{},
+	}
 	if env.LoadAlways != nil {
 		g.loadAlways(env.LoadAlways())
 	}
@@ -245,7 +303,7 @@ func MakeGate(env GateEnv) *Gate {
 func (g *Gate) loadAlways(list []Autonomy) {
 	now := g.env.Now()
 	for _, a := range list {
-		if a.Mode != ModeAlways || !validSessionId(a.SessionId) || a.BlockId == "" || len(g.modes) >= maxAlways {
+		if a.Mode != ModeAlways || !validSessionId(a.SessionId) || a.BlockId == "" || !a.run().Known() || len(g.modes) >= maxAlways {
 			continue
 		}
 		if a.Since > 0 && now.Sub(time.UnixMilli(a.Since)) > alwaysKeep {
@@ -345,31 +403,53 @@ type HoldRequest struct {
 	Hold time.Duration
 }
 
-// Hold keeps the request until the developer answers, sends it back to the terminal, the agent goes on, or Hold passes;
-// it returns the answer to print, empty when the agent's own prompt answers.
-func (g *Gate) Hold(ctx context.Context, h HoldRequest) PermissionAnswer {
+// Open keeps the request for the developer's answer, at most Hold from now, and says at once that it does: the hook
+// awaits it with Wait. It returns "" when there is no time to be answered (Hold under minHold).
+func (g *Gate) Open(h HoldRequest) string {
 	if h.Hold < minHold {
-		return PermissionAnswer{}
+		return ""
 	}
 	now := g.env.Now()
 	e := g.makeEntry(h.Req, RequestHeld, "")
 	e.view.Deadline = now.Add(h.Hold).UnixMilli()
-	e.answer, e.release = make(chan gateDecision, 1), make(chan struct{})
+	e.answer, e.finished = make(chan gateDecision, 1), make(chan struct{})
 	timer, stop := g.env.Timer(h.Hold)
-	defer stop()
+	e.stop = stop
 	g.add(e)
+	go func() {
+		defer func() {
+			panichandler.PanicHandler("molten:keepawake:gatedeadline", recover())
+		}()
+		select {
+		case <-timer:
+			if g.dropIfPending(e) {
+				g.changed()
+			}
+		case <-e.finished:
+		}
+	}()
 	g.changed()
+	return e.view.Id
+}
+
+// Wait waits for the request opened under that id in that terminal: the developer's answer, or an empty answer when it
+// went back to the agent's prompt (on the developer's word, at its deadline, with the agent going on, replaced) or when
+// the hook gives up (ctx). A request that is not there is answered empty.
+func (g *Gate) Wait(ctx context.Context, id string, blockId string) PermissionAnswer {
+	e := g.entryToWait(id, blockId)
+	if e == nil {
+		return PermissionAnswer{}
+	}
+	defer g.forgetParked(e)
 	select {
 	case d := <-e.answer:
 		return answerOfDecision(d)
-	case <-e.release:
-		return PermissionAnswer{}
-	case <-timer:
+	case <-e.finished:
 	case <-ctx.Done():
-	}
-	if g.dropIfPending(e) {
-		g.changed()
-		return PermissionAnswer{}
+		if g.dropIfPending(e) {
+			g.changed()
+			return PermissionAnswer{}
+		}
 	}
 	// Taken a moment before: an answer sent then is honoured, a release is not an answer.
 	select {
@@ -378,6 +458,37 @@ func (g *Gate) Hold(ctx context.Context, h HoldRequest) PermissionAnswer {
 	default:
 		return PermissionAnswer{}
 	}
+}
+
+// Hold opens a request and waits for it, for a caller that holds it in one go.
+func (g *Gate) Hold(ctx context.Context, h HoldRequest) PermissionAnswer {
+	id := g.Open(h)
+	if id == "" {
+		return PermissionAnswer{}
+	}
+	return g.Wait(ctx, id, h.Req.BlockId)
+}
+
+func (g *Gate) entryToWait(id string, blockId string) *gateEntry {
+	if id == "" {
+		return nil
+	}
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	e := g.pending[id]
+	if e == nil {
+		e = g.parked[id]
+	}
+	if e == nil || e.view.BlockId != blockId || e.answer == nil {
+		return nil
+	}
+	return e
+}
+
+func (g *Gate) forgetParked(e *gateEntry) {
+	g.lock.Lock()
+	defer g.lock.Unlock()
+	delete(g.parked, e.view.Id)
 }
 
 func answerOfDecision(d gateDecision) PermissionAnswer {
@@ -407,10 +518,16 @@ func (g *Gate) makeEntry(req PermissionRequest, state string, reason string) *ga
 func (g *Gate) add(e *gateEntry) {
 	g.lock.Lock()
 	defer g.lock.Unlock()
+	now := g.env.Now()
+	for id, p := range g.parked {
+		if now.Sub(p.parkedAt) > parkKeep {
+			delete(g.parked, id)
+		}
+	}
 	for id, old := range g.pending {
 		if old.view.BlockId == e.view.BlockId {
-			g.takeLocked(old)
 			delete(g.pending, id)
+			g.takeLocked(old)
 		}
 	}
 	for len(g.pending) >= maxGateRequests {
@@ -427,20 +544,26 @@ func (g *Gate) dropOldestLocked() {
 		}
 	}
 	if oldest != nil {
-		g.takeLocked(oldest)
 		delete(g.pending, oldest.view.Id)
+		g.takeLocked(oldest)
 	}
 }
 
-// takeLocked ends the entry's wait without an answer, once.
+// takeLocked ends the entry's wait without an answer, once; a held request is parked for its hook, which awaits it.
 func (g *Gate) takeLocked(e *gateEntry) {
 	if e.taken {
 		return
 	}
 	e.taken = true
-	if e.release != nil {
-		close(e.release)
+	if e.finished == nil {
+		return
 	}
+	close(e.finished)
+	if e.stop != nil {
+		e.stop()
+	}
+	e.parkedAt = g.env.Now()
+	g.parked[e.view.Id] = e
 }
 
 // dropIfPending removes the entry, false when it was taken already (answered, released or replaced).
@@ -450,12 +573,13 @@ func (g *Gate) dropIfPending(e *gateEntry) bool {
 	if e.taken {
 		return false
 	}
-	e.taken = true
 	delete(g.pending, e.view.Id)
+	g.takeLocked(e)
 	return true
 }
 
-// Answer gives the developer's decision to the request held under that id in that terminal; anything else is gone.
+// Answer gives the developer's decision to the request held under that id in that terminal; anything else is gone. An
+// Allow is refused for a request whose input is shown cut: what cannot be read in full is answered in the terminal.
 func (g *Gate) Answer(a GateAnswer) GateResult {
 	if a.Decision != GateAllow && a.Decision != GateDeny && a.Decision != GateTerminal {
 		return GateResult{Status: GateInvalid}
@@ -474,19 +598,26 @@ func (g *Gate) answer(a GateAnswer) GateResult {
 	if e == nil || a.Id == "" || e.view.BlockId != a.BlockId || e.view.State != RequestHeld || e.taken {
 		return GateResult{Status: GateGone}
 	}
-	delete(g.pending, a.Id)
-	if a.Decision == GateTerminal {
-		g.takeLocked(e)
-		return GateResult{Status: GateAnswered}
+	if a.Decision == GateAllow && e.view.Clipped {
+		return GateResult{Status: GateInvalid}
 	}
-	e.taken = true
-	e.answer <- gateDecision{decision: a.Decision}
+	delete(g.pending, a.Id)
+	if a.Decision != GateTerminal {
+		e.answer <- gateDecision{decision: a.Decision}
+	}
+	g.takeLocked(e)
 	return GateResult{Status: GateAnswered}
 }
 
-// Settle lets go of the requests whose agent went on (it was answered in the terminal, or the agent ended); wavesrv
-// calls it on every agent state change.
+// Settle lets go of what the agents' state changes ended; wavesrv calls it on every one: the requests whose agent went
+// on (it was answered in the terminal, or the agent ended), and the modes of a run that ended or that another run took
+// the place of.
 func (g *Gate) Settle() {
+	g.settleRequests()
+	g.settleModes()
+}
+
+func (g *Gate) settleRequests() {
 	if g.env.Moved == nil {
 		return
 	}
@@ -516,6 +647,58 @@ func (g *Gate) Settle() {
 	g.changed()
 }
 
+// settleModes ends a terminal's modes when its agent's run ended (it was seen alive, and is gone), and those set in
+// another run than the one that runs there now. A run MoltenTerm has not seen yet (it restarted, its process is not
+// found yet) leaves them as they are: "always" goes on with the run that goes on.
+func (g *Gate) settleModes() {
+	if g.env.RunOf == nil {
+		return
+	}
+	g.lock.Lock()
+	blocks := map[string]bool{}
+	for _, m := range g.modes {
+		blocks[m.view.BlockId] = true
+	}
+	g.lock.Unlock()
+	if len(blocks) == 0 {
+		return
+	}
+	current := map[string]RunRef{}
+	for block := range blocks {
+		if run, ok := g.env.RunOf(block); ok {
+			current[block] = run
+		}
+	}
+	g.lock.Lock()
+	ended, persist := false, false
+	for key, m := range g.modes {
+		block := m.view.BlockId
+		run, alive := current[block]
+		if alive {
+			g.seen[block] = run
+			if SameRun(m.view.run(), run) {
+				continue
+			}
+		} else if !SameRun(m.view.run(), g.seen[block]) {
+			continue
+		}
+		g.endModeLocked(key, m)
+		ended, persist = true, persist || m.view.Mode == ModeAlways
+	}
+	for block := range blocks {
+		if _, alive := current[block]; !alive {
+			delete(g.seen, block)
+		}
+	}
+	g.lock.Unlock()
+	if persist {
+		g.persist()
+	}
+	if ended {
+		g.changed()
+	}
+}
+
 // ForgetBlock lets go of everything of a closed terminal: its requests, its lease and its sessions' modes.
 func (g *Gate) ForgetBlock(blockId string) {
 	g.lock.Lock()
@@ -528,6 +711,7 @@ func (g *Gate) ForgetBlock(blockId string) {
 		}
 	}
 	delete(g.leases, blockId)
+	delete(g.seen, blockId)
 	persist := false
 	for key, m := range g.modes {
 		if m.view.BlockId == blockId {
@@ -536,10 +720,10 @@ func (g *Gate) ForgetBlock(blockId string) {
 			touched = true
 		}
 	}
-	if persist {
-		g.persistLocked()
-	}
 	g.lock.Unlock()
+	if persist {
+		g.persist()
+	}
 	if touched {
 		g.changed()
 	}
@@ -551,7 +735,8 @@ func (g *Gate) endModeLocked(key string, m *gateMode) {
 }
 
 // SetMode sets what a session's requests get: ModeAsk ends the session's mode at once. The caller has checked that the
-// terminal's agent can be answered. A request the gate holds for the session is answered by the new mode.
+// terminal's agent can be answered, that the session is the one it runs now, and gives its run. A request the gate holds
+// for the session is answered by the new mode.
 func (g *Gate) SetMode(req GateModeRequest) GateModeResult {
 	if req.BlockId == "" || !validSessionId(req.SessionId) {
 		return GateModeResult{Status: ModeInvalid}
@@ -565,8 +750,14 @@ func (g *Gate) SetMode(req GateModeRequest) GateModeResult {
 	default:
 		return GateModeResult{Status: ModeInvalid}
 	}
+	if !req.Run.Known() {
+		return GateModeResult{Status: ModeInvalid}
+	}
 	now := g.env.Now()
-	view := Autonomy{BlockId: req.BlockId, SessionId: req.SessionId, Agent: req.Agent, Mode: req.Mode, Since: now.UnixMilli()}
+	view := Autonomy{
+		BlockId: req.BlockId, SessionId: req.SessionId, Agent: req.Agent, Mode: req.Mode, Since: now.UnixMilli(),
+		RunPid: req.Run.Pid, RunStart: req.Run.StartMs,
+	}
 	if req.Mode == ModeFor {
 		end, ok := periodEnd(now, req.Period)
 		if !ok {
@@ -576,6 +767,7 @@ func (g *Gate) SetMode(req GateModeRequest) GateModeResult {
 	}
 	m := &gateMode{view: view, quit: make(chan struct{})}
 	answered := g.setMode(key, m)
+	g.persist()
 	if req.Mode == ModeFor {
 		g.watchExpiry(key, m, time.UnixMilli(view.Until).Sub(now))
 	}
@@ -599,8 +791,8 @@ func (g *Gate) autonomyOf(key string) *Autonomy {
 	return &view
 }
 
-// setMode keeps the mode and allows the requests the session holds: the developer turned it on while looking at one.
-// They count as approved; the caller logs them.
+// setMode keeps the mode and allows the requests the session holds that can be read in full: the developer turned it on
+// while looking at one. They count as approved; the caller logs them.
 func (g *Gate) setMode(key string, m *gateMode) []*gateEntry {
 	g.lock.Lock()
 	defer g.lock.Unlock()
@@ -608,18 +800,18 @@ func (g *Gate) setMode(key string, m *gateMode) []*gateEntry {
 		g.endModeLocked(key, old)
 	}
 	g.modes[key] = m
+	g.seen[m.view.BlockId] = m.view.run()
 	var answered []*gateEntry
 	for id, e := range g.pending {
-		if e.view.State != RequestHeld || e.view.BlockId != m.view.BlockId || !strings.EqualFold(e.view.SessionId, m.view.SessionId) {
+		if e.view.State != RequestHeld || e.view.Clipped || e.view.BlockId != m.view.BlockId || !strings.EqualFold(e.view.SessionId, m.view.SessionId) {
 			continue
 		}
 		delete(g.pending, id)
-		e.taken = true
 		e.answer <- gateDecision{decision: GateAllow}
+		g.takeLocked(e)
 		m.view.Approved++
 		answered = append(answered, e)
 	}
-	g.persistLocked()
 	return answered
 }
 
@@ -631,8 +823,8 @@ func (g *Gate) stopMode(key string) {
 		return
 	}
 	g.endModeLocked(key, m)
-	g.persistLocked()
 	g.lock.Unlock()
+	g.persist()
 	g.changed()
 }
 
@@ -652,10 +844,22 @@ func (g *Gate) watchExpiry(key string, m *gateMode, d time.Duration) {
 	}()
 }
 
+// expire ends the mode when its time has come. A timer that goes off before the wall clock reaches the end (the clock was
+// set back, the computer slept on a monotonic clock) leaves the mode and waits for the time that remains.
 func (g *Gate) expire(key string, m *gateMode) {
 	g.lock.Lock()
-	if g.modes[key] != m || !m.expired(g.env.Now()) {
+	if g.modes[key] != m {
 		g.lock.Unlock()
+		return
+	}
+	now := g.env.Now()
+	if !m.expired(now) {
+		left := time.UnixMilli(m.view.Until).Sub(now)
+		g.lock.Unlock()
+		if left > 0 {
+			g.watchExpiry(key, m, left)
+		}
+		g.changed()
 		return
 	}
 	g.endModeLocked(key, m)
@@ -663,9 +867,11 @@ func (g *Gate) expire(key string, m *gateMode) {
 	g.changed()
 }
 
-// Autonomous tells whether the session's requests are approved without asking now; an ended period is dropped.
-func (g *Gate) Autonomous(blockId string, sessionId string) bool {
-	if blockId == "" || sessionId == "" {
+// Autonomous tells whether the requests of the run, of the session, are approved without asking now. An ended period is
+// dropped, and so is a mode set in another run than the one that asks: a run that comes after the one the developer
+// chose (`claude --continue`, `--resume`, `--session-id`) never inherits what it chose.
+func (g *Gate) Autonomous(blockId string, sessionId string, run RunRef) bool {
+	if blockId == "" || sessionId == "" || !run.Known() {
 		return false
 	}
 	key := modeKey(blockId, sessionId)
@@ -675,12 +881,18 @@ func (g *Gate) Autonomous(blockId string, sessionId string) bool {
 		g.lock.Unlock()
 		return false
 	}
-	if !m.expired(g.env.Now()) {
+	now := g.env.Now()
+	ended := m.expired(now) || !SameRun(m.view.run(), run)
+	if !ended {
+		g.seen[blockId] = run
 		g.lock.Unlock()
 		return true
 	}
 	g.endModeLocked(key, m)
 	g.lock.Unlock()
+	if m.view.Mode == ModeAlways {
+		g.persist()
+	}
 	g.changed()
 	return false
 }
@@ -698,11 +910,13 @@ func (g *Gate) NoteApproved(blockId string, sessionId string) {
 	}
 }
 
-// persistLocked keeps the "always" sessions: they are the only mode that survives a restart.
-func (g *Gate) persistLocked() {
+// persist keeps the "always" sessions, the only mode that survives a restart. The file is written outside the gate's
+// lock, and in the order the changes were made: a write that comes after a newer one is dropped.
+func (g *Gate) persist() {
 	if g.env.SaveAlways == nil {
 		return
 	}
+	g.lock.Lock()
 	var always []Autonomy
 	for _, m := range g.modes {
 		if m.view.Mode == ModeAlways {
@@ -710,6 +924,15 @@ func (g *Gate) persistLocked() {
 		}
 	}
 	sort.Slice(always, func(i, j int) bool { return always[i].Since < always[j].Since })
+	g.saveSeq++
+	seq := g.saveSeq
+	g.lock.Unlock()
+	g.saveLock.Lock()
+	defer g.saveLock.Unlock()
+	if seq < g.saved {
+		return
+	}
+	g.saved = seq
 	g.env.SaveAlways(always)
 }
 

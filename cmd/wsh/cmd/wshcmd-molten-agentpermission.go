@@ -93,7 +93,7 @@ func readPermissionRequest(r io.Reader, blockId string, agent string) (keepawake
 	return keepawake.PermissionRequest{
 		BlockId: blockId, Agent: agent, SessionId: input.SessionId, Cwd: input.Cwd, PermissionMode: input.PermissionMode,
 		ToolName: input.ToolName, ToolInput: input.ToolInput, Suggestions: input.PermissionSuggestions,
-		HoldMs: permissionHoldMs(agent, os.Getenv(molten.OwnSessionEnvVar) == "1"),
+		HoldMs: permissionHoldMs(agent, os.Getenv(molten.OwnSessionEnvVar) == "1"), Pid: int32(os.Getpid()),
 	}, true
 }
 
@@ -151,6 +151,30 @@ func runAgentPermission(r io.Reader, w io.Writer, blockId string, agent string, 
 	fmt.Fprintf(w, "%s\n", out)
 }
 
+// permissionCall is one call to wavesrv's keep-awake route and the time it may take, in milliseconds.
+type permissionCall func(command string, data any, timeoutMs int64) (keepawake.PermissionAnswer, error)
+
+// exchangePermission asks wavesrv for the answer to a request. The first call takes the short time a hook always had,
+// however long the hook is willing to wait: a request that is not held (the usual one) is answered within it, or the
+// agent's own prompt takes it. Only when wavesrv says it holds the request for the companion does the hook wait, in a
+// second call, for what wavesrv said at most and what its own budget leaves. Brokk's own session (#2257) asks in one call
+// that waits for his answer.
+func exchangePermission(call permissionCall, req keepawake.PermissionRequest, ownSession bool) (keepawake.PermissionAnswer, error) {
+	timeout := int64(moltenAgentPermissionTimeoutMs)
+	if ownSession && req.HoldMs > 0 {
+		timeout = max(req.HoldMs+moltenAgentPermissionReplyMs, timeout)
+	}
+	answer, err := call(keepawake.PermissionCommand, req, timeout)
+	if err != nil || answer.Wait == "" {
+		return answer, err
+	}
+	wait := min(answer.WaitMs, req.HoldMs)
+	if wait <= 0 {
+		return keepawake.PermissionAnswer{}, nil
+	}
+	return call(keepawake.PermissionWaitCommand, keepawake.PermissionWait{BlockId: req.BlockId, Id: answer.Wait}, wait+moltenAgentPermissionReplyMs)
+}
+
 func sendPermissionRequest(req keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
 	var answer keepawake.PermissionAnswer
 	jwtToken := os.Getenv(wshutil.WaveJwtTokenVarName)
@@ -160,17 +184,16 @@ func sendPermissionRequest(req keepawake.PermissionRequest) (keepawake.Permissio
 	if err := setupHookRpcClient(jwtToken); err != nil {
 		return answer, err
 	}
-	timeout := int64(moltenAgentPermissionTimeoutMs)
-	if req.HoldMs > 0 {
-		timeout = max(req.HoldMs+moltenAgentPermissionReplyMs, timeout)
+	call := func(command string, data any, timeoutMs int64) (keepawake.PermissionAnswer, error) {
+		var rtn keepawake.PermissionAnswer
+		out, err := RpcClient.SendRpcRequest(command, data, &wshrpc.RpcOpts{Route: keepawake.Route, Timeout: timeoutMs})
+		if err != nil {
+			return rtn, err
+		}
+		err = utilfn.ReUnmarshal(&rtn, out)
+		return rtn, err
 	}
-	opts := &wshrpc.RpcOpts{Route: keepawake.Route, Timeout: timeout}
-	out, err := RpcClient.SendRpcRequest(keepawake.PermissionCommand, req, opts)
-	if err != nil {
-		return answer, err
-	}
-	err = utilfn.ReUnmarshal(&answer, out)
-	return answer, err
+	return exchangePermission(call, req, os.Getenv(molten.OwnSessionEnvVar) == "1")
 }
 
 // Never an error or an exit code: a failing hook must leave the agent's prompt as it is.

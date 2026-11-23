@@ -166,6 +166,9 @@ type agentRecord struct {
 	commands           map[string]string
 	commandsTranscript string
 	commandsOffset     int64
+	// sessionId: the id of the main session the run's own hooks last reported (sessionlink.go), which
+	// names the session that runs now (#2474); a new record starts without.
+	sessionId string
 }
 
 type noticeMark struct {
@@ -476,6 +479,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 		rec.located = false
 		rec.source = sourceHook
 		rec.pid, rec.pidStart = 0, 0
+		rec.sessionId = ""
 		rec.settings = molten.AgentSettings{}
 		rec.subagents = nil
 		rec.endedTurns = nil
@@ -930,7 +934,11 @@ func (a *agentStates) runOf(blockId string) (molten.AgentRunInfo, bool) {
 	if rec == nil {
 		return molten.AgentRunInfo{}, false
 	}
-	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName, Subagents: len(rec.subagents)}, true
+	return runInfo(blockId, rec), true
+}
+
+func runInfo(blockId string, rec *agentRecord) molten.AgentRunInfo {
+	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName, Subagents: len(rec.subagents), SessionId: rec.sessionId}
 }
 
 func (a *agentStates) allRuns() []molten.AgentRunInfo {
@@ -938,7 +946,7 @@ func (a *agentStates) allRuns() []molten.AgentRunInfo {
 	defer a.lock.Unlock()
 	rtn := make([]molten.AgentRunInfo, 0, len(a.records))
 	for blockId, rec := range a.records {
-		rtn = append(rtn, molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName, Subagents: len(rec.subagents)})
+		rtn = append(rtn, runInfo(blockId, rec))
 	}
 	return rtn
 }

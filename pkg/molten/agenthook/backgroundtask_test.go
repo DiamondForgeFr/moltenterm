@@ -26,7 +26,7 @@ func TestReadHookInputBackgroundCommand(t *testing.T) {
 	if err := RunHookEvent(input, "claude", "b1", call); err != nil {
 		t.Fatal(err)
 	}
-	want := AgentStateRequest{BlockId: "b1", State: AgentStateWorking, Agent: "claude", BackgroundTask: "bz4ehrk6q", BackgroundDescription: "Wait for the CI", Transcript: "/h/.claude/projects/p/abc.jsonl"}
+	want := AgentStateRequest{BlockId: "b1", State: AgentStateWorking, Agent: "claude", BackgroundTask: "bz4ehrk6q", BackgroundDescription: "Wait for the CI", Transcript: "/h/.claude/projects/p/abc.jsonl", SessionId: "abc"}
 	if len(sent) != 1 || !reflect.DeepEqual(sent[0], want) {
 		t.Fatalf("sent %+v", sent)
 	}

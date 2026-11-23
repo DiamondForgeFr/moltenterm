@@ -66,6 +66,7 @@ func handleAgentCommand(command string, caller localroute.Caller, data any) (any
 		if err := ReportAgentState(ctx, req); err != nil {
 			return nil, err
 		}
+		defaultAgentStates.noteSession(caller, req)
 		linkTranscript(caller, req)
 		return nil, nil
 	case molten.AgentStateSeenCommand:

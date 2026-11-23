@@ -2134,7 +2134,7 @@
             },
             "meta": "Outil : {tool} · dossier : {folder}",
             "metaTool": "Outil : {tool}",
-            "clipped": "Les textes longs sont affichés coupés ici ; l'agent exécute le tout.",
+            "clipped": "Une partie de cette demande est trop longue pour s'afficher ici en entier : seul le terminal peut l'autoriser.",
             "allow": "Autoriser",
             "deny": "Refuser",
             "terminal": "Répondre dans le terminal",
@@ -11279,7 +11279,10 @@
                 "review": "une session de revue est en lecture seule : ses demandes vous sont toujours posées"
             },
             "gate": {
-                "noagent": "aucun agent ne tourne dans ce terminal"
+                "noagent": "aucun agent ne tourne dans ce terminal",
+                "norun": "MoltenTerm ne sait pas encore distinguer ce lancement de l'agent",
+                "nosession": "MoltenTerm n'a pas encore vu la session de cet agent : elle arrive avec son premier tour",
+                "othersession": "ce n'est pas la session que l'agent exécute maintenant"
             },
             "why": {
                 "working": "{agent} : au travail",

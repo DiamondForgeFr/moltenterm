@@ -139,11 +139,16 @@ describe("the permission card of a held request (#2474)", () => {
         );
     });
 
-    it("says a text was cut", () => {
-        expect(renderToStaticMarkup(<PermitRequestCard {...card({}, { ...held, clipped: true })} />)).toContain(
-            "Long texts are shown cut here"
-        );
-        expect(renderToStaticMarkup(<PermitRequestCard {...card()} />)).not.toContain("Long texts are shown cut");
+    it("never offers Allow for a request shown cut, and says why", () => {
+        const cut = renderToStaticMarkup(<PermitRequestCard {...card({}, { ...held, clipped: true })} />);
+        expect(cut).toContain('data-testid="companion-permit-clipped"');
+        expect(cut).toContain(t("companion.permit.clipped"));
+        expect(cut).not.toContain('data-testid="companion-permit-allow"');
+        expect(cut).toContain('data-testid="companion-permit-deny"');
+        expect(cut).toContain('data-testid="companion-permit-terminal"');
+        const whole = renderToStaticMarkup(<PermitRequestCard {...card()} />);
+        expect(whole).not.toContain('data-testid="companion-permit-clipped"');
+        expect(whole).toContain('data-testid="companion-permit-allow"');
     });
 
     it("shows nothing without a request", () => {

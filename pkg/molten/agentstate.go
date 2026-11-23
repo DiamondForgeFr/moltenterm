@@ -337,6 +337,9 @@ type AgentStateRequest struct {
 	BackgroundTask        string `json:"backgroundtask,omitempty"`
 	BackgroundDescription string `json:"backgrounddescription,omitempty"`
 	Transcript            string `json:"transcript,omitempty"`
+	// SessionId: the agent's id for the main session the report is about (its hook's session_id). It tells which
+	// session runs now, so that what the developer sets for a session (#2474) is never taken for another's.
+	SessionId string `json:"sessionid,omitempty"`
 }
 
 // AgentStateSeenRequest: the window showed the block's done agent, at Version of its state.
@@ -462,4 +465,7 @@ type AgentRunInfo struct {
 	Settings AgentSettings
 	// FirstName: the session's first name (FR-CONT-014).
 	FirstName string
+	// SessionId: the id of the session the agent's own hooks reported last in this run ("" before its first report):
+	// what an autonomous mode must be set for (#2474).
+	SessionId string
 }

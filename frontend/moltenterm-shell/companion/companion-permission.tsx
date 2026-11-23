@@ -141,7 +141,11 @@ export function PermitRequestCard({
                     ? t("companion.permit.meta", { tool: request.tool, folder })
                     : t("companion.permit.metaTool", { tool: request.tool })}
             </div>
-            {request.clipped ? <div className="mt-cdash-perm-meta">{t("companion.permit.clipped")}</div> : null}
+            {request.clipped ? (
+                <div className="mt-cdash-perm-meta" data-testid="companion-permit-clipped">
+                    {t("companion.permit.clipped")}
+                </div>
+            ) : null}
             {held ? (
                 <div
                     className="mt-cdash-perm-act"
@@ -149,16 +153,18 @@ export function PermitRequestCard({
                     aria-label={t("companion.permit.actions", { name })}
                     data-testid="companion-permit-actions"
                 >
-                    <button
-                        type="button"
-                        className="molten-btn cursor-pointer rounded-4 px-3 py-1 text-12"
-                        data-testid="companion-permit-allow"
-                        disabled={busy}
-                        onClick={() => onAnswer("allow")}
-                    >
-                        {t("companion.permit.allow")}
-                        <MoltenWave />
-                    </button>
+                    {request.clipped ? null : (
+                        <button
+                            type="button"
+                            className="molten-btn cursor-pointer rounded-4 px-3 py-1 text-12"
+                            data-testid="companion-permit-allow"
+                            disabled={busy}
+                            onClick={() => onAnswer("allow")}
+                        >
+                            {t("companion.permit.allow")}
+                            <MoltenWave />
+                        </button>
+                    )}
                     <button
                         type="button"
                         className="molten-btn-secondary cursor-pointer rounded-4 px-3 py-1 text-12"

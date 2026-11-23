@@ -14,9 +14,45 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute/routetest"
+	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 )
 
 const gateSession = "11111111-2222-3333-4444-555555555555"
+
+// The terminal's process tree as the tests have it: the shell, the agent (the run), the sh its hook goes through and the
+// hook (`molten agent permission`) itself.
+const (
+	gateAgentPid    = int32(4242)
+	gateAgentStart  = int64(1_700_000_000_000)
+	gateHookShPid   = int32(4299)
+	gateHookPid     = int32(4300)
+	gateShellPid    = int32(100)
+	gateOtherBash   = int32(4350)
+	gateOtherAgent  = int32(4343)
+	gateOtherHookSh = int32(4399)
+	gateOtherHook   = int32(4400)
+)
+
+func gateProcs() *proctree.Table {
+	return proctree.MakeTable([]proctree.Proc{
+		{Pid: gateShellPid, Ppid: 1, Name: "zsh", StartMs: gateAgentStart - 60_000},
+		{Pid: gateAgentPid, Ppid: gateShellPid, Name: "claude", StartMs: gateAgentStart},
+		{Pid: gateHookShPid, Ppid: gateAgentPid, Name: "sh", StartMs: gateAgentStart + 5000},
+		{Pid: gateHookPid, Ppid: gateHookShPid, Name: "molten", StartMs: gateAgentStart + 5001},
+		// A second run of the agent that the first one started (its Bash tool ran `claude --continue`).
+		{Pid: gateOtherBash, Ppid: gateAgentPid, Name: "bash", StartMs: gateAgentStart + 9000},
+		{Pid: gateOtherAgent, Ppid: gateOtherBash, Name: "claude", StartMs: gateAgentStart + 9100},
+		{Pid: gateOtherHookSh, Ppid: gateOtherAgent, Name: "sh", StartMs: gateAgentStart + 9200},
+		{Pid: gateOtherHook, Ppid: gateOtherHookSh, Name: "molten", StartMs: gateAgentStart + 9201},
+	})
+}
+
+func gateRun(session string) molten.AgentRunInfo {
+	return molten.AgentRunInfo{
+		BlockId: "block-1", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateWorking,
+		Pid: gateAgentPid, PidStartMs: gateAgentStart, SessionId: session,
+	}
+}
 
 // gateService is wavesrv's side of the permission gate, with the terminals' facts the agent states would give.
 type gateService struct {
@@ -39,9 +75,7 @@ func makeGateService(t *testing.T) *gateService {
 	g := &gateService{
 		gateFixture: makeGateFixture(t), env: makeFakeEnv(),
 		reports: map[string]molten.AgentIntegrationReport{"block-1": claudeReport("block-1")},
-		runs: map[string]molten.AgentRunInfo{
-			"block-1": {BlockId: "block-1", Agent: molten.AgentIdClaude, Running: true, State: molten.AgentStateWorking},
-		},
+		runs:    map[string]molten.AgentRunInfo{"block-1": gateRun(gateSession)},
 	}
 	g.keeper = g.env.keeper()
 	g.s = &service{
@@ -56,8 +90,11 @@ func makeGateService(t *testing.T) *gateService {
 		},
 		runApproval: func(fn func()) { fn() },
 		namesOf:     func(context.Context, string) (string, string, string) { return "ws-a", "Alpha", "Tab 1" },
+		now:         g.gateFixture.env().Now,
+		procs:       gateProcs,
 	}
 	g.s.gate.env.Moved = g.s.agentMoved
+	g.s.gate.env.RunOf = g.s.runOf
 	g.setBlock("block-1", BlockInfo{WorkspaceId: "ws-a"})
 	g.s.hooks.mark(molten.AgentIdClaude)
 	return g
@@ -67,9 +104,18 @@ func (g *gateService) setBlock(id string, info BlockInfo) {
 	g.s.locate.put(id, info, true, time.Now().Add(time.Hour))
 }
 
+// ask is the hook's two calls: the request, then the wait wavesrv told it to make.
+func (g *gateService) ask(ctx context.Context, req PermissionRequest) PermissionAnswer {
+	answer := g.s.permission(ctx, req)
+	if answer.Wait == "" {
+		return answer
+	}
+	return g.s.gate.Wait(ctx, answer.Wait, req.BlockId)
+}
+
 func (g *gateService) permissionAsync(req PermissionRequest) <-chan PermissionAnswer {
 	out := make(chan PermissionAnswer, 1)
-	go func() { out <- g.s.permission(context.Background(), req) }()
+	go func() { out <- g.ask(context.Background(), req) }()
 	return out
 }
 
@@ -97,7 +143,7 @@ func (g *gateService) autonomous(sessionId string, mode string, period string) G
 
 func hookRequest(command string) PermissionRequest {
 	req := holdRequest("block-1", command)
-	req.HoldMs = 127_000
+	req.HoldMs, req.Pid = 127_000, gateHookPid
 	return req
 }
 
@@ -367,7 +413,9 @@ func TestAutonomyIsAvailableOnlyWhereTheHookAnswers(t *testing.T) {
 		Added: []molten.IntegrationItem{{Kind: molten.IntegrationCoffeeApproval}},
 	}
 	g.reports["block-2"] = codex
-	g.runs["block-2"] = molten.AgentRunInfo{BlockId: "block-2", Agent: molten.AgentIdCodex, Running: true}
+	g.runs["block-2"] = molten.AgentRunInfo{
+		BlockId: "block-2", Agent: molten.AgentIdCodex, Running: true, Pid: 5252, PidStartMs: gateAgentStart, SessionId: gateSession,
+	}
 	g.setBlock("block-2", BlockInfo{WorkspaceId: "ws-a"})
 	set := func(block string) GateModeResult {
 		return g.s.setAutonomy(context.Background(), GateModeRequest{BlockId: block, SessionId: gateSession, Mode: ModeAlways})
@@ -472,7 +520,7 @@ func TestGateRouteIsForTheWindowsOnly(t *testing.T) {
 	for command, data := range map[string]any{GateStateCommand: nil, GateAnswerCommand: answer, GateModeCommand: mode, GateWatchCommand: watch} {
 		routetest.MustRefuse(t, link, nonUi, command, data)
 	}
-	if len(requestsOf(g.s.gate, "block-1")) != 1 || g.s.gate.Autonomous("block-1", gateSession) {
+	if len(requestsOf(g.s.gate, "block-1")) != 1 || g.s.gate.Autonomous("block-1", gateSession, testRun) {
 		t.Fatal("a refused caller answered a request or set a mode")
 	}
 	for _, from := range []routetest.From{e.Window(), e.Electron()} {
@@ -520,7 +568,7 @@ func TestAlwaysStoreKeepsSessionsPrivately(t *testing.T) {
 	if got := store.load(); got != nil {
 		t.Fatalf("loaded %+v from nothing", got)
 	}
-	want := []Autonomy{{BlockId: "block-1", SessionId: gateSession, Agent: "claude", Mode: ModeAlways, Since: 5}}
+	want := []Autonomy{{BlockId: "block-1", SessionId: gateSession, Agent: "claude", Mode: ModeAlways, Since: 5, RunPid: gateAgentPid, RunStart: gateAgentStart}}
 	store.save(want)
 	got := store.load()
 	if len(got) != 1 || got[0] != want[0] {

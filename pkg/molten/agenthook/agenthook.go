@@ -47,6 +47,8 @@ type AgentStateRequest struct {
 	BackgroundTask        string `json:"backgroundtask,omitempty"`
 	BackgroundDescription string `json:"backgrounddescription,omitempty"`
 	Transcript            string `json:"transcript,omitempty"`
+	// SessionId: the hook's session_id, for the main session's reports (#2474).
+	SessionId string `json:"sessionid,omitempty"`
 }
 
 // ValidAgentState and ValidAgentId accept what molten.ValidAgentState and molten.ValidAgentId accept, without a
