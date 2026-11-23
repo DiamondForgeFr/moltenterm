@@ -150,6 +150,24 @@ export function withDecision(
     return { ...(store ?? {}), [site]: next };
 }
 
+// The decisions kept for a site, in the order of the kinds: allowed, blocked, or none (the page asks again).
+export function siteDecisions(store: SitePermissionStore, site: string): { kind: string; decision: string }[] {
+    return SitePermissionKinds.map((kind) => {
+        const decision = decisionOf(store, site, kind);
+        return { kind, decision: decision === DecisionAllow || decision === DecisionBlock ? decision : "" };
+    });
+}
+
+// The store without the decision kept for one kind of a site: the page asks again. A site with no decision left goes.
+export function withoutDecision(store: SitePermissionStore, site: string, kind: string): SitePermissionStore {
+    if (site == null || store?.[site]?.[kind] == null) {
+        return store ?? {};
+    }
+    const { [kind]: _gone, ...rest } = store[site];
+    const { [site]: _site, ...others } = store;
+    return Object.keys(rest).length === 0 ? others : { ...others, [site]: rest };
+}
+
 // Only these answers come back from the bar.
 export function validDecision(decision: unknown): string {
     return decision === DecisionAllow || decision === DecisionBlock ? decision : DecisionDismiss;

@@ -3075,6 +3075,48 @@
             "allow": "Allow",
             "block": "Block"
         },
+        "connection": {
+            "secure": "Secure connection",
+            "insecure": "Not secure",
+            "mixed": "Partially secure",
+            "label": {
+                "secure": "Secure connection, site information",
+                "insecure": "Not secure, site information",
+                "mixed": "Partially secure, site information"
+            },
+            "popover": {
+                "aria": "Site information",
+                "secureDetail": "What you send to this site, and what it sends back, is encrypted on its way.",
+                "insecureDetail": "This page is served without encryption: what you send to this site, and what it sends back, can be read or changed on its way.",
+                "mixedDetail": "This page is encrypted, but it loaded some content without encryption: that content can be read or changed on its way.",
+                "certificate": "Valid certificate",
+                "certificateNone": "Certificate",
+                "certificateUnavailable": "Its details are not available for this page.",
+                "issuedFor": "Issued for",
+                "issuedBy": "Issued by",
+                "expires": "Expires {date}",
+                "fingerprint": "Fingerprint",
+                "permissions": "Permissions of this site",
+                "allowed": "Allowed",
+                "blocked": "Blocked",
+                "ask": "Ask",
+                "remove": "Remove",
+                "removeAria": "Remove the {kind} decision for this site",
+                "kind": {
+                    "camera": "Camera",
+                    "microphone": "Microphone",
+                    "location": "Location",
+                    "notifications": "Notifications"
+                },
+                "clearData": "Clear this site's cookies and data…"
+            },
+            "password": {
+                "aria": "Warning: password on a page that is not secure",
+                "title": "This page is not secure",
+                "detail": "A password typed here can be read on its way. Do not use it anywhere else.",
+                "dismiss": "Understood"
+            }
+        },
         "clientCertificate": {
             "aria": "Client certificate request",
             "title": "{site} asks for a certificate to identify you",

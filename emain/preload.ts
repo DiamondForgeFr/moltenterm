@@ -213,6 +213,8 @@ contextBridge.exposeInMainWorld("api", {
     // MOLTENTERM-PATCH (#1979): the user's pick of a client certificate for a site (emain/moltenterm-client-certificates.ts)
     moltentermClientCertificateAnswer: (requestId: string, decision: string, fingerprint?: string) =>
         ipcRenderer.send("moltenterm-client-certificate-answer", requestId, decision, fingerprint),
+    // MOLTENTERM-PATCH (#1980): the connection state main keeps for a page (emain/moltenterm-connection.ts)
+    moltentermConnectionGet: (webContentsId: number) => ipcRenderer.invoke("moltenterm-connection-get", webContentsId),
     // MOLTENTERM-PATCH (#161): the app menu's Getting Started (emain/moltenterm-onboarding.ts)
     onMoltentermGettingStarted: (callback: () => void) =>
         ipcRenderer.on("moltenterm-getting-started", () => callback()),
@@ -425,6 +427,11 @@ ipcRenderer.on("moltenterm-client-certificate-done", (e, requestId) => {
     window.dispatchEvent(
         new CustomEvent("moltenterm-client-certificate-done", { detail: { requestid: requestId } })
     );
+});
+
+// MOLTENTERM-PATCH (#1980): how a page is served changed (emain/moltenterm-connection.ts); the panel tab's webview shows it.
+ipcRenderer.on("moltenterm-connection-state", (e, webContentsId, state) => {
+    webviewByContentsId(webContentsId)?.dispatchEvent(new CustomEvent("moltenterm-connection", { detail: state }));
 });
 
 ipcRenderer.on("webcontentsid-from-blockid", (e, blockId, responseCh) => {

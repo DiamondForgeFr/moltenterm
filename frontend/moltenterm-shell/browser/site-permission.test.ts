@@ -7,9 +7,11 @@ import {
     classifyPermissionRequest,
     permissionSite,
     rememberedVerdict,
+    siteDecisions,
     sitePermissionWhatKey,
     validDecision,
     withDecision,
+    withoutDecision,
 } from "./site-permission";
 
 describe("site permissions of the browser panel (#663)", () => {
@@ -99,6 +101,29 @@ describe("site permissions of the browser panel (#663)", () => {
         expect(validDecision("block")).toBe("block");
         expect(validDecision("always")).toBe("dismiss");
         expect(validDecision(undefined)).toBe("dismiss");
+    });
+
+    it("lists the decisions kept for a site, one per kind (#1980)", () => {
+        const store = { "meet.example.com": { camera: "allow", microphone: "block", location: "maybe" } };
+        expect(siteDecisions(store, "meet.example.com")).toEqual([
+            { kind: "camera", decision: "allow" },
+            { kind: "microphone", decision: "block" },
+            { kind: "location", decision: "" },
+            { kind: "notifications", decision: "" },
+        ]);
+        expect(siteDecisions({}, "other.com").every((d) => d.decision === "")).toBe(true);
+        expect(siteDecisions(undefined, "other.com")).toHaveLength(4);
+    });
+
+    it("removes the decision of one kind and the site once it has none left (#1980)", () => {
+        const store = { "meet.example.com": { camera: "allow", microphone: "block" }, "a.com": { location: "allow" } };
+        const noCamera = withoutDecision(store, "meet.example.com", "camera");
+        expect(noCamera).toEqual({ "meet.example.com": { microphone: "block" }, "a.com": { location: "allow" } });
+        expect(withoutDecision(noCamera, "meet.example.com", "microphone")).toEqual({ "a.com": { location: "allow" } });
+        expect(withoutDecision(store, "meet.example.com", "location")).toBe(store);
+        expect(withoutDecision(store, "unknown.com", "camera")).toBe(store);
+        expect(withoutDecision(undefined, "a.com", "camera")).toEqual({});
+        expect(store["meet.example.com"]).toEqual({ camera: "allow", microphone: "block" });
     });
 
     it("words what a request asks for", () => {

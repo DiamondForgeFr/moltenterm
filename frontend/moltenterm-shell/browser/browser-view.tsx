@@ -200,6 +200,10 @@ import "./browser.css";
 import { ClearDataDialog, type ClearDataRequest } from "./clear-data-dialog";
 import { ClientCertificateModel, isCertificateAsk } from "./client-certificate-store";
 import { CommentButton } from "./comment-button";
+import { ConnectionButton } from "./connection-button";
+import { InsecurePasswordChannel, isConnectionState } from "./connection-security";
+import { ConnectionModel, connectionView, ConnectionView } from "./connection-store";
+import { InsecurePasswordBar } from "./insecure-password-bar";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { blockIdOfORef, focusWhenPlaced } from "./focus-placed";
 import { inspectorMenuItems } from "./inspector-menu";
@@ -241,6 +245,11 @@ const PersistDelayMs = 400;
 const FoldNavPx = 340;
 // Without a home page set (web:defaulturl), a new browser opens MoltenTerm's start page, never a site (FR-SHELL-110).
 const FallbackUrl = StartPageUrl;
+
+// What the preload exposes for the page's connection (emain/preload.ts, #1980).
+type PageSecurityApi = {
+    moltentermConnectionGet?: (webContentsId: number) => Promise<unknown>;
+};
 
 // The agents' DevTools controller needs each tab's webview (emain/moltenterm-browseragent.ts, FR-BRW-008).
 type BrowserAgentElectronApi = ElectronApi &
@@ -313,6 +322,10 @@ export class BrowserViewModel implements ViewModel {
     loads = new BrowserLoadModel();
     // The page that failed to load per tab, drawn as MoltenTerm's error page (FR-SHELL-051).
     errors = new BrowserErrorModel();
+    // How each tab's page is served, and the password warning (#1980, FR-BRW-023).
+    connection = new ConnectionModel();
+    // What the connection button shows for the shown tab; the sidebar's top field reads it too.
+    connectionViewAtom: Atom<ConnectionView>;
     // The first-link engine choice per tab (FR-BRW-006).
     choices = new BrowserChoiceModel();
     // The tabs agents drive, and their control bars (FR-BRW-008).
@@ -345,6 +358,18 @@ export class BrowserViewModel implements ViewModel {
         this.layoutNode = nodeModel as Partial<NodeModel>;
         this.blockAtom = makeBlockAtom(blockId);
         this.stateAtom = atom(this.initialState()) as PrimitiveAtom<BrowserState>;
+        this.connectionViewAtom = atom((get) => {
+            const state = get(this.stateAtom);
+            const tab = state.tabs.find((t) => t.id === state.activeId);
+            if (tab == null || tab.engine) {
+                return null;
+            }
+            return connectionView({
+                address: tab.url,
+                state: get(this.connection.statesAtom)[tab.id] ?? null,
+                failed: get(this.errors.errorsAtom)[tab.id]?.error != null,
+            });
+        });
         this.agents = new BrowserAgentModel(blockId);
         this.agents.onShown = (shownTabIds) => showAgentPage(this.agentShowTarget(), shownTabIds);
         this.agents.onAsk = () => showAgentAsk(blockId);
@@ -598,6 +623,7 @@ export class BrowserViewModel implements ViewModel {
         this.signIn.forget(id);
         this.sitePermissions.forgetTab(id);
         this.clientCertificates.forgetTab(id);
+        this.connection.forgetTab(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -1136,6 +1162,7 @@ export class BrowserViewModel implements ViewModel {
         this.signIn.forget(id);
         this.sitePermissions.forgetTab(id);
         this.clientCertificates.forgetTab(id);
+        this.connection.forgetTab(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -1576,6 +1603,11 @@ export class BrowserViewModel implements ViewModel {
             return;
         }
         globalStore.set(this.clearDataAtom, { kind: ClearSiteKind, tabId, origin: site.origin, host: site.host });
+    }
+
+    // The developer's own request to clear the shown page's cookies and data, from the site information popover.
+    clearSiteDataOf(tabId: string): (() => void) | undefined {
+        return this.clearableOrigin(tabId) != null ? () => this.askClearSiteData(tabId) : undefined;
     }
 
     askClearCache(tabId = this.state().activeId): void {
@@ -2028,6 +2060,19 @@ function TabWebview({
             model.nodeModel.focusNode();
         };
         const onBlur = () => getApi().setWebviewFocus(null);
+        // How this page is served, from main (emain/moltenterm-connection.ts, #1980).
+        const onConnection = (e: any) => {
+            if (isConnectionState(e.detail)) {
+                model.connection.setState(tab.id, e.detail);
+            }
+        };
+        // A password field took the focus in the page (emain/moltenterm-insecure-password-guest.ts): the message carries
+        // nothing, the address checked is the one the webview committed.
+        const onIpcMessage = (e: any) => {
+            if (e.channel === InsecurePasswordChannel) {
+                model.connection.notePasswordField(tab.id, webview.getURL());
+            }
+        };
         const onStartLoading = () => {
             model.loads.noteStart(tab.id);
             noteSiteLoading(model.blockId, true);
@@ -2077,6 +2122,12 @@ function TabWebview({
             offHeld?.();
             offHeld = onInputHeld(webview.getWebContentsId(), () => model.agents.noteHeldInput(tab.id));
             registerWebview(model.blockId, tab.id, webview.getWebContentsId(), model.tabId);
+            fireAndForget(async () => {
+                const state = await (getApi() as PageSecurityApi).moltentermConnectionGet?.(webview.getWebContentsId());
+                if (isConnectionState(state)) {
+                    model.connection.setState(tab.id, state);
+                }
+            });
             if (document.activeElement === webview) {
                 getApi().setWebviewFocus(webview.getWebContentsId());
             }
@@ -2111,6 +2162,8 @@ function TabWebview({
         window.addEventListener("moltenterm-site-permission-done", onSitePermissionDone);
         webview.addEventListener("moltenterm-client-certificate", onClientCertificate);
         window.addEventListener("moltenterm-client-certificate-done", onClientCertificateDone);
+        webview.addEventListener("moltenterm-connection", onConnection);
+        webview.addEventListener("ipc-message", onIpcMessage);
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
         webview.addEventListener("dom-ready", onDomReady);
@@ -2147,6 +2200,8 @@ function TabWebview({
             window.removeEventListener("moltenterm-site-permission-done", onSitePermissionDone);
             webview.removeEventListener("moltenterm-client-certificate", onClientCertificate);
             window.removeEventListener("moltenterm-client-certificate-done", onClientCertificateDone);
+            webview.removeEventListener("moltenterm-connection", onConnection);
+            webview.removeEventListener("ipc-message", onIpcMessage);
             webview.removeEventListener("focus", onFocus);
             webview.removeEventListener("blur", onBlur);
             webview.removeEventListener("dom-ready", onDomReady);
@@ -2350,12 +2405,16 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     const errors = useAtomValue(model.errors.errorsAtom);
     const list = useAtomValue(model.engines.listAtom);
     const copied = useAtomValue(model.linkCopy.copiedAtom);
+    const connection = useAtomValue(model.connectionViewAtom);
     if (tab == null) {
         return null;
     }
     const host = isStartPage(tab.url)
         ? t("browser.start.address")
         : browserTabTitle({ id: tab.id, url: tab.url }) || tab.url;
+    // The connection button beside the host replaces the tab's icon while it shows, but a page still loading keeps its
+    // loader.
+    const iconHidden = connection != null && !loads[tab.id]?.loading;
     const keys = formatShortcutById("top-field");
     const copyable = addressOfPage(tab.url) !== "";
     return (
@@ -2391,12 +2450,29 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
                         aria-label={t("browser.tabs.openedIn", { browser: engineName(tab.engine, list) })}
                         className={cn(browserIconClass(tab.engine), "molten-browser-tab-icon text-accent")}
                     />
-                ) : (
+                ) : iconHidden ? null : (
                     <TabIcon load={loads[tab.id]} failed={errors[tab.id]?.error != null} />
                 )}
                 <span className="min-w-0 truncate font-mono text-11">{host}</span>
             </button>
         </PageAddressFrame>
+    );
+}
+
+// The connection button just before the host (#1980, FR-BRW-023): a lock, or a warning with its word, for the shown tab.
+function ConnectionControl({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+    const view = useAtomValue(model.connectionViewAtom);
+    const states = useAtomValue(model.connection.statesAtom);
+    if (tab == null || view == null) {
+        return null;
+    }
+    return (
+        <ConnectionButton
+            view={view}
+            address={tab.url}
+            state={states[tab.id] ?? null}
+            onClearData={model.clearSiteDataOf(tab.id)}
+        />
     );
 }
 
@@ -2482,6 +2558,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                     onAnnotate={model.canAnnotate(active?.id) ? () => model.startAnnotate(active.id) : undefined}
                 />
             </span>
+            <ConnectionControl model={model} tab={active} />
             {topField ? (
                 <PageAddress model={model} tab={active} />
             ) : (
@@ -2995,6 +3072,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                 }
                 onDismiss={() => model.dismissChoice(state.activeId)}
             />
+            <InsecurePasswordBar connection={model.connection} tabId={state.activeId} address={activeTab?.url ?? ""} />
             <SitePermissionHost permissions={model.sitePermissions} tabId={state.activeId} />
             <ClientCertificateHost certificates={model.clientCertificates} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
