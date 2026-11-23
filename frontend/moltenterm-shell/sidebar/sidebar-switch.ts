@@ -10,6 +10,8 @@ import { atoms, getApi, globalStore } from "@/app/store/global";
 import { WorkspaceService } from "@/app/store/services";
 import { useAtomValue } from "jotai";
 import { useEffect } from "react";
+import { contextIdOf } from "../contexts/context-model";
+import { getContexts, getWindowContextId } from "../contexts/context-store";
 import { prefersReducedMotion } from "../molten-motion";
 import { settleFrames, SettleMs, settleOffset, SwipeAbsorb, SwipeSettle, workspaceAtNumber } from "./sidebar-swipe";
 import { clearLeave, holdLeave, playLeave, prepareLeave } from "../switch-layout/layout-frames";
@@ -292,8 +294,28 @@ export async function sidebarWorkspaceIds(): Promise<string[]> {
     return ids;
 }
 
+// The ids the switcher lists, which ⌥1…⌥9 count: those of the window's context (FR-SHELL-158).
+export async function windowContextWorkspaceIds(): Promise<string[]> {
+    const all = await sidebarWorkspaceIds();
+    const contexts = getContexts();
+    const current = getWindowContextId();
+    const activeId = globalStore.get(atoms.workspace)?.oid;
+    const kept: string[] = [];
+    for (const id of all) {
+        if (id === activeId) {
+            kept.push(id);
+            continue;
+        }
+        const ws = await WorkspaceService.GetWorkspace(id).catch((): Workspace => null);
+        if (ws != null && contextIdOf(contexts, ws.meta) === current) {
+            kept.push(id);
+        }
+    }
+    return kept;
+}
+
 export async function switchToNumber(n: number) {
-    const ids = await sidebarWorkspaceIds();
+    const ids = await windowContextWorkspaceIds();
     const target = workspaceAtNumber(ids, n);
     if (target == null) {
         return;

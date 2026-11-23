@@ -23,6 +23,7 @@ import { DefaultSearchSettingKey } from "../browser/search-engine-model";
 import { useBrainstormGates } from "../build/use-feature-on";
 import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
+import { isInWindowContext } from "../contexts/context-store";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
 import {
@@ -128,7 +129,7 @@ async function loadWorkspaces(activeId: string): Promise<OtherWorkspaces> {
     const folders: string[] = [];
     for (const entry of (await WorkspaceService.ListWorkspaces()) ?? []) {
         const ws = await WorkspaceService.GetWorkspace(entry.workspaceid);
-        if (ws == null || !isSavedWorkspace(ws)) {
+        if (ws == null || !isSavedWorkspace(ws) || !isInWindowContext(ws.meta)) {
             continue;
         }
         const { image, logo } = workspaceIconSource(ws);

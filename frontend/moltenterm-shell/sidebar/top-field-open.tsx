@@ -28,6 +28,7 @@ import { AgentStates } from "../agent-state-store";
 import { typedBlockDef } from "../browser/browser-model";
 import { blockIdOfORef, focusWhenPlaced } from "../browser/focus-placed";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
+import { isInWindowContext } from "../contexts/context-store";
 import { visibleTabIds } from "../hidden-tabs";
 import { useT } from "../i18n/i18n";
 import { usePaletteEntries } from "../palette/command-palette";
@@ -84,7 +85,10 @@ type LoadedSources = { views: FieldRow[]; workspaces: FieldRow[] };
 
 // Views and workspaces of every workspace, read when the field opens.
 async function loadSources(t: TFn, activeId: string): Promise<LoadedSources> {
-    const sources = await loadWorkspaceSources();
+    // The window's context only (FR-SHELL-158): the other contexts' workspaces and views are out of its sight.
+    const sources = (await loadWorkspaceSources()).filter(
+        (s) => s.workspace?.oid === activeId || isInWindowContext(s.workspace?.meta)
+    );
     const active = sources.find((s) => s.workspace?.oid === activeId)?.workspace;
     const entries = makeWorkspaceRailEntries(sources, active).filter((e) => e.saved || e.active);
     const views: FieldRow[] = [];
