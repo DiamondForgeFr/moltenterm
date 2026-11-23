@@ -204,24 +204,27 @@ describe("the band's code stays out of the entry bundle (#2188)", () => {
     const sources = (readdirSync(shell, { recursive: true }) as string[])
         .map((f) => f.split("\\").join("/"))
         .filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f));
-    const importers = (module: RegExp) =>
-        sources.filter((f) => module.test(readFileSync(join(shell, f), "utf8"))).sort();
+    // Every source is read here, while the file is collected, not in the test: collection has no timeout, and a loaded
+    // machine stretches the scan past a test's 5 s (#2496).
+    const sourceText = new Map(sources.map((f) => [f, readFileSync(join(shell, f), "utf8")]));
+    const importers = (module: RegExp) => sources.filter((f) => module.test(sourceText.get(f))).sort();
+    const runRowImporters = importers(/from "(?:\.\.\/mission|\.)\/run-row"/);
+    const runRowModelImporters = importers(/from "(?:\.\.\/mission|\.)\/run-row-model"/);
+    const rowModuleImporters = importers(/from "(?:\.\.\/mission|\.)\/(?:build|release)-run-row"/);
 
     it("is imported by the lazy view and its rows only", () => {
-        expect(importers(/from "(?:\.\.\/mission|\.)\/run-row"/)).toEqual([
+        expect(runRowImporters).toEqual([
             "mission/build-run-row.tsx",
             "mission/release-run-row.tsx",
             "project/running-band-view.tsx",
         ]);
-        expect(importers(/from "(?:\.\.\/mission|\.)\/run-row-model"/)).toEqual([
+        expect(runRowModelImporters).toEqual([
             "mission/build-run-row.tsx",
             "mission/release-run-row.tsx",
             "mission/run-row.tsx",
             "project/running-band-view.tsx",
         ]);
-        expect(importers(/from "(?:\.\.\/mission|\.)\/(?:build|release)-run-row"/)).toEqual([
-            "project/running-band-view.tsx",
-        ]);
+        expect(rowModuleImporters).toEqual(["project/running-band-view.tsx"]);
     });
 });
 

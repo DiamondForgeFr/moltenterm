@@ -58,25 +58,28 @@ describe("Wave surfaces on the Coulée tokens (FR-SHELL-120)", () => {
         expect(waveFile("view/preview/directorypreview.scss")).not.toMatch(/from var\(--block-bg-color\) calc\(l/);
     });
 
-    it("keeps the workspace colour off every Wave stylesheet (AC-3)", () => {
-        const offenders: string[] = [];
-        const walk = (dir: string) => {
-            for (const entry of readdirSync(dir, { withFileTypes: true })) {
-                const path = join(dir, entry.name);
-                if (entry.isDirectory()) {
-                    walk(path);
-                    continue;
-                }
-                if (!/\.s?css$/.test(entry.name)) {
-                    continue;
-                }
-                if (/--mt-place|--mt-accent\b/.test(readFileSync(path, "utf8"))) {
-                    offenders.push(path);
-                }
+    // Scanned while the file is collected, not in the test: collection has no timeout, and a loaded machine stretches
+    // this whole-tree scan past a test's 5 s (#2496).
+    const placeColourOffenders: string[] = [];
+    const walk = (dir: string) => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+            const path = join(dir, entry.name);
+            if (entry.isDirectory()) {
+                walk(path);
+                continue;
             }
-        };
-        walk(appDir);
-        expect(offenders).toEqual([]);
+            if (!/\.s?css$/.test(entry.name)) {
+                continue;
+            }
+            if (/--mt-place|--mt-accent\b/.test(readFileSync(path, "utf8"))) {
+                placeColourOffenders.push(path);
+            }
+        }
+    };
+    walk(appDir);
+
+    it("keeps the workspace colour off every Wave stylesheet (AC-3)", () => {
+        expect(placeColourOffenders).toEqual([]);
     });
 });
 

@@ -37,6 +37,17 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe("useFloatingInPlace (#1440)", () => {
+    // Scanned while the file is collected, not in the test: collection has no timeout, and a loaded machine stretches
+    // this whole-tree scan past a test's 5 s (#2496).
+    const floatingCallers = [
+        ...sourceFiles(path.join(Root, "frontend/moltenterm-shell")),
+        ...["popover.tsx", "flyoutmenu.tsx"].map((f) => path.join(Root, "frontend/app/element", f)),
+        path.join(Root, "frontend/app/workspace/widgets.tsx"),
+    ]
+        .filter((f) => !f.endsWith("floating-in-place.ts"))
+        .filter((f) => /\buseFloating\(/.test(fs.readFileSync(f, "utf8")))
+        .map((f) => path.relative(Root, f));
+
     it("paints nothing before floating-ui measured the surface, and never through transform", () => {
         floatingCalls.length = 0;
         const html = renderToStaticMarkup(<Probe />);
@@ -54,16 +65,7 @@ describe("useFloatingInPlace (#1440)", () => {
     });
 
     it("is the only way Moltenterm's surfaces and Wave's menus call floating-ui", () => {
-        const files = [
-            ...sourceFiles(path.join(Root, "frontend/moltenterm-shell")),
-            ...["popover.tsx", "flyoutmenu.tsx"].map((f) => path.join(Root, "frontend/app/element", f)),
-            path.join(Root, "frontend/app/workspace/widgets.tsx"),
-        ];
-        const offenders = files
-            .filter((f) => !f.endsWith("floating-in-place.ts"))
-            .filter((f) => /\buseFloating\(/.test(fs.readFileSync(f, "utf8")))
-            .map((f) => path.relative(Root, f));
-        expect(offenders).toEqual([]);
+        expect(floatingCallers).toEqual([]);
     });
 
     it("starts the command panel's entrance once it stands at its place", () => {

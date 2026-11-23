@@ -146,6 +146,17 @@ const ShellStyles = (readdirSync(ShellDir, { recursive: true }) as string[])
     .filter((f) => f.endsWith(".css"))
     .map((f) => [f, readFileSync(join(ShellDir, f), "utf8")] as const);
 
+// PostCSS over every stylesheet of the shell, and the literal scans of the companion's files, run here too (#2496): the
+// tests below only read the results.
+const TokenDefinitions = ShellStyles.flatMap(([file, css]) => rulesOf(css).map((r) => ({ file, r }))).filter(({ r }) =>
+    r.decls.has(Token)
+);
+const InlineTokens = [...SourceText.entries()].filter(([, text]) => new RegExp(`["']${Token}["']\\s*:`).test(text));
+const LiteralInsetUses = [
+    ...[...StyleText.entries()].flatMap(([file, css]) => literalInsets(css).map((found) => `${file}: ${found}`)),
+    ...[...SourceText.entries()].flatMap(([file, text]) => literalClasses(text).map((found) => `${file}: ${found}`)),
+];
+
 const tokens = rulesOf(read("tokens.css"));
 const suite = rulesOf(read("suite", "suite.css"));
 const work = rulesOf(StyleText.get("companion-work.css"));
@@ -169,13 +180,9 @@ const horizontal = (rules: Rule[], selector: string, scope = dashScope): number[
 describe("the companion's one inset (#2440, #2441)", () => {
     it("is one token, worth CompanionInsetPx, that no band, width or section redefines", () => {
         expect(lengthOf(`var(${Token})`, rootScope)).toBe(CompanionInsetPx);
-        const defined = ShellStyles.flatMap(([file, css]) => rulesOf(css).map((r) => ({ file, r }))).filter(({ r }) =>
-            r.decls.has(Token)
-        );
-        expect(defined.map(({ file, r }) => `${file}: ${oneLine(r.selector)}`)).toEqual(["tokens.css: :root"]);
-        expect(defined[0].r.inAtRule).toBe(false);
-        const inline = [...SourceText.entries()].filter(([, text]) => new RegExp(`["']${Token}["']\\s*:`).test(text));
-        expect(inline.map(([file]) => file)).toEqual([]);
+        expect(TokenDefinitions.map(({ file, r }) => `${file}: ${oneLine(r.selector)}`)).toEqual(["tokens.css: :root"]);
+        expect(TokenDefinitions[0].r.inAtRule).toBe(false);
+        expect(InlineTokens.map(([file]) => file)).toEqual([]);
     });
 
     it("pads every block's content and starts its notches on the inset", () => {
@@ -282,13 +289,7 @@ describe("the companion's one inset (#2440, #2441)", () => {
     });
 
     it("leaves no section or style with an inset of its own", () => {
-        const literals = [...StyleText.entries()].flatMap(([file, css]) =>
-            literalInsets(css).map((found) => `${file}: ${found}`)
-        );
-        const classes = [...SourceText.entries()].flatMap(([file, text]) =>
-            literalClasses(text).map((found) => `${file}: ${found}`)
-        );
-        expect([...literals, ...classes]).toEqual([]);
+        expect(LiteralInsetUses).toEqual([]);
     });
 
     it("sees a literal inset in a stylesheet or a class list, and not a control's padding", () => {

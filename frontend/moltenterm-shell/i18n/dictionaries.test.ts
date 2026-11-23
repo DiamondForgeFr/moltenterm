@@ -40,6 +40,19 @@ describe("shipped dictionaries", () => {
     const en = shippedDictionary("en");
     const enKeys = flattenKeys(en);
 
+    // Scanned while the file is collected, not in the test: collection has no timeout, and a loaded machine stretches
+    // this whole-tree scan past a test's 5 s (#2496).
+    const unknownKeys: string[] = [];
+    for (const dir of ScannedDirs) {
+        for (const file of sourceFiles(path.join(Root, dir))) {
+            const source = fs.readFileSync(file, "utf8");
+            if (!/\b(?:t|mt|phrase)\(/.test(source)) continue;
+            for (const key of literalKeys(source)) {
+                if (resolveKey(en, key) == null) unknownKeys.push(`${path.relative(Root, file)}: ${key}`);
+            }
+        }
+    }
+
     it("English has keys", () => {
         expect(enKeys.length).toBeGreaterThan(50);
     });
@@ -67,16 +80,6 @@ describe("shipped dictionaries", () => {
     }
 
     it("every key the code asks for exists in en.json", () => {
-        const unknown: string[] = [];
-        for (const dir of ScannedDirs) {
-            for (const file of sourceFiles(path.join(Root, dir))) {
-                const source = fs.readFileSync(file, "utf8");
-                if (!/\b(?:t|mt|phrase)\(/.test(source)) continue;
-                for (const key of literalKeys(source)) {
-                    if (resolveKey(en, key) == null) unknown.push(`${path.relative(Root, file)}: ${key}`);
-                }
-            }
-        }
-        expect(unknown).toEqual([]);
+        expect(unknownKeys).toEqual([]);
     });
 });

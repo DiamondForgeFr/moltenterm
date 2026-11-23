@@ -39,11 +39,16 @@ function errorFillUses(folder: string): string[] {
 }
 
 describe("error text semantics", () => {
+    // Scanned while the file is collected, not in the tests: collection has no timeout, and a loaded machine stretches
+    // these whole-tree scans past a test's 5 s (#2496).
+    const shellUses = errorFillUses("frontend/moltenterm-shell");
+    const onboardingUses = errorFillUses("frontend/moltenterm-onboarding");
+
     it("reserves the error fill utility for reviewed icon-only uses", () => {
-        expect(errorFillUses("frontend/moltenterm-shell")).toEqual(IconUses.slice().sort());
+        expect(shellUses).toEqual(IconUses.slice().sort());
     });
 
     it("keeps onboarding error prose on the readable danger text token (#975)", () => {
-        expect(errorFillUses("frontend/moltenterm-onboarding")).toEqual([]);
+        expect(onboardingUses).toEqual([]);
     });
 });

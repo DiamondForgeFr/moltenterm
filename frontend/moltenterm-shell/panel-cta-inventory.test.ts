@@ -150,18 +150,21 @@ describe("calls into another panel (#1844)", () => {
         expect(offenders).toEqual([]);
     });
 
-    it("are app actions, listed, wherever they pass no panel", () => {
-        const offenders: string[] = [];
-        for (const file of sourceFiles(ShellDir)) {
-            const rel = relative(ShellDir, file).split("\\").join("/");
-            if (InPanelFiles.includes(rel) || AppActionFiles.has(rel)) {
-                continue;
-            }
-            for (const call of callsOf(rel)) {
-                offenders.push(`${rel}: ${call.name}`);
-            }
+    // Scanned while the file is collected, not in the test: collection has no timeout, and a loaded machine stretches
+    // this whole-tree scan past a test's 5 s (#2496).
+    const unlistedCalls: string[] = [];
+    for (const file of sourceFiles(ShellDir)) {
+        const rel = relative(ShellDir, file).split("\\").join("/");
+        if (InPanelFiles.includes(rel) || AppActionFiles.has(rel)) {
+            continue;
         }
-        expect(offenders).toEqual([]);
+        for (const call of callsOf(rel)) {
+            unlistedCalls.push(`${rel}: ${call.name}`);
+        }
+    }
+
+    it("are app actions, listed, wherever they pass no panel", () => {
+        expect(unlistedCalls).toEqual([]);
     });
 
     it("keep no app action in the list that no longer calls", () => {

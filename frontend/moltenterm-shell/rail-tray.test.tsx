@@ -133,18 +133,18 @@ describe("the tray stays inside its item's row (FR-SHELL-045-AC1, NFR-SHELL-029)
 });
 
 describe("no bud or goo is left (FR-SHELL-045-AC9)", () => {
+    // Read while the file is collected, not in the test: collection has no timeout, and a loaded machine stretches this
+    // scan of the shell's files past a test's 5 s (#2496).
+    const shellFiles = readdirSync(new URL("./", import.meta.url)).filter(
+        (f) => /\.(tsx?|css)$/.test(f) && !f.endsWith(".test.ts") && !f.endsWith(".test.tsx")
+    );
+    const budLeftovers = shellFiles.filter((file) =>
+        /molten-rail-bud|RailBudChain|RailBudFilter/.test(source("./" + file))
+    );
+
     it("removes the bud chain, its filter and its CSS", () => {
-        const dir = new URL("./", import.meta.url);
-        const files = readdirSync(dir).filter(
-            (f) => /\.(tsx?|css)$/.test(f) && !f.endsWith(".test.ts") && !f.endsWith(".test.tsx")
-        );
-        expect(files).not.toContain("workspace-rail-edit.tsx");
-        for (const file of files) {
-            const code = source("./" + file);
-            expect(code, file).not.toContain("molten-rail-bud");
-            expect(code, file).not.toContain("RailBudChain");
-            expect(code, file).not.toContain("RailBudFilter");
-        }
+        expect(shellFiles).not.toContain("workspace-rail-edit.tsx");
+        expect(budLeftovers).toEqual([]);
     });
 
     it("drops #368's pulsing glow for a static dashed ring in connect mode (FR-SHELL-045-AC7)", () => {
