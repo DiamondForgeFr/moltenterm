@@ -32,8 +32,12 @@ describe("collapsed: the window's left edge line, and nothing else", () => {
         expect(hiddenBlock).toContain('className="mt-sb-edge"');
     });
 
-    it("has no rail, no mark, no icon: the hidden block holds the left-edge zone and the line only", () => {
-        expect(hiddenBlock.match(/<(div|span|button|Suspense)\b/g)).toEqual(["<div", "<span"]);
+    // #2476 (FR-SHELL-159): the context's ribbon, rolled up to its emblem, is the one mark that comes out of the edge,
+    // under the first panel's header; it takes no margin of the content's.
+    it("has no rail, no icon: the hidden block holds the left-edge zone, the line and the context's ribbon only", () => {
+        expect(hiddenBlock.match(/<(div|span|button|Suspense)\b/g)).toEqual(["<div", "<span", "<div"]);
+        expect(hiddenBlock).toContain('<ContextRibbonHost mode="collapsed"');
+        expect(hiddenBlock).toContain('className="mt-ribbon-edge"');
         expect(sidebar).not.toMatch(/CollapsedRail|collapsed-rail|collapsed-mark-model/);
         expect(fs.existsSync(path.join(__dirname, "collapsed-rail.tsx"))).toBe(false);
         expect(fs.existsSync(path.join(__dirname, "collapsed-mark-model.ts"))).toBe(false);

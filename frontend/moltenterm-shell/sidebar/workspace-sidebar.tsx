@@ -45,15 +45,12 @@ import { AutomaticSetting, coffeeCondition, coffeeSupported } from "../keepawake
 import { KeepAwakeModel } from "../keepawake-store";
 import { usePlatform } from "../keepawake-ui";
 import { LibraryHost } from "../library/library-host";
-import { MoltentermCicdView } from "../mission/cicd-view";
 import { MoltenWave } from "../molten-button";
 import { motionMs, prefersReducedMotion } from "../molten-motion";
 import { narrowWindowAtom } from "../narrow-window";
 import { currentNewViewChoices, openNewView } from "../newview/new-view";
 import { unreadByWorkspace } from "../notifications-model";
 import { MoltentermNotifications } from "../notifications-store";
-import { openMoltentermView } from "../open-view";
-import { openWebLink } from "../open-web-link";
 import { runPaletteEntry } from "../palette/palette-actions";
 import { PourLight } from "../panel-motion/view-pour";
 import {
@@ -65,8 +62,11 @@ import {
 } from "../panel-motion/working-light";
 import { contextIdOf, entriesOfContext } from "../contexts/context-model";
 import { useContexts, useRememberWorkspaceInContext } from "../contexts/context-store";
+import { ManageContextsHost } from "../contexts/manage-contexts";
+import { ContextRibbonHost } from "../contexts/ribbon-host";
+import { collapsedRibbonShown } from "../contexts/ribbon-model";
 import { ProjectTabMetaKey } from "../project/project-model";
-import { openProjectOverview, openProjectTab } from "../project/project-tab";
+import { openProjectTab } from "../project/project-tab";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
 import { ReleaseNotesModel } from "../releases/release-notes-store";
 import { useReviewsRailWatch } from "../reviews/reviews-client";
@@ -75,8 +75,7 @@ import { DurableSessions } from "../sessions/sessions-store";
 import { openSettingsKey } from "../settings/settings-open";
 import { acceleratorById, formatKeys, formatShortcutById } from "../shortcuts/format";
 import { finishTabPanelDrag, trackTabPanelDrag } from "../split/drop-zones";
-import { ChannelClasses, ItemButton, useFocusedPane, useStatusBarView } from "../status-bar";
-import { DominoLoader } from "../suite/suite";
+import { ChannelClasses, useStatusBarView } from "../status-bar";
 import "../tab-bar.css";
 import {
     TabAgentMark,
@@ -107,8 +106,7 @@ import {
 import { askDeleteWorkspace, askResetWorkspace } from "../workspace-reset";
 import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model";
 import { closeTabAskingFirst } from "../worktree-close";
-import { statusBarMarker } from "../worktree-model";
-import { useTabTreesTooltip, WorktreeChip } from "../worktree-ui";
+import { useTabTreesTooltip } from "../worktree-ui";
 import { EmptyWorkspace } from "./empty-workspace";
 import { useFoundLogos } from "./header-logo";
 import { plusMenuItems } from "./plus-menu-model";
@@ -1788,71 +1786,20 @@ function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWo
     );
 }
 
-// The status bar's left part, on one line: the focused pane's tree, branch, CI and pull request.
-function BranchSection() {
-    const t = useT();
-    const { pane, tree, probe } = useFocusedPane();
-    return (
-        <span className="flex min-w-0 items-center gap-1.5 overflow-hidden" data-testid="sidebar-branch">
-            {probe}
-            {pane ? <WorktreeChip marker={statusBarMarker(tree)} hideBranch={true} /> : null}
-            {pane?.branch ? (
-                <button
-                    type="button"
-                    className={cn(ItemButton, "gap-[5px] px-0.5")}
-                    title={`${pane.projectName}\n${pane.branchTitle}`}
-                    onClick={() => fireAndForget(openProjectOverview)}
-                >
-                    <SidebarGlyph name="branch" size={12} />
-                    <span className="truncate">{pane.branch}</span>
-                    {pane.ahead > 0 ? <span className="text-muted">↑{pane.ahead}</span> : null}
-                    {pane.dirty ? <span className="text-warning">●</span> : null}
-                </button>
-            ) : pane ? (
-                <span className="truncate" title={pane.projectTitle}>
-                    {pane.projectName}
-                </span>
-            ) : null}
-            {pane?.ci ? (
-                <button
-                    type="button"
-                    className={cn(ItemButton, "shrink-0 px-0.5")}
-                    title={t("status.ci.title", { label: pane.ci.label })}
-                    aria-label={t("status.ci.title", { label: pane.ci.label })}
-                    onClick={() => fireAndForget(() => openMoltentermView(MoltentermCicdView))}
-                >
-                    {pane.ci.status === "running" ? (
-                        <DominoLoader className="text-accent" />
-                    ) : (
-                        <i className={cn("fa fa-solid text-11", pane.ci.iconClass)} />
-                    )}
-                </button>
-            ) : null}
-            {pane?.pr ? (
-                <button
-                    type="button"
-                    className={cn(ItemButton, "shrink-0 px-0.5")}
-                    title={t(pane.pr.draft ? "status.pr.draft" : "status.pr.open", { title: pane.pr.title })}
-                    onClick={() => fireAndForget(() => openWebLink(pane.pr.url))}
-                >
-                    #{pane.pr.number}
-                </button>
-            ) : null}
-        </span>
-    );
-}
-
 // The floating panel keeps this line although Arc shows none there (#1293): with the sidebar on it is the window's only
-// status bar, and the update notices and the build badge live nowhere else.
-function BranchLine() {
+// status bar, and the update notices and the build badge live nowhere else. The context's ribbon is on its left, out of
+// the sidebar's edge (FR-SHELL-159); the branch, CI and pull request it showed live in each panel's header (FR-SHELL-160).
+function StatusLine({ entries }: { entries: WorkspaceRailEntry[] }) {
     const t = useT();
     const view = useStatusBarView();
     return (
         <div
-            className="flex shrink-0 items-center justify-between gap-2 pr-1 pl-1.5 font-mono text-11 whitespace-nowrap text-muted"
+            className="flex shrink-0 items-center justify-between gap-2 pr-1 pl-0 font-mono text-11 whitespace-nowrap text-muted"
             data-testid="sidebar-status-line"
         >
-            <BranchSection />
+            <span className="mt-ribbon-slot">
+                <ContextRibbonHost mode="sidebar" entries={entries} />
+            </span>
             <span className="flex shrink-0 items-center gap-1 font-sans">
                 <UpdateStatusBanner />
                 <GoldUpdateButton />
@@ -2618,6 +2565,7 @@ function SidebarHosts({ entries }: { entries: WorkspaceRailEntry[] }) {
                 }}
             />
             <ReleaseNotesHost />
+            <ManageContextsHost entries={entries} />
             <View360ExitHost />
             <ViewPopoverHost />
             <AgentInfoHost />
@@ -2825,6 +2773,11 @@ export function WorkspaceSidebar() {
                         onClick={() => model.setPeek(true)}
                     />
                     <span className="mt-sb-place-strip mt-sb-edge-line" data-testid="sidebar-edge-line" aria-hidden />
+                    {collapsedRibbonShown(hidden, peek, edge.shape) ? (
+                        <div className="mt-ribbon-edge" data-testid="sidebar-collapsed-ribbon">
+                            <ContextRibbonHost mode="collapsed" entries={workspaces.all} />
+                        </div>
+                    ) : null}
                 </>
             ) : null}
             <aside
@@ -2921,7 +2874,7 @@ export function WorkspaceSidebar() {
                     <PullBadge side={-1} pullRef={pullLeftRef} />
                     <PullBadge side={1} pullRef={pullRightRef} />
                 </div>
-                <BranchLine />
+                <StatusLine entries={workspaces.all} />
                 <div
                     className={cn("flex shrink-0 items-center gap-1.5", !hidden && "border-t border-line pt-1.5")}
                     data-testid="sidebar-bottom-bar"

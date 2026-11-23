@@ -1,0 +1,214 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The context ribbon (FR-SHELL-159, #2476): flat, in the colour of a workspace, with a notched point on its right, dark
+   ink and the context's emblem. One shape in both sidebar modes. Shown, it comes out of the sidebar's left edge in the
+   bottom area, unrolled to its name. Collapsed, it comes out of the window's left edge under the first panel's header,
+   rolled up to its emblem with its tail fading, and unrolls under the pointer or the focus. The colour is the
+   workspace's (--ribbon-paint) and the ink the one that reads on it (--ribbon-ink): the context reads by its emblem. */
+
+.mt-ribbon-shape {
+    --mt-ribbon-notch: 7px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+    height: 22px;
+    padding: 0 calc(var(--mt-ribbon-notch) + 7px) 0 8px;
+    color: var(--ribbon-ink, var(--mt-text-inverse));
+    font-family: var(--font-sans);
+    font-size: var(--mt-text-12);
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    isolation: isolate;
+}
+
+/* The shape is drawn on a layer of its own, so the focus ring and the dot are never cut by the notch. */
+.mt-ribbon-shape::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    background: var(--ribbon-paint, var(--mt-place));
+    clip-path: polygon(0 0, 100% 0, calc(100% - var(--mt-ribbon-notch)) 50%, 100% 100%, 0 100%);
+    transition: opacity var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-ribbon-emblem {
+    display: inline-flex;
+    flex: none;
+}
+
+.mt-ribbon-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The ribbon of the window: a button, as wide as its name and no wider than the sidebar's line. In the sidebar it starts
+   at the sidebar's own edge, one frame margin (or the floating panel's inner margin) out of the line's padding. */
+.mt-ribbon {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+}
+
+.mt-ribbon:hover .mt-ribbon-shape::before,
+.mt-ribbon[aria-expanded="true"] .mt-ribbon-shape::before {
+    filter: brightness(1.08);
+}
+
+.mt-ribbon:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
+}
+
+.mt-sb {
+    --mt-ribbon-out: var(--mt-frame-gap, 0px);
+}
+
+.mt-sb.is-hidden {
+    --mt-ribbon-out: var(--mt-peek-inset, 0px);
+}
+
+.mt-ribbon-slot {
+    display: flex;
+    min-width: 0;
+    margin-left: calc(-1 * var(--mt-ribbon-out, 0px));
+}
+
+/* The waiting dot (FR-SHELL-116's mark): an agent waits on the developer in another context. */
+.mt-ribbon-dot {
+    position: absolute;
+    top: -3px;
+    right: calc(var(--mt-ribbon-notch) - 1px);
+    display: flex;
+    pointer-events: none;
+}
+
+/* Collapsed: out of the window's left edge, under the first panel's header line (the frame margin, the header's row and
+   a margin below it), so it never covers a header. Rolled up to its emblem, the tail fading, and unrolled to the name
+   under the pointer, the keyboard focus or the open menu. */
+.mt-ribbon-edge {
+    position: absolute;
+    z-index: 26;
+    left: 0;
+    top: calc(var(--mt-frame-gap, 8px) + var(--header-height, 28px) + 8px);
+    max-width: calc(100% - var(--mt-frame-gap, 8px));
+}
+
+.mt-ribbon.is-rolled .mt-ribbon-name {
+    max-width: 0;
+    opacity: 0;
+    margin-left: -6px;
+    transition:
+        max-width var(--mt-duration-base) var(--mt-ease),
+        opacity var(--mt-duration-fast) var(--mt-ease),
+        margin-left var(--mt-duration-base) var(--mt-ease);
+}
+
+.mt-ribbon.is-rolled .mt-ribbon-shape::before {
+    -webkit-mask-image: linear-gradient(to right, black 55%, transparent);
+    mask-image: linear-gradient(to right, black 55%, transparent);
+}
+
+.mt-ribbon.is-rolled:is(:hover, :focus-visible, [aria-expanded="true"]) .mt-ribbon-name {
+    max-width: 16em;
+    opacity: 1;
+    margin-left: 0;
+}
+
+.mt-ribbon.is-rolled:is(:hover, :focus-visible, [aria-expanded="true"]) .mt-ribbon-shape::before {
+    -webkit-mask-image: none;
+    mask-image: none;
+}
+
+/* The menu of ribbons: one ribbon per context, flush with the menu's left edge as it is with the sidebar's, and its hint
+   on the right. */
+.mt-ribbon-menu {
+    width: 276px;
+    max-width: calc(100vw - 16px);
+}
+
+.mt-ribbon-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 7.5rem;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 3px 10px 3px 0;
+    border: 0;
+    background: none;
+    color: var(--main-text-color);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-ribbon-row:hover,
+.mt-ribbon-row:focus-visible {
+    background: var(--hover-bg-color);
+}
+
+.mt-ribbon-row:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: -2px;
+}
+
+.mt-ribbon-row.is-empty {
+    opacity: 0.85;
+}
+
+.mt-ribbon-hint {
+    min-width: 0;
+    overflow: hidden;
+    font-size: var(--mt-text-11);
+    color: var(--mt-text-3);
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mt-ribbon-row > .mt-ribbon-shape {
+    width: 100%;
+}
+
+.mt-ribbon-hint.is-waiting {
+    color: var(--mt-state-waiting);
+}
+
+.mt-ribbon-action {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 5px 10px;
+    border: 0;
+    background: none;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-12);
+    text-align: left;
+    cursor: pointer;
+}
+
+.mt-ribbon-action:hover,
+.mt-ribbon-action:focus-visible {
+    background: var(--hover-bg-color);
+    color: var(--mt-text-1);
+}
+
+.mt-ribbon-action:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: -2px;
+}
+
+.mt-ribbon-rule {
+    height: 1px;
+    margin: 4px 0;
+    background: var(--mt-line-2);
+}

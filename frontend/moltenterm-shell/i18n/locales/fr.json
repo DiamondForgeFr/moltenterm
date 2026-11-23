@@ -13304,6 +13304,74 @@
         }
     },
     "contexts": {
-        "defaultName": "Mon atelier"
+        "defaultName": "Mon atelier",
+        "ribbon": {
+            "label": "Contexte {name} : en choisir un autre",
+            "title": "{name} : choisir un contexte",
+            "waiting": {
+                "one": "{count} agent attend dans un autre contexte",
+                "other": "{count} agents attendent dans un autre contexte"
+            }
+        },
+        "menu": {
+            "label": "Contextes",
+            "windowLabel": "Ouvrir un contexte dans une nouvelle fenêtre",
+            "here": "ici",
+            "waiting": {
+                "one": "{count} agent attend",
+                "other": "{count} agents attendent"
+            },
+            "workspaces": {
+                "one": "{count} espace de travail",
+                "other": "{count} espaces de travail"
+            },
+            "newWindow": "Ouvrir un contexte dans une nouvelle fenêtre…",
+            "windowHeading": "Ouvrir dans une nouvelle fenêtre",
+            "manage": "Gérer les contextes…",
+            "back": "Retour",
+            "failed": "Ça n'a pas marché : {error}"
+        },
+        "manage": {
+            "title": "Gérer les contextes",
+            "subtitle": "Un contexte regroupe des espaces de travail par activité, et une fenêtre en montre un.",
+            "list": "Contextes",
+            "new": "Nouveau contexte",
+            "newName": "Nouveau contexte",
+            "name": "Nom",
+            "namePlaceholder": "DiamondForge",
+            "description": "Description",
+            "descriptionPlaceholder": "À quoi sert ce contexte",
+            "emblem": "Emblème",
+            "workspaces": "Espaces de travail",
+            "noWorkspaces": "Aucun espace de travail enregistré pour l'instant.",
+            "elsewhere": "dans {context}",
+            "save": "Enregistrer",
+            "create": "Créer le contexte",
+            "close": "Fermer",
+            "delete": "Supprimer…",
+            "nameRequired": "Donnez un nom au contexte.",
+            "needsAnother": "Créez d'abord un autre contexte : un espace de travail doit être dans un contexte.",
+            "failed": "Le changement a échoué : {error}"
+        },
+        "delete": {
+            "title": "Supprimer {name} ?",
+            "none": "Il ne contient aucun espace de travail.",
+            "body": {
+                "one": "Son {count} espace de travail passe dans le contexte que vous choisissez.",
+                "other": "Ses {count} espaces de travail passent dans le contexte que vous choisissez."
+            },
+            "target": "Les déplacer vers",
+            "confirm": "Supprimer le contexte",
+            "last": "Le dernier contexte ne peut pas être supprimé."
+        },
+        "emblem": {
+            "choose": "Choisir un emblème",
+            "current": "Emblème : {name}",
+            "search": "Chercher parmi les icônes",
+            "searchPlaceholder": "Chercher une icône, par exemple book",
+            "loading": "Chargement des icônes…",
+            "none": "Aucune icône ne correspond à « {query} ».",
+            "more": "{count} de plus : précisez la recherche."
+        }
     }
 }

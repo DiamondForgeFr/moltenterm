@@ -13304,6 +13304,74 @@
         }
     },
     "contexts": {
-        "defaultName": "My workshop"
+        "defaultName": "My workshop",
+        "ribbon": {
+            "label": "Context {name}: choose another",
+            "title": "{name}: choose a context",
+            "waiting": {
+                "one": "{count} agent waiting in another context",
+                "other": "{count} agents waiting in another context"
+            }
+        },
+        "menu": {
+            "label": "Contexts",
+            "windowLabel": "Open a context in a new window",
+            "here": "here",
+            "waiting": {
+                "one": "{count} agent waiting",
+                "other": "{count} agents waiting"
+            },
+            "workspaces": {
+                "one": "{count} workspace",
+                "other": "{count} workspaces"
+            },
+            "newWindow": "Open a context in a new window…",
+            "windowHeading": "Open in a new window",
+            "manage": "Manage contexts…",
+            "back": "Back",
+            "failed": "That did not work: {error}"
+        },
+        "manage": {
+            "title": "Manage contexts",
+            "subtitle": "A context groups workspaces by activity, and a window shows one of them.",
+            "list": "Contexts",
+            "new": "New context",
+            "newName": "New context",
+            "name": "Name",
+            "namePlaceholder": "DiamondForge",
+            "description": "Description",
+            "descriptionPlaceholder": "What this context is for",
+            "emblem": "Emblem",
+            "workspaces": "Workspaces",
+            "noWorkspaces": "No saved workspace yet.",
+            "elsewhere": "in {context}",
+            "save": "Save",
+            "create": "Create context",
+            "close": "Close",
+            "delete": "Delete…",
+            "nameRequired": "Give the context a name.",
+            "needsAnother": "Make another context first: a workspace has to be in one.",
+            "failed": "The change failed: {error}"
+        },
+        "delete": {
+            "title": "Delete {name}?",
+            "none": "It holds no workspace.",
+            "body": {
+                "one": "Its {count} workspace moves to the context you choose.",
+                "other": "Its {count} workspaces move to the context you choose."
+            },
+            "target": "Move them to",
+            "confirm": "Delete context",
+            "last": "The last context cannot be deleted."
+        },
+        "emblem": {
+            "choose": "Choose an emblem",
+            "current": "Emblem: {name}",
+            "search": "Search the icons",
+            "searchPlaceholder": "Search icons, e.g. book",
+            "loading": "Loading the icons…",
+            "none": "No icon matches “{query}”.",
+            "more": "{count} more: keep typing to narrow them down."
+        }
     }
 }
