@@ -56,7 +56,7 @@ export type HeroPermit = {
 export function usePermitControl(target: string, view: CompanionView, name: string): HeroPermit {
     const t = useT();
     const state = usePermitState();
-    const watched = AnsweredAgents.has(view?.agent ?? "") && view?.status === "live" ? target : "";
+    const watched = AnsweredAgents.has(view?.agent ?? "") && view?.status !== "remote" ? target : "";
     const watch = usePermitWatch(watched);
     const sessionId = liveSessionId(view);
     const first = autonomyOf(state, target, sessionId, Date.now());
