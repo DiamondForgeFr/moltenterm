@@ -28,6 +28,7 @@ import { noteWindowCreatedLook } from "./moltenterm-window-look"; // MOLTENTERM-
 // MOLTENTERM-PATCH (#461): the tab view host owns every view and shows it (emain/moltenterm-tabview-host.ts); the
 // window's actions run in emain/moltenterm-window-actions.ts
 import { askSwitchStops, askWindowCloseStops } from "./moltenterm-busy-close-actions"; // MOLTENTERM-PATCH (#490)
+import { placeInContextOf } from "./moltenterm-contexts"; // MOLTENTERM-PATCH (#2476)
 import { BusyOutcomeCancel, BusyOutcomeClose } from "./moltenterm-busy-close-policy"; // MOLTENTERM-PATCH (#490)
 import { mt } from "./moltenterm-i18n"; // MOLTENTERM-PATCH (#623): dialogs in the interface language
 import { answerSidebarSwitch, beginSwitchPicture } from "./moltenterm-switch-picture-live"; // MOLTENTERM-PATCH (#2375, #2407)
@@ -664,6 +665,7 @@ onAppIpc("switch-workspace", (event, workspaceId) => {
 export async function createWorkspace(window: WaveBrowserWindow) {
     const newWsId = await WorkspaceService.CreateWorkspace("", "", "", true);
     if (newWsId) {
+        await placeInContextOf(newWsId, window?.workspaceId); // MOLTENTERM-PATCH (#2476): the window's context
         if (window) {
             // MOLTENTERM-PATCH (#490): a switch the user cancelled leaves no empty workspace behind
             if (!(await window.switchWorkspace(newWsId))) {
@@ -710,6 +712,7 @@ onAppIpc("delete-workspace", (event, workspaceId) => {
                 console.log("delete-workspace: last workspace of its window, no new one made", workspaceId);
                 return;
             }
+            await placeInContextOf(newWsId, workspaceId); // MOLTENTERM-PATCH (#2476): the window stays in its context
             console.log("delete-workspace: last workspace of its window, new one to land on", workspaceId, newWsId);
         }
 
@@ -811,10 +814,12 @@ export async function createNewWaveWindow() {
         return;
     }
     console.log("creating new window");
+    const contextSource = focusedWaveWindow?.workspaceId; // MOLTENTERM-PATCH (#2476): a new blank window starts in the context of the window that was focused
     const newBrowserWindow = await createBrowserWindow(null, fullConfig, {
         unamePlatform,
         isPrimaryStartupWindow: false,
     });
+    await placeInContextOf(newBrowserWindow.workspaceId, contextSource); // MOLTENTERM-PATCH (#2476)
     if (quakeWindow == null) {
         quakeWindow = newBrowserWindow;
     }

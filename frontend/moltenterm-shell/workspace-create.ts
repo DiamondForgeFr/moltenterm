@@ -8,6 +8,7 @@ import { WorkspaceService } from "@/app/store/services";
 import { makeORef } from "@/app/store/wos";
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { placeInWindowContext } from "./contexts/context-store";
 import { ProjectTypeMetaKey } from "./sidebar/sidebar-model";
 import { colourStops } from "./workspace-colour";
 import { linkWorkspaceProject, setWorkspaceGradient } from "./workspace-project-store";
@@ -25,6 +26,7 @@ export async function createWorkspace(draft: WorkspaceDraft, onCreated?: (id: st
         throw new Error("no workspace id");
     }
     onCreated?.(id);
+    await placeInWindowContext(id);
     if (stops.length > 1) {
         await setWorkspaceGradient(id, stops.join(","));
     }

@@ -13386,5 +13386,8 @@
             "sat": "S",
             "sun": "S"
         }
+    },
+    "contexts": {
+        "defaultName": "My workshop"
     }
 }
