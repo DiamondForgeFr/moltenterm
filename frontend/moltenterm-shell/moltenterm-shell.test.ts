@@ -289,23 +289,27 @@ describe("text on the accent (NFR-SHELL-003, #244)", () => {
     );
     const covered = rule == null ? [] : [...rule[1].matchAll(/bg-accent\/(\d+)/g)].map((m) => Number(m[1]));
 
-    // Every `bg-accent/<n>` written in frontend/, Wave's code included: the rule matches class substrings. A
-    // `disabled:` fill is left out of the contrast check, as WCAG exempts inactive controls.
-    function usedOpacities({ withDisabled }: { withDisabled: boolean }): Set<number> {
+    // Every `bg-accent/<n>` written in frontend/, Wave's code included: the rule matches class substrings. Scanned
+    // here, while the file is collected: collection has no timeout, and a loaded machine stretches this whole-tree scan
+    // past a test's 5 s (#2488). The tests below only read the result.
+    function scanOpacityUses(): { pct: number; disabled: boolean }[] {
         const root = fileURLToPath(new URL("..", import.meta.url));
-        const found = new Set<number>();
+        const uses: { pct: number; disabled: boolean }[] = [];
         for (const file of readdirSync(root, { recursive: true }) as string[]) {
             if (!/\.(tsx?|s?css)$/.test(file) || /\.test\./.test(file)) {
                 continue;
             }
             for (const m of readFileSync(join(root, file), "utf8").matchAll(/([\w:-]*)\bbg-accent\/(\d+)\b/g)) {
-                if (!withDisabled && m[1].includes("disabled:")) {
-                    continue;
-                }
-                found.add(Number(m[2]));
+                uses.push({ pct: Number(m[2]), disabled: m[1].includes("disabled:") });
             }
         }
-        return found;
+        return uses;
+    }
+    const opacityUses = scanOpacityUses();
+
+    // A `disabled:` fill is left out of the contrast check, as WCAG exempts inactive controls.
+    function usedOpacities({ withDisabled }: { withDisabled: boolean }): Set<number> {
+        return new Set(opacityUses.filter((use) => withDisabled || !use.disabled).map((use) => use.pct));
     }
 
     // The worst case, over the window, panel and dialog backgrounds (fixed cast iron, FR-SHELL-115), of a text colour
@@ -408,21 +412,30 @@ describe("running indicators (NFR-MC-004)", () => {
 });
 
 describe("design tokens v2: colours (FR-SHELL-044 AC2, AC5)", () => {
-    // The shell's only blue is the info tone; the menus' hard-coded pink became the danger text.
-    it("leaves no stray blue and no #ff9a9a in MoltenTerm-owned code", () => {
-        const frontend = fileURLToPath(new URL("..", import.meta.url));
-        for (const dir of ["moltenterm-shell", "moltenterm-onboarding"]) {
-            for (const file of readdirSync(join(frontend, dir), { recursive: true }) as string[]) {
-                if (!/\.(tsx?|css)$/.test(file) || /\.test\./.test(file)) {
-                    continue;
-                }
-                const src = readFileSync(join(frontend, dir, file), "utf8");
-                expect(src, `${dir}/${file}`).not.toMatch(
-                    /\b(?:text|bg|border|ring|fill|stroke|from|to)-(?:sky|blue|cyan|indigo)-\d/
-                );
-                expect(src.toLowerCase(), `${dir}/${file}`).not.toContain("#ff9a9a");
+    // Scanned while the file is collected, not in the test: collection has no timeout, and a loaded machine stretches a
+    // whole-tree scan past a test's 5 s (#2488).
+    const frontend = fileURLToPath(new URL("..", import.meta.url));
+    const strayBlue: string[] = [];
+    const strayPink: string[] = [];
+    for (const dir of ["moltenterm-shell", "moltenterm-onboarding"]) {
+        for (const file of readdirSync(join(frontend, dir), { recursive: true }) as string[]) {
+            if (!/\.(tsx?|css)$/.test(file) || /\.test\./.test(file)) {
+                continue;
+            }
+            const src = readFileSync(join(frontend, dir, file), "utf8");
+            if (/\b(?:text|bg|border|ring|fill|stroke|from|to)-(?:sky|blue|cyan|indigo)-\d/.test(src)) {
+                strayBlue.push(`${dir}/${file}`);
+            }
+            if (src.toLowerCase().includes("#ff9a9a")) {
+                strayPink.push(`${dir}/${file}`);
             }
         }
+    }
+
+    // The shell's only blue is the info tone; the menus' hard-coded pink became the danger text.
+    it("leaves no stray blue and no #ff9a9a in MoltenTerm-owned code", () => {
+        expect(strayBlue).toEqual([]);
+        expect(strayPink).toEqual([]);
     });
 });
 
@@ -453,18 +466,20 @@ describe("focus ring (#751, #1319)", () => {
         expect(shellCss).toMatch(/:root(?:,\n[^{]*)? \{[^}]*--mt-focus: #ffa45c;/);
     });
 
-    it("leaves no MoltenTerm focus ring in the raw accent or in white", () => {
-        const root = fileURLToPath(new URL(".", import.meta.url));
-        const offenders: string[] = [];
-        for (const file of readdirSync(root, { recursive: true }) as string[]) {
-            if (!/\.(tsx?|css)$/.test(file) || /\.test\./.test(file)) {
-                continue;
-            }
-            if (/focus-visible:(outline|ring)-(accent|primary)\b/.test(readFileSync(join(root, file), "utf8"))) {
-                offenders.push(file);
-            }
+    // Scanned while the file is collected, not in the test: see "design tokens v2: colours" (#2488).
+    const shellRoot = fileURLToPath(new URL(".", import.meta.url));
+    const rawRingFiles: string[] = [];
+    for (const file of readdirSync(shellRoot, { recursive: true }) as string[]) {
+        if (!/\.(tsx?|css)$/.test(file) || /\.test\./.test(file)) {
+            continue;
         }
-        expect(offenders).toEqual([]);
+        if (/focus-visible:(outline|ring)-(accent|primary)\b/.test(readFileSync(join(shellRoot, file), "utf8"))) {
+            rawRingFiles.push(file);
+        }
+    }
+
+    it("leaves no MoltenTerm focus ring in the raw accent or in white", () => {
+        expect(rawRingFiles).toEqual([]);
     });
 });
 
