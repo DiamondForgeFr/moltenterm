@@ -193,7 +193,7 @@ describe("workspace actions", () => {
         }).filter((e) => e.run.kind === "pinview");
         expect(pinned.map((e) => [e.label, e.hint])).toEqual([
             ["Pin this view everywhere", undefined],
-            ["Unpin this view (make it temporary)", "⇧⌘O"],
+            ["Unpin this view", "⇧⌘O"],
         ]);
         expect(buildPaletteEntries({ ...base }).filter((e) => e.run.kind === "pinview")).toEqual([]);
         const picker = { blockId: "b1", meta: {}, splitKeys: "⌘D" };

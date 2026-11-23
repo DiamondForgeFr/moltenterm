@@ -12,16 +12,11 @@
 import { getTabBadgeAtom } from "@/app/store/badge";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi, getSettingsKeyAtom, globalStore } from "@/app/store/global";
-import { getTabModelByTabId } from "@/app/store/tab-model";
 import { getObjectValue, makeORef, useWaveObjectValue } from "@/app/store/wos";
-import { RpcApi } from "@/app/store/wshclientapi";
-import { TabRpcClient } from "@/app/store/wshrpcutil";
-import type { TabEnv } from "@/app/tab/tab";
 import { TabBadges } from "@/app/tab/tabbadges";
 import { UpdateStatusBanner } from "@/app/tab/updatebanner";
 import { useWaveEnv } from "@/app/waveenv/waveenv";
-import { AppsFloatingWindow, type WidgetsEnv } from "@/app/workspace/widgets";
-import { deleteLayoutModelForTab } from "@/layout/index";
+import { AppsFloatingWindow } from "@/app/workspace/widgets";
 import { isMacOS, isMacOSTahoeOrLater } from "@/util/platformutil";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
@@ -37,7 +32,6 @@ import { edgeAttributes, edgeLineOn, edgeUnfoldsOn } from "../boss/brokk-edge-mo
 import { useBrokkEdge } from "../boss/use-brokk-edge";
 import { useBrokkGateProps, useBrokkVisitUp } from "../boss/use-brokk-hub";
 import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
-import { visibleTabIds } from "../hidden-tabs";
 import { HoldToCloseGlyph } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
 import { AutomaticSetting, coffeeCondition, coffeeSupported } from "../keepawake-model";
@@ -73,7 +67,6 @@ import { libraryDot } from "../sessions/sessions-model";
 import { DurableSessions } from "../sessions/sessions-store";
 import { openSettingsKey } from "../settings/settings-open";
 import { acceleratorById, formatKeys, formatShortcutById } from "../shortcuts/format";
-import { finishTabPanelDrag, trackTabPanelDrag } from "../split/drop-zones";
 import { ChannelClasses, useStatusBarView } from "../status-bar";
 import "../tab-bar.css";
 import {
@@ -105,7 +98,6 @@ import {
 import { askDeleteWorkspace, askResetWorkspace } from "../workspace-reset";
 import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model";
 import { readWorkspaceSources, subscribeWorkspaceSources } from "../workspace-sources";
-import { closeTabAskingFirst } from "../worktree-close";
 import { useTabTreesTooltip } from "../worktree-ui";
 import { EmptyWorkspace } from "./empty-workspace";
 import { useFoundLogos } from "./header-logo";
@@ -136,17 +128,12 @@ import {
 } from "./sidebar-blocks";
 import { CreateDraft, freshColour, pendingLetter } from "./sidebar-create-model";
 import {
-    finishDrop,
     keyProps,
-    setDrag,
     SidebarDrag,
     sidebarDragAtom,
     startBlockDrag,
     takeDragClick,
-    usableHit,
     useGlide,
-    zoneAt,
-    ZoneHit,
     zoneProps,
 } from "./sidebar-drag";
 import { SidebarGhost } from "./sidebar-ghost";
@@ -158,8 +145,6 @@ import {
     buildLetterKey,
     dotDropSlot,
     dotMoveKey,
-    dropTargetAt,
-    moveTabBefore,
     SidebarDefaultWidth,
     SidebarMaxWidth,
     SidebarMinWidth,
@@ -186,13 +171,18 @@ import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./tem
 import { useTemporaryViewsMotion } from "./temporary-views-motion";
 import { TopField } from "./top-field";
 import { TopFieldModel } from "./top-field-store";
+import { SidebarEnv, useRenameCallback, useViewActions, useViewPin } from "./view-actions";
+import { closableViews, itemKey, sidebarItems } from "./view-folders-model";
+import { folderMenuFor, folderNoteAtom, pruneStoredFolders, viewFoldersAtom } from "./view-folders-store";
+import { FolderOverlay, FolderRow } from "./view-folders-ui";
 import { ViewGlyph, viewGlyphAtom } from "./view-glyph";
+import { ItemAttr, ListDrag, tabKey, useViewListDrag } from "./view-list-drag";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
-import { dropAction, DropZone, readViewIcon, ViewIconMetaKey, zoneCaptionShown } from "./view-menu-model";
-import { GlobalPinMetaKey, isProjectTab, PinScope, shownViewState, ViewState } from "./view-pins-model";
-import { announceClosedViews, ClosedKindCleared, ClosedKindView, PinDraft, ViewPins } from "./view-pins-store";
+import { dropAction, DropZone, readViewIcon, zoneCaptionShown } from "./view-menu-model";
+import { PinScope } from "./view-pins-model";
+import { PinDraft, ViewPins } from "./view-pins-store";
 import { ViewPopoverHost } from "./view-popover";
-import { followSetAside, setAsideView } from "./view-set-aside";
+import { followSetAside } from "./view-set-aside";
 import {
     frameSizes,
     macButtonDiscs,
@@ -211,8 +201,6 @@ import { filterEntries, WorkspaceLetterFilter } from "./workspace-letter-filter"
 import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
 import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
-
-type SidebarEnv = TabEnv & WidgetsEnv;
 
 const MacTrafficLightsWidth = 74;
 const MacTahoeTrafficLightsWidth = 80;
@@ -777,88 +765,6 @@ function WorkspaceHeader({ workspaces }: { workspaces: SidebarWorkspaces }) {
     );
 }
 
-// What the view menu needs of a view (FR-SHELL-080, FR-SHELL-081): its state, whether it changed since pinned, its
-// shown name and the icon the developer chose (its pin's for a view pinned everywhere).
-type ViewPinFacts = { state: ViewState; modified: boolean; name: string; icon: string };
-
-function useViewPin(tabId: string, tab: Tab, name: string): ViewPinFacts {
-    const pins = ViewPins.getInstance();
-    const state = shownViewState(useAtomValue(pins.stateAtom(tabId)), isProjectTab(tab));
-    const modified = useAtomValue(pins.modifiedAtom(tabId));
-    const globalPins = useAtomValue(pins.globalPinsAtom);
-    const meta = (tab?.meta ?? {}) as Record<string, any>;
-    const pin = state === "everywhere" ? globalPins.find((p) => p.id === meta[GlobalPinMetaKey]) : null;
-    const icon = readViewIcon(pin != null ? pin.icon : meta[ViewIconMetaKey]);
-    return { state, modified, name: pin?.name ?? name, icon };
-}
-
-// The view's menu (FR-SHELL-081) and its close. startRename: the view's own field (a row's or a tile's).
-function useViewActions(
-    tabId: string,
-    active: boolean,
-    pin: ViewPinFacts,
-    startRename: () => void,
-    projectTab?: boolean,
-    temporary?: boolean
-) {
-    const env = useWaveEnv<SidebarEnv>();
-    const t = useT();
-    const ws = useAtomValue(atoms.workspace);
-    const confirmClose = useAtomValue(env.getSettingsKeyAtom("tab:confirmclose")) ?? false;
-    const close = useCallback(() => {
-        // A temporary view closes in one click and goes aside for its toast's Undo (#1656); one that really closes
-        // (a worktree answered for, the last view on screen) says so with Undo too, through Put-away views.
-        let setAside = false;
-        // A pinned view closes in every project of the workspace (#1760): the toast counts what closed.
-        let closedCount = 1;
-        const opts = {
-            ...(temporary
-                ? {
-                      setAside: async (wsId: string, id: string) => {
-                          setAside = await setAsideView(wsId, id);
-                          return setAside;
-                      },
-                  }
-                : {}),
-            closed: (count: number) => {
-                closedCount = count;
-            },
-        };
-        closeTabAskingFirst(getApi().closeTab, ws?.oid, tabId, confirmClose, opts)
-            .then((closed) => {
-                if (!closed || setAside) {
-                    return;
-                }
-                deleteLayoutModelForTab(tabId);
-                return announceClosedViews(ws?.oid, closedCount, closedCount > 1 ? ClosedKindCleared : ClosedKindView);
-            })
-            .catch((e) => console.log("closing a view from the sidebar", e));
-    }, [ws?.oid, tabId, confirmClose, temporary]);
-    const onContextMenu = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const target: ViewMenuTarget = { ref: { tabId }, ...pin, active, projectTab };
-        env.showContextMenu(
-            viewMenuItems(target, { startRename, onClose: close, env, at: { x: e.clientX, y: e.clientY } }, t),
-            e
-        );
-    };
-    return { env, close, onContextMenu };
-}
-
-// The rename-tab shortcut (and the tab model's rename) opens the view's own field.
-function useRenameCallback(tabId: string, env: SidebarEnv, start: () => void) {
-    const tabModel = getTabModelByTabId(tabId, env);
-    useEffect(() => {
-        tabModel.startRenameCallback = start;
-        return () => {
-            if (tabModel.startRenameCallback === start) {
-                tabModel.startRenameCallback = null;
-            }
-        };
-    }, [tabModel, start]);
-}
-
 function dropSideClass(drag: SidebarDrag, zone: DropZone, key: string): string {
     if (drag == null || drag.zone !== zone || drag.key !== key || drag.id === key) {
         return null;
@@ -1103,20 +1009,20 @@ function RenameInput({ initial, onDone }: { initial: string; onDone: (name: stri
     );
 }
 
-type RowDrag = { onMouseDown: (e: React.MouseEvent, tabId: string) => void; takeClick: () => boolean };
-
 function ViewRow({
     tabId,
     active,
     dragging,
     dropBefore,
+    ringed,
     drag,
 }: {
     tabId: string;
     active: boolean;
     dragging: boolean;
     dropBefore: boolean;
-    drag: RowDrag;
+    ringed: boolean;
+    drag: ListDrag;
 }) {
     const [tab] = useWaveObjectValue<Tab>(makeORef("tab", tabId));
     const identity = useTabIdentity(tabId, tab?.name ?? "");
@@ -1125,7 +1031,9 @@ function ViewRow({
     const glyph = useAtomValue(viewGlyphAtom(tabId));
     const [renaming, setRenaming] = useState(false);
     const startRename = useCallback(() => setRenaming(true), []);
-    const { env, close, onContextMenu } = useViewActions(tabId, active, pin, startRename, false, true);
+    const { env, close, onContextMenu } = useViewActions(tabId, active, pin, startRename, false, true, () =>
+        folderMenuFor(tabId)
+    );
     useRenameCallback(tabId, env, startRename);
     const badges = useAtomValue(getTabBadgeAtom(tabId, env));
     const trees = useTabTreesTooltip(tabId);
@@ -1158,6 +1066,9 @@ function ViewRow({
             title={renaming ? undefined : title || undefined}
             data-testid="sidebar-view-row"
             data-tab-id={tabId}
+            data-fo-target={ringed ? "true" : undefined}
+            data-fo-cap={ringed ? t("sidebar.folders.create") : undefined}
+            {...{ [ItemAttr]: tabKey(tabId) }}
             onClick={activate}
             onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -1167,7 +1078,7 @@ function ViewRow({
             }}
             onMouseDown={(e) => {
                 if (!renaming) {
-                    drag.onMouseDown(e, tabId);
+                    drag.onMouseDown(e, tabKey(tabId));
                 }
             }}
             onAuxClick={(e) => {
@@ -1250,115 +1161,6 @@ function ViewCloseButton({ onClose }: { onClose: () => void }) {
     );
 }
 
-// Dragging a temporary view up or down reorders it; out of the sidebar, onto the panels, it joins the view on screen
-// (#414), as a tab dragged out of the tab bar did.
-function useRowDrag(listRef: React.RefObject<HTMLDivElement>, asideRef: React.RefObject<HTMLElement>, ids: string[]) {
-    const ws = useAtomValue(atoms.workspace);
-    const [state, setState] = useState<{ id: string; before: string; out: boolean }>(null);
-    const suppressClickRef = useRef(false);
-    const idsRef = useRef(ids);
-    idsRef.current = ids;
-    const wsRef = useRef(ws);
-    wsRef.current = ws;
-    const onMouseDown = (e: React.MouseEvent, tabId: string) => {
-        if (e.button !== 0) {
-            return;
-        }
-        const startX = e.clientX;
-        const startY = e.clientY;
-        let started = false;
-        let before: string = null;
-        let out = false;
-        let hit: ZoneHit = null;
-        const rowsOf = () =>
-            Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-testid='sidebar-view-row']") ?? []).map(
-                (el) => {
-                    const r = el.getBoundingClientRect();
-                    return { id: el.dataset.tabId, top: r.top, height: r.height };
-                }
-            );
-        const onMove = (ev: MouseEvent) => {
-            if (!started) {
-                if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DragThresholdPx) {
-                    return;
-                }
-                started = true;
-            }
-            const right = asideRef.current?.getBoundingClientRect().right ?? Infinity;
-            out = trackTabPanelDrag(
-                ev,
-                tabId,
-                asideRef.current,
-                () => {},
-                (p) => p.clientX > right
-            );
-            // Over the tiles or the top row, the view would be pinned there (FR-SHELL-081).
-            hit = out ? null : usableHit("row", zoneAt(ev.clientX, ev.clientY), true);
-            before = out || hit != null ? null : dropTargetAt(ev.clientY, rowsOf());
-            setState({ id: tabId, before, out: out || hit != null });
-            setDrag({
-                kind: "row",
-                id: tabId,
-                zone: hit?.zone ?? null,
-                key: hit?.key ?? null,
-                after: hit?.after ?? false,
-                pinnable: true,
-            });
-        };
-        const onUp = (ev: MouseEvent) => {
-            document.removeEventListener("mousemove", onMove);
-            document.removeEventListener("mouseup", onUp);
-            setState(null);
-            setDrag(null);
-            if (!started) {
-                return;
-            }
-            suppressClickRef.current = true;
-            if (finishTabPanelDrag(ev) || out) {
-                return;
-            }
-            if (hit != null) {
-                finishDrop("row", tabId, hit, rowName(listRef.current, tabId));
-                return;
-            }
-            const current = idsRef.current;
-            const target = before ?? null;
-            if (target === tabId || (target == null && current[current.length - 1] === tabId)) {
-                return;
-            }
-            const workspace = wsRef.current;
-            const all = moveTabBefore(visibleOrder(workspace), tabId, target ?? afterLastTemporary(workspace, current));
-            fireAndForget(() => RpcApi.UpdateWorkspaceTabIdsCommand(TabRpcClient, workspace.oid, all));
-        };
-        document.addEventListener("mousemove", onMove);
-        document.addEventListener("mouseup", onUp);
-    };
-    const takeClick = () => {
-        const taken = suppressClickRef.current;
-        suppressClickRef.current = false;
-        return taken;
-    };
-    return { state, drag: { onMouseDown, takeClick } as RowDrag };
-}
-
-// The name a row shows (its tab's name, or its first panel's title), for the toast of a pin by drag.
-function rowName(list: HTMLElement, tabId: string): string {
-    const row = list?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(tabId)}"] .name`);
-    return row?.textContent ?? "";
-}
-
-function visibleOrder(ws: Workspace): string[] {
-    return visibleTabIds(ws);
-}
-
-// The tab a view dropped after the last temporary row lands before: the one following it in the workspace's order.
-function afterLastTemporary(ws: Workspace, temporary: string[]): string {
-    const order = visibleOrder(ws);
-    const last = temporary[temporary.length - 1];
-    const at = order.indexOf(last);
-    return at >= 0 && at + 1 < order.length ? order[at + 1] : null;
-}
-
 // The sidebar's views by section, and the workspace's agents beside them (FR-SHELL-084, #1246).
 function useSidebarSections(split: SidebarTabSplit) {
     const ws = useAtomValue(atoms.workspace);
@@ -1390,9 +1192,10 @@ function useClearRoom(sepRef: React.RefObject<HTMLDivElement>) {
     }, [sepRef]);
 }
 
-// The temporary views, as in Arc (FR-SHELL-080, #1253): no title; under the pinned part a thin separator, shown once a
-// temporary view exists, with "↓ Clear" at its right end while the pointer is over the sidebar; "+ New view"; then
-// the rows. Clear folds the rows away (temporary-clear.ts) and the separator fades once they are gone.
+// The Views section, as in Arc (FR-SHELL-080, #1253, #2484): no title; under the important views a thin separator, shown
+// once a view exists, with "↓ Clear" at its right end while the pointer is over the sidebar; "+ New view"; then the
+// rows, views and folders of views. Clear folds the rows away (temporary-clear.ts), the folders' views excepted, and
+// the separator fades once they are gone.
 export function TemporaryViews({
     ids,
     activeTabId,
@@ -1404,22 +1207,38 @@ export function TemporaryViews({
 }) {
     const t = useT();
     const listRef = useRef<HTMLDivElement>(null);
-    const { state, drag } = useRowDrag(listRef, asideRef, ids);
+    const ws = useAtomValue(atoms.workspace);
+    const folders = useAtomValue(viewFoldersAtom);
+    const items = useMemo(() => sidebarItems(ids, folders), [ids, folders]);
+    const keys = useMemo(() => items.map(itemKey), [items]);
+    const { state, drag } = useViewListDrag(listRef, asideRef, ids, items);
     const { target, over } = useZone("temporary");
     const newViewKeys = formatShortcutById("new-tab");
-    const ws = useAtomValue(atoms.workspace);
+    const note = useAtomValue(folderNoteAtom);
     const mark = (ws?.meta as Record<string, any>)?.[ClearingMetaKey];
     const clearing = useMemo(() => clearingIds(mark, Date.now()), [mark]);
-    useTemporaryViewsMotion(listRef, ids, clearing);
+    useTemporaryViewsMotion(listRef, keys, clearing);
     const sepRef = useRef<HTMLDivElement>(null);
     useClearRoom(sepRef);
+    // Views that closed for good or were pinned leave their folders; a folder left with one view dissolves.
+    useEffect(() => pruneStoredFolders(), [ids, folders, ws?.tabids]);
     const staying = ids.filter((id) => !clearing.has(id)).length;
     const shown = staying > 0;
+    const closable = closableViews(ids, folders).filter((id) => !clearing.has(id)).length > 0;
     const sepDelay = clearing.size > 0 ? foldTotalMs(clearing.size, prefersReducedMotion()) : 0;
-    const dropAtEnd = state != null && !state.out && state.before == null && state.id !== ids[ids.length - 1];
+    const lastKey = keys[keys.length - 1];
+    const dropAtEnd =
+        state != null &&
+        !state.out &&
+        !state.inFrame &&
+        state.target == null &&
+        state.before == null &&
+        state.key !== lastKey;
     return (
         <div
             className={cn("mt-sb-zone mt-sb-tv flex shrink-0 flex-col", target && "is-target", over && "is-over")}
+            role="group"
+            aria-label={t("sidebar.temporary.sectionLabel")}
             data-testid="sidebar-temporary"
             data-cap={t("sidebar.views.captionTemporary")}
             {...zoneProps("temporary")}
@@ -1438,8 +1257,8 @@ export function TemporaryViews({
                     className="mt-sb-tv-clear flex min-h-6 min-w-6 cursor-pointer items-center gap-0.5 rounded-4 px-1.5 text-11 text-muted hover:text-primary"
                     data-testid="sidebar-temporary-clear"
                     title={t("sidebar.temporary.closeAllTitle")}
-                    disabled={!shown}
-                    tabIndex={shown ? 0 : -1}
+                    disabled={!closable}
+                    tabIndex={closable ? 0 : -1}
                     onClick={() => fireAndForget(() => clearTemporary())}
                 >
                     <SidebarGlyph name="down" size={11} />
@@ -1462,20 +1281,47 @@ export function TemporaryViews({
                 ) : null}
             </button>
             <div ref={listRef} className="relative flex flex-col gap-px" data-testid="sidebar-temporary-list">
-                {ids.map((id) => (
-                    <ViewRow
-                        key={id}
-                        tabId={id}
-                        active={id === activeTabId}
-                        dragging={state?.id === id}
-                        dropBefore={state != null && !state.out && state.before === id && state.id !== id}
-                        drag={drag}
-                    />
-                ))}
+                {items.map((item) => {
+                    if (item.kind === "folder") {
+                        return (
+                            <FolderRow
+                                key={itemKey(item)}
+                                folder={item.folder}
+                                members={item.members}
+                                activeTabId={activeTabId}
+                                state={state}
+                                drag={drag}
+                            />
+                        );
+                    }
+                    const key = itemKey(item);
+                    return (
+                        <ViewRow
+                            key={item.tabId}
+                            tabId={item.tabId}
+                            active={item.tabId === activeTabId}
+                            dragging={state?.key === key}
+                            dropBefore={
+                                state != null &&
+                                !state.out &&
+                                !state.inFrame &&
+                                state.target == null &&
+                                state.before === key &&
+                                state.key !== key
+                            }
+                            ringed={state?.target === key}
+                            drag={drag}
+                        />
+                    );
+                })}
                 {dropAtEnd ? (
                     <span className="pointer-events-none absolute right-1 -bottom-px left-1 h-[2px] rounded-full bg-accent" />
                 ) : null}
             </div>
+            <span className="sr-only" role="status" aria-live="polite" data-testid="sidebar-folder-note">
+                {note}
+            </span>
+            <FolderOverlay asideRef={asideRef} items={items} activeTabId={activeTabId} state={state} drag={drag} />
         </div>
     );
 }

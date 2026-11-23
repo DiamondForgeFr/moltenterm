@@ -440,7 +440,7 @@
             "reopenClosed": "Reopen the last closed panel or view",
             "keepViewHere": "Pin this view in this workspace",
             "keepViewEverywhere": "Pin this view everywhere",
-            "makeViewTemporary": "Unpin this view (make it temporary)",
+            "makeViewTemporary": "Unpin this view",
             "splitPlace": "Split the panel…",
             "splitPlaceDetail": "choose the side: left, right, up or down",
             "newWorkspace": "New workspace",
@@ -497,7 +497,7 @@
             "brainstormResume": "brainstorm, resume, back, continue, idea",
             "settings": "config, preferences",
             "shortcuts": "keys, keybindings, hotkeys, help, cheat sheet",
-            "viewPin": "pin, unpin, keep, temporary, view, tab",
+            "viewPin": "pin, unpin, keep, view, tab",
             "missionControl": "project, overview, mission, dashboard, branches, git, ci",
             "lineMap": "commits, graph, metro",
             "companion": "agent, companion, usage",
@@ -1829,7 +1829,7 @@
                 "pinnedHere": "Pinned in {workspace}",
                 "morph": "Missing a tool? Ask your agent with {morph}. What you add goes to the Library.",
                 "nextTitle": "Your next views:",
-                "nextText": "{keys} or the “+ New view” button. A new view is temporary; pin it to keep it.",
+                "nextText": "{keys} or the “+ New view” button. A new view lands in Views; pin it to keep it among your important views.",
                 "nextExample": "For a development project, pin for instance one view for design, one for security tasks, one for steering the project. Everyone organises it their own way!"
             },
             "brokk": {
@@ -1904,7 +1904,7 @@
                     "project": "the overview"
                 },
                 "unnamed": "Untitled",
-                "temporary": "Temporary view",
+                "temporary": "View",
                 "slot": "An agent's place in this view",
                 "start": "Start {agent}",
                 "startAny": "Start an agent",
@@ -2770,8 +2770,8 @@
             "top-field": "Search, go to, open an address",
             "new-view-favorite": "New view with favourite 1 to 4",
             "new-view-favorite-other": "New view with favourite 1 to 4",
-            "keep-view": "Pin the view in this workspace, or unpin it (make it temporary)",
-            "keep-view-other": "Pin the view in this workspace, or unpin it (make it temporary)"
+            "keep-view": "Pin the view in this workspace, or unpin it",
+            "keep-view-other": "Pin the view in this workspace, or unpin it"
         }
     },
     "tips": {
@@ -2912,7 +2912,7 @@
             "why": {
                 "readonly": "MoltenTerm cannot replace itself from where it is installed.",
                 "package": "This copy comes from a package that your system manages, so MoltenTerm does not replace it.",
-                "translocated": "MoltenTerm runs from a temporary copy the system made. Move it to where you keep your apps, then open it again.",
+                "translocated": "MoltenTerm runs from a copy the system made for this launch. Move it to where you keep your apps, then open it again.",
                 "platform": "MoltenTerm cannot install updates by itself on this computer yet. The release page has the files.",
                 "dev": "This build does not install updates."
             },
@@ -6984,7 +6984,7 @@
                 "confirm": "Replace anyway"
             },
             "clear": {
-                "title": "Close all the temporary views?",
+                "title": "Close the views? Important views and folders stay",
                 "subtitle": "Closing them stops what runs in their terminals. The views can come back, not what ran in them.",
                 "confirm": "Close all anyway"
             },
@@ -12065,7 +12065,7 @@
             "failed": "The project could not be saved: {error}"
         },
         "tiles": {
-            "label": "Views pinned in {name}"
+            "label": "Important views of {name}"
         },
         "prCounts": {
             "line": {
@@ -12074,12 +12074,50 @@
             }
         },
         "temporary": {
+            "sectionLabel": "Views",
             "newView": "New view",
             "closeAll": "Close all",
-            "closeAllTitle": "Close the temporary views; pinned views stay",
+            "closeAllTitle": "Close the views; important views and folders stay",
             "closedAll": {
                 "one": "1 view closed · in Put-away views",
                 "other": "{count} views closed · in Put-away views"
+            }
+        },
+        "folders": {
+            "create": "Create a folder",
+            "addTo": "Add to “{name}”",
+            "news": "something new in it",
+            "rowLabel": {
+                "one": "Folder “{name}”, {count} view",
+                "other": "Folder “{name}”, {count} views"
+            },
+            "dialogLabel": "Folder “{name}”",
+            "gridLabel": "Views of the folder “{name}”",
+            "nameLabel": "Folder name",
+            "hint": "Drag a view out of the frame to take it out",
+            "name": {
+                "review": "Review",
+                "terminals": "Terminals",
+                "files": "Files",
+                "agents": "Agents",
+                "pages": "Web pages",
+                "mixed": "Folder"
+            },
+            "menu": {
+                "header": "Folder",
+                "open": "Open",
+                "rename": "Rename…",
+                "takeAllOut": "Take all the views out",
+                "takeOut": "Take out of the folder",
+                "newWith": "New folder with this view and…",
+                "addTo": "Add to folder"
+            },
+            "announce": {
+                "created": "Folder created with {count} views",
+                "added": "“{name}” added to the folder",
+                "takenOut": "“{name}” taken out of the folder",
+                "dissolved": "Folder dissolved, its views are back in the list",
+                "moved": "“{name}” moved to place {position} of {total}"
             }
         },
         "agents": {
@@ -12152,7 +12190,7 @@
             "closedOne": "View closed · in Put-away views",
             "captionHere": "Keep in {workspace}",
             "captionEverywhere": "Everywhere · every workspace",
-            "captionTemporary": "Make it temporary",
+            "captionTemporary": "Unpin it",
             "emptyTitle": "This pinned view has no panel",
             "emptyHint": "A pinned view stays until you unpin it. Add a panel, or unpin it to close it.",
             "emptyAdd": "Add a panel"
@@ -12170,7 +12208,7 @@
             "pinnedHere": "“{name}” pinned in {workspace}",
             "pinnedEverywhere": "“{name}” pinned everywhere: the same configuration in every workspace, each on its own project",
             "pinnedOnlyHere": "“{name}” pinned only in {workspace}",
-            "unpinned": "“{name}” unpinned: it is a temporary view again and can close",
+            "unpinned": "“{name}” unpinned: it is back in Views and can close",
             "saved": "“{name}” keeps its current state",
             "savedEverywhere": "“{name}” saved for every workspace",
             "reverted": "“{name}” is back to its pinned state",
@@ -12181,18 +12219,18 @@
             "closedFinishedHint": "Views whose agent still works stay open. The library's put-away views bring them back.",
             "keepKey": {
                 "everywhere": "“{name}” is pinned everywhere and stays so",
-                "everywhereHint": "To make it temporary or pin it only here, use its menu or the command palette."
+                "everywhereHint": "To unpin it or pin it only here, use its menu or the command palette."
             },
             "noAgent": "No coding agent is set for this project",
             "pinTitle": "Pin this view…",
             "revertTitle": "Back to the pinned state",
             "tileTitle": "{name} · pinned in {workspace}",
             "tileModifiedTitle": "{name} · pinned in {workspace} · changed since pinned (right-click: save or go back)",
-            "tileLabel": "{name}, pinned view",
+            "tileLabel": "{name}, important view",
             "tileChangedLabel": "changed since pinned",
             "topTitle": "{name} · pinned everywhere, opened on this workspace's project",
             "topModifiedTitle": "{name} · pinned everywhere · changed since pinned (right-click: save or go back)",
-            "topRowLabel": "Views pinned everywhere",
+            "topRowLabel": "Transversal views",
             "forked": "New view “{name}”",
             "forkedHint": "Views pinned everywhere stay as they are in every workspace.",
             "updatePinned": "Update the pinned view",
@@ -12204,7 +12242,7 @@
             },
             "menu": {
                 "state": {
-                    "temporary": "Temporary view",
+                    "temporary": "View",
                     "workspace": "Pinned in {workspace}",
                     "everywhere": "Pinned everywhere"
                 },
@@ -12215,8 +12253,8 @@
                 "pinEverywhere": "Pin everywhere…",
                 "pinEverywhereNow": "Pin everywhere",
                 "pinOnlyHere": "Pin only in {workspace}",
-                "unpin": "Unpin (make it temporary)",
-                "makeTemporary": "Make temporary",
+                "unpin": "Unpin",
+                "makeTemporary": "Unpin",
                 "updatePinned": "Update the pinned view “{name}”"
             },
             "page": {
@@ -12348,7 +12386,7 @@
             "newPanel": "New panel",
             "inThisView": "in this view",
             "newView": "New view",
-            "temporary": "temporary",
+            "temporary": "in Views",
             "addToView": "Add to this view"
         },
         "hint": {
@@ -12479,7 +12517,7 @@
         "panels": {
             "addTo": "Add to “{view}”",
             "askPinned": "“{view}” is a pinned view: this panel will change it.",
-            "askEverywhere": "“{view}” is pinned in every workspace: this panel will make it a temporary view here.",
+            "askEverywhere": "“{view}” is pinned in every workspace: this panel will move it to Views here.",
             "inNewView": "In a new view",
             "show": "Show it",
             "thisView": "this view",

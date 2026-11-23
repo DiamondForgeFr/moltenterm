@@ -20,6 +20,8 @@ export const RetiredWords: Record<string, Retired[]> = {
         { id: "widget", words: /\bwidgets?\b/i, use: "tool" },
         { id: "browser-panel", words: /\bbrowser (panel|pane)\b/i, use: "Web page" },
         { id: "map-of-lines", words: /\bmaps? of lines\b/i, use: "Line map" },
+        // The Views section's views are views, not "temporary" ones (FR-SHELL-080, #2484).
+        { id: "temporary", words: /\btemporar(?:y|ily)\b/i, use: "view (the Views section) or unpinned" },
     ],
     fr: [
         { id: "onglet", words: /\bonglets?\b/i, use: "vue" },
@@ -31,6 +33,11 @@ export const RetiredWords: Record<string, Retired[]> = {
         { id: "carte-des-lignes", words: /\bcartes? des lignes\b/i, use: "Plan de lignes" },
         { id: "plan-de-ligne", words: /\bplans? de ligne\b/i, use: "Plan de lignes" },
         { id: "review", words: /\breview\b/i, use: "Revue" },
+        {
+            id: "temporaire",
+            words: /\btemporaires?\b|\btemporairement\b/i,
+            use: "vue (la section Vues) ou non épinglée",
+        },
     ],
 };
 
@@ -88,6 +95,9 @@ describe("retired words (#1322)", () => {
         expect(retiredWordProblems("en", [["a", "In the rail"]])).toHaveLength(1);
         expect(retiredWordProblems("en", [["a", "Rail widgets"]])).toHaveLength(2);
         expect(retiredWordProblems("en", [["a", "The browser panel"]])).toHaveLength(1);
+        expect(retiredWordProblems("en", [["a", "Close all the temporary views?"]])).toHaveLength(1);
+        expect(retiredWordProblems("fr", [["a", "Fermer toutes les vues temporaires ?"]])).toHaveLength(1);
+        expect(retiredWordProblems("fr", [["a", "Rendre temporaire"]])).toHaveLength(1);
     });
 
     it("accepts the current words", () => {

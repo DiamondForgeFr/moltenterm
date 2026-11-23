@@ -1,11 +1,12 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Clear (FR-SHELL-080, #1253): "↓ Clear" closes the workspace's temporary views, never a pinned one. What their
-// terminals run is read once and asked once (the busy-close guard, FR-SHELL-061); a view linked to a worktree keeps
-// its own worktree dialog. Every close is recorded, so the toast's Undo (⌘Z too) reopens them through Reopen what was
-// closed. The rows fold away before the closes land: the workspace's meta names them, so the view on screen plays it
-// even when the clearing window's own view is among them.
+// Clear (FR-SHELL-080, #1253): "↓ Clear" closes the workspace's temporary views, never a pinned one nor one in a
+// folder (#2484: folders and the views in them stay). What their terminals run is read once and asked once (the
+// busy-close guard, FR-SHELL-061); a view linked to a worktree keeps its own worktree dialog. Every close is recorded,
+// so the toast's Undo (⌘Z too) reopens them through Reopen what was closed. The rows fold away before the closes land:
+// the workspace's meta names them, so the view on screen plays it even when the clearing window's own view is among
+// them.
 
 import { atoms, getApi, globalStore, WOS } from "@/app/store/global";
 import { loadAndPinWaveObject, makeORef } from "@/app/store/wos";
@@ -18,6 +19,8 @@ import { recordingTabClose } from "../reopen/reopen-store";
 import { closeTabAskingFirst } from "../worktree-close";
 import { tabWorktrees } from "../worktree-model";
 import { SidebarModel } from "./sidebar-store";
+import { closableViews } from "./view-folders-model";
+import { viewFoldersAtom } from "./view-folders-store";
 import { announceClosedViews, ClosedKindCleared, showSurvivor } from "./view-pins-store";
 
 // The workspace's meta naming the rows folding away, and how long that stays true without its end.
@@ -171,7 +174,13 @@ function setClearingMeta(workspaceId: string, mark: ClearingMark): Promise<void>
     });
 }
 
-// The window's Clear: the views the sidebar lists as temporary right now.
+// The views Clear closes: those the sidebar lists in Views right now, the ones in folders excepted (#2484).
+export function clearableViews(): string[] {
+    const listed = globalStore.get(SidebarModel.getInstance().tabSplitAtom)?.temporary ?? [];
+    return closableViews(listed, globalStore.get(viewFoldersAtom));
+}
+
+// The window's Clear.
 export function clearTemporary(): Promise<number> {
     const ws = globalStore.get(atoms.workspace);
     const workspaceId = ws?.oid;
@@ -179,7 +188,7 @@ export function clearTemporary(): Promise<number> {
     return clearTemporaryViews({
         workspaceId,
         ownTabId: globalStore.get(atoms.staticTabId),
-        temporary: globalStore.get(SidebarModel.getInstance().tabSplitAtom)?.temporary ?? [],
+        temporary: clearableViews(),
         loadView,
         busyEnabled: busyCloseEnabled,
         readRunning: (terminals) => readRunning(terminals),

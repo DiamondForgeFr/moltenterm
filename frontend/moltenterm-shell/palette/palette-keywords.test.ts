@@ -116,21 +116,26 @@ describe("palette search words (#1670)", () => {
     });
 
     it("finds an entry by the current language's words and by the English ones", () => {
-        expect(paletteKeywords("viewPin")).toEqual(["pin", "unpin", "keep", "temporary", "view", "tab"]);
+        expect(paletteKeywords("viewPin")).toEqual(["pin", "unpin", "keep", "view", "tab"]);
         const fr = inFrench(() => paletteKeywords("viewPin", "x"));
-        expect(fr.slice(0, 4)).toEqual(["épingler", "désépingler", "garder", "temporaire"]);
+        expect(fr.slice(0, 3)).toEqual(["épingler", "désépingler", "garder"]);
         expect(fr).toEqual(expect.arrayContaining(["pin", "keep", "x"]));
         expect(new Set(fr).size).toBe(fr.length);
     });
 
-    it.each(["épingler", "epingler", "désépingler", "garder", "temporaire", "pin", "unpin", "keep"])(
+    it("keeps the old word out of the search words: the view pin commands are not found as temporary (#2484)", () => {
+        expect(found("temporary")).not.toEqual(expect.arrayContaining(PinIds));
+        expect(inFrench(() => found("temporaire"))).not.toEqual(expect.arrayContaining(PinIds));
+    });
+
+    it.each(["épingler", "epingler", "désépingler", "garder", "pin", "unpin", "keep"])(
         "finds the view pin commands by %s in French",
         (query) => {
             expect(inFrench(() => found(query))).toEqual(expect.arrayContaining(PinIds));
         }
     );
 
-    it.each(["pin", "unpin", "keep", "temporary"])("finds the view pin commands by %s in English", (query) => {
+    it.each(["pin", "unpin", "keep"])("finds the view pin commands by %s in English", (query) => {
         expect(found(query)).toEqual(expect.arrayContaining(PinIds));
     });
 
@@ -139,12 +144,12 @@ describe("palette search words (#1670)", () => {
         expect(labels(everyEntry())).toEqual([
             "Pin this view in this workspace",
             "Pin this view everywhere",
-            "Unpin this view (make it temporary)",
+            "Unpin this view",
         ]);
         expect(inFrench(() => labels(everyEntry()))).toEqual([
             "Épingler cette vue dans cet espace de travail",
             "Épingler cette vue partout",
-            "Désépingler cette vue (la rendre temporaire)",
+            "Désépingler cette vue",
         ]);
     });
 

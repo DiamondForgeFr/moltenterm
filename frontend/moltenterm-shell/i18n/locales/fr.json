@@ -440,7 +440,7 @@
             "reopenClosed": "Rouvrir le dernier panneau ou la dernière vue fermés",
             "keepViewHere": "Épingler cette vue dans cet espace de travail",
             "keepViewEverywhere": "Épingler cette vue partout",
-            "makeViewTemporary": "Désépingler cette vue (la rendre temporaire)",
+            "makeViewTemporary": "Désépingler cette vue",
             "splitPlace": "Diviser le panneau…",
             "splitPlaceDetail": "choisir le côté : gauche, droite, haut ou bas",
             "newWorkspace": "Nouvel espace de travail",
@@ -497,7 +497,7 @@
             "brainstormResume": "brainstorm, reprendre, retour, continuer, idée",
             "settings": "configuration, préférences, paramètres, options",
             "shortcuts": "touches, raccourcis, aide, aide-mémoire",
-            "viewPin": "épingler, désépingler, garder, temporaire, vue, onglet",
+            "viewPin": "épingler, désépingler, garder, vue, onglet",
             "missionControl": "projet, vue d'ensemble, mission, tableau de bord, branches, git, ci",
             "lineMap": "commits, graphe, métro, lignes",
             "companion": "agent, compagnon, consommation",
@@ -1829,7 +1829,7 @@
                 "pinnedHere": "Épinglée dans {workspace}",
                 "morph": "Il vous manque un outil ? Demandez-le à votre agent avec {morph}. Ce que vous ajoutez se range dans la Bibliothèque.",
                 "nextTitle": "Vos prochaines vues :",
-                "nextText": "{keys} ou le bouton « + Nouvelle vue ». Une nouvelle vue est temporaire ; épinglez-la pour la garder.",
+                "nextText": "{keys} ou le bouton « + Nouvelle vue ». Une nouvelle vue arrive dans Vues ; épinglez-la pour la garder parmi vos vues importantes.",
                 "nextExample": "Pour un projet de développement, épinglez par exemple une vue pour la conception, une pour les tâches de sécurité, une pour le pilotage du projet. Chacun s'organise comme il veut !"
             },
             "brokk": {
@@ -1904,7 +1904,7 @@
                     "project": "l'aperçu"
                 },
                 "unnamed": "Sans nom",
-                "temporary": "Vue temporaire",
+                "temporary": "Vue",
                 "slot": "La place d'un agent dans cette vue",
                 "start": "Démarrer {agent}",
                 "startAny": "Démarrer un agent",
@@ -2770,8 +2770,8 @@
             "top-field": "Chercher, aller à, ouvrir une adresse",
             "new-view-favorite": "Nouvelle vue avec le favori 1 à 4",
             "new-view-favorite-other": "Nouvelle vue avec le favori 1 à 4",
-            "keep-view": "Épingler la vue dans cet espace de travail, ou la désépingler (la rendre temporaire)",
-            "keep-view-other": "Épingler la vue dans cet espace de travail, ou la désépingler (la rendre temporaire)"
+            "keep-view": "Épingler la vue dans cet espace de travail, ou la désépingler",
+            "keep-view-other": "Épingler la vue dans cet espace de travail, ou la désépingler"
         }
     },
     "tips": {
@@ -2912,7 +2912,7 @@
             "why": {
                 "readonly": "MoltenTerm ne peut pas se remplacer là où il est installé.",
                 "package": "Cette copie vient d'un paquet que votre système gère : MoltenTerm ne la remplace pas.",
-                "translocated": "MoltenTerm tourne depuis une copie temporaire faite par le système. Déplacez-le là où vous rangez vos applications, puis rouvrez-le.",
+                "translocated": "MoltenTerm tourne depuis une copie faite par le système pour ce lancement. Déplacez-le là où vous rangez vos applications, puis rouvrez-le.",
                 "platform": "MoltenTerm ne sait pas encore installer ses mises à jour lui-même sur cet ordinateur. La page de la version a les fichiers.",
                 "dev": "Cette version n'installe pas de mises à jour."
             },
@@ -6984,7 +6984,7 @@
                 "confirm": "Remplacer quand même"
             },
             "clear": {
-                "title": "Fermer toutes les vues temporaires ?",
+                "title": "Fermer les vues ? Les vues importantes et les dossiers restent",
                 "subtitle": "Les fermer arrête ce qui tourne dans leurs terminaux. Les vues pourront revenir, pas ce qui y tournait.",
                 "confirm": "Tout fermer quand même"
             },
@@ -12065,7 +12065,7 @@
             "failed": "Le projet n’a pas pu être enregistré : {error}"
         },
         "tiles": {
-            "label": "Vues épinglées dans {name}"
+            "label": "Vues importantes de {name}"
         },
         "prCounts": {
             "line": {
@@ -12073,10 +12073,48 @@
                 "other": "{section} : {count} pull requests"
             }
         },
+        "folders": {
+            "create": "Créer un dossier",
+            "addTo": "Ajouter à « {name} »",
+            "news": "du nouveau dedans",
+            "rowLabel": {
+                "one": "Dossier « {name} », {count} vue",
+                "other": "Dossier « {name} », {count} vues"
+            },
+            "dialogLabel": "Dossier « {name} »",
+            "gridLabel": "Vues du dossier « {name} »",
+            "nameLabel": "Nom du dossier",
+            "hint": "Glissez une vue hors du cadre pour la sortir",
+            "name": {
+                "review": "Revue",
+                "terminals": "Terminaux",
+                "files": "Fichiers",
+                "agents": "Agents",
+                "pages": "Pages web",
+                "mixed": "Dossier"
+            },
+            "menu": {
+                "header": "Dossier",
+                "open": "Ouvrir",
+                "rename": "Renommer…",
+                "takeAllOut": "Sortir toutes les vues",
+                "takeOut": "Sortir du dossier",
+                "newWith": "Nouveau dossier avec cette vue et…",
+                "addTo": "Ajouter à un dossier"
+            },
+            "announce": {
+                "created": "Dossier créé avec {count} vues",
+                "added": "« {name} » ajoutée au dossier",
+                "takenOut": "« {name} » sortie du dossier",
+                "dissolved": "Dossier défait, ses vues sont revenues dans la liste",
+                "moved": "« {name} » déplacée à la place {position} sur {total}"
+            }
+        },
         "temporary": {
+            "sectionLabel": "Vues",
             "newView": "Nouvelle vue",
             "closeAll": "Tout fermer",
-            "closeAllTitle": "Fermer les vues temporaires ; les vues épinglées restent",
+            "closeAllTitle": "Fermer les vues ; les vues importantes et les dossiers restent",
             "closedAll": {
                 "one": "1 vue fermée · dans Vues rangées",
                 "other": "{count} vues fermées · dans Vues rangées"
@@ -12152,7 +12190,7 @@
             "closedOne": "Vue fermée · dans Vues rangées",
             "captionHere": "Garder dans {workspace}",
             "captionEverywhere": "Partout · tous les espaces de travail",
-            "captionTemporary": "La rendre temporaire",
+            "captionTemporary": "La désépingler",
             "emptyTitle": "Cette vue épinglée n'a plus de panneau",
             "emptyHint": "Une vue épinglée reste jusqu'à ce que vous la désépingliez. Ajoutez un panneau, ou désépinglez-la pour la fermer.",
             "emptyAdd": "Ajouter un panneau"
@@ -12170,7 +12208,7 @@
             "pinnedHere": "« {name} » épinglée dans {workspace}",
             "pinnedEverywhere": "« {name} » épinglée partout : même configuration dans chaque espace de travail, chacun sur son projet",
             "pinnedOnlyHere": "« {name} » épinglée seulement dans {workspace}",
-            "unpinned": "« {name} » désépinglée : elle est de nouveau temporaire et peut se fermer",
+            "unpinned": "« {name} » désépinglée : elle est de nouveau dans Vues et peut se fermer",
             "saved": "« {name} » garde son état actuel",
             "savedEverywhere": "« {name} » enregistrée pour tous les espaces de travail",
             "reverted": "« {name} » est revenue à son état épinglé",
@@ -12181,18 +12219,18 @@
             "closedFinishedHint": "Les vues dont l'agent travaille encore restent ouvertes. Les vues rangées de la bibliothèque les ramènent.",
             "keepKey": {
                 "everywhere": "« {name} » est épinglée partout et le reste",
-                "everywhereHint": "Pour la rendre temporaire ou l'épingler seulement ici, passez par son menu ou la palette de commandes."
+                "everywhereHint": "Pour la désépingler ou l'épingler seulement ici, passez par son menu ou la palette de commandes."
             },
             "noAgent": "Aucun agent de code n'est choisi pour ce projet",
             "pinTitle": "Épingler cette vue…",
             "revertTitle": "Revenir à l'état épinglé",
             "tileTitle": "{name} · épinglée dans {workspace}",
             "tileModifiedTitle": "{name} · épinglée dans {workspace} · modifiée depuis l'épinglage (clic droit : enregistrer ou revenir)",
-            "tileLabel": "{name}, vue épinglée",
+            "tileLabel": "{name}, vue importante",
             "tileChangedLabel": "modifiée depuis l'épinglage",
             "topTitle": "{name} · épinglée partout, ouverte sur le projet de cet espace de travail",
             "topModifiedTitle": "{name} · épinglée partout · modifiée depuis l'épinglage (clic droit : enregistrer ou revenir)",
-            "topRowLabel": "Vues épinglées partout",
+            "topRowLabel": "Vues transverses",
             "forked": "Nouvelle vue « {name} »",
             "forkedHint": "Les vues épinglées partout restent telles quelles dans tous les espaces de travail.",
             "updatePinned": "Mettre à jour la vue épinglée",
@@ -12204,7 +12242,7 @@
             },
             "menu": {
                 "state": {
-                    "temporary": "Vue temporaire",
+                    "temporary": "Vue",
                     "workspace": "Épinglée dans {workspace}",
                     "everywhere": "Épinglée partout"
                 },
@@ -12215,8 +12253,8 @@
                 "pinEverywhere": "Épingler partout…",
                 "pinEverywhereNow": "Épingler partout",
                 "pinOnlyHere": "Épingler seulement dans {workspace}",
-                "unpin": "Désépingler (rendre temporaire)",
-                "makeTemporary": "Rendre temporaire",
+                "unpin": "Désépingler",
+                "makeTemporary": "Désépingler",
                 "updatePinned": "Mettre à jour la vue épinglée « {name} »"
             },
             "page": {
@@ -12348,7 +12386,7 @@
             "newPanel": "Nouveau panneau",
             "inThisView": "dans cette vue",
             "newView": "Nouvelle vue",
-            "temporary": "temporaire",
+            "temporary": "dans Vues",
             "addToView": "Ajouter à cette vue"
         },
         "hint": {
@@ -12479,7 +12517,7 @@
         "panels": {
             "addTo": "Ajouter à « {view} »",
             "askPinned": "« {view} » est une vue épinglée : ce panneau la modifiera.",
-            "askEverywhere": "« {view} » est épinglée dans tous les espaces de travail : ce panneau en fera une vue temporaire ici.",
+            "askEverywhere": "« {view} » est épinglée dans tous les espaces de travail : ce panneau la déplacera dans Vues ici.",
             "inNewView": "Dans une nouvelle vue",
             "show": "L'afficher",
             "thisView": "cette vue",
@@ -12953,7 +12991,7 @@
                     "w2": "Offres réservées à l'usage interactif, et sans résiliation possible.",
                     "speed": "Non précisé par l'éditeur.",
                     "limits": "Coding Plan Pro : jusqu'à 6 000 requêtes par 5 heures et 45 000 par semaine ; le Token Plan compte des crédits mensuels.",
-                    "billing": "prix temporaire (8 USD normalement) ; région Singapour uniquement"
+                    "billing": "prix limité dans le temps (8 USD normalement) ; région Singapour uniquement"
                 }
             }
         }

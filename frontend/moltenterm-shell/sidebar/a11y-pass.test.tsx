@@ -100,8 +100,8 @@ describe("names and words", () => {
     });
 
     it("reads a tile as its view name followed by the word view, never by its glyphs", () => {
-        expect(en.sidebar.pins.tileLabel.replace("{name}", "Scoping")).toBe("Scoping, pinned view");
-        expect(fr.sidebar.pins.tileLabel.replace("{name}", "Cadrage")).toBe("Cadrage, vue épinglée");
+        expect(en.sidebar.pins.tileLabel.replace("{name}", "Scoping")).toBe("Scoping, important view");
+        expect(fr.sidebar.pins.tileLabel.replace("{name}", "Cadrage")).toBe("Cadrage, vue importante");
     });
 
     it("says the same thing about hidden files in Files and in Preferences", () => {
