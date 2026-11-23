@@ -38,6 +38,9 @@ import {
 import { sameOrder } from "./view-menu-model";
 
 export const ItemAttr = "data-item-key";
+// The copy of the dragged row rides a little below and right of the pointer, so that the row under the pointer, its ring
+// and its caption, stay in sight.
+const GhostOffsetPx = { x: 10, y: 16 };
 const TabKeyPrefix = "tab:";
 const FolderKeyPrefix = "folder:";
 
@@ -203,7 +206,7 @@ export function useViewListDrag(
                 started = true;
                 ghost = makeGhost(rowEl);
             }
-            ghost.style.transform = `translate(${ev.clientX - grab.x}px, ${ev.clientY - grab.y}px) rotate(-2deg)`;
+            ghost.style.transform = `translate(${ev.clientX - grab.x + GhostOffsetPx.x}px, ${ev.clientY - grab.y + GhostOffsetPx.y}px) rotate(-2deg)`;
             if (cancelled) {
                 return;
             }
