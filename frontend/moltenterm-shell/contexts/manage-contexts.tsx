@@ -14,7 +14,7 @@ import { useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { colourStops } from "../workspace-colour";
 import type { WorkspaceRailEntry } from "../workspace-rail-model";
-import { contextIdOf, contextShownEmblem, contextShownName, makeChecklist } from "./context-model";
+import { ChecklistRow, contextIdOf, contextShownEmblem, contextShownName, makeChecklist } from "./context-model";
 import { createContext, deleteContext, updateContext, useContexts } from "./context-store";
 import { Emblem } from "./emblem";
 import { EmblemPicker } from "./emblem-picker";
@@ -22,13 +22,18 @@ import {
     canDeleteContext,
     clampDescription,
     clampName,
-    ContextDraft,
     createRequestOf,
     defaultMoveTarget,
+    DraftEdits,
     draftChanged,
     draftOf,
     draftProblem,
+    draftWith,
+    editedFields,
+    isRowChecked,
     newDraft,
+    NoEdits,
+    toggledRow,
     updateRequestOf,
 } from "./manage-model";
 
@@ -113,7 +118,7 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
     const nameId = useId();
     const descriptionId = useId();
     const [selectedId, setSelectedId] = useState(() => contextIdOf(contexts, ws?.meta));
-    const [edits, setEdits] = useState<ContextDraft>(null);
+    const [edits, setEdits] = useState<DraftEdits>(NoEdits);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string>(null);
     const [deleting, setDeleting] = useState(false);
@@ -124,21 +129,17 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
         () => makeChecklist(creating ? "" : selectedId, contexts, entries, t),
         [creating, selectedId, contexts, entries, t]
     );
-    const original = useMemo(
-        () => (selected != null ? draftOf(selected, rows, t) : (edits ?? newDraft())),
-        [selected, rows, t, edits]
-    );
-    const draft = edits ?? original;
+    const original = useMemo(() => (selected != null ? draftOf(selected, rows, t) : newDraft()), [selected, rows, t]);
+    const draft = useMemo(() => draftWith(original, rows, edits), [original, rows, edits]);
     const problem = draftProblem(draft, original, contexts.length);
     const changed = draftChanged(draft, original);
-    const edit = (patch: Partial<ContextDraft>) => setEdits({ ...draft, ...patch });
+    const edit = (patch: DraftEdits["fields"]) => setEdits(editedFields(edits, patch));
     const select = (id: string) => {
         setSelectedId(id);
-        setEdits(null);
+        setEdits(NoEdits);
         setError(null);
     };
-    const toggle = (id: string) =>
-        edit({ checked: draft.checked.includes(id) ? draft.checked.filter((c) => c !== id) : [...draft.checked, id] });
+    const toggle = (row: ChecklistRow) => setEdits(toggledRow(edits, row));
 
     const run = (work: () => Promise<void>) => {
         if (busy) {
@@ -157,14 +158,13 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
         });
     };
     const save = () => {
-        if (problem != null || !changed) {
+        if (problem != null || !changed || (!creating && selected == null)) {
             return;
         }
         run(async () => {
             if (creating) {
                 const id = await createContext(createRequestOf(draft));
                 setSelectedId(id);
-                setEdits({ ...draft, id });
                 return;
             }
             const req = updateRequestOf(draft, original);
@@ -253,10 +253,7 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
                                 "cursor-pointer rounded-4 border border-dashed border-border px-2 py-1.5 text-left text-12 text-secondary hover:bg-hover hover:text-primary",
                                 creating && "mt-selected-action bg-hover text-primary"
                             )}
-                            onClick={() => {
-                                select(NewId);
-                                setEdits(newDraft());
-                            }}
+                            onClick={() => select(NewId)}
                         >
                             + {t("contexts.manage.new")}
                         </button>
@@ -321,10 +318,10 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
                                                 <label className="flex cursor-pointer items-center gap-2 rounded-4 px-1.5 py-1 text-12 text-primary hover:bg-hover">
                                                     <input
                                                         type="checkbox"
-                                                        checked={draft.checked.includes(row.id)}
+                                                        checked={isRowChecked(edits, row)}
                                                         data-testid="context-workspace"
                                                         data-workspace-id={row.id}
-                                                        onChange={() => toggle(row.id)}
+                                                        onChange={() => toggle(row)}
                                                     />
                                                     <i
                                                         className="h-2.5 w-2.5 shrink-0 rounded-full"

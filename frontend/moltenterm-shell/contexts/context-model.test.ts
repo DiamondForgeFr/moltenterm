@@ -3,7 +3,6 @@
 
 import { describe, expect, it } from "vitest";
 import {
-    checkedIds,
     ContextInfo,
     contextHint,
     contextIdOf,
@@ -18,7 +17,6 @@ import {
     makeChecklist,
     makeRibbons,
     readContexts,
-    sameIds,
     waitingElsewhere,
     windowTitleWithContext,
     WorkspaceContextMetaKey,
@@ -198,12 +196,5 @@ describe("the checklist of Manage contexts", () => {
             ["a", false, "My workshop"],
             ["b", true, ""],
         ]);
-    });
-
-    it("sends the checked ids as the whole list", () => {
-        const rows = makeChecklist("df", contexts, entries, t);
-        expect(checkedIds(rows)).toEqual(["b"]);
-        expect(sameIds(["b", "a"], ["a", "b"])).toBe(true);
-        expect(sameIds(["a"], ["a", "b"])).toBe(false);
     });
 });

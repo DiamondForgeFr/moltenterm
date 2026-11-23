@@ -13,7 +13,12 @@ import {
     draftChanged,
     draftOf,
     draftProblem,
+    draftWith,
+    editedFields,
+    isRowChecked,
     newDraft,
+    NoEdits,
+    toggledRow,
     updateRequestOf,
 } from "./manage-model";
 
@@ -56,8 +61,14 @@ describe("what a save sends", () => {
         expect(updateRequestOf({ ...original, emblem: "book" }, original)).toEqual({ id: "df", emblem: "book" });
         expect(updateRequestOf({ ...original, checked: ["b", "c"] }, original)).toEqual({
             id: "df",
-            workspaces: ["b", "c"],
+            addworkspaces: ["c"],
+            removeworkspaces: ["a"],
         });
+    });
+
+    it("names only the workspaces the form moved, never the whole membership", () => {
+        expect(updateRequestOf({ ...original, checked: ["a", "b", "c"] }, original)).toEqual({ id: "df", addworkspaces: ["c"] });
+        expect(updateRequestOf({ ...original, checked: ["a"] }, original)).toEqual({ id: "df", removeworkspaces: ["b"] });
     });
 
     it("sends nothing when nothing changed, however the checked ids are ordered", () => {
@@ -79,6 +90,41 @@ describe("what a save sends", () => {
             workspaces: ["a"],
         });
         expect(draftChanged(newDraft(), newDraft())).toBe(true);
+    });
+});
+
+describe("what the developer changed in the form", () => {
+    const original: ContextDraft = { id: "df", name: "DiamondForge", description: "", emblem: "folder", checked: ["a"] };
+
+    it("shows the context as it is, with the fields and the ticks he changed on top", () => {
+        const rows = [row("a", true), row("b", false)];
+        expect(draftWith(original, rows, NoEdits)).toEqual(original);
+        const edits = toggledRow(editedFields(NoEdits, { name: "Forge" }), rows[1]);
+        expect(draftWith(original, rows, edits)).toEqual({ ...original, name: "Forge", checked: ["a", "b"] });
+        expect(isRowChecked(edits, rows[1])).toBe(true);
+        expect(isRowChecked(toggledRow(edits, rows[1]), rows[1])).toBe(false);
+    });
+
+    it("does not take a workspace another window placed while the form was open for one he unticked", () => {
+        const rowsAtOpening = [row("a", true), row("b", false)];
+        const edits = toggledRow(NoEdits, rowsAtOpening[0]);
+        const rowsNow = [row("a", true), row("b", true)];
+        const nowOriginal = { ...original, checked: ["a", "b"] };
+        const draft = draftWith(nowOriginal, rowsNow, edits);
+        expect(draft.checked).toEqual(["b"]);
+        expect(updateRequestOf(draft, nowOriginal)).toEqual({ id: "df", removeworkspaces: ["a"] });
+    });
+
+    it("leaves a workspace the form never showed out of the request", () => {
+        const rows = [row("a", true), row("b", false)];
+        const draft = draftWith(original, rows, toggledRow(NoEdits, rows[1]));
+        expect(updateRequestOf(draft, original)).toEqual({ id: "df", addworkspaces: ["b"] });
+    });
+
+    it("does not send a field he did not touch, even when another window changed it", () => {
+        const renamed = { ...original, name: "Renamed elsewhere" };
+        const draft = draftWith(renamed, [row("a", true)], editedFields(NoEdits, { description: "Work" }));
+        expect(updateRequestOf(draft, renamed)).toEqual({ id: "df", description: "Work" });
     });
 });
 

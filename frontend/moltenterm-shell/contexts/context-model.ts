@@ -18,6 +18,7 @@ export const ContextUpdateCommand = "contextupdate";
 export const ContextDeleteCommand = "contextdelete";
 export const ContextAssignCommand = "contextassign";
 export const ContextTouchCommand = "contexttouch";
+export const ContextLandingCommand = "contextlanding";
 export const DefaultContextId = "workshop";
 export const DefaultContextEmblem = "hammer";
 export const FallbackContextEmblem = "folder";
@@ -239,17 +240,4 @@ export function makeChecklist(
                 elsewhere: e.contextId === contextId ? "" : contextShownName(own, t),
             };
         });
-}
-
-// The ids a Manage dialog sends as the context's whole list, from the checked rows.
-export function checkedIds(rows: readonly ChecklistRow[]): string[] {
-    return rows.filter((r) => r.checked).map((r) => r.id);
-}
-
-export function sameIds(a: readonly string[], b: readonly string[]): boolean {
-    if (a.length !== b.length) {
-        return false;
-    }
-    const sortedB = [...b].sort();
-    return [...a].sort().every((id, i) => id === sortedB[i]);
 }

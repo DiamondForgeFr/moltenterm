@@ -33,6 +33,8 @@ const (
 	AssignCommand = "contextassign"
 	TouchCommand  = "contexttouch"
 	ListCommand   = "contextlist"
+	// The workspace a window lands on when the one it shows is deleted: one of the same context, made when none is free.
+	LandingCommand = "contextlanding"
 
 	// The first context of an installation that stored none: its name is empty and the interface shows its own
 	// language's ("My workshop", "Mon atelier").
@@ -72,14 +74,17 @@ type CreateRequest struct {
 	Workspaces  []string `json:"workspaces,omitempty"`
 }
 
-// UpdateRequest changes the fields it sets. Workspaces, when set, is the whole list of workspaces the context holds
-// afterwards: the ones listed move in, the ones that were in and are not listed move to the first other context.
+// UpdateRequest changes the fields it sets, and moves only the workspaces it names: AddWorkspaces come in, and the ones
+// of RemoveWorkspaces that are in the context go to the first other context. Every other workspace keeps its context,
+// because the form that sends this knows only the workspaces its checklist showed (a blank workspace of another window,
+// or one placed after the dialog opened, is not on it).
 type UpdateRequest struct {
-	Id          string    `json:"id"`
-	Name        *string   `json:"name,omitempty"`
-	Description *string   `json:"description,omitempty"`
-	Emblem      *string   `json:"emblem,omitempty"`
-	Workspaces  *[]string `json:"workspaces,omitempty"`
+	Id               string   `json:"id"`
+	Name             *string  `json:"name,omitempty"`
+	Description      *string  `json:"description,omitempty"`
+	Emblem           *string  `json:"emblem,omitempty"`
+	AddWorkspaces    []string `json:"addworkspaces,omitempty"`
+	RemoveWorkspaces []string `json:"removeworkspaces,omitempty"`
 }
 
 type DeleteRequest struct {
@@ -91,6 +96,10 @@ type DeleteRequest struct {
 type AssignRequest struct {
 	WorkspaceId string `json:"workspaceid"`
 	ContextId   string `json:"contextid"`
+}
+
+type LandingRequest struct {
+	WorkspaceId string `json:"workspaceid"`
 }
 
 type TouchRequest struct {
@@ -268,7 +277,7 @@ func (s State) Create(req CreateRequest, id string) (State, []string, error) {
 	return rtn, moved, nil
 }
 
-// Update changes a context's fields and, when the request lists workspaces, what it holds.
+// Update changes a context's fields and moves the workspaces the request names in or out of it.
 func (s State) Update(req UpdateRequest) (State, []string, error) {
 	at := s.indexOf(req.Id)
 	if at < 0 {
@@ -293,33 +302,35 @@ func (s State) Update(req UpdateRequest) (State, []string, error) {
 		rtn.Contexts[at].Emblem = emblem
 	}
 	moved := []string{}
-	if req.Workspaces != nil {
-		listed := *req.Workspaces
-		if err := s.checkWorkspaces(listed); err != nil {
-			return s, nil, err
+	if err := s.checkWorkspaces(req.AddWorkspaces); err != nil {
+		return s, nil, err
+	}
+	for _, ws := range req.RemoveWorkspaces {
+		if slices.Contains(req.AddWorkspaces, ws) {
+			return s, nil, fmt.Errorf("workspace %q is asked to come in and to leave", ws)
 		}
-		fallback := ""
-		for _, c := range s.Contexts {
-			if c.Id != req.Id {
-				fallback = c.Id
-				break
-			}
+	}
+	fallback := ""
+	for _, c := range s.Contexts {
+		if c.Id != req.Id {
+			fallback = c.Id
+			break
 		}
-		for _, ws := range s.Members(req.Id) {
-			if slices.Contains(listed, ws) {
-				continue
-			}
-			if fallback == "" {
-				return s, nil, fmt.Errorf("the only context holds every workspace: make another context first")
-			}
-			if rtn.moveTo(ws, fallback) {
-				moved = append(moved, ws)
-			}
+	}
+	for _, ws := range req.RemoveWorkspaces {
+		if s.Of[ws] != req.Id {
+			continue
 		}
-		for _, ws := range listed {
-			if rtn.moveTo(ws, req.Id) {
-				moved = append(moved, ws)
-			}
+		if fallback == "" {
+			return s, nil, fmt.Errorf("the only context holds every workspace: make another context first")
+		}
+		if rtn.moveTo(ws, fallback) {
+			moved = append(moved, ws)
+		}
+	}
+	for _, ws := range req.AddWorkspaces {
+		if rtn.moveTo(ws, req.Id) {
+			moved = append(moved, ws)
 		}
 	}
 	return rtn, moved, nil
