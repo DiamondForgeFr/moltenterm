@@ -74,6 +74,12 @@ type fakeGh struct {
 	// The number `issue create` answers with (default 1801), and the error that refuses it.
 	createdNumber int
 	createFails   error
+	// The repository's latest open issues (JSON, default none), whatever their milestone (#2492).
+	openIssues string
+	// The issues `issue create` made, by number, which GitHub answers when asked for one by its number.
+	created map[int]string
+	// Called with each call before it is answered, outside the lock.
+	onCall func(joined string)
 }
 
 var pageParamRegex = regexp.MustCompile(`[?&]page=(\d+)`)
@@ -99,6 +105,9 @@ func (f *fakeGh) called(prefix ...string) [][]string {
 func (f *fakeGh) answer(args []string) ([]byte, error) {
 	f.record(args)
 	joined := strings.Join(args, " ")
+	if f.onCall != nil {
+		f.onCall(joined)
+	}
 	switch {
 	case strings.HasPrefix(joined, "run list") && strings.Contains(joined, "--event workflow_dispatch"):
 		if f.rehearsals == "" {
@@ -223,7 +232,31 @@ func (f *fakeGh) answer(args []string) ([]byte, error) {
 		if n == 0 {
 			n = 1801
 		}
+		f.lock.Lock()
+		defer f.lock.Unlock()
+		if f.created == nil {
+			f.created = map[int]string{}
+		}
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "--title" {
+				f.created[n] = args[i+1]
+			}
+		}
 		return []byte(fmt.Sprintf("https://github.com/Example/app/issues/%d\n", n)), nil
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues?state=open"):
+		if f.openIssues == "" {
+			return []byte(`[]`), nil
+		}
+		return []byte(f.openIssues), nil
+	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues/") && len(args) == 2:
+		f.lock.Lock()
+		defer f.lock.Unlock()
+		var n int
+		fmt.Sscanf(strings.TrimPrefix(args[1], "repos/{owner}/{repo}/issues/"), "%d", &n)
+		if title, ok := f.created[n]; ok {
+			return []byte(fmt.Sprintf(`{"number":%d,"title":%q,"state":"open"}`, n, title)), nil
+		}
+		return nil, fmt.Errorf("gh: Not Found (HTTP 404)")
 	case strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues?milestone=12"):
 		if f.issues != "" {
 			return []byte(f.issues), nil
