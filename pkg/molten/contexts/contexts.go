@@ -390,6 +390,22 @@ func SameContexts(a []Context, b []Context) bool {
 	return slices.Equal(a, b)
 }
 
+// SameIgnoringLast tells whether two lists are the same but for the workspace each context last showed: a window that
+// switches workspace changes that and nothing a rail or a switcher draws.
+func SameIgnoringLast(a []Context, b []Context) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		x, y := a[i], b[i]
+		x.Last, y.Last = "", ""
+		if x != y {
+			return false
+		}
+	}
+	return true
+}
+
 // MetaValue is the list as the client meta stores it.
 func MetaValue(list []Context) []any {
 	rtn := make([]any, len(list))

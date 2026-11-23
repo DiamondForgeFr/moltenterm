@@ -309,6 +309,24 @@ func TestMovingAWorkspaceAwayForgetsItAsTheLastOne(t *testing.T) {
 	}
 }
 
+func TestSameIgnoringLastTellsARememberedWorkspaceFromARealChange(t *testing.T) {
+	a := []Context{{Id: "a", Name: "A"}, {Id: "b", Last: "w1"}}
+	b := []Context{{Id: "a", Name: "A", Last: "w9"}, {Id: "b", Last: "w2"}}
+	if !SameIgnoringLast(a, b) {
+		t.Fatalf("only the remembered workspaces differ")
+	}
+	if SameContexts(a, b) {
+		t.Fatalf("the lists are not the same")
+	}
+	renamed := []Context{{Id: "a", Name: "Renamed"}, {Id: "b", Last: "w1"}}
+	if SameIgnoringLast(a, renamed) {
+		t.Fatalf("a rename is a change")
+	}
+	if SameIgnoringLast(a, a[:1]) {
+		t.Fatalf("a context less is a change")
+	}
+}
+
 func TestMetaValueRoundTrips(t *testing.T) {
 	list := []Context{{Id: "a", Name: "A", Description: "d", Emblem: "book", Last: "w"}, {Id: "b"}}
 	got := ReadContexts(waveobj.MetaMapType{ClientMetaKey: MetaValue(list)})
