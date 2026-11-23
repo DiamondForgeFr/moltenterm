@@ -227,6 +227,21 @@ describe("the Views list with folders", () => {
     const list = (ids: string[], active: string = null) =>
         render(<TemporaryViews ids={ids} activeTabId={active} asideRef={createRef<HTMLElement>()} />);
 
+    // The folders' row loads on demand (NFR-PERF-003): a first render asks for it, the next ones have it.
+    let loading = "";
+    beforeAll(async () => {
+        workspace(["t-a", "t-b"], [{ id: "f1", name: "", tabids: ["t-a", "t-b"] }]);
+        loading = list(["t-a", "t-b"]);
+        await import("./view-folders-ui");
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    it("keeps a place for the row of a folder while its code loads", () => {
+        expect(loading).toContain('data-item-key="folder:f1"');
+        expect(loading).not.toContain("sidebar-folder-row");
+    });
+
     it("shows a folder as one row in the place of its first view, and no row for its views", () => {
         workspace(["t-a", "t-b", "t-c", "t-d"], [{ id: "f1", name: "", tabids: ["t-b", "t-c"] }]);
         const html = list(["t-a", "t-b", "t-c", "t-d"]);
@@ -266,15 +281,40 @@ describe("the Views list with folders", () => {
 
 describe("the folders' style", () => {
     const css = fs.readFileSync(path.join(__dirname, "view-folders.css"), "utf8");
-    const rule = (selector: string) => {
-        const at = css.indexOf(`${selector} {`);
+    const dragCss = fs.readFileSync(path.join(__dirname, "view-list-drag.css"), "utf8");
+    const rule = (selector: string, sheet = css) => {
+        const at = sheet.indexOf(`${selector} {`);
         expect(at, selector).toBeGreaterThanOrEqual(0);
-        return css.slice(at, css.indexOf("}", at));
+        return sheet.slice(at, sheet.indexOf("}", at));
     };
 
-    it("rings the target with the action colour and its caption", () => {
-        expect(rule('.mt-sb-tv [data-fo-target="true"]')).toContain("var(--mt-action)");
-        expect(rule('.mt-sb-tv [data-fo-target="true"]::after')).toContain("content: attr(data-fo-cap)");
+    it("rings the target with the action colour and its caption, in the drag's own sheet", () => {
+        expect(rule('.mt-sb-tv [data-fo-target="true"]', dragCss)).toContain("var(--mt-action)");
+        expect(rule('.mt-sb-tv [data-fo-target="true"]::after', dragCss)).toContain("content: attr(data-fo-cap)");
+        expect(css).not.toContain("data-fo-target");
+    });
+
+    it("loads the drag's sheet with the drag and the folders' with their code", () => {
+        const drag = fs.readFileSync(path.join(__dirname, "view-list-drag.ts"), "utf8");
+        const ui = fs.readFileSync(path.join(__dirname, "view-folders-ui.tsx"), "utf8");
+        expect(drag).toContain('import "./view-list-drag.css"');
+        expect(ui).toContain('import "./view-folders.css"');
+    });
+
+    it("keeps the folders' code out of the startup bundle: only the lazy chunks import it", () => {
+        // A type import is erased; any other static import of those files would pull them into the startup chunk.
+        const valueImports = (source: string) =>
+            source
+                .split("\n")
+                .filter(
+                    (line) => /from "\.\/view-folders-(ui|ops|edit)"/.test(line) && !line.startsWith("import type")
+                );
+        const sidebar = fs.readFileSync(path.join(__dirname, "workspace-sidebar.tsx"), "utf8");
+        expect(valueImports(sidebar)).toEqual([]);
+        expect(sidebar).toContain('import("./view-folders-ui")');
+        for (const eager of ["view-list-drag.ts", "view-folders-store.ts", "view-folders-model.ts"]) {
+            expect(valueImports(fs.readFileSync(path.join(__dirname, eager), "utf8")), eager).toEqual([]);
+        }
     });
 
     it("draws the dot of news in the action colour, round", () => {
