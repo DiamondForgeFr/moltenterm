@@ -2160,9 +2160,12 @@
             "wantsToRun": "{name} veut exécuter",
             "wantsToRunPlain": "L'agent veut exécuter",
             "usageOff": "L'usage du forfait est masqué dans les compagnons.",
-            "openUsage": "Ouvrir la page d'usage",
-            "readAll": "Tout lire",
-            "readLess": "Réduire"
+            "openUsage": "Ouvrir la page d'usage"
+        },
+        "block": {
+            "showAll": "Tout afficher",
+            "showAllMore": "Tout afficher · {count} de plus",
+            "showLess": "Réduire"
         },
         "arrange": {
             "open": "Agencer le compagnon",
@@ -2189,6 +2192,8 @@
                 "shownHelp": "Un bloc masqué ne s'affiche nulle part, quoi qu'il contienne.",
                 "wide": "Pleine largeur",
                 "wideHelp": "Le bloc occupe toutes les colonnes au lieu d'en prendre une.",
+                "unfolded": "Laisser déplié",
+                "unfoldedHelp": "Un bloc de plus de 500 px finit derrière une barre « Tout afficher ». Ce choix l'affiche en entier, quelle que soit sa hauteur.",
                 "form": "Forme",
                 "takenOpen": "Ouvrir le groupe Pris par d'autres",
                 "reviewOpen": "Ouvrir le groupe À relire",
@@ -2206,6 +2211,8 @@
             "wide": "Pleine largeur pour {name}",
             "wideOn": "{name} prend toute la largeur.",
             "wideOff": "{name} revient dans le flux.",
+            "unfoldedOn": "{name} reste déplié.",
+            "unfoldedOff": "{name} s'arrête à 500 px.",
             "form": "Forme de {name}",
             "formFull": "Complète",
             "formFullHelp": "Chaque fenêtre jour par jour, avec sa légende et ses explications",

@@ -32,6 +32,8 @@ export type HiddenUsageRows = Record<string, string[]>;
 // minimal, attached and hiddenrows belong to the usage block alone (#2450, #2462): its window rows only, its place in the
 // main agent's block in place of the flow, and the rows it leaves out. A section that has none keeps none; each is
 // stored only when set, so the default (the full block, standing on its own, every row) is the absence of all three.
+// unfolded belongs to every block (#2477): a block taller than the cap shows its end only once it is unfolded; stored
+// only when set, so a layout saved before it, like the default, has every block capped.
 export type SectionPlacement = {
     id: CompanionSectionId;
     span: CompanionSpan;
@@ -39,6 +41,7 @@ export type SectionPlacement = {
     minimal?: boolean;
     attached?: boolean;
     hiddenrows?: HiddenUsageRows;
+    unfolded?: boolean;
 };
 
 export type CompanionLayout = readonly SectionPlacement[];
@@ -77,6 +80,7 @@ type StoredPlacement = {
     minimal?: unknown;
     attached?: unknown;
     hiddenrows?: unknown;
+    unfolded?: unknown;
 };
 
 const MaxHiddenProviders = 16;
@@ -113,7 +117,8 @@ export function readHiddenRows(value: unknown): HiddenUsageRows {
 
 // A layout as it can be used: every registered section once, in the given order; an unknown id is dropped, an unknown
 // span takes the default, a section the layout forgets takes its default place at the end. A layout stored before #2450
-// has neither usage flag: its usage block reads as full and standing on its own. One stored before #2462 hides no row.
+// has neither usage flag: its usage block reads as full and standing on its own. One stored before #2462 hides no row,
+// and one stored before #2477 has every block capped.
 export function normalizeLayout(layout: readonly StoredPlacement[]): CompanionLayout {
     const known = new Set<string>(CompanionSectionIds);
     const seen = new Set<string>();
@@ -134,6 +139,7 @@ export function normalizeLayout(layout: readonly StoredPlacement[]): CompanionLa
             ...(usage && p.minimal === true ? { minimal: true } : {}),
             ...(usage && p.attached === true ? { attached: true } : {}),
             ...(hiddenrows != null ? { hiddenrows } : {}),
+            ...(p.unfolded === true ? { unfolded: true } : {}),
         });
     }
     for (const p of DefaultCompanionLayout) {
@@ -165,6 +171,7 @@ export function sameLayout(a: CompanionLayout, b: CompanionLayout): boolean {
                 !p.hidden === !y[i].hidden &&
                 !p.minimal === !y[i].minimal &&
                 !p.attached === !y[i].attached &&
+                !p.unfolded === !y[i].unfolded &&
                 JSON.stringify(p.hiddenrows ?? null) === JSON.stringify(y[i].hiddenrows ?? null)
         )
     );
@@ -176,6 +183,11 @@ export function usageOf(layout: CompanionLayout): { shown: boolean; minimal: boo
     const p = normalizeLayout(layout).find((placement) => placement.id === "usage");
     const shown = p != null && !p.hidden;
     return { shown, minimal: p?.minimal === true, attached: shown && p?.attached === true };
+}
+
+// Whether the developer unfolded a block that is taller than the cap (#2477): capped until they did.
+export function isUnfolded(layout: CompanionLayout, id: CompanionSectionId): boolean {
+    return normalizeLayout(layout).find((p) => p.id === id)?.unfolded === true;
 }
 
 export function isDefaultLayout(layout: CompanionLayout): boolean {

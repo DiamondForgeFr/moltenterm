@@ -5,11 +5,22 @@
 // in a notch on the top border (a brass icon tile, the label chip or tabs, then count chips), its tools on their own
 // chip in a notch on the right, its content, and its one link as its last row. Display only. While the dashboard is
 // arranged (#2467) a block of the flow wears the arranging controls on its top border in place of its tools, and its
-// content is held still under them (companion-arrange-context.ts).
+// content is held still under them (companion-arrange-context.ts). A block of the flow stops at 500 px (#2477): past it
+// its body is clipped and faded, and a bar at its foot unfolds it (companion-block-cap.ts).
 
 import { cn, makeIconClass } from "@/util/util";
-import { forwardRef, useContext, useEffect, useId, useRef, useState } from "react";
+import { forwardRef, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useT } from "../i18n/i18n";
 import { ArrangeContext } from "./companion-arrange-context";
+import {
+    BlockCapContext,
+    BlockFollow,
+    BlockMeasure,
+    capFoot,
+    capState,
+    followBlockCap,
+    NoCap,
+} from "./companion-block-cap";
 
 export type CompanionBlockProps = {
     // The block's place in the flow (data-flow-id), which the flow measures and positions.
@@ -27,13 +38,56 @@ export type CompanionBlockProps = {
     tone?: "waiting";
     // The chip's heading level: the hero names the companion (h2), every other block a section (h3).
     heading?: "h2" | "h3";
+    // The selector of the rows the block lists, which the cap counts to say how many it hides ("Show all · 18 more"); a
+    // block without rows says "Show all" alone (#2477).
+    rows?: string;
     className?: string;
     style?: React.CSSProperties;
     children?: React.ReactNode;
 } & Omit<React.HTMLAttributes<HTMLElement>, "children">;
 
+// The block's cap (#2477): measured in the page while the dashboard gives the block a say in it (a block of the flow),
+// nothing otherwise.
+function useBlockCap(
+    id: string,
+    rows: string,
+    section: React.RefObject<HTMLElement>,
+    body: React.RefObject<HTMLElement>
+) {
+    const cap = useContext(BlockCapContext);
+    const enabled = cap != null && id != null;
+    const unfolded = enabled && cap.unfolded(id);
+    const [measure, setMeasure] = useState<BlockMeasure>(NoCap);
+    const drawn = useRef(measure);
+    drawn.current = measure;
+    const follow = useRef<BlockFollow>(null);
+    useLayoutEffect(() => {
+        if (!enabled || section.current == null || body.current == null) {
+            return;
+        }
+        follow.current = followBlockCap(section.current, body.current, rows, setMeasure, undefined, drawn.current);
+        return () => {
+            follow.current?.stop();
+            follow.current = null;
+        };
+    }, [enabled, rows]);
+    // The block is measured again once it is folded or unfolded, and once it turned tall: the rows the cap hides are
+    // counted in the folded layout, which the attributes only give after a render.
+    const state = capState(measure, unfolded);
+    useLayoutEffect(() => {
+        follow.current?.measure();
+    }, [enabled, rows, unfolded, measure.tall]);
+    const toggle = useCallback(() => cap?.toggle(id), [cap, id]);
+    return {
+        unfolded,
+        measure: enabled ? measure : NoCap,
+        state: enabled ? state : capState(NoCap, false),
+        toggle,
+    };
+}
+
 export const CompanionBlock = forwardRef<HTMLElement, CompanionBlockProps>(function CompanionBlock(
-    { flowId, icon, label, tabs, chips, grip, tools, foot, tone, heading = "h3", className, children, ...rest },
+    { flowId, icon, label, tabs, chips, grip, tools, foot, tone, heading = "h3", rows, className, children, ...rest },
     ref
 ) {
     const headingId = useId();
@@ -42,16 +96,33 @@ export const CompanionBlock = forwardRef<HTMLElement, CompanionBlockProps>(funct
     const chrome = flowId != null ? arrange?.chromeOf(flowId) : null;
     const gripShown = chrome != null ? chrome.grip : grip;
     const toolsShown = chrome != null ? chrome.tools : tools;
+    const sectionRef = useRef<HTMLElement>(null);
+    const bodyRef = useRef<HTMLDivElement>(null);
+    const cap = useBlockCap(flowId, rows, sectionRef, bodyRef);
+    const named = label != null && tabs == null && rest["aria-label"] == null;
+    const setSection = useCallback(
+        (el: HTMLElement) => {
+            sectionRef.current = el;
+            if (typeof ref === "function") {
+                ref(el);
+            } else if (ref != null) {
+                ref.current = el;
+            }
+        },
+        [ref]
+    );
     return (
         <section
-            ref={ref}
-            aria-labelledby={label != null && tabs == null && rest["aria-label"] == null ? headingId : undefined}
+            ref={setSection}
+            aria-labelledby={named ? headingId : undefined}
             {...rest}
             {...chrome?.attrs}
             className={cn("mt-cb", className)}
             data-flow-id={flowId}
             data-tone={tone}
             data-foot={foot ? "" : undefined}
+            data-capped={cap.state.capped ? "" : undefined}
+            data-open={cap.state.open ? "" : undefined}
         >
             <div className="mt-cb-head">
                 <span className="mt-cb-notch" data-side="label">
@@ -78,7 +149,7 @@ export const CompanionBlock = forwardRef<HTMLElement, CompanionBlockProps>(funct
                     </span>
                 ) : null}
             </div>
-            <div className="mt-cb-body" inert={chrome != null}>
+            <div ref={bodyRef} className="mt-cb-body" inert={chrome != null}>
                 {children}
             </div>
             {foot ? (
@@ -86,9 +157,55 @@ export const CompanionBlock = forwardRef<HTMLElement, CompanionBlockProps>(funct
                     {foot}
                 </div>
             ) : null}
+            {cap.measure.tall ? (
+                <BlockCapBar
+                    open={cap.unfolded}
+                    hidden={cap.measure.hidden}
+                    describedBy={named ? headingId : undefined}
+                    inert={chrome != null}
+                    onToggle={cap.toggle}
+                />
+            ) : null}
         </section>
     );
 });
+
+// The bar at the foot of a block taller than the cap (#2477): a real button, across the block, that unfolds it and folds it
+// again. Its words say what is hidden in the block's own unit; the block's name follows as its description, since a
+// companion holds several of them.
+export function BlockCapBar({
+    open,
+    hidden,
+    describedBy,
+    inert,
+    onToggle,
+}: {
+    open: boolean;
+    hidden: number;
+    describedBy?: string;
+    inert?: boolean;
+    onToggle: () => void;
+}) {
+    const t = useT();
+    const foot = capFoot(open, hidden);
+    return (
+        <button
+            type="button"
+            className="mt-cb-cap"
+            aria-expanded={open}
+            aria-describedby={describedBy}
+            inert={inert}
+            onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+            }}
+            data-testid="companion-block-cap"
+        >
+            <span>{t(foot.labelKey, { count: foot.count })}</span>
+            <i className={`fa fa-solid fa-chevron-${foot.chevron}`} aria-hidden="true" />
+        </button>
+    );
+}
 
 export function CountChip({ children, tip }: { children: React.ReactNode; tip?: string }) {
     return (

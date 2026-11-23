@@ -8,6 +8,7 @@ import {
     SectionNameKeys,
     setSectionHidden,
     setSectionSpan,
+    setSectionUnfolded,
     setUsageAttached,
     setUsageMinimal,
 } from "./companion-arrange-model";
@@ -43,28 +44,28 @@ function text(dictionary: unknown, key: string): string {
 }
 
 describe("the options of each block while arranging (#2459)", () => {
-    it("gives every block shown and full width, in that order, and nothing it did not have", () => {
+    it("gives every block shown, full width and unfolded, in that order, and nothing it did not have", () => {
         for (const id of CompanionSectionIds) {
-            expect(keysOf(id).slice(0, 2), id).toEqual(["shown", "wide"]);
+            expect(keysOf(id).slice(0, 3), id).toEqual(["shown", "wide", "unfolded"]);
         }
-        expect(keysOf("agents")).toEqual(["shown", "wide"]);
-        expect(keysOf("topics")).toEqual(["shown", "wide"]);
-        expect(keysOf("answer")).toEqual(["shown", "wide"]);
-        expect(keysOf("task")).toEqual(["shown", "wide"]);
-        expect(keysOf("permission")).toEqual(["shown", "wide"]);
+        expect(keysOf("agents")).toEqual(["shown", "wide", "unfolded"]);
+        expect(keysOf("topics")).toEqual(["shown", "wide", "unfolded"]);
+        expect(keysOf("answer")).toEqual(["shown", "wide", "unfolded"]);
+        expect(keysOf("task")).toEqual(["shown", "wide", "unfolded"]);
+        expect(keysOf("permission")).toEqual(["shown", "wide", "unfolded"]);
     });
 
     it("gives the plan usage its form and its attaching, the milestone block its three groups, the files their list", () => {
-        expect(keysOf("usage")).toEqual(["shown", "wide", "minimal", "attached"]);
-        expect(keysOf("tasks")).toEqual(["shown", "wide", "takenopen", "reviewopen", "idleopen"]);
-        expect(keysOf("files")).toEqual(["shown", "wide", "filesopen"]);
+        expect(keysOf("usage")).toEqual(["shown", "wide", "unfolded", "minimal", "attached"]);
+        expect(keysOf("tasks")).toEqual(["shown", "wide", "unfolded", "takenopen", "reviewopen", "idleopen"]);
+        expect(keysOf("files")).toEqual(["shown", "wide", "unfolded", "filesopen"]);
     });
 
     it("saves the layout's options with the layout and the others in the companion's settings", () => {
         for (const id of CompanionSectionIds) {
             for (const o of optionsOf(id)) {
                 expect(o.store, `${id} ${o.key}`).toBe(
-                    ["shown", "wide", "minimal", "attached"].includes(o.key) ? "layout" : "pref"
+                    ["shown", "wide", "unfolded", "minimal", "attached"].includes(o.key) ? "layout" : "pref"
                 );
             }
         }
@@ -138,8 +139,22 @@ describe("the options of each block while arranging (#2459)", () => {
         const layout = setSectionHidden(DefaultCompanionLayout, "answer", true);
         expect(setLayoutOption(layout, "files", option("files", "filesopen"), true)).toEqual(layout);
         expect(setLayoutOption(layout, "tasks", option("tasks", "idleopen"), true)).toEqual(layout);
-        expect(setLayoutOption(layout, "topics", optionsOf("usage")[2], true)).toEqual(layout);
-        expect(setLayoutOption(layout, "topics", optionsOf("usage")[3], true)).toEqual(layout);
+        expect(setLayoutOption(layout, "topics", option("usage", "minimal"), true)).toEqual(layout);
+        expect(setLayoutOption(layout, "topics", option("usage", "attached"), true)).toEqual(layout);
+    });
+
+    it("unfolds a block from its settings as the bar at its foot does, and folds it again (#2477)", () => {
+        for (const id of CompanionSectionIds) {
+            const p = placementOf(DefaultCompanionLayout, id);
+            expect(optionValue(option(id, "unfolded"), p, {}), id).toBe(false);
+            const open = setLayoutOption(DefaultCompanionLayout, id, option(id, "unfolded"), true);
+            expect(open).toEqual(setSectionUnfolded(DefaultCompanionLayout, id, true));
+            expect(optionValue(option(id, "unfolded"), placementOf(open, id), {}), id).toBe(true);
+            expect(restart(open)).toEqual(normalizeLayout(open));
+            expect(setLayoutOption(open, id, option(id, "unfolded"), false)).toEqual(DefaultCompanionLayout);
+        }
+        expect(optionAnnouncement(option("files", "unfolded"), true)).toBe("companion.arrange.unfoldedOn");
+        expect(optionAnnouncement(option("files", "unfolded"), false)).toBe("companion.arrange.unfoldedOff");
     });
 
     it("keeps every layout option across a restart, for every block", () => {

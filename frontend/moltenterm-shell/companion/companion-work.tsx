@@ -328,6 +328,7 @@ export function CompanionWork(props: CompanionWorkProps) {
                     label={t("companion.agents.title")}
                     icon={<Bot strokeWidth={2} aria-hidden />}
                     chips={running > 0 ? <CountChip>{running}</CountChip> : null}
+                    rows=".mt-cwork-sub-row"
                     className="mt-cwork-block"
                     data-testid="companion-agents"
                     {...pointer}
@@ -380,9 +381,14 @@ function LinkLayer({
             frame = 0;
             const origin = root.getBoundingClientRect();
             const boxes = new Map<string, DOMRect>();
-            root.querySelectorAll<HTMLElement>("[data-link-end]").forEach((el) =>
-                boxes.set(el.getAttribute("data-link-end"), el.getBoundingClientRect())
-            );
+            root.querySelectorAll<HTMLElement>("[data-link-end]").forEach((el) => {
+                const box = el.getBoundingClientRect();
+                // A row the cap of its block clips (#2477) is no end of a line: the line would stop in the blocks under it.
+                const clip = el.closest<HTMLElement>(".mt-cb[data-capped] > .mt-cb-body")?.getBoundingClientRect();
+                if (clip == null || box.bottom <= clip.bottom + 1) {
+                    boxes.set(el.getAttribute("data-link-end"), box);
+                }
+            });
             const next = links
                 .map((l) => linkPath(l, boxes.get(l.from), boxes.get(l.to), origin))
                 .filter((p) => p != null);

@@ -2160,9 +2160,12 @@
             "wantsToRun": "{name} wants to run",
             "wantsToRunPlain": "The agent wants to run",
             "usageOff": "The plan usage is hidden in the companions.",
-            "openUsage": "Open the usage page",
-            "readAll": "Read all",
-            "readLess": "Read less"
+            "openUsage": "Open the usage page"
+        },
+        "block": {
+            "showAll": "Show all",
+            "showAllMore": "Show all · {count} more",
+            "showLess": "Show less"
         },
         "arrange": {
             "open": "Arrange the companion",
@@ -2187,6 +2190,8 @@
             "wide": "Full width for {name}",
             "wideOn": "{name} takes the full width.",
             "wideOff": "{name} goes back to the flow.",
+            "unfoldedOn": "{name} stays unfolded.",
+            "unfoldedOff": "{name} stops at 500 px.",
             "form": "Form of {name}",
             "formFull": "Full",
             "formFullHelp": "Each window day by day, with its legend and its explanations",
@@ -2212,6 +2217,8 @@
                 "shownHelp": "A hidden block shows nowhere, whatever it holds.",
                 "wide": "Full width",
                 "wideHelp": "The block spans every column instead of taking one.",
+                "unfolded": "Keep it unfolded",
+                "unfoldedHelp": "A block taller than 500 px ends behind a Show all bar. This shows it whole, whatever its height.",
                 "form": "Form",
                 "takenOpen": "Open the group Taken by others",
                 "reviewOpen": "Open the group To review",

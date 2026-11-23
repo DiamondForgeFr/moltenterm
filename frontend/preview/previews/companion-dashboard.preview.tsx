@@ -12,12 +12,15 @@
 // (#2458; ?usage-labels=fable is Claude's session, week and the week of a model, ?usage-labels=nosession the same
 // without the session, #2473; ?usage-session=72 the share the session's ring fills), ?rows-hidden=session,month the usage rows the
 // layout starts with hidden for the provider shown (#2462), ?hide=answer,files the sections the layout starts with
-// hidden and ?without=milestone,task,usage the blocks that have nothing to show (#2467: their ghosts, while arranging).
+// hidden and ?without=milestone,task,usage the blocks that have nothing to show (#2467: their ghosts, while arranging),
+// ?files=29 the session's changed files, ?answer=long a long latest answer and ?unfold=files the blocks the layout starts
+// with unfolded (#2477).
 
 import { useEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
 import {
     setSectionHidden,
+    setSectionUnfolded,
     setUsageAttached,
     setUsageMinimal,
 } from "../../moltenterm-shell/companion/companion-arrange-model";
@@ -106,6 +109,10 @@ const RowsHidden = (query.get("rows-hidden") ?? "").split(",").filter((id) => id
 // have nothing to show.
 const HiddenSections = (query.get("hide") ?? "").split(",").filter((id) => id !== "") as CompanionSectionId[];
 const Without = (query.get("without") ?? "").split(",").filter((id) => id !== "");
+// ?unfold=files,topics (#2477): the blocks the layout starts with unfolded (a block taller than 500 px is capped until then);
+// ?files=29 the changed files the session holds (the ten of the fixture, then files outside the project).
+const UnfoldedSections = (query.get("unfold") ?? "").split(",").filter((id) => id !== "") as CompanionSectionId[];
+const FileCount = Number(query.get("files")) || 0;
 
 function startLayout(): CompanionLayout {
     const base =
@@ -114,7 +121,8 @@ function startLayout(): CompanionLayout {
             : setUsageMinimal(DefaultCompanionLayout, UsageForm === "minimal");
     const reported = usageFixture().snapshot.windows.map((w) => w.id);
     const rows = RowsHidden.reduce((layout, id) => setUsageRowHidden(layout, UsageProvider, id, true, reported), base);
-    return HiddenSections.reduce((layout, id) => setSectionHidden(layout, id, true), rows);
+    const hidden = HiddenSections.reduce((layout, id) => setSectionHidden(layout, id, true), rows);
+    return UnfoldedSections.reduce((layout, id) => setSectionUnfolded(layout, id, true), hidden);
 }
 
 const Names = ["Jade", "Noah", "Lou", "Ines", "Arthur", "Lena", "Sacha", "Mael", "Rose", "Hugo"];
@@ -504,6 +512,23 @@ const view: CompanionView = {
     ],
 };
 
+// ?files=29 (#2477): files outside the project, as a session that wrote notes and fixtures in the agent's folders leaves.
+const OutsideFolders = ["scratchpad", "contexts-mock/project", "approve-mock/project", "usage-ring-mock/project"];
+const OutsideNames = ["ticket-search.md", "Main.dc.html", "canvas.json", "settings-notes.md", "fixture.json"];
+
+function moreFiles(total: number): CompanionView["files"] {
+    const rows = view.files.slice(0, Math.min(total, view.files.length));
+    return rows.concat(
+        Array.from({ length: Math.max(0, total - rows.length) }, (_, i) => ({
+            path: `/private/tmp/agent-501/-work-lantern/1f0c2a9e/${OutsideFolders[i % OutsideFolders.length]}/${i}-${OutsideNames[i % OutsideNames.length]}`,
+            kind: "add",
+            added: 20 + ((i * 37) % 160),
+            removed: 0,
+            edits: 1,
+        }))
+    );
+}
+
 // ?images=1: the messages the companion shows name pasted images.
 function withImages(v: CompanionView): CompanionView {
     return {
@@ -535,7 +560,19 @@ function withImages(v: CompanionView): CompanionView {
 }
 
 const withImagesView = imagesOn ? withImages(view) : view;
-const shownView: CompanionView = Without.includes("usage") ? { ...withImagesView, usage: undefined } : withImagesView;
+const withFilesView = FileCount > 0 ? { ...withImagesView, files: moreFiles(FileCount) } : withImagesView;
+// ?answer=long (#2477): an answer five times as long, which the block's cap folds behind a plain "Show all".
+const withAnswerView: CompanionView =
+    query.get("answer") === "long"
+        ? {
+              ...withFilesView,
+              latest: {
+                  ...withFilesView.latest,
+                  markdown: Array.from({ length: 5 }, () => withFilesView.latest.markdown).join("\n\n---\n\n"),
+              },
+          }
+        : withFilesView;
+const shownView: CompanionView = Without.includes("usage") ? { ...withAnswerView, usage: undefined } : withAnswerView;
 
 export function CompanionDashboardPreview() {
     const [layout, setLayout] = useState<CompanionLayout>(startLayout);

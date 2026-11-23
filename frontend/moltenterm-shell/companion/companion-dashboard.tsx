@@ -24,6 +24,7 @@ import { ArrangeContext } from "./companion-arrange-context";
 import { flowEntries, resetLayout, SectionNameKeys } from "./companion-arrange-model";
 import { useArrangeSession } from "./companion-arrange-session";
 import { BlockTool, CompanionBlock, CopyTool, CountChip, FootLink } from "./companion-block";
+import { BlockCapContext, makeBlockCapValue } from "./companion-block-cap";
 import { Pickup, SectionIdSet, useBlockDrag, ZoneState } from "./companion-block-drag";
 import "./companion-dashboard.css";
 import { startLongPress, startsPress } from "./companion-drag-model";
@@ -64,8 +65,6 @@ import { UsageRowsProps, usageRowsProps, withRowChoice } from "./companion-usage
 import { CompanionWork, CompanionWorkProps } from "./companion-work";
 
 const RpcTimeoutMs = 5000;
-// Past this many characters an answer shows its first lines over a fade, and "Read all" grows the block.
-const LongAnswer = 600;
 
 function companionCall<T>(command: string, data: any): Promise<T> {
     return TabRpcClient.wshRpcCall(command, data, { route: CompanionRoute, timeout: RpcTimeoutMs });
@@ -191,70 +190,79 @@ export function CompanionDashboard(props: CompanionDashboardProps) {
         setPickup(picked);
         props.onArrange();
     };
+    // A block taller than its cap is unfolded or folded with the layout (#2477): saved at once, drafted while arranging.
+    const { onSaveLayout } = props;
+    const setDraft = session.setDraft;
+    const capValue = useMemo(
+        () => makeBlockCapValue(layout, arranging ? setDraft : onSaveLayout),
+        [layout, arranging, setDraft, onSaveLayout]
+    );
     return (
         <ArrangeContext.Provider value={chrome.value}>
-            <div
-                className="mt-cdash"
-                data-testid="companion"
-                data-columns={cols.columns}
-                data-arranging={arranging ? "" : undefined}
-                onClick={(e) => {
-                    // A click on the dashboard's own ground, between the blocks, leaves the mode (#2459).
-                    const ground =
-                        e.target === e.currentTarget || (e.target as Element).classList.contains("mt-cdash-flow");
-                    if (arranging && ground) {
-                        session.leave();
-                    }
-                }}
-                onKeyDown={
-                    arranging
-                        ? (e) => {
-                              if (e.key === "Escape") {
-                                  e.stopPropagation();
-                                  session.leave();
+            <BlockCapContext.Provider value={capValue}>
+                <div
+                    className="mt-cdash"
+                    data-testid="companion"
+                    data-columns={cols.columns}
+                    data-arranging={arranging ? "" : undefined}
+                    onClick={(e) => {
+                        // A click on the dashboard's own ground, between the blocks, leaves the mode (#2459).
+                        const ground =
+                            e.target === e.currentTarget || (e.target as Element).classList.contains("mt-cdash-flow");
+                        if (arranging && ground) {
+                            session.leave();
+                        }
+                    }}
+                    onKeyDown={
+                        arranging
+                            ? (e) => {
+                                  if (e.key === "Escape") {
+                                      e.stopPropagation();
+                                      session.leave();
+                                  }
                               }
-                          }
-                        : undefined
-                }
-            >
-                {arranging ? (
-                    <ArrangeBar
+                            : undefined
+                    }
+                >
+                    {arranging ? (
+                        <ArrangeBar
+                            layout={layout}
+                            titleRef={titleRef}
+                            onReset={() => {
+                                session.setDraft(resetLayout());
+                                session.announce(t("companion.arrange.resetDone"));
+                            }}
+                            onDone={session.leave}
+                        />
+                    ) : null}
+                    {attached ? (
+                        <UsageSource
+                            view={props.view}
+                            target={props.target}
+                            provider={props.provider}
+                            agentState={props.agentState}
+                            fixture={props.fixtures?.usage}
+                            form="attached"
+                            render={hero}
+                            rows={rows}
+                        />
+                    ) : (
+                        hero()
+                    )}
+                    <DashboardFlow
+                        {...props}
                         layout={layout}
-                        titleRef={titleRef}
-                        onReset={() => {
-                            session.setDraft(resetLayout());
-                            session.announce(t("companion.arrange.resetDone"));
-                        }}
-                        onDone={session.leave}
-                    />
-                ) : null}
-                {attached ? (
-                    <UsageSource
-                        view={props.view}
-                        target={props.target}
-                        provider={props.provider}
-                        agentState={props.agentState}
-                        fixture={props.fixtures?.usage}
-                        form="attached"
-                        render={hero}
                         rows={rows}
+                        cols={cols}
+                        onColumns={onColumns}
+                        flowRef={flowRef}
+                        dragging={drag.dragging}
+                        onArrangePointerDown={drag.onPointerDown}
+                        onPickUp={pickUp}
                     />
-                ) : (
-                    hero()
-                )}
-                <DashboardFlow
-                    {...props}
-                    layout={layout}
-                    rows={rows}
-                    cols={cols}
-                    onColumns={onColumns}
-                    flowRef={flowRef}
-                    dragging={drag.dragging}
-                    onArrangePointerDown={drag.onPointerDown}
-                    onPickUp={pickUp}
-                />
-                {arranging ? <ArrangeNote note={session.note} /> : null}
-            </div>
+                    {arranging ? <ArrangeNote note={session.note} /> : null}
+                </div>
+            </BlockCapContext.Provider>
         </ArrangeContext.Provider>
     );
 }
@@ -608,6 +616,7 @@ function DashboardFlow(
                 label={t("companion.topics.title")}
                 icon={SectionTiles.topics}
                 chips={(view.topics?.length ?? 0) > 0 ? <CountChip>{view.topics.length}</CountChip> : null}
+                rows=".mt-cdash-topic"
                 data-testid="companion-topics-block"
             >
                 <RecentTopicsSection view={view} now={now} />
@@ -655,6 +664,7 @@ function DashboardFlow(
                         icon={SectionTiles.files}
                         chips={count > 0 ? <CountChip>{count}</CountChip> : null}
                         tools={tools}
+                        rows=".mt-cdash-file"
                     >
                         {body}
                     </CompanionBlock>
@@ -817,7 +827,6 @@ function AnswerBlock({ target, view }: { target: string; view: CompanionView }) 
     const [pinned, setPinned] = useState<number>(null);
     const [earlier, setEarlier] = useState<CompanionAnswer>(null);
     const [error, setError] = useState<string>(null);
-    const [full, setFull] = useState(false);
     const answers = view.answers ?? [];
     const latest = view.latest;
     useEffect(() => {
@@ -857,7 +866,6 @@ function AnswerBlock({ target, view }: { target: string; view: CompanionView }) 
         setPinned(next === latest?.index ? null : next);
     };
     const markdown = useMemo(() => companionMarkdown(shown?.markdown), [shown?.markdown]);
-    const long = (shown?.markdown?.length ?? 0) > LongAnswer;
     const tools =
         latest == null ? null : (
             <>
@@ -900,7 +908,6 @@ function AnswerBlock({ target, view }: { target: string; view: CompanionView }) 
                     {error ? <div className="text-12 text-danger">{error}</div> : null}
                     <div
                         className="mt-cdash-answer"
-                        data-folded={long && !full ? "" : undefined}
                         data-image-at={shown?.at || undefined}
                         data-testid="companion-answer"
                     >
@@ -913,20 +920,6 @@ function AnswerBlock({ target, view }: { target: string; view: CompanionView }) 
                             </div>
                         )}
                     </div>
-                    {long ? (
-                        <button
-                            type="button"
-                            className="mt-cdash-readmore"
-                            aria-expanded={full}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setFull(!full);
-                            }}
-                            data-testid="companion-answer-more"
-                        >
-                            {full ? t("companion.dash.readLess") : t("companion.dash.readAll")}
-                        </button>
-                    ) : null}
                 </>
             )}
         </CompanionBlock>
