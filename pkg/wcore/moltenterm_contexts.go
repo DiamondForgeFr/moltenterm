@@ -132,32 +132,86 @@ func ContextOfWorkspace(ctx context.Context, workspaceId string) string {
 
 // sameContextLanding is the workspace a window lands on when the one it shows is deleted, when another workspace of the
 // same context is not shown by a window: the first one after the deleted workspace in the rail, else the first one
-// before it. "" when there is none, and Wave's own choice stands.
+// before it. A deleted workspace the rail does not list (an unsaved one) looks from the top of the rail. "" when there
+// is none.
 func sameContextLanding(state contexts.State, deleted string, list waveobj.WorkspaceList) string {
 	context := state.Of[deleted]
-	at := slices.IndexFunc(list, func(entry *waveobj.WorkspaceListEntry) bool { return entry.WorkspaceId == deleted })
-	if context == "" || at < 0 {
+	if context == "" {
 		return ""
 	}
-	ordered := append(slices.Clone(list[at+1:]), list[:at]...)
+	ordered := list
+	if at := slices.IndexFunc(list, func(entry *waveobj.WorkspaceListEntry) bool { return entry.WorkspaceId == deleted }); at >= 0 {
+		ordered = append(slices.Clone(list[at+1:]), list[:at]...)
+	}
 	for _, entry := range ordered {
-		if entry.WindowId == "" && state.Of[entry.WorkspaceId] == context {
+		if entry.WindowId == "" && entry.WorkspaceId != deleted && state.Of[entry.WorkspaceId] == context {
 			return entry.WorkspaceId
 		}
 	}
 	return ""
 }
 
-// moltenContextLanding reads the contexts for DeleteWorkspace; "" when they cannot be read.
-func moltenContextLanding(ctx context.Context, deleted string, list waveobj.WorkspaceList) string {
+// makeWorkspaceIn makes a workspace in a context, as the rail's "new workspace" does; the new workspace is deleted again
+// when it cannot be put there, so a failure leaves nothing behind.
+func makeWorkspaceIn(ctx context.Context, contextId string) (string, error) {
+	return makeWorkspaceWith(ctx, contextId, func(ctx context.Context) (*waveobj.Workspace, error) {
+		return CreateWorkspaceWithViews(ctx, "", "", "", true)
+	})
+}
+
+func makeWorkspaceWith(ctx context.Context, contextId string, maker func(context.Context) (*waveobj.Workspace, error)) (string, error) {
+	ws, err := maker(ctx)
+	if err != nil {
+		return "", fmt.Errorf("making a workspace in context %q: %w", contextId, err)
+	}
+	_, err = ApplyContexts(ctx, func(s contexts.State) (contexts.State, []string, error) {
+		return s.Assign(contexts.AssignRequest{WorkspaceId: ws.OID, ContextId: contextId})
+	})
+	if err != nil {
+		if _, _, deleteErr := DeleteWorkspace(ctx, ws.OID, false); deleteErr != nil {
+			return "", fmt.Errorf("putting the new workspace in context %q: %w (and it stays: %v)", contextId, err, deleteErr)
+		}
+		return "", fmt.Errorf("putting the new workspace in context %q: %w", contextId, err)
+	}
+	return ws.OID, nil
+}
+
+// LandingInContextOf is the workspace a window lands on when the one it shows is deleted, so it stays in its context: a
+// workspace of that context no window shows, else a new one made in it. "" when the workspace is unknown.
+func LandingInContextOf(ctx context.Context, deleted string) (string, error) {
+	return landingInContextOf(ctx, deleted, makeWorkspaceIn)
+}
+
+func landingInContextOf(ctx context.Context, deleted string, makeIn func(context.Context, string) (string, error)) (string, error) {
 	state, err := ReadContexts(ctx)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return sameContextLanding(state, deleted, list)
+	contextId := state.Of[deleted]
+	if contextId == "" {
+		return "", nil
+	}
+	list, err := ListWorkspaces(ctx)
+	if err != nil {
+		return "", fmt.Errorf("error retrieving workspaceList: %w", err)
+	}
+	if landing := sameContextLanding(state, deleted, list); landing != "" {
+		return landing, nil
+	}
+	return makeIn(ctx, contextId)
+}
+
+// moltenContextLanding reads the context of a workspace about to be deleted and the workspace of that context a window
+// lands on; "" for each when they cannot be read, and Wave's own choice stands.
+func moltenContextLanding(ctx context.Context, deleted string, list waveobj.WorkspaceList) (string, string) {
+	state, err := ReadContexts(ctx)
+	if err != nil {
+		return "", ""
+	}
+	return state.Of[deleted], sameContextLanding(state, deleted, list)
 }
 
 // StartContextsRoute lets the windows and Electron main change the contexts; wavesrv calls it once.
 func StartContextsRoute() {
-	contexts.StartRoute(contexts.Store{Read: ReadContexts, Apply: ApplyContexts})
+	contexts.StartRoute(contexts.Store{Read: ReadContexts, Apply: ApplyContexts, Landing: LandingInContextOf})
 }

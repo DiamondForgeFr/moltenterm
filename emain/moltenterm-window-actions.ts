@@ -12,6 +12,7 @@ import { getOrCreateWebViewForTab } from "./emain-tabview";
 import type { WaveBrowserWindow } from "./emain-window";
 import { getWaveWindowById } from "./emain-window";
 import { ActionRun, isSuperseded } from "./moltenterm-action-queue";
+import { landingInContextOf } from "./moltenterm-contexts";
 import { noteTabViewWorkspace } from "./moltenterm-tabview-budget";
 import {
     acquireWindowTabView,
@@ -405,13 +406,16 @@ async function runDeleteWorkspace(win: WaveBrowserWindow, workspaceId: string, r
     }
 }
 
+function backendLandingOf(win: WaveBrowserWindow, list: WorkspaceListEntry[], goneId: string): string {
+    return (list ?? []).find((e) => e != null && e.workspaceid != goneId && e.windowid == win.waveWindowId)?.workspaceid ?? null;
+}
+
 // The workspace a window lands on when the one it shows goes: the one its backend window is on, else the one the
 // backend's DeleteWorkspace picks (the last unclaimed one before it in the list, else the first after it).
 function landingWorkspace(win: WaveBrowserWindow, list: WorkspaceListEntry[], goneId: string): string {
-    const entries = (list ?? []).filter((e) => e != null && e.workspaceid != goneId);
-    const backendOn = entries.find((e) => e.windowid == win.waveWindowId);
+    const backendOn = backendLandingOf(win, list, goneId);
     if (backendOn != null) {
-        return backendOn.workspaceid;
+        return backendOn;
     }
     let before: string = null;
     let passed = false;
@@ -442,9 +446,15 @@ async function listWorkspaces(): Promise<WorkspaceListEntry[]> {
 }
 
 // A switch away that fails or is superseded does not stop the delete: the user asked for it, and the window then
-// lands as before (#449).
+// lands as before (#449). The window stays in the context of the workspace it leaves (#2476): the one its backend window
+// is on still comes first, then a workspace of that context (wavesrv makes one when none is free), then the order of
+// the rail.
 async function leaveBeforeDelete(win: WaveBrowserWindow, workspaceId: string, run: ActionRun) {
-    const target = landingWorkspace(win, await listWorkspaces(), workspaceId);
+    const list = await listWorkspaces();
+    const target =
+        backendLandingOf(win, list, workspaceId) ??
+        (await landingInContextOf(workspaceId)) ??
+        landingWorkspace(win, list, workspaceId);
     if (target == null) {
         return;
     }

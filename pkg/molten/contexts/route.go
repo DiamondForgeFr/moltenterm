@@ -29,6 +29,9 @@ type Change func(State) (State, []string, error)
 type Store struct {
 	Read  func(ctx context.Context) (State, error)
 	Apply func(ctx context.Context, change Change) (State, error)
+	// Landing is the workspace a window lands on when the one it shows is deleted: a free one of the same context, else
+	// a new one made in it.
+	Landing func(ctx context.Context, deletedWorkspaceId string) (string, error)
 }
 
 // Result answers every write: the contexts as written and, for a create, the new context's id.
@@ -98,6 +101,23 @@ func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Cal
 			next, err := s.Touch(req)
 			return next, nil, err
 		})
+	case LandingCommand:
+		req, err := decode[LandingRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		if l.store.Landing == nil {
+			return nil, fmt.Errorf("no landing for a deleted workspace")
+		}
+		id, err := l.store.Landing(ctx, req.WorkspaceId)
+		if err != nil {
+			return nil, err
+		}
+		state, err := l.store.Read(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return Result{Contexts: state.Contexts, Id: id}, nil
 	case ListCommand:
 		state, err := l.store.Read(ctx)
 		if err != nil {

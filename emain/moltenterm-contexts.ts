@@ -9,6 +9,7 @@ import { ClientService, WorkspaceService } from "@/app/store/services";
 import {
     ContextAssignCommand,
     contextIdOf,
+    ContextLandingCommand,
     ContextsRoute,
     readContexts,
 } from "../frontend/moltenterm-shell/contexts/context-model";
@@ -20,6 +21,7 @@ export type ContextsBackend = {
     clientMeta: () => Promise<Record<string, any>>;
     workspaceMeta: (workspaceId: string) => Promise<Record<string, any>>;
     assign: (workspaceId: string, contextId: string) => Promise<void>;
+    landing: (deletedWorkspaceId: string) => Promise<string>;
 };
 
 const RealBackend: ContextsBackend = {
@@ -32,7 +34,33 @@ const RealBackend: ContextsBackend = {
             { route: ContextsRoute, timeout: ContextsCallTimeoutMs }
         );
     },
+    landing: async (deletedWorkspaceId) => {
+        const result = await ElectronWshClient.wshRpcCall(
+            ContextLandingCommand,
+            { workspaceid: deletedWorkspaceId },
+            { route: ContextsRoute, timeout: ContextsCallTimeoutMs }
+        );
+        return result?.id ?? "";
+    },
 };
+
+// The workspace a window lands on when the one it shows is deleted, so it stays in its context: a workspace of that
+// context no window shows, else a new one wavesrv makes in it. null when wavesrv cannot say; the caller then lands the
+// window as it did before contexts.
+export async function landingInContextOf(
+    deletedWorkspaceId: string,
+    backend: ContextsBackend = RealBackend
+): Promise<string> {
+    if (!deletedWorkspaceId) {
+        return null;
+    }
+    try {
+        return (await backend.landing(deletedWorkspaceId)) || null;
+    } catch (e) {
+        console.log("landingInContextOf: the window lands by the rail's order", deletedWorkspaceId, e);
+        return null;
+    }
+}
 
 // Puts a workspace just made in the context of another one (the window's, or the one it replaces). The first context
 // holds every workspace that names none, so nothing is written for it. A failure is logged and never stops the new

@@ -6,10 +6,11 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/app/store/services", () => ({ ClientService: {}, WorkspaceService: {} }));
 vi.mock("./emain-wsh", () => ({ ElectronWshClient: {} }));
 
-import { ContextsBackend, placeInContextOf } from "./moltenterm-contexts";
+import { ContextsBackend, landingInContextOf, placeInContextOf } from "./moltenterm-contexts";
 
 function makeBackend(workspaces: Record<string, string>, stored: boolean = true) {
     const assigned: [string, string][] = [];
+    const landed: string[] = [];
     const backend: ContextsBackend = {
         clientMeta: async () =>
             stored ? { "molten:contexts": [{ id: "first" }, { id: "second" }, { id: "third" }] } : {},
@@ -17,9 +18,41 @@ function makeBackend(workspaces: Record<string, string>, stored: boolean = true)
         assign: async (workspaceId, contextId) => {
             assigned.push([workspaceId, contextId]);
         },
+        landing: async (deletedWorkspaceId) => {
+            landed.push(deletedWorkspaceId);
+            return `landing-of-${deletedWorkspaceId}`;
+        },
     };
-    return { backend, assigned };
+    return { backend, assigned, landed };
 }
+
+describe("landingInContextOf", () => {
+    it("asks wavesrv for the workspace the window lands on, in the context of the one it leaves", async () => {
+        const { backend, landed } = makeBackend({});
+        await expect(landingInContextOf("gone", backend)).resolves.toBe("landing-of-gone");
+        expect(landed).toEqual(["gone"]);
+    });
+
+    it("answers nothing without a workspace, or when wavesrv names none", async () => {
+        const { backend, landed } = makeBackend({});
+        await expect(landingInContextOf("", backend)).resolves.toBeNull();
+        await expect(landingInContextOf(undefined, backend)).resolves.toBeNull();
+        expect(landed).toEqual([]);
+        backend.landing = async () => "";
+        await expect(landingInContextOf("gone", backend)).resolves.toBeNull();
+    });
+
+    it("lets the caller land the window by the rail's order when wavesrv cannot be asked", async () => {
+        const { backend } = makeBackend({});
+        backend.landing = async () => {
+            throw new Error("wavesrv is gone");
+        };
+        const log = vi.spyOn(console, "log").mockImplementation(() => {});
+        await expect(landingInContextOf("gone", backend)).resolves.toBeNull();
+        expect(log).toHaveBeenCalled();
+        log.mockRestore();
+    });
+});
 
 describe("placeInContextOf", () => {
     it("puts a new workspace in the context of the workspace it comes from", async () => {
