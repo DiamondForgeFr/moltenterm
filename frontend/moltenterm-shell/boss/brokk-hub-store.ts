@@ -15,6 +15,7 @@ import { atom, Atom, PrimitiveAtom } from "jotai";
 import { makeSeenViewAtom } from "../agent-seen";
 import { AgentStates } from "../agent-state-store";
 import { ContextScope } from "../contexts/context-scope";
+import { hiddenEventKeys } from "../contexts/context-scope-model";
 import { brainstormHolds } from "../brainstorm/brainstorm-hold";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { dropLegacy, readLegacy } from "../legacy-storage";
@@ -240,11 +241,27 @@ export class BrokkHubModel {
         const marks = BrokkMarks.getInstance();
         const stopMarks = marks.start();
         adoptLegacyUsageSeen(marks);
+        // The hub is fed every context's agents and rows, and the keys of the events of other contexts only keep those out of
+        // what it shows: an event that leaves the window's scope has not ended, and what was told of it is shared by every
+        // view (FR-BOSS-009, #2476).
+        const scope = ContextScope.getInstance();
+        let hidden: string[] = [];
+        const hiddenKeysAtom = atom((get) => {
+            const next = hiddenEventKeys(
+                get(boss.allToHandleAtom),
+                get(agents.dataAtom),
+                get(scope.factsAtom),
+                get(scope.windowContextAtom)
+            );
+            hidden = next.length === hidden.length && next.every((key, i) => key === hidden[i]) ? hidden : next;
+            return hidden;
+        });
         const stopFeeds = feedBrokkHub(this.hub, {
             store: globalStore,
-            agentsAtom: ContextScope.getInstance().scopedAgentsAtom,
+            agentsAtom: agents.dataAtom,
             agentsLoadedAtom: loadedAtom,
-            toHandleAtom: boss.toHandleAtom,
+            toHandleAtom: boss.allToHandleAtom,
+            hiddenKeysAtom,
             settingsAtom: this.settingsAtom,
             onAtom: boss.showAtom,
             sidebarOnScreenAtom: this.sidebarOnScreenAtom,

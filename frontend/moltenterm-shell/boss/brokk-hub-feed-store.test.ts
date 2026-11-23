@@ -11,7 +11,7 @@ import { BrokkHub } from "./brokk-hub";
 import { avatarBadgeOf } from "./brokk-hub-feed";
 import { feedBrokkHub, loadUsageVisit } from "./brokk-hub-feed-store";
 import { DefaultVisitSettings, VisitSettings } from "./brokk-visit-events";
-import { EmptyShared } from "./brokk-visit-share";
+import { EmptyShared, type SharedVisit } from "./brokk-visit-share";
 
 // The rules that tell which plan usage calls him load on demand (#2341): load them first.
 beforeAll(async () => {
@@ -61,9 +61,12 @@ function window_(
         drag: atom(false) as PrimitiveAtom<boolean>,
         card: atom(over.card ?? false) as PrimitiveAtom<boolean>,
         openDone: atom(null) as PrimitiveAtom<ReadonlySet<string>>,
+        hidden: atom([]) as PrimitiveAtom<string[]>,
     };
     const clock = { now: T };
     const state = { panels: 0 };
+    // What the hub shared with the other views, each time it wrote it (the last is what they hold).
+    const written: SharedVisit[] = [];
     const hub = new BrokkHub({
         now: () => clock.now,
         setTimer: () => 0,
@@ -74,7 +77,7 @@ function window_(
             store.set(sources.card, true);
         },
         readShared: () => EmptyShared,
-        writeShared: () => {},
+        writeShared: (shared) => written.push(shared),
     });
     const stop = feedBrokkHub(hub, {
         store,
@@ -88,9 +91,15 @@ function window_(
         dragAtom: sources.drag,
         cardOpenAtom: sources.card,
         openDoneAtom: sources.openDone,
+        hiddenKeysAtom: sources.hidden,
     });
     const list = (...items: ToHandleItem[]) => store.set(sources.rows, { items, info: [], parked: 0 });
-    return { store, sources, clock, state, hub, stop, list };
+    return { store, sources, clock, state, hub, stop, list, written };
+}
+
+// The marks of what was told, as the last record the hub shared holds them.
+function toldMarks(w: { written: SharedVisit[] }): { rank: number }[] {
+    return Object.values(w.written[w.written.length - 1]?.told ?? {});
 }
 
 describe("what feeds Brokk's hub (FR-BOSS-009, AC11)", () => {
@@ -163,6 +172,48 @@ describe("what feeds Brokk's hub (FR-BOSS-009, AC11)", () => {
         w.store.set(w.sources.card, true);
         expect(w.hub.getView().visit).toBeNull();
         expect(w.state.panels).toBe(0);
+    });
+
+    // FR-BOSS-009, #2476: a window shows the events of its own context. The hub is fed every event, so an event that is
+    // merely out of the window's scope has not ended: what was told of it is not forgotten for every view.
+    describe("the events of another context (#2476)", () => {
+        it("leaves them out of what he shows and counts, and brings them back when the window changes context", () => {
+            const w = window_();
+            w.list(item("agent:a", "waiting", T - 6 * Min), item("agent:b", "waiting", T - 7 * Min));
+            expect(w.hub.getView().visit?.keys).toEqual(["agent:b", "agent:a"]);
+            w.store.set(w.sources.hidden, ["agent:b"]);
+            expect(w.hub.getView().visit?.keys).toEqual(["agent:a"]);
+            expect(w.hub.getView().badgeKeys).toEqual(["agent:a"]);
+            w.store.set(w.sources.hidden, []);
+            expect(w.hub.getView().visit?.keys).toEqual(["agent:b", "agent:a"]);
+        });
+
+        it("does not tell again what was told, when the window looks away and comes back", () => {
+            const w = window_();
+            w.list(item("agent:a", "waiting", T - 6 * Min));
+            w.store.set(w.sources.card, true);
+            w.store.set(w.sources.card, false);
+            expect(w.hub.getView().visit).toBeNull();
+            w.store.set(w.sources.hidden, ["agent:a"]);
+            expect(w.hub.getView().badge).toBe(0);
+            w.clock.now += 5 * Min;
+            w.store.set(w.sources.hidden, []);
+            expect(w.hub.getView().visit).toBeNull();
+            expect(w.hub.getView().badgeKeys).toEqual(["agent:a"]);
+        });
+
+        it("never writes, for every view, that an event of another context ended: it did not", () => {
+            const w = window_();
+            w.list(item("agent:a", "waiting", T - 6 * Min));
+            w.store.set(w.sources.card, true);
+            w.store.set(w.sources.card, false);
+            expect(toldMarks(w).map((mark) => mark.rank)).toEqual([2]);
+            w.store.set(w.sources.hidden, ["agent:a"]);
+            w.store.set(w.sources.hidden, []);
+            expect(toldMarks(w).map((mark) => mark.rank)).toEqual([2]);
+            w.list();
+            expect(toldMarks(w).map((mark) => mark.rank)).toEqual([-1]);
+        });
     });
 
     describe("the developer's own archive raises nothing (#2210)", () => {

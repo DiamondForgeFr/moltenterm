@@ -102,6 +102,10 @@ export type VisitState = {
     heldUntil?: Record<string, number>;
     // The events whose source was in view at the last step, to know when it leaves.
     inView?: string[];
+    // The events of another context than the window's (FR-BOSS-009, #2476): the model holds them, so that one that ends
+    // is seen to end and what was told of it is kept while the window looks away, but nothing is shown, counted, held
+    // or waited for them in this window.
+    hidden?: Record<string, true>;
 };
 
 export const EmptyVisits: VisitState = { events: {}, told: {}, laterUntil: 0, shown: false, heldUntil: {}, inView: [] };
@@ -129,10 +133,14 @@ export function isHeld(visits: VisitState, key: string, now: number): boolean {
     return (visits.heldUntil?.[key] ?? 0) > now;
 }
 
+export function isHidden(visits: VisitState, key: string): boolean {
+    return visits.hidden?.[key] === true;
+}
+
 // The keys held back now, sorted.
 export function heldKeys(visits: VisitState, now: number): string[] {
     return Object.keys(visits.heldUntil ?? {})
-        .filter((key) => visits.events[key] != null && isHeld(visits, key, now))
+        .filter((key) => visits.events[key] != null && !isHidden(visits, key) && isHeld(visits, key, now))
         .sort();
 }
 
@@ -151,7 +159,7 @@ function withHolds(visits: VisitState, view: AgentSeenView, now: number): VisitS
     const before = visits.heldUntil ?? {};
     const wasInView = visits.inView ?? [];
     const inView = Object.keys(visits.events)
-        .filter((key) => eventSourceInView(key, view))
+        .filter((key) => !isHidden(visits, key) && eventSourceInView(key, view))
         .sort();
     const held: Record<string, number> = {};
     for (const [key, until] of Object.entries(before)) {
@@ -218,6 +226,7 @@ export function tellable(visits: VisitState, settings: VisitSettings, now: numbe
     return Object.values(visits.events)
         .filter(
             ({ event }) =>
+                !isHidden(visits, event.key) &&
                 comingOf(event.kind, settings) === "vient" &&
                 isRaised(event, settings, now) &&
                 (withHeld || !isHeld(visits, event.key, now)) &&
@@ -243,7 +252,7 @@ export function visitOf(events: StoredEvent[], settings: VisitSettings, now: num
 // the collapsed sidebar tells a new notification from one it already told (brokk-edge-model.ts).
 export function badgeKeys(visits: VisitState, settings: VisitSettings): string[] {
     return Object.values(visits.events)
-        .filter(({ event }) => countsOnBadge(event.kind, settings))
+        .filter(({ event }) => !isHidden(visits, event.key) && countsOnBadge(event.kind, settings))
         .map(({ event }) => event.key)
         .sort();
 }
@@ -255,7 +264,10 @@ export function comingKeys(visits: VisitState, settings: VisitSettings, now: num
         return [];
     }
     return Object.values(visits.events)
-        .filter(({ event }) => comingOf(event.kind, settings) === "vient" && !isHeld(visits, event.key, now))
+        .filter(
+            ({ event }) =>
+                !isHidden(visits, event.key) && comingOf(event.kind, settings) === "vient" && !isHeld(visits, event.key, now)
+        )
         .map(({ event }) => event.key)
         .sort();
 }
@@ -281,6 +293,8 @@ export type BrokkInput =
     | { type: "gate"; event: GateEvent }
     // What this tab view shows changed (source-in-view.ts).
     | { type: "view"; view: AgentSeenView }
+    // The events of another context than the window's: the whole set, whatever changed (FR-BOSS-009, #2476).
+    | { type: "scope"; hidden: string[] }
     | { type: "tick" };
 
 // The state after an event is raised: the very same object when it is known as it is, so that no one draws again for
@@ -344,6 +358,12 @@ function visitsAfter(visits: VisitState, input: BrokkInput, settings: VisitSetti
                 told[event.key] = SeverityRank[severityOf(event, settings, now)];
             }
             return { ...visits, told, shown: false };
+        }
+        case "scope": {
+            const same =
+                input.hidden.length === Object.keys(visits.hidden ?? {}).length &&
+                input.hidden.every((key) => isHidden(visits, key));
+            return same ? visits : { ...visits, hidden: Object.fromEntries(input.hidden.map((key) => [key, true as const])) };
         }
         case "heard": {
             let told = visits.told;
@@ -454,7 +474,7 @@ function wakeOf(model: BrokkModel, now: number): number {
     }
     const inView = new Set(visits.inView ?? []);
     for (const { event } of Object.values(visits.events)) {
-        if (comingOf(event.kind, settings) !== "vient") {
+        if (isHidden(visits, event.key) || comingOf(event.kind, settings) !== "vient") {
             continue;
         }
         moments.push(...eventMoments(event, settings));

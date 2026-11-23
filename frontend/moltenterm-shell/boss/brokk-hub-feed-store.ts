@@ -89,6 +89,11 @@ export type HubSources = {
     // The agents whose Done card the Notifications panel still lists (#2210): a finish whose card the developer archived
     // leaves the badge. A window without one leaves it out.
     openDoneAtom?: Atom<ReadonlySet<string>>;
+    // The keys of the events of another context than the window's (FR-BOSS-009, #2476), sorted. The agents and the rows
+    // are fed whole, whichever context they are of, so that an event that merely leaves the window's scope is not taken
+    // for one that ended (which forgets what was told of it, for every view); these keys only keep such an event out of
+    // what the hub shows and counts. A window without one shows every event.
+    hiddenKeysAtom?: Atom<string[]>;
 };
 
 // Reads `atom` now and at every change, and calls `tell` with the new value each time it differs from the last. The
@@ -198,6 +203,10 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         if (!store.get(src.agentsLoadedAtom)) {
             return;
         }
+        // The scope first: an event of another context read before it would bring him for a moment.
+        if (src.hiddenKeysAtom != null) {
+            hub.scope(store.get(src.hiddenKeysAtom));
+        }
         hub.agents(store.get(src.agentsAtom), src.openDoneAtom != null ? store.get(src.openDoneAtom) : undefined);
         hub.syncRows(store.get(src.toHandleAtom).items);
         hub.markReady();
@@ -238,6 +247,7 @@ export function feedBrokkHub(hub: BrokkHub, src: HubSources): () => void {
         store.sub(src.agentsLoadedAtom, readings),
         store.sub(src.toHandleAtom, readings),
         src.openDoneAtom != null ? store.sub(src.openDoneAtom, readings) : () => {},
+        src.hiddenKeysAtom != null ? store.sub(src.hiddenKeysAtom, readings) : () => {},
         src.heardAtAtom != null ? follow(store, src.heardAtAtom, (at) => hub.heardUntil(at)) : () => {},
         src.sharedAtom != null ? store.sub(src.sharedAtom, extra.feedAll) : () => {},
     ];

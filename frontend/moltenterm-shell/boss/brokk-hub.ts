@@ -247,6 +247,13 @@ export class BrokkHub {
         this.run({ type: "gate", event });
     }
 
+    // The events of another context than the window's (FR-BOSS-009, #2476): the whole set, whatever changed. The hub is
+    // fed every event, whichever context it is of, so that one that ends is seen to end, and what was told of one is not
+    // forgotten for every view because this window looked away; these are only left out of what it shows and counts.
+    scope(hidden: string[]): void {
+        this.run({ type: "scope", hidden });
+    }
+
     // What this tab view shows (source-in-view.ts, #2166): an event whose source is in it is held back.
     inView(view: AgentSeenView): void {
         if (sameSeenView(this.model.view, view)) {
