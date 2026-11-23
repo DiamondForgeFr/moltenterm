@@ -63,7 +63,7 @@ function permit(over: Partial<HeroPermit> = {}): HeroPermit {
 // A period that has 52 minutes left.
 const hour = () => autonomy({ mode: "for", since: now - 8 * Minute, until: now + 52 * Minute });
 
-function menu(over: Partial<HeroPermit> = {}, extra: Partial<React.ComponentProps<typeof PermissionsMenu>> = {}) {
+function menu(over: Partial<HeroPermit> = {}, extra: { busy?: boolean; error?: string } = {}) {
     return { permit: permit(over), t, titleId: "title", onPick: vi.fn(), onDone: vi.fn(), ...extra };
 }
 
