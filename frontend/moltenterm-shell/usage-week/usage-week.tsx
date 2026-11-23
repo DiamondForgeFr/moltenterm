@@ -13,7 +13,8 @@
 // each day asks for the figures under the blocks (#2164): one small muted number a block, in a line of its own. A row
 // whose reading is stale (#2341) is faded, takes no pace colour and tells its age on a line under it. A surface that
 // labels its rows by window gets a label column as wide as its widest label (#2458), and gives a row a small reset icon
-// before its percent for the reset time.
+// before its percent for the reset time. A surface that has a session window draws it as a ring round today's letter
+// rather than as a row (#2473).
 
 import ClaudeColorSvg from "@/app/asset/claude-color.svg";
 import { cn, makeIconClass } from "@/util/util";
@@ -82,6 +83,11 @@ export type UsageWeekRow = {
     // A plain gauge's reset, short ("in 1 h 20 min"), at the end of its bar (#2451).
     resets?: string;
 };
+
+// A session window drawn as a ring round today's day letter (#2473) instead of a row of its own: how far it fills (0 to
+// 100) and in which colour, its popover (two lines, with the figure the first one puts in the ring's colour) and its
+// accessible name. The surface words them: the grid only draws.
+export type UsageWeekSession = { percent: number; colour: string; tip: string; figure: string; name: string };
 
 // How long the pointer rests on a logo before its name shows.
 const NameDelayMs = 300;
@@ -275,6 +281,40 @@ function DayFigures({ line }: { line: UsageWeekLine }) {
     );
 }
 
+// The session ring (#2473): a thin circle round today's letter, its track the neutral line, its fill running clockwise
+// from 12 o'clock (usage-week.css) by the share used, in the pace colour of the rows. It stands on the letter without
+// taking any room of its own. Focusable, so its popover is not for the pointer alone, and named by the same words.
+function SessionRing({ session, popovers }: { session: UsageWeekSession; popovers?: boolean }) {
+    const fill = Math.min(100, Math.max(0, session.percent));
+    return (
+        <span
+            className="mt-uw-ring"
+            role="img"
+            tabIndex={0}
+            aria-label={session.name}
+            title={popovers ? undefined : session.tip}
+            data-tip={popovers ? session.tip : undefined}
+            data-tip-accent={popovers ? session.figure : undefined}
+            data-tip-accent-colour={popovers ? session.colour : undefined}
+            style={{ "--mt-uw-ring-colour": session.colour } as CSSProperties}
+            data-percent={Math.round(fill * 10) / 10}
+            data-testid="usage-week-session"
+        >
+            <svg viewBox="0 0 17 17" aria-hidden="true" focusable="false">
+                <circle className="mt-uw-ring-track" cx="8.5" cy="8.5" r="7.5" />
+                <circle
+                    className="mt-uw-ring-fill"
+                    cx="8.5"
+                    cy="8.5"
+                    r="7.5"
+                    pathLength="100"
+                    style={{ strokeDasharray: `${Math.round(fill * 10) / 10} 100` }}
+                />
+            </svg>
+        </span>
+    );
+}
+
 // The reset time as a small icon (#2458), in place of a line of words under the row: the companion's popover says it
 // on hover and on keyboard focus, and the icon is named by the same words. Focusable, so the popover is not for the
 // pointer alone.
@@ -323,12 +363,15 @@ export function UsageWeekGrid({
     dayFigures,
     minimal,
     popovers,
+    session,
 }: {
     rows: UsageWeekRow[];
     now: number;
     legend?: boolean;
     dayFigures?: boolean;
     minimal?: boolean;
+    // The session window as a ring round today's letter (#2473); none without a session window to show.
+    session?: UsageWeekSession;
     // The titles of the rows and of the legend are said by a panel's popovers (data-tip, the companion's) instead of the
     // system tooltip.
     popovers?: boolean;
@@ -346,17 +389,28 @@ export function UsageWeekGrid({
             data-testid="usage-week"
         >
             <span aria-hidden />
-            {WeekDayKeys.map((key, i) => (
-                <span
-                    key={key}
-                    className="mt-uw-day"
-                    aria-hidden
-                    data-testid="usage-week-day"
-                    data-today={i === today ? "true" : undefined}
-                >
-                    {t(`usageWeek.day.${key}`)}
-                </span>
-            ))}
+            {WeekDayKeys.map((key, i) => {
+                const ringed = session != null && i === today;
+                return (
+                    <span
+                        key={key}
+                        className="mt-uw-day"
+                        aria-hidden={ringed ? undefined : true}
+                        data-testid="usage-week-day"
+                        data-today={i === today ? "true" : undefined}
+                        data-ringed={ringed ? "true" : undefined}
+                    >
+                        {ringed ? (
+                            <>
+                                <span aria-hidden>{t(`usageWeek.day.${key}`)}</span>
+                                <SessionRing session={session} popovers={popovers} />
+                            </>
+                        ) : (
+                            t(`usageWeek.day.${key}`)
+                        )}
+                    </span>
+                );
+            })}
             <span aria-hidden />
             {rows.map((row) => {
                 const { line, name } = row;

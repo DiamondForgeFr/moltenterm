@@ -10,10 +10,19 @@ import { cn } from "@/util/util";
 import { useId, useRef, useState } from "react";
 import { useT, useTCount } from "../i18n/i18n";
 import { MenuPopover } from "../mission/menu-popover";
+import { SessionWindowId } from "../usage-week/usage-week-model";
 import { BlockTool } from "./companion-block";
 import type { UsageWindowChoice } from "./companion-gauges-model";
 import { TipScopeAttr } from "./companion-tips-model";
 import { hiddenCount, onlyShown } from "./companion-usage-rows-model";
+
+// What a switch announces: the session draws a ring, not a row, so it says "ring".
+export function saidKey(id: string, hide: boolean): string {
+    if (id === SessionWindowId) {
+        return hide ? "companion.gauges.rows.ringHidden" : "companion.gauges.rows.ringShown";
+    }
+    return hide ? "companion.gauges.rows.nowHidden" : "companion.gauges.rows.nowShown";
+}
 
 export function UsageRowsChoice({
     choices,
@@ -56,11 +65,7 @@ export function UsageRowsChoice({
                         last={choice.shown && onlyShown(choices, choice.id)}
                         onSet={(hide) => {
                             onSet(choice.id, hide);
-                            setSaid(
-                                t(hide ? "companion.gauges.rows.nowHidden" : "companion.gauges.rows.nowShown", {
-                                    label: choice.label,
-                                })
-                            );
+                            setSaid(t(saidKey(choice.id, hide), { label: choice.label }));
                         }}
                     />
                 ))

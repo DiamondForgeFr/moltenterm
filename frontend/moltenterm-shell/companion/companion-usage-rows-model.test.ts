@@ -6,7 +6,7 @@
 // with the month hidden.
 
 import { describe, expect, it, vi } from "vitest";
-import { CompanionUsageInfo, GaugesView, gaugesView } from "./companion-gauges-model";
+import { CompanionUsageInfo, GaugesView, gaugesView, withSessionRing } from "./companion-gauges-model";
 import {
     CompanionLayout,
     DefaultCompanionLayout,
@@ -109,9 +109,10 @@ describe("which rows show, per provider and per window key (#2462)", () => {
     it("shows every row when nothing is hidden, and names the windows as the block shows them", () => {
         const view = enabled(withRowChoice(gaugesView(kimi, now), []));
         expect(view.rows.map((row) => row.id)).toEqual(["session", "week", "month"]);
+        // The session draws a ring on today's letter, not a row (#2473): its entry says so.
         expect(view.listed).toEqual([
-            { id: "session", label: "Session", shown: true },
-            { id: "week", label: "Week", shown: true },
+            { id: "session", label: "Session (ring on today)", shown: true },
+            { id: "week", label: "Consumption", shown: true },
             { id: "month", label: "Month", shown: true },
         ]);
         expect(hiddenCount(view.listed)).toBe(0);
@@ -122,10 +123,50 @@ describe("which rows show, per provider and per window key (#2462)", () => {
         const view = enabled(withRowChoice(gaugesView(claude, now), ["model:fable"]));
         expect(view.rows.map((row) => row.id)).toEqual(["week"]);
         expect(view.listed.map((c) => [c.id, c.label, c.shown])).toEqual([
-            ["week", "Week", true],
-            ["model:fable", "Week (Fable)", false],
+            ["week", "Consumption", true],
+            ["model:fable", "Fable", false],
         ]);
         expect(hiddenCount(view.listed)).toBe(1);
+    });
+
+    it("draws the session as a ring while its window shows, and no ring once the developer hid it (#2473)", () => {
+        const shown = enabled(withSessionRing(withRowChoice(gaugesView(kimi, now), [])));
+        expect(shown.session).toBeDefined();
+        expect(shown.rows.map((row) => row.id)).toEqual(["week", "month"]);
+        expect(shown.listed.map((c) => [c.id, c.shown])).toEqual([
+            ["session", true],
+            ["week", true],
+            ["month", true],
+        ]);
+        const hidden = enabled(withSessionRing(withRowChoice(gaugesView(kimi, now), ["session"])));
+        expect(hidden.session).toBeUndefined();
+        expect(hidden.rows.map((row) => row.id)).toEqual(["week", "month"]);
+        expect(hidden.listed.map((c) => [c.id, c.shown])).toEqual([
+            ["session", false],
+            ["week", true],
+            ["month", true],
+        ]);
+        expect(hiddenCount(hidden.listed)).toBe(1);
+    });
+
+    it("counts the session among the windows that stay: it can be the one that cannot turn off", () => {
+        const view = enabled(withRowChoice(gaugesView(kimi, now), ["week", "month"]));
+        expect(view.listed.map((c) => [c.id, c.shown])).toEqual([
+            ["session", true],
+            ["week", false],
+            ["month", false],
+        ]);
+        expect(onlyShown(view.listed, "session")).toBe(true);
+        const ringOnly = enabled(withSessionRing(view));
+        expect(ringOnly.rows).toEqual([]);
+        expect(ringOnly.session?.percent).toBeCloseTo(0.15);
+        const layout = setUsageRowHidden(DefaultCompanionLayout, "kimi", "session", true, ["session", "week", "month"]);
+        expect(hiddenRowsOf(layout, "kimi")).toEqual(["session"]);
+        // With the session hidden, the week and the month cannot both go: the last one that shows stays.
+        const next = setUsageRowHidden(layout, "kimi", "week", true, ["session", "week", "month"]);
+        expect([...hiddenRowsOf(next, "kimi")].sort()).toEqual(["session", "week"]);
+        const last = setUsageRowHidden(next, "kimi", "month", true, ["session", "week", "month"]);
+        expect([...hiddenRowsOf(last, "kimi")].sort()).toEqual(["session", "week"]);
     });
 
     it("never takes the choice for a label: the key decides, so a translated label keeps it", () => {

@@ -30,6 +30,12 @@
     padding: 6px;
 }
 
+/* A figure an element asked to colour (#2473), in its own colour, set inline. */
+.mt-tip-accent {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
 .mt-tip-note {
     display: inline-flex;
     align-items: center;

@@ -7,9 +7,12 @@
 // usage (full, minimal, attached). A window that is not hidden shows, so one the provider starts to report later shows
 // until the developer hides it, and at least one row always stays. The choice only filters what is drawn: the rows are
 // built from every window first (gaugesView), so a week deduced from the month is still computed with the month row
-// hidden. Pure, so it is tested without a window.
+// hidden. The session is one of those windows: it draws a ring on today's letter rather than a row (#2473), so hiding it
+// hides the ring, and it counts for the row that always stays. Pure, so it is tested without a window.
 
-import type { GaugesView, UsageWindowChoice } from "./companion-gauges-model";
+import { t } from "../i18n/i18n";
+import { SessionWindowId } from "../usage-week/usage-week-model";
+import type { GaugeRow, GaugesView, UsageWindowChoice } from "./companion-gauges-model";
 import { CompanionLayout, normalizeLayout } from "./companion-layout";
 
 // What the usage's frames are given to draw the choice and to change it: the window keys hidden for the provider, the
@@ -48,6 +51,12 @@ export function onlyShown(choices: readonly UsageWindowChoice[], id: string): bo
     return shown.length === 1 && shown[0].id === id;
 }
 
+// A window's name in the choice: the row's label, and for the session, which draws no row but a ring on today's letter
+// (#2473), the words that say so.
+function choiceLabel(row: GaugeRow): string {
+    return row.id === SessionWindowId ? t("companion.gauges.rows.sessionRing") : row.shortLabel;
+}
+
 // The usage as it draws: the rows the developer chose, and the windows there were. Applied to the view gaugesView gives,
 // whose rows are all of them.
 export function withRowChoice(view: GaugesView, hidden: readonly string[]): GaugesView {
@@ -55,7 +64,7 @@ export function withRowChoice(view: GaugesView, hidden: readonly string[]): Gaug
         return view;
     }
     const listed = windowChoices(
-        view.rows.map((row) => ({ id: row.id, label: row.shortLabel })),
+        view.rows.map((row) => ({ id: row.id, label: choiceLabel(row) })),
         hidden
     );
     const shown = new Set(listed.filter((c) => c.shown).map((c) => c.id));

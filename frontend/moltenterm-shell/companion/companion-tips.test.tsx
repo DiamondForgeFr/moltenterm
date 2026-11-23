@@ -26,7 +26,11 @@ import {
     imageLinks,
     imageSource,
     messageParts,
+    TipAccentAttr,
+    TipAccentColourAttr,
+    tipAccentOf,
     tipAdds,
+    tipParts,
     tipRepeats,
     TipScopeAttr,
     tipTargetOf,
@@ -423,6 +427,38 @@ describe("which element asks for a popover (#2455)", () => {
         const alone = new FakeNode();
         const lone = alone.add(new FakeNode({ "data-tip": "Search the settings" }, "Search the settings"));
         expect(tipTargetOf(lone as any, alone as any)).toBeNull();
+    });
+
+    it("carries the figure an element asks to colour, with its colour (#2473)", () => {
+        const ring = panel.add(
+            new FakeNode({
+                "data-tip": "Session used: 72 %\nResets in 1 h 48 min (at 15:20)",
+                [TipAccentAttr]: "72 %",
+                [TipAccentColourAttr]: "var(--color-warning)",
+            })
+        );
+        expect(tipTargetOf(ring as any, panel as any, always)).toEqual({
+            kind: "text",
+            element: ring,
+            text: "Session used: 72 %\nResets in 1 h 48 min (at 15:20)",
+            accent: { text: "72 %", colour: "var(--color-warning)" },
+        });
+        // Neither half alone is an accent.
+        const half = panel.add(new FakeNode({ "data-tip": "A text", [TipAccentAttr]: "A" }));
+        expect(tipTargetOf(half as any, panel as any, always)).toEqual({ kind: "text", element: half, text: "A text" });
+        expect(tipAccentOf(half as any)).toBeUndefined();
+    });
+
+    it("cuts the text in what comes before the accent, the accent and what follows it", () => {
+        const accent = { text: "72 %", colour: "red" };
+        expect(tipParts("Session used: 72 %\nResets in 1 h", accent)).toEqual([
+            "Session used: ",
+            "72 %",
+            "\nResets in 1 h",
+        ]);
+        expect(tipParts("72 % and 72 %", accent)).toEqual(["", "72 %", " and 72 %"]);
+        expect(tipParts("Session used", accent)).toEqual(["Session used"]);
+        expect(tipParts("Session used", undefined)).toEqual(["Session used"]);
     });
 });
 

@@ -15,7 +15,7 @@ import { PlanUsageBody, UsageFrame } from "./companion-gauges";
 import { CompanionUsageInfo, gaugesView, UsageWindowChoice } from "./companion-gauges-model";
 import { CompanionLayout, CompanionSectionId, DefaultCompanionLayout } from "./companion-layout";
 import type { CompanionView } from "./companion-model";
-import { UsageRowsChoice } from "./companion-usage-rows";
+import { saidKey, UsageRowsChoice } from "./companion-usage-rows";
 import { setUsageRowHidden, withRowChoice } from "./companion-usage-rows-model";
 
 vi.mock("@/app/store/global", async () => {
@@ -260,7 +260,7 @@ describe("the rows tool of the usage block (#2462)", () => {
     it("draws only the rows chosen in the full, minimal and attached forms: Kimi's week alone", () => {
         for (const form of ["full", "minimal", "attached"] as const) {
             const html = framed(kimi, form, ["session", "month"]);
-            expect(labelsOf(html), form).toEqual(["Week"]);
+            expect(labelsOf(html), form).toEqual(["Consumption"]);
             expect(percentsOf(html), form).toEqual(["129 %"]);
             // The week keeps its seven days, its count to the month's reset and its reset icon.
             expect(count(html, 'data-testid="usage-week-block"'), form).toBe(7);
@@ -271,24 +271,63 @@ describe("the rows tool of the usage block (#2462)", () => {
 
     it("draws Claude's week without Fable's, and every row when nothing is hidden", () => {
         for (const form of ["full", "minimal", "attached"] as const) {
-            expect(labelsOf(framed(claude, form, ["model:fable"])), form).toEqual(["Week"]);
-            expect(labelsOf(framed(claude, form, [])), form).toEqual(["Week", "Week (Fable)"]);
+            expect(labelsOf(framed(claude, form, ["model:fable"])), form).toEqual(["Consumption"]);
+            expect(labelsOf(framed(claude, form, [])), form).toEqual(["Consumption", "Fable"]);
         }
     });
 
     it("keeps the deduced week, with its count, when the month row is hidden, and the month's reset when the week is", () => {
         const noMonth = framed(kimi, "minimal", ["month"]);
-        expect(labelsOf(noMonth)).toEqual(["Session", "Week"]);
+        expect(labelsOf(noMonth)).toEqual(["Consumption"]);
         expect(noMonth).toMatch(/data-testid="usage-week-chip"[^>]*>\d+ d</);
         const noWeek = framed(kimi, "minimal", ["week"]);
-        expect(labelsOf(noWeek)).toEqual(["Session", "Month"]);
+        expect(labelsOf(noWeek)).toEqual(["Month"]);
         // With the week that counted to it hidden, the month's bar says its own reset again, not only in its tooltip.
         expect(noWeek).toContain(">Tue 1 Dec, 01:00<");
         expect(framed(kimi, "minimal", [])).not.toContain(">Tue 1 Dec, 01:00<");
     });
 
     it("shows every row of a choice that would hide them all", () => {
-        expect(labelsOf(framed(claude, "full", ["week", "model:fable"]))).toEqual(["Week", "Week (Fable)"]);
+        expect(labelsOf(framed(claude, "full", ["week", "model:fable"]))).toEqual(["Consumption", "Fable"]);
+    });
+
+    it("draws the session's ring in every form while its window shows, and none once it is hidden (#2473)", () => {
+        for (const form of ["full", "minimal", "attached"] as const) {
+            const shown = framed(kimi, form, []);
+            expect(count(shown, 'data-testid="usage-week-session"'), form).toBe(1);
+            expect(shown, form).not.toContain('data-window="session"');
+            const hidden = framed(kimi, form, ["session"]);
+            expect(hidden, form).not.toContain('data-testid="usage-week-session"');
+            expect(hidden, form).not.toContain('data-window="session"');
+            // The other windows keep their rows, hidden or not.
+            expect(labelsOf(hidden), form).toEqual(["Consumption", "Month"]);
+            expect(labelsOf(shown), form).toEqual(["Consumption", "Month"]);
+        }
+    });
+
+    it("keeps the day letters and the ring alone when the session is the only window shown (#2473)", () => {
+        const html = framed(kimi, "minimal", ["week", "month"]);
+        expect(labelsOf(html)).toEqual([]);
+        expect(count(html, 'data-testid="usage-week-session"')).toBe(1);
+        expect(count(html, 'data-testid="usage-week-day"')).toBe(7);
+        expect(html).not.toContain('data-testid="usage-week-row"');
+    });
+
+    it("names the session's entry for what it draws, and says so when it changes", () => {
+        const html = renderToStaticMarkup(
+            <UsageRowsChoice
+                choices={[
+                    { id: "session", label: "Session (ring on today)", shown: true },
+                    { id: "week", label: "Consumption", shown: true },
+                ]}
+                onSet={noop}
+            />
+        );
+        expect(html).toContain("Session (ring on today)");
+        expect(saidKey("session", true)).toBe("companion.gauges.rows.ringHidden");
+        expect(saidKey("session", false)).toBe("companion.gauges.rows.ringShown");
+        expect(saidKey("week", true)).toBe("companion.gauges.rows.nowHidden");
+        expect(saidKey("week", false)).toBe("companion.gauges.rows.nowShown");
     });
 
     it("keeps the extras of the full block, and nothing of them in the other forms", () => {
@@ -356,8 +395,8 @@ describe("the choice in the dashboard (#2462)", () => {
 
     it("shows the rows of the provider's choice in the usage block, full and minimal", () => {
         const layout = hide(DefaultCompanionLayout, "kimi", ["session", "month"], ["session", "week", "month"]);
-        expect(labelsOf(flowBlock(markup(kimi, layout), "usage"))).toEqual(["Week"]);
-        expect(labelsOf(flowBlock(markup(kimi, setUsageMinimal(layout, true)), "usage"))).toEqual(["Week"]);
+        expect(labelsOf(flowBlock(markup(kimi, layout), "usage"))).toEqual(["Consumption"]);
+        expect(labelsOf(flowBlock(markup(kimi, setUsageMinimal(layout, true)), "usage"))).toEqual(["Consumption"]);
         expect(flowBlock(markup(kimi, layout), "usage")).toContain('data-testid="companion-usage-rows-tool"');
     });
 
@@ -368,7 +407,7 @@ describe("the choice in the dashboard (#2462)", () => {
         );
         const hero = heroOf(markup(claude, layout));
         const row = hero.slice(hero.indexOf('data-testid="companion-hero-usage"'));
-        expect(labelsOf(row)).toEqual(["Week"]);
+        expect(labelsOf(row)).toEqual(["Consumption"]);
         const tools = hero.slice(hero.indexOf('data-side="tools"'), hero.indexOf('data-testid="companion-hero-usage"'));
         expect(tools).toContain('data-testid="companion-usage-rows-tool"');
         expect(tools).toContain('aria-label="Choose the rows shown (1 row hidden)"');
@@ -376,16 +415,13 @@ describe("the choice in the dashboard (#2462)", () => {
 
     it("applies the choice of the provider whose plan it is, and no other", () => {
         const layout = hide(DefaultCompanionLayout, "kimi", ["session", "month"], ["session", "week", "month"]);
-        expect(labelsOf(flowBlock(markup(claude, layout), "usage"))).toEqual(["Week", "Week (Fable)"]);
+        expect(labelsOf(flowBlock(markup(claude, layout), "usage"))).toEqual(["Consumption", "Fable"]);
         expect(flowBlock(markup(claude, layout), "usage")).not.toContain("companion-usage-rows-count");
     });
 
     it("shows every row for a layout saved before the choice", () => {
-        expect(labelsOf(flowBlock(markup(kimi, DefaultCompanionLayout), "usage"))).toEqual([
-            "Session",
-            "Week",
-            "Month",
-        ]);
+        expect(labelsOf(flowBlock(markup(kimi, DefaultCompanionLayout), "usage"))).toEqual(["Consumption", "Month"]);
+        expect(flowBlock(markup(kimi, DefaultCompanionLayout), "usage")).toContain('data-testid="usage-week-session"');
     });
 
     it("keeps the usage page one click away, whatever rows show", () => {
@@ -398,7 +434,7 @@ describe("the choice in the dashboard (#2462)", () => {
         const layout = hide(DefaultCompanionLayout, "kimi", ["session", "month"], ["session", "week", "month"]);
         const html = markup(kimi, layout, { arranging: true });
         const usage = flowBlock(html, "usage");
-        expect(labelsOf(usage)).toEqual(["Week"]);
+        expect(labelsOf(usage)).toEqual(["Consumption"]);
         // The block's own tools give way to the arranging controls (#2467); the rows tool of the full form is in its
         // content, which is held still.
         expect(usage.indexOf("companion-usage-rows-tool")).toBeGreaterThan(usage.indexOf('class="mt-cb-body"'));

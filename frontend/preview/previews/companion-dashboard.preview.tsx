@@ -9,7 +9,8 @@
 // chips read a small synthetic image drawn here, ?images=none gives them none), ?tip=<test id>[&tipat=N] (or
 // ?tipsel=<css selector>) a popover held open on the Nth such element (the screenshots' way of hovering),
 // ?usage-agent=kimi|kimi-stale|kimi-ring Kimi's usage (#2451), ?usage-labels=short|long the width of the label column
-// (#2458; ?usage-labels=fable is Claude's week and the week of a model), ?rows-hidden=session,month the usage rows the
+// (#2458; ?usage-labels=fable is Claude's session, week and the week of a model, ?usage-labels=nosession the same
+// without the session, #2473; ?usage-session=72 the share the session's ring fills), ?rows-hidden=session,month the usage rows the
 // layout starts with hidden for the provider shown (#2462), ?hide=answer,files the sections the layout starts with
 // hidden and ?without=milestone,task,usage the blocks that have nothing to show (#2467: their ghosts, while arranging).
 
@@ -205,6 +206,9 @@ const milestones: MilestonesView = {
     ],
 };
 
+// ?usage-session=72 (#2473): the share of the session the ring fills, which then resets in 1 h 48 min (35 %, in 3 h, without).
+const SessionUsed = Number(query.get("usage-session")) || 0;
+
 const usage: CompanionUsageInfo = {
     blockid: "preview-terminal",
     agent: "claude",
@@ -218,7 +222,13 @@ const usage: CompanionUsageInfo = {
         source: "claude-statusline",
         readat: Now - 2 * Min,
         windows: [
-            { id: "session", label: "Current session", usedpercent: 35, resetsat: Now + 3 * Hour, windowmins: 300 },
+            {
+                id: "session",
+                label: "Current session",
+                usedpercent: SessionUsed || 35,
+                resetsat: Now + (SessionUsed ? 108 * Min : 3 * Hour),
+                windowmins: 300,
+            },
             { id: "week", label: "This week", usedpercent: 63, resetsat: Now + 4 * 24 * Hour, windowmins: 10080 },
             { id: "opus", label: "Opus this week", usedpercent: 12, resetsat: Now + 4 * 24 * Hour, windowmins: 10080 },
         ],
@@ -275,8 +285,8 @@ function kimiUsage(stale: boolean, monthReset = NextMonth): CompanionUsageInfo {
                 {
                     id: "session",
                     label: "Current session",
-                    usedpercent: 0.15,
-                    resetsat: Now + Hour + 20 * Min,
+                    usedpercent: SessionUsed || 0.15,
+                    resetsat: Now + (SessionUsed ? 108 * Min : Hour + 20 * Min),
                     windowmins: 300,
                 },
                 {
@@ -305,13 +315,15 @@ function usageFixture(): CompanionUsageInfo {
     if (UsageAgent === "kimi-ring") {
         return kimiUsage(false, ResetThisWeek);
     }
-    if (UsageLabels === "fable") {
+    if (UsageLabels === "fable" || UsageLabels === "nosession") {
+        const [session, week] = usage.snapshot.windows;
         return {
             ...usage,
             snapshot: {
                 ...usage.snapshot,
                 windows: [
-                    usage.snapshot.windows[1],
+                    ...(UsageLabels === "fable" ? [session] : []),
+                    week,
                     {
                         id: "model:fable",
                         label: "This week (Fable)",

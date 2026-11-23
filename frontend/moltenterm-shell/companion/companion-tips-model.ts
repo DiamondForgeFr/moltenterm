@@ -16,6 +16,11 @@ export const TipAttr = "data-tip";
 export const ImageAttr = "data-image";
 export const ImageAtAttr = "data-image-at";
 
+// A figure of the popover's text that takes a colour of its own (#2473: the session ring's share, in the ring's colour):
+// the text to colour, which the popover finds in the element's data-tip, and the colour.
+export const TipAccentAttr = "data-tip-accent";
+export const TipAccentColourAttr = "data-tip-accent-colour";
+
 // A popover portalled out of the panel (the settings of a block, #2462) marks the part it holds: the elements inside it
 // are served by the panel's popovers too, though the panel's own box does not hold them.
 export const TipScopeAttr = "data-tip-scope";
@@ -37,9 +42,28 @@ const AnswerImageHref = /^#mt-image-(\d{1,7})$/;
 const ImagePlaceholder = /\[Image #(\d{1,7})\]/g;
 const InlineCodeOrImage = /(`+)(?:(?!\1)[\s\S])*?\1|\[Image #(\d{1,7})\]/g;
 
+export type TipAccent = { text: string; colour: string };
+
 export type TipTarget =
-    | { kind: "text"; element: HTMLElement; text: string }
+    | { kind: "text"; element: HTMLElement; text: string; accent?: TipAccent }
     | { kind: "image"; element: HTMLElement; n: number; at: number };
+
+// The figure an element asks the popover to colour, none when it names no text or no colour.
+export function tipAccentOf(element: Element): TipAccent {
+    const text = element.getAttribute(TipAccentAttr);
+    const colour = element.getAttribute(TipAccentColourAttr);
+    return text && colour ? { text, colour } : undefined;
+}
+
+// A popover's text in the parts the popover draws: what comes before the accent, the accent, what follows. The first
+// occurrence of the accent is the one coloured; a text that does not hold it is one part.
+export function tipParts(text: string, accent: TipAccent): string[] {
+    const at = accent == null ? -1 : text.indexOf(accent.text);
+    if (at < 0) {
+        return [text];
+    }
+    return [text.slice(0, at), accent.text, text.slice(at + accent.text.length)];
+}
 
 function elementOf(node: EventTarget): Element {
     if (node == null) {
@@ -128,7 +152,8 @@ export function tipTargetOf(node: EventTarget, within: Element = null, adds = ti
         }
         const text = element.getAttribute(TipAttr);
         if (text && adds(element, text)) {
-            return { kind: "text", element, text };
+            const accent = tipAccentOf(element);
+            return accent == null ? { kind: "text", element, text } : { kind: "text", element, text, accent };
         }
         element = element.parentElement?.closest(`[${TipAttr}], [${ImageAttr}]`) as HTMLElement;
     }

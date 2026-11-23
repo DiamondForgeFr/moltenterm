@@ -26,6 +26,7 @@ import {
     gaugeRows,
     gaugesView,
     resetText,
+    sessionRing,
     usageFor,
     usageReadFor,
     usageReasonText,
@@ -34,6 +35,7 @@ import {
     usageStale,
     UsageStaleMs,
     usageWindowShortLabel,
+    withSessionRing,
 } from "./companion-gauges-model";
 
 vi.mock("@/app/store/wos", () => ({ makeORef: (t: string, id: string) => `${t}:${id}` }));
@@ -98,8 +100,13 @@ const resetOf = (html: string, window: string): string =>
 // A plain gauge's reset, at the end of its bar (#2451).
 const gaugeResetOf = (html: string, window: string): string =>
     /data-testid="usage-week-gauge-reset">([^<]*)</.exec(rowHtml(html, window))?.[1] ?? "";
+// The session's ring round today's letter (#2473): its opening tag, empty when there is none.
+const ringTag = (html: string): string => /<span class="mt-uw-ring"[^>]*>/.exec(html)?.[0] ?? "";
+// The day letters, the ringed one (#2473) holding its letter in a span of its own beside the ring.
 const initialsOf = (html: string): string =>
-    [...html.matchAll(/data-testid="usage-week-day"[^>]*>([^<]*)</g)].map((m) => m[1]).join("");
+    [...html.matchAll(/data-testid="usage-week-day"[^>]*>(?:<span aria-hidden="true">)?([^<]*)</g)]
+        .map((m) => m[1])
+        .join("");
 // The seven day blocks of a row, Monday first: their fill and whether the reset ring stands on them.
 const blocksOf = (html: string, window: string): { fill: number; reset: boolean }[] =>
     [...rowHtml(html, window).matchAll(/<span class="mt-uw-cell([^"]*)"[^>]*><i style="width:([0-9.]+)%"/g)].map(
@@ -226,15 +233,14 @@ describe("plan usage section", () => {
         expect(html).toContain("Experimental");
         expect(html).toContain("From the Claude Code status line");
         expect(html).toContain("Updated 3 min ago");
-        expect(labelsOf(html)).toEqual(["Session", "Week"]);
-        // The 5-hour session is a plain gauge (#2451): its reset at the end of its bar, no reset day.
-        expect(html).toContain('aria-label="Current session, 24 %, in 2 h 14 min"');
-        expect(html).toContain('data-tip="Current session: 23.5 % used\nResets in 2 h 14 min"');
-        expect(gaugeResetOf(html, "session")).toBe("in 2 h 14 min");
-        expect(resetOf(html, "session")).toBe("");
+        expect(labelsOf(html)).toEqual(["Consumption"]);
+        // The 5-hour session is no row (#2473): a ring round today's letter, which says its use and its reset.
+        expect(windowsOf(html)).toEqual(["week"]);
+        expect(ringTag(html)).toContain('aria-label="Session used: 24 %. Resets in 2 h 14 min (at 12:14)"');
+        expect(ringTag(html)).toContain('data-tip="Session used: 24 %\nResets in 2 h 14 min (at 12:14)"');
         expect(html).toContain('aria-label="This week, 82 %, resets Friday"');
         expect(resetOf(html, "week")).toBe("Resets Fri 10:00");
-        expect(percentsOf(html)).toEqual(["24 %", "82 %"]);
+        expect(percentsOf(html)).toEqual(["82 %"]);
         expect(html).toContain('aria-label="Refresh plan usage"');
         expect(html).toContain(">Hide</button>");
     });
@@ -245,8 +251,9 @@ describe("plan usage section", () => {
             <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact onDetails={onDetails} />
         );
         expect(html).toContain('data-compact="true"');
-        expect(windowsOf(html)).toEqual(["session", "week"]);
-        expect(percentsOf(html)).toEqual(["24 %", "82 %"]);
+        expect(windowsOf(html)).toEqual(["week"]);
+        expect(percentsOf(html)).toEqual(["82 %"]);
+        expect(ringTag(html)).toContain('data-percent="23.5"');
         expect(html).toMatch(
             /data-tip="This week: 82 % used\nResets Fri 10:00\nPer day: [^"\n]+\nFrom the Claude Code status line · Updated 3 min ago"/
         );
@@ -269,6 +276,7 @@ describe("plan usage section", () => {
                 windows: [
                     ...enabled.snapshot.windows,
                     { id: "opus", label: "Opus this week", usedpercent: 10, resetsat: now + 3 * 24 * Hour },
+                    { id: "sonnet", label: "Sonnet this week", usedpercent: 5, resetsat: now + 3 * 24 * Hour },
                 ],
                 credits: { enabled: true, used: 5, limit: 50, unit: "USD" },
             },
@@ -276,8 +284,8 @@ describe("plan usage section", () => {
         const html = renderToStaticMarkup(
             <PlanUsageBody view={gaugesView(many, now)} {...noop} compact onDetails={() => {}} />
         );
-        expect(windowsOf(html)).toEqual(["session", "week"]);
-        expect(html).not.toContain("Opus this week");
+        expect(windowsOf(html)).toEqual(["week", "opus"]);
+        expect(html).not.toContain("Sonnet this week");
         expect(html).toContain(">+2<");
     });
 
@@ -350,10 +358,9 @@ describe("Codex plan usage", () => {
         const html = markup(codex);
         expect(html).toContain("From the Codex session log");
         expect(html).toContain("Updated 3 min ago");
-        expect(labelsOf(html)).toEqual(["5-hour", "Week"]);
-        expect(html).toContain('data-tip="5-hour: 12.5 % used\nResets in 3 h"');
-        expect(gaugeResetOf(html, "session")).toBe("in 3 h");
-        expect(percentsOf(html)).toEqual(["13 %", "96 %"]);
+        expect(labelsOf(html)).toEqual(["Consumption"]);
+        expect(ringTag(html)).toContain('data-tip="Session used: 13 %\nResets in 3 h (at 13:00)"');
+        expect(percentsOf(html)).toEqual(["96 %"]);
         expect(rowTag(html, "week")).toContain('data-pace="red"');
         expect(html).toContain("Credits: 17.5 left");
     });
@@ -424,8 +431,8 @@ describe("the companion's usage week grid (#2102)", () => {
         const html = markup(enabled);
         expect(html).toContain('data-testid="usage-week"');
         expect(html).toContain('data-labelled="true"');
-        expect(windowsOf(html)).toEqual(["session", "week"]);
-        expect(labelsOf(html)).toEqual(["Session", "Week"]);
+        expect(windowsOf(html)).toEqual(["week"]);
+        expect(labelsOf(html)).toEqual(["Consumption"]);
         expect(html).not.toContain('data-testid="usage-week-logo"');
         expect(html).not.toContain('role="meter"');
         const source = readFileSync(join(__dirname, "companion-gauges.tsx"), "utf8");
@@ -436,7 +443,7 @@ describe("the companion's usage week grid (#2102)", () => {
     it("draws the weekly and the per-model weekly window of the agent, the model's name in its label", () => {
         const html = markup(withModel);
         expect(windowsOf(html)).toEqual(["week", "model:opus"]);
-        expect(labelsOf(html)).toEqual(["Week", "Week (Opus)"]);
+        expect(labelsOf(html)).toEqual(["Consumption", "Opus"]);
         expect(rowTag(html, "model:opus")).toContain('aria-label="This week (Opus), 70 %, resets Sunday"');
     });
 
@@ -463,9 +470,9 @@ describe("the companion's usage week grid (#2102)", () => {
             { fill: 0, reset: false },
             { fill: 100, reset: true },
         ]);
-        // The 5-hour session says nothing of the week's days: a plain gauge, no blocks, no ring (#2451).
+        // The 5-hour session says nothing of the week's days, and it draws no row either: a ring round today's letter (#2473).
         expect(blocksOf(markup(enabled), "session")).toEqual([]);
-        expect(rowTag(markup(enabled), "session")).toContain('data-plain="true"');
+        expect(rowTag(markup(enabled), "session")).toBe("");
     });
 
     it("follows Brokk's pace colours, a per-model week being paced against a week", () => {
@@ -479,12 +486,12 @@ describe("the companion's usage week grid (#2102)", () => {
         expect(colour("model:opus")).toBe("var(--color-error)");
         expect(rowTag(html, "model:opus")).toContain('data-pace="red"');
         // 24 % (23.5 rounded) of a session that is 2 h 46 min old of 5 h: 55.3 % allowed, 31.3 points left unused,
-        // nearly full blue (#2106).
-        const session = markup(enabled);
-        expect(/--mt-uw-pace:([^"]*)"/.exec(rowTag(session, "session"))?.[1]).toBe(
+        // nearly full blue (#2106). The session's ring takes that colour, the rows' own scale (#2473).
+        const ring = ringTag(markup(enabled));
+        expect(/--mt-uw-ring-colour:([^"]*)"/.exec(ring)?.[1]).toBe(
             "color-mix(in srgb, var(--mt-info) 85%, var(--color-success))"
         );
-        expect(rowTag(session, "session")).toContain('data-pace="under"');
+        expect(ring).toContain('data-tip-accent-colour="color-mix(in srgb, var(--mt-info) 85%, var(--color-success))"');
     });
 
     it("writes the initials Monday first in the interface language, today's emphasised, and follows a switch", () => {
@@ -493,7 +500,7 @@ describe("the companion's usage week grid (#2102)", () => {
             i18n.setLanguageSetting("fr");
             const html = markup(enabled);
             expect(initialsOf(html)).toBe("LMMJVSD");
-            expect(labelsOf(html)).toEqual(["Session", "Semaine"]);
+            expect(labelsOf(html)).toEqual(["Consommation"]);
             expect(rowTag(html, "week")).toMatch(/aria-label="Cette semaine, 82\s%, remise à zéro vendredi"/);
             i18n.setLanguageSetting("en");
             expect(initialsOf(markup(enabled))).toBe("MTWTFSS");
@@ -535,9 +542,6 @@ describe("the companion's usage week grid (#2102)", () => {
         expect(week.indexOf("usage-week-reset")).toBeGreaterThan(week.indexOf("usage-week-block"));
         expect(week.indexOf("usage-week-reset")).toBeLessThan(week.indexOf("usage-week-percent"));
         expect(rowTag(html, "week")).toContain('role="group"');
-        // A plain gauge says its reset at the end of its bar and has no icon.
-        expect(rowHtml(html, "session")).not.toContain("usage-week-reset");
-        expect(rowTag(html, "session")).toContain('role="img"');
         // Without a reset time there is nothing to say: no icon.
         const open: CompanionUsageInfo = {
             ...enabled,
@@ -577,7 +581,7 @@ describe("the companion's usage week grid (#2102)", () => {
 
         it("is as wide as the widest label shown, up to a cap, in every form: never a fixed width", () => {
             const labelled = /\n\.mt-uw\[data-labelled="true"\] \{([^}]*)\}/.exec(css)?.[1] ?? "";
-            expect(labelled).toContain("--mt-uw-first: fit-content(6.25rem)");
+            expect(labelled).toContain("--mt-uw-first: fit-content(calc(6.25rem + var(--mt-uw-label-gap)))");
             expect(labelled).not.toMatch(/--mt-uw-first:\s*(minmax|\d)/);
             expect(css).toMatch(
                 /grid-template-columns:\s*var\(--mt-uw-first\) repeat\(7, minmax\(var\(--mt-uw-block-min\), 1fr\)\)/
@@ -588,7 +592,7 @@ describe("the companion's usage week grid (#2102)", () => {
 
         it("holds one short label whole, and the row's popover says the full name", () => {
             const html = markup(only(week));
-            expect(labelsOf(html)).toEqual(["Week"]);
+            expect(labelsOf(html)).toEqual(["Consumption"]);
             expect(html).toContain('data-labelled="true"');
             expect(rowTag(html, "week")).toContain('data-tip="This week: 40 % used');
         });
@@ -602,7 +606,7 @@ describe("the companion's usage week grid (#2102)", () => {
                 windowmins: 10080,
             };
             const html = markup(only(week, long));
-            expect(labelsOf(html)).toEqual(["Week", "Week (Extended Opus limits)"]);
+            expect(labelsOf(html)).toEqual(["Consumption", "Extended Opus limits"]);
             expect(rowTag(html, "model:extended")).toContain('data-tip="This week (Extended Opus limits): 28 % used');
             const label = /\n\.mt-uw-label \{([^}]*)\}/.exec(css)?.[1] ?? "";
             expect(label).toContain("overflow: hidden");
@@ -614,27 +618,29 @@ describe("the companion's usage week grid (#2102)", () => {
         it("serves several windows from one column: every label is a cell of the same grid, in every form", () => {
             const html = markup(enabled);
             expect(html.match(/data-testid="usage-week"/g)).toHaveLength(1);
-            expect(labelsOf(html)).toEqual(["Session", "Week"]);
+            expect(labelsOf(html)).toEqual(["Consumption"]);
             const compact = renderToStaticMarkup(
                 <PlanUsageBody view={gaugesView(enabled, now)} {...noop} compact onDetails={() => {}} />
             );
             expect(compact.match(/data-labelled="true"/g)).toHaveLength(1);
-            expect(labelsOf(compact)).toEqual(["Session", "Week"]);
+            expect(labelsOf(compact)).toEqual(["Consumption"]);
         });
     });
 
     it("names a window in a short form for a narrow column, and keeps the whole name for the row", () => {
         expect(usageWindowShortLabel("Current session")).toBe("Session");
-        expect(usageWindowShortLabel("This week")).toBe("Week");
-        expect(usageWindowShortLabel("This week (Opus)")).toBe("Week (Opus)");
+        // The seven day letters already say it is a week (#2473): the week is "Consumption", a model's week its model.
+        expect(usageWindowShortLabel("This week")).toBe("Consumption");
+        expect(usageWindowShortLabel("This week (Opus)")).toBe("Opus");
         expect(usageWindowShortLabel("Spend limit")).toBe("Spend");
         expect(usageWindowShortLabel("5-hour")).toBe("5-hour");
-        expect(usageWindowShortLabel("GPT-5 This week")).toBe("GPT-5 Week");
+        expect(usageWindowShortLabel("GPT-5 This week")).toBe("GPT-5");
+        expect(usageWindowShortLabel("GPT-5 5-hour")).toBe("GPT-5 5-hour");
         expect(usageWindowShortLabel("Something else")).toBe("Something else");
         const rows = gaugeRows(withModel.snapshot, now);
         expect(rows.map((r) => [r.label, r.shortLabel])).toEqual([
-            ["This week", "Week"],
-            ["This week (Opus)", "Week (Opus)"],
+            ["This week", "Consumption"],
+            ["This week (Opus)", "Opus"],
         ]);
         expect(rows[1].line.start).toBe(6);
         expect(rows[1].line.windowMins).toBe(10080);
@@ -763,14 +769,33 @@ describe("the legend, the explanation and the source line (#2123)", () => {
     });
 
     it("explains a row, its blocks, the percentage, the reset icon and the day figures, in the interface language", () => {
-        const english = explainOf(markup(enabled));
+        const rowsOnly = markup({
+            ...enabled,
+            snapshot: { ...enabled.snapshot, windows: enabled.snapshot.windows.filter((w) => w.id !== "session") },
+        });
+        const english = explainOf(rowsOnly);
         expect(english).toBe(
             "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the reset icon before it says when the window starts again. The small figures under the blocks spread that total over the days from the reset, one seventh each, so they tell how many days' worth has been used."
         );
         expect(english.split(". ")).toHaveLength(3);
+        // A session ring (#2473) adds a sentence on what the ring is.
+        expect(explainOf(markup(enabled))).toBe(
+            `${english} The ring round today's letter is the current session: it fills with the share used, and its popover says when it starts again.`
+        );
         inFrench(() => {
             const html = markup(enabled);
-            expect(explainOf(html)).toBe(
+            expect(explainOf(html)).toContain("Le cercle autour de la lettre du jour est la session en cours");
+            expect(explainOf(markup({ ...enabled, snapshot: { ...enabled.snapshot, windows: [] } }))).toBe("");
+            const fr = explainOf(
+                markup({
+                    ...enabled,
+                    snapshot: {
+                        ...enabled.snapshot,
+                        windows: enabled.snapshot.windows.filter((w) => w.id !== "session"),
+                    },
+                })
+            );
+            expect(fr).toBe(
                 "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; l'icône de remise à zéro qui le précède indique quand la fenêtre repart. Les petits chiffres sous les blocs répartissent ce total sur les jours depuis la remise à zéro, un septième chacun : ils disent combien de journées ont été utilisées."
             );
             expect(keysOf(html).map(([, label]) => label)).toEqual([
@@ -781,7 +806,7 @@ describe("the legend, the explanation and the source line (#2123)", () => {
                 "Au-dessus du rythme",
             ]);
         });
-        expect(explainOf(markup(enabled))).toBe(english);
+        expect(explainOf(rowsOnly)).toBe(english);
     });
 
     it("names the sources in the interface language, from their ids", () => {
@@ -1087,12 +1112,12 @@ describe("Kimi managed plan usage", () => {
 
     it("shows three windows, their resets, booster and monthly spending, with no fourth gauge", () => {
         const html = markup(kimi);
-        expect(windowsOf(html)).toEqual(["session", "week", "month"]);
-        expect(labelsOf(html)).toEqual(["Session", "Week", "Month"]);
+        expect(windowsOf(html)).toEqual(["week", "month"]);
+        expect(labelsOf(html)).toEqual(["Consumption", "Month"]);
+        expect(ringTag(html)).toContain('data-tip="Session used:');
         expect(gaugeResetOf(html, "month")).toMatch(/^Sun 1 Nov, 00:00$/);
         expect(rowTag(html, "month")).toContain("Resets Sun 1 Nov, 00:00");
         expect(rowTag(html, "month")).toContain('data-plain="true"');
-        expect(rowTag(html, "session")).toContain('data-plain="true"');
         expect(rowTag(html, "week")).not.toContain("data-plain");
         expect(html).toContain("Booster balance: $12.35");
         expect(html).toContain("Monthly spending: $5.43 of $20.00");
@@ -1219,5 +1244,141 @@ describe("the minimal week grid (#2450)", () => {
         expect(full).not.toContain(" title=");
         expect(full).toContain('data-tip="');
         expect(html({ legend: true })).toContain(" title=");
+    });
+});
+
+// The session is no row but a ring round today's letter (#2473, FR-SHELL-018).
+describe("the session ring (#2473)", () => {
+    const sessionOf = (usedpercent: number, extra: object = {}): CompanionUsageInfo => ({
+        ...enabled,
+        snapshot: {
+            ...enabled.snapshot,
+            windows: [
+                {
+                    id: "session",
+                    label: "Current session",
+                    usedpercent,
+                    resetsat: now + 2 * Hour + 14 * Min,
+                    windowmins: 300,
+                    ...extra,
+                },
+                enabled.snapshot.windows[1],
+            ],
+        },
+    });
+    const ringOf = (info: CompanionUsageInfo) => {
+        const view = withSessionRing(gaugesView(info, now));
+        return view.kind === "enabled" ? view.session : undefined;
+    };
+
+    it("fills by the share used, clamped to the ring, and says it to the word in its popover and its name", () => {
+        const ring = ringOf(sessionOf(23.5));
+        expect(ring.percent).toBe(23.5);
+        expect(ring.figure).toBe("24 %");
+        expect(ring.tip).toBe("Session used: 24 %\nResets in 2 h 14 min (at 12:14)");
+        expect(ring.name).toBe("Session used: 24 %. Resets in 2 h 14 min (at 12:14)");
+        expect(ringOf(sessionOf(0)).percent).toBe(0);
+        expect(ringOf(sessionOf(104)).percent).toBe(100);
+        expect(ringOf(sessionOf(104)).figure).toBe("100 %");
+        expect(ringOf(sessionOf(-3)).percent).toBe(0);
+        expect(ringOf(sessionOf(0.15)).figure).toBe("< 1 %");
+    });
+
+    it("counts the time left in hours and minutes, or minutes alone, and the time it ends at", () => {
+        expect(ringOf(sessionOf(40, { resetsat: now + 3 * Hour })).tip).toBe(
+            "Session used: 40 %\nResets in 3 h (at 13:00)"
+        );
+        expect(ringOf(sessionOf(40, { resetsat: now + 45 * Min })).tip).toBe(
+            "Session used: 40 %\nResets in 45 min (at 10:45)"
+        );
+        expect(ringOf(sessionOf(40, { resetsat: now + 10 * 1000 })).tip).toBe(
+            "Session used: 40 %\nResets in 1 min (at 10:00)"
+        );
+    });
+
+    it("says the use alone when the provider gives no reset time", () => {
+        const ring = ringOf(sessionOf(40, { resetsat: undefined }));
+        expect(ring.tip).toBe("Session used: 40 %");
+        expect(ring.name).toBe("Session used: 40 %");
+    });
+
+    it("takes the colour the rows take for the same pace, from the row's own line", () => {
+        for (const used of [10, 55, 60, 95]) {
+            const row = gaugeRows(sessionOf(used).snapshot, now)[0];
+            expect(sessionRing(row, now).colour).toBe(paceColour(row.line.pace, row.line.unused));
+        }
+        // 5 h window, 2 h 46 min gone: 55.3 % of it is allowed. On pace is green, far above it red, far under it blue.
+        expect(ringOf(sessionOf(55)).colour).toBe("var(--color-success)");
+        expect(ringOf(sessionOf(95)).colour).toBe("var(--color-error)");
+        expect(ringOf(sessionOf(10)).colour).toBe("var(--mt-info)");
+    });
+
+    it("takes the session out of the rows, whatever the window's label", () => {
+        const view = withSessionRing(gaugesView(sessionOf(23.5), now));
+        expect(view.kind === "enabled" && view.rows.map((r) => r.id)).toEqual(["week"]);
+        expect(withSessionRing(view)).toBe(view);
+        const relabelled = withSessionRing(gaugesView(sessionOf(23.5, { label: "5-hour" }), now));
+        expect(relabelled.kind === "enabled" && relabelled.rows.map((r) => r.id)).toEqual(["week"]);
+    });
+
+    it("has no ring without a session window, and leaves the other states as they are", () => {
+        const none = withSessionRing(
+            gaugesView({ ...enabled, snapshot: { ...enabled.snapshot, windows: [enabled.snapshot.windows[1]] } }, now)
+        );
+        expect(none.kind === "enabled" && none.session).toBeUndefined();
+        const off: ReturnType<typeof gaugesView> = { kind: "off" };
+        expect(withSessionRing(off)).toBe(off);
+        // A window past its reset is no window: no ring either.
+        expect(ringOf(sessionOf(40, { resetsat: now - 1 }))).toBeUndefined();
+    });
+
+    it("words the popover in the interface language", () => {
+        const i18n = I18nModel.getInstance();
+        try {
+            i18n.setLanguageSetting("fr");
+            const ring = ringOf(sessionOf(72, { resetsat: now + 108 * Min }));
+            expect(ring.tip).toMatch(/^Session consommée à 72\s%\nRemise à zéro dans 1 h 48 min \(à 11:48\)$/);
+            expect(ring.tip).toContain(ring.figure);
+        } finally {
+            i18n.setLanguageSetting("");
+        }
+    });
+
+    it("draws the ring on today's letter, reachable by the keyboard and named, the letter itself hidden from assistive technology", () => {
+        const html = markup(sessionOf(72));
+        const days = [...html.matchAll(/<span class="mt-uw-day"[^>]*>/g)].map((m) => m[0]);
+        expect(days).toHaveLength(7);
+        expect(days.filter((d) => d.includes('data-ringed="true"'))).toHaveLength(1);
+        expect(days.filter((d) => d.includes('data-today="true"'))).toHaveLength(1);
+        const ringed = days.find((d) => d.includes('data-ringed="true"'));
+        expect(ringed).toContain('data-today="true"');
+        expect(ringed).not.toContain("aria-hidden");
+        expect(days.filter((d) => d.includes('aria-hidden="true"'))).toHaveLength(6);
+        const ring = ringTag(html);
+        expect(ring).toContain('role="img" tabindex="0"');
+        expect(ring).toContain('aria-label="Session used: 72 %. Resets in 2 h 14 min (at 12:14)"');
+        expect(ring).toContain('data-tip-accent="72 %"');
+        expect(ring).not.toContain(" title=");
+        expect(html).toContain('<span aria-hidden="true">T</span><span class="mt-uw-ring"');
+        // The circle starts at 12 o'clock through the stylesheet and fills by a dash of the ring's length.
+        expect(html).toContain('pathLength="100" style="stroke-dasharray:72 100"');
+    });
+
+    it("draws no ring, and keeps today's letter as it was, without a session window", () => {
+        const html = markup({ ...enabled, snapshot: { ...enabled.snapshot, windows: [enabled.snapshot.windows[1]] } });
+        expect(ringTag(html)).toBe("");
+        expect(html).not.toContain("data-ringed");
+        expect(html).not.toContain("usage-week-session");
+        const days = [...html.matchAll(/<span class="mt-uw-day"[^>]*>/g)].map((m) => m[0]);
+        expect(days.every((d) => d.includes('aria-hidden="true"'))).toBe(true);
+        expect(days.filter((d) => d.includes('data-today="true"'))).toHaveLength(1);
+    });
+
+    it("says the ring's words as the system tooltip when the surface has no popovers", () => {
+        const session = { percent: 40, colour: "red", tip: "a\nb", figure: "a", name: "a. b" };
+        const html = renderToStaticMarkup(<UsageWeekGrid rows={[]} now={now} session={session} />);
+        expect(ringTag(html)).toContain('title="a\nb"');
+        expect(ringTag(html)).not.toContain("data-tip");
+        expect(html).toContain('data-percent="40"');
     });
 });

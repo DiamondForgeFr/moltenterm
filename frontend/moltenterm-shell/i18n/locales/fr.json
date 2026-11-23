@@ -2427,11 +2427,11 @@
             },
             "windowShort": {
                 "session": "Session",
-                "week": "Semaine",
+                "week": "Consommation",
                 "month": "Mois",
                 "spend": "Dépenses",
-                "model": "Semaine ({name})",
-                "weekDeduced": "Semaine",
+                "model": "{name}",
+                "weekDeduced": "Consommation",
                 "fromMonth": "d'après le mois"
             },
             "reason": {
@@ -2461,6 +2461,10 @@
             "resetsIn": "Remise à zéro dans {delay}",
             "resetsAt": "Remise à zéro {when}",
             "inDelay": "dans {delay}",
+            "sessionRing": {
+                "used": "Session consommée à {percent}",
+                "resets": "Remise à zéro dans {delay} (à {time})"
+            },
             "creditsUnlimited": "Crédits : illimités",
             "creditsLeft": "Crédits : {balance} restants",
             "creditsAvailable": "Crédits disponibles",
@@ -2518,6 +2522,7 @@
                 "kimi-oauth": "service d'utilisation gérée de Kimi Code"
             },
             "sourceAnd": "{list} et {last}",
+            "explainRing": "Le cercle autour de la lettre du jour est la session en cours : il se remplit avec la part utilisée, et sa bulle dit quand elle repart.",
             "explain": "Une ligne est une fenêtre d'utilisation de votre abonnement, remplie jour après jour à partir de son jour de remise à zéro (un bloc par jour). Le pourcentage est la part déjà utilisée ; l'icône de remise à zéro qui le précède indique quand la fenêtre repart. Les petits chiffres sous les blocs répartissent ce total sur les jours depuis la remise à zéro, un septième chacun : ils disent combien de journées ont été utilisées.",
             "details": "Détails de l'utilisation de l'abonnement",
             "detailsMore": "Détails de l'utilisation de l'abonnement ({count} de plus)",
@@ -2537,7 +2542,10 @@
                 "lastOne": "Au moins une ligne reste affichée",
                 "none": "Les lignes apparaissent une fois l'utilisation de l'abonnement lue.",
                 "nowShown": "Ligne {label} affichée",
-                "nowHidden": "Ligne {label} masquée"
+                "nowHidden": "Ligne {label} masquée",
+                "sessionRing": "Session (cercle sur aujourd'hui)",
+                "ringShown": "Cercle de la session affiché",
+                "ringHidden": "Cercle de la session masqué"
             },
             "setupLabel": "Configuration de l'utilisation de l'abonnement",
             "setupIntro": "L'agent donne les limites de votre abonnement à sa ligne d'état. Enveloppez votre ligne d'état dans le relais de MoltenTerm et les jauges s'affichent ici.",
