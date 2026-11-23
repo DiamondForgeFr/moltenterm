@@ -133,7 +133,8 @@ describe("experimental source row", () => {
             },
         };
         const html = render(failing);
-        expect(html).toContain('data-window="session"');
+        expect(html).toContain('data-window="week"');
+        expect(html).toContain('data-testid="usage-week-session"');
         expect(html).not.toContain("model:opus");
         expect(html).toContain("Model limits unavailable");
         expect(html).toContain("The provider refused the agent&#x27;s sign-in token");

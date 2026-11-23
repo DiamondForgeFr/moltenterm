@@ -135,28 +135,30 @@ const sharesOf = (html: string, window: string): string[] =>
         (m) => m[2] ?? "unknown"
     );
 
+// The session's ring round today's letter (#2473): its opening tag, empty when there is none.
+const ringTag = (html: string): string => /<span class="mt-uw-ring"[^>]*>/.exec(html)?.[0] ?? "";
+
 describe("plain gauges for the windows the week says nothing of (#2451)", () => {
-    it("draws the 5-hour and monthly windows as one bar with the used share and the reset", () => {
+    it("draws the monthly window as one bar with the used share and the reset, and the 5-hour session as a ring (#2473)", () => {
         const html = markup(kimi);
-        for (const window of ["session", "month"]) {
-            expect(rowTag(html, window)).toContain('data-plain="true"');
-            expect(blocksOf(html, window)).toEqual([]);
-            expect(rowHtml(html, window)).toContain('data-testid="usage-week-gauge"');
-            expect(sharesOf(html, window)).toEqual([]);
-        }
-        expect(rowHtml(html, "session")).toContain(">in 1 h 20 min<");
-        expect(rowTag(html, "session")).toContain("Resets in 1 h 20 min");
+        expect(rowTag(html, "month")).toContain('data-plain="true"');
+        expect(blocksOf(html, "month")).toEqual([]);
+        expect(rowHtml(html, "month")).toContain('data-testid="usage-week-gauge"');
+        expect(sharesOf(html, "month")).toEqual([]);
+        expect(rowTag(html, "session")).toBe("");
+        expect(ringTag(html)).toContain("Resets in 1 h 20 min (at 13:20)");
         expect(rowHtml(html, "month")).toContain(">Tue 1 Dec, 01:00<");
         expect(rowTag(html, "month")).toContain("Resets Tue 1 Dec, 01:00");
         expect(percentOf(html, "month")).toBe("30 %");
         expect(rowHtml(html, "month")).toContain('style="width:30%"');
     });
 
-    it("keeps the plain gauges plain in the minimal and attached forms, with the short reset", () => {
+    it("keeps the month plain and the session a ring in the minimal and attached forms (#2473)", () => {
         for (const form of ["minimal", "attached"] as const) {
             const html = framed(kimi, form);
-            expect(rowTag(html, "session")).toContain('data-plain="true"');
-            expect(rowHtml(html, "session")).toContain(">in 1 h 20 min<");
+            expect(rowTag(html, "session")).toBe("");
+            expect(ringTag(html)).toContain('data-testid="usage-week-session"');
+            expect(rowTag(html, "month")).toContain('data-plain="true"');
             expect(rowTag(html, "week")).not.toContain("data-plain");
         }
     });
@@ -179,18 +181,17 @@ describe("plain gauges for the windows the week says nothing of (#2451)", () => 
 describe("a share under 1 % (#2451)", () => {
     it("shows 0.15 % as < 1 %, never 0 %", () => {
         const html = markup(kimi);
-        expect(percentOf(html, "session")).toBe("&lt; 1 %");
-        expect(rowTag(html, "session")).toContain('aria-label="Current session, &lt; 1 %');
+        expect(ringTag(html)).toContain('aria-label="Session used: &lt; 1 %. Resets in 1 h 20 min (at 13:20)"');
         const zero = {
             ...kimi,
             snapshot: { ...kimi.snapshot, windows: [{ ...kimi.snapshot.windows[0], usedpercent: 0 }] },
         };
-        expect(percentOf(markup(zero), "session")).toBe("0 %");
+        expect(ringTag(markup(zero))).toContain('data-tip="Session used: 0 %\n');
         const one = {
             ...kimi,
             snapshot: { ...kimi.snapshot, windows: [{ ...kimi.snapshot.windows[0], usedpercent: 1 }] },
         };
-        expect(percentOf(markup(one), "session")).toBe("1 %");
+        expect(ringTag(markup(one))).toContain('data-tip="Session used: 1 %\n');
     });
 });
 
@@ -198,9 +199,9 @@ describe("a week deduced from the month (#2451)", () => {
     it("is drawn like a weekly row: seven days, the pace colour, the percent past 100, no ring outside the reset's week", () => {
         const html = markup(kimi);
         expect(rowTag(html, "week")).toContain('data-deduced="true"');
-        // Two lines in the narrow label column: "Week", and a small dimmed "from the month" under it.
+        // Two lines in the narrow label column: "Consumption", and a small dimmed "from the month" under it (#2473).
         expect(html).toContain(
-            'data-testid="usage-week-label">Week<span class="mt-uw-label-sub" data-testid="usage-week-sublabel">from the month</span>'
+            'data-testid="usage-week-label">Consumption<span class="mt-uw-label-sub" data-testid="usage-week-sublabel">from the month</span>'
         );
         expect(rowTag(html, "week")).toContain('aria-label="Week (from the month), 129 %');
         const blocks = blocksOf(html, "week");
@@ -388,7 +389,7 @@ describe("the day figures in a narrow grid (#2451)", () => {
         try {
             i18n.setLanguageSetting("fr");
             expect(markup(kimi)).toContain(
-                'data-testid="usage-week-label">Semaine<span class="mt-uw-label-sub" data-testid="usage-week-sublabel">d&#x27;après le mois</span>'
+                'data-testid="usage-week-label">Consommation<span class="mt-uw-label-sub" data-testid="usage-week-sublabel">d&#x27;après le mois</span>'
             );
         } finally {
             i18n.setLanguageSetting("");

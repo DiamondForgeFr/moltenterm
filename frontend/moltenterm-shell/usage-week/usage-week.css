@@ -10,26 +10,35 @@
     --mt-uw-first: 18px;
     --mt-uw-block-min: 0px;
     --mt-uw-block-h: 6px;
+    --mt-uw-col-gap: 3px;
+    /* The air between the label column and the first day block (#2473): a clear gap, narrower in the minimal form. */
+    --mt-uw-label-gap: var(--mt-space-16);
     display: grid;
     grid-template-columns:
         var(--mt-uw-first) repeat(7, minmax(var(--mt-uw-block-min), 1fr))
         minmax(52px, max-content);
-    gap: 7px 3px;
+    gap: 7px var(--mt-uw-col-gap);
     align-items: center;
     padding: 2px 0;
 }
 
+.mt-uw[data-minimal="true"] {
+    --mt-uw-label-gap: 10px;
+}
+
 /* A surface that shows one agent labels each row by its window (#2102): the first column is as wide as the widest label
-   shown, up to 6.25rem (#2458), so the blocks start right after the labels it has, never after the longest label of any
-   provider; a longer label is cut with an ellipsis, and so is one the room is too short for. The day blocks keep a
-   minimum width, so a narrow panel shortens the labels, never the blocks. */
+   shown, up to 6.25rem (#2458) and the gap that follows it (#2473), so the blocks start right after the labels it has,
+   never after the longest label of any provider; a longer label is cut with an ellipsis, and so is one the room is too
+   short for. The day blocks keep a minimum width, so a narrow panel shortens the labels, never the blocks. */
 .mt-uw[data-labelled="true"] {
-    --mt-uw-first: fit-content(6.25rem);
+    --mt-uw-first: fit-content(calc(6.25rem + var(--mt-uw-label-gap)));
     --mt-uw-block-min: 12px;
 }
 
+/* The gap is the label's own right margin, less the grid's column gap, so the column still fits its content. */
 .mt-uw-label {
     min-width: 0;
+    margin-right: calc(var(--mt-uw-label-gap) - var(--mt-uw-col-gap));
     overflow: hidden;
     color: var(--mt-text-2);
     font-size: var(--mt-text-11);
@@ -71,6 +80,57 @@
 .mt-uw-day[data-today="true"] {
     color: var(--mt-text-1);
     font-weight: 600;
+}
+
+/* The session ring (#2473): a thin circle, 2 px of stroke, round today's letter. It stands on the letter without a box of
+   the grid's own, so it moves no letter and widens no strip. Its track is the neutral line, its fill runs clockwise from
+   12 o'clock by the share used (pathLength 100) in the pace colour the rows take (--mt-uw-ring-colour), growing in on
+   mount and when the share changes. */
+.mt-uw-day[data-ringed="true"] {
+    position: relative;
+}
+
+.mt-uw-ring {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 17px;
+    height: 17px;
+    margin: -8.5px 0 0 -8.5px;
+    border-radius: 50%;
+}
+
+.mt-uw-ring:focus-visible {
+    outline: 1px solid var(--mt-action);
+    outline-offset: 1px;
+}
+
+.mt-uw-ring svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.mt-uw-ring circle {
+    fill: none;
+    stroke-width: 2px;
+}
+
+.mt-uw-ring-track {
+    stroke: var(--mt-line-2);
+}
+
+.mt-uw-ring-fill {
+    stroke: var(--mt-uw-ring-colour, var(--color-success));
+    transition: stroke-dasharray var(--mt-duration-slow) var(--mt-ease);
+    animation: mt-uw-ring-in var(--mt-duration-slow) var(--mt-ease);
+}
+
+@keyframes mt-uw-ring-in {
+    from {
+        stroke-dasharray: 0 100;
+    }
 }
 
 .mt-uw-row {
@@ -420,8 +480,14 @@ button.mt-uw-logo:focus-visible {
     opacity: 0;
 }
 
-/* Under reduced motion, told by the system or by the app, the reset day's sheen is a still hatch. */
+/* Under reduced motion, told by the system or by the app, the reset day's sheen is a still hatch and the session ring
+   fills without animation. */
 @media (prefers-reduced-motion: reduce) {
+    .mt-uw-ring-fill {
+        transition: none;
+        animation: none;
+    }
+
     .mt-uw-cell.is-reset::after {
         background: repeating-linear-gradient(
             135deg,
@@ -438,5 +504,10 @@ button.mt-uw-logo:focus-visible {
         color-mix(in srgb, var(--mt-action-text) 35%, transparent) 0 3px,
         transparent 3px 6px
     );
+    animation: none;
+}
+
+.prefers-reduced-motion .mt-uw-ring-fill {
+    transition: none;
     animation: none;
 }

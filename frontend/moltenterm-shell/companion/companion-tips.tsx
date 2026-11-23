@@ -49,7 +49,9 @@ import {
     ImageMaxHeight,
     ImageMaxWidth,
     imageSource,
+    tipAccentOf,
     TipAttr,
+    tipParts,
     TipTarget,
     tipTargetOf,
 } from "./companion-tips-model";
@@ -345,10 +347,15 @@ function TipSurface({
                         return;
                     }
                     const text = element.getAttribute(TipAttr);
+                    const accent = tipAccentOf(element);
                     if (!text) {
                         onGone();
-                    } else if (text !== target.text) {
-                        onText({ ...target, text });
+                    } else if (
+                        text !== target.text ||
+                        accent?.text !== target.accent?.text ||
+                        accent?.colour !== target.accent?.colour
+                    ) {
+                        onText({ ...target, text, accent });
                     }
                 },
                 "companion-tip-watch"
@@ -359,10 +366,27 @@ function TipSurface({
         <FloatingPortal>
             <div ref={refs.setFloating} style={floatingStyles} className="mt-tip-pos" data-testid="companion-tip-pos">
                 <div id={id} role="tooltip" className="mt-tip" data-kind={target.kind} data-testid="companion-tip">
-                    {target.kind === "image" ? <ImageTip n={target.n} at={target.at} /> : target.text}
+                    {target.kind === "image" ? <ImageTip n={target.n} at={target.at} /> : <TipText target={target} />}
                 </div>
             </div>
         </FloatingPortal>
+    );
+}
+
+// A text popover: its words, with the figure the element asked to colour (#2473) in its colour.
+function TipText({ target }: { target: Extract<TipTarget, { kind: "text" }> }) {
+    const [before, accent, after] = tipParts(target.text, target.accent);
+    if (accent == null) {
+        return <>{before}</>;
+    }
+    return (
+        <>
+            {before}
+            <span className="mt-tip-accent" style={{ color: target.accent.colour }} data-testid="companion-tip-accent">
+                {accent}
+            </span>
+            {after}
+        </>
     );
 }
 

@@ -2427,11 +2427,11 @@
             },
             "windowShort": {
                 "session": "Session",
-                "week": "Week",
+                "week": "Consumption",
                 "month": "Month",
                 "spend": "Spend",
-                "model": "Week ({name})",
-                "weekDeduced": "Week",
+                "model": "{name}",
+                "weekDeduced": "Consumption",
                 "fromMonth": "from the month"
             },
             "reason": {
@@ -2461,6 +2461,10 @@
             "resetsIn": "Resets in {delay}",
             "resetsAt": "Resets {when}",
             "inDelay": "in {delay}",
+            "sessionRing": {
+                "used": "Session used: {percent}",
+                "resets": "Resets in {delay} (at {time})"
+            },
             "creditsUnlimited": "Credits: unlimited",
             "creditsLeft": "Credits: {balance} left",
             "creditsAvailable": "Credits available",
@@ -2518,6 +2522,7 @@
                 "kimi-oauth": "Kimi Code managed usage endpoint"
             },
             "sourceAnd": "{list} and {last}",
+            "explainRing": "The ring round today's letter is the current session: it fills with the share used, and its popover says when it starts again.",
             "explain": "A row is one usage window of your plan, filled day by day from its reset day (one block a day). The percentage is the share already used; the reset icon before it says when the window starts again. The small figures under the blocks spread that total over the days from the reset, one seventh each, so they tell how many days' worth has been used.",
             "details": "Plan usage details",
             "detailsMore": "Plan usage details ({count} more)",
@@ -2537,7 +2542,10 @@
                 "lastOne": "At least one row stays shown",
                 "none": "The rows appear once the plan's usage is read.",
                 "nowShown": "{label} row shown",
-                "nowHidden": "{label} row hidden"
+                "nowHidden": "{label} row hidden",
+                "sessionRing": "Session (ring on today)",
+                "ringShown": "Session ring shown",
+                "ringHidden": "Session ring hidden"
             },
             "setupLabel": "Plan usage setup",
             "setupIntro": "The agent gives your plan's limits to its status line. Wrap your status line in MoltenTerm's relay and the gauges show here.",

@@ -441,7 +441,7 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         expect(flowIds(html)).toEqual(["agents", "usage", "topics", "answer", "files"]);
         const usage = flowBlock(html, "usage");
         expect(usage).toContain('data-form="minimal"');
-        expect(labelsOf(usage)).toEqual(["Week", "Week (Fable)"]);
+        expect(labelsOf(usage)).toEqual(["Consumption", "Fable"]);
         expect(percentsOf(usage)).toEqual(["63 %", "12 %"]);
         expect(count(usage, 'data-testid="usage-week-row"')).toBe(2);
         expect(count(usage, 'data-testid="usage-week-block"')).toBe(14);
@@ -513,7 +513,7 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         expect(hero).toContain('data-testid="companion-hero-usage"');
         expect(hero).toContain('class="mt-cdash-hero-usage"');
         const row = hero.slice(hero.indexOf('data-testid="companion-hero-usage"'));
-        expect(labelsOf(row)).toEqual(["Week", "Week (Fable)"]);
+        expect(labelsOf(row)).toEqual(["Consumption", "Fable"]);
         expect(percentsOf(row)).toEqual(["63 %", "12 %"]);
         expect(count(row, 'data-testid="usage-week-block"')).toBe(14);
         // The rows keep their days here too (#2458).
@@ -620,7 +620,7 @@ describe("the plan usage, minimal and attached (#2450)", () => {
     it("draws the arranged usage as it will be, and says in its settings what it is", () => {
         const minimal = block(shown(minimalLayout, { arranging: true }), "usage");
         expect(minimal).toContain('data-form="minimal"');
-        expect(labelsOf(minimal)).toEqual(["Week", "Week (Fable)"]);
+        expect(labelsOf(minimal)).toEqual(["Consumption", "Fable"]);
         expect(settingsOf("usage", minimalLayout)).toMatch(/role="radio" aria-checked="true"[^>]*>Minimal</);
         const settings = settingsOf("usage", attachedLayout);
         expect(settings).toMatch(/role="switch" aria-checked="true"[^>]*data-testid="companion-setting-attached"/);
@@ -707,8 +707,8 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         const hero = heroOf(html);
         const row = hero.slice(hero.indexOf('data-testid="companion-hero-usage"'));
         // The same rows, once: it is not drawn again as a block of the flow.
-        expect(labelsOf(row)).toEqual(["Week", "Week (Fable)"]);
-        expect(labelsOf(html)).toEqual(["Week", "Week (Fable)"]);
+        expect(labelsOf(row)).toEqual(["Consumption", "Fable"]);
+        expect(labelsOf(html)).toEqual(["Consumption", "Fable"]);
         expect(flowIds(html)).not.toContain("usage");
         expect(html).not.toContain('data-testid="companion-usage-block"');
         // Held still, under its own controls: the handle that detaches it, the eye and the gear.

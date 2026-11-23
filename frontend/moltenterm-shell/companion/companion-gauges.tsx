@@ -33,6 +33,7 @@ import {
     usageReadFor,
     UsageSetup,
     usageStale,
+    withSessionRing,
 } from "./companion-gauges-model";
 import {
     CompanionRoute,
@@ -343,6 +344,17 @@ function weekRow(
     };
 }
 
+// The paragraph under the rows of the full block: how a row reads, and, when the session draws a ring (#2473), what the
+// ring is. "" when there is neither a row nor a ring to explain.
+function usageExplain(view: Extract<GaugesView, { kind: "enabled" }>, t: (key: string) => string): string {
+    return [
+        view.rows.length > 0 ? t("companion.gauges.explain") : "",
+        view.session != null ? t("companion.gauges.explainRing") : "",
+    ]
+        .filter((s) => !!s)
+        .join(" ");
+}
+
 // The line of a reading kept because no fresh one could be read (#2451): its age and when it comes back.
 function StaleNote({ text }: { text: string }) {
     if (!text) {
@@ -356,7 +368,7 @@ function StaleNote({ text }: { text: string }) {
 }
 
 export function PlanUsageBody({
-    view,
+    view: given,
     experimental,
     confirming,
     failed,
@@ -384,6 +396,8 @@ export function PlanUsageBody({
     rows?: UsageRowsProps;
 } & PlanUsageActions) {
     const t = useT();
+    // The session is no row: it is a ring round today's letter (#2473), and a row the developer hid draws no ring.
+    const view = withSessionRing(given);
     const listed = view.kind === "enabled" ? (view.listed ?? []) : [];
     const listedKey = JSON.stringify(listed);
     const onListed = rows?.onListed;
@@ -469,6 +483,7 @@ export function PlanUsageBody({
     if (compact && onDetails != null) {
         return <CompactGauges view={view} onDetails={() => onDetails(true)} />;
     }
+    const explain = usageExplain(view, t);
     return (
         <section
             className="shrink-0 border-b border-border px-(--mt-companion-inset) pt-2 pb-2.5"
@@ -488,6 +503,7 @@ export function PlanUsageBody({
                 <UsageWeekGrid
                     popovers
                     rows={view.rows.map((row) => weekRow(view, row, "", true))}
+                    session={view.session}
                     now={view.now}
                     legend={view.rows.length > 0}
                     dayFigures
@@ -498,9 +514,9 @@ export function PlanUsageBody({
                     <StaleNote text={view.stale} />
                 </div>
             ) : null}
-            {view.rows.length > 0 ? (
+            {explain ? (
                 <p className="mt-1.5 text-11 leading-snug text-muted" data-testid="companion-plan-usage-explain">
-                    {t("companion.gauges.explain")}
+                    {explain}
                 </p>
             ) : null}
             {view.credits ? (
@@ -594,6 +610,7 @@ function FramedUsage({
             body: <StatusLineSetupCard setup={view.setup} failed={failed} onHide={onHide} extra={extra} bare />,
         });
     }
+    const explain = usageExplain(view, t);
     // The choice of the rows (#2462) is among the tools while the block draws its rows alone, where they have room; in the
     // full block the tools chip already holds the age, the refresh and Hide, so it stands in the line of the source.
     const rowsTool =
@@ -680,15 +697,16 @@ function FramedUsage({
                     <UsageWeekGrid
                         popovers
                         rows={view.rows.map((row) => weekRow(view, row, "", true))}
+                        session={view.session}
                         now={view.now}
                         legend={view.rows.length > 0}
                         dayFigures
                     />
                 </div>
                 <StaleNote text={view.stale} />
-                {view.rows.length > 0 ? (
+                {explain ? (
                     <p className="m-0 text-11 leading-snug text-muted" data-testid="companion-plan-usage-explain">
-                        {t("companion.gauges.explain")}
+                        {explain}
                     </p>
                 ) : null}
                 {view.credits ? (
@@ -721,10 +739,11 @@ function MinimalGauges({ view }: { view: Extract<GaugesView, { kind: "enabled" }
             data-minimal="true"
         >
             <div data-testid="companion-gauges">
-                {view.rows.length > 0 ? (
+                {view.rows.length > 0 || view.session != null ? (
                     <UsageWeekGrid
                         popovers
                         rows={view.rows.map((row) => weekRow(view, row, about, false))}
+                        session={view.session}
                         now={view.now}
                         minimal
                         dayFigures
@@ -933,10 +952,11 @@ function CompactGauges({ view, onDetails }: { view: Extract<GaugesView, { kind: 
                 {rows.length === 0 && view.credits ? (
                     <div className="truncate pr-14 text-11 text-secondary">{view.credits}</div>
                 ) : null}
-                {rows.length > 0 ? (
+                {rows.length > 0 || view.session != null ? (
                     <UsageWeekGrid
                         popovers
                         rows={rows.map((row) => weekRow(view, row, about, false))}
+                        session={view.session}
                         now={view.now}
                         dayFigures
                     />

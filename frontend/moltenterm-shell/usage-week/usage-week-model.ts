@@ -14,7 +14,7 @@ export const WeekWindowId = "week";
 export const MonthWindowId = "month";
 // A window known only by its length: seven days.
 const WeekMins = 7 * 24 * 60;
-const SessionWindowId = "session";
+export const SessionWindowId = "session";
 const SessionMins = 5 * 60;
 const SpendWindowId = "spend";
 const ModelWindowPrefix = "model:";

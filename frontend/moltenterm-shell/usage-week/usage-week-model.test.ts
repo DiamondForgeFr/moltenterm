@@ -126,8 +126,30 @@ describe("the slim week grid (FR-BOSS-009, AC56, #2106)", () => {
         expect(grid).not.toContain("--mt-uw-block-max");
         expect(grid).toContain("repeat(7, minmax(var(--mt-uw-block-min), 1fr))");
         expect(grid).not.toContain("justify-content: start;");
-        expect(grid).toContain("gap: 7px 3px;");
+        expect(grid).toContain("--mt-uw-col-gap: 3px;");
+        expect(grid).toContain("gap: 7px var(--mt-uw-col-gap);");
         expect(rule(".mt-uw-cell")).toContain("height: var(--mt-uw-block-h);");
+    });
+
+    it("leaves a clear gap between the label column and the first day block, narrower in the minimal form (#2473)", () => {
+        expect(rule(".mt-uw")).toContain("--mt-uw-label-gap: var(--mt-space-16);");
+        expect(rule('.mt-uw[data-minimal="true"]')).toContain("--mt-uw-label-gap: 10px;");
+        // The label's own right margin makes the gap on top of the grid's column gap, so the column fits its content.
+        expect(rule(".mt-uw-label")).toContain("margin-right: calc(var(--mt-uw-label-gap) - var(--mt-uw-col-gap));");
+        expect(rule('.mt-uw[data-labelled="true"]')).toContain(
+            "--mt-uw-first: fit-content(calc(6.25rem + var(--mt-uw-label-gap)));"
+        );
+    });
+
+    it("draws the session ring thin, from 12 o'clock, without a box of the grid's own, still under reduced motion (#2473)", () => {
+        expect(rule(".mt-uw-ring")).toContain("position: absolute;");
+        expect(rule(".mt-uw-ring svg")).toContain("transform: rotate(-90deg);");
+        expect(rule(".mt-uw-ring circle")).toContain("stroke-width: 2px;");
+        expect(rule(".mt-uw-ring-fill")).toContain("stroke: var(--mt-uw-ring-colour, var(--color-success));");
+        expect(css).toMatch(
+            /@media \(prefers-reduced-motion: reduce\) \{\s*\.mt-uw-ring-fill \{\s*transition: none;\s*animation: none;/
+        );
+        expect(css).toMatch(/\.prefers-reduced-motion \.mt-uw-ring-fill \{\s*transition: none;\s*animation: none;/);
     });
 
     it("gives the percent a column wide enough for 100 % on one line", () => {

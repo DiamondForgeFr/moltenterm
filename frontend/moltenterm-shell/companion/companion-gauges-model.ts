@@ -9,6 +9,9 @@ import {
     isWeekWindow,
     lineDayFiguresText,
     MonthWindowId,
+    paceColour,
+    percentText,
+    SessionWindowId,
     UsageWeekLine,
     usageWeekLine,
     weekdayIndex,
@@ -167,6 +170,12 @@ export type GaugeRow = {
 // A usage window the developer can show or hide (#2462): its key, its name as the block shows it, and whether its row shows.
 export type UsageWindowChoice = { id: string; label: string; shown: boolean };
 
+// The session window as it draws (#2473): not a row but a ring round today's day letter. `percent` is how far the ring
+// fills (0 to 100) and `colour` the pace colour the week bars take for the same use. `tip` is its popover, two lines
+// joined by a line break ("Session used: 72 %", "Resets in 1 h 48 min (at 15:20)"), `figure` the part of the first line
+// the popover puts in `colour`, and `name` the ring's accessible name.
+export type SessionRing = { percent: number; colour: string; tip: string; figure: string; name: string };
+
 export type GaugesView =
     | { kind: "hidden" }
     | { kind: "off" }
@@ -177,9 +186,11 @@ export type GaugesView =
           agent: string;
           now: number;
           // The rows that show. gaugesView gives every window; withRowChoice (companion-usage-rows-model.ts) leaves the
-          // ones the developer chose to show, and says which windows there were.
+          // ones the developer chose to show, and says which windows there were. The session is one of them until
+          // withSessionRing takes it out of the rows to draw it as a ring (#2473).
           rows: GaugeRow[];
           listed?: UsageWindowChoice[];
+          session?: SessionRing;
           source: string;
           age: string;
           credits: string;
@@ -227,21 +238,26 @@ export function resetShortText(resetsAt: number, now: number): string {
     return resetWords(resetsAt, now, true);
 }
 
+// The time left as a count: "45 min", "3 h", "2 h 14 min".
+function delayWords(ms: number): string {
+    const mins = Math.ceil(ms / 60000);
+    if (mins < 60) {
+        return `${mins} min`;
+    }
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
 function resetWords(resetsAt: number, now: number, short: boolean): string {
     const ms = (resetsAt || 0) - now;
     if (!resetsAt || ms <= 0) {
         return "";
     }
-    const mins = Math.ceil(ms / 60000);
     const inDelay = (delay: string) => t(short ? "companion.gauges.inDelay" : "companion.gauges.resetsIn", { delay });
     const at = (when: string) => (short ? when : t("companion.gauges.resetsAt", { when }));
-    if (mins < 60) {
-        return inDelay(`${mins} min`);
-    }
     if (ms < 24 * HourMs) {
-        const h = Math.floor(mins / 60);
-        const m = mins % 60;
-        return inDelay(m === 0 ? `${h} h` : `${h} h ${m} min`);
+        return inDelay(delayWords(ms));
     }
     const d = new Date(resetsAt);
     if (ms < 6 * 24 * HourMs) {
@@ -278,6 +294,10 @@ function windowWords(label: string, short: boolean): string {
     }
     const extra = /^(.+) (5-hour|This week|\d+-(?:hour|day|min))$/.exec(text);
     if (extra != null) {
+        // A model's week is the model alone in a narrow column, as the window of a model is (#2473).
+        if (short && extra[2] === "This week") {
+            return extra[1];
+        }
         return t("companion.gauges.window.extra", { name: extra[1], window: windowWords(extra[2], short) });
     }
     return text;
@@ -379,6 +399,50 @@ export function gaugeRows(snapshot: UsageSnapshot, now: number): GaugeRow[] {
         };
         return w.deduced ? deducedWeekRow(row, month, now) : row;
     });
+}
+
+// "Resets in 1 h 48 min (at 15:20)": the session's reset, a count and the clock time it ends at; "" without a reset to come.
+function sessionResetText(resetsAt: number, now: number): string {
+    const ms = (resetsAt || 0) - now;
+    if (!resetsAt || ms <= 0) {
+        return "";
+    }
+    return t("companion.gauges.sessionRing.resets", {
+        delay: delayWords(ms),
+        time: clockTime(new Date(resetsAt)),
+    });
+}
+
+// The ring a session window draws round today's letter (#2473). Its colour is the pace colour of the session's own
+// window, the scale the week bars take, so a ring and a bar of the same pace read alike.
+export function sessionRing(row: GaugeRow, now: number): SessionRing {
+    const line = row.line;
+    const figure = percentText(line);
+    const lines = [
+        t("companion.gauges.sessionRing.used", { percent: figure }),
+        sessionResetText(line.resetsAt, now),
+    ].filter((s) => !!s);
+    return {
+        percent: row.bar,
+        colour: paceColour(line.pace, line.unused),
+        tip: lines.join("\n"),
+        figure,
+        name: lines.join(". "),
+    };
+}
+
+// The usage as it draws the session (#2473): out of the rows, into a ring. It is a view that kept the session in its
+// rows (every window gaugesView gives, less those the developer hid) that becomes one with a ring and no session row; a
+// view without a session row, which the developer hid or the provider does not report, has no ring.
+export function withSessionRing(view: GaugesView): GaugesView {
+    if (view.kind !== "enabled") {
+        return view;
+    }
+    const session = view.rows.find((row) => row.id === SessionWindowId);
+    if (session == null) {
+        return view;
+    }
+    return { ...view, rows: view.rows.filter((row) => row !== session), session: sessionRing(session, view.now) };
 }
 
 function creditAmount(value: number, unit: string): string {
