@@ -109,6 +109,8 @@ const (
 	ErrTooManyRedirects  = "The page redirected too many times"
 	ErrNothingToReload   = "This tab shows no web page to load again: open one with navigate first"
 	ErrCallCancelled     = "The call was cancelled"
+	// ErrLookalikeRefused answers a navigation MoltenTerm held because the domain imitates one the user knows (FR-BRW-024).
+	ErrLookalikeRefused = "MoltenTerm refused this page: its domain looks like another the user knows. Only the user can open it, from the tab; do not try again"
 
 	ErrCoordinateOutside = "coordinate must be [x, y] inside the viewport, in the page's CSS pixels (see the latest screenshot)"
 	ErrTargetRequired    = "this action needs coordinate [x, y] or ref"

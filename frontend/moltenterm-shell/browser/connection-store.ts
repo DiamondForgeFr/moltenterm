@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// What a browser panel knows about how its tabs are served (#1980, FR-BRW-023): the state Electron main sends per tab
-// and the password warning shown for a page. connectionView decides what the button next to the address shows. Kept
-// apart from the view so the panel holds the state without loading the popover's code (NFR-PERF-003).
+// What a browser panel knows about how its tabs are served (#1980, FR-BRW-023) and about the navigations held as a
+// lookalike domain (#2482, FR-BRW-024): the state Electron main sends per tab, the password warning shown for a page and
+// the held navigation per tab. connectionView decides what the button next to the address shows. Kept apart from the
+// view so the panel holds the state without loading the popover's code (NFR-PERF-003).
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, PrimitiveAtom } from "jotai";
@@ -17,13 +18,15 @@ import {
     ReasonMixed,
     warnsAboutPassword,
 } from "./connection-security";
+import type { LookalikeHold } from "./lookalike";
 
 export const ViewSecure = "secure";
 export const ViewInsecure = "insecure";
 export const ViewMixed = "mixed";
+export const ViewSuspect = "suspect";
 
 // What the button beside the address shows: a lock, a warning, or (null) nothing for a local or non-web page.
-export type ConnectionView = { kind: typeof ViewSecure | typeof ViewInsecure | typeof ViewMixed };
+export type ConnectionView = { kind: typeof ViewSecure | typeof ViewInsecure | typeof ViewMixed | typeof ViewSuspect };
 
 export function connectionGlyph(kind: ConnectionView["kind"]): string {
     return kind === ViewSecure ? "fa-lock" : "fa-triangle-exclamation";
@@ -34,13 +37,17 @@ export function connectionWordKey(kind: ConnectionView["kind"]): string {
     return `browser.connection.${kind}`;
 }
 
-// address: what the tab shows. state: what main knows of the page the guest holds, null before its first page. failed:
-// the page failed to load and the error page is shown.
+// address: what the tab shows. state: what main knows of the page the guest holds, null before its first page. held: the
+// navigation held for the tab. failed: the page failed to load and the error page is shown.
 export function connectionView(input: {
     address: string;
     state: ConnectionState | null;
+    held: LookalikeHold | null;
     failed: boolean;
 }): ConnectionView {
+    if (input.held != null) {
+        return { kind: ViewSuspect };
+    }
     if (input.failed) {
         return null;
     }
@@ -113,6 +120,26 @@ export class ConnectionModel {
         if (warnings[tabId] != null) {
             const { [tabId]: _gone, ...rest } = warnings;
             globalStore.set(this.warningsAtom, rest);
+        }
+    }
+}
+
+export class LookalikeModel {
+    holdsAtom = atom({}) as PrimitiveAtom<Record<string, LookalikeHold>>;
+
+    hold(tabId: string, hold: LookalikeHold): void {
+        globalStore.set(this.holdsAtom, { ...globalStore.get(this.holdsAtom), [tabId]: hold });
+    }
+
+    holdOf(tabId: string): LookalikeHold {
+        return globalStore.get(this.holdsAtom)[tabId] ?? null;
+    }
+
+    clear(tabId: string): void {
+        const all = globalStore.get(this.holdsAtom);
+        if (all[tabId] != null) {
+            const { [tabId]: _gone, ...rest } = all;
+            globalStore.set(this.holdsAtom, rest);
         }
     }
 }

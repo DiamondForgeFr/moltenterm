@@ -27,6 +27,8 @@ type fakePage struct {
 	describe  map[int64]describeResult
 	text      string
 	redirects map[string]string
+	// navErrors make a URL fail to load with the error code emain reports.
+	navErrors map[string]string
 	titles    map[string]string
 	methods   []string
 	navParams []map[string]any
@@ -39,6 +41,7 @@ func makeFakePage() *fakePage {
 		entries:   []historyEntry{{Url: blankUrl}},
 		describe:  map[int64]describeResult{},
 		redirects: map[string]string{},
+		navErrors: map[string]string{},
 		titles:    map[string]string{},
 	}
 }
@@ -84,6 +87,9 @@ func (p *fakePage) cdp(key TabKey, method string, params any) (json.RawMessage, 
 			p.index = index
 		} else {
 			url := args["url"].(string)
+			if code, ok := p.navErrors[url]; ok {
+				return json.Marshal(map[string]any{"url": p.entries[p.index].Url, "error": code})
+			}
 			// emain stops a main-frame redirect to another host and returns it unloaded.
 			if to, ok := p.redirects[url]; ok {
 				return json.Marshal(map[string]any{"url": p.entries[p.index].Url, "redirect": to})
@@ -283,6 +289,28 @@ func TestNavigateAsksTheSiteFirstAndReturnsTheFinalPage(t *testing.T) {
 	// Allow once lasts for the session: no second prompt.
 	if r := w.call(mcpbrowser.ToolNavigate, w.args(`"url":"https://www.example.com/other"`)); r.IsError {
 		t.Fatalf("second navigate: %s", text(r))
+	}
+}
+
+// emain holds a navigation to a lookalike domain (FR-BRW-024) and reports ERR_LOOKALIKE_DOMAIN: the agent gets one fixed
+// refusal that names no domain and no way around it, while an ordinary load error keeps its code.
+func TestNavigateToAHeldLookalikeIsAFixedRefusal(t *testing.T) {
+	w := makePageWorld(t)
+	w.page.navErrors["https://paypa1.com/"] = lookalikeCode
+	w.page.navErrors["https://gone.example/"] = "ERR_NAME_NOT_RESOLVED"
+	pending := w.callAsync(mcpbrowser.ToolNavigate, w.args(`"url":"https://paypa1.com/"`))
+	p := w.prompt(t)
+	w.answer(t, p, DecisionOnce)
+	expectError(t, waitResult(t, pending), mcpbrowser.ErrLookalikeRefused)
+	pending = w.callAsync(mcpbrowser.ToolNavigate, w.args(`"url":"https://gone.example/"`))
+	p = w.prompt(t)
+	w.answer(t, p, DecisionOnce)
+	r := waitResult(t, pending)
+	if !r.IsError || !strings.Contains(text(r), "ERR_NAME_NOT_RESOLVED") || text(r) == mcpbrowser.ErrLookalikeRefused {
+		t.Fatalf("an ordinary load error keeps its code: %s", text(r))
+	}
+	if w.page.current() != blankUrl {
+		t.Fatalf("the tab never moved: %s", w.page.current())
 	}
 }
 

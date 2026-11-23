@@ -3079,16 +3079,19 @@
             "secure": "Secure connection",
             "insecure": "Not secure",
             "mixed": "Partially secure",
+            "suspect": "Suspicious site",
             "label": {
                 "secure": "Secure connection, site information",
                 "insecure": "Not secure, site information",
-                "mixed": "Partially secure, site information"
+                "mixed": "Partially secure, site information",
+                "suspect": "Suspicious site, site information"
             },
             "popover": {
                 "aria": "Site information",
                 "secureDetail": "What you send to this site, and what it sends back, is encrypted on its way.",
                 "insecureDetail": "This page is served without encryption: what you send to this site, and what it sends back, can be read or changed on its way.",
                 "mixedDetail": "This page is encrypted, but it loaded some content without encryption: that content can be read or changed on its way.",
+                "suspectDetail": "Its domain imitates {known}: the page was not loaded.",
                 "certificate": "Valid certificate",
                 "certificateNone": "Certificate",
                 "certificateUnavailable": "Its details are not available for this page.",
@@ -3115,6 +3118,41 @@
                 "title": "This page is not secure",
                 "detail": "A password typed here can be read on its way. Do not use it anywhere else.",
                 "dismiss": "Understood"
+            }
+        },
+        "lookalike": {
+            "aria": "Warning: this site looks like another",
+            "title": "This site looks like {known}, but it is not",
+            "real": "Its real domain is",
+            "agentNote": "An agent tried to open this page.",
+            "back": "Back to safety",
+            "continue": "Continue to {domain}",
+            "continueTitle": "You will not be warned again about this domain.",
+            "basis": "Compared with your bookmarks, your history and the best-known sites, on this computer only.",
+            "difference": {
+                "digit": "with the digit {from} instead of the {to}",
+                "script": "with a {script} “{from}” instead of the “{to}”",
+                "extra": "with an extra “{char}”",
+                "missing": "with a “{char}” missing",
+                "swapped": "with “{pair}” swapped",
+                "substitute": "with “{from}” instead of “{to}”",
+                "generic": "made of characters that pass for those of {known}"
+            },
+            "script": {
+                "Cyrillic": "Cyrillic",
+                "Greek": "Greek",
+                "Armenian": "Armenian",
+                "Hebrew": "Hebrew",
+                "Arabic": "Arabic",
+                "Han": "Chinese",
+                "Hiragana": "Japanese",
+                "Katakana": "Japanese",
+                "Hangul": "Korean",
+                "Bopomofo": "Chinese",
+                "Thai": "Thai",
+                "Devanagari": "Devanagari",
+                "Georgian": "Georgian",
+                "Other": "foreign-script"
             }
         },
         "clientCertificate": {

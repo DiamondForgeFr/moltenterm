@@ -215,6 +215,13 @@ contextBridge.exposeInMainWorld("api", {
         ipcRenderer.send("moltenterm-client-certificate-answer", requestId, decision, fingerprint),
     // MOLTENTERM-PATCH (#1980): the connection state main keeps for a page (emain/moltenterm-connection.ts)
     moltentermConnectionGet: (webContentsId: number) => ipcRenderer.invoke("moltenterm-connection-get", webContentsId),
+    // MOLTENTERM-PATCH (#2482): the lookalike warning (emain/moltenterm-lookalike.ts): the addresses the window knows, the
+    // navigation held for a page, and the user's Continue
+    moltentermLookalikeKnown: (bookmarks: string[], pinned: string[]) =>
+        ipcRenderer.send("moltenterm-lookalike-known", bookmarks, pinned),
+    moltentermLookalikeHeld: (webContentsId: number) => ipcRenderer.invoke("moltenterm-lookalike-held", webContentsId),
+    moltentermLookalikeContinue: (webContentsId: number) =>
+        ipcRenderer.send("moltenterm-lookalike-continue", webContentsId),
     // MOLTENTERM-PATCH (#161): the app menu's Getting Started (emain/moltenterm-onboarding.ts)
     onMoltentermGettingStarted: (callback: () => void) =>
         ipcRenderer.on("moltenterm-getting-started", () => callback()),

@@ -18,7 +18,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { agentLabel } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { addressOfPage, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
-import { connectionGlyph, ConnectionView, ViewSecure } from "../browser/connection-store";
+import { connectionGlyph, ConnectionView, ViewSecure, ViewSuspect } from "../browser/connection-store";
+import { shownAddressHost } from "../browser/lookalike";
 import { useLocale, useT } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
 import { panelIcon, PanelMeta, panelTitle } from "../tab-identity";
@@ -100,7 +101,7 @@ function useFocusFacts(origin: string) {
         blockId,
         tabId,
         isPage,
-        url: addressOfPage(url),
+        url: shownAddressHost(addressOfPage(url)),
         panelLabel,
         panelIcon: meta ? panelIcon(meta, !!agent) : null,
         viewName,
@@ -233,7 +234,11 @@ export function TopField() {
                         className={cn(
                             "fa fa-solid w-[14px] text-center text-icon-14",
                             connectionGlyph(connection.kind),
-                            connection.kind === ViewSecure ? "text-muted" : "text-warning"
+                            connection.kind === ViewSecure
+                                ? "text-muted"
+                                : connection.kind === ViewSuspect
+                                  ? "text-error"
+                                  : "text-warning"
                         )}
                         data-testid="top-field-connection"
                         data-kind={connection.kind}

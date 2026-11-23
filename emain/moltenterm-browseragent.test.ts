@@ -112,6 +112,33 @@ describe("browser agent takeover and input", () => {
         expect(wc.closeDevTools).not.toHaveBeenCalled();
     });
 
+    // #2482 (FR-BRW-024 AC7): a navigation held as a lookalike domain is a refusal only the developer can lift.
+    it("marks the agent's navigation while it loads and reports a held one as a lookalike refusal", async () => {
+        const lookalike = await import("./moltenterm-lookalike-agent");
+        const marks: string[] = [];
+        let held = true;
+        lookalike.setAgentNavigationHooks({
+            begin: (id) => marks.push(`begin ${id}`),
+            end: (id) => marks.push(`end ${id}`),
+            wasHeld: () => held,
+        });
+        wc.loadURL = vi.fn(async () => {});
+        const refused = await agent.runBrowserAgentCdp(
+            call("Molten.navigate", { url: "https://paypa1.com/", timeoutms: 1000 })
+        );
+        expect(wc.loadURL).toHaveBeenCalledWith("https://paypa1.com/");
+        expect(refused).toMatchObject({ error: lookalike.LookalikeRefusalCode });
+        expect(marks).toEqual([`begin ${wc.id}`, `end ${wc.id}`]);
+        held = false;
+        marks.length = 0;
+        wc.getTitle = vi.fn(() => "Example");
+        const loaded = await agent.runBrowserAgentCdp(
+            call("Molten.navigate", { url: "https://example.com/", timeoutms: 1000 })
+        );
+        expect(loaded).toMatchObject({ error: "" });
+        expect(marks).toEqual([`begin ${wc.id}`, `end ${wc.id}`]);
+    });
+
     // #971: taking over is explicit; the user's click or key never reaches the page and never stops the agent.
     it("holds back the user's click and key, tells the window, and keeps the agent driving", async () => {
         const click = { preventDefault: vi.fn() };

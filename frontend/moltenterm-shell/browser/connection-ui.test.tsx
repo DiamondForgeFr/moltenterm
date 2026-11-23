@@ -19,6 +19,8 @@ import { ConnectionInfo } from "./connection-popover";
 import type { ConnectionState } from "./connection-security";
 import { ConnectionModel, connectionView } from "./connection-store";
 import { InsecurePasswordBar } from "./insecure-password-bar";
+import type { LookalikeHold } from "./lookalike";
+import { LookalikePage } from "./lookalike-page";
 
 const secureState: ConnectionState = {
     url: "https://app.example.com/dashboard",
@@ -31,8 +33,18 @@ const secureState: ConnectionState = {
         fingerprint: "AA:BB",
     },
 };
-function view(address: string, state: ConnectionState | null) {
-    return connectionView({ address, state, failed: false });
+const hold: LookalikeHold = {
+    url: "https://paypa1.com/signin",
+    host: "paypa1.com",
+    domain: "paypa1.com",
+    resembles: "paypal.com",
+    source: "top",
+    reason: "skeleton",
+    agent: false,
+};
+
+function view(address: string, state: ConnectionState | null, held: LookalikeHold | null = null) {
+    return connectionView({ address, state, held, failed: false });
 }
 
 beforeEach(() => {
@@ -40,10 +52,10 @@ beforeEach(() => {
 });
 
 describe("the connection button (#1980)", () => {
-    const render = (address: string, state: ConnectionState | null) =>
+    const render = (address: string, state: ConnectionState | null, held: LookalikeHold | null = null) =>
         renderToStaticMarkup(
             <Provider store={globalStore}>
-                <ConnectionButton view={view(address, state)} address={address} state={state} />
+                <ConnectionButton view={view(address, state, held)} address={address} state={state} hold={held} />
             </Provider>
         );
 
@@ -65,10 +77,13 @@ describe("the connection button (#1980)", () => {
         expect(html).toContain('aria-label="Not secure, site information"');
     });
 
-    it("says partly secure for insecure content", () => {
+    it("says partly secure for insecure content, and suspect for a held lookalike", () => {
         expect(render("https://a.example/", { url: "https://a.example/", mixed: true, certificate: null })).toContain(
             "Partially secure"
         );
+        const suspect = render("https://paypa1.com/", null, hold);
+        expect(suspect).toContain('data-kind="suspect"');
+        expect(suspect).toContain("Suspicious site");
     });
 
     it("is a button that opens a dialog and has no popover until it is clicked", () => {
@@ -96,6 +111,7 @@ describe("the site information (#1980)", () => {
                     view={view(address, state)}
                     address={address}
                     state={state}
+                    hold={null}
                     onClose={() => {}}
                     {...props}
                 />
@@ -153,6 +169,23 @@ describe("the site information (#1980)", () => {
         expect(html).toContain("browser-connection-clear");
         expect(html).toContain("Clear this site&#x27;s cookies and data…");
     });
+
+    it("names the known site a suspect page imitates, and the domain that was not loaded", () => {
+        const html = renderToStaticMarkup(
+            <Provider store={globalStore}>
+                <ConnectionInfo
+                    view={view(hold.url, null, hold)}
+                    address={hold.url}
+                    state={null}
+                    hold={hold}
+                    onClose={() => {}}
+                />
+            </Provider>
+        );
+        expect(html).toContain("paypa1.com");
+        expect(html).toContain("Its domain imitates paypal.com: the page was not loaded.");
+        expect(html).not.toContain("browser-connection-certificate");
+    });
 });
 
 describe("the password warning bar (#1980)", () => {
@@ -186,5 +219,53 @@ describe("the password warning bar (#1980)", () => {
         expect(render(model, "http://a.example/other")).toBe("");
         model.dismissWarning("t1");
         expect(render(model, "http://a.example/login")).toBe("");
+    });
+});
+
+describe("the lookalike warning page (#2482)", () => {
+    const render = (held: LookalikeHold) =>
+        renderToStaticMarkup(<LookalikePage hold={held} onBack={() => {}} onContinue={() => {}} />);
+
+    it("says which known site the domain imitates and spells the real domain with what sets it apart", () => {
+        const html = render(hold);
+        expect(html).toContain('role="alertdialog"');
+        expect(html).toContain("This site looks like paypal.com, but it is not");
+        expect(html).toContain("Its real domain is");
+        expect(html).toMatch(/font-mono[^>]*>paypa1\.com</);
+        expect(html).toContain("with the digit 1 instead of the l");
+    });
+
+    it("offers Back to safety as the primary action and Continue to the domain as the secondary one", () => {
+        const html = render(hold);
+        expect(html).toMatch(
+            /<button[^>]*molten-btn [^>]*data-testid="lookalike-back"|data-testid="lookalike-back"[^>]*molten-btn /
+        );
+        expect(html).toContain("Back to safety");
+        expect(html).toContain("Continue to paypa1.com");
+        expect(html).toContain("molten-btn-secondary");
+        expect(html).toContain("You will not be warned again about this domain.");
+    });
+
+    it("tells how it was checked: on this computer only", () => {
+        expect(render(hold)).toContain(
+            "Compared with your bookmarks, your history and the best-known sites, on this computer only."
+        );
+    });
+
+    it("spells an internationalized domain in its xn-- form and names the script of the letter", () => {
+        const idn = {
+            ...hold,
+            url: "https://xn--pypal-4ve.com/",
+            host: "xn--pypal-4ve.com",
+            domain: "xn--pypal-4ve.com",
+        };
+        const html = render(idn);
+        expect(html).toContain("xn--pypal-4ve.com");
+        expect(html).toContain("with a Cyrillic “а” instead of the “a”");
+    });
+
+    it("says an agent tried to open the page when it was the agent's navigation", () => {
+        expect(render({ ...hold, agent: true })).toContain("An agent tried to open this page.");
+        expect(render(hold)).not.toContain("An agent tried to open this page.");
     });
 });

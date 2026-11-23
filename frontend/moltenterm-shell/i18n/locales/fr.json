@@ -3079,16 +3079,19 @@
             "secure": "Connexion sécurisée",
             "insecure": "Non sécurisé",
             "mixed": "Partiellement sécurisé",
+            "suspect": "Site suspect",
             "label": {
                 "secure": "Connexion sécurisée, infos du site",
                 "insecure": "Non sécurisé, infos du site",
-                "mixed": "Partiellement sécurisé, infos du site"
+                "mixed": "Partiellement sécurisé, infos du site",
+                "suspect": "Site suspect, infos du site"
             },
             "popover": {
                 "aria": "Infos du site",
                 "secureDetail": "Ce que vous envoyez à ce site, et ce qu'il vous renvoie, est chiffré en chemin.",
                 "insecureDetail": "Cette page est servie sans chiffrement : ce que vous envoyez à ce site, et ce qu'il vous renvoie, peut être lu ou modifié en chemin.",
                 "mixedDetail": "Cette page est chiffrée, mais elle a chargé du contenu sans chiffrement : ce contenu peut être lu ou modifié en chemin.",
+                "suspectDetail": "Son domaine imite {known} : la page n'a pas été chargée.",
                 "certificate": "Certificat valide",
                 "certificateNone": "Certificat",
                 "certificateUnavailable": "Ses détails ne sont pas disponibles pour cette page.",
@@ -3115,6 +3118,41 @@
                 "title": "Cette page n'est pas sécurisée",
                 "detail": "Un mot de passe tapé ici peut être lu en chemin. Ne l'utilisez pas ailleurs.",
                 "dismiss": "Compris"
+            }
+        },
+        "lookalike": {
+            "aria": "Avertissement : ce site ressemble à un autre",
+            "title": "Ce site ressemble à {known}, mais ce n'en est pas un",
+            "real": "Son vrai domaine est",
+            "agentNote": "Un agent a essayé d'ouvrir cette page.",
+            "back": "Revenir en lieu sûr",
+            "continue": "Continuer vers {domain}",
+            "continueTitle": "Vous ne serez plus averti pour ce domaine.",
+            "basis": "Comparé à vos favoris, votre historique et les sites les plus connus, sur cet ordinateur seulement.",
+            "difference": {
+                "digit": "avec le chiffre {from} à la place du {to}",
+                "script": "avec un « {from} » {script} à la place du « {to} »",
+                "extra": "avec un « {char} » en trop",
+                "missing": "avec un « {char} » en moins",
+                "swapped": "avec « {pair} » inversés",
+                "substitute": "avec « {from} » à la place de « {to} »",
+                "generic": "fait de caractères qui ressemblent à ceux de {known}"
+            },
+            "script": {
+                "Cyrillic": "cyrillique",
+                "Greek": "grec",
+                "Armenian": "arménien",
+                "Hebrew": "hébreu",
+                "Arabic": "arabe",
+                "Han": "chinois",
+                "Hiragana": "japonais",
+                "Katakana": "japonais",
+                "Hangul": "coréen",
+                "Bopomofo": "chinois",
+                "Thai": "thaï",
+                "Devanagari": "devanagari",
+                "Georgian": "géorgien",
+                "Other": "d'une autre écriture"
             }
         },
         "clientCertificate": {

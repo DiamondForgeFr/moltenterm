@@ -21,7 +21,9 @@ import {
     ViewInsecure,
     ViewMixed,
     ViewSecure,
+    ViewSuspect,
 } from "./connection-store";
+import { shownHost, unicodeHost, type LookalikeHold } from "./lookalike";
 import {
     DecisionAllow,
     permissionSite,
@@ -35,17 +37,20 @@ const ViewDetailKeys: Record<ConnectionView["kind"], string> = {
     [ViewSecure]: "browser.connection.popover.secureDetail",
     [ViewInsecure]: "browser.connection.popover.insecureDetail",
     [ViewMixed]: "browser.connection.popover.mixedDetail",
+    [ViewSuspect]: "browser.connection.popover.suspectDetail",
 };
 
 const ViewToneClasses: Record<ConnectionView["kind"], string> = {
     [ViewSecure]: "text-muted",
     [ViewInsecure]: "text-warning",
     [ViewMixed]: "text-warning",
+    [ViewSuspect]: "text-error",
 };
 
 function hostOf(address: string): string {
     try {
-        return new URL(address).host;
+        const url = new URL(address);
+        return shownHost(url.hostname) + (url.port ? `:${url.port}` : "");
     } catch {
         return address ?? "";
     }
@@ -80,6 +85,7 @@ type InfoProps = {
     view: ConnectionView;
     address: string;
     state: ConnectionState | null;
+    hold: LookalikeHold | null;
     onClearData?: () => void;
     onClose: () => void;
 };
@@ -100,13 +106,15 @@ export function ConnectionPopover({ anchor, ...info }: InfoProps & { anchor: Ele
     );
 }
 
-export function ConnectionInfo({ view, address, state, onClearData, onClose }: InfoProps) {
+export function ConnectionInfo({ view, address, state, hold, onClearData, onClose }: InfoProps) {
     const t = useT();
     const store = useAtomValue(getSettingsKeyAtom(SitePermissionsKey)) as SitePermissionStore;
-    const site = permissionSite(address);
+    const page = view.kind === ViewSuspect ? (hold?.url ?? address) : address;
+    const site = permissionSite(page);
     const certificate = view.kind === ViewSecure || view.kind === ViewMixed ? (state?.certificate ?? null) : null;
     const showsCertificate = view.kind === ViewSecure || view.kind === ViewMixed;
     const decisions = site == null ? [] : siteDecisions(store, site);
+    const known = hold != null ? unicodeHost(hold.resembles) : "";
     return (
         <div className="flex w-[22rem] max-w-full flex-col gap-3 text-12" data-testid="browser-connection-popover">
             <header className="flex flex-col gap-1.5">
@@ -114,7 +122,7 @@ export function ConnectionInfo({ view, address, state, onClearData, onClose }: I
                     className="font-mono text-13 text-primary [overflow-wrap:anywhere]"
                     data-testid="browser-connection-host"
                 >
-                    {hostOf(address)}
+                    {hostOf(page)}
                 </div>
                 <div className="flex items-start gap-2">
                     <i
@@ -129,7 +137,7 @@ export function ConnectionInfo({ view, address, state, onClearData, onClose }: I
                         <div className="font-semibold text-primary">
                             {t(view.kind === ViewSecure ? "browser.connection.secure" : connectionWordKey(view.kind))}
                         </div>
-                        <p className="leading-4 text-secondary">{t(ViewDetailKeys[view.kind])}</p>
+                        <p className="leading-4 text-secondary">{t(ViewDetailKeys[view.kind], { known })}</p>
                     </div>
                 </div>
             </header>

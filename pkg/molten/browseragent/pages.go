@@ -367,9 +367,16 @@ func errorCodeChars(text string) string {
 	}, text)
 }
 
+// lookalikeCode is what emain reports when it held the navigation as a lookalike domain; it must match
+// LookalikeRefusalCode in emain/moltenterm-lookalike-agent.ts.
+const lookalikeCode = "ERR_LOOKALIKE_DOMAIN"
+
 func (m *Manager) navigateOutcome(s sessionInfo, tabId int64, target string, nav navigateResult) mcpbrowser.CallResult {
 	if nav.Error != "" {
 		code := errorCodeChars(nav.Error)
+		if code == lookalikeCode {
+			return mcpbrowser.ErrorResult(mcpbrowser.ErrLookalikeRefused)
+		}
 		if len(code) > 60 {
 			code = code[:60]
 		}
