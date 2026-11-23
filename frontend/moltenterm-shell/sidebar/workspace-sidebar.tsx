@@ -173,8 +173,13 @@ import { TopField } from "./top-field";
 import { TopFieldModel } from "./top-field-store";
 import { SidebarEnv, useRenameCallback, useViewActions, useViewPin } from "./view-actions";
 import { closableViews, itemKey, sidebarItems } from "./view-folders-model";
-import { folderMenuFor, folderNoteAtom, pruneStoredFolders, viewFoldersAtom } from "./view-folders-store";
-import { FolderOverlay, FolderRow } from "./view-folders-ui";
+import {
+    folderMenuFor,
+    folderNoteAtom,
+    openFolderAtom,
+    pruneStoredFolders,
+    viewFoldersAtom,
+} from "./view-folders-store";
 import { ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { ItemAttr, ListDrag, tabKey, useViewListDrag } from "./view-list-drag";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
@@ -218,6 +223,11 @@ const ProjectPageView = lazy(() => import("./sidebar-project-page").then((m) => 
 const CreateWorkspacePage = lazy(() => import("./sidebar-create").then((m) => ({ default: m.CreateWorkspacePage })));
 
 // Brokk's visit scene (FR-BOSS-009, #2002): his clips load with the first visit, never with the window.
+// The folders of views' row and grid load when a folder first shows (FR-SHELL-080, #2484, NFR-PERF-003): a workspace
+// with no folder never loads them.
+const FolderRow = lazy(() => import("./view-folders-ui").then((m) => ({ default: m.FolderRow })));
+const FolderOverlay = lazy(() => import("./view-folders-ui").then((m) => ({ default: m.FolderOverlay })));
+
 const BrokkVisitScene = lazy(() => import("../boss/brokk-visit-scene").then((m) => ({ default: m.BrokkVisitScene })));
 
 const IconButton =
@@ -1215,6 +1225,7 @@ export function TemporaryViews({
     const { target, over } = useZone("temporary");
     const newViewKeys = formatShortcutById("new-tab");
     const note = useAtomValue(folderNoteAtom);
+    const openFolderId = useAtomValue(openFolderAtom);
     const mark = (ws?.meta as Record<string, any>)?.[ClearingMetaKey];
     const clearing = useMemo(() => clearingIds(mark, Date.now()), [mark]);
     useTemporaryViewsMotion(listRef, keys, clearing);
@@ -1284,14 +1295,18 @@ export function TemporaryViews({
                 {items.map((item) => {
                     if (item.kind === "folder") {
                         return (
-                            <FolderRow
+                            <Suspense
                                 key={itemKey(item)}
-                                folder={item.folder}
-                                members={item.members}
-                                activeTabId={activeTabId}
-                                state={state}
-                                drag={drag}
-                            />
+                                fallback={<div className="min-h-[30px]" {...{ [ItemAttr]: itemKey(item) }} />}
+                            >
+                                <FolderRow
+                                    folder={item.folder}
+                                    members={item.members}
+                                    activeTabId={activeTabId}
+                                    state={state}
+                                    drag={drag}
+                                />
+                            </Suspense>
                         );
                     }
                     const key = itemKey(item);
@@ -1321,7 +1336,11 @@ export function TemporaryViews({
             <span className="sr-only" role="status" aria-live="polite" data-testid="sidebar-folder-note">
                 {note}
             </span>
-            <FolderOverlay asideRef={asideRef} items={items} activeTabId={activeTabId} state={state} drag={drag} />
+            {openFolderId != null ? (
+                <Suspense fallback={null}>
+                    <FolderOverlay asideRef={asideRef} items={items} activeTabId={activeTabId} state={state} drag={drag} />
+                </Suspense>
+            ) : null}
         </div>
     );
 }

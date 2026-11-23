@@ -28,18 +28,20 @@ import { clearableViews } from "./temporary-clear";
 import { ViewFoldersMetaKey } from "./view-folders-model";
 import {
     addViewToFolder,
-    closeFolder,
     dissolveViewFolder,
     dropViewOnView,
+    moveViewInFolder,
+    renameViewFolder,
+    takeViewOut,
+} from "./view-folders-ops";
+import {
+    closeFolder,
     folderMenuFor,
     folderNoteAtom,
-    moveViewInFolder,
     openFolder,
     openFolderAtom,
     pendingFoldersAtom,
     pruneStoredFolders,
-    renameViewFolder,
-    takeViewOut,
     viewFoldersAtom,
 } from "./view-folders-store";
 

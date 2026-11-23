@@ -26,15 +26,9 @@ import {
     RowSlot,
     SidebarItem,
 } from "./view-folders-model";
-import {
-    addViewToFolder,
-    anchorOfFolder,
-    closeFolder,
-    dropViewOnView,
-    moveFolderBefore,
-    TakeOutPlace,
-    takeViewOut,
-} from "./view-folders-store";
+import type { TakeOutPlace } from "./view-folders-ops";
+import { anchorOfFolder, closeFolder, loadFolderOps } from "./view-folders-store";
+import "./view-list-drag.css";
 import { sameOrder } from "./view-menu-model";
 
 export const ItemAttr = "data-item-key";
@@ -303,9 +297,9 @@ export function useViewListDrag(
                 const overTab = tabIdOfKey(target);
                 const overFolder = folderIdOfKey(target);
                 if (overTab != null) {
-                    fireAndForget(() => dropViewOnView(tabId, overTab));
+                    fireAndForget(async () => (await loadFolderOps()).dropViewOnView(tabId, overTab));
                 } else if (overFolder != null) {
-                    fireAndForget(() => addViewToFolder(overFolder, tabId));
+                    fireAndForget(async () => (await loadFolderOps()).addViewToFolder(overFolder, tabId));
                 }
                 if (source != null) {
                     closeFolder();
@@ -315,14 +309,14 @@ export function useViewListDrag(
             const place = anchorOf(before);
             if (source != null) {
                 const where: TakeOutPlace = place != null ? { before: place } : { end: true };
-                fireAndForget(() => takeViewOut(tabId, where));
+                fireAndForget(async () => (await loadFolderOps()).takeViewOut(tabId, where));
                 closeFolder();
                 return;
             }
             const current = idsRef.current;
             const workspace = wsRef.current;
             if (folderId != null) {
-                fireAndForget(() => moveFolderBefore(folderId, place));
+                fireAndForget(async () => (await loadFolderOps()).moveFolderBefore(folderId, place));
                 return;
             }
             if (place === tabId || (place == null && lastTabOf(itemsRef.current, current) === tabId)) {

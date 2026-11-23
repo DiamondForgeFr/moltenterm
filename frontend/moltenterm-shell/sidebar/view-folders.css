@@ -2,10 +2,10 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
 /* Folders of views in the Views list (FR-SHELL-080, #2484, DS-SHELL-125), as on a phone's home screen. A folder's row
-   has an icon of up to four of its views in miniature (2 by 2), its name, its count and a dot for news. A view dragged
-   and held over another row rings it with a caption; the dragged row dims where it was and a copy follows the pointer.
-   A click opens the folder over the sidebar's scrolling part as a grid, the rest dimmed. Only transform and opacity
-   move, over the duration tokens; under reduced motion everything is immediate. Colours and sizes are the tokens'. */
+   has an icon of up to four of its views in miniature (2 by 2), its name, its count and a dot for news. A click opens the
+   folder over the sidebar's scrolling part as a grid, the rest dimmed. Loaded on demand with the row and the grid (the
+   drag's ring and copy are in view-list-drag.css). Only transform and opacity move, over the duration tokens; under
+   reduced motion everything is immediate. Colours and sizes are the tokens'. */
 
 .mt-fo-icon {
     display: grid;
@@ -49,47 +49,6 @@
     flex: none;
     border-radius: 50%;
     background: var(--mt-action);
-}
-
-/* The row a held drag would make a folder with, or add a view to: ringed, its caption above its right end. */
-.mt-sb-tv [data-fo-target="true"] {
-    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
-    box-shadow: 0 0 0 2px var(--mt-action);
-}
-
-.mt-sb-tv [data-fo-target="true"]::after {
-    content: attr(data-fo-cap);
-    position: absolute;
-    z-index: 5;
-    top: -12px;
-    right: 8px;
-    padding: 1px 6px;
-    border-radius: var(--mt-radius-control);
-    background: var(--mt-action);
-    color: var(--mt-action-fg);
-    font-size: var(--mt-text-11);
-    font-weight: 600;
-    white-space: nowrap;
-    pointer-events: none;
-}
-
-/* The row being dragged keeps its place as a dashed outline; its copy follows the pointer. */
-.mt-sb-tv .mt-sb-dragged {
-    outline: 1px dashed color-mix(in srgb, var(--mt-veil) 28%, transparent);
-    outline-offset: -1px;
-}
-
-.mt-fo-ghost {
-    position: fixed;
-    z-index: 1000;
-    top: 0;
-    left: 0;
-    border-radius: var(--mt-radius-panel);
-    background: var(--mt-surface-3);
-    box-shadow: var(--mt-shadow-e3);
-    opacity: 0.94;
-    pointer-events: none;
-    will-change: transform;
 }
 
 /* The open folder: the sidebar's scrolling part dimmed, the frame over it. A view dragged out of the frame lets go of the

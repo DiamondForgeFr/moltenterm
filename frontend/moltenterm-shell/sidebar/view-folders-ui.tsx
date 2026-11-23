@@ -24,26 +24,10 @@ import { useT, useTCount } from "../i18n/i18n";
 import { TabAgentMark, TabReviewMark, useTabIdentity } from "../tab-identity-ui";
 import { dotMoveKey } from "./sidebar-model";
 import { SidebarEnv, useRenameCallback, useViewActions, useViewPin } from "./view-actions";
-import {
-    folderShownName,
-    MaxFolderNameLength,
-    MaxMiniatures,
-    SidebarItem,
-    ViewFolder,
-    viewHasNews,
-    ViewKindFact,
-    viewKindOf,
-} from "./view-folders-model";
-import {
-    closeFolder,
-    dissolveViewFolder,
-    folderMenuFor,
-    folderRenameAtom,
-    moveViewInFolder,
-    openFolder,
-    openFolderAtom,
-    renameViewFolder,
-} from "./view-folders-store";
+import { folderShownName, viewHasNews, ViewKindFact, viewKindOf } from "./view-folders-edit";
+import { MaxFolderNameLength, MaxMiniatures, SidebarItem, ViewFolder } from "./view-folders-model";
+import { dissolveViewFolder, moveViewInFolder, renameViewFolder } from "./view-folders-ops";
+import { closeFolder, folderMenuFor, folderRenameAtom, openFolder, openFolderAtom } from "./view-folders-store";
 import "./view-folders.css";
 import { ViewGlyph, viewGlyphAtom } from "./view-glyph";
 import { folderKey, ItemAttr, ListDrag, ListDragState, tabKey } from "./view-list-drag";

@@ -1,0 +1,46 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Dragging in the Views list (FR-SHELL-080, #2484): a view dragged and held over another row rings it with a caption (the
+   action colour), the dragged row dims where it was as a dashed outline, and a copy of it follows the pointer. Loaded with
+   the drag, before any folder exists; the folders' row and grid have their own sheet (view-folders.css, on demand). */
+
+/* The row a held drag would make a folder with, or add a view to: ringed, its caption above its right end. */
+.mt-sb-tv [data-fo-target="true"] {
+    background: color-mix(in srgb, var(--mt-veil) 14%, transparent);
+    box-shadow: 0 0 0 2px var(--mt-action);
+}
+
+.mt-sb-tv [data-fo-target="true"]::after {
+    content: attr(data-fo-cap);
+    position: absolute;
+    z-index: 5;
+    top: -12px;
+    right: 8px;
+    padding: 1px 6px;
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-action);
+    color: var(--mt-action-fg);
+    font-size: var(--mt-text-11);
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.mt-sb-tv .mt-sb-dragged {
+    outline: 1px dashed color-mix(in srgb, var(--mt-veil) 28%, transparent);
+    outline-offset: -1px;
+}
+
+.mt-fo-ghost {
+    position: fixed;
+    z-index: 1000;
+    top: 0;
+    left: 0;
+    border-radius: var(--mt-radius-panel);
+    background: var(--mt-surface-3);
+    box-shadow: var(--mt-shadow-e3);
+    opacity: 0.94;
+    pointer-events: none;
+    will-change: transform;
+}
