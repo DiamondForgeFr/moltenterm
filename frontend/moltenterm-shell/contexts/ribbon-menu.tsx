@@ -8,7 +8,7 @@
 
 import { autoUpdate, FloatingPortal, offset, shift, type Placement } from "@floating-ui/react";
 import { cn } from "@/util/util";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useFloatingInPlace } from "../floating-in-place";
 import { useT, useTCount } from "../i18n/i18n";
 import type { ContextRibbon } from "./context-model";
@@ -75,8 +75,10 @@ export function RibbonMenu({
 }: RibbonMenuProps) {
     const t = useT();
     const [mode, setMode] = useState<MenuMode>("choose");
-    const menuRef = useRef<HTMLDivElement>(null);
-    const { refs, floatingStyles } = useFloatingInPlace({
+    // The menu is drawn in a portal that mounts after this component does: its element is state, so the effects below
+    // run once it exists.
+    const [menu, setMenu] = useState<HTMLDivElement>(null);
+    const { refs, floatingStyles, isPositioned } = useFloatingInPlace({
         open: true,
         placement,
         elements: { reference: anchor },
@@ -85,23 +87,27 @@ export function RibbonMenu({
     });
 
     // The menu opens on the row of the window's own context; the second page, and a return to the first, start on a row.
+    // A surface that is not visible yet takes no focus: it is placed first.
     useEffect(() => {
-        const rows = menuItems(menuRef.current);
+        if (!isPositioned) {
+            return;
+        }
+        const rows = menuItems(menu);
         const own = mode === "choose" ? rows.find((r) => r.getAttribute("aria-checked") === "true") : null;
         (own ?? rows[0])?.focus();
-    }, [mode]);
+    }, [menu, mode, isPositioned]);
 
     useEffect(() => {
         const onPointerDown = (e: PointerEvent) => {
             const target = e.target as Node;
-            if (menuRef.current?.contains(target) || anchor.contains(target)) {
+            if (menu?.contains(target) || anchor.contains(target)) {
                 return;
             }
             onClose(false);
         };
         document.addEventListener("pointerdown", onPointerDown, true);
         return () => document.removeEventListener("pointerdown", onPointerDown, true);
-    }, [anchor, onClose]);
+    }, [anchor, menu, onClose]);
 
     const onKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Escape") {
@@ -114,7 +120,7 @@ export function RibbonMenu({
             onClose(false);
             return;
         }
-        const rows = menuItems(menuRef.current);
+        const rows = menuItems(menu);
         const target = menuKeyTarget(e.key, rows.indexOf(document.activeElement as HTMLElement), rows.length);
         if (target == null) {
             return;
@@ -129,7 +135,7 @@ export function RibbonMenu({
         <FloatingPortal>
             <div ref={refs.setFloating} style={floatingStyles} className="z-[1000]" data-testid="context-ribbon-menu">
                 <div
-                    ref={menuRef}
+                    ref={setMenu}
                     role="menu"
                     aria-label={t(opensWindow ? "contexts.menu.windowLabel" : "contexts.menu.label")}
                     className="mt-sb-pop mt-ribbon-menu rounded-4 py-1.5"

@@ -289,6 +289,7 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
                                 value={draft.name}
                                 placeholder={t("contexts.manage.namePlaceholder")}
                                 data-testid="context-name"
+                                autoFocus
                                 className={FieldClass}
                                 onChange={(e) => edit({ name: clampName(e.target.value) })}
                             />

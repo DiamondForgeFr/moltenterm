@@ -31,6 +31,8 @@ import { useT } from "../i18n/i18n";
 import { MoltentermCicdView } from "../mission/cicd-view";
 import { openMoltentermView } from "../open-view";
 import { openWebLink } from "../open-web-link";
+import type { PanelOrigin } from "../app-panel-model";
+import { usePanelOrigin } from "../panel-cta";
 import { usePaneStatus } from "../pane-status";
 import { openProjectOverview } from "../project/project-tab";
 import { formatShortcutById } from "../shortcuts/format";
@@ -230,14 +232,15 @@ type LeadProps = {
     preIcon: ReactElement;
 };
 
-// What each click of a context part opens: the sidebar's branch line did the same (FR-SHELL-160).
-function runContextClick(part: HeaderContextPart) {
+// What each click of a context part opens: the sidebar's branch line did the same (FR-SHELL-160). The CI/CD view opens
+// beside the panel whose header was clicked (#1844).
+function runContextClick(part: HeaderContextPart, origin: PanelOrigin) {
     switch (part.click) {
         case "overview":
             fireAndForget(openProjectOverview);
             return;
         case "ci":
-            fireAndForget(() => openMoltentermView(MoltentermCicdView));
+            fireAndForget(() => openMoltentermView(MoltentermCicdView, origin));
             return;
         case "pr":
             fireAndForget(() => openWebLink(part.pr.url));
@@ -267,6 +270,7 @@ function ContextPartBody({ part }: { part: HeaderContextPart }) {
 }
 
 function ContextPart({ part }: { part: HeaderContextPart }) {
+    const origin = usePanelOrigin();
     if (part.marker != null) {
         return (
             <span className="molten-header-context-part" data-testid="molten-header-worktree">
@@ -285,7 +289,7 @@ function ContextPart({ part }: { part: HeaderContextPart }) {
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                     e.stopPropagation();
-                    runContextClick(part);
+                    runContextClick(part, origin(e));
                 }}
             >
                 <ContextPartBody part={part} />
