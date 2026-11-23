@@ -20,6 +20,9 @@ export const View360SettingKey = "moltenterm:view360";
 // The readable minimums (tunable): the first column, the same as the fixed zone's minimum, and any other column.
 export const FirstColumnMinPx = FixedMinPx;
 export const SideColumnMinPx = ReadableCarpetColumnPx;
+// The layout's smallest panel (MinNodeSizePx in frontend/layout/lib/layoutModel.ts): what a column without a minimum
+// weighs when the minimums do not fit (sharedColumnSizes).
+const SmallestColumnPx = 40;
 // Automatic leaves 360 view only once every column fits at its minimum with this much to spare.
 export const LeaveMarginPx = 64;
 // The automatic view needs at least two panels on the carpet (#1225): the first column plus two. A carpet holding one
@@ -368,7 +371,8 @@ export function columnsParent(root: LayoutNode): LayoutNode {
 
 // The columns' sizes (summing to 100) once the width is shared again ("Readjust every size", #733): equal shares, a
 // column whose minimum is above its share gets its minimum and the others share the rest. When even the minimums do
-// not fit, sizes follow the minimums.
+// not fit, sizes follow the minimums, a column without one weighing as the layout's smallest panel: never a size of 0
+// (#2497), which is a panel with no width.
 export function sharedColumnSizes(columnMins: number[], widthPx: number, gapPx = 0): number[] {
     const count = columnMins?.length ?? 0;
     if (count === 0) {
@@ -378,8 +382,9 @@ export function sharedColumnSizes(columnMins: number[], widthPx: number, gapPx =
     const mins = columnMins.map((m) => (m > 0 ? m : 0));
     const minTotal = mins.reduce((acc, m) => acc + m, 0);
     if (!(room > 0) || minTotal >= room) {
-        const total = minTotal > 0 ? minTotal : count;
-        return mins.map((m) => ((minTotal > 0 ? m : 1) / total) * 100);
+        const weights = mins.map((m) => Math.max(m, SmallestColumnPx));
+        const total = weights.reduce((acc, w) => acc + w, 0);
+        return weights.map((w) => (w / total) * 100);
     }
     const held = new Set<number>();
     let share = room / count;

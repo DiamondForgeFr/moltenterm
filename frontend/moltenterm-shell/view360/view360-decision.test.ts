@@ -399,6 +399,15 @@ describe("leaving the 360 view (#733, #1083)", () => {
         expect(tight[0] / tight[1]).toBeCloseTo(FirstColumnMinPx / SideColumnMinPx);
         expect(sharedColumnSizes([], 600)).toEqual([]);
     });
+
+    it("never gives a column a size of 0, even under a first column's floor wider than the window (#2497)", () => {
+        const sizes = sharedColumnSizes([1743, 0], 1728);
+        expect(sizes.reduce((a, b) => a + b, 0)).toBeCloseTo(100);
+        for (const size of sizes) {
+            expect(size).toBeGreaterThan(0);
+        }
+        expect(sharedColumnSizes([0, 0], 0)).toEqual([50, 50]);
+    });
 });
 
 describe("first column floor in the 360 decision (#731, #848)", () => {

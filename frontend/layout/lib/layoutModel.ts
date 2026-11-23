@@ -78,6 +78,8 @@ import { addedPanelNode, addsMagnified, rebalanceAddedPanel } from "../../molten
 import { EqualizeModel } from "../../moltenterm-shell/equalize/equalize-model";
 // MOLTENTERM-PATCH (#1349): a panel added to the view arrives instead of appearing
 import { notePanelsArrived } from "../../moltenterm-shell/panel-motion/panel-arrival-model";
+// MOLTENTERM-PATCH (#2497): a saved layout with a panel at size 0 is repaired when it loads
+import { repairZeroSizes } from "../../moltenterm-shell/panel-size/zero-size-repair";
 
 interface ResizeContext {
     handleId: string;
@@ -401,6 +403,9 @@ export class LayoutModel {
             pendingBackendActions: waveObjState?.pendingbackendactions,
         };
 
+        // MOLTENTERM-PATCH (#2497): a panel saved at size 0 had no width and no divider to bring it back
+        const moltenRepaired = repairZeroSizes(initialState.rootNode);
+
         this.treeState = initialState;
         this.magnifiedNodeId = initialState.magnifiedNodeId;
         this.setter(this.localTreeStateAtom, { ...initialState });
@@ -409,6 +414,10 @@ export class LayoutModel {
             fireAndForget(() => this.processPendingBackendActions());
         } else {
             this.updateTree();
+            // MOLTENTERM-PATCH (#2497): the repaired sizes are saved, so the tab's other readers see them too
+            if (moltenRepaired) {
+                this.persistToBackend();
+            }
         }
     }
 
