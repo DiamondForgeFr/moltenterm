@@ -203,12 +203,9 @@ import { CommentButton } from "./comment-button";
 import { ConnectionButton } from "./connection-button";
 import { InsecurePasswordChannel, isConnectionState } from "./connection-security";
 import { ConnectionModel, connectionView, ConnectionView, LookalikeModel } from "./connection-store";
-import { InsecurePasswordBar } from "./insecure-password-bar";
-import { isLookalikeHold, shownAddressHost, shownHost } from "./lookalike";
-import { startLookalikeKnownSync } from "./lookalike-known";
-import { LookalikePage } from "./lookalike-page";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { blockIdOfORef, focusWhenPlaced } from "./focus-placed";
+import { InsecurePasswordBar } from "./insecure-password-bar";
 import { inspectorMenuItems } from "./inspector-menu";
 import { InspectorPane } from "./inspector-pane";
 import { choiceEngineId, EngineChoice } from "./link-choice";
@@ -221,6 +218,9 @@ import {
     withRememberedLocalPage,
 } from "./local-page";
 import { GatedPage } from "./local-page-ask";
+import { isLookalikeHold, shownAddressHost, shownHost } from "./lookalike";
+import { startLookalikeKnownSync } from "./lookalike-known";
+import { LookalikePage } from "./lookalike-page";
 import { PageAddressFrame } from "./page-address-frame";
 import {
     DefaultSearchSettingKey,
@@ -247,6 +247,7 @@ const PersistDelayMs = 400;
 // (#2482). A first navigation waits this long for its webview's id before it shows the usual error page.
 const ErrBlockedByClient = -20;
 const BlockedSettleMs = 3000;
+const FirstHeldCheckMs = 1500;
 // Below this row width (#1439) Forward, Reload and Magnify join Share and Open in <browser> in the row's "⋯"; the
 // value mirrors the last container query of browser.css.
 const FoldNavPx = 340;
@@ -1650,7 +1651,8 @@ export class BrowserViewModel implements ViewModel {
         }
     }
 
-    // Back to safety: the page the tab showed before, else a blank page. Nothing of the lookalike was requested.
+    // Back to safety: the page the tab still shows (a cancelled navigation never replaced it), else the one before it,
+    // else a blank page. Nothing of the lookalike was requested.
     lookalikeBack(tabId: string): void {
         const webview = this.webviews.get(tabId);
         if (this.lookalike.holdOf(tabId) == null || webview == null) {
@@ -1658,6 +1660,16 @@ export class BrowserViewModel implements ViewModel {
         }
         this.lookalike.clear(tabId);
         this.errors.forget(tabId);
+        let shown = "";
+        try {
+            shown = webview.getURL();
+        } catch {
+            // not attached yet
+        }
+        if (/^https?:/i.test(shown)) {
+            this.setState(updateTab(this.state(), tabId, { url: shown, title: undefined }));
+            return;
+        }
         if (webview.canGoBack()) {
             webview.goBack();
             return;
@@ -2151,8 +2163,20 @@ function TabWebview({
                 model.connection.notePasswordField(tab.id, webview.getURL());
             }
         };
+        // Main says a navigation of this page was held as a lookalike domain (emain/moltenterm-lookalike.ts); the warning
+        // goes when the tab starts another navigation, never for the one that was held.
+        const onLookalikeHeld = (e: any) => {
+            if (isLookalikeHold(e.detail)) {
+                model.lookalike.hold(tab.id, e.detail);
+                setFirstLoadEnded(true);
+            }
+        };
+        const onStartNavigation = (e: any) => {
+            if (e.isMainFrame === true && model.lookalike.holdOf(tab.id)?.url !== e.url) {
+                model.lookalike.clear(tab.id);
+            }
+        };
         const onStartLoading = () => {
-            model.lookalike.clear(tab.id);
             model.loads.noteStart(tab.id);
             noteSiteLoading(model.blockId, true);
             model.errors.noteStart(tab.id);
@@ -2182,8 +2206,28 @@ function TabWebview({
         };
         // A navigation main held as a lookalike domain fails with ERR_BLOCKED_BY_CLIENT (#2482): main tells which, and the
         // tab draws the warning instead of the error page. A first navigation fails before the webview's first dom-ready,
-        // when its id is not known yet: it waits for it, then shows the usual error if no hold is found.
+        // when its id is not known yet: it waits for it, then shows the usual error if no hold is found. One that main
+        // cancels at once can even fail before this effect listens, so main is asked once the webview is ready, and once
+        // more shortly after the tab mounts, when the webview still shows no web page.
         let pendingBlock: any = null;
+        const showsWebPage = () => {
+            try {
+                return /^https?:/i.test(webview.getURL());
+            } catch {
+                return false;
+            }
+        };
+        const checkHeldNavigation = () => {
+            if (showsWebPage() || !/^https?:/i.test(model.findTab(tab.id)?.url ?? "")) {
+                return;
+            }
+            fireAndForget(async () => {
+                if (await model.noteBlockedNavigation(tab.id)) {
+                    setFirstLoadEnded(true);
+                }
+            });
+        };
+        const heldCheckTimer = setTimeout(checkHeldNavigation, FirstHeldCheckMs);
         const settleBlocked = async (e: any) => {
             if (await model.noteBlockedNavigation(tab.id)) {
                 setFirstLoadEnded(true);
@@ -2240,6 +2284,8 @@ function TabWebview({
                 const blocked = pendingBlock;
                 pendingBlock = null;
                 fireAndForget(() => settleBlocked(blocked));
+            } else {
+                checkHeldNavigation();
             }
             if (document.activeElement === webview) {
                 getApi().setWebviewFocus(webview.getWebContentsId());
@@ -2276,6 +2322,8 @@ function TabWebview({
         webview.addEventListener("moltenterm-client-certificate", onClientCertificate);
         window.addEventListener("moltenterm-client-certificate-done", onClientCertificateDone);
         webview.addEventListener("moltenterm-connection", onConnection);
+        webview.addEventListener("moltenterm-lookalike-held", onLookalikeHeld);
+        webview.addEventListener("did-start-navigation", onStartNavigation);
         webview.addEventListener("ipc-message", onIpcMessage);
         webview.addEventListener("focus", onFocus);
         webview.addEventListener("blur", onBlur);
@@ -2290,6 +2338,7 @@ function TabWebview({
         const onFoundInPage = (e: any) => model.noteFoundInPage(tab.id, e.result);
         webview.addEventListener("found-in-page", onFoundInPage);
         return () => {
+            clearTimeout(heldCheckTimer);
             offHeld?.();
             webview.removeEventListener("did-start-loading", onStartLoading);
             webview.removeEventListener("did-stop-loading", onStopLoading);
@@ -2314,6 +2363,8 @@ function TabWebview({
             webview.removeEventListener("moltenterm-client-certificate", onClientCertificate);
             window.removeEventListener("moltenterm-client-certificate-done", onClientCertificateDone);
             webview.removeEventListener("moltenterm-connection", onConnection);
+            webview.removeEventListener("moltenterm-lookalike-held", onLookalikeHeld);
+            webview.removeEventListener("did-start-navigation", onStartNavigation);
             webview.removeEventListener("ipc-message", onIpcMessage);
             webview.removeEventListener("focus", onFocus);
             webview.removeEventListener("blur", onBlur);
@@ -3110,7 +3161,11 @@ function ActiveLookalikePage({ model, tabId }: { model: BrowserViewModel; tabId:
         return null;
     }
     return (
-        <LookalikePage hold={hold} onBack={() => model.lookalikeBack(tabId)} onContinue={() => model.lookalikeContinue(tabId)} />
+        <LookalikePage
+            hold={hold}
+            onBack={() => model.lookalikeBack(tabId)}
+            onContinue={() => model.lookalikeContinue(tabId)}
+        />
     );
 }
 

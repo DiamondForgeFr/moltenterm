@@ -184,8 +184,11 @@ export function TopField() {
     const focus = useFocusFacts(origin);
     const [, setLoaded] = useState(openFieldModule != null);
     const typedRef = useRef<TypedText>(null);
-    const ctx = fieldContext(focus);
     const connection = useConnectionView(focus.blockId);
+    // A navigation held as a lookalike shows its host in the xn-- form, whatever the script (FR-BRW-024 AC6).
+    const ctx = fieldContext(
+        connection?.kind === ViewSuspect ? { ...focus, url: shownAddressHost(focus.url, true) } : focus
+    );
     const keys = formatShortcutById("top-field");
     useEffect(() => {
         const timer = setTimeout(() => fireAndForget(loadOpenField), PreloadDelayMs);

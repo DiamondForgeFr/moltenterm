@@ -7,6 +7,9 @@ import { describe, expect, it } from "vitest";
 
 // The fill colour is valid for these icon-only usages. Error prose/statuses need a readable text token.
 const IconUses = [
+    "browser/connection-popover.tsx|[ViewSuspect]: \"text-error\",",
+    "browser/lookalike-page.tsx|className=\"flex h-10 w-10 items-center justify-center rounded-6 bg-error/15 text-error\"",
+    "sidebar/top-field.tsx|? \"text-error\"",
     "mission/branch-cleanup.tsx|<i className=\"fa fa-solid fa-trash-can w-3.5 text-11 text-error\" />",
     "mission/ci-icon.tsx|failure: \"fa-xmark text-error\",",
     "mission/release-run-panel.tsx|failed: \"border-error/60 bg-error/10 text-error\",",
