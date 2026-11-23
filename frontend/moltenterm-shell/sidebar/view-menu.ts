@@ -37,6 +37,16 @@ export type ViewMenuTarget = {
     projectTab?: boolean;
 };
 
+// What a view of the Views list, or of a folder, offers about folders (FR-SHELL-080, #2484): the other views it can make
+// a folder with, the folders it can join, and taking it out of its own.
+export type ViewMenuFolderHooks = {
+    partners: { tabId: string; name: string }[];
+    folders: { id: string; name: string }[];
+    make: (partnerTabId: string) => void;
+    join: (folderId: string) => void;
+    takeOut?: () => void;
+};
+
 export type ViewMenuHooks = {
     // Rename in place (a row's or a tile's field); without it, the rename page opens where the menu was.
     startRename?: () => void;
@@ -44,7 +54,36 @@ export type ViewMenuHooks = {
     env?: TabEnv;
     // Where the menu was opened, for its Rename and Change icon pages.
     at: { x: number; y: number };
+    folders?: ViewMenuFolderHooks;
 };
+
+// The folder entries of a view's menu: take it out of its folder, make a folder with another view, join a folder.
+export function folderMenuItems(folders: ViewMenuFolderHooks, t: TFn): ContextMenuItem[] {
+    if (folders == null) {
+        return [];
+    }
+    const items: ContextMenuItem[] = [];
+    if (folders.takeOut != null) {
+        items.push({ label: t("sidebar.folders.menu.takeOut"), icon: "arrow-up-from-bracket", click: folders.takeOut });
+    }
+    if (folders.partners.length > 0) {
+        items.push({
+            label: t("sidebar.folders.menu.newWith"),
+            icon: "folder-plus",
+            type: "submenu",
+            submenu: folders.partners.map((p) => ({ label: p.name, click: () => folders.make(p.tabId) })),
+        });
+    }
+    if (folders.folders.length > 0) {
+        items.push({
+            label: t("sidebar.folders.menu.addTo"),
+            icon: "folder",
+            type: "submenu",
+            submenu: folders.folders.map((f) => ({ label: f.name, click: () => folders.join(f.id) })),
+        });
+    }
+    return items;
+}
 
 // The workspace as the sidebar names it.
 function shownWorkspace(t: TFn): string {
@@ -193,6 +232,10 @@ export function viewMenuItems(target: ViewMenuTarget, hooks: ViewMenuHooks, t: T
             icon: "clone",
             click: () => fireAndForget(() => pins.duplicate(target.ref)),
         });
+    }
+    const inFolders = folderMenuItems(hooks.folders, t);
+    if (inFolders.length > 0) {
+        items.push({ type: "separator" }, ...inFolders);
     }
     const pinned = pinItems(target, t);
     if (pinned.length > 0) {

@@ -15,7 +15,7 @@ import { fireAndForget } from "@/util/util";
 import * as jotai from "jotai";
 import { AgentStates } from "../agent-state-store";
 import { fetchCodingAgent } from "../coding-agent/coding-agent";
-import { projectTabIds, slotMembers } from "../hidden-tabs";
+import { projectTabIds, slotMembers, visibleTabIds } from "../hidden-tabs";
 import { I18nModel, t, tCount } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
 import { pipelineAgentOf } from "../mission/pipeline-agent";
@@ -30,6 +30,7 @@ import { ViewNameKeyMetaKey, ViewPendingMetaKey } from "../workspace-views/works
 import { localizedPin, SeedGlobalPinsMetaKey, seedPinsMeta, typedNamePin } from "./default-pins";
 import { PinnedClosePlan, planPinnedClose } from "./pinned-close-model";
 import { showUndoToast } from "./sidebar-undo";
+import { folderedViews, readViewFolders } from "./view-folders-model";
 import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey, withMissingPanels } from "./view-menu-model";
 import {
     agentBlocksOf,
@@ -156,9 +157,14 @@ export class ViewPins {
             const data = get(AgentStates.getInstance().dataAtom);
             const ids = new Set(get(this.globalPinsAtom).map((p) => p.id));
             const ws = get(atoms.workspace);
+            // The views in folders stay, as for Clear (FR-SHELL-080, #2484).
+            const kept = folderedViews(visibleTabIds(ws), readViewFolders(ws?.meta));
             return projectTabIds(ws).filter((id) => {
                 const tab = get(tabAtom(id));
-                return tab != null && viewStateOf(tab, ids) === "temporary" && !tab.meta?.["molten:projecttab"]
+                return tab != null &&
+                    !kept.has(id) &&
+                    viewStateOf(tab, ids) === "temporary" &&
+                    !tab.meta?.["molten:projecttab"]
                     ? viewFinished(data, tab.blockids)
                     : false;
             });
