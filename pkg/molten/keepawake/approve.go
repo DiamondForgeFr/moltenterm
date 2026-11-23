@@ -21,6 +21,8 @@ import (
 
 const (
 	PermissionCommand = "keepawakepermission"
+	// PermissionWaitCommand awaits a request PermissionCommand said is held (PermissionAnswer.Wait).
+	PermissionWaitCommand = "keepawakepermissionwait"
 
 	PermissionAllow  = "allow"
 	ApprovalApproved = "approved"
@@ -49,9 +51,13 @@ type PermissionRequest struct {
 	Suggestions []any `json:"suggestions,omitempty"`
 	// HoldMs: how long the hook may wait for an answer, its own budget less a margin; 0 for an answer at once.
 	HoldMs int64 `json:"holdms,omitempty"`
+	// Pid: the hook's own process, from which wavesrv finds the agent run the request comes from (#2474).
+	Pid int32 `json:"pid,omitempty"`
 	// FromBlock: the caller's token names BlockId, so the request is that terminal's own. Set by wavesrv, never read
 	// from the caller.
 	FromBlock bool `json:"-"`
+	// Arrived: when wavesrv received the request, which the time a hold has counts from. Set by wavesrv.
+	Arrived time.Time `json:"-"`
 }
 
 // PermissionAnswer: Decision is PermissionAllow, PermissionDeny (Brokk's own session, #2257), or empty to leave the
@@ -64,6 +70,17 @@ type PermissionAnswer struct {
 	Updated  []any          `json:"updated,omitempty"`
 	Message  string         `json:"message,omitempty"`
 	Input    map[string]any `json:"input,omitempty"`
+	// Wait: the request is held for the companion under this id; the hook awaits its answer with
+	// PermissionWaitCommand, for WaitMs at most. Only then does it wait longer than a request that is answered at once
+	// (#2474).
+	Wait   string `json:"wait,omitempty"`
+	WaitMs int64  `json:"waitms,omitempty"`
+}
+
+// PermissionWait is the hook's second call: it awaits the request opened under Id in its terminal.
+type PermissionWait struct {
+	BlockId string `json:"blockid"`
+	Id      string `json:"id"`
 }
 
 // PermissionDeny refuses the request for the agent (the developer's Deny in Brokk's layer, #2257).

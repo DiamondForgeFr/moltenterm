@@ -164,11 +164,12 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 			return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{
 				BlockId: blockId, State: AgentStateWorking, Agent: agent, BackgroundTask: input.BackgroundTaskId,
 				BackgroundDescription: input.ToolDescription, Transcript: absPath(input.TranscriptPath), TurnId: input.TurnId,
+				SessionId: input.SessionId,
 			})
 		}
 		// The transcript rides with the state (#2142): a wavesrv restarted since SessionStart links the pane again
 		// from it, without a request of its own.
-		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateWorking, Agent: agent, Transcript: absPath(input.TranscriptPath), TurnId: input.TurnId})
+		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateWorking, Agent: agent, Transcript: absPath(input.TranscriptPath), TurnId: input.TurnId, SessionId: input.SessionId})
 	case HookEventNotification:
 		// A sub-agent's question too: it shows in the main session's terminal, which waits for the developer.
 		if !ClaudeNotificationWaits(input) {
@@ -181,7 +182,7 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 		if input.AgentId != "" {
 			return subagent(AgentStateDone)
 		}
-		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateDone, Agent: agent, Transcript: absPath(input.TranscriptPath), TurnId: input.TurnId})
+		return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{BlockId: blockId, State: AgentStateDone, Agent: agent, Transcript: absPath(input.TranscriptPath), TurnId: input.TurnId, SessionId: input.SessionId})
 	case HookEventStopFailure:
 		return state(AgentStateError, input.Message)
 	case HookEventSubagentStart, HookEventSubagentStop:
@@ -223,7 +224,7 @@ func subagentEvent(input HookInput, agent string, blockId string, call HookCalle
 func sessionStart(input HookInput, agent string, blockId string, call HookCaller) error {
 	var errs []string
 	if input.Source != sessionSourceCompact {
-		req := AgentStateRequest{BlockId: blockId, State: AgentStateIdle, Agent: agent, Start: true, Provider: input.Provider}
+		req := AgentStateRequest{BlockId: blockId, State: AgentStateIdle, Agent: agent, Start: true, Provider: input.Provider, SessionId: input.SessionId}
 		if err := call(AgentStateSetCommand, AgentStatesRoute, req); err != nil {
 			errs = append(errs, err.Error())
 		}

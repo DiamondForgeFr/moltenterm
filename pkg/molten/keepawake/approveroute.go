@@ -52,13 +52,19 @@ func gitBranch(dir string) string {
 // request for the developer (gate.go); naming the tab and writing the log follow off that path. In this order: Brokk's
 // own session asks in his layer; a request the deny list keeps for the developer goes to the terminal, whatever
 // approves around it, and the companion shows why; a coffee, then a session the developer set to approve its own
-// requests, approve the rest; what is left is held for the companion when a window shows it, and otherwise asked in the
-// agent's own prompt.
+// requests, approve the rest; what is left is held for the companion when a window shows it (the answer then says so,
+// and the hook awaits it: Gate.Open, Gate.Wait), and otherwise asked in the agent's own prompt. Everything but Brokk's
+// own session's wait is done within the store's time, however long the hook may be willing to wait.
 func (s *service) permission(ctx context.Context, req PermissionRequest) PermissionAnswer {
 	if req.BlockId == "" || req.ToolName == "" {
 		return PermissionAnswer{}
 	}
-	info, found := s.locateBlock(ctx, req.BlockId)
+	if req.Arrived.IsZero() {
+		req.Arrived = s.clock()
+	}
+	storeCtx, cancel := context.WithTimeout(ctx, storeTimeout)
+	defer cancel()
+	info, found := s.locateBlock(storeCtx, req.BlockId)
 	// A review session reads untrusted PR content: its requests always go to the developer (#505 R1), even when a
 	// hook of the developer's own settings asks.
 	if !found || info.Remote || info.Review {
@@ -68,7 +74,10 @@ func (s *service) permission(ctx context.Context, req PermissionRequest) Permiss
 	s.hooks.mark(req.Agent)
 	// Brokk's own session asks the developer in his layer, and is never approved by a coffee (#2257).
 	if asker := getOwnSessionAsker(); asker != nil {
-		if answer, handled := asker(ctx, req); handled {
+		ownCtx, cancelOwn := context.WithTimeout(ctx, permissionTimeout(req))
+		answer, handled := asker(ownCtx, req)
+		cancelOwn()
+		if handled {
 			return answer
 		}
 	}
@@ -89,13 +98,13 @@ func (s *service) permission(ctx context.Context, req PermissionRequest) Permiss
 	if s.gate == nil || deny != "" {
 		return answer
 	}
-	if req.SessionId != "" && s.gate.Autonomous(req.BlockId, req.SessionId) {
+	if s.autonomous(req) {
 		answer = PermissionAnswer{Decision: PermissionAllow}
 		s.gate.NoteApproved(req.BlockId, req.SessionId)
 		s.recordApproval(info, req, answer, ApprovalApproved, ApprovalSourceAutonomous)
 		return answer
 	}
-	return s.hold(ctx, req)
+	return s.hold(req)
 }
 
 // recordApproval logs a decision and shows it in the state, off the path of the answer.

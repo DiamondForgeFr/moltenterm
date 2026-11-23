@@ -12,11 +12,13 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -50,8 +52,10 @@ func gateAgent(agent string) bool {
 }
 
 // hold keeps a request for the companion when a window shows its terminal's companion and the run's hook has the budget
-// to wait; otherwise the agent's own prompt answers at once, as it always did.
-func (s *service) hold(ctx context.Context, req PermissionRequest) PermissionAnswer {
+// to wait; otherwise the agent's own prompt answers at once, as it always did. The answer only says the request is held,
+// for how long: the hook awaits it with a second call (PermissionWaitCommand), so that a request that is not held never
+// costs more than the short time a hook always had. The time already spent since the request arrived counts in the hold.
+func (s *service) hold(req PermissionRequest) PermissionAnswer {
 	if req.HoldMs <= 0 || !req.FromBlock || !gateAgent(req.Agent) || !s.gate.Watching(req.BlockId) {
 		return PermissionAnswer{}
 	}
@@ -59,7 +63,82 @@ func (s *service) hold(ctx context.Context, req PermissionRequest) PermissionAns
 	if !ok || !report.CanHoldApprovals() || report.Agent != req.Agent {
 		return PermissionAnswer{}
 	}
-	return s.gate.Hold(ctx, HoldRequest{Req: req, Hold: min(time.Duration(req.HoldMs)*time.Millisecond, GateGrace)})
+	hold := min(time.Duration(req.HoldMs)*time.Millisecond, GateGrace) - s.clock().Sub(req.Arrived)
+	id := s.gate.Open(HoldRequest{Req: req, Hold: hold})
+	if id == "" {
+		return PermissionAnswer{}
+	}
+	return PermissionAnswer{Wait: id, WaitMs: hold.Milliseconds()}
+}
+
+// runRefOf is the run of the agent a terminal's record describes, false when it is not running or its process is not
+// known: an autonomous mode is bound to a run, and a run MoltenTerm cannot tell from another has none.
+func runRefOf(run molten.AgentRunInfo, ok bool) (RunRef, bool) {
+	if !ok || !run.Running || run.Pid <= 0 {
+		return RunRef{}, false
+	}
+	return RunRef{Pid: run.Pid, StartMs: run.PidStartMs}, true
+}
+
+func (s *service) runOf(blockId string) (RunRef, bool) {
+	run, ok := s.agentRun(blockId)
+	return runRefOf(run, ok)
+}
+
+// autonomous tells whether a request is approved without asking: its session is set to approve, in the run that is in
+// the terminal now, the session is the one that run reports, and the request comes from that run's own process, not from
+// another run of the agent that the first started (it inherits the terminal and its session, never the developer's choice).
+func (s *service) autonomous(req PermissionRequest) bool {
+	if req.SessionId == "" || !req.FromBlock {
+		return false
+	}
+	run, ok := s.agentRun(req.BlockId)
+	ref, tracked := runRefOf(run, ok)
+	if !tracked {
+		return false
+	}
+	// The session the run's own hooks report last: a request of another session is not its approved one.
+	if run.SessionId != "" && !strings.EqualFold(run.SessionId, req.SessionId) {
+		return false
+	}
+	if !s.gate.Autonomous(req.BlockId, req.SessionId, ref) {
+		return false
+	}
+	return s.fromTrackedRun(ref, req.Pid)
+}
+
+var agentProgramNames = map[string]bool{"claude": true, "codex": true}
+
+// fromTrackedRun tells whether the hook process comes from the run's process: the run is an ancestor of the hook, with no
+// nearer process of the same program between them (the hook of a run the first one started has its own agent process
+// above it, and that one is not the run the developer chose). Without the hook's process, or the table, it is not.
+func (s *service) fromTrackedRun(run RunRef, hookPid int32) bool {
+	if hookPid <= 0 || s.procs == nil {
+		return false
+	}
+	table := s.procs()
+	if table == nil || !table.Same(run.Pid, run.StartMs) {
+		return false
+	}
+	name := table.Get(run.Pid).Name
+	pid := hookPid
+	for i := 0; i < 2*proctree.MaxDepth; i++ {
+		p := table.Get(pid)
+		if p == nil {
+			return false
+		}
+		if p.Pid == run.Pid {
+			return true
+		}
+		if (name != "" && p.Name == name) || agentProgramNames[p.Name] {
+			return false
+		}
+		if p.Ppid == p.Pid || p.Ppid <= 0 {
+			return false
+		}
+		pid = p.Ppid
+	}
+	return false
 }
 
 // agentMoved tells whether the agent of a terminal went on after a request, or ended.
@@ -107,8 +186,9 @@ func (s *service) autonomyAvailable(info BlockInfo, agent string, report molten.
 	return SessionApprovalText(agent, info.Remote, report, hasReport, s.hooks.ran(agent))
 }
 
-// setAutonomy sets what a session's requests get, after checking that its terminal's agent can be answered: stopping is
-// always possible.
+// setAutonomy sets what a session's requests get, after checking that its terminal's agent can be answered, that it is
+// the run MoltenTerm can tell from another, and that the session is the one that run reports (a window's word for it is
+// not enough): stopping is always possible.
 func (s *service) setAutonomy(ctx context.Context, req GateModeRequest) GateModeResult {
 	if req.Mode == ModeAsk {
 		return s.gate.SetMode(req)
@@ -122,7 +202,18 @@ func (s *service) setAutonomy(ctx context.Context, req GateModeRequest) GateMode
 	if ok, reason, text := s.autonomyAvailable(info, run.Agent, report, hasReport); !ok {
 		return GateModeResult{Status: ModeUnavailable, Reason: reason, ReasonText: text}
 	}
-	req.Agent = run.Agent
+	ref, known := runRefOf(run, true)
+	if !known {
+		return GateModeResult{Status: ModeUnavailable, Reason: "MoltenTerm cannot tell this run of the agent apart yet", ReasonText: uimsg.Make("keepawake.gate.norun")}
+	}
+	live := run.SessionId
+	if live == "" {
+		return GateModeResult{Status: ModeUnavailable, Reason: "MoltenTerm has not seen this agent's session yet", ReasonText: uimsg.Make("keepawake.gate.nosession")}
+	}
+	if !strings.EqualFold(live, req.SessionId) {
+		return GateModeResult{Status: ModeUnavailable, Reason: "this is not the session the agent runs now", ReasonText: uimsg.Make("keepawake.gate.othersession")}
+	}
+	req.Agent, req.Run = run.Agent, ref
 	return s.gate.SetMode(req)
 }
 

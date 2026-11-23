@@ -2134,7 +2134,7 @@
             },
             "meta": "Tool: {tool} · folder: {folder}",
             "metaTool": "Tool: {tool}",
-            "clipped": "Long texts are shown cut here; the agent runs the whole of it.",
+            "clipped": "Part of this request is too long to show in full here, so only the terminal can allow it.",
             "allow": "Allow",
             "deny": "Deny",
             "terminal": "Answer in the terminal",
@@ -11279,7 +11279,10 @@
                 "review": "a review session is read-only: its requests always ask you"
             },
             "gate": {
-                "noagent": "no agent runs in this terminal"
+                "noagent": "no agent runs in this terminal",
+                "norun": "MoltenTerm cannot tell this run of the agent apart yet",
+                "nosession": "MoltenTerm has not seen this agent's session yet: it comes with its first turn",
+                "othersession": "this is not the session the agent runs now"
             },
             "why": {
                 "working": "{agent}: working",

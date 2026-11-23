@@ -201,3 +201,101 @@ func TestAgentPermissionCodexInput(t *testing.T) {
 		t.Fatalf("sent %+v", sent)
 	}
 }
+
+type recordedPermissionCall struct {
+	command   string
+	data      any
+	timeoutMs int64
+}
+
+// The review of #2474 (PR #2479): a request that is not held is answered within the short time a hook always had,
+// however long the hook is willing to wait, so that a slow wavesrv never costs the agent more than that.
+func TestAgentPermissionAsksWithTheShortTimeoutUnlessHeld(t *testing.T) {
+	req, ok := readPermissionRequest(strings.NewReader(recordedPermissionInput), "block-1", "claude")
+	if !ok || req.HoldMs <= 0 || req.Pid <= 0 {
+		t.Fatalf("request %+v", req)
+	}
+	var calls []recordedPermissionCall
+	notHeld := func(command string, data any, timeoutMs int64) (keepawake.PermissionAnswer, error) {
+		calls = append(calls, recordedPermissionCall{command, data, timeoutMs})
+		return keepawake.PermissionAnswer{}, nil
+	}
+	if _, err := exchangePermission(notHeld, req, false); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 1 || calls[0].command != keepawake.PermissionCommand || calls[0].timeoutMs != moltenAgentPermissionTimeoutMs {
+		t.Fatalf("a request that is not held was asked with %+v", calls)
+	}
+}
+
+// A held request is awaited in a second call, for what wavesrv said at most, plus the reply margin; the hook never waits
+// past its own budget.
+func TestAgentPermissionAwaitsAHeldRequestInASecondCall(t *testing.T) {
+	req, _ := readPermissionRequest(strings.NewReader(recordedPermissionInput), "block-1", "claude")
+	var calls []recordedPermissionCall
+	call := func(command string, data any, timeoutMs int64) (keepawake.PermissionAnswer, error) {
+		calls = append(calls, recordedPermissionCall{command, data, timeoutMs})
+		if command == keepawake.PermissionCommand {
+			return keepawake.PermissionAnswer{Wait: "req-1", WaitMs: 90_000}, nil
+		}
+		return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow}, nil
+	}
+	answer, err := exchangePermission(call, req, false)
+	if err != nil || answer.Decision != keepawake.PermissionAllow {
+		t.Fatalf("answer %+v, %v", answer, err)
+	}
+	if len(calls) != 2 || calls[0].timeoutMs != moltenAgentPermissionTimeoutMs {
+		t.Fatalf("calls %+v", calls)
+	}
+	wait, isWait := calls[1].data.(keepawake.PermissionWait)
+	if calls[1].command != keepawake.PermissionWaitCommand || !isWait || wait.Id != "req-1" || wait.BlockId != "block-1" ||
+		calls[1].timeoutMs != 90_000+moltenAgentPermissionReplyMs {
+		t.Fatalf("the second call %+v", calls[1])
+	}
+
+	calls = nil
+	tooLong := func(command string, data any, timeoutMs int64) (keepawake.PermissionAnswer, error) {
+		calls = append(calls, recordedPermissionCall{command, data, timeoutMs})
+		return keepawake.PermissionAnswer{Wait: "req-2", WaitMs: 10 * req.HoldMs}, nil
+	}
+	exchangePermission(tooLong, req, false)
+	if len(calls) != 2 || calls[1].timeoutMs != req.HoldMs+moltenAgentPermissionReplyMs {
+		t.Fatalf("the hook waits past its own budget: %+v", calls)
+	}
+
+	calls = nil
+	noTime := func(command string, data any, timeoutMs int64) (keepawake.PermissionAnswer, error) {
+		calls = append(calls, recordedPermissionCall{command, data, timeoutMs})
+		return keepawake.PermissionAnswer{Wait: "req-3", WaitMs: 0}, nil
+	}
+	if answer, err := exchangePermission(noTime, req, false); err != nil || answer.Decision != "" || len(calls) != 1 {
+		t.Fatalf("a request with no time left: %+v %v, %d calls", answer, err, len(calls))
+	}
+
+	failing := func(command string, data any, timeoutMs int64) (keepawake.PermissionAnswer, error) {
+		if command == keepawake.PermissionWaitCommand {
+			return keepawake.PermissionAnswer{}, errors.New("timeout")
+		}
+		return keepawake.PermissionAnswer{Wait: "req-4", WaitMs: 1000}, nil
+	}
+	if _, err := exchangePermission(failing, req, false); err == nil {
+		t.Fatal("a wait that failed is not told: the pane would not show the agent waiting")
+	}
+}
+
+// Brokk's own session asks in one call that waits for his answer, with the long timeout: his layer answers it, not the
+// companion.
+func TestAgentPermissionOwnSessionAsksInOneLongCall(t *testing.T) {
+	req := keepawake.PermissionRequest{BlockId: "block-1", Agent: "claude", ToolName: "Bash", HoldMs: permissionHoldMs("claude", true)}
+	var calls []recordedPermissionCall
+	call := func(command string, data any, timeoutMs int64) (keepawake.PermissionAnswer, error) {
+		calls = append(calls, recordedPermissionCall{command, data, timeoutMs})
+		return keepawake.PermissionAnswer{Decision: keepawake.PermissionAllow}, nil
+	}
+	if answer, err := exchangePermission(call, req, true); err != nil || answer.Decision != keepawake.PermissionAllow {
+		t.Fatalf("answer %+v, %v", answer, err)
+	}
+	if len(calls) != 1 || calls[0].timeoutMs != req.HoldMs+moltenAgentPermissionReplyMs {
+		t.Fatalf("calls %+v", calls)
+	}
+}

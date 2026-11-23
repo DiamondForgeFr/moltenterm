@@ -16,6 +16,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
+	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -79,6 +80,25 @@ type service struct {
 	// Tests run an approval's naming and logging in place, and give the names; nil: off the answer's path, from the store.
 	runApproval func(fn func())
 	namesOf     func(ctx context.Context, blockId string) (string, string, string)
+	// now: the clock a request's arrival is read from; procs: the process table the request's agent is found in. Tests
+	// give both.
+	now   func() time.Time
+	procs func() *proctree.Table
+}
+
+func (s *service) clock() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
+
+func readProcs() *proctree.Table {
+	table, err := proctree.Read()
+	if err != nil {
+		return nil
+	}
+	return table
 }
 
 type workspaceEntry struct {
@@ -296,7 +316,8 @@ func makeService(hooks Hooks) *service {
 		integration: attention.AgentIntegration,
 		agentRun:    attention.AgentRun,
 	}
-	gateEnv := GateEnv{Publish: publishGate, Moved: s.agentMoved, Approved: s.logHeldApproval}
+	s.procs = readProcs
+	gateEnv := GateEnv{Publish: publishGate, Moved: s.agentMoved, RunOf: s.runOf, Approved: s.logHeldApproval}
 	if dataDir := wavebase.GetWaveDataDir(); dataDir != "" {
 		s.approvalLog = makeApprovalLog(dataDir)
 		always := makeAlwaysStore(dataDir)
@@ -405,17 +426,19 @@ func (l *routeLink) route() localroute.Route {
 		Policy: localroute.Policy{
 			Default: localroute.AllowWindow,
 			Commands: map[string]string{
-				StateCommand:      localroute.AllowUi,
-				ShimCommand:       localroute.AllowLocalTerminal,
-				PermissionCommand: localroute.AllowLocalTerminal,
+				StateCommand:          localroute.AllowUi,
+				ShimCommand:           localroute.AllowLocalTerminal,
+				PermissionCommand:     localroute.AllowLocalTerminal,
+				PermissionWaitCommand: localroute.AllowLocalTerminal,
 			},
 			Refusals: map[string]string{
-				StateCommand:      "the keep-awake state is read by MoltenTerm's windows",
-				CoffeeCommand:     "a coffee is turned on or off from a MoltenTerm window",
-				OverrideCommand:   "a session's keep-awake choice is set from a MoltenTerm window",
-				StopCommand:       "a terminal's keep-awake is stopped from a MoltenTerm window",
-				ShimCommand:       "the sleep shims report from a local MoltenTerm terminal",
-				PermissionCommand: "permission requests come from a local MoltenTerm terminal",
+				StateCommand:          "the keep-awake state is read by MoltenTerm's windows",
+				CoffeeCommand:         "a coffee is turned on or off from a MoltenTerm window",
+				OverrideCommand:       "a session's keep-awake choice is set from a MoltenTerm window",
+				StopCommand:           "a terminal's keep-awake is stopped from a MoltenTerm window",
+				ShimCommand:           "the sleep shims report from a local MoltenTerm terminal",
+				PermissionCommand:     "permission requests come from a local MoltenTerm terminal",
+				PermissionWaitCommand: "permission requests come from a local MoltenTerm terminal",
 			},
 		},
 		Handler: l.handle,
@@ -433,10 +456,27 @@ func (l *routeLink) handle(ctx context.Context, command string, caller localrout
 			return PermissionAnswer{}, nil
 		}
 		req.FromBlock = caller.BlockId != ""
-		// Brokk's own session may wait for the developer's answer (its HoldMs); everything else answers at once.
-		ctx, cancel := context.WithTimeout(ctx, permissionTimeout(req))
-		defer cancel()
+		req.Arrived = l.s.clock()
+		// Brokk's own session may wait for the developer's answer (its HoldMs, bounded where it is asked); everything
+		// else is answered within the store's time, a request held for the companion only said to be, for the hook to
+		// await in a second call.
 		return l.s.permission(ctx, req), nil
+	}
+	if command == PermissionWaitCommand {
+		var wait PermissionWait
+		if err := utilfn.ReUnmarshal(&wait, data); err != nil {
+			return nil, err
+		}
+		// A terminal awaits its own block's request only, as it asks for it.
+		if caller.BlockId == "" || wait.BlockId != caller.BlockId {
+			return PermissionAnswer{}, nil
+		}
+		if l.s.gate == nil {
+			return PermissionAnswer{}, nil
+		}
+		ctx, cancel := context.WithTimeout(ctx, MaxPermissionHold)
+		defer cancel()
+		return l.s.gate.Wait(ctx, wait.Id, wait.BlockId), nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, storeTimeout)
 	defer cancel()

@@ -15,6 +15,12 @@ import (
 // gateDeadline only bounds a failing run.
 const gateDeadline = time.Minute
 
+// testRun is the run of the agent the tests set a mode in; otherRun is another run of it (a new process).
+var (
+	testRun  = RunRef{Pid: 4242, StartMs: 1_700_000_000_000}
+	otherRun = RunRef{Pid: 4343, StartMs: 1_700_000_900_000}
+)
+
 type fakeGateTimer struct {
 	d       time.Duration
 	ch      chan time.Time
@@ -30,13 +36,31 @@ type gateFixture struct {
 	timers    []*fakeGateTimer
 	published chan int64
 	movedAt   map[string]bool
+	runs      map[string]RunRef
 	saved     [][]Autonomy
 	approved  []GateRequest
 	loaded    []Autonomy
+	// saveGate, when set, is waited on by every save (a save that blocks); saveStarted says a save began.
+	saveGate    chan struct{}
+	saveStarted chan struct{}
 }
 
 func makeGateFixture(t *testing.T) *gateFixture {
-	return &gateFixture{t: t, now: time.Date(2026, 11, 23, 10, 0, 0, 0, time.Local), published: make(chan int64, 256), movedAt: map[string]bool{}}
+	return &gateFixture{
+		t: t, now: time.Date(2026, 11, 23, 10, 0, 0, 0, time.Local), published: make(chan int64, 256), movedAt: map[string]bool{},
+		runs: map[string]RunRef{},
+	}
+}
+
+// setRun says which run of the agent is in the terminal; a zero run says none.
+func (f *gateFixture) setRun(blockId string, run RunRef) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	if !run.Known() {
+		delete(f.runs, blockId)
+		return
+	}
+	f.runs[blockId] = run
 }
 
 func (f *gateFixture) env() GateEnv {
@@ -74,8 +98,21 @@ func (f *gateFixture) env() GateEnv {
 			defer f.lock.Unlock()
 			return f.movedAt[blockId]
 		},
+		RunOf: func(blockId string) (RunRef, bool) {
+			f.lock.Lock()
+			defer f.lock.Unlock()
+			run, ok := f.runs[blockId]
+			return run, ok
+		},
 		LoadAlways: func() []Autonomy { return f.loaded },
 		SaveAlways: func(list []Autonomy) {
+			if f.saveGate != nil {
+				select {
+				case f.saveStarted <- struct{}{}:
+				default:
+				}
+				<-f.saveGate
+			}
 			f.lock.Lock()
 			defer f.lock.Unlock()
 			f.saved = append(f.saved, list)
@@ -446,13 +483,13 @@ func TestGateClosedTerminalLetsGoOfItsRequestsAndModes(t *testing.T) {
 	g := f.gate()
 	g.Watch("block-1")
 	out, _ := f.holdAsync(g, holdRequest("block-1", "ls"), 2*time.Minute)
-	g.SetMode(GateModeRequest{BlockId: "block-2", SessionId: "aaaaaaaa-1111", Mode: ModeAlways})
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: "bbbbbbbb-2222", Mode: ModeAlways})
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-2", SessionId: "aaaaaaaa-1111", Mode: ModeAlways})
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: "bbbbbbbb-2222", Mode: ModeAlways})
 	g.ForgetBlock("block-1")
 	if a := recvAnswer(t, out); a.Decision != "" {
 		t.Fatalf("the hook answered %+v", a)
 	}
-	if g.Watching("block-1") || g.Autonomous("block-1", "bbbbbbbb-2222") || !g.Autonomous("block-2", "aaaaaaaa-1111") {
+	if g.Watching("block-1") || g.Autonomous("block-1", "bbbbbbbb-2222", testRun) || !g.Autonomous("block-2", "aaaaaaaa-1111", testRun) {
 		t.Fatal("the closed terminal's lease or mode stays, or another's went")
 	}
 	last := f.saved[len(f.saved)-1]
@@ -497,16 +534,16 @@ func TestGatePeriodEndsByItself(t *testing.T) {
 	f := makeGateFixture(t)
 	g := f.gate()
 	session := "11111111-2222-3333-4444-555555555555"
-	result := g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: session, Mode: ModeFor, Period: PeriodHour, Agent: "claude"})
+	result := g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: session, Mode: ModeFor, Period: PeriodHour, Agent: "claude"})
 	started := f.env().Now()
 	if result.Status != ModeSet || result.Autonomy == nil || result.Autonomy.Until != started.Add(time.Hour).UnixMilli() || result.Autonomy.Since != started.UnixMilli() {
 		t.Fatalf("result %+v", result)
 	}
-	if !g.Autonomous("block-1", session) || !g.Autonomous("block-1", strings.ToUpper(session)) {
+	if !g.Autonomous("block-1", session, testRun) || !g.Autonomous("block-1", strings.ToUpper(session), testRun) {
 		t.Fatal("the session does not approve its own requests")
 	}
 	f.advance(time.Hour - time.Second)
-	if !g.Autonomous("block-1", session) {
+	if !g.Autonomous("block-1", session, testRun) {
 		t.Fatal("the period ended early")
 	}
 	if len(f.saved) == 0 || len(f.saved[len(f.saved)-1]) != 0 {
@@ -515,7 +552,7 @@ func TestGatePeriodEndsByItself(t *testing.T) {
 	f.advance(2 * time.Second)
 	f.fire(0)
 	f.until("the mode to end", func() bool { return len(g.State().Autonomy) == 0 })
-	if g.Autonomous("block-1", session) {
+	if g.Autonomous("block-1", session, testRun) {
 		t.Fatal("the session still approves after its period")
 	}
 }
@@ -525,9 +562,9 @@ func TestGateEndedPeriodIsNotAnApproval(t *testing.T) {
 	f := makeGateFixture(t)
 	g := f.gate()
 	session := "11111111-2222-3333-4444-555555555555"
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: session, Mode: ModeFor, Period: PeriodQuarter})
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: session, Mode: ModeFor, Period: PeriodQuarter})
 	f.advance(15 * time.Minute)
-	if g.Autonomous("block-1", session) {
+	if g.Autonomous("block-1", session, testRun) {
 		t.Fatal("an ended period approved a request")
 	}
 	if len(g.State().Autonomy) != 0 {
@@ -539,18 +576,18 @@ func TestGateStopReturnsToAskAtOnce(t *testing.T) {
 	f := makeGateFixture(t)
 	g := f.gate()
 	session := "11111111-2222-3333-4444-555555555555"
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: session, Mode: ModeAlways})
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: "99999999-aaaa", Mode: ModeFor, Period: PeriodHour})
-	if result := g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: session, Mode: ModeAsk}); result.Status != ModeSet {
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: session, Mode: ModeAlways})
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: "99999999-aaaa", Mode: ModeFor, Period: PeriodHour})
+	if result := g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: session, Mode: ModeAsk}); result.Status != ModeSet {
 		t.Fatalf("stop %+v", result)
 	}
-	if g.Autonomous("block-1", session) || !g.Autonomous("block-1", "99999999-aaaa") {
+	if g.Autonomous("block-1", session, testRun) || !g.Autonomous("block-1", "99999999-aaaa", testRun) {
 		t.Fatal("stop did not end its session's mode only")
 	}
 	if last := f.saved[len(f.saved)-1]; len(last) != 0 {
 		t.Fatalf("a stopped session is kept for a restart: %+v", last)
 	}
-	if result := g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: session, Mode: ModeAsk}); result.Status != ModeSet {
+	if result := g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: session, Mode: ModeAsk}); result.Status != ModeSet {
 		t.Fatalf("stopping a session that asks: %+v", result)
 	}
 }
@@ -559,14 +596,14 @@ func TestGateStopReturnsToAskAtOnce(t *testing.T) {
 func TestGateModeIsNeverInherited(t *testing.T) {
 	f := makeGateFixture(t)
 	g := f.gate()
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: "11111111-2222-3333-4444-555555555555", Mode: ModeAlways})
-	if g.Autonomous("block-1", "11111111-2222-3333-4444-666666666666") {
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: "11111111-2222-3333-4444-555555555555", Mode: ModeAlways})
+	if g.Autonomous("block-1", "11111111-2222-3333-4444-666666666666", testRun) {
 		t.Fatal("a new session of the terminal inherited the mode")
 	}
-	if g.Autonomous("block-2", "11111111-2222-3333-4444-555555555555") {
+	if g.Autonomous("block-2", "11111111-2222-3333-4444-555555555555", testRun) {
 		t.Fatal("another terminal's session took the mode")
 	}
-	if g.Autonomous("block-1", "") || g.Autonomous("", "11111111-2222-3333-4444-555555555555") {
+	if g.Autonomous("block-1", "", testRun) || g.Autonomous("", "11111111-2222-3333-4444-555555555555", testRun) {
 		t.Fatal("a request with no session or no terminal took the mode")
 	}
 }
@@ -599,8 +636,8 @@ func TestGateAlwaysSurvivesARestartForItsSessionOnly(t *testing.T) {
 	f := makeGateFixture(t)
 	g := f.gate()
 	session := "11111111-2222-3333-4444-555555555555"
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: session, Mode: ModeAlways, Agent: "claude"})
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: "99999999-aaaa", Mode: ModeFor, Period: PeriodHour})
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: session, Mode: ModeAlways, Agent: "claude"})
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: "99999999-aaaa", Mode: ModeFor, Period: PeriodHour})
 	g.NoteApproved("block-1", session)
 	kept := f.saved[len(f.saved)-1]
 	if len(kept) != 1 || kept[0].SessionId != session || kept[0].Mode != ModeAlways {
@@ -610,10 +647,10 @@ func TestGateAlwaysSurvivesARestartForItsSessionOnly(t *testing.T) {
 	again := makeGateFixture(t)
 	again.loaded = kept
 	restarted := again.gate()
-	if !restarted.Autonomous("block-1", session) {
+	if !restarted.Autonomous("block-1", session, testRun) {
 		t.Fatal("the session lost its mode in the restart")
 	}
-	if restarted.Autonomous("block-1", "99999999-aaaa") || restarted.Autonomous("block-1", "11111111-2222-3333-4444-666666666666") {
+	if restarted.Autonomous("block-1", "99999999-aaaa", testRun) || restarted.Autonomous("block-1", "11111111-2222-3333-4444-666666666666", testRun) {
 		t.Fatal("another session got the mode in the restart")
 	}
 	if state := restarted.State(); len(state.Autonomy) != 1 || state.Autonomy[0].Approved != 0 {
@@ -625,11 +662,11 @@ func TestGateAlwaysKeptOnlyForAWhileAndOnlyIfWellFormed(t *testing.T) {
 	f := makeGateFixture(t)
 	now := f.env().Now()
 	f.loaded = []Autonomy{
-		{BlockId: "block-1", SessionId: "11111111-2222-3333-4444-555555555555", Mode: ModeAlways, Since: now.Add(-alwaysKeep - time.Hour).UnixMilli()},
-		{BlockId: "block-2", SessionId: "11111111-2222-3333-4444-666666666666", Mode: ModeAlways, Since: now.Add(-time.Hour).UnixMilli()},
-		{BlockId: "block-3", SessionId: "11111111-2222-3333-4444-777777777777", Mode: ModeFor, Since: now.UnixMilli(), Until: now.Add(time.Hour).UnixMilli()},
-		{BlockId: "block-4", SessionId: "bad", Mode: ModeAlways, Since: now.UnixMilli()},
-		{BlockId: "", SessionId: "11111111-2222-3333-4444-888888888888", Mode: ModeAlways, Since: now.UnixMilli()},
+		{BlockId: "block-1", SessionId: "11111111-2222-3333-4444-555555555555", RunPid: 4242, Mode: ModeAlways, Since: now.Add(-alwaysKeep - time.Hour).UnixMilli()},
+		{BlockId: "block-2", SessionId: "11111111-2222-3333-4444-666666666666", RunPid: 4242, Mode: ModeAlways, Since: now.Add(-time.Hour).UnixMilli()},
+		{BlockId: "block-3", SessionId: "11111111-2222-3333-4444-777777777777", RunPid: 4242, Mode: ModeFor, Since: now.UnixMilli(), Until: now.Add(time.Hour).UnixMilli()},
+		{BlockId: "block-4", SessionId: "bad", RunPid: 4242, Mode: ModeAlways, Since: now.UnixMilli()},
+		{BlockId: "", SessionId: "11111111-2222-3333-4444-888888888888", RunPid: 4242, Mode: ModeAlways, Since: now.UnixMilli()},
 	}
 	g := f.gate()
 	state := g.State()
@@ -644,7 +681,7 @@ func TestGateModeAllowsTheRequestHeldForItsSession(t *testing.T) {
 	g := f.gate()
 	out, shown := f.holdAsync(g, holdRequest("block-1", "go test ./..."), 2*time.Minute)
 	other, _ := f.holdAsync(g, holdRequest("block-2", "ls"), 2*time.Minute)
-	result := g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: shown.SessionId, Mode: ModeFor, Period: PeriodHour})
+	result := g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: shown.SessionId, Mode: ModeFor, Period: PeriodHour})
 	if a := recvAnswer(t, out); a.Decision != PermissionAllow {
 		t.Fatalf("the held request got %+v", a)
 	}
@@ -665,7 +702,7 @@ func TestGateCountsWhatTheModeApproves(t *testing.T) {
 	f := makeGateFixture(t)
 	g := f.gate()
 	session := "11111111-2222-3333-4444-555555555555"
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: session, Mode: ModeAlways})
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: session, Mode: ModeAlways})
 	for i := 0; i < 7; i++ {
 		g.NoteApproved("block-1", session)
 	}
@@ -676,7 +713,7 @@ func TestGateCountsWhatTheModeApproves(t *testing.T) {
 	}
 	// Setting the mode again starts a new count, from when the developer set it.
 	f.advance(time.Minute)
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: session, Mode: ModeFor, Period: PeriodQuarter})
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: session, Mode: ModeFor, Period: PeriodQuarter})
 	state = g.State()
 	if state.Autonomy[0].Approved != 0 || state.Autonomy[0].Mode != ModeFor || state.Autonomy[0].Since != f.env().Now().UnixMilli() {
 		t.Fatalf("state %+v", state.Autonomy)
@@ -700,13 +737,13 @@ func TestGatePublishesEveryChange(t *testing.T) {
 			t.Fatalf("%s was not published", what)
 		}
 	}
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: session, Mode: ModeAlways})
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: session, Mode: ModeAlways})
 	changes("a mode")
 	g.NoteApproved("block-1", session)
 	changes("an approval")
 	g.NoteTerminalOnly(holdRequest("block-1", "git push --force origin main"), reasonForcePush+"main")
 	changes("a request kept for the terminal")
-	g.SetMode(GateModeRequest{BlockId: "block-1", SessionId: session, Mode: ModeAsk})
+	g.SetMode(GateModeRequest{Run: testRun, BlockId: "block-1", SessionId: session, Mode: ModeAsk})
 	changes("a stop")
 	if g.State().Version != last {
 		t.Fatalf("state version %d, published %d", g.State().Version, last)
