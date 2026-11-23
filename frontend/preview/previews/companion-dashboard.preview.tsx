@@ -16,6 +16,7 @@
 // ?files=29 the session's changed files, ?answer=long a long latest answer and ?unfold=files the blocks the layout starts
 // with unfolded (#2477).
 
+import { globalStore } from "@/app/store/jotaiStore";
 import { useEffect, useRef, useState } from "react";
 import type { AgentStateInfo } from "../../moltenterm-shell/agent-state-model";
 import {
@@ -42,11 +43,15 @@ import {
 } from "../../moltenterm-shell/companion/companion-layout";
 import { MilestonesView } from "../../moltenterm-shell/companion/companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "../../moltenterm-shell/companion/companion-model";
+import type { PermitState } from "../../moltenterm-shell/companion/companion-permit-model";
+import { PermitModel } from "../../moltenterm-shell/companion/companion-permit-store";
 import { TaskView } from "../../moltenterm-shell/companion/companion-task-model";
 import { CompanionTips } from "../../moltenterm-shell/companion/companion-tips";
 import type { CompanionImage } from "../../moltenterm-shell/companion/companion-tips-model";
 import { setUsageRowHidden } from "../../moltenterm-shell/companion/companion-usage-rows-model";
 import { I18nModel, useT } from "../../moltenterm-shell/i18n/i18n";
+import { EmptyKeepAwakeState } from "../../moltenterm-shell/keepawake-model";
+import { KeepAwakeModel } from "../../moltenterm-shell/keepawake-store";
 
 import "../../moltenterm-shell/molten-button.css";
 import "../../moltenterm-shell/moltenterm-shell.css";
@@ -529,6 +534,105 @@ function moreFiles(total: number): CompanionView["files"] {
     );
 }
 
+// ?permit=held|codex|denylist|restart|unavailable (#2474): the agent waits on a permission request the companion holds
+// (held: Claude Code, 1:52 left; codex: 0:12 left; denylist: a force push, terminal only, with the reason), on one the
+// transcript shows of a run that cannot be held (restart, with ?agent=waiting), or its session cannot be set to approve
+// (unavailable). ?autonomy=15m|hour|tonight|always: the session approves its own requests (7 so far), the main agent block
+// in steel blue. ?autolist=1 opens the list of what it approved, ?menu=1 the Permissions menu.
+const PermitFixture = query.get("permit") ?? "";
+const AutonomyFixture = query.get("autonomy") ?? "";
+
+function seedPermit() {
+    const model = PermitModel.getInstance();
+    const block = "preview-terminal";
+    const requests: PermitState["requests"] = [];
+    const command = "npm run test -- src/settings/__tests__/search-index.test.ts --reporter=verbose";
+    if (PermitFixture === "held" || PermitFixture === "codex") {
+        requests.push({
+            id: "r1",
+            blockid: block,
+            sessionid: "s1",
+            agent: PermitFixture === "codex" ? "codex" : "claude",
+            tool: "Bash",
+            toolinput: { command },
+            cwd: "/work/lantern",
+            at: Now,
+            state: "held",
+            deadline: Now + (PermitFixture === "codex" ? 12_000 : 112_000),
+        });
+    }
+    if (PermitFixture === "denylist") {
+        requests.push({
+            id: "r2",
+            blockid: block,
+            sessionid: "s1",
+            agent: "claude",
+            tool: "Bash",
+            toolinput: { command: "git push --force origin main" },
+            cwd: "/work/lantern",
+            at: Now,
+            state: "terminal",
+            reason: "force push or deletion of a main branch: main",
+            reasontext: { code: "keepawake.deny.forcepush", vars: { detail: "main" } },
+        });
+    }
+    const period: Record<string, number> = { "15m": 15 * Min, hour: Hour, tonight: 7 * Hour, always: 0 };
+    const autonomy: PermitState["autonomy"] = [];
+    if (AutonomyFixture in period) {
+        const always = AutonomyFixture === "always";
+        // Half a minute over the whole minutes, so that the chip reads "52 min left" for a minute after the page loads.
+        const until = always ? undefined : Now + (AutonomyFixture === "15m" ? 12 * Min : 52 * Min) + 30_000;
+        autonomy.push({
+            blockid: block,
+            sessionid: "s1",
+            agent: "claude",
+            mode: always ? "always" : "for",
+            since: always ? Now - 38 * Min : until - period[AutonomyFixture],
+            until,
+            approved: 7,
+        });
+    }
+    globalStore.set(model.stateAtom, { version: 1, requests, autonomy });
+    const unavailable = PermitFixture === "unavailable";
+    globalStore.set(model.watchesAtom, {
+        [block]: {
+            blockid: block,
+            available: !unavailable,
+            holds: PermitFixture !== "restart" && !unavailable,
+            reason: unavailable ? "it was started outside MoltenTerm's launcher" : undefined,
+            reasontext: unavailable ? { code: "keepawake.session.nolauncher" } : undefined,
+        },
+    });
+    const approvals = [
+        "npm run test",
+        "git status",
+        "rg -n search src",
+        "npm run lint",
+        "git diff --stat",
+        "ls src",
+        "cat package.json",
+    ];
+    globalStore.set(KeepAwakeModel.getInstance().stateAtom, {
+        ...EmptyKeepAwakeState,
+        version: 1,
+        approvals: approvals.map((detail, i) => ({
+            id: `p${i}`,
+            at: Now - (i + 1) * 40_000,
+            blockid: block,
+            sessionid: "s1",
+            agent: "claude",
+            tool: "Bash",
+            detail,
+            outcome: "approved" as const,
+            source: "autonomous" as const,
+        })),
+    });
+}
+
+if (PermitFixture || AutonomyFixture) {
+    seedPermit();
+}
+
 // ?images=1: the messages the companion shows name pasted images.
 function withImages(v: CompanionView): CompanionView {
     return {
@@ -591,6 +695,27 @@ export function CompanionDashboardPreview() {
         const timer = setInterval(() => {
             scroller.scrollTop = scroller.scrollHeight;
         }, 100);
+        return () => clearInterval(timer);
+    }, []);
+    // ?menu=1 opens the Permissions menu, ?autolist=1 the list of what the session approved (#2474).
+    useEffect(() => {
+        const opens = [
+            query.get("menu") === "1" && "companion-permit-tool",
+            query.get("autolist") === "1" && "companion-autoline-toggle",
+        ].filter(Boolean);
+        if (opens.length === 0) {
+            return;
+        }
+        let tries = 0;
+        const timer = setInterval(() => {
+            const buttons = opens.map((id) => document.querySelector<HTMLElement>(`[data-testid="${id}"]`));
+            if (buttons.every((b) => b != null)) {
+                buttons.forEach((b) => b.click());
+                clearInterval(timer);
+            } else if (++tries > 100) {
+                clearInterval(timer);
+            }
+        }, 150);
         return () => clearInterval(timer);
     }, []);
     // ?tip=<test id>: the pointer rests on the element once the blocks are placed, as a screenshot needs it.

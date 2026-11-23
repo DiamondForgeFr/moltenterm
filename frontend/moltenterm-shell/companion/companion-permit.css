@@ -281,8 +281,26 @@ button.mt-perm-row:disabled,
     text-transform: none;
 }
 
-.mt-cdash-auto-chip > i {
+.mt-cdash-auto-chip > svg {
     flex: none;
+}
+
+/* Where the header has no room for it, the chip moves to the body's first row. */
+.mt-cb-chip.mt-cdash-auto-chip[data-where="body"] {
+    display: none;
+    align-self: flex-start;
+}
+
+@container mt-hero (max-width: 560px) {
+    .mt-cb-chip.mt-cdash-auto-chip[data-where="head"] {
+        display: none;
+    }
+
+    .mt-cb-chip.mt-cdash-auto-chip[data-where="body"] {
+        display: inline-flex;
+        height: 24px;
+        overflow: visible;
+    }
 }
 
 .mt-cdash-auto-text {
