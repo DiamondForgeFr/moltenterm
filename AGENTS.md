@@ -103,6 +103,15 @@ Tests run in parallel on loaded machines (CI, full local runs): a test must pass
 - **Every user-facing string goes through a key** (FR-I18N-001): `useT()` in components, `t()` in models and menus (`frontend/moltenterm-shell/i18n/i18n.ts`), `mt()` in Electron main. Add the key to `locales/en.json` and `locales/fr.json` with the same `{name}` placeholders; the i18n tests fail otherwise. Details in `.kilocode/rules/rules.md`, "Interface languages". `molten` and `wsh` output stays English.
 - **UI text never names the machine or the OS** (Mac, macOS, Finder, Windows Explorer): "this computer", "Show in folder", "the system keychain". Shortcut glyphs (⌘ / Ctrl) adapt per platform, and a feature that only exists on one platform may say so.
 
+## UI work: mockups and design tokens
+
+How this project answers the generated "UI work" section below, for a ticket labelled `ui`:
+
+- **Mockup display.** A mockup is a self-contained HTML page (the common floor); a Claude Code session may also publish it as an artifact. Show it to the developer in MoltenTerm's own browser panel: open the page there and bring it into view, not only a link.
+- **Mockup content.** It reproduces the app as it looks today: start from screenshots of the real surface, and take the real components from the preview server (`frontend/preview/`). It keeps the app's codes: the workspace owns colour (left liseré, switcher dots), orange is action, states use the heat scale, and selected is the liseré (`mt-selected`, "Selected = the rounded liseré" in `.kilocode/rules/rules.md`).
+- **Design tokens.** `frontend/moltenterm-shell/tokens.css` (theme tokens and their light counterparts), `molten-btn` for call-to-action buttons, Lucide icons (`lucide-react`), never emoji, and an i18n key for every string ("Interface text" above).
+- **Validation.** The visual part waits for the developer's validation; the validated mockup's link goes on the ticket with `workflow-cli.sh record-ui-validation <ticket> --mockup <link-or-path> --approved-by <name>`.
+
 ## Git remotes
 
 - `origin` is Moltenterm. `upstream` is Wave Terminal, fetch-only, without tags.
