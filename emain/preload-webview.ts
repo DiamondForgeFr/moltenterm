@@ -16,6 +16,8 @@ import {
 import { installAnnotateGuest } from "./moltenterm-annotate-guest";
 // MOLTENTERM-PATCH (#971)
 import { GateEventTypes, WebviewInputGate } from "./moltenterm-webview-input-gate";
+// MOLTENTERM-PATCH (#1980)
+import { installInsecurePasswordGuest } from "./moltenterm-insecure-password-guest";
 
 // MOLTENTERM-PATCH (#371): a single trusted request after the page can suppress its own menu.
 document.addEventListener("contextmenu", (event) => {
@@ -102,5 +104,9 @@ ipcRenderer.on(CarpetWheelStateChannel, (_event, state: CarpetWheelState) => {
 // MOLTENTERM-PATCH (#2422): the comment overlay of the web page panel (FR-BRW-017). It listens for the panel's `start`
 // and does nothing else until then.
 installAnnotateGuest();
+
+// MOLTENTERM-PATCH (#1980): a password field takes the focus on a plain http page (FR-BRW-023): an empty signal to the
+// panel, which checks the address itself.
+installInsecurePasswordGuest();
 
 console.log("loaded wave preload-webview.ts");

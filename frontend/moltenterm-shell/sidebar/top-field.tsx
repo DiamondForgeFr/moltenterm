@@ -10,7 +10,7 @@
 // of the JS every tab view loads up front (NFR-PERF-003, bundle.initialJsMB). Opened before it arrives, the field
 // shows a stand-in input that keeps what is typed and hands it over.
 
-import { atoms, getApi, refocusNode, WOS } from "@/app/store/global";
+import { atoms, getApi, getBlockComponentModel, refocusNode, WOS } from "@/app/store/global";
 import { getLayoutModelForStaticTab, LayoutNode } from "@/layout/index";
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
@@ -18,6 +18,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { agentLabel } from "../agent-state-model";
 import { AgentStates } from "../agent-state-store";
 import { addressOfPage, MoltentermBrowserView, readBrowserState } from "../browser/browser-model";
+import { connectionGlyph, ConnectionView, ViewSecure } from "../browser/connection-store";
 import { useLocale, useT } from "../i18n/i18n";
 import { formatShortcutById } from "../shortcuts/format";
 import { panelIcon, PanelMeta, panelTitle } from "../tab-identity";
@@ -28,6 +29,16 @@ import type * as TopFieldOpen from "./top-field-open";
 import { TopFieldModel } from "./top-field-store";
 
 const NullNodeAtom = atom(null) as Atom<LayoutNode>;
+const NullConnectionAtom = atom(null) as Atom<ConnectionView>;
+
+// How the focused browser panel's page is served (#1980, FR-BRW-023): the panel keeps it, the closed field shows it as
+// its glyph. Null for any other panel and for a page that is local or not a web page.
+function useConnectionView(blockId: string): ConnectionView {
+    const model = blockId
+        ? (getBlockComponentModel(blockId)?.viewModel as { connectionViewAtom?: Atom<ConnectionView> })
+        : null;
+    return useAtomValue(model?.connectionViewAtom ?? NullConnectionAtom);
+}
 // After the first paint, so the open field's code never competes with start-up.
 const PreloadDelayMs = 1500;
 const StandInBlurMs = 120;
@@ -173,6 +184,7 @@ export function TopField() {
     const [, setLoaded] = useState(openFieldModule != null);
     const typedRef = useRef<TypedText>(null);
     const ctx = fieldContext(focus);
+    const connection = useConnectionView(focus.blockId);
     const keys = formatShortcutById("top-field");
     useEffect(() => {
         const timer = setTimeout(() => fireAndForget(loadOpenField), PreloadDelayMs);
@@ -216,7 +228,18 @@ export function TopField() {
             onClick={() => model.open()}
         >
             <span className="flex shrink-0">
-                {ctx.url ? (
+                {ctx.url && connection != null ? (
+                    <i
+                        className={cn(
+                            "fa fa-solid w-[14px] text-center text-icon-14",
+                            connectionGlyph(connection.kind),
+                            connection.kind === ViewSecure ? "text-muted" : "text-warning"
+                        )}
+                        data-testid="top-field-connection"
+                        data-kind={connection.kind}
+                        aria-hidden
+                    />
+                ) : ctx.url ? (
                     <SidebarGlyph name="globe" size={14} />
                 ) : ctx.icon && ctx.icon !== "magnifying-glass" ? (
                     <i className={cn(makeIconClass(ctx.icon, true), "w-[14px] text-center text-icon-14")} aria-hidden />

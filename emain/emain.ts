@@ -70,6 +70,7 @@ import { planMoltentermCookieEncryption, startMoltentermCookieEncryption } from 
 import { initMoltentermKeepAwake } from "./moltenterm-keepawake"; // MOLTENTERM-PATCH (#276)
 import { refreshTabViewsAfterWake } from "./moltenterm-resume"; // MOLTENTERM-PATCH (#199)
 import { initMoltentermSitePermissions, installMoltentermSitePermissionHandlers } from "./moltenterm-site-permissions"; // MOLTENTERM-PATCH (#663)
+import { installMoltentermConnection } from "./moltenterm-connection"; // MOLTENTERM-PATCH (#1980)
 import {
     initMoltentermClientCertificates,
     installMoltentermClientCertificateHandler,
@@ -454,6 +455,7 @@ async function appMain() {
     initMoltentermI18nIpc(); // MOLTENTERM-PATCH (#623): the OS languages for the renderers, their resolved language
     installMoltentermSitePermissionHandlers(); // MOLTENTERM-PATCH (#663): what pages may use, before any page loads
     installMoltentermClientCertificateHandler(); // MOLTENTERM-PATCH (#1979): no page gets a client certificate the user did not pick
+    installMoltentermConnection(); // MOLTENTERM-PATCH (#1980): how each page is served, observed before any page loads
     initMoltentermHangWatch(); // MOLTENTERM-PATCH (#849): windows that stop answering, gone processes, slow sendSync
     initMoltentermLogs(); // MOLTENTERM-PATCH (#2335): the size and the clear of the logs, and the note past the high mark
 
