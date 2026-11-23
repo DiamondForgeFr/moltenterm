@@ -83,19 +83,22 @@ const kitOpacity = (p: number) =>
     );
 
 describe("working indicator (#739)", () => {
+    // Scanned while the file is collected, not in the test: collection has no timeout, and a loaded machine stretches
+    // this whole-tree scan past a test's 5 s (#2496).
+    const spinners: string[] = [];
+    for (const { file, text } of shellSources()) {
+        text.split("\n").forEach((line, i) => {
+            if (SpinnerPatterns.some((re) => re.test(line))) {
+                spinners.push(`${file}:${i + 1}`);
+            }
+            if (/\bfa-spin\b/.test(line) && !RefreshArrows.test(line)) {
+                spinners.push(`${file}:${i + 1}`);
+            }
+        });
+    }
+
     it("leaves no working or loading spinner in the shell", () => {
-        const found: string[] = [];
-        for (const { file, text } of shellSources()) {
-            text.split("\n").forEach((line, i) => {
-                if (SpinnerPatterns.some((re) => re.test(line))) {
-                    found.push(`${file}:${i + 1}`);
-                }
-                if (/\bfa-spin\b/.test(line) && !RefreshArrows.test(line)) {
-                    found.push(`${file}:${i + 1}`);
-                }
-            });
-        }
-        expect(found).toEqual([]);
+        expect(spinners).toEqual([]);
     });
 
     it("steps the dominoes 15 times a cycle, each bar on its own keyframes and without delay (NFR-MC-004, #1399)", () => {

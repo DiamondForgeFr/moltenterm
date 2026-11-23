@@ -56,6 +56,28 @@ beforeAll(() => {
 });
 
 describe("the suite frame on every dialog (#905)", () => {
+    // Scanned while the file is collected, not in the tests: collection has no timeout, and a loaded machine stretches
+    // these whole-tree scans past a test's 5 s (#2496).
+    const ownModal = sourceFiles(FrontendDir, /\.tsx$/)
+        .filter((f) => !(rel(f) in OwnModalAllowed))
+        .filter((f) => {
+            const src = readFileSync(f, "utf8");
+            return /aria-modal="true"|aria-modal=\{true\}|\bScrimClass\b|"modal-backdrop"|showModal\(\)/.test(src);
+        })
+        .map(rel);
+    const highOverlays: string[] = [];
+    for (const f of sourceFiles(FrontendDir, /\.tsx$/)) {
+        const src = readFileSync(f, "utf8");
+        for (const m of src.matchAll(/"([^"\n]*)"/g)) {
+            if (OverlayMarker.test(m[1]) && HighCorner.test(m[1])) {
+                highOverlays.push(`${rel(f)}: ${m[1]}`);
+            }
+        }
+    }
+    const tenPxOverlays = sourceFiles(join(FrontendDir, "moltenterm-shell"), /\.css$/)
+        .filter((f) => /border-radius:\s*var\(--(mt-)?radius-10\)/.test(readFileSync(f, "utf8")))
+        .map(rel);
+
     it("DialogFrame draws the frame, low-cornered, with its light", () => {
         expect(DialogFrameClass).toMatch(/\brounded-4\b/);
         expect(DialogFrameClass).toMatch(/\bborder\b/);
@@ -84,33 +106,14 @@ describe("the suite frame on every dialog (#905)", () => {
     });
 
     it("builds no scrim or modal dialog outside the two frames", () => {
-        const offenders = sourceFiles(FrontendDir, /\.tsx$/)
-            .filter((f) => !(rel(f) in OwnModalAllowed))
-            .filter((f) => {
-                const src = readFileSync(f, "utf8");
-                return /aria-modal="true"|aria-modal=\{true\}|\bScrimClass\b|"modal-backdrop"|showModal\(\)/.test(src);
-            })
-            .map(rel);
-        expect(offenders).toEqual([]);
+        expect(ownModal).toEqual([]);
     });
 
     it("gives every overlay frame low corners", () => {
-        const offenders: string[] = [];
-        for (const f of sourceFiles(FrontendDir, /\.tsx$/)) {
-            const src = readFileSync(f, "utf8");
-            for (const m of src.matchAll(/"([^"\n]*)"/g)) {
-                if (OverlayMarker.test(m[1]) && HighCorner.test(m[1])) {
-                    offenders.push(`${rel(f)}: ${m[1]}`);
-                }
-            }
-        }
-        expect(offenders).toEqual([]);
+        expect(highOverlays).toEqual([]);
     });
 
     it("draws no MoltenTerm overlay with the 10 px radius in CSS", () => {
-        const offenders = sourceFiles(join(FrontendDir, "moltenterm-shell"), /\.css$/)
-            .filter((f) => /border-radius:\s*var\(--(mt-)?radius-10\)/.test(readFileSync(f, "utf8")))
-            .map(rel);
-        expect(offenders).toEqual([]);
+        expect(tenPxOverlays).toEqual([]);
     });
 });

@@ -53,8 +53,12 @@ function usersOfLocalStorage(): string[] {
 }
 
 describe("localStorage in the MoltenTerm shell (#1763)", () => {
+    // Scanned while the file is collected, not in the tests: collection has no timeout, and a loaded machine stretches
+    // this whole-tree scan past a test's 5 s (#2496).
+    const users = new Set(usersOfLocalStorage());
+
     it("is used only where it holds no preference", () => {
-        const unexpected = usersOfLocalStorage().filter((path) => Allowed[path] == null);
+        const unexpected = [...users].filter((path) => Allowed[path] == null);
         expect(
             unexpected,
             "localStorage is emptied at every restart: keep a preference in a setting or in its object's meta"
@@ -62,7 +66,6 @@ describe("localStorage in the MoltenTerm shell (#1763)", () => {
     });
 
     it("lists no file that stopped using it", () => {
-        const users = new Set(usersOfLocalStorage());
         expect(Object.keys(Allowed).filter((path) => !users.has(path))).toEqual([]);
     });
 

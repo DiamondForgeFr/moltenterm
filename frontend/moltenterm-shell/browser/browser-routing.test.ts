@@ -44,6 +44,22 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe("web pages open in the browser panel (#132)", () => {
+    // Scanned while the file is collected, not in the test: collection has no timeout, and a loaded machine stretches
+    // this whole-tree scan past a test's 5 s (#2496).
+    const webViewCreators: string[] = [];
+    for (const dir of ["frontend", "emain", "cmd", "pkg"]) {
+        for (const file of sourceFiles(join(RepoRoot, dir))) {
+            const rel = relative(RepoRoot, file).split("\\").join("/");
+            if (AllowedWebViewFiles.has(rel)) {
+                continue;
+            }
+            const text = readFileSync(file, "utf8");
+            if (LegacyWebCreation.some((re) => re.test(text))) {
+                webViewCreators.push(rel);
+            }
+        }
+    }
+
     it("builds a browser panel whose single tab is the URL", () => {
         const def = browserBlockDef("https://example.com/a");
         expect(def.meta.view).toBe(MoltentermBrowserView);
@@ -59,20 +75,7 @@ describe("web pages open in the browser panel (#132)", () => {
     });
 
     it("leaves no creator of Wave's web view", () => {
-        const offenders: string[] = [];
-        for (const dir of ["frontend", "emain", "cmd", "pkg"]) {
-            for (const file of sourceFiles(join(RepoRoot, dir))) {
-                const rel = relative(RepoRoot, file).split("\\").join("/");
-                if (AllowedWebViewFiles.has(rel)) {
-                    continue;
-                }
-                const text = readFileSync(file, "utf8");
-                if (LegacyWebCreation.some((re) => re.test(text))) {
-                    offenders.push(rel);
-                }
-            }
-        }
-        expect(offenders).toEqual([]);
+        expect(webViewCreators).toEqual([]);
     });
 });
 

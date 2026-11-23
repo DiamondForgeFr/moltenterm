@@ -56,29 +56,32 @@ describe("one entry point for interface links (DS-BRW-006)", () => {
         expect(defaults["browser:default"]).toBeUndefined();
     });
 
-    it("leaves no Moltenterm component that sends a link to the OS browser itself", () => {
-        const offenders: string[] = [];
-        const walk = (dir: string) => {
-            for (const name of readdirSync(dir)) {
-                const path = join(dir, name);
-                if (statSync(path).isDirectory()) {
-                    walk(path);
-                    continue;
-                }
-                if (!/\.(ts|tsx)$/.test(name) || /\.test\.tsx?$/.test(name)) {
-                    continue;
-                }
-                // Comments may name these calls (browser-popup.ts explains window.open); only code counts.
-                const text = readFileSync(path, "utf8")
-                    .replace(/\/\*[\s\S]*?\*\//g, "")
-                    .replace(/(^|\s)\/\/.*$/gm, "");
-                if (/openExternal\s*\(|target=["{]["']?_blank|window\.open\s*\(/.test(text)) {
-                    offenders.push(relative(RepoRoot, path).split("\\").join("/"));
-                }
+    // Scanned while the file is collected, not in the test: collection has no timeout, and a loaded machine stretches
+    // this whole-tree scan past a test's 5 s (#2496).
+    const osBrowserCallers: string[] = [];
+    const walk = (dir: string) => {
+        for (const name of readdirSync(dir)) {
+            const path = join(dir, name);
+            if (statSync(path).isDirectory()) {
+                walk(path);
+                continue;
             }
-        };
-        walk(join(RepoRoot, "frontend/moltenterm-shell"));
-        expect(offenders).toEqual([]);
+            if (!/\.(ts|tsx)$/.test(name) || /\.test\.tsx?$/.test(name)) {
+                continue;
+            }
+            // Comments may name these calls (browser-popup.ts explains window.open); only code counts.
+            const text = readFileSync(path, "utf8")
+                .replace(/\/\*[\s\S]*?\*\//g, "")
+                .replace(/(^|\s)\/\/.*$/gm, "");
+            if (/openExternal\s*\(|target=["{]["']?_blank|window\.open\s*\(/.test(text)) {
+                osBrowserCallers.push(relative(RepoRoot, path).split("\\").join("/"));
+            }
+        }
+    };
+    walk(join(RepoRoot, "frontend/moltenterm-shell"));
+
+    it("leaves no Moltenterm component that sends a link to the OS browser itself", () => {
+        expect(osBrowserCallers).toEqual([]);
     });
 });
 
