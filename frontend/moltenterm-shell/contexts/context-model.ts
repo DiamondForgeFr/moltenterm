@@ -92,7 +92,7 @@ export function contextShownEmblem(context: ContextInfo): string {
 // What the choice of a context knows of a workspace.
 export type ContextWorkspace = {
     id: string;
-    contextId: string;
+    contextId?: string;
     name: string;
     color: string;
     saved: boolean;

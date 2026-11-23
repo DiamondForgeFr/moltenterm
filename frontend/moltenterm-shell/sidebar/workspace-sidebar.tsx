@@ -63,6 +63,8 @@ import {
     withWorkingTitle,
     WorkingLight,
 } from "../panel-motion/working-light";
+import { contextIdOf, entriesOfContext } from "../contexts/context-model";
+import { useContexts, useRememberWorkspaceInContext } from "../contexts/context-store";
 import { ProjectTabMetaKey } from "../project/project-model";
 import { openProjectOverview, openProjectTab } from "../project/project-tab";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
@@ -96,7 +98,12 @@ import { workspaceIconSource } from "../workspace-icon-model";
 import { moveWorkspace, neighbourMove, RailMove, slotMove } from "../workspace-order";
 import { readWorkspaceProject } from "../workspace-project";
 import { loadWorkspaceSources, WorkspaceRailHosts } from "../workspace-rail";
-import { makeWorkspaceRailEntries, WorkspaceRailEntry, WorkspaceRailSource } from "../workspace-rail-model";
+import {
+    isSavedWorkspace,
+    makeWorkspaceRailEntries,
+    WorkspaceRailEntry,
+    WorkspaceRailSource,
+} from "../workspace-rail-model";
 import { askDeleteWorkspace, askResetWorkspace } from "../workspace-reset";
 import { canCloseWorkspace, lastWorkspaceReason } from "../workspace-reset-model";
 import { closeTabAskingFirst } from "../worktree-close";
@@ -277,6 +284,7 @@ function writeCachedSources(sources: WorkspaceRailSource[]) {
 
 function useWorkspaceEntries(): WorkspaceRailEntry[] {
     const active = useAtomValue(atoms.workspace);
+    const contexts = useContexts();
     const [sources, setSources] = useState<WorkspaceRailSource[]>(readCachedSources);
     const refresh = useCallback(() => {
         fireAndForget(async () => {
@@ -290,23 +298,31 @@ function useWorkspaceEntries(): WorkspaceRailEntry[] {
         return waveEventSubscribeSingle({ eventType: "workspace:update", handler: refresh });
     }, [refresh]);
     useEffect(refresh, [active?.oid, active?.name, active?.icon, active?.color, refresh]);
-    return makeWorkspaceRailEntries(sources, active);
+    return makeWorkspaceRailEntries(sources, active, contexts);
 }
 
-// The workspaces the dots show: the saved ones in rail order.
+// The workspaces the dots show: the saved ones of the window's context in rail order (FR-SHELL-158). all is every
+// workspace of every context, for what is not about the switcher (the caches kept per workspace, the library).
 type SidebarWorkspaces = {
     entries: WorkspaceRailEntry[];
     savedIds: string[];
+    all: WorkspaceRailEntry[];
+    // The context of the workspace on screen.
+    contextId: string;
 };
 
 function useSidebarWorkspaces(): SidebarWorkspaces {
-    const entries = useWorkspaceEntries();
+    const all = useWorkspaceEntries();
+    const active = useAtomValue(atoms.workspace);
+    const contexts = useContexts();
+    const contextId = contextIdOf(contexts, active?.meta);
+    const entries = entriesOfContext(all, contextId);
     const savedKey = entries
         .filter((e) => e.saved)
         .map((e) => e.id)
         .join(" ");
     const savedIds = useMemo(() => (savedKey ? savedKey.split(" ") : []), [savedKey]);
-    return { entries, savedIds };
+    return { entries, savedIds, all, contextId };
 }
 
 function runProjectCall(call: () => Promise<void>) {
@@ -1738,7 +1754,7 @@ function PinPage({ draft, workspaces }: { draft: PinDraft; workspaces: SidebarWo
                     "sidebar.pins.page.everywhereTitle",
                     "sidebar.pins.page.everywhereBody",
                     <span className="mt-sb-mini mt-[7px] flex gap-1" aria-hidden>
-                        {workspaces.entries.map((entry) => (
+                        {workspaces.all.map((entry) => (
                             <i
                                 key={entry.id}
                                 className={cn(
@@ -2718,7 +2734,8 @@ export function WorkspaceSidebar() {
     );
     useSidebarCapture(ws?.oid, snapshotSource, libraryOpen);
     useRememberLayout(ws?.oid, activeTabId);
-    const workspaceIdsKey = workspaces.entries.map((w) => w.id).join(" ");
+    useRememberWorkspaceInContext(ws?.oid, isSavedWorkspace(ws), workspaces.contextId);
+    const workspaceIdsKey = workspaces.all.map((w) => w.id).join(" ");
     useEffect(() => {
         if (workspaceIdsKey) {
             pruneSnapshots(workspaceIdsKey.split(" "));
@@ -2917,7 +2934,7 @@ export function WorkspaceSidebar() {
                 </div>
             </aside>
             {hidden ? null : <WidthGrip width={width} />}
-            <SidebarHosts entries={workspaces.entries} />
+            <SidebarHosts entries={workspaces.all} />
         </>
     );
 }

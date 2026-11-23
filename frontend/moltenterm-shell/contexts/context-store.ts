@@ -9,8 +9,9 @@
 import { ClientModel } from "@/app/store/client-model";
 import { atoms, globalStore } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
+import { fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
     ContextAssignCommand,
     ContextCreateCommand,
@@ -68,6 +69,12 @@ export function getWindowContextId(): string {
     return contextIdOf(getContexts(), globalStore.get(atoms.workspace)?.meta);
 }
 
+// Whether a workspace is in the window's context: what the window lists of the others (the palette, the top field).
+export function isInWindowContext(workspaceMeta: Record<string, any>): boolean {
+    const contexts = getContexts();
+    return contextIdOf(contexts, workspaceMeta) === contextIdOf(contexts, globalStore.get(atoms.workspace)?.meta);
+}
+
 // Resolves the new context's id.
 export async function createContext(req: ContextCreateRequest): Promise<string> {
     const result = await callContexts(ContextCreateCommand, req);
@@ -88,6 +95,31 @@ export async function assignWorkspaceToContext(workspaceId: string, contextId: s
 
 export async function touchContext(contextId: string, workspaceId: string): Promise<void> {
     await callContexts(ContextTouchCommand, { contextid: contextId, workspaceid: workspaceId });
+}
+
+// The context remembers the workspace it showed last, so choosing it lands there. Only a view on screen says so: a
+// view kept hidden for a workspace is not a window showing it.
+export function useRememberWorkspaceInContext(workspaceId: string, saved: boolean, contextId: string) {
+    useEffect(() => {
+        if (!workspaceId || !contextId || !saved) {
+            return;
+        }
+        const remember = () => {
+            if (document.visibilityState !== "visible") {
+                return;
+            }
+            fireAndForget(async () => {
+                try {
+                    await touchContext(contextId, workspaceId);
+                } catch (e) {
+                    console.log("contexts: remembering the workspace", e);
+                }
+            });
+        };
+        remember();
+        document.addEventListener("visibilitychange", remember);
+        return () => document.removeEventListener("visibilitychange", remember);
+    }, [workspaceId, saved, contextId]);
 }
 
 // A workspace the window just made goes into the window's context (FR-SHELL-158). The first context holds every
