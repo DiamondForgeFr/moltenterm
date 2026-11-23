@@ -330,9 +330,10 @@ export function PermissionsMenu({
     );
 }
 
-// The header chip while the session runs on its own: how long it still does, and the one click that stops it. Under
-// reduced motion nothing here moves.
-export function AutonomousChip({ permit }: { permit: HeroPermit }) {
+// The chip while the session runs on its own: how long it still does, and the one click that stops it. It stands in the
+// block's header, and in the body's first row where the header has no room for it (the stylesheet shows one of the two
+// by the block's width). Under reduced motion nothing here moves.
+export function AutonomousChip({ permit, where = "head" }: { permit: HeroPermit; where?: ChipPlace }) {
     const t = useT();
     const [busy, setBusy] = useState(false);
     const stop = async () => {
@@ -340,8 +341,10 @@ export function AutonomousChip({ permit }: { permit: HeroPermit }) {
         await permit.onChoose("ask");
         setBusy(false);
     };
-    return <AutonomousChipView permit={permit} t={t} busy={busy} onStop={stop} />;
+    return <AutonomousChipView permit={permit} t={t} busy={busy} onStop={stop} where={where} />;
 }
+
+export type ChipPlace = "head" | "body";
 
 // Hook-free, so it is read without a window.
 export function AutonomousChipView({
@@ -349,11 +352,13 @@ export function AutonomousChipView({
     t,
     busy,
     onStop,
+    where = "head",
 }: {
     permit: HeroPermit;
     t: TFunction;
     busy?: boolean;
     onStop: () => void;
+    where?: ChipPlace;
 }) {
     const autonomy = permit.autonomy;
     if (autonomy == null) {
@@ -365,7 +370,11 @@ export function AutonomousChipView({
             ? t("companion.permit.chip.always")
             : t("companion.permit.chip.for", { time: durationText(t, left) });
     return (
-        <span className="mt-cb-chip mt-cb-chip-off mt-cdash-auto-chip" data-testid="companion-autonomous-chip">
+        <span
+            className="mt-cb-chip mt-cb-chip-off mt-cdash-auto-chip"
+            data-where={where}
+            data-testid={where === "head" ? "companion-autonomous-chip" : "companion-autonomous-chip-body"}
+        >
             <ShieldCheck size={13} aria-hidden="true" />
             <span className="mt-cdash-auto-text" role="status" aria-label={t("companion.permit.chip.label")}>
                 {text}
@@ -405,6 +414,7 @@ export function AutonomyLine({ permit }: { permit: HeroPermit }) {
             : t("companion.permit.list.none", { time: since });
     return (
         <div className="mt-cdash-autoline" data-testid="companion-autoline">
+            <AutonomousChip permit={permit} where="body" />
             <div className="mt-cdash-autoline-row">
                 <ShieldCheck size={13} aria-hidden="true" />
                 <span data-testid="companion-autoline-text">{text}</span>
