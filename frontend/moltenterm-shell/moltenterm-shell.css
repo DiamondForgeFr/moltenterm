@@ -66,7 +66,6 @@
 .block.block-frame-default .block-frame-default-header .molten-header-context,
 .block.block-frame-default .block-frame-default-header .block-frame-textelems-wrapper,
 .block.block-frame-default .block-frame-default-header .block-frame-end-icons button,
-.block.block-frame-default .molten-browser-panel-buttons :is(.mt-carpet-button, .mt-pin-button),
 .block.block-frame-default .mt-focus-only {
     transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }
@@ -74,7 +73,9 @@
 /* The end buttons sit in wrappers (some display: contents, which opacity skips): every button but close fades,
    "Store on the carpet" with them (#1585: kept shown alone, it floated in an empty header). While the pointer is over
    the header they all come back in place and take clicks, so the carpet stays one move away without focusing the
-   panel; nothing moves, the faded ones kept their room. The browser panel's row does the same for its panel buttons.
+   panel; nothing moves, the faded ones kept their room. The browser panel's row keeps its tools shown (FR-BRW-025,
+   #2489): only what it marks mt-focus-only (Share with the agent and Open in the browser) fades, and comes back while
+   the pointer is over the row or the keyboard focus is in it.
    The carpet button stays shown while its chooser is open, which hangs from it. The Integration panel's owners funnel
    stays shown while a filter is on, so a narrowed list is never an invisible state (FR-REV-034 AC12). */
 .block.block-frame-default:not(.block-focused) .block-frame-default-header .molten-header-context,
@@ -88,10 +89,7 @@
         .mt-owners-filter.is-on
     ),
 .block.block-frame-default:not(.block-focused)
-    .molten-browser-row:not(:hover)
-    .molten-browser-panel-buttons
-    :is(.mt-carpet-button:not(.is-open), .mt-pin-button, .mt-focus-only),
-.block.block-frame-default:not(.block-focused) .mt-focus-only:not(.molten-browser-panel-buttons .mt-focus-only) {
+    .mt-focus-only:not(.molten-browser-row:is(:hover, :focus-within) .mt-focus-only) {
     opacity: 0;
     pointer-events: none;
 }

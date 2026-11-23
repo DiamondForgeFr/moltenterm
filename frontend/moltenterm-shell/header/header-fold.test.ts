@@ -3,6 +3,7 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { FoldLabelsMaxPx, FoldLastMaxPx, FoldNavMaxPx, FoldPairMaxPx } from "../browser/browser-row-folds";
 import {
     FoldMagnifyPx,
     FoldViewButtonsPx,
@@ -29,10 +30,11 @@ function maxWidths(css: string): number[] {
 }
 
 describe("a narrow panel header folds in a stable order and keeps close", () => {
-    it("the browser row's last fold is the width its menu tests", () => {
-        const nav = constant(read("../browser/browser-view.tsx"), "FoldNavPx");
+    // #2489: the row's four folds are in browser-row-folds.ts, which its "⋯" menu reads; browser-row-folds.test.ts
+    // evaluates the stylesheet at widths.
+    it("the browser row's folds are the widths its menu tests", () => {
         const widths = maxWidths(read("../browser/browser.css"));
-        expect(widths).toEqual([539, 439, nav - 1]);
+        expect(widths).toEqual([FoldLabelsMaxPx, FoldPairMaxPx, FoldNavMaxPx, FoldLastMaxPx]);
         expect(widths).toEqual([...widths].sort((a, b) => b - a));
     });
 
@@ -65,17 +67,17 @@ describe("a narrow panel header folds in a stable order and keeps close", () => 
 
     // #1585: shown alone, the carpet button floated in an empty header; it fades with the other end buttons, they all
     // come back while the header is hovered, and only the "pinned" state mark stays. #2207: so does the Integration
-    // panel's owners funnel while a filter is on, since a narrowed list is never an invisible state.
+    // panel's owners funnel while a filter is on, since a narrowed list is never an invisible state. #2489: the browser
+    // panel's row is the exception, it keeps its tools shown and fades only what it marks mt-focus-only.
     it("the carpet button fades with the other end buttons in a panel that is not focused", () => {
         const css = read("../moltenterm-shell.css");
-        const fade = css.slice(0, css.indexOf("opacity: 0;", css.indexOf("Store on the carpet\" with them")));
+        const fade = css.slice(0, css.indexOf("opacity: 0;", css.indexOf('Store on the carpet" with them')));
         const rule = fade.slice(fade.lastIndexOf("*/") + 2);
         expect(rule).toMatch(
             /\.block-frame-default-header:not\(:hover\)\s+\.block-frame-end-icons\s+:is\(button, \.wave-iconbutton, \.iconbutton\):not\(\s*\.block-frame-default-close,\s*\.mt-carpet-button\.is-open,\s*\.mt-owners-filter\.is-on\s*\)/
         );
-        expect(rule).toMatch(
-            /\.molten-browser-row:not\(:hover\)\s+\.molten-browser-panel-buttons\s+:is\(\.mt-carpet-button:not\(\.is-open\), \.mt-pin-button, \.mt-focus-only\)/
-        );
+        expect(rule).toMatch(/\.mt-focus-only:not\(\.molten-browser-row:is\(:hover, :focus-within\) \.mt-focus-only\)/);
+        expect(rule).not.toMatch(/molten-browser-panel-buttons/);
         expect(rule).not.toMatch(/mt-pinned-badge/);
         expect(css).not.toMatch(/:not\([^)]*\.mt-carpet-button(?!\.is-open)/);
         const browserCss = read("../browser/browser.css");
@@ -83,7 +85,7 @@ describe("a narrow panel header folds in a stable order and keeps close", () => 
     });
 });
 
-describe("the header's fold rule decides the folds, the \"⋯\" and its menu (#1586)", () => {
+describe('the header\'s fold rule decides the folds, the "⋯" and its menu (#1586)', () => {
     const view: FoldableButton = { icon: "eye", title: "Show hidden", click: () => {} };
     const drawn: FoldableButton = { icon: { drawn: true }, title: "Shell ready", noAction: true };
     const untitled: FoldableButton = { icon: "bug", click: () => {} };
@@ -92,7 +94,7 @@ describe("the header's fold rule decides the folds, the \"⋯\" and its menu (#1
         return moreMenuEntries(foldHeader(buttons, headerFoldLevel(width), canFoldMagnify));
     }
 
-    it("folds nothing at a medium or wide width, nor before the header is measured: no \"⋯\"", () => {
+    it('folds nothing at a medium or wide width, nor before the header is measured: no "⋯"', () => {
         for (const width of [0, FoldViewButtonsPx, 670]) {
             const fold = foldHeader([view, drawn], headerFoldLevel(width), true);
             expect(fold.shown).toEqual([view, drawn]);
@@ -121,7 +123,7 @@ describe("the header's fold rule decides the folds, the \"⋯\" and its menu (#1
         expect(moreMenuEntries(fold).map((e) => (e.kind === "button" ? e.label : e.kind))).toEqual(["Show hidden"]);
     });
 
-    it("never shows a \"⋯\" whose menu is empty, at any width", () => {
+    it('never shows a "⋯" whose menu is empty, at any width', () => {
         for (let width = 0; width <= 800; width += 5) {
             for (const buttons of [[], [view], [drawn], [untitled], [view, drawn, untitled]]) {
                 for (const canFoldMagnify of [true, false]) {
