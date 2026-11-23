@@ -37,7 +37,10 @@ function makeContextNameAtom(): Atom<string> {
     if (clientAtom == null || workspaceAtom == null) {
         return null;
     }
+    const localeAtom = I18nModel.getInstance().localeAtom;
     return atom((get) => {
+        // The default context's name is the interface language's own text: the atom is read again when the language changes.
+        get(localeAtom);
         const contexts = readContexts(get(clientAtom)?.meta);
         const id = contextIdOf(contexts, get(workspaceAtom)?.meta);
         return contextShownName(
