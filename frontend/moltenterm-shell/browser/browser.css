@@ -162,10 +162,12 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
     border-radius: 0 0 var(--mt-panel-radius) var(--mt-panel-radius);
 }
 
-/* The row folds from the right edge in a stable order (#1439), so close, "Store on the carpet" and the command panel
-   trigger are never clipped: the address shrinks first, then the label of Open in <browser> goes (fold 1), Share and
-   Open in <browser> move into the "⋯" (fold 2), then Forward, Reload and Magnify do (fold 3). The widths mirror
-   FoldNavPx in browser-view.tsx. */
+/* The row folds in a stable order (#1439, #2489, FR-BRW-025 AC4), so close, the 360 view button, the command panel
+   trigger and the connection button are never clipped and the address shrinks first: the labels of Share and Open in
+   <browser> go (fold 1, 539 px), Share and Open in <browser> move into the "⋯" (fold 2, 439 px), then Forward and
+   Magnify do (fold 3, 399 px), then Reload and Bookmarks (fold 4, 349 px). The widths are those of the row's content
+   and keep the start of the host's name in view (about 20 px at the narrowest of each step); they mirror
+   browser-row-folds.ts, which the "⋯" menu reads. */
 .molten-browser-row {
     container-type: inline-size;
     container-name: molten-browser-row;
@@ -173,6 +175,7 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
 
 .molten-browser-row .molten-fold-more {
     display: none;
+    transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }
 
 @container molten-browser-row (max-width: 539px) {
@@ -203,8 +206,24 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
     }
 }
 
-@container molten-browser-row (max-width: 339px) {
+/* While the "⋯" holds only what Share and Open in held (fold 2 alone) it follows their focus rule: it is shown while the
+   panel has the focus, the pointer is over the row or the keyboard focus is in it, and keeps its room otherwise. From
+   fold 3 it holds tools that are always shown wider, so it is shown at rest too. */
+@container molten-browser-row (min-width: 400px) and (max-width: 439px) {
+    .block.block-frame-default:not(.block-focused) .molten-browser-row:not(:hover, :focus-within) .molten-fold-more {
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+@container molten-browser-row (max-width: 399px) {
     .molten-browser-row .molten-fold-3 {
+        display: none;
+    }
+}
+
+@container molten-browser-row (max-width: 349px) {
+    .molten-browser-row .molten-fold-4 {
         display: none;
     }
 }
@@ -235,18 +254,6 @@ body:not(.nohover) .molten-conn[data-kind="insecure"]:hover,
 body:not(.nohover) .molten-conn[data-kind="mixed"]:hover,
 body:not(.nohover) .molten-conn[data-kind="suspect"]:hover {
     background: color-mix(in srgb, var(--molten-conn-colour) 24%, transparent);
-}
-
-/* In a panel without focus the panel buttons fade but keep their room (the title never moves), so the "pinned" mark,
-   which stays shown, would float away from close. It takes its place after them instead, right next to the ×; with
-   the focus the row keeps the order of #1439 (#1544). "Store on the carpet" fades with the others since #1585 and
-   keeps its place, so hovering the row shows every button where focusing puts it. */
-.block.block-frame-default:not(.block-focused) .molten-browser-panel-buttons .mt-pinned-badge {
-    order: 1;
-}
-
-.block.block-frame-default:not(.block-focused) .molten-browser-panel-buttons .molten-browser-close {
-    order: 2;
 }
 
 /* The page's developer tools docked below it (FR-BRW-022, DS-BRW-027). The tools are a view the window places over the

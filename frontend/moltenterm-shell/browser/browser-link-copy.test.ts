@@ -77,11 +77,12 @@ describe("the header's wiring (#1544)", () => {
         expect(menu).toContain('t("browser.tabMenu.copyLink")');
     });
 
-    // Since #1585 the carpet button fades in a panel without focus; only the "pinned" mark stays and moves to close.
-    it("moves the pinned mark next to close in a panel without focus", () => {
-        expect(css).toMatch(/:not\(\.block-focused\) \.molten-browser-panel-buttons \.mt-pinned-badge \{\s*order: 1/);
+    // Since #2489 the row's end buttons no longer fade in a panel without focus (the carpet button did since #1585), so
+    // the "pinned" mark has no faded room to float over: it stays where it is drawn, with the focus or without.
+    it("keeps the pinned mark where it is drawn in a panel without focus", () => {
+        expect(css).not.toMatch(/\.mt-pinned-badge/);
         expect(css).not.toMatch(/\.mt-carpet-button[^{]*\{\s*order/);
-        expect(css).toMatch(/\.molten-browser-close \{\s*order: 2/);
+        expect(css).not.toMatch(/\.molten-browser-close \{\s*order/);
         expect(view).toContain('className="molten-browser-close"');
     });
 });

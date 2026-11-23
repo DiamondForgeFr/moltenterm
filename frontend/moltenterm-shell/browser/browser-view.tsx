@@ -179,6 +179,7 @@ import {
 } from "./browser-model";
 import { pageOpenTarget, WindowOpenSystem, WindowOpenTab, type SignInBar } from "./browser-popup";
 import { noteBrowserPanelFocus } from "./browser-routing";
+import { menuPartsAt } from "./browser-row-folds";
 import {
     browserLinkStates,
     isSharedTab,
@@ -248,9 +249,6 @@ const PersistDelayMs = 400;
 const ErrBlockedByClient = -20;
 const BlockedSettleMs = 3000;
 const FirstHeldCheckMs = 1500;
-// Below this row width (#1439) Forward, Reload and Magnify join Share and Open in <browser> in the row's "⋯"; the
-// value mirrors the last container query of browser.css.
-const FoldNavPx = 340;
 // Without a home page set (web:defaulturl), a new browser opens MoltenTerm's start page, never a site (FR-SHELL-110).
 const FallbackUrl = StartPageUrl;
 
@@ -849,33 +847,36 @@ export class BrowserViewModel implements ViewModel {
         return menu;
     }
 
-    // The header's "⋯" (#1439): what a narrow panel folds out of its row, in the order the row folds it (browser.css).
-    // The widths are those of the folds, read when the menu opens.
+    // The header's "⋯" (#1439, #2489): what a narrow panel folds out of its row, in the order the row folds it
+    // (browser.css, browser-row-folds.ts). The widths are those of the folds, read when the menu opens.
     showOverflowMenu(e: React.MouseEvent, tab: BrowserTab, rowWidth: number): void {
         e.preventDefault();
         const opener = anchoredMenuEvent(e, buttonMenuAnchor(e.currentTarget as Element));
         fireAndForget(async () => {
             const menu: ContextMenuItem[] = [];
-            if (rowWidth < FoldNavPx) {
-                const webview = this.activeWebview();
-                menu.push(
-                    {
-                        label: t("browser.nav.forward"),
-                        icon: "arrow-right",
-                        enabled: tab != null && !tab.engine,
-                        click: () => webview?.canGoForward() && webview.goForward(),
-                    },
-                    {
-                        label: t("browser.nav.reload"),
-                        icon: "rotate-right",
-                        enabled: tab != null && !tab.engine,
-                        click: () => this.reloadActive(false),
-                    }
-                );
-                const magnified = globalStore.get(this.nodeModel.isMagnified);
-                if (!magnified && (globalStore.get(this.layoutNode.numLeafs) ?? 1) > 1) {
-                    menu.push({ label: t("wave.block.magnify"), icon: "expand", click: () => this.toggleMagnify() });
-                }
+            const parts = menuPartsAt(rowWidth);
+            const webview = this.activeWebview();
+            if (parts.includes("forward")) {
+                menu.push({
+                    label: t("browser.nav.forward"),
+                    icon: "arrow-right",
+                    enabled: tab != null && !tab.engine,
+                    click: () => webview?.canGoForward() && webview.goForward(),
+                });
+            }
+            if (parts.includes("reload")) {
+                menu.push({
+                    label: t("browser.nav.reload"),
+                    icon: "rotate-right",
+                    enabled: tab != null && !tab.engine,
+                    click: () => this.reloadActive(false),
+                });
+            }
+            const magnified = globalStore.get(this.nodeModel.isMagnified);
+            if (parts.includes("maximize") && !magnified && (globalStore.get(this.layoutNode.numLeafs) ?? 1) > 1) {
+                menu.push({ label: t("wave.block.magnify"), icon: "expand", click: () => this.toggleMagnify() });
+            }
+            if (menu.length > 0) {
                 menu.push({ type: "separator" });
             }
             if (tab != null && addressOfPage(tab.url)) {
@@ -885,7 +886,7 @@ export class BrowserViewModel implements ViewModel {
                     click: () => this.copyTabLink(tab.id),
                 });
             }
-            if (tab != null) {
+            if (tab != null && parts.includes("bookmarks")) {
                 menu.push({
                     label: t("browser.bookmarks.button"),
                     icon: "bookmark",
@@ -2509,9 +2510,9 @@ function TabIcon({ load, failed }: { load: TabLoad; failed: boolean }) {
     );
 }
 
-// The header's end buttons (DS-SHELL-092): the command panel trigger, magnify and close, at full opacity
-// (browser.css), as every panel's header draws them.
-function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
+// The header's end buttons (DS-SHELL-092, #2489): Bookmarks, the 360 view button, the command panel trigger, magnify
+// and close, in this order, all shown at rest and at full opacity (browser.css), whether or not the panel has the focus.
+function BrowserPanelButtons({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const t = useT();
     const node = model.layoutNode;
     const magnified = useAtomValue(model.nodeModel.isMagnified);
@@ -2529,28 +2530,27 @@ function BrowserPanelButtons({ model }: { model: BrowserViewModel }) {
         title: t("browser.panel.commands", { shortcut: formatShortcutById("command-panel") }),
         click: (e) => openCommandPanelFromTrigger(model.blockId, (e.target as Element)?.closest?.("button")),
     };
-    // A panel that is not focused keeps only close (FR-SHELL-086): the other buttons fade (moltenterm-shell.css).
-    // "Store on the carpet" is placement, not a command: it stays shown with close (#1439). Close, the carpet button and
-    // the command panel trigger never fold; Magnify is the row's last fold (molten-fold-3, in the "⋯").
+    // The row's tools no longer fade in a panel without focus (FR-BRW-025; FR-SHELL-086 fades the other panels' end
+    // buttons). Close, the carpet button and the command panel trigger never fold; Magnify folds in step 3 and
+    // Bookmarks in step 4, into the "⋯" (browser-row-folds.ts).
     return (
         <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-0.5 px-1.5">
+            <BookmarksButton model={model} tab={tab} className="molten-fold-4" />
             <CarpetHeaderButton blockId={model.blockId} />
-            <span className="mt-focus-only flex items-center gap-0.5">
-                <span data-role="command-panel-trigger" className="flex">
-                    <IconButton decl={commands} />
-                </span>
-                {ephemeral ? (
-                    <IconButton decl={addToLayout} />
-                ) : (
-                    <span className={cn("flex", !magnified && "molten-fold-3")}>
-                        <OptMagnifyButton
-                            magnified={magnified}
-                            toggleMagnify={() => model.toggleMagnify()}
-                            disabled={numLeafs <= 1}
-                        />
-                    </span>
-                )}
+            <span data-role="command-panel-trigger" className="flex">
+                <IconButton decl={commands} />
             </span>
+            {ephemeral ? (
+                <IconButton decl={addToLayout} />
+            ) : (
+                <span className={cn("flex", !magnified && "molten-fold-3")}>
+                    <OptMagnifyButton
+                        magnified={magnified}
+                        toggleMagnify={() => model.toggleMagnify()}
+                        disabled={numLeafs <= 1}
+                    />
+                </span>
+            )}
             <HeaderCloseButton
                 magnified={magnified}
                 onClose={() => uxCloseBlock(model.blockId)}
@@ -2699,13 +2699,14 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
             )}
             {/* The Comment button (#2422) is in no focus-only or folding group: it is always shown. */}
             <CommentButton session={model.annotate} tab={active} onStart={() => model.startAnnotate(active.id)} />
+            {/* Reload (Stop while the page loads) is always shown since #2489; it folds last, with Bookmarks. */}
             {loading
                 ? navButton(
                       "xmark",
                       t("browser.nav.stop"),
                       () => model.reloadActive(false),
                       t("browser.nav.stopTitle"),
-                      "mt-focus-only molten-fold-3"
+                      "molten-fold-4"
                   )
                 : navButton(
                       "rotate-right",
@@ -2717,7 +2718,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                               isMacOS() ? "browser-hard-reload" : "browser-hard-reload-other"
                           ),
                       }),
-                      "mt-focus-only molten-fold-3"
+                      "molten-fold-4"
                   )}
             <span className="mt-focus-only molten-fold-2 flex shrink-0 items-center">
                 <TestContextChip
@@ -2780,8 +2781,12 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 onDoubleClick={() => model.toggleMagnify()}
                 className={cn("molten-browser-drag h-full min-w-6", topField && "flex-1")}
             />
-            <span className="mt-focus-only molten-fold-2 flex min-w-0 shrink items-center gap-1">
-                <BookmarksButton model={model} tab={active} />
+            {/* Share and Open in: the only tools the row keeps for the focus, the pointer over it and the keyboard focus
+                (FR-BRW-025 AC3). They sit left of the end icons and keep their room while hidden, so nothing moves. */}
+            <span
+                className="mt-focus-only molten-fold-2 flex min-w-0 shrink items-center gap-1"
+                data-testid="browser-focus-tools"
+            >
                 <ShareButton model={model} tab={active} />
                 <EngineButton model={model} tab={active} />
             </span>
@@ -2791,11 +2796,11 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                 title={t("browser.nav.more")}
                 data-testid="browser-more"
                 onClick={(e) => model.showOverflowMenu(e, active, contentBoxWidth(rowRef.current))}
-                className="molten-fold-more mt-focus-only h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
+                className="molten-fold-more h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
             >
                 <i className="fa fa-solid fa-ellipsis text-12" />
             </button>
-            <BrowserPanelButtons model={model} />
+            <BrowserPanelButtons model={model} tab={active} />
             {loading ? (
                 <div
                     role="progressbar"
@@ -2840,9 +2845,9 @@ function AnnotateMount({
     );
 }
 
-// The Bookmarks button (FR-BRW-019), next to Share with agent: the current project's bookmarks. The icon is filled while
-// the shown page is bookmarked in the project.
-function BookmarksButton({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
+// The Bookmarks button (FR-BRW-019), directly left of the 360 view button at the row's right end (#2489, FR-BRW-025):
+// the current project's bookmarks. The icon is filled while the shown page is bookmarked in the project.
+function BookmarksButton({ model, tab, className }: { model: BrowserViewModel; tab: BrowserTab; className?: string }) {
     const t = useT();
     const workspace = useAtomValue(atoms.workspace);
     const projectId = projectIdOfTab(workspace, model.tabId);
@@ -2864,7 +2869,10 @@ function BookmarksButton({ model, tab }: { model: BrowserViewModel; tab: Browser
             onClick={(e) => model.showBookmarksMenu(e, tab)}
             data-testid="browser-bookmarks-button"
             data-saved={saved ? "true" : "false"}
-            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary"
+            className={cn(
+                "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary",
+                className
+            )}
         >
             <i className={cn("fa text-12", saved ? "fa-solid fa-bookmark text-accent" : "fa-regular fa-bookmark")} />
         </button>
