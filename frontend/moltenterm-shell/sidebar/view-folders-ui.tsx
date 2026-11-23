@@ -446,6 +446,19 @@ export function FolderGrid({
             host.querySelector<HTMLElement>(`[data-folder-id="${CSS.escape(folder.id)}"]`)?.focus()
         );
     }, [host, folder.id]);
+    // Escape closes the folder wherever the focus is: a view closed from the grid takes the focus with it. A field that
+    // keeps Escape for itself (the name's) stops it before it reaches the document.
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== "Escape") {
+                return;
+            }
+            e.preventDefault();
+            shut();
+        };
+        document.addEventListener("keydown", onKey);
+        return () => document.removeEventListener("keydown", onKey);
+    }, [shut]);
     // A press anywhere outside the frame closes the folder.
     useEffect(() => {
         const onDown = (e: MouseEvent) => {
@@ -498,13 +511,6 @@ export function FolderGrid({
             data-away={state?.away ? "true" : undefined}
             onMouseDown={(e) => {
                 if (e.target === e.currentTarget) {
-                    shut();
-                }
-            }}
-            onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                    e.preventDefault();
-                    e.stopPropagation();
                     shut();
                 }
             }}

@@ -25,18 +25,17 @@
 /* A view's own icon, drawn at its size and scaled into its quarter: whatever it is (an icon, a site's mark, a cube) it
    keeps its shape. */
 .mt-fo-mini {
-    display: flex;
+    position: relative;
     min-width: 0;
     min-height: 0;
-    align-items: center;
-    justify-content: center;
     overflow: hidden;
 }
 
 .mt-fo-mini .mt-sb-glyph {
-    flex: none;
-    transform: scale(0.58);
-    transform-origin: center;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.58);
 }
 
 .mt-fo-count {
@@ -88,6 +87,7 @@
     border-radius: var(--mt-radius-panel);
     background: var(--mt-surface-3);
     box-shadow: var(--mt-shadow-e3);
+    opacity: 0.94;
     pointer-events: none;
     will-change: transform;
 }
@@ -100,7 +100,7 @@
     inset: 0;
     background: color-mix(in srgb, var(--mt-surface-0) 66%, transparent);
     backdrop-filter: blur(3px);
-    animation: mt-fo-fade var(--mt-duration-base) var(--mt-ease) both;
+    animation: mt-fo-fade var(--mt-duration-base) var(--mt-ease) backwards;
     transition: opacity var(--mt-duration-fast) var(--mt-ease);
 }
 
@@ -126,7 +126,7 @@
     border-radius: var(--mt-radius-control);
     background: var(--mt-surface-3);
     box-shadow: var(--mt-shadow-e3);
-    animation: mt-fo-rise var(--mt-duration-base) var(--mt-ease) both;
+    animation: mt-fo-rise var(--mt-duration-base) var(--mt-ease) backwards;
 }
 
 .mt-fo-name {
