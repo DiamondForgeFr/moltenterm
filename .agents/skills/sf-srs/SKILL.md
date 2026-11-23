@@ -15,8 +15,12 @@ Run preconditions explicitly, and stop to report a missing capability when no eq
 When a workflow step names a task kind, resolve its tier with
 `sf agents route --task <kind> --provider <current-agent>` and delegate the step to the
 `sf-<tier>` agent it names: that agent carries its own model and effort, so never name a
-model or an effort yourself. When the route fails or the agent cannot delegate, run the step
-in the session.
+model or an effort yourself. The one exception is a route that prints `alias <name>` (Kimi Code
+binds no model in an agent file): pass that alias, copied from the route and never composed, as
+the `model` of the delegation call. When the route fails or the agent cannot delegate, run the
+step in the session: a refused or failed route is never worked around by starting another coding
+agent's CLI (`claude`, `codex`, or any other) or a background session of another host, and a host
+with no worktree support delegates sub-tasks only, through its own native sub-agent tool.
 Never bypass CLI guards, required approvals, tests or workflow status exit conditions.
 An escape hatch is the developer's to apply: when a guard refuses, report it and ask; a hook
 refuses an agent call that sets one.
@@ -229,7 +233,8 @@ joins the project board in Backlog — one already on the board keeps its status
 sf srs spawn --epic <feature-url> --version "v1 — MVP" --milestone "v1.0.0"
 ```
 
-The milestone is created or reused, the version page is linked to it, and the Epic plus every Story spawned in the run joins it. Re-running the same spawn does not produce a second release.
+The milestone is created or reused, the version page is linked to it, and every Story of the run, created or reused, joins it, with the Epic when the run creates it. An Epic that already exists
+(`--ticket`, or found from an earlier run) keeps its milestone: it may span several releases (#1119). Re-running the same spawn does not produce a second release.
 
 **The name is the release, not the version page.** `v1.0.0`, not `v1 — MVP`. A release may carry several features' versions — that is why the link is an association and not an equality (#542 R2), and
 why the CLI will not derive the name from the page it was handed. Ask the user for it; a version number is a decision.
@@ -253,20 +258,26 @@ open or closed, native children of the target Epic or without a parent:
 - two matches for one page, a ticket that names the FR id without owning its page, or a match under another parent stop the run with exit 10, before the milestone or any ticket is touched. Nothing is
   reparented implicitly.
 
-Without `--ticket`, the open `sf-epic` named `<feature> - <version>` that a previous run created is adopted rather than created again.
+Without `--ticket`, the open `sf-epic` that a previous run created is adopted rather than created again. Spawn recognises it by the version page link it wrote in the Epic body, then by its
+`<feature> - <version>` title, so renaming the version page between two runs does not lose it. When the Stories hang under an Epic spawn cannot recognise (one made by hand), the run blocks and names
+it: pass `--ticket <n>` if it is the version's Epic.
 
-`--dry-run` prints one line per FR, so a re-run shows what it reuses before it writes anything:
+**Re-running after an FR is added** is the everyday case and needs no plan: spawn the same version again. The Stories that exist are reported and left alone, and only the new FR's Story is created.
+`--dry-run` shows it before anything is written, with one line per FR:
 
 ```
+spawn: Epic « Projects - v1 » — 5 FR page(s): 1 new, 3 already ticketed; planning Story tickets under the existing Epic #10 « Projects - v1 »
+  • FR-LIVE-010 → FR-LIVE-010: Delete a project (https://…) — complexity low
   existing tickets:
-    FR-LIVE-007: reuse #929
-    FR-LIVE-008: reuse #930 (closed)
-    FR-LIVE-009: reuse #931; ignored #1028 (closed as not planned)
-    FR-LIVE-010: create
+    FR-LIVE-007: exists #929, skipped
+    FR-LIVE-008: exists #930 (closed), skipped
+    FR-LIVE-009: exists #931, skipped; ignored #1028 (closed as not planned)
+    FR-LIVE-010: new
     FR-LIVE-011: blocked — FR-LIVE-011 already belongs to parent #9 through ticket #77; it will not be reparented implicitly
 ```
 
-A `blocked` line makes the run exit 10, a dry run included. With a plan, the same lines read `partial → reuse #929`, `missing → create`, and so on.
+The `•` list names only the Stories the run creates. `exists …, skipped (linked under the delivery parent)` marks a Story with no parent, which joins the Epic instead of being created again. A
+`blocked` line makes the run exit 10, a dry run included. With a plan, the same lines read `partial → reuse #929`, `missing → create`, and so on.
 
 A duplicate that did get created, by an older spawn or by hand, is cleaned up without a raw API call: detach it from the Epic so the Epic can reach Done, then close it as not planned so that every
 later spawn ignores it.
@@ -308,8 +319,8 @@ Preview and then apply the same command:
 # remove only --dry-run after reviewing the plan
 ```
 
-Without `--ticket`, the preflight runs before the version Epic exists. The open `sf-epic` a previous run created under the same `<feature> - <version>` title is adopted rather than duplicated; a
-matching ticket with no parent is reused and linked under the Epic; one that already belongs to another parent blocks the run. When every FR is delivered or superseded, no Epic is created.
+Without `--ticket`, the preflight runs before the version Epic exists. The open `sf-epic` a previous run created (found by its version page link, then by its title) is adopted rather than duplicated;
+a matching ticket with no parent is reused and linked under the Epic; one that already belongs to another parent blocks the run. When every FR is delivered or superseded, no Epic is created.
 
 The preflight fails before mutation if a source is unavailable, coverage is incomplete, an FR id conflicts with its canonical page, or multiple tickets match. Exact canonical tickets are reused;
 delivered and superseded FRs are skipped. If a create response is interrupted, retry the same command: the spawner inspects open and closed candidates, recovers the exact ticket, and links it only

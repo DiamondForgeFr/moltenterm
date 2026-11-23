@@ -73,6 +73,22 @@ gh label create "nature:bundled-pr"  --repo DiamondForgeFr/SaasFoundryAI --color
 
 The `workflow-cli.sh update-status` guard enforces the rule — see "Nature guard" in `.claude/skills/sf-workflow/workflow-cli.sh`.
 
+## Label used by `sf-workflow` (UI mockup gate)
+
+A ticket that changes the user interface carries the `ui` label. It is a workflow marker, **not** a nature label, and the session sets it (`create-ticket --ui`, `create-subtask --ui`,
+`workflow-cli.sh set-ui <ticket>`). `update-status` refuses such a ticket on its way to the developer's review until the validation of its mockup is recorded (`record-ui-validation`). See
+`.claude/skills/sf-workflow/SKILL.md` "UI mockup gate".
+
+| Label | Color     | Purpose                                                                                       | Workflow effect                                                                                     |
+| ----- | --------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `ui`  | `#5319E7` | Ticket changes the user interface; a mockup the developer validated is required before review | `update-status` to In review (Solo), or to Human testing (Team), needs a recorded mockup validation |
+
+`set-ui` creates the label when the repository lacks it, and so does `sf new`. Create it once by hand with:
+
+```bash
+gh label create "ui" --repo DiamondForgeFr/SaasFoundryAI --color "5319E7" --description "Workflow: ticket changes the user interface; a validated mockup is required before review" || true
+```
+
 ## Not managed here
 
 - `complexity: {bug,low,medium,complex}` — internal workflow labels, managed by `sf-tool-github-projects` (see `.claude/skills/sf-tool-github-projects/`).

@@ -92,6 +92,16 @@ milestone_supported() {
   esac
 }
 
+# Which adapters carry the ui marker and its mockup validation record (#1305): the label and the comment are
+# written, and read back by the UI mockup guard, through the board CLI. Kept as an explicit list for the same
+# reason as milestones: an adapter that cannot read the record must not be asked to guard on it.
+ui_supported() {
+  case "$1" in
+    github-projects) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Function to get current status of a ticket.
 #
 # Uses the tool CLI's --json flag and parses with jq — no more grep|awk on
@@ -370,7 +380,9 @@ check_srs_guard() {
     echo "  Use instead:" >&2
     echo "    .claude/skills/sf-workflow/workflow-cli.sh transition-drafting ${ticket} <phase>" >&2
     echo "  Phases: ai-draft → human-review → spawning → done" >&2
-    echo "  See .claude/skills/sf-workflow/statuses/3a-ai-drafting.md" >&2
+    local drafting_doc
+    drafting_doc=$(resolve_status_file "drafting:ai-draft")
+    echo "  See .claude/skills/sf-workflow/statuses/$(basename "${drafting_doc:-ai-drafting.md}")" >&2
     return 1
   fi
   return 0
@@ -561,6 +573,69 @@ check_nature_guard() {
   fi
 
   return 0
+}
+
+# ───────────────────────────────────────────────────────────────────────────
+# UI mockup guard — a ui ticket reaches the developer's review with a validated mockup (#1305)
+# ───────────────────────────────────────────────────────────────────────────
+#
+# A ticket that changes the user interface carries the label `ui` (create-ticket --ui, create-subtask --ui,
+# set-ui). The developer validates a mockup before the visual work is built, or supplies the visuals
+# themselves, and `record-ui-validation` writes that down as a ticket comment the guard reads back.
+#
+# The guard fires on the move that hands the ticket to the developer: In review under Solo, Human testing
+# (and In review, for a ticket that skips it) on a workflow that declares Human testing. A ticket without the
+# marker is not read any further. It fails open when the labels cannot be read, like the nature guard (offline
+# or auth trouble never wedges the workflow), and closed when the label is there and the record cannot be read,
+# like the children guard: "no record" must never be read from a failure. Escape hatch:
+# SF_WORKFLOW_BYPASS_UI_MOCKUP_GUARD=1.
+
+is_review_handoff_target() {
+  local target=$1
+  local normalized
+  normalized=$(echo "$target" | tr '[:upper:]' '[:lower:]' | awk '{$1=$1;print}')
+  case "$normalized" in
+    "in review") return 0 ;;
+    "human testing") status_in_sequence "Human Testing" ;;
+    *) return 1 ;;
+  esac
+}
+
+check_ui_mockup_guard() {
+  # Returns 0 if the caller may proceed, 1 if blocked (message printed).
+  local ticket=$1
+  local target=$2
+
+  [[ "${SF_WORKFLOW_BYPASS_UI_MOCKUP_GUARD:-}" == "1" ]] && return 0
+  is_review_handoff_target "$target" || return 0
+  ui_supported "$WORKFLOW_TOOL" || return 0
+
+  local raw
+  raw=$(route_to_tool "$WORKFLOW_TOOL" get-labels "$ticket" 2>/dev/null) || return 0   # fail-open on fetch error
+  echo "$raw" | grep -qix 'ui' || return 0
+
+  local record
+  if ! record=$(route_to_tool "$WORKFLOW_TOOL" get-ui-validation "$ticket" 2>/dev/null); then
+    echo -e "${RED}✗ Ticket #${ticket} carries the 'ui' marker and its mockup validation could not be read — no status transition was made.${NC}" >&2
+    echo "  Retry once the comments of the ticket can be read." >&2
+    developer_hatch_line "UI mockup guard"
+    return 1
+  fi
+  [[ -n "$record" ]] && return 0
+
+  local workflow=".claude/skills/sf-workflow/workflow-cli.sh"
+  echo -e "${RED}✗ Ticket #${ticket} changes the user interface ('ui' marker) and has no mockup validation record — cannot move it to '${target}'.${NC}" >&2
+  echo "" >&2
+  echo "  The developer validates a mockup before the visual work reaches their review. Once they have approved it, record it:" >&2
+  echo "    ${workflow} record-ui-validation ${ticket} --mockup <link-or-path> --approved-by <name> [--date YYYY-MM-DD]" >&2
+  echo "" >&2
+  echo "  When the developer supplied the visuals themselves (their own mockup, or an exact target screenshot):" >&2
+  echo "    ${workflow} record-ui-validation ${ticket} --supplied \"<what the developer supplied>\"" >&2
+  echo "" >&2
+  echo "  If the ticket does not change the user interface after all, tell the developer, then clear the marker:" >&2
+  echo "    ${workflow} clear-ui ${ticket}" >&2
+  developer_hatch_line "UI mockup guard"
+  return 1
 }
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -2286,6 +2361,9 @@ case "$COMMAND" in
     if ! check_nature_guard "$TICKET" "$TARGET"; then
       exit 2
     fi
+    if ! check_ui_mockup_guard "$TICKET" "$TARGET"; then
+      exit 2
+    fi
     if ! check_incomplete_children_guard "$TICKET" "$TARGET"; then
       exit 2
     fi
@@ -2441,6 +2519,19 @@ case "$COMMAND" in
 
   create-ticket|create-subtask|create-epic|list|get-labels|inspect-srs-tickets|link-subtask|unlink-subtask|add-to-project)
     load_config
+    route_to_tool "$WORKFLOW_TOOL" "$COMMAND" "$@"
+    ;;
+
+  # The ui marker and the mockup validation record (#1305), written through the board CLI. Refused on purpose
+  # when the configured adapter cannot read the record back: exit 2, so a caller can tell "this tool cannot"
+  # from "this broke".
+  set-ui|clear-ui|record-ui-validation|get-ui-validation)
+    load_config
+    if ! ui_supported "$WORKFLOW_TOOL"; then
+      echo -e "${RED}The '${WORKFLOW_TOOL}' adapter does not implement the ui marker yet.${NC}" >&2
+      echo "Supported today: github-projects." >&2
+      exit 2
+    fi
     route_to_tool "$WORKFLOW_TOOL" "$COMMAND" "$@"
     ;;
 
@@ -2670,9 +2761,16 @@ case "$COMMAND" in
     echo "Tool commands (delegated to tool-specific CLI):"
     echo "  bootstrap <ticket>           Empty repository only: commit the setup on the main branch, create the"
     echo "                               working branch, and close the ticket on that root commit"
-    echo "  create-ticket <story|task|issue> <title> [--body-file <f>] [--complexity <c>] [--nature <n>] [--milestone <m>]"
+    echo "  create-ticket <story|task|issue> <title> [--body-file <f>] [--complexity <c>] [--nature <n>] [--milestone <m>] [--ui]"
     echo "                               Create a top-level ticket on the board in Backlog, typed and labelled"
-    echo "  create-subtask ...           Create a sub-issue/task"
+    echo "  create-subtask <parent> <title> [body] [--type <t>] [--milestone <m>] [--ui]"
+    echo "                               Create a sub-issue/task"
+    echo "  set-ui <ticket>              Mark the ticket as a change of the user interface (label ui)"
+    echo "  clear-ui <ticket>            Remove the ui marker"
+    echo "  record-ui-validation <ticket> (--mockup <link-or-path> --approved-by <name> | --supplied \"<what>\") [--date <YYYY-MM-DD>]"
+    echo "                               Record the developer's mockup validation: update-status refuses a ui ticket without it"
+    echo "                               on its way to the developer's review (In review, or Human testing)"
+    echo "  get-ui-validation <ticket>   Print the latest validation record as JSON (nothing when there is none)"
     echo "  create-epic <title> [body]   Create a top-level Epic (no parent)"
     echo "  update-status <ticket> <status> [--skip-local-ci \"<reason>\"]"
     echo "                               Update ticket status (guarded); a move to Human testing needs the required local CI"
@@ -2697,7 +2795,7 @@ case "$COMMAND" in
   *)
     echo -e "${RED}Error: Unknown command '${COMMAND}'${NC}"
     echo ""
-    echo "Available commands: status, next, validate, help, detect-complexity, retag, prepare, test, bootstrap, create-ticket, create-subtask, create-epic, add-to-project, update-status, create-pr, ready-pr, draft-pr, local-ci-gate, sync-pr-review, ai-status, list, get-labels, inspect-srs-tickets, link-subtask, unlink-subtask, transition-drafting"
+    echo "Available commands: status, next, validate, help, detect-complexity, retag, prepare, test, bootstrap, create-ticket, create-subtask, create-epic, add-to-project, update-status, create-pr, ready-pr, draft-pr, local-ci-gate, sync-pr-review, ai-status, list, get-labels, set-ui, clear-ui, record-ui-validation, get-ui-validation, inspect-srs-tickets, link-subtask, unlink-subtask, transition-drafting"
     echo "Run 'workflow-cli.sh help' for usage details"
     exit 1
     ;;

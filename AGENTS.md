@@ -114,12 +114,10 @@ For any work of three steps or more, keep your native task list up to date (Clau
 
 ## Agent shell
 
-Shell habits that keep agent sessions from stopping on a permission prompt. The first two rules are generic and temporary: they move into the harness instructions when DiamondForgeFr/SaasFoundryAI#947 ships.
+Shell habits that keep agent sessions from stopping on a permission prompt, on top of the generic rules in "File edits and shell calls" below.
 
-- Edit files with the native Edit and Write tools, never through `python3 - <<'EOF'` scripts or shell heredocs: Claude Code cannot analyse them and always asks.
-- Run commands from the repository root (the worktree root for a worktree agent) with relative paths; avoid `cd … && …` chains.
 - MoltenTerm: stop a test instance with `pkill -9 -f "<its --user-data-dir>"` (for example `pkill -9 -f "/tmp/mt393/"`), not with a `ps | grep | awk | xargs kill` pipeline: `pkill` names its targets up front.
-- The project's read-only validation commands are pre-approved in `.claude/settings.json` → `permissions.allow`. The harness entries in that list (`workflow-cli.sh`, `sf status`, `sf agents list`, `gh project`) go when #947 ships them through `sf update`.
+- The project's read-only validation commands are pre-approved in `.claude/settings.json` → `permissions.allow`. The harness's own entries in that list (`workflow-cli.sh`, the board CLI's read commands, `sf status`, `sf agents …`, `gh project`) are merged by `sf update`.
 
 ## Codebase conventions (upstream Wave)
 
@@ -152,9 +150,14 @@ This project uses a set of "skill" guides — focused how-to documents for commo
 Edit files with the agent's native file tools (read, edit, write), never with interpreter
 heredocs or scripts that rewrite files (`python3 - <<EOF`, `node -e`): a host cannot analyse
 those calls before running them. Keep each shell call to one plain command, run from the
-project root. Hosts that support it pre-approve the harness's read-only commands
-(`workflow-cli.sh status|next|help`, `sf status`, `sf agents list`); commands that change a
-ticket, a board or a pull request still ask.
+project root: no `&&`, `;` or `||` chain, no `$(...)` substitution, no loop, no inline script
+(`node -e`, `python3 -c`, `bash -c`), no file written through a heredoc, no trailing `&`. Give
+the directory to the command (`git -C <dir>`) instead of `cd <dir> &&`, and pass long text through
+a file (`git commit -F <file>`, `--body-file <file>`). A pipe and a redirection are fine. The guard
+hook of Claude Code and Codex refuses such a line and names the split to make; for any other agent
+nothing stops it, so follow the rule yourself. Hosts that support it pre-approve the harness's
+read-only commands (`workflow-cli.sh status|next|help`, `sf status`, `sf agents list`); commands
+that change a ticket, a board or a pull request still ask.
 
 ## Managed project capabilities
 
@@ -182,6 +185,30 @@ on it:
 - Write every artefact in the `output language` the report gives: SRS pages, tickets and their comments,
   code comments, commit messages. The language of the conversation is not the signal: a session held in
   French still produces English artefacts when the project says `en`.
+
+## Ticket first, and an unreachable tool
+
+The ticket exists before the first line of code: create it in the configured ticket tool, or
+ask the developer for it, then name its branch and every commit after its number
+(`.saasfoundry.json` → `workflow.branchNaming` and `workflow.commitFormat`). A placeholder such
+as `#TBD` or `#XXX`, or a branch without the ticket number, is no ticket; the project's commit
+hooks refuse both where it has them.
+
+When the ticket tool or the remote is unreachable (an expired token, no network, a refused
+fetch or push), stop instead of working around it. Report the blocker to the developer first,
+with the command that failed and its message, then propose temporary alternatives (wait and
+retry, the developer renews the access, or local work on a branch the developer names, pushed as
+soon as the remote answers) and let the developer choose. Never pick a workaround alone, and never
+leave commits that are on no remote, under no ticket and in no pull request without saying so.
+
+## UI work: mockup display and design tokens
+
+A ticket labelled `ui` follows "Working a `ui` ticket" in the workflow skill: a one-file HTML mockup
+that the developer sees before the visual work starts. How this project shows a mockup to the
+developer (for example the browser panel of its terminal, or a preview server) and which design
+tokens it uses are stated by the project itself, in this file, outside this generated region. Read
+them before you draw anything. When the project states neither, give the developer the path of the
+mockup file to open in a browser, and use the tokens its code already defines.
 
 ## Coding-agent identity and onboarding
 
@@ -216,8 +243,12 @@ Run preconditions explicitly, and stop to report a missing capability when no eq
 When a workflow step names a task kind, resolve its tier with
 `sf agents route --task <kind> --provider <current-agent>` and delegate the step to the
 `sf-<tier>` agent it names: that agent carries its own model and effort, so never name a
-model or an effort yourself. When the route fails or the agent cannot delegate, run the step
-in the session.
+model or an effort yourself. The one exception is a route that prints `alias <name>` (Kimi Code
+binds no model in an agent file): pass that alias, copied from the route and never composed, as
+the `model` of the delegation call. When the route fails or the agent cannot delegate, run the
+step in the session: a refused or failed route is never worked around by starting another coding
+agent's CLI (`claude`, `codex`, or any other) or a background session of another host, and a host
+with no worktree support delegates sub-tasks only, through its own native sub-agent tool.
 Never bypass CLI guards, required approvals, tests or workflow status exit conditions.
 An escape hatch is the developer's to apply: when a guard refuses, report it and ask; a hook
 refuses an agent call that sets one.
@@ -257,6 +288,10 @@ team's default; a clone may override it locally, and the line reports the effect
   not part of the running ticket becomes a ticket of its own, handed to its own agent.
 - `declined`, or the current agent cannot delegate or run in the background: deliver the tickets
   in the session, one after the other, and say so explicitly.
+- `allowed`, but the current agent's profile has no worktree support (`sf agents catalog --json`
+  says `worktrees: none`, as for Kimi Code): it cannot open a worktree for a delegate, so it
+  delivers the tickets in the session, one after the other, and delegates sub-tasks only, in the
+  current worktree.
 
 A delegated agent runs the tests the change affects while it works, and the full suites once, at the end of AI Testing, not after every iteration. After a rebase it reruns the affected tests, and the full suites only when the rebase brought changes to shared files. The ready pull request's CI stays the final check. The brief does not restate this rule: the workflow status documents hold it.
 

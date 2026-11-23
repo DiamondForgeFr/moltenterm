@@ -13,3 +13,9 @@ The project instructions are in `AGENTS.md`, which Claude Code reads natively. T
   delegations" in the workflow skill.
 - **File edits.** Use the Read, Edit and Write tools, never interpreter heredocs or scripts that rewrite files (`python3 - <<EOF`, `node -e`): Claude Code cannot analyse those calls, so each one asks
   for permission, even in bypass mode.
+- **Shell calls.** One plain command per Bash call (`AGENTS.md`, "File edits and shell calls"). A `PreToolUse` hook in `.claude/settings.json` runs `sf agents guard` on the calls whose payload could hold
+  a chain (`&&`, `;`, `||`, a newline), a substitution (`$(…)`, backticks), a loop or group, a background `&`, an inline script (`node -e`, `python3 -c`, `bash -c`, `eval`) or a file written through a
+  heredoc. It refuses them, and the refusal names the construct and the split to make: run each command in its own call, write a long text to a file with the Write tool and pass the file
+  (`git commit -F <file>`, `--body-file <file>`). A pipe, a redirection and a quoted `;` are fine, and so is `git commit -m "$(cat <<'EOF' … EOF)"` (also `gh pr create --body`) with a single-quoted
+  delimiter: Claude Code does not ask about that form. The hook reads `modules.harness.guard.shellShape` in `.saasfoundry.json` on every call, `refuse` when it is absent; `sf agents shell-guard <refuse|warn|off|status>`
+  records it, and which mode a project uses is the developer's decision.

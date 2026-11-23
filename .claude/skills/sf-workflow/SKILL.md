@@ -56,6 +56,33 @@ Every escape hatch (the `SF_WORKFLOW_BYPASS_*` variables, `--bypass-srs`, `--byp
 refuses an agent's Bash call that sets a hatch, labels the nature of its own ticket, or (for a delegated agent) merges or marks a pull request ready. The developer applies a hatch with `!` in Claude
 Code or from their own terminal, at the primary checkout.
 
+## 🖼️ UI mockup gate (the `ui` marker)
+
+Orthogonal to complexity and nature. A ticket that changes the user interface is validated on a mockup before its visual work reaches the developer's review: the developer sees the look first, not in the screenshots of a finished pull request. The gate is driven through `workflow-cli.sh`:
+
+| Part | Command |
+| --- | --- |
+| The marker | `create-ticket … --ui` and `create-subtask … --ui` label a new ticket `ui`; `set-ui <ticket>` marks an existing one and `clear-ui <ticket>` removes the marker |
+| The validation | `record-ui-validation <ticket> --mockup <link-or-path> --approved-by <name> [--date YYYY-MM-DD]`, once the developer has approved the mockup |
+| Or supplied visuals | `record-ui-validation <ticket> --supplied "<what the developer supplied>"`, when the developer gave their own mockup or an exact target screenshot, and no mockup is made |
+| The read-back | `get-ui-validation <ticket>` prints the latest complete record as one line of JSON, and nothing when there is none: it is what the guard reads |
+
+- **The marker is the label `ui`.** It is not a nature label and is not reserved to the developer: the session sets it, as does the developer (`sf new` provisions the label, and `set-ui` creates it when it is missing). Only `ui` counts; `ui-kit` or `no-ui` are other labels.
+- **The record is a ticket comment** that starts with `<!-- sf-ui-validation:v1 -->`, followed by `- Field: value` lines: `Kind: mockup` with `Mockup`, `Approved by` and `Approved on`, or `Kind: supplied by the developer` with `Supplied` and `Recorded on`. A comment that only quotes the marker, or that lacks a field, is not a record. The latest complete record wins.
+- **UI mockup guard** (enforced by `update-status`) — a `ui` ticket with no complete record is refused on its way to the developer's review: `→ In review` under Solo (no Human testing status), and `→ Human testing` (also `→ In review` for a ticket that skips it) on a workflow that declares Human testing. The refusal names the `record-ui-validation` command to run. A ticket without the marker passes exactly as before. The guard fails open when the labels cannot be read, and closed when the ticket carries the marker and its comments cannot be read. Escape hatch: the developer's (see [escape-hatches.md](escape-hatches.md)); it is announced and recorded on the ticket like the other environment hatches, and the guard hook refuses an agent that sets it.
+- Only the GitHub Projects adapter carries the marker and the record today: the other adapters refuse these commands with exit code `2`, and their `update-status` does not read a record.
+
+### Working a `ui` ticket
+
+The gate above says when the developer's look is checked; this says how the agent that holds a `ui` ticket works. It is one text for every coding agent (Claude Code, Codex, Kimi Code or any other): it names capabilities, never the tool of one host.
+
+1. **Work as a UI/UX professional.** Before you draw anything, load the design and UX skills your host offers (visual design, accessibility review, UX copy, design system, whatever form it gives them) and apply the project's own design tokens and components. A host that offers none works from the checklist.
+2. **Follow the UI checklist**, [ui-checklist.md](ui-checklist.md), which ships next to this file: hierarchy; spacing and design tokens; states (empty, loading, error, disabled); accessibility (contrast, keyboard, focus, labels); copy. Go through it for the mockup, and again before the pull request.
+3. **The mockup floor is one self-contained HTML file**: inline CSS, no build step, no request to the network, so that it opens in any browser from its path. Keep it with the ticket's evidence, committed on the ticket's branch in the folder the project's `AGENTS.md` names (`docs/mockups/` when it names none), and put its path or link in `record-ui-validation --mockup`. A richer surface the host offers (a Claude artifact, a Figma frame) may be added next to it, never in its place: every agent can produce the file, and the developer can open it.
+4. **Show the mockup before the visual implementation.** Spec, model, data and tests may start meanwhile; only the visual part (components, pages, styles) waits for the developer's OK. Where the project shows a mockup (a browser panel of its terminal, a preview server) and which design tokens it uses are stated in the project's own `AGENTS.md`, outside the generated region. With no such statement, give the developer the path of the file to open in a browser.
+5. **When the developer supplies the visuals** (their own mockup, or an exact target screenshot), record that with `record-ui-validation <ticket> --supplied "<what the developer supplied>"`, make no mockup and follow what they supplied.
+6. **A delegated agent holds the visual part.** Only the session talks to the developer. The agent makes the mockup, commits it, reports its path to the session and keeps the visual part on hold. The session shows the mockup; on the developer's OK it records the validation (`record-ui-validation`) and relays the OK to the same agent, in the same worktree (a hand-back, see "Delegated ticket delivery"), which then builds the visual part from the validated mockup. An agent never records an approval the developer did not give.
+
 ## 🧩 Ticket Hierarchy (Epic / Delivery parent / Child ticket)
 
 SaaSFoundry Solo distinguishes an optional grouping Epic from a delivery parent. Every child created by
@@ -120,14 +147,19 @@ agent type:
 | `review` | Examine (security, logic, performance) and diff review |
 | `terminal-ci` | Shell, build and CI work, long test runs |
 
-1. **Resolve the tier** with `sf agents route --task <kind> --provider <current-agent>` (`claude-code` or `codex`) and
-   hand the work to the `sf-<tier>` agent it names. That agent carries its own model and effort.
+1. **Resolve the tier** with `sf agents route --task <kind> --provider <current-agent>` (`claude-code`, `codex` or
+   `kimi`) and hand the work to the `sf-<tier>` agent it names. That agent carries its own model and effort. The one
+   exception is a route that prints `alias <name>` (Kimi Code binds no model in an agent file): pass that alias, copied
+   from the route and never composed, as the `model` of the delegation call.
 2. **Decompose before delegating.** A subtask handed to a tier below the orchestrating session states its **file set**
    (the files it may touch), its **expected result** and its **check** (the command or observation that proves it). A
    subtask that cannot state all three is split until it can; if it still cannot, it stays in the orchestrating session
    and is never handed to a lower tier.
 3. **No routing.** When the route fails (a coding agent without routing candidates) or the agent cannot delegate, run
-   the step in the session, sequentially, and report that a self-review is not an independent review.
+   the step in the session, sequentially, and report that a self-review is not an independent review. A refused or
+   failed route is never worked around by starting another coding agent's CLI (`claude`, `codex`, or any other) or a
+   background session of another host. A host with no worktree support (`worktrees: none` in `sf agents catalog --json`,
+   Kimi Code today) delegates sub-tasks only, in the current worktree, through its own native sub-agent tool.
 
 ### Delegated ticket delivery
 
@@ -157,8 +189,11 @@ The delivery task kind is sized to the work. The ticket's complexity profile dec
 
 1. **Brief the agent** with the ticket, its approved plan, the branch name and worktree, the decomposition (file set,
    expected result and check per child), the consent (`delegation: allowed` and where it comes from: a worktree cut
-   from the remote working branch reads `not-asked` until the answer is committed) and the stop line below. Resolve the
-   tier with `sf agents route` as above, and never name a model. The agent that receives the ticket builds it itself: it
+   from the remote working branch reads `not-asked` until the answer is committed) and the stop line below. For a ticket
+   marked `ui` the brief carries one more clause: **hold the visual part until the session relays the developer's OK, and
+   follow the validated mockup** ("Working a `ui` ticket" in the UI mockup gate above). When the developer has already
+   approved the mockup, the brief names it instead and there is nothing to hold. Resolve the
+   tier with `sf agents route` as above, and never name a model (the alias a route prints excepted). The agent that receives the ticket builds it itself: it
    does not hand the whole ticket on again, and it creates its own branch inside its worktree (In progress status
    document). When the host names the worktree branch itself (Claude Code's `isolation: "worktree"` gives
    `worktree-agent-<id>`), the brief names the ticket branch and the agent pushes to it
@@ -178,7 +213,9 @@ The delivery task kind is sized to the work. The ticket's complexity profile dec
    follow-ups), goes back to the same ticket's agent in the same worktree, which returns the ticket to AI Testing when
    the change calls for retesting.
 5. **Declined or unable.** With `declined`, or an agent that cannot delegate or run in the background, the session
-   delivers the tickets itself, one after the other, and says so explicitly.
+   delivers the tickets itself, one after the other, and says so explicitly. So does a session whose host has no
+   worktree support (`worktrees: none`, Kimi Code today): it cannot open a worktree for a delegate, so it delegates
+   sub-tasks only, in the current worktree, and never starts another host's CLI to get a worktree.
 6. **Measured delegations.** Every routed delegation is recorded in the clone's ledger, and the routing adjusts itself
    from it (`sf agents routing report` shows what it did). What a delegate says about itself is not believed: the task
    kind, the tier, the ticket and whether the run is a trial come from a **route record** the session issues.
@@ -350,9 +387,9 @@ Drive it with:
 ```
 
 Each phase is documented in detail:
-- `statuses/3a-ai-drafting.md` — AI drafter runs against the configured backend
-- `statuses/3b-human-review.md` — spec owner reviews and approves
-- `statuses/3c-spawning.md` — children land in Backlog, drafting ticket reaches Done
+- `statuses/2a-ai-drafting.md` — AI drafter runs against the configured backend
+- `statuses/2b-human-review.md` — spec owner reviews and approves
+- `statuses/2c-spawning.md` — children land in Backlog, drafting ticket reaches Done
 
 **Guard** — `update-status <ticket> <any testing/review status>` is rejected when the ticket carries an `srs:*` label. Use `transition-drafting` instead. The guard fails open if label fetch errors (offline / auth issues) so normal teams are not punished by infrastructure hiccups.
 

@@ -461,20 +461,26 @@ EOF
 cmd_create_subtask() {
   if [ "$#" -lt 2 ]; then
     echo -e "${RED}Error: Missing arguments${NC}"
-    echo "Usage: $0 create-subtask <parent-number> <title> [body] [--type <epic|story|task|issue>] [--milestone <name>] [--bypass-srs <reason>]"
+    echo "Usage: $0 create-subtask <parent-number> <title> [body] [--type <epic|story|task|issue>] [--milestone <name>] [--ui] [--bypass-srs <reason>]"
     exit 1
   fi
 
   # Separate positional args from the --bypass-srs and --type flags. Both
   # flags can appear anywhere in either --flag <value> or --flag=<value> form.
   # --type defaults to story (preserves current Story-shaped bodies).
+  # --ui is a switch: it marks the subtask as a change of the user interface (#1305).
   # We accept up to three positional args (parent, title, body).
   local -a POSITIONAL=()
   local BYPASS_SRS_REASON=""
   local TICKET_TYPE="story"
   local MILESTONE=""
+  local UI=0
   while [ $# -gt 0 ]; do
     case "$1" in
+      --ui)
+        UI=1
+        shift
+        ;;
       --milestone=*)
         MILESTONE="${1#--milestone=}"
         shift
@@ -532,7 +538,7 @@ cmd_create_subtask() {
 
   if [ "${#POSITIONAL[@]}" -lt 2 ]; then
     echo -e "${RED}Error: Missing arguments${NC}"
-    echo "Usage: $0 create-subtask <parent-number> <title> [body] [--type <epic|story|task|issue>] [--milestone <name>] [--bypass-srs <reason>]"
+    echo "Usage: $0 create-subtask <parent-number> <title> [body] [--type <epic|story|task|issue>] [--milestone <name>] [--ui] [--bypass-srs <reason>]"
     exit 1
   fi
 
@@ -675,6 +681,17 @@ cmd_create_subtask() {
       echo "    $0 milestone assign ${CHILD_NUMBER} \"${MILESTONE}\"" >&2
     fi
   fi
+
+  # --ui (#1305): the marker is what makes update-status ask for a mockup validation. A subtask that
+  # exists without it would reach review unguarded, so a failure is an error naming the command that
+  # finishes it, not a warning.
+  if [ "$UI" = 1 ]; then
+    if ! "$0" set-ui "$CHILD_NUMBER"; then
+      echo -e "${RED}✗ Subtask #${CHILD_NUMBER} exists, but the ui marker could not be set — finish it with:${NC}" >&2
+      echo "    $0 set-ui ${CHILD_NUMBER}" >&2
+      exit 1
+    fi
+  fi
 }
 
 
@@ -784,11 +801,15 @@ cmd_create_epic() {
 # ───────────────────────────────────────────────────────────────────────────
 
 cmd_create_ticket() {
-  local usage="Usage: $0 create-ticket <story|task|issue> <title> [--body-file <file>] [--complexity <bug|low|medium|complex>] [--nature <user-facing|internal>] [--milestone <name>] [--bypass-srs <reason>]"
+  local usage="Usage: $0 create-ticket <story|task|issue> <title> [--body-file <file>] [--complexity <bug|low|medium|complex>] [--nature <user-facing|internal>] [--milestone <name>] [--ui] [--bypass-srs <reason>]"
   local -a POSITIONAL=()
-  local BODY_FILE="" COMPLEXITY="" NATURE="" MILESTONE="" BYPASS_SRS_REASON=""
+  local BODY_FILE="" COMPLEXITY="" NATURE="" MILESTONE="" BYPASS_SRS_REASON="" UI=0
   while [ $# -gt 0 ]; do
     case "$1" in
+      --ui)
+        UI=1
+        shift
+        ;;
       --body-file | --complexity | --nature | --milestone | --bypass-srs)
         if [ -z "${2:-}" ] || [[ "${2}" == --* ]]; then
           echo -e "${RED}Error: $1 requires a value${NC}" >&2
@@ -923,6 +944,10 @@ cmd_create_ticket() {
   fi
   if [ -n "$MILESTONE" ]; then
     "$0" milestone assign "$TICKET_NUMBER" "$MILESTONE" || MISSING+=("$0 milestone assign ${TICKET_NUMBER} \"${MILESTONE}\"")
+  fi
+  # The ui marker (#1305) is not a nature label: any session may set it
+  if [ "$UI" = 1 ]; then
+    "$0" set-ui "$TICKET_NUMBER" || MISSING+=("$0 set-ui ${TICKET_NUMBER}")
   fi
 
   if [ "${#MISSING[@]}" -gt 0 ] || [ -n "$NATURE_FAILED" ]; then
@@ -1251,6 +1276,194 @@ cmd_get_labels() {
   # stdout) from "fetch failed" (non-zero) — the SRS guard relies on this to decide
   # whether to fail-open. Do NOT swallow the exit code with `|| true`.
   gh issue view "$ticket" --json labels --jq '.labels[].name' 2>/dev/null
+}
+
+# ───────────────────────────────────────────────────────────────────────────
+# Commands: set-ui / clear-ui / record-ui-validation / get-ui-validation (#1305)
+#
+# A ticket that changes the user interface carries the label `ui`. It is a workflow marker, not a nature
+# label: the session sets it, and so does the developer. The developer's validation of the mockup is a
+# ticket comment whose first line is a fixed marker and whose body is a list of `- Field: value` lines,
+# so that `workflow-cli.sh update-status` reads it back (`get-ui-validation`) instead of parsing prose.
+# ───────────────────────────────────────────────────────────────────────────
+
+UI_LABEL="ui"
+UI_VALIDATION_MARKER="<!-- sf-ui-validation:v1 -->"
+UI_VALIDATION_KIND_MOCKUP="mockup"
+UI_VALIDATION_KIND_SUPPLIED="supplied by the developer"
+
+# Create the label on the repository when it is missing. Quiet and idempotent: an existing label, or a
+# token that cannot create labels, is not an error here: the edit that follows says whether it applied.
+ensure_ui_label() {
+  gh label create "$UI_LABEL" --color 5319E7 --description "Workflow: ticket changes the user interface; a validated mockup is required before review" >/dev/null 2>&1 || true
+}
+
+cmd_set_ui() {
+  if [ "$#" -ne 1 ] || ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Usage: $0 set-ui <ticket-number>" >&2
+    exit 1
+  fi
+  local ticket=$1
+  ensure_ui_label
+  gh issue edit "$ticket" --add-label "$UI_LABEL" >/dev/null || {
+    echo -e "${RED}Error: could not mark #${ticket} as ui${NC}" >&2
+    exit 1
+  }
+  echo -e "${GREEN}✓ Ticket #${ticket} marked ui${NC}"
+}
+
+cmd_clear_ui() {
+  if [ "$#" -ne 1 ] || ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Usage: $0 clear-ui <ticket-number>" >&2
+    exit 1
+  fi
+  local ticket=$1 labels
+  labels=$(gh issue view "$ticket" --json labels --jq '.labels[].name') || {
+    echo -e "${RED}Error: could not read the labels of #${ticket}${NC}" >&2
+    exit 1
+  }
+  if ! printf '%s\n' "$labels" | grep -qix "$UI_LABEL"; then
+    echo -e "${GREEN}✓ Ticket #${ticket} carries no ui marker${NC}"
+    return 0
+  fi
+  gh issue edit "$ticket" --remove-label "$UI_LABEL" >/dev/null || {
+    echo -e "${RED}Error: could not clear the ui marker of #${ticket}${NC}" >&2
+    exit 1
+  }
+  echo -e "${GREEN}✓ Ticket #${ticket} is no longer marked ui${NC}"
+}
+
+cmd_record_ui_validation() {
+  local usage="Usage: $0 record-ui-validation <ticket-number> (--mockup <link-or-path> --approved-by <name> | --supplied \"<what the developer supplied>\") [--date <YYYY-MM-DD>]"
+  if [ "$#" -lt 1 ] || ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then
+    echo "$usage" >&2
+    exit 1
+  fi
+  local ticket=$1 mockup="" approver="" supplied="" date="" labels
+  shift
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --mockup | --approved-by | --supplied | --date)
+        if [ -z "${2:-}" ] || [[ "${2}" == --* ]]; then
+          echo -e "${RED}Error: $1 requires a value${NC}" >&2
+          echo "$usage" >&2
+          exit 1
+        fi
+        case "$1" in
+          --mockup) mockup=$2 ;;
+          --approved-by) approver=$2 ;;
+          --supplied) supplied=$2 ;;
+          --date) date=$2 ;;
+        esac
+        shift 2
+        ;;
+      *)
+        echo -e "${RED}Error: unknown record-ui-validation option '$1'${NC}" >&2
+        echo "$usage" >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  # Everything is checked before anything is written: a record the guard cannot read back is worse than none
+  if { [ -n "$mockup" ] && [ -n "$supplied" ]; } || { [ -z "$mockup" ] && [ -z "$supplied" ]; }; then
+    echo -e "${RED}Error: give either --mockup (with --approved-by) or --supplied, not both and not neither${NC}" >&2
+    echo "$usage" >&2
+    exit 1
+  fi
+  if [ -n "$mockup" ] && [ -z "$approver" ]; then
+    echo -e "${RED}Error: --mockup needs --approved-by: the record names who approved the mockup${NC}" >&2
+    echo "$usage" >&2
+    exit 1
+  fi
+  if [ -n "$supplied" ] && [ -n "$approver" ]; then
+    echo -e "${RED}Error: --approved-by belongs to --mockup; visuals supplied by the developer need no approver${NC}" >&2
+    echo "$usage" >&2
+    exit 1
+  fi
+  local value
+  for value in "$mockup" "$approver" "$supplied" "$date"; do
+    if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+      echo -e "${RED}Error: every value of the record fits on one line${NC}" >&2
+      exit 1
+    fi
+  done
+  if [ -z "$date" ]; then
+    date=$(date +%Y-%m-%d)
+  fi
+  if ! [[ "$date" =~ ^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$ ]]; then
+    echo -e "${RED}Error: --date must be a calendar date written YYYY-MM-DD (got '${date}')${NC}" >&2
+    exit 1
+  fi
+
+  {
+    printf '%s\n' "$UI_VALIDATION_MARKER"
+    printf '## UI mockup validation\n\n'
+    if [ -n "$mockup" ]; then
+      printf -- '- Kind: %s\n- Mockup: %s\n- Approved by: %s\n- Approved on: %s\n' "$UI_VALIDATION_KIND_MOCKUP" "$mockup" "$approver" "$date"
+    else
+      printf -- '- Kind: %s\n- Supplied: %s\n- Recorded on: %s\n' "$UI_VALIDATION_KIND_SUPPLIED" "$supplied" "$date"
+    fi
+    printf '\n`workflow-cli.sh update-status` reads this record before the ticket reaches the developer'"'"'s review.\n'
+  } | gh issue comment "$ticket" --body-file - >/dev/null || {
+    echo -e "${RED}Error: could not record the UI mockup validation on #${ticket}${NC}" >&2
+    exit 1
+  }
+  echo -e "${GREEN}✓ UI mockup validation recorded on #${ticket}${NC}"
+
+  # The record is read for tickets that carry the marker only: say so when it is missing, and still keep the record
+  if labels=$(gh issue view "$ticket" --json labels --jq '.labels[].name' 2>/dev/null) && ! printf '%s\n' "$labels" | grep -qix "$UI_LABEL"; then
+    echo -e "${YELLOW}⚠ #${ticket} carries no ui marker, so update-status does not read this record. If the ticket changes the interface: $0 set-ui ${ticket}${NC}" >&2
+  fi
+}
+
+# The latest complete validation record of a ticket as one line of JSON, nothing when there is none. A record
+# is complete when its mandatory fields are there: a mockup, who approved it and when, or what the developer
+# supplied and when. Exit 1 when the comments cannot be read, so the caller never reads "no record" from a failure.
+cmd_get_ui_validation() {
+  if [ "$#" -ne 1 ] || ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then
+    echo "Usage: $0 get-ui-validation <ticket-number>" >&2
+    exit 1
+  fi
+  local ticket=$1 repo payload record
+  load_config
+  repo=$(get_repo_owner_name)
+  if [[ -z "$repo" || "$repo" != */* ]]; then
+    echo "Error: could not resolve the current repository." >&2
+    return 1
+  fi
+  # --slurp keeps the page boundaries, so jq can reject a malformed answer
+  payload=$(gh api --paginate --slurp \
+    -H "Accept: application/vnd.github+json" \
+    "repos/${repo}/issues/${ticket}/comments?per_page=100" 2>/dev/null) || {
+    echo "Error: could not read the comments of #${ticket}." >&2
+    return 1
+  }
+  # The first line of an empty body is `// ""`: `"" | split("\n")` is [], and since jq 1.8 `null | rtrimstr(...)` is
+  # an error (1.7 passed null through), which would fail the whole read on a comment with no text.
+  record=$(printf '%s' "$payload" | jq -c --arg marker "$UI_VALIDATION_MARKER" --arg mockup "$UI_VALIDATION_KIND_MOCKUP" --arg supplied "$UI_VALIDATION_KIND_SUPPLIED" '
+    def fields:
+      [ split("\n")[] | rtrimstr("\r") | select(startswith("- ")) | ltrimstr("- ")
+        | index(": ") as $i | select($i != null)
+        | {key: .[0:$i], value: (.[($i + 2):] | gsub("^\\s+|\\s+$"; ""))} ] | from_entries;
+    def given($name): ((.[$name] // "") != "");
+    if type == "array" and all(.[]; type == "array") then
+      [ .[][] | (.body // "") | select(((split("\n")[0] // "") | rtrimstr("\r")) == $marker) | fields
+        | if .Kind == $mockup and given("Mockup") and given("Approved by") and given("Approved on")
+            then {kind: "mockup", mockup: .Mockup, approvedBy: .["Approved by"], date: .["Approved on"]}
+          elif .Kind == $supplied and given("Supplied") and given("Recorded on")
+            then {kind: "supplied", supplied: .Supplied, date: .["Recorded on"]}
+          else empty end
+      ] | last // empty
+    else error("Expected paginated comment arrays") end
+  ') || {
+    echo "Error: invalid comments response for #${ticket}." >&2
+    return 1
+  }
+  if [ -n "$record" ]; then
+    printf '%s\n' "$record"
+  fi
+  return 0
 }
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -3103,6 +3316,10 @@ case "$COMMAND" in
   set-complexity)     cmd_set_complexity "$@" ;;
   get-complexity)     cmd_get_complexity "$@" ;;
   get-labels)         cmd_get_labels "$@" ;;
+  set-ui)             cmd_set_ui "$@" ;;
+  clear-ui)           cmd_clear_ui "$@" ;;
+  record-ui-validation) cmd_record_ui_validation "$@" ;;
+  get-ui-validation)  cmd_get_ui_validation "$@" ;;
   list-incomplete-children) cmd_list_incomplete_children "$@" ;;
   inspect-srs-tickets) cmd_inspect_srs_tickets "$@" ;;
   link-subtask) cmd_link_subtask "$@" ;;
@@ -3126,9 +3343,9 @@ case "$COMMAND" in
     echo "Usage: $0 <command> [args...]"
     echo ""
     echo "Available commands:"
-    echo "  create-ticket <story|task|issue> <title> [--body-file <f>] [--complexity <c>] [--nature <n>] [--milestone <m>]"
+    echo "  create-ticket <story|task|issue> <title> [--body-file <f>] [--complexity <c>] [--nature <n>] [--milestone <m>] [--ui]"
     echo "                                           Create a top-level ticket on the board in Backlog, typed and labelled"
-    echo "  create-subtask <parent> <title> [body] [--type <epic|story|task|issue>] [--milestone <m>]"
+    echo "  create-subtask <parent> <title> [body] [--type <epic|story|task|issue>] [--milestone <m>] [--ui]"
     echo "                                           Create a sub-issue linked to parent (default type: story)"
     echo "  create-epic <title> [body]               Create a top-level Epic (no parent)"
     echo "  comment <ticket> <body-file|->           Record a note on the ticket"
@@ -3140,6 +3357,11 @@ case "$COMMAND" in
     echo "  set-complexity <ticket> <level>          bug | low | medium | complex"
     echo "  get-complexity <ticket>                  Read current complexity label"
     echo "  get-labels <ticket>                      Print every label name (one per line)"
+    echo "  set-ui <ticket>                          Mark the ticket as a change of the user interface (label ui)"
+    echo "  clear-ui <ticket>                        Remove the ui marker"
+    echo "  record-ui-validation <ticket> (--mockup <link-or-path> --approved-by <name> | --supplied \"<what>\") [--date <YYYY-MM-DD>]"
+    echo "                                           Record the developer's mockup validation on the ticket"
+    echo "  get-ui-validation <ticket>               Print the latest validation record as JSON (nothing when there is none)"
     echo "  list-incomplete-children <parent>       Print native children whose board Status is not Done"
     echo "  inspect-srs-tickets <parent> --fr ID=URL...  Inspect open/closed SRS ticket candidates as JSON"
     echo "  link-subtask <parent> <child>           Idempotently attach an existing orphan child"
@@ -3169,7 +3391,7 @@ case "$COMMAND" in
     ;;
   *)
     echo -e "${RED}Error: Unknown command '${COMMAND}'${NC}"
-    echo "Available: create-ticket, create-subtask, create-epic, comment, status, update-status, add-to-project, set-complexity, get-complexity, get-labels, list-incomplete-children, inspect-srs-tickets, link-subtask, unlink-subtask, get-parent, get-issue-type, get-ticket, create-pr, ready-pr, draft-pr, local-ci-gate, list, cache-clear, ensure-issue-types, assign-type, delete-issue-type, milestone"
+    echo "Available: create-ticket, create-subtask, create-epic, comment, status, update-status, add-to-project, set-complexity, get-complexity, get-labels, set-ui, clear-ui, record-ui-validation, get-ui-validation, list-incomplete-children, inspect-srs-tickets, link-subtask, unlink-subtask, get-parent, get-issue-type, get-ticket, create-pr, ready-pr, draft-pr, local-ci-gate, list, cache-clear, ensure-issue-types, assign-type, delete-issue-type, milestone"
     exit 1
     ;;
 esac

@@ -38,12 +38,12 @@ Finalization and cleanup after merge.
   - `git pull origin <workingBranch> --rebase`
   - `git branch -d <feature-branch>`
 - [ ] **Rebase other in-progress branches** on the refreshed working branch:
-  - per branch: `git checkout <other> && git rebase <workingBranch>` → resolve conflicts → `git push --force-with-lease`
+  - per branch, one command per call: `git checkout <other>`, then `git rebase <workingBranch>` → resolve conflicts → `git push --force-with-lease`
 
 ## Errors to avoid
 
-- Moving to Done before the actual merge — `update-status` requires a matching PR verified merged into the configured working branch. An open PR or no matching merged PR blocks Done; reviewer approval is **not** a Done signal
-  (the ticket stays in `In Review` until merged).
+- Moving to Done before the actual merge — `update-status` requires a matching PR verified merged into the configured working branch. An open PR or no matching merged PR blocks Done; reviewer approval
+  is **not** a Done signal (the ticket stays in `In Review` until merged).
 - Forgetting to rebase other in-progress branches
 
 ## Guard
@@ -53,4 +53,7 @@ they own no PR. An escape hatch is the developer's to apply (`escape-hatches.md`
 
 > [!note] Convention sanity check
 >
-> This guard — and the `→ In Review` PR-existence guard — match branches by the ticket number, exactly the convention declared in `.saasfoundry.json` → `workflow.branchNaming` (`feature/{N}-{description}`, `fix/{N}-{description}`). The two must stay in lock-step. Quick check (should print `ok`): `echo "fix/32-detection-dropdown" | grep -Eq '^(feature|fix)/32(-|$)' && echo ok`. A branch missing the `{N}` ticket prefix (e.g. `fix/some-name`) cannot be verified as the ticket's PR — realign `branchNaming`, never "fix" the regex. A non-regression test locks both sides together: `src/__tests__/unit/skill/branch-naming-pr-regex.spec.ts`.
+> This guard — and the `→ In Review` PR-existence guard — match branches by the ticket number, exactly the convention declared in `.saasfoundry.json` → `workflow.branchNaming`
+> (`feature/{N}-{description}`, `fix/{N}-{description}`). The two must stay in lock-step. Quick check (the exit code should be 0):
+> `echo "fix/32-detection-dropdown" | grep -Eq '^(feature|fix)/32(-|$)'`. A branch missing the `{N}` ticket prefix (e.g. `fix/some-name`) cannot be verified as the ticket's PR — realign
+> `branchNaming`, never "fix" the regex. A non-regression test locks both sides together: `src/__tests__/unit/skill/branch-naming-pr-regex.spec.ts`.
