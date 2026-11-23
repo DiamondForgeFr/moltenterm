@@ -2,11 +2,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
+import {
+    moveSection,
+    setSectionHidden,
+    setSectionSpan,
+    setSectionUnfolded,
+    setUsageMinimal,
+} from "./companion-arrange-model";
 import { readCompanionPrefs } from "./companion-files-model";
 import {
     CompanionSectionIds,
     DefaultCompanionLayout,
     isDefaultLayout,
+    isUnfolded,
     normalizeLayout,
     readStoredLayout,
     sameLayout,
@@ -318,6 +326,93 @@ describe("the usage rows the developer hid (#2462)", () => {
             id: "usage",
             span: "flow",
             hiddenrows: { kimi: ["month"] },
+        });
+    });
+});
+
+describe("the blocks the developer unfolded (#2477)", () => {
+    const placement = (value: unknown, id: string) => readStoredLayout(value).find((p) => p.id === id);
+    const restart = (layout: unknown) => readStoredLayout(JSON.parse(JSON.stringify(layout)));
+
+    it("reads a layout saved before them as every block capped: the default", () => {
+        const before = [
+            { id: "files", span: "full" },
+            { id: "usage", span: "flow", minimal: true },
+        ];
+        for (const id of CompanionSectionIds) {
+            expect(isUnfolded(readStoredLayout(before), id), id).toBe(false);
+            expect(isUnfolded(DefaultCompanionLayout, id), id).toBe(false);
+        }
+        expect(placement(before, "files")).toEqual({ id: "files", span: "full" });
+        // A layout of #2395, whose placements said a column, is capped too.
+        expect(isUnfolded(readStoredLayout([{ id: "files", column: "full" }]), "files")).toBe(false);
+        expect(isDefaultLayout(readStoredLayout(DefaultCompanionLayout.map((p) => ({ ...p }))))).toBe(true);
+    });
+
+    it("keeps the choice per block, any block's, and a layout round trips whole through a restart", () => {
+        const saved = [
+            { id: "files", span: "flow", unfolded: true },
+            { id: "answer", span: "flow", unfolded: true, hidden: true },
+            { id: "usage", span: "flow", minimal: true, unfolded: true },
+            { id: "permission", span: "full" },
+        ];
+        const once = readStoredLayout(saved);
+        expect(placement(saved, "files")).toEqual({ id: "files", span: "flow", unfolded: true });
+        expect(placement(saved, "answer")).toEqual({ id: "answer", span: "flow", hidden: true, unfolded: true });
+        expect(placement(saved, "usage")).toEqual({ id: "usage", span: "flow", minimal: true, unfolded: true });
+        expect(CompanionSectionIds.filter((id) => isUnfolded(once, id)).sort()).toEqual(["answer", "files", "usage"]);
+        expect(restart(once)).toEqual(once);
+        expect(restart(restart(once))).toEqual(once);
+    });
+
+    it("stores only a choice that is true", () => {
+        for (const unfolded of [false, "yes", 1, null, "true"]) {
+            expect(placement([{ id: "files", span: "flow", unfolded }], "files")).toEqual({
+                id: "files",
+                span: "flow",
+            });
+        }
+    });
+
+    it("compares layouts by it: a layout with a block unfolded is no longer the default", () => {
+        const files = (unfolded: boolean) =>
+            DefaultCompanionLayout.map((p) => (p.id === "files" ? { ...p, unfolded } : p));
+        expect(sameLayout(files(true), DefaultCompanionLayout)).toBe(false);
+        expect(isDefaultLayout(files(true))).toBe(false);
+        expect(sameLayout(files(false), DefaultCompanionLayout)).toBe(true);
+        expect(isDefaultLayout(files(false))).toBe(true);
+        expect(sameLayout(files(true), files(true))).toBe(true);
+    });
+
+    it("unfolds and folds a block with the other blocks and their choices untouched", () => {
+        const start = setSectionHidden(setUsageMinimal(DefaultCompanionLayout, true), "answer", true);
+        const open = setSectionUnfolded(start, "files", true);
+        expect(isUnfolded(open, "files")).toBe(true);
+        expect(CompanionSectionIds.filter((id) => isUnfolded(open, id))).toEqual(["files"]);
+        expect(usageOf(open).minimal).toBe(true);
+        expect(open.find((p) => p.id === "answer").hidden).toBe(true);
+        expect(open.map((p) => p.id)).toEqual(start.map((p) => p.id));
+        // Folding it again leaves no trace: the layout is the one it was, which is stored as no layout at all.
+        const folded = setSectionUnfolded(open, "files", false);
+        expect(folded).toEqual(normalizeLayout(start));
+        expect(setSectionUnfolded(DefaultCompanionLayout, "files", true)).not.toEqual(DefaultCompanionLayout);
+        expect(isDefaultLayout(setSectionUnfolded(DefaultCompanionLayout, "files", false))).toBe(true);
+    });
+
+    it("keeps the choice when a block is moved, made wide or hidden, and when the layout is normalised again", () => {
+        const open = setSectionUnfolded(DefaultCompanionLayout, "topics", true);
+        expect(isUnfolded(moveSection(open, 4, 0), "topics")).toBe(true);
+        expect(isUnfolded(setSectionSpan(open, "topics", "full"), "topics")).toBe(true);
+        expect(isUnfolded(setSectionHidden(open, "topics", true), "topics")).toBe(true);
+        expect(isUnfolded(normalizeLayout(normalizeLayout(open)), "topics")).toBe(true);
+    });
+
+    it("keeps it among the companion's other remembered choices", () => {
+        const layout = [{ id: "files", span: "flow", unfolded: true }];
+        expect(readCompanionPrefs({ filesopen: true, layout }).layout.find((p) => p.id === "files")).toEqual({
+            id: "files",
+            span: "flow",
+            unfolded: true,
         });
     });
 });

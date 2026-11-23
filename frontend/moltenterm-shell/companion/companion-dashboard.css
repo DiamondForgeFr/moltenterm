@@ -15,6 +15,10 @@
     --mt-cdash-notch: 36px;
     --mt-cdash-notch-gap: 6px;
     --mt-cdash-tile: 24px;
+    /* A block's cap, the fade at its end and the bar that unfolds it (#2477): BlockCapPx, BlockFadePx, BlockBarPx. */
+    --mt-cb-cap: 500px;
+    --mt-cb-fade: 90px;
+    --mt-cb-bar: 34px;
     --mt-cdash-hair: color-mix(in srgb, var(--mt-line-2) 60%, transparent);
     --mt-cdash-chip-fill: color-mix(in srgb, var(--mt-text-1) 16%, var(--mt-surface-2));
     --mt-cdash-chip-edge: color-mix(in srgb, var(--mt-text-1) 22%, transparent);
@@ -358,6 +362,101 @@ button.mt-cb-chip-off:hover {
 
 .mt-cb-foot-link:hover {
     text-decoration: underline;
+}
+
+/* The cap (#2477, companion-block-cap.ts). 500 px is a maximum, never a size: a block keeps the height of its content and
+   only one whose content is taller is given these rules (data-capped, once folded; data-open, once unfolded). Folded,
+   the block stops at the cap, header and foot included, its body is clipped and its last 90 px fade into the block
+   (a mask, so that whatever the block stands on shows through), and the bar closes it. While the block is measured
+   (data-probe) the clamp is lifted and the bar hidden, to read the height the content would have. */
+.mt-cb[data-capped] {
+    max-height: var(--mt-cb-cap);
+}
+
+.mt-cb[data-capped] > .mt-cb-body {
+    min-height: 0;
+    overflow: hidden;
+    /* The body takes the block's whole width, so that the rows that run flush with its edges are not clipped by it. */
+    margin-inline: calc(var(--mt-companion-inset) * -1);
+    padding-inline: var(--mt-companion-inset);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - var(--mt-cb-fade)), transparent);
+}
+
+.mt-cb[data-capped] > .mt-cb-foot {
+    flex: none;
+}
+
+/* A block's own foot link (the usage page, the milestone) keeps its place above the bar, which closes the block. */
+.mt-cb:is([data-capped], [data-open]):not([data-probe]) > .mt-cb-foot {
+    margin-bottom: 0;
+}
+
+.mt-cb[data-capped][data-probe] {
+    max-height: none;
+}
+
+.mt-cb[data-probe] > .mt-cb-cap {
+    display: none;
+}
+
+/* The bar: across the block, on its bottom edge, under a hairline, a little lighter than the block. */
+.mt-cb-cap {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-sizing: border-box;
+    height: var(--mt-cb-bar);
+    margin: 0 calc(var(--mt-companion-inset) * -1) calc(var(--mt-companion-inset) * -1);
+    padding: 0 var(--mt-companion-inset);
+    border: 0;
+    border-top: 1px solid var(--mt-cdash-hair);
+    border-radius: 0 0 var(--mt-radius-control) var(--mt-radius-control);
+    background: color-mix(in srgb, var(--mt-veil) 5%, var(--mt-surface-2));
+    color: var(--mt-text-1);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: var(--mt-text-12);
+    font-weight: var(--mt-weight-medium);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+/* The bar follows the content with nothing between: a list that runs flush with the block's edges stops where it ends
+   instead of reaching into the bar, and a block that unfolds leaves the room it leaves at its foot unless such a list
+   closes it. A folded block's content fades into the bar. */
+.mt-cb:is([data-capped], [data-open]):not([data-foot], [data-probe]) > .mt-cb-body > .mt-cwork-flush:last-child,
+.mt-cb:is([data-capped], [data-open]):not([data-foot], [data-probe])
+    > .mt-cb-body
+    > :last-child
+    > .mt-cwork-flush:last-child {
+    margin-bottom: 0;
+    border-radius: 0;
+}
+
+.mt-cb[data-open]:not([data-probe]) > .mt-cb-cap {
+    margin-top: var(--mt-companion-inset);
+}
+
+.mt-cb[data-open]:has(
+        > .mt-cb-body > .mt-cwork-flush:last-child,
+        > .mt-cb-body > :last-child > .mt-cwork-flush:last-child
+    )
+    > .mt-cb-cap {
+    margin-top: 0;
+}
+
+.mt-cb-cap:hover {
+    background: color-mix(in srgb, var(--mt-veil) 10%, var(--mt-surface-2));
+}
+
+.mt-cb-cap:focus-visible {
+    outline: 2px solid var(--mt-focus);
+    outline-offset: -2px;
+}
+
+.mt-cb-cap > i {
+    font-size: var(--mt-text-11);
 }
 
 /* Lists flush with the block's edges close it; with a link row after them, the row closes it. */
@@ -1008,6 +1107,7 @@ button.mt-cb-chip-off:hover {
    agent's block is held the same way; the controls on the top borders are not part of what is held. */
 .mt-cdash-flow[data-arranging] > .mt-cb > .mt-cb-body,
 .mt-cdash-flow[data-arranging] > .mt-cb > .mt-cb-foot,
+.mt-cdash-flow[data-arranging] > .mt-cb > .mt-cb-cap,
 .mt-cdash[data-arranging] .mt-cdash-hero-grid,
 .mt-cdash[data-arranging] .mt-cdash-hero-usage-body {
     opacity: 0.78;
@@ -1417,39 +1517,6 @@ button.mt-cb-setting[aria-disabled="true"]:hover {
 .mt-cdash-answer {
     position: relative;
     overflow: hidden;
-}
-
-.mt-cdash-answer[data-folded] {
-    max-height: 180px;
-}
-
-.mt-cdash-answer[data-folded]::after {
-    content: "";
-    position: absolute;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    height: 28px;
-    background: linear-gradient(transparent, var(--mt-surface-2));
-    pointer-events: none;
-}
-
-.mt-cdash-readmore {
-    align-self: flex-start;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--mt-text-2);
-    cursor: pointer;
-    font-family: inherit;
-    font-size: var(--mt-text-11);
-    font-weight: var(--mt-weight-semibold);
-}
-
-.mt-cdash-readmore:hover {
-    color: var(--mt-text-1);
-    text-decoration: underline;
 }
 
 .mt-cdash-prov {

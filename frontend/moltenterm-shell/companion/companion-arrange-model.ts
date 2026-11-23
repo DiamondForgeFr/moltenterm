@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // What the arranging mode does to a layout (FR-SHELL-018, #2395, #2441, #2450, #2459, #2467): move a section, drop a
-// carried one (in the list, or on the main agent's block), show or hide it, set it full width or fluid, give the usage its
-// minimal form or attach it to the main agent, go back to the defaults. Each edit takes a layout and gives a new, usable
+// carried one (in the list, or on the main agent's block), show or hide it, set it full width or fluid, unfold it past its
+// cap (#2477), give the usage its minimal form or attach it to the main agent, go back to the defaults. Each edit takes a layout and gives a new, usable
 // one (companion-layout.ts keeps the registry and what a stored layout may hold); none of them runs on its own. It also
 // says what the flow lays out in both modes, since arranging keeps the dashboard's own layout (#2467). Loaded with the
 // arranging mode, out of the startup bundle. Pure, so it is tested without a window.
@@ -141,6 +141,19 @@ export function setSectionSpan(layout: CompanionLayout, id: CompanionSectionId, 
 
 export function setSectionHidden(layout: CompanionLayout, id: CompanionSectionId, hidden: boolean): CompanionLayout {
     return editSection(layout, id, (p) => ({ ...p, hidden }));
+}
+
+// A block taller than the cap shows all of it once unfolded (#2477); capped is the absence of the field, so folding a
+// block takes it out of the layout again.
+export function setSectionUnfolded(
+    layout: CompanionLayout,
+    id: CompanionSectionId,
+    unfolded: boolean
+): CompanionLayout {
+    return editSection(layout, id, (p) => {
+        const { unfolded: _was, ...rest } = p;
+        return unfolded ? { ...rest, unfolded: true } : rest;
+    });
 }
 
 // The usage block's two choices (#2450). Its rank, span and hidden state stay where they are whichever it takes: an

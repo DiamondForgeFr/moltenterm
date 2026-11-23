@@ -4,11 +4,18 @@
 // The options of each block of the companion while arranging (FR-SHELL-018, #2459): what its settings popover lists. They
 // are the choices the blocks already had, gathered, and none is new: shown and full width are every block's; the plan
 // usage adds its form and its attaching (#2450); the milestone block its three groups' open or folded state (#2418,
-// #2454); the changed files whether every file is listed (#555). A layout option is saved with the layout; a preference
+// #2454); the changed files whether every file is listed (#555); every block whether it stays unfolded past its 500 px cap
+// (#2477), which its Show all bar sets too. A layout option is saved with the layout; a preference
 // option in the companion's remembered choices (companion-prefs.ts), the same store, as it is set. Pure, so it is tested
 // without a window.
 
-import { setSectionHidden, setSectionSpan, setUsageAttached, setUsageMinimal } from "./companion-arrange-model";
+import {
+    setSectionHidden,
+    setSectionSpan,
+    setSectionUnfolded,
+    setUsageAttached,
+    setUsageMinimal,
+} from "./companion-arrange-model";
 import type { CompanionPrefs } from "./companion-files-model";
 import { CompanionLayout, CompanionSectionId, normalizeLayout, SectionPlacement } from "./companion-layout";
 
@@ -16,7 +23,7 @@ import { CompanionLayout, CompanionSectionId, normalizeLayout, SectionPlacement 
 export type BlockPrefKey = "filesopen" | "takenopen" | "idleopen" | "reviewopen";
 
 // The placement fields an option sets, as the arranging mode's drafted layout holds them.
-export type LayoutOptionKey = "shown" | "wide" | "minimal" | "attached";
+export type LayoutOptionKey = "shown" | "wide" | "unfolded" | "minimal" | "attached";
 
 export type BlockOptionKey = LayoutOptionKey | BlockPrefKey;
 
@@ -44,6 +51,15 @@ const Wide: BlockOption = {
     kind: "toggle",
     labelKey: "companion.arrange.opt.wide",
     helpKey: "companion.arrange.opt.wideHelp",
+};
+
+// A block taller than its cap (#2477) is folded behind a Show all bar until it is unfolded: here, or from the bar.
+const Unfolded: BlockOption = {
+    key: "unfolded",
+    store: "layout",
+    kind: "toggle",
+    labelKey: "companion.arrange.opt.unfolded",
+    helpKey: "companion.arrange.opt.unfoldedHelp",
 };
 
 const Form: BlockOption = {
@@ -100,9 +116,9 @@ const OwnOptions: Partial<Record<CompanionSectionId, BlockOption[]>> = {
     files: [EveryFile],
 };
 
-// A block's options, in the order its popover lists them: shown, full width, then its own.
+// A block's options, in the order its popover lists them: shown, full width, unfolded, then its own.
 export function optionsOf(id: CompanionSectionId): BlockOption[] {
-    return [Shown, Wide, ...(OwnOptions[id] ?? [])];
+    return [Shown, Wide, Unfolded, ...(OwnOptions[id] ?? [])];
 }
 
 // The choices a preference option has before the developer made one: the milestone block opens its Taken by others group
@@ -120,6 +136,8 @@ export function optionValue(
             return placement.hidden !== true;
         case "wide":
             return placement.span === "full";
+        case "unfolded":
+            return placement.unfolded === true;
         case "minimal":
             return placement.minimal === true;
         case "attached":
@@ -141,6 +159,8 @@ export function setLayoutOption(
             return setSectionHidden(layout, id, !value);
         case "wide":
             return setSectionSpan(layout, id, value ? "full" : "flow");
+        case "unfolded":
+            return setSectionUnfolded(layout, id, value);
         case "minimal":
             return id === "usage" ? setUsageMinimal(layout, value) : normalizeLayout(layout);
         case "attached":
@@ -157,6 +177,8 @@ export function optionAnnouncement(option: BlockOption, value: boolean): string 
             return value ? "companion.arrange.shownNow" : "companion.arrange.hiddenNow";
         case "wide":
             return value ? "companion.arrange.wideOn" : "companion.arrange.wideOff";
+        case "unfolded":
+            return value ? "companion.arrange.unfoldedOn" : "companion.arrange.unfoldedOff";
         case "minimal":
             return value ? "companion.arrange.minimalOn" : "companion.arrange.minimalOff";
         case "attached":

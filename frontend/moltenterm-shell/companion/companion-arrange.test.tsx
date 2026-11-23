@@ -10,6 +10,7 @@ import {
     SectionNameKeys,
     setSectionHidden,
     setSectionSpan,
+    setSectionUnfolded,
     setUsageAttached,
     setUsageMinimal,
 } from "./companion-arrange-model";
@@ -629,7 +630,7 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         expect(settings).toMatch(/role="radio" aria-checked="true"[^>]*>Minimal</);
     });
 
-    it("gives every other block Show and Full width, and the options it already had, none new", () => {
+    it("gives every other block Show, Full width and Keep it unfolded, and the options it already had", () => {
         const wide = (html: string, on: boolean) =>
             expect(html).toMatch(
                 new RegExp(`role="switch" aria-checked="${on}"[^>]*data-testid="companion-setting-wide"`)
@@ -638,6 +639,12 @@ describe("the plan usage, minimal and attached (#2450)", () => {
             const html = settingsOf(id, DefaultCompanionLayout);
             expect(html, id).toContain('data-testid="companion-setting-shown"');
             wide(html, id === "permission");
+            // A block taller than 500 px is capped until it is unfolded (#2477), which the bar at its foot does too.
+            expect(html, id).toContain(">Keep it unfolded<");
+            expect(html, id).toMatch(/role="switch" aria-checked="false"[^>]*data-testid="companion-setting-unfolded"/);
+            expect(settingsOf(id, setSectionUnfolded(DefaultCompanionLayout, id, true)), id).toMatch(
+                /role="switch" aria-checked="true"[^>]*data-testid="companion-setting-unfolded"/
+            );
             expect(html.includes("companion-setting-minimal"), id).toBe(id === "usage");
             expect(html.includes("companion-setting-attached"), id).toBe(id === "usage");
         }
@@ -651,7 +658,7 @@ describe("the plan usage, minimal and attached (#2450)", () => {
         expect(files).toContain(">List every changed file<");
         expect(files).toMatch(/role="switch" aria-checked="true"[^>]*data-testid="companion-setting-filesopen"/);
         for (const id of ["agents", "topics", "answer", "task", "permission"] as const) {
-            expect(settingsOf(id, DefaultCompanionLayout).match(/role="switch"/g), id).toHaveLength(2);
+            expect(settingsOf(id, DefaultCompanionLayout).match(/role="switch"/g), id).toHaveLength(3);
         }
     });
 

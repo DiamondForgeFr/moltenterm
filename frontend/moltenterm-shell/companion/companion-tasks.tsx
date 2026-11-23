@@ -242,6 +242,7 @@ export function TasksBlock(props: TasksBlockProps) {
             tabs={tabs != null ? <BlockTabs tabs={tabs} /> : undefined}
             icon={<Flag strokeWidth={2} aria-hidden />}
             foot={footer}
+            rows=".mt-cwork-row"
             aria-label={tabbed ? t("companion.tasks") : undefined}
             className="mt-cwork-block"
             data-testid="companion-tasks"
