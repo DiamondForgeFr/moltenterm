@@ -7,7 +7,8 @@
 
 import { agentCallName, agentLabel, type AgentStateInfo } from "../agent-state-model";
 import { labelled, t } from "../i18n/i18n";
-import type { TreeMarker } from "../worktree-model";
+import type { CiVerdictView, PaneState } from "../status-bar-model";
+import { statusBarMarker, type TreeMarker } from "../worktree-model";
 
 export const QuestionMaxChars = 48;
 
@@ -205,15 +206,29 @@ export function pickHeaderPill(candidates: HeaderPillSpec[]): HeaderPillSpec {
     return best;
 }
 
-export type HeaderContextPart = { key: string; text: string; title?: string; icon?: string; iconClass?: string };
+// What a click on a context part does: the branch opens the project overview, the CI verdict the CI/CD view, the pull
+// request number the pull request (the clicks the sidebar's branch line had, FR-SHELL-160).
+export type HeaderContextClick = "overview" | "ci" | "pr";
 
-// The tree's colour on its icon only: the context stays muted text, never a chip.
-function textColorOf(classes: string): string {
-    return (classes ?? "").split(/\s+/).find((c) => c.startsWith("text-")) ?? "";
-}
+export type HeaderContextPart = {
+    key: string;
+    text: string;
+    title?: string;
+    icon?: string;
+    iconClass?: string;
+    click?: HeaderContextClick;
+    // The worktree chip, drawn as the sidebar drew it (its icon, colour and title).
+    marker?: TreeMarker;
+    // The branch's commits not pushed and whether the tree has uncommitted changes.
+    ahead?: number;
+    dirty?: boolean;
+    ci?: CiVerdictView;
+    pr?: { number: number; url: string; title: string; draft?: boolean };
+};
 
-// A local terminal's context: the project (or the folder), then the branch, once. A worktree shows its tree icon in
-// front of the branch; its name and path stay in the tooltip.
+// A local terminal's context (FR-SHELL-052, FR-SHELL-160): the project (or the folder), then what the sidebar's branch
+// line showed, once: the worktree chip, the branch with its ahead count and dirty dot, the CI verdict and the pull
+// request, each with the click and the title it had there.
 export function termContextParts(input: {
     folder: string;
     projectName: string;
@@ -221,25 +236,43 @@ export function termContextParts(input: {
     branch: string;
     branchTitle?: string;
     marker: TreeMarker;
+    ahead?: number;
+    dirty?: boolean;
+    ci?: CiVerdictView;
+    pr?: PaneState["pr"];
 }): HeaderContextPart[] {
     const parts: HeaderContextPart[] = [];
     if (input.projectName) {
         parts.push({ key: "project", text: input.projectName, title: input.projectTitle || input.folder });
     }
-    const marker = input.marker;
-    const worktree = marker?.kind === "worktree";
-    const branch = input.branch || (worktree ? marker.branch : "");
+    const chip = statusBarMarker(input.marker);
+    if (chip != null) {
+        parts.push({ key: "worktree", text: chip.label, title: chip.title, marker: chip });
+    }
+    const branch = input.branch || (chip?.kind === "worktree" ? chip.branch : "");
     if (branch) {
-        const title = [worktree ? marker.title : "", input.branchTitle].filter((s) => !!s).join("\n");
+        const title = [input.projectName, input.branchTitle].filter((s) => !!s).join("\n");
         parts.push({
             key: "branch",
             text: branch,
             title: title || branch,
-            icon: worktree ? marker.icon : undefined,
-            iconClass: worktree ? textColorOf(marker.colorClass) : undefined,
+            click: "overview",
+            ahead: input.ahead ?? 0,
+            dirty: !!input.dirty,
         });
-    } else if (worktree) {
-        parts.push({ key: "branch", text: marker.label, title: marker.title, icon: marker.icon });
+    }
+    if (input.ci) {
+        const title = t("status.ci.title", { label: input.ci.label });
+        parts.push({ key: "ci", text: input.ci.label, title, click: "ci", ci: input.ci });
+    }
+    if (input.pr) {
+        parts.push({
+            key: "pr",
+            text: `#${input.pr.number}`,
+            title: t(input.pr.draft ? "status.pr.draft" : "status.pr.open", { title: input.pr.title }),
+            click: "pr",
+            pr: input.pr,
+        });
     }
     return parts;
 }

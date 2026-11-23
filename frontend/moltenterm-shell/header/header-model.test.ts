@@ -161,11 +161,87 @@ describe("context and title (FR-SHELL-052-AC1)", () => {
         expect(parts[1].icon).toBeUndefined();
     });
 
-    it("marks a worktree's branch with its tree icon in the tree's text colour only", () => {
+    it("gives a worktree its chip, with its icon, colour and title, before the branch (FR-SHELL-160)", () => {
         const parts = termContextParts({ folder: "/x", projectName: "MoltenTerm", branch: "", marker: worktree });
-        expect(parts.map((p) => p.text)).toEqual(["MoltenTerm", "worktree-agent-a77"]);
-        expect(parts[1]).toMatchObject({ icon: "code-fork", iconClass: "text-violet-300" });
+        expect(parts.map((p) => [p.key, p.text])).toEqual([
+            ["project", "MoltenTerm"],
+            ["worktree", "agent-a77"],
+            ["branch", "worktree-agent-a77"],
+        ]);
+        expect(parts[1].marker).toBe(worktree);
         expect(parts[1].title).toContain("Worktree agent-a77");
+    });
+
+    it("says nothing of the main tree beside its branch, as the sidebar's line did", () => {
+        const main = { ...worktree, kind: "main" as const, label: "main tree" };
+        const parts = termContextParts({ folder: "/x", projectName: "MoltenTerm", branch: "develop", marker: main });
+        expect(parts.map((p) => p.key)).toEqual(["project", "branch"]);
+    });
+});
+
+// FR-SHELL-160: what the sidebar's branch line showed, with the clicks and the titles it had.
+describe("the branch line in a terminal's header (FR-SHELL-160)", () => {
+    const main: TreeMarker = {
+        kind: "main",
+        label: "main tree",
+        branch: "develop",
+        path: "/repo",
+        linked: false,
+        outside: false,
+        colorClass: "",
+        icon: "",
+        title: "",
+    };
+    const input = {
+        folder: "/repo",
+        projectName: "MoltenTerm",
+        projectTitle: "MoltenTerm\n/repo",
+        branch: "develop",
+        branchTitle: "develop, 2 commits ahead",
+        marker: main,
+    };
+
+    it("opens the project overview from the branch, which carries its ahead count and its dirty dot", () => {
+        const branch = termContextParts({ ...input, ahead: 2, dirty: true }).find((p) => p.key === "branch");
+        expect(branch).toMatchObject({ text: "develop", click: "overview", ahead: 2, dirty: true });
+        expect(branch.title).toBe("MoltenTerm\ndevelop, 2 commits ahead");
+    });
+
+    it("has neither an ahead count nor a dirty dot on a clean branch that is up to date", () => {
+        const branch = termContextParts(input).find((p) => p.key === "branch");
+        expect(branch).toMatchObject({ ahead: 0, dirty: false });
+    });
+
+    it("opens the CI/CD view from the verdict, and titles it with the verdict", () => {
+        const ci = { status: "failure", label: "failed", iconClass: "fa-circle-xmark text-error" };
+        const part = termContextParts({ ...input, ci }).find((p) => p.key === "ci");
+        expect(part).toMatchObject({ click: "ci", ci });
+        expect(part.title).toBe("failed on this code\nOpen CI/CD");
+    });
+
+    it("opens the pull request from its number, titled as the sidebar titled it", () => {
+        const pr = { number: 12, title: "Contexts", url: "https://example.test/pull/12", draft: true };
+        const part = termContextParts({ ...input, pr }).find((p) => p.key === "pr");
+        expect(part).toMatchObject({ text: "#12", click: "pr", pr });
+        expect(part.title).toContain("Contexts");
+        const open = termContextParts({ ...input, pr: { ...pr, draft: false } }).find((p) => p.key === "pr");
+        expect(open.title).not.toBe(part.title);
+    });
+
+    it("shows the project alone when the folder has no repository", () => {
+        const parts = termContextParts({ folder: "/notes", projectName: "notes", branch: "", marker: null });
+        expect(parts.map((p) => p.key)).toEqual(["project"]);
+    });
+
+    it("keeps the project first, then the chip, the branch, the verdict and the pull request", () => {
+        const wt = { ...main, kind: "worktree" as const, label: "wt-1" };
+        const parts = termContextParts({
+            ...input,
+            marker: wt,
+            ci: { status: "success", label: "passed", iconClass: "fa-circle-check text-success" },
+            pr: { number: 3, title: "x", url: "u" },
+        });
+        expect(parts.map((p) => p.key)).toEqual(["project", "worktree", "branch", "ci", "pr"]);
     });
 
     it("titles a terminal with its agent, else its own title, else Terminal", () => {

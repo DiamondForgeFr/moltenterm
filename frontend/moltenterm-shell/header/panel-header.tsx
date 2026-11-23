@@ -9,7 +9,7 @@
 
 import { atoms, getConnStatusAtom, globalStore, refocusNode } from "@/app/store/global";
 import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
-import { cn, isLocalConnName, makeIconClass, NullAtom, useAtomValueSafe } from "@/util/util";
+import { cn, fireAndForget, isLocalConnName, makeIconClass, NullAtom, useAtomValueSafe } from "@/util/util";
 import { Atom, PrimitiveAtom, useAtomValue } from "jotai";
 import type { ReactElement, RefObject } from "react";
 import { useEffect } from "react";
@@ -28,13 +28,19 @@ import { sessionTooltipLine } from "../companion/companion-model";
 import { toggleCompanion } from "../companion/companion-open";
 import { CompanionSessions } from "../companion/companion-session-store";
 import { useT } from "../i18n/i18n";
+import { MoltentermCicdView } from "../mission/cicd-view";
+import { openMoltentermView } from "../open-view";
+import { openWebLink } from "../open-web-link";
 import { usePaneStatus } from "../pane-status";
+import { openProjectOverview } from "../project/project-tab";
 import { formatShortcutById } from "../shortcuts/format";
 import { blockFolder, makePaneView } from "../status-bar-model";
+import { DominoLoader } from "../suite/suite";
 import { TermUpdateHost } from "../termupdate/termupdate-ui";
 import { useWorkingBeat } from "../working-beat";
 import { readWorktreeDismissed, readWorktreeLink, TreeMarker, treeMarker, worktreeOffer } from "../worktree-model";
 import { unlinkWorktree } from "../worktree-store";
+import { WorktreeChip } from "../worktree-ui";
 import {
     agentErrorPill,
     durablePill,
@@ -164,6 +170,10 @@ export function useMoltenHeader(input: MoltenHeaderInput): MoltenHeaderState {
                   branch: tree.pane.branch,
                   branchTitle: tree.pane.branchTitle,
                   marker: tree.marker,
+                  ahead: tree.pane.ahead,
+                  dirty: tree.pane.dirty,
+                  ci: tree.pane.ci,
+                  pr: tree.pane.pr,
               })
             : [];
     const pill = pickHeaderPill([
@@ -220,13 +230,71 @@ type LeadProps = {
     preIcon: ReactElement;
 };
 
-function ContextPart({ part }: { part: HeaderContextPart }) {
+// What each click of a context part opens: the sidebar's branch line did the same (FR-SHELL-160).
+function runContextClick(part: HeaderContextPart) {
+    switch (part.click) {
+        case "overview":
+            fireAndForget(openProjectOverview);
+            return;
+        case "ci":
+            fireAndForget(() => openMoltentermView(MoltentermCicdView));
+            return;
+        case "pr":
+            fireAndForget(() => openWebLink(part.pr.url));
+            return;
+    }
+}
+
+function ContextPartBody({ part }: { part: HeaderContextPart }) {
+    if (part.ci != null) {
+        return part.ci.status === "running" ? (
+            <DominoLoader className="text-accent" />
+        ) : (
+            <i className={cn("fa fa-solid text-11", part.ci.iconClass)} aria-hidden />
+        );
+    }
     return (
-        <span className="molten-header-context-part" title={part.title}>
+        <>
             {part.icon ? (
                 <i className={cn(makeIconClass(part.icon, false), "text-11", part.iconClass)} aria-hidden />
             ) : null}
+            {part.key === "branch" ? <i className="fa fa-solid fa-code-branch text-11" aria-hidden /> : null}
             <span className="truncate">{part.text}</span>
+            {part.ahead > 0 ? <span className="shrink-0 text-muted">↑{part.ahead}</span> : null}
+            {part.dirty ? <span className="shrink-0 text-warning">●</span> : null}
+        </>
+    );
+}
+
+function ContextPart({ part }: { part: HeaderContextPart }) {
+    if (part.marker != null) {
+        return (
+            <span className="molten-header-context-part" data-testid="molten-header-worktree">
+                <WorktreeChip marker={part.marker} hideBranch={true} />
+            </span>
+        );
+    }
+    if (part.click != null) {
+        return (
+            <button
+                type="button"
+                className="molten-header-context-part molten-header-link cursor-pointer px-1"
+                title={part.title}
+                aria-label={part.ci != null ? part.title : undefined}
+                data-testid={`molten-header-${part.key}`}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    runContextClick(part);
+                }}
+            >
+                <ContextPartBody part={part} />
+            </button>
+        );
+    }
+    return (
+        <span className="molten-header-context-part" title={part.title}>
+            <ContextPartBody part={part} />
         </span>
     );
 }
