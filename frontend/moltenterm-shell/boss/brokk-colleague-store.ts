@@ -12,7 +12,7 @@
 
 import { getApi, getSettingsKeyAtom, globalStore } from "@/app/store/global";
 import { atom, PrimitiveAtom } from "jotai";
-import { AgentStates } from "../agent-state-store";
+import { ContextScope } from "../contexts/context-scope";
 import { getLocale } from "../i18n/i18n";
 import { Moment, proximityOf, ProximitySettingKey } from "./brokk-colleague";
 import { EmptyMomentsUpdate, MomentsUpdate, PageFacts, samePageFacts } from "./brokk-colleague-wire";
@@ -40,7 +40,7 @@ export type ColleagueTransport = {
 const LiveTransport: ColleagueTransport = {
     now: () => Date.now(),
     facts: () => ({
-        working: workingOf(globalStore.get(AgentStates.getInstance().dataAtom)),
+        working: workingOf(globalStore.get(ContextScope.getInstance().scopedAgentsAtom)),
         proximity: proximityOf(globalStore.get(getSettingsKeyAtom(ProximitySettingKey as keyof SettingsType))),
         language: getLocale(),
     }),
@@ -157,7 +157,7 @@ export class BrokkColleagueModel {
             .start(facts)
             .then((update) => this.receive(update))
             .catch(() => {});
-        const stopAgents = globalStore.sub(AgentStates.getInstance().dataAtom, () => this.reportFacts());
+        const stopAgents = globalStore.sub(ContextScope.getInstance().scopedAgentsAtom, () => this.reportFacts());
         const stopSetting = globalStore.sub(getSettingsKeyAtom(ProximitySettingKey as keyof SettingsType), () =>
             this.reportFacts()
         );

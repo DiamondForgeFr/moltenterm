@@ -14,6 +14,7 @@ import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { makeSeenViewAtom } from "../agent-seen";
 import { AgentStates } from "../agent-state-store";
+import { ContextScope } from "../contexts/context-scope";
 import { brainstormHolds } from "../brainstorm/brainstorm-hold";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { dropLegacy, readLegacy } from "../legacy-storage";
@@ -220,6 +221,7 @@ export class BrokkHubModel {
 
     // Listens to what feeds the hub, and to the other views through the storage. Returns the stop.
     start(): () => void {
+        ContextScope.getInstance().start();
         const agents = AgentStates.getInstance();
         const handoffs = PendingHandoffs.getInstance();
         const boss = BossBubbleModel.getInstance();
@@ -240,7 +242,7 @@ export class BrokkHubModel {
         adoptLegacyUsageSeen(marks);
         const stopFeeds = feedBrokkHub(this.hub, {
             store: globalStore,
-            agentsAtom: agents.dataAtom,
+            agentsAtom: ContextScope.getInstance().scopedAgentsAtom,
             agentsLoadedAtom: loadedAtom,
             toHandleAtom: boss.toHandleAtom,
             settingsAtom: this.settingsAtom,
