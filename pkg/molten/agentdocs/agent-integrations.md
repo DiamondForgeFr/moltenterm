@@ -82,7 +82,8 @@ start. Legacy manual hooks are detected as manual configuration and are never ad
 The 11 qualified hooks link sessions by `session_id` and report working, permission waits, done, errors,
 interruptions and sub-agents.
 
-Kimi's `PermissionRequest` event is observation-only, so coffee approvals do not answer it. No status-line relay,
+Kimi's `PermissionRequest` event is observation-only, so neither coffee approvals nor the companion's Allow, Deny and
+automatic approval (FR-SHELL-018) answer it: its permission block stays terminal-only. No status-line relay,
 per-run MoltenTerm MCP server, briefing, mod parts or automatic headless runner is wired by this integration. In
 particular, `kimi -p --output-format stream-json` follows automatic permissions and can write: MoltenTerm's read-only
 `PrintArgv`, `QuickPrintArgv` and review-session flows never launch it.

@@ -11207,6 +11207,9 @@
                 "tooold": "it was started before coffee approvals existed: restart it from MoltenTerm",
                 "review": "a review session is read-only: its requests always ask you"
             },
+            "gate": {
+                "noagent": "no agent runs in this terminal"
+            },
             "why": {
                 "working": "{agent}: working",
                 "background": "{agent}: background work",

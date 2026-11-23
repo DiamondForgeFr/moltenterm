@@ -48,8 +48,12 @@ func gitBranch(dir string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// permission answers a terminal's PermissionRequest hook. The answer goes out at once; naming the tab and writing
-// the log follow off that path.
+// permission answers a terminal's PermissionRequest hook. The answer goes out at once, unless the companion holds the
+// request for the developer (gate.go); naming the tab and writing the log follow off that path. In this order: Brokk's
+// own session asks in his layer; a request the deny list keeps for the developer goes to the terminal, whatever
+// approves around it, and the companion shows why; a coffee, then a session the developer set to approve its own
+// requests, approve the rest; what is left is held for the companion when a window shows it, and otherwise asked in the
+// agent's own prompt.
 func (s *service) permission(ctx context.Context, req PermissionRequest) PermissionAnswer {
 	if req.BlockId == "" || req.ToolName == "" {
 		return PermissionAnswer{}
@@ -72,25 +76,52 @@ func (s *service) permission(ctx context.Context, req PermissionRequest) Permiss
 	check := PermissionCheck{
 		Tool: req.ToolName, Input: req.ToolInput, Cwd: req.Cwd, Home: home, TempDirs: tempDirs(), Branch: gitBranch,
 	}
-	answer, outcome, logged := DecidePermission(s.keeper.HasCoffee(info.WorkspaceId), check)
-	if !logged {
+	deny := DenyReason(check)
+	if deny != "" && s.gate != nil {
+		s.gate.NoteTerminalOnly(req, deny)
+	}
+	var answer PermissionAnswer
+	if s.keeper.HasCoffee(info.WorkspaceId) {
+		answer, outcome, _ := decideCovered(deny)
+		s.recordApproval(info, req, answer, outcome, "")
 		return answer
 	}
+	if s.gate == nil || deny != "" {
+		return answer
+	}
+	if req.SessionId != "" && s.gate.Autonomous(req.BlockId, req.SessionId) {
+		answer = PermissionAnswer{Decision: PermissionAllow}
+		s.gate.NoteApproved(req.BlockId, req.SessionId)
+		s.recordApproval(info, req, answer, ApprovalApproved, ApprovalSourceAutonomous)
+		return answer
+	}
+	return s.hold(ctx, req)
+}
+
+// recordApproval logs a decision and shows it in the state, off the path of the answer.
+func (s *service) recordApproval(info BlockInfo, req PermissionRequest, answer PermissionAnswer, outcome string, source string) {
 	approval := Approval{
 		At: time.Now().UnixMilli(), WorkspaceId: info.WorkspaceId, BlockId: req.BlockId, Agent: req.Agent,
 		SessionId: req.SessionId, Tool: req.ToolName, Detail: approvalDetail(req), Outcome: outcome, Reason: answer.Reason,
-		ReasonText: DenyReasonText(answer.Reason),
+		ReasonText: DenyReasonText(answer.Reason), Source: source,
 	}
-	goSafe("molten:keepawake:approval", func() {
+	run := s.runApproval
+	if run == nil {
+		run = func(fn func()) { goSafe("molten:keepawake:approval", fn) }
+	}
+	namesOf := s.namesOf
+	if namesOf == nil {
+		namesOf = s.locateNames
+	}
+	run(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), storeTimeout)
 		defer cancel()
 		var tabName string
-		_, approval.WorkspaceName, tabName = s.locateNames(ctx, req.BlockId)
+		_, approval.WorkspaceName, tabName = namesOf(ctx, req.BlockId)
 		// The approvals log is English, read as a file; no window shows an approval's tab.
 		approval.TabName = wconfig.ViewNameText(tabName)
 		s.keeper.RecordApproval(approval)
 	})
-	return answer
 }
 
 func (s *service) logApproval(a Approval) {

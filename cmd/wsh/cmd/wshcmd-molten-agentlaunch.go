@@ -251,7 +251,7 @@ func planMoltenAgentLaunchHooks(adapter agentlaunch.LaunchAdapter, real string, 
 		report.StepAside, report.StepAsideText = err.Error(), uimsg.TextOf(err)
 		return report, args, env, ""
 	}
-	report.Added, report.Skipped = plan.Added, plan.Skipped
+	report.Added, report.Skipped, report.HoldsApprovals = plan.Added, plan.Skipped, plan.HoldsApprovals
 	if plan.StepAside != "" {
 		report.StepAside, report.StepAsideText, report.Added = plan.StepAside, plan.StepAsideText, nil
 		return report, args, env, ""

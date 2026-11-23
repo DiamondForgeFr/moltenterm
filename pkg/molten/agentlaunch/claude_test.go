@@ -142,8 +142,9 @@ func TestClaudePassThrough(t *testing.T) {
 	}
 }
 
-// #2257, review: only Brokk's own session (MOLTENTERM_OWN_SESSION in its terminal) gets the long PermissionRequest
-// budget a human answer in his layer needs; every other terminal keeps the short one, so no hook waits for long.
+// #2257, #2474: Brokk's own session (MOLTENTERM_OWN_SESSION in its terminal) gets the long PermissionRequest budget a
+// human answer in his layer needs; every other terminal's hook gets the companion's: the grace delay plus a margin,
+// which wavesrv uses only while a window shows that terminal's companion, and the run's report says so.
 func TestOnlyHisOwnSessionWaitsLongForAPermission(t *testing.T) {
 	tree := makeFakeTree(t)
 	ctx := tree.ctx("-p", "hi")
@@ -160,9 +161,25 @@ func TestOnlyHisOwnSessionWaitsLongForAPermission(t *testing.T) {
 	if h := gen.Hooks["Stop"][0].Hooks[0]; h.Timeout == molten.ClaudeOwnSessionPermissionHookTimeout {
 		t.Fatalf("a state hook got the permission's budget: %+v", h)
 	}
-	_, gen, _ = planOf(t, tree.ctx("-p", "hi"))
-	if h := gen.Hooks[molten.ClaudePermissionHookEvent][0].Hooks[0]; h.Timeout != molten.ClaudePermissionHookTimeout || h.Timeout > 15 {
+	plan, gen, _ := planOf(t, tree.ctx("-p", "hi"))
+	if h := gen.Hooks[molten.ClaudePermissionHookEvent][0].Hooks[0]; h.Timeout != molten.ClaudePermissionHookTimeout || h.Timeout >= molten.ClaudeOwnSessionPermissionHookTimeout {
 		t.Fatalf("another terminal's handler %+v", h)
+	}
+	if time.Duration(molten.ClaudePermissionHookTimeout)*time.Second <= molten.CompanionPermissionGrace {
+		t.Fatalf("the hook's budget %d s does not outlast the grace delay %v", molten.ClaudePermissionHookTimeout, molten.CompanionPermissionGrace)
+	}
+	if !plan.HoldsApprovals {
+		t.Fatal("the plan does not say its hook can wait for the companion")
+	}
+}
+
+// #2474: the user's own PermissionRequest hook keeps its own budget, so a run with it is not held for the companion.
+func TestOwnPermissionHookIsNotHeldForTheCompanion(t *testing.T) {
+	tree := makeFakeTree(t)
+	tree.write(t, tree.userSettings(), `{"hooks":{"PermissionRequest":[{"hooks":[{"type":"command","command":"molten agent permission --agent claude","timeout":15}]}]}}`)
+	plan, _, _ := planOf(t, tree.ctx("-p", "hi"))
+	if plan.HoldsApprovals {
+		t.Fatal("the user's own hook, with its own timeout, was reported as able to wait")
 	}
 }
 

@@ -198,7 +198,7 @@ func planMoltenAgentLaunchDry(adapter agentlaunch.LaunchAdapter, real string, ge
 		report.StepAside = err.Error()
 		return report
 	}
-	report.Added, report.Skipped, report.StepAside = plan.Added, plan.Skipped, plan.StepAside
+	report.Added, report.Skipped, report.StepAside, report.HoldsApprovals = plan.Added, plan.Skipped, plan.StepAside, plan.HoldsApprovals
 	var paths []string
 	for _, f := range plan.Files {
 		paths = append(paths, filepath.Join(agentlaunch.LaunchDir(dataDir), agentlaunch.LaunchFileName(f.Prefix, f.Data)))

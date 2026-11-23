@@ -20,8 +20,10 @@ import (
 
 // The coffee approvals (FR-SHELL-063, DS-SHELL-110): Claude Code's PermissionRequest hook runs `molten agent
 // permission`, added by the launcher. It hands the request to wavesrv, which approves it while the pane's workspace
-// has its coffee on and the deny list lets it through. It prints the allow decision only then: any other answer, an
-// error or a timeout prints nothing and exits 0, and the agent shows its own prompt (NFR-SHELL-033).
+// has its coffee on or the agent session was set to approve its own requests, and the deny list lets it through; and
+// which holds it, within the hook's budget, while a window shows the companion of the pane (#2474), where the developer
+// allows or denies it. It prints the allow or deny decision only then: any other answer, an error or a timeout prints
+// nothing and exits 0, and the agent shows its own prompt (NFR-SHELL-033).
 
 const (
 	moltenAgentPermissionTimeoutMs = 5000
@@ -95,16 +97,20 @@ func readPermissionRequest(r io.Reader, blockId string, agent string) (keepawake
 	}, true
 }
 
-// permissionHoldMs is how long wavesrv may keep the request for the developer's answer: 0 (an answer at once) in any
-// terminal but Brokk's own session, which asks in his layer (#2257); there, the hook's budget less a margin, so the
-// hook always prints before the agent kills it.
+// permissionHoldMs is how long wavesrv may keep the request for the developer's answer: the hook's budget less a
+// margin, so the hook always prints before the agent kills it. Brokk's own session asks in his layer (#2257) and has the
+// long budget; any other terminal's request is held only for the companion (#2474), which wavesrv decides: it does so
+// while a window shows that terminal's companion and the run's launcher gave the hook its budget, and answers at once
+// otherwise. A hook that names no agent, or one MoltenTerm does not answer, is never held.
 func permissionHoldMs(agent string, ownSession bool) int64 {
-	if !ownSession {
-		return 0
-	}
-	budget := int64(molten.CodexPermissionHookTimeout)
-	if agent == molten.AgentIdClaude {
+	budget := int64(0)
+	switch {
+	case agent == molten.AgentIdClaude && ownSession:
 		budget = int64(molten.ClaudeOwnSessionPermissionHookTimeout)
+	case agent == molten.AgentIdClaude:
+		budget = int64(molten.ClaudePermissionHookTimeout)
+	case agent == molten.AgentIdCodex:
+		budget = int64(molten.CodexPermissionHookTimeout)
 	}
 	return max(budget*1000-moltenAgentPermissionMarginMs, 0)
 }
