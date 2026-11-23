@@ -424,6 +424,16 @@ describe("the steel blue's tokens (#2474)", () => {
         }
     });
 
+    it("keeps the chip in the header where it fits, and moves it to the body's first row where it does not", () => {
+        expect(css).toMatch(/\[data-where="body"\] \{\s*display: none;/);
+        // The header needs the French label (405 px) and tools (313 px) notches beside the chip: below that, the body.
+        const queries = [...css.matchAll(/@container mt-hero \(max-width: (\d+)px\) \{([\s\S]*?)\n\}/g)];
+        const chipQuery = queries.find((m) => m[2].includes('data-where="head"'));
+        expect(Number(chipQuery?.[1])).toBeGreaterThanOrEqual(728);
+        expect(css).toMatch(/\[data-where="head"\] \{\s*display: none;/);
+        expect(css).toMatch(/\[data-where="body"\] \{\s*display: inline-flex;/);
+    });
+
     it("stands still under reduced motion: the permission styles run no animation of their own", () => {
         expect(css).not.toMatch(/animation|@keyframes|transition/);
     });

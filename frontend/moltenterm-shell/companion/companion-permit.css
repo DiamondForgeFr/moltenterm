@@ -291,7 +291,9 @@ button.mt-perm-row:disabled,
     align-self: flex-start;
 }
 
-@container mt-hero (max-width: 560px) {
+/* The header holds the label, the chip and the tools (the French chip is the widest: 405 + 313 px of notches) from about
+   740 px of block. */
+@container mt-hero (max-width: 740px) {
     .mt-cb-chip.mt-cdash-auto-chip[data-where="head"] {
         display: none;
     }
