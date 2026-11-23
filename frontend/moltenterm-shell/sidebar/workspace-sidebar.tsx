@@ -62,7 +62,7 @@ import {
 } from "../panel-motion/working-light";
 import { contextIdOf, entriesOfContext } from "../contexts/context-model";
 import { useContexts, useRememberWorkspaceInContext } from "../contexts/context-store";
-import { ManageContextsHost } from "../contexts/manage-contexts";
+import { ManageContextsHost } from "../contexts/manage-host";
 import { ContextRibbonHost } from "../contexts/ribbon-host";
 import { collapsedRibbonShown } from "../contexts/ribbon-model";
 import { ProjectTabMetaKey } from "../project/project-model";

@@ -13369,7 +13369,6 @@
             "current": "Emblème : {name}",
             "search": "Chercher parmi les icônes",
             "searchPlaceholder": "Chercher une icône, par exemple book",
-            "loading": "Chargement des icônes…",
             "none": "Aucune icône ne correspond à « {query} ».",
             "more": "{count} de plus : précisez la recherche."
         }

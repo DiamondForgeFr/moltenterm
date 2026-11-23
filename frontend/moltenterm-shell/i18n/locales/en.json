@@ -13369,7 +13369,6 @@
             "current": "Emblem: {name}",
             "search": "Search the icons",
             "searchPlaceholder": "Search icons, e.g. book",
-            "loading": "Loading the icons…",
             "none": "No icon matches “{query}”.",
             "more": "{count} more: keep typing to narrow them down."
         }

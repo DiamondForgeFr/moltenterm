@@ -1,40 +1,28 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// A context's emblem is a Lucide icon, named in kebab case, never an emoji (FR-SHELL-158). Lucide's whole set is far
-// too much to ship up front, so the catalog (its names and one loader each) and every icon are separate chunks that
-// load when an emblem is drawn or the picker opens; the ones loaded stay in a map, so the ribbon of a window never
-// flashes an empty slot once its emblem has been seen.
+// A context's emblem is a Lucide icon, named in kebab case, never an emoji (FR-SHELL-158). The selection the picker offers
+// is emblem-catalog.ts: one chunk per icon, loaded when an emblem is drawn or the picker opens. The ones loaded stay in a
+// map, so the ribbon of a window never flashes an empty slot once its emblem has been seen.
 
 import { Icon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { FallbackContextEmblem } from "./context-model";
 
 type EmblemNode = React.ComponentProps<typeof Icon>["iconNode"];
-type EmblemCatalog = Record<string, () => Promise<{ __iconNode: EmblemNode }>>;
 
 const nodes = new Map<string, EmblemNode>();
-let catalogLoad: Promise<EmblemCatalog> = null;
 
-export function loadEmblemCatalog(): Promise<EmblemCatalog> {
-    catalogLoad ??= import("lucide-react/dynamicIconImports").then((m) => m.default as unknown as EmblemCatalog);
-    return catalogLoad;
-}
-
-// The names the picker lists, sorted as the catalog sorts them.
-export async function loadEmblemNames(): Promise<string[]> {
-    return Object.keys(await loadEmblemCatalog());
-}
-
-// The drawing of an emblem; an unknown name is drawn as the fallback emblem.
+// The drawing of an emblem; a name that is not in the selection is drawn as the fallback emblem. The catalog is a chunk of
+// its own, so the window's up-front JavaScript holds none of its icons (NFR-PERF-003).
 export async function loadEmblem(name: string): Promise<EmblemNode> {
     const known = nodes.get(name);
     if (known != null) {
         return known;
     }
-    const catalog = await loadEmblemCatalog();
-    const loader = catalog[name] ?? catalog[FallbackContextEmblem];
-    const node = (await loader()).__iconNode;
+    const { EmblemCatalog } = await import("./emblem-catalog");
+    const loader = EmblemCatalog[name] ?? EmblemCatalog[FallbackContextEmblem];
+    const node = (await loader()).__iconNode as EmblemNode;
     nodes.set(name, node);
     return node;
 }
