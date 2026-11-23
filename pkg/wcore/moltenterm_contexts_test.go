@@ -22,7 +22,7 @@ func railList(entries ...[2]string) waveobj.WorkspaceList {
 func TestDeleteLandsOnTheSameContextFirst(t *testing.T) {
 	state := contexts.State{
 		Contexts: []contexts.Context{{Id: "one"}, {Id: "two"}},
-		Of:       map[string]string{"a": "one", "b": "two", "c": "one", "d": "two", "e": "one"},
+		Of:       map[string]string{"a": "one", "b": "two", "c": "one", "d": "two", "e": "one", "u": "one"},
 	}
 	list := railList([2]string{"a", ""}, [2]string{"b", ""}, [2]string{"c", ""}, [2]string{"d", ""}, [2]string{"e", ""})
 	cases := []struct {
@@ -34,10 +34,11 @@ func TestDeleteLandsOnTheSameContextFirst(t *testing.T) {
 		{"the next one of its context after it", "a", list, "c"},
 		{"skips the other context", "b", list, "d"},
 		{"wraps to the ones before it", "e", list, "a"},
-		{"none in its context: Wave's choice stands", "d", railList([2]string{"d", ""}, [2]string{"a", ""}, [2]string{"c", ""}), ""},
+		{"none free in its context", "d", railList([2]string{"d", ""}, [2]string{"a", ""}, [2]string{"c", ""}), ""},
 		{"skips a workspace another window shows", "a", railList([2]string{"a", ""}, [2]string{"c", "w2"}, [2]string{"e", ""}), "e"},
-		{"every other one is shown: Wave's choice stands", "a", railList([2]string{"a", ""}, [2]string{"c", "w2"}, [2]string{"e", "w3"}), ""},
-		{"not in the rail", "ghost", list, ""},
+		{"every other one is shown by a window", "a", railList([2]string{"a", ""}, [2]string{"c", "w2"}, [2]string{"e", "w3"}), ""},
+		{"unknown to the contexts", "ghost", list, ""},
+		{"an unsaved one the rail does not list looks from the top", "u", list, "a"},
 	}
 	for _, c := range cases {
 		if got := sameContextLanding(state, c.deleted, c.list); got != c.want {

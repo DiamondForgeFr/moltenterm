@@ -330,6 +330,8 @@ const h = {
     screen: [] as [number, string][],
     ipc: new Map<string, (...args: any[]) => any>(),
     dialogs: [] as string[],
+    // The workspace of the same context wavesrv names for a window whose workspace is deleted (#2476).
+    contextLanding: null as (deletedWorkspaceId: string) => Promise<string>,
     isDev: false,
     settings: {} as Record<string, unknown>,
     // Renderers created while set never report "ready"; renderers never report "wave-ready" while set.
@@ -665,6 +667,10 @@ async function loadModules() {
         resetZoomLevel: () => {},
     }));
     vi.doMock("./emain-wsh", () => ({ ElectronWshClient: {} }));
+    vi.doMock("./moltenterm-contexts", () => ({
+        placeInContextOf: async () => {},
+        landingInContextOf: async (id: string) => (h.contextLanding != null ? await h.contextLanding(id) : null),
+    }));
     vi.doMock("./updater", () => ({ updater: null }));
     vi.doMock("./authkey", () => ({ getTrustedAppSession: () => ({}), registerTrustedAppContents: () => {} }));
     vi.doMock("./moltenterm-browseragent", () => ({
@@ -812,6 +818,43 @@ describe("window action queue: single operations", () => {
         expect(win.workspaceId).toBe(starter.oid);
         expect(h.onScreen()).toBe(starter.activetabid);
         expect(h.backend.windows.get("win-1").workspaceid).toBe(starter.oid);
+    });
+
+    // #2476: the window stays in its context; wavesrv names the workspace (or makes it) rather than the rail's order.
+    it("lands on the workspace of the same context that wavesrv names", async () => {
+        const starter = await setup();
+        const other = await addVisitedWorkspace();
+        const third = h.backend.addWorkspace("Third");
+        const asked: string[] = [];
+        h.contextLanding = async (id) => {
+            asked.push(id);
+            return third.oid;
+        };
+        try {
+            ipc("delete-workspace", other.oid);
+            await vi.advanceTimersByTimeAsync(1000);
+        } finally {
+            h.contextLanding = null;
+        }
+        expect(asked).toEqual([other.oid]);
+        expect(h.backend.workspaces.has(other.oid)).toBe(false);
+        expect(win.workspaceId).toBe(third.oid);
+        expect(win.workspaceId).not.toBe(starter.oid);
+        expect(h.onScreen()).toBe(h.backend.workspaces.get(third.oid).activetabid);
+    });
+
+    it("lands by the rail's order when wavesrv names no workspace", async () => {
+        const starter = await setup();
+        const other = await addVisitedWorkspace();
+        h.backend.addWorkspace("Third");
+        h.contextLanding = async () => null;
+        try {
+            ipc("delete-workspace", other.oid);
+            await vi.advanceTimersByTimeAsync(1000);
+        } finally {
+            h.contextLanding = null;
+        }
+        expect(win.workspaceId).toBe(starter.oid);
     });
 
     // #1324: the renderer has confirmed in its own dialog; Electron never shows a native box for a delete.

@@ -50,6 +50,39 @@ func TestRouteAdmitsTheWindowsAndRefusesTerminalsAndRemoteHosts(t *testing.T) {
 	}
 }
 
+func TestRouteAnswersTheLandingOfADeletedWorkspace(t *testing.T) {
+	e := routetest.Make(t)
+	state := MakeState(waveobj.MetaMapType{}, workspaces("a"))
+	asked := []string{}
+	store := Store{
+		Read: func(context.Context) (State, error) { return state, nil },
+		Apply: func(_ context.Context, change Change) (State, error) {
+			next, _, err := change(state)
+			return next, err
+		},
+		Landing: func(_ context.Context, deleted string) (string, error) {
+			asked = append(asked, deleted)
+			return "landing-of-" + deleted, nil
+		},
+	}
+	link, err := localroute.MakeLink(e.Router, (&routeLink{store: store, newId: func() string { return "new" }}).route())
+	if err != nil {
+		t.Fatal(err)
+	}
+	routetest.MustRefuse(t, link, append([]routetest.From{e.Terminal()}, e.NonLocal()...), LandingCommand, map[string]any{"workspaceid": "a"})
+	if len(asked) != 0 {
+		t.Fatalf("a refused caller asked for a landing: %v", asked)
+	}
+	data, errStr := routetest.Ask(t, link, e.Electron(), LandingCommand, map[string]any{"workspaceid": "a"})
+	if errStr != "" {
+		t.Fatal(errStr)
+	}
+	result, ok := data.(map[string]any)
+	if !ok || result["id"] != "landing-of-a" {
+		t.Fatalf("the landing answered %+v", data)
+	}
+}
+
 func TestRouteAnswersAWriteWithTheContextsAsWritten(t *testing.T) {
 	e := routetest.Make(t)
 	state := MakeState(waveobj.MetaMapType{}, workspaces("a", "b"))
@@ -72,6 +105,18 @@ func TestRouteAnswersAWriteWithTheContextsAsWritten(t *testing.T) {
 	}
 	if state.Of["b"] != "two" {
 		t.Fatalf("the create moved nothing: %v", state.Of)
+	}
+	if _, errStr := routetest.Ask(t, link, e.Window(), UpdateCommand, map[string]any{"id": "two", "addworkspaces": []string{"a"}}); errStr != "" {
+		t.Fatal(errStr)
+	}
+	if state.Of["a"] != "two" || state.Of["b"] != "two" {
+		t.Fatalf("an update that adds a workspace changed the others: %v", state.Of)
+	}
+	if _, errStr := routetest.Ask(t, link, e.Window(), UpdateCommand, map[string]any{"id": "two", "removeworkspaces": []string{"a"}}); errStr != "" {
+		t.Fatal(errStr)
+	}
+	if state.Of["a"] != DefaultId || state.Of["b"] != "two" {
+		t.Fatalf("an update that removes a workspace moved more than it: %v", state.Of)
 	}
 	if _, errStr := routetest.Ask(t, link, e.Window(), TouchCommand, map[string]any{"contextid": "two", "workspaceid": "b"}); errStr != "" {
 		t.Fatal(errStr)
