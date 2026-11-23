@@ -175,23 +175,12 @@ body:not(.nohover) .molten-browser-tab:hover .molten-browser-tab-close,
     display: none;
 }
 
-/* The connection button before the host (#1980, FR-BRW-023): grey lock when secure; a warning, tinted and bordered in the
-   state's colour, when the page is not secure or only partly (insecure content). The host shrinks first in a narrow
-   row: from 540 px the word goes and the glyph stays, in the same colour, and its accessible name keeps the word. */
-.molten-conn[data-kind="insecure"],
-.molten-conn[data-kind="mixed"] {
-    color: var(--mt-state-warning);
-    border: 1px solid color-mix(in srgb, var(--mt-state-warning) 45%, transparent);
-    background: color-mix(in srgb, var(--mt-state-warning) 14%, transparent);
-    transition: background-color var(--mt-duration-fast) var(--mt-ease);
-}
-
-body:not(.nohover) .molten-conn[data-kind="insecure"]:hover,
-body:not(.nohover) .molten-conn[data-kind="mixed"]:hover {
-    background: color-mix(in srgb, var(--mt-state-warning) 24%, transparent);
-}
-
 @container molten-browser-row (max-width: 539px) {
+    .molten-browser-row .molten-fold-1 {
+        display: none;
+    }
+
+    /* The connection button's word goes before anything is pushed out: the glyph stays, in the same colour. */
     .molten-browser-row .molten-conn-word {
         display: none;
     }
@@ -200,12 +189,6 @@ body:not(.nohover) .molten-conn[data-kind="mixed"]:hover {
     .molten-browser-row .molten-conn[data-kind="mixed"] {
         width: 24px;
         padding: 0;
-    }
-}
-
-@container molten-browser-row (max-width: 539px) {
-    .molten-browser-row .molten-fold-1 {
-        display: none;
     }
 }
 
@@ -223,6 +206,22 @@ body:not(.nohover) .molten-conn[data-kind="mixed"]:hover {
     .molten-browser-row .molten-fold-3 {
         display: none;
     }
+}
+
+/* The connection button before the host (#1980, FR-BRW-023): grey lock when secure; a warning, tinted and bordered in the
+   state's colour, when the page is not secure or only partly (insecure content). The host shrinks first in a narrow
+   row: from 540 px the word goes and the glyph stays, in the same colour, and its accessible name keeps the word. */
+.molten-conn[data-kind="insecure"],
+.molten-conn[data-kind="mixed"] {
+    color: var(--mt-state-warning);
+    border: 1px solid color-mix(in srgb, var(--mt-state-warning) 45%, transparent);
+    background: color-mix(in srgb, var(--mt-state-warning) 14%, transparent);
+    transition: background-color var(--mt-duration-fast) var(--mt-ease);
+}
+
+body:not(.nohover) .molten-conn[data-kind="insecure"]:hover,
+body:not(.nohover) .molten-conn[data-kind="mixed"]:hover {
+    background: color-mix(in srgb, var(--mt-state-warning) 24%, transparent);
 }
 
 /* In a panel without focus the panel buttons fade but keep their room (the title never moves), so the "pinned" mark,
