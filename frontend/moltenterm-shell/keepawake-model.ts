@@ -123,6 +123,8 @@ export type KeepAwakeApproval = {
     tool: string;
     detail?: string;
     outcome: "approved" | "asked";
+    // "autonomous": an agent session the developer set to approve its own requests (#2474); a coffee's have none.
+    source?: "autonomous";
     reason?: string;
     reasontext?: ServerText;
 };
@@ -477,8 +479,9 @@ export function coffeeApprovalLines(state: KeepAwakeState, workspaceId: string):
     return lines;
 }
 
+// The coffee's decisions: the ones a session approved on its own (#2474) are the main agent block's.
 export function coffeeApprovals(state: KeepAwakeState, workspaceId: string): KeepAwakeApproval[] {
-    return (state.approvals ?? []).filter((a) => a.workspaceid === workspaceId);
+    return (state.approvals ?? []).filter((a) => a.workspaceid === workspaceId && a.source !== "autonomous");
 }
 
 export function approvalCounts(approvals: KeepAwakeApproval[]): { approved: number; asked: number } {
