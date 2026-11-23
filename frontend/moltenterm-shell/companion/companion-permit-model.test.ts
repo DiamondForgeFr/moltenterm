@@ -19,9 +19,9 @@ import {
     modeOf,
     periodOf,
     PermitAutonomy,
+    permitKind,
     PermitRequest,
     PermitState,
-    permitKind,
     requestOfBlock,
     requestText,
     sentence,
@@ -58,7 +58,9 @@ describe("the agent session", () => {
     it("names a Claude Code session by its transcript and a Codex one by the id its rollout ends with", () => {
         expect(agentSessionId(`/home/me/.claude/projects/x/${Session}.jsonl`)).toBe(Session);
         expect(agentSessionId(`C:\\Users\\me\\.claude\\projects\\x\\${Session}.jsonl`)).toBe(Session);
-        expect(agentSessionId(`/home/me/.codex/sessions/2026/11/23/rollout-2026-11-23T10-00-00-${Session}.jsonl`)).toBe(Session);
+        expect(agentSessionId(`/home/me/.codex/sessions/2026/11/23/rollout-2026-11-23T10-00-00-${Session}.jsonl`)).toBe(
+            Session
+        );
         expect(agentSessionId("/s/other-session.jsonl")).toBe("other-session");
         expect(agentSessionId("")).toBe("");
         expect(agentSessionId(null)).toBe("");
@@ -66,10 +68,13 @@ describe("the agent session", () => {
 
     it("follows the session the agent runs now, not the earlier one the companion shows", () => {
         const other = "99999999-8888-7777-6666-555555555555";
-        const view = (session: CompanionView["session"]) => ({ blockid: "b1", version: 1, status: "live", session }) as CompanionView;
+        const view = (session: CompanionView["session"]) =>
+            ({ blockid: "b1", version: 1, status: "live", session }) as CompanionView;
         expect(liveSessionId(view({ path: `/s/${Session}.jsonl`, linkedby: "hook" }))).toBe(Session);
         expect(
-            liveSessionId(view({ path: `/s/${other}.jsonl`, linkedby: "picked", earlier: true, livepath: `/s/${Session}.jsonl` }))
+            liveSessionId(
+                view({ path: `/s/${other}.jsonl`, linkedby: "picked", earlier: true, livepath: `/s/${Session}.jsonl` })
+            )
         ).toBe(Session);
         expect(liveSessionId(view({ path: `/s/${other}.jsonl`, linkedby: "picked", earlier: true }))).toBe(other);
         expect(liveSessionId(view(undefined))).toBe("");
@@ -81,7 +86,11 @@ describe("the request of a terminal", () => {
     it("is the newest one of that terminal", () => {
         const state: PermitState = {
             version: 1,
-            requests: [request({ id: "old", at: 1 }), request({ id: "new", at: 5 }), request({ id: "other", blockid: "b2", at: 9 })],
+            requests: [
+                request({ id: "old", at: 1 }),
+                request({ id: "new", at: 5 }),
+                request({ id: "other", blockid: "b2", at: 9 }),
+            ],
             autonomy: [],
         };
         expect(requestOfBlock(state, "b1").id).toBe("new");
@@ -107,12 +116,16 @@ describe("the request of a terminal", () => {
 
 describe("what the block shows of a request", () => {
     it("shows a command as typed and anything else as the tool's input", () => {
-        expect(requestText(request({ toolinput: { command: "go test ./...", description: "Run the tests" } }))).toBe("go test ./...");
+        expect(requestText(request({ toolinput: { command: "go test ./...", description: "Run the tests" } }))).toBe(
+            "go test ./..."
+        );
         expect(requestText(request({ tool: "shell", toolinput: { command: ["git", "status"] } }))).toBe("git status");
         expect(requestText(request({ tool: "Edit", toolinput: { file_path: "/w/a.ts", new_string: "x" } }))).toBe(
             JSON.stringify({ file_path: "/w/a.ts", new_string: "x" }, null, 2)
         );
-        expect(requestText(request({ toolinput: { command: [1, 2] } }))).toBe(JSON.stringify({ command: [1, 2] }, null, 2));
+        expect(requestText(request({ toolinput: { command: [1, 2] } }))).toBe(
+            JSON.stringify({ command: [1, 2] }, null, 2)
+        );
         expect(requestText(request({ toolinput: undefined }))).toBe("");
         expect(requestText(null)).toBe("");
     });
@@ -188,14 +201,16 @@ describe("the session's autonomous mode", () => {
             source: "autonomous",
             ...over,
         });
-        const keep = { approvals: [
-            approval({ id: "p1" }),
-            approval({ id: "p2", sessionid: Session.toUpperCase() }),
-            approval({ id: "before", at: 999 }),
-            approval({ id: "coffee", source: undefined }),
-            approval({ id: "other-terminal", blockid: "b2" }),
-            approval({ id: "other-session", sessionid: "11111111-2222-3333-4444-666666666666" }),
-        ] } as KeepAwakeState;
+        const keep = {
+            approvals: [
+                approval({ id: "p1" }),
+                approval({ id: "p2", sessionid: Session.toUpperCase() }),
+                approval({ id: "before", at: 999 }),
+                approval({ id: "coffee", source: undefined }),
+                approval({ id: "other-terminal", blockid: "b2" }),
+                approval({ id: "other-session", sessionid: "11111111-2222-3333-4444-666666666666" }),
+            ],
+        } as KeepAwakeState;
         expect(autonomousApprovals(keep, autonomy()).map((a) => a.id)).toEqual(["p1", "p2"]);
         expect(autonomousApprovals(keep, null)).toEqual([]);
         expect(autonomousApprovals(null, autonomy())).toEqual([]);

@@ -3,7 +3,8 @@
 
 import { globalStore } from "@/app/store/jotaiStore";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PermitWatchEveryMs, PermitRoute } from "./companion-permit-model";
+import { ActivityPolicy, ActivityRunReason, ActivityScheduler, ActivityState, whileShown } from "../tab-activity-model";
+import { PermitRoute, PermitWatchEveryMs } from "./companion-permit-model";
 import { PermitModel, startPermitWatch } from "./companion-permit-store";
 
 const m = vi.hoisted(() => ({
@@ -64,7 +65,11 @@ describe("the windows' copy of the permission gate", () => {
         m.rpc.mockResolvedValue({ version: 5, requests: [], autonomy: [] });
         const model = PermitModel.getInstance();
         await vi.advanceTimersByTimeAsync(0);
-        model.apply({ version: 4, requests: [{ id: "old", blockid: "b1", tool: "Bash", at: 1, state: "held" }], autonomy: [] });
+        model.apply({
+            version: 4,
+            requests: [{ id: "old", blockid: "b1", tool: "Bash", at: 1, state: "held" }],
+            autonomy: [],
+        });
         expect(globalStore.get(model.stateAtom).requests).toEqual([]);
     });
 
@@ -120,57 +125,71 @@ describe("the windows' copy of the permission gate", () => {
 });
 
 describe("the word that a window shows the companion", () => {
-    function document(visibility: "visible" | "hidden") {
-        const listeners: (() => void)[] = [];
+    // The tab activity's own scheduler, on the fake clock: what every periodic job of the frontend goes through.
+    function activity(state: ActivityState) {
+        const scheduler = new ActivityScheduler(state);
+        const policies: ActivityPolicy[] = [];
         return {
-            visibilityState: visibility as DocumentVisibilityState,
-            addEventListener: vi.fn((_: string, fn: () => void) => listeners.push(fn)),
-            removeEventListener: vi.fn(),
-            fire: () => listeners.forEach((fn) => fn()),
+            scheduler,
+            policies,
+            every: (policy: ActivityPolicy, run: (reason: ActivityRunReason) => void, label?: string) => {
+                policies.push(policy);
+                return scheduler.every(policy, run, label);
+            },
         };
     }
 
-    it("is said at once and renewed while the window can be seen, and ends with the companion", async () => {
+    async function started() {
         m.rpc.mockResolvedValue({ version: 1, requests: [], autonomy: [] });
         const model = PermitModel.getInstance();
         await vi.advanceTimersByTimeAsync(0);
         m.rpc.mockReset();
         m.rpc.mockResolvedValue({ blockid: "b1", available: true, holds: true });
-        const doc = document("visible");
-        const stop = startPermitWatch(model, "b1", doc);
+        return model;
+    }
+
+    it("is said at once and renewed while the window can be seen, and ends with the companion", async () => {
+        const model = await started();
+        const stop = startPermitWatch(model, "b1", activity("active"));
         expect(calls("agentpermitwatch")).toHaveLength(1);
         await vi.advanceTimersByTimeAsync(PermitWatchEveryMs * 3);
         expect(calls("agentpermitwatch")).toHaveLength(4);
         stop();
         await vi.advanceTimersByTimeAsync(PermitWatchEveryMs * 3);
         expect(calls("agentpermitwatch")).toHaveLength(4);
-        expect(doc.removeEventListener).toHaveBeenCalledTimes(1);
     });
 
-    it("is not said by a window that cannot be seen, and is said again when it can", async () => {
-        m.rpc.mockResolvedValue({ version: 1, requests: [], autonomy: [] });
-        const model = PermitModel.getInstance();
-        await vi.advanceTimersByTimeAsync(0);
-        m.rpc.mockReset();
-        m.rpc.mockResolvedValue({ blockid: "b1", available: true, holds: true });
-        const doc = document("hidden");
-        const stop = startPermitWatch(model, "b1", doc);
-        await vi.advanceTimersByTimeAsync(PermitWatchEveryMs * 3);
-        expect(calls("agentpermitwatch")).toHaveLength(0);
-        (doc as any).visibilityState = "visible";
-        doc.fire();
+    it("is renewed in a window that shows without the focus, and only while the view shows", async () => {
+        const model = await started();
+        const act = activity("visible");
+        const stop = startPermitWatch(model, "b1", act);
+        expect(act.policies[0]).toEqual(whileShown(PermitWatchEveryMs));
+        await vi.advanceTimersByTimeAsync(PermitWatchEveryMs * 2);
+        expect(calls("agentpermitwatch")).toHaveLength(3);
+        stop();
+    });
+
+    it("is not said by a view that is hidden or a window that is minimised, and is said again when it comes back", async () => {
+        const model = await started();
+        const act = activity("hidden");
+        const stop = startPermitWatch(model, "b1", act);
         expect(calls("agentpermitwatch")).toHaveLength(1);
+        await vi.advanceTimersByTimeAsync(PermitWatchEveryMs * 3);
+        expect(calls("agentpermitwatch")).toHaveLength(1);
+        act.scheduler.setState("minimized");
+        await vi.advanceTimersByTimeAsync(PermitWatchEveryMs * 3);
+        expect(calls("agentpermitwatch")).toHaveLength(1);
+        act.scheduler.setState("active");
+        expect(calls("agentpermitwatch")).toHaveLength(2);
         stop();
     });
 
     it("survives a failing call", async () => {
-        m.rpc.mockResolvedValue({ version: 1, requests: [], autonomy: [] });
-        const model = PermitModel.getInstance();
-        await vi.advanceTimersByTimeAsync(0);
+        const model = await started();
         m.rpc.mockReset();
         m.rpc.mockRejectedValue(new Error("offline"));
         const log = vi.spyOn(console, "log").mockImplementation(() => {});
-        const stop = startPermitWatch(model, "b1", document("visible"));
+        const stop = startPermitWatch(model, "b1", activity("active"));
         await vi.advanceTimersByTimeAsync(PermitWatchEveryMs);
         expect(calls("agentpermitwatch")).toHaveLength(2);
         stop();

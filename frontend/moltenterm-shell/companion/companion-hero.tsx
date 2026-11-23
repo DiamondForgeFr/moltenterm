@@ -15,6 +15,7 @@ import { durationText } from "../reviews/reviews-upcoming-model";
 import { StateMark, StateMarkKind } from "../state-mark";
 import { DominoLoader, GlowRing } from "../suite/suite";
 import { mainName } from "./companion-agents";
+import { AutonomousChip, AutonomyLine, HeroPermit, PermissionsTool } from "./companion-autonomy";
 import { BlockTool, CompanionBlock } from "./companion-block";
 import type { UsageFrameParts } from "./companion-gauges";
 import { MessageText } from "./companion-image-chip";
@@ -61,6 +62,9 @@ export type CompanionHeroProps = {
     // While arranging (#2467) the attached usage keeps its row, held still, with its own controls: the handle that detaches
     // it, the eye and the gear. A usage with no reading draws nothing outside the mode; in it, a line says when it shows.
     attachedControls?: React.ReactNode;
+    // The main agent's permissions (#2474): the Permissions control, and while its session runs on its own the steel blue
+    // light, the chip that stops it and the count of what it approved. Absent for an agent MoltenTerm cannot answer.
+    permit?: HeroPermit;
 };
 
 // The hero's state, as a shape and a colour of the heat scale: at work, waiting for the developer, finished.
@@ -119,9 +123,12 @@ export function CompanionHero(props: CompanionHeroProps) {
             label={t("companion.dash.mainAgent")}
             icon={<i className={makeIconClass(AiIcon, true)} aria-hidden="true" />}
             data-agent={agent}
+            data-autonomous={props.permit?.autonomy != null ? "" : undefined}
             data-testid="companion-session-bar"
+            chips={props.permit?.autonomy != null ? <AutonomousChip permit={props.permit} /> : null}
             tools={
                 <>
+                    {props.permit != null ? <PermissionsTool permit={props.permit} /> : null}
                     {props.integrationDetails ? (
                         <IntegratedBadge
                             onOpen={props.onIntegration}
@@ -253,6 +260,7 @@ export function CompanionHero(props: CompanionHeroProps) {
                         onHistory={props.onHistory}
                         onBackToCurrent={props.onBackToCurrent}
                     />
+                    {props.permit != null ? <AutonomyLine permit={props.permit} /> : null}
                 </div>
                 {hasPlan ? (
                     <PlanSection

@@ -12,7 +12,6 @@ import { Markdown } from "@/app/element/markdown";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { goToAgent } from "../agent-info/agent-info-hooks";
 import type { AgentStateInfo } from "../agent-state-model";
 import { useT } from "../i18n/i18n";
 import { serverErrorText } from "../i18n/server-text";
@@ -23,6 +22,7 @@ import { ArrangeBar, ArrangeNote, useArrangeChrome } from "./companion-arrange-c
 import { ArrangeContext } from "./companion-arrange-context";
 import { flowEntries, resetLayout, SectionNameKeys } from "./companion-arrange-model";
 import { useArrangeSession } from "./companion-arrange-session";
+import { usePermitControl } from "./companion-autonomy";
 import { BlockTool, CompanionBlock, CopyTool, CountChip, FootLink } from "./companion-block";
 import { BlockCapContext, makeBlockCapValue } from "./companion-block-cap";
 import { Pickup, SectionIdSet, useBlockDrag, ZoneState } from "./companion-block-drag";
@@ -51,10 +51,9 @@ import {
     CompanionRoute,
     CompanionView,
     neighbourAnswer,
-    permissionRequest,
     usageAction,
 } from "./companion-model";
-import { PermissionRequestCard, permissionTerminalOf } from "./companion-permission";
+import { PermissionBlock } from "./companion-permit-block";
 import { RecentTopicsSection } from "./companion-recap";
 import { mainAgentRow } from "./companion-recap-model";
 import { SectionTiles } from "./companion-section-tiles";
@@ -172,9 +171,11 @@ export function CompanionDashboard(props: CompanionDashboardProps) {
     // The usage attached to the main agent (#2450) is drawn by the hero, through the usage's own source, so its refresh
     // and its states keep working.
     const attached = usage.attached;
+    const permit = usePermitControl(props.target, props.view, mainName(mainAgentRow(props.view, props.agentState)));
     const hero = (parts?: UsageFrameParts) => (
         <CompanionHero
             {...props}
+            permit={permit}
             onLeaveArranging={session.leave}
             usageBlockShown={usage.shown && !attached}
             usage={parts}
@@ -565,7 +566,6 @@ function DashboardFlow(
     const items: FlowItem[] = entries.map((e) => ({ id: e.id, full: e.full, tail: e.tail }));
     const now = Date.now();
     const lead = mainName(mainAgentRow(view, agentState));
-    const request = permissionRequest(view.pending, agentState?.state);
     const taskFrame: TaskFrameFn = ({ tools, body, other }) => (
         <CompanionBlock
             flowId="task"
@@ -578,25 +578,9 @@ function DashboardFlow(
         </CompanionBlock>
     );
     const blocks: Partial<Record<CompanionSectionId, React.ReactNode>> = {
-        permission:
-            request != null ? (
-                <CompanionBlock
-                    key="permission"
-                    flowId="permission"
-                    tone="waiting"
-                    label={t("companion.permissionRequest")}
-                    icon={SectionTiles.permission}
-                >
-                    <PermissionRequestCard
-                        request={request}
-                        t={t}
-                        agent={lead}
-                        onShowTerminal={() => fireAndForget(() => goToAgent(permissionTerminalOf(target, agentState)))}
-                    />
-                </CompanionBlock>
-            ) : (
-                <ArrangeGhost key="permission" id="permission" kind="when" />
-            ),
+        permission: (
+            <PermissionBlock key="permission" target={target} view={view} agentState={agentState} lead={lead} />
+        ),
         usage: (
             <UsageBlock
                 key="usage"

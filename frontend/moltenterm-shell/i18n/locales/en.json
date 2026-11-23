@@ -2123,6 +2123,77 @@
         "permissionRequest": "Permission request",
         "answerInTerminal": "Answer it in the terminal.",
         "goToTerminal": "Go to the terminal",
+        "permit": {
+            "agentPlain": "The agent",
+            "line": {
+                "command": "{name} wants to run a command",
+                "edit": "{name} wants to change a file",
+                "read": "{name} wants to read files",
+                "web": "{name} wants to reach the web",
+                "tool": "{name} wants to use a tool"
+            },
+            "meta": "Tool: {tool} · folder: {folder}",
+            "metaTool": "Tool: {tool}",
+            "clipped": "Long texts are shown cut here; the agent runs the whole of it.",
+            "allow": "Allow",
+            "deny": "Deny",
+            "terminal": "Answer in the terminal",
+            "countdown": "Goes back to the terminal in {time}",
+            "actions": "Answer the request of {name}",
+            "failed": "The answer did not go through. Answer it in the terminal.",
+            "gone": "This request was answered already.",
+            "denyList": "{reason}. This one is always answered in the terminal, even in autonomous mode.",
+            "denyListPlain": "This one is always answered in the terminal, even in autonomous mode.",
+            "denyListLabel": "Answered in the terminal only",
+            "tool": "Permissions: {mode}",
+            "toolLabel": "Permissions of {name}: {mode}",
+            "toolTip": "When {name} asks for permission",
+            "mode": {
+                "ask": "ask me",
+                "for": "automatic",
+                "always": "always"
+            },
+            "menu": {
+                "title": "When {name} asks for permission",
+                "ask": "Ask me",
+                "askSub": "In the companion, then the terminal",
+                "for": "Approve automatically for…",
+                "periods": "How long to approve automatically",
+                "period15m": "15 min",
+                "period1h": "1 h",
+                "period4h": "4 h",
+                "periodTonight": "Until tonight",
+                "until": "Until {time}",
+                "always": "Always approve automatically",
+                "alwaysSub": "For this {name} session",
+                "foot": "Sensitive commands (force push, deletion…) always ask.",
+                "dialog": "Permissions of {name}",
+                "unavailable": "Not available here: {reason}",
+                "unavailablePlain": "Not available for this agent session.",
+                "failed": "The choice did not go through.",
+                "saidAsk": "{name} asks you again.",
+                "saidFor": "{name} approves automatically for {period}.",
+                "saidAlways": "{name} approves automatically, always."
+            },
+            "chip": {
+                "for": "Autonomous · {time} left",
+                "always": "Autonomous · always",
+                "label": "Autonomous mode",
+                "stop": "Stop",
+                "stopLabel": "Stop the autonomous mode: {name} asks you again"
+            },
+            "approved": {
+                "one": "{count} permission approved automatically since {time}",
+                "other": "{count} permissions approved automatically since {time}"
+            },
+            "list": {
+                "none": "Nothing approved automatically since {time}",
+                "show": "see the list",
+                "hide": "hide the list",
+                "title": "Approved automatically"
+            },
+            "restart": "Restart the agent to answer from here"
+        },
         "answer": {
             "title": "Answer",
             "none": "No answer yet in this session.",
