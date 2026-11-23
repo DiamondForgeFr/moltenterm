@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -67,6 +68,17 @@ type ticketAnswer struct {
 	Title     string
 	// Resolved by this call, not remembered from an earlier one of the run.
 	Fresh bool
+	// The other open release tickets of the version, to close (#2492).
+	Duplicates []int
+}
+
+// duplicatesWarning names the duplicates to close and the ticket the release keeps.
+func (a ticketAnswer) duplicatesWarning() string {
+	names := make([]string, 0, len(a.Duplicates))
+	for _, n := range a.Duplicates {
+		names = append(names, fmt.Sprintf("#%d", n))
+	}
+	return fmt.Sprintf("duplicate release ticket(s) %s, also titled %s: close them; the release names #%d, the lowest", strings.Join(names, ", "), a.Title, a.Number)
 }
 
 // milestoneRead reads the milestone of a version once, for the checks of a run that all want it.
@@ -153,21 +165,64 @@ func (e *Env) resolveReleaseTicket(ctx context.Context, p *Project, base string,
 	if m == nil {
 		return ticketAnswer{}, missing
 	}
-	found, err := e.findReleaseTicket(ctx, p, m, base)
+	answer, err := e.findOrCreateReleaseTicket(ctx, p, m, base)
+	if err != nil {
+		return ticketAnswer{}, err
+	}
+	e.rememberTicket(key, answer)
+	return answer, nil
+}
+
+// findOrCreateReleaseTicket holds the version's ticket lock while it looks for the ticket and, finding none, creates it
+// (#2492): two steps of one release, or a step run twice, never make two tickets.
+func (e *Env) findOrCreateReleaseTicket(ctx context.Context, p *Project, m *Milestone, base string) (ticketAnswer, error) {
+	slot, err := e.ticketSlotOf(ctx, p, base)
+	if err != nil {
+		return ticketAnswer{}, fmt.Errorf("could not prepare the release ticket's lock: %w; pass --ticket N", err)
+	}
+	unlock, err := e.lockTicket(ctx, slot)
+	if err != nil {
+		return ticketAnswer{}, err
+	}
+	defer unlock()
+	found, err := e.findReleaseTickets(ctx, p, m, base, slot.recordedTicket())
 	if err != nil {
 		return ticketAnswer{}, err
 	}
 	answer := ticketAnswer{How: ticketFound, Milestone: m.Title, Fresh: true}
-	if found != nil {
-		answer.Number, answer.Title = found.Number, found.Title
+	if len(found) > 0 {
+		chosen, duplicates := pickReleaseTicket(found)
+		answer.Number, answer.Title, answer.Duplicates = chosen.Number, chosen.Title, duplicates
 	} else {
 		answer.How, answer.Title = ticketCreated, p.ReleaseTicketTitle(base)
 		if answer.Number, err = e.createReleaseTicket(ctx, p, m, base); err != nil {
 			return ticketAnswer{}, err
 		}
 	}
-	e.rememberTicket(key, answer)
+	if err := slot.record(answer.Number); err != nil {
+		e.printf("Warning: #%d, the release ticket, is not written down for the next step (%v).\n", answer.Number, err)
+	}
 	return answer, nil
+}
+
+// pickReleaseTicket is the lowest open release ticket (the lowest of all when every one is closed) and the other open
+// ones, its duplicates: closing a duplicate never changes the ticket the release names.
+func pickReleaseTicket(found []milestoneListed) (milestoneListed, []int) {
+	sort.Slice(found, func(i, j int) bool { return found[i].Number < found[j].Number })
+	chosen := found[0]
+	for _, issue := range found {
+		if issue.open() {
+			chosen = issue
+			break
+		}
+	}
+	var duplicates []int
+	for _, issue := range found {
+		if issue.Number != chosen.Number && issue.open() {
+			duplicates = append(duplicates, issue.Number)
+		}
+	}
+	return chosen, duplicates
 }
 
 // releaseTicket is resolveReleaseTicket for the steps that only name the ticket: it says how the release came by it the
@@ -183,19 +238,102 @@ func (e *Env) releaseTicket(ctx context.Context, p *Project, base string) (int, 
 	case ticketFound:
 		e.printf("Commits name #%d, the release ticket of milestone %s (%s).\n", a.Number, a.Milestone, a.Title)
 	}
+	if len(a.Duplicates) > 0 {
+		e.printf("Warning: %s.\n", a.duplicatesWarning())
+	}
 	return a.Number, nil
 }
 
 type milestoneListed struct {
 	Number      int             `json:"number"`
 	Title       string          `json:"title"`
+	State       string          `json:"state"`
 	PullRequest json.RawMessage `json:"pull_request"`
 }
 
-// findReleaseTicket looks for the release's ticket in every issue of the milestone, closed ones included, page by page;
-// nil, nil: it read them all and there is none. It stops at the first page that holds it, so the usual case, a recent
-// ticket, costs one request.
-func (e *Env) findReleaseTicket(ctx context.Context, p *Project, m *Milestone, base string) (*milestoneListed, error) {
+func (i milestoneListed) open() bool {
+	return !strings.EqualFold(i.State, "closed")
+}
+
+func (i milestoneListed) isPullRequest() bool {
+	return len(i.PullRequest) > 0 && string(i.PullRequest) != "null"
+}
+
+// findReleaseTickets gathers the version's release tickets (#2492): those of its milestone, the open ones titled as
+// the release among the repository's latest issues (a ticket created a moment ago that the milestone does not list yet),
+// and the one the release last chose for the version. Empty, nil: there is none anywhere it looked.
+func (e *Env) findReleaseTickets(ctx context.Context, p *Project, m *Milestone, base string, recorded int) ([]milestoneListed, error) {
+	inMilestone, err := e.findReleaseTicket(ctx, p, m, base)
+	if err != nil {
+		return nil, err
+	}
+	recent, err := e.recentReleaseTickets(ctx, p, base)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[int]bool{}
+	var found []milestoneListed
+	for _, issue := range append(inMilestone, recent...) {
+		if !seen[issue.Number] {
+			seen[issue.Number] = true
+			found = append(found, issue)
+		}
+	}
+	if recorded > 0 && !seen[recorded] {
+		issue, err := e.recordedReleaseTicket(ctx, p, base, recorded)
+		if err != nil {
+			return nil, err
+		}
+		if issue != nil {
+			found = append(found, *issue)
+		}
+	}
+	return found, nil
+}
+
+// recentReleaseTickets are the open release tickets among the repository's latest open issues, milestone or not.
+func (e *Env) recentReleaseTickets(ctx context.Context, p *Project, base string) ([]milestoneListed, error) {
+	out, err := e.gh(ctx, p.Root, "api", fmt.Sprintf("repos/{owner}/{repo}/issues?state=open&sort=created&direction=desc&per_page=%d", milestonePageSize))
+	if err != nil {
+		return nil, fmt.Errorf("could not read the latest open issues to find the release ticket: %w; pass --ticket N", err)
+	}
+	var issues []milestoneListed
+	if err := json.Unmarshal(out, &issues); err != nil {
+		return nil, fmt.Errorf("gh api issues: unreadable answer; pass --ticket N")
+	}
+	var found []milestoneListed
+	for _, issue := range issues {
+		if !issue.isPullRequest() && p.titlesRelease(issue.Title, base) {
+			found = append(found, issue)
+		}
+	}
+	return found, nil
+}
+
+// recordedReleaseTicket reads the ticket the release last chose, asked for by its number, which GitHub answers at once:
+// nil when it is gone or no longer the release's.
+func (e *Env) recordedReleaseTicket(ctx context.Context, p *Project, base string, n int) (*milestoneListed, error) {
+	out, err := e.gh(ctx, p.Root, "api", fmt.Sprintf("repos/{owner}/{repo}/issues/%d", n))
+	if err != nil {
+		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") || strings.Contains(err.Error(), "410") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not read #%d, the release ticket made earlier: %w; pass --ticket N", n, err)
+	}
+	var issue milestoneListed
+	if err := json.Unmarshal(out, &issue); err != nil {
+		return nil, fmt.Errorf("gh api issues/%d: unreadable answer; pass --ticket N", n)
+	}
+	if issue.Number != n || issue.isPullRequest() || !p.titlesRelease(issue.Title, base) {
+		return nil, nil
+	}
+	return &issue, nil
+}
+
+// findReleaseTicket looks for the release's tickets in every issue of the milestone, closed ones included, page by page;
+// nil, nil: it read them all and there is none. It stops at the first page that holds one, so the usual case, a recent
+// ticket, costs one request; that page gives every release ticket it holds, so duplicates made together are seen.
+func (e *Env) findReleaseTicket(ctx context.Context, p *Project, m *Milestone, base string) ([]milestoneListed, error) {
 	for page := 1; page <= milestoneMaxPages; page++ {
 		out, err := e.gh(ctx, p.Root, "api", fmt.Sprintf("repos/{owner}/{repo}/issues?milestone=%d&state=all&per_page=%d&page=%d", m.Number, milestonePageSize, page))
 		if err != nil {
@@ -205,14 +343,14 @@ func (e *Env) findReleaseTicket(ctx context.Context, p *Project, m *Milestone, b
 		if err := json.Unmarshal(out, &issues); err != nil {
 			return nil, fmt.Errorf("gh api issues: unreadable answer; pass --ticket N")
 		}
-		for i := range issues {
-			issue := &issues[i]
-			if len(issue.PullRequest) > 0 && string(issue.PullRequest) != "null" {
-				continue
+		var found []milestoneListed
+		for _, issue := range issues {
+			if !issue.isPullRequest() && p.titlesRelease(issue.Title, base) {
+				found = append(found, issue)
 			}
-			if p.titlesRelease(issue.Title, base) {
-				return issue, nil
-			}
+		}
+		if len(found) > 0 {
+			return found, nil
 		}
 		if len(issues) < milestonePageSize {
 			return nil, nil

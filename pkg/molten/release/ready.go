@@ -187,6 +187,9 @@ func (e *Env) checkTicket(ctx context.Context, r *readiness, p *Project, base st
 	default:
 		r.ok("the release commits name #%d, the release ticket of milestone %s (%s)", a.Number, a.Milestone, a.Title)
 	}
+	if len(a.Duplicates) > 0 && a.Fresh {
+		r.warn("%s", a.duplicatesWarning())
+	}
 	return a.Number
 }
 

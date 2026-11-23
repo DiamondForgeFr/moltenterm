@@ -4,11 +4,13 @@
 package release
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -267,6 +269,111 @@ func TestReleaseTicketKeepsWhatTheTicketToolStartedAndPutsItInItsMilestone(t *te
 	}
 	if calls := f.gh.called("issue", "create"); len(calls) != 0 {
 		t.Fatalf("a second ticket was made: %v", calls)
+	}
+}
+
+// SaasFoundryAI v1.3.0 (#2492): the readiness check and the preparation, two processes one after the other, each made
+// a release ticket, GitHub's listing of the milestone not showing yet the one made seconds before. Here it never shows
+// it, and the second resolution starts while the first is creating the ticket.
+func TestReleaseTicketIsMadeOnceByTwoConcurrentResolutions(t *testing.T) {
+	t.Parallel()
+	f, _, p := ticketFixture(t)
+	f.gh.issuePages = map[int]string{1: `[{"number":41,"title":"A bug"}]`}
+	first, second := f.env(), f.env()
+	secondOut := &bytes.Buffer{}
+	second.Out = secondOut
+	secondMoved := make(chan struct{})
+	var moved sync.Once
+	signal := func() { moved.Do(func() { close(secondMoved) }) }
+	second.ticketLockWaiting = signal
+	var creating sync.Once
+	creatingStarted := false
+	var startLock sync.Mutex
+	secondDone := make(chan error, 1)
+	var secondNumber int
+	f.gh.onCall = func(joined string) {
+		startLock.Lock()
+		started := creatingStarted
+		startLock.Unlock()
+		if started && strings.HasPrefix(joined, "api repos/{owner}/{repo}/issues?milestone=12") {
+			// The second resolution looks while the first has not finished: nothing kept it out.
+			signal()
+		}
+		if !strings.HasPrefix(joined, "issue create") {
+			return
+		}
+		creating.Do(func() {
+			startLock.Lock()
+			creatingStarted = true
+			startLock.Unlock()
+			go func() {
+				n, err := second.releaseTicket(context.Background(), p, "1.0.0")
+				secondNumber = n
+				secondDone <- err
+			}()
+			<-secondMoved
+		})
+	}
+	n, err := first.releaseTicket(context.Background(), p, "1.0.0")
+	if err != nil || n != 1801 {
+		t.Fatalf("first %d, %v\n%s", n, err, f.out.String())
+	}
+	if err := <-secondDone; err != nil || secondNumber != 1801 {
+		t.Fatalf("second %d, %v\n%s", secondNumber, err, secondOut.String())
+	}
+	if calls := f.gh.called("issue", "create"); len(calls) != 1 {
+		t.Fatalf("%d release tickets made, want 1: %v", len(calls), calls)
+	}
+}
+
+// The ticket made a moment ago is open in the repository but its milestone does not list it yet.
+func TestReleaseTicketIsFoundBeforeItsMilestoneListsIt(t *testing.T) {
+	t.Parallel()
+	f, e, p := ticketFixture(t)
+	f.gh.issuePages = map[int]string{1: `[{"number":41,"title":"A bug"}]`}
+	f.gh.openIssues = `[{"number":1312,"title":"Another story","state":"open"},{"number":1311,"title":"Release v1.0.0","state":"open","milestone":null},{"number":1300,"title":"Release v1.0.0","state":"open","pull_request":{"url":"x"}}]`
+	if n, err := e.releaseTicket(context.Background(), p, "1.0.0"); err != nil || n != 1311 {
+		t.Fatalf("ticket %d, %v\n%s", n, err, f.out.String())
+	}
+	if calls := f.gh.called("issue", "create"); len(calls) != 0 {
+		t.Fatalf("a second ticket was created: %v", calls)
+	}
+}
+
+// Two release tickets already exist: the release names the lowest open one and names the others as duplicates; closing
+// the duplicate changes nothing, closing the lowest moves to the next open one.
+func TestReleaseTicketWithDuplicatesIsTheLowest(t *testing.T) {
+	t.Parallel()
+	f, e, p := ticketFixture(t)
+	f.gh.issuePages = map[int]string{1: `[{"number":1312,"title":"Release v1.0.0","state":"open"},{"number":1311,"title":"Release v1.0.0","state":"open"},{"number":41,"title":"A bug","state":"open"}]`}
+	f.gh.openIssues = `[{"number":1312,"title":"Release v1.0.0","state":"open"},{"number":1311,"title":"Release v1.0.0","state":"open"}]`
+	if n, err := e.releaseTicket(context.Background(), p, "1.0.0"); err != nil || n != 1311 {
+		t.Fatalf("ticket %d, %v\n%s", n, err, f.out.String())
+	}
+	if !strings.Contains(f.out.String(), "Warning: duplicate release ticket(s) #1312, also titled Release v1.0.0: close them; the release names #1311, the lowest.") {
+		t.Fatalf("the duplicate is not named:\n%s", f.out.String())
+	}
+	f.gh.issuePages = map[int]string{1: `[{"number":1312,"title":"Release v1.0.0","state":"closed"},{"number":1311,"title":"Release v1.0.0","state":"open"}]`}
+	f.gh.openIssues = `[{"number":1311,"title":"Release v1.0.0","state":"open"}]`
+	if n, err := f.env().releaseTicket(context.Background(), p, "1.0.0"); err != nil || n != 1311 {
+		t.Fatalf("after closing the duplicate %d, %v", n, err)
+	}
+	if calls := f.gh.called("issue", "create"); len(calls) != 0 {
+		t.Fatalf("a ticket was created: %v", calls)
+	}
+}
+
+// The readiness report says it too, as a warning that does not block.
+func TestReadinessNamesTheDuplicateReleaseTickets(t *testing.T) {
+	t.Parallel()
+	f, e, p := ticketFixture(t)
+	f.gh.issuePages = map[int]string{1: `[{"number":1312,"title":"Release v1.0.0","state":"open"},{"number":1311,"title":"Release v1.0.0","state":"open"}]`}
+	r := e.beginReadiness("v1.0.0", "be cut")
+	if n := e.checkTicket(context.Background(), r, p, "1.0.0", nil); n != 1311 {
+		t.Fatalf("ticket %d\n%s", n, f.out.String())
+	}
+	if !strings.Contains(f.out.String(), "duplicate release ticket(s) #1312") || len(r.problems) != 0 {
+		t.Fatalf("problems %v, output:\n%s", r.problems, f.out.String())
 	}
 }
 

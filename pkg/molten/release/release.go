@@ -80,7 +80,12 @@ type Env struct {
 	// The project's GitHub repository ("owner/repo") that a CI run must belong to (#2277); empty reads origin's URL.
 	// Tests set it, their origin being a folder.
 	Repo string
+	// MoltenTerm's data folder, where the release tickets' locks are (#2492); empty keeps them in the repository's git
+	// folder.
+	DataDir string
 
+	// Called once when the release ticket's lock is held by another resolution (tests).
+	ticketLockWaiting func()
 	// The release tickets found or created during this run, by project and version (#1800): one answer for the run.
 	ticketLock sync.Mutex
 	tickets    map[string]ticketAnswer

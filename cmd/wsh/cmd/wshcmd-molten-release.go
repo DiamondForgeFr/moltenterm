@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -228,7 +229,32 @@ func moltenReleaseEnv() *release.Env {
 	if err != nil {
 		dir = "."
 	}
-	return &release.Env{Dir: dir, Out: WrappedStdout, CodingAgent: moltenCodingAgent, Ticket: moltenReleaseTicket}
+	return &release.Env{Dir: dir, Out: WrappedStdout, CodingAgent: moltenCodingAgent, Ticket: moltenReleaseTicket, DataDir: moltenReleaseDataDir()}
+}
+
+// moltenReleaseDataDir is MoltenTerm's data folder, where the release tickets' locks are (#2492): wsh runs as
+// <data>/bin/wsh, and MoltenTerm's terminals name <data>/bin. Empty elsewhere (CI, a copy of wsh outside it): the
+// release then keeps its locks in the repository's git folder.
+func moltenReleaseDataDir() string {
+	bin := os.Getenv("WAVETERM_WSHBINDIR")
+	if bin == "" || !filepath.IsAbs(bin) {
+		exe, err := os.Executable()
+		if err != nil {
+			return ""
+		}
+		if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+			exe = resolved
+		}
+		bin = filepath.Dir(exe)
+	}
+	data := filepath.Dir(filepath.Clean(bin))
+	if filepath.Base(filepath.Clean(bin)) != "bin" {
+		return ""
+	}
+	if info, err := os.Stat(filepath.Join(data, "molten")); err != nil || !info.IsDir() {
+		return ""
+	}
+	return data
 }
 
 // moltenCodingAgent asks MoltenTerm for the project's coding agent (#845) when the command runs in one of its
