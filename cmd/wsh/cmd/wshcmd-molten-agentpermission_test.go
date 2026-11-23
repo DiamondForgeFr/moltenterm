@@ -9,6 +9,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/keepawake"
@@ -111,9 +112,9 @@ func TestAgentPermissionPrintsTheDevelopersAnswer(t *testing.T) {
 	if len(sent.Suggestions) != 1 {
 		t.Fatalf("the agent's suggestions were not sent: %+v", sent.Suggestions)
 	}
-	// Review: outside Brokk's own session nothing waits for a human (this terminal is not his).
-	if sent.HoldMs != 0 {
-		t.Fatalf("a terminal that is not his own session asked to be held %d ms", sent.HoldMs)
+	// #2474: any terminal's request may be held for the companion, within the hook's budget; wavesrv decides.
+	if want := permissionHoldMs("claude", false); sent.HoldMs != want || want <= 0 || want >= int64(molten.ClaudePermissionHookTimeout)*1000 {
+		t.Fatalf("a terminal's request asked to be held %d ms, want %d", sent.HoldMs, want)
 	}
 	out.Reset()
 	runAgentPermission(strings.NewReader(recordedPermissionInput), &out, "block-1", "claude", func(req keepawake.PermissionRequest) (keepawake.PermissionAnswer, error) {
@@ -130,11 +131,19 @@ func TestAgentPermissionPrintsTheDevelopersAnswer(t *testing.T) {
 	if h := permissionHoldMs("codex", true); h <= 0 || h >= int64(molten.CodexPermissionHookTimeout)*1000 {
 		t.Fatalf("his Codex session holds %d ms", h)
 	}
-	if permissionHoldMs("claude", false) != 0 || permissionHoldMs("codex", false) != 0 {
-		t.Fatal("another terminal's request is held")
+	// #2474: another terminal's hook holds for the companion's grace delay (2 minutes) and leaves the margin; Codex's
+	// hook definition is fixed by the developer's trust, so its budget stays the short one.
+	if h := permissionHoldMs("claude", false); h < int64(keepawake.GateGrace/time.Millisecond) || h >= int64(molten.ClaudePermissionHookTimeout)*1000 {
+		t.Fatalf("another terminal's Claude Code hook holds %d ms, its grace is %v", h, keepawake.GateGrace)
 	}
-	if molten.ClaudePermissionHookTimeout != 15 {
-		t.Fatalf("every terminal's hook budget is %d s", molten.ClaudePermissionHookTimeout)
+	if h := permissionHoldMs("codex", false); h <= 0 || h >= int64(molten.CodexPermissionHookTimeout)*1000 {
+		t.Fatalf("another terminal's Codex hook holds %d ms", h)
+	}
+	if permissionHoldMs("", false) != 0 || permissionHoldMs("kimi", false) != 0 {
+		t.Fatal("a request of an agent MoltenTerm does not answer is held")
+	}
+	if molten.CodexPermissionHookTimeout != 15 {
+		t.Fatalf("Codex's hook budget changed to %d s: the developer would have to trust it again in /hooks", molten.CodexPermissionHookTimeout)
 	}
 }
 

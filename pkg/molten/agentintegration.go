@@ -6,6 +6,7 @@ package molten
 import (
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
@@ -47,10 +48,13 @@ const (
 	agentPermissionHookCommand  = "molten agent permission"
 	ClaudePermissionHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent permission --agent claude || true`
 	ClaudePermissionHookEvent   = "PermissionRequest"
-	// Seconds: the command waits 5 s at most for wavesrv; Claude Code shows its prompt meanwhile.
-	ClaudePermissionHookTimeout = 15
+	// Seconds: the command waits 5 s at most for wavesrv unless the companion holds the request for the developer's
+	// answer (#2474, keepawake.GateGrace plus the reply margin), which wavesrv does only while a window shows that
+	// terminal's companion. Claude Code shows its own prompt meanwhile, and the hook ends it when the developer answers
+	// there. Only a run whose report says HoldsApprovals got this budget: an older run keeps the hook it started with.
+	ClaudePermissionHookTimeout = 130
 	// Brokk's own session (#2257, OwnSessionEnvVar in its terminal): its requests wait for the developer's answer in
-	// his layer, up to this budget. No other terminal gets it, so no other agent's hook can wait that long.
+	// his layer, up to this budget.
 	ClaudeOwnSessionPermissionHookTimeout = 600
 	// OwnSessionEnvVar marks the terminal of MoltenTerm's own agent session (cmd:env of Brokk's block). It only
 	// lengthens that terminal's own hook: wavesrv still checks the caller's block before keeping any request.
@@ -61,6 +65,11 @@ const (
 	CodexPermissionHookCommand = `[ -n "$WAVETERM_BLOCKID" ] && molten agent permission --agent codex || true`
 	CodexPermissionHookTimeout = 15
 )
+
+// CompanionPermissionGrace is how long a permission request waits for the developer's answer in the companion before it
+// goes back to the agent's own prompt (#2474): at most this, and at most what the hook's budget allows (Codex's is the
+// short one, which its trust in /hooks fixes).
+const CompanionPermissionGrace = 2 * time.Minute
 
 // Kinds of what the launcher adds to a run.
 const (
@@ -101,10 +110,13 @@ type AgentIntegrationReport struct {
 	Settings  string `json:"settings,omitempty"`
 	McpConfig string `json:"mcpconfig,omitempty"`
 	// Args: the arguments added before the user's when the run gets no file (Codex's -c overrides).
-	Args      []string          `json:"args,omitempty"`
-	Added     []IntegrationItem `json:"added,omitempty"`
-	Skipped   []IntegrationItem `json:"skipped,omitempty"`
-	StepAside string            `json:"stepaside,omitempty"`
+	Args    []string          `json:"args,omitempty"`
+	Added   []IntegrationItem `json:"added,omitempty"`
+	Skipped []IntegrationItem `json:"skipped,omitempty"`
+	// HoldsApprovals: the run's PermissionRequest hook has the budget to wait for the developer's answer in the companion
+	// (#2474). Set by the launcher; a run started before it existed, or whose hook is the user's own, has none.
+	HoldsApprovals bool   `json:"holdsapprovals,omitempty"`
+	StepAside      string `json:"stepaside,omitempty"`
 	// StepAsideText: StepAside's code for the companion (#656).
 	StepAsideText *uimsg.Text `json:"stepasidetext,omitempty"`
 	// At, in Unix milliseconds: set by wavesrv when it receives the report.
@@ -303,6 +315,11 @@ func (r AgentIntegrationReport) HasCoffeeApproval() bool {
 		}
 	}
 	return false
+}
+
+// CanHoldApprovals tells whether the run's hook may wait for the developer's answer in the companion (#2474).
+func (r AgentIntegrationReport) CanHoldApprovals() bool {
+	return r.StepAside == "" && r.HoldsApprovals && r.HasCoffeeApproval()
 }
 
 // CoffeeApprovalSkipped is why the launcher left the hook out of the run, "" when it did not say.

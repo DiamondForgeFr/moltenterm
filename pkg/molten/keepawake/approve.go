@@ -26,6 +26,10 @@ const (
 	ApprovalApproved = "approved"
 	ApprovalAsked    = "asked"
 
+	// The source of an approval made by an agent session the developer set to approve its own requests (#2474,
+	// FR-SHELL-063 AC9 to AC12); a coffee's approvals have none.
+	ApprovalSourceAutonomous = "autonomous"
+
 	// MaxApprovals caps the decisions kept in the state; the log file keeps them all.
 	MaxApprovals      = 200
 	maxApprovalDetail = 300
@@ -99,6 +103,8 @@ type Approval struct {
 	Detail        string `json:"detail,omitempty"`
 	Outcome       string `json:"outcome"`
 	Reason        string `json:"reason,omitempty"`
+	// Source: ApprovalSourceAutonomous for an agent session's own mode; empty for a coffee's.
+	Source string `json:"source,omitempty"`
 	// ReasonText: Reason's code for the windows (#656).
 	ReasonText *uimsg.Text `json:"reasontext,omitempty"`
 }
@@ -297,8 +303,13 @@ func DecidePermission(hasCoffee bool, check PermissionCheck) (answer PermissionA
 	if !hasCoffee {
 		return PermissionAnswer{}, "", false
 	}
-	if reason := DenyReason(check); reason != "" {
-		return PermissionAnswer{Reason: reason}, ApprovalAsked, true
+	return decideCovered(DenyReason(check))
+}
+
+// decideCovered is DecidePermission's answer for a request a coffee covers, given the deny list's reason for it.
+func decideCovered(deny string) (answer PermissionAnswer, outcome string, logged bool) {
+	if deny != "" {
+		return PermissionAnswer{Reason: deny}, ApprovalAsked, true
 	}
 	return PermissionAnswer{Decision: PermissionAllow}, ApprovalApproved, true
 }

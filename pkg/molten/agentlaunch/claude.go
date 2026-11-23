@@ -347,6 +347,7 @@ func planClaudeHooks(managed settingsSource, sources []settingsSource, review bo
 		return hooks
 	}
 	plan.Added = append(plan.Added, addedItem(molten.IntegrationCoffeeApproval, coffeeApprovalPhrase))
+	plan.HoldsApprovals = true
 	return append(hooks, plannedHook{event: molten.ClaudePermissionHookEvent, command: molten.ClaudePermissionHookCommand, timeout: molten.ClaudePermissionHookTimeout})
 }
 

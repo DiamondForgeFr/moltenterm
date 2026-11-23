@@ -11207,6 +11207,9 @@
                 "tooold": "il a été lancé avant l'existence des approbations du café : relancez-le depuis MoltenTerm",
                 "review": "une session de revue est en lecture seule : ses demandes vous sont toujours posées"
             },
+            "gate": {
+                "noagent": "aucun agent ne tourne dans ce terminal"
+            },
             "why": {
                 "working": "{agent} : au travail",
                 "background": "{agent} : travail en arrière-plan",

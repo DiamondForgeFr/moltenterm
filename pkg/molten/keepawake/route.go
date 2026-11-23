@@ -71,6 +71,14 @@ type service struct {
 	approvalLog *approvalLog
 	// hooks: the agents whose PermissionRequest hook reached wavesrv (FR-SHELL-064).
 	hooks hookRuns
+	// gate holds the requests for the companion and keeps the sessions set to approve their own (gate.go, #2474).
+	gate *Gate
+	// What the agent states know of a terminal's run: the launcher's report and the run itself; tests give fakes.
+	integration func(blockId string) (molten.AgentIntegrationReport, bool)
+	agentRun    func(blockId string) (molten.AgentRunInfo, bool)
+	// Tests run an approval's naming and logging in place, and give the names; nil: off the answer's path, from the store.
+	runApproval func(fn func())
+	namesOf     func(ctx context.Context, blockId string) (string, string, string)
 }
 
 type workspaceEntry struct {
@@ -284,10 +292,17 @@ func makeService(hooks Hooks) *service {
 		workspaces: makeTtlCache[workspaceEntry](),
 		poke:       make(chan struct{}, 1),
 		tabs:       makeTtlCache[string](),
+
+		integration: attention.AgentIntegration,
+		agentRun:    attention.AgentRun,
 	}
+	gateEnv := GateEnv{Publish: publishGate, Moved: s.agentMoved, Approved: s.logHeldApproval}
 	if dataDir := wavebase.GetWaveDataDir(); dataDir != "" {
 		s.approvalLog = makeApprovalLog(dataDir)
+		always := makeAlwaysStore(dataDir)
+		gateEnv.LoadAlways, gateEnv.SaveAlways = always.load, always.save
 	}
+	s.gate = MakeGate(gateEnv)
 	sources := WorkSources{
 		Agents:            attention.AgentRuns,
 		Commands:          s.commands.snapshot,
@@ -372,6 +387,7 @@ func (s *service) blockClosed(event *wps.WaveEvent) {
 	s.locate.forget(blockId)
 	s.tabs.forget(blockId)
 	s.keeper.ForgetBlock(blockId)
+	s.gate.ForgetBlock(blockId)
 	s.triggerIfActive()
 }
 
@@ -478,10 +494,16 @@ func Start(hooks Hooks) {
 			log.Printf("molten: keep-awake route not started: %v\n", err)
 			return
 		}
+		if _, err := localroute.Register(wshutil.DefaultRouter, (&gateLink{s: s}).route()); err != nil {
+			log.Printf("molten: permission gate route not started: %v\n", err)
+		}
 		go s.loop()
 		rpcClient := wshclient.GetBareRpcClient()
 		rpcClient.EventListener.On(wps.Event_BlockClose, s.blockClosed)
-		rpcClient.EventListener.On(molten.AgentStateEvent, func(*wps.WaveEvent) { s.triggerIfActive() })
+		rpcClient.EventListener.On(molten.AgentStateEvent, func(*wps.WaveEvent) {
+			goSafe("molten:keepawake:settle", s.gate.Settle)
+			s.triggerIfActive()
+		})
 		rpcClient.EventListener.On(wps.Event_WorkspaceUpdate, func(*wps.WaveEvent) {
 			s.workspaces.clear()
 			s.triggerIfActive()

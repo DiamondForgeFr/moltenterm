@@ -71,7 +71,9 @@ type LaunchPlan struct {
 	ShownArgs []string
 	Added     []molten.IntegrationItem
 	Skipped   []molten.IntegrationItem
-	StepAside string
+	// HoldsApprovals: the run's own PermissionRequest hook has the budget to wait for the companion's answer (#2474).
+	HoldsApprovals bool
+	StepAside      string
 	// StepAsideText: StepAside's code for the companion (#656).
 	StepAsideText *uimsg.Text
 	// StartDir: the folder the real binary starts in when it is not the terminal's (the project's repository).

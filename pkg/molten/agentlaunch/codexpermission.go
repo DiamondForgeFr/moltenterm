@@ -91,5 +91,6 @@ func planCodexPermission(ctx LaunchContext, args codexArgs, config codexConfig, 
 		return skip(say(uimsg.Make("integration.reason.ownpermissionhooks", "where", where), "you have your own PermissionRequest hooks, in "+where))
 	}
 	plan.Added = append(plan.Added, addedItem(molten.IntegrationCoffeeApproval, say(uimsg.Make("integration.name.codexcoffeeapprovals"), CodexCoffeeApprovalName)))
+	plan.HoldsApprovals = true
 	return []string{codexConfigFlag, codexPermissionOverrideKey + "=" + codexPermissionHookValue()}
 }
