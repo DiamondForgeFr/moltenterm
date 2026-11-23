@@ -42,6 +42,7 @@ import {
 } from "./moltenterm-tabview-priority";
 import { checkReusedTabViewPainted, noteTabViewLeftScreen } from "./moltenterm-tabview-repaint";
 import { makeTabViewSweeper } from "./moltenterm-tabview-sweep";
+import { followPageTitle } from "./moltenterm-window-title-sync";
 import {
     awaitArrivingPanels,
     coverArrivingView,
@@ -507,6 +508,8 @@ function activateTabView(win: WaveBrowserWindow, tabView: WaveTabView, oldActive
     if (oldActiveView != null && oldActiveView !== tabView) {
         oldActiveView.isActiveTab = false;
     }
+    // The system's window list reads the window's title, which names its context (FR-SHELL-158, #2476).
+    followPageTitle(win, tabView, (view) => getWaveWindowById(view.waveWindowId));
     noteTabViewLeftScreen(oldActiveView);
     noteTabViewLeftScreenForBudget(oldActiveView);
     // the window takes the shown workspace's look at once (#1711)

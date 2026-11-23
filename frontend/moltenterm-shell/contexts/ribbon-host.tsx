@@ -8,7 +8,7 @@
 import { atoms } from "@/app/store/global";
 import { fireAndForget } from "@/util/util";
 import { atom, useAtomValue, useSetAtom, type PrimitiveAtom } from "jotai";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { AgentStates } from "../agent-state-store";
 import { useT, useTCount } from "../i18n/i18n";
 import type { WorkspaceRailEntry } from "../workspace-rail-model";
@@ -17,8 +17,10 @@ import { chooseContext, openContextInNewWindow } from "./context-actions";
 import { ContextRibbon, contextIdOf, waitingElsewhere, makeRibbons } from "./context-model";
 import { useContexts } from "./context-store";
 import { RibbonButton } from "./ribbon";
-import { RibbonMenu } from "./ribbon-menu";
 import { ribbonLabel, ribbonPaint, waitingAgentsIn } from "./ribbon-model";
+
+// The menu is its own chunk, loaded the first time the ribbon is clicked (NFR-PERF-003).
+const RibbonMenu = lazy(() => import("./ribbon-menu").then((m) => ({ default: m.RibbonMenu })));
 
 // Whether the Manage contexts dialog is open (manage-contexts.tsx hosts it once per window).
 export const ManageContextsOpenAtom = atom(false) as PrimitiveAtom<boolean>;
@@ -97,18 +99,20 @@ export function ContextRibbonHost({ mode, entries }: { mode: RibbonMode; entries
                 onClick={() => setOpen((v) => !v)}
             />
             {open && buttonRef.current != null ? (
-                <RibbonMenu
-                    anchor={buttonRef.current}
-                    placement={mode === "collapsed" ? "bottom-start" : "top-start"}
-                    ribbons={ribbons}
-                    onChoose={onChoose}
-                    onOpenInWindow={onOpenInWindow}
-                    onManage={() => {
-                        close(false);
-                        openManage(true);
-                    }}
-                    onClose={close}
-                />
+                <Suspense fallback={null}>
+                    <RibbonMenu
+                        anchor={buttonRef.current}
+                        placement={mode === "collapsed" ? "bottom-start" : "top-start"}
+                        ribbons={ribbons}
+                        onChoose={onChoose}
+                        onOpenInWindow={onOpenInWindow}
+                        onManage={() => {
+                            close(false);
+                            openManage(true);
+                        }}
+                        onClose={close}
+                    />
+                </Suspense>
             ) : null}
         </>
     );

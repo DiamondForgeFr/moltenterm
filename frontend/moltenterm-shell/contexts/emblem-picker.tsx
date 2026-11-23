@@ -1,33 +1,26 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The emblem picker (FR-SHELL-158, #2476): Lucide's icons, searched as the developer types, never an emoji. It opens on
-// a few suggestions; the grid is one radio group with a single tab stop, moved with the arrow keys.
+// The emblem picker (FR-SHELL-158, #2476): Lucide's icons (the selection of emblem-catalog.ts), searched as the developer
+// types, never an emoji. It opens on a few suggestions; the grid is one radio group with a single tab stop, moved with the
+// arrow keys.
 
 import { cn } from "@/util/util";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
-import { DominoLoader } from "../suite/suite";
-import { Emblem, loadEmblemNames } from "./emblem";
+import { Emblem } from "./emblem";
+import { EmblemCatalog } from "./emblem-catalog";
 import { EmblemColumns, gridMove, matchEmblems } from "./emblem-model";
+
+const Names = Object.keys(EmblemCatalog);
 
 export function EmblemPicker({ value, onChange }: { value: string; onChange: (name: string) => void }) {
     const t = useT();
-    const [names, setNames] = useState<string[]>(null);
     const [query, setQuery] = useState("");
     const gridRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        let live = true;
-        loadEmblemNames()
-            .then((loaded) => live && setNames(loaded))
-            .catch((e) => console.log("emblem picker: loading the icons", e));
-        return () => {
-            live = false;
-        };
-    }, []);
-    const matches = useMemo(() => (names == null ? null : matchEmblems(names, query)), [names, query]);
+    const matches = useMemo(() => matchEmblems(Names, query), [query]);
     // The one tab stop: the chosen emblem when it shows, else the first.
-    const stop = matches != null && matches.shown.includes(value) ? value : (matches?.shown[0] ?? "");
+    const stop = matches.shown.includes(value) ? value : (matches.shown[0] ?? "");
 
     const onKeyDown = (e: React.KeyboardEvent) => {
         const buttons = Array.from(gridRef.current?.querySelectorAll<HTMLButtonElement>("button[data-emblem]") ?? []);
@@ -51,12 +44,7 @@ export function EmblemPicker({ value, onChange }: { value: string; onChange: (na
                 className="h-8 rounded-4 border border-border bg-black/25 px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent"
                 onChange={(e) => setQuery(e.target.value)}
             />
-            {matches == null ? (
-                <p className="flex items-center gap-2 py-3 text-12 text-muted">
-                    <DominoLoader />
-                    {t("contexts.emblem.loading")}
-                </p>
-            ) : matches.shown.length === 0 ? (
+            {matches.shown.length === 0 ? (
                 <p className="py-3 text-12 text-muted">{t("contexts.emblem.none", { query: query.trim() })}</p>
             ) : (
                 <div
@@ -88,7 +76,7 @@ export function EmblemPicker({ value, onChange }: { value: string; onChange: (na
                     ))}
                 </div>
             )}
-            {matches != null && matches.hidden > 0 ? (
+            {matches.hidden > 0 ? (
                 <p className="text-11 text-muted">{t("contexts.emblem.more", { count: matches.hidden })}</p>
             ) : null}
         </div>

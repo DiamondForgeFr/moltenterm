@@ -7,7 +7,7 @@
 
 import { atoms } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { useId, useMemo, useState } from "react";
 import { DialogFrame } from "../dialog-frame";
 import { useT, useTCount } from "../i18n/i18n";
@@ -31,7 +31,6 @@ import {
     newDraft,
     updateRequestOf,
 } from "./manage-model";
-import { ManageContextsOpenAtom } from "./ribbon-host";
 
 const NewId = "new";
 
@@ -41,15 +40,6 @@ const DangerButton =
     "cursor-pointer rounded-4 border border-error/60 px-3 py-1.5 text-12 text-danger hover:border-error hover:bg-error/10";
 const FieldClass =
     "h-8 w-full min-w-0 rounded-4 border border-border bg-black/25 px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
-
-export function ManageContextsHost({ entries }: { entries: WorkspaceRailEntry[] }) {
-    const open = useAtomValue(ManageContextsOpenAtom);
-    const setOpen = useSetAtom(ManageContextsOpenAtom);
-    if (!open) {
-        return null;
-    }
-    return <ManageContextsDialog entries={entries} onClose={() => setOpen(false)} />;
-}
 
 function DeleteContextDialog({
     name,
