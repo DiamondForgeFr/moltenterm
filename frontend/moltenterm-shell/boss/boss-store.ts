@@ -11,6 +11,8 @@ import { getSettingsKeyAtom, globalStore, WOS } from "@/app/store/global";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
 import { AgentStates } from "../agent-state-store";
+import { ContextScope } from "../contexts/context-scope";
+import { scopeToHandle } from "../contexts/context-scope-model";
 import { I18nModel } from "../i18n/i18n";
 import { keepAwakeActive } from "../keepawake-model";
 import { KeepAwakeModel } from "../keepawake-store";
@@ -138,28 +140,34 @@ export class BossBubbleModel {
             answers = keptReviewAnswers(answers, get(SharedReviewsAnswersAtom));
             return answers;
         });
+        // In a window he talks about that window's context only (FR-BOSS-009, #2476): its rows, its agents, its counts.
+        const scope = ContextScope.getInstance();
         this.toHandleAtom = atom((get) =>
-            buildToHandle({
-                states: get(AgentStates.getInstance().dataAtom),
-                notifications: get(MoltentermNotifications.getInstance().shownEntriesAtom),
-                answers: get(answersAtom),
-                readied: get(SharedReadiedAtom),
-                sessions: get(DurableSessions.getInstance().dataAtom)?.sessions,
-                parked: get(this.parkedAtom),
-                handled: get(this.handledAtom),
-                handoffs: get(PendingHandoffs.getInstance().dataAtom),
-            })
+            scopeToHandle(
+                buildToHandle({
+                    states: get(AgentStates.getInstance().dataAtom),
+                    notifications: get(MoltentermNotifications.getInstance().shownEntriesAtom),
+                    answers: get(answersAtom),
+                    readied: get(SharedReadiedAtom),
+                    sessions: get(DurableSessions.getInstance().dataAtom)?.sessions,
+                    parked: get(this.parkedAtom),
+                    handled: get(this.handledAtom),
+                    handoffs: get(PendingHandoffs.getInstance().dataAtom),
+                }),
+                get(scope.factsAtom),
+                get(scope.windowContextAtom)
+            )
         );
         this.badgeAtom = selectAtom(
             atom((get) => toHandleBadge(get(this.toHandleAtom))),
             (badge) => badge,
             (a, b) => a.count === b.count && a.tone === b.tone
         );
-        this.workingCountAtom = atom((get) => workingCount(get(AgentStates.getInstance().dataAtom)));
+        this.workingCountAtom = atom((get) => workingCount(get(scope.scopedAgentsAtom)));
         this.keepAwakeAtom = atom((get) => keepAwakeActive(get(KeepAwakeModel.getInstance().stateAtom)));
         this.peekAtom = atom((get) => {
             get(I18nModel.getInstance().localeAtom);
-            const states = get(AgentStates.getInstance().dataAtom);
+            const states = get(scope.scopedAgentsAtom);
             return makePeek({
                 states,
                 toHandle: unseenItems(get(this.toHandleAtom)).map(peekRowOf),

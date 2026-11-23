@@ -13,6 +13,7 @@
 import { globalStore } from "@/app/store/jotaiStore";
 import { atom, Atom, createStore, PrimitiveAtom } from "jotai";
 import { AgentStates } from "../agent-state-store";
+import { ContextScope } from "../contexts/context-scope";
 import { BossBubbleModel } from "./boss-store";
 import { AskedExpression, BrokkExpression, rose } from "./brokk-ask-model";
 import { BrokkColleagueModel } from "./brokk-colleague-store";
@@ -176,7 +177,7 @@ export class BrokkExpressionsModel {
         const stopForge = watchBrokk(
             {
                 store: globalStore,
-                agentsAtom: agents.dataAtom,
+                agentsAtom: ContextScope.getInstance().scopedAgentsAtom,
                 agentsLoadedAtom: agents.loadedAtom,
                 toHandleAtom: bubble.toHandleAtom,
                 now: () => Date.now(),

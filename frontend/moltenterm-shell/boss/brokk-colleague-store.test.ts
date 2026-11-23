@@ -29,10 +29,11 @@ vi.mock("@/app/store/global", async () => {
         getApi: () => Sources.api,
     };
 });
-vi.mock("../agent-state-store", async () => {
+// The colleague reports the agents of the window's context (#2476); with one context they are all of them.
+vi.mock("../contexts/context-scope", async () => {
     const { atom } = await import("jotai");
     Sources.agents = atom({ states: {}, versions: {} } as any);
-    return { AgentStates: { getInstance: () => ({ dataAtom: Sources.agents }) } };
+    return { ContextScope: { getInstance: () => ({ scopedAgentsAtom: Sources.agents }) } };
 });
 
 import { globalStore } from "@/app/store/jotaiStore";

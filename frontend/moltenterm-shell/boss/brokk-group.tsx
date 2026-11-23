@@ -35,7 +35,7 @@ import {
     useRef,
     useState,
 } from "react";
-import { AgentStates } from "../agent-state-store";
+import { ContextScope } from "../contexts/context-scope";
 import { AiIcon } from "../ai-icon";
 import { BrainstormStateAtom } from "../brainstorm/brainstorm-boot";
 import { isActive, overallDownloadProgress } from "../downloads/downloads-model";
@@ -343,7 +343,7 @@ export function BrokkGroup({ frame, shown }: { frame: GroupFrame; shown: boolean
     const talk = useAtomValue(session.stateAtom, { store: globalStore });
     const exchange = useAtomValue(session.exchangeAtom, { store: globalStore });
     const unseenId = useAtomValue(session.unseenIdAtom, { store: globalStore });
-    const agentStates = useAtomValue(AgentStates.getInstance().dataAtom, { store: globalStore });
+    const agentStates = useAtomValue(ContextScope.getInstance().scopedAgentsAtom, { store: globalStore });
     const downloadItems = useAtomValue(downloads.itemsAtom, { store: globalStore });
     const running = useAtomValue(downloads.ringAtom, { store: globalStore });
     const transfers = useAtomValue(downloads.transfersAtom, { store: globalStore });

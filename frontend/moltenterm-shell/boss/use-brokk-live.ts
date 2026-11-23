@@ -15,7 +15,7 @@ import { globalStore } from "@/app/store/jotaiStore";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { AgentStatesData } from "../agent-state-model";
-import { AgentStates } from "../agent-state-store";
+import { ContextScope } from "../contexts/context-scope";
 import { TabActivity } from "../tab-activity";
 import { ActivityState, isShowing } from "../tab-activity-model";
 import { BossBubbleModel } from "./boss-store";
@@ -104,7 +104,7 @@ export function useBrokkScene(options: BrokkSceneOptions): BrokkScene {
     const memory = useAtomValue(expressions.moodAtom, { store: globalStore });
     const asked = useAtomValue(expressions.askedAtom, { store: globalStore });
     const lastKeyAt = useAtomValue(expressions.lastKeyAtAtom, { store: globalStore });
-    const agents = useAtomValue(AgentStates.getInstance().dataAtom, { store: globalStore });
+    const agents = useAtomValue(ContextScope.getInstance().scopedAgentsAtom, { store: globalStore });
     const motion = useMotionAllowed();
     const [, redraw] = useState(0);
     const now = Date.now();
@@ -151,7 +151,7 @@ function sceneFromStores(situation: BrokkSituation, now: number): BrokkScene {
         motion: true,
         pinned: false,
         lastKeyAt: globalStore.get(expressions.lastKeyAtAtom),
-        workingSince: oldestWorkingSince(globalStore.get(AgentStates.getInstance().dataAtom)),
+        workingSince: oldestWorkingSince(globalStore.get(ContextScope.getInstance().scopedAgentsAtom)),
     });
 }
 
@@ -184,7 +184,7 @@ export function useBlinkRhythm(situation: BrokkSituation): BlinkRhythm {
             expressions.moodAtom,
             expressions.lastKeyAtAtom,
             model.toHandleAtom,
-            AgentStates.getInstance().dataAtom,
+            ContextScope.getInstance().scopedAgentsAtom,
         ].map((source) => globalStore.sub(source, onChange));
         return () => {
             clearTimeout(timer);
