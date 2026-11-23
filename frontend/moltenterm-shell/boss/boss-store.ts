@@ -105,7 +105,9 @@ export class BossBubbleModel {
     nameAtom: Atom<string>;
     showAtom: Atom<boolean>;
     // The rows the To handle tab shows, and the badge that counts them: the one cue follows the badge, whatever the row.
+    // They are the window's context's; allToHandleAtom is every context's, which Brokk's hub is fed (FR-BOSS-009, #2476).
     toHandleAtom: Atom<ToHandleList>;
+    allToHandleAtom: Atom<ToHandleList>;
     badgeAtom: Atom<Badge>;
     // The agents at work: Brokk's face thinks while some do and nothing waits (FR-BOSS-007).
     workingCountAtom: Atom<number>;
@@ -142,21 +144,20 @@ export class BossBubbleModel {
         });
         // In a window he talks about that window's context only (FR-BOSS-009, #2476): its rows, its agents, its counts.
         const scope = ContextScope.getInstance();
+        this.allToHandleAtom = atom((get) =>
+            buildToHandle({
+                states: get(AgentStates.getInstance().dataAtom),
+                notifications: get(MoltentermNotifications.getInstance().shownEntriesAtom),
+                answers: get(answersAtom),
+                readied: get(SharedReadiedAtom),
+                sessions: get(DurableSessions.getInstance().dataAtom)?.sessions,
+                parked: get(this.parkedAtom),
+                handled: get(this.handledAtom),
+                handoffs: get(PendingHandoffs.getInstance().dataAtom),
+            })
+        );
         this.toHandleAtom = atom((get) =>
-            scopeToHandle(
-                buildToHandle({
-                    states: get(AgentStates.getInstance().dataAtom),
-                    notifications: get(MoltentermNotifications.getInstance().shownEntriesAtom),
-                    answers: get(answersAtom),
-                    readied: get(SharedReadiedAtom),
-                    sessions: get(DurableSessions.getInstance().dataAtom)?.sessions,
-                    parked: get(this.parkedAtom),
-                    handled: get(this.handledAtom),
-                    handoffs: get(PendingHandoffs.getInstance().dataAtom),
-                }),
-                get(scope.factsAtom),
-                get(scope.windowContextAtom)
-            )
+            scopeToHandle(get(this.allToHandleAtom), get(scope.factsAtom), get(scope.windowContextAtom))
         );
         this.badgeAtom = selectAtom(
             atom((get) => toHandleBadge(get(this.toHandleAtom))),

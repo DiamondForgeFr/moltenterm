@@ -911,3 +911,60 @@ describe("fed by any source (FR-BOSS-009, AC11)", () => {
         expect(JSON.parse(JSON.stringify(w.view))).toEqual(w.view);
     });
 });
+
+// FR-BOSS-009, #2476: the events of another context than the window's are held by the model and left out of what it shows.
+describe("the events of another context (#2476)", () => {
+    const Other = event("security", "sec:other", T0, { level: "critical" });
+
+    it("shows, counts and waits for none of them, and keeps them", () => {
+        const w = drive();
+        w.raise(High, T0);
+        w.raise(Other, T0);
+        expect(w.view.visit).toMatchObject({ keys: ["sec:other", "sec:high"], count: 2 });
+        w.step({ type: "scope", hidden: ["sec:other"] }, T0 + 1);
+        expect(w.view.visit).toMatchObject({ keys: ["sec:high"], count: 1, severity: "important" });
+        expect(w.view.badgeKeys).toEqual(["sec:high"]);
+        expect(w.view.comingKeys).toEqual(["sec:high"]);
+        expect(w.model.visits.events["sec:other"]).toBeDefined();
+    });
+
+    it("brings no visit for an event that is all there is of another context", () => {
+        const w = drive();
+        w.step({ type: "scope", hidden: ["sec:other"] }, T0);
+        w.raise(Other, T0 + 1);
+        expect(w.view.visit).toBeNull();
+        expect(w.view.badge).toBe(0);
+        expect(w.wakeAt).toBeNull();
+        w.step({ type: "scope", hidden: [] }, T0 + 2);
+        expect(w.view.visit).toMatchObject({ keys: ["sec:other"] });
+    });
+
+    it("keeps what was told of an event while the window looks away, so that coming back does not tell it again", () => {
+        const w = drive();
+        w.raise(Other, T0);
+        w.step({ type: "open" }, T0 + 1);
+        expect(w.model.visits.told["sec:other"]).toBeGreaterThanOrEqual(0);
+        w.step({ type: "scope", hidden: ["sec:other"] }, T0 + 2);
+        w.step({ type: "scope", hidden: [] }, T0 + 3);
+        expect(w.view.visit).toBeNull();
+        expect(w.view.badgeKeys).toEqual(["sec:other"]);
+    });
+
+    it("does not tell an event of another context when the panel opens", () => {
+        const w = drive();
+        w.raise(Other, T0);
+        w.step({ type: "scope", hidden: ["sec:other"] }, T0 + 1);
+        w.step({ type: "open" }, T0 + 2);
+        expect(w.model.visits.told["sec:other"]).toBeUndefined();
+        w.step({ type: "scope", hidden: [] }, T0 + 3);
+        expect(w.view.visit).toMatchObject({ keys: ["sec:other"] });
+    });
+
+    it("takes the same set as it is, so that nothing is drawn again", () => {
+        const w = drive();
+        w.step({ type: "scope", hidden: ["sec:other"] }, T0);
+        const before = w.model.visits;
+        w.step({ type: "scope", hidden: ["sec:other"] }, T0 + 1);
+        expect(w.model.visits).toBe(before);
+    });
+});

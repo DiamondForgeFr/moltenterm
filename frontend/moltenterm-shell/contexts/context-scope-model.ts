@@ -73,3 +73,30 @@ export function scopeAgents(data: AgentStatesData, facts: ContextScopeFacts, con
     }
     return left ? { ...data, states } : data;
 }
+
+// The keys of the events a window leaves out because they are of another context (FR-BOSS-009, #2476): the rows To handle
+// that are not its context's, and the agents that are not its context's, whose finish is an event too. Sorted, so that
+// the same set is the same text. Brokk's hub is fed every event and shows only the others: an event that is merely
+// out of the window's scope has not ended, so what was told of it is not forgotten for every view.
+export function hiddenEventKeys(
+    list: ToHandleList,
+    data: AgentStatesData,
+    facts: ContextScopeFacts,
+    contextId: string
+): string[] {
+    if (!facts.loaded || !contextId) {
+        return [];
+    }
+    const keys: string[] = [];
+    for (const item of list.items) {
+        if (!rowInContext(facts, contextId, item)) {
+            keys.push(item.key);
+        }
+    }
+    for (const [block, info] of Object.entries(data.states)) {
+        if (!rowInContext(facts, contextId, info)) {
+            keys.push(`finished:${block}`);
+        }
+    }
+    return keys.sort();
+}

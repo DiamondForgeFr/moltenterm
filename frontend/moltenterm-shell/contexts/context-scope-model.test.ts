@@ -4,7 +4,14 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import type { InfoItem, ToHandleItem, ToHandleList } from "../boss/boss-to-handle-model";
-import { ContextScopeFacts, EmptyScopeFacts, rowInContext, scopeAgents, scopeToHandle } from "./context-scope-model";
+import {
+    ContextScopeFacts,
+    EmptyScopeFacts,
+    hiddenEventKeys,
+    rowInContext,
+    scopeAgents,
+    scopeToHandle,
+} from "./context-scope-model";
 
 const facts: ContextScopeFacts = {
     loaded: true,
@@ -93,5 +100,28 @@ describe("the agents behind a window's visits, badge and counts", () => {
         const alone: AgentStatesData = { states: { b1: agent("b1", "w1") }, versions: { b1: 1 } };
         expect(scopeAgents(alone, facts, "work")).toBe(alone);
         expect(scopeAgents(data, EmptyScopeFacts, "work")).toBe(data);
+    });
+});
+
+// The hub is fed every context's events; these are the keys it leaves out of what it shows (#2476).
+describe("the events a window leaves out of what Brokk shows", () => {
+    const list: ToHandleList = {
+        items: [item("agent:b1", { workspaceid: "w1" }), item("agent:b2", { workspaceid: "w3" }), item("ci:/src/novel:4", { dir: "/src/novel" }), item("app")],
+        info: [],
+        parked: 0,
+    };
+    const data: AgentStatesData = {
+        states: { b1: agent("b1", "w1"), b2: agent("b2", "w3"), b3: agent("b3", "") },
+        versions: {},
+    };
+
+    it("are the rows and the finished agents of the other contexts, sorted", () => {
+        expect(hiddenEventKeys(list, data, facts, "work")).toEqual(["agent:b2", "ci:/src/novel:4", "finished:b2"]);
+        expect(hiddenEventKeys(list, data, facts, "book")).toEqual(["agent:b1", "finished:b1"]);
+    });
+
+    it("are none before the window knows where the workspaces are, or when it has no context", () => {
+        expect(hiddenEventKeys(list, data, EmptyScopeFacts, "work")).toEqual([]);
+        expect(hiddenEventKeys(list, data, facts, "")).toEqual([]);
     });
 });
