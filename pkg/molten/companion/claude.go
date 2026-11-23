@@ -388,6 +388,7 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 			s.SubagentResult(id, str(result, "status") == "async_launched", boolean(block, "is_error"), str(result, "resolvedModel"))
 			s.SetSubagentId(id, str(result, "agentId"))
 			a.parseResume(result, s, at)
+			a.parseTaskStop(result, s)
 		case "text":
 			text := str(block, "text")
 			if a.parseNotifications(text, s) {
@@ -552,6 +553,15 @@ func (a *ClaudeAdapter) parseResume(result map[string]any, s *Session, at int64)
 		agentId = str(result, "revivedAgentId")
 	}
 	s.WakeSubagent(agentId, at)
+}
+
+// parseTaskStop reads the result of a TaskStop that stopped an agent: {message: "Successfully stopped task: …",
+// task_id, task_type: "local_agent"}. A TaskStop that found nothing to stop gives an error text instead.
+func (a *ClaudeAdapter) parseTaskStop(result map[string]any, s *Session) {
+	if str(result, "task_type") != "local_agent" || !strings.HasPrefix(str(result, "message"), "Successfully stopped task") {
+		return
+	}
+	s.StoppedSubagentTask(str(result, "task_id"))
 }
 
 // parseNotifications ends the background agents a record notifies about; true when the text holds nothing else (it

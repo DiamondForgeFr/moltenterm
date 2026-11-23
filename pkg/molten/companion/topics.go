@@ -44,6 +44,10 @@ const SubagentQuietAfter = 30 * time.Minute
 // A finished agent that writes its own transcript this long after its end runs again (#1941).
 const SubagentReviveAfter = time.Minute
 
+// An agent whose latest notification says it waits on its own background work (a test run, a monitor) writes
+// nothing until that work reports, often for longer than SubagentQuietAfter: it stays running this long (#2498).
+const SubagentWaitingQuietAfter = 2 * time.Hour
+
 var (
 	taskNotificationRegex = regexp.MustCompile(`(?s)<task-notification>.*?</task-notification>`)
 	notificationToolRegex = regexp.MustCompile(`<tool-use-id>\s*([^<\s]{1,200})\s*</tool-use-id>`)
@@ -86,8 +90,12 @@ type subagent struct {
 	started    int64
 	ended      int64
 	// woke: when a follow-up last sent it back to work (a Codex agent's "interacted" activity).
-	woke   int64
-	ticket ticketRef
+	woke int64
+	// waiting: its latest notification says it waits on its own background work (#2498). Claude Code marks its meta
+	// file finished as that turn ends, so its files do not end it: only a real end does (a notification that it
+	// finished, a TaskStop).
+	waiting bool
+	ticket  ticketRef
 	// path: the agent's place in its tree as Codex names it (/root/audit_reliability), which links a sub-agent
 	// rollout to its call when no activity gave its thread id.
 	path string
@@ -340,6 +348,7 @@ func (s *Session) StartSubagent(id string, description string, kind string, mode
 	sa.background = background
 	sa.state = SubagentRunning
 	sa.started = at
+	sa.waiting = false
 	// A row its own files added before the call reached the transcript (#2468) is now a recorded agent: its parent's
 	// records tell its end.
 	sa.found = false
@@ -411,8 +420,12 @@ func (s *Session) QuietSubagents(now int64, lastWrite func(agentId string) int64
 		if sa.agentId != "" && lastWrite != nil {
 			last = max(last, lastWrite(sa.agentId))
 		}
+		quietAfter := SubagentQuietAfter
+		if sa.waiting {
+			quietAfter = SubagentWaitingQuietAfter
+		}
 		state := SubagentRunning
-		if last > 0 && now-last > SubagentQuietAfter.Milliseconds() {
+		if last > 0 && now-last > quietAfter.Milliseconds() {
 			state = SubagentQuiet
 		}
 		if state != sa.state {
@@ -487,9 +500,11 @@ func (s *Session) EndSubagent(id string, status string) {
 		return
 	}
 	if status == notificationWaitingStatus {
+		sa.waiting = true
 		s.WakeSubagent(sa.id, s.recordAt)
 		return
 	}
+	sa.waiting = false
 	state := SubagentDone
 	switch status {
 	case "failed", "error":
@@ -502,6 +517,17 @@ func (s *Session) EndSubagent(id string, status string) {
 	}
 	sa.state = state
 	sa.ended = max(sa.ended, s.recordAt)
+	s.touch()
+}
+
+// StoppedSubagentTask takes a TaskStop that stopped an agent: it no longer waits on its own background work, so the
+// end its own files tell ends it (#2498).
+func (s *Session) StoppedSubagentTask(id string) {
+	sa := s.subagent(id)
+	if sa == nil || !sa.waiting {
+		return
+	}
+	sa.waiting = false
 	s.touch()
 }
 
