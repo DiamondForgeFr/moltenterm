@@ -182,11 +182,10 @@ func TestUpdateChangesOnlyWhatItSets(t *testing.T) {
 	}
 }
 
-func TestUpdateWorkspacesIsTheChecklist(t *testing.T) {
-	s := MakeState(waveobj.MetaMapType{}, workspaces("a", "b", "c", "d"))
-	s, _ = mustCreate(t, s, "Second", "two", "c", "d")
-	list := []string{"a", "c"}
-	next, moved, err := s.Update(UpdateRequest{Id: "two", Workspaces: &list})
+func TestUpdateMovesOnlyTheWorkspacesItNames(t *testing.T) {
+	s := MakeState(waveobj.MetaMapType{}, workspaces("a", "b", "c", "d", "blank"))
+	s, _ = mustCreate(t, s, "Second", "two", "c", "d", "blank")
+	next, moved, err := s.Update(UpdateRequest{Id: "two", AddWorkspaces: []string{"a"}, RemoveWorkspaces: []string{"d"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,24 +193,54 @@ func TestUpdateWorkspacesIsTheChecklist(t *testing.T) {
 	if !slices.Equal(moved, []string{"a", "d"}) {
 		t.Fatalf("moved %v: a comes in, d goes to the first other context", moved)
 	}
-	if !slices.Equal(next.Members("two"), []string{"a", "c"}) || !slices.Equal(next.Members(DefaultId), []string{"b", "d"}) {
+	if !slices.Equal(next.Members("two"), []string{"a", "blank", "c"}) || !slices.Equal(next.Members(DefaultId), []string{"b", "d"}) {
 		t.Fatalf("membership: %v / %v", next.Members("two"), next.Members(DefaultId))
 	}
 }
 
-func TestUpdateWorkspacesOfTheOnlyContextCannotEmptyIt(t *testing.T) {
+// The form knows only the workspaces its checklist showed. A blank workspace of another window, or one placed after the
+// dialog opened, is not on it, and saving the form must leave it where it is.
+func TestUpdateLeavesTheWorkspacesTheFormDidNotKnow(t *testing.T) {
+	s := MakeState(waveobj.MetaMapType{}, workspaces("a", "b", "blank", "late"))
+	s, _ = mustCreate(t, s, "Second", "two", "blank", "late")
+	name := "Renamed"
+	next, moved, err := s.Update(UpdateRequest{Id: "two", Name: &name, AddWorkspaces: []string{"a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(moved, []string{"a"}) {
+		t.Fatalf("only the added workspace moves: %v", moved)
+	}
+	if !slices.Equal(next.Members("two"), []string{"a", "blank", "late"}) {
+		t.Fatalf("an unlisted workspace left the context: %v", next.Members("two"))
+	}
+}
+
+func TestUpdateRemovesOnlyWhatIsInTheContext(t *testing.T) {
+	s := MakeState(waveobj.MetaMapType{}, workspaces("a", "b", "c"))
+	s, _ = mustCreate(t, s, "Second", "two", "c")
+	next, moved, err := s.Update(UpdateRequest{Id: "two", RemoveWorkspaces: []string{"a", "ghost"}})
+	if err != nil || len(moved) != 0 {
+		t.Fatalf("a workspace of another context, or one that is gone, is not moved: %v %v", moved, err)
+	}
+	if !slices.Equal(next.Members(DefaultId), []string{"a", "b"}) {
+		t.Fatalf("a workspace of the first context was moved by a removal from the second: %v", next.Members(DefaultId))
+	}
+	if _, _, err := s.Update(UpdateRequest{Id: "two", AddWorkspaces: []string{"a"}, RemoveWorkspaces: []string{"a"}}); err == nil {
+		t.Fatalf("a workspace was asked to come in and to leave")
+	}
+}
+
+func TestUpdateWorkspacesOfTheOnlyContextCannotLeaveIt(t *testing.T) {
 	s := MakeState(waveobj.MetaMapType{}, workspaces("a", "b"))
-	list := []string{"a"}
-	if _, _, err := s.Update(UpdateRequest{Id: DefaultId, Workspaces: &list}); err == nil {
+	if _, _, err := s.Update(UpdateRequest{Id: DefaultId, RemoveWorkspaces: []string{"a"}}); err == nil {
 		t.Fatalf("a workspace left the only context")
 	}
-	all := []string{"a", "b"}
-	if _, moved, err := s.Update(UpdateRequest{Id: DefaultId, Workspaces: &all}); err != nil || len(moved) != 0 {
-		t.Fatalf("listing everything is a no-op: %v %v", moved, err)
+	if _, moved, err := s.Update(UpdateRequest{Id: DefaultId, AddWorkspaces: []string{"a", "b"}}); err != nil || len(moved) != 0 {
+		t.Fatalf("adding what it holds is a no-op: %v %v", moved, err)
 	}
-	unknown := []string{"a", "ghost"}
-	if _, _, err := s.Update(UpdateRequest{Id: DefaultId, Workspaces: &unknown}); err == nil {
-		t.Fatalf("an unknown workspace was listed")
+	if _, _, err := s.Update(UpdateRequest{Id: DefaultId, AddWorkspaces: []string{"a", "ghost"}}); err == nil {
+		t.Fatalf("an unknown workspace was added")
 	}
 }
 

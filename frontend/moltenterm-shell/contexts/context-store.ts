@@ -40,8 +40,10 @@ export type ContextUpdateRequest = {
     name?: string;
     description?: string;
     emblem?: string;
-    // The whole list of workspaces the context holds afterwards.
-    workspaces?: string[];
+    // Only the workspaces the form moved: the ones that come in, and the ones that leave for the first other context. A
+    // workspace the form did not show (a blank one of another window, one placed after it opened) is never named.
+    addworkspaces?: string[];
+    removeworkspaces?: string[];
 };
 
 async function callContexts(command: string, data: Record<string, unknown>): Promise<ContextsResult> {

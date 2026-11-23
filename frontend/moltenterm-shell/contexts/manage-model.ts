@@ -13,7 +13,6 @@ import {
     contextShownName,
     ContextNameMaxChars,
     FallbackContextEmblem,
-    sameIds,
 } from "./context-model";
 import type { ContextCreateRequest, ContextUpdateRequest } from "./context-store";
 
@@ -52,12 +51,54 @@ export function clampDescription(text: string): string {
     return Array.from(text).slice(0, ContextDescriptionMaxChars).join("");
 }
 
+// What the developer changed in the form, apart from the context itself: the fields he typed in, and the state he gave
+// to each workspace he ticked or unticked. Everything else is read from the context as it is now, so a workspace that
+// comes into the context while the form is open (another window placed it) is not mistaken for one he unticked.
+export type DraftEdits = {
+    fields: Partial<Pick<ContextDraft, "name" | "description" | "emblem">>;
+    picks: Record<string, boolean>;
+};
+
+export const NoEdits: DraftEdits = { fields: {}, picks: {} };
+
+export function editedFields(edits: DraftEdits, patch: DraftEdits["fields"]): DraftEdits {
+    return { ...edits, fields: { ...edits.fields, ...patch } };
+}
+
+export function isRowChecked(edits: DraftEdits, row: ChecklistRow): boolean {
+    return edits.picks[row.id] ?? row.checked;
+}
+
+export function toggledRow(edits: DraftEdits, row: ChecklistRow): DraftEdits {
+    return { ...edits, picks: { ...edits.picks, [row.id]: !isRowChecked(edits, row) } };
+}
+
+// The draft the form shows: the context as it is now, with what the developer changed on top.
+export function draftWith(original: ContextDraft, rows: readonly ChecklistRow[], edits: DraftEdits): ContextDraft {
+    return {
+        ...original,
+        ...edits.fields,
+        checked: rows.filter((r) => isRowChecked(edits, r)).map((r) => r.id),
+    };
+}
+
+export type MembershipChange = { add: string[]; remove: string[] };
+
+// The workspaces the draft moves: the ones it ticks that the context did not hold, and the ones it unticks that the
+// context held. A workspace on neither list is not touched.
+export function membershipChange(draft: ContextDraft, original: ContextDraft): MembershipChange {
+    return {
+        add: draft.checked.filter((id) => !original.checked.includes(id)),
+        remove: original.checked.filter((id) => !draft.checked.includes(id)),
+    };
+}
+
 // What stops a save. The only context holds every workspace, so none can leave it until another context exists.
 export function draftProblem(draft: ContextDraft, original: ContextDraft, contextCount: number): DraftProblem {
     if (!draft.name.trim()) {
         return "name";
     }
-    if (draft.id && contextCount < 2 && draft.checked.length < original.checked.length) {
+    if (draft.id && contextCount < 2 && membershipChange(draft, original).remove.length > 0) {
         return "needsAnother";
     }
     return null;
@@ -77,8 +118,12 @@ export function updateRequestOf(draft: ContextDraft, original: ContextDraft): Co
     if (draft.emblem !== original.emblem) {
         req.emblem = draft.emblem;
     }
-    if (!sameIds(draft.checked, original.checked)) {
-        req.workspaces = draft.checked;
+    const { add, remove } = membershipChange(draft, original);
+    if (add.length > 0) {
+        req.addworkspaces = add;
+    }
+    if (remove.length > 0) {
+        req.removeworkspaces = remove;
     }
     return Object.keys(req).length > 1 ? req : null;
 }
