@@ -352,6 +352,48 @@ describe("outside the 360 view, every kind of action rebalances the row the pane
         expect(b).toBeCloseTo(n, 3);
     });
 
+    // The developer's gold (#2497): a floor of 1743 px, a window 1728 px wide, the "Kimi" view rebuilt from its pin (the
+    // agent's terminal, then its companion split after it): the companion was laid at size 0.
+    it("drops a floor wider than the window leaves room for: the companion split beside the agent is never laid at size 0", async () => {
+        floor.px = 1743;
+        const model = makeLayout(leaf("agent", 100), {}, null, 1728);
+        await (
+            model as unknown as { handleBackendAction: (a: unknown) => Promise<void> }
+        ).handleBackendAction({
+            actionid: "2497",
+            actiontype: LayoutTreeActionType.SplitHorizontal,
+            blockid: "companion",
+            targetblockid: "b-agent",
+            position: "after",
+        });
+        const root = model.treeState.rootNode;
+        expect(root.children.map((c) => c.data?.blockId)).toEqual(["b-agent", "companion"]);
+        for (const size of sizesOf(root)) {
+            expect(size).toBeGreaterThan(0);
+        }
+        expectEven(root);
+    });
+
+    it("holds a floor while the other columns keep a readable width each, and drops it once they would not", () => {
+        floor.px = 1200;
+        const fits = makeLayout(row("a", "b"), {}, null, 1600);
+        fits.treeReducer(
+            { type: LayoutTreeActionType.SplitHorizontal, targetNodeId: "b", newNode: newLeaf("n"), position: "after" } as never,
+            false
+        );
+        // 1200 px + two columns of 360 px do not fit in 1600 px: the row shares its width.
+        expectEven(fits.treeState.rootNode);
+        floor.px = 1000;
+        const holds = makeLayout(leaf("a", 100), {}, null, 1600);
+        holds.treeReducer(
+            { type: LayoutTreeActionType.SplitHorizontal, targetNodeId: "a", newNode: newLeaf("n"), position: "after" } as never,
+            false
+        );
+        const [a, n] = holds.treeState.rootNode.children.map((c) => (c.size / 100) * 1600);
+        expect(Math.abs(a - 1000)).toBeLessThan(5);
+        expect(n).toBeGreaterThan(500);
+    });
+
     it("never sizes a panel of a tree that only holds it", () => {
         const model = makeLayout(leaf("a", 100));
         model.treeReducer({ type: LayoutTreeActionType.InsertNode, node: newLeaf("n") } as never, false);

@@ -6,7 +6,7 @@
 // each child of a row a weight in proportion to the columns it holds.
 
 import { FlexDirection, type LayoutNode, type ResizeNodeOperation } from "@/layout/lib/types";
-import { sharedColumnSizes } from "../view360/view360-decision";
+import { sharedColumnSizes, SideColumnMinPx } from "../view360/view360-decision";
 
 // Wave's resize refuses sizes over 100: the children of a row share this total.
 const RowTotal = 100;
@@ -133,6 +133,13 @@ export function addedPanelOps(root: LayoutNode, nodeId: string, floor?: AddedPan
     const room = floor.widthPx - Math.max(0, floor.gapPx || 0) * (children.length - 1);
     const tight = children.some((_, i) => (spans[i] / total) * room + 0.5 < floor.minsPx[i]);
     if (!tight) {
+        return evenOps(children, spans);
+    }
+    // A floor that leaves the other columns less than a readable column each (a floor wider than the window, #2497)
+    // cannot hold: it is dropped for this layout, as a remembered panel's is (sizesForRememberedPanel), and the row
+    // shares its width. Holding it gave the other columns a size of 0: panels in the tab that nobody could see.
+    const othersMinPx = children.reduce((acc, _, i) => acc + (i === 0 ? 0 : SideColumnMinPx), 0);
+    if (floor.minsPx[0] + othersMinPx > room) {
         return evenOps(children, spans);
     }
     const sizes = sharedColumnSizes(floor.minsPx, floor.widthPx, floor.gapPx);
