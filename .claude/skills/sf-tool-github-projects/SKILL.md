@@ -40,30 +40,34 @@ conversation. A French-speaking session still files English tickets unless the p
 
 All via `.claude/skills/sf-tool-github-projects/github-projects-cli.sh <cmd> [args]`.
 
-| Command                                                                                                            | Purpose                                                                                                                                                                  |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `create-ticket <story\|task\|issue> <title> [--body-file <f>] [--complexity <c>] [--nature <n>] [--milestone <m>]` | Create a top-level ticket on the board in Backlog, with its issue type and labels; `--bypass-srs <reason>` on SRS projects                                               |
-| `create-epic <title> [body]`                                                                                       | Create a top-level Epic (no parent)                                                                                                                                      |
-| `create-subtask <parent> <title> [body] [--milestone <m>]`                                                         | Create a GitHub sub-issue linked to parent via GraphQL `addSubIssue`; it joins the parent's milestone unless `--milestone` names another                                 |
-| `unlink-subtask <parent> <child>`                                                                                  | Detach a child from its parent (REST `DELETE .../sub_issue`); the issue stays open, a child of another parent is refused                                                 |
-| `status <ticket>`                                                                                                  | Read status from Projects V2 board                                                                                                                                       |
-| `update-status <ticket> <status-name>`                                                                             | Write status on Projects V2 board (`gh project item-edit`); on `Done`, also close the issue when the board has not, and fail if it stays open                            |
-| `add-to-project <ticket> [--status <s>] [--json]`                                                                  | Put an issue on the board (default Backlog; one already there keeps its status, one there with no status gets it). `--json` prints the status the board holds afterwards |
-| `set-complexity <ticket> <level>`                                                                                  | Set label `complexity: <bug\|low\|medium\|complex>` (removes any existing complexity label first)                                                                        |
-| `get-complexity <ticket>`                                                                                          | Read current complexity label                                                                                                                                            |
-| `get-labels <ticket>`                                                                                              | Print every label name, one per line (used by `sf-workflow` SRS guard)                                                                                                   |
-| `list-incomplete-children <parent>`                                                                                | List native children whose configured project Status is not exactly `Done`                                                                                               |
-| `get-parent <child>`                                                                                               | Read a ticket's native parent issue                                                                                                                                      |
-| `get-issue-type <ticket>`                                                                                          | Read the native organization issue type                                                                                                                                  |
-| `get-ticket <ticket>`                                                                                              | Print title + body (used by `detect-complexity.sh`)                                                                                                                      |
-| `create-pr <ticket> [--draft] [--head <branch>]`                                                                   | Push branch + open/reuse PR against `workingBranch`; preserve existing draft state                                                                                       |
-| `ready-pr <ticket> [--head <branch> \| --pr <number>]`                                                             | Mark the ticket's PR ready for review (local CI gate); from any checkout                                                                                                 |
-| `draft-pr <ticket> [--head <branch> \| --pr <number>]`                                                             | Return the ticket's PR to draft; from any checkout                                                                                                                       |
-| `local-ci-gate <ticket> [--head <branch> \| --pr <number>] [--skip-local-ci "<reason>"]`                           | Check the required local CI statuses on the ticket PR head, changing nothing; the gate of Human Testing                                                                  |
-| `list [status]`                                                                                                    | List project items, optionally filtered by status                                                                                                                        |
-| `ensure-issue-types [--dry-run]`                                                                                   | Idempotently create org-level issue types from `workflow.issueTypes` in `.saasfoundry.json`                                                                              |
-| `assign-type <issue> <type>`                                                                                       | Attach a native GitHub Issue Type chip (sf-epic/sf-story/sf-task/sf-issue) to the issue                                                                                  |
-| `delete-issue-type <type>`                                                                                         | Remove an issue type from the org (cleanup of legacy types like Bug/Feature)                                                                                             |
+| Command                                                                                                                   | Purpose                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `create-ticket <story\|task\|issue> <title> [--body-file <f>] [--complexity <c>] [--nature <n>] [--milestone <m>] [--ui]` | Create a top-level ticket on the board in Backlog, with its issue type and labels; `--ui` marks a change of the user interface; `--bypass-srs <reason>` on SRS projects           |
+| `create-epic <title> [body]`                                                                                              | Create a top-level Epic (no parent)                                                                                                                                               |
+| `create-subtask <parent> <title> [body] [--milestone <m>] [--ui]`                                                         | Create a GitHub sub-issue linked to parent via GraphQL `addSubIssue`; it joins the parent's milestone unless `--milestone` names another; `--ui` marks a change of the UI         |
+| `unlink-subtask <parent> <child>`                                                                                         | Detach a child from its parent (REST `DELETE .../sub_issue`); the issue stays open, a child of another parent is refused                                                          |
+| `status <ticket>`                                                                                                         | Read status from Projects V2 board                                                                                                                                                |
+| `update-status <ticket> <status-name>`                                                                                    | Write status on Projects V2 board (`gh project item-edit`); on `Done`, also close the issue when the board has not, and fail if it stays open                                     |
+| `add-to-project <ticket> [--status <s>] [--json]`                                                                         | Put an issue on the board (default Backlog; one already there keeps its status, one there with no status gets it). `--json` prints the status the board holds afterwards          |
+| `set-complexity <ticket> <level>`                                                                                         | Set label `complexity: <bug\|low\|medium\|complex>` (removes any existing complexity label first)                                                                                 |
+| `get-complexity <ticket>`                                                                                                 | Read current complexity label                                                                                                                                                     |
+| `get-labels <ticket>`                                                                                                     | Print every label name, one per line (used by `sf-workflow` SRS guard)                                                                                                            |
+| `set-ui <ticket>`                                                                                                         | Mark the ticket as a change of the user interface: label `ui` (created when the repository lacks it)                                                                              |
+| `clear-ui <ticket>`                                                                                                       | Remove the `ui` marker                                                                                                                                                            |
+| `record-ui-validation <ticket> (--mockup <link-or-path> --approved-by <name> \| --supplied "<what>") [--date <d>]`        | Record the developer's mockup validation as a ticket comment (the mockup, who approved it and when, or the visuals the developer supplied); the guard of `update-status` reads it |
+| `get-ui-validation <ticket>`                                                                                              | Print the latest complete validation record as one line of JSON, nothing when there is none; exit 1 when the comments cannot be read                                              |
+| `list-incomplete-children <parent>`                                                                                       | List native children whose configured project Status is not exactly `Done`                                                                                                        |
+| `get-parent <child>`                                                                                                      | Read a ticket's native parent issue                                                                                                                                               |
+| `get-issue-type <ticket>`                                                                                                 | Read the native organization issue type                                                                                                                                           |
+| `get-ticket <ticket>`                                                                                                     | Print title + body (used by `detect-complexity.sh`)                                                                                                                               |
+| `create-pr <ticket> [--draft] [--head <branch>]`                                                                          | Push branch + open/reuse PR against `workingBranch`; preserve existing draft state                                                                                                |
+| `ready-pr <ticket> [--head <branch> \| --pr <number>]`                                                                    | Mark the ticket's PR ready for review (local CI gate); from any checkout                                                                                                          |
+| `draft-pr <ticket> [--head <branch> \| --pr <number>]`                                                                    | Return the ticket's PR to draft; from any checkout                                                                                                                                |
+| `local-ci-gate <ticket> [--head <branch> \| --pr <number>] [--skip-local-ci "<reason>"]`                                  | Check the required local CI statuses on the ticket PR head, changing nothing; the gate of Human Testing                                                                           |
+| `list [status]`                                                                                                           | List project items, optionally filtered by status                                                                                                                                 |
+| `ensure-issue-types [--dry-run]`                                                                                          | Idempotently create org-level issue types from `workflow.issueTypes` in `.saasfoundry.json`                                                                                       |
+| `assign-type <issue> <type>`                                                                                              | Attach a native GitHub Issue Type chip (sf-epic/sf-story/sf-task/sf-issue) to the issue                                                                                           |
+| `delete-issue-type <type>`                                                                                                | Remove an issue type from the org (cleanup of legacy types like Bug/Feature)                                                                                                      |
 
 Status names are case-insensitive — the CLI matches against the options defined on the board.
 
@@ -124,13 +128,25 @@ The following labels must exist in the repo (create them once):
 | `complexity: medium`  | `#FFD700` | Structured plan + validation                    |
 | `complexity: complex` | `#FF1493` | Full adversarial review (security, logic, perf) |
 
-Create them with:
+Create them with one call per line (never the four in one call):
 
 ```bash
 gh label create "complexity: bug"     --color FF5555 --description "🐛 Bug fix"
 gh label create "complexity: low"     --color 7CFC00 --description "🟢 Low complexity"
 gh label create "complexity: medium"  --color FFD700 --description "🟡 Medium complexity"
 gh label create "complexity: complex" --color FF1493 --description "🔴 Complex / critical"
+```
+
+## The `ui` label and the mockup validation
+
+A ticket that changes the user interface carries the label `ui` (color `#5319E7`): `create-ticket --ui`, `create-subtask --ui`, or `set-ui` on an existing ticket. It is a workflow marker, not a nature
+label, and the session sets it. When the developer has validated a mockup, or has supplied the visuals themselves, `record-ui-validation` writes it down as a ticket comment. The `update-status`
+command of the workflow skill then refuses the move that hands the ticket to the developer's review (`In review` under Solo, `Human testing` where the workflow has it) until `get-ui-validation` finds
+that record. The record starts with the line `<!-- sf-ui-validation:v1 -->`, then `- Field: value` lines. See the workflow skill ("UI mockup gate") for the guard, and its escape-hatches.md for the
+hatch.
+
+```bash
+gh label create "ui" --color 5319E7 --description "Workflow: ticket changes the user interface; a validated mockup is required before review"
 ```
 
 ## SRS workflow labels
@@ -144,17 +160,20 @@ leaves the ticket alone.
 | `srs:update`   | `#F97316` | Existing SRS page must be updated to match code drift.         |
 | `srs:new`      | `#3B82F6` | New Epic / FR spec to be created from scratch.                 |
 
-Create them with (idempotent — `|| true` swallows the exit code when the label already exists) :
+Create them with one call per line (never the three in one call). A label that already exists makes `gh` print `already exists` and exit non-zero: that is harmless, leave the label as it is and go on
+with the next one:
 
 ```bash
-gh label create "srs:drafting" --color 8B5CF6 --description "sf-srs: ticket needs spec drafting / refinement" || true
-gh label create "srs:update"   --color F97316 --description "sf-srs: existing SRS page must be updated"        || true
-gh label create "srs:new"      --color 3B82F6 --description "sf-srs: create a new Epic / FR spec from scratch" || true
+gh label create "srs:drafting" --color 8B5CF6 --description "sf-srs: ticket needs spec drafting / refinement"
+gh label create "srs:update"   --color F97316 --description "sf-srs: existing SRS page must be updated"
+gh label create "srs:new"      --color 3B82F6 --description "sf-srs: create a new Epic / FR spec from scratch"
 ```
 
 See `.claude/skills/sf-srs/SKILL.md` for the end-to-end contract and `.claude/docs/github-labels.md` for the full label catalogue.
 
 ## Example — full ticket lifecycle
+
+Each command below is a call of its own, in order. `$CLI` stands for the script path: a variable does not carry over from one call to the next, so write the path out in every call.
 
 ```bash
 CLI=.claude/skills/sf-tool-github-projects/github-projects-cli.sh

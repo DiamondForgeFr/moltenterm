@@ -30,8 +30,8 @@ This file lists every hatch the workflow scripts accept, what each one switches 
 7. **The automated listener ignores them.** The pull-request listener (`sync-pr-review`: Ready for review and merge events) runs `update-status` with every `SF_WORKFLOW_BYPASS_*` variable cleared, so
    a variable present in a CI environment never reaches it.
 
-Guards run in this order on `update-status`: SRS, complexity, Epic derived status, nature, incomplete children, bundled-PR parent, pushed commits, PR existence, local CI, PR merged. A refusal exits
-with code `2`.
+Guards run in this order on `update-status`: SRS, complexity, Epic derived status, nature, UI mockup, incomplete children, bundled-PR parent, pushed commits, PR existence, local CI, PR merged. A
+refusal exits with code `2`.
 
 ## Quick reference
 
@@ -40,11 +40,13 @@ with code `2`.
 | `SF_WORKFLOW_BYPASS_SRS_GUARD=1`            | SRS drafting guard (`srs:*` tickets stay off the code path)         | `update-status` to AI testing, Human testing, In review                                    |
 | `SF_WORKFLOW_BYPASS_COMPLEXITY_GUARD=1`     | Complexity label required                                           | `update-status` to any status except Backlog                                               |
 | `SF_WORKFLOW_BYPASS_NATURE_GUARD=1`         | Nature axis (Human testing / In review routing)                     | `update-status` from AI testing to In review or Done                                       |
+| `SF_WORKFLOW_BYPASS_UI_MOCKUP_GUARD=1`      | A `ui` ticket needs a recorded mockup validation before review      | `update-status` to In review (Solo); to Human testing or In review (Team)                  |
 | `SF_WORKFLOW_BYPASS_CHILDREN_GUARD=1`       | Parent Done requires every native child Done                        | `update-status` to Done                                                                    |
 | `SF_WORKFLOW_BYPASS_BUNDLED_PARENT_GUARD=1` | Bundled-PR child must have a verified, non-Epic native parent       | `update-status` to Done for `nature:bundled-pr` tickets                                    |
 | `SF_WORKFLOW_BYPASS_PUSHED_GUARD=1`         | Ticket work committed and pushed to origin                          | `update-status` to AI testing                                                              |
 | `SF_WORKFLOW_BYPASS_PR_EXISTENCE_GUARD=1`   | Matching open PR (draft or ready) required                          | `update-status` to Human testing or In review                                              |
 | `SF_WORKFLOW_BYPASS_PR_MERGED_GUARD=1`      | Verified merged PR required                                         | `update-status` to Done                                                                    |
+| `SF_WORKFLOW_BYPASS_BRANCH_GUARD=1`         | A branch the workflow does not name                                 | the `pre-commit` and `pre-push` git hooks                                                  |
 | `--bypass-srs <reason>`                     | Rule 8: SRS-enabled projects spawn tickets from drafted SRS pages   | `create-ticket`, `create-subtask`, `create-epic`                                           |
 | `--bypass-reason <text>`                    | Sets the `--bypass-srs` reason the SRS spawner passes (not a guard) | `srs-cli.sh spawn`, `transition-drafting <t> spawning`                                     |
 | `--skip-local-ci "<reason>"`                | Local CI statuses green on the head commit                          | `create-pr` (not draft), `ready-pr`, `local-ci-gate`, and `update-status` to Human testing |
@@ -94,6 +96,29 @@ and, only for a **delegated agent** (an `agent_id` in the tool event, or a worki
 | A nature at creation        | `github-projects-cli.sh create-ticket … --nature internal` (or `bundled-pr`) |
 
 The same calls from the primary checkout are allowed: the session and the developer run them. Every refusal says why and what to do instead (stop, report, ask the developer).
+
+### A shell line that is not one plain command
+
+The same hook also reads the shape of the line, after the rules above. This is not an escape hatch: the refusal asks the agent to rewrite its call, not to ask the developer. A host cannot analyse a
+chained, substituted or scripted line before it runs, so it stops for a permission on every such call, even when each command in it is allowed. The hook refuses it (on Claude Code for the Bash tool
+only, a PowerShell line has other quoting) and the refusal names the construct and the split to make:
+
+| The call                  | What is refused                                                                                                                   | What to do instead                                                                    |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| A chain                   | `a && b`, `a; b`, `a \|\| b`, two lines in one call (`cd dir && cmd` included)                                                    | One command per call, in order; no `cd`, give the directory to the command (`git -C`) |
+| A substitution            | `$(…)`, backticks, `<(…)` and `>(…)`, also inside double quotes and in an unquoted heredoc body                                   | Run the inner command in its own call, then use its output in the next                |
+| A loop or a group         | `for`, `while`, `until`, `if`, `case`, `{ …; }`, `( … )`, a function                                                              | One call per item, or one command that takes every item                               |
+| A background job          | a trailing or middle `&`                                                                                                          | The host's background option (`run_in_background` on Claude Code)                     |
+| An inline script          | `node -e`, `python3 -c`, `python3 - <<EOF`, `bash -c`, `eval`, a script piped into a shell, also behind `env`, `timeout`, `xargs` | Write the script to a scratch file with the Write tool, then run the file             |
+| A file written by heredoc | `cat <<EOF > path`, `tee path <<EOF`                                                                                              | The Write and Edit tools                                                              |
+
+A pipe, a redirection (`2>&1`, `> file`), a separator inside quotes, a heredoc fed to a program that only reads it (`git commit -F - <<'EOF'`) and a script file with flags after it are not refused. On
+Claude Code, `git commit -m "$(cat <<'EOF' … EOF)"` and `gh pr create --body "$(cat <<'EOF' … EOF)"`, with a single-quoted delimiter and nothing else in the substitution, are not refused either:
+Claude Code does not ask about them (measured on 2.1.325 on #1251). The same text is refused on Codex, and an unquoted `<<EOF` is refused everywhere.
+
+What the hook does with such a line is a setting of the project, `modules.harness.guard.shellShape` in `.saasfoundry.json`, written only by `sf agents shell-guard <refuse|warn|off|status>`. Absence
+means `refuse`. `warn` lets the host's own permission flow go on and gives the agent the same text as context; `off` does not look at the shape of a line. The rules above apply in every mode. Choosing
+a mode is the developer's decision, not the agent's.
 
 ### How the developer applies a hatch
 
@@ -148,6 +173,20 @@ The hook is a guardrail against the ordinary path the refusals used to teach, no
   Normally the developer adds the label on the ticket and no hatch is needed. An agent never labels its own ticket: whether it skips Human testing is the developer's call, and the hook refuses it.
 - **Illegitimate:** skipping Human testing on user-facing work because the tests are green; sending a bundled child to Done without a verified parent PR.
 - **Record:** ticket comment naming the facts that justify the routing, and the label to add.
+
+### UI mockup guard: `SF_WORKFLOW_BYPASS_UI_MOCKUP_GUARD`
+
+- **Protects:** a ticket that changes the user interface carries the `ui` label (`create-ticket --ui`, `create-subtask --ui`, `set-ui`), and reaches the developer's review only once the validation of
+  its mockup is recorded on it: the mockup's link or path, who approved it and when, or the visuals the developer supplied themselves (their own mockup, an exact target screenshot). The record is a
+  ticket comment written by `record-ui-validation` and read back by the guard (`get-ui-validation`). A ticket without the `ui` label is not read any further. The marker is not a nature label: the
+  session sets it, and so does the developer.
+- **Applies to:** `update-status <ticket> "In review"` under Solo; `"Human testing"`, and `"In review"` for a ticket that skips it, on a workflow that declares Human testing. Fails open when the
+  labels cannot be read (offline, auth); fails closed when the ticket carries the label and its comments cannot be read, because "no record" must never be read from a failure.
+- **Legitimate:** the developer's approval exists but the record cannot be written (the comment is refused, an outage) and you can show the approval. Normally the session asks the developer to
+  validate a mockup, or to supply the visuals, and records it: no hatch is needed.
+- **Illegitimate:** skipping the validation because the implementation is done, the mockup is "obvious" or the deadline is close; clearing the marker (`clear-ui`) of a ticket that does change the
+  interface so that the guard no longer reads it; an agent applying it.
+- **Record:** automatic, a ticket comment naming the variable and `SF_WORKFLOW_BYPASS_REASON`. Complete it with what the developer validated and where it can be seen.
 
 ### Children guard: `SF_WORKFLOW_BYPASS_CHILDREN_GUARD`
 
@@ -243,6 +282,32 @@ The hook is a guardrail against the ordinary path the refusals used to teach, no
 - **Record:** automatic. The CLI prints a warning, then writes `Local CI gate skipped: <reason>` in the PR body (`create-pr`) or as a PR comment (`ready-pr`, `local-ci-gate`, the move to Human
   testing; on the ticket when the PR existence guard was bypassed and no pull request can carry it). Add the evidence of the alternative check to the PR test plan.
 
+## Git hooks
+
+A project generated with its application stack carries git hooks (`.husky/`). Two of their rules keep work on the board (#1232): an agent that could not reach GitHub once committed 19 fixes as
+`fix(#TBD): …` on 19 local `fix/audit-<slug>` branches and pushed nothing, and nobody saw the work for two days. A project installed with the harness alone has no such hooks: the instructions carry
+the rule there.
+
+### Ticket reference: no hatch
+
+- **Protects:** every commit names the number of a ticket that exists, `<type>(#<N>): <description>`. commitlint refuses a placeholder (`#TBD`, `#XXX`, `#12a`) with the `ticket-reference` rule, and it
+  already refused any header without a numbered scope.
+- **No hatch:** a subject can always be reworded once the ticket exists, so nothing legitimate needs a placeholder. When the ticket tool is unreachable, stop and report it
+  (`statuses/*-in-progress.md`, "An unreachable ticket tool or remote"); the developer decides what happens meanwhile.
+
+### Branch guard: `SF_WORKFLOW_BYPASS_BRANCH_GUARD`
+
+- **Protects:** work lands on a branch the workflow names. `.husky/workflow-branch-guard.mjs` accepts the main, working, pull-request target and release branches of `.saasfoundry.json`, `rc-*`, and
+  the `workflow.branchNaming` patterns (`{N}` is the ticket number). A project with no `workflow` block is not checked.
+- **Applies to:** `pre-commit`, on the branch the commit lands on, and `pre-push`, on every branch the push updates (tags and deletions pass). Two cases pass at commit and are checked at push instead:
+  a detached HEAD (every rebase step) and a branch the host named (`worktree-agent-<id>`, Claude Code's isolated worktree). Such an agent pushes to the ticket branch with
+  `git push origin HEAD:<ticket branch>`, and that name is what the guard checks.
+- **Legitimate:** a one-off branch the developer names for a reason the workflow does not cover (a spike pushed for a colleague, a recovery branch), stated in `SF_WORKFLOW_BYPASS_REASON`.
+- **Illegitimate:** any branch an agent invented because the ticket tool or the remote did not answer; a branch kept off the convention "to rename later". Rename it after the ticket:
+  `git branch -m fix/<N>-<description>`.
+- **Who:** the developer, for one command, from the primary checkout. The guard ignores the variable in the worktree of a delegated agent, and the guard hook refuses an agent's Bash call that sets it.
+- **Record:** the hook prints the branch and the reason. Add a comment on the ticket naming the branch and why it is off the convention.
+
 ## Not guard bypasses
 
 These are switches you may meet in the same scripts. They do not weaken a guard.
@@ -276,6 +341,7 @@ These are switches you may meet in the same scripts. They do not weaken a guard.
 | ------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------- |
 | no `complexity:` label                | `detect-complexity`, then `retag <ticket> <level>`                            | the label cannot be written at all                      |
 | lacks `nature:internal`               | take the ticket through Human testing, or ask the developer if it is internal | the label cannot be applied and routing is justified    |
+| `ui` ticket, no mockup validation     | ask the developer to validate a mockup, then `record-ui-validation <ticket>`  | the approval exists and the record cannot be written    |
 | work not committed or not pushed      | commit it, then `git push` (the message names the command)                    | `origin` is down and the work is safe elsewhere         |
 | no open PR / wrong draft state        | `create-pr`, `ready-pr`, or rename the branch to the convention               | the PR exists on a branch that cannot be renamed        |
 | no verified merged PR                 | wait for the merge, then `update-status <ticket> Done`                        | the work is on the working branch without a matching PR |

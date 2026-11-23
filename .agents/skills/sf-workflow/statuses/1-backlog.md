@@ -24,7 +24,8 @@ next_status: In progress
 
 # STATUS: Backlog
 
-Preparation phase — detect complexity, analyze context, plan implementation, validate specs. In the solo workflow, spec validation and pickup confirmation usually happen in the same exchange: one developer "go" covers both.
+Preparation phase — detect complexity, analyze context, plan implementation, validate specs. In the solo workflow, spec validation and pickup confirmation usually happen in the same exchange: one
+developer "go" covers both.
 
 ## Action checklist
 

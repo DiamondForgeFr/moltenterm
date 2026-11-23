@@ -25,12 +25,12 @@ When `.saasfoundry.json` configures a workflow, read `sf-workflow` and use its g
 1. **Verify**: Check `git status` and current branch
 2. **Branch Safety**: **CRITICAL** - If on main/master, create descriptive branch from changes
 3. **Push**: `git push -u origin HEAD`
-4. **Base branch**: `BASE=$(jq -r '.workflow.prTargetBranch // .workflow.workingBranch // empty' .saasfoundry.json 2>/dev/null)`; without a manifest, `BASE=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)`
-5. **Analyze**: `git diff "origin/$BASE...HEAD" --stat`
+4. **Base branch**: read it with `jq -r '.workflow.prTargetBranch // .workflow.workingBranch // empty' .saasfoundry.json`; without a manifest, read it with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. The result is `<base>` below: a shell variable does not carry over from one call to the next, so write the branch name out in each command.
+5. **Analyze**: `git diff "origin/<base>...HEAD" --stat`
 6. **Generate PR**:
    - Title: One-line summary (max 72 chars)
-   - Body: Bullet points of key changes
-7. **Submit**: `gh pr create --base "$BASE" --title "..." --body "..."`
+   - Body: Bullet points of key changes, written to a file with the Write tool
+7. **Submit**: `gh pr create --base <base> --title "..." --body-file <file>`
 8. **Return**: Display PR URL
 
 ## PR Format

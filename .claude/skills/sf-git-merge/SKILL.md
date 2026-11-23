@@ -17,8 +17,8 @@ Rebase the ticket branch on the pull request target branch, resolve what has one
 ## Workflow
 
 1. **Check**: the working tree is clean and the current branch is a ticket branch, not the target branch itself. Otherwise stop and say why.
-2. **Target**: `TARGET=$(jq -r '.workflow.prTargetBranch // .workflow.workingBranch // empty' .saasfoundry.json)`. Without a manifest, ask which branch to target; never assume `main`.
-3. **Fetch and rebase**: `git fetch origin "$TARGET"` then `git rebase "origin/$TARGET"`.
+2. **Target**: read it with `jq -r '.workflow.prTargetBranch // .workflow.workingBranch // empty' .saasfoundry.json` (the Context above already printed it). That branch is `<target>` below: a shell variable does not carry over from one call to the next, so write the branch name out in each command. Without a manifest, ask which branch to target; never assume `main`.
+3. **Fetch and rebase**, one command per call: `git fetch origin <target>`, then `git rebase origin/<target>`.
 4. **For each conflicted file** (`git diff --name-only --diff-filter=U`), apply the first rule that fits:
    - **Lockfile** (`package-lock.json`): take the target's version with `git checkout --ours -- package-lock.json` (during a rebase, _ours_ is the target and _theirs_ the commit being replayed), then `npm install --package-lock-only`, then `git add`.
    - **Generated file** the project can rebuild (a codegen output, a built client): take the target's version with `git checkout --ours -- <file>`, rerun its generator, then `git add`.

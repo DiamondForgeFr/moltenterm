@@ -15,8 +15,12 @@ Run preconditions explicitly, and stop to report a missing capability when no eq
 When a workflow step names a task kind, resolve its tier with
 `sf agents route --task <kind> --provider <current-agent>` and delegate the step to the
 `sf-<tier>` agent it names: that agent carries its own model and effort, so never name a
-model or an effort yourself. When the route fails or the agent cannot delegate, run the step
-in the session.
+model or an effort yourself. The one exception is a route that prints `alias <name>` (Kimi Code
+binds no model in an agent file): pass that alias, copied from the route and never composed, as
+the `model` of the delegation call. When the route fails or the agent cannot delegate, run the
+step in the session: a refused or failed route is never worked around by starting another coding
+agent's CLI (`claude`, `codex`, or any other) or a background session of another host, and a host
+with no worktree support delegates sub-tasks only, through its own native sub-agent tool.
 Never bypass CLI guards, required approvals, tests or workflow status exit conditions.
 An escape hatch is the developer's to apply: when a guard refuses, report it and ask; a hook
 refuses an agent call that sets one.
@@ -75,12 +79,12 @@ When `.saasfoundry.json` configures a workflow, read `sf-workflow` and use its g
 1. **Verify**: Check `git status` and current branch
 2. **Branch Safety**: **CRITICAL** - If on main/master, create descriptive branch from changes
 3. **Push**: `git push -u origin HEAD`
-4. **Base branch**: `BASE=$(jq -r '.workflow.prTargetBranch // .workflow.workingBranch // empty' .saasfoundry.json 2>/dev/null)`; without a manifest, `BASE=$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)`
-5. **Analyze**: `git diff "origin/$BASE...HEAD" --stat`
+4. **Base branch**: read it with `jq -r '.workflow.prTargetBranch // .workflow.workingBranch // empty' .saasfoundry.json`; without a manifest, read it with `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. The result is `<base>` below: a shell variable does not carry over from one call to the next, so write the branch name out in each command.
+5. **Analyze**: `git diff "origin/<base>...HEAD" --stat`
 6. **Generate PR**:
    - Title: One-line summary (max 72 chars)
-   - Body: Bullet points of key changes
-7. **Submit**: `gh pr create --base "$BASE" --title "..." --body "..."`
+   - Body: Bullet points of key changes, written to a file with the Write tool
+7. **Submit**: `gh pr create --base <base> --title "..." --body-file <file>`
 8. **Return**: Display PR URL
 
 ## PR Format
