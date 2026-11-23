@@ -30,3 +30,15 @@ itself, and Codex's own session files and `codex` program, which uses its own si
 The browser panel is Chromium. It loads the pages you or your agents open, and those sites see what they would see in
 any browser. It does not block ads or trackers yet: that is planned
 ([#426](https://github.com/DiamondForgeFr/moltenterm/issues/426)) and not part of 1.0.0.
+
+## Warning before a lookalike domain
+
+When a tab of the browser panel is about to open a domain that imitates one you know (`paypa1.com` for `paypal.com`),
+MoltenTerm warns you first. The check is local: no request is made to decide it, no list is downloaded and nothing is
+sent to anyone. It compares the domain with your bookmarks and pinned sites, the domains you open often and a short list
+of well-known sites that ships with the app.
+
+To know the domains you open often, and the ones you chose to continue to, MoltenTerm keeps two small files in its own
+data folder (`lookalike-visits.json` and `lookalike-allowed.json`). They hold domains only, with for each a count of
+visits and the time of the last one (`example.com`, 3): never an address, a page or a title. A page an agent opens never
+adds to them. Delete the files, or the data folder, to forget them.

@@ -202,8 +202,11 @@ import { ClientCertificateModel, isCertificateAsk } from "./client-certificate-s
 import { CommentButton } from "./comment-button";
 import { ConnectionButton } from "./connection-button";
 import { InsecurePasswordChannel, isConnectionState } from "./connection-security";
-import { ConnectionModel, connectionView, ConnectionView } from "./connection-store";
+import { ConnectionModel, connectionView, ConnectionView, LookalikeModel } from "./connection-store";
 import { InsecurePasswordBar } from "./insecure-password-bar";
+import { isLookalikeHold, shownAddressHost, shownHost } from "./lookalike";
+import { startLookalikeKnownSync } from "./lookalike-known";
+import { LookalikePage } from "./lookalike-page";
 import { BrowserChoiceModel, EngineChoiceBar } from "./engine-choice-bar";
 import { blockIdOfORef, focusWhenPlaced } from "./focus-placed";
 import { inspectorMenuItems } from "./inspector-menu";
@@ -240,15 +243,21 @@ export { MoltentermBrowserView };
 const AnnotateHost = lazy(() => import("./annotate-layer").then((m) => ({ default: m.AnnotateHost })));
 
 const PersistDelayMs = 400;
+// Chromium's error for a request a webRequest listener cancelled: how a navigation held as a lookalike domain fails
+// (#2482). A first navigation waits this long for its webview's id before it shows the usual error page.
+const ErrBlockedByClient = -20;
+const BlockedSettleMs = 3000;
 // Below this row width (#1439) Forward, Reload and Magnify join Share and Open in <browser> in the row's "⋯"; the
 // value mirrors the last container query of browser.css.
 const FoldNavPx = 340;
 // Without a home page set (web:defaulturl), a new browser opens MoltenTerm's start page, never a site (FR-SHELL-110).
 const FallbackUrl = StartPageUrl;
 
-// What the preload exposes for the page's connection (emain/preload.ts, #1980).
+// What the preload exposes for the page's connection and the lookalike warning (emain/preload.ts, #1980, #2482).
 type PageSecurityApi = {
     moltentermConnectionGet?: (webContentsId: number) => Promise<unknown>;
+    moltentermLookalikeHeld?: (webContentsId: number) => Promise<unknown>;
+    moltentermLookalikeContinue?: (webContentsId: number) => void;
 };
 
 // The agents' DevTools controller needs each tab's webview (emain/moltenterm-browseragent.ts, FR-BRW-008).
@@ -324,6 +333,8 @@ export class BrowserViewModel implements ViewModel {
     errors = new BrowserErrorModel();
     // How each tab's page is served, and the password warning (#1980, FR-BRW-023).
     connection = new ConnectionModel();
+    // The navigations held as a lookalike domain, per tab (#2482, FR-BRW-024).
+    lookalike = new LookalikeModel();
     // What the connection button shows for the shown tab; the sidebar's top field reads it too.
     connectionViewAtom: Atom<ConnectionView>;
     // The first-link engine choice per tab (FR-BRW-006).
@@ -367,9 +378,11 @@ export class BrowserViewModel implements ViewModel {
             return connectionView({
                 address: tab.url,
                 state: get(this.connection.statesAtom)[tab.id] ?? null,
+                held: get(this.lookalike.holdsAtom)[tab.id] ?? null,
                 failed: get(this.errors.errorsAtom)[tab.id]?.error != null,
             });
         });
+        startLookalikeKnownSync();
         this.agents = new BrowserAgentModel(blockId);
         this.agents.onShown = (shownTabIds) => showAgentPage(this.agentShowTarget(), shownTabIds);
         this.agents.onAsk = () => showAgentAsk(blockId);
@@ -624,6 +637,7 @@ export class BrowserViewModel implements ViewModel {
         this.sitePermissions.forgetTab(id);
         this.clientCertificates.forgetTab(id);
         this.connection.forgetTab(id);
+        this.lookalike.clear(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -1163,6 +1177,7 @@ export class BrowserViewModel implements ViewModel {
         this.sitePermissions.forgetTab(id);
         this.clientCertificates.forgetTab(id);
         this.connection.forgetTab(id);
+        this.lookalike.clear(id);
         this.loads.forget(id);
         this.errors.forget(id);
         this.choices.forget(id);
@@ -1605,6 +1620,68 @@ export class BrowserViewModel implements ViewModel {
         globalStore.set(this.clearDataAtom, { kind: ClearSiteKind, tabId, origin: site.origin, host: site.host });
     }
 
+    // A load failed with ERR_BLOCKED_BY_CLIENT: Electron main holds navigations to a lookalike domain this way
+    // (#2482, FR-BRW-024), and tells which one when asked. True when the failure was such a hold, which the tab then draws
+    // as its warning instead of the error page.
+    async noteBlockedNavigation(tabId: string): Promise<boolean> {
+        const webContentsId = this.webContentsIdOf(tabId);
+        if (webContentsId == null) {
+            return false;
+        }
+        let hold: unknown;
+        try {
+            hold = await (getApi() as PageSecurityApi).moltentermLookalikeHeld?.(webContentsId);
+        } catch {
+            return false;
+        }
+        if (!isLookalikeHold(hold)) {
+            return false;
+        }
+        this.lookalike.hold(tabId, hold);
+        return true;
+    }
+
+    // The tab's webview id, null before its first dom-ready (a webview throws until then).
+    webContentsIdOf(tabId: string): number {
+        try {
+            return this.webviews.get(tabId)?.getWebContentsId() ?? null;
+        } catch {
+            return null;
+        }
+    }
+
+    // Back to safety: the page the tab showed before, else a blank page. Nothing of the lookalike was requested.
+    lookalikeBack(tabId: string): void {
+        const webview = this.webviews.get(tabId);
+        if (this.lookalike.holdOf(tabId) == null || webview == null) {
+            return;
+        }
+        this.lookalike.clear(tabId);
+        this.errors.forget(tabId);
+        if (webview.canGoBack()) {
+            webview.goBack();
+            return;
+        }
+        this.setState(updateTab(this.state(), tabId, { url: "about:blank", title: undefined }));
+        webview.loadURL("about:blank").catch(() => {});
+    }
+
+    // Continue to the domain: main remembers it, then the page loads. Only the developer's click gets here.
+    lookalikeContinue(tabId: string): void {
+        const hold = this.lookalike.holdOf(tabId);
+        const webview = this.webviews.get(tabId);
+        const webContentsId = this.webContentsIdOf(tabId);
+        if (hold == null || webview == null || webContentsId == null) {
+            return;
+        }
+        (getApi() as PageSecurityApi).moltentermLookalikeContinue?.(webContentsId);
+        this.lookalike.clear(tabId);
+        this.errors.forget(tabId);
+        webview.loadURL(hold.url).catch(() => {
+            // A failure arrives as did-fail-load and shows the error page.
+        });
+    }
+
     // The developer's own request to clear the shown page's cookies and data, from the site information popover.
     clearSiteDataOf(tabId: string): (() => void) | undefined {
         return this.clearableOrigin(tabId) != null ? () => this.askClearSiteData(tabId) : undefined;
@@ -1996,6 +2073,7 @@ function TabWebview({
             // In-page navigations (anchors, history.pushState on load) do not count as moving on.
             if (e.type === "did-navigate") {
                 model.choices.noteNavigation(tab.id);
+                model.lookalike.clear(tab.id);
                 // A page without a favicon would keep the previous site's.
                 model.loads.update(tab.id, { favicon: undefined });
             }
@@ -2074,6 +2152,7 @@ function TabWebview({
             }
         };
         const onStartLoading = () => {
+            model.lookalike.clear(tab.id);
             model.loads.noteStart(tab.id);
             noteSiteLoading(model.blockId, true);
             model.errors.noteStart(tab.id);
@@ -2085,10 +2164,7 @@ function TabWebview({
             model.errors.noteStop(tab.id);
             model.addressHold.noteLoadStopped(model.findTab(tab.id)?.url);
         };
-        const onFailLoad = (e: any) => {
-            if (!isPageFailure(e)) {
-                return;
-            }
+        const showFailure = (e: any) => {
             setFirstLoadEnded(true);
             model.lifecycle.finishRestoring(tab.id);
             const url = e.validatedURL || webview.getURL();
@@ -2103,6 +2179,38 @@ function TabWebview({
                     })
                 );
             }
+        };
+        // A navigation main held as a lookalike domain fails with ERR_BLOCKED_BY_CLIENT (#2482): main tells which, and the
+        // tab draws the warning instead of the error page. A first navigation fails before the webview's first dom-ready,
+        // when its id is not known yet: it waits for it, then shows the usual error if no hold is found.
+        let pendingBlock: any = null;
+        const settleBlocked = async (e: any) => {
+            if (await model.noteBlockedNavigation(tab.id)) {
+                setFirstLoadEnded(true);
+                model.lifecycle.finishRestoring(tab.id);
+                return;
+            }
+            showFailure(e);
+        };
+        const onFailLoad = (e: any) => {
+            if (!isPageFailure(e)) {
+                return;
+            }
+            if (e.errorCode !== ErrBlockedByClient) {
+                showFailure(e);
+                return;
+            }
+            if (model.webContentsIdOf(tab.id) != null) {
+                fireAndForget(() => settleBlocked(e));
+                return;
+            }
+            pendingBlock = e;
+            setTimeout(() => {
+                if (pendingBlock === e) {
+                    pendingBlock = null;
+                    showFailure(e);
+                }
+            }, BlockedSettleMs);
         };
         const onFavicon = (e: any) => {
             const site = model.loads.noteFavicons(tab.id, e.favicons, webview.getURL());
@@ -2128,6 +2236,11 @@ function TabWebview({
                     model.connection.setState(tab.id, state);
                 }
             });
+            if (pendingBlock != null) {
+                const blocked = pendingBlock;
+                pendingBlock = null;
+                fireAndForget(() => settleBlocked(blocked));
+            }
             if (document.activeElement === webview) {
                 getApi().setWebviewFocus(webview.getWebContentsId());
             }
@@ -2409,11 +2522,13 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
     if (tab == null) {
         return null;
     }
+    // A host that mixes scripts shows in its xn-- form (FR-BRW-024 AC6); the button beside it replaces the tab's icon
+    // while it shows, but a page still loading keeps its loader.
+    const hold = model.lookalike.holdOf(tab.id);
     const host = isStartPage(tab.url)
         ? t("browser.start.address")
-        : browserTabTitle({ id: tab.id, url: tab.url }) || tab.url;
-    // The connection button beside the host replaces the tab's icon while it shows, but a page still loading keeps its
-    // loader.
+        : shownHost(browserTabTitle({ id: tab.id, url: tab.url }) || tab.url, hold != null) || tab.url;
+    const shownUrl = shownAddressHost(addressOfPage(tab.url), hold != null);
     const iconHidden = connection != null && !loads[tab.id]?.loading;
     const keys = formatShortcutById("top-field");
     const copyable = addressOfPage(tab.url) !== "";
@@ -2433,8 +2548,8 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
             <button
                 type="button"
                 className="flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-6 px-1.5 text-secondary hover:bg-hover hover:text-primary"
-                title={`${addressOfPage(tab.url) || host}\n${t("browser.address.title", { keys })}`}
-                aria-label={t("browser.address.label", { address: addressOfPage(tab.url) || host })}
+                title={`${shownUrl || host}\n${t("browser.address.title", { keys })}`}
+                aria-label={t("browser.address.label", { address: shownUrl || host })}
                 data-testid="browser-address"
                 onClick={() => {
                     model.nodeModel.focusNode();
@@ -2463,6 +2578,7 @@ function PageAddress({ model, tab }: { model: BrowserViewModel; tab: BrowserTab 
 function ConnectionControl({ model, tab }: { model: BrowserViewModel; tab: BrowserTab }) {
     const view = useAtomValue(model.connectionViewAtom);
     const states = useAtomValue(model.connection.statesAtom);
+    const holds = useAtomValue(model.lookalike.holdsAtom);
     if (tab == null || view == null) {
         return null;
     }
@@ -2471,6 +2587,7 @@ function ConnectionControl({ model, tab }: { model: BrowserViewModel; tab: Brows
             view={view}
             address={tab.url}
             state={states[tab.id] ?? null}
+            hold={holds[tab.id] ?? null}
             onClearData={model.clearSiteDataOf(tab.id)}
         />
     );
@@ -2598,7 +2715,7 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                             className="pointer-events-none absolute inset-0 flex min-w-0 items-center justify-center gap-1.5 px-2 text-12 text-primary"
                         >
                             <i className="fa fa-solid fa-link shrink-0 text-11 text-muted" />
-                            <span className="truncate">{shownAddress(draft)}</span>
+                            <span className="truncate">{shownAddress(shownAddressHost(draft))}</span>
                         </span>
                     ) : null}
                 </div>
@@ -2985,6 +3102,18 @@ function ActiveErrorPage({ model, tabId }: { model: BrowserViewModel; tabId: str
     );
 }
 
+// The warning of a navigation held as a lookalike domain, drawn over the shown tab's page (#2482, FR-BRW-024).
+function ActiveLookalikePage({ model, tabId }: { model: BrowserViewModel; tabId: string }) {
+    const holds = useAtomValue(model.lookalike.holdsAtom);
+    const hold = holds[tabId];
+    if (hold == null) {
+        return null;
+    }
+    return (
+        <LookalikePage hold={hold} onBack={() => model.lookalikeBack(tabId)} onContinue={() => model.lookalikeContinue(tabId)} />
+    );
+}
+
 function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const state = useAtomValue(model.stateAtom);
     const block = useAtomValue(model.blockAtom);
@@ -3107,6 +3236,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                     ) : null}
                     <ActiveStartPage model={model} tabId={state.activeId} />
                     <ActiveErrorPage model={model} tabId={state.activeId} />
+                    <ActiveLookalikePage model={model} tabId={state.activeId} />
                     <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
                     <AnnotateMount
                         session={model.annotate}

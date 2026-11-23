@@ -55,6 +55,12 @@ import {
     validRegistration,
     webviewKey,
 } from "./moltenterm-browseragent-policy";
+import {
+    agentNavigationWasHeld,
+    beginAgentNavigation,
+    endAgentNavigation,
+    LookalikeRefusalCode,
+} from "./moltenterm-lookalike-agent"; // MOLTENTERM-PATCH (#2482)
 
 // Sent by frontend/moltenterm-shell/browser/browser-view.tsx when a tab's webview is ready.
 export const WebviewRegisteredChannel = "moltenterm-webview-registered";
@@ -650,6 +656,13 @@ function navigateOp(wc: WebContents, raw: any): Promise<NavigateOutcome> {
                 resolve({ url: "", title: "", status, error: error || "ERR_TAB_CLOSED" });
                 return;
             }
+            // MOLTENTERM-PATCH (#2482): the agent's navigation was held as a lookalike domain: a refusal only the
+            // developer can lift, from the tab (FR-BRW-024 AC7).
+            endAgentNavigation(wc.id);
+            if (agentNavigationWasHeld(wc.id)) {
+                resolve({ url: wc.getURL(), title: "", status: 0, error: LookalikeRefusalCode });
+                return;
+            }
             if (redirect !== "") {
                 resolve({ url: wc.getURL(), title: "", status: 0, error: "", redirect });
                 return;
@@ -685,6 +698,7 @@ function navigateOp(wc: WebContents, raw: any): Promise<NavigateOutcome> {
         wc.on("did-fail-load", onFail);
         wc.on("did-stop-loading", onStop);
         wc.on("did-navigate-in-page", onInPage);
+        beginAgentNavigation(wc.id); // MOLTENTERM-PATCH (#2482)
         if (params.url != null) {
             wc.loadURL(params.url).then(finish, finish);
             return;
