@@ -10,6 +10,7 @@ import { useMemo, useRef, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { Emblem } from "./emblem";
 import { EmblemCatalog } from "./emblem-catalog";
+import { EmblemKeywords } from "./emblem-keywords";
 import { EmblemColumns, gridMove, matchEmblems } from "./emblem-model";
 
 const Names = Object.keys(EmblemCatalog);
@@ -18,7 +19,7 @@ export function EmblemPicker({ value, onChange }: { value: string; onChange: (na
     const t = useT();
     const [query, setQuery] = useState("");
     const gridRef = useRef<HTMLDivElement>(null);
-    const matches = useMemo(() => matchEmblems(Names, query), [query]);
+    const matches = useMemo(() => matchEmblems(Names, query, undefined, EmblemKeywords), [query]);
     // The one tab stop: the chosen emblem when it shows, else the first.
     const stop = matches.shown.includes(value) ? value : (matches.shown[0] ?? "");
 
