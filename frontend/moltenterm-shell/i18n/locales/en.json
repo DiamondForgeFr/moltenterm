@@ -13207,7 +13207,7 @@
             "open": "Open outside the workspace folder",
             "outsideMarker": "Outside the workspace",
             "outsideMarkerTitle": "This panel shows something outside {name}, the folder of this workspace",
-            "back": "Back to the workspace folder"
+            "back": "Back to the workspace"
         },
         "context": {
             "title": "Show something outside the context folder?",
@@ -13216,7 +13216,7 @@
             "open": "Open outside the context folder",
             "outsideMarker": "Outside the context",
             "outsideMarkerTitle": "This panel shows something outside {name}, the folder of this context",
-            "back": "Back to the context folder"
+            "back": "Back to the context"
         },
         "agentAsked": "{name} asked to show it.",
         "commandAsked": "A command run in a terminal asked to show it.",

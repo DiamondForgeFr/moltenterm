@@ -13207,7 +13207,7 @@
             "open": "Ouvrir hors du dossier de l'espace de travail",
             "outsideMarker": "Hors de l'espace de travail",
             "outsideMarkerTitle": "Ce panneau affiche un élément hors de {name}, le dossier de cet espace de travail",
-            "back": "Revenir au dossier de l'espace de travail"
+            "back": "Revenir à l'espace de travail"
         },
         "context": {
             "title": "Afficher un élément hors du dossier du contexte ?",
@@ -13216,7 +13216,7 @@
             "open": "Ouvrir hors du dossier du contexte",
             "outsideMarker": "Hors du contexte",
             "outsideMarkerTitle": "Ce panneau affiche un élément hors de {name}, le dossier de ce contexte",
-            "back": "Revenir au dossier du contexte"
+            "back": "Revenir au contexte"
         },
         "agentAsked": "{name} a demandé à l'afficher.",
         "commandAsked": "Une commande lancée dans un terminal a demandé à l'afficher.",
