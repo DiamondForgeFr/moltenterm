@@ -40,8 +40,10 @@ var (
 	// A Bash command run in the background, and a Monitor: their results name the task.
 	backgroundLaunchRegex = regexp.MustCompile(`"backgroundTaskId":"([A-Za-z0-9_-]{1,64})"|"toolUseResult":\{"taskId":"([A-Za-z0-9_-]{1,64})"`)
 	backgroundEndRegex    = regexp.MustCompile(`(?s)<task-id>([A-Za-z0-9_-]{1,64})</task-id>.*?<status>([a-z_]{1,40})</status>`)
-	// A TaskStop of the agent's own task: {"message":"Successfully stopped task: …","task_id":"…"}.
-	backgroundStopRegex = regexp.MustCompile(`"message":"Successfully stopped task[^"]*","task_id":"([A-Za-z0-9_-]{1,64})"`)
+	// A TaskStop of the agent's own task: {"message":"Successfully stopped task: … (<command>)","task_id":"…"}. The
+	// message quotes the command, whose own quotes come escaped (\"): the message is read as a JSON string, escapes
+	// included, or a stopped command with quotes stays pending and its agent waits for hours (#2529).
+	backgroundStopRegex = regexp.MustCompile(`"message":"Successfully stopped task(?:[^"\\]|\\.)*","task_id":"([A-Za-z0-9_-]{1,64})"`)
 	toolUseIdRegex      = regexp.MustCompile(`"tool_use_id":"([^"]{1,200})"`)
 	recordStampRegex    = regexp.MustCompile(`"timestamp":"([0-9T:.\-Z+]{10,40})"`)
 
