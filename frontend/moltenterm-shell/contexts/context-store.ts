@@ -12,10 +12,13 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo } from "react";
+import { isOutsideContextFolder } from "../workspace-project";
 import {
     ContextAssignCommand,
     ContextCreateCommand,
     ContextDeleteCommand,
+    ContextFolderCheckCommand,
+    ContextFolderCommand,
     contextFolderOf,
     contextIdOf,
     ContextInfo,
@@ -105,6 +108,40 @@ export async function createContext(req: ContextCreateRequest): Promise<string> 
 
 export async function updateContext(req: ContextUpdateRequest): Promise<void> {
     await callContexts(ContextUpdateCommand, req);
+}
+
+// Sets a context's folder, the outer bound of its workspaces (#2518). wavesrv takes only an absolute folder.
+export async function setContextFolder(id: string, folder: string): Promise<void> {
+    await callContexts(ContextFolderCommand, { id, folder });
+}
+
+export async function clearContextFolder(id: string): Promise<void> {
+    await callContexts(ContextFolderCommand, { id, folder: "" });
+}
+
+// must match FolderCheckResult in pkg/molten/contexts/contexts.go
+export type WorkspaceFolderCheck = {
+    // The folder lies outside its context's folder: the developer is asked before it is kept, never refused.
+    outside: boolean;
+    contextfolder?: string;
+    folder?: string;
+    error?: string;
+};
+
+// Whether a folder chosen for a workspace lies outside its context's folder (#2518). wavesrv follows symbolic links; when
+// it cannot be asked the paths are compared as written, which still catches every folder written outside.
+export async function checkWorkspaceFolder(ws: Workspace, folder: string): Promise<WorkspaceFolderCheck> {
+    try {
+        const result: WorkspaceFolderCheck = await TabRpcClient.wshRpcCall(
+            ContextFolderCheckCommand,
+            { workspaceid: ws?.oid, folder },
+            { route: ContextsRoute, timeout: ContextsCallTimeoutMs }
+        );
+        return result ?? { outside: false };
+    } catch (e) {
+        console.log("contexts: checking the workspace folder failed, comparing the paths as written", e);
+        return { outside: isOutsideContextFolder(folder, getContextFolder(ws)), error: `${e}` };
+    }
 }
 
 export async function deleteContext(id: string, moveTo?: string): Promise<void> {

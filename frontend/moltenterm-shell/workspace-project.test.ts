@@ -4,10 +4,12 @@
 import { describe, expect, it } from "vitest";
 import {
     boundingFolder,
+    boundingScope,
     checkAbsolutePath,
     checkPathInside,
     declaredProjectIcon,
     effectiveWorkspaceFolder,
+    isOutsideContextFolder,
     linkUpdate,
     logoProbeOrder,
     logoUrl,
@@ -277,4 +279,78 @@ describe("workspace folder (FR-SHELL-009)", () => {
         expect(effectiveWorkspaceFolder(chosen("/c/w", { [ProjectMetaKey]: "/c/w/p" }), "/c")).toBe("/c/w/p");
         expect(effectiveWorkspaceFolder(chosen("/w"))).toBe("/w");
     });
+
+    // #2518: the level that sets the bound is the one the file panel's texts name.
+    it("names the level that sets the bound", () => {
+        const chosen = (folder: string, more: Record<string, any> = {}) =>
+            ws({ [WorkspaceFolderMetaKey]: folder, [WorkspaceFolderChosenMetaKey]: true, ...more });
+        expect(boundingScope(ws({}))).toBe("");
+        expect(boundingScope(ws({ [WorkspaceFolderMetaKey]: "/followed" }))).toBe("");
+        expect(boundingScope(ws({ [ProjectMetaKey]: "/p" }))).toBe("project");
+        expect(boundingScope(chosen("/w"))).toBe("workspace");
+        expect(boundingScope(ws({}), "/c")).toBe("context");
+        expect(boundingScope(ws({ [WorkspaceFolderMetaKey]: "/c/x" }), "/c")).toBe("context");
+        expect(boundingScope(chosen("/c/w"), "/c")).toBe("workspace");
+        expect(boundingScope(chosen("/elsewhere"), "/c")).toBe("workspace");
+        expect(boundingScope(chosen("/w", { [ProjectMetaKey]: "/w/p" }), "/c")).toBe("project");
+        expect(boundingScope(ws({ [ProjectMetaKey]: "/c/p" }), "/c")).toBe("project");
+        expect(boundingScope(chosen("/w", { [ProjectMetaKey]: "/q" }))).toBe("workspace");
+        expect(boundingScope(ws({ [ProjectMetaKey]: "/q" }), "/c")).toBe("context");
+    });
+
+    it("always names the scope whose folder boundingFolder returns", () => {
+        const cases: [Workspace, string][] = [
+            [ws({}), ""],
+            [ws({ [ProjectMetaKey]: "/p" }), ""],
+            [ws({ [WorkspaceFolderMetaKey]: "/w", [WorkspaceFolderChosenMetaKey]: true }), "/c"],
+            [
+                ws({ [WorkspaceFolderMetaKey]: "/w", [WorkspaceFolderChosenMetaKey]: true, [ProjectMetaKey]: "/w/p" }),
+                "/c",
+            ],
+            [ws({ [ProjectMetaKey]: "/q" }), "/c"],
+        ];
+        for (const [workspace, contextFolder] of cases) {
+            const scope = boundingScope(workspace, contextFolder);
+            const folder = boundingFolder(workspace, contextFolder);
+            expect(scope === "").toBe(folder === "");
+            if (scope === "project") {
+                expect(folder).toBe(readWorkspaceProject(workspace).dir);
+            } else if (scope === "workspace") {
+                expect(folder).toBe(readChosenWorkspaceFolder(workspace));
+            } else if (scope === "context") {
+                expect(folder).toBe(contextFolder);
+            }
+        }
+    });
+});
+
+// #2518: a workspace folder outside its context's folder asks for the confirmation, and is never blocked. Only whole
+// path elements count: a sibling that shares a prefix is outside.
+describe("a workspace folder outside its context's folder", () => {
+    const cases: [string, string, string, boolean][] = [
+        ["the context's own folder", "/a/b", "/a/b", false],
+        ["inside", "/a/b/c", "/a/b", false],
+        ["trailing separators on both", "/a/b/c/", "/a/b/", false],
+        ["the same folder with a trailing separator", "/a/b/", "/a/b", false],
+        ["a sibling sharing the prefix", "/a/bc", "/a/b", true],
+        ["a sibling sharing the prefix, trailing separator", "/a/bc/", "/a/b/", true],
+        ["the parent", "/a", "/a/b", true],
+        ["a folder named like a parent step", "/a/b/..c", "/a/b", false],
+        ["leaving through a parent step", "/a/b/../c", "/a/b", true],
+        ["coming back through a parent step", "/a/c/../b/x", "/a/b", false],
+        ["a current-folder step", "/a/./b/./c", "/a/b", false],
+        ["elsewhere", "/home/me", "/a/b", true],
+        ["a root context", "/anything", "/", false],
+        ["no context folder is no bound", "/home/me", "", false],
+        ["no workspace folder asks nothing", "", "/a/b", false],
+        ["a relative folder cannot be confirmed as inside", "b/c", "/a/b", true],
+        ["a windows folder inside", "C:\\Clients\\sefers\\app", "C:\\Clients\\sefers", false],
+        ["a windows sibling sharing the prefix", "C:\\Clients\\sefers2", "C:\\Clients\\sefers", true],
+        ["a windows parent step", "C:\\Clients\\sefers\\..\\other", "C:\\Clients\\sefers", true],
+    ];
+    for (const [name, folder, contextFolder, want] of cases) {
+        it(name, () => {
+            expect(isOutsideContextFolder(folder, contextFolder)).toBe(want);
+        });
+    }
 });

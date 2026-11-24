@@ -4,6 +4,8 @@
 package contexts
 
 import (
+	"errors"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -467,5 +469,163 @@ func TestAssignShapesRefusesAnUnknownShape(t *testing.T) {
 	s := MakeState(waveobj.MetaMapType{}, workspaces("w"))
 	if _, err := s.AssignShapes(ShapesRequest{Shapes: map[string]string{DefaultId: "v", "x": "triangle"}}); err == nil {
 		t.Fatalf("a request naming an unknown shape was taken")
+	}
+}
+
+// #2518: the folder is set and cleared on its own, for one context, without the rest of the update form.
+func TestSetFolderSetsAndClearsOneContextsFolder(t *testing.T) {
+	s, _ := mustCreate(t, MakeState(nil, workspaces("w1", "w2")), "Client", "c", "w1")
+	s, _ = mustCreate(t, s, "Other", "o", "w2")
+	of := func(state State, workspace string) string {
+		return FolderOf(state.Contexts, waveobj.MetaMapType{WorkspaceMetaKey: state.Of[workspace]})
+	}
+
+	set, err := s.SetFolder(FolderRequest{Id: "c", Folder: "/clients/sefers/"})
+	if err != nil {
+		t.Fatalf("setting the folder: %v", err)
+	}
+	if of(set, "w1") != "/clients/sefers" {
+		t.Fatalf("the folder is kept cleaned: %q", of(set, "w1"))
+	}
+	if of(set, "w2") != "" || of(set, "nobody") != "" {
+		t.Fatalf("another context took the folder: %+v", set.Contexts)
+	}
+	if set.Of["w1"] != "c" || set.Contexts[1].Name != "Client" {
+		t.Fatalf("setting the folder changed more than the folder: %+v", set)
+	}
+
+	again, err := set.SetFolder(FolderRequest{Id: "c", Folder: "/clients/sefers"})
+	if err != nil || !SameContexts(again.Contexts, set.Contexts) {
+		t.Fatalf("setting the same folder again changed the contexts: %v %+v", err, again.Contexts)
+	}
+
+	moved, err := set.SetFolder(FolderRequest{Id: "c", Folder: "/clients/other"})
+	if err != nil || of(moved, "w1") != "/clients/other" {
+		t.Fatalf("replacing the folder: %v %q", err, of(moved, "w1"))
+	}
+
+	cleared, err := set.SetFolder(FolderRequest{Id: "c", Folder: ""})
+	if err != nil || of(cleared, "w1") != "" {
+		t.Fatalf("clearing the folder: %v %q", err, of(cleared, "w1"))
+	}
+	if blank, err := set.SetFolder(FolderRequest{Id: "c", Folder: "  "}); err != nil || of(blank, "w1") != "" {
+		t.Fatalf("a blank folder clears it: %v %q", err, of(blank, "w1"))
+	}
+	if entry, _ := MetaValue(cleared.Contexts)[1].(map[string]any); entry == nil || entry["folder"] != nil {
+		t.Fatalf("a cleared folder is still stored: %+v", entry)
+	}
+
+	if _, err := s.SetFolder(FolderRequest{Id: "c", Folder: "sefers"}); err == nil {
+		t.Fatalf("a relative folder was taken")
+	}
+	if _, err := s.SetFolder(FolderRequest{Id: "ghost", Folder: "/x"}); err == nil {
+		t.Fatalf("a context that does not exist took a folder")
+	}
+}
+
+// A text standing for the resolution of symbolic links: each link's path begins with its key.
+func fakeResolve(links map[string]string) func(string) (string, error) {
+	return func(path string) (string, error) {
+		path = filepath.Clean(path)
+		for from, to := range links {
+			if path == from || strings.HasPrefix(path, from+"/") {
+				return to + strings.TrimPrefix(path, from), nil
+			}
+		}
+		return path, nil
+	}
+}
+
+// #2518: a workspace folder outside its context's folder asks for the confirmation. The folders are cleaned and
+// resolved before they are compared, so neither a shared prefix, a trailing separator, a parent step nor a symbolic link
+// changes the answer.
+func TestCheckFolderTellsWhichWorkspaceFoldersNeedTheConfirmation(t *testing.T) {
+	s, _ := mustCreate(t, MakeState(nil, workspaces("w1", "w2")), "Client", "c", "w1")
+	s, err := s.SetFolder(FolderRequest{Id: "c", Folder: "/clients/sefers"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	links := map[string]string{
+		"/clients/sefers/shared": "/archive/shared",
+		"/fast":                  "/clients/sefers",
+		"/clients/sefers/back":   "/clients",
+	}
+	cases := []struct {
+		name    string
+		req     FolderCheckRequest
+		outside bool
+	}{
+		{"the context's own folder", FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients/sefers"}, false},
+		{"inside", FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients/sefers/app/src"}, false},
+		{"inside with a trailing separator", FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients/sefers/app/"}, false},
+		{"a sibling sharing the prefix", FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients/sefers2"}, true},
+		{"a sibling sharing the prefix, trailing separator", FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients/sefers-old/"}, true},
+		{"the parent", FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients"}, true},
+		{"leaving through a parent step", FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients/sefers/../other"}, true},
+		{"a link inside that points outside", FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients/sefers/shared/x"}, true},
+		{"a link inside that points to the parent", FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients/sefers/back"}, true},
+		{"a folder reached from outside through a link", FolderCheckRequest{WorkspaceId: "w1", Folder: "/fast/app"}, false},
+		{"asked by context", FolderCheckRequest{ContextId: "c", Folder: "/home/me"}, true},
+		{"asked by context, inside", FolderCheckRequest{ContextId: "c", Folder: "/clients/sefers/x"}, false},
+		{"a workspace of a context without a folder", FolderCheckRequest{WorkspaceId: "w2", Folder: "/home/me"}, false},
+		{"no folder chosen", FolderCheckRequest{WorkspaceId: "w1", Folder: ""}, false},
+	}
+	for _, tc := range cases {
+		got, err := s.CheckFolder(tc.req, fakeResolve(links))
+		if err != nil {
+			t.Errorf("%s: %v", tc.name, err)
+			continue
+		}
+		if got.Outside != tc.outside {
+			t.Errorf("%s: outside %v, want %v (%+v)", tc.name, got.Outside, tc.outside, got)
+		}
+	}
+
+	got, err := s.CheckFolder(FolderCheckRequest{WorkspaceId: "w1", Folder: "/fast/app"}, fakeResolve(links))
+	if err != nil || got.Folder != "/clients/sefers/app" || got.ContextFolder != "/clients/sefers" {
+		t.Errorf("the answer names the folders as resolved: %v %+v", err, got)
+	}
+	if got, _ := s.CheckFolder(FolderCheckRequest{WorkspaceId: "w2", Folder: "/home/me"}, nil); got.ContextFolder != "" {
+		t.Errorf("a context without a folder named %q", got.ContextFolder)
+	}
+	if got, err := s.CheckFolder(FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients/sefers2"}, nil); err != nil || !got.Outside {
+		t.Errorf("without a resolver the paths are compared as written: %v %+v", err, got)
+	}
+}
+
+func TestCheckFolderRefusesWhatItCannotPlace(t *testing.T) {
+	s, _ := mustCreate(t, MakeState(nil, workspaces("w1")), "Client", "c", "w1")
+	s, err := s.SetFolder(FolderRequest{Id: "c", Folder: "/clients/sefers"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, req := range map[string]FolderCheckRequest{
+		"neither a workspace nor a context": {Folder: "/x"},
+		"a workspace that does not exist":   {WorkspaceId: "ghost", Folder: "/x"},
+		"a context that does not exist":     {ContextId: "ghost", Folder: "/x"},
+		"a relative folder":                 {WorkspaceId: "w1", Folder: "sefers/app"},
+	} {
+		if _, err := s.CheckFolder(req, nil); err == nil {
+			t.Errorf("%s was answered", name)
+		}
+	}
+}
+
+// A folder that cannot be resolved is not a reason to block: it asks, like a file panel's path that cannot be resolved.
+func TestCheckFolderAsksWhenAFolderCannotBeResolved(t *testing.T) {
+	s, _ := mustCreate(t, MakeState(nil, workspaces("w1")), "Client", "c", "w1")
+	s, err := s.SetFolder(FolderRequest{Id: "c", Folder: "/clients/sefers"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	broken := func(path string) (string, error) {
+		if strings.HasSuffix(path, "/broken") {
+			return "", errors.New("permission denied")
+		}
+		return path, nil
+	}
+	got, err := s.CheckFolder(FolderCheckRequest{WorkspaceId: "w1", Folder: "/clients/sefers/broken"}, broken)
+	if err != nil || !got.Outside || got.Error == "" {
+		t.Fatalf("an unresolvable folder: %v %+v", err, got)
 	}
 }

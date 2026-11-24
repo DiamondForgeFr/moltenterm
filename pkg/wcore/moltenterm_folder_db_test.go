@@ -29,6 +29,56 @@ func newTermIn(ctx context.Context, tabId string) string {
 	return def.Meta.GetString(waveobj.MetaKey_CmdCwd, "")
 }
 
+// #2518: a context's folder is set and cleared on its own, saved on the client, read back from the database as a restart
+// reads it, and the new terminals of its workspaces follow it.
+func TestSetAndClearAContextFolderIsSavedAndNewTerminalsFollow(t *testing.T) {
+	ctx, ids := initContextsFixture(t, "sefers")
+	contextDir := filepath.Join(t.TempDir(), "customers")
+	mkdirs(t, contextDir)
+	tab := &waveobj.Tab{OID: "tab-sefers", BlockIds: []string{}}
+	if err := wstore.DBInsert(ctx, tab); err != nil {
+		t.Fatal(err)
+	}
+	ws, err := wstore.DBMustGet[*waveobj.Workspace](ctx, ids["sefers"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws.TabIds = []string{tab.OID}
+	if err := wstore.DBUpdate(ctx, ws); err != nil {
+		t.Fatal(err)
+	}
+	setFolder := func(folder string) {
+		t.Helper()
+		if _, err := ApplyContexts(ctx, func(s contexts.State) (contexts.State, []string, error) {
+			next, err := s.SetFolder(contexts.FolderRequest{Id: contexts.DefaultId, Folder: folder})
+			return next, nil, err
+		}); err != nil {
+			t.Fatalf("setting the folder to %q: %v", folder, err)
+		}
+	}
+
+	if got := newTermIn(ctx, tab.OID); got != "" {
+		t.Fatalf("before any folder a new terminal starts in %q", got)
+	}
+	setFolder(contextDir + "/")
+	list, stored := storedContexts(t, ctx)
+	if !stored || contexts.FolderOf(list, ws.Meta) != contextDir {
+		t.Fatalf("the folder after a re-read: stored %v, %+v", stored, list)
+	}
+	if got := newTermIn(ctx, tab.OID); got != contextDir {
+		t.Fatalf("a new terminal starts in %q, want the context's folder %q", got, contextDir)
+	}
+
+	setFolder("")
+	list, _ = storedContexts(t, ctx)
+	if got := contexts.FolderOf(list, ws.Meta); got != "" {
+		t.Fatalf("the cleared folder is still read as %q", got)
+	}
+	if got := newTermIn(ctx, tab.OID); got != "" {
+		t.Fatalf("after clearing, a new terminal starts in %q", got)
+	}
+}
+
 // #2516: the folder chosen in the workspace's settings and the context's folder are saved on their own objects, read
 // back from the database as a restart reads them, and a new terminal starts in the narrowest scope's folder: the
 // project's root, else the workspace's chosen folder, else the context's.

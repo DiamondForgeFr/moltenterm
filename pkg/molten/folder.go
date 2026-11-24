@@ -59,6 +59,17 @@ func CheckPathInside(path string, dir string) bool {
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
+// OutsideContextFolder reports whether a folder chosen for a workspace needs the confirmation (#2518): both folders are
+// set and the folder is neither the context's folder nor below it. A folder asks, it is never refused, and a workspace
+// whose context sets no folder has nothing to leave. The paths are compared as written, cleaned; the contexts route
+// resolves symbolic links before it asks.
+func OutsideContextFolder(folder string, contextFolder string) bool {
+	if folder == "" || contextFolder == "" {
+		return false
+	}
+	return !CheckPathInside(folder, contextFolder)
+}
+
 // WorkspaceFolder returns the folder new blocks of a workspace start in, or "" when it has none, for a workspace whose
 // context sets no folder.
 func WorkspaceFolder(meta waveobj.MetaMapType) string {

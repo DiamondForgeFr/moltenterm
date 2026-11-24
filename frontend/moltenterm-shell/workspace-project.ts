@@ -193,16 +193,66 @@ export function readChosenWorkspaceFolder(ws: Workspace): string {
 // The folder every panel of the workspace stays in (same rule as BoundingFolder in pkg/molten/folder.go, #2516): the
 // context's folder by default, a folder chosen for the workspace instead, the project's root when it lies inside that.
 export function boundingFolder(ws: Workspace, contextFolder = ""): string {
+    return resolveBound(ws, contextFolder).root;
+}
+
+// The level that sets a panel's bound (#2518): the project, the workspace (a folder chosen in its settings), the context
+// (its folder), or none. The file panel's texts name it.
+export type BoundingScope = "project" | "workspace" | "context" | "";
+
+export function boundingScope(ws: Workspace, contextFolder = ""): BoundingScope {
+    return resolveBound(ws, contextFolder).scope;
+}
+
+function resolveBound(ws: Workspace, contextFolder: string): { root: string; scope: BoundingScope } {
     let root = contextFolder ?? "";
+    let scope: BoundingScope = root !== "" ? "context" : "";
     const chosen = readChosenWorkspaceFolder(ws);
     if (chosen !== "") {
         root = chosen;
+        scope = "workspace";
     }
     const project = readWorkspaceProject(ws).dir;
     if (project !== "" && (root === "" || checkPathInside(project, root))) {
         root = project;
+        scope = "project";
     }
-    return root;
+    return { root, scope };
+}
+
+// The path with its "." and ".." steps resolved and one separator between elements, so two spellings of a folder compare
+// equal (the lexical twin of filepath.Clean). A path that is not absolute is returned as it is.
+function cleanPath(path: string): string {
+    if (!checkAbsolutePath(path)) {
+        return path;
+    }
+    const sep = path.includes("\\") && !path.includes("/") ? "\\" : "/";
+    const [head, ...parts] = path.split(/[/\\]+/);
+    const kept: string[] = [];
+    for (const part of parts) {
+        if (part === "" || part === ".") {
+            continue;
+        }
+        if (part === "..") {
+            kept.pop();
+            continue;
+        }
+        kept.push(part);
+    }
+    return head + sep + kept.join(sep);
+}
+
+// Whether a folder chosen for a workspace lies outside its context's folder, so it needs the confirmation (same rule as
+// OutsideContextFolder in pkg/molten/folder.go, #2518). The paths are compared as written, cleaned: the contexts route
+// also follows symbolic links, and answers with those (checkWorkspaceFolder in contexts/context-store.ts).
+export function isOutsideContextFolder(folder: string, contextFolder: string): boolean {
+    if (!folder || !contextFolder) {
+        return false;
+    }
+    if (!checkAbsolutePath(folder) || !checkAbsolutePath(contextFolder)) {
+        return true;
+    }
+    return !checkPathInside(cleanPath(folder), cleanPath(contextFolder));
 }
 
 // Where new blocks of the workspace start (same rule as StartFolder in pkg/molten/folder.go): the folder its terminal
