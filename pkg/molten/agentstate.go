@@ -38,6 +38,8 @@ const (
 	// What each agent was used over the last 7 days: Brokk's usage grid orders its providers and hides the unused ones
 	// by it (FR-BOSS-009, AC93 to AC98, #2341).
 	AgentUseCommand = "moltenagentuse"
+	// How loaded this computer is (#2502): the activity popover's warning, read only while it shows.
+	MachineLoadCommand = "moltenmachineload"
 
 	// The last first name a pane's agent had (FR-CONT-014), kept in the block's meta so a session that outlives a
 	// restart of MoltenTerm (a durable terminal) gets it back.
@@ -390,6 +392,10 @@ type AgentStateInfo struct {
 	// working only because of them, the main session's prompt is idle (or done) and takes a message.
 	Subagents  int  `json:"subagents,omitempty"`
 	Background bool `json:"background,omitempty"`
+	// Work: the sub-agents that work now as their own files say (#2502), with the background jobs they wait for. It
+	// counts the ones that wait on their own tests or build after the lead's turn ended, which its hooks forgot:
+	// Subagents is at least its length.
+	Work []SubagentWork `json:"work,omitempty"`
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
 	// Own: the block is Brokk's own session (OwnSessionMetaKey): the windows keep it out of every list of agents.

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/wavetermdev/waveterm/pkg/molten"
 )
 
 // The companion's recap (#555): the recent topics of the session, the agents at work and what the main one does now.
@@ -139,6 +141,11 @@ type SubagentInfo struct {
 	// entry for the model usage journal (#556).
 	Ticket     int    `json:"ticket,omitempty"`
 	Complexity string `json:"complexity,omitempty"`
+	// AgentId: the agent's own id in its CLI, "" before it is known (#2502). Waiting: its turn ended on background work
+	// of its own and it runs on (#2498); Jobs: what it waits for, read from its own transcript (leadwork.go).
+	AgentId string                 `json:"agentid,omitempty"`
+	Waiting bool                   `json:"waiting,omitempty"`
+	Jobs    []molten.BackgroundJob `json:"jobs,omitempty"`
 }
 
 // ActivityInfo is the main agent's latest tool call: the tool and what it was given (a command's description, a
@@ -641,6 +648,7 @@ func (s *Session) Subagents() []SubagentInfo {
 			Worktree:   sa.worktree,
 			Background: sa.background, State: sa.state, Started: sa.started, Ended: sa.ended,
 			Ticket: sa.ticket.number, Complexity: sa.ticket.complexity,
+			AgentId: sa.agentId, Waiting: sa.waiting && sa.state == SubagentRunning,
 		})
 	}
 	return rtn
