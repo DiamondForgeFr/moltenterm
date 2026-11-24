@@ -19,6 +19,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
@@ -34,6 +35,9 @@ const (
 	AssignCommand = "contextassign"
 	TouchCommand  = "contexttouch"
 	ListCommand   = "contextlist"
+	// Sets or clears a context's folder (#2518), and asks whether a workspace's folder lies outside its context's.
+	FolderCommand      = "contextfolder"
+	FolderCheckCommand = "contextfoldercheck"
 	// The workspace a window lands on when the one it shows is deleted: one of the same context, made when none is free.
 	LandingCommand = "contextlanding"
 	// Gives a shape to the contexts that have none (the one-time migration of the ribbon's end shapes).
@@ -110,6 +114,30 @@ type UpdateRequest struct {
 // each draw their own, and the first write wins.
 type ShapesRequest struct {
 	Shapes map[string]string `json:"shapes"`
+}
+
+// FolderRequest sets one context's folder: an absolute folder, or "" to forget it.
+type FolderRequest struct {
+	Id     string `json:"id"`
+	Folder string `json:"folder"`
+}
+
+// FolderCheckRequest asks whether Folder, a folder chosen for a workspace, lies outside its context's folder. The
+// context is the one named, else the one WorkspaceId is in.
+type FolderCheckRequest struct {
+	ContextId   string `json:"contextid,omitempty"`
+	WorkspaceId string `json:"workspaceid,omitempty"`
+	Folder      string `json:"folder"`
+}
+
+// FolderCheckResult: Outside says the folder needs the confirmation (it is never refused); it is false when the context
+// sets no folder or no folder was given. Folder and ContextFolder are the paths as compared, symbolic links resolved;
+// Error says why one could not be resolved, which counts as outside.
+type FolderCheckResult struct {
+	Outside       bool   `json:"outside"`
+	ContextFolder string `json:"contextfolder,omitempty"`
+	Folder        string `json:"folder,omitempty"`
+	Error         string `json:"error,omitempty"`
 }
 
 type DeleteRequest struct {
@@ -412,6 +440,58 @@ func (s State) Update(req UpdateRequest) (State, []string, error) {
 		}
 	}
 	return rtn, moved, nil
+}
+
+// SetFolder sets a context's folder, or forgets it with an empty one: Update's rules for that one field (#2518).
+func (s State) SetFolder(req FolderRequest) (State, error) {
+	next, _, err := s.Update(UpdateRequest{Id: req.Id, Folder: &req.Folder})
+	return next, err
+}
+
+// CheckFolder tells whether a folder chosen for a workspace lies outside its context's folder, so the developer is asked
+// before it is kept (#2518). Both folders go through resolve first (symbolic links followed, nil compares them as
+// written), so a link inside the context's folder that leads out counts as outside, and the same folder reached through
+// a link from elsewhere counts as inside. A folder that cannot be resolved counts as outside: it asks, it never blocks.
+func (s State) CheckFolder(req FolderCheckRequest, resolve func(string) (string, error)) (FolderCheckResult, error) {
+	contextId := req.ContextId
+	if contextId == "" {
+		if req.WorkspaceId == "" {
+			return FolderCheckResult{}, fmt.Errorf("a folder check needs a workspace or a context")
+		}
+		of, ok := s.Of[req.WorkspaceId]
+		if !ok {
+			return FolderCheckResult{}, fmt.Errorf("workspace %q does not exist", req.WorkspaceId)
+		}
+		contextId = of
+	}
+	at := s.indexOf(contextId)
+	if at < 0 {
+		return FolderCheckResult{}, fmt.Errorf("context %q does not exist", contextId)
+	}
+	folder, err := cleanFolder(req.Folder)
+	if err != nil {
+		return FolderCheckResult{}, err
+	}
+	rtn := FolderCheckResult{ContextFolder: s.Contexts[at].Folder, Folder: folder}
+	if folder == "" || rtn.ContextFolder == "" {
+		return rtn, nil
+	}
+	if resolve == nil {
+		resolve = func(path string) (string, error) { return path, nil }
+	}
+	resolvedContext, err := resolve(rtn.ContextFolder)
+	if err != nil {
+		rtn.Outside, rtn.Error = true, err.Error()
+		return rtn, nil
+	}
+	resolvedFolder, err := resolve(folder)
+	if err != nil {
+		rtn.Outside, rtn.Error = true, err.Error()
+		return rtn, nil
+	}
+	rtn.ContextFolder, rtn.Folder = resolvedContext, resolvedFolder
+	rtn.Outside = molten.OutsideContextFolder(resolvedFolder, resolvedContext)
+	return rtn, nil
 }
 
 // Delete removes a context and moves its workspaces to another. The last context cannot go.

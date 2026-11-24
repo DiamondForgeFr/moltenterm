@@ -8,7 +8,7 @@ import { DialogFrameClass } from "../dialog-frame";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { pathBaseName } from "../workspace-project";
-import { FileConfineGate, FileConfinePending, pendingFolder } from "./file-confine";
+import { FileConfineGate, fileConfineKey, FileConfinePending, pendingFolder } from "./file-confine";
 
 export function fileConfineQuestion(
     t: (key: string, vars?: Record<string, any>) => string,
@@ -17,15 +17,20 @@ export function fileConfineQuestion(
     const folder = pendingFolder(pending);
     const path = pending.resolved || pending.target;
     const where = pending.isDir
-        ? t("fileConfine.folderOutside", { folder, project: pending.projectName })
-        : t("fileConfine.fileOutside", { file: pathBaseName(path), folder, project: pending.projectName });
+        ? t(fileConfineKey(pending.level, "folderOutside"), { folder, name: pending.rootName })
+        : t(fileConfineKey(pending.level, "fileOutside"), { file: pathBaseName(path), folder, name: pending.rootName });
     let who = "";
     if (pending.origin.kind === "agent") {
         who = t("fileConfine.agentAsked", { name: pending.origin.name });
     } else if (pending.origin.kind === "command") {
         who = t("fileConfine.commandAsked");
     }
-    return { where, who };
+    return {
+        title: t(fileConfineKey(pending.level, "title")),
+        where,
+        who,
+        open: t(fileConfineKey(pending.level, "open")),
+    };
 }
 
 // The question stays inside the panel (not a window-wide dialog): the rest of the window keeps working while it waits.
@@ -43,7 +48,7 @@ export function FileConfineConfirm({ gate }: { gate: FileConfineGate }) {
     if (pending == null) {
         return null;
     }
-    const { where, who } = fileConfineQuestion(t, pending);
+    const { title, where, who, open } = fileConfineQuestion(t, pending);
     const onKeyDown = (event: React.KeyboardEvent) => {
         if (event.key !== "Escape") {
             return;
@@ -64,7 +69,7 @@ export function FileConfineConfirm({ gate }: { gate: FileConfineGate }) {
                 onKeyDown={onKeyDown}
             >
                 <div id={titleId} className="text-13 font-semibold">
-                    {t("fileConfine.title")}
+                    {title}
                 </div>
                 <p className="break-all text-secondary">{where}</p>
                 {who && <p className="text-secondary">{who}</p>}
@@ -82,7 +87,7 @@ export function FileConfineConfirm({ gate }: { gate: FileConfineGate }) {
                         className="molten-btn cursor-pointer rounded-6 px-3 py-1.5 text-12"
                         onClick={() => fireAndForget(() => gate.openOutside())}
                     >
-                        {t("fileConfine.open")}
+                        {open}
                         <MoltenWave />
                     </button>
                 </div>

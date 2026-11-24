@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const Mocks = vi.hoisted(() => ({ call: vi.fn() }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: { wshRpcCall: Mocks.call } }));
 
+import { placeholders, resolveKey, shippedDictionary } from "../i18n/i18n-core";
 import {
     checkFilePath,
     FileApprovedMetaKey,
@@ -16,8 +17,13 @@ import {
     FileCheckResult,
     FileConfineCheckCommand,
     FileConfineGate,
+    fileConfineHeaderElems,
+    fileConfineKey,
+    FileConfineLevel,
+    FileConfineLevels,
     FileConfineRoute,
     fileConfineScope,
+    FileConfineTexts,
     FileOriginMetaKey,
     FileOriginNameMetaKey,
     stayMeta,
@@ -98,7 +104,7 @@ function setMeta(f: Fixture, update: Record<string, any>) {
 
 describe("fileConfineScope", () => {
     it("confines a local panel of a workspace linked to a project", () => {
-        expect(fileConfineScope(workspace(Root), "")).toEqual({ root: Root, name: "app" });
+        expect(fileConfineScope(workspace(Root), "")).toEqual({ root: Root, name: "app", level: "project" });
         expect(fileConfineScope(workspace(Root), "local")).not.toBeNull();
         expect(fileConfineScope(workspace(Root), "local:wsl-shell")).not.toBeNull();
     });
@@ -113,10 +119,14 @@ describe("fileConfineScope", () => {
     it("confines to the workspace's chosen folder or its context's folder when no project narrows it", () => {
         const chosen = workspace("", "/c/w");
         (chosen.meta as Record<string, any>)["molten:folderchosen"] = true;
-        expect(fileConfineScope(chosen, "")).toEqual({ root: "/c/w", name: "w" });
-        expect(fileConfineScope(workspace(""), "", "/c")).toEqual({ root: "/c", name: "c" });
-        expect(fileConfineScope(workspace("/c/w/p"), "", "/c")).toEqual({ root: "/c/w/p", name: "p" });
-        expect(fileConfineScope(workspace("/q"), "", "/c")).toEqual({ root: "/c", name: "c" });
+        expect(fileConfineScope(chosen, "")).toEqual({ root: "/c/w", name: "w", level: "workspace" });
+        expect(fileConfineScope(workspace(""), "", "/c")).toEqual({ root: "/c", name: "c", level: "context" });
+        expect(fileConfineScope(workspace("/c/w/p"), "", "/c")).toEqual({
+            root: "/c/w/p",
+            name: "p",
+            level: "project",
+        });
+        expect(fileConfineScope(workspace("/q"), "", "/c")).toEqual({ root: "/c", name: "c", level: "context" });
         expect(fileConfineScope(workspace(""), "")).toBeNull();
     });
 });
@@ -129,6 +139,124 @@ describe("FileConfineGate in a bounded workspace (#2516)", () => {
         const written = await f.gate.navigate({ file: "/Users/me" } as MetaType);
         expect(written).toBe(false);
         expect(globalStore.get(f.gate.pendingAtom)).toMatchObject({ target: "/Users/me", root: "/c" });
+    });
+});
+
+// #2518: the texts name the level that set the limit, not always "the project".
+describe("the confinement texts name the level that set the bound", () => {
+    const chosenWorkspace = (folder: string) => {
+        const ws = workspace("", folder);
+        (ws.meta as Record<string, any>)["molten:folderchosen"] = true;
+        return ws;
+    };
+    const levels: {
+        level: FileConfineLevel;
+        ws: Workspace;
+        contextFolder: string;
+        root: string;
+        name: string;
+        marker: string;
+        back: string;
+    }[] = [
+        {
+            level: "project",
+            ws: workspace(Root),
+            contextFolder: "",
+            root: Root,
+            name: "app",
+            marker: "Outside the project",
+            back: "Back to the project",
+        },
+        {
+            level: "workspace",
+            ws: chosenWorkspace("/c/w"),
+            contextFolder: "/c",
+            root: "/c/w",
+            name: "w",
+            marker: "Outside the workspace",
+            back: "Back to the workspace folder",
+        },
+        {
+            level: "context",
+            ws: workspace(""),
+            contextFolder: "/c",
+            root: "/c",
+            name: "c",
+            marker: "Outside the context",
+            back: "Back to the context folder",
+        },
+    ];
+    const echo = (key: string, vars?: Record<string, any>) => `${key}:${JSON.stringify(vars ?? {})}`;
+
+    it("asks about a file or a folder with the keys of the level", async () => {
+        for (const { level, ws, contextFolder, root, name } of levels) {
+            const f = fixture({ file: root } as MetaType, ws, contextFolder);
+            await settle(f.gate);
+            await f.gate.navigate({ file: "/tmp/notes.txt" } as MetaType);
+            const file = globalStore.get(f.gate.pendingAtom);
+            expect(file).toMatchObject({ level, rootName: name, root });
+            const fileText = fileConfineQuestion(echo, file).where;
+            expect(fileText).toContain(`fileConfine.${level}.fileOutside:`);
+            expect(fileText).toContain(`"name":"${name}"`);
+
+            await f.gate.stay();
+            await f.gate.navigate({ file: "/tmp" } as MetaType);
+            const folderText = fileConfineQuestion(echo, globalStore.get(f.gate.pendingAtom)).where;
+            expect(folderText).toContain(`fileConfine.${level}.folderOutside:`);
+            expect(folderText).toContain(`"name":"${name}"`);
+        }
+    });
+
+    it("titles the question and names the Open action with the keys of the level", async () => {
+        for (const { level, ws, contextFolder, root } of levels) {
+            const f = fixture({ file: root } as MetaType, ws, contextFolder);
+            await settle(f.gate);
+            await f.gate.navigate({ file: "/tmp" } as MetaType);
+            const question = fileConfineQuestion(echo, globalStore.get(f.gate.pendingAtom));
+            expect(question.title).toBe(`fileConfine.${level}.title:{}`);
+            expect(question.open).toBe(`fileConfine.${level}.open:{}`);
+        }
+    });
+
+    it("puts the level in the header's marker, its tooltip and its way back", async () => {
+        for (const { ws, contextFolder, root, name, marker, back } of levels) {
+            const f = fixture({ file: "/etc", [FileApprovedMetaKey]: root } as MetaType, ws, contextFolder);
+            await settle(f.gate);
+            const elems = fileConfineHeaderElems(
+                (atom) => globalStore.get(atom),
+                f.gate,
+                () => {}
+            );
+            expect(elems).toHaveLength(2);
+            expect(elems[0]).toMatchObject({ text: marker });
+            expect((elems[0] as { title: string }).title).toContain(name);
+            expect(elems[1]).toMatchObject({ text: back });
+        }
+    });
+
+    it("has every text of every level in English and French, with the same placeholders", () => {
+        const en = shippedDictionary("en");
+        const fr = shippedDictionary("fr");
+        for (const level of FileConfineLevels) {
+            for (const text of FileConfineTexts) {
+                const key = fileConfineKey(level, text);
+                const english = resolveKey(en, key);
+                expect(english, key).toBeTruthy();
+                expect(resolveKey(fr, key), key).toBeTruthy();
+                expect(placeholders(resolveKey(fr, key)).join(","), key).toBe(placeholders(english).join(","));
+            }
+        }
+    });
+
+    it("names the level in each of its texts, and not the project for the others", () => {
+        const en = shippedDictionary("en");
+        for (const text of FileConfineTexts) {
+            expect(resolveKey(en, fileConfineKey("workspace", text)), text).not.toMatch(/project/i);
+            expect(resolveKey(en, fileConfineKey("context", text)), text).not.toMatch(/project/i);
+            expect(resolveKey(en, fileConfineKey("project", text)), text).toMatch(/project/i);
+        }
+        expect(resolveKey(en, fileConfineKey("workspace", "outsideMarker"))).toMatch(/workspace/i);
+        expect(resolveKey(en, fileConfineKey("context", "outsideMarker"))).toMatch(/context/i);
     });
 });
 
@@ -191,7 +319,7 @@ describe("FileConfineGate", () => {
         expect(written).toBe(false);
         expect(f.writes).toEqual([]);
         const pending = globalStore.get(f.gate.pendingAtom);
-        expect(pending).toMatchObject({ target: "/p", origin: { kind: "user" }, projectName: "app" });
+        expect(pending).toMatchObject({ target: "/p", origin: { kind: "user" }, rootName: "app", level: "project" });
         await f.gate.stay();
         expect(f.writes).toEqual([]);
         expect(globalStore.get(f.gate.pendingAtom)).toBeNull();
@@ -283,7 +411,7 @@ describe("FileConfineGate", () => {
         await f.gate.navigate({ file: "/tmp/notes.txt" } as MetaType);
         const t = (key: string, vars?: Record<string, any>) => `${key}:${JSON.stringify(vars ?? {})}`;
         const { where } = fileConfineQuestion(t, globalStore.get(f.gate.pendingAtom));
-        expect(where).toContain("fileConfine.fileOutside");
+        expect(where).toContain("fileConfine.project.fileOutside");
         expect(where).toContain('"file":"notes.txt"');
         expect(where).toContain('"folder":"/tmp"');
     });
@@ -349,7 +477,7 @@ describe("FileConfineGate", () => {
 describe("fileBookmarkMenu", () => {
     it("lists the project root first, then the fixed bookmarks (AC-9)", () => {
         const go = vi.fn();
-        const items = fileBookmarkMenu({ root: Root, name: "app" }, go);
+        const items = fileBookmarkMenu({ root: Root, name: "app", level: "project" }, go);
         expect(items[0].label).toContain(Root);
         items[0].click();
         expect(go).toHaveBeenCalledWith(Root);

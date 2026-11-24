@@ -92,6 +92,38 @@ func TestBoundingAndStartFolder(t *testing.T) {
 	}
 }
 
+// #2518: a folder chosen for a workspace needs the confirmation when it lies outside its context's folder. Only whole
+// path elements count, so a sibling that shares a prefix is outside, and trailing separators or ".." do not hide it.
+func TestOutsideContextFolder(t *testing.T) {
+	cases := []struct {
+		name    string
+		folder  string
+		context string
+		want    bool
+	}{
+		{"the context's own folder", "/a/b", "/a/b", false},
+		{"inside", "/a/b/c", "/a/b", false},
+		{"trailing separators on both", "/a/b/c/", "/a/b/", false},
+		{"the same folder with a trailing separator", "/a/b/", "/a/b", false},
+		{"a sibling sharing the prefix", "/a/bc", "/a/b", true},
+		{"a sibling sharing the prefix with a separator", "/a/bc/", "/a/b/", true},
+		{"the parent", "/a", "/a/b", true},
+		{"a folder named like a parent step", "/a/b/..c", "/a/b", false},
+		{"leaving through a parent step", "/a/b/../c", "/a/b", true},
+		{"coming back through a parent step", "/a/c/../b/x", "/a/b", false},
+		{"elsewhere", "/home/me", "/a/b", true},
+		{"the root context", "/anything", "/", false},
+		{"no context folder is no bound", "/home/me", "", false},
+		{"no workspace folder asks nothing", "", "/a/b", false},
+		{"a relative folder cannot be confirmed as inside", "b/c", "/a/b", true},
+	}
+	for _, tc := range cases {
+		if got := OutsideContextFolder(tc.folder, tc.context); got != tc.want {
+			t.Errorf("%s: OutsideContextFolder(%q, %q) = %v, want %v", tc.name, tc.folder, tc.context, got, tc.want)
+		}
+	}
+}
+
 func TestBlockMetaInFolder(t *testing.T) {
 	cases := []struct {
 		name    string

@@ -19,6 +19,8 @@ import { I18nModel, t } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
 import {
     boundingFolder,
+    BoundingScope,
+    boundingScope,
     checkPathInside,
     effectiveWorkspaceFolder,
     pathBaseName,
@@ -45,7 +47,36 @@ export type FileCheckResult = {
     error?: string;
 };
 
-export type FileConfineScope = { root: string; name: string };
+// The level that set the bound (#2518): what the panel's texts name.
+export type FileConfineLevel = Exclude<BoundingScope, "">;
+
+export const FileConfineLevels: FileConfineLevel[] = ["project", "workspace", "context"];
+
+// The texts that differ by level, under fileConfine.<level>.<text> in the dictionaries.
+export type FileConfineText =
+    | "title"
+    | "folderOutside"
+    | "fileOutside"
+    | "open"
+    | "outsideMarker"
+    | "outsideMarkerTitle"
+    | "back";
+
+export const FileConfineTexts: FileConfineText[] = [
+    "title",
+    "folderOutside",
+    "fileOutside",
+    "open",
+    "outsideMarker",
+    "outsideMarkerTitle",
+    "back",
+];
+
+export function fileConfineKey(level: FileConfineLevel, text: FileConfineText): string {
+    return `fileConfine.${level}.${text}`;
+}
+
+export type FileConfineScope = { root: string; name: string; level: FileConfineLevel };
 
 export type FileAskOrigin = { kind: "user" } | { kind: "agent"; name: string } | { kind: "command" };
 
@@ -56,7 +87,9 @@ export type FileConfinePending = {
     isDir: boolean;
     origin: FileAskOrigin;
     root: string;
-    projectName: string;
+    // The bound's folder name and the level that set it: the question names them.
+    rootName: string;
+    level: FileConfineLevel;
     // The user's navigation, not written yet: Open writes it with the approval, Stay drops it.
     apply: MetaType;
     // The path a write from elsewhere replaced: Stay writes it back (the workspace folder for a panel being opened).
@@ -75,7 +108,7 @@ export function fileConfineScope(ws: Workspace, connection: string, contextFolde
     if (root === "" || !isLocalConnection(connection)) {
         return null;
     }
-    return { root, name: pathBaseName(root) || root };
+    return { root, name: pathBaseName(root) || root, level: boundingScope(ws, contextFolder) as FileConfineLevel };
 }
 
 // The folder of the context the workspace is in, read from the client object every window holds.
@@ -174,14 +207,14 @@ export function fileConfineHeaderElems(get: Getter, gate: FileConfineGate, onBac
     return [
         {
             elemtype: "pill",
-            text: translate(locale, "fileConfine.outsideMarker"),
+            text: translate(locale, fileConfineKey(scope.level, "outsideMarker")),
             tone: "neutral",
             icon: "arrow-right-from-bracket",
-            title: translate(locale, "fileConfine.outsideMarkerTitle", { project: scope.name }),
+            title: translate(locale, fileConfineKey(scope.level, "outsideMarkerTitle"), { name: scope.name }),
         },
         {
             elemtype: "textbutton",
-            text: translate(locale, "fileConfine.backToProject"),
+            text: translate(locale, fileConfineKey(scope.level, "back")),
             className: "grey rounded-4 !py-[2px] !px-[10px] !text-11 font-[500]",
             onClick: onBack,
         },
@@ -321,7 +354,8 @@ export class FileConfineGate {
             isDir: result.isdir ?? false,
             origin: fileAskOrigin(meta),
             root: scope.root,
-            projectName: scope.name,
+            rootName: scope.name,
+            level: scope.level,
             apply: null,
             restore: shown ?? (this.startFolder() || scope.root),
         });
@@ -354,7 +388,8 @@ export class FileConfineGate {
             isDir: result.isdir ?? false,
             origin: { kind: "user" },
             root: scope.root,
-            projectName: scope.name,
+            rootName: scope.name,
+            level: scope.level,
             apply: write,
             restore: null,
         });

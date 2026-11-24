@@ -13184,16 +13184,36 @@
         }
     },
     "fileConfine": {
-        "title": "Show something outside the project?",
-        "folderOutside": "{folder} is outside the project {project}.",
-        "fileOutside": "{file}, in {folder}, is outside the project {project}.",
+        "project": {
+            "title": "Show something outside the project?",
+            "folderOutside": "{folder} is outside the project {name}.",
+            "fileOutside": "{file}, in {folder}, is outside the project {name}.",
+            "open": "Open outside the project",
+            "outsideMarker": "Outside the project",
+            "outsideMarkerTitle": "This panel shows something outside the project {name}",
+            "back": "Back to the project"
+        },
+        "workspace": {
+            "title": "Show something outside the workspace folder?",
+            "folderOutside": "{folder} is outside {name}, the folder of this workspace.",
+            "fileOutside": "{file}, in {folder}, is outside {name}, the folder of this workspace.",
+            "open": "Open outside the workspace folder",
+            "outsideMarker": "Outside the workspace",
+            "outsideMarkerTitle": "This panel shows something outside {name}, the folder of this workspace",
+            "back": "Back to the workspace folder"
+        },
+        "context": {
+            "title": "Show something outside the context folder?",
+            "folderOutside": "{folder} is outside {name}, the folder of this context.",
+            "fileOutside": "{file}, in {folder}, is outside {name}, the folder of this context.",
+            "open": "Open outside the context folder",
+            "outsideMarker": "Outside the context",
+            "outsideMarkerTitle": "This panel shows something outside {name}, the folder of this context",
+            "back": "Back to the context folder"
+        },
         "agentAsked": "{name} asked to show it.",
         "commandAsked": "A command run in a terminal asked to show it.",
-        "open": "Open outside the project",
         "stay": "Stay",
-        "outsideMarker": "Outside the project",
-        "outsideMarkerTitle": "This panel shows something outside the project {project}",
-        "backToProject": "Back to the project",
         "goTo": "Go to {name} ({path})",
         "bookmarkHome": "Home",
         "bookmarkDesktop": "Desktop",

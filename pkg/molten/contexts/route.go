@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/wavetermdev/waveterm/pkg/molten/fileconfine"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wshutil"
@@ -43,6 +44,8 @@ type Result struct {
 type routeLink struct {
 	store Store
 	newId func() string
+	// How a folder check follows symbolic links; nil compares the paths as written.
+	resolve func(path string) (string, error)
 }
 
 func (l *routeLink) route() localroute.Route {
@@ -80,6 +83,25 @@ func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Cal
 			return nil, err
 		}
 		return l.apply(ctx, "", func(s State) (State, []string, error) { return s.Update(req) })
+	case FolderCommand:
+		req, err := decode[FolderRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return l.apply(ctx, "", func(s State) (State, []string, error) {
+			next, err := s.SetFolder(req)
+			return next, nil, err
+		})
+	case FolderCheckCommand:
+		req, err := decode[FolderCheckRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		state, err := l.store.Read(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return state.CheckFolder(req, l.resolve)
 	case DeleteCommand:
 		req, err := decode[DeleteRequest](data)
 		if err != nil {
@@ -139,7 +161,7 @@ func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Cal
 
 // StartRoute registers the route; wavesrv calls it once.
 func StartRoute(store Store) {
-	link := &routeLink{store: store, newId: uuid.NewString}
+	link := &routeLink{store: store, newId: uuid.NewString, resolve: fileconfine.ResolvePath}
 	if _, err := localroute.Register(wshutil.DefaultRouter, link.route()); err != nil {
 		log.Printf("molten: contexts route not started: %v\n", err)
 	}
