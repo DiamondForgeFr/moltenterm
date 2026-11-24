@@ -53,7 +53,7 @@ function workspace(project: string, folder = ""): Workspace {
 }
 
 // Writes merge into the block like wavesrv does (null deletes), so the gate sees its own writes come back.
-function fixture(meta: MetaType, ws: Workspace = workspace(Root)): Fixture {
+function fixture(meta: MetaType, ws: Workspace = workspace(Root), contextFolder = ""): Fixture {
     const blockAtom = atom({ oid: "b1", meta } as Block) as PrimitiveAtom<Block>;
     const workspaceAtom = atom(ws) as PrimitiveAtom<Workspace>;
     const writes: MetaType[] = [];
@@ -61,6 +61,7 @@ function fixture(meta: MetaType, ws: Workspace = workspace(Root)): Fixture {
     const gate = new FileConfineGate({
         blockAtom,
         workspaceAtom,
+        contextFolderAtom: atom(contextFolder),
         check: fakeCheck,
         writeMeta: async (update) => {
             writes.push(update);
@@ -106,6 +107,27 @@ describe("fileConfineScope", () => {
         expect(fileConfineScope(workspace(""), "")).toBeNull();
         expect(fileConfineScope(workspace(Root), "user@host")).toBeNull();
         expect(fileConfineScope(workspace(Root), "wsl://Ubuntu")).toBeNull();
+    });
+
+    // #2516: the bound is the narrowest root that applies, not only a project.
+    it("confines to the workspace's chosen folder or its context's folder when no project narrows it", () => {
+        const chosen = { oid: "ws1", meta: { "molten:folder": "/c/w", "molten:folderchosen": true } } as Workspace;
+        expect(fileConfineScope(chosen, "")).toEqual({ root: "/c/w", name: "w" });
+        expect(fileConfineScope(workspace(""), "", "/c")).toEqual({ root: "/c", name: "c" });
+        expect(fileConfineScope(workspace("/c/w/p"), "", "/c")).toEqual({ root: "/c/w/p", name: "p" });
+        expect(fileConfineScope(workspace("/q"), "", "/c")).toEqual({ root: "/c", name: "c" });
+        expect(fileConfineScope(workspace(""), "")).toBeNull();
+    });
+});
+
+describe("FileConfineGate in a bounded workspace (#2516)", () => {
+    it("starts a new panel at the context's folder and asks before leaving it", async () => {
+        const f = fixture({} as MetaType, workspace("", "/Users/me"), "/c");
+        await settle(f.gate);
+        expect(globalStore.get(f.gate.shownPathAtom)).toBe("/c");
+        const written = await f.gate.navigate({ file: "/Users/me" } as MetaType);
+        expect(written).toBe(false);
+        expect(globalStore.get(f.gate.pendingAtom)).toMatchObject({ target: "/Users/me", root: "/c" });
     });
 });
 

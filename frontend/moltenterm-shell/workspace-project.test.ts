@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    boundingFolder,
     checkAbsolutePath,
     checkPathInside,
     declaredProjectIcon,
@@ -23,6 +24,7 @@ import {
     projectName,
     ProjectRepoMetaKey,
     projectRepoOf,
+    readChosenWorkspaceFolder,
     readmeFirstImage,
     readWorkspaceFolder,
     readWorkspaceProject,
@@ -30,6 +32,7 @@ import {
     repositoryValues,
     shouldOfferLogo,
     unlinkUpdate,
+    WorkspaceFolderChosenMetaKey,
     WorkspaceFolderMetaKey,
 } from "./workspace-project";
 
@@ -248,5 +251,30 @@ describe("workspace folder (FR-SHELL-009)", () => {
         expect(nextWorkspaceFolder("/p/src", "/p", "/p/src")).toBeNull();
         expect(nextWorkspaceFolder("", "", "~/code")).toBeNull();
         expect(nextWorkspaceFolder("", "", "")).toBeNull();
+    });
+
+    // #2516: the folder chosen with Change… was overwritten as soon as the focused terminal reported its own folder.
+    it("never lets the terminal replace a folder chosen in the settings", () => {
+        expect(nextWorkspaceFolder("/clients/sefers", "", "/Users/me", true)).toBeNull();
+        expect(nextWorkspaceFolder("/clients/sefers", "", "/clients/sefers/docs", true)).toBeNull();
+    });
+
+    // #2516: context ⊃ workspace ⊃ project, a new panel starts at the narrowest root that applies.
+    it("bounds the workspace by its context, its chosen folder and its project", () => {
+        const chosen = (folder: string, more: Record<string, any> = {}) =>
+            ws({ [WorkspaceFolderMetaKey]: folder, [WorkspaceFolderChosenMetaKey]: true, ...more });
+        expect(readChosenWorkspaceFolder(ws({ [WorkspaceFolderMetaKey]: "/tmp" }))).toBe("");
+        expect(readChosenWorkspaceFolder(chosen("/w"))).toBe("/w");
+        expect(boundingFolder(ws({}), "/c")).toBe("/c");
+        expect(effectiveWorkspaceFolder(ws({}), "/c")).toBe("/c");
+        expect(effectiveWorkspaceFolder(ws({ [WorkspaceFolderMetaKey]: "/c/x" }), "/c")).toBe("/c/x");
+        expect(effectiveWorkspaceFolder(ws({ [WorkspaceFolderMetaKey]: "/Users/me" }), "/c")).toBe("/c");
+        expect(boundingFolder(chosen("/c/w"), "/c")).toBe("/c/w");
+        expect(boundingFolder(chosen("/elsewhere"), "/c")).toBe("/elsewhere");
+        expect(boundingFolder(chosen("/w", { [ProjectMetaKey]: "/w/p" }))).toBe("/w/p");
+        expect(boundingFolder(chosen("/w", { [ProjectMetaKey]: "/q" }))).toBe("/w");
+        expect(boundingFolder(ws({ [ProjectMetaKey]: "/q" }), "/c")).toBe("/c");
+        expect(effectiveWorkspaceFolder(chosen("/c/w", { [ProjectMetaKey]: "/c/w/p" }), "/c")).toBe("/c/w/p");
+        expect(effectiveWorkspaceFolder(chosen("/w"))).toBe("/w");
     });
 });

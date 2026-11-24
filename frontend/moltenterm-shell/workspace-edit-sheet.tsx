@@ -15,6 +15,7 @@ import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { workspaceColourStops } from "./accent";
+import { useContextFolder } from "./contexts/context-store";
 import { DialogFrame } from "./dialog-frame";
 import { t as translateNow, useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
@@ -1214,6 +1215,7 @@ export function WorkspaceEditSheet({
     const [ws] = useWaveObjectValue<Workspace>(makeORef("workspace", workspaceId));
     const nameRef = useRef<HTMLInputElement>(null);
     const loaded = ws != null;
+    const contextFolder = useContextFolder(ws);
     useEffect(() => {
         if (!loaded) {
             return;
@@ -1226,7 +1228,7 @@ export function WorkspaceEditSheet({
         return null;
     }
     // The folder's name under the title, its full path on hover (#751): a long path was cut to its start.
-    const folder = effectiveWorkspaceFolder(ws);
+    const folder = effectiveWorkspaceFolder(ws, contextFolder);
     return (
         <DialogFrame
             role="workspace-edit"

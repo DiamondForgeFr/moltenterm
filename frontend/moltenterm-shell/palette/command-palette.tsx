@@ -23,7 +23,7 @@ import { DefaultSearchSettingKey } from "../browser/search-engine-model";
 import { useBrainstormGates } from "../build/use-feature-on";
 import { useKnownCodingAgents } from "../coding-agent/coding-agent";
 import { panelPaletteEntries } from "../command-panel/command-panel-palette";
-import { isInWindowContext } from "../contexts/context-store";
+import { getContextFolder, isInWindowContext, useContextFolder } from "../contexts/context-store";
 import { useLocale, useT } from "../i18n/i18n";
 import { FavoritesRow } from "../newview/favorites-row";
 import {
@@ -54,7 +54,12 @@ import {
 } from "../split/split-model";
 import { TermUpdates } from "../termupdate/termupdate-store";
 import { workspaceIconSource } from "../workspace-icon-model";
-import { effectiveWorkspaceFolder, readRecentFolders, readWorkspaceProject } from "../workspace-project";
+import {
+    boundingFolder,
+    effectiveWorkspaceFolder,
+    readRecentFolders,
+    readWorkspaceProject,
+} from "../workspace-project";
 import { isSavedWorkspace } from "../workspace-rail-model";
 import { PalettePlacement, runPaletteEntry } from "./palette-actions";
 import {
@@ -143,7 +148,7 @@ async function loadWorkspaces(activeId: string): Promise<OtherWorkspaces> {
             active: ws.oid === activeId,
         });
         if (ws.oid !== activeId) {
-            folders.push(effectiveWorkspaceFolder(ws), readWorkspaceProject(ws).dir);
+            folders.push(effectiveWorkspaceFolder(ws, getContextFolder(ws)), readWorkspaceProject(ws).dir);
         }
     }
     return { list, folders: folders.filter((f) => f) };
@@ -167,19 +172,26 @@ function usePickerSource(host: CommandPaletteHost, blockId: string): PickerSourc
     const view = source?.meta?.view;
     const cwd = source?.meta?.["cmd:cwd"];
     const connection = source?.meta?.connection;
+    const ws = useAtomValue(atoms.workspace);
+    const bound = boundingFolder(ws, useContextFolder(ws));
     return useMemo(() => {
         if (sourceId == null) {
             return null;
         }
-        // A new column's picker opens its terminal and files in the workspace folder, a split's where the source is.
-        const meta = pickerSourceMeta({ [SplitNewPanelMetaKey]: newPanel }, { view, "cmd:cwd": cwd, connection });
+        // A new column's picker opens its terminal and files in the workspace folder, a split's where the source is,
+        // unless the source lies outside the workspace's bounding folder (#2516).
+        const meta = pickerSourceMeta(
+            { [SplitNewPanelMetaKey]: newPanel },
+            { view, "cmd:cwd": cwd, connection },
+            bound
+        );
         return {
             blockId: sourceId,
             meta,
             splitKeys: formatShortcutById("split-right"),
             companionKeys: formatShortcutById("companion"),
         };
-    }, [sourceId, newPanel, view, cwd, connection]);
+    }, [sourceId, newPanel, view, cwd, connection, bound]);
 }
 
 // Also the sidebar's top field (#1187): every palette command stays reachable from it.
@@ -229,7 +241,7 @@ export function usePaletteEntries(picker: PickerSource) {
     const hasBrowserPanel = (tab?.blockids ?? []).some(
         (blockId) => WOS.getObjectValue<Block>(WOS.makeORef("block", blockId))?.meta?.view === MoltentermBrowserView
     );
-    const folder = effectiveWorkspaceFolder(ws);
+    const folder = effectiveWorkspaceFolder(ws, useContextFolder(ws));
     const projectLinked = readWorkspaceProject(ws).dir !== "";
     // A fresh array on every render: its content, joined, is what the memo depends on.
     const recentKey = readRecentFolders(ws).join("\n");

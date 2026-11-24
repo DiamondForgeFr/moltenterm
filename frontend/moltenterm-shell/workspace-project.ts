@@ -18,6 +18,9 @@ export const ProjectLogoOfferMetaKey = "molten:projectlogooffer";
 export const ProjectLogoChoiceMetaKey = "molten:projectlogochoice";
 // The folder the workspace works in (FR-SHELL-009). must match WorkspaceFolderMetaKey in pkg/molten/folder.go
 export const WorkspaceFolderMetaKey = "molten:folder";
+// Set with a folder chosen in the workspace's settings (#2516): it bounds the workspace and the terminal's moves no
+// longer replace it. Must match WorkspaceFolderChosenMetaKey in pkg/molten/folder.go.
+export const WorkspaceFolderChosenMetaKey = "molten:folderchosen";
 // The folders the workspace worked in, newest first (the command palette's recent folders, FR-SHELL-013).
 export const WorkspaceRecentFoldersMetaKey = "molten:recentfolders";
 
@@ -181,20 +184,45 @@ export function checkAbsolutePath(path: string): boolean {
     return /^(\/|[A-Za-z]:[/\\]|\\\\)/.test(path ?? "");
 }
 
-// Where new blocks of the workspace start (same rule as WorkspaceFolder in pkg/molten/folder.go): a linked workspace
-// stays inside its project, so a folder outside it stands for the project's root.
-export function effectiveWorkspaceFolder(ws: Workspace): string {
-    const folder = readWorkspaceFolder(ws);
-    const project = readWorkspaceProject(ws).dir;
-    if (project !== "" && !checkPathInside(folder, project)) {
-        return project;
-    }
-    return folder;
+// The folder chosen in the workspace's settings (#2516), "" while the folder only follows its terminal.
+export function readChosenWorkspaceFolder(ws: Workspace): string {
+    const meta = ws?.meta as Record<string, any>;
+    return meta?.[WorkspaceFolderChosenMetaKey] === true ? readWorkspaceFolder(ws) : "";
 }
 
-// The folder to store when the focused terminal goes to cwd, or null to leave the workspace's folder as it is.
-export function nextWorkspaceFolder(stored: string, projectDir: string, cwd: string): string {
-    if (!checkAbsolutePath(cwd)) {
+// The folder every panel of the workspace stays in (same rule as BoundingFolder in pkg/molten/folder.go, #2516): the
+// context's folder by default, a folder chosen for the workspace instead, the project's root when it lies inside that.
+export function boundingFolder(ws: Workspace, contextFolder = ""): string {
+    let root = contextFolder ?? "";
+    const chosen = readChosenWorkspaceFolder(ws);
+    if (chosen !== "") {
+        root = chosen;
+    }
+    const project = readWorkspaceProject(ws).dir;
+    if (project !== "" && (root === "" || checkPathInside(project, root))) {
+        root = project;
+    }
+    return root;
+}
+
+// Where new blocks of the workspace start (same rule as StartFolder in pkg/molten/folder.go): the folder its terminal
+// last went to while it lies inside the bounding folder, else the bounding folder.
+export function effectiveWorkspaceFolder(ws: Workspace, contextFolder = ""): string {
+    const root = boundingFolder(ws, contextFolder);
+    if (readChosenWorkspaceFolder(ws) !== "") {
+        return root;
+    }
+    const followed = readWorkspaceFolder(ws);
+    if (followed !== "" && (root === "" || checkPathInside(followed, root))) {
+        return followed;
+    }
+    return root;
+}
+
+// The folder to store when the focused terminal goes to cwd, or null to leave the workspace's folder as it is. A
+// folder chosen in the settings is never replaced by the terminal's moves (#2516).
+export function nextWorkspaceFolder(stored: string, projectDir: string, cwd: string, chosen = false): string {
+    if (chosen || !checkAbsolutePath(cwd)) {
         return null;
     }
     const folder = trimTrailingSeparators(cwd);

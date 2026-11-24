@@ -12,6 +12,7 @@ package contexts
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -58,6 +59,8 @@ type Context struct {
 	Emblem string `json:"emblem,omitempty"`
 	// The workspace this context last showed in a window: where choosing the context lands.
 	Last string `json:"last,omitempty"`
+	// The outer bound of its workspaces' folders (#2516): context ⊃ workspace ⊃ project (molten.BoundingFolder).
+	Folder string `json:"folder,omitempty"`
 }
 
 // State is what a write sees: the contexts in order, and the context each workspace is in once the first-context rule
@@ -79,10 +82,12 @@ type CreateRequest struct {
 // because the form that sends this knows only the workspaces its checklist showed (a blank workspace of another window,
 // or one placed after the dialog opened, is not on it).
 type UpdateRequest struct {
-	Id               string   `json:"id"`
-	Name             *string  `json:"name,omitempty"`
-	Description      *string  `json:"description,omitempty"`
-	Emblem           *string  `json:"emblem,omitempty"`
+	Id          string  `json:"id"`
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Emblem      *string `json:"emblem,omitempty"`
+	// An absolute folder, or "" to forget it.
+	Folder           *string  `json:"folder,omitempty"`
 	AddWorkspaces    []string `json:"addworkspaces,omitempty"`
 	RemoveWorkspaces []string `json:"removeworkspaces,omitempty"`
 }
@@ -228,6 +233,28 @@ func cleanEmblem(emblem string, allowEmpty bool) (string, error) {
 	return emblem, nil
 }
 
+func cleanFolder(folder string) (string, error) {
+	folder = strings.TrimSpace(folder)
+	if folder == "" {
+		return "", nil
+	}
+	if !filepath.IsAbs(folder) {
+		return "", fmt.Errorf("the folder %q of a context must be an absolute path", folder)
+	}
+	return filepath.Clean(folder), nil
+}
+
+// FolderOf is the folder of the context a workspace is in; "" when it has none.
+func FolderOf(list []Context, workspaceMeta waveobj.MetaMapType) string {
+	id := ContextOf(list, workspaceMeta)
+	for _, c := range list {
+		if c.Id == id {
+			return c.Folder
+		}
+	}
+	return ""
+}
+
 // moveTo puts a workspace in a context and says whether it moved.
 func (s *State) moveTo(workspaceId string, contextId string) bool {
 	if s.Of[workspaceId] == contextId {
@@ -300,6 +327,13 @@ func (s State) Update(req UpdateRequest) (State, []string, error) {
 			return s, nil, err
 		}
 		rtn.Contexts[at].Emblem = emblem
+	}
+	if req.Folder != nil {
+		folder, err := cleanFolder(*req.Folder)
+		if err != nil {
+			return s, nil, err
+		}
+		rtn.Contexts[at].Folder = folder
 	}
 	moved := []string{}
 	if err := s.checkWorkspaces(req.AddWorkspaces); err != nil {
@@ -433,6 +467,9 @@ func MetaValue(list []Context) []any {
 		}
 		if c.Last != "" {
 			entry["last"] = c.Last
+		}
+		if c.Folder != "" {
+			entry["folder"] = c.Folder
 		}
 		rtn[i] = entry
 	}

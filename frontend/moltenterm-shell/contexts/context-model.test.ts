@@ -3,9 +3,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
-    ContextInfo,
+    contextFolderOf,
     contextHint,
     contextIdOf,
+    ContextInfo,
     contextShownEmblem,
     contextShownName,
     ContextWorkspace,
@@ -25,7 +26,16 @@ import {
 const t = (key: string) => (key === "contexts.defaultName" ? "My workshop" : key);
 
 function ws(id: string, contextId: string, extra: Partial<ContextWorkspace> = {}): ContextWorkspace {
-    return { id, contextId, name: id.toUpperCase(), color: "#58C142", saved: true, active: false, open: false, ...extra };
+    return {
+        id,
+        contextId,
+        name: id.toUpperCase(),
+        color: "#58C142",
+        saved: true,
+        active: false,
+        open: false,
+        ...extra,
+    };
 }
 
 describe("reading the contexts", () => {
@@ -40,15 +50,24 @@ describe("reading the contexts", () => {
     it("keeps the stored order and drops an entry with no id or a repeated one", () => {
         const list = readContexts({
             "molten:contexts": [
-                { id: "a", name: "A", description: "d", emblem: "book", last: "w1" },
+                { id: "a", name: "A", description: "d", emblem: "book", last: "w1", folder: "/c" },
                 { name: "no id" },
                 { id: "a", name: "again" },
                 { id: "b", name: 4 },
             ],
         });
         expect(list.map((c) => c.id)).toEqual(["a", "b"]);
-        expect(list[0]).toEqual({ id: "a", name: "A", description: "d", emblem: "book", last: "w1" });
+        expect(list[0]).toEqual({ id: "a", name: "A", description: "d", emblem: "book", last: "w1", folder: "/c" });
         expect(list[1].name).toBe("");
+        expect(list[1].folder).toBe("");
+    });
+
+    // #2516: a context's folder bounds its workspaces; a workspace names its context in its own meta.
+    it("reads the folder of the context a workspace is in", () => {
+        const list = readContexts({ "molten:contexts": [{ id: "a" }, { id: "b", folder: "/clients/sefers" }] });
+        expect(contextFolderOf(list, { "molten:context": "b" })).toBe("/clients/sefers");
+        expect(contextFolderOf(list, {})).toBe("");
+        expect(contextFolderOf(list, { "molten:context": "gone" })).toBe("");
     });
 
     it("puts a workspace with no context, or an unknown one, in the first context", () => {
@@ -172,7 +191,13 @@ describe("the ribbons of the menu", () => {
     });
 
     it("has no landing for a context with no workspace", () => {
-        const ribbons = makeRibbons([...contexts, { id: "empty", name: "Empty" }], entries, DefaultContextId, () => 0, t);
+        const ribbons = makeRibbons(
+            [...contexts, { id: "empty", name: "Empty" }],
+            entries,
+            DefaultContextId,
+            () => 0,
+            t
+        );
         expect(ribbons[2].landing).toBeNull();
         expect(ribbons[2].hint).toEqual({ kind: "workspaces", count: 0 });
     });
@@ -180,7 +205,9 @@ describe("the ribbons of the menu", () => {
 
 describe("the window title", () => {
     it("names the application, the context, then the tab", () => {
-        expect(windowTitleWithContext("MoltenTerm", "DiamondForge", "Project")).toBe("MoltenTerm — DiamondForge - Project");
+        expect(windowTitleWithContext("MoltenTerm", "DiamondForge", "Project")).toBe(
+            "MoltenTerm — DiamondForge - Project"
+        );
         expect(windowTitleWithContext("MoltenTerm", "", "Project")).toBe("MoltenTerm - Project");
         expect(windowTitleWithContext("MoltenTerm", "DiamondForge", "")).toBe("MoltenTerm — DiamondForge");
     });

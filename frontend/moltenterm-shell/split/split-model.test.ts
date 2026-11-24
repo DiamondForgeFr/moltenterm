@@ -64,6 +64,25 @@ describe("what a new panel takes from the panel it opens from (FR-SHELL-009, #18
         });
         expect(pickerSourceMeta(column, HomeTerminal)).toEqual({ view: "term", connection: "local" });
     });
+
+    // #2516: the developer split a terminal sitting at home in a workspace bounded by its client's folder, and the new
+    // terminal started at home.
+    it("drops a split's folder outside the workspace's bounding folder, so it starts at the bound", () => {
+        const split = { view: "launcher", [SplitFromMetaKey]: "src" };
+        expect(pickerSourceMeta(split, HomeTerminal, "/clients/sefers")).toEqual({ view: "term", connection: "local" });
+        const inside = { ...HomeTerminal, "cmd:cwd": "/clients/sefers/docs" };
+        expect(pickerSourceMeta(split, inside, "/clients/sefers")).toEqual({
+            view: "term",
+            "cmd:cwd": "/clients/sefers/docs",
+            connection: "local",
+        });
+        const remote = { ...HomeTerminal, connection: "dev@box" };
+        expect(sourceContext(remote, true, "/clients/sefers")).toEqual({
+            view: "term",
+            "cmd:cwd": "/home/me",
+            connection: "dev@box",
+        });
+    });
 });
 
 describe("split directions", () => {

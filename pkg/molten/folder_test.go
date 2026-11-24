@@ -52,6 +52,46 @@ func TestWorkspaceFolder(t *testing.T) {
 	}
 }
 
+// #2516: the context's folder bounds its workspaces, a workspace's chosen folder replaces it, a project inside the bound
+// narrows it, and a folder chosen in the settings is where new blocks start whatever the terminal did.
+func TestBoundingAndStartFolder(t *testing.T) {
+	chosen := func(folder string, more waveobj.MetaMapType) waveobj.MetaMapType {
+		meta := waveobj.MetaMapType{WorkspaceFolderMetaKey: folder, WorkspaceFolderChosenMetaKey: true}
+		for k, v := range more {
+			meta[k] = v
+		}
+		return meta
+	}
+	cases := []struct {
+		name      string
+		context   string
+		meta      waveobj.MetaMapType
+		wantBound string
+		wantStart string
+	}{
+		{"nothing set", "", nil, "", ""},
+		{"context only", "/c", nil, "/c", "/c"},
+		{"followed folder inside the context", "/c", waveobj.MetaMapType{WorkspaceFolderMetaKey: "/c/x"}, "/c", "/c/x"},
+		{"followed folder outside the context", "/c", waveobj.MetaMapType{WorkspaceFolderMetaKey: "/home/me"}, "/c", "/c"},
+		{"chosen workspace folder", "", chosen("/w", nil), "/w", "/w"},
+		{"chosen folder inside the context narrows it", "/c", chosen("/c/w", nil), "/c/w", "/c/w"},
+		{"chosen folder outside the context was confirmed and applies", "/c", chosen("/elsewhere", nil), "/elsewhere", "/elsewhere"},
+		{"project outside the context is not a bound", "/c", waveobj.MetaMapType{ProjectMetaKey: "/q"}, "/c", "/c"},
+		{"project inside the chosen folder narrows it", "", chosen("/w", waveobj.MetaMapType{ProjectMetaKey: "/w/p"}), "/w/p", "/w/p"},
+		{"project outside the chosen folder is ignored", "", chosen("/w", waveobj.MetaMapType{ProjectMetaKey: "/q"}), "/w", "/w"},
+		{"all three nested", "/c", chosen("/c/w", waveobj.MetaMapType{ProjectMetaKey: "/c/w/p"}), "/c/w/p", "/c/w/p"},
+		{"project alone", "", waveobj.MetaMapType{ProjectMetaKey: "/p"}, "/p", "/p"},
+	}
+	for _, tc := range cases {
+		if got := BoundingFolder(tc.context, tc.meta); got != tc.wantBound {
+			t.Errorf("%s: bound %q, want %q", tc.name, got, tc.wantBound)
+		}
+		if got := StartFolder(tc.context, tc.meta); got != tc.wantStart {
+			t.Errorf("%s: start %q, want %q", tc.name, got, tc.wantStart)
+		}
+	}
+}
+
 func TestBlockMetaInFolder(t *testing.T) {
 	cases := []struct {
 		name    string
