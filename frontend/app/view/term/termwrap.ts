@@ -17,7 +17,7 @@ import {
     WOS,
 } from "@/store/global";
 import * as services from "@/store/services";
-import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
+import { PLATFORM } from "@/util/platformutil";
 import { base64ToArray, fireAndForget } from "@/util/util";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
@@ -50,6 +50,7 @@ import {
     localizeTerminalAccessibility,
     terminalScreenReaderEnabled,
 } from "../../../moltenterm-shell/terminal-accessibility/model"; // MOLTENTERM-PATCH (#808)
+import { makeTermLinkCallbacks } from "../../../moltenterm-shell/term-links/term-links"; // MOLTENTERM-PATCH (#2507)
 import { isOffCarpet, offCarpetAtom } from "../../../moltenterm-shell/view360/offcarpet-model"; // MOLTENTERM-PATCH (#618)
 import {
     handleOsc16162Command,
@@ -180,7 +181,25 @@ export class TermWrap {
         this.webglEnabledAtom = jotai.atom(false) as jotai.PrimitiveAtom<boolean>;
         // MOLTENTERM-PATCH (#808): enable accessibility before opening xterm, then update its live option.
         localizeTerminalAccessibility();
-        this.terminal = new Terminal({ ...options, screenReaderMode: terminalScreenReaderEnabled() });
+        // MOLTENTERM-PATCH (#2507): plain URLs and OSC 8 links share one handler; without linkHandler, xterm.js
+        // activates OSC 8 links with a blocking window.confirm.
+        const linkCallbacks = makeTermLinkCallbacks({
+            platform: PLATFORM,
+            open: (uri) => fireAndForget(() => openLink(uri)),
+            hover: (uri, mouseX, mouseY) => {
+                this.hoveredLinkUri = uri;
+                this.onLinkHover?.(uri, mouseX, mouseY);
+            },
+            leave: () => {
+                this.hoveredLinkUri = null;
+                this.onLinkHover?.(null, 0, 0);
+            },
+        });
+        this.terminal = new Terminal({
+            ...options,
+            screenReaderMode: terminalScreenReaderEnabled(),
+            linkHandler: linkCallbacks,
+        });
         this.fitAddon = new FitAddon();
         this.serializeAddon = new SerializeAddon();
         this.searchAddon = new SearchAddon();
@@ -188,33 +207,7 @@ export class TermWrap {
         this.terminal.loadAddon(this.fitAddon);
         this.terminal.loadAddon(this.serializeAddon);
         this.terminal.loadAddon(
-            new WebLinksAddon(
-                (e, uri) => {
-                    e.preventDefault();
-                    switch (PLATFORM) {
-                        case PlatformMacOS:
-                            if (e.metaKey) {
-                                fireAndForget(() => openLink(uri));
-                            }
-                            break;
-                        default:
-                            if (e.ctrlKey) {
-                                fireAndForget(() => openLink(uri));
-                            }
-                            break;
-                    }
-                },
-                {
-                    hover: (e, uri) => {
-                        this.hoveredLinkUri = uri;
-                        this.onLinkHover?.(uri, e.clientX, e.clientY);
-                    },
-                    leave: () => {
-                        this.hoveredLinkUri = null;
-                        this.onLinkHover?.(null, 0, 0);
-                    },
-                }
-            )
+            new WebLinksAddon(linkCallbacks.activate, { hover: linkCallbacks.hover, leave: linkCallbacks.leave })
         );
         this.setTermRenderer(WebGLSupported && waveOptions.useWebGl ? "webgl" : "dom");
         // MOLTENTERM-PATCH (#801): another terminal's atlas clear resets this one's glyph model (shared-atlas.ts)
