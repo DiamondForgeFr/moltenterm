@@ -81,9 +81,13 @@ describe("Manage contexts", () => {
         expect(html).toMatch(/data-testid="context-folder-remove"[^>]*>Remove</);
     });
 
-    it("lays the folder in a column that the ribbon's shape can join, never a fixed half", () => {
+    it("lays the folder and the ribbon's shape side by side, in two columns of one grid", () => {
         const html = dialog();
-        expect(html).toContain("repeat(auto-fit,minmax(14rem,1fr))");
-        expect(html).toContain('data-testid="context-folder-column"');
+        const grid = html.indexOf("repeat(auto-fit,minmax(14rem,1fr))");
+        expect(grid).toBeGreaterThan(0);
+        const folder = html.indexOf('data-testid="context-folder-column"');
+        const shape = html.indexOf('data-testid="context-shape-column"');
+        expect(grid).toBeLessThan(folder);
+        expect(folder).toBeLessThan(shape);
     });
 });
