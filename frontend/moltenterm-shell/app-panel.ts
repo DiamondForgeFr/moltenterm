@@ -16,7 +16,7 @@ import { getLayoutModelForStaticTab } from "@/layout/index";
 import { appPanelStep, panelCtaStep, PanelMatch, PanelOrigin, sameViewMatch, viewIsPinned } from "./app-panel-model";
 import { projectTabIds } from "./hidden-tabs";
 import { showTabFromHere } from "./opener-tab";
-import { readGlobalPins } from "./sidebar/view-pins-model";
+import { windowContextPins } from "./sidebar/context-pins-model";
 import { openPanelBeside } from "./split/add-beside";
 import { revealPanelOnCarpet } from "./view360/carpet-reveal";
 
@@ -32,7 +32,7 @@ export type AppPanelOptions = {
 function globalPinIds(): Set<string> {
     const clientAtom = ClientModel.getInstance().clientAtom;
     const client = clientAtom == null ? null : globalStore.get(clientAtom);
-    return new Set(readGlobalPins(client?.meta).map((p) => p.id));
+    return new Set(windowContextPins(client?.meta, globalStore.get(atoms.workspace)?.meta).map((p) => p.id));
 }
 
 async function tabOf(tabId: string): Promise<Tab> {

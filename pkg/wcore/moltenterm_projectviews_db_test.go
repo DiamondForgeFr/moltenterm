@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/wavetermdev/waveterm/pkg/molten/contextpins"
+	"github.com/wavetermdev/waveterm/pkg/molten/contexts"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/projectviews"
 	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
@@ -287,7 +289,7 @@ func TestSwitchingOnATileShowsTheTargetsOwnInstanceBuiltFromItsConfiguration(t *
 func TestSwitchOnAViewPinnedEverywhereMakesTheTargetsInstanceFromThePin(t *testing.T) {
 	initWorkspaceViewStores(t)
 	ctx := context.Background()
-	client := &waveobj.Client{OID: uuid.NewString(), Meta: waveobj.MetaMapType{viewpin.GlobalPinsMetaKey: []any{map[string]any{
+	client := &waveobj.Client{OID: uuid.NewString(), Meta: waveobj.MetaMapType{contextpins.MetaKey(contexts.DefaultId): []any{map[string]any{
 		"id": "g1", "name": "Terminal", "rev": 2,
 		"config": map[string]any{"tree": map[string]any{"pane": 0}, "panes": []any{map[string]any{"view": "term", "controller": "cmd", "cmd": "make"}}},
 	}}}}

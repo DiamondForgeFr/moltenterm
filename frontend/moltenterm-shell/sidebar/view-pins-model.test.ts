@@ -12,7 +12,6 @@ import {
     GlobalPin,
     GlobalPinMetaKey,
     GlobalPinRevMetaKey,
-    GlobalPinsMetaKey,
     instanceStale,
     isProjectTab,
     layoutTree,
@@ -26,7 +25,7 @@ import {
     pinShowingPanel,
     PinWorkspace,
     planViewMove,
-    readGlobalPins,
+    readPinList,
     RepoToken,
     shownViewState,
     undoPins,
@@ -68,9 +67,9 @@ describe("view states (FR-SHELL-080)", () => {
         expect(viewStateOf({ meta: { [PinMetaKey]: "workspace" } }, ids)).toBe("temporary");
     });
 
-    it("keeps only valid pins everywhere from the client's meta", () => {
-        expect(readGlobalPins({ [GlobalPinsMetaKey]: [pin, { id: "", config }, { id: "x" }, null] })).toEqual([pin]);
-        expect(readGlobalPins(null)).toEqual([]);
+    it("keeps only valid pins everywhere from a context's stored row", () => {
+        expect(readPinList([pin, { id: "", config }, { id: "x" }, null])).toEqual([pin]);
+        expect(readPinList(null)).toEqual([]);
         expect(makeGlobalPinId(1000, 0.5)).toMatch(/^g/);
     });
 

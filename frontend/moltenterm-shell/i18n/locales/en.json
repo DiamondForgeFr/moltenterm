@@ -440,7 +440,7 @@
             "newTab": "New view",
             "reopenClosed": "Reopen the last closed panel or view",
             "keepViewHere": "Pin this view in this workspace",
-            "keepViewEverywhere": "Pin this view everywhere",
+            "keepViewEverywhere": "Pin this view in this context",
             "makeViewTemporary": "Unpin this view",
             "splitPlace": "Split the panel…",
             "splitPlaceDetail": "choose the side: left, right, up or down",
@@ -1598,9 +1598,9 @@
                 "floatingHint": "over the views when the pointer reaches the left edge"
             },
             "topRow": {
-                "title": "Views pinned everywhere",
-                "hint": "The top row of the sidebar, the same in every workspace. Pin a view everywhere from its menu.",
-                "empty": "No view is pinned everywhere.",
+                "title": "Views pinned in this context",
+                "hint": "The top row of the sidebar, the same in every workspace of this context. Pin a view in this context from its menu.",
+                "empty": "No view is pinned in this context.",
                 "dragHint": "Drag a tile to reorder, or Alt with an arrow."
             }
         },
@@ -1826,7 +1826,7 @@
                 "noProjectHint": "Link a project stays in the workspace's menu",
                 "noView": "No view yet",
                 "noViewHint": "{keys} suggests some",
-                "pinnedEverywhere": "Available in all your workspaces",
+                "pinnedEverywhere": "Available in all the workspaces of this context",
                 "pinnedHere": "Pinned in {workspace}",
                 "morph": "Missing a tool? Ask your agent with {morph}. What you add goes to the Library.",
                 "nextTitle": "Your next views:",
@@ -1926,8 +1926,8 @@
                 "titleA": "Where do you keep",
                 "titleB": "?",
                 "everywhere": {
-                    "title": "Available in all your workspaces, including the next ones",
-                    "text": "At the top of the sidebar, everywhere. Each workspace opens it on its own project."
+                    "title": "Available in all the workspaces of this context, including the next ones",
+                    "text": "At the top of the sidebar, in this context. Each workspace opens it on its own project."
                 },
                 "workspace": {
                     "title": "Pinned in {workspace} only",
@@ -1937,8 +1937,8 @@
                 "next": "Billing",
                 "capMine": "{workspace}, your project",
                 "capNext": "{workspace}, a next workspace",
-                "legendEverywhere": "{name} joins the top row, the same in every workspace. In {workspace} it opens on {workspace}, in {other} on {other}.",
-                "legendWorkspace": "{name} becomes a tile of {workspace}. {other} does not see it; you can pin it everywhere later, from its menu."
+                "legendEverywhere": "{name} joins the top row, the same in every workspace of this context. In {workspace} it opens on {workspace}, in {other} on {other}.",
+                "legendWorkspace": "{name} becomes a tile of {workspace}. {other} does not see it; you can pin it in this context later, from its menu."
             }
         }
     },
@@ -12285,7 +12285,7 @@
             "reordered": "Order changed",
             "closedOne": "View closed · in Put-away views",
             "captionHere": "Keep in {workspace}",
-            "captionEverywhere": "Everywhere · every workspace",
+            "captionEverywhere": "This context · every workspace of it",
             "captionTemporary": "Unpin it",
             "emptyTitle": "This pinned view has no panel",
             "emptyHint": "A pinned view stays until you unpin it. Add a panel, or unpin it to close it.",
@@ -12302,11 +12302,11 @@
             "failed": "The view could not be pinned or opened",
             "undo": "Undo",
             "pinnedHere": "“{name}” pinned in {workspace}",
-            "pinnedEverywhere": "“{name}” pinned everywhere: the same configuration in every workspace, each on its own project",
+            "pinnedEverywhere": "“{name}” pinned in this context: the same configuration in every workspace of it, each on its own project",
             "pinnedOnlyHere": "“{name}” pinned only in {workspace}",
             "unpinned": "“{name}” unpinned: it is back in Views and can close",
             "saved": "“{name}” keeps its current state",
-            "savedEverywhere": "“{name}” saved for every workspace",
+            "savedEverywhere": "“{name}” saved for every workspace of this context",
             "reverted": "“{name}” is back to its pinned state",
             "closedFinished": {
                 "one": "1 finished view closed",
@@ -12314,7 +12314,7 @@
             },
             "closedFinishedHint": "Views whose agent still works stay open. The library's put-away views bring them back.",
             "keepKey": {
-                "everywhere": "“{name}” is pinned everywhere and stays so",
+                "everywhere": "“{name}” is pinned in this context and stays so",
                 "everywhereHint": "To unpin it or pin it only here, use its menu or the command palette."
             },
             "noAgent": "No coding agent is set for this project",
@@ -12324,13 +12324,13 @@
             "tileModifiedTitle": "{name} · pinned in {workspace} · changed since pinned (right-click: save or go back)",
             "tileLabel": "{name}, important view",
             "tileChangedLabel": "changed since pinned",
-            "topTitle": "{name} · pinned everywhere, opened on this workspace's project",
-            "topModifiedTitle": "{name} · pinned everywhere · changed since pinned (right-click: save or go back)",
+            "topTitle": "{name} · pinned in this context, opened on this workspace's project",
+            "topModifiedTitle": "{name} · pinned in this context · changed since pinned (right-click: save or go back)",
             "topRowLabel": "Transversal views",
             "forked": "New view “{name}”",
-            "forkedHint": "Views pinned everywhere stay as they are in every workspace.",
+            "forkedHint": "Views pinned in this context stay as they are in every workspace of it.",
             "updatePinned": "Update the pinned view",
-            "updatedPinned": "“{name}” updated for every workspace",
+            "updatedPinned": "“{name}” updated for every workspace of this context",
             "updatedPinnedHint": "Each workspace opens it with this layout.",
             "closeFinished": {
                 "one": "Close the finished view",
@@ -12340,14 +12340,14 @@
                 "state": {
                     "temporary": "View",
                     "workspace": "Pinned in {workspace}",
-                    "everywhere": "Pinned everywhere"
+                    "everywhere": "Pinned in this context"
                 },
                 "save": "Save the current state",
-                "saveEverywhere": "Save for every workspace",
+                "saveEverywhere": "Save for every workspace of this context",
                 "revert": "Back to the pinned state",
                 "pinHere": "Pin in {workspace}…",
-                "pinEverywhere": "Pin everywhere…",
-                "pinEverywhereNow": "Pin everywhere",
+                "pinEverywhere": "Pin in this context…",
+                "pinEverywhereNow": "Pin in this context",
                 "pinOnlyHere": "Pin only in {workspace}",
                 "unpin": "Unpin",
                 "makeTemporary": "Unpin",
@@ -12360,8 +12360,8 @@
                 "scope": "Where to pin it",
                 "hereTitle": "Pinned in {workspace}",
                 "hereBody": "A tile in {workspace}. Its configuration (its panels and their layout) stays here; its content follows the active project. To close it, unpin it first.",
-                "everywhereTitle": "Pinned everywhere",
-                "everywhereBody": "In the top row of every workspace. The same configuration everywhere; each workspace opens it on its own project, with its own agent.",
+                "everywhereTitle": "Pinned in this context",
+                "everywhereBody": "In the top row of every workspace of this context. The same configuration in each; each workspace opens it on its own project, with its own agent.",
                 "pin": "Pin"
             },
             "slot": {
@@ -12640,7 +12640,7 @@
         "panels": {
             "addTo": "Add to “{view}”",
             "askPinned": "“{view}” is a pinned view: this panel will change it.",
-            "askEverywhere": "“{view}” is pinned in every workspace: this panel will move it to Views here.",
+            "askEverywhere": "“{view}” is pinned in this context: this panel will move it to Views here.",
             "inNewView": "In a new view",
             "show": "Show it",
             "thisView": "this view",

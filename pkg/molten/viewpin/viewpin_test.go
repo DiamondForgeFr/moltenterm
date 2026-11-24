@@ -16,7 +16,7 @@ import (
 const repo = "https://github.com/DiamondForgeFr/moltenterm"
 
 func TestPinnedKeepsTheTab(t *testing.T) {
-	client := waveobj.MetaMapType{GlobalPinsMetaKey: []any{map[string]any{"id": "g1", "name": "Review"}}}
+	row := []any{map[string]any{"id": "g1", "name": "Review"}}
 	cases := []struct {
 		name string
 		tab  waveobj.MetaMapType
@@ -26,15 +26,15 @@ func TestPinnedKeepsTheTab(t *testing.T) {
 		{"pinned here", waveobj.MetaMapType{PinMetaKey: PinWorkspace, PinConfigMetaKey: map[string]any{"panes": []any{}}}, true},
 		{"pinned here without a configuration", waveobj.MetaMapType{PinMetaKey: PinWorkspace}, false},
 		{"pinned everywhere", waveobj.MetaMapType{GlobalPinMetaKey: "g1"}, true},
-		{"a pin gone from the client", waveobj.MetaMapType{GlobalPinMetaKey: "g2"}, false},
+		{"a pin gone from the row", waveobj.MetaMapType{GlobalPinMetaKey: "g2"}, false},
 	}
 	for _, c := range cases {
-		if got := Pinned(c.tab, client); got != c.want {
+		if got := Pinned(c.tab, row); got != c.want {
 			t.Errorf("%s: Pinned = %v, want %v", c.name, got, c.want)
 		}
 	}
 	if Pinned(waveobj.MetaMapType{GlobalPinMetaKey: "g1"}, nil) {
-		t.Errorf("a client without pins keeps no instance")
+		t.Errorf("a context whose row is empty keeps no instance")
 	}
 }
 

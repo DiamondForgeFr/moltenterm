@@ -32,11 +32,14 @@ describe("the addresses the window sends to main (#2482)", () => {
         expect(bookmarkAddresses({ "molten:bookmarks": { p: { items: "x" } } })).toEqual([]);
     });
 
-    it("lists the web pages of the pins of the client and of the workspace's own pinned views", () => {
+    it("lists the web pages of the pins of every context and of the workspace's own pinned views", () => {
         const clientMeta = {
-            "molten:globalpins": [
+            "molten:contextpins:a": [
                 { id: "g1", name: "Ledger", rev: 1, config: config(pane("https://ledger-app.io/"), { view: "term" }) },
                 { id: "g2", name: "Broken", rev: 1, config: null },
+            ],
+            "molten:contextpins:b": [
+                { id: "g3", name: "Other", rev: 1, config: config(pane("https://other-context.dev/")) },
             ],
         };
         const tabs = [
@@ -45,14 +48,22 @@ describe("the addresses the window sends to main (#2482)", () => {
             {},
             null,
         ];
-        expect(pinnedAddresses(clientMeta, tabs as any)).toEqual(["https://ledger-app.io/", "https://pinned.dev/"]);
+        expect(pinnedAddresses(clientMeta, tabs as any)).toEqual([
+            "https://ledger-app.io/",
+            "https://other-context.dev/",
+            "https://pinned.dev/",
+        ]);
     });
 
     it("sends both lists together", () => {
         expect(
             knownAddresses(
                 { "molten:bookmarks": { p: { items: [{ url: "https://a.example/" }] } } },
-                { "molten:globalpins": [{ id: "g", name: "n", rev: 1, config: config(pane("https://b.example/")) }] },
+                {
+                    "molten:contextpins:workshop": [
+                        { id: "g", name: "n", rev: 1, config: config(pane("https://b.example/")) },
+                    ],
+                },
                 []
             )
         ).toEqual({ bookmarks: ["https://a.example/"], pinned: ["https://b.example/"] });

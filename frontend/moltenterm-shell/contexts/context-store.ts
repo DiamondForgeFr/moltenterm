@@ -12,6 +12,7 @@ import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
 import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo } from "react";
+import { startContextPins } from "../sidebar/context-pins-store";
 import { isOutsideContextFolder } from "../workspace-project";
 import {
     ContextAssignCommand,
@@ -113,8 +114,11 @@ export function isInWindowContext(workspaceMeta: Record<string, any>): boolean {
 
 // Resolves the new context's id.
 export async function createContext(req: ContextCreateRequest): Promise<string> {
+    const from = getWindowContextId();
     const result = await callContexts(ContextCreateCommand, req);
-    return result?.id ?? "";
+    const id = result?.id ?? "";
+    await startContextPins(id, from);
+    return id;
 }
 
 export async function updateContext(req: ContextUpdateRequest): Promise<void> {

@@ -89,7 +89,7 @@ func TestWorkspaceWrites(t *testing.T) {
 	}
 	for _, u := range untrusted() {
 		mustRefuse(t, u.name+" on another workspace", metaguard.CheckWrite(u.c, other, link))
-		for _, key := range []string{"molten:bookmarks", "molten:projects", "molten:tabprojects", molten.WorkspaceFolderMetaKey, "molten:globalpins", "name"} {
+		for _, key := range []string{"molten:bookmarks", "molten:projects", "molten:tabprojects", molten.WorkspaceFolderMetaKey, "molten:globalpins", "molten:contextpins:workshop", "molten:contextpinsmigrated", "name"} {
 			mustRefuse(t, u.name+" sets "+key, metaguard.CheckWrite(u.c, own, waveobj.MetaMapType{key: "x"}))
 			mustRefuse(t, u.name+" sets "+key+" with the link", metaguard.CheckWrite(u.c, own, waveobj.MetaMapType{molten.ProjectMetaKey: "/p", key: "x"}))
 		}

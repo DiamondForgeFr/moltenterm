@@ -3,9 +3,9 @@
 
 // Package viewpin keeps what a pinned view is made of (FR-SHELL-080): its panels and their layout, without what
 // belongs to one project or one moment. A view pinned in a workspace keeps this configuration in its tab; a view
-// pinned everywhere keeps one in the client, which each workspace opens on its own project: its terminals in the
-// project's folder, its repository page on the project's repository, its agent panel as an empty slot that offers
-// to start an agent.
+// pinned everywhere (in its context, #2526: pkg/molten/contextpins) keeps one in the client, which each workspace of
+// the context opens on its own project: its terminals in the project's folder, its repository page on the project's
+// repository, its agent panel as an empty slot that offers to start an agent.
 package viewpin
 
 import (
@@ -45,7 +45,6 @@ const (
 	GlobalPinMetaKey = "molten:globalpin"
 	// The version of the pin's configuration an instance was made from.
 	GlobalPinRevMetaKey = "molten:pinrev"
-	GlobalPinsMetaKey   = "molten:globalpins"
 )
 
 // Node is a view's layout: a split (Dir "row" puts its children side by side, "column" stacks them) or a panel.
@@ -463,9 +462,10 @@ func githubWebUrl(remote string) string {
 }
 
 // Pinned says whether a tab is a pinned view (FR-SHELL-080): pinned in its workspace with a configuration, or the
-// instance of a view still pinned everywhere (clientMeta's list). A pinned view closes only once unpinned, so closing
-// its last panel leaves it empty instead of closing it (FR-SHELL-081).
-func Pinned(tabMeta waveobj.MetaMapType, clientMeta waveobj.MetaMapType) bool {
+// instance of a view still pinned in its context's top row (pins, the row of the context the tab's workspace is in,
+// #2526). A pinned view closes only once unpinned, so closing its last panel leaves it empty instead of closing it
+// (FR-SHELL-081).
+func Pinned(tabMeta waveobj.MetaMapType, pins []any) bool {
 	if tabMeta.GetString(PinMetaKey, "") == PinWorkspace && tabMeta[PinConfigMetaKey] != nil {
 		return true
 	}
@@ -473,7 +473,6 @@ func Pinned(tabMeta waveobj.MetaMapType, clientMeta waveobj.MetaMapType) bool {
 	if gid == "" {
 		return false
 	}
-	pins, _ := clientMeta[GlobalPinsMetaKey].([]any)
 	for _, p := range pins {
 		pin, _ := p.(map[string]any)
 		if id, _ := pin["id"].(string); id == gid {

@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The three states of a view (FR-SHELL-080): temporary, pinned in the workspace (a tile, its configuration kept in
-// the tab), pinned everywhere (a block in every workspace's top row, one configuration kept in the client and opened
-// by each workspace on its own project). A view is a tab and its layout. Kept apart from the components so the rules
+// the tab), pinned everywhere (a block in the top row of every workspace of its context, #2526: one configuration kept
+// in the client per context and opened by each workspace on its own project). A view is a tab and its layout. Kept apart from the components so the rules
 // can be tested without the app; pkg/molten/viewpin reads and makes the configurations.
 
 import { AgentStatesData, agentStatesOfBlocks } from "../agent-state-model";
@@ -34,8 +34,6 @@ export const ForkedFromMetaKey = "molten:forkedfrom";
 export const SlotHintMetaKey = "molten:viewslot";
 // An instance made for a project that never showed it: it has no panel until it is shown.
 export const InstanceMetaKey = "molten:viewsibling";
-// The client's meta: the views pinned everywhere, in the top row's order.
-export const GlobalPinsMetaKey = "molten:globalpins";
 
 export type PinNode = { dir?: string; children?: PinNode[]; blockid?: string; pane?: number };
 
@@ -63,8 +61,8 @@ export function readPinConfig(value: any): PinConfig {
     return validConfig(value) && value.panes.length > 0 ? value : null;
 }
 
-export function readGlobalPins(meta: Record<string, any>): GlobalPin[] {
-    const raw = meta?.[GlobalPinsMetaKey];
+// The pins of a stored top row, in its order. The client's meta keeps one row per context (context-pins-model.ts).
+export function readPinList(raw: any): GlobalPin[] {
     if (!Array.isArray(raw)) {
         return [];
     }

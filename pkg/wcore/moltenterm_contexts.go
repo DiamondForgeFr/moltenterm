@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/contextpins"
 	"github.com/wavetermdev/waveterm/pkg/molten/contexts"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -100,6 +101,9 @@ func ApplyContexts(ctx context.Context, change contexts.Change) (contexts.State,
 				client.Meta = make(waveobj.MetaMapType)
 			}
 			client.Meta[contexts.ClientMetaKey] = contexts.MetaValue(next.Contexts)
+			for _, key := range contextpins.Orphans(client.Meta, contextIdsOf(next.Contexts)) {
+				delete(client.Meta, key)
+			}
 			clientId = client.OID
 			return wstore.DBUpdate(tctx, client)
 		})

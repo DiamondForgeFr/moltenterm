@@ -297,7 +297,7 @@ func siblingViewConfig(ctx context.Context, tab *waveobj.Tab) (viewpin.Config, b
 	if isTileMeta(tab.Meta) {
 		raw = tab.Meta[viewpin.PinConfigMetaKey]
 	} else if gid := tab.Meta.GetString(viewpin.GlobalPinMetaKey, ""); gid != "" {
-		raw = clientPinConfig(ctx, gid)
+		raw = contextPinConfig(ctx, tab.OID, gid)
 	}
 	if raw == nil {
 		return cfg, false
@@ -311,18 +311,14 @@ func siblingViewConfig(ctx context.Context, tab *waveobj.Tab) (viewpin.Config, b
 	return cfg, true
 }
 
-func clientPinConfig(ctx context.Context, pinId string) any {
-	client, err := wstore.DBGetSingleton[*waveobj.Client](ctx)
-	if err != nil || client == nil {
+// contextPinConfig is the configuration of a pin of the row of the context the tab's workspace is in.
+func contextPinConfig(ctx context.Context, tabId string, pinId string) any {
+	wsId, err := wstore.DBFindWorkspaceForTabId(ctx, tabId)
+	if err != nil || wsId == "" {
 		return nil
 	}
-	pins, _ := client.Meta[viewpin.GlobalPinsMetaKey].([]any)
-	for _, p := range pins {
-		if pin, _ := p.(map[string]any); pin != nil {
-			if id, _ := pin["id"].(string); id == pinId {
-				return pin["config"]
-			}
-		}
+	if pin := pinOfRow(pinsOfWorkspace(ctx, wsId), pinId); pin != nil {
+		return pin["config"]
 	}
 	return nil
 }
