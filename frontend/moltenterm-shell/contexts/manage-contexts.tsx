@@ -14,10 +14,21 @@ import { useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { colourStops } from "../workspace-colour";
 import type { WorkspaceRailEntry } from "../workspace-rail-model";
-import { ChecklistRow, contextIdOf, contextShownEmblem, contextShownName, makeChecklist } from "./context-model";
+import {
+    ChecklistRow,
+    contextIdOf,
+    contextShownEmblem,
+    contextShownName,
+    makeChecklist,
+    shapeSubjects,
+} from "./context-model";
 import { createContext, deleteContext, updateContext, useContexts } from "./context-store";
 import { Emblem } from "./emblem";
 import { EmblemPicker } from "./emblem-picker";
+import { RibbonFace } from "./ribbon";
+import { ribbonPaint } from "./ribbon-model";
+import { drawShape, shapesInUse, shownShapeId } from "./ribbon-shapes";
+import { ShapePicker } from "./shape-picker";
 import {
     canDeleteContext,
     clampDescription,
@@ -129,14 +140,39 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
         () => makeChecklist(creating ? "" : selectedId, contexts, entries, t),
         [creating, selectedId, contexts, entries, t]
     );
-    const original = useMemo(() => (selected != null ? draftOf(selected, rows, t) : newDraft()), [selected, rows, t]);
+    const subjects = useMemo(() => shapeSubjects(contexts, entries), [contexts, entries]);
+    const original = useMemo(
+        () =>
+            selected != null
+                ? draftOf(
+                      selected,
+                      rows,
+                      t,
+                      shownShapeId(
+                          selected,
+                          contexts.findIndex((c) => c.id === selected.id)
+                      )
+                  )
+                : newDraft(),
+        [selected, contexts, rows, t]
+    );
     const draft = useMemo(() => draftWith(original, rows, edits), [original, rows, edits]);
     const problem = draftProblem(draft, original, contexts.length);
     const changed = draftChanged(draft, original);
     const edit = (patch: DraftEdits["fields"]) => setEdits(editedFields(edits, patch));
+    // The colour of the context's ribbon: the workspace choosing it lands on, or for a context to make the first
+    // workspace ticked. It paints the shapes and keeps two contexts of the same colour on different shapes.
+    const colour =
+        subjects.find((s) => s.context.id === selectedId)?.colour ||
+        rows.find((r) => r.id === draft.checked[0])?.color ||
+        "";
+    const { paint, ink } = ribbonPaint(colour);
+    // A shape no other context wears and that is not the one the form shows now: "another".
+    const drawFor = (own: string, current: string) =>
+        drawShape([...shapesInUse(subjects, own), ...(current ? [{ shape: current, colour }] : [])], colour);
     const select = (id: string) => {
         setSelectedId(id);
-        setEdits(NoEdits);
+        setEdits(id === NewId ? editedFields(NoEdits, { shape: drawFor(NewId, "") }) : NoEdits);
         setError(null);
     };
     const toggle = (row: ChecklistRow) => setEdits(toggledRow(edits, row));
@@ -302,6 +338,24 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
                                 <span>{t("contexts.emblem.current", { name: draft.emblem })}</span>
                             </div>
                             <EmblemPicker value={draft.emblem} onChange={(emblem) => edit({ emblem })} />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-11 text-secondary">{t("contexts.shape.label")}</span>
+                            <div className="mb-1 flex items-center gap-2">
+                                <RibbonFace
+                                    emblem={draft.emblem}
+                                    name={draft.name.trim() || t("contexts.manage.newName")}
+                                    paint={paint}
+                                    ink={ink}
+                                    shape={draft.shape}
+                                />
+                            </div>
+                            <ShapePicker
+                                value={draft.shape}
+                                paint={paint}
+                                onChange={(shape) => edit({ shape })}
+                                onDrawAnother={() => edit({ shape: drawFor(selectedId, draft.shape) })}
+                            />
                         </div>
                         <fieldset className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0">
                             <legend className="mb-1 p-0 text-11 text-secondary">

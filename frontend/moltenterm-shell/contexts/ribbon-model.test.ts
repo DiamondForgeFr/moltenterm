@@ -1,16 +1,26 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
+import { applyPlace, contrastRatio, MinInkContrast, parseColor, workspaceColourStops } from "../accent";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import { PresetColours, PresetGradients } from "../workspace-colour";
 import {
     collapsedRibbonShown,
     hintText,
     menuKeyTarget,
+    PlaceGradientPaint,
+    PlacePaint,
+    ribbonHeatLevel,
     ribbonLabel,
     ribbonPaint,
     waitingAgentsIn,
+    windowRibbonPaint,
+    workingAgentsIn,
 } from "./ribbon-model";
+
+const SidebarCss = readFileSync(new URL("../sidebar/sidebar.css", import.meta.url), "utf8");
 
 const dict: Record<string, string> = {
     "contexts.menu.here": "here",
@@ -35,8 +45,8 @@ describe("the ribbon's paint", () => {
     it("takes the workspace's colour and the ink that reads on it", () => {
         const light = ribbonPaint("#58C142");
         expect(light.paint).toBe("#58c142");
-        expect(light.ink).toBe("#000000");
-        expect(ribbonPaint("#0a0a40").ink).toBe("#ffffff");
+        expect(light.ink).toBe("#141414");
+        expect(ribbonPaint("#0a0a40").ink).toBe("#FAFAFA");
     });
 
     it("paints a gradient workspace with its gradient", () => {
@@ -46,6 +56,115 @@ describe("the ribbon's paint", () => {
     it("falls back to the secondary colour for a workspace without one", () => {
         expect(ribbonPaint("").paint).toBe("var(--color-secondary)");
         expect(ribbonPaint(undefined).paint).toBe("var(--color-secondary)");
+    });
+});
+
+// #2519: the window's ribbon comes out of the liseré down the window's left edge, in exactly its colour.
+describe("the window's ribbon paint is the liseré's own", () => {
+    const strip = /\n\.mt-sb-place-strip \{([^}]*)\}/.exec(SidebarCss)?.[1] ?? "";
+    const stripColour = /background-color:\s*([^;]+);/.exec(strip)?.[1].trim();
+    const stripStops = /linear-gradient\(\s*to bottom,\s*([\s\S]*?)\);/.exec(strip)?.[1] ?? "";
+
+    function resolve(paint: string, props: Record<string, string>): string {
+        return paint.replace(/var\((--[\w-]+)\)/g, (_, name) => props[name]);
+    }
+
+    function fakeStyle() {
+        const props: Record<string, string> = {};
+        return { props, setProperty: (name: string, value: string) => void (props[name] = value) };
+    }
+
+    it("uses the token the strip is painted with, not a copy of its value", () => {
+        expect(stripColour).toBe("var(--mt-place)");
+        expect(windowRibbonPaint(["#58c142"]).paint).toBe(stripColour);
+        expect(windowRibbonPaint(["#58c142"]).paint).toBe(PlacePaint);
+    });
+
+    it("uses the stops the strip's gradient is painted with, in the same order", () => {
+        const tokens = [...stripStops.matchAll(/var\((--mt-place[\w-]*)/g)].map((m) => m[1]);
+        expect(tokens.filter((t, i) => tokens.indexOf(t) === i)).toEqual(["--mt-place", "--mt-place-mid", "--mt-place-end"]);
+        const own = [...PlaceGradientPaint.matchAll(/var\((--mt-place[\w-]*)\)/g)].map((m) => m[1]);
+        expect(own).toEqual(["--mt-place", "--mt-place-mid", "--mt-place-end"]);
+        expect(windowRibbonPaint(["#00ffdb", "#429dff"]).paint).toBe(PlaceGradientPaint);
+    });
+
+    it("resolves to the colour applyPlace gives the liseré, flat or gradient", () => {
+        for (const stops of [["#58c142"], ["#00ffdb", "#429dff"], ["#ffc53d", "#ff7c0d", "#ff453a"]]) {
+            const style = fakeStyle();
+            applyPlace(stops[0], style, stops);
+            const paint = resolve(windowRibbonPaint(stops).paint, style.props);
+            expect(paint).toContain(style.props["--mt-place"]);
+            if (stops.length > 1) {
+                expect(paint).toContain(style.props["--mt-place-mid"]);
+                expect(paint).toContain(style.props["--mt-place-end"]);
+            }
+        }
+    });
+
+    it("is the strip's orange for a workspace without a colour, as the strip is", () => {
+        const style = fakeStyle();
+        applyPlace(undefined, style);
+        expect(windowRibbonPaint([]).paint).toBe(PlacePaint);
+        expect(style.props["--mt-place"]).toBe("rgb(255, 124, 13)");
+    });
+
+    it("reads the stops of the workspace the way the strip's tokens are made", () => {
+        expect(workspaceColourStops({ color: "#00ffdb", meta: { "molten:workspacegradient": "#00ffdb,#429dff" } })).toEqual([
+            "#00ffdb",
+            "#429dff",
+        ]);
+        expect(windowRibbonPaint(["#00ffdb", "#429dff"]).ink).toBe("#141414");
+    });
+});
+
+describe("the ribbon's ink", () => {
+    const worst = (stops: string[], ink: string) =>
+        Math.min(...stops.map((s) => contrastRatio(parseColor(s), parseColor(ink))));
+
+    it("is #FAFAFA or #141414 and reads at 4.5:1 on every colour of the palette", () => {
+        for (const { value } of PresetColours) {
+            const { ink } = ribbonPaint(value);
+            expect(["#FAFAFA", "#141414"]).toContain(ink);
+            expect(worst([value], ink), value).toBeGreaterThanOrEqual(MinInkContrast);
+            expect(worst([value], windowRibbonPaint([value]).ink), value).toBeGreaterThanOrEqual(MinInkContrast);
+        }
+    });
+
+    it("reads at 4.5:1 on every stop of every gradient of the palette", () => {
+        for (const { value } of PresetGradients) {
+            const stops = value.split(",");
+            expect(worst(stops, ribbonPaint(value).ink), value).toBeGreaterThanOrEqual(MinInkContrast);
+            expect(worst(stops, windowRibbonPaint(stops).ink), value).toBeGreaterThanOrEqual(MinInkContrast);
+        }
+    });
+
+    it("reads at 4.5:1 on a custom colour the two inks alone would miss", () => {
+        const { ink } = ribbonPaint("#8b5cd6");
+        expect(worst(["#8b5cd6"], ink)).toBeGreaterThanOrEqual(MinInkContrast);
+    });
+});
+
+describe("the activity signal (#2519)", () => {
+    const data = {
+        states: {
+            a: { blockid: "a", workspaceid: "w1", state: "working" },
+            b: { blockid: "b", workspaceid: "w1", state: "working" },
+            c: { blockid: "c", workspaceid: "w1", state: "waiting" },
+            d: { blockid: "d", workspaceid: "w2", state: "working" },
+            e: { blockid: "e", workspaceid: "w2", state: "done" },
+        } as unknown as Record<string, AgentStateInfo>,
+    } as AgentStatesData;
+
+    it("counts the agents of a workspace that work, and no other state", () => {
+        expect(workingAgentsIn(data, "w1")).toBe(2);
+        expect(workingAgentsIn(data, "w2")).toBe(1);
+        expect(workingAgentsIn(data, "w3")).toBe(0);
+    });
+
+    it("maps the count to a heat of 0 to 3: none, then one, two, three or more", () => {
+        expect([0, 1, 2, 3, 4, 9].map(ribbonHeatLevel)).toEqual([0, 1, 2, 3, 3, 3]);
+        expect(ribbonHeatLevel(undefined)).toBe(0);
+        expect(ribbonHeatLevel(-2)).toBe(0);
     });
 });
 

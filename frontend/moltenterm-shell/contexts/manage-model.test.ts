@@ -38,12 +38,19 @@ describe("the form's draft", () => {
             name: "My workshop",
             description: "",
             emblem: "hammer",
+            shape: "v",
             checked: ["a", "c"],
         });
     });
 
-    it("starts a new context empty, with the fallback emblem", () => {
-        expect(newDraft()).toEqual({ id: "", name: "", description: "", emblem: "folder", checked: [] });
+    it("shows the shape the ribbon draws, the V point for a context that has none yet", () => {
+        expect(draftOf({ id: "x", shape: "moon" }, [], t).shape).toBe("moon");
+        expect(draftOf({ id: "x" }, [], t).shape).toBe("v");
+        expect(draftOf({ id: "x" }, [], t, "arrow").shape).toBe("arrow");
+    });
+
+    it("starts a new context empty, with the fallback emblem and no shape until the form draws one", () => {
+        expect(newDraft()).toEqual({ id: "", name: "", description: "", emblem: "folder", shape: "", checked: [] });
     });
 
     it("cuts a name and a description at their limits, by characters", () => {
@@ -53,12 +60,20 @@ describe("the form's draft", () => {
 });
 
 describe("what a save sends", () => {
-    const original: ContextDraft = { id: "df", name: "DiamondForge", description: "Work", emblem: "briefcase", checked: ["a", "b"] };
+    const original: ContextDraft = {
+        id: "df",
+        name: "DiamondForge",
+        description: "Work",
+        emblem: "briefcase",
+        shape: "arrow",
+        checked: ["a", "b"],
+    };
 
     it("sends only the fields that changed", () => {
         expect(updateRequestOf({ ...original, name: "Forge " }, original)).toEqual({ id: "df", name: "Forge" });
         expect(updateRequestOf({ ...original, description: "" }, original)).toEqual({ id: "df", description: "" });
         expect(updateRequestOf({ ...original, emblem: "book" }, original)).toEqual({ id: "df", emblem: "book" });
+        expect(updateRequestOf({ ...original, shape: "moon" }, original)).toEqual({ id: "df", shape: "moon" });
         expect(updateRequestOf({ ...original, checked: ["b", "c"] }, original)).toEqual({
             id: "df",
             addworkspaces: ["c"],
@@ -82,11 +97,21 @@ describe("what a save sends", () => {
         expect(updateRequestOf({ ...workshop, name: "Studio" }, workshop)).toEqual({ id: DefaultContextId, name: "Studio" });
     });
 
-    it("makes a context with its name, description, emblem and checked workspaces", () => {
-        expect(createRequestOf({ id: "", name: " Book ", description: " My novel ", emblem: "book-open", checked: ["a"] })).toEqual({
+    it("makes a context with its name, description, emblem, shape and checked workspaces", () => {
+        expect(
+            createRequestOf({
+                id: "",
+                name: " Book ",
+                description: " My novel ",
+                emblem: "book-open",
+                shape: "facet",
+                checked: ["a"],
+            })
+        ).toEqual({
             name: "Book",
             description: "My novel",
             emblem: "book-open",
+            shape: "facet",
             workspaces: ["a"],
         });
         expect(draftChanged(newDraft(), newDraft())).toBe(true);
@@ -94,7 +119,14 @@ describe("what a save sends", () => {
 });
 
 describe("what the developer changed in the form", () => {
-    const original: ContextDraft = { id: "df", name: "DiamondForge", description: "", emblem: "folder", checked: ["a"] };
+    const original: ContextDraft = {
+        id: "df",
+        name: "DiamondForge",
+        description: "",
+        emblem: "folder",
+        shape: "v",
+        checked: ["a"],
+    };
 
     it("shows the context as it is, with the fields and the ticks he changed on top", () => {
         const rows = [row("a", true), row("b", false)];
@@ -129,7 +161,14 @@ describe("what the developer changed in the form", () => {
 });
 
 describe("what stops a save", () => {
-    const original: ContextDraft = { id: "df", name: "DiamondForge", description: "", emblem: "folder", checked: ["a", "b"] };
+    const original: ContextDraft = {
+        id: "df",
+        name: "DiamondForge",
+        description: "",
+        emblem: "folder",
+        shape: "v",
+        checked: ["a", "b"],
+    };
 
     it("needs a name", () => {
         expect(draftProblem({ ...original, name: "   " }, original, 2)).toBe("name");

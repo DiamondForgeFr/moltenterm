@@ -75,6 +75,28 @@ export function gradientForeground(stops: Rgb[]): string {
     return worst(black) >= worst(white) ? "#000000" : "#ffffff";
 }
 
+export const InkLight = "#FAFAFA";
+export const InkDark = "#141414";
+export const MinInkContrast = 4.5;
+
+// The ink of a ribbon (FR-SHELL-159, #2519): light or dark, whichever reads better on the paint, at its worst stop. The
+// two inks together keep 4.5:1 on most colours but not on a narrow band of mid-tones (their best worst case is 4.2:1
+// around a relative luminance of 0.19); where they fall short, pure black or white, which keep 4.58:1 on any single
+// colour, take over.
+export function readableInk(stops: Rgb[]): string {
+    const usable = (stops ?? []).filter((s) => s != null);
+    if (usable.length === 0) {
+        return InkDark;
+    }
+    const worst = (ink: string) => Math.min(...usable.map((s) => contrastRatio(s, parseColor(ink))));
+    const light = worst(InkLight);
+    const dark = worst(InkDark);
+    if (Math.max(light, dark) >= MinInkContrast) {
+        return dark >= light ? InkDark : InkLight;
+    }
+    return gradientForeground(usable);
+}
+
 export function toHex({ r, g, b }: Rgb): string {
     return (
         "#" +

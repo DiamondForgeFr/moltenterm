@@ -15,6 +15,7 @@ import {
     FallbackContextEmblem,
 } from "./context-model";
 import type { ContextCreateRequest, ContextUpdateRequest } from "./context-store";
+import { DefaultShapeId } from "./ribbon-shapes";
 
 export type ContextDraft = {
     // "" for a context not made yet.
@@ -22,6 +23,8 @@ export type ContextDraft = {
     name: string;
     description: string;
     emblem: string;
+    // The end shape of the ribbon (ribbon-shapes.ts); "" until the form draws one for a context not made yet.
+    shape: string;
     // The workspaces the context holds, as the checklist says.
     checked: string[];
 };
@@ -29,16 +32,23 @@ export type ContextDraft = {
 export type DraftProblem = "name" | "needsAnother";
 
 export function newDraft(): ContextDraft {
-    return { id: "", name: "", description: "", emblem: FallbackContextEmblem, checked: [] };
+    return { id: "", name: "", description: "", emblem: FallbackContextEmblem, shape: "", checked: [] };
 }
 
-// What the form shows of a context, and of the workspaces in it.
-export function draftOf(context: ContextInfo, rows: readonly ChecklistRow[], t: TFunction): ContextDraft {
+// What the form shows of a context, and of the workspaces in it. `shape` is the one its ribbon draws now (a context the
+// migration has not reached yet draws the V point).
+export function draftOf(
+    context: ContextInfo,
+    rows: readonly ChecklistRow[],
+    t: TFunction,
+    shape: string = context.shape || DefaultShapeId
+): ContextDraft {
     return {
         id: context.id,
         name: contextShownName(context, t),
         description: context.description ?? "",
         emblem: contextShownEmblem(context),
+        shape,
         checked: rows.filter((r) => r.checked).map((r) => r.id),
     };
 }
@@ -55,7 +65,7 @@ export function clampDescription(text: string): string {
 // to each workspace he ticked or unticked. Everything else is read from the context as it is now, so a workspace that
 // comes into the context while the form is open (another window placed it) is not mistaken for one he unticked.
 export type DraftEdits = {
-    fields: Partial<Pick<ContextDraft, "name" | "description" | "emblem">>;
+    fields: Partial<Pick<ContextDraft, "name" | "description" | "emblem" | "shape">>;
     picks: Record<string, boolean>;
 };
 
@@ -118,6 +128,9 @@ export function updateRequestOf(draft: ContextDraft, original: ContextDraft): Co
     if (draft.emblem !== original.emblem) {
         req.emblem = draft.emblem;
     }
+    if (draft.shape !== original.shape) {
+        req.shape = draft.shape;
+    }
     const { add, remove } = membershipChange(draft, original);
     if (add.length > 0) {
         req.addworkspaces = add;
@@ -133,6 +146,7 @@ export function createRequestOf(draft: ContextDraft): ContextCreateRequest {
         name: draft.name.trim(),
         description: draft.description.trim(),
         emblem: draft.emblem,
+        shape: draft.shape,
         workspaces: draft.checked,
     };
 }

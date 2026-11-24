@@ -8,6 +8,7 @@
 // is pkg/molten/contexts.
 
 import type { TFunction } from "../i18n/i18n";
+import { isShapeId, shownShapeId, type ShapeSubject } from "./ribbon-shapes";
 
 // must match pkg/molten/contexts/contexts.go
 export const ContextsMetaKey = "molten:contexts";
@@ -18,6 +19,7 @@ export const ContextUpdateCommand = "contextupdate";
 export const ContextDeleteCommand = "contextdelete";
 export const ContextAssignCommand = "contextassign";
 export const ContextTouchCommand = "contexttouch";
+export const ContextShapesCommand = "contextshapes";
 export const ContextLandingCommand = "contextlanding";
 export const DefaultContextId = "workshop";
 export const DefaultContextEmblem = "hammer";
@@ -32,6 +34,8 @@ export type ContextInfo = {
     description?: string;
     // A Lucide icon's name in kebab case.
     emblem?: string;
+    // The end shape of its ribbon (ribbon-shapes.ts); empty until the migration gives one.
+    shape?: string;
     // The workspace this context last showed: where choosing it lands.
     last?: string;
     // The outer bound of its workspaces' folders (#2516): context ⊃ workspace ⊃ project (workspace-project.ts).
@@ -61,6 +65,7 @@ export function readContexts(clientMeta: Record<string, any>): ContextInfo[] {
             name: typeof item.name === "string" ? item.name : "",
             description: typeof item.description === "string" ? item.description : "",
             emblem: typeof item.emblem === "string" ? item.emblem : "",
+            shape: typeof item.shape === "string" && isShapeId(item.shape) ? item.shape : "",
             last: typeof item.last === "string" ? item.last : "",
             folder: typeof item.folder === "string" ? item.folder : "",
         });
@@ -177,23 +182,29 @@ export type ContextRibbon = {
     context: ContextInfo;
     name: string;
     emblem: string;
+    // The id of the end shape it draws (ribbon-shapes.ts).
+    shape: string;
     here: boolean;
     waiting: number;
+    // The agents of the context that work, the window's own context included: what the ribbon's heat follows.
+    working: number;
     workspaces: number;
     // The workspace choosing the ribbon lands on; its colour paints the ribbon. null: the context holds none yet.
     landing: ContextWorkspace;
     hint: ContextHint;
 };
 
-// One ribbon per context, in the list's order, for the menu. waitingIn counts the agents that wait in a workspace.
+// One ribbon per context, in the list's order, for the menu. waitingIn counts the agents that wait in a workspace and
+// workingIn the ones that work.
 export function makeRibbons(
     contexts: readonly ContextInfo[],
     entries: readonly ContextWorkspace[],
     currentId: string,
     waitingIn: (workspaceId: string) => number,
-    t: TFunction
+    t: TFunction,
+    workingIn: (workspaceId: string) => number = () => 0
 ): ContextRibbon[] {
-    return contexts.map((context) => {
+    return contexts.map((context, index) => {
         const members = entries.filter((e) => e.contextId === context.id && (e.saved || e.active));
         const here = context.id === currentId;
         const waiting = here ? 0 : members.reduce((sum, e) => sum + waitingIn(e.id), 0);
@@ -201,13 +212,24 @@ export function makeRibbons(
             context,
             name: contextShownName(context, t),
             emblem: contextShownEmblem(context),
+            shape: shownShapeId(context, index),
             here,
             waiting,
+            working: members.reduce((sum, e) => sum + workingIn(e.id), 0),
             workspaces: members.length,
             landing: landingWorkspace(context.id, entries, context.last ?? ""),
             hint: contextHint(here, waiting, members.length),
         };
     });
+}
+
+// The contexts with the colour of their ribbon (the one of the workspace choosing them lands on): what the draw of a
+// ribbon's shape reads to keep two contexts of the same colour apart.
+export function shapeSubjects(contexts: readonly ContextInfo[], entries: readonly ContextWorkspace[]): ShapeSubject[] {
+    return contexts.map((context) => ({
+        context,
+        colour: landingWorkspace(context.id, entries, context.last ?? "")?.color ?? "",
+    }));
 }
 
 // The agents that wait in a context other than the window's: the dot on the ribbon.

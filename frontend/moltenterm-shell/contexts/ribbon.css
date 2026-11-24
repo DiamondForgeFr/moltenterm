@@ -1,14 +1,15 @@
 /* Copyright 2026, DiamondForge */
 /* SPDX-License-Identifier: AGPL-3.0-only */
 
-/* The context ribbon (FR-SHELL-159, #2476): flat, in the colour of a workspace, with a notched point on its right, dark
-   ink and the context's emblem. One shape in both sidebar modes. Shown, it comes out of the sidebar's left edge in the
-   bottom area, unrolled to its name. Collapsed, it comes out of the window's left edge under the first panel's header,
-   rolled up to its emblem with its tail fading, and unrolls under the pointer or the focus. The colour is the
-   workspace's (--ribbon-paint) and the ink the one that reads on it (--ribbon-ink): the context reads by its emblem. */
+/* The context ribbon (FR-SHELL-159, #2476, #2519): flat, in the colour of a workspace, with the end shape of its context
+   (one of fifteen, ribbon-shapes.ts), the ink that reads on it and the context's emblem. One shape in both sidebar
+   modes. Shown, it comes out of the sidebar's left edge in the bottom area, unrolled to its name. Collapsed, it comes out
+   of the window's left edge under the first panel's header, rolled up to its emblem with its tail fading, and unrolls
+   under the pointer or the focus. The colour is the workspace's (--ribbon-paint: the liseré's own tokens for the
+   window's ribbon) and the ink the one that reads on it (--ribbon-ink): the context reads by its emblem. */
 
 .mt-ribbon-shape {
-    --mt-ribbon-notch: 7px;
+    --mt-ribbon-notch: 8px;
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -16,7 +17,7 @@
     min-width: 0;
     max-width: 100%;
     height: 22px;
-    padding: 0 calc(var(--mt-ribbon-notch) + 7px) 0 8px;
+    padding: 0 calc(var(--mt-ribbon-notch) + 10px) 0 8px;
     color: var(--ribbon-ink, var(--mt-text-inverse));
     font-family: var(--font-sans);
     font-size: var(--mt-text-12);
@@ -26,15 +27,128 @@
     isolation: isolate;
 }
 
-/* The shape is drawn on a layer of its own, so the focus ring and the dot are never cut by the notch. */
+/* The shape is drawn on a layer of its own, so the focus ring and the dot are never cut by the end shape. The rim and the
+   glow below are cut by the same clip. */
 .mt-ribbon-shape::before {
     content: "";
     position: absolute;
     z-index: -1;
     inset: 0;
     background: var(--ribbon-paint, var(--mt-place));
-    clip-path: polygon(0 0, 100% 0, calc(100% - var(--mt-ribbon-notch)) 50%, 100% 100%, 0 100%);
+    clip-path: var(--ribbon-clip, polygon(0 0, 100% 0, calc(100% - var(--mt-ribbon-notch)) 50%, 100% 100%, 0 100%));
     transition: opacity var(--mt-duration-base) var(--mt-ease);
+}
+
+/* The bath's reflection (#2519, mockup D): while agents of the window's context work, the sidebar ribbon's top edge
+   catches the light of the molten bath just above it, a thin rim of warm light cut to the ribbon's shape, and a faint
+   halo lies between the bath and the ribbon. Both breathe in time with the bath's wave over 7 s; only opacity moves, and
+   the elements exist only while an agent works. The heat level (data-heat, 1 to 3: one agent, two, three or more) sets
+   how strongly. Reduced motion: a still rim at 0.7. */
+.mt-ribbon-shape[data-heat="1"] {
+    --ribbon-gain: 0.6;
+}
+
+.mt-ribbon-shape[data-heat="2"] {
+    --ribbon-gain: 0.8;
+}
+
+.mt-ribbon-shape[data-heat="3"] {
+    --ribbon-gain: 1;
+}
+
+.mt-ribbon-rim,
+.mt-ribbon-halo {
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    will-change: opacity;
+    animation: mt-ribbon-breathe 7s ease-in-out infinite;
+}
+
+.mt-ribbon-rim {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 9px;
+    clip-path: var(--ribbon-clip);
+    background: linear-gradient(180deg, rgba(255, 215, 140, 0.85), rgba(255, 160, 60, 0));
+    mix-blend-mode: screen;
+}
+
+.mt-ribbon-halo {
+    left: 0;
+    right: 30px;
+    bottom: 100%;
+    height: 16px;
+    background: radial-gradient(ellipse at 40% 0%, rgba(255, 170, 70, 0.28), rgba(255, 140, 40, 0) 70%);
+}
+
+@keyframes mt-ribbon-breathe {
+    0%,
+    100% {
+        opacity: calc(0.35 * var(--ribbon-gain, 1));
+    }
+    25% {
+        opacity: calc(0.85 * var(--ribbon-gain, 1));
+    }
+    50% {
+        opacity: calc(0.5 * var(--ribbon-gain, 1));
+    }
+    75% {
+        opacity: calc(0.95 * var(--ribbon-gain, 1));
+    }
+}
+
+/* The collapsed ribbon keeps a still glow at its tip (mockup F) while agents work: no motion, whatever the level. It
+   fades with the rolled ribbon's tail, like its paint. */
+.mt-ribbon-glow {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    clip-path: var(--ribbon-clip);
+    background: linear-gradient(90deg, rgba(255, 170, 60, 0), rgba(255, 150, 40, 0.55) 55%, rgba(255, 236, 170, 0.95));
+    mix-blend-mode: screen;
+    opacity: 0.8;
+}
+
+.mt-ribbon.is-rolled .mt-ribbon-glow {
+    -webkit-mask-image: linear-gradient(to right, black 55%, transparent);
+    mask-image: linear-gradient(to right, black 55%, transparent);
+}
+
+.mt-ribbon.is-rolled:is(:hover, :focus-visible, [aria-expanded="true"]) .mt-ribbon-glow {
+    -webkit-mask-image: none;
+    mask-image: none;
+}
+
+:root[data-mt-motion="still"] .mt-ribbon-rim,
+:root[data-mt-motion="still"] .mt-ribbon-halo {
+    animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-ribbon-rim,
+    .mt-ribbon-halo {
+        animation: none;
+        opacity: 0.7;
+    }
+}
+
+.prefers-reduced-motion .mt-ribbon-rim,
+.prefers-reduced-motion .mt-ribbon-halo {
+    animation: none;
+    opacity: 0.7;
+}
+
+/* A shape of the picker in Manage contexts: the end shape alone, in the context's colour. */
+.mt-shape-swatch {
+    --mt-ribbon-notch: 8px;
+    display: block;
+    width: 36px;
+    height: 16px;
+    background: var(--ribbon-paint);
+    clip-path: var(--ribbon-clip);
 }
 
 .mt-ribbon-emblem {

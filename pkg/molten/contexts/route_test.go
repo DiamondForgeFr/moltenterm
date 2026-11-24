@@ -29,7 +29,7 @@ func TestRouteAdmitsTheWindowsAndRefusesTerminalsAndRemoteHosts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	commands := []string{CreateCommand, UpdateCommand, DeleteCommand, AssignCommand, TouchCommand, ListCommand}
+	commands := []string{CreateCommand, UpdateCommand, DeleteCommand, AssignCommand, TouchCommand, ShapesCommand, ListCommand}
 	refused := append([]routetest.From{e.Terminal()}, e.NonLocal()...)
 	for _, command := range commands {
 		routetest.MustRefuse(t, link, refused, command, map[string]any{"name": "x"})
@@ -123,6 +123,15 @@ func TestRouteAnswersAWriteWithTheContextsAsWritten(t *testing.T) {
 	}
 	if state.Contexts[1].Last != "b" {
 		t.Fatalf("the touch was not applied: %+v", state.Contexts)
+	}
+	if _, errStr := routetest.Ask(t, link, e.Window(), ShapesCommand, map[string]any{"shapes": map[string]string{"two": "moon", DefaultId: "v"}}); errStr != "" {
+		t.Fatal(errStr)
+	}
+	if state.Contexts[0].Shape != "v" || state.Contexts[1].Shape != "moon" {
+		t.Fatalf("the shapes were not applied: %+v", state.Contexts)
+	}
+	if _, errStr := routetest.Ask(t, link, e.Window(), ShapesCommand, map[string]any{"shapes": map[string]string{"two": "triangle"}}); errStr == "" {
+		t.Fatalf("an unknown shape answered without an error")
 	}
 	if _, errStr := routetest.Ask(t, link, e.Window(), DeleteCommand, map[string]any{"id": "ghost"}); errStr == "" {
 		t.Fatalf("deleting a context that does not exist answered without an error")

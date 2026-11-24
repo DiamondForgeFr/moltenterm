@@ -1,10 +1,11 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The menu of ribbons (FR-SHELL-159, #2476): choosing your ribbon is choosing your context. One ribbon per context
-// (emblem and name, in the colour of the workspace a click would land on) with its hint on the right, then "Open a
-// context in a new window…" and "Manage contexts…". It opens upward from the sidebar's ribbon and downward from the
-// collapsed one. The arrows, Home and End move through it, Escape closes it and gives the focus back to the ribbon.
+// The menu of ribbons (FR-SHELL-159, #2476, #2519): choosing your ribbon is choosing your context. One ribbon per
+// context (emblem and name, in the colour of the workspace a click would land on, cut to the context's end shape) with
+// its hint on the right, then "Open a context in a new window…" and "Manage contexts…". It opens upward from the
+// sidebar's ribbon and downward from the collapsed one. The arrows, Home and End move through it, Escape closes it and
+// gives the focus back to the ribbon.
 
 import { autoUpdate, FloatingPortal, offset, shift, type Placement } from "@floating-ui/react";
 import { cn } from "@/util/util";
@@ -56,7 +57,7 @@ function RibbonRow({
             data-context-id={ribbon.context.id}
             onClick={() => onPick(ribbon)}
         >
-            <RibbonFace emblem={ribbon.emblem} name={ribbon.name} paint={paint} ink={ink} />
+            <RibbonFace emblem={ribbon.emblem} name={ribbon.name} paint={paint} ink={ink} shape={ribbon.shape} />
             <span className={cn("mt-ribbon-hint", ribbon.hint.kind === "waiting" && "is-waiting")}>
                 {hintText(ribbon.hint, t, tc)}
             </span>
