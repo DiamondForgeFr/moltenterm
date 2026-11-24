@@ -137,15 +137,33 @@ func TestCreateRefusesBadInput(t *testing.T) {
 	}
 }
 
-func TestNamesAndDescriptionsAreOneCleanLine(t *testing.T) {
+// A name is one clean line. A description is text on several lines (#2518): its line breaks stay, each line is clean, a
+// run of blank lines is one, and the whole is cut at MaxDescriptionRunes.
+func TestNamesAreOneCleanLineAndDescriptionsKeepTheirLines(t *testing.T) {
 	s := MakeState(waveobj.MetaMapType{}, workspaces("a"))
 	long := strings.Repeat("é", MaxNameRunes+20)
-	next, _, err := s.Create(CreateRequest{Name: "Day\tjob\n2", Description: " line one\r\nline two ", Emblem: "briefcase"}, "x")
+	next, _, err := s.Create(CreateRequest{Name: "Day\tjob\n2", Description: " line one\r\nline\ttwo ", Emblem: "briefcase"}, "x")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := next.Contexts[1]; got.Name != "Day job 2" || got.Description != "line one line two" {
+	if got := next.Contexts[1]; got.Name != "Day job 2" || got.Description != "line one\nline two" {
 		t.Fatalf("got %+v", got)
+	}
+	for in, want := range map[string]string{
+		"first\n\n\n\nsecond":        "first\n\nsecond",
+		"\n\n  lead and trail  \n\n": "lead and trail",
+		"a  b\r\rc":                  "a b\n\nc",
+		"  \n  ":                     "",
+		"one\u0007bell\nline":        "one bell\nline",
+	} {
+		got := cleanText(in, MaxDescriptionRunes)
+		if got != want {
+			t.Errorf("cleanText(%q) = %q, want %q", in, got, want)
+		}
+	}
+	lines := strings.Repeat("d", MaxDescriptionRunes-3) + "\nxyz\nmore"
+	if got := cleanText(lines, MaxDescriptionRunes); len([]rune(got)) != MaxDescriptionRunes || !strings.HasSuffix(got, "\nxy") {
+		t.Fatalf("a long description is cut at the limit, keeping its lines: %q", got)
 	}
 	next, _, err = s.Create(CreateRequest{Name: long, Description: strings.Repeat("d", MaxDescriptionRunes+5)}, "y")
 	if err != nil {

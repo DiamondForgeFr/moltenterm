@@ -89,6 +89,17 @@ export function useContextFolder(ws: Workspace): string {
     return contextFolderOf(readContexts(client?.meta), ws?.meta);
 }
 
+// The context a workspace is in (#2518), for the texts and the ribbon that name it; the first context before the client
+// is known.
+export function useContextOf(ws: Workspace): ContextInfo {
+    const client = useAtomValue(ClientModel.getInstance().clientAtom ?? NoClientAtom);
+    return useMemo(() => {
+        const list = readContexts(client?.meta);
+        const id = contextIdOf(list, ws?.meta);
+        return list.find((c) => c.id === id) ?? list[0];
+    }, [client?.meta, ws?.meta]);
+}
+
 export function getContextFolder(ws: Workspace): string {
     const clientAtom = ClientModel.getInstance().clientAtom;
     return contextFolderOf(readContexts(clientAtom != null ? globalStore.get(clientAtom)?.meta : null), ws?.meta);

@@ -262,6 +262,32 @@ func cleanLine(text string, max int) string {
 	return strings.TrimSpace(text)
 }
 
+// cleanText is cleanLine for text on several lines (a description, #2518): its line breaks stay, each line is clean, a
+// run of blank lines is one, and the whole is cut at max runes.
+func cleanText(text string, max int) string {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
+	lines := []string{}
+	blank := false
+	for _, line := range strings.Split(text, "\n") {
+		line = cleanLine(line, max)
+		if line == "" {
+			if blank || len(lines) == 0 {
+				continue
+			}
+			blank = true
+		} else {
+			blank = false
+		}
+		lines = append(lines, line)
+	}
+	rtn := strings.TrimSpace(strings.Join(lines, "\n"))
+	if utf8.RuneCountInString(rtn) > max {
+		rtn = strings.TrimSpace(string([]rune(rtn)[:max]))
+	}
+	return rtn
+}
+
 func cleanName(name string) (string, error) {
 	rtn := cleanLine(name, MaxNameRunes)
 	if rtn == "" {
@@ -359,7 +385,7 @@ func (s State) Create(req CreateRequest, id string) (State, []string, error) {
 		return s, nil, err
 	}
 	rtn := s.clone()
-	rtn.Contexts = append(rtn.Contexts, Context{Id: id, Name: name, Description: cleanLine(req.Description, MaxDescriptionRunes), Emblem: emblem, Shape: shape})
+	rtn.Contexts = append(rtn.Contexts, Context{Id: id, Name: name, Description: cleanText(req.Description, MaxDescriptionRunes), Emblem: emblem, Shape: shape})
 	moved := []string{}
 	for _, ws := range req.Workspaces {
 		if rtn.moveTo(ws, id) {
@@ -384,7 +410,7 @@ func (s State) Update(req UpdateRequest) (State, []string, error) {
 		rtn.Contexts[at].Name = name
 	}
 	if req.Description != nil {
-		rtn.Contexts[at].Description = cleanLine(*req.Description, MaxDescriptionRunes)
+		rtn.Contexts[at].Description = cleanText(*req.Description, MaxDescriptionRunes)
 	}
 	if req.Emblem != nil {
 		emblem, err := cleanEmblem(*req.Emblem, false)

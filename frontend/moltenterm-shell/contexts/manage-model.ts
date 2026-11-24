@@ -9,9 +9,9 @@ import {
     ChecklistRow,
     ContextDescriptionMaxChars,
     ContextInfo,
+    ContextNameMaxChars,
     contextShownEmblem,
     contextShownName,
-    ContextNameMaxChars,
     FallbackContextEmblem,
 } from "./context-model";
 import type { ContextCreateRequest, ContextUpdateRequest } from "./context-store";
@@ -25,6 +25,8 @@ export type ContextDraft = {
     emblem: string;
     // The end shape of the ribbon (ribbon-shapes.ts); "" until the form draws one for a context not made yet.
     shape: string;
+    // The optional folder that bounds the context's workspaces (#2516, #2518); "" for none.
+    folder: string;
     // The workspaces the context holds, as the checklist says.
     checked: string[];
 };
@@ -32,7 +34,7 @@ export type ContextDraft = {
 export type DraftProblem = "name" | "needsAnother";
 
 export function newDraft(): ContextDraft {
-    return { id: "", name: "", description: "", emblem: FallbackContextEmblem, shape: "", checked: [] };
+    return { id: "", name: "", description: "", emblem: FallbackContextEmblem, shape: "", folder: "", checked: [] };
 }
 
 // What the form shows of a context, and of the workspaces in it. `shape` is the one its ribbon draws now (a context the
@@ -49,6 +51,7 @@ export function draftOf(
         description: context.description ?? "",
         emblem: contextShownEmblem(context),
         shape,
+        folder: context.folder ?? "",
         checked: rows.filter((r) => r.checked).map((r) => r.id),
     };
 }
@@ -65,7 +68,7 @@ export function clampDescription(text: string): string {
 // to each workspace he ticked or unticked. Everything else is read from the context as it is now, so a workspace that
 // comes into the context while the form is open (another window placed it) is not mistaken for one he unticked.
 export type DraftEdits = {
-    fields: Partial<Pick<ContextDraft, "name" | "description" | "emblem" | "shape">>;
+    fields: Partial<Pick<ContextDraft, "name" | "description" | "emblem" | "shape" | "folder">>;
     picks: Record<string, boolean>;
 };
 
@@ -131,6 +134,9 @@ export function updateRequestOf(draft: ContextDraft, original: ContextDraft): Co
     if (draft.shape !== original.shape) {
         req.shape = draft.shape;
     }
+    if (draft.folder !== original.folder) {
+        req.folder = draft.folder;
+    }
     const { add, remove } = membershipChange(draft, original);
     if (add.length > 0) {
         req.addworkspaces = add;
@@ -141,6 +147,8 @@ export function updateRequestOf(draft: ContextDraft, original: ContextDraft): Co
     return Object.keys(req).length > 1 ? req : null;
 }
 
+// A new context is made with its name, description, emblem and workspaces; its folder is set once it exists (the create
+// request carries none), by the one command that sets a context's folder.
 export function createRequestOf(draft: ContextDraft): ContextCreateRequest {
     return {
         name: draft.name.trim(),

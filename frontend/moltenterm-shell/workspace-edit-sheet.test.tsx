@@ -40,6 +40,7 @@ vi.mock("./workspace-project-store", () => ({
 vi.mock("./workspace-project-section", () => ({
     WorkspaceProjectBlock: () => <div data-stub="project">Link a project…</div>,
     WorkspaceFolderLine: () => <div data-stub="folder">Change…</div>,
+    OutsideFolderMark: () => <span data-stub="outside-folder">outside the folder</span>,
 }));
 vi.mock("./window-look-field", () => ({
     OpacityField: () => <div data-stub="opacity">Opacity</div>,
@@ -102,7 +103,8 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         expect(headings).toEqual(["Identity", "Appearance", "Projects", "Danger zone"]);
         expect([...html.matchAll(/<section aria-labelledby="([^"]+)"/g)]).toHaveLength(4);
         expect(html.match(/class="df-icon-tile"/g)).toHaveLength(4);
-        expect(html.indexOf('data-stub="project"')).toBeLessThan(html.indexOf('data-stub="folder"'));
+        // #2518: the folder comes first, then the linked projects.
+        expect(html.indexOf('data-stub="folder"')).toBeLessThan(html.indexOf('data-stub="project"'));
     });
 
     // The scope tag of each block, in order (FR-SHELL-101): Appearance follows "Apply to".
@@ -148,7 +150,7 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         expect(fieldsByPart(html)).toEqual({
             Identity: ["name", "icon", "useProjectLogo", "colour"],
             Appearance: ["look"],
-            Projects: ["projects", "folder"],
+            Projects: ["folder", "projects"],
             "Danger zone": [],
         });
         expect(html).toMatch(/data-project="p1"[\s\S]*Desktop[\s\S]*\/code\/client-a/);
@@ -179,9 +181,34 @@ describe("workspace edit sheet (FR-SHELL-030-AC5…AC8)", () => {
         );
     });
 
+    // #2518: a project outside the folder chosen for the workspace is only marked, never hidden or refused.
+    it("marks a linked project outside the workspace's folder, and no other", () => {
+        current.ws = {
+            ...ws,
+            meta: {
+                "molten:folder": "/code/client-a",
+                "molten:folderchosen": true,
+                "molten:currentproject": "p1",
+                "molten:project": "/code/client-a/site",
+                "molten:projects": [
+                    { id: "p1", type: "Website", dir: "/code/client-a/site" },
+                    { id: "p2", type: "Desktop", dir: "/code/other/desk" },
+                ],
+            },
+        } as any as Workspace;
+        const html = renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />);
+        expect(html.match(/data-stub="outside-folder"/g)).toHaveLength(1);
+        expect(html).toMatch(/data-project="p2"[\s\S]*data-stub="outside-folder"[\s\S]*\/code\/other\/desk/);
+        expect(html).not.toMatch(/data-project="p1"[\s\S]*data-stub="outside-folder"[\s\S]*data-project="p2"/);
+        current.ws = { ...(current.ws as any), meta: { ...(current.ws.meta as any), "molten:folderchosen": null } };
+        expect(renderToStaticMarkup(<WorkspaceEditSheet workspaceId="w1" closable onClose={() => {}} />)).not.toContain(
+            'data-stub="outside-folder"'
+        );
+    });
+
     it("offers to link a project when none is linked, and keeps the folder, without blocking the rest (TC-SHELL-207)", () => {
         const html = sheet(true);
-        expect(fieldsByPart(html).Projects).toEqual(["projects", "folder"]);
+        expect(fieldsByPart(html).Projects).toEqual(["folder", "projects"]);
         expect(html).toContain('data-stub="project"');
         expect(html).not.toContain("disabled");
         expect(fieldsByPart(html).Identity).toEqual(["name", "icon", "colour"]);
