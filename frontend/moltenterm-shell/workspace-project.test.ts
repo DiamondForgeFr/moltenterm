@@ -5,17 +5,20 @@ import { describe, expect, it } from "vitest";
 import {
     boundingFolder,
     boundingScope,
+    canResetWorkspaceFolder,
     checkAbsolutePath,
     checkPathInside,
     declaredProjectIcon,
     effectiveWorkspaceFolder,
     isOutsideContextFolder,
+    isProjectOutsideBound,
     linkUpdate,
     logoProbeOrder,
     logoUrl,
     nextWorkspaceFolder,
     pathBaseName,
     pathParent,
+    projectBound,
     projectFilePath,
     ProjectLogoChoiceMetaKey,
     ProjectLogoMetaKey,
@@ -36,6 +39,7 @@ import {
     unlinkUpdate,
     WorkspaceFolderChosenMetaKey,
     WorkspaceFolderMetaKey,
+    workspaceFolderView,
 } from "./workspace-project";
 
 function ws(meta: Record<string, any>): Workspace {
@@ -321,6 +325,87 @@ describe("workspace folder (FR-SHELL-009)", () => {
                 expect(folder).toBe(contextFolder);
             }
         }
+    });
+});
+
+// #2518: the workspace sheet's Folder line says where the folder comes from, in one line.
+describe("the workspace's Folder line", () => {
+    const chosen = (folder: string, more: Record<string, any> = {}) =>
+        ws({ [WorkspaceFolderMetaKey]: folder, [WorkspaceFolderChosenMetaKey]: true, ...more });
+
+    it("shows the folder chosen for the workspace, whatever its context sets", () => {
+        expect(workspaceFolderView(chosen("/c/w"), "/c")).toEqual({ kind: "chosen", folder: "/c/w" });
+        expect(workspaceFolderView(chosen("/elsewhere"), "/c")).toEqual({ kind: "chosen", folder: "/elsewhere" });
+        expect(workspaceFolderView(chosen("/w"), "")).toEqual({ kind: "chosen", folder: "/w" });
+    });
+
+    it("says the folder is the context's when none is chosen, even if the terminal went elsewhere", () => {
+        expect(workspaceFolderView(ws({}), "/c")).toEqual({ kind: "inherited", folder: "/c" });
+        expect(workspaceFolderView(ws({ [WorkspaceFolderMetaKey]: "/Users/me" }), "/c")).toEqual({
+            kind: "inherited",
+            folder: "/c",
+        });
+    });
+
+    it("keeps what it showed before when the context sets no folder", () => {
+        expect(workspaceFolderView(ws({}), "")).toEqual({ kind: "none" });
+        expect(workspaceFolderView(ws({ [WorkspaceFolderMetaKey]: "/tmp/x" }), "")).toEqual({
+            kind: "followed",
+            folder: "/tmp/x",
+            outsideProject: false,
+            stored: true,
+        });
+        expect(workspaceFolderView(ws({ [WorkspaceFolderMetaKey]: "/p/src", [ProjectMetaKey]: "/p" }), "")).toEqual({
+            kind: "followed",
+            folder: "/p/src",
+            outsideProject: false,
+            stored: true,
+        });
+        expect(workspaceFolderView(ws({ [WorkspaceFolderMetaKey]: "/tmp", [ProjectMetaKey]: "/p" }), "")).toEqual({
+            kind: "followed",
+            folder: "/p",
+            outsideProject: true,
+            stored: true,
+        });
+        expect(workspaceFolderView(ws({ [ProjectMetaKey]: "/p" }), "")).toEqual({
+            kind: "followed",
+            folder: "/p",
+            outsideProject: false,
+            stored: false,
+        });
+    });
+
+    it("offers Reset for a chosen folder and for a followed one, never for the context's", () => {
+        expect(canResetWorkspaceFolder(workspaceFolderView(chosen("/w"), "/c"))).toBe(true);
+        expect(canResetWorkspaceFolder(workspaceFolderView(ws({ [WorkspaceFolderMetaKey]: "/tmp/x" }), ""))).toBe(true);
+        expect(canResetWorkspaceFolder(workspaceFolderView(ws({}), "/c"))).toBe(false);
+        expect(canResetWorkspaceFolder(workspaceFolderView(ws({}), ""))).toBe(false);
+        expect(canResetWorkspaceFolder(workspaceFolderView(ws({ [ProjectMetaKey]: "/p" }), ""))).toBe(false);
+    });
+});
+
+// #2518: a linked project outside the folder that bounds its workspace is only marked.
+describe("a project outside the folder that bounds it", () => {
+    const chosen = (folder: string) => ws({ [WorkspaceFolderMetaKey]: folder, [WorkspaceFolderChosenMetaKey]: true });
+
+    it("is bounded by the workspace's folder, else by the context's, else by nothing", () => {
+        expect(projectBound(chosen("/c/w"), "/c")).toBe("/c/w");
+        expect(projectBound(ws({}), "/c")).toBe("/c");
+        expect(projectBound(ws({ [WorkspaceFolderMetaKey]: "/followed" }), "")).toBe("");
+    });
+
+    it("is outside when it does not lie in that folder", () => {
+        expect(isProjectOutsideBound("/c/w/app", chosen("/c/w"), "/c")).toBe(false);
+        expect(isProjectOutsideBound("/c/w", chosen("/c/w"), "/c")).toBe(false);
+        expect(isProjectOutsideBound("/c/other", chosen("/c/w"), "/c")).toBe(true);
+        expect(isProjectOutsideBound("/c/w2", chosen("/c/w"), "/c")).toBe(true);
+        expect(isProjectOutsideBound("/c/other", ws({}), "/c")).toBe(false);
+        expect(isProjectOutsideBound("/q", ws({}), "/c")).toBe(true);
+    });
+
+    it("is never outside what bounds nothing, and an empty project is not one", () => {
+        expect(isProjectOutsideBound("/anywhere", ws({}), "")).toBe(false);
+        expect(isProjectOutsideBound("", chosen("/c/w"), "/c")).toBe(false);
     });
 });
 

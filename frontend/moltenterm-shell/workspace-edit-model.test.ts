@@ -131,7 +131,7 @@ describe("Identity, Appearance and Projects, then the Project sheet (FR-SHELL-10
     it("puts name, icon and colour under Identity, the look under Appearance, projects and folder under Projects", () => {
         expect(WorkspaceEditParts.identity).toEqual(["name", "icon", "useProjectLogo", "colour"]);
         expect(WorkspaceEditParts.appearance).toEqual(["look"]);
-        expect(WorkspaceEditParts.projects).toEqual(["projects", "folder"]);
+        expect(WorkspaceEditParts.projects).toEqual(["folder", "projects"]);
         expect(partOfField("name")).toBe("identity");
         expect(partOfField("look")).toBe("appearance");
         expect(partOfField("folder")).toBe("projects");

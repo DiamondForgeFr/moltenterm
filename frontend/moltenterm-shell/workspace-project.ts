@@ -220,6 +220,49 @@ function resolveBound(ws: Workspace, contextFolder: string): { root: string; sco
     return { root, scope };
 }
 
+// What the workspace sheet's Folder line shows (#2518): the folder chosen for the workspace, the context's folder it
+// inherits while none is chosen, the folder its terminal last went to (before any context sets one), or nothing.
+export type WorkspaceFolderView =
+    | { kind: "chosen"; folder: string }
+    | { kind: "inherited"; folder: string }
+    | { kind: "followed"; folder: string; outsideProject: boolean; stored: boolean }
+    | { kind: "none" };
+
+export function workspaceFolderView(ws: Workspace, contextFolder = ""): WorkspaceFolderView {
+    const chosen = readChosenWorkspaceFolder(ws);
+    if (chosen !== "") {
+        return { kind: "chosen", folder: chosen };
+    }
+    if ((contextFolder ?? "") !== "") {
+        return { kind: "inherited", folder: contextFolder };
+    }
+    const folder = effectiveWorkspaceFolder(ws);
+    if (folder === "") {
+        return { kind: "none" };
+    }
+    const stored = readWorkspaceFolder(ws);
+    const projectDir = readWorkspaceProject(ws).dir;
+    const outsideProject =
+        stored !== "" && projectDir !== "" && !checkPathInside(stored, projectDir) && folder === projectDir;
+    return { kind: "followed", folder, outsideProject, stored: stored !== "" };
+}
+
+// Reset forgets the folder the developer chose or the terminal's; the context's is not the workspace's to forget.
+export function canResetWorkspaceFolder(view: WorkspaceFolderView): boolean {
+    return view.kind === "chosen" || (view.kind === "followed" && view.stored);
+}
+
+// The folder that bounds the projects of a workspace (#2518): the one chosen for it, else its context's, else none.
+export function projectBound(ws: Workspace, contextFolder = ""): string {
+    return readChosenWorkspaceFolder(ws) || (contextFolder ?? "");
+}
+
+// A linked project outside that folder is only marked: nothing is refused.
+export function isProjectOutsideBound(projectDir: string, ws: Workspace, contextFolder = ""): boolean {
+    const bound = projectBound(ws, contextFolder);
+    return bound !== "" && !!projectDir && !checkPathInside(projectDir, bound);
+}
+
 // The path with its "." and ".." steps resolved and one separator between elements, so two spellings of a folder compare
 // equal (the lexical twin of filepath.Clean). A path that is not absolute is returned as it is.
 function cleanPath(path: string): string {

@@ -7,15 +7,20 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
-import { useContextFolder } from "./contexts/context-store";
+import { contextShownEmblem, contextShownName } from "./contexts/context-model";
+import { checkWorkspaceFolder, useContextFolder, useContextOf } from "./contexts/context-store";
+import { RibbonFace } from "./contexts/ribbon";
+import { ribbonPaint } from "./contexts/ribbon-model";
 import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
+import { FolderOutsideDialog } from "./workspace-folder-outside";
 import {
-    checkPathInside,
-    effectiveWorkspaceFolder,
+    canResetWorkspaceFolder,
+    isProjectOutsideBound,
     pathBaseName,
-    readWorkspaceFolder,
     readWorkspaceProject,
+    WorkspaceFolderView,
+    workspaceFolderView,
 } from "./workspace-project";
 import {
     chooseMoltentermPath,
@@ -27,6 +32,18 @@ import {
 } from "./workspace-project-store";
 
 const LinkButtonClass = "molten-btn-secondary cursor-pointer rounded-6 px-2 py-1 text-12";
+const GhostClass =
+    "cursor-pointer rounded-6 px-2 py-1 text-12 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary";
+
+// A linked project that lies outside the folder bounding its workspace is only marked (#2518).
+export function OutsideFolderMark() {
+    const t = useT();
+    return (
+        <span className="shrink-0 text-11 text-warning" data-testid="project-outside-folder">
+            {t("workspace.edit.outsideFolder")}
+        </span>
+    );
+}
 
 function ProjectStatusLine({ facts }: { facts: ProjectFacts }) {
     const t = useT();
@@ -44,61 +61,121 @@ function ProjectStatusLine({ facts }: { facts: ProjectFacts }) {
     );
 }
 
-// Where the workspace's new terminals, tabs and file explorer start (FR-SHELL-009).
+// The line under the folder: where its panels stay and start, and in which context (#2518).
+function FolderSentence({ ws, view }: { ws: Workspace; view: WorkspaceFolderView }) {
+    const t = useT();
+    const context = useContextOf(ws);
+    if (view.kind === "none") {
+        return <>{t("workspace.project.setByNext")}</>;
+    }
+    if (view.kind === "followed") {
+        return <>{t(view.outsideProject ? "workspace.project.outsideProject" : "workspace.project.startsHere")}</>;
+    }
+    const { paint, ink } = ribbonPaint(ws?.color ?? "");
+    return (
+        <>
+            {t("workspace.project.boundsHere")}{" "}
+            <span className="inline-flex max-w-full align-middle" data-testid="folder-context-ribbon">
+                <RibbonFace
+                    emblem={contextShownEmblem(context)}
+                    name={contextShownName(context, t)}
+                    paint={paint}
+                    ink={ink}
+                    shape={context?.shape}
+                />
+            </span>
+        </>
+    );
+}
+
+// The workspace's folder (FR-SHELL-009, #2518): one line holding the folder, Change… and Reset, and under it what the
+// folder does. A folder chosen for the workspace bounds its panels, and so does its context's while none is chosen
+// ("Inherited from the context", no Reset). A folder outside the context's asks first, and is never refused.
 export function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
     const t = useT();
     const contextFolder = useContextFolder(ws);
-    const folder = effectiveWorkspaceFolder(ws, contextFolder);
-    const stored = readWorkspaceFolder(ws);
+    const context = useContextOf(ws);
+    const view = workspaceFolderView(ws, contextFolder);
     const projectDir = readWorkspaceProject(ws).dir;
-    const outsideProject =
-        stored !== "" && projectDir !== "" && !checkPathInside(stored, projectDir) && folder === projectDir;
-    const change = () =>
+    const [outside, setOutside] = useState<string>(null);
+    const shown = view.kind === "none" ? "" : view.folder;
+    const choose = () =>
         fireAndForget(async () => {
             const dir = await chooseMoltentermPath({
                 kind: "folder",
                 title: t("workspace.project.folderDialog"),
-                defaultPath: folder || projectDir || undefined,
+                defaultPath: shown || projectDir || undefined,
             });
-            if (dir) {
-                await setWorkspaceFolder(ws.oid, dir, true);
+            if (!dir) {
+                return;
             }
+            const check = await checkWorkspaceFolder(ws, dir);
+            if (check.outside) {
+                setOutside(dir);
+                return;
+            }
+            await setWorkspaceFolder(ws.oid, dir, true);
         });
+    const useOutside = () => {
+        const dir = outside;
+        setOutside(null);
+        fireAndForget(() => setWorkspaceFolder(ws.oid, dir, true));
+    };
+    const chooseAnother = () => {
+        setOutside(null);
+        choose();
+    };
     return (
-        <div className="min-w-0">
+        <div className="min-w-0" data-folder-kind={view.kind}>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <div className="min-w-0 flex-1 basis-40">
-                    <div className={cn("truncate text-13 leading-5", folder ? "" : "text-muted")}>
-                        {folder ? pathBaseName(folder) || folder : t("workspace.project.notSetYet")}
-                    </div>
-                    <div className="truncate text-12 text-muted" title={folder}>
-                        {folder || t("workspace.project.setByNext")}
-                    </div>
+                <div
+                    className={cn(
+                        "min-w-0 flex-1 basis-40 truncate text-12 leading-5",
+                        view.kind === "chosen" || view.kind === "followed" ? "font-mono" : "",
+                        view.kind === "none" || view.kind === "inherited" ? "text-secondary" : ""
+                    )}
+                    title={shown}
+                    data-testid="workspace-folder"
+                >
+                    {view.kind === "inherited"
+                        ? t("workspace.project.inheritedFrom", { folder: view.folder })
+                        : shown || t("workspace.project.notSetYet")}
                 </div>
-                <button type="button" onClick={change} className={LinkButtonClass}>
+                <button type="button" onClick={choose} className={LinkButtonClass}>
                     {t("workspace.project.change")}
                 </button>
-                {stored ? (
+                {canResetWorkspaceFolder(view) ? (
                     <button
                         type="button"
                         title={t("workspace.project.forgetFolder")}
                         onClick={() => fireAndForget(() => setWorkspaceFolder(ws.oid, null))}
-                        className={LinkButtonClass}
+                        className={GhostClass}
                     >
                         {t("workspace.project.reset")}
                     </button>
                 ) : null}
             </div>
-            <div className="mt-1 text-12 text-muted">
-                {t(outsideProject ? "workspace.project.outsideProject" : "workspace.project.startsHere")}
+            <div className="mt-1.5 text-11 leading-5 text-muted">
+                <FolderSentence ws={ws} view={view} />
             </div>
+            {outside != null ? (
+                <FolderOutsideDialog
+                    contextName={contextShownName(context, t)}
+                    contextFolder={contextFolder}
+                    onUse={useOutside}
+                    onChooseAnother={chooseAnother}
+                    onCancel={() => setOutside(null)}
+                />
+            ) : null}
         </div>
     );
 }
 
 export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
     const t = useT();
+    const contextFolder = useContextFolder(ws);
     const project = readWorkspaceProject(ws);
+    const outsideFolder = isProjectOutsideBound(project.dir, ws, contextFolder);
     const [facts, setFacts] = useState<ProjectFacts>(null);
     const [error, setError] = useState<string>(null);
 
@@ -157,7 +234,10 @@ export function WorkspaceProjectBlock({ ws }: { ws: Workspace }) {
                 <>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <div className="min-w-0 flex-1 basis-40">
-                            <div className="truncate text-13 leading-5">{facts?.name ?? pathBaseName(project.dir)}</div>
+                            <div className="flex min-w-0 items-center gap-1.5 text-13 leading-5">
+                                <span className="truncate">{facts?.name ?? pathBaseName(project.dir)}</span>
+                                {outsideFolder ? <OutsideFolderMark /> : null}
+                            </div>
                             <div className="truncate text-12 text-muted" title={project.dir}>
                                 {project.dir}
                             </div>

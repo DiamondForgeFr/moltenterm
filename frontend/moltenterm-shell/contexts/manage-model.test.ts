@@ -39,6 +39,7 @@ describe("the form's draft", () => {
             description: "",
             emblem: "hammer",
             shape: "v",
+            folder: "",
             checked: ["a", "c"],
         });
     });
@@ -49,13 +50,30 @@ describe("the form's draft", () => {
         expect(draftOf({ id: "x" }, [], t, "arrow").shape).toBe("arrow");
     });
 
-    it("starts a new context empty, with the fallback emblem and no shape until the form draws one", () => {
-        expect(newDraft()).toEqual({ id: "", name: "", description: "", emblem: "folder", shape: "", checked: [] });
+    it("starts a new context empty, with the fallback emblem, no shape until the form draws one and no folder", () => {
+        expect(newDraft()).toEqual({
+            id: "",
+            name: "",
+            description: "",
+            emblem: "folder",
+            shape: "",
+            folder: "",
+            checked: [],
+        });
+    });
+
+    it("shows the context's folder, and no folder for a context that has none (#2518)", () => {
+        expect(draftOf({ id: "c", folder: "/clients/sefers" }, [], t).folder).toBe("/clients/sefers");
+        expect(draftOf({ id: "c" }, [], t).folder).toBe("");
     });
 
     it("cuts a name and a description at their limits, by characters", () => {
         expect(Array.from(clampName("é".repeat(80))).length).toBe(60);
         expect(Array.from(clampDescription("d".repeat(400))).length).toBe(280);
+    });
+
+    it("keeps the line breaks of a description (#2518)", () => {
+        expect(clampDescription("first line\nsecond line")).toBe("first line\nsecond line");
     });
 });
 
@@ -66,8 +84,30 @@ describe("what a save sends", () => {
         description: "Work",
         emblem: "briefcase",
         shape: "arrow",
+        folder: "",
         checked: ["a", "b"],
     };
+
+    it("sends the folder when it changed, and an empty one to forget it (#2518)", () => {
+        expect(updateRequestOf({ ...original, folder: "/clients/sefers" }, original)).toEqual({
+            id: "df",
+            folder: "/clients/sefers",
+        });
+        const withFolder = { ...original, folder: "/clients/sefers" };
+        expect(updateRequestOf({ ...withFolder, folder: "" }, withFolder)).toEqual({ id: "df", folder: "" });
+        expect(updateRequestOf({ ...withFolder, folder: "/clients/other" }, withFolder)).toEqual({
+            id: "df",
+            folder: "/clients/other",
+        });
+        expect(updateRequestOf({ ...withFolder }, withFolder)).toBeNull();
+    });
+
+    it("sends a description with its lines (#2518)", () => {
+        expect(updateRequestOf({ ...original, description: " One\nTwo " }, original)).toEqual({
+            id: "df",
+            description: "One\nTwo",
+        });
+    });
 
     it("sends only the fields that changed", () => {
         expect(updateRequestOf({ ...original, name: "Forge " }, original)).toEqual({ id: "df", name: "Forge" });
@@ -82,8 +122,14 @@ describe("what a save sends", () => {
     });
 
     it("names only the workspaces the form moved, never the whole membership", () => {
-        expect(updateRequestOf({ ...original, checked: ["a", "b", "c"] }, original)).toEqual({ id: "df", addworkspaces: ["c"] });
-        expect(updateRequestOf({ ...original, checked: ["a"] }, original)).toEqual({ id: "df", removeworkspaces: ["b"] });
+        expect(updateRequestOf({ ...original, checked: ["a", "b", "c"] }, original)).toEqual({
+            id: "df",
+            addworkspaces: ["c"],
+        });
+        expect(updateRequestOf({ ...original, checked: ["a"] }, original)).toEqual({
+            id: "df",
+            removeworkspaces: ["b"],
+        });
     });
 
     it("sends nothing when nothing changed, however the checked ids are ordered", () => {
@@ -93,11 +139,17 @@ describe("what a save sends", () => {
 
     it("never stores the default context's language text when its name was not touched", () => {
         const workshop = draftOf({ id: DefaultContextId }, [row("a", true)], t);
-        expect(updateRequestOf({ ...workshop, emblem: "book" }, workshop)).toEqual({ id: DefaultContextId, emblem: "book" });
-        expect(updateRequestOf({ ...workshop, name: "Studio" }, workshop)).toEqual({ id: DefaultContextId, name: "Studio" });
+        expect(updateRequestOf({ ...workshop, emblem: "book" }, workshop)).toEqual({
+            id: DefaultContextId,
+            emblem: "book",
+        });
+        expect(updateRequestOf({ ...workshop, name: "Studio" }, workshop)).toEqual({
+            id: DefaultContextId,
+            name: "Studio",
+        });
     });
 
-    it("makes a context with its name, description, emblem, shape and checked workspaces", () => {
+    it("makes a context with its name, description, emblem, shape and checked workspaces, never its folder", () => {
         expect(
             createRequestOf({
                 id: "",
@@ -105,6 +157,7 @@ describe("what a save sends", () => {
                 description: " My novel ",
                 emblem: "book-open",
                 shape: "facet",
+                folder: "/books",
                 checked: ["a"],
             })
         ).toEqual({
@@ -125,6 +178,7 @@ describe("what the developer changed in the form", () => {
         description: "",
         emblem: "folder",
         shape: "v",
+        folder: "",
         checked: ["a"],
     };
 
@@ -158,6 +212,22 @@ describe("what the developer changed in the form", () => {
         const draft = draftWith(renamed, [row("a", true)], editedFields(NoEdits, { description: "Work" }));
         expect(updateRequestOf(draft, renamed)).toEqual({ id: "df", description: "Work" });
     });
+
+    it("sends the folder he chose or removed, and leaves one another window set alone (#2518)", () => {
+        const rows = [row("a", true)];
+        expect(
+            updateRequestOf(draftWith(original, rows, editedFields(NoEdits, { folder: "/clients/sefers" })), original)
+        ).toEqual({
+            id: "df",
+            folder: "/clients/sefers",
+        });
+        const elsewhere = { ...original, folder: "/set/in/another/window" };
+        expect(updateRequestOf(draftWith(elsewhere, rows, NoEdits), elsewhere)).toBeNull();
+        expect(updateRequestOf(draftWith(elsewhere, rows, editedFields(NoEdits, { folder: "" })), elsewhere)).toEqual({
+            id: "df",
+            folder: "",
+        });
+    });
 });
 
 describe("what stops a save", () => {
@@ -167,6 +237,7 @@ describe("what stops a save", () => {
         description: "",
         emblem: "folder",
         shape: "v",
+        folder: "",
         checked: ["a", "b"],
     };
 

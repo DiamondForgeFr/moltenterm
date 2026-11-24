@@ -55,7 +55,7 @@ export type WorkspaceEditField = "name" | "icon" | "useProjectLogo" | "colour" |
 export const WorkspaceEditParts: Record<WorkspaceEditPart, readonly WorkspaceEditField[]> = {
     identity: ["name", "icon", "useProjectLogo", "colour"],
     appearance: ["look"],
-    projects: ["projects", "folder"],
+    projects: ["folder", "projects"],
 };
 
 export function partOfField(field: WorkspaceEditField): WorkspaceEditPart {

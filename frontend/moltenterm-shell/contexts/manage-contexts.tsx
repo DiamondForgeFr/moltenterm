@@ -1,9 +1,10 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Manage contexts (FR-SHELL-158, #2476): create a context, edit its name, description, emblem and workspaces (a
-// checklist, where a workspace already in another context says where), and delete one after a confirmation that says
-// where its workspaces go. Every write is one call to wavesrv (context-store.ts), which validates it.
+// Manage contexts (FR-SHELL-158, #2476): create a context, edit its name, description (on several lines), emblem, optional
+// folder (#2518: the outer bound of its workspaces) and workspaces (a checklist, where a workspace already in another
+// context says where), and delete one after a confirmation that says where its workspaces go. Every write is one call
+// to wavesrv (context-store.ts), which validates it.
 
 import { atoms } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
@@ -13,6 +14,7 @@ import { DialogFrame } from "../dialog-frame";
 import { useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
 import { colourStops } from "../workspace-colour";
+import { chooseMoltentermPath } from "../workspace-project-store";
 import type { WorkspaceRailEntry } from "../workspace-rail-model";
 import {
     ChecklistRow,
@@ -22,7 +24,7 @@ import {
     makeChecklist,
     shapeSubjects,
 } from "./context-model";
-import { createContext, deleteContext, updateContext, useContexts } from "./context-store";
+import { createContext, deleteContext, setContextFolder, updateContext, useContexts } from "./context-store";
 import { Emblem } from "./emblem";
 import { EmblemPicker } from "./emblem-picker";
 import { RibbonFace } from "./ribbon";
@@ -35,8 +37,8 @@ import {
     clampName,
     createRequestOf,
     defaultMoveTarget,
-    DraftEdits,
     draftChanged,
+    DraftEdits,
     draftOf,
     draftProblem,
     draftWith,
@@ -54,8 +56,12 @@ const PlainButton =
     "cursor-pointer rounded-4 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 const DangerButton =
     "cursor-pointer rounded-4 border border-error/60 px-3 py-1.5 text-12 text-danger hover:border-error hover:bg-error/10";
+const GhostButton =
+    "cursor-pointer rounded-4 px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary disabled:cursor-default";
 const FieldClass =
     "h-8 w-full min-w-0 rounded-4 border border-border bg-black/25 px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
+const TextAreaClass =
+    "min-h-[4.5rem] w-full min-w-0 resize-y rounded-4 border border-border bg-black/25 px-2 py-1.5 text-12 leading-5 text-primary outline-none placeholder:text-muted focus:border-accent";
 
 function DeleteContextDialog({
     name,
@@ -176,6 +182,17 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
         setError(null);
     };
     const toggle = (row: ChecklistRow) => setEdits(toggledRow(edits, row));
+    const chooseFolder = () =>
+        fireAndForget(async () => {
+            const dir = await chooseMoltentermPath({
+                kind: "folder",
+                title: t("contexts.manage.folderDialog"),
+                defaultPath: draft.folder || undefined,
+            });
+            if (dir) {
+                edit({ folder: dir });
+            }
+        });
 
     const run = (work: () => Promise<void>) => {
         if (busy) {
@@ -201,6 +218,9 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
             if (creating) {
                 const id = await createContext(createRequestOf(draft));
                 setSelectedId(id);
+                if (id && draft.folder) {
+                    await setContextFolder(id, draft.folder);
+                }
                 return;
             }
             const req = updateRequestOf(draft, original);
@@ -222,7 +242,12 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
         .map((c) => ({ id: c.id, name: contextShownName(c, t) }));
     const members = entries.filter((e) => e.contextId === selectedId).length;
     const deletable = !creating && canDeleteContext(contexts, selectedId);
-    const problemText = problem === "name" ? t("contexts.manage.nameRequired") : problem === "needsAnother" ? t("contexts.manage.needsAnother") : "";
+    const problemText =
+        problem === "name"
+            ? t("contexts.manage.nameRequired")
+            : problem === "needsAnother"
+              ? t("contexts.manage.needsAnother")
+              : "";
 
     return (
         <>
@@ -321,13 +346,13 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
                             <label htmlFor={descriptionId} className="text-11 text-secondary">
                                 {t("contexts.manage.description")}
                             </label>
-                            <input
+                            <textarea
                                 id={descriptionId}
-                                type="text"
+                                rows={3}
                                 value={draft.description}
                                 placeholder={t("contexts.manage.descriptionPlaceholder")}
                                 data-testid="context-description"
-                                className={FieldClass}
+                                className={TextAreaClass}
                                 onChange={(e) => edit({ description: clampDescription(e.target.value) })}
                             />
                         </div>
@@ -339,23 +364,61 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
                             </div>
                             <EmblemPicker value={draft.emblem} onChange={(emblem) => edit({ emblem })} />
                         </div>
-                        <div className="flex flex-col gap-1">
-                            <span className="text-11 text-secondary">{t("contexts.shape.label")}</span>
-                            <div className="mb-1 flex items-center gap-2">
-                                <RibbonFace
-                                    emblem={draft.emblem}
-                                    name={draft.name.trim() || t("contexts.manage.newName")}
+                        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))]">
+                            <div className="flex min-w-0 flex-col gap-1.5" data-testid="context-folder-column">
+                                <span className="text-11 text-secondary">
+                                    {t("contexts.manage.folder")}{" "}
+                                    <span className="text-muted">· {t("contexts.manage.folderOptional")}</span>
+                                </span>
+                                <div
+                                    className={cn(
+                                        "flex h-8 min-w-0 items-center rounded-4 border border-border bg-black/25 px-2 text-11",
+                                        draft.folder ? "font-mono text-primary" : "text-muted"
+                                    )}
+                                    title={draft.folder || undefined}
+                                    data-testid="context-folder"
+                                >
+                                    <span className="truncate">{draft.folder || t("contexts.manage.folderNone")}</span>
+                                </div>
+                                <div className="flex gap-1.5">
+                                    <button
+                                        type="button"
+                                        className={PlainButton}
+                                        data-testid="context-folder-choose"
+                                        onClick={chooseFolder}
+                                    >
+                                        {t("contexts.manage.folderChoose")}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={cn(GhostButton, !draft.folder && "invisible")}
+                                        data-testid="context-folder-remove"
+                                        disabled={!draft.folder}
+                                        onClick={() => edit({ folder: "" })}
+                                    >
+                                        {t("contexts.manage.folderRemove")}
+                                    </button>
+                                </div>
+                                <p className="m-0 text-11 leading-4 text-muted">{t("contexts.manage.folderHint")}</p>
+                            </div>
+                            <div className="flex min-w-0 flex-col gap-1" data-testid="context-shape-column">
+                                <span className="text-11 text-secondary">{t("contexts.shape.label")}</span>
+                                <div className="mb-1 flex items-center gap-2">
+                                    <RibbonFace
+                                        emblem={draft.emblem}
+                                        name={draft.name.trim() || t("contexts.manage.newName")}
+                                        paint={paint}
+                                        ink={ink}
+                                        shape={draft.shape}
+                                    />
+                                </div>
+                                <ShapePicker
+                                    value={draft.shape}
                                     paint={paint}
-                                    ink={ink}
-                                    shape={draft.shape}
+                                    onChange={(shape) => edit({ shape })}
+                                    onDrawAnother={() => edit({ shape: drawFor(selectedId, draft.shape) })}
                                 />
                             </div>
-                            <ShapePicker
-                                value={draft.shape}
-                                paint={paint}
-                                onChange={(shape) => edit({ shape })}
-                                onDrawAnother={() => edit({ shape: drawFor(selectedId, draft.shape) })}
-                            />
                         </div>
                         <fieldset className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0">
                             <legend className="mb-1 p-0 text-11 text-secondary">

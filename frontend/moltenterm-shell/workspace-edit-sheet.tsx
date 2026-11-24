@@ -59,13 +59,14 @@ import { hasImportedIcon, iconKindLabel, workspaceIconSource } from "./workspace
 import { logoPalette } from "./workspace-logo-palette";
 import {
     effectiveWorkspaceFolder,
+    isProjectOutsideBound,
     MaxProjectLogos,
     pathBaseName,
     projectLogoOf,
     readWorkspaceProject,
     repositoryLabel,
 } from "./workspace-project";
-import { WorkspaceFolderLine, WorkspaceProjectBlock } from "./workspace-project-section";
+import { OutsideFolderMark, WorkspaceFolderLine, WorkspaceProjectBlock } from "./workspace-project-section";
 import {
     chooseMoltentermPath,
     findProjectLogos,
@@ -820,7 +821,18 @@ function AppearancePart({ ws }: { ws: Workspace }) {
 }
 
 // One project of the Projects block: its name, folder and followed branch, and the way to its Project sheet.
-function ProjectRow({ ws, project, current }: { ws: Workspace; project: WorkspaceProjectEntry; current: boolean }) {
+function ProjectRow({
+    ws,
+    project,
+    current,
+    outside,
+}: {
+    ws: Workspace;
+    project: WorkspaceProjectEntry;
+    current: boolean;
+    // The project lies outside the folder that bounds the workspace (#2518): only marked.
+    outside: boolean;
+}) {
     const t = useT();
     const repo = projectRepoDir(project);
     return (
@@ -836,6 +848,7 @@ function ProjectRow({ ws, project, current }: { ws: Workspace; project: Workspac
                             {t("workspace.edit.currentProject")}
                         </span>
                     ) : null}
+                    {outside ? <OutsideFolderMark /> : null}
                 </div>
                 <div className="truncate font-mono text-11 text-muted" title={project.dir}>
                     {project.dir || t("projectSheet.noFolder")}
@@ -854,15 +867,21 @@ function ProjectRow({ ws, project, current }: { ws: Workspace; project: Workspac
     );
 }
 
-// The Projects block (FR-SHELL-105): the workspace's projects, each set up in its Project sheet, and the folder its
-// terminals start in. Without a project it offers the link; nothing else in the sheet waits on it.
+// The Projects block (FR-SHELL-105, #2518): the folder the workspace stays in, with where it comes from, then its
+// projects, each set up in its Project sheet and marked when it lies outside that folder. Without a project it offers
+// the link; nothing else in the sheet waits on it.
 function ProjectsPart({ ws }: { ws: Workspace }) {
     const t = useT();
+    const contextFolder = useContextFolder(ws);
     const projects = readProjects(ws);
     const currentId = currentProjectId(ws);
     return (
         <SheetSection title={t("workspace.edit.projects")} concept="project" block="projects">
             <div className="flex min-w-0 flex-col gap-3">
+                <PartField label={t("workspace.edit.folder")} field="folder">
+                    <WorkspaceFolderLine ws={ws} />
+                </PartField>
+                <div className="h-px bg-border" aria-hidden />
                 <PartField label={t("workspace.edit.linkedProjects")} field="projects">
                     {projects.length === 0 ? (
                         <WorkspaceProjectBlock ws={ws} />
@@ -874,13 +893,11 @@ function ProjectsPart({ ws }: { ws: Workspace }) {
                                     ws={ws}
                                     project={p}
                                     current={projects.length > 1 && p.id === currentId}
+                                    outside={isProjectOutsideBound(p.dir, ws, contextFolder)}
                                 />
                             ))}
                         </ul>
                     )}
-                </PartField>
-                <PartField label={t("workspace.edit.folder")} field="folder">
-                    <WorkspaceFolderLine ws={ws} />
                 </PartField>
             </div>
         </SheetSection>
