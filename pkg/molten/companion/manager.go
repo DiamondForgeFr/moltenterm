@@ -20,6 +20,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
+	"github.com/wavetermdev/waveterm/pkg/molten/subagentwork"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/molten/usage"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
@@ -242,6 +243,11 @@ type Manager struct {
 	// each session's plan is kept on disk, so it survives a restart while the session lives; empty keeps them in memory.
 	plans   map[string]planEntry
 	planDir string
+	// sweeper: when each lead's sub-agents are read again (leadwork.go, #2502); afterFunc starts its timers.
+	sweeper   *leadSweeper
+	afterFunc func(d time.Duration, f func()) *time.Timer
+	// work: where the sub-agents' work is kept for the agent states to read too, nil for wavesrv's own.
+	work *subagentwork.Registry
 
 	// Injected: the agent states, the object store, the event bus, the settings and the clock; replaced in tests.
 	runOf          func(blockId string) (molten.AgentRunInfo, bool)
@@ -284,6 +290,8 @@ func MakeManager() *Manager {
 		tracks:          map[string]*runTrack{},
 		subagentPaths:   map[string]bool{},
 		plans:           map[string]planEntry{},
+		sweeper:         makeLeadSweeper(),
+		afterFunc:       time.AfterFunc,
 		adapterFor:      AdapterFor,
 		now:             time.Now,
 		tick:            tickInterval,
@@ -1924,7 +1932,7 @@ func (w *watcher) viewKey() string {
 	if w.session != nil {
 		sv = w.session.Version
 	}
-	return fmt.Sprintf("%d/%d/%d", w.version, sv, w.m.planVersion(w.blockId))
+	return fmt.Sprintf("%d/%d/%d/%d", w.version, sv, w.m.planVersion(w.blockId), w.m.registry().Revision(w.blockId))
 }
 
 func (w *watcher) publishIfChanged() {
@@ -1998,7 +2006,7 @@ func (w *watcher) view(elide bool) CompanionView {
 	v.Todos, v.TodosBy, v.TodosAt = chooseTasks(w.session.Todos(), w.session.TodosAt(), plan)
 	v.Pending = w.session.Pending()
 	v.Topics = w.session.Topics()
-	v.Subagents = w.session.Subagents()
+	v.Subagents = w.m.withLeadWork(w.blockId, w.session.Subagents())
 	v.Activity = w.session.Activity()
 	v.Commands = w.session.Commands()
 	v.CommandCounts = w.session.CommandCounts()

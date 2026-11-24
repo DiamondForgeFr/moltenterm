@@ -11,6 +11,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/machineload"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
 	"github.com/wavetermdev/waveterm/pkg/wps"
@@ -39,6 +40,7 @@ var agentRoute = localroute.Route{
 			molten.AgentStatesCommand:            localroute.AllowUi,
 			molten.AgentStopSettleCommand:        localroute.AllowUi,
 			molten.AgentUseCommand:               localroute.AllowUi,
+			molten.MachineLoadCommand:            localroute.AllowUi,
 			molten.AgentNameLocksCommand:         localroute.AllowUi,
 			molten.AgentNameLockCommand:          localroute.AllowUi,
 			molten.AgentNameUnlockCommand:        localroute.AllowUi,
@@ -83,6 +85,8 @@ func handleAgentCommand(command string, caller localroute.Caller, data any) (any
 		return molten.AgentStopSettleResult{Status: SettleAgentStop(req.BlockId, "", req.Note)}, nil
 	case molten.AgentUseCommand:
 		return AgentUseSummary(), nil
+	case molten.MachineLoadCommand:
+		return machineload.Default.Read(), nil
 	case molten.AgentNameLocksCommand:
 		return defaultAgentStates.nameLocksResult(), nil
 	case molten.AgentNameLockCommand:

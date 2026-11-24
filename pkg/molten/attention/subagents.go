@@ -70,12 +70,41 @@ func (a *agentStates) forgetSubagentsLocked(blockId string, rec *agentRecord) {
 	a.markDirtyLocked(blockId)
 }
 
+// The sub-agents the hooks report are not the whole fact (#2502). A sub-agent whose turn ended on its own tests or build
+// sends no hook until they end, and the set above is forgotten when the lead's turn ends: the lead would read idle with
+// its sub-agents at work. What the sub-agents' own files say is kept per agent terminal by the companion in
+// pkg/molten/subagentwork, a leaf both read: this file reads it under the states' lock, which is safe because that
+// package calls nothing back while it holds its own, and it is why this package never needs the companion (which
+// imports it).
+//
+// A sub-agent counts once: by its id when both name it (Claude Code's agent_id is the id of its files); an agent whose
+// hooks and files name them differently counts as the larger of the two.
+
+// subagentWorkOf is how many sub-agents of the block's agent work and what the files say they work on.
+func (a *agentStates) subagentWorkOf(blockId string, rec *agentRecord) (int, []molten.SubagentWork) {
+	work := a.work.Get(blockId)
+	if len(work) == 0 {
+		return len(rec.subagents), nil
+	}
+	if rec.agent != molten.AgentIdClaude {
+		return max(len(rec.subagents), len(work)), work
+	}
+	n := len(rec.subagents)
+	for _, w := range work {
+		if !rec.subagents[w.Id] {
+			n++
+		}
+	}
+	return n, work
+}
+
 // subagentsInfo shows a pane whose main session is idle or done, and whose sub-agents run, as working in the
 // background, and so do its background commands (backgroundcommands.go, #2140). A state MoltenTerm holds
 // (agenthold.go) keeps its own words.
-func subagentsInfo(rec *agentRecord, info *molten.AgentStateInfo) {
-	n := len(rec.subagents)
+func (a *agentStates) subagentsInfo(blockId string, rec *agentRecord, info *molten.AgentStateInfo) {
+	n, work := a.subagentWorkOf(blockId, rec)
 	info.Subagents = n
+	info.Work = work
 	commands := len(rec.commands)
 	if n+commands == 0 || info.State != rec.state || (rec.state != molten.AgentStateIdle && rec.state != molten.AgentStateDone) {
 		return
@@ -92,8 +121,8 @@ func subagentsInfo(rec *agentRecord, info *molten.AgentStateInfo) {
 		return
 	}
 	if n == 1 {
-		info.Message, info.MessageText = "1 sub-agent running", uimsg.Make("agentState.subagent")
+		info.Message, info.MessageText = "1 sub-agent at work", uimsg.Make("agentState.subagent")
 		return
 	}
-	info.Message, info.MessageText = fmt.Sprintf("%d sub-agents running", n), uimsg.Make("agentState.subagents", "count", strconv.Itoa(n))
+	info.Message, info.MessageText = fmt.Sprintf("%d sub-agents at work", n), uimsg.Make("agentState.subagents", "count", strconv.Itoa(n))
 }

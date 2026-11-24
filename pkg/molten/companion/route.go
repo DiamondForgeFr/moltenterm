@@ -218,7 +218,11 @@ func (l *routeLink) handle(command string, caller localroute.Caller, data any) (
 		if err := ownBlock(caller, req.BlockId); err != nil {
 			return nil, err
 		}
-		return nil, defaultSubagentHooks.add(req)
+		if err := defaultSubagentHooks.add(req); err != nil {
+			return nil, err
+		}
+		l.m.SweepLead(req.BlockId)
+		return nil, nil
 	}
 	return nil, fmt.Errorf("unknown companion command %q", command)
 }
@@ -269,6 +273,7 @@ func handleBlockClose(m *Manager, event *wps.WaveEvent) {
 		return
 	}
 	m.ForgetBlock(blockId)
+	m.ForgetLead(blockId)
 	ForgetHookSubagents(blockId)
 }
 
@@ -329,6 +334,7 @@ func Start() {
 		var info molten.AgentStateInfo
 		if utilfn.ReUnmarshal(&info, event.Data) == nil && info.BlockId != "" {
 			m.Poke(info.BlockId)
+			m.leadStateChanged(info)
 		}
 	})
 	wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: molten.AgentStateEvent, AllScopes: true}, nil)

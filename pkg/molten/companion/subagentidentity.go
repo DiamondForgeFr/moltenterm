@@ -55,6 +55,10 @@ type SubagentIdentity struct {
 	// Waiting: its last turn ended on background work of its own that has not reported yet (#2498): it runs on,
 	// although its meta says finished, and goes quiet only after SubagentWaitingQuietAfter of silence.
 	Waiting bool
+	// Jobs: the background commands and monitors its transcript started and has not seen end, the oldest first (#2502).
+	Jobs []molten.BackgroundJob
+	// FirstWrite: when its transcript began, in Unix milliseconds, 0 when unknown (#2502): the age a window shows.
+	FirstWrite int64
 }
 
 // SubagentLister is an adapter that lists a session's sub-agents from their own files.
@@ -251,9 +255,14 @@ func (a *ClaudeAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 			if id.Worktree == "" {
 				id.Worktree = facts.cwd
 			}
-			if id.Finished && claudeWaitsOnBackground(path, f.info) {
+			jobs := claudeBackgroundJobs(path, f.info)
+			if id.Finished && len(jobs) > 0 {
 				id.Finished, id.Ended, id.Waiting = false, 0, true
 			}
+			if !id.Finished && len(jobs) > 0 {
+				id.Jobs = append([]molten.BackgroundJob(nil), jobs...)
+			}
+			id.FirstWrite = claudeTranscriptBegan(path)
 		}
 		id.Model, id.Effort = a.withAgentDefinition(id.Model, id.Effort, meta.AgentType, id.Worktree)
 		rtn = append(rtn, id)
@@ -408,7 +417,9 @@ func (m *Manager) PaneSubagents(blockId string, hooks []SubagentHookEvent) []Sub
 	if path == "" || !isLister {
 		return nil
 	}
-	return ApplyHookSubagents(lister.ListSubagents(path), hooks, m.now())
+	ids := ApplyHookSubagents(lister.ListSubagents(path), hooks, m.now())
+	m.recordLeadWork(blockId, ids)
+	return ids
 }
 
 // runHooks keeps the hook reports of the agent that runs in the block now (#2498): the block's log keeps every report

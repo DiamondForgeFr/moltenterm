@@ -17,6 +17,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentnames"
+	"github.com/wavetermdev/waveterm/pkg/molten/subagentwork"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -159,7 +160,8 @@ type agentRecord struct {
 	// settling.
 	project     string
 	nameUnsaved bool
-	// subagents: the sub-agents of the session its hooks reported running (subagents.go, #1092).
+	// subagents: the sub-agents of the session its hooks reported running (subagents.go, #1092). They are forgotten when
+	// the main session's turn ends; what the sub-agents' own files say is in the states' work registry.
 	subagents map[string]bool
 	// commands: the commands the session left running in the background, by id, with their words; their ends are
 	// read from commandsTranscript after commandsOffset (backgroundcommands.go, #2140).
@@ -217,10 +219,15 @@ type agentStates struct {
 	nameStore *agentnames.LockStore
 	locksLock sync.Mutex
 	onLocks   func()
+	// work: what each terminal's sub-agents work on, as their own files say (pkg/molten/subagentwork, #2502). A leaf
+	// the companion writes and these states read: it never calls back while it holds its own lock.
+	work *subagentwork.Registry
 }
 
+// makeAgentStates starts with a registry of its own for what the sub-agents work on; wavesrv's states take the shared
+// one (makeDefaultAgentStates), where the companion writes.
 func makeAgentStates() *agentStates {
-	return &agentStates{
+	a := &agentStates{
 		records:      map[string]*agentRecord{},
 		dirty:        map[string]bool{},
 		notices:      map[string]noticeMark{},
@@ -230,6 +237,7 @@ func makeAgentStates() *agentStates {
 		names:        agentnames.MakeAllocator(agentnames.Names),
 		wake:         make(chan struct{}, 1),
 		now:          time.Now,
+		work:         subagentwork.MakeRegistry(),
 		locate:       locateBlock,
 		ownBlock:     ownSessionBlock,
 		publish:      publishAgentState,
@@ -237,6 +245,8 @@ func makeAgentStates() *agentStates {
 			go recordAgentNotice(blockId, signal, kind)
 		},
 	}
+	a.work.OnChange(a.workChanged)
+	return a
 }
 
 var defaultAgentStates = makeDefaultAgentStates()
@@ -255,6 +265,8 @@ func makeDefaultAgentStates() *agentStates {
 	}
 	a.projectOf = projectOfBlock
 	a.onLocks = publishAgentNameLocks
+	a.work = subagentwork.Default
+	a.work.OnChange(a.workChanged)
 	a.integratedRun = func(blockId string, run agentRunRecord) bool {
 		rep, ok := defaultIntegrationReports.current(blockId, run, true)
 		return ok && rep.ReportsStates()
@@ -322,6 +334,8 @@ func (a *agentStates) removeLocked(blockId string) {
 		return
 	}
 	delete(a.records, blockId)
+	// Silently: the registry's change handler takes the lock this holds.
+	a.work.Discard(blockId)
 	a.names.Release(blockId)
 	a.markDirtyLocked(blockId)
 	if a.onRunEnd != nil {
@@ -643,7 +657,7 @@ func (a *agentStates) infoLocked(blockId string, rec *agentRecord) molten.AgentS
 		info.NativeProvider = molten.NativeProviderName(rec.agent)
 	}
 	a.heldInfoLocked(blockId, rec, &info)
-	subagentsInfo(rec, &info)
+	a.subagentsInfo(blockId, rec, &info)
 	return info
 }
 
@@ -934,11 +948,23 @@ func (a *agentStates) runOf(blockId string) (molten.AgentRunInfo, bool) {
 	if rec == nil {
 		return molten.AgentRunInfo{}, false
 	}
-	return runInfo(blockId, rec), true
+	return a.runInfo(blockId, rec), true
 }
 
-func runInfo(blockId string, rec *agentRecord) molten.AgentRunInfo {
-	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName, Subagents: len(rec.subagents), SessionId: rec.sessionId}
+func (a *agentStates) runInfo(blockId string, rec *agentRecord) molten.AgentRunInfo {
+	subagents, _ := a.subagentWorkOf(blockId, rec)
+	return molten.AgentRunInfo{BlockId: blockId, Agent: rec.agent, Started: rec.started, Running: rec.running, State: rec.state, StateSince: rec.since, Pid: rec.pid, PidStartMs: rec.pidStart, Settings: rec.settings, FirstName: rec.firstName, Subagents: subagents, SessionId: rec.sessionId}
+}
+
+// workChanged republishes a terminal's agent when what its sub-agents work on changed (#2502): the registry tells it
+// with no lock held.
+func (a *agentStates) workChanged(blockId string) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if a.records[blockId] == nil {
+		return
+	}
+	a.markDirtyLocked(blockId)
 }
 
 func (a *agentStates) allRuns() []molten.AgentRunInfo {
@@ -946,7 +972,7 @@ func (a *agentStates) allRuns() []molten.AgentRunInfo {
 	defer a.lock.Unlock()
 	rtn := make([]molten.AgentRunInfo, 0, len(a.records))
 	for blockId, rec := range a.records {
-		rtn = append(rtn, runInfo(blockId, rec))
+		rtn = append(rtn, a.runInfo(blockId, rec))
 	}
 	return rtn
 }

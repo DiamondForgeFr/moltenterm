@@ -10631,8 +10631,8 @@
             "green": "la CI de #{number} passe"
         },
         "agentState": {
-            "subagent": "1 sous-agent en cours",
-            "subagents": "{count} sous-agents en cours",
+            "subagent": "1 sous-agent au travail",
+            "subagents": "{count} sous-agents au travail",
             "backgroundCommand": "1 commande en arrière-plan en cours",
             "backgroundCommandNamed": "En arrière-plan : {description}",
             "backgroundCommands": "{count} commandes en arrière-plan en cours",
