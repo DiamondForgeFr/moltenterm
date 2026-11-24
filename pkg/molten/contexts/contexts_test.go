@@ -357,9 +357,34 @@ func TestSameIgnoringLastTellsARememberedWorkspaceFromARealChange(t *testing.T) 
 }
 
 func TestMetaValueRoundTrips(t *testing.T) {
-	list := []Context{{Id: "a", Name: "A", Description: "d", Emblem: "book", Last: "w"}, {Id: "b"}}
+	list := []Context{{Id: "a", Name: "A", Description: "d", Emblem: "book", Last: "w", Folder: "/c"}, {Id: "b"}}
 	got := ReadContexts(waveobj.MetaMapType{ClientMetaKey: MetaValue(list)})
 	if !SameContexts(got, list) {
 		t.Fatalf("got %+v, want %+v", got, list)
+	}
+}
+
+// #2516: a context's folder is set, cleaned and forgotten by Update, and is the folder of its workspaces only.
+func TestUpdateSetsTheContextsFolder(t *testing.T) {
+	s, _ := mustCreate(t, MakeState(nil, workspaces("w1", "w2")), "Client", "c", "w1")
+	folder := "/clients/sefers/"
+	next, moved, err := s.Update(UpdateRequest{Id: "c", Folder: &folder})
+	if err != nil || len(moved) != 0 {
+		t.Fatalf("update: %v, moved %v", err, moved)
+	}
+	if got := FolderOf(next.Contexts, waveobj.MetaMapType{WorkspaceMetaKey: "c"}); got != "/clients/sefers" {
+		t.Fatalf("folder %q", got)
+	}
+	if got := FolderOf(next.Contexts, waveobj.MetaMapType{}); got != "" {
+		t.Fatalf("a workspace of the first context got %q", got)
+	}
+	relative := "sefers"
+	if _, _, err := next.Update(UpdateRequest{Id: "c", Folder: &relative}); err == nil {
+		t.Fatalf("a relative folder was taken")
+	}
+	empty := ""
+	cleared, _, err := next.Update(UpdateRequest{Id: "c", Folder: &empty})
+	if err != nil || FolderOf(cleared.Contexts, waveobj.MetaMapType{WorkspaceMetaKey: "c"}) != "" {
+		t.Fatalf("forgetting the folder: %v", err)
 	}
 }

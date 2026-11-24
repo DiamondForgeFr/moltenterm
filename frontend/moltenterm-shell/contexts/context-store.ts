@@ -10,21 +10,24 @@ import { ClientModel } from "@/app/store/client-model";
 import { atoms, globalStore } from "@/app/store/global";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget } from "@/util/util";
-import { useAtomValue } from "jotai";
+import { atom, Atom, useAtomValue } from "jotai";
 import { useEffect, useMemo } from "react";
 import {
     ContextAssignCommand,
     ContextCreateCommand,
     ContextDeleteCommand,
+    contextFolderOf,
+    contextIdOf,
     ContextInfo,
     ContextsRoute,
     ContextTouchCommand,
     ContextUpdateCommand,
-    contextIdOf,
     readContexts,
 } from "./context-model";
 
 const ContextsCallTimeoutMs = 10000;
+
+const NoClientAtom = atom(null) as Atom<Client>;
 
 type ContextsResult = { contexts: ContextInfo[]; id?: string };
 
@@ -40,6 +43,8 @@ export type ContextUpdateRequest = {
     name?: string;
     description?: string;
     emblem?: string;
+    // An absolute folder, or "" to forget it (#2516).
+    folder?: string;
     // Only the workspaces the form moved: the ones that come in, and the ones that leave for the first other context. A
     // workspace the form did not show (a blank one of another window, one placed after it opened) is never named.
     addworkspaces?: string[];
@@ -69,6 +74,18 @@ export function useWindowContextId(): string {
 
 export function getWindowContextId(): string {
     return contextIdOf(getContexts(), globalStore.get(atoms.workspace)?.meta);
+}
+
+// The folder of the context a workspace is in (#2516), the outer bound of its own folder.
+// Before the client is known (a preview, a test) there is no context folder.
+export function useContextFolder(ws: Workspace): string {
+    const client = useAtomValue(ClientModel.getInstance().clientAtom ?? NoClientAtom);
+    return contextFolderOf(readContexts(client?.meta), ws?.meta);
+}
+
+export function getContextFolder(ws: Workspace): string {
+    const clientAtom = ClientModel.getInstance().clientAtom;
+    return contextFolderOf(readContexts(clientAtom != null ? globalStore.get(clientAtom)?.meta : null), ws?.meta);
 }
 
 // Whether a workspace is in the window's context: what the window lists of the others (the palette, the top field).

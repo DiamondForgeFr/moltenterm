@@ -4,6 +4,8 @@
 // Split any panel, then choose its content (FR-SHELL-042, DS-SHELL-064): the rules, pure so they are tested without
 // the app. split.ts carries them out on the layout.
 
+import { checkPathInside } from "../workspace-project";
+
 export type SplitDirection = "right" | "down" | "left" | "up";
 
 // The block meta key of a new panel's picker: the panel it was split from (DS-SHELL-066).
@@ -45,10 +47,15 @@ export function splitSizes(sourceSize: number, fraction: number): { source: numb
 // for a split (keepFolder). A terminal or a file panel without a folder of its own starts in the workspace folder,
 // which wavesrv fills in where every block is created (pkg/wcore/moltenterm_folder.go): inside the active project, the
 // home folder without one. Every creator of a new terminal or file panel goes through here or names its own folder.
-export function sourceContext(meta: MetaType, keepFolder: boolean): MetaType {
+// A split of a local terminal outside the workspace's bounding folder (#2516) starts at the bound instead: the folder
+// is dropped and wavesrv fills in the bound's start folder.
+export function sourceContext(meta: MetaType, keepFolder: boolean, bound = ""): MetaType {
     const rtn: MetaType = { view: meta?.view };
-    if (keepFolder && meta?.["cmd:cwd"] != null) {
-        rtn["cmd:cwd"] = meta["cmd:cwd"];
+    const cwd = meta?.["cmd:cwd"];
+    const local = meta?.connection == null || meta.connection === "" || meta.connection.startsWith("local");
+    const outside = bound !== "" && local && !checkPathInside(cwd ?? "", bound);
+    if (keepFolder && cwd != null && !outside) {
+        rtn["cmd:cwd"] = cwd;
     }
     if (meta?.connection != null) {
         rtn.connection = meta.connection;
@@ -72,8 +79,8 @@ export function pickerBlockDef(sourceBlockId: string, newPanel: boolean): BlockD
 }
 
 // The context a picker's entries open in, from the picker's own meta and its source's.
-export function pickerSourceMeta(pickerMeta: Record<string, unknown>, sourceMeta: MetaType): MetaType {
-    return sourceContext(sourceMeta, pickerMeta?.[SplitNewPanelMetaKey] !== true);
+export function pickerSourceMeta(pickerMeta: Record<string, unknown>, sourceMeta: MetaType, bound = ""): MetaType {
+    return sourceContext(sourceMeta, pickerMeta?.[SplitNewPanelMetaKey] !== true, bound);
 }
 
 // What Enter on Terminal opens: a shell in the source panel's folder and on its connection, as Wave's Cmd+D did. A

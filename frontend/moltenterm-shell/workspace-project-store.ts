@@ -33,6 +33,7 @@ import {
     readRecentFolders,
     readWorkspaceProject,
     unlinkUpdate,
+    WorkspaceFolderChosenMetaKey,
     WorkspaceFolderMetaKey,
     WorkspaceRecentFoldersMetaKey,
 } from "./workspace-project";
@@ -186,9 +187,13 @@ export async function unlinkWorkspaceProject(workspaceId: string): Promise<void>
 }
 
 // null forgets the folder: the next move of the workspace's terminal sets it again (FR-SHELL-009). Every folder set
-// also goes to the workspace's history, which the command palette offers as recent folders (FR-SHELL-013).
-export async function setWorkspaceFolder(workspaceId: string, folder: string): Promise<void> {
-    const meta: Record<string, any> = { [WorkspaceFolderMetaKey]: folder || null };
+// also goes to the workspace's history, which the command palette offers as recent folders (FR-SHELL-013). A chosen
+// folder (the settings' Change…) bounds the workspace and stays until changed or reset (#2516); a followed one does not.
+export async function setWorkspaceFolder(workspaceId: string, folder: string, chosen = false): Promise<void> {
+    const meta: Record<string, any> = {
+        [WorkspaceFolderMetaKey]: folder || null,
+        [WorkspaceFolderChosenMetaKey]: folder && chosen ? true : null,
+    };
     if (folder) {
         const ws = latestWorkspace({ oid: workspaceId } as Workspace);
         meta[WorkspaceRecentFoldersMetaKey] = pushRecentFolder(readRecentFolders(ws), folder);

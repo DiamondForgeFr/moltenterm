@@ -7,6 +7,7 @@
 
 import { cn, fireAndForget } from "@/util/util";
 import { useEffect, useState } from "react";
+import { useContextFolder } from "./contexts/context-store";
 import { useT } from "./i18n/i18n";
 import { MoltenWave } from "./molten-button";
 import {
@@ -46,10 +47,12 @@ function ProjectStatusLine({ facts }: { facts: ProjectFacts }) {
 // Where the workspace's new terminals, tabs and file explorer start (FR-SHELL-009).
 export function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
     const t = useT();
-    const folder = effectiveWorkspaceFolder(ws);
+    const contextFolder = useContextFolder(ws);
+    const folder = effectiveWorkspaceFolder(ws, contextFolder);
     const stored = readWorkspaceFolder(ws);
     const projectDir = readWorkspaceProject(ws).dir;
-    const outsideProject = stored !== "" && projectDir !== "" && !checkPathInside(stored, projectDir);
+    const outsideProject =
+        stored !== "" && projectDir !== "" && !checkPathInside(stored, projectDir) && folder === projectDir;
     const change = () =>
         fireAndForget(async () => {
             const dir = await chooseMoltentermPath({
@@ -58,7 +61,7 @@ export function WorkspaceFolderLine({ ws }: { ws: Workspace }) {
                 defaultPath: folder || projectDir || undefined,
             });
             if (dir) {
-                await setWorkspaceFolder(ws.oid, dir);
+                await setWorkspaceFolder(ws.oid, dir, true);
             }
         });
     return (

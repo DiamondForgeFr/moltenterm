@@ -8,19 +8,21 @@
 // something inside the project again. wavesrv resolves the paths (pkg/molten/fileconfine) and guarantees the meta the
 // gate trusts: only a window writes the approval, and a terminal's write says who asked.
 
+import { ClientModel } from "@/app/store/client-model";
 import { globalStore } from "@/app/store/jotaiStore";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { fireAndForget, isBlank } from "@/util/util";
 import { atom, Atom, Getter, PrimitiveAtom } from "jotai";
+import { contextFolderOf, readContexts } from "../contexts/context-model";
 import { FileFilterPrevMetaKey, fileFilterStayMeta } from "../file-filter/file-filter";
 import { I18nModel, t } from "../i18n/i18n";
 import { translate } from "../i18n/i18n-core";
 import {
+    boundingFolder,
     checkPathInside,
     effectiveWorkspaceFolder,
     pathBaseName,
     pathParent,
-    readWorkspaceProject,
 } from "../workspace-project";
 
 // must match pkg/molten/fileconfine/fileconfine.go
@@ -66,12 +68,23 @@ export function isLocalConnection(conn: string): boolean {
     return isBlank(conn) || conn === "local" || conn.startsWith("local:");
 }
 
-export function fileConfineScope(ws: Workspace, connection: string): FileConfineScope {
-    const root = readWorkspaceProject(ws).dir;
+// The bound is the narrowest root that applies (#2516): the project, else the workspace's chosen folder, else its
+// context's folder (boundingFolder). Without any, the panel is not confined.
+export function fileConfineScope(ws: Workspace, connection: string, contextFolder = ""): FileConfineScope {
+    const root = boundingFolder(ws, contextFolder);
     if (root === "" || !isLocalConnection(connection)) {
         return null;
     }
     return { root, name: pathBaseName(root) || root };
+}
+
+// The folder of the context the workspace is in, read from the client object every window holds.
+function contextFolderAtomOf(workspaceAtom: Atom<Workspace>): Atom<string> {
+    return atom((get) => {
+        const clientAtom = ClientModel.getInstance().clientAtom;
+        const clientMeta = clientAtom != null ? get(clientAtom)?.meta : null;
+        return contextFolderOf(readContexts(clientMeta), get(workspaceAtom)?.meta);
+    });
 }
 
 export function fileAskOrigin(meta: MetaType): FileAskOrigin {
@@ -178,6 +191,8 @@ export function fileConfineHeaderElems(get: Getter, gate: FileConfineGate, onBac
 export type FileConfineDeps = {
     blockAtom: Atom<Block>;
     workspaceAtom: Atom<Workspace>;
+    // The folder of the workspace's context, its outer bound (#2516); none when absent.
+    contextFolderAtom?: Atom<string>;
     writeMeta: (meta: MetaType) => Promise<unknown>;
     check?: (path: string, project: string) => Promise<FileCheckResult>;
     // A navigation the user approved was written (what navigate's true means for one that had to ask).
@@ -186,7 +201,7 @@ export type FileConfineDeps = {
 
 // A panel without a path of its own shows the home folder, or the workspace folder once confined (AC-1): wavesrv gives
 // new panels that folder, and a panel created before the project was linked (the starter layout's) follows it.
-export function rawFilePath(block: Block, ws: Workspace, scope: FileConfineScope): string {
+export function rawFilePath(block: Block, ws: Workspace, scope: FileConfineScope, contextFolder = ""): string {
     const file = block?.meta?.file;
     if (!isBlank(file)) {
         return file;
@@ -194,7 +209,7 @@ export function rawFilePath(block: Block, ws: Workspace, scope: FileConfineScope
     if (scope == null) {
         return "~";
     }
-    return effectiveWorkspaceFolder(ws) || scope.root;
+    return effectiveWorkspaceFolder(ws, contextFolder) || scope.root;
 }
 
 const ClearOrigin = { [FileOriginMetaKey]: null, [FileOriginNameMetaKey]: null };
@@ -213,17 +228,21 @@ export class FileConfineGate {
     seq = 0;
     lastCheck: { path: string; project: string; result: FileCheckResult } = null;
     unsub: () => void = null;
+    startFolder: () => string;
 
     constructor(deps: FileConfineDeps) {
         this.deps = deps;
         this.check = deps.check ?? checkFilePath;
+        const contextFolderAtom = deps.contextFolderAtom ?? contextFolderAtomOf(deps.workspaceAtom);
         this.scopeAtom = atom((get) => {
             const block = get(deps.blockAtom);
-            return fileConfineScope(get(deps.workspaceAtom), block?.meta?.connection);
+            return fileConfineScope(get(deps.workspaceAtom), block?.meta?.connection, get(contextFolderAtom));
         });
         this.rawPathAtom = atom((get) =>
-            rawFilePath(get(deps.blockAtom), get(deps.workspaceAtom), get(this.scopeAtom))
+            rawFilePath(get(deps.blockAtom), get(deps.workspaceAtom), get(this.scopeAtom), get(contextFolderAtom))
         );
+        this.startFolder = () =>
+            effectiveWorkspaceFolder(globalStore.get(deps.workspaceAtom), globalStore.get(contextFolderAtom));
         this.triggerAtom = atom((get) => {
             const scope = get(this.scopeAtom);
             const meta = get(deps.blockAtom)?.meta;
@@ -304,7 +323,7 @@ export class FileConfineGate {
             root: scope.root,
             projectName: scope.name,
             apply: null,
-            restore: shown ?? (effectiveWorkspaceFolder(globalStore.get(this.deps.workspaceAtom)) || scope.root),
+            restore: shown ?? (this.startFolder() || scope.root),
         });
     }
 

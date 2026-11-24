@@ -17,6 +17,10 @@ import (
 // must match the key in frontend/moltenterm-shell/workspace-project.ts
 const WorkspaceFolderMetaKey = "molten:folder"
 
+// Set with the folder chosen in the workspace's settings (#2516): that folder bounds the workspace and its terminal
+// moving elsewhere no longer replaces it. Must match frontend/moltenterm-shell/workspace-project.ts.
+const WorkspaceFolderChosenMetaKey = "molten:folderchosen"
+
 // must match WorkspaceRecentFoldersMetaKey in frontend/moltenterm-shell/workspace-project.ts and MaxRecentFolders in
 // frontend/moltenterm-shell/palette/palette-sources.ts
 const WorkspaceRecentFoldersMetaKey = "molten:recentfolders"
@@ -55,14 +59,48 @@ func CheckPathInside(path string, dir string) bool {
 	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
-// WorkspaceFolder returns the folder new blocks of a workspace start in, or "" when it has none.
+// WorkspaceFolder returns the folder new blocks of a workspace start in, or "" when it has none, for a workspace whose
+// context sets no folder.
 func WorkspaceFolder(meta waveobj.MetaMapType) string {
-	folder := meta.GetString(WorkspaceFolderMetaKey, "")
-	project := meta.GetString(ProjectMetaKey, "")
-	if project != "" && !CheckPathInside(folder, project) {
-		return project
+	return StartFolder("", meta)
+}
+
+// ChosenWorkspaceFolder is the folder chosen in the workspace's settings, "" when the folder only follows its terminal.
+func ChosenWorkspaceFolder(meta waveobj.MetaMapType) string {
+	if !meta.GetBool(WorkspaceFolderChosenMetaKey, false) {
+		return ""
 	}
-	return folder
+	return meta.GetString(WorkspaceFolderMetaKey, "")
+}
+
+// BoundingFolder is the folder every panel of a workspace stays in (#2516), the narrowest root that applies. The
+// context's folder bounds the workspace by default; a folder chosen for the workspace replaces it (one outside the
+// context's was confirmed when chosen, never blocked); the project's root narrows the result when it lies inside it,
+// and a project outside its workspace's or context's folder is not a bound. "" when no scope sets one.
+func BoundingFolder(contextFolder string, meta waveobj.MetaMapType) string {
+	root := contextFolder
+	if chosen := ChosenWorkspaceFolder(meta); chosen != "" {
+		root = chosen
+	}
+	project := meta.GetString(ProjectMetaKey, "")
+	if project != "" && (root == "" || CheckPathInside(project, root)) {
+		root = project
+	}
+	return root
+}
+
+// StartFolder is where a new block of the workspace starts: the folder its terminal last went to while it lies inside
+// the bounding folder, else the bounding folder itself.
+func StartFolder(contextFolder string, meta waveobj.MetaMapType) string {
+	root := BoundingFolder(contextFolder, meta)
+	if ChosenWorkspaceFolder(meta) != "" {
+		return root
+	}
+	followed := meta.GetString(WorkspaceFolderMetaKey, "")
+	if followed != "" && (root == "" || CheckPathInside(followed, root)) {
+		return followed
+	}
+	return root
 }
 
 func checkLocalConnName(connName string) bool {

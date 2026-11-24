@@ -34,6 +34,8 @@ export type ContextInfo = {
     emblem?: string;
     // The workspace this context last showed: where choosing it lands.
     last?: string;
+    // The outer bound of its workspaces' folders (#2516): context ⊃ workspace ⊃ project (workspace-project.ts).
+    folder?: string;
 };
 
 export function defaultContext(): ContextInfo {
@@ -60,6 +62,7 @@ export function readContexts(clientMeta: Record<string, any>): ContextInfo[] {
             description: typeof item.description === "string" ? item.description : "",
             emblem: typeof item.emblem === "string" ? item.emblem : "",
             last: typeof item.last === "string" ? item.last : "",
+            folder: typeof item.folder === "string" ? item.folder : "",
         });
     }
     return rtn.length > 0 ? rtn : [defaultContext()];
@@ -72,6 +75,12 @@ export function contextIdOf(contexts: readonly ContextInfo[], workspaceMeta: Rec
         return id;
     }
     return contexts[0]?.id ?? DefaultContextId;
+}
+
+// The folder of the context a workspace is in; "" when it has none (#2516).
+export function contextFolderOf(contexts: readonly ContextInfo[], workspaceMeta: Record<string, any>): string {
+    const id = contextIdOf(contexts, workspaceMeta);
+    return contexts.find((c) => c.id === id)?.folder ?? "";
 }
 
 export function isDefaultContext(context: ContextInfo): boolean {

@@ -21,7 +21,13 @@ import { offerProjectIcon } from "./project-icon-offer";
 import { workspaceShownName } from "./workspace-default-name";
 import { WorkspaceEditModel } from "./workspace-edit";
 import { hasImportedIcon } from "./workspace-icon-model";
-import { nextWorkspaceFolder, pathBaseName, readWorkspaceFolder, readWorkspaceProject } from "./workspace-project";
+import {
+    nextWorkspaceFolder,
+    pathBaseName,
+    readChosenWorkspaceFolder,
+    readWorkspaceFolder,
+    readWorkspaceProject,
+} from "./workspace-project";
 import {
     dismissProject,
     findOfferedProject,
@@ -177,12 +183,13 @@ export function ProjectLinkDetector() {
         fireAndForget(() => offerProjectIcon(ws, offer.dir, project.repo || offer.dir));
     }, [offerKey, shown, answered, waveModalOpen, editing]);
     // The workspace works where its terminal goes (FR-SHELL-009). Only when the terminal moves, so a Reset holds until
-    // the next move; only from the view in front, on one of the workspace's own tabs (#80).
+    // the next move; only from the view in front, on one of the workspace's own tabs (#80). A folder chosen in the
+    // settings is never replaced: the terminal moving elsewhere used to overwrite it right after Change… (#2516).
     useEffect(() => {
         if (ws == null || document.visibilityState !== "visible" || !ws.tabids?.includes(staticTabId)) {
             return;
         }
-        const next = nextWorkspaceFolder(folder, project.dir, terminalFolder);
+        const next = nextWorkspaceFolder(folder, project.dir, terminalFolder, readChosenWorkspaceFolder(ws) !== "");
         if (next != null) {
             fireAndForget(() => setWorkspaceFolder(ws.oid, next));
         }

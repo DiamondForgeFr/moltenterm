@@ -9,9 +9,20 @@ import (
 	"os"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/contexts"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 	"github.com/wavetermdev/waveterm/pkg/wstore"
 )
+
+// contextFolderOf is the folder of the context a workspace is in (#2516), "" when it has none or the client cannot be
+// read.
+func contextFolderOf(ctx context.Context, workspaceMeta waveobj.MetaMapType) string {
+	client, err := wstore.DBGetSingleton[*waveobj.Client](ctx)
+	if err != nil || client == nil {
+		return ""
+	}
+	return contexts.FolderOf(contexts.ReadContexts(client.Meta), workspaceMeta)
+}
 
 // A new block starts in its workspace's folder (FR-SHELL-009). Applied where every block is created, so the add panel,
 // shortcuts, wsh and new tabs all get it; the block definition the caller passed is never modified.
@@ -27,7 +38,7 @@ func blockDefInWorkspaceFolder(ctx context.Context, tabId string, blockDef *wave
 	if ws == nil {
 		return blockDef
 	}
-	folder := molten.WorkspaceFolder(ws.Meta)
+	folder := molten.StartFolder(contextFolderOf(ctx, ws.Meta), ws.Meta)
 	if folder == "" {
 		return blockDef
 	}

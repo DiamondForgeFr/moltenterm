@@ -28,8 +28,13 @@ vi.mock("@/app/store/wshclientapi", () => ({
 }));
 vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: {} }));
 
+import {
+    ProjectMetaKey,
+    WorkspaceFolderChosenMetaKey,
+    WorkspaceFolderMetaKey,
+    WorkspaceRecentFoldersMetaKey,
+} from "./workspace-project";
 import { linkWorkspaceProject, setWorkspaceFolder } from "./workspace-project-store";
-import { ProjectMetaKey, WorkspaceRecentFoldersMetaKey } from "./workspace-project";
 
 describe("linkWorkspaceProject (#749)", () => {
     beforeEach(() => {
@@ -58,5 +63,18 @@ describe("linkWorkspaceProject (#749)", () => {
     it("still records a folder set on a workspace the store has not loaded", async () => {
         await setWorkspaceFolder("ws2", "/work/proj");
         expect(app.setMeta[0].meta[WorkspaceRecentFoldersMetaKey]).toEqual(["/work/proj"]);
+    });
+
+    // #2516: Change… saves the folder as the workspace's own choice; a followed folder or a Reset clears the mark.
+    it("marks a folder chosen in the settings, and clears the mark otherwise", async () => {
+        await setWorkspaceFolder("ws1", "/clients/sefers", true);
+        await setWorkspaceFolder("ws1", "/Users/me");
+        await setWorkspaceFolder("ws1", null, true);
+        expect(app.setMeta.map((m) => m.oref)).toEqual(["workspace:ws1", "workspace:ws1", "workspace:ws1"]);
+        expect(app.setMeta[0].meta[WorkspaceFolderMetaKey]).toBe("/clients/sefers");
+        expect(app.setMeta[0].meta[WorkspaceFolderChosenMetaKey]).toBe(true);
+        expect(app.setMeta[1].meta[WorkspaceFolderChosenMetaKey]).toBeNull();
+        expect(app.setMeta[2].meta[WorkspaceFolderMetaKey]).toBeNull();
+        expect(app.setMeta[2].meta[WorkspaceFolderChosenMetaKey]).toBeNull();
     });
 });
