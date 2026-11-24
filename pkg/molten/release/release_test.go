@@ -457,10 +457,14 @@ func TestReleaseChainEndToEnd(t *testing.T) {
 	// The pull request is merged.
 	gitIn(t, f.checkout, "fetch", "--quiet", "origin")
 	gitIn(t, f.checkout, "push", "--quiet", "origin", "origin/chore/sync-back-v1.0.0-1:refs/heads/develop")
+	// develop holds the release's change but not the tag (#2504): a second sync-back cherry-picks nothing and points at
+	// the pull request of main into develop, here already open.
 	f.out.Reset()
+	f.gh.prs = `[{"number":10,"url":"https://github.example/pr/10","title":"chore(release): bring v1.0.0-1 back to develop","state":"OPEN","headRefOid":"` + f.originRef(t, "v1.0.0-1^{commit}") + `"}]`
 	mustRun(t, f, "sync-back again", e.SyncBack(ctx, "v1.0.0-1"))
-	if !strings.Contains(f.out.String(), "nothing to carry back") || len(f.gh.called("pr", "create")) != 1 {
-		t.Fatalf("a second sync-back did something:\n%s", f.out.String())
+	f.gh.prs = ""
+	if out := f.out.String(); strings.Contains(out, "nothing to carry back") || !strings.Contains(out, "https://github.example/pr/10 into develop with a merge commit, never squash or rebase") || len(f.gh.called("pr", "create")) != 1 {
+		t.Fatalf("a second sync-back must point at main's pull request into develop, and open nothing:\n%s", out)
 	}
 
 	mustRun(t, f, "close-milestone of an rc", e.CloseMilestone(ctx, "v1.0.0-1"))
