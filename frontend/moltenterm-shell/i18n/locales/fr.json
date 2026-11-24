@@ -336,6 +336,7 @@
             "closeToolbar": "Fermer la barre d'outils",
             "switchToTerminal": "Revenir au terminal",
             "restartingCommand": "Redémarrage de la commande",
+            "linkHint": "{mod}-clic pour ouvrir le lien",
             "commandSucceeded": "Commande terminée avec succès",
             "exitCode": "Code de sortie : {code}"
         },

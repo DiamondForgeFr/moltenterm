@@ -1,9 +1,9 @@
 // Copyright 2025, Command Line Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-import { PLATFORM, PlatformMacOS } from "@/util/platformutil";
 import { FloatingPortal, VirtualElement, flip, offset, shift, useFloating } from "@floating-ui/react";
 import * as React from "react";
+import { TermLinkTooltipContent } from "../../../moltenterm-shell/term-links/term-link-tooltip"; // MOLTENTERM-PATCH (#2507)
 import type { TermWrap } from "./termwrap";
 
 // ── low-level primitive ──────────────────────────────────────────────────────
@@ -75,7 +75,6 @@ function clearTimeoutRef(ref: React.RefObject<number | null>) {
 
 const HoverDelayMs = 600;
 const MaxHoverTimeMs = 2200;
-const modKey = PLATFORM === PlatformMacOS ? "Cmd" : "Ctrl";
 
 interface TermLinkTooltipProps {
     /**
@@ -92,6 +91,7 @@ interface TermLinkTooltipProps {
  */
 export const TermLinkTooltip = React.memo(function TermLinkTooltip({ termWrap }: TermLinkTooltipProps) {
     const [mousePos, setMousePos] = React.useState<{ x: number; y: number } | null>(null);
+    const [hoveredUri, setHoveredUri] = React.useState<string>(null); // MOLTENTERM-PATCH (#2507)
     const timeoutRef = React.useRef<number | null>(null);
     const maxTimeoutRef = React.useRef<number | null>(null);
 
@@ -112,6 +112,7 @@ export const TermLinkTooltip = React.memo(function TermLinkTooltip({ termWrap }:
             // Show after a short delay so fast mouse movements don't flicker.
             timeoutRef.current = window.setTimeout(() => {
                 timeoutRef.current = null;
+                setHoveredUri(uri); // MOLTENTERM-PATCH (#2507)
                 setMousePos({ x: mouseX, y: mouseY });
                 // Auto-dismiss after MaxHoverTimeMs so the tooltip doesn't linger forever.
                 clearTimeoutRef(maxTimeoutRef);
@@ -130,5 +131,6 @@ export const TermLinkTooltip = React.memo(function TermLinkTooltip({ termWrap }:
         };
     }, [termWrap]);
 
-    return <TermTooltip mousePos={mousePos} content={<span>{modKey}-click to open link</span>} />;
+    // MOLTENTERM-PATCH (#2507): the preview names the link's target, since an OSC 8 link only shows its label
+    return <TermTooltip mousePos={mousePos} content={<TermLinkTooltipContent uri={hoveredUri} />} />;
 });
