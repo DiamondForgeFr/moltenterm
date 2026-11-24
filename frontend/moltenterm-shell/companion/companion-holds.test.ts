@@ -29,6 +29,7 @@ import {
     HoldKind,
     MaxStripSquares,
     ownerNames,
+    placedTickets,
     statusInProgress,
     statusInReview,
     statusStarted,
@@ -36,7 +37,7 @@ import {
     taskLists,
     TicketHold,
 } from "./companion-holds-model";
-import { MaxMilestoneRows } from "./companion-milestone-model";
+import { MaxMilestoneRows, subagentTicket } from "./companion-milestone-model";
 
 function inputs(own: typeof Flore, mine: number[], more: Partial<HoldInputs> = {}): HoldInputs {
     return {
@@ -98,14 +99,64 @@ describe("who holds each ticket: three leads and their sub-agents", () => {
     });
 
     it("never counts this companion's own agent or its sub-agents as another's", () => {
-        // wavesrv may place A's sub-agent on a ticket the companion did not link (its link is stricter): it is still A's.
+        // wavesrv may place A's sub-agent on a ticket the companion did not link (its link is stricter): it is still
+        // A's, its own work (#2522).
         const answer = upcomingOf([panelOn(Flore, "develop"), subagent(Flore, 9), subagent(Jerome, 4)]);
         const holds = classifyTickets(NineTickets, inputs(Flore, [], { upcoming: answer }));
-        expect(holds.get(9)).toEqual({ kind: "free" });
+        expect(holds.get(9)).toEqual({ kind: "mine" });
         expect(holds.get(4)?.kind).toBe("agent");
         const own = upcomingOf([panelOn(Flore, "feature/9-work")]);
-        expect(classifyTickets(NineTickets, inputs(Flore, [], { upcoming: own })).get(9)).toEqual({ kind: "free" });
+        expect(classifyTickets(NineTickets, inputs(Flore, [], { upcoming: own })).get(9)).toEqual({ kind: "mine" });
         expect(classifyTickets(NineTickets, inputs(Jerome, [], { upcoming: own })).get(9)?.kind).toBe("agent");
+    });
+});
+
+// #2522: Pauline's sub-agent "Build #1320 meeting images" works in ../Notulia-1320, a worktree beside the project folder
+// on the ticket's branch, while its records name the main checkout (on develop). Its task names #1320, but not first.
+describe("a sub-agent in a worktree beside the project folder (#2522)", () => {
+    const sibling = "/Notulia-1320";
+    const branch = "feature/1320-meeting-images";
+    const tickets = ticketsOf(1320).map((t) => ({ ...t, status: "In progress" }));
+    const placedSub = (lead: typeof Flore) =>
+        subagent(lead, 1320, "running", {
+            branch,
+            worktree: sibling,
+            description: "Build #1320 meeting images",
+            agentid: "a0ef11c100895d164",
+        });
+    const worktreeBranch = [{ branch, ticket: 1320, ahead: 1, worktree: sibling }];
+
+    it("makes the ticket the lead's own work, linked to that sub-agent", () => {
+        const answer = upcomingOf([panelOn(Flore, "develop"), placedSub(Flore)], worktreeBranch);
+        const holds = classifyTickets(tickets, inputs(Flore, [], { upcoming: answer }));
+        expect(holds.get(1320)).toEqual({ kind: "mine" });
+        const placed = placedTickets(answer, Flore.blockid);
+        expect(placed.get("a0ef11c100895d164")).toBe(1320);
+        // Its records name develop and a task that does not start with #1320: the placement names its ticket.
+        expect(subagentTicket("develop", "Build #1320 meeting images", "a0ef11c100895d164", placed)).toBe(1320);
+        expect(subagentTicket("develop", "Build #1320 meeting images", "a0ef11c100895d164")).toBe(0);
+        const m = { number: 1, title: "v1.0.0", open: 1, closed: 0, remaining: 1, tickets };
+        const links = linksOf(1320);
+        const lists = taskLists(m, links, holds);
+        expect(lists.mine.map((t) => t.number)).toEqual([1320]);
+        expect(lists.taken).toEqual([]);
+        expect(lists.idle).toEqual([]);
+    });
+
+    it("leaves another lead's sub-agent under taken by others, named and linked to its lead", () => {
+        const answer = upcomingOf([panelOn(Julie, "develop"), placedSub(Julie)], worktreeBranch);
+        const holds = classifyTickets(tickets, inputs(Flore, [], { upcoming: answer }));
+        expect(holds.get(1320)).toEqual({
+            kind: "agent",
+            owner: { blockId: Julie.blockid, name: "Julie", tool: "Claude Code", subagent: true },
+        });
+        expect(placedTickets(answer, Flore.blockid).size).toBe(0);
+    });
+
+    it("keeps a worktree branch no agent is on a branch hold", () => {
+        const answer = upcomingOf([panelOn(Flore, "develop")], worktreeBranch);
+        const holds = classifyTickets(ticketsOf(1320), inputs(Flore, [], { upcoming: answer }));
+        expect(holds.get(1320)).toEqual({ kind: "branch", branch });
     });
 });
 

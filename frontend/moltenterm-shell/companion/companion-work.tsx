@@ -29,7 +29,7 @@ import { AgentsBlockBody } from "./companion-agents";
 import { CompanionBlock, CountChip } from "./companion-block";
 import { FlowPlacedEvent, linesOnHover } from "./companion-flow-model";
 import { ArrangeGhost } from "./companion-ghost";
-import { agentsRunKey, classifyTickets, HoldInputs, taskLists } from "./companion-holds-model";
+import { agentsRunKey, classifyTickets, HoldInputs, placedTickets, taskLists } from "./companion-holds-model";
 import {
     agentEnd,
     chosenMilestone,
@@ -242,10 +242,8 @@ export function CompanionWork(props: CompanionWorkProps) {
         : null;
     const [hot, setHot] = useState<string>(null);
     const agents = agentsView(view, agentState, now);
-    const linkable = linkAgents(agents.rows, view);
     const list = milestones?.state === "ok" ? (milestones.milestones ?? []) : [];
     const m = chosenMilestone(list, props.chosen ?? remembered);
-    const tickets = ticketLinks(m?.tickets, linkable);
     const known = useHoldsData(
         showsTasks && m != null ? project : "",
         [...(view?.subagents ?? [])]
@@ -253,6 +251,9 @@ export function CompanionWork(props: CompanionWorkProps) {
             .map((s) => s.id)
             .join(",")
     );
+    const placed = placedTickets(props.holds?.upcoming ?? known.upcoming, view?.blockid ?? "");
+    const linkable = linkAgents(agents.rows, view, placed);
+    const tickets = ticketLinks(m?.tickets, linkable);
     const holds = classifyTickets(m?.tickets, {
         mine: tickets,
         ownBlockId: view?.blockid ?? "",
@@ -340,6 +341,7 @@ export function CompanionWork(props: CompanionWorkProps) {
                         ended={ended}
                         now={now}
                         lead={props.lead}
+                        placed={placed}
                     />
                 </CompanionBlock>
             ) : null}

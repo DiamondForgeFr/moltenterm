@@ -166,6 +166,8 @@ type tailFacts struct {
 	effort string
 	cwd    string
 	ended  bool
+	// folders: the absolute folders its latest tool calls act in, the newest first (claudeToolFolders).
+	folders []string
 }
 
 type tailCacheEntry struct {
@@ -201,17 +203,24 @@ func cachedTail(path string, info os.FileInfo, read func() (tailFacts, bool)) (t
 }
 
 // claudeTailFacts reads, from the last records of a sub-agent's transcript, its latest model (the model's own
-// answers), effort and cwd. ReadSubagent and ListSubagents share it.
-func claudeTailFacts(tail []byte, wantCwd bool) tailFacts {
+// answers), effort and cwd, and with wantFolders the folders its tool calls act in. ReadSubagent and ListSubagents
+// share it.
+func claudeTailFacts(tail []byte, wantCwd bool, wantFolders bool) tailFacts {
 	var facts tailFacts
 	lines := splitLines(tail)
 	for i := len(lines) - 1; i >= 0; i-- {
-		if facts.model != "" && facts.effort != "" && (!wantCwd || facts.cwd != "") {
+		if facts.model != "" && facts.effort != "" && (!wantCwd || facts.cwd != "") && (!wantFolders || len(facts.folders) >= maxClaudeWorkFolders) {
 			break
 		}
 		rec, ok := claudeTailRecord(lines[i])
 		if !ok {
 			continue
+		}
+		if wantFolders && len(facts.folders) < maxClaudeWorkFolders {
+			found := claudeToolFolders(rec.Message.Content)
+			for j := len(found) - 1; j >= 0 && len(facts.folders) < maxClaudeWorkFolders; j-- {
+				facts.folders = append(facts.folders, found[j])
+			}
 		}
 		if facts.cwd == "" && rec.Cwd != "" {
 			facts.cwd = rec.Cwd
@@ -249,11 +258,11 @@ func (a *ClaudeAdapter) ListSubagents(sessionPath string) []SubagentIdentity {
 				if err != nil {
 					return tailFacts{}, false
 				}
-				return claudeTailFacts(tail, true), true
+				return claudeTailFacts(tail, true, true), true
 			})
 			id.Model, id.Effort = facts.model, facts.effort
 			if id.Worktree == "" {
-				id.Worktree = facts.cwd
+				id.Worktree = claudeSubagentWorkFolder(facts.cwd, facts.folders)
 			}
 			jobs := claudeBackgroundJobs(path, f.info)
 			if id.Finished && len(jobs) > 0 {

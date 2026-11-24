@@ -14,7 +14,7 @@ import { durationText } from "../reviews/reviews-upcoming-model";
 import { StateMark } from "../state-mark";
 import { MoreButton } from "./companion-block";
 import { capList } from "./companion-flow-model";
-import { agentEnd, certainTicket, heatOf } from "./companion-milestone-model";
+import { agentEnd, certainTicket, heatOf, subagentTicket } from "./companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "./companion-model";
 import type { AgentLinkMarks } from "./companion-recap";
 import { finishedSubagents, type AgentRow } from "./companion-recap-model";
@@ -39,14 +39,16 @@ function SubAgent({
     sub,
     marks,
     now,
+    placed,
 }: {
     row: AgentRow;
     sub: CompanionSubagent;
     marks: AgentLinkMarks;
     now: number;
+    placed?: ReadonlyMap<string, number>;
 }) {
     const t = useT();
-    const ticket = certainTicket(sub?.branch ?? row.branch ?? "", sub?.description ?? "");
+    const ticket = subagentTicket(sub?.branch ?? row.branch ?? "", sub?.description ?? "", sub?.agentid, placed);
     const title = shortTask(sub?.description ?? "") || sub?.kind || row.name;
     const age = sub?.started ? durationText(t, now - sub.started) : "";
     const tip = sub?.description || row.name;
@@ -147,6 +149,7 @@ export function AgentsBlockBody({
     ended,
     now,
     lead,
+    placed,
 }: {
     rows: AgentRow[];
     view: CompanionView;
@@ -155,6 +158,8 @@ export function AgentsBlockBody({
     now: number;
     // The main agent's first name, for the empty line.
     lead?: string;
+    // The tickets the Integration panel placed the sub-agents on (placedTickets), shared with the milestone's rows.
+    placed?: ReadonlyMap<string, number>;
 }) {
     const t = useT();
     const tCount = useTCount();
@@ -177,7 +182,14 @@ export function AgentsBlockBody({
                 <section className="mt-cwork-section" data-testid="companion-subagents">
                     <ul>
                         {list.shown.map((row) => (
-                            <SubAgent key={row.id} row={row} sub={subs.get(row.id)} marks={marks} now={now} />
+                            <SubAgent
+                                key={row.id}
+                                row={row}
+                                sub={subs.get(row.id)}
+                                marks={marks}
+                                now={now}
+                                placed={placed}
+                            />
                         ))}
                     </ul>
                     <MoreButton
