@@ -111,7 +111,8 @@ describe("fileConfineScope", () => {
 
     // #2516: the bound is the narrowest root that applies, not only a project.
     it("confines to the workspace's chosen folder or its context's folder when no project narrows it", () => {
-        const chosen = { oid: "ws1", meta: { "molten:folder": "/c/w", "molten:folderchosen": true } } as Workspace;
+        const chosen = workspace("", "/c/w");
+        (chosen.meta as Record<string, any>)["molten:folderchosen"] = true;
         expect(fileConfineScope(chosen, "")).toEqual({ root: "/c/w", name: "w" });
         expect(fileConfineScope(workspace(""), "", "/c")).toEqual({ root: "/c", name: "c" });
         expect(fileConfineScope(workspace("/c/w/p"), "", "/c")).toEqual({ root: "/c/w/p", name: "p" });
