@@ -36,8 +36,10 @@ import "embed"
 // agent-decisions.md tells a lead to settle the stop of an agent whose question it decided, with `molten agent
 // decision settle` (#1876, FR-REV-022 AC20).
 // agent-plan.md tells an agent to publish its plan with `molten agent plan`, shown in the companion (#2430).
+// sf-identity-rule.md tells an agent its SaaSFoundryAI identity (#2514): the molten-pipeline guide includes it
+// ({{SF_IDENTITY_RULE}}), with each agent's own id.
 //
-//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md pipeline-writing-guide.md pipeline-setup-agent.md materials.md files.md pages.md bookmarks.md learning.md morph-design.md agent-decisions.md agent-plan.md all:examples
+//go:embed mod-format.md morph.md language-pack.md molten-pipeline.md molten-bug.md local-ci-rule.md sandbox-rule.md sf-identity-rule.md pipeline-format.md agent-states.md agent-integrations.md worktrees.md claude-code-parts.md review.md pr-signature.md pipeline-writing-guide.md pipeline-setup-agent.md materials.md files.md pages.md bookmarks.md learning.md morph-design.md agent-decisions.md agent-plan.md all:examples
 var Files embed.FS
 
 const ReviewGuideFile = "review.md"
@@ -49,3 +51,4 @@ const PipelineGuideFile = "molten-pipeline.md"
 const BugGuideFile = "molten-bug.md"
 const LocalCiRuleFile = "local-ci-rule.md"
 const SandboxRuleFile = "sandbox-rule.md"
+const SfIdentityRuleFile = "sf-identity-rule.md"

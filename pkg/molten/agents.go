@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/agentdocs"
@@ -28,6 +29,8 @@ const BugGuideName = "molten-bug"
 const agentRequestPlaceholder = "{{REQUEST}}"
 const localCiRulePlaceholder = "{{LOCAL_CI_RULE}}"
 const sandboxRulePlaceholder = "{{SANDBOX_RULE}}"
+const sfIdentityRulePlaceholder = "{{SF_IDENTITY_RULE}}"
+const sfAgentIdPlaceholder = "{{SF_AGENT_ID}}"
 const agentDescription = "Turn a plain-language request into a morph of MoltenTerm with the molten command"
 
 type AgentGuide struct {
@@ -346,6 +349,35 @@ func SandboxRule() (string, error) {
 	return strings.TrimSpace(string(data)), err
 }
 
+// SfIdentityRule is the text telling an agent its SaaSFoundryAI identity (#2514); {{SF_AGENT_ID}} stays in it, for
+// each agent's own id (withSfAgentId).
+func SfIdentityRule() (string, error) {
+	data, err := agentdocs.Files.ReadFile(agentdocs.SfIdentityRuleFile)
+	return strings.TrimSpace(string(data)), err
+}
+
+// SfAgentId is the SaaSFoundryAI identity of the profile's agent, "" when it has none (the generic profile included).
+func (p AgentProfile) SfAgentId() string {
+	if p.Executable == "" {
+		return ""
+	}
+	for _, kind := range AgentKinds {
+		if slices.Contains(kind.Commands, p.Executable) {
+			return SfAgentId(kind.Id)
+		}
+	}
+	return ""
+}
+
+// withSfAgentId writes the identity into a guide: the agent's own id, else the command that prints it.
+func withSfAgentId(body string, id string) string {
+	text := "the id `molten agent identity` prints"
+	if id != "" {
+		text = "`" + id + "`"
+	}
+	return strings.ReplaceAll(body, sfAgentIdPlaceholder, text)
+}
+
 func expandGuideIncludes(body string) (string, error) {
 	includes := []struct {
 		placeholder string
@@ -353,6 +385,7 @@ func expandGuideIncludes(body string) (string, error) {
 	}{
 		{localCiRulePlaceholder, LocalCiRule},
 		{sandboxRulePlaceholder, SandboxRule},
+		{sfIdentityRulePlaceholder, SfIdentityRule},
 	}
 	for _, inc := range includes {
 		if !strings.Contains(body, inc.placeholder) {
@@ -385,7 +418,7 @@ func (p AgentProfile) RenderGuide(guide AgentGuide, version string) (string, err
 	if err != nil {
 		return "", err
 	}
-	return p.render(guide, FilterAgentBlocks(body, p.Id), agentMarker(guide.Name, version, p.Id)), nil
+	return p.render(guide, withSfAgentId(FilterAgentBlocks(body, p.Id), p.SfAgentId()), agentMarker(guide.Name, version, p.Id)), nil
 }
 
 // A guide may hold text for some agents only (FR-MORPH-010: the Claude Code part exists for Claude Code alone), in
@@ -586,7 +619,7 @@ func WriteDocs(dir string) error {
 			if err != nil {
 				return err
 			}
-			data = []byte(FilterAgentBlocks(strings.ReplaceAll(expanded, agentRequestPlaceholder, "(the user's request)"), GenericAgentId))
+			data = []byte(withSfAgentId(FilterAgentBlocks(strings.ReplaceAll(expanded, agentRequestPlaceholder, "(the user's request)"), GenericAgentId), ""))
 		}
 		return os.WriteFile(target, data, 0644)
 	})

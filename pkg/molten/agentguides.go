@@ -4,6 +4,7 @@
 package molten
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -201,12 +202,17 @@ func StartAgentGuideSync() {
 			return
 		}
 		env := AgentEnv{Home: home, DataDir: wavebase.GetWaveDataDir(), Getenv: os.Getenv}
-		for _, result := range SyncAgentGuides(env, wavebase.WaveVersion, LoginPath()) {
+		pathList := LoginPath()
+		for _, result := range SyncAgentGuides(env, wavebase.WaveVersion, pathList) {
 			if result.Err != nil {
 				log.Printf("molten: agent guides for %s: %v\n", result.Id, result.Err)
 				continue
 			}
 			log.Printf("molten: agent guides installed for %s (v%s)\n", result.Id, wavebase.WaveVersion)
+		}
+		// The agents' SaaSFoundryAI identities (#2514): read once per start, saved for the agent launcher.
+		if err := RefreshSfCatalog(context.Background(), env.DataDir, pathList); err != nil {
+			log.Printf("molten: SaaSFoundryAI agent catalog not read, built-in identities apply: %v\n", err)
 		}
 	}()
 }

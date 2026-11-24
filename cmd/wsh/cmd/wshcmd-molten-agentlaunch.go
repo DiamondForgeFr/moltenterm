@@ -95,7 +95,8 @@ func runMoltenAgentLaunch(agent string, args []string, getenv func(string) strin
 		return moltenAgentLaunchMissingCode
 	}
 	if reason := agentlaunch.StepAsideReason(getenv, args, adapter); reason != "" {
-		return execAgentBinary(real, args, os.Environ())
+		// The identity is not part of the integration: a run that gets nothing added still learns which agent it is.
+		return execAgentBinary(real, args, moltenLaunchIdentityEnv(os.Environ(), adapter.Id(), getenv))
 	}
 	start := time.Now()
 	connected := moltenLaunchConnect(getenv(wshutil.WaveJwtTokenVarName))
@@ -135,6 +136,16 @@ func moltenSetEnv(env []string, name string, value string) []string {
 		}
 	}
 	return append(rtn, name+"="+value)
+}
+
+// moltenLaunchIdentityEnv hands the agent its SaaSFoundryAI identity (#2514), from the catalog wavesrv saved, else the
+// built-in mapping: the launcher never waits for SaaSFoundryAI itself.
+func moltenLaunchIdentityEnv(env []string, agentId string, getenv func(string) string) []string {
+	var catalog []molten.SfAgentProfile
+	if dataDir, err := moltenLaunchDataDir(getenv); err == nil {
+		catalog, _ = molten.ReadSfCatalogCache(dataDir)
+	}
+	return molten.WithSfAgentEnv(env, agentId, catalog)
 }
 
 // moltenLaunchSettings asks wavesrv for the project's places (FR-SHELL-105), then for the integration settings
@@ -245,7 +256,7 @@ func planMoltenAgentLaunchHooks(adapter agentlaunch.LaunchAdapter, real string, 
 	if execKeepsPid {
 		report.Pid = os.Getpid()
 	}
-	env := append(os.Environ(), agentlaunch.LaunchedVarName+"="+adapter.Id())
+	env := moltenLaunchIdentityEnv(append(os.Environ(), agentlaunch.LaunchedVarName+"="+adapter.Id()), adapter.Id(), getenv)
 	plan, dataDir, err := moltenLaunchPlanWithin(adapter, args, getenv, moltenAgentLaunchPlanTimeout, project)
 	if err != nil {
 		report.StepAside, report.StepAsideText = err.Error(), uimsg.TextOf(err)

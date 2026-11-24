@@ -11,6 +11,8 @@ what is missing, and only after the user agreed.
 
 {{SANDBOX_RULE}}
 
+{{SF_IDENTITY_RULE}}
+
 ## Steps
 
 1. Check that you run inside MoltenTerm: `molten help` must work. If `molten` is not found, tell the user to run

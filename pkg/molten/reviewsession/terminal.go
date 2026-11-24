@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpreview"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
@@ -23,11 +24,33 @@ func OpenTerminal(ctx context.Context, tabId string, afterBlockId string, meta w
 	if manager == nil || manager.env.CreateTerminal == nil || manager.env.StartAndType == nil {
 		return "", errNotStarted
 	}
-	blockId, err := manager.env.CreateTerminal(ctx, tabId, afterBlockId, meta)
+	blockId, err := manager.env.CreateTerminal(ctx, tabId, afterBlockId, WithSfAgentMeta(meta, line))
 	if err != nil {
 		return "", err
 	}
 	return blockId, manager.env.StartAndType(ctx, tabId, blockId, line)
+}
+
+// WithSfAgentMeta gives the terminal of a line that starts a coding agent that agent's SaaSFoundryAI identity in its
+// environment (#2514), on top of the meta's own variables; Kimi Code has no launcher to set it. meta is not changed.
+func WithSfAgentMeta(meta waveobj.MetaMapType, line string) waveobj.MetaMapType {
+	id := molten.SfAgentId(molten.MatchAgentCommand(line))
+	if id == "" {
+		return meta
+	}
+	rtn := waveobj.MetaMapType{}
+	for k, v := range meta {
+		rtn[k] = v
+	}
+	env := map[string]any{}
+	if own, ok := meta[waveobj.MetaKey_CmdEnv].(map[string]any); ok {
+		for k, v := range own {
+			env[k] = v
+		}
+	}
+	env[molten.SfAgentEnvVar] = id
+	rtn[waveobj.MetaKey_CmdEnv] = env
+	return rtn
 }
 
 // SessionAgent is the agent of the PR's review session, "" when it has none.
