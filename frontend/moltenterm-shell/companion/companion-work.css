@@ -662,19 +662,34 @@
     min-width: 0;
 }
 
+/* What it waits for, the job and since when on one line: the job's words give way first, the other two stay whole. */
 .mt-cwork-sub-wait {
+    display: flex;
     flex: 1 1 auto;
+    align-items: baseline;
+    gap: 5px;
     min-width: 0;
     color: var(--mt-text-2);
     font-size: var(--mt-text-11);
 }
 
 .mt-cwork-sub-waits {
+    flex: none;
     color: var(--mt-state-running);
+    white-space: nowrap;
+}
+
+.mt-cwork-sub-job {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mt-cwork-sub-since {
+    flex: none;
     color: var(--mt-text-3);
+    white-space: nowrap;
 }
 
 .mt-cwork-sub-tier {

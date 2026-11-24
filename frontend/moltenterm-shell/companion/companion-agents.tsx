@@ -78,10 +78,10 @@ function SubAgent({
                         </span>
                     </span>
                     <span className="mt-cwork-sub-line" data-tip={row.configTitle || undefined}>
-                        <span className="mt-cwork-sub-wait truncate" data-testid="companion-subagent-job">
+                        <span className="mt-cwork-sub-wait" data-testid="companion-subagent-job">
                             <span className="mt-cwork-sub-waits">{waitingWords(t, job?.category ?? null)}</span>
-                            {job != null ? <span className="mt-cwork-sub-job">{` ${jobLine(t, job)}`}</span> : null}
-                            {since ? <span className="mt-cwork-sub-since">{` · ${since}`}</span> : null}
+                            {job != null ? <span className="mt-cwork-sub-job">{jobLine(t, job)}</span> : null}
+                            {since ? <span className="mt-cwork-sub-since">{`· ${since}`}</span> : null}
                         </span>
                         {sub?.kind ? (
                             <span className="mt-cwork-sub-tier" data-testid="companion-subagent-tier">

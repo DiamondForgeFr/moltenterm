@@ -1190,12 +1190,12 @@ describe("the sub-agents that wait on their own work (#2502)", () => {
         expect(rows[1]).toContain("Tree scans");
         expect(rows[1]).toContain(">waiting for its tests:<");
         expect(rows[1]).toContain("tests (vitest)");
-        expect(rows[1]).toContain(" · 7 min");
+        expect(rows[1]).toContain(">· 7 min<");
         expect(rows[1]).toContain("background · 1 h 02");
         expect(rows[1]).toContain('data-testid="companion-subagent-tier">→ sf-build<');
         expect(rows[0]).toContain(">waiting for its build:<");
         expect(rows[0]).toContain("frontend build");
-        expect(rows[0]).toContain(" · 3 min");
+        expect(rows[0]).toContain(">· 3 min<");
         expect(rows[0]).toContain("→ sf-fix");
         expect(rows[2]).not.toContain("companion-subagent-job");
         expect(rows[2]).toContain('data-state="running">running<');
@@ -1207,7 +1207,7 @@ describe("the sub-agents that wait on their own work (#2502)", () => {
             expect(html).toContain(">attend ses tests :<");
             expect(html).toContain(">attend sa compilation :<");
             expect(html).toContain("build du frontend");
-            expect(html).toContain(" · 7 min");
+            expect(html).toContain(">· 7 min<");
         });
     });
 
@@ -1224,7 +1224,7 @@ describe("the sub-agents that wait on their own work (#2502)", () => {
         const html = markup(view([noJob, two]), withMilestone, 900);
         expect(html).toContain(">waiting for its background work<");
         expect(html).toContain("tests (Go) +1");
-        expect(html).toContain(" · 9 min");
+        expect(html).toContain(">· 9 min<");
     });
 
     it("keeps one that waits among the agents at work whatever its lead says, and counts it in the block", () => {
