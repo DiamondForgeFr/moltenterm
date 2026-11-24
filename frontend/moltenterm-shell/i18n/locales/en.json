@@ -337,7 +337,8 @@
             "switchToTerminal": "Switch back to Terminal",
             "restartingCommand": "Restarting Command",
             "commandSucceeded": "Command Exited Successfully",
-            "exitCode": "Exit Code: {code}"
+            "exitCode": "Exit Code: {code}",
+            "linkHint": "{mod}-click to open link"
         },
         "workspace": {
             "switch": "Switch workspace",
