@@ -101,6 +101,15 @@ func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Cal
 			next, err := s.Touch(req)
 			return next, nil, err
 		})
+	case ShapesCommand:
+		req, err := decode[ShapesRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return l.apply(ctx, "", func(s State) (State, []string, error) {
+			next, err := s.AssignShapes(req)
+			return next, nil, err
+		})
 	case LandingCommand:
 		req, err := decode[LandingRequest](data)
 		if err != nil {

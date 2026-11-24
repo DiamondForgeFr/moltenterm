@@ -7,9 +7,13 @@ import {
     applyPlace,
     contrastRatio,
     gradientForeground,
+    InkDark,
+    InkLight,
+    MinInkContrast,
     mixColor,
     normaliseColourChoice,
     parseColor,
+    readableInk,
     workspaceColourStops,
     WorkspaceGradientMetaKey,
 } from "./accent";
@@ -111,6 +115,51 @@ describe("gradientForeground (#657 AC5)", () => {
         expect(worst(fg)).toBeGreaterThanOrEqual(worst(other));
         expect(gradientForeground(["#00ffdb", "#429dff"].map(parseColor))).toBe("#000000");
         expect(gradientForeground(["#1e3a8a", "#4c1d95"].map(parseColor))).toBe("#ffffff");
+    });
+});
+
+describe("readableInk (#2519)", () => {
+    const worst = (stops: string[], ink: string) =>
+        Math.min(...stops.map((s) => contrastRatio(parseColor(s), parseColor(ink))));
+
+    it("is the light ink on dark paint and the dark ink on light paint", () => {
+        expect(readableInk([parseColor("#1e3a8a")])).toBe(InkLight);
+        expect(readableInk([parseColor("#ffe900")])).toBe(InkDark);
+        expect(readableInk([parseColor("#58c142")])).toBe(InkDark);
+    });
+
+    it("reads at 4.5:1 or better on every stop of a gradient", () => {
+        for (const stops of [["#ffc53d", "#ff7c0d", "#ff453a"], ["#00ffdb", "#429dff"], ["#ff5fb8", "#8b7bff"]]) {
+            const ink = readableInk(stops.map(parseColor));
+            expect(worst(stops, ink)).toBeGreaterThanOrEqual(MinInkContrast);
+        }
+    });
+
+    // The two inks reach at best 4.2:1 around a relative luminance of 0.19: pure black or white take over there.
+    it("falls back to pure black or white on the mid-tones the two inks cannot reach 4.5:1 on", () => {
+        for (const colour of ["#8b5cd6", "#6e6ae8", "#9a5bb5"]) {
+            expect(Math.max(worst([colour], InkLight), worst([colour], InkDark))).toBeLessThan(MinInkContrast);
+            const ink = readableInk([parseColor(colour)]);
+            expect(["#000000", "#ffffff"]).toContain(ink);
+            expect(worst([colour], ink)).toBeGreaterThanOrEqual(MinInkContrast);
+        }
+    });
+
+    it("holds 4.5:1 on any single colour of a sweep of the colour cube", () => {
+        const step = 17;
+        for (let r = 0; r < 256; r += step * 3) {
+            for (let g = 0; g < 256; g += step * 3) {
+                for (let b = 0; b < 256; b += step * 3) {
+                    const rgb = { r, g, b };
+                    expect(contrastRatio(rgb, parseColor(readableInk([rgb])))).toBeGreaterThanOrEqual(MinInkContrast);
+                }
+            }
+        }
+    });
+
+    it("is the dark ink for no paint at all", () => {
+        expect(readableInk([])).toBe(InkDark);
+        expect(readableInk(null)).toBe(InkDark);
     });
 });
 

@@ -13609,6 +13609,26 @@
             "searchPlaceholder": "Chercher une activité ou une icône, par exemple voyage",
             "none": "Aucune icône ne correspond à « {query} ».",
             "more": "{count} de plus : précisez la recherche."
+        },
+        "shape": {
+            "label": "Forme du ruban",
+            "choose": "Choisir une forme de ruban",
+            "drawAnother": "En tirer une autre",
+            "v": "Pointe en V",
+            "swallowtail": "Queue d’aronde",
+            "arrow": "Flèche",
+            "bevel": "Biseau",
+            "bevelReversed": "Biseau inversé",
+            "round": "Arrondi",
+            "step": "Créneau",
+            "stepReversed": "Créneau inversé",
+            "saw": "Dents de scie",
+            "split": "Pointe fendue",
+            "tenon": "Tenon",
+            "mortise": "Mortaise",
+            "blade": "Lame",
+            "moon": "Lune",
+            "facet": "Facette"
         }
     }
 }

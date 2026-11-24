@@ -5,7 +5,7 @@
 // the hue wheel, curated gradients and a custom colour. A choice is a string of 1-3 lowercase #rrggbb stops joined by
 // commas, the way accent.ts reads and stores it.
 
-import { gradientForeground, normaliseColourChoice, parseColor } from "./accent";
+import { gradientForeground, normaliseColourChoice, parseColor, readableInk } from "./accent";
 import { t } from "./i18n/i18n";
 
 // Around the hue wheel, all light enough to read on the dark theme. wavesrv's colours (pkg/wcore/workspace.go,
@@ -90,6 +90,11 @@ export function colourChoiceCss(choice: string, angle = "135deg"): string {
 // The check mark drawn on a swatch, readable over all of it.
 export function colourChoiceForeground(choice: string): string {
     return gradientForeground(colourStops(choice).map(parseColor));
+}
+
+// The ink of a ribbon painted in this colour: light or dark, at least 4.5:1 on every stop (readableInk).
+export function colourChoiceInk(choice: string): string {
+    return readableInk(colourStops(choice).map(parseColor));
 }
 
 // The logo's colours, each on its own, then one gradient of the first two and, with three or more, one of the first

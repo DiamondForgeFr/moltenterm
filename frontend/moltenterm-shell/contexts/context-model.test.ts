@@ -18,6 +18,7 @@ import {
     makeChecklist,
     makeRibbons,
     readContexts,
+    shapeSubjects,
     waitingElsewhere,
     windowTitleWithContext,
     WorkspaceContextMetaKey,
@@ -57,7 +58,15 @@ describe("reading the contexts", () => {
             ],
         });
         expect(list.map((c) => c.id)).toEqual(["a", "b"]);
-        expect(list[0]).toEqual({ id: "a", name: "A", description: "d", emblem: "book", last: "w1", folder: "/c" });
+        expect(list[0]).toEqual({
+            id: "a",
+            name: "A",
+            description: "d",
+            emblem: "book",
+            shape: "",
+            last: "w1",
+            folder: "/c",
+        });
         expect(list[1].name).toBe("");
         expect(list[1].folder).toBe("");
     });
@@ -68,6 +77,18 @@ describe("reading the contexts", () => {
         expect(contextFolderOf(list, { "molten:context": "b" })).toBe("/clients/sefers");
         expect(contextFolderOf(list, {})).toBe("");
         expect(contextFolderOf(list, { "molten:context": "gone" })).toBe("");
+    });
+
+    it("reads the shape a context stores, and none for a shape that is not one of the fifteen", () => {
+        const list = readContexts({
+            "molten:contexts": [
+                { id: "a", shape: "moon" },
+                { id: "b", shape: "triangle" },
+                { id: "c", shape: 4 },
+                { id: "d" },
+            ],
+        });
+        expect(list.map((c) => c.shape)).toEqual(["moon", "", "", ""]);
     });
 
     it("puts a workspace with no context, or an unknown one, in the first context", () => {
@@ -188,6 +209,31 @@ describe("the ribbons of the menu", () => {
         const ribbons = makeRibbons(contexts, entries, DefaultContextId, () => 1, t);
         expect(waitingElsewhere(ribbons)).toBe(2);
         expect(ribbons[0].waiting).toBe(0);
+    });
+
+    it("draws each context with its own shape, the V point until the migration reaches it", () => {
+        const withShapes: ContextInfo[] = [{ id: DefaultContextId }, { id: "df", shape: "moon" }, { id: "x" }];
+        const ribbons = makeRibbons(withShapes, entries, DefaultContextId, () => 0, t);
+        expect(ribbons.map((r) => r.shape)).toEqual(["v", "moon", "v"]);
+    });
+
+    it("counts the agents of each context that work, the window's own context included", () => {
+        const working = (id: string) => ({ a: 1, b: 2, c: 1 })[id] ?? 0;
+        const ribbons = makeRibbons(contexts, entries, DefaultContextId, () => 0, t, working);
+        expect(ribbons.map((r) => [r.here, r.working])).toEqual([
+            [true, 1],
+            [false, 3],
+        ]);
+        expect(makeRibbons(contexts, entries, DefaultContextId, () => 0, t).map((r) => r.working)).toEqual([0, 0]);
+    });
+
+    it("gives the shape draw each context with the colour of its ribbon", () => {
+        const subjects = shapeSubjects(contexts, entries);
+        expect(subjects.map((s) => [s.context.id, s.colour])).toEqual([
+            [DefaultContextId, "#111111"],
+            ["df", "#222222"],
+        ]);
+        expect(shapeSubjects([...contexts, { id: "empty" }], entries)[2].colour).toBe("");
     });
 
     it("has no landing for a context with no workspace", () => {

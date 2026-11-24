@@ -20,6 +20,7 @@ import {
     contextIdOf,
     ContextInfo,
     ContextsRoute,
+    ContextShapesCommand,
     ContextTouchCommand,
     ContextUpdateCommand,
     readContexts,
@@ -35,6 +36,7 @@ export type ContextCreateRequest = {
     name: string;
     description?: string;
     emblem?: string;
+    shape?: string;
     workspaces?: string[];
 };
 
@@ -43,6 +45,7 @@ export type ContextUpdateRequest = {
     name?: string;
     description?: string;
     emblem?: string;
+    shape?: string;
     // An absolute folder, or "" to forget it (#2516).
     folder?: string;
     // Only the workspaces the form moved: the ones that come in, and the ones that leave for the first other context. A
@@ -114,6 +117,15 @@ export async function assignWorkspaceToContext(workspaceId: string, contextId: s
 
 export async function touchContext(contextId: string, workspaceId: string): Promise<void> {
     await callContexts(ContextTouchCommand, { contextid: contextId, workspaceid: workspaceId });
+}
+
+// Gives shapes, by context id, to the contexts that have none: one that already has one keeps it, so windows that start
+// together and each draw theirs agree on the first write.
+export async function assignContextShapes(shapes: Record<string, string>): Promise<void> {
+    if (Object.keys(shapes).length === 0) {
+        return;
+    }
+    await callContexts(ContextShapesCommand, { shapes });
 }
 
 // The context remembers the workspace it showed last, so choosing it lands there. Only a view on screen says so: a

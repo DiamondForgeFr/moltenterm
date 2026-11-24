@@ -13609,6 +13609,26 @@
             "searchPlaceholder": "Search an activity or an icon, e.g. travel",
             "none": "No icon matches “{query}”.",
             "more": "{count} more: keep typing to narrow them down."
+        },
+        "shape": {
+            "label": "Ribbon shape",
+            "choose": "Choose a ribbon shape",
+            "drawAnother": "Draw another",
+            "v": "V point",
+            "swallowtail": "Swallowtail",
+            "arrow": "Arrow",
+            "bevel": "Bevel",
+            "bevelReversed": "Reversed bevel",
+            "round": "Round",
+            "step": "Step",
+            "stepReversed": "Reversed step",
+            "saw": "Saw teeth",
+            "split": "Split point",
+            "tenon": "Tenon",
+            "mortise": "Mortise",
+            "blade": "Blade",
+            "moon": "Moon",
+            "facet": "Facet"
         }
     }
 }

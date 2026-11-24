@@ -357,7 +357,7 @@ func TestSameIgnoringLastTellsARememberedWorkspaceFromARealChange(t *testing.T) 
 }
 
 func TestMetaValueRoundTrips(t *testing.T) {
-	list := []Context{{Id: "a", Name: "A", Description: "d", Emblem: "book", Last: "w", Folder: "/c"}, {Id: "b"}}
+	list := []Context{{Id: "a", Name: "A", Description: "d", Emblem: "book", Shape: "arrow", Last: "w", Folder: "/c"}, {Id: "b"}}
 	got := ReadContexts(waveobj.MetaMapType{ClientMetaKey: MetaValue(list)})
 	if !SameContexts(got, list) {
 		t.Fatalf("got %+v, want %+v", got, list)
@@ -386,5 +386,86 @@ func TestUpdateSetsTheContextsFolder(t *testing.T) {
 	cleared, _, err := next.Update(UpdateRequest{Id: "c", Folder: &empty})
 	if err != nil || FolderOf(cleared.Contexts, waveobj.MetaMapType{WorkspaceMetaKey: "c"}) != "" {
 		t.Fatalf("forgetting the folder: %v", err)
+	}
+}
+
+// The ribbon's end shapes (#2519): a context stores the one it carries, among fifteen.
+func TestTheRibbonHasFifteenDistinctShapes(t *testing.T) {
+	if len(ShapeIds) != 15 {
+		t.Fatalf("want 15 shapes, got %d", len(ShapeIds))
+	}
+	seen := map[string]bool{}
+	for _, id := range ShapeIds {
+		if seen[id] || !emblemPattern.MatchString(id) {
+			t.Fatalf("shape %q is repeated or not a plain id", id)
+		}
+		seen[id] = true
+	}
+}
+
+func TestCreateStoresTheShapeAndRefusesAnUnknownOne(t *testing.T) {
+	s := MakeState(waveobj.MetaMapType{}, workspaces("a"))
+	next, _, err := s.Create(CreateRequest{Name: "N", Shape: " moon "}, "x")
+	if err != nil || next.Contexts[1].Shape != "moon" {
+		t.Fatalf("err %v, got %+v", err, next.Contexts)
+	}
+	next, _, err = s.Create(CreateRequest{Name: "N"}, "y")
+	if err != nil || next.Contexts[1].Shape != "" {
+		t.Fatalf("a client that sends no shape leaves it empty for the migration: err %v, got %+v", err, next.Contexts)
+	}
+	for _, bad := range []string{"triangle", "V", "../v", "🔥"} {
+		if _, _, err := s.Create(CreateRequest{Name: "N", Shape: bad}, "z"); err == nil {
+			t.Errorf("created with the shape %q", bad)
+		}
+	}
+}
+
+func TestUpdateChangesTheShapeOnlyToAKnownOne(t *testing.T) {
+	s := MakeState(waveobj.MetaMapType{ClientMetaKey: []any{
+		map[string]any{"id": "a", "name": "A", "shape": "v"},
+	}}, workspaces("w"))
+	shape := "facet"
+	next, _, err := s.Update(UpdateRequest{Id: "a", Shape: &shape})
+	if err != nil || next.Contexts[0].Shape != "facet" || next.Contexts[0].Name != "A" {
+		t.Fatalf("err %v, got %+v", err, next.Contexts)
+	}
+	for _, bad := range []string{"", "triangle"} {
+		if _, _, err := s.Update(UpdateRequest{Id: "a", Shape: &bad}); err == nil {
+			t.Errorf("a context took the shape %q", bad)
+		}
+	}
+	if s.Contexts[0].Shape != "v" {
+		t.Fatalf("the state it came from is not changed")
+	}
+}
+
+// The migration: contexts stored before shapes existed get theirs once, and the first write wins.
+func TestAssignShapesFillsOnlyTheContextsThatHaveNone(t *testing.T) {
+	s := MakeState(waveobj.MetaMapType{ClientMetaKey: []any{
+		map[string]any{"id": "a", "name": "A"},
+		map[string]any{"id": "b", "name": "B", "shape": "round"},
+		map[string]any{"id": "c", "name": "C"},
+	}}, workspaces("w"))
+	next, err := s.AssignShapes(ShapesRequest{Shapes: map[string]string{"a": "v", "b": "arrow", "c": "blade", "gone": "moon"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := []string{next.Contexts[0].Shape, next.Contexts[1].Shape, next.Contexts[2].Shape}
+	if !slices.Equal(got, []string{"v", "round", "blade"}) {
+		t.Fatalf("shapes %v: a context keeps the one it has and an unknown id is skipped", got)
+	}
+	again, err := next.AssignShapes(ShapesRequest{Shapes: map[string]string{"a": "facet", "c": "facet"}})
+	if err != nil || !SameContexts(again.Contexts, next.Contexts) {
+		t.Fatalf("a second window's draw changed the list: err %v, %+v", err, again.Contexts)
+	}
+	if s.Contexts[0].Shape != "" {
+		t.Fatalf("the state it came from is not changed")
+	}
+}
+
+func TestAssignShapesRefusesAnUnknownShape(t *testing.T) {
+	s := MakeState(waveobj.MetaMapType{}, workspaces("w"))
+	if _, err := s.AssignShapes(ShapesRequest{Shapes: map[string]string{DefaultId: "v", "x": "triangle"}}); err == nil {
+		t.Fatalf("a request naming an unknown shape was taken")
 	}
 }

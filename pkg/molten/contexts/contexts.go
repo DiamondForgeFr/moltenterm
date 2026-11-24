@@ -36,6 +36,8 @@ const (
 	ListCommand   = "contextlist"
 	// The workspace a window lands on when the one it shows is deleted: one of the same context, made when none is free.
 	LandingCommand = "contextlanding"
+	// Gives a shape to the contexts that have none (the one-time migration of the ribbon's end shapes).
+	ShapesCommand = "contextshapes"
 
 	// The first context of an installation that stored none: its name is empty and the interface shows its own
 	// language's ("My workshop", "Mon atelier").
@@ -50,6 +52,13 @@ const (
 
 var emblemPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`)
 
+// The end shapes of the ribbon (FR-SHELL-159, #2519): the context stores the id of the one it carries. The drawing of each
+// is in frontend/moltenterm-shell/contexts/ribbon-shapes.ts, which holds the same ids in the same order.
+var ShapeIds = []string{
+	"v", "swallowtail", "arrow", "bevel", "bevel-reversed", "round", "step", "step-reversed",
+	"saw", "split", "tenon", "mortise", "blade", "moon", "facet",
+}
+
 type Context struct {
 	Id string `json:"id"`
 	// Empty on the default context until the developer renames it: the interface shows its own default name.
@@ -57,6 +66,9 @@ type Context struct {
 	Description string `json:"description,omitempty"`
 	// A Lucide icon's name, in kebab case ("briefcase").
 	Emblem string `json:"emblem,omitempty"`
+	// The end shape of the context's ribbon, one of ShapeIds. Empty until a window gives one (the migration of contexts
+	// stored before shapes existed).
+	Shape string `json:"shape,omitempty"`
 	// The workspace this context last showed in a window: where choosing the context lands.
 	Last string `json:"last,omitempty"`
 	// The outer bound of its workspaces' folders (#2516): context ⊃ workspace ⊃ project (molten.BoundingFolder).
@@ -74,6 +86,7 @@ type CreateRequest struct {
 	Name        string   `json:"name"`
 	Description string   `json:"description,omitempty"`
 	Emblem      string   `json:"emblem,omitempty"`
+	Shape       string   `json:"shape,omitempty"`
 	Workspaces  []string `json:"workspaces,omitempty"`
 }
 
@@ -86,10 +99,17 @@ type UpdateRequest struct {
 	Name        *string `json:"name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Emblem      *string `json:"emblem,omitempty"`
+	Shape       *string `json:"shape,omitempty"`
 	// An absolute folder, or "" to forget it.
 	Folder           *string  `json:"folder,omitempty"`
 	AddWorkspaces    []string `json:"addworkspaces,omitempty"`
 	RemoveWorkspaces []string `json:"removeworkspaces,omitempty"`
+}
+
+// ShapesRequest gives shapes to contexts by id. A context that already has one keeps it: the windows that start together
+// each draw their own, and the first write wins.
+type ShapesRequest struct {
+	Shapes map[string]string `json:"shapes"`
 }
 
 type DeleteRequest struct {
@@ -255,6 +275,19 @@ func FolderOf(list []Context, workspaceMeta waveobj.MetaMapType) string {
 	return ""
 }
 
+// cleanShape checks a ribbon shape's id. An empty one is allowed where the caller says so: a context made by a client that
+// does not know shapes yet.
+func cleanShape(shape string, allowEmpty bool) (string, error) {
+	shape = strings.TrimSpace(shape)
+	if shape == "" && allowEmpty {
+		return "", nil
+	}
+	if !slices.Contains(ShapeIds, shape) {
+		return "", fmt.Errorf("the ribbon shape %q is not one of the %d shapes", shape, len(ShapeIds))
+	}
+	return shape, nil
+}
+
 // moveTo puts a workspace in a context and says whether it moved.
 func (s *State) moveTo(workspaceId string, contextId string) bool {
 	if s.Of[workspaceId] == contextId {
@@ -287,6 +320,10 @@ func (s State) Create(req CreateRequest, id string) (State, []string, error) {
 	if err != nil {
 		return s, nil, err
 	}
+	shape, err := cleanShape(req.Shape, true)
+	if err != nil {
+		return s, nil, err
+	}
 	if id == "" || s.indexOf(id) >= 0 {
 		return s, nil, fmt.Errorf("context id %q is empty or taken", id)
 	}
@@ -294,7 +331,7 @@ func (s State) Create(req CreateRequest, id string) (State, []string, error) {
 		return s, nil, err
 	}
 	rtn := s.clone()
-	rtn.Contexts = append(rtn.Contexts, Context{Id: id, Name: name, Description: cleanLine(req.Description, MaxDescriptionRunes), Emblem: emblem})
+	rtn.Contexts = append(rtn.Contexts, Context{Id: id, Name: name, Description: cleanLine(req.Description, MaxDescriptionRunes), Emblem: emblem, Shape: shape})
 	moved := []string{}
 	for _, ws := range req.Workspaces {
 		if rtn.moveTo(ws, id) {
@@ -334,6 +371,13 @@ func (s State) Update(req UpdateRequest) (State, []string, error) {
 			return s, nil, err
 		}
 		rtn.Contexts[at].Folder = folder
+	}
+	if req.Shape != nil {
+		shape, err := cleanShape(*req.Shape, false)
+		if err != nil {
+			return s, nil, err
+		}
+		rtn.Contexts[at].Shape = shape
 	}
 	moved := []string{}
 	if err := s.checkWorkspaces(req.AddWorkspaces); err != nil {
@@ -430,6 +474,26 @@ func (s State) Touch(req TouchRequest) (State, error) {
 	return rtn, nil
 }
 
+// AssignShapes gives each named context the shape asked for when it has none. A context that has one keeps it, and an id
+// that names no context is skipped (the window that asked may hold an older list). A shape that is not one of ShapeIds
+// refuses the whole request.
+func (s State) AssignShapes(req ShapesRequest) (State, error) {
+	for _, shape := range req.Shapes {
+		if _, err := cleanShape(shape, false); err != nil {
+			return s, err
+		}
+	}
+	rtn := s.clone()
+	for id, shape := range req.Shapes {
+		at := rtn.indexOf(id)
+		if at < 0 || rtn.Contexts[at].Shape != "" {
+			continue
+		}
+		rtn.Contexts[at].Shape = strings.TrimSpace(shape)
+	}
+	return rtn, nil
+}
+
 // SameContexts tells whether two lists are the same, in the same order.
 func SameContexts(a []Context, b []Context) bool {
 	return slices.Equal(a, b)
@@ -464,6 +528,9 @@ func MetaValue(list []Context) []any {
 		}
 		if c.Emblem != "" {
 			entry["emblem"] = c.Emblem
+		}
+		if c.Shape != "" {
+			entry["shape"] = c.Shape
 		}
 		if c.Last != "" {
 			entry["last"] = c.Last
