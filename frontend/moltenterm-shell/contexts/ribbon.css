@@ -65,13 +65,12 @@
     animation: mt-ribbon-breathe 7s ease-in-out infinite;
 }
 
+/* The rim's box is the whole shape, so the clip's percentages mean what they mean for the paint; the light itself is the
+   gradient over the top 9px. */
 .mt-ribbon-rim {
-    left: 0;
-    right: 0;
-    top: 0;
-    height: 9px;
+    inset: 0;
     clip-path: var(--ribbon-clip);
-    background: linear-gradient(180deg, rgba(255, 215, 140, 0.85), rgba(255, 160, 60, 0));
+    background: linear-gradient(180deg, rgba(255, 215, 140, 0.85), rgba(255, 160, 60, 0) 9px);
     mix-blend-mode: screen;
 }
 
