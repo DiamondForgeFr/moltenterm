@@ -172,10 +172,12 @@ describe("the bath's reflection", () => {
 
     it("is a thin rim of warm light along the ribbon's top edge, cut to its shape, screened over the paint", () => {
         const rim = rule(".mt-ribbon-rim");
-        expect(rim).toMatch(/top: 0;/);
-        expect(rim).toMatch(/height: 9px;/);
+        // Its box is the whole shape: a clip-path's percentages are relative to the box it cuts, so a 9px box would
+        // squash the end shape and let the light leak out of it.
+        expect(rim).toMatch(/inset: 0;/);
+        expect(rim).not.toMatch(/height:/);
         expect(rim).toMatch(/clip-path: var\(--ribbon-clip\);/);
-        expect(rim).toMatch(/linear-gradient\(180deg, rgba\(255, 215, 140, 0\.85\), rgba\(255, 160, 60, 0\)\)/);
+        expect(rim).toMatch(/linear-gradient\(180deg, rgba\(255, 215, 140, 0\.85\), rgba\(255, 160, 60, 0\) 9px\)/);
         expect(rim).toMatch(/mix-blend-mode: screen;/);
     });
 
