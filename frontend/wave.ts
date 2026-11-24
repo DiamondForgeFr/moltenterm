@@ -197,7 +197,9 @@ async function initWave(initOpts: WaveInitOpts) {
             setMacOSVersion(macOSVersion);
         }
         const [_client, waveWindow, initialTab] = await Promise.all([
-            WOS.loadAndPinWaveObject<Client>(WOS.makeORef("client", initOpts.clientId)),
+            // MOLTENTERM-PATCH (#2526): a spare view loaded the client when it was made and heard none of its changes
+            // since: read again, or a workspace made in a new context shows the contexts and top rows of that moment.
+            WOS.reloadWaveObject<Client>(WOS.makeORef("client", initOpts.clientId)),
             WOS.loadAndPinWaveObject<WaveWindow>(WOS.makeORef("window", initOpts.windowId)),
             WOS.loadAndPinWaveObject<Tab>(WOS.makeORef("tab", initOpts.tabId)),
         ]);

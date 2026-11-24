@@ -143,12 +143,12 @@ describe("palette search words (#1670)", () => {
         const labels = (entries: PaletteEntry[]) => entries.filter((e) => PinIds.includes(e.id)).map((e) => e.label);
         expect(labels(everyEntry())).toEqual([
             "Pin this view in this workspace",
-            "Pin this view everywhere",
+            "Pin this view in this context",
             "Unpin this view",
         ]);
         expect(inFrench(() => labels(everyEntry()))).toEqual([
             "Épingler cette vue dans cet espace de travail",
-            "Épingler cette vue partout",
+            "Épingler cette vue dans ce contexte",
             "Désépingler cette vue",
         ]);
     });

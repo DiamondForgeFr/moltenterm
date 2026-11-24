@@ -267,7 +267,7 @@ describe("its place (FR-ONB-009)", () => {
     it("offers every workspace first, worded for the workshop, with everything changeable later", () => {
         const html = place("everywhere");
         expect(html).toMatch(/aria-pressed="true"[^>]*data-place="everywhere"/);
-        expect(html).toContain("Available in all your workspaces, including the next ones");
+        expect(html).toContain("Available in all the workspaces of this context, including the next ones");
         expect(html).toContain("Pinned in Atlas only");
         expect(html).toContain("Everything can be changed later.");
         expect(html.match(/class="mt-pb-mine"/g)).toHaveLength(2);
@@ -353,7 +353,7 @@ describe("ready (FR-ONB-007 P-6)", () => {
         });
         expect(html).toContain("~/Projets/atlas");
         expect(html).toContain("Codex · Web page · Files");
-        expect(html).toContain("Available in all your workspaces");
+        expect(html).toContain("Available in all the workspaces of this context");
         expect(html).toContain("<code");
         expect(html).toContain("/morph");
         expect(html).toContain("Your next views:");

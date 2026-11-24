@@ -144,7 +144,11 @@ export class ViewPins {
     private constructor() {
         this.contextIdAtom = jotai.atom((get) => {
             const clientAtom = ClientModel.getInstance().clientAtom;
-            return windowContextIdOf(clientAtom == null ? null : get(clientAtom)?.meta, get(atoms.workspace)?.meta);
+            const workspaceAtom = atoms?.workspace;
+            return windowContextIdOf(
+                clientAtom == null ? null : get(clientAtom)?.meta,
+                workspaceAtom == null ? null : get(workspaceAtom)?.meta
+            );
         });
         this.globalPinsAtom = jotai.atom((get) => this.pinsIn(get, get(this.contextIdAtom)));
         this.seedMarkAtom = jotai.atom((get) => {
