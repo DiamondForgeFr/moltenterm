@@ -121,6 +121,12 @@
     mask-image: none;
 }
 
+/* A hidden sidebar stays mounted off screen, and so does its ribbon: nothing breathes there until it peeks. */
+.mt-sb.is-hidden:not(.is-peek) .mt-ribbon-rim,
+.mt-sb.is-hidden:not(.is-peek) .mt-ribbon-halo {
+    display: none;
+}
+
 :root[data-mt-motion="still"] .mt-ribbon-rim,
 :root[data-mt-motion="still"] .mt-ribbon-halo {
     animation-play-state: paused;
