@@ -2422,7 +2422,11 @@
             "subagents": "Sub-agents",
             "running": "running",
             "finished": "{count} finished",
-            "failed": "{count} failed"
+            "failed": "{count} failed",
+            "finishedOne": "finished",
+            "failedOne": "failed",
+            "seeFinished": "see",
+            "hideFinished": "hide"
         },
         "proportion": {
             "pair": "{model} at {effort} effort",
@@ -12207,6 +12211,10 @@
                 "other": "{count} active"
             },
             "resting": "at rest",
+            "atWork": {
+                "one": "{count} sub-agent at work",
+                "other": "{count} sub-agents at work"
+            },
             "goTo": "Go to {name}'s view",
             "expand": "Show what {name} is linked to",
             "collapse": "Hide what {name} is linked to",
@@ -12397,11 +12405,7 @@
                 "one": "Agent",
                 "other": "Agents"
             },
-            "ci": "CI",
-            "builds": {
-                "one": "Build",
-                "other": "Builds"
-            }
+            "standalone": "Not tied to an agent"
         },
         "row": {
             "localCi": "Local CI",
@@ -12410,9 +12414,40 @@
             "percent": "{percent} %",
             "asks": "{name} asks you something",
             "subagents": {
-                "one": "{count} sub-agent",
-                "other": "{count} sub-agents"
+                "one": "{count} sub-agent at work",
+                "other": "{count} sub-agents at work"
             }
+        },
+        "sub": {
+            "untitled": "Sub-agent",
+            "working": "at work",
+            "waitingWork": "waiting for its background work",
+            "since": "since {age}",
+            "jobMore": "{job} +{count}",
+            "waiting": {
+                "tests": "waiting for its tests:",
+                "build": "waiting for its build:",
+                "ci": "waiting for its CI:",
+                "command": "waiting for its command:"
+            }
+        },
+        "job": {
+            "vitest": "tests (vitest)",
+            "gotest": "tests (Go)",
+            "tests": "tests",
+            "affected": "affected tests",
+            "buildfrontend": "frontend build",
+            "buildbackend": "backend build",
+            "build": "build",
+            "perf": "performance budget",
+            "check": "checks",
+            "npmrun": "npm script",
+            "npmrunArg": "npm script ({script})",
+            "moltenci": "local CI",
+            "command": "a command"
+        },
+        "load": {
+            "warning": "Machine very loaded: tests run slower"
         },
         "agents": {
             "one": "an agent",

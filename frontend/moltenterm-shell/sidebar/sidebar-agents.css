@@ -195,6 +195,31 @@
     color: var(--mt-state-running);
 }
 
+/* A lead whose sub-agents work (#2502): the count and the dominoes in one pill on the right, and, when its own turn
+   ended and only they work, its second line in the action colour instead of "inactif". */
+.mt-sb-agent-subs {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 7px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent);
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+    font-variant-numeric: tabular-nums;
+    line-height: 16px;
+}
+
+.mt-sb-agent-subs > .df-domino-loader {
+    color: var(--mt-state-running);
+}
+
+.mt-sb-arow.is-subs .mt-sb-agent-ss {
+    color: var(--mt-accent);
+}
+
 .mt-sb-tree {
     display: flex;
     flex-direction: column;

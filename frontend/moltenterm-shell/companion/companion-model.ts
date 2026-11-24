@@ -5,6 +5,7 @@
 // (pkg/molten/companion), and the pure rules of its view. Pure, so they are tested without a window.
 
 import type { AgentHookOffer } from "../agent-hooks-model";
+import type { BackgroundJob } from "../agent-state-model";
 import { getLocale, t } from "../i18n/i18n";
 import { ServerText, serverText } from "../i18n/server-text";
 import { imageLinks } from "./companion-tips-model";
@@ -159,6 +160,11 @@ export type CompanionSubagent = {
     state: SubagentState;
     started?: number;
     ended?: number;
+    // The agent's own id in its CLI (#2502). waiting: its turn ended on background work of its own and it runs on
+    // (#2498); jobs: what it waits for, read from its own transcript, the oldest first.
+    agentid?: string;
+    waiting?: boolean;
+    jobs?: BackgroundJob[];
 };
 export type CompanionActivity = { tool: string; target?: string; at?: number };
 

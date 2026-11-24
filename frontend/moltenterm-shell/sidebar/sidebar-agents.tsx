@@ -102,6 +102,25 @@ export function WorkingDominoes({ label }: { label?: string }) {
     return <DominoLoader className="mt-sb-agent-dom" label={label} />;
 }
 
+// A lead whose sub-agents work (#2502, FR-SHELL-084): how many, beside the dominoes, so the row says it at a glance. A
+// lead that works only through its sub-agents (its own turn ended) also says it in the action colour on its second line.
+export function SubagentsPill({ count }: { count: number }) {
+    const tc = useTCount();
+    const label = tc("sidebar.agents.atWork", count);
+    return (
+        <span
+            className="mt-sb-agent-subs"
+            role="status"
+            aria-label={label}
+            title={label}
+            data-testid="sidebar-agent-subs-pill"
+        >
+            <span aria-hidden>{count}</span>
+            <DominoLoader />
+        </span>
+    );
+}
+
 export function agentInitial(info: AgentStateInfo): string {
     const name = (info?.firstname || info?.agentname || info?.agent || "?").trim();
     return (Array.from(name)[0] ?? "?").toUpperCase();
@@ -564,6 +583,7 @@ function AgentBlock({
     const look = agentRowLook(info);
     const name = agentDisplayName(info);
     const doing = agentDoing(info);
+    const subs = info.subagents ?? 0;
     const label = grouped ? null : agentProjectLabel(folder, projects);
     const go = () => fireAndForget(() => goToAgent(agentRowTarget(info)));
     const toggleLabel = t(open ? "sidebar.agents.collapse" : "sidebar.agents.expand", { name });
@@ -592,6 +612,7 @@ function AgentBlock({
                 className={cn(
                     "mt-sb-row mt-sb-arow",
                     `is-${look}`,
+                    info.background === true && subs > 0 && "is-subs",
                     active && "is-on",
                     editing && "is-noting",
                     order.drop === "before" && "is-drop-before",
@@ -649,7 +670,10 @@ function AgentBlock({
                             <span className="mt-sb-agent-ss">{doing}</span>
                         </span>
                         {note !== "" ? <AgentNoteTag text={note} /> : null}
-                        {look === "working" ? <WorkingDominoes label={agentStateLabel("working")} /> : null}
+                        {look === "working" && subs > 0 ? <SubagentsPill count={subs} /> : null}
+                        {look === "working" && subs === 0 ? (
+                            <WorkingDominoes label={agentStateLabel("working")} />
+                        ) : null}
                     </>
                 )}
             </div>

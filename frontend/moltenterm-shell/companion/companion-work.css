@@ -647,6 +647,75 @@
     padding-left: var(--df-block-pad);
 }
 
+/* A sub-agent that waits on its own tests or build (#2502): two lines, its task and age, then what it waits for and
+   its tier as a chip. It works, so the words are the running colour (never the waiting violet, which is for the
+   developer's answer). */
+.mt-cwork-sub-line {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+}
+
+.mt-cwork-sub-line > .mt-cwork-sub-title {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.mt-cwork-sub-wait {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+}
+
+.mt-cwork-sub-waits {
+    color: var(--mt-state-running);
+}
+
+.mt-cwork-sub-since {
+    color: var(--mt-text-3);
+}
+
+.mt-cwork-sub-tier {
+    flex: none;
+    padding: 0 6px;
+    border: 1px solid var(--df-line);
+    border-radius: var(--mt-radius-control);
+    color: var(--mt-text-3);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--mt-text-11);
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+.mt-cwork-slim-see {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--mt-accent);
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.mt-cwork-slim-see:focus-visible {
+    outline: 2px solid var(--mt-focus-ring);
+    outline-offset: 2px;
+}
+
+.mt-cwork-sub-finished {
+    min-height: 32px;
+    justify-content: space-between;
+}
+
+.mt-cwork-sub-finished .mt-cwork-sub-title {
+    color: var(--mt-text-2);
+    font-weight: var(--mt-weight-regular);
+}
+
 .mt-cwork-tag {
     flex: none;
     margin: 0;

@@ -35,6 +35,7 @@ vi.mock("../project/project-tab", () => ({
 }));
 vi.mock("../reviews/reviews-model", () => ({ MoltentermReviewsView: "molten-reviews" }));
 
+import type { MachineLoad } from "../agent-state-model";
 import { ActivityMark, ActivityPopoverBody } from "./activity-icon";
 import { activityGroups, ActivityWords, EmptyActivity, summarizeActivity, type ActivityItem } from "./activity-model";
 import { openActivity } from "./activity-open";
@@ -57,7 +58,7 @@ function item(id: string, kind: ActivityItem["kind"], more: Partial<ActivityItem
         kind,
         startedat: 1000,
         target: { type: "build", dir: "/work/p" },
-        about: { title: id, detail: "", progress: -1, done: 0, total: 0, subagents: 0 },
+        about: { title: id, detail: "", progress: -1, done: 0, total: 0, subagents: 0, work: [] },
         ...more,
     };
 }
@@ -177,15 +178,24 @@ describe("the detail by group", () => {
             item("Flore", "agent", {
                 startedat: 1000,
                 target: { type: "agent", blockid: "b1" },
-                about: { title: "Flore", detail: "fixing #2233", progress: -1, done: 0, total: 0, subagents: 0 },
+                about: {
+                    title: "Flore",
+                    detail: "fixing #2233",
+                    progress: -1,
+                    done: 0,
+                    total: 0,
+                    subagents: 0,
+                    work: [],
+                },
             }),
             item("local", "ci", { startedat: 2000, target: { type: "local-ci", dir: "/work/p" } }),
             item("Gold", "build", { startedat: 3000 }),
         ]);
         const html = renderToStaticMarkup(<ActivityPopoverBody summary={summary} words={words} onGo={() => {}} />);
         expect(html).toContain("activity.popover.many{&quot;count&quot;:3}");
-        expect(html.indexOf("activity-group-agents")).toBeLessThan(html.indexOf("activity-group-ci"));
-        expect(html.indexOf("activity-group-ci")).toBeLessThan(html.indexOf("activity-group-builds"));
+        expect(html.indexOf("activity-group-agents")).toBeLessThan(html.indexOf("activity-group-standalone"));
+        expect(html.match(/data-testid="activity-group-standalone"/g)).toHaveLength(1);
+        expect(html).toContain("activity.group.standalone");
         expect(html.match(/data-testid="activity-row"/g)).toHaveLength(3);
         expect(html).toContain("Flore");
         expect(html).toContain("fixing #2233");
@@ -194,10 +204,86 @@ describe("the detail by group", () => {
         expect(html).not.toContain("activity.popover.none");
     });
 
+    it("lists an agent's sub-agents under it on two lines, with the dominoes and their job, each going to the agent", () => {
+        const flore = item("Flore", "agent", {
+            target: { type: "agent", blockid: "b1" },
+            about: {
+                title: "Flore",
+                detail: "",
+                progress: -1,
+                done: 0,
+                total: 0,
+                subagents: 2,
+                work: [
+                    {
+                        id: "a1",
+                        description: "#2496 Tree scans",
+                        started: 1000,
+                        waiting: true,
+                        jobs: [{ kind: "vitest", since: 2000 }],
+                    },
+                    { id: "a2", description: "#2497 Companion size", started: 1000 },
+                ],
+            },
+        });
+        const went: string[] = [];
+        const html = renderToStaticMarkup(
+            <ActivityPopoverBody
+                summary={summarizeActivity([flore])}
+                words={words}
+                onGo={(row) => went.push(`${row.id}>${row.target.type}`)}
+            />
+        );
+        expect(html.match(/data-testid="activity-row"/g)).toHaveLength(1);
+        expect(html.match(/data-testid="activity-sub"/g)).toHaveLength(2);
+        expect(html.match(/df-domino-loader/g)).toHaveLength(2);
+        expect(html).toContain("mt-act-sub-id");
+        expect(html).toContain("#2496");
+        expect(html).toContain("activity.job.vitest");
+        expect(html).toContain("activity.sub.working");
+        expect(html).toContain('data-waiting=""');
+        expect(html).toContain("activity.row.subagents:2");
+        expect(html).toContain('title="activity.open.agent"');
+        expect(html).toContain(
+            'aria-label="#2496 Tree scans, 3s, activity.sub.waiting.tests, activity.job.vitest, activity.sub.since{&quot;age&quot;:&quot;2s&quot;}"'
+        );
+        expect(html).not.toContain("activity-load");
+        expect(went).toEqual([]);
+    });
+
+    it("shows the machine's load strip only when the machine is loaded", () => {
+        const summary = summarizeActivity([item("Gold", "build")]);
+        const render = (load?: MachineLoad) =>
+            renderToStaticMarkup(<ActivityPopoverBody summary={summary} words={words} onGo={() => {}} load={load} />);
+        expect(render({ known: true, loaded: true, percore: 8 })).toContain('data-testid="activity-load"');
+        expect(render({ known: true, loaded: true, percore: 8 })).toContain("activity.load.warning");
+        expect(render({ known: true, loaded: false, percore: 1.4 })).not.toContain("activity-load");
+        expect(render({ known: false, loaded: true })).not.toContain("activity-load");
+        expect(render(null)).not.toContain("activity-load");
+        expect(render()).not.toContain("activity-load");
+    });
+
+    it("asks for the load while the popover shows and never in the slot itself", () => {
+        expect(iconSrc).toContain("const load = useMachineLoad();");
+        const slot = iconSrc.slice(iconSrc.indexOf("export function ActivityIcon()"));
+        expect(slot).not.toContain("useMachineLoad");
+    });
+
+    it("draws the sub-agents and the strip in tokens, with a visible focus and no loop of its own", () => {
+        for (const selector of [".mt-act-sub", ".mt-act-sub-id", ".mt-act-dom", ".mt-act-load"]) {
+            expect(ruleBody(selector), selector).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
+        }
+        expect(ruleBody(".mt-act-sub:focus-visible")).toContain("outline: 2px solid var(--mt-focus-ring)");
+        expect(ruleBody(".mt-act-sub-id")).toContain("color: var(--mt-accent)");
+        expect(ruleBody(".mt-act-dom")).toContain("color: var(--mt-state-running)");
+        expect(css.match(/infinite/g)).toHaveLength(3);
+        expect(ruleBody(".mt-act-load")).not.toMatch(/state-blocked|--mt-danger/);
+    });
+
     it("has the groups' titles in capitals by style, not in the text", () => {
         expect(iconSrc).toMatch(/uppercase/);
         const groups = activityGroups(summarizeActivity([item("Gold", "build")]), words);
-        expect(groups[0].title).toBe("activity.group.builds:1");
+        expect(groups[0].title).toBe("activity.group.standalone");
     });
 });
 
@@ -262,7 +348,7 @@ describe("an agent that waits for the developer (#2294)", () => {
     it("lists the agents that wait first, under their own heading in the waiting colour, and goes to the agent", () => {
         const summary = summarizeActivity([item("Gold", "build", { startedat: 3000 })], [waiting]);
         const html = renderToStaticMarkup(<ActivityPopoverBody summary={summary} words={words} onGo={() => {}} />);
-        expect(html.indexOf("activity-group-waiting")).toBeLessThan(html.indexOf("activity-group-builds"));
+        expect(html.indexOf("activity-group-waiting")).toBeLessThan(html.indexOf("activity-group-standalone"));
         expect(html).toContain("activity.group.waiting");
         expect(html).toContain("text-[var(--mt-state-waiting)]");
         expect(html).toContain("activity.row.asks{&quot;name&quot;:&quot;Flore&quot;}");
