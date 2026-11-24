@@ -4,11 +4,13 @@
 // A fresh install's top row (FR-SHELL-080, TC-SHELL-226, #1296).
 
 import { describe, expect, it } from "vitest";
+import { contextPinsKey, readContextPins } from "./context-pins-model";
 import { defaultGlobalPins, localizedPin, SeedGlobalPinsMetaKey, seedPinsMeta, typedNamePin } from "./default-pins";
 import { configPaneIcons } from "./view-menu-model";
-import { GlobalPin, GlobalPinsMetaKey, readGlobalPins } from "./view-pins-model";
+import { GlobalPin } from "./view-pins-model";
 
 const t = (key: string) => `<${key}>`;
+const Ctx = "workshop";
 let n = 0;
 const random = () => (n++ % 97) / 97;
 
@@ -28,26 +30,28 @@ describe("the default top row (#1296)", () => {
             "<palette.panels.missionControl>",
         ]);
         expect(new Set(pins.map((p) => p.id)).size).toBe(4);
-        expect(readGlobalPins({ [GlobalPinsMetaKey]: pins })).toHaveLength(4);
+        expect(readContextPins({ [contextPinsKey(Ctx)]: pins }, Ctx)).toHaveLength(4);
         expect(pins.map((p) => configPaneIcons(p.config)).every((icons) => icons.length === 1)).toBe(true);
     });
 
-    it("is written only with wavesrv's first-launch mark, which it clears", () => {
-        const seeded = seedPinsMeta({ [SeedGlobalPinsMetaKey]: true }, t, 1_000, random);
-        expect(readGlobalPins(seeded)).toHaveLength(4);
+    it("is written only with wavesrv's first-launch mark, in the row of the window's context, which it clears", () => {
+        const seeded = seedPinsMeta({ [SeedGlobalPinsMetaKey]: true }, Ctx, t, 1_000, random);
+        expect(readContextPins(seeded, Ctx)).toHaveLength(4);
         expect(seeded[SeedGlobalPinsMetaKey]).toBeNull();
+        expect(Object.keys(seeded).filter((k) => k.startsWith("molten:contextpins:"))).toEqual([contextPinsKey(Ctx)]);
     });
 
     it("never changes an existing row, even an empty one", () => {
-        expect(seedPinsMeta({}, t, 1_000, random)).toBeNull();
-        expect(seedPinsMeta({ [GlobalPinsMetaKey]: [] }, t, 1_000, random)).toBeNull();
+        expect(seedPinsMeta({}, Ctx, t, 1_000, random)).toBeNull();
+        expect(seedPinsMeta({ [contextPinsKey(Ctx)]: [] }, Ctx, t, 1_000, random)).toBeNull();
         const kept = seedPinsMeta(
             {
                 [SeedGlobalPinsMetaKey]: true,
-                [GlobalPinsMetaKey]: [
+                [contextPinsKey(Ctx)]: [
                     { id: "g1", name: "Mine", rev: 1, config: { tree: { pane: 0 }, panes: [{ view: "term" }] } },
                 ],
             },
+            Ctx,
             t,
             1_000,
             random

@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The three states of a view (FR-SHELL-080) in the window: pinning in the workspace (the tab keeps its
-// configuration), pinning everywhere (the client keeps one configuration, each workspace opens its own instance on
-// its own project), unpinning, saving a changed pinned view or bringing it back, and closing the finished temporary
-// views. wavesrv reads and makes the views (pkg/molten/viewpin).
+// configuration), pinning everywhere (the client keeps one configuration per context, #2526: each workspace of the
+// context opens its own instance on its own project), unpinning, saving a changed pinned view or bringing it back, and
+// closing the finished temporary views. wavesrv reads and makes the views (pkg/molten/viewpin). "Global" names, in the
+// identifiers below, what a pin of the top row is called in the tabs' meta: the row they belong to is the context's.
 
 import { ClientModel } from "@/app/store/client-model";
 import { atoms, getApi, globalStore, WOS } from "@/app/store/global";
@@ -27,6 +28,7 @@ import { workspaceShownName } from "../workspace-default-name";
 import { readWorkspaceProject } from "../workspace-project";
 import { AgentSlotAgentMetaKey } from "../workspace-views/view-suggestions";
 import { ViewNameKeyMetaKey, ViewPendingMetaKey } from "../workspace-views/workspace-views-model";
+import { contextPinsKey, readContextPins, windowContextIdOf } from "./context-pins-model";
 import { localizedPin, SeedGlobalPinsMetaKey, seedPinsMeta, typedNamePin } from "./default-pins";
 import { PinnedClosePlan, planPinnedClose } from "./pinned-close-model";
 import { showUndoToast } from "./sidebar-undo";
@@ -40,7 +42,6 @@ import {
     GlobalPin,
     GlobalPinMetaKey,
     GlobalPinRevMetaKey,
-    GlobalPinsMetaKey,
     InstanceMetaKey,
     instanceStale,
     isProjectTab,
@@ -58,7 +59,6 @@ import {
     planPinUpdate,
     planViewFork,
     planViewMove,
-    readGlobalPins,
     readPinConfig,
     replacePin,
     SlotHintMetaKey,
@@ -118,12 +118,17 @@ function pinError(e: any) {
     showToast({ kind: "error", title: t("sidebar.pins.failed"), message: String(e?.message ?? e) });
 }
 
+// The row of a context this window just wrote, until the client's meta echoes it.
+export type PendingPins = { contextId: string; pins: GlobalPin[] };
+
 export class ViewPins {
     private static instance: ViewPins = null;
 
     draftAtom = jotai.atom(null) as jotai.PrimitiveAtom<PinDraft>;
-    // The pins this window just wrote, until the client's meta echoes them.
-    pendingPinsAtom = jotai.atom(null) as jotai.PrimitiveAtom<GlobalPin[]>;
+    pendingPinsAtom = jotai.atom(null) as jotai.PrimitiveAtom<PendingPins>;
+    // The context this window shows: the one of its workspace.
+    contextIdAtom!: jotai.Atom<string>;
+    // The top row of this window's context.
     globalPinsAtom!: jotai.Atom<GlobalPin[]>;
     stateAtoms = new Map<string, jotai.Atom<ViewState>>();
     modifiedAtoms = new Map<string, jotai.Atom<boolean>>();
@@ -137,18 +142,11 @@ export class ViewPins {
     seedMarkAtom!: jotai.Atom<boolean>;
 
     private constructor() {
-        this.globalPinsAtom = jotai.atom((get) => {
-            const i18n = I18nModel.getInstance();
-            get(i18n.languagesVersionAtom);
-            const locale = get(i18n.localeAtom);
-            const tr = (key: string) => translate(locale, key);
-            const pending = get(this.pendingPinsAtom);
-            if (pending != null) {
-                return pending.map((p) => localizedPin(p, tr));
-            }
+        this.contextIdAtom = jotai.atom((get) => {
             const clientAtom = ClientModel.getInstance().clientAtom;
-            return readGlobalPins(clientAtom == null ? null : get(clientAtom)?.meta).map((p) => localizedPin(p, tr));
+            return windowContextIdOf(clientAtom == null ? null : get(clientAtom)?.meta, get(atoms.workspace)?.meta);
         });
+        this.globalPinsAtom = jotai.atom((get) => this.pinsIn(get, get(this.contextIdAtom)));
         this.seedMarkAtom = jotai.atom((get) => {
             const clientAtom = ClientModel.getInstance().clientAtom;
             return clientAtom != null && !!get(clientAtom)?.meta?.[SeedGlobalPinsMetaKey];
@@ -178,6 +176,28 @@ export class ViewPins {
         return ViewPins.instance;
     }
 
+    // The row of a context as the window shows it: what this window just wrote until the client echoes it, else the
+    // context's own row, its seeded names in the interface language.
+    private pinsIn(get: jotai.Getter, contextId: string): GlobalPin[] {
+        const i18n = I18nModel.getInstance();
+        get(i18n.languagesVersionAtom);
+        const locale = get(i18n.localeAtom);
+        const tr = (key: string) => translate(locale, key);
+        const pending = get(this.pendingPinsAtom);
+        if (pending != null && pending.contextId === contextId) {
+            return pending.pins.map((p) => localizedPin(p, tr));
+        }
+        const clientAtom = ClientModel.getInstance().clientAtom;
+        return readContextPins(clientAtom == null ? null : get(clientAtom)?.meta, contextId).map((p) =>
+            localizedPin(p, tr)
+        );
+    }
+
+    contextId(): string {
+        return globalStore.get(this.contextIdAtom);
+    }
+
+    // The top row of the window's context.
     globalPins(): GlobalPin[] {
         return globalStore.get(this.globalPinsAtom);
     }
@@ -386,11 +406,14 @@ export class ViewPins {
         return ids.filter((id) => globalStore.get(tabAtom(id))?.meta?.[GlobalPinMetaKey] === pinId);
     }
 
-    // A fresh install's default top row (#1296), written once by the first window that sees wavesrv's mark.
+    // A fresh install's default top row (#1296), written once by the first window that sees wavesrv's mark, in the
+    // row of its own context.
     seedDefaultPins(): Promise<void> {
         const clientAtom = ClientModel.getInstance().clientAtom;
+        const contextId = this.contextId();
         const meta = seedPinsMeta(
             clientAtom == null ? null : globalStore.get(clientAtom)?.meta,
+            contextId,
             t,
             Date.now(),
             Math.random
@@ -399,29 +422,33 @@ export class ViewPins {
             return Promise.resolve();
         }
         this.seeding = true;
-        const pins = meta[GlobalPinsMetaKey] as GlobalPin[];
-        if (pins != null) {
-            globalStore.set(this.pendingPinsAtom, pins);
+        const pins = meta[contextPinsKey(contextId)] as GlobalPin[];
+        const pending: PendingPins = pins != null ? { contextId, pins } : null;
+        if (pending != null) {
+            globalStore.set(this.pendingPinsAtom, pending);
         }
         return RpcApi.SetMetaCommand(TabRpcClient, {
             oref: WOS.makeORef("client", ClientModel.getInstance().clientId),
             meta: meta as MetaType,
         }).finally(() => {
             this.seeding = false;
-            if (pins != null && globalStore.get(this.pendingPinsAtom) === pins) {
+            if (pending != null && globalStore.get(this.pendingPinsAtom) === pending) {
                 globalStore.set(this.pendingPinsAtom, null);
             }
         });
     }
 
+    // Pinning, unpinning and reordering change the row of the window's context and no other (#2526).
     private writeGlobalPins(pins: GlobalPin[]): Promise<void> {
         const clientId = ClientModel.getInstance().clientId;
-        globalStore.set(this.pendingPinsAtom, pins);
+        const contextId = this.contextId();
+        const pending: PendingPins = { contextId, pins };
+        globalStore.set(this.pendingPinsAtom, pending);
         return RpcApi.SetMetaCommand(TabRpcClient, {
             oref: WOS.makeORef("client", clientId),
-            meta: { [GlobalPinsMetaKey]: pins } as MetaType,
+            meta: { [contextPinsKey(contextId)]: pins } as MetaType,
         }).finally(() => {
-            if (globalStore.get(this.pendingPinsAtom) === pins) {
+            if (globalStore.get(this.pendingPinsAtom) === pending) {
                 globalStore.set(this.pendingPinsAtom, null);
             }
         });
@@ -751,7 +778,7 @@ export class ViewPins {
         }
     }
 
-    // Reorders the top row, the same in every workspace.
+    // Reorders the top row, the same in every workspace of the context.
     async reorderTop(dragged: string, target: string, after: boolean): Promise<void> {
         const pins = this.globalPins();
         const before = pins.map((p) => p.id);

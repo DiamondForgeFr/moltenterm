@@ -3,13 +3,15 @@
 
 // A fresh install's top row (FR-SHELL-080, #1296): Terminal, Web page, Pilotage and Project pinned everywhere, each one
 // panel, named in the interface language. wavesrv marks a client it creates (pkg/wcore/moltenterm_defaultpins.go); the
-// first window that sees the mark writes these pins and clears it, so an existing row, even an empty one, never
-// changes.
+// first window that sees the mark writes these pins in the row of its context and clears it, so an existing row, even
+// an empty one, never changes. Since #1709 the mark is no longer set, and a context never starts with these pins: it
+// starts with a copy of the row of the context it was made from (context-pins-model.ts).
 
 import { MoltentermBrowserView } from "../browser/browser-model";
 import { MoltentermProjectView } from "../project/project-model";
 import { MoltentermReviewsView } from "../reviews/reviews-model";
-import { GlobalPin, GlobalPinsMetaKey, makeGlobalPinId, readGlobalPins } from "./view-pins-model";
+import { contextPinsKey, readContextPins } from "./context-pins-model";
+import { GlobalPin, makeGlobalPinId } from "./view-pins-model";
 
 // must match SeedGlobalPinsMetaKey in pkg/wcore/moltenterm_defaultpins.go
 export const SeedGlobalPinsMetaKey = "molten:seedglobalpins";
@@ -72,9 +74,10 @@ export function localizedPin(pin: GlobalPin, t: (key: string) => string): Global
 }
 
 // The client meta to write for a client's meta, or null when there is nothing to do: the defaults only with the mark
-// and no pins yet, and the mark cleared either way.
+// and no pins yet in the row of the window's context (#2526), and the mark cleared either way.
 export function seedPinsMeta(
     meta: Record<string, any>,
+    contextId: string,
     t: (key: string) => string,
     now: number,
     random: () => number
@@ -82,8 +85,8 @@ export function seedPinsMeta(
     if (!meta?.[SeedGlobalPinsMetaKey]) {
         return null;
     }
-    if (readGlobalPins(meta).length > 0) {
+    if (readContextPins(meta, contextId).length > 0) {
         return { [SeedGlobalPinsMetaKey]: null };
     }
-    return { [GlobalPinsMetaKey]: defaultGlobalPins(t, now, random), [SeedGlobalPinsMetaKey]: null };
+    return { [contextPinsKey(contextId)]: defaultGlobalPins(t, now, random), [SeedGlobalPinsMetaKey]: null };
 }

@@ -282,27 +282,14 @@ func assignProjectViews(ctx context.Context, ws *waveobj.Workspace, fallback str
 	return added, nil
 }
 
-// readClientMeta reads the client's meta, which holds the pins everywhere, before a transaction: a read that fails
-// inside one would fail the whole transaction. nil when there is no client.
+// readClientMeta reads the client's meta, which holds the contexts' top rows (pins everywhere), before a transaction: a
+// read that fails inside one would fail the whole transaction. nil when there is no client.
 func readClientMeta(ctx context.Context) waveobj.MetaMapType {
 	client, err := wstore.DBGetSingleton[*waveobj.Client](ctx)
 	if err != nil || client == nil {
 		return nil
 	}
 	return client.Meta
-}
-
-func clientPinIds(clientMeta waveobj.MetaMapType) []string {
-	var rtn []string
-	pins, _ := clientMeta[viewpin.GlobalPinsMetaKey].([]any)
-	for _, p := range pins {
-		if pin, _ := p.(map[string]any); pin != nil {
-			if id, _ := pin["id"].(string); id != "" {
-				rtn = append(rtn, id)
-			}
-		}
-	}
-	return rtn
 }
 
 // MoltenTabMetaChanged keeps the slots right when a view is pinned in the workspace or made temporary: a tile has a
@@ -445,7 +432,7 @@ func switchProject(ctx context.Context, req projectviews.SwitchRequest) (project
 			return wstore.DBUpdate(tctx, ws)
 		}
 		ws.Meta = waveobj.MergeMeta(ws.Meta, update, false)
-		pins := clientPinIds(clientMeta)
+		pins := pinIds(pinsOfWorkspaceMeta(clientMeta, ws.Meta))
 		plan = projectviews.PlanSwitch(projectviews.SwitchInput{
 			Tabs:       tabInfosOf(tctx, ws, pins),
 			Projects:   projectviews.ReadProjects(ws.Meta),
@@ -542,7 +529,7 @@ func removeProject(ctx context.Context, req projectviews.RemoveRequest) (project
 		if current == req.ProjectId {
 			takeover = next[0].Id
 		}
-		plan := projectviews.PlanRemove(projectviews.RemoveInput{Tabs: tabInfosOf(tctx, ws, clientPinIds(clientMeta)), Removed: req.ProjectId, NewCurrent: takeover})
+		plan := projectviews.PlanRemove(projectviews.RemoveInput{Tabs: tabInfosOf(tctx, ws, pinIds(pinsOfWorkspaceMeta(clientMeta, ws.Meta))), Removed: req.ProjectId, NewCurrent: takeover})
 		owners := projectviews.ReadTabProjects(ws.Meta)
 		maps.Copy(owners, plan.Move)
 		slots := projectviews.ReadSlots(ws.Meta)
@@ -610,7 +597,7 @@ func settleReopenedInstance(ctx context.Context, wsId string, tabId string) {
 		return
 	}
 	var reopened projectviews.TabInfo
-	infos := tabInfosOf(ctx, ws, clientPinIds(readClientMeta(ctx)))
+	infos := tabInfosOf(ctx, ws, pinIds(pinsOfWorkspaceMeta(readClientMeta(ctx), ws.Meta)))
 	for _, info := range infos {
 		if info.Id == tabId {
 			reopened = info
@@ -681,19 +668,15 @@ func makeTabTemporary(ctx context.Context, tabId string) (placeholder bool, err 
 
 // instanceMeta gives the tab an instance a project lacks is made as: the pinned view's own keys, pending, so it opens
 // from its configuration the first time it is shown. ok is false when its source is gone.
-func instanceMeta(ctx context.Context, inst projectviews.Instance, clientMeta waveobj.MetaMapType) (name string, meta waveobj.MetaMapType, ok bool) {
+func instanceMeta(ctx context.Context, inst projectviews.Instance, pins []any) (name string, meta waveobj.MetaMapType, ok bool) {
 	if inst.Pin != "" {
-		pins, _ := clientMeta[viewpin.GlobalPinsMetaKey].([]any)
-		for _, p := range pins {
-			pin, _ := p.(map[string]any)
-			if id, _ := pin["id"].(string); id != inst.Pin {
-				continue
-			}
-			rev, _ := pin["rev"].(float64)
-			name, _ := pin["name"].(string)
-			return name, waveobj.MetaMapType{viewpin.GlobalPinMetaKey: inst.Pin, viewpin.GlobalPinRevMetaKey: int(rev)}, true
+		pin := pinOfRow(pins, inst.Pin)
+		if pin == nil {
+			return "", nil, false
 		}
-		return "", nil, false
+		rev, _ := pin["rev"].(float64)
+		name, _ := pin["name"].(string)
+		return name, waveobj.MetaMapType{viewpin.GlobalPinMetaKey: inst.Pin, viewpin.GlobalPinRevMetaKey: int(rev)}, true
 	}
 	source, _ := wstore.DBGet[*waveobj.Tab](ctx, inst.Source)
 	if source == nil || !isTileMeta(source.Meta) {
@@ -718,8 +701,13 @@ func makeInstances(ctx context.Context, wsId string, project string, instances [
 	return wstore.WithTxRtn(ctx, func(tx *wstore.TxWrap) ([]string, error) {
 		tctx := tx.Context()
 		ids := make([]string, len(instances))
+		owner, err := GetWorkspace(tctx, wsId)
+		if err != nil {
+			return nil, err
+		}
+		row := pinsOfWorkspaceMeta(clientMeta, owner.Meta)
 		for i, inst := range instances {
-			name, meta, ok := instanceMeta(tctx, inst, clientMeta)
+			name, meta, ok := instanceMeta(tctx, inst, row)
 			if !ok {
 				continue
 			}

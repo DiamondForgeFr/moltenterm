@@ -598,6 +598,7 @@ func main() {
 	// MOLTENTERM-PATCH (#358): the windows move workspaces in the rail
 	wcore.StartWorkspaceOrderRoute()
 	wcore.StartContextsRoute()  // MOLTENTERM-PATCH (#2476): the windows group workspaces into contexts
+	wcore.StartContextPins()    // MOLTENTERM-PATCH (#2526): the top row of pinned views is copied into each context, once
 	wcore.StartPanelMoveRoute() // MOLTENTERM-PATCH (#414): a tab's panel dragged onto the tab shown
 	wcore.StartReopenRoute()    // MOLTENTERM-PATCH (#512): the last closed pane or tab comes back
 	wcore.StartViewPinRoute()   // MOLTENTERM-PATCH (#1184): pinned views are read and opened on a project

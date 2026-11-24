@@ -440,7 +440,7 @@
             "newTab": "Nouvelle vue",
             "reopenClosed": "Rouvrir le dernier panneau ou la dernière vue fermés",
             "keepViewHere": "Épingler cette vue dans cet espace de travail",
-            "keepViewEverywhere": "Épingler cette vue partout",
+            "keepViewEverywhere": "Épingler cette vue dans ce contexte",
             "makeViewTemporary": "Désépingler cette vue",
             "splitPlace": "Diviser le panneau…",
             "splitPlaceDetail": "choisir le côté : gauche, droite, haut ou bas",
@@ -1598,9 +1598,9 @@
                 "floatingHint": "par-dessus les vues quand le pointeur touche le bord gauche"
             },
             "topRow": {
-                "title": "Vues épinglées partout",
-                "hint": "La rangée du haut de la barre latérale, la même dans chaque espace de travail. Épinglez une vue partout depuis son menu.",
-                "empty": "Aucune vue n'est épinglée partout.",
+                "title": "Vues épinglées dans ce contexte",
+                "hint": "La rangée du haut de la barre latérale, la même dans chaque espace de travail de ce contexte. Épinglez une vue dans ce contexte depuis son menu.",
+                "empty": "Aucune vue n'est épinglée dans ce contexte.",
                 "dragHint": "Glissez une tuile pour changer l'ordre, ou Alt avec une flèche."
             }
         },
@@ -1826,7 +1826,7 @@
                 "noProjectHint": "Lier un projet reste dans le menu de l'espace",
                 "noView": "Pas encore de vue",
                 "noViewHint": "{keys} en propose",
-                "pinnedEverywhere": "Disponible dans tous vos espaces de travail",
+                "pinnedEverywhere": "Disponible dans tous les espaces de travail de ce contexte",
                 "pinnedHere": "Épinglée dans {workspace}",
                 "morph": "Il vous manque un outil ? Demandez-le à votre agent avec {morph}. Ce que vous ajoutez se range dans la Bibliothèque.",
                 "nextTitle": "Vos prochaines vues :",
@@ -1926,8 +1926,8 @@
                 "titleA": "Où ranger",
                 "titleB": " ?",
                 "everywhere": {
-                    "title": "Disponible dans tous vos espaces de travail, y compris les prochains",
-                    "text": "En haut de la barre, partout. Chaque espace l'ouvre sur son propre projet."
+                    "title": "Disponible dans tous les espaces de travail de ce contexte, y compris les prochains",
+                    "text": "En haut de la barre, dans ce contexte. Chaque espace l'ouvre sur son propre projet."
                 },
                 "workspace": {
                     "title": "Épinglée dans {workspace} uniquement",
@@ -1937,8 +1937,8 @@
                 "next": "Billing",
                 "capMine": "{workspace}, votre projet",
                 "capNext": "{workspace}, un prochain espace",
-                "legendEverywhere": "{name} rejoint la rangée du haut, la même dans chaque espace. Dans {workspace} elle s'ouvre sur {workspace}, dans {other} sur {other}.",
-                "legendWorkspace": "{name} devient une tuile de {workspace}. {other} ne la voit pas ; vous pourrez l'épingler partout plus tard, depuis son menu."
+                "legendEverywhere": "{name} rejoint la rangée du haut, la même dans chaque espace de ce contexte. Dans {workspace} elle s'ouvre sur {workspace}, dans {other} sur {other}.",
+                "legendWorkspace": "{name} devient une tuile de {workspace}. {other} ne la voit pas ; vous pourrez l'épingler dans ce contexte plus tard, depuis son menu."
             }
         }
     },
@@ -12285,7 +12285,7 @@
             "reordered": "Ordre modifié",
             "closedOne": "Vue fermée · dans Vues rangées",
             "captionHere": "Garder dans {workspace}",
-            "captionEverywhere": "Partout · tous les espaces de travail",
+            "captionEverywhere": "Dans ce contexte · tous ses espaces de travail",
             "captionTemporary": "La désépingler",
             "emptyTitle": "Cette vue épinglée n'a plus de panneau",
             "emptyHint": "Une vue épinglée reste jusqu'à ce que vous la désépingliez. Ajoutez un panneau, ou désépinglez-la pour la fermer.",
@@ -12302,11 +12302,11 @@
             "failed": "La vue n'a pas pu être épinglée ou ouverte",
             "undo": "Annuler",
             "pinnedHere": "« {name} » épinglée dans {workspace}",
-            "pinnedEverywhere": "« {name} » épinglée partout : même configuration dans chaque espace de travail, chacun sur son projet",
+            "pinnedEverywhere": "« {name} » épinglée dans ce contexte : même configuration dans chaque espace de travail du contexte, chacun sur son projet",
             "pinnedOnlyHere": "« {name} » épinglée seulement dans {workspace}",
             "unpinned": "« {name} » désépinglée : elle est de nouveau dans Vues et peut se fermer",
             "saved": "« {name} » garde son état actuel",
-            "savedEverywhere": "« {name} » enregistrée pour tous les espaces de travail",
+            "savedEverywhere": "« {name} » enregistrée pour tous les espaces de travail de ce contexte",
             "reverted": "« {name} » est revenue à son état épinglé",
             "closedFinished": {
                 "one": "1 vue terminée fermée",
@@ -12314,7 +12314,7 @@
             },
             "closedFinishedHint": "Les vues dont l'agent travaille encore restent ouvertes. Les vues rangées de la bibliothèque les ramènent.",
             "keepKey": {
-                "everywhere": "« {name} » est épinglée partout et le reste",
+                "everywhere": "« {name} » est épinglée dans ce contexte et le reste",
                 "everywhereHint": "Pour la désépingler ou l'épingler seulement ici, passez par son menu ou la palette de commandes."
             },
             "noAgent": "Aucun agent de code n'est choisi pour ce projet",
@@ -12324,13 +12324,13 @@
             "tileModifiedTitle": "{name} · épinglée dans {workspace} · modifiée depuis l'épinglage (clic droit : enregistrer ou revenir)",
             "tileLabel": "{name}, vue importante",
             "tileChangedLabel": "modifiée depuis l'épinglage",
-            "topTitle": "{name} · épinglée partout, ouverte sur le projet de cet espace de travail",
-            "topModifiedTitle": "{name} · épinglée partout · modifiée depuis l'épinglage (clic droit : enregistrer ou revenir)",
+            "topTitle": "{name} · épinglée dans ce contexte, ouverte sur le projet de cet espace de travail",
+            "topModifiedTitle": "{name} · épinglée dans ce contexte · modifiée depuis l'épinglage (clic droit : enregistrer ou revenir)",
             "topRowLabel": "Vues transverses",
             "forked": "Nouvelle vue « {name} »",
-            "forkedHint": "Les vues épinglées partout restent telles quelles dans tous les espaces de travail.",
+            "forkedHint": "Les vues épinglées dans ce contexte restent telles quelles dans tous ses espaces de travail.",
             "updatePinned": "Mettre à jour la vue épinglée",
-            "updatedPinned": "« {name} » mise à jour pour tous les espaces de travail",
+            "updatedPinned": "« {name} » mise à jour pour tous les espaces de travail de ce contexte",
             "updatedPinnedHint": "Chaque espace de travail l'ouvre avec cette disposition.",
             "closeFinished": {
                 "one": "Fermer la vue terminée",
@@ -12340,14 +12340,14 @@
                 "state": {
                     "temporary": "Vue",
                     "workspace": "Épinglée dans {workspace}",
-                    "everywhere": "Épinglée partout"
+                    "everywhere": "Épinglée dans ce contexte"
                 },
                 "save": "Enregistrer l'état actuel",
-                "saveEverywhere": "Enregistrer pour tous les espaces de travail",
+                "saveEverywhere": "Enregistrer pour tous les espaces de travail de ce contexte",
                 "revert": "Revenir à l'état épinglé",
                 "pinHere": "Épingler dans {workspace}…",
-                "pinEverywhere": "Épingler partout…",
-                "pinEverywhereNow": "Épingler partout",
+                "pinEverywhere": "Épingler dans ce contexte…",
+                "pinEverywhereNow": "Épingler dans ce contexte",
                 "pinOnlyHere": "Épingler seulement dans {workspace}",
                 "unpin": "Désépingler",
                 "makeTemporary": "Désépingler",
@@ -12360,8 +12360,8 @@
                 "scope": "Où l'épingler",
                 "hereTitle": "Épinglée dans {workspace}",
                 "hereBody": "Une tuile dans {workspace}. Sa configuration (ses panneaux et leur disposition) reste ici ; son contenu suit le projet actif. Pour la fermer, il faudra d'abord la désépingler.",
-                "everywhereTitle": "Épinglée partout",
-                "everywhereBody": "Dans la rangée du haut de tous les espaces de travail. Même configuration partout ; chaque espace de travail l'ouvre sur son propre projet, avec son propre agent.",
+                "everywhereTitle": "Épinglée dans ce contexte",
+                "everywhereBody": "Dans la rangée du haut de tous les espaces de travail de ce contexte. Même configuration partout dans le contexte ; chaque espace de travail l'ouvre sur son propre projet, avec son propre agent.",
                 "pin": "Épingler"
             },
             "slot": {
@@ -12640,7 +12640,7 @@
         "panels": {
             "addTo": "Ajouter à « {view} »",
             "askPinned": "« {view} » est une vue épinglée : ce panneau la modifiera.",
-            "askEverywhere": "« {view} » est épinglée dans tous les espaces de travail : ce panneau la déplacera dans Vues ici.",
+            "askEverywhere": "« {view} » est épinglée dans ce contexte : ce panneau la déplacera dans Vues ici.",
             "inNewView": "Dans une nouvelle vue",
             "show": "L'afficher",
             "thisView": "cette vue",

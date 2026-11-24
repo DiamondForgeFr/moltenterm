@@ -203,11 +203,11 @@ func pinnedViewTab(ctx context.Context, tabId string) bool {
 	if tab == nil {
 		return false
 	}
-	var clientMeta waveobj.MetaMapType
-	if client, err := wstore.DBGetSingleton[*waveobj.Client](ctx); err == nil && client != nil {
-		clientMeta = client.Meta
+	var row []any
+	if wsId, err := wstore.DBFindWorkspaceForTabId(ctx, tabId); err == nil && wsId != "" {
+		row = pinsOfWorkspace(ctx, wsId)
 	}
-	return viewpin.Pinned(tab.Meta, clientMeta)
+	return viewpin.Pinned(tab.Meta, row)
 }
 
 // StartViewPinRoute lets the windows pin views and open them; wavesrv calls it once.
