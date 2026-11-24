@@ -6,7 +6,9 @@
 // path field, the bookmarks, history, a drop, and an agent's wsh view or wsh setmeta. A path outside the project is
 // not shown until the user answers the question in the panel; one approval lets the panel go anywhere until it shows
 // something inside the project again. wavesrv resolves the paths (pkg/molten/fileconfine) and guarantees the meta the
-// gate trusts: only a window writes the approval, and a terminal's write says who asked.
+// gate trusts: only a window writes the approval, and a terminal's write says who asked. "The project" stands for the
+// narrowest bound that applies (#2516): a workspace's chosen folder or its context's folder bounds a panel too, and the
+// panel's texts name the level that set it (#2518).
 
 import { ClientModel } from "@/app/store/client-model";
 import { globalStore } from "@/app/store/jotaiStore";
