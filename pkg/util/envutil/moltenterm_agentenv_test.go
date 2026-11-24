@@ -22,6 +22,7 @@ func TestStripAgentSessionMarkers(t *testing.T) {
 		"GEMINI_CLI=1",
 		"MOLTENTERM_AGENT_LAUNCHED=claude",
 		"MOLTENTERM_AGENTBINDIR=/gold/bin/agents",
+		"MOLTENTERM_SF_AGENT=claude-code",
 		"PATH=/usr/bin:/bin",
 		"WEIRD=a=b",
 	}

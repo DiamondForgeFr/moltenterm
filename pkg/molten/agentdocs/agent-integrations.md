@@ -102,6 +102,36 @@ Unix-seconds `expires_at`. It never refreshes or writes credentials, persists th
 the token to logs, RPC or storage. Keyring storage, custom providers or base URLs, arbitrary hosts and API-key-only
 configurations are unsupported. MoltenTerm never enumerates credential files or tries another region's endpoint.
 
+## Your SaaSFoundryAI identity
+
+A SaaSFoundryAI project asks a session for its coding-agent identity, the id `saasfoundryai agents route --provider`
+takes. SaaSFoundryAI accepts only the ids of its agent catalog (`saasfoundryai agents catalog --json`) and refuses every
+other name, so MoltenTerm hands each agent its id explicitly instead of letting it guess one from its name or folders:
+
+| Agent | SaaSFoundryAI identity |
+| --- | --- |
+| Claude Code | `claude-code` |
+| Codex | `codex` |
+| Kimi Code | `kimi` (never `kimi-code`, which is only the name of its folders) |
+| Gemini CLI | `gemini-cli` |
+| Qwen Code | `qwen-code` |
+
+The other agents have no SaaSFoundryAI profile. The ids come from SaaSFoundryAI's catalog when it is installed (read at
+each MoltenTerm start and saved in `molten/sf-agents.json` of MoltenTerm's data folder), else from the table above.
+MoltenTerm's own agent names (`claude`, `codex`, `kimi` in `molten agent list`, the hooks' `--agent`) are not these
+ids: never pass them to SaaSFoundryAI.
+
+- **`MOLTENTERM_SF_AGENT`** holds the identity in the agent's environment, and so in every command it runs: the
+  `claude` and `codex` launchers set it on the run (even one that gets nothing else added), and a terminal MoltenTerm
+  opens to start an agent (Restart work, a hand-off, a lead) has it for that agent. An agent started by another
+  agent's shell gets its own, never the other one's.
+- **`molten agent identity`** prints it for any agent, Kimi Code included (it has no launcher): it finds the agent
+  among the command's parent processes, else reads `MOLTENTERM_SF_AGENT`. `--json` adds the agent, where the answer
+  comes from and which catalog gave the id. It fails, saying so, when no agent runs it or the agent has no profile:
+  then ask the user.
+
+So in a session: `saasfoundryai agents route --task <kind> --provider "$(molten agent identity)"`.
+
 ## The `molten` command inside the agent's sandbox
 
 The `molten` command the guides name (`molten agent send`, `molten worktree link`, `molten ci run`...) talks to

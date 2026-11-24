@@ -142,3 +142,38 @@ func FindAgentProcess(procs []*proctree.Proc, read func(pid int32) (string, []st
 	}
 	return AgentProcess{}, false
 }
+
+// callingAgentMaxDepth bounds the walk up from a command to the agent that runs it: a shell, maybe a wrapper or two.
+const callingAgentMaxDepth = 32
+
+// FindCallingAgent returns the nearest coding agent among pid's ancestors (#2514): the agent whose shell tool runs the
+// command, even when that agent was itself started by another one. The walk ends at the terminal's edge: the pane's
+// shell runs under wavesrv or a wsh job manager, and an agent above MoltenTerm itself (one that started a test
+// instance, say) is not the terminal's.
+func FindCallingAgent(table *proctree.Table, pid int32, read func(pid int32) (string, []string)) (AgentProcess, bool) {
+	if table == nil {
+		return AgentProcess{}, false
+	}
+	var ancestors []*proctree.Proc
+	seen := map[int32]bool{pid: true}
+	current := table.Get(pid)
+	for i := 0; current != nil && i < callingAgentMaxDepth; i++ {
+		if current.Ppid <= 0 || seen[current.Ppid] {
+			break
+		}
+		seen[current.Ppid] = true
+		current = table.Get(current.Ppid)
+		if current == nil || isMoltenTermProcess(current.Name) {
+			break
+		}
+		ancestors = append(ancestors, current)
+	}
+	return FindAgentProcess(ancestors, read)
+}
+
+// isMoltenTermProcess: wavesrv, or wsh under any of its names (wsh, wsh-<version>-<os>, molten), which holds the
+// pane's shell as a job manager.
+func isMoltenTermProcess(name string) bool {
+	base := filepath.Base(name)
+	return strings.HasPrefix(base, "wavesrv") || base == "wsh" || strings.HasPrefix(base, "wsh-") || base == "molten"
+}

@@ -1,0 +1,18 @@
+{
+  "registryVersion": 1,
+  "runtime": "not-checked",
+  "profiles": [
+    { "displayName": "Claude Code", "instructionFile": "AGENTS.md", "capabilities": { "worktrees": "native" }, "id": "claude-code" },
+    { "displayName": "Codex", "instructionFile": "AGENTS.md", "capabilities": { "worktrees": "manual" }, "id": "codex" },
+    {
+      "displayName": "Kimi Code",
+      "instructionFile": "AGENTS.md",
+      "skillDiscovery": { "directories": [".kimi-code/skills", ".agents/skills"] },
+      "capabilities": { "tierAgents": { "dir": ".kimi-code/agents" }, "worktrees": "none" },
+      "id": "kimi"
+    },
+    { "displayName": "Gemini CLI", "instructionFile": "GEMINI.md", "id": "gemini-cli" },
+    { "displayName": "Qwen Code", "instructionFile": "AGENTS.md", "id": "qwen-code" },
+    { "displayName": "Generic coding agent", "instructionFile": "AGENTS.md", "id": "generic" }
+  ]
+}

@@ -37,6 +37,8 @@ var AgentSessionMarkers = map[string]bool{
 	// take its own terminals for that agent's subprocesses, nor keep the other MoltenTerm's launchers' folder.
 	"MOLTENTERM_AGENT_LAUNCHED": true,
 	"MOLTENTERM_AGENTBINDIR":    true,
+	// The SaaSFoundryAI identity of the agent that started MoltenTerm (#2514): another agent in its terminals is not it.
+	"MOLTENTERM_SF_AGENT": true,
 }
 
 // StripAgentSessionMarkers returns env ("KEY=VALUE" entries) without the agent session markers.
