@@ -213,6 +213,11 @@ describe("the bath's reflection", () => {
         expect(own).toMatch(/opacity: 0\.7;/);
     });
 
+    it("runs nothing in a hidden sidebar that is not peeking, which stays mounted off screen", () => {
+        const hidden = rule(".mt-sb.is-hidden:not(.is-peek) .mt-ribbon-rim, .mt-sb.is-hidden:not(.is-peek) .mt-ribbon-halo");
+        expect(hidden).toMatch(/display: none;/);
+    });
+
     it("pauses with the window, as the sidebar's heat does", () => {
         expect(Css).toMatch(/:root\[data-mt-motion="still"\] \.mt-ribbon-rim,\s*:root\[data-mt-motion="still"\] \.mt-ribbon-halo \{\s*animation-play-state: paused;/);
     });
