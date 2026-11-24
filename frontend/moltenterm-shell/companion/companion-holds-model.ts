@@ -155,11 +155,19 @@ function candidatesOf(upcoming: UpcomingAnswer, reviews: ReviewsAnswer): Candida
     return found;
 }
 
-// The agents that hold a ticket, besides this companion's: those placed on its branches, working now. A sub-agent that
-// finished, or went quiet, no longer holds it; a panel that only passed through the worktree, or whose work is
-// sub-agents on other tickets, does not work on it either (the Integration panel says the same of them).
-function ownersOf(ticket: number, branches: Set<string>, pr: number, inputs: HoldInputs): TicketOwner[] {
+// The agents that hold a ticket: those placed on its branches, working now. A sub-agent that finished, or went quiet,
+// no longer holds it; a panel that only passed through the worktree, or whose work is sub-agents on other tickets, does
+// not work on it either (the Integration panel says the same of them). This companion's agent and its sub-agents are
+// not owners: mine says one of them is there (#2522: a sub-agent in a worktree beside the project folder, which its
+// records do not name, is placed there by the Integration panel all the same).
+function ownersOf(
+    ticket: number,
+    branches: Set<string>,
+    pr: number,
+    inputs: HoldInputs
+): { owners: TicketOwner[]; mine: boolean } {
     const owners: TicketOwner[] = [];
+    let mine = false;
     const seen = new Set<string>();
     for (const branch of branches ?? []) {
         for (const facts of branchAgents(inputs.upcoming, inputs.states, branch, ticket, pr || undefined)) {
@@ -174,6 +182,7 @@ function ownersOf(ticket: number, branches: Set<string>, pr: number, inputs: Hol
                 inputs.ownBlockId &&
                 (facts.blockId === inputs.ownBlockId || facts.parentBlockId === inputs.ownBlockId)
             ) {
+                mine = true;
                 continue;
             }
             const key = `${facts.kind}:${blockId}:${facts.description ?? ""}`;
@@ -189,7 +198,28 @@ function ownersOf(ticket: number, branches: Set<string>, pr: number, inputs: Hol
             });
         }
     }
-    return owners;
+    return { owners, mine };
+}
+
+// The tickets the Integration panel places this companion's sub-agents on, by the sub-agent's own id (#2522): the
+// branch of the worktree it works in, wherever that worktree lies, or the ticket its task starts with. It completes
+// what the sub-agent's own records say (certainTicket of its branch and its task), so that the Agents at work block and
+// the milestone's rows name the same ticket for it.
+export function placedTickets(upcoming: UpcomingAnswer, ownBlockId: string): Map<string, number> {
+    const placed = new Map<string, number>();
+    if (!ownBlockId) {
+        return placed;
+    }
+    for (const a of upcoming?.agents ?? []) {
+        if (a.kind !== "subagent" || a.parentblockid !== ownBlockId || a.state === "done" || !a.agentid) {
+            continue;
+        }
+        const ticket = certainTicket(a.branch, a.description);
+        if (ticket > 0 && !placed.has(a.agentid)) {
+            placed.set(a.agentid, ticket);
+        }
+    }
+    return placed;
 }
 
 function inThisWorkspace(owner: TicketOwner, inputs: HoldInputs): boolean {
@@ -211,9 +241,11 @@ export function classifyTickets(tickets: MilestoneTicket[], inputs: HoldInputs):
             continue;
         }
         const pr = found.prs.get(n);
-        const owners = ownersOf(n, found.branches.get(n), pr?.number ?? 0, inputs);
+        const { owners, mine } = ownersOf(n, found.branches.get(n), pr?.number ?? 0, inputs);
         const here = owners.find((o) => inThisWorkspace(o, inputs));
-        if (here != null) {
+        if (mine) {
+            holds.set(n, { kind: "mine" });
+        } else if (here != null) {
             holds.set(n, { kind: "agent", owner: here });
         } else if (owners.length > 0) {
             holds.set(n, { kind: "away" });

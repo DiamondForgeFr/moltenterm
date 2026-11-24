@@ -226,9 +226,21 @@ export type LinkAgent = {
     model?: string;
 };
 
+// The ticket a sub-agent works on, the one answer the Agents at work block and the milestone's rows share (#2522): its
+// own branch, then its own description, then the ticket the Integration panel placed it on (placedTickets: the
+// branch of the worktree it works in, which its records may not name).
+export function subagentTicket(
+    branch: string,
+    description: string,
+    agentId: string,
+    placed?: ReadonlyMap<string, number>
+): number {
+    return certainTicket(branch, description) || (agentId ? (placed?.get(agentId) ?? 0) : 0);
+}
+
 // The agents at work a task can link to: the main agent by its session's branch only (its topic is no certainty), each
-// sub-agent by its own branch, then its own description.
-export function linkAgents(rows: AgentRow[], view: CompanionView): LinkAgent[] {
+// sub-agent by subagentTicket.
+export function linkAgents(rows: AgentRow[], view: CompanionView, placed?: ReadonlyMap<string, number>): LinkAgent[] {
     const subs = new Map((view?.subagents ?? []).map((s) => [s.id, s]));
     return (rows ?? []).map((row) => {
         if (row.main) {
@@ -246,7 +258,7 @@ export function linkAgents(rows: AgentRow[], view: CompanionView): LinkAgent[] {
             id: row.id,
             name: row.name,
             state: row.state,
-            ticket: certainTicket(sub?.branch ?? row.branch, description),
+            ticket: subagentTicket(sub?.branch ?? row.branch, description, sub?.agentid, placed),
             description,
             kind: (sub?.kind ?? "").trim(),
             // The row's model and effort start with the model, its own or its parent's.

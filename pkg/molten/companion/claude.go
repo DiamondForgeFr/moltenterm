@@ -128,8 +128,9 @@ func (a *ClaudeAdapter) SubagentIds(sessionPath string) map[string]string {
 }
 
 // ReadSubagent reads the end of a sub-agent's transcript for its latest model (the model's own answers) and effort,
-// and its branch from its own folder on disk (#967): its worktree's (agent-<id>.meta.json), else its records' cwd.
-// The branch its records name is never taken: Claude Code shares it across the worktrees of one process.
+// and its branch from its own folder on disk (#967): its worktree's (agent-<id>.meta.json), else the worktree its tool
+// calls work in (#2522), else its records' cwd. The branch its records name is never taken: Claude Code shares it
+// across the worktrees of one process.
 func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (SubagentFacts, bool) {
 	if !claudeAgentIdRegex.MatchString(agentId) || !strings.HasSuffix(sessionPath, ".jsonl") {
 		return SubagentFacts{}, false
@@ -145,9 +146,9 @@ func (a *ClaudeAdapter) ReadSubagent(sessionPath string, agentId string) (Subage
 	}
 	meta, _ := readClaudeSubagentMeta(filepath.Join(subs, "agent-"+agentId+".meta.json"))
 	dir := meta.WorktreePath
-	tf := claudeTailFacts(tail, dir == "")
+	tf := claudeTailFacts(tail, dir == "", dir == "")
 	if dir == "" {
-		dir = tf.cwd
+		dir = claudeSubagentWorkFolder(tf.cwd, tf.folders)
 	}
 	model, effort := a.withAgentDefinition(tf.model, tf.effort, meta.AgentType, dir)
 	facts := SubagentFacts{Model: model, Effort: effort, Worktree: dir}
@@ -159,7 +160,8 @@ type claudeTailRec struct {
 	Cwd     string `json:"cwd"`
 	Effort  string `json:"effort"`
 	Message struct {
-		Model string `json:"model"`
+		Model   string          `json:"model"`
+		Content json.RawMessage `json:"content"`
 	} `json:"message"`
 }
 

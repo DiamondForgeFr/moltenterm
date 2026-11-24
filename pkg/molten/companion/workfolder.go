@@ -45,7 +45,7 @@ func (a *CodexAdapter) WorkFolder(sessionPath string) (string, bool) {
 // worktree (EnterWorktree, a cd its shell keeps).
 func (a *ClaudeAdapter) WorkFolder(sessionPath string) (string, bool) {
 	work, ok := cachedWorkTail(a, sessionPath, claudeSubagentTailBytes, func(tail []byte) workTail {
-		return workTail{cwd: claudeTailFacts(tail, true).cwd}
+		return workTail{cwd: claudeTailFacts(tail, true, false).cwd}
 	})
 	if !ok {
 		return "", false
