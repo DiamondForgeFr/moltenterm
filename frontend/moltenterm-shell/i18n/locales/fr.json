@@ -2422,7 +2422,11 @@
             "subagents": "Sous-agents",
             "running": "en cours",
             "finished": "{count} terminé(s)",
-            "failed": "{count} en échec"
+            "failed": "{count} en échec",
+            "finishedOne": "terminé",
+            "failedOne": "en échec",
+            "seeFinished": "voir",
+            "hideFinished": "masquer"
         },
         "proportion": {
             "pair": "{model} en effort {effort}",
@@ -12207,6 +12211,10 @@
                 "other": "{count} actifs"
             },
             "resting": "au repos",
+            "atWork": {
+                "one": "{count} sous-agent au travail",
+                "other": "{count} sous-agents au travail"
+            },
             "goTo": "Aller à la vue de {name}",
             "expand": "Afficher ce à quoi {name} est relié",
             "collapse": "Masquer ce à quoi {name} est relié",
@@ -12397,18 +12405,45 @@
                 "one": "Agent",
                 "other": "Agents"
             },
-            "ci": "CI",
-            "builds": {
-                "one": "Build",
-                "other": "Builds"
+            "standalone": "Hors agent"
+        },
+        "sub": {
+            "untitled": "Sous-agent",
+            "working": "au travail",
+            "waitingWork": "attend son travail en arrière-plan",
+            "since": "depuis {age}",
+            "jobMore": "{job} +{count}",
+            "waiting": {
+                "tests": "attend ses tests :",
+                "build": "attend sa compilation :",
+                "ci": "attend sa CI :",
+                "command": "attend sa commande :"
             }
+        },
+        "job": {
+            "vitest": "tests (vitest)",
+            "gotest": "tests (Go)",
+            "tests": "tests",
+            "affected": "tests concernés",
+            "buildfrontend": "build du frontend",
+            "buildbackend": "compilation du backend",
+            "build": "build",
+            "perf": "budget de performance",
+            "check": "vérifications",
+            "npmrun": "script npm",
+            "npmrunArg": "script npm ({script})",
+            "moltenci": "CI locale",
+            "command": "une commande"
+        },
+        "load": {
+            "warning": "Machine très chargée : les tests vont plus lentement"
         },
         "row": {
             "localCi": "CI locale",
             "asks": "{name} vous demande quelque chose",
             "subagents": {
-                "one": "{count} sous-agent",
-                "other": "{count} sous-agents"
+                "one": "{count} sous-agent au travail",
+                "other": "{count} sous-agents au travail"
             },
             "pr": "PR #{number}",
             "prChecks": "GitHub · {done}/{total} checks",

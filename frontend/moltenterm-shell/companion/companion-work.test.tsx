@@ -1,6 +1,7 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { AgentStateInfo } from "../agent-state-model";
@@ -50,9 +51,12 @@ import {
     todoLinks,
 } from "./companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "./companion-model";
-import { agentsView } from "./companion-recap-model";
+import { agentsView, finishedSubagents, MaxFinishedRows } from "./companion-recap-model";
 import { TasksBlock } from "./companion-tasks";
 import { CompanionWork } from "./companion-work";
+
+// Read at collection time, where a loaded machine costs no test its 5 s.
+const Css = readFileSync(new URL("./companion-work.css", import.meta.url), "utf8");
 
 vi.mock("@/app/store/global", async () => {
     const { atom } = await import("jotai");
@@ -1104,5 +1108,177 @@ describe("links from a task to its agent (#2392)", () => {
                 origin
             )
         ).toBeNull();
+    });
+});
+
+// A sub-agent waiting on its own tests or build (#2502, TC-SHELL-018-19): the lead's turn ended, the sub-agent's meta
+// says finished, its own transcript still holds the command it left running.
+describe("the sub-agents that wait on their own work (#2502)", () => {
+    const idleLead: AgentStateInfo = { ...working, state: "done" };
+    const waitingSubs: CompanionSubagent[] = [
+        {
+            id: "toolu_new",
+            agentid: "a-new",
+            description: "#2497 Companion of width 0",
+            kind: "sf-fix",
+            branch: "feature/38-receipt-language",
+            background: true,
+            state: "running",
+            started: now - 20 * Min,
+            waiting: true,
+            jobs: [{ kind: "buildfrontend", since: now - 3 * Min }],
+        },
+        {
+            id: "toolu_old",
+            agentid: "a-old",
+            description: "#2496 Tree scans",
+            kind: "sf-build",
+            background: true,
+            state: "running",
+            started: now - 62 * Min,
+            waiting: true,
+            jobs: [{ kind: "vitest", since: now - 7 * Min }],
+        },
+        {
+            id: "toolu_busy",
+            agentid: "a-busy",
+            description: "#2498 Waiting agents",
+            kind: "sf-fix",
+            background: true,
+            state: "running",
+            started: now - 1 * Min,
+        },
+        {
+            id: "toolu_done",
+            description: "#2400 Old",
+            kind: "sf-fix",
+            state: "done",
+            started: now - 90 * Min,
+            ended: now - 60 * Min,
+        },
+        {
+            id: "toolu_failed",
+            description: "#2401 Broken",
+            state: "failed",
+            started: now - 80 * Min,
+            ended: now - 70 * Min,
+        },
+    ];
+    const view = (subs: CompanionSubagent[]): CompanionView => ({
+        ...companionView("claude", "Claude Code"),
+        subagents: subs,
+    });
+
+    it("keeps them at the top, the ones that wait first, then the newest, with the lead's turn over", () => {
+        const rows = agentsView(view(waitingSubs), idleLead, now).rows.filter((r) => !r.main);
+        expect(rows.map((r) => r.id)).toEqual(["toolu_new", "toolu_old", "toolu_busy"]);
+        expect(rows.map((r) => r.waiting)).toEqual([true, true, false]);
+        expect(rows[1].job).toMatchObject({
+            label: "tests (vitest)",
+            since: now - 7 * Min,
+            more: 0,
+            category: "tests",
+        });
+        expect(rows[2].job).toBeUndefined();
+    });
+
+    it("says what each waits for, the job, how long it has run and its tier", () => {
+        const html = markup(view(waitingSubs), withMilestone, 900);
+        const rows = html.split('data-testid="companion-subagent"').slice(1);
+        expect(rows).toHaveLength(3);
+        expect(rows[1]).toContain("#2496");
+        expect(rows[1]).toContain("Tree scans");
+        expect(rows[1]).toContain(">waiting for its tests:<");
+        expect(rows[1]).toContain("tests (vitest)");
+        expect(rows[1]).toContain(" · 7 min");
+        expect(rows[1]).toContain("background · 1 h 02");
+        expect(rows[1]).toContain('data-testid="companion-subagent-tier">→ sf-build<');
+        expect(rows[0]).toContain(">waiting for its build:<");
+        expect(rows[0]).toContain("frontend build");
+        expect(rows[0]).toContain(" · 3 min");
+        expect(rows[0]).toContain("→ sf-fix");
+        expect(rows[2]).not.toContain("companion-subagent-job");
+        expect(rows[2]).toContain('data-state="running">running<');
+    });
+
+    it("says it in French", () => {
+        inFrench(() => {
+            const html = markup(view(waitingSubs), withMilestone, 900);
+            expect(html).toContain(">attend ses tests :<");
+            expect(html).toContain(">attend sa compilation :<");
+            expect(html).toContain("build du frontend");
+            expect(html).toContain(" · 7 min");
+        });
+    });
+
+    it("says a sub-agent that waits with no job its files name waits on its background work, and shows several jobs as '+N'", () => {
+        const noJob: CompanionSubagent = { ...waitingSubs[0], id: "toolu_x", jobs: undefined };
+        const two: CompanionSubagent = {
+            ...waitingSubs[1],
+            id: "toolu_y",
+            jobs: [
+                { kind: "gotest", since: now - 9 * Min },
+                { kind: "build", since: now - 2 * Min },
+            ],
+        };
+        const html = markup(view([noJob, two]), withMilestone, 900);
+        expect(html).toContain(">waiting for its background work<");
+        expect(html).toContain("tests (Go) +1");
+        expect(html).toContain(" · 9 min");
+    });
+
+    it("keeps one that waits among the agents at work whatever its lead says, and counts it in the block", () => {
+        for (const state of ["done", "idle"] as const) {
+            const rows = agentsView(view(waitingSubs), { ...working, state }, now).rows.filter((r) => !r.main);
+            expect(rows.map((r) => r.id)).toEqual(["toolu_new", "toolu_old", "toolu_busy"]);
+        }
+        const foreground: CompanionSubagent = {
+            id: "f",
+            description: "#7 Quick",
+            state: "running",
+            started: now - Min,
+        };
+        expect(agentsView(view([foreground]), { ...working, state: "done" }, now).rows.filter((r) => !r.main)).toEqual(
+            []
+        );
+        expect(
+            agentsView(view([{ ...foreground, waiting: true }]), { ...working, state: "done" }, now).rows
+        ).toHaveLength(2);
+        const html = markup(view(waitingSubs), withMilestone, 900);
+        expect(html).toContain('data-testid="companion-agents"');
+        expect(html).toMatch(/data-mono="">3</);
+    });
+
+    it("shows the same agent on its ticket in the milestone block, linked, while its lead's turn is over", () => {
+        const html = markup(view(waitingSubs), withMilestone, 900);
+        expect(html).toContain('data-link-end="agent:toolu_new" data-linked=""');
+        expect(html).toContain('data-link-end="ticket:38" data-linked=""');
+    });
+
+    it("counts the finished ones on a quiet line that lists them when opened, the last to end first", () => {
+        const html = markup(view(waitingSubs), withMilestone, 900);
+        expect(html).toContain('data-testid="companion-subagents-ended"');
+        expect(html).toContain("1 finished · 1 failed");
+        expect(html).toContain('data-testid="companion-subagents-see"');
+        expect(html).toContain('aria-expanded="false"');
+        expect(html).not.toContain("companion-subagents-finished");
+        expect(finishedSubagents(view(waitingSubs)).map((s) => s.id)).toEqual(["toolu_done", "toolu_failed"]);
+        expect(finishedSubagents(view([waitingSubs[0]]))).toEqual([]);
+        const many: CompanionSubagent[] = Array.from({ length: MaxFinishedRows + 5 }, (_, i) => ({
+            id: `d${i}`,
+            state: "done",
+            ended: now - i * Min,
+        }));
+        expect(finishedSubagents(view(many))).toHaveLength(MaxFinishedRows);
+        inFrench(() => {
+            expect(markup(view(waitingSubs), withMilestone, 900)).toContain(">voir<");
+        });
+    });
+
+    it("draws the row's lines on their own, the words in the running colour, never the waiting violet", () => {
+        const waits = Css.slice(Css.indexOf(".mt-cwork-sub-waits {"));
+        expect(waits.slice(0, waits.indexOf("}"))).toContain("color: var(--mt-state-running)");
+        const tier = Css.slice(Css.indexOf(".mt-cwork-sub-tier {"));
+        expect(tier.slice(0, tier.indexOf("}"))).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(/);
     });
 });

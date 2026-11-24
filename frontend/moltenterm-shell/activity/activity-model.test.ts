@@ -33,6 +33,7 @@ import {
     subagentIsRunning,
     summarizeActivity,
 } from "./activity-model";
+import { JobKinds } from "./job-words";
 
 const Dir = "/work/product";
 
@@ -401,7 +402,7 @@ describe("the popover", () => {
         expect(activityPopoverTitle(two, fakeT)).toBe('activity.popover.many{"count":2}');
     });
 
-    it("groups the rows as agents, CI, builds, newest first, and leaves out a group with nothing", () => {
+    it("groups the rows as agents and what is not tied to an agent, newest first, and leaves out a group with nothing", () => {
         const summary = summarizeActivity(
             activityItems(
                 inputs({
@@ -414,13 +415,13 @@ describe("the popover", () => {
             )
         );
         const groups = activityGroups(summary, words);
-        expect(groups.map((g) => g.id)).toEqual(["agents", "builds"]);
+        expect(groups.map((g) => g.id)).toEqual(["agents", "standalone"]);
         expect(groups[0].title).toBe("activity.group.agents:2");
         expect(groups[0].rows.map((r) => [r.what, r.detail, r.since])).toEqual([
             ["Flore", "fixing #2233", "100s"],
             ["Berenice", "", "200s"],
         ]);
-        expect(groups[1].title).toBe("activity.group.builds:1");
+        expect(groups[1].title).toBe("activity.group.standalone");
         expect(groups[1].rows[0]).toMatchObject({ what: "Gold packaging", detail: "pack", since: "60s" });
         expect(activityGroups(EmptyActivity, words)).toEqual([]);
     });
@@ -443,8 +444,8 @@ describe("the popover", () => {
             )
         );
         const [ci] = activityGroups(summary, words);
-        expect(ci.id).toBe("ci");
-        expect(ci.title).toBe("activity.group.ci");
+        expect(ci.id).toBe("standalone");
+        expect(ci.title).toBe("activity.group.standalone");
         const byWhat = Object.fromEntries(ci.rows.map((r) => [r.what, r]));
         const local = byWhat["activity.row.localCi"];
         expect(local.detail).toBe('tests · activity.row.percent{"percent":43}');
@@ -519,16 +520,7 @@ describe("the words", () => {
     });
 
     it("has the keys it asks for in both languages, with the same variables", () => {
-        const plural = [
-            "agents",
-            "subagents",
-            "builds",
-            "localCi",
-            "prCi",
-            "group.agents",
-            "group.builds",
-            "row.subagents",
-        ];
+        const plural = ["agents", "subagents", "builds", "localCi", "prCi", "group.agents", "row.subagents"];
         const text = [
             "label",
             "waitingLabel",
@@ -538,8 +530,20 @@ describe("the words", () => {
             "popover.many",
             "popover.waiting",
             "popover.none",
-            "group.ci",
+            "group.standalone",
             "group.waiting",
+            "sub.untitled",
+            "sub.working",
+            "sub.waitingWork",
+            "sub.since",
+            "sub.jobMore",
+            "sub.waiting.tests",
+            "sub.waiting.build",
+            "sub.waiting.ci",
+            "sub.waiting.command",
+            ...JobKinds.map((kind) => `job.${kind}`),
+            "job.npmrunArg",
+            "load.warning",
             "row.localCi",
             "row.pr",
             "row.prChecks",
@@ -839,7 +843,7 @@ describe("an agent that waits for the developer (#2294)", () => {
             server: (_text, english) => english,
         };
         const groups = activityGroups(summary, words);
-        expect(groups.map((g) => g.id)).toEqual(["waiting", "builds"]);
+        expect(groups.map((g) => g.id)).toEqual(["waiting", "standalone"]);
         expect(groups[0].title).toBe("activity.group.waiting");
         expect(groups[0].rows).toEqual([
             {

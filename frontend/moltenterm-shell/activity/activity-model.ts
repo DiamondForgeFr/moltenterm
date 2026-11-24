@@ -11,12 +11,13 @@
 // an item whose workspace cannot be told is left out rather than shown in every window. A run that ended is not in it:
 // results are Brokk's and the notifications' to tell. Pure, so the rules are tested without a window.
 
-import type { AgentStateInfo } from "../agent-state-model";
+import type { AgentStateInfo, SubagentWork } from "../agent-state-model";
 import { AiIcon } from "../ai-icon";
 import type { ServerText } from "../i18n/server-text";
 import type { ReviewPr, ReviewsAnswer } from "../reviews/reviews-model";
 import type { UpcomingAnswer } from "../reviews/reviews-upcoming-model";
 import type { WorkItem } from "../running-work";
+import { jobLine, jobsView, subagentTaskTitle, subagentTicket, waitingWords } from "./job-words";
 
 export type ActivityKind = "agent" | "build" | "ci";
 
@@ -45,6 +46,8 @@ export type ActivityAbout = {
     total: number;
     // An agent's running sub-agents (#2294): the lead is one item whatever their number.
     subagents: number;
+    // What they work on and wait for, as the agent's state carries it (#2502): the popover lists them under the lead.
+    work: SubagentWork[];
 };
 
 export type ActivityItem = {
@@ -57,7 +60,7 @@ export type ActivityItem = {
 };
 
 function aboutOf(more: Partial<ActivityAbout> = {}): ActivityAbout {
-    return { title: "", detail: "", progress: -1, done: 0, total: 0, subagents: 0, ...more };
+    return { title: "", detail: "", progress: -1, done: 0, total: 0, subagents: 0, work: [], ...more };
 }
 
 // An agent of the workspace that waits for the developer (#2294): a question, a permission, a decision stop. It is not
@@ -198,6 +201,7 @@ function agentItems(
                     detail: said ? "" : (info.message ?? ""),
                     detailtext: said ? undefined : info.messagetext,
                     subagents: subs,
+                    work: info.work ?? [],
                 }),
             };
         });
@@ -363,7 +367,10 @@ export function activityKey(summary: ActivitySummary): string {
         .map((i) => {
             const a = i.about;
             const text = JSON.stringify(a.detailtext ?? null);
-            return [i.id, i.startedat, a.title, a.detail, text, a.progress, a.done, a.total, a.subagents].join("@");
+            const work = a.work.map((w) => JSON.stringify([w.id, w.description, w.kind, w.started, w.waiting, w.jobs]));
+            return [i.id, i.startedat, a.title, a.detail, text, a.progress, a.done, a.total, a.subagents, ...work].join(
+                "@"
+            );
         })
         .join("|");
     const waiting = summary.waiting
@@ -474,7 +481,28 @@ export const ActivityGlyphIcons: Record<ActivityGlyph, string> = {
     build: "hammer",
 };
 
-export type ActivityGroupId = "waiting" | "agents" | "ci" | "builds";
+// The groups of the popover (#2502): what waits for the developer, the agents with their sub-agents under them, and
+// what runs outside any agent (local CI, builds, a pull request's checks).
+export type ActivityGroupId = "waiting" | "agents" | "standalone";
+
+// A sub-agent of an agent's row (#2502), on two lines: its ticket and task with its age, then what it waits for.
+export type ActivitySubRow = {
+    id: string;
+    // "#2496", "" when its task names no ticket.
+    ticket: string;
+    title: string;
+    age: string;
+    // Its background job in plain words ("tests (vitest)"); without one, that it waits on its background work or is at
+    // work.
+    job: string;
+    // "waiting for its tests:" for a sub-agent whose turn ended on a job, "" otherwise: the row's accessible name says it.
+    waits: string;
+    // "since 7 min", "" when the job's start is not known or there is no job.
+    jobAge: string;
+    hasJob: boolean;
+    target: ActivityTarget;
+    whereKey: string;
+};
 
 export type ActivityRow = {
     id: string;
@@ -485,6 +513,8 @@ export type ActivityRow = {
     target: ActivityTarget;
     // Where a click goes, said in the row's tooltip.
     whereKey: string;
+    // An agent's sub-agents at work, listed under it, never those of another agent (#2502).
+    subs?: ActivitySubRow[];
 };
 
 export type ActivityGroup = { id: ActivityGroupId; title: string; rows: ActivityRow[] };
@@ -499,8 +529,8 @@ export type ActivityWords = {
     server: (text: ServerText, english: string) => string;
 };
 
-const GroupOfKind: Record<ActivityKind, ActivityGroupId> = { agent: "agents", ci: "ci", build: "builds" };
-const GroupOrder: readonly ActivityGroupId[] = ["agents", "ci", "builds"];
+const GroupOfKind: Record<ActivityKind, ActivityGroupId> = { agent: "agents", ci: "standalone", build: "standalone" };
+const GroupOrder: readonly ActivityGroupId[] = ["agents", "standalone"];
 
 function waitingRowOf(waiting: ActivityWaiting, w: ActivityWords): ActivityRow {
     return {
@@ -510,6 +540,25 @@ function waitingRowOf(waiting: ActivityWaiting, w: ActivityWords): ActivityRow {
         since: waiting.since > 0 ? w.age(waiting.since, w.now) : "",
         target: waiting.target,
         whereKey: "activity.open.waiting",
+    };
+}
+
+// A sub-agent at work, as its lead's row lists it. A job it waits for says what: "waiting for its tests:" and the job
+// with how long it runs; one in its turn is at work.
+function subRowOf(sub: SubagentWork, target: ActivityTarget, w: ActivityWords): ActivitySubRow {
+    const job = jobsView(w.t, sub.jobs);
+    const ticket = subagentTicket(sub.description);
+    return {
+        id: sub.id,
+        ticket: ticket > 0 ? `#${ticket}` : "",
+        title: subagentTaskTitle(sub.description) || sub.kind || w.t("activity.sub.untitled"),
+        age: sub.started > 0 ? w.age(sub.started, w.now) : "",
+        job: job != null ? jobLine(w.t, job) : sub.waiting ? waitingWords(w.t, null) : w.t("activity.sub.working"),
+        waits: sub.waiting && job != null ? waitingWords(w.t, job.category) : "",
+        jobAge: job != null && job.since > 0 ? w.t("activity.sub.since", { age: w.age(job.since, w.now) }) : "",
+        hasJob: job != null,
+        target,
+        whereKey: "activity.open.agent",
     };
 }
 
@@ -532,7 +581,7 @@ function rowOf(item: ActivityItem, w: ActivityWords): ActivityRow {
         what = w.t("activity.row.pr", { number: target.number });
         detail = a.total > 0 ? w.t("activity.row.prChecks", { done: a.done, total: a.total }) : "";
     }
-    return {
+    const row: ActivityRow = {
         id: item.id,
         what,
         detail,
@@ -540,10 +589,14 @@ function rowOf(item: ActivityItem, w: ActivityWords): ActivityRow {
         target,
         whereKey: activityWhereKey(target),
     };
+    if (item.kind === "agent" && a.work.length > 0) {
+        row.subs = a.work.map((sub) => subRowOf(sub, target, w));
+    }
+    return row;
 }
 
-// The popover's groups: what waits for the developer first, one row per agent, then agents, CI and builds, each with
-// its rows newest first; an empty group is left out.
+// The popover's groups: what waits for the developer first, one row per agent that works with its sub-agents under it,
+// then what runs outside any agent, each with its rows newest first; an empty group is left out.
 export function activityGroups(summary: ActivitySummary, w: ActivityWords): ActivityGroup[] {
     const rtn: ActivityGroup[] = [];
     const waiting = summary?.waiting ?? [];
@@ -555,7 +608,7 @@ export function activityGroups(summary: ActivitySummary, w: ActivityWords): Acti
         if (items.length === 0) {
             continue;
         }
-        const title = id === "ci" ? w.t("activity.group.ci") : w.tc(`activity.group.${id}`, items.length);
+        const title = id === "agents" ? w.tc("activity.group.agents", items.length) : w.t("activity.group.standalone");
         rtn.push({ id, title, rows: items.map((i) => rowOf(i, w)) });
     }
     return rtn;

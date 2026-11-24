@@ -10,13 +10,17 @@
 
 import { cn, fireAndForget, makeIconClass } from "@/util/util";
 import { autoUpdate, FloatingPortal, offset, shift } from "@floating-ui/react";
+import { Activity } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MachineLoad } from "../agent-state-model";
 import { useFloatingInPlace } from "../floating-in-place";
 import { useT, useTCount } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
-import { formatAge } from "../notifications-model";
 import { useMinuteNow } from "../reviews/reviews-agent-bar";
+import { durationText } from "../reviews/reviews-upcoming-model";
+import { DominoLoader } from "../suite/suite";
 import "./activity-icon.css";
+import { showsLoadWarning, useMachineLoad } from "./activity-load";
 import {
     activityGlyph,
     ActivityGlyph,
@@ -24,6 +28,7 @@ import {
     activityGroups,
     activityPopoverTitle,
     ActivityRow,
+    ActivitySubRow,
     ActivitySummary,
     ActivityTarget,
     activityTexts,
@@ -52,15 +57,69 @@ export function ActivityMark({ glyph, waits = false }: { glyph: ActivityGlyph; w
     );
 }
 
-// The detail by group: the title, then AGENTS, CI and BUILD with a row for each item that runs.
+// One sub-agent under its agent (#2502): its ticket and task with its age, then the dominoes, what it waits for and since
+// when. A click goes to its agent, like the agent's own row.
+function ActivitySubButton({
+    sub,
+    words,
+    onGo,
+}: {
+    sub: ActivitySubRow;
+    words: ActivityWords;
+    onGo: (target: ActivityTarget) => void;
+}) {
+    const name = [[sub.ticket, sub.title].filter(Boolean).join(" "), sub.age, sub.waits, sub.job, sub.jobAge]
+        .filter(Boolean)
+        .join(", ");
+    return (
+        <button
+            type="button"
+            className="mt-act-sub"
+            title={words.t(sub.whereKey)}
+            aria-label={name}
+            data-testid="activity-sub"
+            data-waiting={sub.waits ? "" : undefined}
+            onClick={() => onGo(sub.target)}
+        >
+            <span className="mt-act-sub-l1">
+                {sub.ticket ? <span className="mt-act-sub-id">{sub.ticket}</span> : null}
+                <span className="mt-act-sub-title">{sub.title}</span>
+                {sub.age ? <span className="mt-act-sub-age">{sub.age}</span> : null}
+            </span>
+            <span className="mt-act-sub-l2">
+                <DominoLoader className="mt-act-dom" />
+                <span className="mt-act-sub-job" data-testid="activity-sub-job">
+                    {sub.job}
+                </span>
+                {sub.jobAge ? <span className="mt-act-sub-since">{`· ${sub.jobAge}`}</span> : null}
+            </span>
+        </button>
+    );
+}
+
+// The discreet strip of a loaded machine (#2502): the pulse glyph and one sentence, in the warm tone, never red.
+export function ActivityLoadStrip({ words }: { words: ActivityWords }) {
+    const text = words.t("activity.load.warning");
+    return (
+        <div className="mt-act-load" role="status" aria-label={text} data-testid="activity-load">
+            <Activity size={13} strokeWidth={2} aria-hidden />
+            <span>{text}</span>
+        </div>
+    );
+}
+
+// The detail by group: the title, then the agents each with its sub-agents under it, then what runs outside any agent,
+// and the machine's load when it is high.
 export function ActivityPopoverBody({
     summary,
     words,
     onGo,
+    load,
 }: {
     summary: ActivitySummary;
     words: ActivityWords;
     onGo: (row: ActivityRow) => void;
+    load?: MachineLoad;
 }) {
     const groups = activityGroups(summary, words);
     return (
@@ -79,20 +138,39 @@ export function ActivityPopoverBody({
                         {group.title}
                     </div>
                     {group.rows.map((row) => (
-                        <button
-                            key={row.id}
-                            type="button"
-                            className="-mx-1.5 flex cursor-pointer items-baseline justify-between gap-2.5 rounded-4 px-1.5 py-[3px] text-left text-12 text-primary transition-colors duration-120 ease-mt hover:bg-hover"
-                            title={row.whereKey ? words.t(row.whereKey) : undefined}
-                            data-testid="activity-row"
-                            onClick={() => onGo(row)}
-                        >
-                            <span className="min-w-0 truncate">
-                                {row.what}
-                                {row.detail ? <span className="text-secondary">{` · ${row.detail}`}</span> : null}
-                            </span>
-                            <span className="shrink-0 whitespace-nowrap text-secondary tabular-nums">{row.since}</span>
-                        </button>
+                        <div key={row.id} className="mt-act-entry" data-testid="activity-entry">
+                            <button
+                                type="button"
+                                className="-mx-1.5 flex cursor-pointer items-baseline justify-between gap-2.5 rounded-4 px-1.5 py-[3px] text-left text-12 text-primary transition-colors duration-120 ease-mt hover:bg-hover"
+                                title={row.whereKey ? words.t(row.whereKey) : undefined}
+                                data-testid="activity-row"
+                                onClick={() => onGo(row)}
+                            >
+                                <span className="min-w-0 truncate">
+                                    {row.what}
+                                    {row.detail ? (
+                                        <span
+                                            className={cn(row.subs?.length > 0 ? "mt-act-sub-count" : "text-secondary")}
+                                        >{` · ${row.detail}`}</span>
+                                    ) : null}
+                                </span>
+                                <span className="shrink-0 whitespace-nowrap text-secondary tabular-nums">
+                                    {row.since}
+                                </span>
+                            </button>
+                            {row.subs?.length > 0 ? (
+                                <div className="mt-act-subs" data-testid="activity-subs">
+                                    {row.subs.map((sub) => (
+                                        <ActivitySubButton
+                                            key={sub.id}
+                                            sub={sub}
+                                            words={words}
+                                            onGo={(target) => onGo({ ...row, target })}
+                                        />
+                                    ))}
+                                </div>
+                            ) : null}
+                        </div>
                     ))}
                 </div>
             ))}
@@ -101,6 +179,7 @@ export function ActivityPopoverBody({
                     {words.t("activity.popover.none")}
                 </div>
             ) : null}
+            {showsLoadWarning(load) ? <ActivityLoadStrip words={words} /> : null}
         </>
     );
 }
@@ -132,7 +211,13 @@ function ActivityPopover({
             floatingRef.current?.querySelector<HTMLElement>("[data-testid='activity-row']")?.focus();
         }
     }, [focusFirst]);
-    const words = useMemo<ActivityWords>(() => ({ t, tc, now, age: formatAge, server: serverText }), [t, tc, now]);
+    // Every age of the popover reads as the sub-agents' and the companion's do: "7 min", "1 h 02".
+    const words = useMemo<ActivityWords>(
+        () => ({ t, tc, now, age: (startedat, at) => durationText(t, at - startedat), server: serverText }),
+        [t, tc, now]
+    );
+    // Asked only while the popover shows: it unmounts with it.
+    const load = useMachineLoad();
     const { refs, floatingStyles } = useFloatingInPlace({
         open: true,
         placement: "bottom-end",
@@ -163,7 +248,7 @@ function ActivityPopover({
                     role="dialog"
                     aria-label={activityPopoverTitle(summary, t)}
                 >
-                    <ActivityPopoverBody summary={summary} words={words} onGo={(row) => onGo(row.target)} />
+                    <ActivityPopoverBody summary={summary} words={words} onGo={(row) => onGo(row.target)} load={load} />
                 </div>
             </div>
         </FloatingPortal>

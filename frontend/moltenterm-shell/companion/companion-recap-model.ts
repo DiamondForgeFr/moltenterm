@@ -5,6 +5,7 @@
 // the transcript (pkg/molten/companion/topics.go) and the pane's agent state. Nothing here is written by a model: a
 // line the data cannot support is left out. Pure, so it is tested without a window.
 
+import { JobsView, jobsView } from "../activity/job-words";
 import {
     agentLabel,
     AgentStateInfo,
@@ -77,6 +78,10 @@ export type AgentRow = {
     complexity?: string;
     hint?: ProportionHint;
     background?: boolean;
+    // A sub-agent whose turn ended on background work of its own, which it waits for (#2498, #2502): its row stays at
+    // the top and says what for. job is the oldest of its jobs, worded; absent when its files name none.
+    waiting?: boolean;
+    job?: JobsView;
     // A sub-agent's own branch, read from its folder (#967).
     branch?: string;
     portrait?: string;
@@ -172,7 +177,8 @@ function stillRunning(sub: CompanionSubagent, view: CompanionView, agentState: A
     if (sub.state !== "running" || view?.ended) {
         return false;
     }
-    if (sub.background) {
+    // One that waits on its own tests or build lives on its own work, whatever its lead's turn does (#2498).
+    if (sub.background || sub.waiting) {
         return true;
     }
     const state = agentState?.state;
@@ -209,6 +215,8 @@ export function subagentRow(sub: CompanionSubagent, now: number, parent?: ModelE
         configTitle: titleParts.join("\n"),
         lines: what.length > 0 ? [what.join(" · ")] : [],
         background: sub.background,
+        waiting: sub.waiting === true,
+        job: jobsView(t, sub.jobs) ?? undefined,
         branch: sub.branch || undefined,
         ...ticketFacts(sub.ticket, sub.complexity, model, effort),
     };
@@ -216,14 +224,14 @@ export function subagentRow(sub: CompanionSubagent, now: number, parent?: ModelE
 
 export type AgentsView = { rows: AgentRow[]; finished: number; failed: number };
 
-// The agents at work: the main session first, then the sub-agents it started that still run, newest first; those
-// that ended are counted.
+// The agents at work: the main session first, then the sub-agents it started that still run, the ones that wait on
+// their own work first (#2502), then the newest first; those that ended are counted.
 export function agentsView(view: CompanionView, agentState: AgentStateInfo, now: number): AgentsView {
     const subs = view?.subagents ?? [];
     const parent = mainModelEffort(view, agentState);
     const running = subs
         .filter((s) => stillRunning(s, view, agentState))
-        .sort((a, b) => (b.started ?? 0) - (a.started ?? 0))
+        .sort((a, b) => Number(b.waiting === true) - Number(a.waiting === true) || (b.started ?? 0) - (a.started ?? 0))
         .map((s) => subagentRow(s, now, parent));
     // The main session reads as working in the background while its sub-agents work, not as finished above them (#2294).
     return {
@@ -231,6 +239,17 @@ export function agentsView(view: CompanionView, agentState: AgentStateInfo, now:
         finished: subs.filter((s) => s.state === "done").length,
         failed: subs.filter((s) => s.state === "failed").length,
     };
+}
+
+// The most finished sub-agents the quiet line lists when it is opened.
+export const MaxFinishedRows = 12;
+
+// The sub-agents that finished or failed, the last to end first: what "N finished · see" opens (#2502).
+export function finishedSubagents(view: CompanionView): CompanionSubagent[] {
+    return (view?.subagents ?? [])
+        .filter((s) => s.state === "done" || s.state === "failed")
+        .sort((a, b) => (b.ended ?? b.started ?? 0) - (a.ended ?? a.started ?? 0))
+        .slice(0, MaxFinishedRows);
 }
 
 export function finishedLabel(finished: number, failed: number): string {

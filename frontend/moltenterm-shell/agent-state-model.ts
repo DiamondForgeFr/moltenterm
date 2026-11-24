@@ -15,6 +15,27 @@ export const AgentStatesCommand = "moltenagentstates";
 export const AgentStateSeenCommand = "moltenagentstateseen";
 export const AgentStopSettleCommand = "moltenagentstopsettle";
 export const AgentUseCommand = "moltenagentuse";
+// How loaded this computer is, read while the activity popover is open (#2502).
+export const MachineLoadCommand = "moltenmachineload";
+
+// must match BackgroundJob in pkg/molten/agentwork.go: a command a sub-agent left running in the background (#2502),
+// named by its kind in plain words (activity/job-words.ts); arg is the one word a kind may carry; since is when it
+// started, in Unix milliseconds.
+export type BackgroundJob = { kind: string; arg?: string; since?: number };
+
+// must match SubagentWork in pkg/molten/agentwork.go: a sub-agent of the agent's session that works now, with the jobs
+// it waits for (#2502).
+export type SubagentWork = {
+    id: string;
+    description?: string;
+    kind?: string;
+    started?: number;
+    waiting?: boolean;
+    jobs?: BackgroundJob[];
+};
+
+// must match Reading in pkg/molten/machineload/machineload.go
+export type MachineLoad = { known: boolean; load1?: number; cores?: number; percore?: number; loaded?: boolean };
 
 // How long a done agent's pane must stay in view, unfocused, before it counts as seen (#784).
 export const AgentSeenDwellMs = 1500;
@@ -58,6 +79,9 @@ export type AgentStateInfo = {
     // session's prompt is idle and takes a message.
     subagents?: number;
     background?: boolean;
+    // The sub-agents at work as their own files say (#2502), with the background jobs they wait for: those that wait
+    // on their own tests or build after the lead's turn ended are in it, and counted by subagents.
+    work?: SubagentWork[];
     cleared?: boolean;
     // The block is Brokk's own session (FR-BOSS-009, AC26): no list of agents shows it, his face alone shows it works.
     own?: boolean;
