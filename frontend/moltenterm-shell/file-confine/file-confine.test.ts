@@ -174,7 +174,7 @@ describe("the confinement texts name the level that set the bound", () => {
             root: "/c/w",
             name: "w",
             marker: "Outside the workspace",
-            back: "Back to the workspace folder",
+            back: "Back to the workspace",
         },
         {
             level: "context",
@@ -183,7 +183,7 @@ describe("the confinement texts name the level that set the bound", () => {
             root: "/c",
             name: "c",
             marker: "Outside the context",
-            back: "Back to the context folder",
+            back: "Back to the context",
         },
     ];
     const echo = (key: string, vars?: Record<string, any>) => `${key}:${JSON.stringify(vars ?? {})}`;
