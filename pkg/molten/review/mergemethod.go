@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
@@ -32,6 +33,10 @@ const (
 	MethodRuleLinear  = "linear"
 
 	mergePrefsFileName = "merge.json"
+
+	// A release pull request merged with another method than a merge commit (#2562): never refused, the developer
+	// confirms it like the plan's warnings.
+	WarningReleaseMethod = "releasemethod"
 )
 
 // GitHub's own order, which the default follows when nothing else decides.
@@ -82,6 +87,13 @@ type MergeMethodsRequest struct {
 	Dir  string `json:"dir"`
 	Repo string `json:"repo"`
 	Base string `json:"base"`
+	// Prs: the sheet's PRs, so the answer names the release pull requests among them (#2562).
+	Prs []MergeMethodsPr `json:"prs,omitempty"`
+}
+
+type MergeMethodsPr struct {
+	Number  int    `json:"number"`
+	HeadRef string `json:"headref"`
 }
 
 // MergeMethods: the methods allowed in GitHub's order, the default (the repository's remembered method when allowed),
@@ -92,6 +104,8 @@ type MergeMethods struct {
 	MethodRule    string   `json:"methodrule,omitempty"`
 	Queue         bool     `json:"queue,omitempty"`
 	MethodRefused string   `json:"methodrefused,omitempty"`
+	// ReleasePrs: the request's release pull requests, which merge with a merge commit whatever the method (#2562).
+	ReleasePrs []int `json:"releaseprs,omitempty"`
 }
 
 type mergePrefs struct {
@@ -237,7 +251,55 @@ func (m *Merger) MergeMethods(ctx context.Context, req MergeMethodsRequest) (Mer
 		return MergeMethods{}, errors.New("base must be the PRs' base branch")
 	}
 	methods := m.planMethods(ctx, req.Dir, req.Repo, req.Base)
-	return MergeMethods{Methods: methods.methods, Method: methods.method, MethodRule: methods.rule, Queue: methods.queue, MethodRefused: methods.refused}, nil
+	rtn := MergeMethods{Methods: methods.methods, Method: methods.method, MethodRule: methods.rule, Queue: methods.queue, MethodRefused: methods.refused}
+	for _, pr := range req.Prs {
+		if m.releaseKindOf(req.Dir, pr.HeadRef, req.Base) != "" {
+			rtn.ReleasePrs = append(rtn.ReleasePrs, pr.Number)
+		}
+	}
+	return rtn, nil
+}
+
+// releaseKindOf: which release pull request goes from head into base (#2562).
+func (m *Merger) releaseKindOf(dir string, head string, base string) string {
+	if m.releaseKind == nil {
+		return ""
+	}
+	return m.releaseKind(dir, head, base)
+}
+
+// releaseMethods: a release pull request defaults to a merge commit whatever method is remembered, and that method is
+// not announced as refused, since it is not used here (#2562). A merge queue sets its own method; a repository that
+// allows no merge commit keeps its default, and the sheet says so.
+func releaseMethods(methods mergeMethods) mergeMethods {
+	methods.refused = ""
+	if !methods.queue && hasMethod(methods.methods, MergeMethodMerge) {
+		methods.method = MergeMethodMerge
+	}
+	return methods
+}
+
+// confirmations: the plan's warnings, and a release pull request merged with another method than a merge commit, which
+// the developer confirms the same way (#2562).
+func (p MergePlan) confirmations() []string {
+	rtn := append([]string{}, p.Warnings...)
+	if p.Release != "" && !p.Queue && p.Method != MergeMethodMerge && !slices.Contains(rtn, WarningReleaseMethod) {
+		rtn = append(rtn, WarningReleaseMethod)
+	}
+	return rtn
+}
+
+// releaseItemMethod: a release pull request joining a batch without a plan of its own merges with a merge commit,
+// whatever the batch's method, when the repository allows one (#2562).
+func (m *Merger) releaseItemMethod(ctx context.Context, dir string, repo string, base string, head string, method string) string {
+	if m.releaseKindOf(dir, head, base) == "" {
+		return method
+	}
+	methods := m.planMethods(ctx, dir, repo, base)
+	if methods.queue || !hasMethod(methods.methods, MergeMethodMerge) {
+		return method
+	}
+	return MergeMethodMerge
 }
 
 // keepChosenMethod saves the method the developer confirmed in a sheet as the repository's next default. A merge

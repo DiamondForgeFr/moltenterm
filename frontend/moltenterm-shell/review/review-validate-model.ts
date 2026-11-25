@@ -173,8 +173,16 @@ export class ReviewValidateModel {
         globalStore.set(this.validateAtom, (v) => ({ ...v, override }));
     }
 
+    // On a release pull request (#2562) the confirmation depends on the method: a new pick asks again, so a box ticked
+    // for the warnings never confirms a squash or a rebase unread.
     setValidateMethod(method: ReviewMergeMethod) {
-        globalStore.set(this.validateAtom, (v) => (v.plan?.methods?.includes(method) ? { ...v, method } : v));
+        globalStore.set(this.validateAtom, (v) => {
+            if (!v.plan?.methods?.includes(method)) {
+                return v;
+            }
+            const override = v.plan.release != null && method !== v.method ? false : v.override;
+            return { ...v, method, override };
+        });
     }
 
     // merge is the developer's click (AC5): wavesrv checks the plan and the head again, then reports in the store. A

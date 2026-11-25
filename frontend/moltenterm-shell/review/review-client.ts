@@ -199,6 +199,8 @@ export type ReviewMergeCheck = {
 export type ReviewMergeStep = { id: "update" | "waitci" | "merge" };
 // must match MergeMethod… in pkg/molten/review/mergemethod.go, in GitHub's order
 export type ReviewMergeMethod = "merge" | "squash" | "rebase";
+// must match molten.ReleasePr… in pkg/molten/branches.go
+export type ReviewReleasePr = "syncback" | "rc";
 
 export type ReviewMergePlan = {
     id: string;
@@ -223,6 +225,8 @@ export type ReviewMergePlan = {
     queue?: boolean;
     // The repository's remembered method GitHub no longer allows: the sheet says what replaces it (#957).
     methodrefused?: ReviewMergeMethod;
+    // A release pull request (#2562): a merge commit by default, any other method asks for confirmation.
+    release?: ReviewReleasePr;
     checks: ReviewMergeCheck[];
     steps: ReviewMergeStep[];
     // The cleanup after the merge, every step planned.
@@ -252,6 +256,7 @@ export type ReviewMergeState =
 export type ReviewMergeRecord = {
     planid: string;
     method: string;
+    release?: ReviewReleasePr;
     planhead: string;
     head?: string;
     mergedoid?: string;
@@ -444,10 +449,17 @@ export type ReviewMergeMethods = {
     methodrule?: "queue" | "ruleset" | "linear";
     queue?: boolean;
     methodrefused?: ReviewMergeMethod;
+    // The request's release pull requests, which merge with a merge commit whatever the method (#2562).
+    releaseprs?: number[];
 };
 
-export function reviewMergeMethods(dir: string, repo: string, base: string): Promise<ReviewMergeMethods> {
-    return call(MergeMethodsCommand, { dir, repo, base }, GitTimeoutMs);
+export function reviewMergeMethods(
+    dir: string,
+    repo: string,
+    base: string,
+    prs?: { number: number; headref: string }[]
+): Promise<ReviewMergeMethods> {
+    return call(MergeMethodsCommand, { dir, repo, base, prs }, GitTimeoutMs);
 }
 
 export function reviewMergeCancel(repo: string, num: number): Promise<void> {

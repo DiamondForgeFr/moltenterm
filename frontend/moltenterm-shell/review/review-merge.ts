@@ -37,27 +37,87 @@ export function queuesOnClick(plan: ReviewMergePlan): boolean {
     return plan != null && !plan.canmerge && !!plan.canqueue;
 }
 
+// releaseConfirms: a release pull request merged without a merge commit asks first, never refused (#2562): its release
+// branch's history would not reach the base. A merge queue sets its own method. method: the sheet's, else the plan's.
+export function releaseConfirms(plan: ReviewMergePlan, method?: ReviewMergeMethod): boolean {
+    if (plan?.release == null || plan.queue) {
+        return false;
+    }
+    return chosenMethod(plan, method) !== "merge";
+}
+
+// What the developer confirms before Merge: the plan's warnings, and a release pull request's method (#2562).
+export function needsConfirmation(plan: ReviewMergePlan, method?: ReviewMergeMethod): boolean {
+    return (plan?.warnings ?? []).length > 0 || releaseConfirms(plan, method);
+}
+
 // Merge is clickable when the plan allows it (now, or once the CI is green), its warnings are confirmed and no merge of
 // the PR is running (AC4).
-export function canClickMerge(plan: ReviewMergePlan, override: boolean, record: ReviewMergeRecord): boolean {
+export function canClickMerge(
+    plan: ReviewMergePlan,
+    override: boolean,
+    record: ReviewMergeRecord,
+    method?: ReviewMergeMethod
+): boolean {
     if (plan == null || !(plan.canmerge || plan.canqueue) || mergeRunning(record)) {
         return false;
     }
-    return (plan.warnings ?? []).length === 0 || override;
+    return !needsConfirmation(plan, method) || override;
 }
 
 // overrideText is the confirmation the developer ticks to merge despite the plan's warnings: red checks GitHub does
-// not require are named there (#943), since they are why a PR GitHub would merge asks first.
-export function overrideText(plan: ReviewMergePlan): string {
-    const ci = plan?.checks?.find((c) => c.id === "ci");
-    if (ci?.code !== "failingoptional" || !(plan.warnings ?? []).includes("ci")) {
-        return t("review.validate.mergeAnyway");
+// not require are named there (#943), since they are why a PR GitHub would merge asks first. A release pull request
+// merged without a merge commit says why it asks (#2562).
+export function overrideText(plan: ReviewMergePlan, method?: ReviewMergeMethod): string {
+    const release = releaseConfirms(plan, method)
+        ? t("review.validate.release.confirm", {
+              method: t(`reviews.batch.method.${chosenMethod(plan, method)}`),
+              base: plan.baseref,
+          })
+        : "";
+    if (release && (plan.warnings ?? []).length === 0) {
+        return release;
     }
-    return t("review.validate.validateAnyway", { names: listNames(t, ci.names ?? []) });
+    const ci = plan?.checks?.find((c) => c.id === "ci");
+    const warnings =
+        ci?.code !== "failingoptional" || !(plan.warnings ?? []).includes("ci")
+            ? t("review.validate.mergeAnyway")
+            : t("review.validate.validateAnyway", { names: listNames(t, ci.names ?? []) });
+    return release ? `${release} ${warnings}` : warnings;
+}
+
+// releaseMethodNote: a release pull request in a repository that allows no merge commit (#2562): the sheet says so and
+// points to molten release sync-back; "" otherwise.
+export function releaseMethodNote(plan: ReviewMergePlan): string {
+    if (plan?.release == null || plan.queue || (plan.methods ?? []).includes("merge")) {
+        return "";
+    }
+    return t("review.validate.release.noMergeCommit", { base: plan.baseref });
+}
+
+// releaseRepairText: a sync-back merged without a merge commit (#2562): its release commit is not part of the base's
+// history, so the branches diverge; the repair is a new sync-back merged with a merge commit. "" otherwise.
+export function releaseRepairText(record: ReviewMergeRecord, baseref: string): string {
+    if (record?.state !== "merged" || record.release !== "syncback" || record.method === "merge") {
+        return "";
+    }
+    return t("review.validate.release.repair", {
+        method: t(`reviews.batch.method.${methodOrRebase(record.method)}`),
+        base: baseref,
+    });
+}
+
+function methodOrRebase(method: string): ReviewMergeMethod {
+    return method === "merge" || method === "squash" ? method : "rebase";
 }
 
 // Why Merge is disabled, as its tooltip and the line under the steps say.
-export function mergeDisabledReason(plan: ReviewMergePlan, override: boolean, record: ReviewMergeRecord): string {
+export function mergeDisabledReason(
+    plan: ReviewMergePlan,
+    override: boolean,
+    record: ReviewMergeRecord,
+    method?: ReviewMergeMethod
+): string {
     if (plan == null) {
         return t("review.merge.reading");
     }
@@ -73,7 +133,7 @@ export function mergeDisabledReason(plan: ReviewMergePlan, override: boolean, re
             plan.checks.find((c) => c.id === plan.blocking)
         );
     }
-    if ((plan.warnings ?? []).length > 0 && !override) {
+    if (needsConfirmation(plan, method) && !override) {
         return t("review.merge.confirmWarnings");
     }
     return "";
@@ -106,13 +166,18 @@ export function chosenMethod(plan: ReviewMergePlan, picked: ReviewMergeMethod): 
 }
 
 // mergeMethodNotes is what a sheet says under its merge method (#957): that the method is the repository's default
-// (or becomes it), that a merge queue sets it, and which remembered method GitHub no longer allows.
+// (or becomes it), that a merge queue sets it, and which remembered method GitHub no longer allows. A release pull
+// request's method is the release's, never the repository's default (#2562).
 export function mergeMethodNotes(
     defaultMethod: ReviewMergeMethod,
     chosen: ReviewMergeMethod,
     refused: ReviewMergeMethod,
-    queue: boolean
+    queue: boolean,
+    release?: boolean
 ): { hint: string; refused: string } {
+    if (release && !queue) {
+        return { hint: t("review.validate.release.hint"), refused: "" };
+    }
     const method = t(`review.validate.method.${chosen}`);
     const refusedText =
         refused != null && refused !== chosen

@@ -37,8 +37,11 @@ import {
     mergeDisabledReason,
     mergeRunning,
     mergeWaitingText,
+    needsConfirmation,
     overrideText,
     queuesOnClick,
+    releaseMethodNote,
+    releaseRepairText,
     sheetRecord,
     validateErrorText,
 } from "./review-merge";
@@ -100,12 +103,13 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
     const held = record == null && queued == null ? groupHoldOf(queueRun, pr.number) : null;
     const asks = held === "held" && model.host.inTab;
     const enabled =
-        canClickMerge(plan, v.override, state?.merge) &&
+        canClickMerge(plan, v.override, state?.merge, method) &&
         record == null &&
         v.clicked == null &&
         queued == null &&
         held !== "in";
-    const disabledReason = mergeDisabledReason(plan, v.override, state?.merge);
+    const disabledReason = mergeDisabledReason(plan, v.override, state?.merge, method);
+    const repair = releaseRepairText(record, baseref);
     const waitingText = mergeWaitingText(plan, state?.merge);
     const cleanup: ReviewCleanupResult = record != null ? mergeCleanup(record, state?.cleanup) : null;
     const steps = buildValidateSteps(t, { plan, record, cleanup, headref: pr.headref, baseref, method });
@@ -114,7 +118,7 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
     const keptReview = cleanup?.steps?.find(
         (s) => s.id === "review-worktree" && (s.code === "kept" || s.code === "inuse")
     );
-    const warnings = plan?.warnings ?? [];
+    const confirms = needsConfirmation(plan, method);
     // Merged from a Reviews row (#707): closing the sheet loses nothing, so a press outside is Done.
     const backdropDone = !model.host.inTab && mergedFooter(record, cleanup) != null;
     return (
@@ -161,13 +165,15 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                                 method={method}
                                 refused={plan.methodrefused}
                                 queue={plan.queue}
+                                release={plan.release != null}
+                                note={releaseMethodNote(plan)}
                                 onSelect={(m) => model.setValidateMethod(m)}
                                 testId="validate-method"
                             />
                         ) : null
                     }
                     checksExtra={
-                        warnings.length > 0 && record == null ? (
+                        confirms && record == null ? (
                             <label
                                 className={cn(
                                     "mt-2 flex items-start gap-2 rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5",
@@ -182,7 +188,7 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                                     onChange={(e) => model.setValidateOverride(e.target.checked)}
                                     data-testid="validate-override"
                                 />
-                                <span>{overrideText(plan)}</span>
+                                <span>{overrideText(plan, method)}</span>
                             </label>
                         ) : null
                     }
@@ -202,6 +208,15 @@ export function ValidateSheet({ model }: { model: ReviewValidateModel }) {
                         )
                     }
                 />
+                {repair ? (
+                    <div
+                        className="rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-secondary"
+                        role="status"
+                        data-testid="validate-release-repair"
+                    >
+                        {repair}
+                    </div>
+                ) : null}
                 {held != null ? (
                     <div
                         className="rounded-4 border border-warning/40 bg-warning/10 px-2 py-1.5 text-secondary"

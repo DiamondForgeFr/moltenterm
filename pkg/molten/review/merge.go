@@ -195,10 +195,13 @@ type MergePlan struct {
 	MethodRule string   `json:"methodrule,omitempty"`
 	Queue      bool     `json:"queue,omitempty"`
 	// MethodRefused: the repository's remembered method GitHub no longer allows; the sheet says what replaces it (#957).
-	MethodRefused string              `json:"methodrefused,omitempty"`
-	Checks        []MergeCheck        `json:"checks"`
-	Steps         []MergeStep         `json:"steps"`
-	Cleanup       []CleanupStepResult `json:"cleanup"`
+	MethodRefused string `json:"methodrefused,omitempty"`
+	// Release: a release pull request (molten.ReleasePr…, #2562), which defaults to a merge commit; any other method asks
+	// for the developer's confirmation (WarningReleaseMethod) and its merge leaves the remembered method alone.
+	Release string              `json:"release,omitempty"`
+	Checks  []MergeCheck        `json:"checks"`
+	Steps   []MergeStep         `json:"steps"`
+	Cleanup []CleanupStepResult `json:"cleanup"`
 	// CanMerge: no check fails or waits; Blocking: the id of the first one that does (AC4).
 	CanMerge bool   `json:"canmerge"`
 	Blocking string `json:"blocking,omitempty"`
@@ -233,6 +236,8 @@ type MergeRequest struct {
 type MergeRecord struct {
 	PlanId string `json:"planid"`
 	Method string `json:"method"`
+	// Release: the plan's release pull request (#2562); a sync-back merged without a merge commit shows the repair.
+	Release string `json:"release,omitempty"`
 	// PlanHead: the head the plan was made for; Head: the head merged (or to merge), the rebased one when GitHub
 	// updated the branch first.
 	PlanHead  string `json:"planhead"`
@@ -326,6 +331,8 @@ type Merger struct {
 	// is in progress for the project (#2141). nil knows nothing.
 	localGreen func(dir string, sha string) bool
 	localBusy  func(dir string) bool
+	// releaseKind: which release pull request goes from head into base (molten.ReleasePr…, #2562), "" for any other.
+	releaseKind func(dir string, head string, base string) string
 }
 
 func MakeMerger(store *Store, gh GhRunner, publish func(k PrKey, state State)) *Merger {
@@ -343,6 +350,7 @@ func MakeMerger(store *Store, gh GhRunner, publish func(k PrKey, state State)) *
 		done:        map[PrKey]chan struct{}{},
 		repoMethods: map[string]repoMethods{},
 		branchRules: map[string]branchRules{},
+		releaseKind: molten.ReleasePrKind,
 	}
 }
 
@@ -666,7 +674,11 @@ func (m *Merger) Plan(ctx context.Context, req MergePlanRequest) (MergePlan, err
 		plan.GreenOnly = m.greenOnly != nil && m.greenOnly()
 		plan.CanQueue = !plan.GreenOnly
 	}
+	plan.Release = m.releaseKindOf(req.Dir, pr.HeadRefName, pr.BaseRefName)
 	methods := m.planMethods(ctx, req.Dir, req.Repo, pr.BaseRefName)
+	if plan.Release != "" {
+		methods = releaseMethods(methods)
+	}
 	plan.Methods, plan.Method, plan.MethodRule, plan.Queue = methods.methods, methods.method, methods.rule, methods.queue
 	plan.MethodRefused = methods.refused
 	plan.Steps = planSteps(plan)
@@ -725,14 +737,15 @@ func (m *Merger) takePlan(req MergeRequest) (MergePlan, *runningMerge, chan stru
 	if !plan.CanMerge {
 		return MergePlan{}, nil, nil, mergeError(MergeErrBlocked)
 	}
-	if len(plan.Warnings) > 0 && !req.Override {
-		return MergePlan{}, nil, nil, mergeError(MergeErrConfirm)
-	}
 	if req.Method != "" && !hasMethod(plan.Methods, req.Method) {
 		return MergePlan{}, nil, nil, mergeError(MergeErrMethod)
 	}
 	if req.Method != "" {
 		plan.Method = req.Method
+	}
+	plan.Warnings = plan.confirmations()
+	if len(plan.Warnings) > 0 && !req.Override {
+		return MergePlan{}, nil, nil, mergeError(MergeErrConfirm)
 	}
 	plan.batch = req.Batch
 	delete(m.plans, k)
@@ -764,14 +777,15 @@ func (m *Merger) takeQueuePlan(req MergeRequest) (MergePlan, error) {
 	if !plan.CanQueue && !plan.CanMerge {
 		return MergePlan{}, mergeError(MergeErrBlocked)
 	}
-	if len(plan.Warnings) > 0 && !req.Override {
-		return MergePlan{}, mergeError(MergeErrConfirm)
-	}
 	if req.Method != "" && !hasMethod(plan.Methods, req.Method) {
 		return MergePlan{}, mergeError(MergeErrMethod)
 	}
 	if req.Method != "" {
 		plan.Method = req.Method
+	}
+	plan.Warnings = plan.confirmations()
+	if len(plan.Warnings) > 0 && !req.Override {
+		return MergePlan{}, mergeError(MergeErrConfirm)
 	}
 	delete(m.plans, k)
 	return plan, nil
@@ -794,12 +808,15 @@ func (m *Merger) Merge(req MergeRequest) (MergeRecord, error) {
 	if err != nil {
 		return MergeRecord{}, err
 	}
-	record := MergeRecord{PlanId: plan.Id, Method: plan.Method, PlanHead: plan.HeadOid, Head: plan.HeadOid, State: MergeChecking, StartedAt: m.now().UnixMilli()}
+	record := MergeRecord{PlanId: plan.Id, Method: plan.Method, Release: plan.Release, PlanHead: plan.HeadOid, Head: plan.HeadOid, State: MergeChecking, StartedAt: m.now().UnixMilli()}
 	if req.Override {
 		record.Overridden = plan.Warnings
 	}
-	// The developer's choice is the repository's next default, whatever GitHub then answers.
-	m.keepChosenMethod(plan.Repo, plan.Method, plan.Queue)
+	// The developer's choice is the repository's next default, whatever GitHub then answers; a release pull request's
+	// method is the release's, not a choice for the repository (#2562).
+	if plan.Release == "" {
+		m.keepChosenMethod(plan.Repo, plan.Method, plan.Queue)
+	}
 	m.record(req.PrKey, record)
 	ctx, cancel := context.WithTimeout(context.Background(), m.ciTimeout+maxCiQueued+10*time.Minute)
 	run.cancel = cancel

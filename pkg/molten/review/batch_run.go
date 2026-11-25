@@ -579,13 +579,16 @@ func (b *BatchRunner) merge(ctx context.Context, ctl *batchCtl, i int, k PrKey, 
 		}
 		return batchAgain, batchStop{reason: BatchReasonMergeFailed, code: blocking.Code}
 	}
-	override := len(plan.Warnings) > 0 && covers(item.Overridden, plan.Warnings)
-	if len(plan.Warnings) > 0 && !override {
-		return batchStopped, batchStop{reason: BatchReasonWarnings, names: plan.Warnings}
-	}
 	method, ok := batchItemMethod(item, run, plan)
 	if !ok {
 		return batchStopped, batchStop{reason: BatchReasonMethod, names: []string{method}}
+	}
+	// A release pull request merged without a merge commit is confirmed like a warning (#2562).
+	plan.Method = method
+	warnings := plan.confirmations()
+	override := len(warnings) > 0 && covers(item.Overridden, warnings)
+	if len(warnings) > 0 && !override {
+		return batchStopped, batchStop{reason: BatchReasonWarnings, names: warnings}
 	}
 	if !b.beginMerging(ctl, i) {
 		return batchCancelled, batchStop{}

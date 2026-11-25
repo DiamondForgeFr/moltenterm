@@ -30,6 +30,7 @@ import {
     batchMethodShown,
     BatchPlan,
     batchPlanCostText,
+    batchReleaseNote,
     BatchRowMark,
     batchRowMark,
     BatchRun,
@@ -211,16 +212,19 @@ export function BatchConfirmDialog({
     const [methods, setMethods] = useState<ReviewMergeMethods>(null);
     const [methodsError, setMethodsError] = useState<Phrase>(null);
     const [picked, setPicked] = useState<ReviewMergeMethod>(null);
+    // The modal's PRs, so the answer names the release pull requests among them (#2562).
+    const prsKey = plan.steps.map((s) => `${s.pr.number}:${s.pr.branch}`).join(",");
     useEffect(() => {
         let live = true;
-        reviewMergeMethods(dir, repo, base).then(
+        const prs = plan.steps.map((s) => ({ number: s.pr.number, headref: s.pr.branch }));
+        reviewMergeMethods(dir, repo, base, prs).then(
             (answer) => live && setMethods(answer),
             (e) => live && setMethodsError(errorPhrase(e))
         );
         return () => {
             live = false;
         };
-    }, [dir, repo, base]);
+    }, [dir, repo, base, prsKey]);
     const method = batchMethodShown(methods, picked);
     const count = plan.steps.length;
     const start = () => {
@@ -334,6 +338,7 @@ export function BatchConfirmDialog({
                         method={method}
                         refused={methods.methodrefused}
                         queue={methods.queue}
+                        note={batchReleaseNote(methods)}
                         onSelect={setPicked}
                         testId="reviews-batch-confirm-method"
                     />

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -25,6 +26,14 @@ const (
 	BranchFromOriginHead = "origin/HEAD"
 	BranchFromRepository = "git branch"
 	BranchFromCheckout   = "the branch checked out"
+
+	// The RC branch naming of the release's pull-request flow when the project declares none (#1046).
+	DefaultRcBranchPattern = "rc-{version}"
+
+	// The release pull requests (#2562), which must be merged with a merge commit: the sync-back of the release branch
+	// into the trunk, and a release candidate's RC branch into the release branch.
+	ReleasePrSyncBack = "syncback"
+	ReleasePrRc       = "rc"
 )
 
 // The usual names of a trunk, in the order they are looked for when origin names no default branch; a git-flow
@@ -214,4 +223,40 @@ func ResolveBranchesWith(dir string, git GitQuery) ProjectBranches {
 // gives (#2556), else MoltenTerm's defaults.
 func ResolvedBranches(dir string) ProjectBranches {
 	return ResolveBranchesWith(dir, ExecGitQuery(dir))
+}
+
+// RcBranchMatches says whether a branch is an RC branch of the pattern (rc-{version} when the pattern names no
+// {version}): the pattern's text around {version}, with a version in its place.
+func RcBranchMatches(pattern string, name string) bool {
+	if !strings.Contains(pattern, "{version}") {
+		pattern = DefaultRcBranchPattern
+	}
+	before, after, _ := strings.Cut(pattern, "{version}")
+	re, err := regexp.Compile("^" + regexp.QuoteMeta(before) + `[0-9]+(\.[0-9]+)*[0-9A-Za-z.+-]*` + regexp.QuoteMeta(after) + "$")
+	if err != nil {
+		return false
+	}
+	return re.MatchString(name)
+}
+
+// ReleasePrKindWith says which release pull request goes from head into base (#2562), with the branches of `molten
+// release`: the sync-back (the release branch into the trunk) or a release candidate (an RC branch into the release
+// branch); "" for any other pull request.
+func ReleasePrKindWith(dir string, git GitQuery, head string, base string) string {
+	if head == "" || base == "" || head == base {
+		return ""
+	}
+	branches := ResolveBranchesWith(dir, git)
+	if branches.Trunk != branches.Release && head == branches.Release && base == branches.Trunk {
+		return ReleasePrSyncBack
+	}
+	if base == branches.Release && RcBranchMatches(RcBranchPattern(dir), head) {
+		return ReleasePrRc
+	}
+	return ""
+}
+
+// ReleasePrKind reads the project's branches from its folder and git.
+func ReleasePrKind(dir string, head string, base string) string {
+	return ReleasePrKindWith(dir, ExecGitQuery(dir), head, base)
 }
