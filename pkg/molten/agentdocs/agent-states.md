@@ -121,6 +121,9 @@ For other agents' hooks, plugins or notification commands:
   hook receives on its standard input (Claude Code's `Notification` hook). With `waiting`, `--stdin` also reads its
   `notification_type`: a Claude Code notification that asks nothing (`idle_prompt`, `auth_success`...) reports
   nothing.
+- `working` reads the JSON a hook pipes on its standard input even without `--stdin`: when it names an `agent_id`
+  (a hook fired inside a Claude Code sub-agent), the report is that sub-agent's, never the session's. A session whose
+  turn ended keeps its free prompt while its sub-agents work, and still takes handoffs and messages.
 - `waiting` and `done` raise a notification when the state changes; MoltenTerm drops the agent's own OSC signal for
   the same moment, so you are not notified twice.
 - Outside MoltenTerm, `molten` is not there: the commands below test `WAVETERM_BLOCKID` first, so the same settings
@@ -177,7 +180,7 @@ for them, so a Notification hook without the matcher keeps a finished agent done
 `notification_type` (an older Claude Code), the idle text is recognised the same way.
 
 Hooks pasted from an earlier version of this page (`molten agent state ...`, `molten agent session ...`) keep
-working.
+working, and their `PostToolUse` fired inside a sub-agent counts as that sub-agent's work, not the session's.
 
 ### Coffee approvals
 

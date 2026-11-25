@@ -59,15 +59,12 @@ func moltenAgentStateRun(cmd *cobra.Command, args []string) error {
 	if blockId == "" {
 		return fmt.Errorf("not in a MoltenTerm terminal")
 	}
-	message := moltenAgentStateMessage
-	if moltenAgentStateStdin {
-		// A Notification that asks nothing (#784: idle_prompt) leaves the state as it is.
-		var send bool
-		if message, send = agenthook.StateReport(state, message, os.Stdin); !send {
-			return nil
-		}
+	// A Notification that asks nothing (#784: idle_prompt) leaves the state as it is; a sub-agent's hook reports the
+	// sub-agent, not the session (#2536).
+	sa := agenthook.StateArgs{State: state, Agent: moltenAgentStateAgent, Message: moltenAgentStateMessage, Stdin: moltenAgentStateStdin}
+	req, send := agenthook.StateArgsRequest(sa, blockId, os.Stdin, os.Getenv)
+	if !send {
+		return nil
 	}
-	req := agenthook.AgentStateRequest{BlockId: blockId, State: state, Agent: moltenAgentStateAgent, Message: message,
-		Provider: agenthook.ProviderHostFor(moltenAgentStateAgent, os.Getenv)}
 	return agenthook.SendAgentState(token, req)
 }
