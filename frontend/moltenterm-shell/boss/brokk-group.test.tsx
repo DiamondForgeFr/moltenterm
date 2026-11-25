@@ -1491,7 +1491,10 @@ describe("the block under the square (AC17 and AC20)", () => {
         globalStore.set(UsageReadingsAtom, { claude: reading("claude", 73, resetsat) });
         const html = render();
         const day = new Date(resetsat).toLocaleDateString("en", { weekday: "long" });
-        expect(cellTag(html, "claude")).toContain(`aria-label="Claude, This week, 73 %, resets ${day}"`);
+        // Four days of the seven gone and 73 % used: ahead of its pace, told in days (#2532), the rest of the name unchanged.
+        expect(cellTag(html, "claude")).toMatch(
+            new RegExp(`aria-label="Claude, This week, 73 %, resets ${day}, [0-9.]+ d ahead"`)
+        );
         // A row with a menu holds the button that opens it, so it is a group, not an image (#2341).
         expect(cellTag(html, "claude")).toContain('role="group"');
         expect(cellTag(html, "claude")).not.toContain("title=");
@@ -1663,7 +1666,9 @@ describe("the block under the square (AC17 and AC20)", () => {
         globalStore.set(UsageReadingsAtom, { codex: { ...reading("codex", 9), readat: Date.now() - 26 * 60 * Min } });
         let html = render();
         expect(cellTag(html, "codex")).toContain('data-old="true"');
-        expect(cellTag(html, "codex")).toMatch(/aria-label="Codex, This week, 9 %, resets [A-Za-z]+, read [^"]+"/);
+        expect(cellTag(html, "codex")).toMatch(
+            /aria-label="Codex, This week, 9 %, resets [A-Za-z]+, [0-9.]+ d (late|ahead), read [^"]+"/
+        );
         expect(html).toMatch(/data-testid="usage-week-percent">9 %</);
         globalStore.set(UsageReadingsAtom, { codex: reading("codex", 9) });
         expect(cellTag(render(), "codex")).not.toContain("data-old");

@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The plan usage's rows the developer chose to show (#2462): visibility per provider and per window key, the last row that
-// stays, a window never seen shown by default, what a restart brings back, and a week deduced from the month computed
-// with the month hidden.
+// stays, a window never seen shown by default, what a restart brings back, and the other rows left as they were when
+// one is hidden.
 
 import { describe, expect, it, vi } from "vitest";
 import { CompanionUsageInfo, GaugesView, gaugesView, withSessionRing } from "./companion-gauges-model";
@@ -51,15 +51,7 @@ const kimi: CompanionUsageInfo = {
                 resetsat: now + Hour + 20 * Min,
                 windowmins: 300,
             },
-            {
-                id: "week",
-                label: "Week (from the month)",
-                usedpercent: 128.6,
-                resetsat: monday,
-                windowmins: 10080,
-                deduced: true,
-                days: [-1, -1, 240, 150, 0, 0, 0],
-            },
+            { id: "week", label: "This week", usedpercent: 28.6, resetsat: monday, windowmins: 10080 },
             { id: "month", label: "This month", usedpercent: 30, resetsat: new Date(2026, 11, 1, 1, 0).getTime() },
         ],
     },
@@ -356,16 +348,18 @@ describe("the choice in the layout (#2462)", () => {
 });
 
 describe("hiding a row hides nothing else (#2462)", () => {
-    it("still computes Kimi's week from the month when the month row is hidden", () => {
+    it("leaves Kimi's week as it was when the month row is hidden, and the month as it was when the week is", () => {
         const all = enabled(withRowChoice(gaugesView(kimi, now), []));
         const hidden = enabled(withRowChoice(gaugesView(kimi, now), ["month"]));
         expect(hidden.rows.map((row) => row.id)).toEqual(["session", "week"]);
-        const before = all.rows.find((row) => row.id === "week");
-        const after = hidden.rows.find((row) => row.id === "week");
-        expect(after).toEqual(before);
-        expect(after.countdown).toBeDefined();
-        expect(after.resets).toContain("Tue 1 Dec");
-        expect(after.subLabel).toBe("from the month");
+        expect(hidden.rows.find((row) => row.id === "week")).toEqual(all.rows.find((row) => row.id === "week"));
+        // The month is a row like the week's (#2532): its count to the reset and its words stay on it.
+        const month = all.rows.find((row) => row.id === "month");
+        expect(month.countdown).toBeDefined();
+        expect(month.resets).toContain("Tue 1 Dec");
+        expect(month.subLabel).toBe("over the month");
+        const weekHidden = enabled(withRowChoice(gaugesView(kimi, now), ["week"]));
+        expect(weekHidden.rows.find((row) => row.id === "month")).toEqual(month);
     });
 
     it("leaves the other rows' figures and resets as they were", () => {

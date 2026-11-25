@@ -18,7 +18,6 @@ import { MoltenWave } from "../molten-button";
 import { DominoLoader } from "../suite/suite";
 import { whileShown } from "../tab-activity";
 import { UsageWeekGrid, UsageWeekRow } from "../usage-week/usage-week";
-import { MonthWindowId } from "../usage-week/usage-week-model";
 import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import {
     CompanionUsageInfo,
@@ -311,44 +310,38 @@ export type PlanUsageActions = {
 
 // A window's row in the week grid: the agent is the session's, so the row is labelled by its window in place of a logo.
 // The exact percent and the reset time stay in its tooltip, with the source and age (`about`) when the form has no
-// header to say them; the reset is also a small icon at the end of the row (#2458), in every form (`full` is the form
-// that keeps the month's own bar showing its reset). The tooltip tells the figure of each day in every form: a narrow
-// grid hides them under the blocks (#2451).
-function weekRow(
-    view: Extract<GaugesView, { kind: "enabled" }>,
-    row: GaugeRow,
-    about: string,
-    full: boolean
-): UsageWeekRow {
+// header to say them; the reset is also a small icon at the end of the row (#2458), in every form. The tooltip tells the
+// figure of each day in every form: a narrow grid hides them under the blocks (#2451). A month is a row of the week
+// grid like a week (#2532): its count to the reset is its chip.
+export function weekRow(view: Extract<GaugesView, { kind: "enabled" }>, row: GaugeRow, about: string): UsageWeekRow {
     // A plain gauge (#2451) says its reset at the end of its bar, in every form; it has no days to tell.
     const plain = row.line.plain;
     // The day figures are always in the tooltip: a narrow grid hides them under the blocks (#2451).
-    const days = plain ? "" : daysTitle(row.line);
-    // In the forms without the full block's reset line on the month's bar, the deduced week's count already says when
-    // the month resets: the month's bar keeps its reset in its tooltip only (#2451).
-    const counted = !full && row.id === MonthWindowId && view.rows.some((r) => r.countdown != null);
+    const days = plain ? "" : daysTitle(row.line, view.now);
     return {
         key: row.id,
         agent: view.agent,
         name: row.label,
         window: row.id,
-        label: row.shortLabel,
+        label: row.leadLabel,
         sublabel: row.subLabel || undefined,
         line: row.line,
         title: [`${row.label}: ${row.percent}`, row.countdown?.title ?? row.resets, days, row.explain, about]
             .filter((s) => !!s)
             .join("\n"),
         reset: plain ? undefined : row.resets || undefined,
-        resets: plain && !counted ? row.resetsShort : undefined,
+        resets: plain ? row.resetsShort : undefined,
         chip: row.countdown,
     };
 }
 
-// The paragraph under the rows of the full block: how a row reads, and, when the session draws a ring (#2473), what the
-// ring is. "" when there is neither a row nor a ring to explain.
+// The paragraph under the rows of the full block: how a row reads, how a month does (#2532) and what its lost days are,
+// and, when the session draws a ring (#2473), what the ring is. "" when there is neither a row nor a ring to explain.
 function usageExplain(view: Extract<GaugesView, { kind: "enabled" }>, t: (key: string) => string): string {
     return [
         view.rows.length > 0 ? t("companion.gauges.explain") : "",
+        view.rows.some((row) => row.line.span?.monthly && !row.line.plain) ? t("companion.gauges.explainMonth") : "",
+        view.rows.some((row) => row.line.span?.lost) ? t("companion.gauges.explainLost") : "",
         view.session != null ? t("companion.gauges.explainRing") : "",
     ]
         .filter((s) => !!s)
@@ -502,7 +495,7 @@ export function PlanUsageBody({
             <div className="mt-1.5" data-testid="companion-gauges">
                 <UsageWeekGrid
                     popovers
-                    rows={view.rows.map((row) => weekRow(view, row, "", true))}
+                    rows={view.rows.map((row) => weekRow(view, row, ""))}
                     session={view.session}
                     now={view.now}
                     legend={view.rows.length > 0}
@@ -696,7 +689,7 @@ function FramedUsage({
                 <div data-testid="companion-gauges">
                     <UsageWeekGrid
                         popovers
-                        rows={view.rows.map((row) => weekRow(view, row, "", true))}
+                        rows={view.rows.map((row) => weekRow(view, row, ""))}
                         session={view.session}
                         now={view.now}
                         legend={view.rows.length > 0}
@@ -742,7 +735,7 @@ function MinimalGauges({ view }: { view: Extract<GaugesView, { kind: "enabled" }
                 {view.rows.length > 0 || view.session != null ? (
                     <UsageWeekGrid
                         popovers
-                        rows={view.rows.map((row) => weekRow(view, row, about, false))}
+                        rows={view.rows.map((row) => weekRow(view, row, about))}
                         session={view.session}
                         now={view.now}
                         minimal
@@ -955,7 +948,7 @@ function CompactGauges({ view, onDetails }: { view: Extract<GaugesView, { kind: 
                 {rows.length > 0 || view.session != null ? (
                     <UsageWeekGrid
                         popovers
-                        rows={rows.map((row) => weekRow(view, row, about, false))}
+                        rows={rows.map((row) => weekRow(view, row, about))}
                         session={view.session}
                         now={view.now}
                         dayFigures
