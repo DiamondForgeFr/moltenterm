@@ -133,7 +133,9 @@ describe("the first-use hint", () => {
     });
 
     it("says what the tools do and how to leave, in place of the tool's hint, in English and French", () => {
-        expect(bar({ firstHint: true })).toContain("Draw, frame or click an element to comment on it. Escape to leave.");
+        expect(bar({ firstHint: true })).toContain(
+            "Draw, frame or click an element to comment on it. Escape to leave."
+        );
         expect(bar()).toContain("Draw an outline around what to change.");
         expect(bar()).not.toContain("Escape to leave");
         I18nModel.getInstance().setLanguageSetting("fr");

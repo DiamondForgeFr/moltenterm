@@ -750,7 +750,13 @@ describe("what the developer sees while drawing and pointing (#2537)", () => {
         capture().emit("pointerup", at(150, 250));
         expect(posted("placed")[0].anchor.fixed).toBe(true);
         button.rect = { left: 100, top: 200, width: 200, height: 100 };
-        const onIt: Anchor = { box: { x: 120, y: 220, w: 50, h: 50 }, selector: "", rel: null, fixed: true, path: null };
+        const onIt: Anchor = {
+            box: { x: 120, y: 220, w: 50, h: 50 },
+            selector: "",
+            rel: null,
+            fixed: true,
+            path: null,
+        };
         send({ type: "marks", marks: [mark({ anchor: onIt })] });
         capture().emit("pointermove", at(150, 250));
         expect(shown("hover")).toBeNull();

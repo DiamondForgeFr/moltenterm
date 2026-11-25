@@ -11,8 +11,8 @@ import { List, MousePointer2, Pause, Pencil, Play, SquareDashed, Trash2, X } fro
 import type { ComponentType } from "react";
 import { useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import "./annotate-entry.css";
 import { DominoLoader } from "../suite/suite";
+import "./annotate-entry.css";
 import { excerptOf, MaxZones, sameAddress, type Zone } from "./annotate-model";
 import type { MarkKind } from "./annotate-wire";
 

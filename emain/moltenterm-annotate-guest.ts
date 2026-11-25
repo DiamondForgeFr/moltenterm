@@ -501,9 +501,7 @@ function updateHover(o: Overlay, clientX: number, clientY: number): void {
     const s = scrolledTo();
     const live = o.tool === "point" && !o.paused && !o.locked && o.drag == null;
     const el =
-        live && marksHit(o, { x: clientX + s.x, y: clientY + s.y }) == null
-            ? pointTarget(o, clientX, clientY)
-            : null;
+        live && marksHit(o, { x: clientX + s.x, y: clientY + s.y }) == null ? pointTarget(o, clientX, clientY) : null;
     if (el == null) {
         o.hover.style.display = "none";
         return;
