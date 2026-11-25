@@ -190,11 +190,25 @@ func (r depRefs) watched(name string) string {
 	return r.local(name)
 }
 
-// trunkCandidates are the names the trunk may have: the declared one, else the one git gives (origin's default branch,
-// #2556), else the usual names.
+// trunkCandidates are the names the trunk may have: the declared one, else origin's default branch (#2556) in the order
+// molten.DetectTrunk reads it, else the usual names. readDepRefs checks them all in one git call, so origin's default
+// costs one more command, and none when the project declares its trunk.
 func trunkCandidates(g *gitReader) []string {
-	detected, _ := molten.DetectTrunk(g.query())
-	return append([]string{ConfiguredBranches(g.dir).Trunk, detected}, molten.CommonTrunkNames...)
+	if declared := ConfiguredBranches(g.dir).Trunk; declared != "" {
+		return append([]string{declared}, molten.CommonTrunkNames...)
+	}
+	head, err := g.out("symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD")
+	head = strings.TrimPrefix(strings.TrimSpace(head), "origin/")
+	if err != nil || head == "" {
+		return molten.CommonTrunkNames
+	}
+	for _, release := range molten.CommonReleaseNames {
+		if head == release {
+			// git-flow: a working branch beside origin's main comes first.
+			return append(append([]string{}, molten.CommonTrunkNames[:3]...), append([]string{head}, molten.CommonTrunkNames[3:]...)...)
+		}
+	}
+	return append([]string{head}, molten.CommonTrunkNames...)
 }
 
 // trunk is the first candidate that exists, local or on origin.
