@@ -20,6 +20,7 @@ import {
     lostPart,
     lostShare,
     paceNote,
+    stepWeek,
     usageWeekLine,
     weekCaption,
     windowWeeks,
@@ -130,6 +131,19 @@ describe("one calendar week at a time (mockup rows 2, 3, 5 and 6)", () => {
         } finally {
             i18n.setLanguageSetting("");
         }
+    });
+
+    it("moves a week with each control and stops at the first and the last week of the window", () => {
+        expect(stepWeek(1, 5, "next")).toBe(2);
+        expect(stepWeek(1, 5, "prev")).toBe(0);
+        expect(stepWeek(0, 5, "prev")).toBe(0);
+        expect(stepWeek(4, 5, "next")).toBe(4);
+        // Moving through every week of the window and back leaves nothing out.
+        const visited = [0];
+        for (let i = 0; i < 4; i++) {
+            visited.push(stepWeek(visited[visited.length - 1], 5, "next"));
+        }
+        expect(visited).toEqual([0, 1, 2, 3, 4]);
     });
 
     it("opens on the week holding today, the first or the last when today is outside the window", () => {
