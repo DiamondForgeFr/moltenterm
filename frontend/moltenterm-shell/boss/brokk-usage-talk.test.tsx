@@ -127,6 +127,35 @@ describe("the Usage tab (FR-BOSS-009, AC9; FR-BOSS-006)", () => {
         expect(html).toMatch(/data-testid="brokk-usage-row" data-level="error"/);
     });
 
+    // #2532: the grid draws a month like a week, the detail of the windows is as it was (FR-BOSS-009 AC111).
+    it("lists a month and a session as one bar each, with no week control, no week deduced from the month", () => {
+        const day = 24 * 60 * 60 * 1000;
+        globalStore.set(UsageReadingsAtom, {
+            kimi: {
+                agent: "kimi",
+                source: "t",
+                readat: Now,
+                windows: [
+                    {
+                        id: "session",
+                        label: "Current session",
+                        usedpercent: 15,
+                        resetsat: Now + 3600000,
+                        windowmins: 300,
+                    },
+                    { id: "month", label: "This month", usedpercent: 30, resetsat: Now + 20 * day, sessionworth: 1.5 },
+                ],
+            },
+        });
+        const html = renderToStaticMarkup(<BrokkUsageTab />);
+        expect(html.match(/data-testid="brokk-usage-row"/g)).toHaveLength(2);
+        expect(html).toContain(">This month<");
+        expect(html).toContain(">30 %<");
+        expect(html).toContain("width:30%");
+        expect(html).not.toContain("usage-week");
+        expect(html).not.toContain("Week (from the month)");
+    });
+
     // #2341: FR-BOSS-009, AC93 and AC97.
     describe("the order of use and the providers not used lately", () => {
         const Day = 24 * 60 * 60 * 1000;

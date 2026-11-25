@@ -48,7 +48,7 @@
     white-space: nowrap;
 }
 
-/* A label on two lines (#2451): its window, and under it a small dimmed word of how it is known ("from the month"). */
+/* A label on two lines (#2451): its window, and under it a small dimmed word of what it is over ("over the month"). */
 .mt-uw-label-sub {
     display: block;
     overflow: hidden;
