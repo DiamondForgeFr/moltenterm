@@ -234,7 +234,9 @@ describe("the search replaces the path and covers every bookmark of the app", ()
         const store = world();
         const hits = searchBookmarks(store, catalog, "rec");
         expect(hits.map((h) => h.bookmark.title)).toEqual(["Recette"]);
-        expect(hits[0].paths).toEqual(["The whole app › Client: SEFERS › Échanges", "The whole app › Client: SEFERS › Échanges › site-web"]);
+        expect(hits[0].paths).toEqual(["Client: SEFERS › Échanges", "Client: SEFERS › Échanges › site-web"]);
+        const docs = searchBookmarks(store, catalog, "docs");
+        expect(docs[0].paths).toEqual(["The whole app"]);
         expect(hits[0].positions).toEqual([0, 1, 2]);
         const byAddress = searchBookmarks(store, catalog, "git.example");
         expect(byAddress.map((h) => h.bookmark.title)).toEqual(["Dépôt"]);

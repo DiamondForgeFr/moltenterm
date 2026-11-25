@@ -10,9 +10,7 @@ import {
     matchName,
     nearHere,
     nodeOf,
-    noteRecentPlace,
     pathOf,
-    readRecentKeys,
     recentNodes,
     searchPlaces,
     type CatalogWorkspace,
@@ -145,46 +143,9 @@ describe("what the finder lists before anything is typed", () => {
         expect(nearHere(catalog, Here1, 2)).toHaveLength(2);
     });
 
-    it("keeps the recent places, newest first, without the app and without a place that is gone", () => {
-        const memory = new Map<string, string>();
-        const storage = {
-            getItem: (k: string) => memory.get(k) ?? null,
-            setItem: (k: string, v: string) => void memory.set(k, v),
-        };
-        const before = globalThis.localStorage;
-        Object.defineProperty(globalThis, "localStorage", { value: storage, configurable: true });
-        try {
-            noteRecentPlace(ref(LevelWorkspace, "w2"));
-            noteRecentPlace(ref(LevelProject, projectPlaceId("w1", "p2")));
-            noteRecentPlace(ref(LevelWorkspace, "w2"));
-            noteRecentPlace(ref(LevelWorkspace, "gone"));
-            noteRecentPlace(ref(LevelApp, ""));
-            const keys = readRecentKeys();
-            expect(keys.slice(0, 3)).toEqual(["app", "workspace:gone", "workspace:w2"]);
-            expect(recentNodes(catalog, keys).map((n) => n.name)).toEqual(["Mobile", "app-mobile"]);
-        } finally {
-            Object.defineProperty(globalThis, "localStorage", { value: before, configurable: true });
-        }
-    });
-
-    it("reads no recent places when the browser storage is missing or broken", () => {
-        const before = globalThis.localStorage;
-        Object.defineProperty(globalThis, "localStorage", {
-            value: {
-                getItem: () => {
-                    throw new Error("blocked");
-                },
-                setItem: () => {
-                    throw new Error("blocked");
-                },
-            },
-            configurable: true,
-        });
-        try {
-            expect(readRecentKeys()).toEqual([]);
-            expect(() => noteRecentPlace(ref(LevelWorkspace, "w1"))).not.toThrow();
-        } finally {
-            Object.defineProperty(globalThis, "localStorage", { value: before, configurable: true });
-        }
+    it("lists the recent places, in the order kept, without the app and without a place that is gone", () => {
+        const keys = ["app", "workspace:gone", "workspace:w2", "project:w1/p2"];
+        expect(recentNodes(catalog, keys).map((n) => n.name)).toEqual(["Mobile", "app-mobile"]);
+        expect(recentNodes(catalog, [])).toEqual([]);
     });
 });

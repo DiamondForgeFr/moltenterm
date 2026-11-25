@@ -15,6 +15,7 @@ import { useT, type TFunction } from "../i18n/i18n";
 import { projectLabel, readProjects } from "../sidebar/workspace-projects";
 import { subscribeWorkspaceSources } from "../workspace-sources";
 import { makeWorkspaceRailEntries, type WorkspaceRailSource } from "../workspace-rail-model";
+import { readPrefs, type BookmarkPrefs } from "./bookmark-prefs";
 import { BookmarkStore, Here, hereOf, readStore } from "./bookmarks";
 import { buildCatalog, type PlaceCatalog } from "./bookmark-places";
 
@@ -23,6 +24,11 @@ const NoClientAtom = atom(null) as Atom<Client>;
 export function useBookmarkStore(): BookmarkStore {
     const client = useAtomValue(ClientModel.getInstance().clientAtom ?? NoClientAtom);
     return useMemo(() => readStore(client?.meta), [client?.meta]);
+}
+
+export function useBookmarkPrefs(): BookmarkPrefs {
+    const client = useAtomValue(ClientModel.getInstance().clientAtom ?? NoClientAtom);
+    return useMemo(() => readPrefs(client?.meta), [client?.meta]);
 }
 
 export function useHere(tabId: string): Here {

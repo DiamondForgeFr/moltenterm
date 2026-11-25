@@ -3035,7 +3035,7 @@
             },
             "elsewhere": {
                 "title": "Already bookmarked",
-                "at": "At {places}, not visible from here",
+                "at": "Placed at {places}, not visible from here",
                 "placeHere": "Place it here too",
                 "placeHereHint": "The same bookmark, at {place}",
                 "placeHereAction": "Place here",

@@ -112,22 +112,29 @@ describe("the browser row's folds (#2489, FR-BRW-025 AC4)", () => {
         }
     });
 
-    it("loses the labels, and the connection word, at 440 px, and still shows Share and Open in", () => {
-        const drawn = drawnAt(440);
-        expect([...drawn.hidden]).toEqual(["molten-fold-1"]);
-        expect(drawn.wordHidden).toBe(true);
-        expect(drawn.moreShown).toBe(false);
+    // The add-bookmark button (#2531) took 28 px from the host's name, so each step starts 28 px wider than the ticket's
+    // 540, 440, 400 and 350.
+    it("loses the labels, and the connection word, from 567 px down, and still shows Share and Open in", () => {
+        for (const width of [FoldLabelsMaxPx, 520, FoldPairMaxPx + 1]) {
+            const drawn = drawnAt(width);
+            expect([...drawn.hidden]).toEqual(["molten-fold-1"]);
+            expect(drawn.wordHidden).toBe(true);
+            expect(drawn.moreShown).toBe(false);
+        }
+        expect(drawnAt(FoldLabelsMaxPx + 1).wordHidden).toBe(false);
     });
 
-    it('moves Share and Open in into the "⋯" below 440 px, which then follows their focus rule', () => {
-        const drawn = drawnAt(420);
-        expect([...drawn.hidden].sort()).toEqual(["molten-fold-1", "molten-fold-2"]);
-        expect(drawn.moreShown).toBe(true);
-        expect(drawn.moreFadedAtRest).toBe(true);
+    it('moves Share and Open in into the "⋯" from 467 px down, which then follows their focus rule', () => {
+        for (const width of [FoldPairMaxPx, 450, FoldNavMaxPx + 1]) {
+            const drawn = drawnAt(width);
+            expect([...drawn.hidden].sort()).toEqual(["molten-fold-1", "molten-fold-2"]);
+            expect(drawn.moreShown).toBe(true);
+            expect(drawn.moreFadedAtRest).toBe(true);
+        }
     });
 
-    it('moves Forward and Maximize below 400 px, and the "⋯" is then shown at rest; Reload and Bookmarks stay', () => {
-        for (const width of [399, 380, 360, 350]) {
+    it('moves Forward and Maximize from 427 px down, and the "⋯" is then shown at rest; Reload, the add button and Bookmarks stay', () => {
+        for (const width of [FoldNavMaxPx, 400, 390, FoldLastMaxPx + 1]) {
             const drawn = drawnAt(width);
             expect([...drawn.hidden].sort()).toEqual(["molten-fold-1", "molten-fold-2", "molten-fold-3"]);
             expect(drawn.moreShown).toBe(true);
@@ -135,8 +142,8 @@ describe("the browser row's folds (#2489, FR-BRW-025 AC4)", () => {
         }
     });
 
-    it("moves Reload and Bookmarks last, from 349 px down, 340 px included", () => {
-        for (const width of [349, 340, 300, 280]) {
+    it("moves Reload, the add button and Bookmarks last, from 377 px down, 340 px included", () => {
+        for (const width of [FoldLastMaxPx, 340, 300, 280]) {
             const drawn = drawnAt(width);
             expect([...drawn.hidden].sort()).toEqual(Folds);
             expect(drawn.moreShown).toBe(true);
@@ -168,7 +175,7 @@ describe("the browser row's folds (#2489, FR-BRW-025 AC4)", () => {
             engine: "molten-fold-2",
             copyLink: "molten-fold-2",
         };
-        for (const width of [1200, 620, 440, 420, 400, 399, 350, 349, 340, 300]) {
+        for (const width of [1200, 620, 520, 467, 450, 428, 427, 400, 378, 377, 340, 300]) {
             const parts = menuPartsAt(width);
             const hidden = drawnAt(width).hidden;
             for (const [part, fold] of Object.entries(folded)) {
@@ -183,9 +190,9 @@ describe("the browser row's folds (#2489, FR-BRW-025 AC4)", () => {
     it("builds the menu in the order the row folds, at the ticket's widths", () => {
         expect(menuPartsAt(1200)).toEqual([]);
         expect(menuPartsAt(620)).toEqual([]);
-        expect(menuPartsAt(440)).toEqual([]);
-        expect(menuPartsAt(420)).toEqual(["copyLink", "share", "engine"]);
-        expect(menuPartsAt(380)).toEqual(["forward", "maximize", "copyLink", "share", "engine"]);
+        expect(menuPartsAt(FoldPairMaxPx + 1)).toEqual([]);
+        expect(menuPartsAt(450)).toEqual(["copyLink", "share", "engine"]);
+        expect(menuPartsAt(400)).toEqual(["forward", "maximize", "copyLink", "share", "engine"]);
         const all = ["forward", "reload", "bookmarkPage", "maximize", "copyLink", "bookmarks", "share", "engine"];
         expect(menuPartsAt(340)).toEqual(all);
         expect(menuPartsAt(300)).toEqual(all);

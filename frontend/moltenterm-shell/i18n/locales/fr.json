@@ -3035,7 +3035,7 @@
             },
             "elsewhere": {
                 "title": "Déjà en favori",
-                "at": "À {places}, pas visible d'ici",
+                "at": "Placé à {places}, pas visible d'ici",
                 "placeHere": "Le placer ici aussi",
                 "placeHereHint": "Le même favori, à {place}",
                 "placeHereAction": "Placer ici",

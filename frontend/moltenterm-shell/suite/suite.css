@@ -560,7 +560,7 @@
         width: var(--df-radio-size);
         height: var(--df-radio-size);
         border: 1px solid color-mix(in srgb, var(--df-text-muted) 50%, transparent);
-        border-radius: 3px;
+        border-radius: var(--df-radius-md);
         color: var(--df-accent-fg);
         transition:
             border-color var(--df-duration-fast) ease,

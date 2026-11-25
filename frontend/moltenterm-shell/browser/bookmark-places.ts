@@ -219,29 +219,7 @@ export function nearHere(catalog: PlaceCatalog, here: Here, limit = 12): PlaceNo
     return out.slice(0, limit);
 }
 
-const RecentKey = "molten:bookmarks:recent";
-const RecentMax = 6;
-
-// The places last used, newest first: a convenience of this window, kept in its browser storage, which may be absent.
-export function readRecentKeys(): string[] {
-    try {
-        const raw = JSON.parse(globalThis.localStorage?.getItem(RecentKey) ?? "[]");
-        return Array.isArray(raw) ? raw.filter((k) => typeof k === "string").slice(0, RecentMax) : [];
-    } catch {
-        return [];
-    }
-}
-
-export function noteRecentPlace(ref: PlaceRef): void {
-    try {
-        const key = placeKey(ref);
-        const next = [key, ...readRecentKeys().filter((k) => k !== key)].slice(0, RecentMax);
-        globalThis.localStorage?.setItem(RecentKey, JSON.stringify(next));
-    } catch (e) {
-        console.log("bookmarks: recent places not kept", e);
-    }
-}
-
+// The places last used (bookmark-prefs.ts keeps their keys, newest first) that the catalog still knows; never the app.
 export function recentNodes(catalog: PlaceCatalog, keys: readonly string[]): PlaceNode[] {
     return keys.map((k) => catalog.nodes.get(k)).filter((n) => n != null && n.ref.level !== LevelApp);
 }
