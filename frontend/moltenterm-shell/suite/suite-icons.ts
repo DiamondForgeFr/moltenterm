@@ -25,6 +25,7 @@ import {
     Eye,
     FileBraces,
     FileText,
+    Flag,
     FolderGit2,
     FolderOpen,
     GitBranch,
@@ -62,6 +63,7 @@ import {
     Send,
     Settings,
     Settings2,
+    Shapes,
     ShieldCheck,
     Sparkles,
     SquareTerminal,
@@ -151,6 +153,8 @@ export const SuiteIcons = {
     location: p(MapPin),
     visibleArea: p(Eye),
     boss: p(Anvil),
+    emblem: p(Shapes),
+    ribbon: p(Flag),
 } satisfies Record<string, SuiteIconEntry>;
 
 export type SuiteIconName = keyof typeof SuiteIcons;

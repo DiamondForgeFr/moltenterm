@@ -4,12 +4,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { RibbonShapes } from "./ribbon-shapes";
-import { ShapePicker } from "./shape-picker";
+import { DrawAnotherButton, ShapeGrid } from "./shape-picker";
 
 function picker(value = "moon") {
-    return renderToStaticMarkup(
-        <ShapePicker value={value} paint="#58c142" onChange={() => {}} onDrawAnother={() => {}} />
-    );
+    return renderToStaticMarkup(<ShapeGrid value={value} paint="#58c142" onChange={() => {}} />);
 }
 
 describe("the ribbon shape picker (FR-SHELL-159)", () => {
@@ -45,6 +43,8 @@ describe("the ribbon shape picker (FR-SHELL-159)", () => {
     });
 
     it("has a button to draw another shape", () => {
-        expect(picker()).toContain('data-testid="shape-draw-another"');
+        const html = renderToStaticMarkup(<DrawAnotherButton onDrawAnother={() => {}} />);
+        expect(html).toContain('data-testid="shape-draw-another"');
+        expect(html).toContain(">Draw another<");
     });
 });

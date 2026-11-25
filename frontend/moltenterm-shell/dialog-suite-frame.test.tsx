@@ -17,7 +17,25 @@ vi.mock("react-dom", async (importOriginal) => {
     return { ...actual, default: { ...actual, createPortal }, createPortal };
 });
 
+// Manage contexts is drawn here with the real frame; what it reads from the app is stood in for.
+vi.mock("@/app/store/global", async () => {
+    const { atom } = await import("jotai");
+    return { atoms: { workspace: atom(null) } };
+});
+vi.mock("./contexts/context-store", () => ({
+    useContexts: () => [
+        { id: "work", name: "Work", emblem: "briefcase" },
+        { id: "home", name: "Home", emblem: "home" },
+    ],
+    createContext: async () => "",
+    deleteContext: async () => {},
+    updateContext: async () => {},
+    setContextFolder: async () => {},
+}));
+vi.mock("./workspace-project-store", () => ({ chooseMoltentermPath: async () => null }));
+
 import { FlexiModal, Modal } from "@/app/modals/modal";
+import { ManageContextsDialog } from "./contexts/manage-contexts";
 import { DialogFrame, DialogFrameClass } from "./dialog-frame";
 
 const FrontendDir = fileURLToPath(new URL("..", import.meta.url));
@@ -93,6 +111,20 @@ describe("the suite frame on every dialog (#905)", () => {
     it("Wave's Modal and FlexiModal carry the frame and a lit ring", () => {
         expect(renderToStaticMarkup(<Modal onClose={() => {}}>Body</Modal>)).toMatch(FramedAndLit);
         expect(renderToStaticMarkup(<FlexiModal>Body</FlexiModal>)).toMatch(FramedAndLit);
+    });
+
+    it("draws Manage contexts in the suite frame, lit, with the suite's blocks and a cross (#2534)", () => {
+        const html = renderToStaticMarkup(<ManageContextsDialog entries={[]} onClose={() => {}} />);
+        expect(html).toMatch(/role="dialog"[^>]*class="[^"]*\bmolten-dialog-frame\b/);
+        expect(html).toContain('<span class="df-glow" data-on=""');
+        expect(html).toContain('data-role="contexts-manage"');
+        // The suite frame leaves its room to the section blocks, which carry the chip and the icon tile.
+        expect(html).toMatch(/class="[^"]*\bpx-6\b[^"]*"/);
+        expect(html.match(/<section[^>]*class="df-block /g)).toHaveLength(6);
+        expect(html.match(/class="df-icon-tile"/g)).toHaveLength(6);
+        expect(html.match(/class="df-chip"/g)).toHaveLength(6);
+        expect(html).toMatch(/<button[^>]*aria-label="Close"[^>]*data-testid="context-close"/);
+        expect(html).not.toMatch(/\brounded-6\b/);
     });
 
     it("lets a stacked Wave Modal opt out of the light, keeping the frame", () => {
