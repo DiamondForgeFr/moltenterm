@@ -561,7 +561,7 @@ describe("a project read from git alone (#2556)", () => {
         expect(model.quiet).toBe(true);
         expect(model.lastActivity).toBe(new Date("2026-08-20T10:00:00Z").getTime());
         expect(widerWindow(model, LineMapDayChoices)).toBe(60);
-        expect(widerWindow(model, [7, 14, 21])).toBe(21);
+        expect(widerWindow(model, [7, 14, 21])).toBeNull();
         expect(
             widerWindow(buildLineMap({ git: project("main", "main", recent), now: NOW, days: 7 }), LineMapDayChoices)
         ).toBeNull();

@@ -130,16 +130,13 @@ export type LineMapModel = {
     quiet?: boolean;
 };
 
-// The window that reaches the last activity of a quiet map (#2556): the smallest choice that shows it, else the widest.
+// The window that reaches the last activity of a quiet map (#2556): the smallest choice that shows it; null when none
+// does, since a wider empty line would explain nothing more.
 export function widerWindow(model: LineMapModel, choices: readonly number[]): number {
     if (!model?.quiet || !Number.isFinite(model.lastActivity)) {
         return null;
     }
-    const wider = choices.filter((d) => d > model.days);
-    if (wider.length === 0) {
-        return null;
-    }
-    return wider.find((d) => model.now - d * Day <= model.lastActivity) ?? wider[wider.length - 1];
+    return choices.find((d) => d > model.days && model.now - d * Day <= model.lastActivity) ?? null;
 }
 
 export type LineMapInput = {

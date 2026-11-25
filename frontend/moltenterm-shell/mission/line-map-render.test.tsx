@@ -298,5 +298,6 @@ describe("the quiet window", () => {
             <QuietWindow days={180} lastActivity={last} wider={null} onWiden={() => {}} />
         );
         expect(html).not.toContain("line-map-widen");
+        expect(html).toContain("The history is older than the widest window.");
     });
 });
