@@ -481,7 +481,7 @@ describe("the plan usage, minimal and attached (#2450)", () => {
     it("gives the reset and the figure of each day in the row's tooltip and accessible name", () => {
         const usage = flowBlock(shown(minimalLayout), "usage");
         expect(usage).toMatch(
-            /aria-label="This week, 63 %, resets [A-Za-z]+, per day: (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %(, (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %){6}"/
+            /aria-label="This week, 63 %, resets [A-Za-z]+, per day: (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %(, (Mon|Tue|Wed|Thu|Fri|Sat|Sun) \d+ %){6}, [0-9.]+ d (late|ahead)"/
         );
         expect(usage).toMatch(/aria-label="This week \(Fable\), 12 %, resets [A-Za-z]+, per day: /);
         const title = /data-tip="(This week: 63 % used[^"]*)"/.exec(usage)?.[1] ?? "";

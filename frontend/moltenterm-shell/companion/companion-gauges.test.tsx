@@ -238,7 +238,8 @@ describe("plan usage section", () => {
         expect(windowsOf(html)).toEqual(["week"]);
         expect(ringTag(html)).toContain('aria-label="Session used: 24 %. Resets in 2 h 14 min (at 12:14)"');
         expect(ringTag(html)).toContain('data-tip="Session used: 24 %\nResets in 2 h 14 min (at 12:14)"');
-        expect(html).toContain('aria-label="This week, 82 %, resets Friday"');
+        // Its name is as it was, with how far it is from its pace in days at its end (#2532).
+        expect(html).toMatch(/aria-label="This week, 82 %, resets Friday, [0-9.]+ d (late|ahead)"/);
         expect(resetOf(html, "week")).toBe("Resets Fri 10:00");
         expect(percentsOf(html)).toEqual(["82 %"]);
         expect(html).toContain('aria-label="Refresh plan usage"');
@@ -444,7 +445,9 @@ describe("the companion's usage week grid (#2102)", () => {
         const html = markup(withModel);
         expect(windowsOf(html)).toEqual(["week", "model:opus"]);
         expect(labelsOf(html)).toEqual(["Consumption", "Opus"]);
-        expect(rowTag(html, "model:opus")).toContain('aria-label="This week (Opus), 70 %, resets Sunday"');
+        expect(rowTag(html, "model:opus")).toMatch(
+            /aria-label="This week \(Opus\), 70 %, resets Sunday, [0-9.]+ d (late|ahead)"/
+        );
     });
 
     // The reset day's block is 0 %: the fill starts on it and runs forward, past Sunday to Monday. Tuesday 6 October.
@@ -501,7 +504,9 @@ describe("the companion's usage week grid (#2102)", () => {
             const html = markup(enabled);
             expect(initialsOf(html)).toBe("LMMJVSD");
             expect(labelsOf(html)).toEqual(["Consommation"]);
-            expect(rowTag(html, "week")).toMatch(/aria-label="Cette semaine, 82\s%, remise à zéro vendredi"/);
+            expect(rowTag(html, "week")).toMatch(
+                /aria-label="Cette semaine, 82\s%, remise à zéro vendredi, [0-9,]+\sj (de retard|d&#x27;avance)"/
+            );
             i18n.setLanguageSetting("en");
             expect(initialsOf(markup(enabled))).toBe("MTWTFSS");
         } finally {
@@ -1113,11 +1118,14 @@ describe("Kimi managed plan usage", () => {
     it("shows three windows, their resets, booster and monthly spending, with no fourth gauge", () => {
         const html = markup(kimi);
         expect(windowsOf(html)).toEqual(["week", "month"]);
-        expect(labelsOf(html)).toEqual(["Consumption", "Month"]);
+        // The month is read like a week (#2532): "Consumption", and under it "over the month"; its reset is the small icon
+        // of a week's, and it draws no plain bar any more.
+        expect(labelsOf(html)).toEqual(["Consumption", "Consumption"]);
         expect(ringTag(html)).toContain('data-tip="Session used:');
-        expect(gaugeResetOf(html, "month")).toMatch(/^Sun 1 Nov, 00:00$/);
-        expect(rowTag(html, "month")).toContain("Resets Sun 1 Nov, 00:00");
-        expect(rowTag(html, "month")).toContain('data-plain="true"');
+        expect(resetOf(html, "month")).toBe("Resets Sun 1 Nov, 00:00");
+        expect(rowTag(html, "month")).toContain("Monthly reset in");
+        expect(rowTag(html, "month")).toContain('data-monthly="true"');
+        expect(rowTag(html, "month")).not.toContain("data-plain");
         expect(rowTag(html, "week")).not.toContain("data-plain");
         expect(html).toContain("Booster balance: $12.35");
         expect(html).toContain("Monthly spending: $5.43 of $20.00");

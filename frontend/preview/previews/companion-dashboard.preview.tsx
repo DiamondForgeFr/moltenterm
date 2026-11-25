@@ -8,7 +8,8 @@
 // app gives it (?scroll=end scrolled to the bottom), ?images=1 the messages name pasted images "[Image #N]" (#2455; the
 // chips read a small synthetic image drawn here, ?images=none gives them none), ?tip=<test id>[&tipat=N] (or
 // ?tipsel=<css selector>) a popover held open on the Nth such element (the screenshots' way of hovering),
-// ?usage-agent=kimi|kimi-stale|kimi-ring Kimi's usage (#2451), ?usage-labels=short|long the width of the label column
+// ?usage-agent=kimi|kimi-stale Kimi's usage (#2451, #2532: ?month-elapsed=N&month-used=N&month-worth=N the month's days
+// gone, its use and what a session is worth), ?usage-labels=short|long the width of the label column
 // (#2458; ?usage-labels=fable is Claude's session, week and the week of a model, ?usage-labels=nosession the same
 // without the session, #2473; ?usage-session=72 the share the session's ring fills), ?rows-hidden=session,month the usage rows the
 // layout starts with hidden for the provider shown (#2462), ?hide=answer,files the sections the layout starts with
@@ -248,39 +249,24 @@ const usage: CompanionUsageInfo = {
     },
 };
 
-// ?usage-agent=kimi|kimi-stale (#2451): Kimi's managed usage, a 5-hour window, the week deduced from the month (recorded
-// from two days ago, so the days before are unknown) and the month; kimi-stale is the same reading kept 40 min after its
-// token expired.
+// ?usage-agent=kimi|kimi-stale (#2451): Kimi's managed usage, a 5-hour window and the month, which reads like a week, one
+// calendar week at a time (#2532); kimi-stale is the same reading kept 40 min after its token expired. The month is
+// ?month-elapsed=N days after its reset (10 by default), ?month-used=N percent used (31) and, with ?month-worth=N (what a
+// full session is worth in percent of the month), the share the sessions left can no longer use is lost.
 const UsageAgent = query.get("usage-agent") ?? "";
 // The provider whose plan the usage shows, the key of the rows the layout hides (#2462).
 const UsageProvider = UsageAgent.startsWith("kimi") ? "kimi" : "claude";
-const Today = (new Date(Now).getDay() + 6) % 7;
-const DeducedDays = Array.from({ length: 7 }, (_, i) =>
-    i > Today ? 0 : i < Today - 2 ? -1 : [130, 85, 60][Today - i]
-);
-const NextMonday = (() => {
-    const d = new Date(Now);
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + 7 - Today);
-    return d.getTime();
-})();
-const NextMonth = (() => {
-    const d = new Date(Now);
-    return new Date(d.getFullYear(), d.getMonth() + 1, 1, 1, 0).getTime();
-})();
-// kimi-ring: the month resets within this week (tomorrow 01:00, or in 3 h on a Sunday), so the deduced week rings.
-const ResetThisWeek = (() => {
-    if (Today === 6) {
-        return Now + 3 * Hour;
-    }
-    const d = new Date(Now);
+const MonthReset = (() => {
+    const elapsed = Number(query.get("month-elapsed") ?? 10);
+    const d = new Date(Now - elapsed * 24 * Hour);
     d.setHours(1, 0, 0, 0);
-    d.setDate(d.getDate() + 1);
+    d.setMonth(d.getMonth() + 1);
     return d.getTime();
 })();
+const MonthUsed = Number(query.get("month-used") ?? 31);
+const MonthWorth = Number(query.get("month-worth") ?? 0);
 
-function kimiUsage(stale: boolean, monthReset = NextMonth): CompanionUsageInfo {
-    const known = DeducedDays.filter((d) => d > 0);
+function kimiUsage(stale: boolean, monthReset = MonthReset): CompanionUsageInfo {
     return {
         blockid: "preview-terminal",
         agent: "kimi",
@@ -303,15 +289,13 @@ function kimiUsage(stale: boolean, monthReset = NextMonth): CompanionUsageInfo {
                     windowmins: 300,
                 },
                 {
-                    id: "week",
-                    label: "Week (from the month)",
-                    usedpercent: Math.round((known.reduce((a, b) => a + b, 0) / 7) * 10) / 10,
-                    resetsat: NextMonday,
-                    windowmins: 10080,
-                    deduced: true,
-                    days: DeducedDays,
+                    id: "month",
+                    label: "This month",
+                    usedpercent: MonthUsed,
+                    resetsat: monthReset,
+                    sessionworth: MonthWorth || undefined,
+                    sessionmins: MonthWorth ? 300 : undefined,
                 },
-                { id: "month", label: "This month", usedpercent: 31, resetsat: monthReset },
             ],
         },
     };
@@ -324,9 +308,6 @@ const UsageLabels = query.get("usage-labels") ?? "";
 function usageFixture(): CompanionUsageInfo {
     if (UsageAgent === "kimi" || UsageAgent === "kimi-stale") {
         return kimiUsage(UsageAgent === "kimi-stale");
-    }
-    if (UsageAgent === "kimi-ring") {
-        return kimiUsage(false, ResetThisWeek);
     }
     if (UsageLabels === "fable" || UsageLabels === "nosession") {
         const [session, week] = usage.snapshot.windows;

@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The plan usage's rows the developer chose to show (FR-SHELL-018, #2462). A provider reports several windows (Session,
-// Week, Week (from the month), Month, Week (Fable)) and the developer may care for one: the choice is kept per provider
+// Week, Month, Week (Fable)) and the developer may care for one: the choice is kept per provider
 // and per window key with the companion layout (companion-layout.ts, `hiddenrows`), and applies to every form of the
 // usage (full, minimal, attached). A window that is not hidden shows, so one the provider starts to report later shows
 // until the developer hides it, and at least one row always stays. The choice only filters what is drawn: the rows are
-// built from every window first (gaugesView), so a week deduced from the month is still computed with the month row
-// hidden. The session is one of those windows: it draws a ring on today's letter rather than a row (#2473), so hiding it
-// hides the ring, and it counts for the row that always stays. Pure, so it is tested without a window.
+// built from every window first (gaugesView), so the days late and the share lost of a row, which the session limits,
+// are told with the session row hidden. The session is one of those windows: it draws a ring on today's letter rather
+// than a row (#2473), so hiding it hides the ring, and it counts for the row that always stays. Pure, so it is tested
+// without a window.
 
 import { t } from "../i18n/i18n";
 import { SessionWindowId } from "../usage-week/usage-week-model";

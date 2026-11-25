@@ -91,15 +91,7 @@ const kimi: CompanionUsageInfo = {
                 resetsat: now + Hour + 20 * Min,
                 windowmins: 300,
             },
-            {
-                id: "week",
-                label: "Week (from the month)",
-                usedpercent: 128.6,
-                resetsat: monday,
-                windowmins: 10080,
-                deduced: true,
-                days: [-1, -1, 240, 150, 0, 0, 0],
-            },
+            { id: "week", label: "This week", usedpercent: 28.6, resetsat: monday, windowmins: 10080 },
             { id: "month", label: "This month", usedpercent: 30, resetsat: new Date(2026, 11, 1, 1, 0).getTime() },
         ],
     },
@@ -261,10 +253,9 @@ describe("the rows tool of the usage block (#2462)", () => {
         for (const form of ["full", "minimal", "attached"] as const) {
             const html = framed(kimi, form, ["session", "month"]);
             expect(labelsOf(html), form).toEqual(["Consumption"]);
-            expect(percentsOf(html), form).toEqual(["129 %"]);
-            // The week keeps its seven days, its count to the month's reset and its reset icon.
+            expect(percentsOf(html), form).toEqual(["29 %"]);
+            // The week keeps its seven days and its reset icon.
             expect(count(html, 'data-testid="usage-week-block"'), form).toBe(7);
-            expect(html, form).toContain("from the month");
             expect(html, form).toContain('data-testid="usage-week-reset"');
         }
     });
@@ -276,15 +267,15 @@ describe("the rows tool of the usage block (#2462)", () => {
         }
     });
 
-    it("keeps the deduced week, with its count, when the month row is hidden, and the month's reset when the week is", () => {
-        const noMonth = framed(kimi, "minimal", ["month"]);
-        expect(labelsOf(noMonth)).toEqual(["Consumption"]);
-        expect(noMonth).toMatch(/data-testid="usage-week-chip"[^>]*>\d+ d</);
+    it("keeps the month's count to its reset and its reset icon whichever other row is hidden (#2532)", () => {
         const noWeek = framed(kimi, "minimal", ["week"]);
-        expect(labelsOf(noWeek)).toEqual(["Month"]);
-        // With the week that counted to it hidden, the month's bar says its own reset again, not only in its tooltip.
-        expect(noWeek).toContain(">Tue 1 Dec, 01:00<");
-        expect(framed(kimi, "minimal", [])).not.toContain(">Tue 1 Dec, 01:00<");
+        expect(labelsOf(noWeek)).toEqual(["Consumption"]);
+        expect(noWeek).toContain('data-window="month"');
+        expect(noWeek).toMatch(/data-testid="usage-week-chip"[^>]*>\d+ d</);
+        expect(noWeek).toContain('data-testid="usage-week-reset"');
+        const noMonth = framed(kimi, "minimal", ["month"]);
+        expect(noMonth).not.toContain('data-window="month"');
+        expect(noMonth).not.toContain('data-testid="usage-week-chip"');
     });
 
     it("shows every row of a choice that would hide them all", () => {
@@ -300,8 +291,8 @@ describe("the rows tool of the usage block (#2462)", () => {
             expect(hidden, form).not.toContain('data-testid="usage-week-session"');
             expect(hidden, form).not.toContain('data-window="session"');
             // The other windows keep their rows, hidden or not.
-            expect(labelsOf(hidden), form).toEqual(["Consumption", "Month"]);
-            expect(labelsOf(shown), form).toEqual(["Consumption", "Month"]);
+            expect(labelsOf(hidden), form).toEqual(["Consumption", "Consumption"]);
+            expect(labelsOf(shown), form).toEqual(["Consumption", "Consumption"]);
         }
     });
 
@@ -420,7 +411,11 @@ describe("the choice in the dashboard (#2462)", () => {
     });
 
     it("shows every row for a layout saved before the choice", () => {
-        expect(labelsOf(flowBlock(markup(kimi, DefaultCompanionLayout), "usage"))).toEqual(["Consumption", "Month"]);
+        // The month is read like a week (#2532): its row starts with the same word, and says "over the month" under it.
+        expect(labelsOf(flowBlock(markup(kimi, DefaultCompanionLayout), "usage"))).toEqual([
+            "Consumption",
+            "Consumption",
+        ]);
         expect(flowBlock(markup(kimi, DefaultCompanionLayout), "usage")).toContain('data-testid="usage-week-session"');
     });
 

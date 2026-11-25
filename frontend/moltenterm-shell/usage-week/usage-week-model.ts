@@ -6,6 +6,11 @@
 // last reset (0 %, where the fill starts and runs forward round the week) and its pace (consumed against the share of
 // the window elapsed since that reset). Pure and tied to no surface: Brokk's group shows it, and so do the companion's
 // gauges (#2102).
+//
+// A window is a pool (the window of the global reset, weekly or monthly) and a plan may also have a session (the short
+// window, 5 h). A monthly pool spreads its used share over its days from the reset, each worth 1/D of it, and shows one
+// calendar week at a time (#2532). A weekly or monthly row tells how many days late or ahead it is and, for a plan
+// with a session window whose worth is measured, the share that can no longer be used before the reset.
 
 import type { UsageWindow } from "../companion/companion-gauges-model";
 import { getLocale, t } from "../i18n/i18n";
@@ -34,9 +39,34 @@ const MinAllowedPercent = 0.5;
 
 const DaysInWeek = 7;
 const MinsPerDay = 24 * 60;
+const DayMs = MinsPerDay * 60 * 1000;
+
+// A row reads "on time" within this many days of its pace, and a lost share under this many percent is not told.
+export const OnTimeDays = 0.5;
+export const MinLostPercent = 1;
+// Below this many days a figure shows its decimal ("1.2 d"); from it, whole days.
+const WholeDaysFrom = 3;
 
 // The keys of the week's initials (usageWeek.day.*), Monday first in every language.
 export const WeekDayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+
+// What a pool window says in days (#2532). Absent while its reset time is not known.
+export type WindowSpan = {
+    // The reset date that opened the window, at local midnight (Unix ms): its first day.
+    startDay: number;
+    // The calendar days of the window, from that date to the next reset's date (31 for a 31-day month, 7 for a week):
+    // each is worth 1/days of the window.
+    days: number;
+    // A calendar month is shown one calendar week at a time; a week is shown as it always was.
+    monthly: boolean;
+    // How far behind (positive) or ahead of (negative) its pace the window is, in days: the days elapsed since the
+    // reset less the days consumed. What cannot be used any more (`lost`) is left out of it.
+    late: number;
+    // The share of the pool no session can still use before the reset; absent without a measured worth.
+    lost?: LostShare;
+};
+
+export type LostShare = { percent: number; days: number };
 
 export type UsageWeekLine = {
     // Rounded, as shown.
@@ -56,13 +86,9 @@ export type UsageWeekLine = {
     // A window that is neither weekly nor deduced (a five-hour session, a month) draws one plain gauge, not the seven
     // days (#2451). The companion sets it (isWeekWindow); Brokk's group draws every provider's main window on the week.
     plain?: boolean;
-    // A week deduced from the month (#2451): each day's own use, Monday first, in percent of a seventh of the week;
-    // DayUnknown for a day MoltenTerm holds no reading for. Absent for any other window.
-    days?: number[];
+    // The window's days, its days late or ahead and the share lost (#2532).
+    span?: WindowSpan;
 };
-
-// must match DeducedDayUnknown in pkg/molten/usage/usage.go
-export const DayUnknown = -1;
 
 // The narrowest day block a figure fits under without touching its neighbour's: three tabular digits at 11 px ("130")
 // and a little air (#2451, #2458). usage-week.css hides the figure of a block narrower than this (@container
@@ -71,12 +97,12 @@ export const MinFigureBlockPx = 22;
 // The block width from which a figure also shows its "%" unit (usage-week.css, @container min-width).
 export const MinUnitBlockPx = 32;
 
-// The windows the seven days tell something of: a week (Claude's per-model weeks included) and a week deduced from the
-// month. Any other window is a plain gauge (#2451).
+// The windows the seven days tell something of: a week (Claude's per-model weeks included) and a calendar month, which
+// shows one week of its days at a time (#2532). Any other window is a plain gauge (#2451).
 export function isWeekWindow(window: UsageWindow): boolean {
     return (
-        window.deduced === true ||
         window.id === WeekWindowId ||
+        window.id === MonthWindowId ||
         isModelWindow(window) ||
         windowLength(window) === WeekMins
     );
@@ -229,36 +255,215 @@ export function dayFiguresText(percent: number, start = 0): string {
         .join(", ");
 }
 
-// How full each day block of a line is: a deduced week fills each day by its own use (an unknown day stays empty),
-// any other week spreads its total from the reset day (dayFills).
-export function lineDayFills(line: UsageWeekLine): number[] {
-    if (line.days == null) {
-        return dayFills(line.percent, line.start);
-    }
-    return line.days.map((d) => (d > 0 ? Math.min(1, d / 100) : 0));
+// The fill of the day k days after the reset, when `units` days' worth has been used: whole days full from the reset
+// forward, the next one partly, the rest empty. It is the rule of dayFills for a window of any length (#2532).
+export function dayFill(units: number, k: number): number {
+    return Math.min(1, Math.max(0, units - k));
 }
 
-// The figure under each day block of a line; null for a day a deduced week does not know.
-export function lineDayShares(line: UsageWeekLine): number[] {
-    if (line.days == null) {
-        return dayShares(line.percent, line.start);
-    }
-    return line.days.map((d) => (d === DayUnknown ? null : Math.round(d)));
+// ---- the days of a window, one calendar week at a time (#2532) ----
+
+// Local midnight of the day holding `at`.
+export function dayStart(at: number): number {
+    const d = new Date(at);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
 }
 
-// The day figures of a line as one sentence (dayFiguresText); an unknown day says so.
-export function lineDayFiguresText(line: UsageWeekLine): string {
-    if (line.days == null) {
-        return dayFiguresText(line.percent, line.start);
+// The day `n` calendar days after the one starting at `day`, at local midnight: a change of daylight saving time never
+// shifts it.
+export function addDays(day: number, n: number): number {
+    const d = new Date(day);
+    d.setDate(d.getDate() + n);
+    return d.getTime();
+}
+
+// The whole calendar days from one local midnight to another.
+export function dayDiff(from: number, to: number): number {
+    return Math.round((to - from) / DayMs);
+}
+
+function mondayOf(day: number): number {
+    return addDays(day, -weekdayIndex(day));
+}
+
+// The calendar weeks, Monday to Sunday, that hold a day of the window: the first one's Monday and how many there are.
+export type WindowWeeks = { first: number; count: number };
+
+export function windowWeeks(span: WindowSpan): WindowWeeks {
+    const first = mondayOf(span.startDay);
+    const lastDay = addDays(span.startDay, Math.max(1, span.days) - 1);
+    return { first, count: Math.floor(dayDiff(first, lastDay) / DaysInWeek) + 1 };
+}
+
+// The week holding today, the first or the last when today is outside the window.
+export function currentWeekIndex(weeks: WindowWeeks, now: number): number {
+    const index = Math.floor(dayDiff(weeks.first, dayStart(now)) / DaysInWeek);
+    return Math.min(weeks.count - 1, Math.max(0, index));
+}
+
+// The TypeScript library this project builds with predates formatRange, which Electron's engine has.
+type RangeFormat = Intl.DateTimeFormat & { formatRange(from: Date, to: Date): string };
+
+// The week a control moves to: the next or the previous one, never past the first or the last of the window.
+export function stepWeek(index: number, count: number, dir: "prev" | "next"): number {
+    return Math.min(count - 1, Math.max(0, index + (dir === "next" ? 1 : -1)));
+}
+
+// "Week 2 of 5" and "8–14 Jan": the two lines under a monthly row's label. The range is the calendar week's, Monday to
+// Sunday, in the interface language.
+export function weekCaption(weeks: WindowWeeks, index: number): { count: string; range: string } {
+    const monday = addDays(weeks.first, index * DaysInWeek);
+    const sunday = addDays(monday, DaysInWeek - 1);
+    const format = new Intl.DateTimeFormat(getLocale(), { day: "numeric", month: "short" }) as RangeFormat;
+    return {
+        count: t("usageWeek.weekOf", { week: index + 1, weeks: weeks.count }),
+        range: format.formatRange(new Date(monday), new Date(sunday)),
+    };
+}
+
+// One day block of a row.
+export type DayCell = {
+    // How full it is, 0 to 1.
+    fill: number;
+    // The figure under it, in whole percent; null for a day outside the window.
+    share: number | null;
+    // A day before the window's reset date, or from the next reset's date on.
+    out: boolean;
+    // How much of the end of the day is lost (0 to 1): hatched, and left out of the days late.
+    lost: number;
+    // The window's first day: the reset's ring.
+    reset: boolean;
+    today: boolean;
+};
+
+// The lost days sit at the end of the window: the day k (0 for the reset day) loses what of it lies past D - lostDays.
+export function lostPart(k: number, windowDays: number, lostDays: number): number {
+    if (!(lostDays > 0)) {
+        return 0;
     }
+    return Math.min(1, Math.max(0, k + 1 - (windowDays - lostDays)));
+}
+
+// The seven day blocks of a line, Monday to Sunday. A monthly window shows the calendar week `weekIndex` of its days (the
+// one holding today when not given), each day worth 1/D of it from the reset date; any other week is drawn as it
+// always was, from its reset day round the week. The lost days, when the line has some, are hatched at the end of the
+// window.
+export function lineCells(line: UsageWeekLine, now: number, weekIndex?: number): DayCell[] {
+    const span = line.span;
+    const today = dayStart(now);
+    const lostDays = span?.lost?.days ?? 0;
+    if (span?.monthly) {
+        const weeks = windowWeeks(span);
+        const index = Math.min(weeks.count - 1, Math.max(0, weekIndex ?? currentWeekIndex(weeks, now)));
+        const monday = addDays(weeks.first, index * DaysInWeek);
+        const units = (Math.min(100, Math.max(0, line.used ?? line.percent)) * span.days) / 100;
+        return Array.from({ length: DaysInWeek }, (_, i) => {
+            const day = addDays(monday, i);
+            const k = dayDiff(span.startDay, day);
+            const out = k < 0 || k >= span.days;
+            const fill = out ? 0 : dayFill(units, k);
+            return {
+                fill,
+                share: out ? null : Math.round(fill * 100),
+                out,
+                lost: out ? 0 : lostPart(k, span.days, lostDays),
+                reset: k === 0,
+                today: day === today,
+            };
+        });
+    }
+    const fills = dayFills(line.percent, line.start);
+    const todayIndex = weekdayIndex(now);
+    return fills.map((fill, i) => ({
+        fill,
+        share: Math.round(fill * 100),
+        out: false,
+        lost:
+            span != null && line.start >= 0
+                ? lostPart((i - line.start + DaysInWeek) % DaysInWeek, span.days, lostDays)
+                : 0,
+        reset: i === line.start,
+        today: i === todayIndex,
+    }));
+}
+
+// The figure under each day block of a line; null for a day outside the window.
+export function lineDayShares(line: UsageWeekLine, now: number, weekIndex?: number): (number | null)[] {
+    return lineCells(line, now, weekIndex).map((c) => c.share);
+}
+
+// The day figures of a line as one sentence (dayFiguresText), for the row's name and tooltip: a day outside the window is
+// left out, a day lost says so.
+export function lineDayFiguresText(line: UsageWeekLine, now: number, weekIndex?: number): string {
     const locale = getLocale();
-    return lineDayShares(line)
-        .map((share, i) => {
+    return lineCells(line, now, weekIndex)
+        .map((cell, i) => {
+            if (cell.out) {
+                return "";
+            }
             // 2024-01-01 was a Monday.
             const day = new Date(2024, 0, 1 + i).toLocaleDateString(locale, { weekday: "short" });
-            return share == null ? t("usageWeek.dayUnknown", { day }) : t("usageWeek.dayFigure", { day, share });
+            return cell.lost >= 1
+                ? t("usageWeek.dayLost", { day })
+                : t("usageWeek.dayFigure", { day, share: cell.share });
         })
+        .filter((s) => s !== "")
         .join(", ");
+}
+
+// ---- the days late or ahead, and the share lost (#2532) ----
+
+// A figure of days: one decimal under ten days, whole days from there, in the interface language ("1.2", "1,2", "12").
+export function daysFigure(days: number): string {
+    const value = Math.abs(days);
+    const digits = value < WholeDaysFrom ? 1 : 0;
+    return new Intl.NumberFormat(getLocale(), { maximumFractionDigits: digits }).format(value);
+}
+
+// What no session can still use before the pool resets: the session windows left (the time left over the session's
+// length) times what a full session is worth in percent of the pool; what the pool has left beyond that is lost, in
+// percent of the pool and in days of the window. Undefined without a measured worth, without a session length, with
+// nothing left of the window, and under MinLostPercent of the pool: nothing is ever guessed.
+export function lostShare(
+    used: number,
+    resetsAt: number,
+    now: number,
+    sessionMins: number,
+    worth: number,
+    windowDays: number
+): LostShare | undefined {
+    if (!(worth > 0) || !(sessionMins > 0) || !(resetsAt > now) || !(windowDays > 0)) {
+        return undefined;
+    }
+    const sessionsLeft = (resetsAt - now) / (sessionMins * 60 * 1000);
+    const left = Math.max(0, 100 - Math.max(0, used));
+    const percent = left - sessionsLeft * worth;
+    if (Math.round(percent) < MinLostPercent) {
+        return undefined;
+    }
+    return { percent, days: (percent * windowDays) / 100 };
+}
+
+// How the days late or ahead of a row read, the lost share beside them: "8 d late", "1.2 d ahead", "on time", and
+// "13 % lost (4 d)". Empty without a window to tell them of.
+export type PaceNote = { pace: string; lost: string };
+
+export function paceNote(line: UsageWeekLine): PaceNote | null {
+    const span = line.span;
+    if (span == null) {
+        return null;
+    }
+    let pace = t("usageWeek.onTime");
+    if (span.late >= OnTimeDays) {
+        pace = t("usageWeek.late", { days: daysFigure(span.late) });
+    } else if (span.late <= -OnTimeDays) {
+        pace = t("usageWeek.ahead", { days: daysFigure(span.late) });
+    }
+    const lost = span.lost
+        ? t("usageWeek.lost", { percent: Math.round(span.lost.percent), days: daysFigure(span.lost.days) })
+        : "";
+    return { pace, lost };
 }
 
 // The pace of a window: what it consumed against what the time gone since its last reset allows (two days into a week
@@ -336,20 +541,48 @@ function windowAllowedPercent(window: UsageWindow, now: number): number {
     return Math.min(1, Math.max(0, (now - previous) / (resetsAt - previous))) * 100;
 }
 
-// The line one window draws. A month uses calendar arithmetic in local time, never a fixed duration.
-export function usageWeekLine(window: UsageWindow, now: number): UsageWeekLine {
+// The window's last reset (Unix ms): a month uses calendar arithmetic in local time, never a fixed duration.
+function windowLastReset(window: UsageWindow): number {
+    const resetsAt = window.resetsat ?? 0;
+    return window.id === MonthWindowId ? previousMonthReset(resetsAt) : lastReset(resetsAt, windowLength(window));
+}
+
+// The days of a window that is a week or a month, with its days late or ahead and its share lost; undefined without a
+// reset time. The session limits the use: its length is the one the worth was measured on (sessionmins), else the length
+// of the session among `windows`, the windows of the reading. The worth itself is the reader's history's, on the pool's
+// own window (sessionworth).
+function windowSpan(window: UsageWindow, now: number, used: number, windows: UsageWindow[]): WindowSpan | undefined {
+    const resetsAt = window.resetsat ?? 0;
+    if (!(resetsAt > 0) || !isWeekWindow(window)) {
+        return undefined;
+    }
+    const lastResetAt = windowLastReset(window);
+    const startDay = dayStart(lastResetAt);
+    const monthly = window.id === MonthWindowId;
+    const days = monthly ? Math.max(1, dayDiff(startDay, dayStart(resetsAt))) : DaysInWeek;
+    const elapsed = Math.min(days, Math.max(0, (now - lastResetAt) / DayMs));
+    const consumed = (Math.min(100, used) * days) / 100;
+    const session = (windows ?? []).find((w) => w.id === SessionWindowId);
+    const sessionMins = window.sessionmins > 0 ? window.sessionmins : session ? windowLength(session) : 0;
+    const lost = lostShare(used, resetsAt, now, sessionMins, window.sessionworth ?? 0, days);
+    // The lost days can never be caught up: the days late only counts what still can.
+    const behind = elapsed - consumed;
+    const late = lost && behind > 0 ? Math.max(0, behind - lost.days) : behind;
+    return { startDay, days, monthly, late, lost };
+}
+
+// The line one window draws. `windows` are all the windows of its reading, for the session that limits it (#2532).
+export function usageWeekLine(window: UsageWindow, now: number, windows?: UsageWindow[]): UsageWeekLine {
     const used = Math.max(0, window.usedpercent);
-    // A deduced week can pass its budget (#2451); a provider's own share stops at 100.
-    const percent = Math.round(window.deduced ? used : Math.min(100, used));
+    // A provider's own share stops at 100.
+    const percent = Math.round(Math.min(100, used));
     const resetsAt = window.resetsat ?? 0;
     const windowMins = windowLength(window);
     const allowed = windowAllowedPercent(window, now);
     const pace =
         allowed < 0 ? (percent > GravePercent ? PaceRedAt * 2 : 1) : percent / Math.max(MinAllowedPercent, allowed);
     const unused = allowed < 0 ? 0 : Math.max(0, allowed - percent);
-    const start = !(resetsAt > 0)
-        ? -1
-        : weekdayIndex(window.id === MonthWindowId ? previousMonthReset(resetsAt) : lastReset(resetsAt, windowMins));
+    const start = !(resetsAt > 0) ? -1 : weekdayIndex(windowLastReset(window));
     return {
         percent,
         pace,
@@ -358,11 +591,11 @@ export function usageWeekLine(window: UsageWindow, now: number): UsageWeekLine {
         windowMins,
         start,
         used,
-        days: window.deduced && Array.isArray(window.days) && window.days.length === 7 ? window.days : undefined,
+        span: windowSpan(window, now, used, windows),
     };
 }
 
 // The line of each running window of a list, in the reader's order: a window past its reset draws none.
 export function usageWeekLines(windows: UsageWindow[], now: number): UsageWeekLine[] {
-    return (windows ?? []).filter((w) => isRunning(w, now)).map((w) => usageWeekLine(w, now));
+    return (windows ?? []).filter((w) => isRunning(w, now)).map((w) => usageWeekLine(w, now, windows));
 }

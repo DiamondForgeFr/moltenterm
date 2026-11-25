@@ -14,20 +14,21 @@ import {
     SessionWindowId,
     UsageWeekLine,
     usageWeekLine,
-    weekdayIndex,
 } from "../usage-week/usage-week-model";
 import { relativeTime } from "./companion-model";
 
 // must match pkg/molten/usage/usage.go and pkg/molten/companion/usage.go
-// deduced and days: a week MoltenTerm deduces from the month (#2451), each day's use in percent of a seventh of it.
+// sessionworth: what a full session is worth in percent of this window, measured by MoltenTerm from a session it saw
+// used in full (#2532); absent until measured, and only on a week or a month. sessionmins: the length of that session,
+// so the plan is known to have one while a reading carries no session window.
 export type UsageWindow = {
     id: string;
     label: string;
     usedpercent: number;
     resetsat?: number;
     windowmins?: number;
-    deduced?: boolean;
-    days?: number[];
+    sessionworth?: number;
+    sessionmins?: number;
 };
 export type UsageMonthlySpend = { used: number; limit: number; limitenabled: boolean; unit?: string };
 // Codex gives a balance (as text) or unlimited credits instead of used and limit. Kimi adds monthly spending.
@@ -147,11 +148,13 @@ export function usageSourcesText(info: CompanionUsageInfo): string {
 export type GaugeLevel = "normal" | "warning" | "error";
 
 // percentShort and resetsShort: the words of a one-line list ("23.5 %", "in 2 h"). `line` is what the week grid draws
-// for the window (#2102) and `shortLabel` its name when the room is short ("Week (Opus)").
+// for the window (#2102), `shortLabel` its name when the room is short ("Week (Opus)") and `leadLabel` the one that
+// starts its row in the grid: a month is read like a week, "Consumption", over the month (#2532).
 export type GaugeRow = {
     id: string;
     label: string;
     shortLabel: string;
+    leadLabel: string;
     percent: string;
     percentShort: string;
     bar: number;
@@ -159,11 +162,11 @@ export type GaugeRow = {
     resets: string;
     resetsShort: string;
     line: UsageWeekLine;
-    // How the row is computed, when MoltenTerm deduced it (#2451).
+    // How the row reads, for a month (#2532): its share spread over its days from the reset; "" for any other window.
     explain: string;
-    // The narrow column's second line, for a deduced row ("from the month", #2451); "" otherwise.
+    // The narrow column's second line, for a month ("over the month"); "" otherwise.
     subLabel: string;
-    // A deduced week's count to the monthly reset ("29 d", "5 h") and its exact date in words; absent otherwise.
+    // A month's count to its reset ("29 d", "5 h") and its exact date in words; absent otherwise.
     countdown?: { text: string; title: string };
 };
 
@@ -271,7 +274,6 @@ const WindowLabelNames: Record<string, string> = {
     "This week": "week",
     "This month": "month",
     "Spend limit": "spend",
-    "Week (from the month)": "weekDeduced",
 };
 
 // The readers name a window in English ("This week", "This week (Opus)", "5-hour", "GPT-5 5-hour"): the words they
@@ -312,14 +314,15 @@ export function usageWindowShortLabel(label: string): string {
     return windowWords(label, true);
 }
 
-// The line of a row's tooltip that tells the figure of each day, for a grid too narrow to draw them (#2450, #2458).
-export function daysTitle(line: UsageWeekLine): string {
-    return t("usageWeek.daysTitle", { days: lineDayFiguresText(line) });
+// The line of a row's tooltip that tells the figure of each day, for a grid too narrow to draw them (#2450, #2458). A
+// monthly row tells the days of the week it shows now.
+export function daysTitle(line: UsageWeekLine, now: number): string {
+    return t("usageWeek.daysTitle", { days: lineDayFiguresText(line, now) });
 }
 
-// How a week deduced from the month is computed, for its row's tooltip (#2451); "" for any other window.
-export function deducedTitle(window: UsageWindow): string {
-    return window?.deduced ? t("companion.gauges.deducedExplain") : "";
+// How a month reads, for its row's tooltip (#2532); "" for any other window.
+export function monthTitle(window: UsageWindow): string {
+    return window?.id === MonthWindowId ? t("companion.gauges.monthExplain") : "";
 }
 
 const DayMs = 24 * HourMs;
@@ -350,54 +353,32 @@ export function monthCountdown(resetsAt: number, now: number): { text: string; t
     };
 }
 
-// Monday 00:00 of the week holding `at`, local time.
-function weekStart(at: number): number {
-    const d = new Date(at);
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - weekdayIndex(d.getTime()));
-    return d.getTime();
-}
-
-// A week deduced from the month (#2451) starts on Monday only for its calculation: what resets is the month. Its ring
-// sits on the day the monthly window resets, and only in the week holding that day; its reset line and its count tell
-// the month's reset.
-function deducedWeekRow(row: GaugeRow, month: UsageWindow, now: number): GaugeRow {
-    const resetsAt = month?.resetsat ?? 0;
-    const from = weekStart(now);
-    const to = new Date(from);
-    to.setDate(to.getDate() + 7);
-    const ring = resetsAt >= from && resetsAt < to.getTime() ? weekdayIndex(resetsAt) : -1;
-    return {
-        ...row,
-        resets: resetText(resetsAt, now),
-        resetsShort: resetShortText(resetsAt, now),
-        line: { ...row.line, start: ring },
-        countdown: monthCountdown(resetsAt, now) ?? undefined,
-    };
-}
-
-// A window past its reset no longer holds: it is dropped between two reports, as wavesrv drops it.
+// A window past its reset no longer holds: it is dropped between two reports, as wavesrv drops it. The session of the
+// reading limits every other window (#2532), so the lines are made with all the windows it still holds.
 export function gaugeRows(snapshot: UsageSnapshot, now: number): GaugeRow[] {
     const windows = (snapshot?.windows ?? []).filter(
         (w) => w != null && Number.isFinite(w.usedpercent) && !(w.resetsat > 0 && w.resetsat <= now)
     );
-    const month = windows.find((w) => w.id === MonthWindowId);
     return windows.map((w) => {
-        const row: GaugeRow = {
+        const month = w.id === MonthWindowId;
+        const shortLabel = usageWindowShortLabel(w.label) || w.id;
+        return {
             id: w.id,
             label: usageWindowLabel(w.label) || w.id,
-            shortLabel: usageWindowShortLabel(w.label) || w.id,
+            shortLabel,
+            // A month is read like a week: "Consumption", and under it "over the month".
+            leadLabel: month ? t("companion.gauges.windowShort.week") : shortLabel,
             percent: gaugePercent(w.usedpercent),
             percentShort: `${Math.round(w.usedpercent * 10) / 10} %`,
             bar: Math.min(100, Math.max(0, w.usedpercent)),
             level: gaugeLevel(w.usedpercent),
             resets: resetText(w.resetsat, now),
             resetsShort: resetShortText(w.resetsat, now),
-            line: { ...usageWeekLine(w, now), plain: !isWeekWindow(w) },
-            explain: deducedTitle(w),
-            subLabel: w.deduced ? t("companion.gauges.windowShort.fromMonth") : "",
+            line: { ...usageWeekLine(w, now, windows), plain: !isWeekWindow(w) },
+            explain: monthTitle(w),
+            subLabel: month ? t("companion.gauges.windowShort.overMonth") : "",
+            countdown: month ? (monthCountdown(w.resetsat, now) ?? undefined) : undefined,
         };
-        return w.deduced ? deducedWeekRow(row, month, now) : row;
     });
 }
 

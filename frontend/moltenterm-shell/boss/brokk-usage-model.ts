@@ -228,7 +228,7 @@ export function usageGrid(
             continue;
         }
         const readAt = snapshot.readat ?? 0;
-        const line = usageWeekLine(main, now);
+        const line = usageWeekLine(main, now, snapshot.windows);
         found.push({
             plan: snapshot.plan ?? "",
             row: {
