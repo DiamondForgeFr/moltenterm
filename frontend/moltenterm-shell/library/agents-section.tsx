@@ -18,6 +18,7 @@ import { AgentSignInModel } from "../../moltenterm-onboarding/onboarding-signin"
 import { TriedChip, TriedLine } from "../agent-info/agent-tried";
 import { useT } from "../i18n/i18n";
 import { serverText } from "../i18n/server-text";
+import { hasProviderMark, ProviderMark } from "../provider-marks/provider-mark";
 import { SidebarGlyph } from "../sidebar/sidebar-icons";
 import { DominoLoader } from "../suite/suite";
 import { ChoosePath, LibraryChooseLook } from "./agents-choose";
@@ -41,6 +42,16 @@ import {
     type LibraryAgent,
 } from "./agents-model";
 import { LibraryAgentsModel, type ChooseState } from "./agents-store";
+
+// The picture of an agent's card and page: its provider's own mark when the set of provider marks has one (#2542), else
+// the generic agents glyph.
+function AgentPic({ id }: { id: string }) {
+    return (
+        <i className="mt-lib-pic" aria-hidden data-testid="library-agent-pic">
+            {hasProviderMark(id) ? <ProviderMark agent={id} slot={18} /> : <SidebarGlyph name="agents" size={16} />}
+        </i>
+    );
+}
 
 function StatusChip({ card }: { card: PourAgentCard }) {
     const t = useT();
@@ -66,9 +77,7 @@ export function AgentCard({ row, job }: { row: LibraryAgent; job: CliInstallStat
                 aria-label={t("library.agents.open", { name: card.name })}
                 onClick={() => LibraryAgentsModel.getInstance().open(card.id)}
             >
-                <i className="mt-lib-pic" aria-hidden>
-                    <SidebarGlyph name="agents" size={16} />
-                </i>
+                <AgentPic id={card.id} />
                 <span className="truncate">{card.name}</span>
             </button>
             <code className="font-mono text-11 text-secondary">$ {card.command}</code>
@@ -669,9 +678,7 @@ function AgentPage({ row, job }: { row: LibraryAgent; job: CliInstallStatus }) {
                 {t("library.agents.back")}
             </button>
             <div className="flex items-center gap-3">
-                <i className="mt-lib-pic" aria-hidden>
-                    <SidebarGlyph name="agents" size={16} />
-                </i>
+                <AgentPic id={card.id} />
                 <div className="min-w-0">
                     <h4 className="text-15 font-semibold text-primary">{card.name}</h4>
                     <code className="font-mono text-11 text-secondary">$ {card.command}</code>

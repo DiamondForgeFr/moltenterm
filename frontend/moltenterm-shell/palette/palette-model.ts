@@ -97,6 +97,9 @@ export type PaletteEntry = {
     panelIcons?: GlyphIcon[];
     // Letters on a tile in place of the icon: the search engine's mark (#2312), which needs no network call.
     mark?: string;
+    // An agent row's agent id: the row shows its provider's own mark when the set of provider marks has one (#2542),
+    // else the icon.
+    agent?: string;
     run: PaletteRun;
 };
 

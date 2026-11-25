@@ -1213,7 +1213,7 @@ describe("the block under the square (AC17 and AC20)", () => {
             Array.from({ length: 7 }, (_, i) => fromStart[(i - start + 7) % 7])
         );
         expect(blocksOf(html, "claude").map((b) => b.reset)).toEqual(Array.from({ length: 7 }, (_, i) => i === start));
-        expect([...html.matchAll(/data-logo="([a-z]+)"/g)].map((m) => m[1])).toEqual(["claude", "ai"]);
+        expect([...html.matchAll(/data-logo="([a-z]+)"/g)].map((m) => m[1])).toEqual(["claude", "codex"]);
         expect(html).not.toContain("brokk-usage-bar");
     });
 
@@ -1271,7 +1271,7 @@ describe("the block under the square (AC17 and AC20)", () => {
 
     // #2341: FR-BOSS-009, AC93 to AC97.
     describe("the order of use, the providers not used lately and the stale readings", () => {
-        it("gives every gauge row a logo: Claude Code's, and the AI glyph for each other provider, Kimi Code included (#2431)", () => {
+        it("gives every gauge row a logo: the provider's own mark where the set has one, the AI glyph for Kimi Code (#2431, #2542)", () => {
             globalStore.set(UsageReadingsAtom, {
                 claude: reading("claude", 35),
                 codex: monthly("codex", 62, 3, "free"),
@@ -1288,8 +1288,12 @@ describe("the block under the square (AC17 and AC20)", () => {
             for (const logo of logos) {
                 expect(logo[1].trim()).not.toBe("");
             }
-            expect(html).toMatch(/data-logo="claude"/);
-            expect(html.match(/data-logo="ai"/g)).toHaveLength(2);
+            expect([...html.matchAll(/data-logo="([a-z]+)"/g)].map((m) => m[1]).sort()).toEqual([
+                "ai",
+                "claude",
+                "codex",
+            ]);
+            expect(html.match(/data-testid="provider-mark"/g)).toHaveLength(2);
         });
 
         const Day = 24 * 60 * Min;

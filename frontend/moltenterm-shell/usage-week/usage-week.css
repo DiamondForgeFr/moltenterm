@@ -167,11 +167,6 @@ button.mt-uw-logo:focus-visible {
     outline-offset: 1px;
 }
 
-.mt-uw-logo svg {
-    width: 17px;
-    height: 17px;
-}
-
 /* The agent's name next to its logo: a small popover in the app's look, in a portal above the floating surfaces. */
 .mt-uw-name {
     z-index: 1000;

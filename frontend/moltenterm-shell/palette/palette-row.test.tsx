@@ -67,3 +67,38 @@ describe("a row says why it matches", () => {
         expect(html).not.toContain("palette-hit");
     });
 });
+
+// #2542, FR-BOSS-009 AC113: the launcher's and the chooser's agent rows start with their provider's own mark.
+describe("an agent row shows its provider's mark", () => {
+    const agentRow = (agent: string | undefined, label: string) =>
+        row(entry(label, { group: "agents", icon: "sparkles", agent }), "");
+
+    it("draws the mark of an agent that has one, in place of the AI icon", () => {
+        for (const [agent, label] of [
+            ["claude", "Claude Code"],
+            ["codex", "Codex"],
+            ["cursor", "Cursor CLI"],
+            ["opencode", "OpenCode"],
+        ]) {
+            const html = agentRow(agent, label);
+            expect(html, agent).toContain(`data-mark="${agent}"`);
+            expect(html, agent).toContain("<img ");
+            expect(html, agent).not.toContain("sparkles");
+            expect(html, agent).toContain(`>${label}<`);
+        }
+    });
+
+    it("keeps the AI icon for an agent without a mark, and for a row of the developer's own", () => {
+        for (const agent of [undefined, "kimi", "vibe", "my-agent"]) {
+            const html = agentRow(agent, "Some agent");
+            expect(html, String(agent)).toContain("sparkles");
+            expect(html, String(agent)).not.toContain("<img ");
+            expect(html, String(agent)).not.toContain("provider-mark");
+        }
+    });
+
+    it("draws the mark in the width of the icon column, so the labels line up", () => {
+        expect(agentRow("codex", "Codex")).toMatch(/data-testid="provider-mark"[^>]*/);
+        expect(agentRow("codex", "Codex")).toContain("width:16px;height:16px");
+    });
+});
