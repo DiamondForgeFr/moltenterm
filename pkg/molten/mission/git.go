@@ -98,17 +98,23 @@ type Tag struct {
 }
 
 type GitSnapshot struct {
-	Trunk       string   `json:"trunk"`
-	Release     string   `json:"release"`
-	Current     string   `json:"current,omitempty"`
-	RemoteUrl   string   `json:"remoteurl,omitempty"`
-	Branches    []Branch `json:"branches"`
-	Tags        []Tag    `json:"tags"`
-	Merges      []Merge  `json:"merges"`
-	Ahead       []Commit `json:"ahead"`
-	LastPublic  string   `json:"lastpublic,omitempty"`
-	SincePublic []Commit `json:"sincepublic"`
-	FetchError  string   `json:"fetcherror,omitempty"`
+	Trunk   string `json:"trunk"`
+	Release string `json:"release"`
+	// Where each name was read (molten.BranchFrom…): the settings, SaaSFoundry, or git alone (#2556).
+	TrunkFrom   string `json:"trunkfrom,omitempty"`
+	ReleaseFrom string `json:"releasefrom,omitempty"`
+	// The project settings declare its versions or its releases; a project without them and without a tag has no
+	// version scheme, and the panels invent no next version (#2556).
+	VersionsDeclared bool     `json:"versionsdeclared,omitempty"`
+	Current          string   `json:"current,omitempty"`
+	RemoteUrl        string   `json:"remoteurl,omitempty"`
+	Branches         []Branch `json:"branches"`
+	Tags             []Tag    `json:"tags"`
+	Merges           []Merge  `json:"merges"`
+	Ahead            []Commit `json:"ahead"`
+	LastPublic       string   `json:"lastpublic,omitempty"`
+	SincePublic      []Commit `json:"sincepublic"`
+	FetchError       string   `json:"fetcherror,omitempty"`
 	// The project's release tags start with it (versions.tagprefix).
 	TagPrefix string `json:"tagprefix"`
 	// versions.firstpublic: tags below its first candidate are not the project's releases.
@@ -203,15 +209,6 @@ func (g *gitReader) refOf(name string) string {
 	}
 	if g.refExists(name) {
 		return name
-	}
-	return ""
-}
-
-func (g *gitReader) firstExisting(names ...string) string {
-	for _, name := range names {
-		if g.refOf(name) != "" {
-			return name
-		}
 	}
 	return ""
 }
@@ -597,6 +594,49 @@ func GitHubWebUrl(remote string) string {
 	return ""
 }
 
+func (g *gitReader) query() molten.GitQuery {
+	return func(args ...string) (string, bool) {
+		out, err := g.out(args...)
+		return strings.TrimSpace(out), err == nil
+	}
+}
+
+// resolveBranches names the trunk and the release branch the panels read, and where each name came from (#2556): the
+// declared ones when this clone has them, else what git gives (origin's default branch, the usual names, the branch
+// checked out). A project without SaaSFoundry or settings is read from git alone.
+func (g *gitReader) resolveBranches(snap *GitSnapshot) {
+	q := g.query()
+	resolved := molten.ResolveBranchesWith(g.dir, q)
+	snap.Trunk, snap.TrunkFrom = resolved.Trunk, resolved.TrunkFrom
+	if g.refOf(snap.Trunk) == "" {
+		snap.Trunk, snap.TrunkFrom = molten.DetectTrunk(q)
+	}
+	snap.Release, snap.ReleaseFrom = resolved.Release, resolved.ReleaseFrom
+	if g.refOf(snap.Release) == "" {
+		snap.Release, snap.ReleaseFrom = molten.DetectRelease(q, snap.Trunk)
+	}
+	if snap.Release == "" {
+		snap.Release, snap.ReleaseFrom = snap.Trunk, snap.TrunkFrom
+	}
+}
+
+// versionsDeclared: the project settings say how its versions are numbered or released (versions, release in
+// .molten/project.json); otherwise only its tags do, and a project that never tagged has no next version to show.
+func versionsDeclared(dir string) bool {
+	var pipeline struct {
+		Versions json.RawMessage `json:"versions"`
+		Release  json.RawMessage `json:"release"`
+	}
+	if !readJson(filepath.Join(dir, molten.ProjectPipelineFile), &pipeline) {
+		return false
+	}
+	declared := func(raw json.RawMessage) bool {
+		text := strings.TrimSpace(string(raw))
+		return text != "" && text != "null" && text != "{}"
+	}
+	return declared(pipeline.Versions) || declared(pipeline.Release)
+}
+
 // CollectGit reads the project's history. fetch updates the remote branches and tags first; a failed fetch (offline,
 // no remote) is reported and the local state is still read.
 func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSnapshot, error) {
@@ -614,18 +654,8 @@ func CollectGit(ctx context.Context, run Runner, dir string, fetch bool) (*GitSn
 			snap.FetchError = err.Error()
 		}
 	}
-	configured := ConfiguredBranches(dir)
-	snap.Trunk = configured.Trunk
-	if g.refOf(snap.Trunk) == "" {
-		snap.Trunk = g.firstExisting("develop", "main", "master")
-	}
-	snap.Release = configured.Release
-	if g.refOf(snap.Release) == "" {
-		snap.Release = g.firstExisting("main", "master")
-	}
-	if snap.Release == "" {
-		snap.Release = snap.Trunk
-	}
+	snap.VersionsDeclared = versionsDeclared(dir)
+	g.resolveBranches(snap)
 	snap.Current, _ = g.out("symbolic-ref", "--short", "-q", "HEAD")
 	baseRef := g.refOf(snap.Trunk)
 	releaseRef := g.refOf(snap.Release)

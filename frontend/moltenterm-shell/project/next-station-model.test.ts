@@ -45,6 +45,8 @@ function git(extra: Partial<MissionGit> = {}): MissionGit {
         ahead: Pending,
         sincepublic: [...Pending].reverse(),
         tagprefix: "v",
+        // A project whose settings declare its versions: before its first tag, the first number is a decision.
+        versionsdeclared: true,
         ...extra,
     };
 }
@@ -59,6 +61,34 @@ const Pipeline = { schema: 1, name: "p", ci: { jobs: [{ name: "lint", run: "true
 function session(channel: "rc" | "public", version: string, tag = `v${version}`): ReleaseSession {
     return { channel, version, tag, startedat: Now };
 }
+
+describe("a project without a version scheme (#2556)", () => {
+    const NoScheme = git({ versionsdeclared: false, trunk: "development", trunkfrom: "origin/HEAD" });
+
+    it("invents no first version without a tag or settings", () => {
+        const station = nextStation(NoScheme, null);
+        expect(station).toMatchObject({ tag: null, state: "nothing", noscheme: true });
+        const model = buildLineMap({ git: NoScheme, now: Now, days: 21 });
+        expect(model.terminus.tag).toBeNull();
+        expect(terminusText(model).status).toBe("no version tagged yet");
+        expect(canSetUpRelease(model.terminus, null)).toBe(false);
+    });
+
+    it("reads the scheme from a tag, a release candidate or the settings", () => {
+        const tagged = git({
+            versionsdeclared: false,
+            tags: [{ name: "v0.3.0-1", sha: "t1", date: "2026-09-20T10:00:00Z" }],
+        });
+        expect(nextStation(tagged, null).noscheme).toBeUndefined();
+        expect(nextStation(git(), null)).toMatchObject({ tag: "v1.0.0", state: "decision" });
+    });
+
+    it("still follows a milestone that names a version", () => {
+        expect(
+            nextStation(NoScheme, null, [{ number: 1, title: "2.0.0", open_issues: 3 } as Milestone], Now)
+        ).toMatchObject({ tag: "v2.0.0", state: "planned" });
+    });
+});
 
 describe("next station", () => {
     it("reads 'to decide' before the first public release", () => {

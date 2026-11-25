@@ -3,7 +3,7 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Detail, MapSvg, MotionStyles, ReplayButton } from "./line-map";
+import { Detail, MapSvg, MotionStyles, QuietWindow, ReplayButton } from "./line-map";
 import { layoutLineMap } from "./line-map-geometry";
 import { canSetUpRelease, LineMapBranch, LineMapModel, LineMapStation } from "./line-map-model";
 
@@ -279,5 +279,24 @@ describe("the terminus detail of a planned station (#1751)", () => {
         );
         expect(html).not.toContain("line-map-terminus-planned");
         expect(html).toContain("3 changes on develop not yet on main.");
+    });
+});
+
+// A window with nothing in it says so instead of an empty line (#2556).
+describe("the quiet window", () => {
+    const last = new Date("2026-08-20T10:00:00Z").getTime();
+
+    it("says when the last activity was and offers the wider window", () => {
+        const html = renderToStaticMarkup(<QuietWindow days={7} lastActivity={last} wider={60} onWiden={() => {}} />);
+        expect(html).toContain('data-testid="line-map-quiet"');
+        expect(html).toContain("Nothing happened in the last 7 days");
+        expect(html).toContain("Show 60 days");
+    });
+
+    it("offers nothing when no wider window exists", () => {
+        const html = renderToStaticMarkup(
+            <QuietWindow days={180} lastActivity={last} wider={null} onWiden={() => {}} />
+        );
+        expect(html).not.toContain("line-map-widen");
     });
 });

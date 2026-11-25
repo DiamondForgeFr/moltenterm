@@ -23,6 +23,7 @@ import { openWebLink } from "../open-web-link";
 import { ciVerdictView } from "../status-bar-model";
 import { DominoLoader } from "../suite/suite";
 import { filterBranches } from "../widget-options";
+import { branchSourceText } from "./branch-source";
 import { CiBranch } from "./ci-model";
 import { releaseNotesText } from "./github";
 import { BuildMarker } from "./line-map-builds";
@@ -39,6 +40,7 @@ import {
     LineMapModel,
     LineMapStation,
     prsFingerprint,
+    widerWindow,
     worktreeHover,
 } from "./line-map-model";
 import {
@@ -602,6 +604,11 @@ export function Detail({
                     <div className="font-semibold text-primary">
                         {t("mc.lineMap.label.head", { trunk: model.trunk })}
                     </div>
+                    {branchSourceText(model.trunkFrom) ? (
+                        <div className="text-muted" data-testid="line-map-trunk-from">
+                            {t("mc.frame.trunkFrom", { from: branchSourceText(model.trunkFrom) })}
+                        </div>
+                    ) : null}
                     {model.head ? (
                         <div className="flex min-w-0 items-baseline gap-1.5 text-secondary">
                             <code className="shrink-0 text-11 text-muted">{model.head.sha.slice(0, 7)}</code>
@@ -687,6 +694,44 @@ export function Detail({
         case "hidden":
             return <HiddenDetail branches={item.branches} />;
     }
+}
+
+// A window with nothing in it (#2556): a fresh clone of an older history would draw an empty line. The panel says when
+// the last activity was and offers the window that reaches it.
+export function QuietWindow({
+    days,
+    lastActivity,
+    wider,
+    onWiden,
+}: {
+    days: number;
+    lastActivity: number;
+    wider: number;
+    onWiden: () => void;
+}) {
+    const t = useT();
+    const when = new Date(lastActivity).toISOString();
+    return (
+        <div
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-4 border border-border px-3 py-1.5 text-12"
+            role="status"
+            data-testid="line-map-quiet"
+        >
+            <span className="min-w-0 flex-1 text-secondary">
+                {t("mc.lineMap.quiet", { days, when: formatWhen(when), ago: timeAgo(when) })}
+            </span>
+            {wider ? (
+                <button
+                    type="button"
+                    onClick={onWiden}
+                    className="cursor-pointer rounded-6 border border-border px-2 py-0.5 text-11 text-secondary transition-colors duration-120 ease-mt hover:bg-hover hover:text-primary"
+                    data-testid="line-map-widen"
+                >
+                    {t("mc.lineMap.widen", { days: wider })}
+                </button>
+            ) : null}
+        </div>
+    );
 }
 
 function WindowChoice({
@@ -1147,6 +1192,7 @@ export function LineMap({
     );
 
     const choices = full ? FullLineMapDayChoices : LineMapDayChoices;
+    const wider = widerWindow(model, choices);
     return (
         <section
             className={cn("flex min-w-0 flex-col", full ? "h-full gap-1.5" : "gap-2")}
@@ -1181,6 +1227,14 @@ export function LineMap({
                     </button>
                 ) : null}
             </div>
+            {model?.quiet ? (
+                <QuietWindow
+                    days={days}
+                    lastActivity={model.lastActivity}
+                    wider={wider}
+                    onWiden={() => setDays(wider)}
+                />
+            ) : null}
             <div
                 ref={box}
                 className={cn(

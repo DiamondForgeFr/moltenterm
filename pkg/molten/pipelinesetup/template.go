@@ -609,7 +609,11 @@ func Build(f Facts, o Options, current *molten.Pipeline) Proposal {
 // withRepositoryBranches declares the branches read from the repository (SetupBranches, #1106): without them, the
 // Release menu and the Project tab would fall back to MoltenTerm's defaults, which this repository does not have.
 func withRepositoryBranches(f Facts, p *Proposal) {
-	if p.Branches != nil || (f.Branches.TrunkFrom != BranchFromRepository && f.Branches.ReleaseFrom != BranchFromRepository) {
+	if p.Branches != nil || (!readFromGit(f.Branches.TrunkFrom) && !readFromGit(f.Branches.ReleaseFrom)) {
+		return
+	}
+	// MoltenTerm's own defaults need no declaration.
+	if f.Branches.Trunk == molten.DefaultTrunkBranch && f.Branches.Release == molten.DefaultReleaseBranch {
 		return
 	}
 	p.Branches = &molten.PipelineBranches{Trunk: f.Branches.Trunk, Release: f.Branches.Release}

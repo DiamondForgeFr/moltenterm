@@ -4894,6 +4894,14 @@
         }
     },
     "mc": {
+        "branchFrom": {
+            "settings": "définie dans les réglages du projet",
+            "saasfoundry": "définie par SaaSFoundry",
+            "originHead": "branche par défaut du dépôt distant",
+            "repository": "trouvée dans le dépôt",
+            "checkout": "la branche extraite",
+            "default": "valeur par défaut de MoltenTerm"
+        },
         "ci": {
             "status": {
                 "running": "en cours",
@@ -4923,6 +4931,9 @@
             "next": "suivante",
             "publicRelease": "version publique",
             "nothingToRelease": "rien à publier pour l'instant",
+            "noVersionScheme": "aucune version taguée",
+            "quiet": "Rien ne s'est passé ces {days} derniers jours : la dernière activité date du {when} ({ago}).",
+            "widen": "Afficher {days} jours",
             "allOnMain": "tout est sur main",
             "oneWaiting": "1 changement en attente",
             "waiting": "{count} changements en attente",
@@ -5613,6 +5624,10 @@
             "updated": "mis à jour {when}",
             "refresh": "Actualiser",
             "refreshTitle": "Actualiser (récupère depuis le dépôt distant)",
+            "noTrunk": "aucune branche trouvée",
+            "noTrunkTitle": "Git ne nomme encore aucune branche dans ce dépôt : faites un premier commit, ou indiquez les branches dans les réglages du projet.",
+            "trunkFrom": "({from})",
+            "trunkTitle": "Lit {trunk} : {from}",
             "linkTitle": "Lier cet espace de travail à son projet",
             "linkHint": "{title} montre le projet de l'espace de travail actif. Liez un dossier ici, ou lancez molten project link dans un terminal du projet.",
             "linkButton": "Lier un projet…",
@@ -7736,6 +7751,7 @@
             "chosenNote": "Choisi dans le menu Release ; la version publique {tag} est en route.",
             "onItsWay": "La version publique {tag} est en route.",
             "nothing": "Rien à publier pour l'instant.",
+            "noScheme": "Pas encore de version : le projet n'a ni tag de version ni réglage de version. Le premier tag fixe la numérotation.",
             "planned": "Prévue — jalon {milestone}, {open}, rien encore sur {trunk}",
             "milestoneFirst": "Le jalon {milestone} arrive en premier ; les changements sur {trunk} y entrent.",
             "biggerBump": "{reason} sur {trunk} : les changements demandent une version {level} ({derived}). La release prévue en {tag} peut quand même sortir sous ce numéro.",
