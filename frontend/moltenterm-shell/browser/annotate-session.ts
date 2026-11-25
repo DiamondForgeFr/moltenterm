@@ -40,6 +40,21 @@ export function annotateLayers(opens: AnnotateOpen[], activeTabId: string, tabId
         .map((open) => ({ open, shown: open.tabId === activeTabId }));
 }
 
+// The hidden setting that remembers the first-use hint was shown (#2537): once, ever, whatever the panel or the restart.
+export const AnnotateHintKey = "moltenterm:annotatehint";
+
+// firstUseHint: the mode shows its first-use hint while the setting does not say it was shown.
+export function firstUseHint(shown: unknown): boolean {
+    return shown !== true;
+}
+
+// entryPlays: whether the mode's entry (#2537: the lights round the panel, the toolbar rising, the pencil's flash) is to
+// play over this session. Only the start that has not played it yet: showing the tab again, or coming back from the
+// review, never plays it twice.
+export function entryPlays(entry: AnnotateOpen, open: AnnotateOpen): boolean {
+    return entry != null && open != null && entry.nonce === open.nonce;
+}
+
 // closedTabs: the sessions whose tab no longer exists.
 export function closedTabs(opens: AnnotateOpen[], tabIds: string[]): string[] {
     return (opens ?? []).filter((open) => !(tabIds ?? []).includes(open.tabId)).map((open) => open.tabId);
@@ -49,6 +64,8 @@ export class AnnotateSession {
     openAtom = atom([]) as PrimitiveAtom<AnnotateOpen[]>;
     // The comments pending in each tab's session: the Comment button shows the number.
     countsAtom = atom({}) as PrimitiveAtom<Record<string, number>>;
+    // The start whose entry has not played yet (#2537); null once it has, or once its session ended.
+    entryAtom = atom(null) as PrimitiveAtom<AnnotateOpen>;
     nonce = 0;
     // Set by each layer while it has a comment field open: it takes the focus the panel would give to the page of its tab.
     focusLayers = new Map<string, () => boolean>();
@@ -71,7 +88,9 @@ export class AnnotateSession {
             return false;
         }
         this.nonce++;
-        globalStore.set(this.openAtom, [...this.opens(), { tabId, url, nonce: this.nonce }]);
+        const open = { tabId, url, nonce: this.nonce };
+        globalStore.set(this.openAtom, [...this.opens(), open]);
+        globalStore.set(this.entryAtom, open);
         return true;
     }
 
@@ -81,6 +100,16 @@ export class AnnotateSession {
             this.opens().filter((open) => open.tabId !== tabId)
         );
         this.setCount(tabId, 0);
+        if (globalStore.get(this.entryAtom)?.tabId === tabId) {
+            globalStore.set(this.entryAtom, null);
+        }
+    }
+
+    // entryDone: the entry of that start has played (or was skipped): it never plays again.
+    entryDone(nonce: number): void {
+        if (globalStore.get(this.entryAtom)?.nonce === nonce) {
+            globalStore.set(this.entryAtom, null);
+        }
     }
 
     // leave: the Comment button, pressed, asks to leave. The layer decides (it asks before comments are lost); a tab whose

@@ -1,0 +1,151 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* Entering comment mode (#2537, annotate-entry.tsx), on the molten motion tokens (suite/suite-language.md, "Panel
+   motion"): about 1.5 s, once, when the mode starts.
+   - The lights (0 to 960 ms): two incandescent strokes (the working light's #FFB547, --mt-state-running) with an
+     orange glow leave the middle of the panel's top edge and run along the frame to the middle of its bottom edge.
+     Only their stroke-dashoffset and opacity change.
+   - The toolbar (annotate-toolbar.tsx) rises from 0 ms; the light rings it when the lights meet under it (960 ms),
+     settles into a faint halo it keeps, and a quick flash marks the tool in use.
+   - The frame takes the action colour as the lights arrive, and keeps it while the mode is on.
+   Never in a loop. Reduced motion (the system's preference or MoltenTerm's own setting): every token duration is 0, so
+   the toolbar, the halo and the frame are simply there, and the lights are not drawn at all. */
+
+.mt-comment-entry {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.mt-comment-frame {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 2px var(--mt-action);
+}
+
+.mt-comment-frame-enter {
+    animation: mt-comment-frame-in var(--mt-duration-flow) var(--mt-ease) calc(var(--mt-duration-slow) * 3) both;
+}
+
+@keyframes mt-comment-frame-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.mt-comment-lights {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+    filter: drop-shadow(0 0 4px var(--mt-state-running)) drop-shadow(0 0 10px var(--mt-action));
+}
+
+.mt-comment-lights path {
+    fill: none;
+    stroke: var(--mt-state-running);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 10 200;
+    animation: mt-comment-light-run calc(var(--mt-duration-slow) * 4) var(--mt-ease) both;
+}
+
+@keyframes mt-comment-light-run {
+    0% {
+        stroke-dashoffset: 10;
+        opacity: 0;
+    }
+    6% {
+        opacity: 1;
+    }
+    88% {
+        opacity: 1;
+    }
+    100% {
+        stroke-dashoffset: -100;
+        opacity: 0;
+    }
+}
+
+/* The toolbar keeps a faint halo of the action colour while the mode is on. */
+.mt-comment-bar {
+    box-shadow:
+        var(--mt-shadow-e2),
+        0 0 0 1px color-mix(in srgb, var(--mt-action) 35%, transparent),
+        0 0 10px 0 color-mix(in srgb, var(--mt-action) 18%, transparent);
+}
+
+.mt-comment-bar-enter {
+    animation:
+        mt-comment-bar-rise calc(var(--mt-duration-slow) * 2) var(--mt-ease) both,
+        mt-comment-bar-ring calc(var(--mt-duration-slow) * 2) var(--mt-ease) calc(var(--mt-duration-slow) * 4) both;
+}
+
+@keyframes mt-comment-bar-rise {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes mt-comment-bar-ring {
+    0% {
+        box-shadow:
+            var(--mt-shadow-e2),
+            0 0 0 2px var(--mt-state-running),
+            0 0 22px 6px color-mix(in srgb, var(--mt-action) 55%, transparent);
+    }
+    100% {
+        box-shadow:
+            var(--mt-shadow-e2),
+            0 0 0 1px color-mix(in srgb, var(--mt-action) 35%, transparent),
+            0 0 10px 0 color-mix(in srgb, var(--mt-action) 18%, transparent);
+    }
+}
+
+/* The hint above the toolbar shows as the light rings it, and has settled when the ring has (the toolbar's entry ends
+   with the ring: its classes go then). */
+.mt-comment-hint-enter {
+    animation: mt-comment-bar-rise calc(var(--mt-duration-slow) * 2) var(--mt-ease) calc(var(--mt-duration-slow) * 4)
+        both;
+}
+
+/* The quick flash of the tool in use, as the ring passes; then its selected line as usual. */
+.mt-comment-tool-flash {
+    animation: mt-comment-tool-flash var(--mt-duration-slow) var(--mt-ease)
+        calc(var(--mt-duration-slow) * 4 + var(--mt-duration-fast));
+}
+
+@keyframes mt-comment-tool-flash {
+    0%,
+    100% {
+        box-shadow: var(--mt-selected-line-action);
+        filter: none;
+    }
+    40% {
+        box-shadow:
+            inset 0 0 0 20px var(--mt-state-running),
+            0 0 18px 6px color-mix(in srgb, var(--mt-state-running) 80%, transparent);
+        filter: brightness(1.15);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-comment-lights {
+        display: none;
+    }
+}
+
+.prefers-reduced-motion .mt-comment-lights {
+    display: none;
+}

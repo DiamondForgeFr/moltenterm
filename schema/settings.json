@@ -1989,7 +1989,7 @@
           "description": "Coding agents (claude, codex) that Brokk's usage grid always shows, even when they were not used for 7 days and their plan is not paid. Set from a row's menu in the grid and from the Not used lately list",
           "x-moltenterm": {
             "hidden": true,
-            "order": 177
+            "order": 178
           }
         },
         "boss:usagehide": {
@@ -2000,7 +2000,7 @@
           "description": "Coding agents (claude, codex) that Brokk's usage grid never shows, even on a paid plan. Set from a row's menu in the grid",
           "x-moltenterm": {
             "hidden": true,
-            "order": 178
+            "order": 179
           }
         },
         "boss:brainstormsdir": {
@@ -2287,6 +2287,14 @@
           "x-moltenterm": {
             "hidden": true,
             "order": 176
+          }
+        },
+        "moltenterm:annotatehint": {
+          "type": "boolean",
+          "description": "Whether the comment mode of a web page panel already showed its first-use hint (Draw, frame or click an element to comment on it. Escape to leave). Set by the mode the first time it starts",
+          "x-moltenterm": {
+            "hidden": true,
+            "order": 177
           }
         },
         "widget:*": {

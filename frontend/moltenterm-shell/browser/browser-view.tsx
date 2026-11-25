@@ -67,6 +67,7 @@ import { AgentActionCueOverlay, AgentControlBar } from "./agent-control-bar";
 import { AgentPermissionBar } from "./agent-permission-bar";
 import { AgentPressApi, keepUserFocus, listenAgentPresses, onInputHeld } from "./agent-press-focus";
 import { showAgentAsk, showAgentPage, type AgentShowTarget } from "./agent-show";
+import { CommentEntry } from "./annotate-entry";
 import { annotatablePage, annotateLayers, AnnotateSession, closedTabs } from "./annotate-session";
 import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
 import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
@@ -3244,7 +3245,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
         }
     }, [model, isFocused]);
     return (
-        <div className="molten-browser flex h-full w-full flex-col">
+        <div className="molten-browser relative flex h-full w-full flex-col">
             <BrowserNavBar model={model} state={state} />
             <BrowserNotice model={model} />
             <SearchNote model={model} />
@@ -3323,6 +3324,7 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
             <Search {...searchProps} />
             <BookmarkDialogHost model={model} />
             <ClearDataDialogHost model={model} />
+            <CommentEntry session={model.annotate} activeTabId={state.activeId} />
         </div>
     );
 }
