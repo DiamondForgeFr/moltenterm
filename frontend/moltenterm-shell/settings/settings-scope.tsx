@@ -46,6 +46,19 @@ export function BlockScopeTag({ scope }: { scope: SettingsScopeKind }) {
     );
 }
 
+const BlockTagClass =
+    "absolute top-0 right-5 flex h-5 max-w-[55%] -translate-y-1/2 items-center gap-1.5 rounded-full border border-(--df-line) bg-(--df-surface) px-2 text-11 leading-4 whitespace-nowrap text-muted";
+
+// What a block stands for, where the scope tag would sit: the emblem chosen, "optional", how many are ticked. It is the
+// scope tag's pill (BlockScopeTag) with any content, a block's last child like it.
+export function BlockTag({ children, className, ...rest }: React.HTMLAttributes<HTMLSpanElement>) {
+    return (
+        <span {...rest} className={cn(BlockTagClass, className)}>
+            {children}
+        </span>
+    );
+}
+
 // "Overridden in 2 workspaces" on an app setting, the workspaces' names on hover.
 export function OverriddenNotice({ names }: { names: string[] }) {
     const t = useT();

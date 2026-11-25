@@ -1,10 +1,14 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Manage contexts (FR-SHELL-158, #2476): create a context, edit its name, description (on several lines), emblem, optional
-// folder (#2518: the outer bound of its workspaces) and workspaces (a checklist, where a workspace already in another
-// context says where), and delete one after a confirmation that says where its workspaces go. Every write is one call
-// to wavesrv (context-store.ts), which validates it.
+// Manage contexts (FR-SHELL-158, FR-SHELL-159, #2476, #2534): create a context, edit its name, description (on several
+// lines), emblem, ribbon shape, optional folder (#2518: the outer bound of its workspaces) and workspaces (a checklist,
+// where a workspace already in another context says where), and delete one after a confirmation that says where its
+// workspaces go. Every write is one call to wavesrv (context-store.ts), which validates it.
+//
+// The dialog is drawn with the suite's blocks, as the workspace sheet is (suite-language.md): Identity, Emblem, Ribbon,
+// Workspaces, Folder and the Danger zone, in a grid that puts two blocks side by side while the dialog has the room. Save
+// saves and closes; Cancel, the cross, Escape and a press outside close without saving.
 
 import { atoms } from "@/app/store/global";
 import { cn, fireAndForget } from "@/util/util";
@@ -13,6 +17,9 @@ import { useId, useMemo, useState } from "react";
 import { DialogFrame } from "../dialog-frame";
 import { useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { BlockTag } from "../settings/settings-scope";
+import { BlockRows, SectionBlock } from "../suite/suite";
+import { suiteIcon, SuiteIconName } from "../suite/suite-icons";
 import { colourStops } from "../workspace-colour";
 import { chooseMoltentermPath } from "../workspace-project-store";
 import type { WorkspaceRailEntry } from "../workspace-rail-model";
@@ -27,10 +34,6 @@ import {
 import { createContext, deleteContext, setContextFolder, updateContext, useContexts } from "./context-store";
 import { Emblem } from "./emblem";
 import { EmblemPicker } from "./emblem-picker";
-import { RibbonFace } from "./ribbon";
-import { ribbonPaint } from "./ribbon-model";
-import { drawShape, shapesInUse, shownShapeId } from "./ribbon-shapes";
-import { ShapePicker } from "./shape-picker";
 import {
     canDeleteContext,
     clampDescription,
@@ -49,6 +52,10 @@ import {
     toggledRow,
     updateRequestOf,
 } from "./manage-model";
+import { RibbonFace } from "./ribbon";
+import { ribbonPaint } from "./ribbon-model";
+import { drawShape, ribbonShape, shapesInUse, shownShapeId } from "./ribbon-shapes";
+import { DrawAnotherButton, ShapeGrid } from "./shape-picker";
 
 const NewId = "new";
 
@@ -62,6 +69,46 @@ const FieldClass =
     "h-8 w-full min-w-0 rounded-4 border border-border bg-black/25 px-2 text-12 text-primary outline-none placeholder:text-muted focus:border-accent";
 const TextAreaClass =
     "min-h-[4.5rem] w-full min-w-0 resize-y rounded-4 border border-border bg-black/25 px-2 py-1.5 text-12 leading-5 text-primary outline-none placeholder:text-muted focus:border-accent";
+// A row of a block: its title at the left, its control at the right; flush with the block's edges (BlockRows).
+const RowClass = "flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3";
+const RowTitleClass = "shrink-0 text-12 font-semibold text-primary";
+
+// The blocks sit two by two where the dialog is wide, one under another where it is not: columns are as many as fit
+// 21rem, so no breakpoint has to know the window's size.
+const BlocksGridClass = "grid min-w-0 flex-1 gap-x-6 [grid-template-columns:repeat(auto-fit,minmax(21rem,1fr))]";
+
+function ContextBlock({
+    title,
+    concept,
+    block,
+    tone,
+    description,
+    className,
+    children,
+    ...rest
+}: {
+    title: string;
+    concept: SuiteIconName;
+    block: string;
+    tone?: "danger";
+    description?: string;
+    className?: string;
+    children: React.ReactNode;
+} & Omit<React.HTMLAttributes<HTMLElement>, "title">) {
+    return (
+        <SectionBlock
+            {...rest}
+            title={title}
+            icon={suiteIcon(concept)}
+            tone={tone}
+            description={description}
+            data-block={block}
+            className={cn("min-w-0", className)}
+        >
+            {children}
+        </SectionBlock>
+    );
+}
 
 function DeleteContextDialog({
     name,
@@ -194,7 +241,8 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
             }
         });
 
-    const run = (work: () => Promise<void>) => {
+    // `then` runs once the work succeeded: a save closes the dialog, a failed one leaves it open with its error.
+    const run = (work: () => Promise<void>, then?: () => void) => {
         if (busy) {
             return;
         }
@@ -203,6 +251,7 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
         fireAndForget(async () => {
             try {
                 await work();
+                then?.();
             } catch (e) {
                 setError(t("contexts.manage.failed", { error: e instanceof Error ? e.message : String(e) }));
             } finally {
@@ -217,6 +266,7 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
         run(async () => {
             if (creating) {
                 const id = await createContext(createRequestOf(draft));
+                // The context exists from here: a failure of its folder leaves the form on it, so a second save updates it.
                 setSelectedId(id);
                 if (id && draft.folder) {
                     await setContextFolder(id, draft.folder);
@@ -227,7 +277,7 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
             if (req != null) {
                 await updateContext(req);
             }
-        });
+        }, onClose);
     };
     const confirmDelete = (moveTo: string) => {
         setDeleting(false);
@@ -256,24 +306,24 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
                 title={t("contexts.manage.title")}
                 subtitle={t("contexts.manage.subtitle")}
                 subtitleWraps
-                wide
+                widthClass="w-[1040px]"
+                suite
                 onEscape={onClose}
                 onBackdrop={onClose}
+                closeButton={{ label: t("contexts.manage.close"), onClick: onClose, testId: "context-close" }}
                 buttons={
                     <>
-                        {deletable ? (
-                            <button
-                                type="button"
-                                className={cn(DangerButton, "mr-auto")}
-                                data-testid="context-delete"
-                                disabled={busy}
-                                onClick={() => setDeleting(true)}
+                        {problemText || error ? (
+                            <p
+                                className="mr-auto min-w-0 text-12 text-danger"
+                                role="alert"
+                                data-testid="context-problem"
                             >
-                                {t("contexts.manage.delete")}
-                            </button>
+                                {error ?? problemText}
+                            </p>
                         ) : null}
-                        <button type="button" className={PlainButton} onClick={onClose} data-testid="context-close">
-                            {t("contexts.manage.close")}
+                        <button type="button" className={PlainButton} onClick={onClose} data-testid="context-cancel">
+                            {t("common.cancel")}
                         </button>
                         <button
                             type="button"
@@ -288,180 +338,251 @@ export function ManageContextsDialog({ entries, onClose }: { entries: WorkspaceR
                     </>
                 }
             >
-                <div className="flex min-h-[22rem] gap-4">
-                    <nav aria-label={t("contexts.manage.list")} className="flex w-44 shrink-0 flex-col gap-1">
-                        {contexts.map((c) => (
+                <div className="flex gap-6">
+                    <div className="w-[190px] shrink-0 border-r border-border pt-8 pr-3">
+                        <nav aria-label={t("contexts.manage.list")} className="sticky top-4 flex flex-col gap-1">
+                            {contexts.map((c) => (
+                                <button
+                                    key={c.id}
+                                    type="button"
+                                    aria-current={c.id === selectedId ? "true" : undefined}
+                                    data-testid="context-list-item"
+                                    className={cn(
+                                        "flex cursor-pointer items-center gap-2 rounded-4 px-2 py-1.5 text-left text-12 text-secondary hover:bg-hover hover:text-primary",
+                                        c.id === selectedId && "mt-selected-action bg-hover text-primary"
+                                    )}
+                                    onClick={() => select(c.id)}
+                                >
+                                    <Emblem name={contextShownEmblem(c)} size={14} />
+                                    <span className="min-w-0 truncate">{contextShownName(c, t)}</span>
+                                </button>
+                            ))}
                             <button
-                                key={c.id}
                                 type="button"
-                                aria-current={c.id === selectedId ? "true" : undefined}
-                                data-testid="context-list-item"
+                                aria-current={creating ? "true" : undefined}
+                                data-testid="context-new"
                                 className={cn(
-                                    "flex cursor-pointer items-center gap-2 rounded-4 px-2 py-1.5 text-left text-12 text-secondary hover:bg-hover hover:text-primary",
-                                    c.id === selectedId && "mt-selected-action bg-hover text-primary"
+                                    "mt-1 cursor-pointer rounded-4 border border-dashed border-border px-2 py-1.5 text-left text-12 text-secondary hover:bg-hover hover:text-primary",
+                                    creating && "mt-selected-action bg-hover text-primary"
                                 )}
-                                onClick={() => select(c.id)}
+                                onClick={() => select(NewId)}
                             >
-                                <Emblem name={contextShownEmblem(c)} size={14} />
-                                <span className="min-w-0 truncate">{contextShownName(c, t)}</span>
+                                + {t("contexts.manage.new")}
                             </button>
-                        ))}
-                        <button
-                            type="button"
-                            aria-current={creating ? "true" : undefined}
-                            data-testid="context-new"
-                            className={cn(
-                                "cursor-pointer rounded-4 border border-dashed border-border px-2 py-1.5 text-left text-12 text-secondary hover:bg-hover hover:text-primary",
-                                creating && "mt-selected-action bg-hover text-primary"
-                            )}
-                            onClick={() => select(NewId)}
-                        >
-                            + {t("contexts.manage.new")}
-                        </button>
-                    </nav>
+                        </nav>
+                    </div>
                     <form
-                        className="flex min-w-0 flex-1 flex-col gap-3"
+                        className={BlocksGridClass}
                         data-testid="context-form"
                         onSubmit={(e) => {
                             e.preventDefault();
                             save();
                         }}
                     >
-                        <div className="flex flex-col gap-1">
-                            <label htmlFor={nameId} className="text-11 text-secondary">
-                                {t("contexts.manage.name")}
-                            </label>
-                            <input
-                                id={nameId}
-                                type="text"
-                                value={draft.name}
-                                placeholder={t("contexts.manage.namePlaceholder")}
-                                data-testid="context-name"
-                                autoFocus
-                                className={FieldClass}
-                                onChange={(e) => edit({ name: clampName(e.target.value) })}
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <label htmlFor={descriptionId} className="text-11 text-secondary">
-                                {t("contexts.manage.description")}
-                            </label>
-                            <textarea
-                                id={descriptionId}
-                                rows={3}
-                                value={draft.description}
-                                placeholder={t("contexts.manage.descriptionPlaceholder")}
-                                data-testid="context-description"
-                                className={TextAreaClass}
-                                onChange={(e) => edit({ description: clampDescription(e.target.value) })}
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                            <span className="text-11 text-secondary">{t("contexts.manage.emblem")}</span>
-                            <div className="mb-1 flex items-center gap-2 text-12 text-primary">
-                                <Emblem name={draft.emblem} size={16} />
-                                <span>{t("contexts.emblem.current", { name: draft.emblem })}</span>
-                            </div>
-                            <EmblemPicker value={draft.emblem} onChange={(emblem) => edit({ emblem })} />
-                        </div>
-                        <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(14rem,1fr))]">
-                            <div className="flex min-w-0 flex-col gap-1.5" data-testid="context-folder-column">
-                                <span className="text-11 text-secondary">
-                                    {t("contexts.manage.folder")}{" "}
-                                    <span className="text-muted">· {t("contexts.manage.folderOptional")}</span>
-                                </span>
-                                <div
-                                    className={cn(
-                                        "flex h-8 min-w-0 items-center rounded-4 border border-border bg-black/25 px-2 text-11",
-                                        draft.folder ? "font-mono text-primary" : "text-muted"
-                                    )}
-                                    title={draft.folder || undefined}
-                                    data-testid="context-folder"
-                                >
-                                    <span className="truncate">{draft.folder || t("contexts.manage.folderNone")}</span>
-                                </div>
-                                <div className="flex gap-1.5">
-                                    <button
-                                        type="button"
-                                        className={PlainButton}
-                                        data-testid="context-folder-choose"
-                                        onClick={chooseFolder}
-                                    >
-                                        {t("contexts.manage.folderChoose")}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className={cn(GhostButton, !draft.folder && "invisible")}
-                                        data-testid="context-folder-remove"
-                                        disabled={!draft.folder}
-                                        onClick={() => edit({ folder: "" })}
-                                    >
-                                        {t("contexts.manage.folderRemove")}
-                                    </button>
-                                </div>
-                                <p className="m-0 text-11 leading-4 text-muted">{t("contexts.manage.folderHint")}</p>
-                            </div>
-                            <div className="flex min-w-0 flex-col gap-1" data-testid="context-shape-column">
-                                <span className="text-11 text-secondary">{t("contexts.shape.label")}</span>
-                                <div className="mb-1 flex items-center gap-2">
-                                    <RibbonFace
-                                        emblem={draft.emblem}
-                                        name={draft.name.trim() || t("contexts.manage.newName")}
-                                        paint={paint}
-                                        ink={ink}
-                                        shape={draft.shape}
+                        <ContextBlock title={t("contexts.manage.identity")} concept="identity" block="identity">
+                            <BlockRows>
+                                <div className="flex items-center gap-4 px-5 py-3">
+                                    <label htmlFor={nameId} className={RowTitleClass}>
+                                        {t("contexts.manage.name")}
+                                    </label>
+                                    <input
+                                        id={nameId}
+                                        type="text"
+                                        value={draft.name}
+                                        placeholder={t("contexts.manage.namePlaceholder")}
+                                        data-testid="context-name"
+                                        autoFocus
+                                        className={cn(FieldClass, "ml-auto max-w-[19rem] flex-1")}
+                                        onChange={(e) => edit({ name: clampName(e.target.value) })}
                                     />
                                 </div>
-                                <ShapePicker
-                                    value={draft.shape}
+                                <div className="flex flex-col gap-1.5 px-5 py-3">
+                                    <label htmlFor={descriptionId} className={RowTitleClass}>
+                                        {t("contexts.manage.description")}
+                                    </label>
+                                    <textarea
+                                        id={descriptionId}
+                                        rows={3}
+                                        value={draft.description}
+                                        placeholder={t("contexts.manage.descriptionPlaceholder")}
+                                        data-testid="context-description"
+                                        className={TextAreaClass}
+                                        onChange={(e) => edit({ description: clampDescription(e.target.value) })}
+                                    />
+                                </div>
+                            </BlockRows>
+                            <BlockTag>{t("contexts.manage.scopeContext")}</BlockTag>
+                        </ContextBlock>
+
+                        <ContextBlock title={t("contexts.manage.emblem")} concept="emblem" block="emblem">
+                            <EmblemPicker value={draft.emblem} onChange={(emblem) => edit({ emblem })} />
+                            <BlockTag title={t("contexts.emblem.current", { name: draft.emblem })}>
+                                <Emblem name={draft.emblem} size={12} />
+                                <span className="min-w-0 truncate" data-testid="context-emblem-name">
+                                    {draft.emblem}
+                                </span>
+                            </BlockTag>
+                        </ContextBlock>
+
+                        <ContextBlock
+                            title={t("contexts.manage.ribbon")}
+                            concept="ribbon"
+                            block="ribbon"
+                            description={t("contexts.manage.ribbonHint")}
+                            data-testid="context-shape-column"
+                        >
+                            <ShapeGrid value={draft.shape} paint={paint} onChange={(shape) => edit({ shape })} />
+                            <BlockRows>
+                                <div className={RowClass}>
+                                    <span className="min-w-0 flex-1 truncate text-12 text-muted">
+                                        {t(ribbonShape(draft.shape).nameKey)}
+                                    </span>
+                                    <DrawAnotherButton
+                                        className="shrink-0"
+                                        onDrawAnother={() => edit({ shape: drawFor(selectedId, draft.shape) })}
+                                    />
+                                </div>
+                            </BlockRows>
+                            <span
+                                className="absolute top-0 right-5 flex max-w-[60%] -translate-y-1/2"
+                                data-testid="context-ribbon-preview"
+                            >
+                                <RibbonFace
+                                    emblem={draft.emblem}
+                                    name={draft.name.trim() || t("contexts.manage.newName")}
                                     paint={paint}
-                                    onChange={(shape) => edit({ shape })}
-                                    onDrawAnother={() => edit({ shape: drawFor(selectedId, draft.shape) })}
+                                    ink={ink}
+                                    shape={draft.shape}
                                 />
-                            </div>
-                        </div>
-                        <fieldset className="m-0 flex min-w-0 flex-col gap-1 border-0 p-0">
-                            <legend className="mb-1 p-0 text-11 text-secondary">
-                                {t("contexts.manage.workspaces")}
-                            </legend>
+                            </span>
+                        </ContextBlock>
+
+                        <ContextBlock
+                            title={t("contexts.manage.workspaces")}
+                            concept="workspace"
+                            block="workspaces"
+                            description={t("contexts.manage.workspacesHint")}
+                        >
                             {rows.length === 0 ? (
-                                <p className="text-12 text-muted">{t("contexts.manage.noWorkspaces")}</p>
+                                <p className="m-0 text-12 text-muted">{t("contexts.manage.noWorkspaces")}</p>
                             ) : (
-                                <ul className="m-0 flex max-h-40 list-none flex-col gap-0.5 overflow-y-auto p-0">
+                                <BlockRows
+                                    role="group"
+                                    aria-label={t("contexts.manage.workspaces")}
+                                    className="max-h-60 overflow-y-auto"
+                                >
                                     {rows.map((row) => {
                                         const stops = colourStops(row.color);
                                         return (
-                                            <li key={row.id}>
-                                                <label className="flex cursor-pointer items-center gap-2 rounded-4 px-1.5 py-1 text-12 text-primary hover:bg-hover">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isRowChecked(edits, row)}
-                                                        data-testid="context-workspace"
-                                                        data-workspace-id={row.id}
-                                                        onChange={() => toggle(row)}
-                                                    />
-                                                    <i
-                                                        className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                                        style={{ background: stops[0] ?? "var(--color-secondary)" }}
-                                                        aria-hidden
-                                                    />
-                                                    <span className="min-w-0 truncate">{row.name}</span>
-                                                    {row.elsewhere ? (
-                                                        <span className="ml-auto shrink-0 text-11 text-muted">
-                                                            {t("contexts.manage.elsewhere", { context: row.elsewhere })}
-                                                        </span>
-                                                    ) : null}
-                                                </label>
-                                            </li>
+                                            <label
+                                                key={row.id}
+                                                className="flex cursor-pointer items-center gap-2.5 px-5 py-1.5 text-12 text-primary hover:bg-hover"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    className="cursor-pointer accent-[var(--mt-action)]"
+                                                    checked={isRowChecked(edits, row)}
+                                                    data-testid="context-workspace"
+                                                    data-workspace-id={row.id}
+                                                    onChange={() => toggle(row)}
+                                                />
+                                                <i
+                                                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                                                    style={{ background: stops[0] ?? "var(--color-secondary)" }}
+                                                    aria-hidden
+                                                />
+                                                <span className="min-w-0 truncate">{row.name}</span>
+                                                {row.elsewhere ? (
+                                                    <span className="ml-auto shrink-0 text-11 text-muted">
+                                                        {t("contexts.manage.elsewhere", { context: row.elsewhere })}
+                                                    </span>
+                                                ) : null}
+                                            </label>
                                         );
                                     })}
-                                </ul>
+                                </BlockRows>
                             )}
-                        </fieldset>
-                        {problemText || error ? (
-                            <p className="text-12 text-danger" role="alert" data-testid="context-problem">
-                                {error ?? problemText}
-                            </p>
+                            {rows.length > 0 ? (
+                                <BlockTag data-testid="context-workspaces-count">
+                                    {t("contexts.manage.workspacesCount", {
+                                        checked: draft.checked.length,
+                                        total: rows.length,
+                                    })}
+                                </BlockTag>
+                            ) : null}
+                        </ContextBlock>
+
+                        <ContextBlock
+                            title={t("contexts.manage.folder")}
+                            concept="folder"
+                            block="folder"
+                            description={t("contexts.manage.folderHint")}
+                            className={deletable ? undefined : "col-span-full"}
+                            data-testid="context-folder-column"
+                        >
+                            <BlockRows>
+                                <div className={RowClass}>
+                                    <div
+                                        className={cn(
+                                            "min-w-0 flex-1 truncate text-12",
+                                            draft.folder ? "font-mono text-primary" : "text-muted"
+                                        )}
+                                        title={draft.folder || undefined}
+                                        data-testid="context-folder"
+                                    >
+                                        {draft.folder || t("contexts.manage.folderNone")}
+                                    </div>
+                                    <div className="flex shrink-0 gap-1.5">
+                                        <button
+                                            type="button"
+                                            className={PlainButton}
+                                            data-testid="context-folder-choose"
+                                            onClick={chooseFolder}
+                                        >
+                                            {t("contexts.manage.folderChoose")}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={cn(GhostButton, !draft.folder && "invisible")}
+                                            data-testid="context-folder-remove"
+                                            disabled={!draft.folder}
+                                            onClick={() => edit({ folder: "" })}
+                                        >
+                                            {t("contexts.manage.folderRemove")}
+                                        </button>
+                                    </div>
+                                </div>
+                            </BlockRows>
+                            <BlockTag>{t("contexts.manage.folderOptional")}</BlockTag>
+                        </ContextBlock>
+
+                        {deletable ? (
+                            <ContextBlock
+                                title={t("contexts.manage.dangerZone")}
+                                concept="danger"
+                                block="danger"
+                                tone="danger"
+                            >
+                                <BlockRows>
+                                    <div className={RowClass}>
+                                        <div className="flex min-w-0 flex-1 basis-40 flex-col gap-0.5">
+                                            <span className={RowTitleClass}>{t("contexts.manage.deleteTitle")}</span>
+                                            <span className="text-11 leading-4 text-muted">
+                                                {t("contexts.manage.deleteHint")}
+                                            </span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            className={cn(DangerButton, "shrink-0")}
+                                            data-testid="context-delete"
+                                            disabled={busy}
+                                            onClick={() => setDeleting(true)}
+                                        >
+                                            {t("contexts.manage.delete")}
+                                        </button>
+                                    </div>
+                                </BlockRows>
+                            </ContextBlock>
                         ) : null}
                     </form>
                 </div>

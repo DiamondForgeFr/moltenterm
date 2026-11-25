@@ -5,6 +5,7 @@
 // subtitle, the content, then the buttons; Escape answers like the dialog's cancel.
 
 import { cn } from "@/util/util";
+import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { captureModalInvoker, containModalFocus, modalOwnsKeys, topModal } from "./modal-focus";
@@ -55,6 +56,7 @@ export function DialogFrame({
     fill,
     onBackdrop,
     onEscape,
+    closeButton,
     suite,
     noGlow,
     children,
@@ -83,6 +85,9 @@ export function DialogFrame({
     onBackdrop?: () => void;
     // Undefined keeps Escape blocked while a confirmation is busy.
     onEscape?: () => void;
+    // A cross at the header's right, for a dialog the developer may want to leave in one click (Manage contexts, #2534).
+    // It answers like the dialog's cancel; the label names it for assistive tech.
+    closeButton?: { label: string; onClick: () => void; testId?: string };
     // The DiamondForge suite frame (#658): room for its section blocks' chips and corner icons.
     suite?: boolean;
     // Every open dialog carries the suite's turning light (#890). Opt out only for a reason worth writing at the call
@@ -96,6 +101,19 @@ export function DialogFrame({
     const [invoker] = useState(captureModalInvoker);
     const escape = useRef(onEscape);
     escape.current = onEscape;
+    const heading = (
+        <>
+            <div className="text-13 leading-5 font-semibold">{title}</div>
+            {subtitle ? (
+                <div
+                    className={cn("mt-0.5 text-muted", !subtitleWraps && "truncate", subtitleClass ?? "text-12")}
+                    title={subtitleTooltip ?? (subtitleWraps ? undefined : subtitle)}
+                >
+                    {subtitle}
+                </div>
+            ) : null}
+        </>
+    );
     // A layout effect: a dialog opened from a pane (branch cleaning, #746) sees the pane take its focus back in the
     // same click, before a passive effect would be listening.
     useLayoutEffect(() => {
@@ -145,19 +163,23 @@ export function DialogFrame({
                 )}
             >
                 <div className="shrink-0 border-b border-border px-4 py-3">
-                    <div className="text-13 leading-5 font-semibold">{title}</div>
-                    {subtitle ? (
-                        <div
-                            className={cn(
-                                "mt-0.5 text-muted",
-                                !subtitleWraps && "truncate",
-                                subtitleClass ?? "text-12"
-                            )}
-                            title={subtitleTooltip ?? (subtitleWraps ? undefined : subtitle)}
-                        >
-                            {subtitle}
+                    {closeButton != null ? (
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">{heading}</div>
+                            <button
+                                type="button"
+                                aria-label={closeButton.label}
+                                title={closeButton.label}
+                                data-testid={closeButton.testId}
+                                className="-mt-0.5 -mr-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-4 text-secondary hover:bg-hover hover:text-primary"
+                                onClick={closeButton.onClick}
+                            >
+                                <X className="h-4 w-4" aria-hidden />
+                            </button>
                         </div>
-                    ) : null}
+                    ) : (
+                        heading
+                    )}
                     {belowSubtitle}
                 </div>
                 {noGlow ? null : <GlowRing on />}
