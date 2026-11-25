@@ -8,7 +8,10 @@
 // The rules of the comments, the keys and the agent proposed are in annotate-model.ts; wavesrv writes the report
 // (pkg/molten/mission/annotate.go).
 
-import { atoms } from "@/app/store/global";
+import { atoms, getSettingsKeyAtom } from "@/app/store/global";
+import { globalStore } from "@/app/store/jotaiStore";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -54,7 +57,14 @@ import {
 import { annotateColor } from "./annotate-paint";
 import { attachReferences, fieldDragOver, fieldDrop, fieldPaste, MaxRefSourceBytes } from "./annotate-refs";
 import { Review } from "./annotate-review";
-import type { AnnotatedWebview, AnnotateOpen, AnnotateSession } from "./annotate-session";
+import {
+    type AnnotatedWebview,
+    AnnotateHintKey,
+    type AnnotateOpen,
+    type AnnotateSession,
+    entryPlays,
+    firstUseHint,
+} from "./annotate-session";
 import {
     CaptureBar,
     CommentList,
@@ -233,7 +243,7 @@ function AnnotateLayer({
     onClose,
 }: {
     session: AnnotateSession;
-    open: { tabId: string; url: string };
+    open: AnnotateOpen;
     // Hidden, never closed, while another tab of the panel is shown: the comments are there when this tab is back.
     shown: boolean;
     onClose: () => void;
@@ -242,6 +252,11 @@ function AnnotateLayer({
     const rootRef = useRef<HTMLDivElement>(null);
     const [state, setState] = useState<AnnotateState>(emptyState);
     const [tool, setTool] = useState<MarkKind>(DefaultTool);
+    // The toolbar's part of the mode's entry (#2537), played once: a toolbar shown again (after the review, or with its
+    // tab) would replay a CSS animation, so the classes go as soon as it ran.
+    const [entering, setEntering] = useState(() => entryPlays(globalStore.get(session.entryAtom), open));
+    const [firstUse] = useState(() => firstUseHint(globalStore.get(getSettingsKeyAtom(AnnotateHintKey))));
+    const [toolChosen, setToolChosen] = useState(false);
     const [paused, setPaused] = useState(false);
     const [listOpen, setListOpen] = useState(false);
     const [phase, setPhase] = useState<Phase>("draw");
@@ -413,6 +428,17 @@ function AnnotateLayer({
     useEffect(() => {
         linkRef.current?.send({ type: "tool", tool });
     }, [tool]);
+    useEffect(() => {
+        if (!firstUse) {
+            return;
+        }
+        fireAndForget(() => RpcApi.SetConfigCommand(TabRpcClient, { [AnnotateHintKey]: true } as SettingsType));
+    }, [firstUse]);
+    useEffect(() => {
+        if (entering && (phase !== "draw" || !shown)) {
+            setEntering(false);
+        }
+    }, [entering, phase, shown]);
     const guestPaused = paused || phase !== "draw";
     useEffect(() => {
         linkRef.current?.send({ type: "pause", paused: guestPaused });
@@ -629,9 +655,13 @@ function AnnotateLayer({
                     listOpen={listOpen}
                     leaveAsk={leaveAsk}
                     pageAsk={pageAsk}
+                    entering={entering}
+                    firstHint={firstUse && !toolChosen}
+                    onEntered={() => setEntering(false)}
                     onTool={(kind) => {
                         setTool(kind);
                         setPaused(false);
+                        setToolChosen(true);
                     }}
                     onPause={() => setPaused((p) => !p)}
                     onList={() => setListOpen((o) => !o)}

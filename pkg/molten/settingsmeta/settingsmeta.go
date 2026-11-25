@@ -384,6 +384,8 @@ var settings = []Setting{
 	hidden("moltenterm:browserinspectorsize"),
 	// The note about the default search engine (#2312): the panel that shows it sets it.
 	hidden("moltenterm:searchenginenote"),
+	// The comment mode's first-use hint (#2537): the mode that shows it sets it.
+	hidden("moltenterm:annotatehint"),
 	// The providers Brokk's usage grid always shows or never shows (FR-BOSS-009, AC97, #2341): a row's menu and the
 	// Not used lately list set them, so the screen has no row for them.
 	hidden("boss:usageshow"),

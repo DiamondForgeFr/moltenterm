@@ -3345,6 +3345,7 @@
                 "point": "Cliquez sur un élément pour le commenter.",
                 "zone": "Tracez un rectangle autour de ce qu'il faut changer.",
                 "freehand": "Dessinez un contour autour de ce qu'il faut changer.",
+                "first": "Dessinez, encadrez ou cliquez sur un élément pour le commenter. Échap pour sortir.",
                 "paused": "En pause : la page fonctionne normalement. Reprenez pour ajouter des commentaires."
             },
             "tool": {

@@ -186,6 +186,7 @@ const (
 	ConfigKey_MoltentermMaterialsSeen        = "moltenterm:materialsseen"
 	ConfigKey_MoltentermBrowserInspectorSize = "moltenterm:browserinspectorsize"
 	ConfigKey_MoltentermSearchEngineNote     = "moltenterm:searchenginenote"
+	ConfigKey_MoltentermAnnotateHint         = "moltenterm:annotatehint"
 
 	ConfigKey_WidgetClear                    = "widget:*"
 	ConfigKey_WidgetShowHelp                 = "widget:showhelp"

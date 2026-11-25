@@ -1539,6 +1539,7 @@ declare global {
         "moltenterm:materialsseen"?: {[key: string]: number};
         "moltenterm:browserinspectorsize"?: number;
         "moltenterm:searchenginenote"?: boolean;
+        "moltenterm:annotatehint"?: boolean;
         "widget:*"?: boolean;
         "widget:showhelp"?: boolean;
         "window:*"?: boolean;

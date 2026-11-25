@@ -319,6 +319,9 @@ type SettingsType struct {
 	// MOLTENTERM-PATCH (#2312): the note about the default search engine, shown once (frontend/moltenterm-shell/browser/search-engine.ts).
 	MoltentermSearchEngineNote bool `json:"moltenterm:searchenginenote,omitempty" jsonschema_description:"Whether the one-time note about the default search engine was shown in a web page panel (Searches use Brave Search, with a way to change it). Set by the panel the first time it shows the note"`
 
+	// MOLTENTERM-PATCH (#2537): the comment mode's first-use hint, shown once (frontend/moltenterm-shell/browser/annotate-layer.tsx).
+	MoltentermAnnotateHint bool `json:"moltenterm:annotatehint,omitempty" jsonschema_description:"Whether the comment mode of a web page panel already showed its first-use hint (Draw, frame or click an element to comment on it. Escape to leave). Set by the mode the first time it starts"`
+
 	WidgetClear    bool  `json:"widget:*,omitempty"`
 	WidgetShowHelp *bool `json:"widget:showhelp,omitempty"`
 

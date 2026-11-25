@@ -11,6 +11,7 @@ import { List, MousePointer2, Pause, Pencil, Play, SquareDashed, Trash2, X } fro
 import type { ComponentType } from "react";
 import { useT, useTCount } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import "./annotate-entry.css";
 import { DominoLoader } from "../suite/suite";
 import { excerptOf, MaxZones, sameAddress, type Zone } from "./annotate-model";
 import type { MarkKind } from "./annotate-wire";
@@ -65,13 +66,26 @@ export type CommentToolbarProps = {
     onKeep: () => void;
     onKeepPage: () => void;
     onDiscardPage: () => void;
+    // The mode has just started (#2537): the toolbar rises, the light rings it and the tool in use flashes, once.
+    entering?: boolean;
+    // The first time the developer uses the mode, the hint says what the tools do and how to leave (#2537).
+    firstHint?: boolean;
+    // The entry has played (the ring has settled into the halo).
+    onEntered?: () => void;
 };
+
+// The toolbar's entry ends with its ring (annotate-entry.css).
+const EntryEndAnimation = "mt-comment-bar-ring";
 
 export function CommentToolbar(props: CommentToolbarProps) {
     const t = useT();
     const tc = useTCount();
-    const { count, tool, paused, pageAsk } = props;
-    const hint = paused ? t("browser.annotate.hint.paused") : t(`browser.annotate.hint.${tool}`);
+    const { count, tool, paused, pageAsk, entering } = props;
+    const hint = paused
+        ? t("browser.annotate.hint.paused")
+        : props.firstHint
+          ? t("browser.annotate.hint.first")
+          : t(`browser.annotate.hint.${tool}`);
     return (
         <div
             className="pointer-events-none absolute inset-x-2 bottom-3 z-30 flex flex-col items-center gap-1.5"
@@ -79,14 +93,26 @@ export function CommentToolbar(props: CommentToolbarProps) {
         >
             {count === 0 && pageAsk == null && !props.leaveAsk ? (
                 <p
-                    className="pointer-events-auto rounded-4 border border-border bg-surface-3 px-2.5 py-1 text-11 text-secondary shadow-e2"
+                    className={cn(
+                        "pointer-events-auto rounded-4 border border-border bg-surface-3 px-2.5 py-1 text-11 text-secondary shadow-e2",
+                        props.firstHint && "text-primary",
+                        entering && "mt-comment-hint-enter"
+                    )}
                     data-testid="browser-annotate-hint"
                 >
                     {hint}
                 </p>
             ) : null}
             <div
-                className="pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-4 border border-border bg-surface-3 px-2 py-1.5 text-12 shadow-e2"
+                className={cn(
+                    "mt-comment-bar pointer-events-auto flex flex-wrap items-center justify-center gap-1.5 rounded-4 border border-border bg-surface-3 px-2 py-1.5 text-12",
+                    entering && "mt-comment-bar-enter"
+                )}
+                onAnimationEnd={(e) => {
+                    if (entering && e.target === e.currentTarget && e.animationName === EntryEndAnimation) {
+                        props.onEntered?.();
+                    }
+                }}
                 data-testid="browser-annotate-tray"
                 role="toolbar"
                 aria-label={t("browser.annotate.layerLabel")}
@@ -155,7 +181,11 @@ export function CommentToolbar(props: CommentToolbarProps) {
                                     <button
                                         key={kind}
                                         type="button"
-                                        className={cn(IconButton, on && "mt-selected-action bg-hover text-primary")}
+                                        className={cn(
+                                            IconButton,
+                                            on && "mt-selected-action bg-hover text-primary",
+                                            on && entering && "mt-comment-tool-flash"
+                                        )}
                                         title={t(`browser.annotate.tool.${kind}`)}
                                         aria-label={t(`browser.annotate.tool.${kind}`)}
                                         aria-pressed={on}
