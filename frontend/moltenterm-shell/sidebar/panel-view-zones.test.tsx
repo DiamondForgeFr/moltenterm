@@ -91,6 +91,20 @@ describe("the Views list while a panel is dragged over the sidebar", () => {
         expect(renderList(["tab-x", "tab-y"])).toMatch(/class="[^"]*is-over/);
     });
 
+    it("keeps its own sentence over a folder's row, which rings with its own", () => {
+        dragOver({ zone: "temporary", folderId: "f1", before: null });
+        const html = renderList(["tab-x", "tab-y"]);
+        expect(html).toContain('data-cap="New view in Views"');
+        expect(html).not.toContain("in the folder");
+        function Probe() {
+            const zone = usePanelZone("temporary");
+            return <span data-zone={zone.caption} data-folder={zone.folderCaption} />;
+        }
+        const probe = inStore(<Probe />);
+        expect(probe).toContain('data-zone="New view in Views"');
+        expect(probe).toMatch(/data-folder="New view in the folder /);
+    });
+
     it("is lit while the pointer is on another zone, without the more", () => {
         dragOver({ zone: "top", key: "g1", after: false, before: "g1" });
         const html = renderList(["tab-x", "tab-y"]);

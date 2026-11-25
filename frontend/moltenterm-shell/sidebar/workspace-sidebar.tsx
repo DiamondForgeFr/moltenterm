@@ -1259,9 +1259,9 @@ export function TemporaryViews({
             target: folder,
             away: false,
             inFrame: false,
-            cap: folder != null ? panel.caption : undefined,
+            cap: folder != null ? panel.folderCaption : undefined,
         };
-    }, [ownState, panelHit, panel.caption]);
+    }, [ownState, panelHit, panel.folderCaption]);
     const newViewKeys = formatShortcutById("new-tab");
     const note = useAtomValue(folderNoteAtom);
     const openFolderId = useAtomValue(openFolderAtom);

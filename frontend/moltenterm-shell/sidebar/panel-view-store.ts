@@ -13,7 +13,8 @@ import { contextShownName } from "../contexts/context-model";
 import { getContexts, getWindowContextId } from "../contexts/context-store";
 import { hiddenTabIds, tabProjectsOf } from "../hidden-tabs";
 import { t } from "../i18n/i18n";
-import { panelName } from "../split/panel-move";
+import { PanelMeta, panelViewName as tabPanelViewName } from "../tab-identity";
+import { getHomeDir } from "../tab-identity-ui";
 import { showToast } from "../toast-store";
 import { workspaceShownName } from "../workspace-default-name";
 import { createViewFromPanel, PanelViewDeps } from "./panel-view-create";
@@ -158,9 +159,12 @@ export function askAgentMove(): Promise<AgentAnswer> {
     });
 }
 
+// The name the app gives a view made of that one panel (a web page by its site, a terminal by its folder), so the new
+// view reads as any other of the list.
 export function panelViewName(blockId: string): string {
-    const name = panelName(blockId);
-    return name && name !== t("split.zone.panel") ? name : t("sidebar.panelView.unnamed");
+    const meta = globalStore.get(WOS.getWaveObjectAtom<Block>(WOS.makeORef("block", blockId)))?.meta;
+    const name = tabPanelViewName(meta as PanelMeta, getHomeDir());
+    return name || t("sidebar.panelView.unnamed");
 }
 
 function liveDeps(): PanelViewDeps {

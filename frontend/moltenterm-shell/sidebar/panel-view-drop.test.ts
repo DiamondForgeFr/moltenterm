@@ -93,4 +93,10 @@ describe("a drag between panels", () => {
         expect(drop).toContain("drop(asideRef)");
         expect(drop).not.toContain("document.addEventListener");
     });
+
+    it("is drawn as it always was: the sidebar's zones are lit only while the panel is over the sidebar", () => {
+        const drop = fs.readFileSync(path.join(__dirname, "panel-view-drop.tsx"), "utf8");
+        expect(drop).toContain("pointIn(asideRef.current?.getBoundingClientRect(), offset.x, offset.y)");
+        expect(drop).toContain("!over");
+    });
 });

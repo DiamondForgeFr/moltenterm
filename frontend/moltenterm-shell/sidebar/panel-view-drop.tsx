@@ -11,7 +11,7 @@ import { fireAndForget } from "@/util/util";
 import { useEffect } from "react";
 import { useDragLayer, useDrop } from "react-dnd";
 import { panelHitAt } from "./panel-view-hit";
-import { destinationOfHit, PanelHit, PanelViewDestination, sameHit } from "./panel-view-model";
+import { destinationOfHit, PanelHit, PanelViewDestination, pointIn, sameHit } from "./panel-view-model";
 import { makeViewFromPanel, panelViewDragAtom } from "./panel-view-store";
 import { currentProjectId, readProjects } from "./workspace-projects";
 
@@ -67,7 +67,8 @@ export function SidebarPanelDrop({ asideRef }: { asideRef: React.RefObject<HTMLE
     const blockId = blockIdOf(item);
     useEffect(() => {
         const now = globalStore.get(panelViewDragAtom);
-        if (!dragging || blockId == null || offset == null) {
+        const over = offset != null && pointIn(asideRef.current?.getBoundingClientRect(), offset.x, offset.y);
+        if (!dragging || blockId == null || !over) {
             if (now != null) {
                 globalStore.set(panelViewDragAtom, null);
             }
