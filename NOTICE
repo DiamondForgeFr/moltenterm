@@ -41,6 +41,48 @@ remote font:
   Sans Mono, Copyright 2003 Bitstream, Inc. (Bitstream Vera License), patched with icon glyphs by the Nerd Fonts
   patcher 3.2.1, Copyright 2014 Ryan L McIntyre (MIT License). See public/fonts/hacknerdmono-license.txt.
 
+Provider marks (#2542). The application shows the mark of an AI provider next to its agent: in the usage rows, in the
+launcher and in the Library's agent cards. Each mark belongs to its owner and is not licensed by any licence above. It
+is drawn only to name the owner's product, as the provider publishes it (the provider's own file, unaltered, in the
+provider's own light and dark variants), and never implies that the provider endorses, sponsors or is affiliated with
+MoltenTerm or DiamondForge. The set is frontend/moltenterm-shell/provider-marks/provider-marks.ts; a provider that
+withdraws its permission has its mark removed from it. Where each mark comes from, and its terms:
+- Anthropic, the Claude mark (Claude Code). Wave Terminal's file, shipped as it came:
+  frontend/app/asset/claude-color.svg
+  Terms: https://www.anthropic.com/legal/trademark-guidelines (the guidelines keep the use of the marks to what
+  Anthropic permits; this use is the one Wave Terminal made, and is open to Anthropic's review).
+- OpenAI, the Blossom (Codex), from the logos kit https://cdn.openai.com/brand/openai-logos.zip of
+  https://openai.com/brand/ ("Use the logo only when it directly relates to OpenAI services", no colour added, not
+  featured more prominently than MoltenTerm's own marks). The kit's files, shipped as they came:
+  OpenAI-logos/SVGs/OAI_OpenAI-Blossom_White.svg
+  frontend/moltenterm-shell/provider-marks/assets/openai-blossom-white.svg
+  OpenAI-logos/SVGs/OAI_OpenAI-Blossom_Black.svg
+  frontend/moltenterm-shell/provider-marks/assets/openai-blossom-black.svg
+  Terms: https://openai.com/brand/#usage-terms
+- Anomaly, the OpenCode logo, from https://opencode.ai/brand/files/ ("plugins, providers and tools that work with
+  OpenCode can say so", no recolouring, drawn at 16 x 20 px or more). The files, shipped as they came:
+  opencode-logo-transparent-dark.svg
+  frontend/moltenterm-shell/provider-marks/assets/opencode-logo-dark.svg
+  opencode-logo-transparent-light.svg
+  frontend/moltenterm-shell/provider-marks/assets/opencode-logo-light.svg
+  Terms: https://opencode.ai/brand
+- Anysphere, the Cursor cube (Cursor CLI), from the asset bundle of https://cursor.com/brand
+  (https://ptht05hbb1ssoooe.public.blob.vercel-storage.com/assets/brand/cursor-brand-assets.zip). The page states no
+  rule for third parties beyond the name ("Cursor", never "Cursor AI" or "Cursor Code"). The files, shipped as they
+  came:
+  General Logos/Cube/SVG/CUBE_2D_DARK.svg
+  frontend/moltenterm-shell/provider-marks/assets/cursor-cube-2d-dark.svg
+  General Logos/Cube/SVG/CUBE_2D_LIGHT.svg
+  frontend/moltenterm-shell/provider-marks/assets/cursor-cube-2d-light.svg
+  Terms: https://cursor.com/brand
+The agents of other providers keep the AI icon, each for a reason recorded in provider-marks.ts:
+- Moonshot AI (Kimi Code): https://www.kimi.com/policies/logo-usage-terms licenses its logo "solely for editorial,
+  media, and non-commercial promotional uses" and forbids recolouring it, which a row of an application is not.
+- Google (Gemini CLI, Antigravity CLI), GitHub (Copilot CLI) and Alibaba Cloud (Qwen Code) publish no mark with
+  guidelines for naming their product in third-party software, or none that was found.
+- xAI (Grok Build) and Mistral AI (Mistral Vibe): their brand pages answered HTTP 403 to a program, so no file was
+  taken.
+
 This product bundles @diamondforge/character 0.8.0 by DiamondForge, the runtime of the DiamondForge suite's
 animated characters. It is DiamondForge's own private package, UNLICENSED (all rights reserved), and is not
 licensed under any of the licences above.

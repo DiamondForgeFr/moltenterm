@@ -1,0 +1,42 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* A provider's mark in a square slot (#2542). The slot is the box the visible mark fits; the file inside may be larger
+   (a kit's own clear space, a provider's minimum size), so the slot never clips it and centres it on both axes. A mark
+   with two official variants draws both: the one for a dark surface by default, the one for a light surface when the
+   light theme is on, and the dark one again inside a panel that stays dark in the light theme (decision 7 of the theme,
+   `data-mt-dark-surface`). */
+.mt-pmark {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    overflow: visible;
+}
+
+.mt-pmark img {
+    display: block;
+    flex: none;
+    pointer-events: none;
+    user-select: none;
+}
+
+.mt-pmark img[data-tone="on-light"] {
+    display: none;
+}
+
+:root.mt-light .mt-pmark img[data-tone="on-dark"] {
+    display: none;
+}
+
+:root.mt-light .mt-pmark img[data-tone="on-light"] {
+    display: block;
+}
+
+:root.mt-light [data-mt-dark-surface] .mt-pmark img[data-tone="on-dark"] {
+    display: block;
+}
+
+:root.mt-light [data-mt-dark-surface] .mt-pmark img[data-tone="on-light"] {
+    display: none;
+}
