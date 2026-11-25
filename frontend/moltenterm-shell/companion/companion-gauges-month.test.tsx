@@ -266,6 +266,17 @@ describe("browsing the weeks of the month (rows 2, 3 and 5)", () => {
         expect(rowTag(grid(-3), "month")).toContain('data-week="1"');
     });
 
+    it("wires each control to its own step, and keeps the week the developer picked while the window runs", () => {
+        const source = readFileSync(join(__dirname, "../usage-week/usage-week.tsx"), "utf8");
+        const prev = /<WeekButton\s+dir="prev"[\s\S]*?onClick=\{\(\) => moveTo\(stepWeek\(([^)]*)\)\)\}/.exec(source);
+        const next = /<WeekButton\s+dir="next"[\s\S]*?onClick=\{\(\) => moveTo\(stepWeek\(([^)]*)\)\)\}/.exec(source);
+        expect(prev?.[1]).toBe('pager.index, pager.weeks.count, "prev"');
+        expect(next?.[1]).toBe('pager.index, pager.weeks.count, "next"');
+        // A pick is kept for the window it was made in: another reset time (the month turned) drops it.
+        expect(source).toContain("pick.reset == null || pick.reset === line.resetsAt");
+        expect(source).toContain("setPicks({ ...picks, [row.key]: { reset: line.resetsAt, index } })");
+    });
+
     it("shows the half day used on the 1st in the week of the 1st, and nothing in the others (row 3)", () => {
         const first = grid(0);
         const blocks = blocksOf(first, "month");
