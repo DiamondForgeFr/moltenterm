@@ -31,6 +31,9 @@ export type ProviderMarkInfo = {
     kit: { onDark: string; onLight: string };
     // The files as shipped, under frontend/moltenterm-shell/provider-marks/assets/ (the Claude mark is Wave's own file).
     shipped: { onDark: string; onLight: string };
+    // The SHA-256 of each shipped file, which is the provider's file byte for byte: the test fails when a tool or a hand
+    // rewrites one (a formatter, an optimiser), since a mark is used as the provider publishes it.
+    sha256: { onDark: string; onLight: string };
     // Width over height of the file's canvas.
     ratio: number;
     // The share of the canvas the visible mark spans: some kits draw their mark inside clear space of their own.
@@ -42,8 +45,6 @@ export type ProviderMarkInfo = {
     terms: string;
 };
 
-export const AiFallback = "ai";
-
 export const ProviderMarks: Record<string, ProviderMarkInfo> = {
     claude: {
         provider: "Anthropic",
@@ -51,6 +52,10 @@ export const ProviderMarks: Record<string, ProviderMarkInfo> = {
         onLight: ClaudeMark,
         kit: { onDark: "claude-color.svg", onLight: "claude-color.svg" },
         shipped: { onDark: "frontend/app/asset/claude-color.svg", onLight: "frontend/app/asset/claude-color.svg" },
+        sha256: {
+            onDark: "39087116e7a868eef13265337ca486f85ed6ee6e15a0714bf1de6c8d45d00b98",
+            onLight: "39087116e7a868eef13265337ca486f85ed6ee6e15a0714bf1de6c8d45d00b98",
+        },
         ratio: 1,
         glyph: 1,
         minHeight: 0,
@@ -69,6 +74,10 @@ export const ProviderMarks: Record<string, ProviderMarkInfo> = {
             onDark: "frontend/moltenterm-shell/provider-marks/assets/openai-blossom-white.svg",
             onLight: "frontend/moltenterm-shell/provider-marks/assets/openai-blossom-black.svg",
         },
+        sha256: {
+            onDark: "01d158767c4eec0e47bd617e67759c33da0accd1438be1a8d29dfdb99ce87285",
+            onLight: "75c1e9fffa5e8c437bec1d67197a73992bca45d166c6ff23215185dea8fae92a",
+        },
         ratio: 1,
         glyph: 0.51,
         minHeight: 0,
@@ -84,6 +93,10 @@ export const ProviderMarks: Record<string, ProviderMarkInfo> = {
             onDark: "frontend/moltenterm-shell/provider-marks/assets/opencode-logo-dark.svg",
             onLight: "frontend/moltenterm-shell/provider-marks/assets/opencode-logo-light.svg",
         },
+        sha256: {
+            onDark: "502ff18efbef0432d8a702481669767c0738d744d18c45d6c3bd3b776d2d6a8e",
+            onLight: "8fb1cffb7171c85d4c12a8219250f31a397e316b53e94ca14c171452eb3efed7",
+        },
         ratio: 0.8,
         glyph: 1,
         minHeight: 20,
@@ -98,6 +111,10 @@ export const ProviderMarks: Record<string, ProviderMarkInfo> = {
         shipped: {
             onDark: "frontend/moltenterm-shell/provider-marks/assets/cursor-cube-2d-dark.svg",
             onLight: "frontend/moltenterm-shell/provider-marks/assets/cursor-cube-2d-light.svg",
+        },
+        sha256: {
+            onDark: "cd0e3e5d8991a4cdd4577f8896cd063105207665165c73e25a1ff918dd367eb7",
+            onLight: "c483c02f78eb2619778fdd959e72a9adfac4844854472cd2653d4cbfd60e4d71",
         },
         ratio: 0.877,
         glyph: 1,
