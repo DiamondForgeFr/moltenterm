@@ -6,25 +6,7 @@
    own look: 4 px corners and no light. Colour: the workspace owns place colour, orange is action, and the selected item of a
    column carries the place liseré through .mt-selected. */
 
-/* ── The row's buttons (section 1) ─────────────────────────────────────────────────────────────────────────────────────── */
-
-.molten-bm-add-icon,
-.molten-bm-book-icon {
-    width: 14px;
-    height: 14px;
-}
-
-.molten-bm-add-icon.is-saved {
-    color: var(--mt-text-1);
-}
-
-/* The panel button takes the header's existing active fill and nothing more: no liseré (the same fill as the open carpet
-   button, view360.css). */
-.molten-bm-book[aria-pressed="true"] {
-    background: var(--mt-surface-3);
-    color: var(--mt-text-1);
-    box-shadow: inset 0 0 0 1px var(--mt-line-2);
-}
+/* The row's buttons (section 1) are styled in bookmark-buttons.css, which loads with them (#2560). */
 
 /* ── Marks shared by the popover, the panel and Settings ───────────────────────────────────────────────────────────────── */
 

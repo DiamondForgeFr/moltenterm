@@ -15,8 +15,14 @@ import { useT } from "../i18n/i18n";
 import { bookmarkablePage, pageState } from "./bookmarks";
 import type { PopoverRequest } from "./bookmark-popover-model";
 import { useBookmarkStore, useHere } from "./bookmark-world";
+import "./bookmark-buttons.css";
 
 const BookmarkPopover = lazy(() => import("./bookmark-popover").then((m) => ({ default: m.BookmarkPopover })));
+
+// The size and stroke of the row's other Lucide icon (the Comment button), set on the icon itself: a stylesheet that
+// loads later leaves Lucide's 24 px until it does (#2560).
+const RowIconSize = 14;
+const RowIconStroke = 2;
 
 const RowButton =
     "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary disabled:pointer-events-none disabled:opacity-40";
@@ -53,6 +59,8 @@ export function BookmarkAddButton({
         >
             <BookmarkIcon
                 className={cn("molten-bm-add-icon", saved && "is-saved")}
+                size={RowIconSize}
+                strokeWidth={RowIconStroke}
                 fill={saved ? "currentColor" : "none"}
                 aria-hidden
             />
@@ -81,7 +89,12 @@ export function BookmarksPanelButton({
             data-testid="browser-bookmarks-button"
             className={cn(RowButton, "molten-bm-book", className)}
         >
-            <BookMarked className="molten-bm-book-icon" aria-hidden />
+            <BookMarked
+                className="molten-bm-book-icon"
+                size={RowIconSize}
+                strokeWidth={RowIconStroke}
+                aria-hidden
+            />
         </button>
     );
 }
