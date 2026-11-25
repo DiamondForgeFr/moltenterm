@@ -279,6 +279,9 @@ export function terminusText(model: LineMapModel): { title: string; sub: string;
     const term = model.terminus;
     const title = term.tag ?? t("mc.lineMap.next");
     const sub = t("mc.lineMap.publicRelease");
+    if (term.noscheme) {
+        return { title, sub, status: t("mc.lineMap.noVersionScheme") };
+    }
     if (term.state === "nothing" || !term.tag) {
         return { title, sub, status: t("mc.lineMap.nothingToRelease") };
     }

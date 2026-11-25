@@ -103,7 +103,7 @@ func resolveTrunk(ctx context.Context, run Runner, dir string) (string, string) 
 	g := &gitReader{ctx: ctx, run: run, dir: dir}
 	trunk := ConfiguredBranches(dir).Trunk
 	if g.refOf(trunk) == "" {
-		trunk = g.firstExisting("develop", "main", "master")
+		trunk, _ = molten.DetectTrunk(g.query())
 	}
 	return trunk, g.refOf(trunk)
 }

@@ -122,7 +122,25 @@ export type LineMapModel = {
     historyFrom: number;
     // Where the most recent local build of each flavor sits (#288).
     builds?: BuildMarker[];
+    // Where the trunk's name was read (MissionGit.trunkfrom, #2556).
+    trunkFrom?: string;
+    // The newest activity the collector read (a commit on any branch read, a tag); NaN when none.
+    lastActivity?: number;
+    // Nothing happened in the window: the map would be an empty line, and the panel says so instead (#2556).
+    quiet?: boolean;
 };
+
+// The window that reaches the last activity of a quiet map (#2556): the smallest choice that shows it, else the widest.
+export function widerWindow(model: LineMapModel, choices: readonly number[]): number {
+    if (!model?.quiet || !Number.isFinite(model.lastActivity)) {
+        return null;
+    }
+    const wider = choices.filter((d) => d > model.days);
+    if (wider.length === 0) {
+        return null;
+    }
+    return wider.find((d) => model.now - d * Day <= model.lastActivity) ?? wider[wider.length - 1];
+}
 
 export type LineMapInput = {
     git: MissionGit;
@@ -452,7 +470,22 @@ export function buildLineMap(input: LineMapInput): LineMapModel {
 
     const headCommit = trunkCommits[0];
     const oldestRead = trunkCommits.length >= TrunkCommitsRead ? time(trunkCommits[trunkCommits.length - 1].date) : NaN;
+    const activity = [
+        ...(git.branches ?? []).map((b) => time(b.date)),
+        ...(git.branches ?? []).flatMap((b) => (b.commits ?? []).slice(0, 1).map((c) => time(c.date))),
+        ...all.map((s) => s.at),
+    ].filter(Number.isFinite);
+    const lastActivity = activity.length ? Math.max(...activity) : NaN;
+    const quiet =
+        commits.length === 0 &&
+        merged.length === 0 &&
+        stations.length === 0 &&
+        Number.isFinite(lastActivity) &&
+        lastActivity < start;
     return {
+        trunkFrom: git.trunkfrom ?? "",
+        lastActivity,
+        quiet,
         start,
         now,
         days,

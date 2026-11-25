@@ -9,10 +9,12 @@ import {
     DefaultFullLineMapDays,
     DefaultLineMapDays,
     gitFingerprint,
+    LineMapDayChoices,
     lineMapDays,
     mergedBranchName,
     stationKind,
     stationSource,
+    widerWindow,
     withLineMapDays,
     worktreeHover,
 } from "./line-map-model";
@@ -500,5 +502,73 @@ describe("a branch in an agent's worktree (#1133)", () => {
             worktreeHover("/repo/.claude/worktrees/agent-x", [{ name: "Ana", cwd: "/repo/.claude/worktrees/agent-xy" }])
         ).toEqual({ folder: "agent-x", agent: "" });
         expect(worktreeHover("", agents)).toBeNull();
+    });
+});
+
+// Projects without SaaSFoundry, read from git alone (#2556): the collector names the trunk it detected.
+describe("a project read from git alone (#2556)", () => {
+    function project(trunk: string, release: string, commits: RawCommit[], over: Partial<MissionGit> = {}): MissionGit {
+        const names = release === trunk ? [trunk] : [release, trunk];
+        return makeGit({
+            trunk,
+            release,
+            trunkfrom: "origin/HEAD",
+            branches: names.map((name) => ({
+                name,
+                sha: commits[0]?.sha ?? "x",
+                date: commits[0]?.date ?? "",
+                commits: name === trunk ? commits : [],
+                fork: null,
+            })),
+            ...over,
+        });
+    }
+    const recent = [c("r2", "2026-10-03T10:00:00Z", "add login"), c("r1", "2026-09-30T10:00:00Z", "first page")];
+
+    it("draws a development trunk beside main", () => {
+        const model = buildLineMap({ git: project("development", "main", recent), now: NOW, days: 7 });
+        expect(model.trunk).toBe("development");
+        expect(model.release).toBe("main");
+        expect(model.trunkFrom).toBe("origin/HEAD");
+        expect(model.commits.map((x) => x.sha)).toEqual(["r1", "r2"]);
+        expect(model.quiet).toBe(false);
+    });
+
+    it("draws a project on main only as a single line", () => {
+        const model = buildLineMap({ git: project("main", "main", recent), now: NOW, days: 7 });
+        expect(model.release).toBeNull();
+        expect(model.commits).toHaveLength(2);
+    });
+
+    it("draws master's tags as stations", () => {
+        const git = project("master", "master", recent, {
+            tags: [
+                { name: "v0.2.0", sha: "r2", date: "2026-10-03T10:00:00Z" },
+                { name: "v0.1.0", sha: "r0", date: "2026-08-01T10:00:00Z" },
+            ],
+            lastpublic: "v0.2.0",
+        });
+        const model = buildLineMap({ git, now: NOW, days: 7 });
+        expect(model.stations.map((s) => s.name)).toEqual(["v0.2.0"]);
+        expect(model.earlier.map((s) => s.name)).toEqual(["v0.1.0"]);
+        expect(model.quiet).toBe(false);
+    });
+
+    it("says an old history is outside the window and offers the window that reaches it", () => {
+        const old = [c("o2", "2026-08-20T10:00:00Z", "last change"), c("o1", "2026-08-01T10:00:00Z", "first")];
+        const model = buildLineMap({ git: project("development", "development", old), now: NOW, days: 7 });
+        expect(model.commits).toEqual([]);
+        expect(model.quiet).toBe(true);
+        expect(model.lastActivity).toBe(new Date("2026-08-20T10:00:00Z").getTime());
+        expect(widerWindow(model, LineMapDayChoices)).toBe(60);
+        expect(widerWindow(model, [7, 14, 21])).toBe(21);
+        expect(
+            widerWindow(buildLineMap({ git: project("main", "main", recent), now: NOW, days: 7 }), LineMapDayChoices)
+        ).toBeNull();
+    });
+
+    it("is not quiet for a repository with no commit at all", () => {
+        const model = buildLineMap({ git: project("main", "main", [], { branches: [] }), now: NOW, days: 7 });
+        expect(model.quiet).toBe(false);
     });
 });

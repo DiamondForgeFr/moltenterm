@@ -414,7 +414,7 @@ func (p *Panes) addAnswerTime(state *PaneState) {
 // longLivedBranch: a branch pull requests target, never one waiting for its own PR (the Reviews "Upcoming" rule).
 func longLivedBranch(project string, branch string) bool {
 	switch branch {
-	case "main", "master", "develop", "trunk":
+	case "main", "master", "develop", "development", "dev", "trunk":
 		return true
 	}
 	configured := ConfiguredBranches(project)

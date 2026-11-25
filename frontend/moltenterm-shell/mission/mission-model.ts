@@ -88,6 +88,13 @@ export type MissionBranch = {
 export type MissionGit = {
     trunk: string;
     release: string;
+    // Where each name was read (molten.BranchFrom… in pkg/molten/branches.go): the settings, SaaSFoundry, or git
+    // alone (#2556).
+    trunkfrom?: string;
+    releasefrom?: string;
+    // The project settings declare its versions or releases; without them and without a tag, no next version is
+    // shown (#2556).
+    versionsdeclared?: boolean;
     current?: string;
     remoteurl?: string;
     branches: MissionBranch[];

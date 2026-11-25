@@ -4894,6 +4894,14 @@
         }
     },
     "mc": {
+        "branchFrom": {
+            "settings": "set in the project settings",
+            "saasfoundry": "set by SaaSFoundry",
+            "originHead": "the remote's default branch",
+            "repository": "found in the repository",
+            "checkout": "the branch checked out",
+            "default": "MoltenTerm's default"
+        },
         "ci": {
             "status": {
                 "running": "running",
@@ -4923,6 +4931,9 @@
             "next": "next",
             "publicRelease": "public release",
             "nothingToRelease": "nothing to release yet",
+            "noVersionScheme": "no version tagged yet",
+            "quiet": "Nothing happened in the last {days} days: the last activity was {when} ({ago}).",
+            "widen": "Show {days} days",
             "allOnMain": "all on main",
             "oneWaiting": "1 change waiting",
             "waiting": "{count} changes waiting",
@@ -5613,6 +5624,10 @@
             "updated": "updated {when}",
             "refresh": "Refresh",
             "refreshTitle": "Refresh (fetches from the remote)",
+            "noTrunk": "no branch found",
+            "noTrunkTitle": "Git names no branch in this repository yet: commit once, or set the branches in the project settings.",
+            "trunkFrom": "({from})",
+            "trunkTitle": "Reads {trunk}: {from}",
             "linkTitle": "Link this workspace to its project",
             "linkHint": "{title} shows the project of the active workspace. Link a folder here, or run molten project link in a terminal of the project.",
             "linkButton": "Link a project…",
@@ -7736,6 +7751,7 @@
             "chosenNote": "Chosen in the Release menu; the public release {tag} is on its way.",
             "onItsWay": "The public release {tag} is on its way.",
             "nothing": "Nothing to release yet.",
+            "noScheme": "No version yet: the project has no version tag and no version settings. The first tag sets the numbering.",
             "planned": "Planned — milestone {milestone}, {open}, nothing on {trunk} yet",
             "milestoneFirst": "Milestone {milestone} is due first; the changes on {trunk} fit in it.",
             "biggerBump": "{reason} on {trunk}: the changes call for a {level} version ({derived}). The release planned as {tag} can still go out under that number.",

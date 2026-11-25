@@ -25,6 +25,7 @@ import { everyInPanel, usePanelBlockId } from "../view360/offcarpet-model";
 import { openProjectSheet } from "../workspace-edit";
 import { pathBaseName, readWorkspaceProject, repositoryLabel } from "../workspace-project";
 import { chooseMoltentermPath, linkWorkspaceProject, ProjectFacts, readProjectFacts } from "../workspace-project-store";
+import { trunkRead } from "./branch-source";
 import { FolderEntry, gitProblem, sortFolderEntries } from "./git-problem";
 import { missionGitInit, useMissionSnapshot } from "./mission-client";
 import { formatAge, MissionSnapshot, pipelineInvocations, PipelineReport, pipelineStage } from "./mission-model";
@@ -189,13 +190,19 @@ export function MissionHeader({
     }, [panelId]);
     const name = project.facts?.name ?? pathBaseName(project.dir);
     const at = Math.max(snapshot?.gitat ?? 0, snapshot?.githubat ?? 0);
+    const read = trunkRead(snapshot?.git);
     return (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2">
             <div className="flex min-w-0 items-baseline gap-2">
-                <span className="truncate text-12 text-secondary" title={project.dir}>
+                <span className="truncate text-12 text-secondary" title={read?.title ?? project.dir}>
                     {name}
-                    {snapshot?.git ? ` · ${snapshot.git.trunk}` : ""}
+                    {read ? ` · ${read.trunk}` : ""}
                 </span>
+                {read?.from ? (
+                    <span className="shrink-0 text-11 text-muted" data-testid="mission-trunk-from">
+                        {read.from}
+                    </span>
+                ) : null}
             </div>
             <div className="ml-auto flex items-center gap-2">
                 {children}

@@ -20,7 +20,7 @@ func TestSetupBranchesFollowTheRepository(t *testing.T) {
 	}
 	both := surveyRepository(t, map[string]string{"README.md": "# App\n"})
 	gitIn(t, both, "branch", "main")
-	if b := SetupBranches(both); b.Trunk != "develop" || b.Release != "main" || b.TrunkFrom != molten.BranchFromDefault {
+	if b := SetupBranches(both); b.Trunk != "develop" || b.Release != "main" || b.TrunkFrom != BranchFromRepository {
 		t.Fatalf("develop and main: %+v", b)
 	}
 	declared := surveyRepository(t, map[string]string{".saasfoundry.json": `{"mainBranch": "master", "workflow": {"workingBranch": "trunk"}}`})

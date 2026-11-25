@@ -39,6 +39,8 @@ export type NextStation = {
     // The number the commits give, when the station is a milestone's instead (#2268): the Release menu keeps it as an
     // alternative.
     derivedtag?: string;
+    // The project has no version scheme yet: no tag, no settings (#2556).
+    noscheme?: boolean;
     // The commits call for a bigger bump than the station's number: starting it asks for a confirmation (#2268).
     bigger?: boolean;
 };
@@ -102,7 +104,7 @@ function plainStation(git: MissionGit, session: ReleaseSession, milestones?: rea
     const tree = toTreeData(git);
     const rules = treeRules(tree);
     const prefix = rules.tagprefix || DefaultTagPrefix;
-    const { next, lastPublic: last } = releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], rules);
+    const { next, lastPublic: last, lastRc } = releaseState(tree.tags, git.ahead ?? [], git.sincepublic ?? [], rules);
     // Picking the number happens in the Release menu: a public release on its way carries the chosen one.
     if (session?.channel === "public" && session.tag) {
         const decided = next.how !== "derived" || next.version !== session.version;
@@ -123,6 +125,18 @@ function plainStation(git: MissionGit, session: ReleaseSession, milestones?: rea
                 state: "nothing",
                 chip: null,
                 note: next.reason || t("project.station.nothing"),
+            }
+        );
+    }
+    if (next.how === "decision" && last == null && lastRc == null && !git.versionsdeclared) {
+        // No tag and no settings: the project has no version scheme, and no first number is made up (#2556).
+        return (
+            plannedStation(git, prefix, milestones, null) ?? {
+                tag: null,
+                state: "nothing",
+                chip: null,
+                note: t("project.station.noScheme"),
+                noscheme: true,
             }
         );
     }

@@ -190,9 +190,11 @@ func (r depRefs) watched(name string) string {
 	return r.local(name)
 }
 
-// trunkCandidates are the names the trunk may have: the declared one, else develop, main or master.
-func trunkCandidates(dir string) []string {
-	return []string{ConfiguredBranches(dir).Trunk, "develop", "main", "master"}
+// trunkCandidates are the names the trunk may have: the declared one, else the one git gives (origin's default branch,
+// #2556), else the usual names.
+func trunkCandidates(g *gitReader) []string {
+	detected, _ := molten.DetectTrunk(g.query())
+	return append([]string{ConfiguredBranches(g.dir).Trunk, detected}, molten.CommonTrunkNames...)
 }
 
 // trunk is the first candidate that exists, local or on origin.
@@ -337,7 +339,7 @@ func (g *gitReader) uncommitted(specs []string) ([]string, error) {
 
 // dependentTrunk is the dependent's trunk and its refs, local and on origin.
 func (g *gitReader) dependentTrunk() (string, []string, error) {
-	candidates := trunkCandidates(g.dir)
+	candidates := trunkCandidates(g)
 	refs, err := g.readDepRefs(candidates...)
 	if err != nil {
 		return "", nil, err
@@ -418,7 +420,7 @@ func EvaluateDependency(ctx context.Context, run Runner, group *molten.ProjectGr
 	// A partial clone would fetch the trees it lacks from its remote: the check makes no network call and writes nothing.
 	ctx = WithRunEnv(ctx, "GIT_NO_LAZY_FETCH=1")
 	src := &gitReader{ctx: ctx, run: run, dir: source.Dir}
-	candidates := trunkCandidates(source.Dir)
+	candidates := trunkCandidates(src)
 	refs, err := src.readDepRefs(append([]string{state.Branch}, candidates...)...)
 	if err != nil {
 		state.setProblem(DepStateError, uimsg.Make("mission.deps.readBranches", "name", source.Name, "detail", err.Error()), "reading %s's branches: %v", source.Name, err)
