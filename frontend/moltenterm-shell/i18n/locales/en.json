@@ -13746,7 +13746,7 @@
             "folderDialog": "Context folder",
             "folderHint": "Its workspaces stay in this folder. With no folder, nothing is limited.",
             "workspaces": "Workspaces",
-            "workspacesHint": "Tick the ones that belong to this context. A workspace ticked in another context moves here.",
+            "workspacesHint": "Tick the ones that belong to this context. One that is in another context moves here.",
             "workspacesCount": "{checked} of {total}",
             "noWorkspaces": "No saved workspace yet.",
             "elsewhere": "in {context}",
