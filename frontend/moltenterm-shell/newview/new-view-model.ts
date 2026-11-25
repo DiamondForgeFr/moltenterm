@@ -217,6 +217,21 @@ export function chooserListing(
     return { listed, order: webGroupOrder(baseOrder, webFirst), webFirst, address: address != null };
 }
 
+// What every palette lists for what was typed (#2545): the open palette, a split's or a new column's picker and a new
+// view's or panel's chooser all end their list with the typed words' web rows (chooserListing), so a query that matches
+// nothing is never a dead end. Only the chooser narrows its entries to what fills a view and lists the suggestions.
+export function paletteListing(
+    entries: PaletteEntry[],
+    query: string,
+    searchTemplate: string,
+    baseOrder: PaletteGroupId[],
+    chooser: boolean,
+    tr: (key: string) => string
+): ChooserListing {
+    const base = chooser ? [...suggestionEntries(tr), ...chooserListEntries(entries)] : entries;
+    return chooserListing(base, query, searchTemplate, baseOrder);
+}
+
 // The favourite shown as the target while the selected row of the list is a web row (#2312): an address to open or words
 // to search both open a web page panel, so the Web page favourite is selected the way the arrows would select it; -1
 // when the row is another or the favourites do not hold it.

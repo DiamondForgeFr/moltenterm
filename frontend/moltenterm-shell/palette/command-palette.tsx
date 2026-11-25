@@ -30,11 +30,9 @@ import {
     chooserAriaKey,
     chooserFooterKey,
     chooserKey,
-    chooserListEntries,
-    chooserListing,
     chooserPreselect,
     firstAgentIndex,
-    suggestionEntries,
+    paletteListing,
     webTargetFavorite,
 } from "../newview/new-view-model";
 import { NewViewMorphHint } from "../newview/new-view-morph-hint";
@@ -64,23 +62,17 @@ import { isSavedWorkspace } from "../workspace-rail-model";
 import { PalettePlacement, runPaletteEntry } from "./palette-actions";
 import {
     bestMatchIndex,
-    fillsPanel,
     filterPalette,
     flattenSections,
     moveSelection,
     PaletteEntry,
     PaletteGroupOrder,
     paletteKeyCommand,
+    paletteOpenPlan,
     PickerGroupOrder,
 } from "./palette-model";
 import { PaletteRow } from "./palette-row";
-import {
-    addressEntry,
-    buildPaletteEntries,
-    paletteGroupTitles,
-    PaletteWorkspace,
-    PickerSource,
-} from "./palette-sources";
+import { buildPaletteEntries, paletteGroupTitles, PaletteWorkspace, PickerSource } from "./palette-sources";
 
 export type CommandPaletteHost = "pane" | "modal";
 
@@ -370,17 +362,12 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
         [host, blockId, searching]
     );
     const locale = useLocale();
-    // In the chooser (#2312) the typed words always have a way forward: an address opens, any other words are a web
-    // search, last when a result is found through what its row shows, first and selected when none is.
+    // In every mode (#2312, #2545) the typed words always have a way forward: an address opens, any other words are a
+    // web search, last when a result is found through what its row shows, first and selected when none is.
     const inChooser = newView != null;
     const listing = useMemo(() => {
         const all = searching && panelEntries.length > 0 ? [...entries, ...panelEntries] : entries;
-        if (inChooser) {
-            const base = [...suggestionEntries(t), ...chooserListEntries(all)];
-            return chooserListing(base, query, searchTemplate, baseOrder);
-        }
-        const address = addressEntry(query);
-        return { listed: address != null ? [address, ...all] : all, order: baseOrder, webFirst: false, address: false };
+        return paletteListing(all, query, searchTemplate, baseOrder, inChooser, t);
     }, [entries, panelEntries, searching, query, inChooser, searchTemplate, baseOrder, locale]);
     const { listed, order, webFirst } = listing;
     // The way forward of an empty result (#1672) stays under the web row: asking the agent for a tool when no result
@@ -483,25 +470,25 @@ export function CommandPalette({ host, blockId, inPlace, inputRef, autoFocus, on
             return;
         }
         // In a split's picker the entry fills the new panel: it was opened for that.
-        const placement: PalettePlacement = right && blockId && picker == null ? "right" : inPlace;
+        const plan = paletteOpenPlan(entry.run, { inPlace, right, blockId, picker: picker != null });
         if (host === "modal") {
             onClose?.("open");
         }
-        if (picker != null && !fillsPanel(entry.run)) {
+        if (plan.kind === "elsewhere") {
             // An action that opens nothing in the new panel (a tab, the settings, a workspace) cancels the split
             // first, so no empty panel stays behind; "back to the origin" is the source panel.
             fireAndForget(async () => {
-                await cancelSplit(blockId, entry.run.kind !== "focusorigin");
-                if (entry.run.kind !== "focusorigin") {
+                await cancelSplit(blockId, !plan.focusOrigin);
+                if (!plan.focusOrigin) {
                     await runPaletteEntry(entry.run, { placement: "new", blockId: picker.blockId });
                 }
             });
             return;
         }
-        if (picker != null) {
+        if (plan.consumeSplit) {
             consumeSplit(blockId);
         }
-        fireAndForget(() => runPaletteEntry(entry.run, { placement, blockId }));
+        fireAndForget(() => runPaletteEntry(entry.run, { placement: plan.placement, blockId }));
     };
 
     const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
