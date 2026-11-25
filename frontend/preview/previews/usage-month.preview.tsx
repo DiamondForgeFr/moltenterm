@@ -7,6 +7,7 @@
 // ?w=420|760 the panel's width, ?row=2..7 one row alone, ?lang=fr, ?theme=light, ?brokk=1 the rows as Brokk's grid draws
 // them, with a logo in place of the label.
 
+import { useEffect, useState } from "react";
 import { weekRow as brokkRow } from "../../moltenterm-shell/boss/brokk-usage-block";
 import { usageGrid } from "../../moltenterm-shell/boss/brokk-usage-model";
 import { weekRow } from "../../moltenterm-shell/companion/companion-gauges";
@@ -27,8 +28,6 @@ if (query.get("lang")) {
 if (query.get("theme") === "light") {
     globalThis.document?.documentElement.classList.add("mt-light", "df-light");
 }
-// The preview has no app start to await the interface language: its texts are loaded before the first panel is drawn.
-await I18nModel.getInstance().whenReady();
 const Width = Number(query.get("w")) || 560;
 const Only = Number(query.get("row")) || 0;
 const BrokkRows = query.get("brokk") === "1";
@@ -175,7 +174,17 @@ function Panel({ c }: { c: Case }) {
 }
 
 export default function UsageMonthPreview() {
+    // The preview has no app start to await the interface language: its texts are loaded before the first panel is drawn.
+    const [ready, setReady] = useState(false);
+    useEffect(() => {
+        I18nModel.getInstance()
+            .whenReady()
+            .then(() => setReady(true));
+    }, []);
     const shown = Cases.filter((c) => Only === 0 || c.row === Only);
+    if (!ready) {
+        return null;
+    }
     return (
         <div className="flex flex-col gap-5 px-6 pb-10 pt-4" data-testid="usage-month-preview">
             {shown.map((c) => (
