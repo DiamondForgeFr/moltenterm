@@ -1,0 +1,17 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The row's two bookmark buttons (FR-BRW-019, #2531, the validated mockup's section 1). These rules load with the buttons,
+   which are in the panel's row from its first render: bookmarks.css loads only with the lazy popover and panel (#2560). */
+
+.molten-bm-add-icon.is-saved {
+    color: var(--mt-text-1);
+}
+
+/* The panel button takes the header's existing active fill and nothing more: no liseré (the same fill as the open carpet
+   button, view360.css). */
+.molten-bm-book[aria-pressed="true"] {
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+}
