@@ -13628,7 +13628,7 @@
             "folderDialog": "Dossier du contexte",
             "folderHint": "Ses espaces de travail restent dans ce dossier. Sans dossier, rien n'est limité.",
             "workspaces": "Espaces de travail",
-            "workspacesHint": "Cochez ceux qui appartiennent à ce contexte. Un espace coché dans un autre contexte y est déplacé.",
+            "workspacesHint": "Cochez ceux qui appartiennent à ce contexte. Un espace d'un autre contexte y est déplacé.",
             "workspacesCount": "{checked} sur {total}",
             "noWorkspaces": "Aucun espace de travail enregistré pour l'instant.",
             "elsewhere": "dans {context}",
