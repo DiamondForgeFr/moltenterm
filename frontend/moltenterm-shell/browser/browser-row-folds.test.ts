@@ -162,6 +162,7 @@ describe("the browser row's folds (#2489, FR-BRW-025 AC4)", () => {
             forward: "molten-fold-3",
             maximize: "molten-fold-3",
             reload: "molten-fold-4",
+            bookmarkPage: "molten-fold-4",
             bookmarks: "molten-fold-4",
             share: "molten-fold-2",
             engine: "molten-fold-2",
@@ -185,7 +186,7 @@ describe("the browser row's folds (#2489, FR-BRW-025 AC4)", () => {
         expect(menuPartsAt(440)).toEqual([]);
         expect(menuPartsAt(420)).toEqual(["copyLink", "share", "engine"]);
         expect(menuPartsAt(380)).toEqual(["forward", "maximize", "copyLink", "share", "engine"]);
-        const all = ["forward", "reload", "maximize", "copyLink", "bookmarks", "share", "engine"];
+        const all = ["forward", "reload", "bookmarkPage", "maximize", "copyLink", "bookmarks", "share", "engine"];
         expect(menuPartsAt(340)).toEqual(all);
         expect(menuPartsAt(300)).toEqual(all);
     });
@@ -217,24 +218,32 @@ describe("the browser row's controls and their order (#2489, FR-BRW-025 AC1 to A
             '"arrow-right"',
             "<CommentButton",
             '"rotate-right"',
+            "<BookmarkAddButton",
             "<TestContextChip",
             "<ConnectionControl",
             "<PageAddress",
         ]);
     });
 
-    it("keeps Back, Comment and Reload out of every focus-only group; Reload folds last", () => {
+    it("draws the add-bookmark button directly after Reload (and Stop), folding with them, last (#2531)", () => {
+        const afterReload = between(bar, '"rotate-right"', "<TestContextChip");
+        expect(afterReload).toContain("<BookmarkAddButton");
+        expect(between(afterReload, "<BookmarkAddButton", "/>")).toContain('className="molten-fold-4"');
+    });
+
+    it("keeps Back, Comment, Reload and the add button out of every focus-only group; they fold last", () => {
         const left = between(bar, '"arrow-left"', '<span className="mt-focus-only molten-fold-2');
         expect(left).not.toContain("mt-focus-only");
         expect(left).toContain('"molten-fold-3"');
-        expect(left.match(/"molten-fold-4"/g)).toHaveLength(2);
+        // Stop and Reload, then the add button, which folds with them.
+        expect(left.match(/"molten-fold-4"/g)).toHaveLength(3);
     });
 
     it("draws Share and Open in to the left of the end icons, in the only focus-only group but the test chip", () => {
         const tools = between(bar, 'data-testid="browser-focus-tools"', "</span>");
         expect(tools).toContain("<ShareButton");
         expect(tools).toContain("<EngineButton");
-        expect(tools).not.toContain("<BookmarksButton");
+        expect(tools).not.toContain("<BookmarksPanelButton");
         const group = between(bar, '<span\n                className="mt-focus-only', ">");
         expect(group).toContain("molten-fold-2");
         expect([...bar.matchAll(/mt-focus-only/g)]).toHaveLength(2);
@@ -247,16 +256,16 @@ describe("the browser row's controls and their order (#2489, FR-BRW-025 AC1 to A
         expect(more).not.toContain("mt-focus-only");
     });
 
-    it("draws Bookmarks, the 360 view button, settings, Maximize and Close on the right, in this order, shown at rest", () => {
+    it("draws the bookmarks panel button, the 360 view button, settings, Maximize and Close on the right, in this order, shown at rest", () => {
         inOrder(buttons, [
-            "<BookmarksButton",
+            "<BookmarksPanelButton",
             "<CarpetHeaderButton",
             'data-role="command-panel-trigger"',
             "<OptMagnifyButton",
             "<HeaderCloseButton",
         ]);
         expect(buttons).not.toContain("mt-focus-only");
-        expect(between(buttons, "<BookmarksButton", "/>")).toContain('className="molten-fold-4"');
+        expect(between(buttons, "<BookmarksPanelButton", "/>")).toContain('className="molten-fold-4"');
         expect(buttons).toMatch(/!magnified && "molten-fold-3"/);
     });
 

@@ -3,7 +3,8 @@
 
 // Package metaguard keeps the object meta the window trusts out of a terminal's reach (NFR-FORK-001, #1821). Wave's
 // GetMeta, SetMeta and WorkspaceList trust any terminal, so any agent, while MoltenTerm keeps user-trusted data in
-// object meta: the workspace's project folder, bookmarks, project views and pins, the tabs' pins and views. The caller
+// object meta: the workspace's project folder, project views and pins, the tabs' pins and views, the client's
+// bookmarks and contexts. The caller
 // is read from the link a request came in on (#662), never from what the request says.
 package metaguard
 
@@ -337,9 +338,16 @@ func CheckOwnWorkspace(c Caller, workspaceId string, what string) error {
 }
 
 // ReadMeta is the meta c gets for oref: everything but a workspace's, of which a terminal reads only its own
-// workspace's project link.
+// workspace's project link, and the client's bookmarks, which sit at every place of the developer's: a terminal reads
+// the ones visible from its own place through `molten bookmarks list`, never the whole value (#2531).
 func ReadMeta(c Caller, oref waveobj.ORef, meta waveobj.MetaMapType) (waveobj.MetaMapType, error) {
-	if c.Trusted || oref.OType != waveobj.OType_Workspace {
+	if c.Trusted {
+		return meta, nil
+	}
+	if oref.OType == waveobj.OType_Client {
+		return clientMetaWithoutBookmarks(meta), nil
+	}
+	if oref.OType != waveobj.OType_Workspace {
 		return meta, nil
 	}
 	if !c.ownsWorkspace(oref.OID) {
@@ -358,6 +366,19 @@ func ListedWorkspaceMeta(c Caller, workspaceId string, meta waveobj.MetaMapType)
 		return nil
 	}
 	return projectLinkMeta(meta)
+}
+
+func clientMetaWithoutBookmarks(meta waveobj.MetaMapType) waveobj.MetaMapType {
+	if _, has := meta[molten.BookmarksMetaKey]; !has {
+		return meta
+	}
+	rtn := make(waveobj.MetaMapType, len(meta))
+	for key, value := range meta {
+		if key != molten.BookmarksMetaKey {
+			rtn[key] = value
+		}
+	}
+	return rtn
 }
 
 func projectLinkMeta(meta waveobj.MetaMapType) waveobj.MetaMapType {

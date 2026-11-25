@@ -63,6 +63,8 @@ func moltenReadMeta(ctx context.Context, oref waveobj.ORef, meta waveobj.MetaMap
 	switch oref.OType {
 	case waveobj.OType_Workspace:
 		return metaguard.ReadMeta(moltenMetaCaller(ctx, true), oref, meta)
+	case waveobj.OType_Client:
+		return metaguard.ReadMeta(moltenMetaCaller(ctx, false), oref, meta)
 	case waveobj.OType_Block:
 		caller := moltenMetaCaller(ctx, true)
 		if caller.Trusted || caller.BlockId == oref.OID {

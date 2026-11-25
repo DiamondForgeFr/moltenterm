@@ -502,6 +502,7 @@ func removeProject(ctx context.Context, req projectviews.RemoveRequest) (project
 	defer sendProjectViewUpdates(ctx)
 	var placeholders []string
 	clientMeta := readClientMeta(ctx)
+	hasClient := clientExists(ctx)
 	err := wstore.WithTx(ctx, func(tx *wstore.TxWrap) error {
 		tctx := tx.Context()
 		ws, err := GetWorkspace(tctx, req.WorkspaceId)
@@ -551,8 +552,13 @@ func removeProject(ctx context.Context, req projectviews.RemoveRequest) (project
 		writeSlots(ws, slots)
 		meta := waveobj.MetaMapType{projectviews.ProjectsMetaKey: projectviews.ListValue(next)}
 		// Project ids are reused (the next free "pN"): a removed project's bookmarks must not reach the next project.
-		if left, changed := bookmarks.WithoutProject(ws.Meta, req.ProjectId); changed {
-			meta[molten.BookmarksMetaKey] = left
+		// They are in the client's meta, which this transaction saves with the workspace.
+		if hasClient {
+			if _, err := editBookmarksInTx(tctx, func(s bookmarks.Store) (bookmarks.Store, bool) {
+				return bookmarks.WithoutProject(s, req.WorkspaceId, req.ProjectId)
+			}); err != nil {
+				return err
+			}
 		}
 		if current == req.ProjectId {
 			maps.Copy(meta, projectviews.LiveUpdate(next[0]))

@@ -1,50 +1,95 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
     addBookmark,
-    AllBookmarks,
+    addPage,
+    Bookmark,
     bookmarkablePage,
     bookmarkAddress,
     BookmarkLimits,
     BookmarksMetaKey,
+    BookmarkStore,
+    bookmarksAt,
     copyBookmarkTo,
+    countAt,
     createFolder,
     deleteBookmark,
     deleteFolder,
-    findBookmarkByAddress,
+    EmptyStore,
+    findByAddress,
+    findVisibleByAddress,
+    foldersAt,
+    Here,
+    hereOf,
+    LevelApp,
+    LevelContext,
+    LevelProject,
+    LevelWorkspace,
     moveBookmark,
-    problemKey,
+    pageState,
+    parsePlaceKey,
+    placeBookmark,
+    PlaceRef,
+    placeKey,
+    plainText,
     problemMessage,
-    problemVars,
-    ProjectBookmarks,
     projectIdOfTab,
-    readProjectBookmarks,
+    projectPlaceId,
+    readStore,
+    refsHere,
     renameFolder,
     sameBookmarkAddress,
+    singleLine,
+    splitProjectPlaceId,
+    storeValue,
+    unplaceBookmark,
     updateBookmark,
-    withProjectsBookmarks,
+    visibleFrom,
+    visiblePlaces,
 } from "./bookmarks";
 
-// Ids in the order they are asked, so a test reads what it made.
+// Ids in the order they are asked, so a test reads what it made; the counter restarts with each test.
+let counter = 0;
+beforeEach(() => {
+    counter = 0;
+});
 function ids() {
-    let n = 0;
-    return (prefix: "b" | "f") => `${prefix}${++n}`;
+    return (prefix: "b" | "f") => `${prefix}${++counter}`;
 }
 
-const Empty: ProjectBookmarks = { folders: [], items: [] };
+const App: PlaceRef = { level: LevelApp, id: "" };
+const Ctx: PlaceRef = { level: LevelContext, id: "ctx1" };
+const OtherCtx: PlaceRef = { level: LevelContext, id: "ctx2" };
+const Ws: PlaceRef = { level: LevelWorkspace, id: "w1" };
+const OtherWs: PlaceRef = { level: LevelWorkspace, id: "w2" };
+const P1: PlaceRef = { level: LevelProject, id: projectPlaceId("w1", "p1") };
+// The same project id in another workspace: project ids repeat from one workspace to the next.
+const OtherP1: PlaceRef = { level: LevelProject, id: projectPlaceId("w2", "p1") };
 
-function added(data: ProjectBookmarks, draft: Partial<Parameters<typeof addBookmark>[1]>, makeId = ids()) {
-    const result = addBookmark(
-        data,
-        { url: "https://vite.dev/config/", title: "Vite config", description: "", folder: "", ...draft },
-        makeId
-    );
+const Here1: Here = { contextId: "ctx1", workspaceId: "w1", projectId: "p1" };
+
+const draft = (extra: Partial<{ url: string; title: string; description: string }> = {}) => ({
+    url: "https://vite.dev/config/",
+    title: "Vite config",
+    description: "",
+    ...extra,
+});
+
+function value<T>(result: { value?: T; problem?: string }): T {
     if (result.problem != null) {
-        throw new Error(problemKey(result.problem));
+        throw new Error(result.problem);
     }
     return result.value;
+}
+
+function add(store: BookmarkStore, ref: PlaceRef, extra = {}, makeId = ids()) {
+    return value(addBookmark(store, draft(extra), ref, {}, makeId));
+}
+
+function place(store: BookmarkStore, id: string, ref: PlaceRef, choice = {}) {
+    return value(placeBookmark(store, id, ref, choice, ids()));
 }
 
 describe("bookmarkAddress", () => {
@@ -82,32 +127,26 @@ describe("bookmarkAddress", () => {
         expect(bookmarkAddress(long).problem).toBe("browser.bookmarks.problem.addressTooLong");
     });
 
-    it("tells the pages a panel can bookmark", () => {
+    it("tells the pages a panel can bookmark, and still offers one whose address cannot be kept", () => {
         expect(bookmarkablePage("https://example.com/a")).toBe("https://example.com/a");
         expect(bookmarkablePage("about:blank#moltenterm-start")).toBe("");
         expect(bookmarkablePage("")).toBe("");
         expect(bookmarkablePage(undefined)).toBe("");
         expect(bookmarkablePage("file:///tmp/page.html")).toBe("");
-    });
-
-    it("still offers a web page whose address cannot be kept, so the dialog says why", () => {
         const long = "https://example.com/" + "a".repeat(BookmarkLimits.url);
         expect(bookmarkablePage(long)).toBe(long);
-        expect(bookmarkAddress(long).problem).toBe("browser.bookmarks.problem.addressTooLong");
         const withPassword = "https://user:secret@example.com/";
         expect(bookmarkablePage(withPassword)).toBe(withPassword);
-        expect(bookmarkAddress(withPassword).problem).toBe("browser.bookmarks.problem.credentials");
     });
 
-    it("says a problem with its numbers and, for another project, that project's name", () => {
+    it("says a problem with its numbers", () => {
         const say = (key: string, vars?: Record<string, string | number>) => `${key}|${JSON.stringify(vars)}`;
         expect(problemMessage("browser.bookmarks.problem.tooMany", say)).toBe(
             `browser.bookmarks.problem.tooMany|{"max":${BookmarkLimits.items}}`
         );
-        expect(problemMessage({ key: "browser.bookmarks.problem.alsoTooMany", project: "Website" }, say)).toBe(
-            `browser.bookmarks.problem.alsoTooMany|{"max":${BookmarkLimits.items},"project":"Website"}`
+        expect(problemMessage("browser.bookmarks.problem.tooManyPlaces", say)).toBe(
+            `browser.bookmarks.problem.tooManyPlaces|{"max":${BookmarkLimits.places}}`
         );
-        expect(problemKey({ key: "k", project: "p" })).toBe("k");
     });
 
     it("takes a fragment or a lone trailing slash for the same page", () => {
@@ -116,325 +155,40 @@ describe("bookmarkAddress", () => {
         expect(sameBookmarkAddress("https://example.com/a?x=1", "https://example.com/a?x=2")).toBe(false);
         expect(sameBookmarkAddress("", "")).toBe(false);
     });
-});
 
-describe("addBookmark", () => {
-    it("adds a bookmark outside any folder, titled from the page or from its host", () => {
-        const { data, bookmark } = added(Empty, { description: "The build options." });
-        expect(data.items).toEqual([bookmark]);
-        expect(bookmark).toEqual({
-            id: "b1",
-            url: "https://vite.dev/config/",
-            title: "Vite config",
-            description: "The build options.",
-            folder: "",
-        });
-        expect(added(Empty, { title: "  " }).bookmark.title).toBe("vite.dev");
-    });
-
-    it("puts it in an existing folder, or creates the folder by name and reuses one of that name", () => {
-        const makeId = ids();
-        const first = added(Empty, { newFolder: "Docs" }, makeId);
-        expect(first.data.folders).toEqual([{ id: "f1", name: "Docs" }]);
-        expect(first.bookmark.folder).toBe("f1");
-        const second = added(first.data, { url: "https://a.example.com", newFolder: " docs " }, makeId);
-        expect(second.data.folders).toHaveLength(1);
-        expect(second.bookmark.folder).toBe("f1");
-        const third = added(second.data, { url: "https://b.example.com", folder: "f1" }, makeId);
-        expect(third.bookmark.folder).toBe("f1");
-        const unknown = added(third.data, { url: "https://c.example.com", folder: "gone" }, makeId);
-        expect(unknown.bookmark.folder).toBe("");
-    });
-
-    it("refuses a second bookmark with the same address in the project, whatever its fragment", () => {
-        const { data } = added(Empty, {});
-        const again = addBookmark(data, {
-            url: "https://vite.dev/config/#plugins",
-            title: "",
-            description: "",
-            folder: "",
-        });
-        expect(again.problem).toBe("browser.bookmarks.problem.alreadyThere");
-        expect(findBookmarkByAddress(data, "https://vite.dev/config")?.id).toBe("b1");
-    });
-
-    it("keeps to the limits and says which one", () => {
-        const draft = { url: "https://example.com/", title: "", description: "", folder: "" };
-        expect(addBookmark(Empty, { ...draft, title: "t".repeat(BookmarkLimits.title + 1) }).problem).toBe(
-            "browser.bookmarks.problem.titleTooLong"
-        );
-        expect(addBookmark(Empty, { ...draft, description: "d".repeat(BookmarkLimits.description + 1) }).problem).toBe(
-            "browser.bookmarks.problem.descriptionTooLong"
-        );
-        const full: ProjectBookmarks = {
-            folders: [],
-            items: Array.from({ length: BookmarkLimits.items }, (_, i) => ({
-                id: `b${i}`,
-                url: `https://example.com/${i}`,
-                title: "t",
-                description: "",
-                folder: "",
-            })),
-        };
-        expect(addBookmark(full, draft).problem).toBe("browser.bookmarks.problem.tooMany");
-        expect(problemVars("browser.bookmarks.problem.tooMany")).toEqual({ max: BookmarkLimits.items });
-        const manyFolders: ProjectBookmarks = {
-            folders: Array.from({ length: BookmarkLimits.folders }, (_, i) => ({ id: `f${i}`, name: `Folder ${i}` })),
-            items: [],
-        };
-        expect(addBookmark(manyFolders, { ...draft, newFolder: "One more" }).problem).toBe(
-            "browser.bookmarks.problem.tooManyFolders"
-        );
-    });
-
-    it("cleans control characters and flattens a title to one line, but keeps a note's lines", () => {
-        const { bookmark } = added(Empty, { title: "Two\nlines\u0007", description: "Line one\nline two\u0000" });
-        expect(bookmark.title).toBe("Two lines");
-        expect(bookmark.description).toBe("Line one\nline two");
+    it("flattens a title to one line and removes control characters", () => {
+        expect(singleLine("  Vite \n config\t ")).toBe("Vite config");
+        expect(plainText("a\u0007b\u001b[31mc")).toBe("ab[31mc");
     });
 });
 
-describe("updateBookmark and moveBookmark", () => {
-    it("edits a bookmark in place, and refuses the address of another one", () => {
-        const makeId = ids();
-        const one = added(Empty, {}, makeId);
-        const two = added(one.data, { url: "https://b.example.com", title: "B" }, makeId);
-        const edited = updateBookmark(
-            two.data,
-            "b1",
-            {
-                url: "https://vite.dev/guide/",
-                title: "Guide",
-                description: "Start here",
-                folder: "",
-                newFolder: "Docs",
-            },
-            makeId
-        );
-        expect(edited.problem).toBeUndefined();
-        expect(edited.value.items[0]).toMatchObject({
-            id: "b1",
-            url: "https://vite.dev/guide/",
-            title: "Guide",
-            description: "Start here",
-        });
-        expect(edited.value.folders).toHaveLength(1);
-        expect(edited.value.items[1]).toEqual(two.data.items[1]);
-        const clash = updateBookmark(two.data, "b1", {
-            url: "https://b.example.com/",
-            title: "",
-            description: "",
-            folder: "",
-        });
-        expect(clash.problem).toBe("browser.bookmarks.problem.alreadyThere");
-        expect(
-            updateBookmark(two.data, "nope", { url: "https://c.example.com", title: "", description: "", folder: "" })
-                .problem
-        ).toBe("browser.bookmarks.problem.gone");
-        const same = updateBookmark(two.data, "b1", {
-            url: "https://vite.dev/config/",
-            title: "Renamed",
-            description: "",
-            folder: "",
-        });
-        expect(same.value.items[0].title).toBe("Renamed");
+describe("the places of a bookmark (FR-BRW-019, #2531)", () => {
+    it("names each level by its key, and a project by its workspace and its own id", () => {
+        expect(placeKey(App)).toBe("app");
+        expect(placeKey(Ctx)).toBe("context:ctx1");
+        expect(placeKey(Ws)).toBe("workspace:w1");
+        expect(placeKey(P1)).toBe("project:w1/p1");
+        for (const ref of [App, Ctx, Ws, P1]) {
+            expect(parsePlaceKey(placeKey(ref))).toEqual(ref);
+        }
+        expect(parsePlaceKey("nonsense")).toBeNull();
+        expect(parsePlaceKey("project:")).toBeNull();
+        expect(parsePlaceKey("galaxy:x")).toBeNull();
+        expect(splitProjectPlaceId(P1.id)).toEqual({ workspaceId: "w1", projectId: "p1" });
     });
 
-    it("moves a bookmark between the project and its folders, never to a folder that is not there", () => {
-        const withFolder = createFolder(added(Empty, {}).data, "Docs", ids()).value;
-        const [folder] = withFolder.folders;
-        const moved = moveBookmark(withFolder, "b1", folder.id);
-        expect(moved.items[0].folder).toBe(folder.id);
-        expect(moveBookmark(moved, "b1", "").items[0].folder).toBe("");
-        expect(moveBookmark(moved, "b1", "gone")).toBe(moved);
-    });
-});
-
-describe("folders", () => {
-    it("are named uniquely in a project, case ignored, and one level deep", () => {
-        const makeId = ids();
-        const one = createFolder(Empty, " Docs ", makeId).value;
-        expect(one.folders[0].name).toBe("Docs");
-        expect(createFolder(one, "docs", makeId).problem).toBe("browser.bookmarks.problem.folderTaken");
-        expect(createFolder(one, "  ", makeId).problem).toBe("browser.bookmarks.problem.noFolderName");
-        expect(createFolder(one, "x".repeat(BookmarkLimits.folderName + 1), makeId).problem).toBe(
-            "browser.bookmarks.problem.folderNameTooLong"
-        );
+    it("keeps the project of one workspace apart from the same project id of another", () => {
+        expect(placeKey(P1)).not.toBe(placeKey(OtherP1));
     });
 
-    it("rename, keeping the bookmarks in them", () => {
-        const makeId = ids();
-        const { data } = added(Empty, { newFolder: "Docs" }, makeId);
-        const renamed = renameFolder(data, "f1", "Reference");
-        expect(renamed.value.folders).toEqual([{ id: "f1", name: "Reference" }]);
-        expect(renamed.value.items[0].folder).toBe("f1");
-        expect(renameFolder(data, "f1", "Docs").problem).toBeUndefined();
-        expect(renameFolder(createFolder(data, "Ops", makeId).value, "f1", "ops").problem).toBe(
-            "browser.bookmarks.problem.folderTaken"
-        );
-        expect(renameFolder(data, "gone", "X").problem).toBe("browser.bookmarks.problem.gone");
+    it("lists the places of here, widest first, without a project when none is linked", () => {
+        expect(refsHere(Here1)).toEqual([App, Ctx, Ws, P1]);
+        expect(refsHere({ ...Here1, projectId: null })).toEqual([App, Ctx, Ws]);
     });
 
-    it("delete without losing a bookmark: they stay in the project", () => {
-        const { data } = added(Empty, { newFolder: "Docs" });
-        const after = deleteFolder(data, "f1");
-        expect(after.folders).toEqual([]);
-        expect(after.items).toHaveLength(1);
-        expect(after.items[0].folder).toBe("");
-    });
-});
-
-describe("deleteBookmark", () => {
-    it("removes only that bookmark", () => {
-        const makeId = ids();
-        const one = added(Empty, {}, makeId);
-        const two = added(one.data, { url: "https://b.example.com" }, makeId);
-        expect(deleteBookmark(two.data, "b1").items.map((b) => b.id)).toEqual(["b2"]);
-    });
-});
-
-describe("copyBookmarkTo", () => {
-    it("makes an independent copy, in the folder of the same name, created when missing", () => {
-        const makeId = ids();
-        const a = added(Empty, { description: "Note", newFolder: "Docs" }, makeId);
-        const copied = copyBookmarkTo(a.data, a.bookmark.id, Empty, makeId);
-        expect(copied.problem).toBeUndefined();
-        const b = copied.value;
-        expect(b.folders.map((f) => f.name)).toEqual(["Docs"]);
-        expect(b.items).toHaveLength(1);
-        expect(b.items[0]).toMatchObject({ url: a.bookmark.url, title: a.bookmark.title, description: "Note" });
-        expect(b.items[0].id).not.toBe(a.bookmark.id);
-        expect(b.items[0].folder).toBe(b.folders[0].id);
-        const edited = updateBookmark(b, b.items[0].id, {
-            url: a.bookmark.url,
-            title: "Changed",
-            description: "Other",
-            folder: "",
-        });
-        expect(edited.value.items[0].title).toBe("Changed");
-        expect(a.data.items[0].title).toBe("Vite config");
-        expect(a.data.items[0].description).toBe("Note");
-    });
-
-    it("lands outside folders when the original is, reuses a folder of that name, and refuses a duplicate", () => {
-        const makeId = ids();
-        const a = added(Empty, {}, makeId);
-        const target = createFolder(Empty, "Docs", makeId).value;
-        const first = copyBookmarkTo(a.data, "b1", target, makeId);
-        expect(first.value.items[0].folder).toBe("");
-        expect(copyBookmarkTo(a.data, "b1", first.value, makeId).problem).toBe(
-            "browser.bookmarks.problem.alreadyThere"
-        );
-        expect(copyBookmarkTo(a.data, "gone", target, makeId).problem).toBe("browser.bookmarks.problem.gone");
-        const inDocs = added(Empty, { newFolder: "docs" }, makeId);
-        expect(copyBookmarkTo(inDocs.data, inDocs.bookmark.id, target, makeId).value.folders).toHaveLength(1);
-    });
-});
-
-describe("what the workspace stores", () => {
-    const meta = {
-        [BookmarksMetaKey]: {
-            p1: {
-                folders: [
-                    { id: "f1", name: "Docs" },
-                    { id: "f1", name: "Twice" },
-                    { id: "", name: "No id" },
-                ],
-                items: [
-                    { id: "b1", url: "https://a.example.com", title: "A", description: " note ", folder: "f1" },
-                    { id: "b2", url: "https://b.example.com", folder: "gone" },
-                    { id: "b1", url: "https://dup.example.com" },
-                    { id: "b3", url: "" },
-                    "oops",
-                    null,
-                ],
-            },
-            p2: "oops",
-        },
-    };
-
-    it("reads one project's bookmarks, dropping what is malformed", () => {
-        const data = readProjectBookmarks(meta, "p1");
-        expect(data.folders).toEqual([{ id: "f1", name: "Docs" }]);
-        expect(data.items).toEqual([
-            { id: "b1", url: "https://a.example.com/", title: "A", description: "note", folder: "f1" },
-            { id: "b2", url: "https://b.example.com/", title: "https://b.example.com/", description: "", folder: "" },
-        ]);
-        expect(readProjectBookmarks(meta, "p2").items).toEqual([]);
-        expect(readProjectBookmarks(meta, "p9").items).toEqual([]);
-        expect(readProjectBookmarks({}, "p1").items).toEqual([]);
-        expect(readProjectBookmarks(null, "p1").items).toEqual([]);
-    });
-
-    // `wsh setmeta workspace:<id>` writes any key: what the window shows and opens is checked again as it is read.
-    it("ignores a bookmark whose address is not a safe web address, whoever wrote it", () => {
-        const planted = {
-            [BookmarksMetaKey]: {
-                p1: {
-                    folders: [],
-                    items: [
-                        { id: "a", url: "javascript:alert(document.cookie)", title: "Docs" },
-                        { id: "b", url: "file:///etc/passwd", title: "Passwords" },
-                        { id: "c", url: "data:text/html,<script>1</script>", title: "Page" },
-                        { id: "d", url: "vscode://file/etc/hosts", title: "Editor" },
-                        { id: "e", url: "https://user:secret@example.com/", title: "With a password" },
-                        { id: "f", url: "https://example.com/" + "a".repeat(BookmarkLimits.url), title: "Too long" },
-                        { id: "g", url: "https://good.example.com/page", title: "Good" },
-                        { id: "h", url: "good.example.org/page", title: "No scheme" },
-                    ],
-                },
-            },
-        };
-        const items = readProjectBookmarks(planted, "p1").items;
-        expect(items.map((b) => b.id)).toEqual(["g", "h"]);
-        expect(items.map((b) => b.url)).toEqual(["https://good.example.com/page", "https://good.example.org/page"]);
-    });
-
-    it("cuts what is read to the limits: texts, folders and bookmarks", () => {
-        const folders = Array.from({ length: BookmarkLimits.folders + 20 }, (_, i) => ({
-            id: `f${i}`,
-            name: i === 0 ? "n".repeat(BookmarkLimits.folderName + 40) : `Folder ${i}`,
-        }));
-        const items = Array.from({ length: BookmarkLimits.items + 50 }, (_, i) => ({
-            id: `b${i}`,
-            url: `https://example.com/${i}`,
-            title: i === 0 ? "t".repeat(BookmarkLimits.title + 300) : `Page ${i}`,
-            description: i === 0 ? "d".repeat(BookmarkLimits.description + 500) : "",
-            folder: i === 1 ? `f${BookmarkLimits.folders + 5}` : "f0",
-        }));
-        const data = readProjectBookmarks({ [BookmarksMetaKey]: { p1: { folders, items } } }, "p1");
-        expect(data.folders).toHaveLength(BookmarkLimits.folders);
-        expect(data.folders[0].name).toHaveLength(BookmarkLimits.folderName);
-        expect(data.items).toHaveLength(BookmarkLimits.items);
-        expect(data.items[0].title).toHaveLength(BookmarkLimits.title);
-        expect(data.items[0].description).toHaveLength(BookmarkLimits.description);
-        // A folder beyond the limit is gone, so its bookmark reads as directly in the project.
-        expect(data.items[1].folder).toBe("");
-    });
-
-    it("keeps only the projects the workspace has, and none for an empty project", () => {
-        const stored: AllBookmarks = {
-            p1: {
-                folders: [],
-                items: [{ id: "b1", url: "https://a.example.com", title: "A", description: "", folder: "" }],
-            },
-            p2: {
-                folders: [],
-                items: [{ id: "b2", url: "https://b.example.com", title: "B", description: "", folder: "" }],
-            },
-            p3: {
-                folders: [],
-                items: [{ id: "b3", url: "https://c.example.com", title: "C", description: "", folder: "" }],
-            },
-        };
-        const next = withProjectsBookmarks({ [BookmarksMetaKey]: stored }, { p2: Empty }, ["p1", "p2"]);
-        expect(Object.keys(next)).toEqual(["p1"]);
-        expect(withProjectsBookmarks({ [BookmarksMetaKey]: stored }, { p1: Empty }, ["p1"])).toBeNull();
-        expect(withProjectsBookmarks({}, {}, ["p1"])).toBeNull();
-    });
-
-    it("finds a tab's project like wavesrv does: the tab's owner, else the current project", () => {
+    it("finds the here of a panel's tab: its context, its workspace and its tab's project", () => {
         const ws = {
+            oid: "w1",
             meta: {
                 "molten:projects": [
                     { id: "p1", type: "Desktop", dir: "/work/app" },
@@ -443,14 +197,535 @@ describe("what the workspace stores", () => {
                 "molten:currentproject": "p1",
                 "molten:project": "/work/app",
                 "molten:projecttype": "Desktop",
-                "molten:tabprojects": { "tab-web": "p2", "tab-gone": "p9" },
+                "molten:context": "ctx2",
+                "molten:tabprojects": { tabB: "p2", tabGone: "p9" },
             },
         };
-        expect(projectIdOfTab(ws, "tab-web")).toBe("p2");
-        expect(projectIdOfTab(ws, "tab-other")).toBe("p1");
-        expect(projectIdOfTab(ws, "tab-gone")).toBe("p1");
-        expect(projectIdOfTab(ws, null)).toBe("p1");
-        expect(projectIdOfTab({ meta: {} }, "tab-web")).toBeNull();
-        expect(projectIdOfTab({ meta: { "molten:project": "/work/app" } }, "tab-x")).toBe("p1");
+        const contexts = [{ id: "ctx1" }, { id: "ctx2" }];
+        expect(projectIdOfTab(ws, "tabA")).toBe("p1");
+        expect(projectIdOfTab(ws, "tabB")).toBe("p2");
+        expect(projectIdOfTab(ws, "tabGone")).toBe("p1");
+        expect(hereOf(ws, contexts, "tabB")).toEqual({ contextId: "ctx2", workspaceId: "w1", projectId: "p2" });
+        expect(hereOf({ oid: "w3", meta: {} }, contexts, "t")).toEqual({
+            contextId: "ctx1",
+            workspaceId: "w3",
+            projectId: null,
+        });
+    });
+});
+
+describe("addBookmark", () => {
+    it("adds a bookmark with one place outside any folder, titled from the page or from its host", () => {
+        const { store, bookmark } = add(EmptyStore, P1, { description: "The build options." });
+        expect(store.records).toEqual([bookmark]);
+        expect(bookmark).toEqual({
+            id: "b1",
+            url: "https://vite.dev/config/",
+            title: "Vite config",
+            description: "The build options.",
+            places: [{ level: LevelProject, id: P1.id, folder: "" }],
+        });
+        expect(add(EmptyStore, Ws, { title: "  " }).bookmark.title).toBe("vite.dev");
+    });
+
+    it("puts it in a folder of the place, or creates the folder by name and reuses one of that name", () => {
+        const makeId = ids();
+        const first = value(addBookmark(EmptyStore, draft(), Ws, { newFolder: "Docs" }, makeId));
+        expect(foldersAt(first.store, Ws).map((f) => f.name)).toEqual(["Docs"]);
+        expect(first.bookmark.places[0].folder).toBe(foldersAt(first.store, Ws)[0].id);
+        const second = value(
+            addBookmark(first.store, draft({ url: "https://a.example/" }), Ws, { newFolder: " docs " }, makeId)
+        );
+        expect(foldersAt(second.store, Ws)).toHaveLength(1);
+        expect(second.bookmark.places[0].folder).toBe(first.bookmark.places[0].folder);
+        const known = value(
+            addBookmark(second.store, draft({ url: "https://b.example/" }), Ws, { folder: "nope" }, makeId)
+        );
+        expect(known.bookmark.places[0].folder).toBe("");
+    });
+
+    it("refuses a second bookmark with the same address at the same place, whatever its fragment", () => {
+        const { store } = add(EmptyStore, P1);
+        expect(addBookmark(store, draft({ url: "https://vite.dev/config#top" }), P1).problem).toBe(
+            "browser.bookmarks.problem.alreadyThere"
+        );
+        // Another place may hold the same address: it is another bookmark there.
+        expect(addBookmark(store, draft(), Ws).problem).toBeUndefined();
+    });
+
+    it("keeps to the limits and says which one", () => {
+        let store = EmptyStore;
+        for (let i = 0; i < BookmarkLimits.items; i++) {
+            store = value(addBookmark(store, draft({ url: `https://a.example/${i}` }), Ws, {}, ids())).store;
+        }
+        expect(addBookmark(store, draft({ url: "https://a.example/one-more" }), Ws).problem).toBe(
+            "browser.bookmarks.problem.tooMany"
+        );
+        // The limit is per place.
+        expect(addBookmark(store, draft({ url: "https://a.example/one-more" }), P1).problem).toBeUndefined();
+        expect(addBookmark(EmptyStore, draft({ title: "t".repeat(BookmarkLimits.title + 1) }), Ws).problem).toBe(
+            "browser.bookmarks.problem.titleTooLong"
+        );
+        expect(
+            addBookmark(EmptyStore, draft({ description: "d".repeat(BookmarkLimits.description + 1) }), Ws).problem
+        ).toBe("browser.bookmarks.problem.descriptionTooLong");
+        expect(addBookmark(EmptyStore, draft({ url: "ftp://x.example/" }), Ws).problem).toBe(
+            "browser.bookmarks.problem.notWeb"
+        );
+    });
+
+    it("keeps no more than the app's limit of bookmarks", () => {
+        const full: BookmarkStore = {
+            folders: {},
+            records: Array.from({ length: BookmarkLimits.records }, (_, i) => ({
+                id: `b${i}`,
+                url: `https://a.example/${i}`,
+                title: "t",
+                description: "",
+                places: [{ ...App, folder: "" }],
+            })),
+        };
+        expect(addBookmark(full, draft({ url: "https://z.example/" }), Ws).problem).toBe(
+            "browser.bookmarks.problem.tooManyBookmarks"
+        );
+    });
+
+    it("cleans control characters and flattens a title to one line, but keeps a note's lines", () => {
+        const { bookmark } = add(EmptyStore, Ws, { title: "A\n\tB\u0007", description: "line 1\nline 2\u001b" });
+        expect(bookmark.title).toBe("A B");
+        expect(bookmark.description).toBe("line 1\nline 2");
+    });
+});
+
+describe("one bookmark, several places", () => {
+    it("places the same record at another place: its text is the same everywhere, each place has its own folder", () => {
+        const first = add(EmptyStore, P1, { description: "note" });
+        const withFolder = value(createFolder(first.store, Ws, "Environments", ids()));
+        const folder = withFolder.folder.id;
+        const placed = place(withFolder.store, first.bookmark.id, Ws, { folder });
+        expect(placed.records).toHaveLength(1);
+        const [b] = placed.records;
+        expect(b.places).toEqual([
+            { level: LevelProject, id: P1.id, folder: "" },
+            { level: LevelWorkspace, id: "w1", folder },
+        ]);
+        expect(bookmarksAt(placed, P1, "")).toEqual([b]);
+        expect(bookmarksAt(placed, Ws, folder)).toEqual([b]);
+        expect(bookmarksAt(placed, Ws, "")).toEqual([]);
+    });
+
+    it("renames it everywhere with one change, and changes its note everywhere", () => {
+        const first = add(EmptyStore, P1);
+        const shared = place(place(first.store, "b1", Ws), "b1", App);
+        const renamed = value(updateBookmark(shared, "b1", draft({ title: "Renamed", description: "New note" })));
+        for (const ref of [P1, Ws, App]) {
+            const [only] = bookmarksAt(renamed, ref);
+            expect(only).toMatchObject({ id: "b1", title: "Renamed", description: "New note" });
+        }
+        expect(renamed.records).toHaveLength(1);
+    });
+
+    it("refuses to change its address onto another bookmark's address at one of its places", () => {
+        const a = add(EmptyStore, Ws);
+        const b = value(addBookmark(a.store, draft({ url: "https://other.example/" }), Ws, {}, ids()));
+        expect(updateBookmark(b.store, b.bookmark.id, draft({ url: "https://vite.dev/config/" })).problem).toBe(
+            "browser.bookmarks.problem.alreadyThere"
+        );
+    });
+
+    it("moves it to another folder of a place it already has, and refuses an address the new place holds", () => {
+        const { store } = add(EmptyStore, Ws);
+        const withFolder = value(createFolder(store, Ws, "Docs", ids()));
+        const moved = place(withFolder.store, "b1", Ws, { folder: withFolder.folder.id });
+        expect(moved.records[0].places).toEqual([{ level: LevelWorkspace, id: "w1", folder: withFolder.folder.id }]);
+        expect(moved.records).toHaveLength(1);
+        const twin = value(addBookmark(moved, draft({ title: "Twin" }), P1, {}, ids())).store;
+        expect(placeBookmark(twin, "b1", P1).problem).toBe("browser.bookmarks.problem.alreadyThere");
+    });
+
+    it("holds no more places than the limit", () => {
+        let store = add(EmptyStore, App).store;
+        for (let i = 1; i < BookmarkLimits.places; i++) {
+            store = place(store, "b1", { level: LevelWorkspace, id: `w${i}` });
+        }
+        expect(placeBookmark(store, "b1", { level: LevelWorkspace, id: "overflow" }).problem).toBe(
+            "browser.bookmarks.problem.tooManyPlaces"
+        );
+    });
+
+    it("removes it from one place only, and deletes it when its last place goes", () => {
+        const first = add(EmptyStore, P1);
+        const shared = place(first.store, "b1", Ws);
+        const fromProject = unplaceBookmark(shared, "b1", P1);
+        expect(fromProject.records[0].places).toEqual([{ level: LevelWorkspace, id: "w1", folder: "" }]);
+        expect(unplaceBookmark(fromProject, "b1", Ws).records).toEqual([]);
+        // A place it is not at changes nothing.
+        expect(unplaceBookmark(shared, "b1", App)).toBe(shared);
+    });
+
+    it("deletes it everywhere in one go, and only it", () => {
+        const first = add(EmptyStore, P1);
+        const other = value(addBookmark(first.store, draft({ url: "https://b.example/" }), P1, {}, ids()));
+        const shared = place(other.store, "b1", Ws);
+        const left = deleteBookmark(shared, "b1");
+        expect(left.records.map((b) => b.url)).toEqual(["https://b.example/"]);
+        expect(bookmarksAt(left, Ws)).toEqual([]);
+    });
+
+    it("moves it from one place to another, keeping its other places", () => {
+        const first = add(EmptyStore, P1);
+        const shared = place(first.store, "b1", App);
+        const moved = value(moveBookmark(shared, "b1", P1, Ws, {}, ids()));
+        expect(moved.records[0].places).toEqual([
+            { level: LevelApp, id: "", folder: "" },
+            { level: LevelWorkspace, id: "w1", folder: "" },
+        ]);
+        expect(moveBookmark(shared, "b1", Ctx, Ws).problem).toBe("browser.bookmarks.problem.gone");
+        // Onto the place it is already at, it only changes folder.
+        const withFolder = value(createFolder(shared, App, "Docs", ids()));
+        const inFolder = value(moveBookmark(withFolder.store, "b1", App, App, { folder: withFolder.folder.id }, ids()));
+        expect(inFolder.records[0].places.find((p) => p.level === LevelApp).folder).toBe(withFolder.folder.id);
+    });
+
+    it("makes a separate copy with its own name, refused where the original sits already", () => {
+        const first = add(EmptyStore, P1, { description: "note" });
+        const copy = value(copyBookmarkTo(first.store, "b1", Ws, {}, ids()));
+        expect(copy.bookmark.id).not.toBe("b1");
+        expect(copy.store.records).toHaveLength(2);
+        const renamed = value(updateBookmark(copy.store, copy.bookmark.id, draft({ title: "Mine" })));
+        expect(renamed.records.find((b) => b.id === "b1").title).toBe("Vite config");
+        expect(copyBookmarkTo(first.store, "b1", P1).problem).toBe("browser.bookmarks.problem.alreadyThere");
+        expect(copyBookmarkTo(first.store, "nope", Ws).problem).toBe("browser.bookmarks.problem.gone");
+    });
+
+    it("counts what a place holds", () => {
+        const first = add(EmptyStore, P1);
+        const shared = place(first.store, "b1", Ws);
+        expect([countAt(shared, P1), countAt(shared, Ws), countAt(shared, App)]).toEqual([1, 1, 0]);
+    });
+});
+
+describe("visibility from a place", () => {
+    function world() {
+        let store = EmptyStore;
+        const makeId = ids();
+        const put = (title: string, url: string, ref: PlaceRef) => {
+            store = value(addBookmark(store, { url, title, description: "" }, ref, {}, makeId)).store;
+        };
+        put("App wide", "https://app.example/", App);
+        put("This context", "https://ctx.example/", Ctx);
+        put("Another context", "https://ctx2.example/", OtherCtx);
+        put("This workspace", "https://ws.example/", Ws);
+        put("Another workspace", "https://ws2.example/", OtherWs);
+        put("This project", "https://p1.example/", P1);
+        put("Same project id elsewhere", "https://op1.example/", OtherP1);
+        return store;
+    }
+
+    it("shows those of its app, its context, its workspace and its project, and no others", () => {
+        const titles = visibleFrom(world(), Here1).map((b) => b.title);
+        expect(titles).toEqual(["App wide", "This context", "This workspace", "This project"]);
+    });
+
+    it("shows a bookmark of the context from every workspace of that context, and not from another context", () => {
+        const store = world();
+        const sibling: Here = { contextId: "ctx1", workspaceId: "w9", projectId: null };
+        expect(visibleFrom(store, sibling).map((b) => b.title)).toEqual(["App wide", "This context"]);
+        const elsewhere: Here = { contextId: "ctx2", workspaceId: "w2", projectId: "p1" };
+        const seen = visibleFrom(store, elsewhere).map((b) => b.title);
+        expect(seen).toEqual(["App wide", "Another context", "Another workspace", "Same project id elsewhere"]);
+        expect(seen).not.toContain("This context");
+    });
+
+    it("works from a workspace with no project: its project's bookmarks are not shown", () => {
+        const none: Here = { ...Here1, projectId: null };
+        expect(visibleFrom(world(), none).map((b) => b.title)).toEqual(["App wide", "This context", "This workspace"]);
+    });
+
+    it("lists a bookmark once however many visible places it has, and tells which places are visible", () => {
+        const store = place(place(add(EmptyStore, P1).store, "b1", Ws), "b1", OtherWs);
+        expect(visibleFrom(store, Here1)).toHaveLength(1);
+        expect(visiblePlaces(store.records[0], Here1).map(placeKey)).toEqual(["project:w1/p1", "workspace:w1"]);
+    });
+});
+
+describe("the add button's state for a page", () => {
+    it("is filled for a page that is a bookmark at a place visible from here", () => {
+        const store = add(EmptyStore, Ws).store;
+        const state = pageState(store, Here1, "https://vite.dev/config#anchor");
+        expect(state.kind).toBe("here");
+        expect(findVisibleByAddress(store, Here1, "https://vite.dev/config/")?.id).toBe("b1");
+    });
+
+    it("is empty for a page bookmarked only at places that are not visible from here, and says where it is", () => {
+        const store = add(EmptyStore, OtherP1).store;
+        expect(pageState(store, Here1, "https://vite.dev/config/")).toMatchObject({
+            kind: "elsewhere",
+            bookmark: { id: "b1" },
+        });
+        expect(findVisibleByAddress(store, Here1, "https://vite.dev/config/")).toBeNull();
+        expect(findByAddress(store, "https://vite.dev/config/")?.id).toBe("b1");
+    });
+
+    it("is empty for a page that is a bookmark nowhere", () => {
+        expect(pageState(add(EmptyStore, Ws).store, Here1, "https://other.example/")).toEqual({ kind: "none" });
+    });
+
+    it("turns filled once the page is placed here too, and empty once it is removed from the visible places", () => {
+        const store = add(EmptyStore, OtherP1).store;
+        const placed = place(store, "b1", P1);
+        expect(pageState(placed, Here1, "https://vite.dev/config/").kind).toBe("here");
+        expect(pageState(unplaceBookmark(placed, "b1", P1), Here1, "https://vite.dev/config/").kind).toBe("elsewhere");
+    });
+});
+
+describe("addPage (the panel's Add the page)", () => {
+    it("makes a new bookmark when the page is a bookmark nowhere", () => {
+        const added = value(addPage(EmptyStore, draft(), Ws, {}, ids()));
+        expect(added.store.records).toHaveLength(1);
+    });
+
+    it("places the existing bookmark here instead of making a second one", () => {
+        const first = add(EmptyStore, OtherP1);
+        const added = value(addPage(first.store, draft(), P1, {}, ids()));
+        expect(added.store.records).toHaveLength(1);
+        expect(added.bookmark.id).toBe("b1");
+        expect(added.store.records[0].places.map(placeKey)).toEqual(["project:w2/p1", "project:w1/p1"]);
+    });
+
+    it("refuses a page the place holds already", () => {
+        const first = add(EmptyStore, P1);
+        expect(addPage(first.store, draft(), P1).problem).toBe("browser.bookmarks.problem.alreadyThere");
+    });
+});
+
+describe("folders, one list per place", () => {
+    it("are named uniquely at a place, case ignored, and the same name may exist at another place", () => {
+        const first = value(createFolder(EmptyStore, Ws, "Docs", ids()));
+        expect(createFolder(first.store, Ws, "docs").problem).toBe("browser.bookmarks.problem.folderTaken");
+        expect(createFolder(first.store, Ws, "  ").problem).toBe("browser.bookmarks.problem.noFolderName");
+        expect(createFolder(first.store, Ws, "x".repeat(BookmarkLimits.folderName + 1)).problem).toBe(
+            "browser.bookmarks.problem.folderNameTooLong"
+        );
+        expect(createFolder(first.store, P1, "Docs").problem).toBeUndefined();
+        let store = EmptyStore;
+        for (let i = 0; i < BookmarkLimits.folders; i++) {
+            store = value(createFolder(store, Ws, `f${i}`, ids())).store;
+        }
+        expect(createFolder(store, Ws, "one more").problem).toBe("browser.bookmarks.problem.tooManyFolders");
+    });
+
+    it("rename, keeping the bookmarks in them", () => {
+        const withFolder = value(createFolder(add(EmptyStore, Ws).store, Ws, "Docs", ids()));
+        const placed = place(withFolder.store, "b1", Ws, { folder: withFolder.folder.id });
+        const renamed = value(renameFolder(placed, Ws, withFolder.folder.id, "Guides"));
+        expect(foldersAt(renamed, Ws).map((f) => f.name)).toEqual(["Guides"]);
+        expect(bookmarksAt(renamed, Ws, withFolder.folder.id)).toHaveLength(1);
+        expect(renameFolder(renamed, Ws, "nope", "x").problem).toBe("browser.bookmarks.problem.gone");
+    });
+
+    it("delete without losing a bookmark: they stay at their place, and other places are untouched", () => {
+        const withFolder = value(createFolder(add(EmptyStore, Ws).store, Ws, "Docs", ids()));
+        const folder = withFolder.folder.id;
+        const inFolder = place(place(withFolder.store, "b1", Ws, { folder }), "b1", P1);
+        const deleted = deleteFolder(inFolder, Ws, folder);
+        expect(foldersAt(deleted, Ws)).toEqual([]);
+        expect(deleted.records[0].places).toEqual([
+            { level: LevelWorkspace, id: "w1", folder: "" },
+            { level: LevelProject, id: P1.id, folder: "" },
+        ]);
+    });
+});
+
+describe("what the client stores", () => {
+    const stored = (records: unknown[], folders: unknown = {}) => ({ [BookmarksMetaKey]: { records, folders } });
+    const rec = (extra: Record<string, unknown> = {}) => ({
+        id: "b1",
+        url: "https://vite.dev/config/",
+        title: "Vite config",
+        description: "",
+        places: [{ level: "project", id: "w1/p1", folder: "" }],
+        ...extra,
+    });
+
+    it("reads back what the store writes, per level, one record with its places", () => {
+        const first = add(EmptyStore, P1, { description: "note" });
+        const withFolder = value(createFolder(first.store, App, "Shared", ids()));
+        const shared = place(place(place(withFolder.store, "b1", Ws), "b1", Ctx), "b1", App, {
+            folder: withFolder.folder.id,
+        });
+        const written = JSON.parse(JSON.stringify(storeValue(shared)));
+        const read = readStore({ [BookmarksMetaKey]: written });
+        expect(read).toEqual(shared);
+        expect(read.records).toHaveLength(1);
+        expect(read.records[0].places.map((p) => p.level)).toEqual([
+            LevelProject,
+            LevelWorkspace,
+            LevelContext,
+            LevelApp,
+        ]);
+    });
+
+    it("deletes the key once nothing is kept", () => {
+        expect(storeValue(EmptyStore)).toBeNull();
+        expect(storeValue(add(EmptyStore, Ws).store)).not.toBeNull();
+    });
+
+    it("reads nothing from a missing or broken key", () => {
+        for (const meta of [null, {}, { [BookmarksMetaKey]: "x" }, { [BookmarksMetaKey]: [] }, stored("x" as any)]) {
+            expect(readStore(meta as any), JSON.stringify(meta)).toBe(EmptyStore);
+        }
+    });
+
+    it("ignores a bookmark whose address is not a safe web address, whoever wrote it", () => {
+        const unsafe = ["javascript:alert(1)", "file:///etc/passwd", "https://user:pw@x.example/", "vscode://x", ""];
+        const read = readStore(stored([rec(), ...unsafe.map((url, i) => rec({ id: `u${i}`, url }))]));
+        expect(read.records.map((b) => b.id)).toEqual(["b1"]);
+    });
+
+    it("drops a record with no id, a repeated id or no valid place, and a repeated place", () => {
+        const read = readStore(
+            stored([
+                rec({ id: "" }),
+                rec(),
+                rec({ url: "https://b.example/" }),
+                rec({ id: "b2", url: "https://c.example/", places: [{ level: "galaxy", id: "x", folder: "" }] }),
+                rec({ id: "b3", url: "https://d.example/", places: [{ level: "workspace", id: "", folder: "" }] }),
+                rec({
+                    id: "b4",
+                    url: "https://e.example/",
+                    places: [
+                        { level: "app", id: "ignored", folder: "" },
+                        { level: "app", id: "", folder: "" },
+                        { level: "workspace", id: "w1", folder: "" },
+                    ],
+                }),
+            ])
+        );
+        expect(read.records.map((b) => b.id)).toEqual(["b1", "b4"]);
+        expect(read.records[1].places).toEqual([
+            { level: "app", id: "", folder: "" },
+            { level: "workspace", id: "w1", folder: "" },
+        ]);
+    });
+
+    it("reads a folder that does not exist at its place as no folder, and a folder of another place the same", () => {
+        const read = readStore(
+            stored(
+                [
+                    rec({
+                        places: [
+                            { level: "project", id: "w1/p1", folder: "f1" },
+                            { level: "workspace", id: "w1", folder: "f1" },
+                            { level: "app", id: "", folder: "gone" },
+                        ],
+                    }),
+                ],
+                { "project:w1/p1": [{ id: "f1", name: "Docs" }], "bad key": [{ id: "x", name: "y" }] }
+            )
+        );
+        expect(read.records[0].places.map((p) => p.folder)).toEqual(["f1", "", ""]);
+        expect(Object.keys(read.folders)).toEqual(["project:w1/p1"]);
+    });
+
+    it("cuts what is read to the limits: texts, folders, places and bookmarks of a place", () => {
+        const long = readStore(
+            stored([rec({ title: "t".repeat(BookmarkLimits.title + 50), description: "d".repeat(2000) })], {
+                "project:w1/p1": Array.from({ length: BookmarkLimits.folders + 5 }, (_, i) => ({
+                    id: `f${i}`,
+                    name: "n".repeat(100),
+                })),
+            })
+        );
+        expect(long.records[0].title).toHaveLength(BookmarkLimits.title);
+        expect(long.records[0].description).toHaveLength(BookmarkLimits.description);
+        expect(long.folders["project:w1/p1"]).toHaveLength(BookmarkLimits.folders);
+        expect(long.folders["project:w1/p1"][0].name).toHaveLength(BookmarkLimits.folderName);
+
+        const crowded = readStore(
+            stored(
+                Array.from({ length: BookmarkLimits.items + 20 }, (_, i) =>
+                    rec({
+                        id: `b${i}`,
+                        url: `https://a.example/${i}`,
+                        places: [{ level: "workspace", id: "w1", folder: "" }],
+                    })
+                )
+            )
+        );
+        expect(crowded.records).toHaveLength(BookmarkLimits.items);
+
+        const manyPlaces = readStore(
+            stored([
+                rec({
+                    places: Array.from({ length: BookmarkLimits.places + 8 }, (_, i) => ({
+                        level: "workspace",
+                        id: `w${i}`,
+                        folder: "",
+                    })),
+                }),
+            ])
+        );
+        expect(manyPlaces.records[0].places).toHaveLength(BookmarkLimits.places);
+    });
+
+    it("titles a bookmark with its address when the title is missing", () => {
+        const read = readStore(stored([rec({ title: 7 })]));
+        expect(read.records[0].title).toBe("https://vite.dev/config/");
+    });
+});
+
+describe("migration of the project bookmarks of a workspace (Go: pkg/molten/bookmarks)", () => {
+    it("reads what wavesrv writes for a migrated project bookmark: one record, one project place, its folder", () => {
+        const migrated = {
+            [BookmarksMetaKey]: {
+                records: [
+                    {
+                        id: "b-12ab34cd",
+                        url: "https://vite.dev/config/",
+                        title: "Vite config",
+                        description: "The build options.",
+                        places: [{ level: "project", id: "w1/p1", folder: "f-aaaa1111" }],
+                    },
+                ],
+                folders: { "project:w1/p1": [{ id: "f-aaaa1111", name: "Docs" }] },
+            },
+        };
+        const read = readStore(migrated);
+        expect(read.records).toHaveLength(1);
+        expect(visibleFrom(read, Here1)).toHaveLength(1);
+        expect(visibleFrom(read, { ...Here1, projectId: "p2" })).toHaveLength(0);
+        expect(bookmarksAt(read, P1, "f-aaaa1111")).toHaveLength(1);
+        expect(foldersAt(read, P1).map((f) => f.name)).toEqual(["Docs"]);
+        expect(BookmarkLimits).toMatchObject({ items: 300, folders: 50, title: 200, url: 2048, description: 1000 });
+    });
+});
+
+describe("the whole story from a panel in a workspace with no project", () => {
+    it("adds at the workspace, places at the context and the app, and sees it from a sibling workspace", () => {
+        const none: Here = { contextId: "ctx1", workspaceId: "w1", projectId: null };
+        const added = add(EmptyStore, Ws);
+        const shared = place(place(added.store, "b1", Ctx), "b1", App);
+        expect(visibleFrom(shared, none)).toHaveLength(1);
+        const sibling: Here = { contextId: "ctx1", workspaceId: "w7", projectId: null };
+        expect(visibleFrom(shared, sibling)).toHaveLength(1);
+        const stranger: Here = { contextId: "ctx2", workspaceId: "w8", projectId: null };
+        expect(visibleFrom(shared, stranger)).toHaveLength(1);
+        const noApp = unplaceBookmark(shared, "b1", App);
+        expect(visibleFrom(noApp, stranger)).toHaveLength(0);
+        expect(visibleFrom(noApp, sibling)).toHaveLength(1);
+    });
+});
+
+describe("bookmark records are plain data", () => {
+    it("never share structure that a later change could alter", () => {
+        const first = add(EmptyStore, Ws);
+        const snapshot = JSON.stringify(first.store);
+        place(first.store, "b1", P1);
+        updateBookmark(first.store, "b1", draft({ title: "Other" }));
+        unplaceBookmark(first.store, "b1", Ws);
+        const b: Bookmark = first.store.records[0];
+        expect(JSON.stringify(first.store)).toBe(snapshot);
+        expect(b.places).toHaveLength(1);
     });
 });

@@ -1,10 +1,13 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// Package bookmarks reads the bookmarks of the web page panel (FR-BRW-019, FR-BRW-020, DS-BRW-026). The windows write
-// them in the workspace's meta under molten:bookmarks, as {projectId: {folders: [{id, name}], items: [{id, url, title,
-// description, folder}]}}; this package never writes them, it reads one project's list for `molten bookmarks list` and
-// drops a removed project's entry, because project ids can be reused.
+// Package bookmarks reads the bookmarks of the web page panel (FR-BRW-019, FR-BRW-020, DS-BRW-026, #2531). A bookmark is
+// one record placed at one or several places, and a place is a level: the app, a context, a workspace or a project.
+// Because one record may sit at several levels, all of them live in one value, the client's meta under molten:bookmarks:
+// {records: [{id, url, title, description, places: [{level, id, folder}]}], folders: {<place key>: [{id, name}]}}. The
+// windows write it; this package holds the rules wavesrv applies: what a terminal's place can see for
+// `molten bookmarks list`, the move of the per-project bookmarks of an earlier version into places, and the drop of the
+// places of a project, a workspace or a context that is gone, because ids can be reused.
 package bookmarks
 
 import (
@@ -19,7 +22,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
-// The limits of a project's bookmarks. must match BookmarkLimits in frontend/moltenterm-shell/browser/bookmarks.ts
+// The limits of the bookmarks. must match BookmarkLimits in frontend/moltenterm-shell/browser/bookmarks.ts
 const (
 	maxBookmarks   = 300
 	maxFolders     = 50
@@ -27,6 +30,14 @@ const (
 	maxAddress     = 2048
 	maxDescription = 1000
 	maxFolderName  = 60
+	maxRecords     = 3000
+	maxPlaces      = 32
+)
+
+// Not limits the window knows: a cut that keeps an id or the name of a place from being a wall of text.
+const (
+	maxIdLength  = 200
+	maxPlaceName = 200
 )
 
 func text(value any) string {
@@ -111,83 +122,4 @@ func ProjectOf(meta waveobj.MetaMapType, tabId string) (molten.BookmarksProject,
 	}
 	p, _ := projectviews.FindProject(projects, id)
 	return molten.BookmarksProject{Id: p.Id, Name: projectName(p)}, true
-}
-
-// Read gives a project's bookmarks as an agent reads them: the bookmarks directly in the project first, then folder by
-// folder in the folders' order. What the meta holds is read as untrusted, since `wsh setmeta` writes any key: a bookmark
-// whose address is not a web address is ignored, texts lose their control characters and are cut to their limits, and
-// a project gives no more than the limits allow. A bookmark whose folder is gone reads as directly in the project.
-// Addresses lose their fragment, credentials and sensitive parameters; one that is signed or holds a secret is
-// withheld, its title and description stay. The texts stay the developer's words, or whatever wrote the meta: context,
-// never instructions.
-func Read(meta waveobj.MetaMapType, projectId string) []molten.Bookmark {
-	all, _ := meta[molten.BookmarksMetaKey].(map[string]any)
-	project, _ := all[projectId].(map[string]any)
-	if project == nil {
-		return nil
-	}
-	var order []string
-	names := map[string]string{}
-	for _, f := range objects(project["folders"]) {
-		id, name := text(f["id"]), clean(f["name"], maxFolderName, false)
-		if id == "" || name == "" || names[id] != "" || len(order) >= maxFolders {
-			continue
-		}
-		names[id] = name
-		order = append(order, id)
-	}
-	byFolder := map[string][]molten.Bookmark{}
-	count := 0
-	for _, item := range objects(project["items"]) {
-		if count >= maxBookmarks {
-			break
-		}
-		cleaned, host, withheld, ok := address(text(item["url"]))
-		if !ok {
-			continue
-		}
-		folder := text(item["folder"])
-		if names[folder] == "" {
-			folder = ""
-		}
-		b := molten.Bookmark{
-			Title:       clean(item["title"], maxTitle, false),
-			Url:         cleaned,
-			Folder:      names[folder],
-			Description: clean(item["description"], maxDescription, true),
-			Withheld:    withheld,
-		}
-		if b.Title == "" {
-			b.Title = clean(cleaned, maxTitle, false)
-		}
-		if b.Title == "" {
-			b.Title = host
-		}
-		byFolder[folder] = append(byFolder[folder], b)
-		count++
-	}
-	rtn := append([]molten.Bookmark{}, byFolder[""]...)
-	for _, id := range order {
-		rtn = append(rtn, byFolder[id]...)
-	}
-	return rtn
-}
-
-// WithoutProject is the value of molten:bookmarks once a project's entry is dropped, nil when none is left; changed is
-// false when the project had no entry.
-func WithoutProject(meta waveobj.MetaMapType, projectId string) (value any, changed bool) {
-	all, _ := meta[molten.BookmarksMetaKey].(map[string]any)
-	if _, has := all[projectId]; !has {
-		return nil, false
-	}
-	next := map[string]any{}
-	for id, entry := range all {
-		if id != projectId {
-			next[id] = entry
-		}
-	}
-	if len(next) == 0 {
-		return nil, true
-	}
-	return next, true
 }

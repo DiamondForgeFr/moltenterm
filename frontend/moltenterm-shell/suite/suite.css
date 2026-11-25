@@ -514,6 +514,112 @@
         color: var(--df-accent-ink, var(--df-accent));
     }
 
+    /* ── Check rows ───────────────────────────────────────────────────────────────────────────────────────────────────
+   One place among several that can all be on (#2531): a checkbox, an optional lead (a marker, an icon), the label with
+   a line under it, and what belongs to the row at its end (a folder picker). A real checkbox inside a label, so the
+   space bar toggles it with no script; the trailing part sits outside the label, so using it never toggles the row. */
+    .df-check-row {
+        display: flex;
+        align-items: center;
+        gap: var(--df-row-gap);
+        padding: var(--df-row-pad-y) var(--df-row-pad-x);
+        color: var(--df-text);
+        transition: background-color var(--df-duration-fast) ease;
+    }
+
+    .df-check-row:not([data-checked], [data-disabled]):hover {
+        background: var(--df-hover);
+    }
+
+    .df-check-row[data-checked] {
+        background: color-mix(in srgb, var(--df-accent) 7%, transparent);
+    }
+
+    .df-check-row[data-disabled] {
+        opacity: 0.6;
+    }
+
+    .df-check-main {
+        display: flex;
+        flex: 1;
+        align-items: center;
+        gap: var(--df-row-gap);
+        min-width: 0;
+        cursor: pointer;
+    }
+
+    .df-check-row[data-disabled] .df-check-main {
+        cursor: default;
+    }
+
+    .df-check {
+        display: flex;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        width: var(--df-radio-size);
+        height: var(--df-radio-size);
+        border: 1px solid color-mix(in srgb, var(--df-text-muted) 50%, transparent);
+        border-radius: 3px;
+        color: var(--df-accent-fg);
+        transition:
+            border-color var(--df-duration-fast) ease,
+            background-color var(--df-duration-fast) ease;
+    }
+
+    .df-check > svg {
+        width: 12px;
+        height: 12px;
+        opacity: 0;
+    }
+
+    .df-check-row[data-checked] .df-check {
+        border-color: var(--df-accent);
+        background: var(--df-accent);
+    }
+
+    .df-check-row[data-checked] .df-check > svg {
+        opacity: 1;
+    }
+
+    .df-check-main :focus-visible + .df-check {
+        outline: 2px solid color-mix(in srgb, var(--df-accent) 40%, transparent);
+        outline-offset: 2px;
+    }
+
+    .df-check-text {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .df-check-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--df-text-row);
+        font-weight: var(--df-weight-medium);
+    }
+
+    .df-check-desc {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--df-text-meta);
+        color: var(--df-text-muted);
+    }
+
+    .df-check-lead {
+        display: flex;
+        flex-shrink: 0;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        color: var(--df-text-muted);
+    }
+
     /* ── Toggle group ─────────────────────────────────────────────────────────────────────────────────────────────────
    Exclusive choices as separate bordered rectangles; the chosen one is outlined in the accent. */
     .df-toggle-group {

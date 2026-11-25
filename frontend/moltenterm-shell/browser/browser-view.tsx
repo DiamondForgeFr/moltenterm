@@ -14,6 +14,7 @@ import { OptMagnifyButton } from "@/app/block/blockutil";
 import { Button } from "@/app/element/button";
 import { IconButton } from "@/app/element/iconbutton";
 import { Search, useSearch } from "@/app/element/search";
+import { ClientModel } from "@/app/store/client-model";
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { atoms, getApi, getSettingsKeyAtom, openLink as openInterfaceLink, refocusNode } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
@@ -28,7 +29,7 @@ import { isMacOS } from "@/util/platformutil";
 import { cn, fireAndForget, useAtomValueSafe } from "@/util/util";
 import type { WebviewTag } from "electron";
 import { atom, Atom, PrimitiveAtom, useAtomValue } from "jotai";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { loadIntegrationRuns, type AgentIntegrationRun } from "../agent-integration-runs";
 import { AgentLinks } from "../agent-links/agent-links-store";
 import { agentCallName, agentStatesOfWorkspace } from "../agent-state-model";
@@ -36,9 +37,9 @@ import { AgentStates } from "../agent-state-store";
 import { openHeaderCommandPanel } from "../command-panel/block-menus";
 import { openCommandPanelFromTrigger } from "../command-panel/command-panel-store";
 import type { BrowserCommandState } from "../command-panel/providers/browser";
+import { getContexts } from "../contexts/context-store";
 import { DownloadPill } from "../downloads/download-pill";
 import { captureFavicon, faviconsAtom, noteSiteLoading, requestFavicons } from "../favicon/favicon-store";
-import { originOfAddress } from "../favicon/site";
 import { HeaderCloseButton } from "../header/header-close-button";
 import { contentBoxWidth } from "../header/header-fold";
 import { Pill } from "../header/pill";
@@ -51,7 +52,6 @@ import { openSettingsKey, openSettingsSection } from "../settings/settings-open"
 import { formatShortcutById } from "../shortcuts/format";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { openTopField } from "../sidebar/top-field-store";
-import { projectLabel, readProjects } from "../sidebar/workspace-projects";
 import { splitPanel } from "../split/split";
 import { splitMenuItems } from "../split/split-menu";
 import { DominoLoader } from "../suite/suite";
@@ -70,9 +70,10 @@ import { showAgentAsk, showAgentPage, type AgentShowTarget } from "./agent-show"
 import { CommentEntry } from "./annotate-entry";
 import { annotatablePage, annotateLayers, AnnotateSession, closedTabs } from "./annotate-session";
 import { ClientCertificateHost, SitePermissionHost } from "./ask-bar-hosts";
-import { BookmarkDialog, type BookmarkDialogRequest } from "./bookmark-dialog";
-import { bookmarkablePage, findBookmarkByAddress, projectIdOfTab, readProjectBookmarks } from "./bookmarks";
-import { bookmarksMenu } from "./bookmarks-menu";
+import { BookmarkAddButton, BookmarkPopoverHost, BookmarksPanelButton } from "./bookmark-buttons";
+import { addFlow, type PopoverRequest } from "./bookmark-popover-model";
+import { bookmarkablePage, hereOf, readStore } from "./bookmarks";
+import { addBookmarkAt } from "./bookmarks-store";
 import {
     AgentControlAction,
     agentName,
@@ -243,6 +244,8 @@ export { MoltentermBrowserView };
 // The annotate mode's layer, its model and its painting load the first time the mode starts, never with the window
 // (NFR-PERF-003, build/on-demand-imports.test.ts).
 const AnnotateHost = lazy(() => import("./annotate-layer").then((m) => ({ default: m.AnnotateHost })));
+// The bookmarks panel loads the first time the book button opens it, so it stays out of the code every panel loads (NFR-PERF-003).
+const BookmarksPanel = lazy(() => import("./bookmarks-panel").then((m) => ({ default: m.BookmarksPanel })));
 
 const PersistDelayMs = 400;
 // Chromium's error for a request a webRequest listener cancelled: how a navigation held as a lookalike domain fails
@@ -345,8 +348,11 @@ export class BrowserViewModel implements ViewModel {
     handledShowIds = new Set<string>();
     // Hidden pages frozen and discarded by the main process (#459).
     lifecycle: BrowserLifecycleModel;
-    // The add or edit dialog of a bookmark, set by the Bookmarks menu (FR-BRW-019).
-    bookmarkDialogAtom = atom(null) as PrimitiveAtom<BookmarkDialogRequest>;
+    // The popover of the add button (FR-BRW-019, #2531): the button or the "⋯" it folds into anchors it, the request says
+    // what it shows.
+    bookmarkPopoverAtom = atom(null) as PrimitiveAtom<{ anchor: Element; request: PopoverRequest }>;
+    // The bookmarks panel beside the page, opened by the book button.
+    bookmarkPanelAtom = atom(false) as PrimitiveAtom<boolean>;
     // The pages whose developer tools are docked below them (FR-BRW-022).
     inspector = new BrowserInspectorModel();
     // The confirmation of Clear this site's data… or Clear the browser cache… (FR-BRW-022).
@@ -852,7 +858,8 @@ export class BrowserViewModel implements ViewModel {
     // (browser.css, browser-row-folds.ts). The widths are those of the folds, read when the menu opens.
     showOverflowMenu(e: React.MouseEvent, tab: BrowserTab, rowWidth: number): void {
         e.preventDefault();
-        const opener = anchoredMenuEvent(e, buttonMenuAnchor(e.currentTarget as Element));
+        const moreButton = e.currentTarget as Element;
+        const opener = anchoredMenuEvent(e, buttonMenuAnchor(moreButton));
         fireAndForget(async () => {
             const menu: ContextMenuItem[] = [];
             const parts = menuPartsAt(rowWidth);
@@ -887,12 +894,20 @@ export class BrowserViewModel implements ViewModel {
                     click: () => this.copyTabLink(tab.id),
                 });
             }
+            if (tab != null && parts.includes("bookmarkPage") && bookmarkablePage(tab.url) !== "") {
+                menu.push({
+                    label: t("browser.bookmarks.add.add"),
+                    icon: "bookmark",
+                    click: () => this.startBookmark(moreButton, tab),
+                });
+            }
             if (tab != null && parts.includes("bookmarks")) {
                 menu.push({
                     label: t("browser.bookmarks.button"),
-                    icon: "bookmark",
-                    type: "submenu",
-                    submenu: this.bookmarkMenuItems(tab),
+                    icon: "book-bookmark",
+                    type: "checkbox",
+                    checked: globalStore.get(this.bookmarkPanelAtom),
+                    click: () => this.toggleBookmarkPanel(),
                 });
             }
             menu.push(...(await this.shareItems(tab)));
@@ -1273,53 +1288,40 @@ export class BrowserViewModel implements ViewModel {
         });
     }
 
-    // The Bookmarks button's menu: the project's bookmarks, opened in the shown tab on a click (FR-BRW-019).
-    showBookmarksMenu(e: React.MouseEvent, tab: BrowserTab): void {
-        e.preventDefault();
-        ContextMenuModel.getInstance().showContextMenu(this.bookmarkMenuItems(tab), e);
-    }
-
-    bookmarkMenuItems(tab: BrowserTab): ContextMenuItem[] {
-        const ws = globalStore.get(atoms.workspace);
-        const projects = readProjects(ws);
-        const projectId = projectIdOfTab(ws, this.tabId);
-        const project = projects.find((p) => p.id === projectId);
-        const projectName = project != null ? projectLabel(project) : null;
-        const data = readProjectBookmarks(ws?.meta, projectId);
-        return bookmarksMenu(
-            {
-                projectName,
-                multi: projects.length > 1,
-                data,
-                pageUrl: bookmarkablePage(tab?.url),
-                icons: globalStore.get(faviconsAtom),
-            },
-            {
-                open: (url) => this.navigate(url),
-                bookmarkPage: () => {
-                    this.captureTabFavicon(tab);
-                    this.askBookmark({
-                        projectId,
-                        projectName,
-                        mode: "page",
-                        initial: { url: tab.url, title: browserTabTitle(tab), description: "", folder: "" },
-                    });
-                },
-                editBookmark: (b) =>
-                    this.askBookmark({
-                        projectId,
-                        projectName,
-                        mode: "edit",
-                        editingId: b.id,
-                        initial: { url: b.url, title: b.title, description: b.description, folder: b.folder },
-                    }),
-                manage: () => fireAndForget(() => openSettingsSection("browser")),
+    // A click on the add button, or on its entry in the "⋯" (FR-BRW-019, #2531): the page is bookmarked at once and the
+    // popover opens on where, or it asks what to do with a page already bookmarked elsewhere. A second click closes it.
+    startBookmark(anchor: Element, tab: BrowserTab): void {
+        if (tab == null || anchor == null) {
+            return;
+        }
+        if (globalStore.get(this.bookmarkPopoverAtom) != null) {
+            globalStore.set(this.bookmarkPopoverAtom, null);
+            return;
+        }
+        const clientAtom = ClientModel.getInstance().clientAtom;
+        const store = readStore(clientAtom != null ? globalStore.get(clientAtom)?.meta : null);
+        const here = hereOf(globalStore.get(atoms.workspace), getContexts(), this.tabId);
+        this.captureTabFavicon(tab);
+        fireAndForget(async () => {
+            const request = await addFlow({
+                store,
+                here,
+                url: tab.url,
+                title: browserTabTitle(tab),
+                add: addBookmarkAt,
+            });
+            if (request != null) {
+                globalStore.set(this.bookmarkPopoverAtom, { anchor, request });
             }
-        );
+        });
     }
 
-    askBookmark(request: BookmarkDialogRequest): void {
-        globalStore.set(this.bookmarkDialogAtom, request);
+    closeBookmarkPopover(): void {
+        globalStore.set(this.bookmarkPopoverAtom, null);
+    }
+
+    toggleBookmarkPanel(): void {
+        globalStore.set(this.bookmarkPanelAtom, !globalStore.get(this.bookmarkPanelAtom));
     }
 
     // A bookmark added from a page that has an icon keeps that icon with its site's (#1962): Electron main reads the icon
@@ -2517,6 +2519,7 @@ function BrowserPanelButtons({ model, tab }: { model: BrowserViewModel; tab: Bro
     const t = useT();
     const node = model.layoutNode;
     const magnified = useAtomValue(model.nodeModel.isMagnified);
+    const panelOpen = useAtomValue(model.bookmarkPanelAtom);
     const ephemeral = useAtomValueSafe(node.isEphemeral);
     const numLeafs = useAtomValueSafe(node.numLeafs) ?? 1;
     const addToLayout: IconButtonDecl = {
@@ -2536,7 +2539,13 @@ function BrowserPanelButtons({ model, tab }: { model: BrowserViewModel; tab: Bro
     // Bookmarks in step 4, into the "⋯" (browser-row-folds.ts).
     return (
         <div className="molten-browser-panel-buttons flex h-full shrink-0 items-center gap-0.5 px-1.5">
-            <BookmarksButton model={model} tab={tab} className="molten-fold-4" />
+            {tab != null ? (
+                <BookmarksPanelButton
+                    open={panelOpen}
+                    onClick={() => model.toggleBookmarkPanel()}
+                    className="molten-fold-4"
+                />
+            ) : null}
             <CarpetHeaderButton blockId={model.blockId} />
             <span data-role="command-panel-trigger" className="flex">
                 <IconButton decl={commands} />
@@ -2721,6 +2730,15 @@ function BrowserNavBar({ model, state }: { model: BrowserViewModel; state: Brows
                       }),
                       "molten-fold-4"
                   )}
+            {/* The add-bookmark button (#2531) sits directly after Reload and folds with it. */}
+            {active != null ? (
+                <BookmarkAddButton
+                    tabId={model.tabId}
+                    pageUrl={active.url}
+                    className="molten-fold-4"
+                    onClick={(e) => model.startBookmark(e.currentTarget, active)}
+                />
+            ) : null}
             <span className="mt-focus-only molten-fold-2 flex shrink-0 items-center">
                 <TestContextChip
                     url={active?.url ?? ""}
@@ -2843,40 +2861,6 @@ function AnnotateMount({
                 <AnnotateHost key={layer.open.nonce} session={session} open={layer.open} shown={layer.shown} />
             ))}
         </Suspense>
-    );
-}
-
-// The Bookmarks button (FR-BRW-019), directly left of the 360 view button at the row's right end (#2489, FR-BRW-025):
-// the current project's bookmarks. The icon is filled while the shown page is bookmarked in the project.
-function BookmarksButton({ model, tab, className }: { model: BrowserViewModel; tab: BrowserTab; className?: string }) {
-    const t = useT();
-    const workspace = useAtomValue(atoms.workspace);
-    const projectId = projectIdOfTab(workspace, model.tabId);
-    const data = readProjectBookmarks(workspace?.meta, projectId);
-    // The menu this button opens draws each bookmark with its site's icon (#1962): the icons it will need are asked for now.
-    const bookmarkOrigins = Array.from(new Set(data.items.map((b) => originOfAddress(b.url)))).join(" ");
-    useEffect(() => requestFavicons(bookmarkOrigins === "" ? [] : bookmarkOrigins.split(" ")), [bookmarkOrigins]);
-    if (tab == null) {
-        return null;
-    }
-    const project = readProjects(workspace).find((p) => p.id === projectId);
-    const saved = findBookmarkByAddress(data, bookmarkablePage(tab.url)) != null;
-    const label = t("browser.bookmarks.button");
-    return (
-        <button
-            type="button"
-            aria-label={label}
-            title={project != null ? t("browser.bookmarks.buttonTitle", { project: projectLabel(project) }) : label}
-            onClick={(e) => model.showBookmarksMenu(e, tab)}
-            data-testid="browser-bookmarks-button"
-            data-saved={saved ? "true" : "false"}
-            className={cn(
-                "flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-6 text-secondary hover:bg-hover hover:text-primary",
-                className
-            )}
-        >
-            <i className={cn("fa text-12", saved ? "fa-solid fa-bookmark text-accent" : "fa-regular fa-bookmark")} />
-        </button>
     );
 }
 
@@ -3193,8 +3177,18 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
     const agentTabs = useAtomValue(model.agents.tabsAtom);
     const offCarpet = useAtomValue(offCarpetAtom(model.blockId));
     const inspectors = useAtomValue(model.inspector.entriesAtom);
+    const panelOpen = useAtomValue(model.bookmarkPanelAtom);
     const viewShown = isShowing(activity);
     const activeTab = state.tabs.find((tab) => tab.id === state.activeId);
+    const bookmarksHost = useMemo(
+        () => ({
+            tabId: model.tabId,
+            openPage: (url: string) => model.navigate(url),
+            captureFavicon: () => model.captureTabFavicon(model.findTab(model.state().activeId)),
+            close: () => globalStore.set(model.bookmarkPanelAtom, false),
+        }),
+        [model]
+    );
     const inspecting = inspectors[state.activeId] != null && activeTab != null && !activeTab.engine;
     const blockMeta = block?.meta;
     // Find in page (#1722): Wave's find bar over the page, searching the shown page.
@@ -3270,7 +3264,8 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
             <ClientCertificateHost certificates={model.clientCertificates} tabId={state.activeId} />
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
-            <div className={cn("flex min-h-0 flex-1 flex-col", inspecting && "molten-browser-inspecting")}>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+            <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", inspecting && "molten-browser-inspecting")}>
                 <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">
                     {state.tabs.map((tab) =>
                         tab.engine ? (
@@ -3321,8 +3316,27 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
                     ) : null
                 )}
             </div>
+            {panelOpen ? (
+                <Suspense fallback={null}>
+                    <BookmarksPanel
+                        host={bookmarksHost}
+                        page={{ url: activeTab?.url ?? "", title: activeTab != null ? browserTabTitle(activeTab) : "" }}
+                    />
+                </Suspense>
+            ) : null}
+            </div>
             <Search {...searchProps} />
-            <BookmarkDialogHost model={model} />
+            <BookmarkPopoverHost
+                atom={model.bookmarkPopoverAtom}
+                tabId={model.tabId}
+                onClose={() => model.closeBookmarkPopover()}
+                setRequest={(request) =>
+                    globalStore.set(model.bookmarkPopoverAtom, {
+                        anchor: globalStore.get(model.bookmarkPopoverAtom)?.anchor,
+                        request,
+                    })
+                }
+            />
             <ClearDataDialogHost model={model} />
             <CommentEntry session={model.annotate} activeTabId={state.activeId} />
         </div>
@@ -3344,11 +3358,3 @@ function ClearDataDialogHost({ model }: { model: BrowserViewModel }) {
     );
 }
 
-// The add and edit dialog of a bookmark (FR-BRW-019), shown while the Bookmarks menu has asked for it.
-function BookmarkDialogHost({ model }: { model: BrowserViewModel }) {
-    const request = useAtomValue(model.bookmarkDialogAtom);
-    if (request == null) {
-        return null;
-    }
-    return <BookmarkDialog request={request} onClose={() => globalStore.set(model.bookmarkDialogAtom, null)} />;
-}

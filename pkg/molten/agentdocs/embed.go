@@ -28,7 +28,8 @@ import "embed"
 // materials.md tells agents to declare what they produce for the developer with `molten material add` (FR-MAT-001).
 // files.md tells agents to show what they searched for in their tab's file panel with `molten files` (FR-FILE-002).
 // pages.md tells agents to open the pages they show the developer in MoltenTerm's browser, not the system's (#1812).
-// bookmarks.md tells agents to read the project's web page bookmarks with `molten bookmarks list` (FR-BRW-020).
+// bookmarks.md tells agents to read the web page bookmarks visible from their terminal (the app's, the context's, the
+// workspace's and the project's) with `molten bookmarks list` (FR-BRW-020).
 // learning.md tells agents to read what a guided workflow learned of the developer and to record their adjustments
 // with `molten learn` (FR-LRN-002).
 // morph-design.md teaches the agent that /morph runs the `molten morph design` commands that keep the mod design view's

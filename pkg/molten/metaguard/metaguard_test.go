@@ -189,6 +189,32 @@ func TestWorkspaceReads(t *testing.T) {
 	}
 }
 
+// The bookmarks sit at every place of the developer's in the client's meta (#2531): a terminal reads the ones visible from
+// its own place through `molten bookmarks list`, never the whole value through getmeta.
+func TestClientReads(t *testing.T) {
+	client := waveobj.MakeORef(waveobj.OType_Client, "client")
+	meta := waveobj.MetaMapType{molten.BookmarksMetaKey: map[string]any{"records": []any{"b"}}, "molten:contexts": []any{"c"}, "molten:globalpins": []any{}}
+	for _, u := range untrusted() {
+		got, err := metaguard.ReadMeta(u.c, client, meta)
+		if err != nil {
+			t.Fatalf("%s: %v", u.name, err)
+		}
+		if _, has := got[molten.BookmarksMetaKey]; has || len(got) != 2 || got["molten:contexts"] == nil {
+			t.Errorf("%s read the client's bookmarks or lost the rest: %v", u.name, got)
+		}
+	}
+	if _, has := meta[molten.BookmarksMetaKey]; !has {
+		t.Error("reading changed the stored meta")
+	}
+	if got, err := metaguard.ReadMeta(metaguard.Caller{Trusted: true}, client, meta); err != nil || len(got) != 3 {
+		t.Errorf("the window reads all of it: %v %v", got, err)
+	}
+	plain := waveobj.MetaMapType{"molten:contexts": []any{"c"}}
+	if got, err := metaguard.ReadMeta(terminal(), client, plain); err != nil || len(got) != 1 {
+		t.Errorf("a client without bookmarks reads as it is: %v %v", got, err)
+	}
+}
+
 func TestTooWideProjectFolder(t *testing.T) {
 	own := waveobj.MakeORef(waveobj.OType_Workspace, ownWs)
 	home, err := os.UserHomeDir()
