@@ -719,6 +719,12 @@ export function QuietWindow({
         >
             <span className="min-w-0 flex-1 text-secondary">
                 {t("mc.lineMap.quiet", { days, when: formatWhen(when), ago: timeAgo(when) })}
+                {wider ? null : (
+                    <span className="text-muted" data-testid="line-map-quiet-older">
+                        {" "}
+                        {t("mc.lineMap.quietOlder")}
+                    </span>
+                )}
             </span>
             {wider ? (
                 <button

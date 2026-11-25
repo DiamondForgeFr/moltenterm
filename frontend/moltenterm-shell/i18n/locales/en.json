@@ -4934,6 +4934,7 @@
             "noVersionScheme": "no version tagged yet",
             "quiet": "Nothing happened in the last {days} days: the last activity was {when} ({ago}).",
             "widen": "Show {days} days",
+            "quietOlder": "The history is older than the widest window.",
             "allOnMain": "all on main",
             "oneWaiting": "1 change waiting",
             "waiting": "{count} changes waiting",
