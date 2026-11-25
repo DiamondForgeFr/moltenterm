@@ -31,6 +31,7 @@ import { ViewNameKeyMetaKey, ViewPendingMetaKey } from "../workspace-views/works
 import { contextPinsKey, readContextPins, windowContextIdOf } from "./context-pins-model";
 import { localizedPin, SeedGlobalPinsMetaKey, seedPinsMeta, typedNamePin } from "./default-pins";
 import { PinnedClosePlan, planPinnedClose } from "./pinned-close-model";
+import { moveTabBefore } from "./sidebar-model";
 import { showUndoToast } from "./sidebar-undo";
 import { folderedViews, readViewFolders } from "./view-folders-model";
 import { moveBeside, readViewIcon, sameOrder, undoOrder, ViewIconMetaKey, withMissingPanels } from "./view-menu-model";
@@ -42,6 +43,7 @@ import {
     GlobalPin,
     GlobalPinMetaKey,
     GlobalPinRevMetaKey,
+    insertPin,
     InstanceMetaKey,
     instanceStale,
     isProjectTab,
@@ -71,6 +73,7 @@ import {
     ViewPinBuildCommand,
     ViewPinCaptureCommand,
     ViewPinRoute,
+    ViewProjectHintMetaKey,
     ViewState,
     viewStateOf,
     withoutPin,
@@ -500,6 +503,23 @@ export class ViewPins {
         );
     }
 
+    // One panel of a view, read to make a view of it (#2548): copy keeps where it is (the page's address, the terminal's
+    // folder), otherwise it is read as a pin reads it, to follow the project.
+    async capturePanel(tabId: string, blockId: string, copy: boolean): Promise<PinConfig> {
+        const data = globalStore.get(AgentStates.getInstance().dataAtom);
+        return TabRpcClient.wshRpcCall(
+            ViewPinCaptureCommand,
+            {
+                workspaceid: globalStore.get(atoms.workspaceId),
+                tabid: tabId,
+                tree: { blockid: blockId },
+                agentblocks: agentBlocksOf(data, [blockId]),
+                copy,
+            },
+            { route: ViewPinRoute, timeout: CaptureTimeoutMs }
+        );
+    }
+
     private build(req: {
         tabid?: string;
         name?: string;
@@ -507,6 +527,8 @@ export class ViewPins {
         config: PinConfig;
         background?: boolean;
         pending?: boolean;
+        adoptblockid?: string;
+        adoptfromtabid?: string;
     }): Promise<{ tabid: string }> {
         return TabRpcClient.wshRpcCall(
             ViewPinBuildCommand,
@@ -527,9 +549,21 @@ export class ViewPins {
         tabId?: string;
         // a new tab that does not take the screen yet; the caller shows it
         background?: boolean;
+        // A view made from a panel (#2548): the pin or the tile keeps config (what a pin is: it follows the project),
+        // while this workspace's view is made from instanceConfig, a copy that keeps where the panel is.
+        instanceConfig?: PinConfig;
+        // A panel moved into the new view rather than made again, from the view it leaves.
+        adopt?: { blockid: string; fromtabid: string };
+        // The project a temporary view is made for, in a workspace with two projects or more.
+        projectId?: string;
+        // The pin the new one lands before in the top row; none: after the last.
+        beforePinId?: string;
     }): Promise<string> {
         const nameKey = req.name?.trim() ? null : req.nameKey;
         const tabmeta: Record<string, any> = nameKey ? { [ViewNameKeyMetaKey]: nameKey } : {};
+        if (req.projectId) {
+            tabmeta[ViewProjectHintMetaKey] = req.projectId;
+        }
         const shown = nameKey ? t(nameKey) : req.name.trim();
         let tabName = nameKey ?? shown;
         if (req.scope === "workspace") {
@@ -546,14 +580,21 @@ export class ViewPins {
             if (nameKey) {
                 pin.namekey = nameKey;
             }
-            await this.writeGlobalPins([...this.globalPins(), pin]);
+            await this.writeGlobalPins(insertPin(this.globalPins(), pin, req.beforePinId));
             tabmeta[GlobalPinMetaKey] = pin.id;
             tabmeta[GlobalPinRevMetaKey] = pin.rev;
             delete tabmeta[ViewNameKeyMetaKey];
             tabName = shown;
         }
         if (!req.tabId) {
-            const built = await this.build({ name: tabName, tabmeta, config: req.config, background: req.background });
+            const built = await this.build({
+                name: tabName,
+                tabmeta,
+                config: req.instanceConfig ?? req.config,
+                background: req.background,
+                adoptblockid: req.adopt?.blockid,
+                adoptfromtabid: req.adopt?.fromtabid,
+            });
             return built?.tabid ?? null;
         }
         await this.build({ tabid: req.tabId, config: req.config });
@@ -743,6 +784,24 @@ export class ViewPins {
             });
         } catch (e) {
             pinError(e);
+        }
+    }
+
+    // Moves a new tab before another in the workspace's order (a view made from a panel lands where it was dropped);
+    // none: it stays at the end.
+    async placeBefore(tabId: string, beforeId: string): Promise<void> {
+        if (!beforeId) {
+            return;
+        }
+        await waitFor(() => (globalStore.get(atoms.workspace)?.tabids ?? []).includes(tabId));
+        const ws = globalStore.get(atoms.workspace);
+        const ids = ws?.tabids ?? [];
+        if (!ids.includes(tabId) || !ids.includes(beforeId)) {
+            return;
+        }
+        const next = moveTabBefore(ids, tabId, beforeId);
+        if (!sameOrder(next, ids)) {
+            await RpcApi.UpdateWorkspaceTabIdsCommand(TabRpcClient, ws.oid, next);
         }
     }
 

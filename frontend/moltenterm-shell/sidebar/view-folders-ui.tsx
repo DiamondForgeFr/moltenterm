@@ -197,7 +197,7 @@ export function FolderRow({
             data-testid="sidebar-folder-row"
             data-folder-id={folder.id}
             data-fo-target={ringed ? "true" : undefined}
-            data-fo-cap={ringed ? t("sidebar.folders.addTo", { name }) : undefined}
+            data-fo-cap={ringed ? (state.cap ?? t("sidebar.folders.addTo", { name })) : undefined}
             {...{ [ItemAttr]: key }}
             onClick={toggle}
             onKeyDown={(e) => {

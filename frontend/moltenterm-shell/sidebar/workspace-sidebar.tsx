@@ -31,6 +31,11 @@ import { BrokkAvatarSlot } from "../boss/brokk-avatar";
 import { edgeAttributes, edgeLineOn, edgeUnfoldsOn } from "../boss/brokk-edge-model";
 import { useBrokkEdge } from "../boss/use-brokk-edge";
 import { useBrokkGateProps, useBrokkVisitUp } from "../boss/use-brokk-hub";
+import { contextIdOf, entriesOfContext } from "../contexts/context-model";
+import { useContexts, useRememberWorkspaceInContext } from "../contexts/context-store";
+import { ManageContextsHost } from "../contexts/manage-host";
+import { ContextRibbonHost } from "../contexts/ribbon-host";
+import { collapsedRibbonShown } from "../contexts/ribbon-model";
 import { faviconsAtom, requestFavicons } from "../favicon/favicon-store";
 import { HoldToCloseGlyph } from "../hold-to-close";
 import { useT, useTCount } from "../i18n/i18n";
@@ -53,11 +58,6 @@ import {
     withWorkingTitle,
     WorkingLight,
 } from "../panel-motion/working-light";
-import { contextIdOf, entriesOfContext } from "../contexts/context-model";
-import { useContexts, useRememberWorkspaceInContext } from "../contexts/context-store";
-import { ManageContextsHost } from "../contexts/manage-host";
-import { ContextRibbonHost } from "../contexts/ribbon-host";
-import { collapsedRibbonShown } from "../contexts/ribbon-model";
 import { ProjectTabMetaKey } from "../project/project-model";
 import { openProjectTab } from "../project/project-tab";
 import { ReleaseNotesHost } from "../releases/release-notes-host";
@@ -68,6 +68,7 @@ import { DurableSessions } from "../sessions/sessions-store";
 import { openSettingsKey } from "../settings/settings-open";
 import { acceleratorById, formatKeys, formatShortcutById } from "../shortcuts/format";
 import { ChannelClasses, useStatusBarView } from "../status-bar";
+import { clearLeave, leaveProgress, prepareLeave, switchLayoutOn } from "../switch-layout/layout-frames";
 import "../tab-bar.css";
 import {
     TabAgentMark,
@@ -101,6 +102,9 @@ import { readWorkspaceSources, subscribeWorkspaceSources } from "../workspace-so
 import { useTabTreesTooltip } from "../worktree-ui";
 import { EmptyWorkspace } from "./empty-workspace";
 import { useFoundLogos } from "./header-logo";
+import { SidebarPanelDrop } from "./panel-view-drop";
+import { projectZoneProps } from "./panel-view-hit";
+import { panelSideClass, useFreshClass, usePanelDrag, usePanelZone } from "./panel-view-zones";
 import { plusMenuItems } from "./plus-menu-model";
 import {
     OtherProjectsWatch,
@@ -157,14 +161,13 @@ import { SidebarSwipeController } from "./sidebar-swipe-view";
 import {
     cancelSwitchIntent,
     notifySwitchIntent,
-    switchDirection,
     setAutoSwitcher,
     sidebarWorkspaceIds,
+    switchDirection,
     switchFromSidebar,
     SwitchIntent,
     useSwitchArrival,
 } from "./sidebar-switch";
-import { clearLeave, leaveProgress, prepareLeave, switchLayoutOn } from "../switch-layout/layout-frames";
 import { undoFromKey } from "./sidebar-undo";
 import "./sidebar.css";
 import { clearingIds, ClearingMetaKey, clearTemporary, foldTotalMs } from "./temporary-clear";
@@ -181,7 +184,7 @@ import {
     viewFoldersAtom,
 } from "./view-folders-store";
 import { ViewGlyph, viewGlyphAtom } from "./view-glyph";
-import { ItemAttr, ListDrag, tabKey, useViewListDrag } from "./view-list-drag";
+import { folderKey, ItemAttr, ListDrag, ListDragState, tabKey, useViewListDrag } from "./view-list-drag";
 import { viewMenuItems, ViewMenuTarget } from "./view-menu";
 import { dropAction, DropZone, readViewIcon, zoneCaptionShown } from "./view-menu-model";
 import { PinScope } from "./view-pins-model";
@@ -204,7 +207,14 @@ import { dotAttention, DotPopoverHover, dotPopoverProject, dotShowsPopover } fro
 import { snapRipplesOf, workspaceDotLook } from "./workspace-dot-ripple";
 import { filterEntries, WorkspaceLetterFilter } from "./workspace-letter-filter";
 import { opensWorkspaceMenu, workspaceMenuItems } from "./workspace-menu-model";
-import { currentProject, currentProjectId, projectChipLabel, projectLabel, readProjects } from "./workspace-projects";
+import {
+    currentProject,
+    currentProjectId,
+    projectChipLabel,
+    projectLabel,
+    readProjects,
+    type WorkspaceProjectEntry,
+} from "./workspace-projects";
 import { switchWorkspaceProject } from "./workspace-projects-store";
 
 const MacTrafficLightsWidth = 74;
@@ -795,6 +805,8 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
     const ws = useAtomValue(atoms.workspace);
     const drag = useAtomValue(sidebarDragAtom);
     const glyph = useAtomValue(viewGlyphAtom(tabId));
+    const panelDrag = usePanelDrag();
+    const freshClass = useFreshClass(tabId);
     const pin = useViewPin(tabId, tab, identity.name);
     const [renaming, setRenaming] = useState(false);
     const startRename = useCallback(() => setRenaming(true), []);
@@ -851,7 +863,9 @@ function Tile({ tabId, active, counts }: { tabId: string; active: boolean; count
                 // run under the dots.
                 hasCounts && "pr-[15px]",
                 drag?.kind === "tile" && drag.id === tabId && "mt-sb-dragged",
-                dropSideClass(drag, "tiles", tabId)
+                dropSideClass(drag, "tiles", tabId),
+                panelSideClass(panelDrag, "tiles", tabId),
+                freshClass
             )}
             aria-current={active ? "page" : undefined}
             aria-label={label}
@@ -949,18 +963,22 @@ function TileGrid({ tileIds, activeTabId, label }: { tileIds: string[]; activeTa
     const ws = useAtomValue(atoms.workspace);
     const ref = useRef<HTMLDivElement>(null);
     const { target, over } = useZone("tiles");
+    const panel = usePanelZone("tiles");
     useGlide(ref, tileIds.join(" "));
-    if (tileIds.length === 0 && !target) {
+    if (tileIds.length === 0 && !target && !panel.active) {
         return <EmptyWorkspace />;
     }
-    const caption = t("sidebar.views.captionHere", { workspace: workspaceShownName(ws?.name, t) });
+    const caption = panel.active
+        ? panel.caption
+        : t("sidebar.views.captionHere", { workspace: workspaceShownName(ws?.name, t) });
     return (
         <div
             ref={ref}
             className={cn(
                 "mt-sb-zone mt-sb-tiles shrink-0 px-1 pt-[7px] pb-0.5",
-                target && "is-target",
-                over && "is-over",
+                (target || panel.active) && "is-target",
+                (over || panel.over) && "is-over",
+                panel.active && "is-panel",
                 tileIds.length === 0 && "mt-sb-zone-empty"
             )}
             aria-label={label}
@@ -1221,8 +1239,29 @@ export function TemporaryViews({
     const folders = useAtomValue(viewFoldersAtom);
     const items = useMemo(() => sidebarItems(ids, folders), [ids, folders]);
     const keys = useMemo(() => items.map(itemKey), [items]);
-    const { state, drag } = useViewListDrag(listRef, asideRef, ids, items);
-    const { target, over } = useZone("temporary");
+    const { state: ownState, drag } = useViewListDrag(listRef, asideRef, ids, items);
+    const { target: listTarget, over: listOver } = useZone("temporary");
+    const panel = usePanelZone("temporary");
+    const target = listTarget || panel.active;
+    const over = listOver || panel.over;
+    // A panel dragged over the list marks the place its view takes like a row dragged there does: the bar before a
+    // row, or a ring on a folder's row (a view made from a panel, FR-SHELL-080).
+    const panelHit = panel.hit;
+    const state = useMemo<ListDragState>(() => {
+        if (ownState != null || panelHit == null) {
+            return ownState;
+        }
+        const folder = panelHit.folderId != null ? folderKey(panelHit.folderId) : null;
+        return {
+            key: "panel",
+            before: panelHit.key ?? null,
+            out: false,
+            target: folder,
+            away: false,
+            inFrame: false,
+            cap: folder != null ? panel.caption : undefined,
+        };
+    }, [ownState, panelHit, panel.caption]);
     const newViewKeys = formatShortcutById("new-tab");
     const note = useAtomValue(folderNoteAtom);
     const openFolderId = useAtomValue(openFolderAtom);
@@ -1247,11 +1286,16 @@ export function TemporaryViews({
         state.key !== lastKey;
     return (
         <div
-            className={cn("mt-sb-zone mt-sb-tv flex shrink-0 flex-col", target && "is-target", over && "is-over")}
+            className={cn(
+                "mt-sb-zone mt-sb-tv flex shrink-0 flex-col",
+                target && "is-target",
+                over && "is-over",
+                panel.active && "is-panel"
+            )}
             role="group"
             aria-label={t("sidebar.temporary.sectionLabel")}
             data-testid="sidebar-temporary"
-            data-cap={t("sidebar.views.captionTemporary")}
+            data-cap={panel.active ? panel.caption : t("sidebar.views.captionTemporary")}
             {...zoneProps("temporary")}
         >
             <div
@@ -1338,7 +1382,13 @@ export function TemporaryViews({
             </span>
             {openFolderId != null ? (
                 <Suspense fallback={null}>
-                    <FolderOverlay asideRef={asideRef} items={items} activeTabId={activeTabId} state={state} drag={drag} />
+                    <FolderOverlay
+                        asideRef={asideRef}
+                        items={items}
+                        activeTabId={activeTabId}
+                        state={state}
+                        drag={drag}
+                    />
                 </Suspense>
             ) : null}
         </div>
@@ -1362,7 +1412,10 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
         }))
     );
     const ref = useRef<HTMLDivElement>(null);
-    const { target, over } = useZone("top");
+    const { target: dragTarget, over: dragOver } = useZone("top");
+    const panel = usePanelZone("top");
+    const target = dragTarget || panel.active;
+    const over = dragOver || panel.over;
     const width = useRowWidth(ref, pins.length > 0 || !!target);
     useGlide(ref, pins.map((p) => p.id).join(" "));
     // A block of one page wears its site's icon, the page the pin saved (#1962): the icons of those sites are asked for.
@@ -1381,11 +1434,12 @@ function TopRow({ instances, activeTabId }: { instances: Record<string, string>;
                 "mt-sb-zone flex shrink-0 flex-col gap-1.5",
                 target && "is-target",
                 over && "is-over",
+                panel.active && "is-panel",
                 pins.length === 0 && "mt-sb-zone-empty"
             )}
             aria-label={t("sidebar.pins.topRowLabel")}
             data-testid="sidebar-top-row"
-            data-cap={t("sidebar.views.captionEverywhere")}
+            data-cap={panel.active ? panel.caption : t("sidebar.views.captionEverywhere")}
             {...zoneProps("top")}
         >
             {topRowLines(topRowBlocks(pins, instances, favicons)).map((line) => {
@@ -1455,6 +1509,8 @@ function TopRowBlock({
     const env = useWaveEnv<SidebarEnv>();
     const pins = ViewPins.getInstance();
     const drag = useAtomValue(sidebarDragAtom);
+    const panelDrag = usePanelDrag();
+    const freshClass = useFreshClass(tabId);
     const modified = useAtomValue(pins.modifiedAtom(tabId));
     const agent = useTabUrgentAgent(tabId);
     const baseTitle = t(modified && tabId ? "sidebar.pins.topModifiedTitle" : "sidebar.pins.topTitle", {
@@ -1487,7 +1543,9 @@ function TopRowBlock({
                 // beside the icon when the block is wide, under it as on tiles otherwise.
                 showsName && (stacked ? "flex-col gap-[3px] px-1" : "gap-1.5 px-3"),
                 drag?.kind === "top" && drag.id === pin.id && "mt-sb-dragged",
-                dropSideClass(drag, "top", pin.id)
+                dropSideClass(drag, "top", pin.id),
+                panelSideClass(panelDrag, "top", pin.id),
+                freshClass
             )}
             aria-label={summary ? `${pin.name}, ${summary}` : pin.name}
             aria-current={active ? "page" : undefined}
@@ -2466,6 +2524,39 @@ function useWorkspaceMenu(workspaces: SidebarWorkspaces) {
     };
 }
 
+// The other projects of a workspace with two or more: their views are out of sight, so each shows a zone of its own
+// while a panel is dragged, where a view made from it goes (FR-SHELL-080, #2548).
+export function OtherProjectZones({ projects, current }: { projects: WorkspaceProjectEntry[]; current: string }) {
+    const t = useT();
+    const drag = usePanelDrag();
+    if (drag == null || projects.length < 2) {
+        return null;
+    }
+    return (
+        <div className="flex shrink-0 flex-col" data-testid="sidebar-project-zones">
+            {projects
+                .filter((p) => p.id !== current)
+                .map((project) => {
+                    const over = drag.hit?.zone === "project" && drag.hit.projectId === project.id;
+                    const caption = t("sidebar.panelView.captionProject", { project: projectLabel(project) });
+                    return (
+                        <div
+                            key={project.id}
+                            className={cn("mt-sb-zone mt-sb-pv-project is-target is-panel", over && "is-over")}
+                            title={t("sidebar.panelView.zoneLabel")}
+                            aria-label={caption}
+                            data-testid="sidebar-project-zone"
+                            data-cap={caption}
+                            {...projectZoneProps(project.id)}
+                        >
+                            <span className="min-w-0 truncate text-12 text-secondary">{projectLabel(project)}</span>
+                        </div>
+                    );
+                })}
+        </div>
+    );
+}
+
 // A view pinned everywhere forks only once a drag of the sidebar ends (#1272): the drop may move it elsewhere.
 const SidebarDraggingAtom = atom((get) => get(sidebarDragAtom) != null);
 
@@ -2723,6 +2814,7 @@ export function WorkspaceSidebar() {
                                     activeTabId={activeTabId}
                                     asideRef={asideRef}
                                 />
+                                <OtherProjectZones projects={projects} current={currentProjectId(ws) ?? ""} />
                                 <ActivityHeat shown={!hidden || peek} />
                             </>
                         )}
@@ -2761,6 +2853,7 @@ export function WorkspaceSidebar() {
                 </div>
             </aside>
             {hidden ? null : <WidthGrip width={width} />}
+            <SidebarPanelDrop asideRef={asideRef} />
             <SidebarHosts entries={workspaces.all} />
         </>
     );

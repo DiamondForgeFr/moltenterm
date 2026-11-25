@@ -50,11 +50,13 @@ import { guestEditMenu, guestMenuEvent } from "../menu/guest-menu";
 import { anchoredMenuEvent, buttonMenuAnchor } from "../menu/menu-anchor";
 import { openSettingsKey, openSettingsSection } from "../settings/settings-open";
 import { formatShortcutById } from "../shortcuts/format";
+import { panelViewMenuItems } from "../sidebar/panel-view-menu";
 import { SidebarModel } from "../sidebar/sidebar-store";
 import { openTopField } from "../sidebar/top-field-store";
 import { splitPanel } from "../split/split";
 import { splitMenuItems } from "../split/split-menu";
 import { DominoLoader } from "../suite/suite";
+import { PanelWaitingMaxMs } from "../switch-layout/panel-ready";
 import { TabActivity } from "../tab-activity";
 import { isShowing } from "../tab-activity-model";
 import { PanelMeta, panelTitle } from "../tab-identity";
@@ -237,7 +239,6 @@ import { BrowserSignInModel, SignInRefusalBar } from "./signin-bar";
 import { ClearCacheKind, ClearSiteKind, siteOriginOf } from "./site-data";
 import { isSiteAsk, SitePermissionModel } from "./site-permission-store";
 import { TestContextChip } from "./test-context";
-import { PanelWaitingMaxMs } from "../switch-layout/panel-ready";
 
 export { MoltentermBrowserView };
 
@@ -985,9 +986,10 @@ export class BrowserViewModel implements ViewModel {
     }
 
     showPageMenu(): void {
-        ContextMenuModel.getInstance().showContextMenu(splitMenuItems(this.blockId), {
-            stopPropagation: () => {},
-        } as React.MouseEvent);
+        ContextMenuModel.getInstance().showContextMenu(
+            [...splitMenuItems(this.blockId), ...panelViewMenuItems(this.blockId)],
+            { stopPropagation: () => {} } as React.MouseEvent
+        );
     }
 
     initialState(): BrowserState {
@@ -2133,7 +2135,7 @@ function TabWebview({
             }
             const menu = guestEditMenu(params, (token) => getApi().saveContextMenuImage(token));
             if (menu.length) menu.push({ type: "separator" });
-            menu.push(...splitMenuItems(model.blockId));
+            menu.push(...splitMenuItems(model.blockId), ...panelViewMenuItems(model.blockId));
             const developer = model.developerMenuItems(tab.id, point);
             if (developer.length) menu.push({ type: "separator" }, ...developer);
             ContextMenuModel.getInstance().showContextMenu(menu, event);
@@ -3265,65 +3267,68 @@ function BrowserView({ model }: ViewComponentProps<BrowserViewModel>) {
             <AgentPermissionBar agents={model.agents} tabId={state.activeId} />
             <AgentControlBar agents={model.agents} tabId={state.activeId} />
             <div className="flex min-h-0 min-w-0 flex-1 flex-row">
-            <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", inspecting && "molten-browser-inspecting")}>
-                <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">
-                    {state.tabs.map((tab) =>
-                        tab.engine ? (
-                            tab.id === state.activeId ? (
-                                <HandoffPage key={tab.id} model={model} tab={tab} />
-                            ) : null
-                        ) : discarded[tab.id] != null ? null : (
-                            <GatedPage
-                                key={tab.id}
-                                model={model}
-                                tab={tab}
-                                active={tab.id === state.activeId}
-                                remembered={localPages}
-                            >
-                                <TabWebview
+                <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", inspecting && "molten-browser-inspecting")}>
+                    <div ref={pagesRef} className="molten-browser-pages relative min-h-0 flex-1">
+                        {state.tabs.map((tab) =>
+                            tab.engine ? (
+                                tab.id === state.activeId ? (
+                                    <HandoffPage key={tab.id} model={model} tab={tab} />
+                                ) : null
+                            ) : discarded[tab.id] != null ? null : (
+                                <GatedPage
+                                    key={tab.id}
                                     model={model}
                                     tab={tab}
                                     active={tab.id === state.activeId}
-                                    shown={viewShown && tab.id === state.activeId}
-                                    offCarpet={offCarpet}
-                                />
-                            </GatedPage>
-                        )
-                    )}
-                    {discarded[state.activeId] != null || restoring[state.activeId] != null ? (
-                        <ReloadingPlaceholder model={model} tab={model.findTab(state.activeId)} />
-                    ) : null}
-                    <ActiveStartPage model={model} tabId={state.activeId} />
-                    <ActiveErrorPage model={model} tabId={state.activeId} />
-                    <ActiveLookalikePage model={model} tabId={state.activeId} />
-                    <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
-                    <AnnotateMount
-                        session={model.annotate}
-                        activeTabId={state.activeId}
-                        tabIds={state.tabs.map((tab) => tab.id)}
-                    />
-                </div>
-                {state.tabs.map((tab) =>
-                    inspectors[tab.id] != null && !tab.engine && discarded[tab.id] == null ? (
-                        <InspectorPane
-                            key={tab.id}
-                            host={model}
-                            tabId={tab.id}
-                            entry={inspectors[tab.id]}
-                            active={tab.id === state.activeId}
-                            shown={viewShown}
+                                    remembered={localPages}
+                                >
+                                    <TabWebview
+                                        model={model}
+                                        tab={tab}
+                                        active={tab.id === state.activeId}
+                                        shown={viewShown && tab.id === state.activeId}
+                                        offCarpet={offCarpet}
+                                    />
+                                </GatedPage>
+                            )
+                        )}
+                        {discarded[state.activeId] != null || restoring[state.activeId] != null ? (
+                            <ReloadingPlaceholder model={model} tab={model.findTab(state.activeId)} />
+                        ) : null}
+                        <ActiveStartPage model={model} tabId={state.activeId} />
+                        <ActiveErrorPage model={model} tabId={state.activeId} />
+                        <ActiveLookalikePage model={model} tabId={state.activeId} />
+                        <AgentActionCueOverlay agents={model.agents} tabId={state.activeId} />
+                        <AnnotateMount
+                            session={model.annotate}
+                            activeTabId={state.activeId}
+                            tabIds={state.tabs.map((tab) => tab.id)}
                         />
-                    ) : null
-                )}
-            </div>
-            {panelOpen ? (
-                <Suspense fallback={null}>
-                    <BookmarksPanel
-                        host={bookmarksHost}
-                        page={{ url: activeTab?.url ?? "", title: activeTab != null ? browserTabTitle(activeTab) : "" }}
-                    />
-                </Suspense>
-            ) : null}
+                    </div>
+                    {state.tabs.map((tab) =>
+                        inspectors[tab.id] != null && !tab.engine && discarded[tab.id] == null ? (
+                            <InspectorPane
+                                key={tab.id}
+                                host={model}
+                                tabId={tab.id}
+                                entry={inspectors[tab.id]}
+                                active={tab.id === state.activeId}
+                                shown={viewShown}
+                            />
+                        ) : null
+                    )}
+                </div>
+                {panelOpen ? (
+                    <Suspense fallback={null}>
+                        <BookmarksPanel
+                            host={bookmarksHost}
+                            page={{
+                                url: activeTab?.url ?? "",
+                                title: activeTab != null ? browserTabTitle(activeTab) : "",
+                            }}
+                        />
+                    </Suspense>
+                ) : null}
             </div>
             <Search {...searchProps} />
             <BookmarkPopoverHost
@@ -3357,4 +3362,3 @@ function ClearDataDialogHost({ model }: { model: BrowserViewModel }) {
         />
     );
 }
-

@@ -1,0 +1,54 @@
+/* Copyright 2026, DiamondForge */
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+/* A panel dragged over the sidebar (FR-SHELL-079, FR-SHELL-080, #2548): every section a drop can land on is outlined in
+   the action colour, dashed; the one under the pointer is solid. The sentence over it says where the view goes. The
+   mark at the exact place is the sidebar's own (.mt-sb-dropb, .mt-sb-dropa, the list's accent bar). */
+.mt-sb-zone.is-panel.is-target {
+    box-shadow: none;
+    outline: 1.5px dashed color-mix(in srgb, var(--mt-action) 70%, transparent);
+    outline-offset: 2px;
+    animation: mt-pv-zone-in var(--mt-duration-fade) var(--mt-ease);
+}
+
+.mt-sb-zone.is-panel.is-over {
+    outline-style: solid;
+    outline-color: var(--mt-action);
+    background-color: color-mix(in srgb, var(--mt-action) 8%, transparent);
+}
+
+.mt-sb-zone.is-panel[data-cap].is-target::after {
+    max-width: calc(100% - 8px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The zone of another project of the workspace: a drop target drawn only while a panel is dragged. */
+.mt-sb-pv-project {
+    display: flex;
+    min-height: 34px;
+    align-items: center;
+    padding: 0 8px;
+    margin-top: 6px;
+    border-radius: var(--mt-radius-panel);
+}
+
+@keyframes mt-pv-zone-in {
+    from {
+        opacity: 0.4;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mt-sb-zone.is-panel.is-target {
+        animation: none;
+    }
+}
+
+.prefers-reduced-motion .mt-sb-zone.is-panel.is-target {
+    animation: none;
+}

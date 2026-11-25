@@ -65,6 +65,8 @@ export type ListDragState = {
     away: boolean;
     // A view still inside its folder's frame: the list shows no place for it.
     inFrame: boolean;
+    // The sentence the ringed folder says, when it is not "Add to <name>": a panel dragged there makes a view in it.
+    cap?: string;
 };
 
 // A view dragged from a folder's grid: the folder, and its frame, out of which the view leaves it.
