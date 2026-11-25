@@ -27,7 +27,7 @@ const sampleKimiMonthUsage = `{
 	}
 }`
 
-type kimiWeekFixture struct {
+type kimiFixture struct {
 	src     *KimiOAuthSource
 	ep      *fakeEndpoint
 	clock   *fakeClock
@@ -36,26 +36,26 @@ type kimiWeekFixture struct {
 	stamp   string
 }
 
-func (f *kimiWeekFixture) setExpires(at int64) {
+func (f *kimiFixture) setExpires(at int64) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	f.expires = at
 }
 
-func (f *kimiWeekFixture) setStamp(stamp string) {
+func (f *kimiFixture) setStamp(stamp string) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	f.stamp = stamp
 }
 
-// newKimiWeekFixture reads from a fake kimi.ai service at 2026-11-19 12:00 UTC (a Thursday), the readings kept in
+// newKimiFixture reads from a fake kimi.ai service at 2026-11-19 12:00 UTC (a Thursday), the last reading kept in
 // history. conn, when given, is the managed connection, and the credential file's metadata is then really read.
-func newKimiWeekFixture(t *testing.T, history string, conn *kimiManagedConnection, clock *fakeClock) *kimiWeekFixture {
+func newKimiFixture(t *testing.T, history string, conn *kimiManagedConnection, clock *fakeClock) *kimiFixture {
 	t.Helper()
 	if clock == nil {
 		clock = &fakeClock{t: time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC)}
 	}
-	f := &kimiWeekFixture{ep: &fakeEndpoint{status: 200, body: sampleKimiMonthUsage}, clock: clock, stamp: "a"}
+	f := &kimiFixture{ep: &fakeEndpoint{status: 200, body: sampleKimiMonthUsage}, clock: clock, stamp: "a"}
 	f.ep.srv = httptest.NewTLSServer(f.ep)
 	t.Cleanup(f.ep.srv.Close)
 	f.src = MakeKimiOAuthSource()
@@ -67,10 +67,9 @@ func newKimiWeekFixture(t *testing.T, history string, conn *kimiManagedConnectio
 			defer f.lock.Unlock()
 			return fakeKimiToken, f.expires, nil
 		},
-		Store:    func() string { return "~/.kimi-code/credentials/kimi-code.json" },
-		Now:      f.clock.now,
-		History:  history,
-		Location: time.UTC,
+		Store:   func() string { return "~/.kimi-code/credentials/kimi-code.json" },
+		Now:     f.clock.now,
+		History: history,
 	}
 	if conn != nil {
 		c := *conn
@@ -88,8 +87,8 @@ func newKimiWeekFixture(t *testing.T, history string, conn *kimiManagedConnectio
 }
 
 func TestKimiExpiredTokenKeepsTheLastReadingAsStale(t *testing.T) {
-	history := filepath.Join(t.TempDir(), "data", kimiHistoryFile)
-	f := newKimiWeekFixture(t, history, nil, nil)
+	history := filepath.Join(t.TempDir(), "data", kimiLastFile)
+	f := newKimiFixture(t, history, nil, nil)
 	fresh, err := f.src.Read(fetchCtx(), "k1")
 	if err != nil || fresh.Stale != "" || windowById(fresh, WindowMonth) == nil {
 		t.Fatalf("first reading: %+v %v", fresh, err)
@@ -118,7 +117,7 @@ func TestKimiExpiredTokenKeepsTheLastReadingAsStale(t *testing.T) {
 	}
 
 	// After a restart, with the token still expired, the reading recorded last shows.
-	again := newKimiWeekFixture(t, history, nil, f.clock)
+	again := newKimiFixture(t, history, nil, f.clock)
 	again.setExpires(f.clock.now().Add(-time.Minute).UnixMilli())
 	restarted, err := again.src.Read(fetchCtx(), "k1")
 	if err != nil || restarted.Stale != ReasonTokenExpired || restarted.ReadAt != fresh.ReadAt {
@@ -130,7 +129,7 @@ func TestKimiExpiredTokenKeepsTheLastReadingAsStale(t *testing.T) {
 }
 
 func TestKimiExpiredTokenWithoutReadingStaysUnavailable(t *testing.T) {
-	f := newKimiWeekFixture(t, filepath.Join(t.TempDir(), kimiHistoryFile), nil, nil)
+	f := newKimiFixture(t, filepath.Join(t.TempDir(), kimiLastFile), nil, nil)
 	f.setExpires(f.clock.now().Add(-time.Minute).UnixMilli())
 	if _, err := f.src.Read(fetchCtx(), "k1"); ReasonOf(err) != ReasonTokenExpired {
 		t.Errorf("nothing to keep: %v", err)
@@ -138,7 +137,7 @@ func TestKimiExpiredTokenWithoutReadingStaysUnavailable(t *testing.T) {
 }
 
 func TestKimiCredentialChangeFetchesAtOnce(t *testing.T) {
-	f := newKimiWeekFixture(t, "", nil, nil)
+	f := newKimiFixture(t, "", nil, nil)
 	f.src.Read(fetchCtx(), "k1")
 	waitKimiHits(t, f.ep, 1)
 	f.clock.add(2 * time.Minute)
@@ -196,8 +195,8 @@ func TestKimiNeverWritesUnderKimiHome(t *testing.T) {
 	os.Chtimes(creds, old, old)
 	before := treeState(t, kimiHome)
 	dataDir := t.TempDir()
-	history := filepath.Join(dataDir, kimiHistoryDir, kimiHistoryFile)
-	f := newKimiWeekFixture(t, history, &kimiManagedConnection{credentialPath: creds}, nil)
+	history := filepath.Join(dataDir, kimiLastDir, kimiLastFile)
+	f := newKimiFixture(t, history, &kimiManagedConnection{credentialPath: creds}, nil)
 	if _, err := f.src.Read(fetchCtx(), "k1"); err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -212,14 +211,14 @@ func TestKimiNeverWritesUnderKimiHome(t *testing.T) {
 		t.Fatalf("next day: %v", err)
 	}
 	if _, err := os.Stat(history); err != nil {
-		t.Fatalf("the readings are kept in MoltenTerm's own folder: %v", err)
+		t.Fatalf("the reading is kept in MoltenTerm's own folder: %v", err)
 	}
 	if after := treeState(t, kimiHome); after != before {
 		t.Errorf("Kimi Code's folder changed:\nbefore\n%s\nafter\n%s", before, after)
 	}
 	f.src.Clear()
 	if _, err := os.Stat(history); !os.IsNotExist(err) {
-		t.Errorf("turning the gauges off removes the readings: %v", err)
+		t.Errorf("turning the gauges off removes the reading: %v", err)
 	}
 	if after := treeState(t, kimiHome); after != before {
 		t.Error("clearing never touches Kimi Code's folder")
@@ -227,12 +226,12 @@ func TestKimiNeverWritesUnderKimiHome(t *testing.T) {
 }
 
 func TestKimiReadingsGoOnlyWhenTheSourceTurnsOff(t *testing.T) {
-	history := filepath.Join(t.TempDir(), kimiHistoryDir, kimiHistoryFile)
+	history := filepath.Join(t.TempDir(), kimiLastDir, kimiLastFile)
 	exists := func() bool {
 		_, err := os.Stat(history)
 		return err == nil
 	}
-	f := newKimiWeekFixture(t, history, nil, nil)
+	f := newKimiFixture(t, history, nil, nil)
 	a := kimiTestAdapter{f.src}
 	if _, err := f.src.Read(fetchCtx(), "k1"); err != nil || !exists() {
 		t.Fatalf("a reading is recorded: %v", err)
@@ -250,14 +249,14 @@ func TestKimiReadingsGoOnlyWhenTheSourceTurnsOff(t *testing.T) {
 		t.Fatal("removing kimi from companion:usagegauges deletes the readings")
 	}
 	// Off and still off: another edit while off keeps what exists.
-	f.src.history.record(UsageSnapshot{Agent: "kimi", Windows: []UsageWindow{novemberMonth()}}, f.clock.now())
+	f.src.history.record(UsageSnapshot{Agent: "kimi", Windows: []UsageWindow{{Id: WindowMonth}}})
 	SyncSources(a, &wconfig.SettingsType{CompanionUsageKimiOAuth: true, TermFontSize: 13})
 	if !exists() {
 		t.Fatal("off to off is no transition")
 	}
 
 	// MoltenTerm starting with the source off: nothing is known yet, nothing goes.
-	restarted := newKimiWeekFixture(t, history, nil, nil)
+	restarted := newKimiFixture(t, history, nil, nil)
 	SyncSources(kimiTestAdapter{restarted.src}, &wconfig.SettingsType{})
 	if !exists() {
 		t.Fatal("a source never seen on deletes nothing")
@@ -272,8 +271,10 @@ func TestKimiReadingsGoOnlyWhenTheSourceTurnsOff(t *testing.T) {
 	}
 }
 
-func TestKimiReadingGetsTheDeducedWeekBeforeTheMonth(t *testing.T) {
-	f := newKimiWeekFixture(t, filepath.Join(t.TempDir(), kimiHistoryFile), nil, nil)
+// The week deduced from the month is gone (#2532): the month draws its own row, so the reading is what the endpoint
+// gave and nothing is added to it.
+func TestKimiReadingAddsNoWindowToTheMonth(t *testing.T) {
+	f := newKimiFixture(t, filepath.Join(t.TempDir(), kimiLastFile), nil, nil)
 	snap, err := f.src.Read(fetchCtx(), "k1")
 	if err != nil {
 		t.Fatal(err)
@@ -282,28 +283,13 @@ func TestKimiReadingGetsTheDeducedWeekBeforeTheMonth(t *testing.T) {
 	for _, w := range snap.Windows {
 		ids = append(ids, w.Id)
 	}
-	if strings.Join(ids, ",") != "session,week,month" {
+	if strings.Join(ids, ",") != "session,month" {
 		t.Fatalf("windows: %v", ids)
-	}
-	week := windowById(snap, WindowWeek)
-	if !week.Deduced || week.Label != DeducedWeekLabel || week.WindowMins != sevenDayMins {
-		t.Errorf("deduced week: %+v", week)
-	}
-	// Recording starts on Thursday: Monday to Wednesday are unknown, Thursday has no use yet, the weekend is to come.
-	want := []float64{-1, -1, -1, 0, 0, 0, 0}
-	for i, d := range week.Days {
-		if d != want[i] {
-			t.Errorf("days %v, want %v", week.Days, want)
-			break
-		}
-	}
-	if week.ResetsAt != time.Date(2026, 11, 23, 0, 0, 0, 0, time.UTC).UnixMilli() {
-		t.Errorf("the week resets on Monday 00:00: %d", week.ResetsAt)
 	}
 }
 
 func TestKimiReadingWithAWeekKeepsIt(t *testing.T) {
-	f := newKimiWeekFixture(t, filepath.Join(t.TempDir(), kimiHistoryFile), nil, nil)
+	f := newKimiFixture(t, filepath.Join(t.TempDir(), kimiLastFile), nil, nil)
 	f.ep.lock.Lock()
 	f.ep.body = sampleKimiUsage
 	f.ep.lock.Unlock()
@@ -311,8 +297,8 @@ func TestKimiReadingWithAWeekKeepsIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if week := windowById(snap, WindowWeek); week == nil || week.Deduced || len(snap.Windows) != 3 {
-		t.Errorf("a provider's own week is never replaced: %+v", snap.Windows)
+	if week := windowById(snap, WindowWeek); week == nil || len(snap.Windows) != 3 {
+		t.Errorf("a provider's own week is kept: %+v", snap.Windows)
 	}
 }
 
@@ -328,136 +314,40 @@ func (a kimiTestAdapter) PageName() string        { return "Kimi" }
 func (a kimiTestAdapter) Domain() string          { return "kimi.com" }
 func (a kimiTestAdapter) Sources() []GaugesSource { return []GaugesSource{a.src} }
 
-// ---- the deduced week from recorded readings ----
-
-// readingAt records a monthly share at a moment of November 2026 (UTC), in the window that resets on 1 December.
-func readingAt(h *kimiHistory, day int, hour int, used float64) {
-	readingIn(h, time.Date(2026, 11, day, hour, 0, 0, 0, time.UTC), used, time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC))
-}
-
-func readingIn(h *kimiHistory, at time.Time, used float64, reset time.Time) {
-	h.record(UsageSnapshot{Agent: "kimi", Windows: []UsageWindow{{Id: WindowMonth, UsedPercent: used, ResetsAt: reset.UnixMilli()}}, ReadAt: at.UnixMilli()}, at)
-}
-
-func novemberMonth() UsageWindow {
-	return UsageWindow{Id: WindowMonth, UsedPercent: 0, ResetsAt: time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC).UnixMilli()}
-}
-
-func testHistory(t *testing.T) (*kimiHistory, string) {
-	path := filepath.Join(t.TempDir(), kimiHistoryDir, kimiHistoryFile)
-	return &kimiHistory{path: func() string { return path }, loc: time.UTC}, path
-}
-
-func TestDeducedWeekBudgetIsTheMonthTimesSevenOverItsDays(t *testing.T) {
-	h, _ := testHistory(t)
-	// November's window has 30 days: the week's budget is 7/30 of the month (23.33 %), a day's 1/30 (3.33 %).
-	readingAt(h, 16, 9, 10)
-	readingAt(h, 16, 20, 13.5)
-	week, ok := h.deducedWeek(novemberMonth(), time.Date(2026, 11, 16, 21, 0, 0, 0, time.UTC))
-	if !ok {
-		t.Fatal("a week")
+func TestKimiLastReadingOfAnOlderFileIsStillRead(t *testing.T) {
+	path := filepath.Join(t.TempDir(), kimiLastDir, kimiLastFile)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
 	}
-	if week.UsedPercent != 15 {
-		t.Errorf("3.5 points of the month over a 23.33-point week is 15 %%: %v", week.UsedPercent)
+	// Version 1 also held the per-day readings of the deduced week.
+	old := `{"version":1,"days":[{"day":"2026-11-18","first":{"at":1,"used":4,"resetsat":2},"last":{"at":1,"used":5,"resetsat":2}}],"last":{"agent":"kimi","source":"kimi-oauth","windows":[{"id":"month","label":"This month","usedpercent":12,"resetsat":1764547200000}],"readat":1763553600000}}`
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if week.Days[0] != 105 {
-		t.Errorf("3.5 points over a 3.33-point day is 105 %%: %v", week.Days)
+	h := &kimiLast{path: func() string { return path }}
+	last := h.last()
+	if last == nil || last.ReadAt != 1763553600000 || len(last.Windows) != 1 || last.Windows[0].UsedPercent != 12 {
+		t.Errorf("the last reading of an older file: %+v", last)
 	}
-	// A 31-day window (December, resetting on 1 January) gives a smaller week for the same use.
-	h31, _ := testHistory(t)
-	jan := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
-	readingIn(h31, time.Date(2026, 12, 14, 9, 0, 0, 0, time.UTC), 10, jan)
-	readingIn(h31, time.Date(2026, 12, 14, 20, 0, 0, 0, time.UTC), 13.5, jan)
-	week31, _ := h31.deducedWeek(UsageWindow{Id: WindowMonth, ResetsAt: jan.UnixMilli()}, time.Date(2026, 12, 14, 21, 0, 0, 0, time.UTC))
-	if week31.UsedPercent != 15.5 {
-		t.Errorf("3.5 points over a 7/31 week is 15.5 %%: %v", week31.UsedPercent)
-	}
-}
-
-func TestDeducedWeekDailyUseComesFromTheReadings(t *testing.T) {
-	h, _ := testHistory(t)
-	readingAt(h, 15, 22, 5) // the Sunday before: Monday counts from its latest reading
-	readingAt(h, 16, 10, 6)
-	readingAt(h, 16, 18, 7)
-	readingAt(h, 17, 9, 8) // Tuesday: 1 point since Monday's latest, then 1 more
-	readingAt(h, 17, 23, 9)
-	readingAt(h, 19, 9, 12) // Wednesday unrecorded: Thursday takes its use
-	readingAt(h, 19, 11, 12)
-	week, _ := h.deducedWeek(novemberMonth(), time.Date(2026, 11, 19, 12, 0, 0, 0, time.UTC))
-	want := []float64{60, 60, -1, 90, 0, 0, 0}
-	for i := range want {
-		if week.Days[i] != want[i] {
-			t.Fatalf("days %v, want %v", week.Days, want)
-		}
-	}
-	// 7 points over a 23.33-point week.
-	if week.UsedPercent != 30 {
-		t.Errorf("week %v", week.UsedPercent)
-	}
-}
-
-func TestDeducedWeekPassesAHundredAbovePace(t *testing.T) {
-	h, _ := testHistory(t)
-	readingAt(h, 16, 9, 0)
-	readingAt(h, 18, 20, 35)
-	week, _ := h.deducedWeek(novemberMonth(), time.Date(2026, 11, 18, 21, 0, 0, 0, time.UTC))
-	if week.UsedPercent != 150 {
-		t.Errorf("35 points over a 23.33-point week: %v", week.UsedPercent)
-	}
-}
-
-func TestDeducedWeekDaysBeforeRecordingAreUnknown(t *testing.T) {
-	h, _ := testHistory(t)
-	readingAt(h, 11, 9, 1) // last week, too far to be a baseline
-	readingAt(h, 18, 9, 4)
-	readingAt(h, 18, 15, 5)
-	week, _ := h.deducedWeek(novemberMonth(), time.Date(2026, 11, 18, 16, 0, 0, 0, time.UTC))
-	want := []float64{DeducedDayUnknown, DeducedDayUnknown, 30, 0, 0, 0, 0}
-	for i := range want {
-		if week.Days[i] != want[i] {
-			t.Fatalf("days %v, want %v", week.Days, want)
-		}
-	}
-	if _, ok := (&kimiHistory{path: func() string { return "" }}).deducedWeek(novemberMonth(), time.Now()); ok {
-		t.Error("no readings, no week")
-	}
-}
-
-func TestDeducedWeekNewMonthlyWindowCountsFromZero(t *testing.T) {
-	h, _ := testHistory(t)
-	dec := time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC)
-	jan := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
-	readingIn(h, time.Date(2026, 11, 30, 20, 0, 0, 0, time.UTC), 90, dec)
-	readingIn(h, time.Date(2026, 12, 1, 10, 0, 0, 0, time.UTC), 2, jan)
-	week, _ := h.deducedWeek(UsageWindow{Id: WindowMonth, ResetsAt: jan.UnixMilli()}, time.Date(2026, 12, 1, 11, 0, 0, 0, time.UTC))
-	// Tuesday 1 December: 2 points of the new window, never a negative delta from the old one.
-	if week.Days[1] != 62 || week.Days[0] != 0 {
-		t.Errorf("days %v", week.Days)
-	}
-}
-
-func TestDeducedWeekReadingsSurviveARestart(t *testing.T) {
-	h, path := testHistory(t)
-	readingAt(h, 16, 9, 10)
-	readingAt(h, 16, 20, 13.5)
-	restarted := &kimiHistory{path: func() string { return path }, loc: time.UTC}
-	week, ok := restarted.deducedWeek(novemberMonth(), time.Date(2026, 11, 16, 21, 0, 0, 0, time.UTC))
-	if !ok || week.UsedPercent != 15 {
-		t.Errorf("the readings are read back: %+v", week)
-	}
-	info, err := os.Stat(path)
-	if err != nil || info.Mode().Perm() != 0o600 {
-		t.Errorf("the file is the user's only: %v %v", info, err)
+	h.record(UsageSnapshot{Agent: "kimi", Windows: []UsageWindow{{Id: WindowMonth, UsedPercent: 13}}, ReadAt: 5})
+	data, err := os.ReadFile(path)
+	if err != nil || strings.Contains(string(data), `"days"`) || !strings.Contains(string(data), `"version":2`) {
+		t.Errorf("a new reading writes the file without the days: %s %v", data, err)
 	}
 }
 
 func TestDefaultReadingsFolderIsMoltenTermsOwn(t *testing.T) {
-	if got := defaultKimiHistoryPath(); got != "" {
+	if got := defaultKimiLastPath(); got != "" {
 		t.Errorf("a test never writes in the app's data folder: %q", got)
 	}
+	if got := defaultHistoryDir(); got != "" {
+		t.Errorf("a test never writes the history in the app's data folder: %q", got)
+	}
 	home, _ := os.UserHomeDir()
-	if strings.Contains(kimiHistoryDir, ".kimi-code") || strings.HasPrefix(kimiHistoryDir, home) {
-		t.Error("the readings never go under Kimi Code's folder")
+	for _, dir := range []string{kimiLastDir, historyDir} {
+		if strings.Contains(dir, ".kimi-code") || strings.HasPrefix(dir, home) {
+			t.Errorf("the readings never go under Kimi Code's folder: %s", dir)
+		}
 	}
 }
 

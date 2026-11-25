@@ -47,6 +47,7 @@ func (m *Manager) globalCodexInfo(ctx context.Context) (UsageInfo, bool) {
 		info.Gauges, info.Reason = usage.GaugesUnavailable, usage.ReasonOf(err)
 		return info, true
 	}
+	usage.NoteReading(molten.AgentIdCodex, &snap, m.now())
 	info.Gauges, info.Snapshot = usage.GaugesEnabled, &snap
 	return info, true
 }
