@@ -135,7 +135,11 @@ func ReadLoop(conn *websocket.Conn, outputCh chan any, closeCh chan any, rpcInpu
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("[websocket] ReadPump error (%s): %v\n", routeId, err)
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+				log.Printf("[websocket] ReadPump closed (%s): %v\n", routeId, err)
+			} else {
+				log.Printf("[websocket] ReadPump error (%s): %v\n", routeId, err)
+			}
 			break
 		}
 		jmsg := map[string]any{}
