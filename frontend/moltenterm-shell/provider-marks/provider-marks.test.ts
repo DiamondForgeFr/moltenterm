@@ -6,6 +6,7 @@
 // own, safe to draw and recorded in NOTICE with its source and terms. Pure reads of the repository's files, made while
 // the file is collected (no timeout there), so a loaded machine cannot make a test late.
 
+import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -152,6 +153,21 @@ describe("each mark is recorded with its source and terms", () => {
 
 // An SVG file is data the app draws in an img element, where a script never runs; it is still checked, since a file a
 // provider's kit ships is untrusted until read, and kept as small as the provider's own file.
+// A mark is used as the provider publishes it: each file is the provider's own bytes, not a copy a formatter or an
+// optimiser has rewritten.
+describe("the shipped files are the provider's own, byte for byte", () => {
+    for (const [agent, mark] of Object.entries(ProviderMarks)) {
+        it(`${agent}: the digests of the registry are the files' own`, () => {
+            for (const tone of ["onDark", "onLight"] as const) {
+                const digest = createHash("sha256")
+                    .update(readFileSync(join(Root, mark.shipped[tone])))
+                    .digest("hex");
+                expect(digest, mark.shipped[tone]).toBe(mark.sha256[tone]);
+            }
+        });
+    }
+});
+
 describe("the shipped files are plain drawings", () => {
     const Forbidden = [
         /<script/i,
