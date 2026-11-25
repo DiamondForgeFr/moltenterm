@@ -38,12 +38,10 @@ class FakeEl {
         return this.attrs[selector.slice(1, -1)] !== undefined;
     }
     closest(selector: string): FakeEl {
-        for (let el: FakeEl = this; el != null; el = el.parent) {
-            if (el.matches(selector)) {
-                return el;
-            }
+        if (this.matches(selector)) {
+            return this;
         }
-        return null;
+        return this.parent?.closest(selector) ?? null;
     }
     contains(other: FakeEl): boolean {
         for (let el = other; el != null; el = el.parent) {
