@@ -83,8 +83,9 @@ export type UsageWeekLine = {
     start: number;
     // The used share as the reader gave it, unrounded: a share under 1 % reads "< 1 %" (#2451).
     used?: number;
-    // A window that is neither weekly nor deduced (a five-hour session, a month) draws one plain gauge, not the seven
-    // days (#2451). The companion sets it (isWeekWindow); Brokk's group draws every provider's main window on the week.
+    // A window that is neither weekly nor monthly (a five-hour session, a 30-day window) draws one plain gauge, not the
+    // seven days (#2451, #2532). The companion sets it (isWeekWindow); Brokk's group draws every provider's main window
+    // on the week.
     plain?: boolean;
     // The window's days, its days late or ahead and the share lost (#2532).
     span?: WindowSpan;

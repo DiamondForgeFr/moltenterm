@@ -79,7 +79,7 @@ export type UsageWeekRow = {
     // The window in a short form: it takes the logo's place. Cut with an ellipsis when the space runs out; `name` is the
     // whole of it.
     label?: string;
-    // A small dimmed second line under the label, how the window is known ("from the month", #2451).
+    // A small dimmed second line under the label, what the window is over ("over the month", #2532).
     sublabel?: string;
     // A small dimmed count before the percent ("29 d" to a monthly reset, #2451); its title says the date. It replaces
     // the reset day in the row's accessible name.
