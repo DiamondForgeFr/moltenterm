@@ -147,11 +147,12 @@ class FakeElement extends FakeTarget {
         }
     }
 
-    replaceChildren() {
+    replaceChildren(...nodes: FakeElement[]) {
         for (const child of this.children) {
             child.parentElement = null;
         }
         this.children = [];
+        this.append(...nodes);
     }
 
     remove() {
@@ -638,5 +639,123 @@ describe("what a mark is on", () => {
         }
         await vi.advanceTimersByTimeAsync(500);
         expect(reads - base).toBe(1);
+    });
+});
+
+describe("what the developer sees while drawing and pointing (#2537)", () => {
+    const at = (x: number, y: number) => ({
+        isTrusted: true,
+        button: 0,
+        pointerId: 7,
+        clientX: x,
+        clientY: y,
+        preventDefault: vi.fn(),
+    });
+
+    const layer = (): FakeElement => hosts()[0].shadow.children[0];
+    const capture = (): FakeElement => hosts()[0].shadow.children[1];
+    // The draft and the preview as the page shows them: only what is in the layer is on screen.
+    const shown = (cls: string): FakeElement =>
+        layer().children.find((c) => c.className.split(" ").includes(cls) && c.style.display === "block") ?? null;
+    const placedAt = (el: FakeElement) => ({
+        left: el.style.left,
+        top: el.style.top,
+        width: el.style.width,
+        height: el.style.height,
+    });
+
+    // An element in view at (100, 200), 200 by 100, that the page has under the pointer.
+    function putButton() {
+        const button = new FakeElement("BUTTON");
+        button.id = "buy";
+        button.rect = { left: 100, top: 200, width: 200, height: 100 };
+        body.appendChild(button);
+        named.set("#buy", button);
+        (document as any).elementsFromPoint = () => [button, body];
+        return button;
+    }
+
+    it("draws the rectangle from the press and follows the pointer, before the release", () => {
+        send(start({ tool: "zone" }));
+        capture().emit("pointerdown", at(40, 60));
+        expect(shown("draft")).not.toBeNull();
+        capture().emit("pointermove", at(140, 160));
+        expect(placedAt(shown("draft"))).toEqual({ left: "40px", top: "60px", width: "100px", height: "100px" });
+        capture().emit("pointermove", at(240, 110));
+        expect(placedAt(shown("draft"))).toEqual({ left: "40px", top: "60px", width: "200px", height: "50px" });
+        expect(posted("placed")).toEqual([]);
+        capture().emit("pointerup", at(240, 110));
+        expect(shown("draft")).toBeNull();
+        expect(posted("placed")).toHaveLength(1);
+    });
+
+    it("draws the pencil's stroke while the pointer moves, one more point at each move", () => {
+        send(start({ tool: "freehand" }));
+        capture().emit("pointerdown", at(40, 60));
+        const points = () => shown("draft").children[0].children[0].attrs.get("points").split(" ").length;
+        capture().emit("pointermove", at(80, 60));
+        expect(points()).toBe(2);
+        capture().emit("pointermove", at(120, 90));
+        capture().emit("pointermove", at(160, 140));
+        expect(points()).toBe(4);
+        expect(placedAt(shown("draft"))).toEqual({ left: "40px", top: "60px", width: "120px", height: "80px" });
+    });
+
+    it("keeps the draft in the page when the panel sends the marks again during the gesture", () => {
+        send(start({ tool: "zone" }));
+        capture().emit("pointerdown", at(40, 60));
+        send({ type: "marks", marks: [mark()] });
+        capture().emit("pointermove", at(140, 160));
+        expect(placedAt(shown("draft"))).toEqual({ left: "40px", top: "60px", width: "100px", height: "100px" });
+    });
+
+    it("outlines, under the cursor tool, the very element the click then selects", () => {
+        putButton();
+        send(start({ tool: "point", marks: [] }));
+        capture().emit("pointermove", at(150, 250));
+        const preview = shown("hover");
+        expect(preview).not.toBeNull();
+        expect(placedAt(preview)).toEqual({ left: "100px", top: "200px", width: "200px", height: "100px" });
+        capture().emit("pointerdown", at(150, 250));
+        capture().emit("pointerup", at(150, 250));
+        const [placed] = posted("placed");
+        expect(placed.anchor.selector).toBe("#buy");
+        expect(placed.anchor.fixed).toBe(false);
+        expect(placed.anchor.box).toEqual({ x: 100, y: 200, w: 200, h: 100 });
+    });
+
+    it("follows the page when it scrolls under a still pointer", () => {
+        putButton();
+        send(start({ tool: "point", marks: [] }));
+        capture().emit("pointermove", at(150, 250));
+        expect(placedAt(shown("hover"))).toEqual({ left: "100px", top: "200px", width: "200px", height: "100px" });
+        // The page goes up by 50 under the pointer, which is now over the next element.
+        const next = new FakeElement("P");
+        next.rect = { left: 100, top: 240, width: 300, height: 40 };
+        body.appendChild(next);
+        (document as any).elementsFromPoint = () => [next, body];
+        fakeWindow.scrollY = 50;
+        hosts()[0].rect = { left: 0, top: -50, width: 0, height: 0 };
+        fakeWindow.emit("scroll", { target: document });
+        expect(placedAt(shown("hover"))).toEqual({ left: "100px", top: "290px", width: "300px", height: "40px" });
+    });
+
+    it("outlines nothing where the click selects no element: a too large one, a comment, another tool", () => {
+        const button = putButton();
+        send(start({ tool: "point", marks: [] }));
+        button.rect = { left: 0, top: 0, width: 1000, height: 800 };
+        capture().emit("pointermove", at(150, 250));
+        expect(shown("hover")).toBeNull();
+        capture().emit("pointerdown", at(150, 250));
+        capture().emit("pointerup", at(150, 250));
+        expect(posted("placed")[0].anchor.fixed).toBe(true);
+        button.rect = { left: 100, top: 200, width: 200, height: 100 };
+        const onIt: Anchor = { box: { x: 120, y: 220, w: 50, h: 50 }, selector: "", rel: null, fixed: true, path: null };
+        send({ type: "marks", marks: [mark({ anchor: onIt })] });
+        capture().emit("pointermove", at(150, 250));
+        expect(shown("hover")).toBeNull();
+        send({ type: "tool", tool: "freehand" });
+        capture().emit("pointermove", at(250, 280));
+        expect(shown("hover")).toBeNull();
     });
 });

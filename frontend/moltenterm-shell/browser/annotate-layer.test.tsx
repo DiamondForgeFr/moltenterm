@@ -12,7 +12,7 @@ import type { Captured } from "./annotate-capture";
 import { CommentField } from "./annotate-layer";
 import type { AnnotateTarget, Recipient, Zone } from "./annotate-model";
 import { type Outcome, ReviewView, type ReviewViewProps } from "./annotate-review";
-import { CaptureBar, CommentList, CommentToolbar, type CommentToolbarProps } from "./annotate-toolbar";
+import { CaptureBar, CommentList, CommentToolbar, type CommentToolbarProps, DefaultTool } from "./annotate-toolbar";
 
 const Noop = () => {};
 const Page = "http://localhost:5173/some/path?x=1";
@@ -60,6 +60,16 @@ describe("the toolbar (FR-BRW-017 AC24)", () => {
         expect(html).toContain('role="toolbar"');
         expect(html).toContain("0 comments");
         expect(html).toContain('aria-expanded="false"');
+    });
+
+    it("puts the pencil first, then the rectangle, then the cursor, with the pencil in use at the start (#2537)", () => {
+        expect(DefaultTool).toBe("freehand");
+        const html = bar({ tool: DefaultTool });
+        const order = [...html.matchAll(/data-testid="browser-annotate-tool-(\w+)"/g)].map((m) => m[1]);
+        expect(order).toEqual(["freehand", "zone", "point"]);
+        expect(html.match(/aria-pressed="true"/g)).toHaveLength(1);
+        expect(html).toMatch(/aria-pressed="true"[^>]*data-testid="browser-annotate-tool-freehand"/);
+        expect(html).toContain("Draw an outline around what to change.");
     });
 
     it("says what the tool in use does, while no comment is made", () => {

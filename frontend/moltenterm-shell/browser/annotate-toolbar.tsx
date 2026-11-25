@@ -28,7 +28,10 @@ export const ToolIcons: Record<MarkKind, IconComponent> = {
     freehand: Pencil,
 };
 
-const ToolOrder: MarkKind[] = ["point", "zone", "freehand"];
+// The pencil comes first and is the tool in use when the mode starts: drawing around a thing is what anyone does first,
+// picking an element is the developer's tool (#2537).
+export const ToolOrder: MarkKind[] = ["freehand", "zone", "point"];
+export const DefaultTool: MarkKind = "freehand";
 
 export function NumberBadge({ n }: { n: number }) {
     return (

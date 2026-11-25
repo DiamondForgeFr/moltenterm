@@ -55,7 +55,15 @@ import { annotateColor } from "./annotate-paint";
 import { attachReferences, fieldDragOver, fieldDrop, fieldPaste, MaxRefSourceBytes } from "./annotate-refs";
 import { Review } from "./annotate-review";
 import type { AnnotatedWebview, AnnotateOpen, AnnotateSession } from "./annotate-session";
-import { CaptureBar, CommentList, CommentToolbar, NumberBadge, type PageAsk, pageLabel } from "./annotate-toolbar";
+import {
+    CaptureBar,
+    CommentList,
+    CommentToolbar,
+    DefaultTool,
+    NumberBadge,
+    type PageAsk,
+    pageLabel,
+} from "./annotate-toolbar";
 import { type FromGuest, type MarkKind, type StartMessage } from "./annotate-wire";
 import { useTestContext } from "./test-context";
 
@@ -233,7 +241,7 @@ function AnnotateLayer({
     const t = useT();
     const rootRef = useRef<HTMLDivElement>(null);
     const [state, setState] = useState<AnnotateState>(emptyState);
-    const [tool, setTool] = useState<MarkKind>("point");
+    const [tool, setTool] = useState<MarkKind>(DefaultTool);
     const [paused, setPaused] = useState(false);
     const [listOpen, setListOpen] = useState(false);
     const [phase, setPhase] = useState<Phase>("draw");

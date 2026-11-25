@@ -74,7 +74,7 @@ const Css = `
 @keyframes flash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 75%, transparent); } 100% { box-shadow: 0 0 0 18px transparent; } }
 .draft, .hover { position: absolute; box-sizing: border-box; pointer-events: none; }
 .draft.zone { border: 2px dashed var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
-.hover { border: 2px dashed var(--c); background: color-mix(in srgb, var(--c) 8%, transparent); }
+.hover { border: 2px solid var(--c); border-radius: 2px; background: color-mix(in srgb, var(--c) 16%, transparent); }
 .draft svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
 .draft polyline { fill: none; stroke: var(--c); stroke-width: 3; stroke-dasharray: 2 5; stroke-linecap: round; stroke-linejoin: round; }
 .capture { position: fixed; left: 0; top: 0; right: 0; bottom: 0; cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; pointer-events: auto; }
@@ -112,6 +112,9 @@ type Overlay = {
     saved: Point;
     inner: Map<Element, Point>;
     drag: Drag;
+    // Where the pointer last was over the page, in the viewport's pixels: a scroll moves the page under a still pointer, and
+    // the cursor tool's preview follows it.
+    pointer: Point;
     frame: number;
     timer: number;
     lastRun: number;
@@ -414,14 +417,17 @@ function setMarks(o: Overlay, marks: MarkView[]): void {
     }
     o.marks = marks;
     o.sticky = marks.some((m) => m.anchor.sticky === true);
-    o.layer.replaceChildren();
     o.nodes.clear();
     o.boxes.clear();
+    const nodes: HTMLElement[] = [];
     for (const mark of marks) {
         const node = buildMarkNode(mark);
         o.nodes.set(mark.id, node);
-        o.layer.appendChild(node);
+        nodes.push(node);
     }
+    // The preview and the draft live in the same layer, over the marks: emptying the layer without them left the gesture
+    // in progress and the cursor tool's preview out of the page, unseen until the release placed the mark (#2537).
+    o.layer.replaceChildren(...nodes, o.hover, o.draft);
     refresh(o);
 }
 
@@ -481,9 +487,24 @@ function bigElement(el: Element): boolean {
     return rect.width * rect.height > window.innerWidth * window.innerHeight * BigElement;
 }
 
+// pointTarget: the element a click of the cursor tool at a viewport point selects; null when it selects none (no element,
+// or one too big to be a target: the click drops a marker there instead). The preview and the click both ask it, so the
+// element outlined is the one the click takes.
+function pointTarget(o: Overlay, clientX: number, clientY: number): Element {
+    const el = elementAt(clientX, clientY, o);
+    return el == null || bigElement(el) ? null : el;
+}
+
+// updateHover: the cursor tool's preview, as a browser's element picker shows it: the element a click would select,
+// outlined and tinted. Over a mark the click opens that comment, so nothing is outlined.
 function updateHover(o: Overlay, clientX: number, clientY: number): void {
-    const el = o.tool === "point" && !o.paused && o.drag == null ? elementAt(clientX, clientY, o) : null;
-    if (el == null || bigElement(el)) {
+    const s = scrolledTo();
+    const live = o.tool === "point" && !o.paused && !o.locked && o.drag == null;
+    const el =
+        live && marksHit(o, { x: clientX + s.x, y: clientY + s.y }) == null
+            ? pointTarget(o, clientX, clientY)
+            : null;
+    if (el == null) {
         o.hover.style.display = "none";
         return;
     }
@@ -538,14 +559,11 @@ function drawDraft(o: Overlay, tool: MarkKind, drag: Drag, now: Point): void {
 function anchorElementFor(o: Overlay, kind: MarkKind, box: Box, up: Point): { el: Element; fixed: boolean; box: Box } {
     const s = scrolledTo();
     if (kind === "point") {
-        const el = elementAt(up.x - s.x, up.y - s.y, o);
-        if (el == null) {
-            return { el: document.body, fixed: true, box };
+        const target = pointTarget(o, up.x - s.x, up.y - s.y);
+        if (target != null) {
+            return { el: target, fixed: false, box: pageBoxOf(target.getBoundingClientRect()) };
         }
-        if (bigElement(el)) {
-            return { el, fixed: true, box };
-        }
-        return { el, fixed: false, box: pageBoxOf(el.getBoundingClientRect()) };
+        return { el: elementAt(up.x - s.x, up.y - s.y, o) ?? document.body, fixed: true, box };
     }
     const cx = Math.min(window.innerWidth - 1, Math.max(0, box.x + box.w / 2 - s.x));
     const cy = Math.min(window.innerHeight - 1, Math.max(0, box.y + box.h / 2 - s.y));
@@ -595,6 +613,7 @@ function onPointerDown(o: Overlay, e: PointerEvent): void {
     const p = pageOf(e);
     o.drag = { pointerId: e.pointerId, down: p, path: [p] };
     o.hover.style.display = "none";
+    drawDraft(o, o.tool, o.drag, p);
     post({ type: "press" });
 }
 
@@ -602,6 +621,7 @@ function onPointerMove(o: Overlay, e: PointerEvent): void {
     if (!e.isTrusted || o.locked) {
         return;
     }
+    o.pointer = { x: e.clientX, y: e.clientY };
     const drag = o.drag;
     if (drag == null) {
         updateHover(o, e.clientX, e.clientY);
@@ -687,6 +707,7 @@ function create(msg: StartMessage): Overlay {
         saved: null,
         inner: new Map(),
         drag: null,
+        pointer: null,
         frame: 0,
         timer: 0,
         lastRun: 0,
@@ -704,6 +725,7 @@ function create(msg: StartMessage): Overlay {
         o.draft.style.display = "none";
     });
     listen(o, capture, "pointerleave", () => {
+        o.pointer = null;
         o.hover.style.display = "none";
     });
     listen(
@@ -711,6 +733,9 @@ function create(msg: StartMessage): Overlay {
         window,
         "scroll",
         (e) => {
+            if (o.pointer != null && o.drag == null) {
+                updateHover(o, o.pointer.x, o.pointer.y);
+            }
             if (e.target !== document) {
                 schedule(o);
             } else if (o.sticky) {
