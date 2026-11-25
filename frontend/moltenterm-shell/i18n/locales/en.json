@@ -1996,7 +1996,7 @@
                 "absent": "Hooks not configured",
                 "current": "Hooks installed",
                 "definition-update": "MoltenTerm hook update available",
-                "compatibility-review": "Review Kimi Code compatibility",
+                "compatibility-review": "Kimi Code version incompatible with MoltenTerm hooks",
                 "drift": "Managed hooks need repair",
                 "invalid": "Hook configuration needs attention",
                 "conflict": "Conflicting hook configuration",
@@ -2007,8 +2007,8 @@
             "explanation": {
                 "absent": "Install the managed block after reviewing the target file.",
                 "current": "The managed block is installed.",
-                "definition-update": "Update MoltenTerm hooks to use the reviewed definition.",
-                "compatibility-review": "This Kimi Code version is read-only until its hook contract is reviewed.",
+                "definition-update": "The installed hooks differ from the ones MoltenTerm now ships. Update them to use the reviewed definition.",
+                "compatibility-review": "This Kimi Code version is known to be incompatible with MoltenTerm's hooks: they stay read-only. You can still remove them.",
                 "drift": "Repair the managed block without replacing your other settings.",
                 "invalid": "No managed write is allowed until the configuration is safe.",
                 "conflict": "Resolve the conflicting MoltenTerm hooks before a managed change.",
@@ -2038,7 +2038,32 @@
                 "kimi": "merged with the hooks you already have; Kimi Code reads hooks from this user file, not from the project"
             },
             "restart": "Start {name} again after the change. Once its hooks report, this offer goes away.",
-            "guide": "Read the agent states guide"
+            "guide": "Read the agent states guide",
+            "manualUpdate": "Your settings run older MoltenTerm hooks. Replace them with the snippet below.",
+            "changes": {
+                "title": "What changes",
+                "added": "Added",
+                "removed": "Removed",
+                "default": "default",
+                "none": "none",
+                "seconds": "{value} s",
+                "field": {
+                    "command": "Command",
+                    "timeout": "Timeout",
+                    "matcher": "Matcher",
+                    "definition": "Hook definition",
+                    "qualifiedversion": "Qualified {name} version",
+                    "block": "The managed block's text was edited"
+                }
+            },
+            "unqualified": {
+                "title": "Version not qualified yet",
+                "body": "MoltenTerm has not yet checked the hook contract of {name} {version} (qualified version: {qualified}).",
+                "bodyUnknown": "MoltenTerm could not read the version of {name}, so its hook contract is not checked (qualified version: {qualified}).",
+                "risk": "If the contract changed, the hooks may not fire or report nothing until you remove them. Your other settings stay as they are, and a backup is made first.",
+                "ask": "Write MoltenTerm's hooks for this version anyway?",
+                "confirm": "Confirm and write"
+            }
         }
     },
     "companion": {
@@ -3660,7 +3685,7 @@
             "restartNoNetwork": "Restart terminal (no network)",
             "setupHooks": "Set up {agent}'s hooks",
             "restartHooks": "Restart {agent} to activate hooks",
-            "updateHooks": "Update MoltenTerm hooks",
+            "updateHooks": "Update {agent}'s hooks",
             "repairHooks": "Repair MoltenTerm hooks",
             "reviewHooks": "Review {agent} hook compatibility",
             "linkWorktree": "Link the worktree {name}"

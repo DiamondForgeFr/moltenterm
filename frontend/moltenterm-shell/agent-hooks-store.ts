@@ -86,7 +86,12 @@ export class AgentHookOffers {
         await agentCall(AgentHookDismissCommand, { agent, updatekey: updateKey });
     }
 
-    private async mutate(command: string, offer: AgentHookOffer, action: string): Promise<AgentHookMutationResult> {
+    private async mutate(
+        command: string,
+        offer: AgentHookOffer,
+        action: string,
+        confirmUnqualified = false
+    ): Promise<AgentHookMutationResult> {
         const result = await agentCall<AgentHookMutationResult>(
             command,
             {
@@ -94,6 +99,7 @@ export class AgentHookOffers {
                 action,
                 updatekey: offer.updatekey,
                 expecteddigest: offer.configdigest,
+                ...(confirmUnqualified ? { confirmunqualified: true } : {}),
             },
             MutationRpcTimeoutMs
         );
@@ -103,8 +109,9 @@ export class AgentHookOffers {
         return result;
     }
 
-    apply(offer: AgentHookOffer): Promise<AgentHookMutationResult> {
-        return this.mutate(AgentHookApplyCommand, offer, offer.action);
+    // confirmUnqualified: the developer accepted writing hooks for a version that is not qualified yet (#2543).
+    apply(offer: AgentHookOffer, confirmUnqualified = false): Promise<AgentHookMutationResult> {
+        return this.mutate(AgentHookApplyCommand, offer, offer.action, confirmUnqualified);
     }
 
     remove(offer: AgentHookOffer): Promise<AgentHookMutationResult> {

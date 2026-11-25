@@ -24,7 +24,9 @@ import (
 
 const (
 	KimiHookDefinitionVersion = 1
-	KimiHookQualifiedVersion  = "2.6.3"
+	// 2.7.2 (#2543): the same 11 events in its hook enum, the same strict [[hooks]] table (event, matcher, command,
+	// timeout 1..600) and the same snake_case stdin payload (hook_event_name, session_id, cwd, turn_id) as 2.6.3.
+	KimiHookQualifiedVersion  = "2.7.2"
 	kimiHookStateFileName     = "kimi-hook-installations.json"
 	kimiHookStartMarker       = "# >>> MoltenTerm managed Kimi hooks — do not edit >>>"
 	kimiHookEndMarker         = "# <<< MoltenTerm managed Kimi hooks <<<"
@@ -72,6 +74,10 @@ type kimiConfigInspection struct {
 	Manual     bool
 	ErrorCode  string
 }
+
+// The Kimi Code versions whose hook contract is known not to take MoltenTerm's block: the only ones kept read-only.
+// Any other version that is not the qualified one is written after the developer confirms (#2543). A var for tests.
+var kimiHookIncompatibleVersions = map[string]bool{}
 
 var kimiConfigLocks sync.Map
 var kimiMakeFileBackup = filebackup.MakeFileBackupFromData
@@ -347,7 +353,8 @@ func kimiUpdateKey(offer AgentHookOffer) string {
 		CurrentKimiVersion         string
 		ConfigDigest               string
 		ErrorCode                  string
-	}{offer.Status, offer.Action, offer.UpdateKind, offer.File, offer.DefinitionVersion, offer.DefinitionSHA256, offer.InstalledDefinitionVersion, offer.InstalledDefinitionSHA256, offer.InstalledKimiVersion, offer.CurrentKimiVersion, offer.ConfigDigest, offer.ErrorCode})
+		Unqualified                bool
+	}{offer.Status, offer.Action, offer.UpdateKind, offer.File, offer.DefinitionVersion, offer.DefinitionSHA256, offer.InstalledDefinitionVersion, offer.InstalledDefinitionSHA256, offer.InstalledKimiVersion, offer.CurrentKimiVersion, offer.ConfigDigest, offer.ErrorCode, offer.Unqualified})
 	hash := sha256.Sum256(key)
 	return hex.EncodeToString(hash[:])
 }
@@ -376,6 +383,8 @@ func makeKimiAgentHookOffer(env AgentEnv, offer AgentHookOffer, hooked bool, det
 		offer.InstalledKimiVersion = installation.KimiVersion
 	}
 	qualified := detection.Installed && detection.Version == KimiHookQualifiedVersion
+	// Block only what is known to fail (#2543): an unknown or newer version is written once the developer confirms.
+	incompatible := detection.Installed && kimiHookIncompatibleVersions[detection.Version]
 
 	switch {
 	case stateErr != nil:
@@ -399,9 +408,9 @@ func makeKimiAgentHookOffer(env AgentEnv, offer AgentHookOffer, hooked bool, det
 		offer.Status, offer.Action, offer.UpdateKind = HookStatusDrift, HookActionRepair, HookUpdateRepair
 	case inspection.HasBlock:
 		offer.CanRemove = true
-		if inspection.Metadata.KimiVersion != detection.Version || !qualified {
+		if incompatible {
 			offer.Status, offer.Action, offer.UpdateKind = HookStatusCompatibilityReview, HookActionReview, HookUpdateCompatibility
-		} else if inspection.Metadata.DefinitionVersion != definition.Version || inspection.Metadata.DefinitionSHA256 != definition.SHA256 || inspection.Metadata.Events != strings.Join(definition.Events, ",") {
+		} else if string(inspection.Block) != definition.Block+"\n" {
 			offer.Status, offer.Action, offer.UpdateKind = HookStatusDefinitionUpdate, HookActionUpdate, HookUpdateDefinition
 		} else if hooked {
 			offer.Status, offer.Action, offer.Reason = HookStatusReporting, HookActionRemove, HookOfferHooked
@@ -410,13 +419,17 @@ func makeKimiAgentHookOffer(env AgentEnv, offer AgentHookOffer, hooked bool, det
 		}
 	case inspection.Manual:
 		offer.Status, offer.Reason = HookStatusManual, HookOfferConfigured
-	case !qualified:
+	case incompatible:
 		offer.Status, offer.Action, offer.UpdateKind = HookStatusCompatibilityReview, HookActionReview, HookUpdateCompatibility
 	default:
 		offer.Status, offer.Action = HookStatusAbsent, HookActionInstall
 	}
-	if (offer.Action == HookActionInstall || offer.Action == HookActionUpdate || offer.Action == HookActionRepair) && qualified && offer.ErrorCode == "" {
+	if (offer.Action == HookActionInstall || offer.Action == HookActionUpdate || offer.Action == HookActionRepair) && !incompatible && offer.ErrorCode == "" {
 		offer.CanApply = true
+		offer.Unqualified = !qualified
+	}
+	if offer.Action == HookActionUpdate || offer.Action == HookActionRepair {
+		offer.Changes = kimiBlockChanges(inspection.HasBlock, inspection.Block, inspection.Metadata, definition)
 	}
 	offer.UpdateKey = kimiUpdateKey(offer)
 
@@ -451,6 +464,8 @@ func mutateKimiHooks(env AgentEnv, req AgentHookMutationRequest, hooked bool, de
 		}
 	} else if req.Action != offer.Action || !offer.CanApply || (req.Action != HookActionInstall && req.Action != HookActionUpdate && req.Action != HookActionRepair) {
 		return AgentHookMutationResult{Offer: offer}, fmt.Errorf("Kimi hooks cannot be applied in this state")
+	} else if offer.Unqualified && !req.ConfirmUnqualified {
+		return AgentHookMutationResult{Offer: offer}, fmt.Errorf("this Kimi Code version is not qualified yet: confirm the risk before MoltenTerm writes its hooks")
 	}
 	inspection := inspectKimiConfig(path)
 	if inspection.ErrorCode != "" || inspection.Digest != req.ExpectedDigest {

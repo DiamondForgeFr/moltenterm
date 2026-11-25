@@ -514,7 +514,7 @@
                 },
                 "hooksoffer": {
                     "level": "native",
-                    "note": "explicitly approved managed config.toml block on Kimi Code 2.6.3, update/drift detection and safe removal; other versions read-only, manual TOML fallback",
+                    "note": "explicitly approved managed config.toml block qualified on Kimi Code 2.7.2, update/drift detection with the differences listed and safe removal; an unqualified version writes after confirmation, only a known incompatible one is read-only; manual TOML fallback",
                     "adapter": "agenthooks.go, kimihooks.go, attention/agenthookoffer.go"
                 },
                 "instructions": {
