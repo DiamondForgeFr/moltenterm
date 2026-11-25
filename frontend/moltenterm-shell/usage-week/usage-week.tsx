@@ -18,7 +18,6 @@
 // with a control on each side to move between the weeks, a line under the row for the days late or ahead and the share
 // lost, and the lost days hatched at the end of the window.
 
-import ClaudeColorSvg from "@/app/asset/claude-color.svg";
 import { cn, makeIconClass } from "@/util/util";
 import { autoUpdate, flip, FloatingPortal, offset, shift, useHover, useInteractions } from "@floating-ui/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -29,6 +28,7 @@ import { relativeTime } from "../companion/companion-model";
 import { useFloatingInPlace } from "../floating-in-place";
 import { useLocale, useT } from "../i18n/i18n";
 import { anchoredMenuEvent, buttonMenuAnchor } from "../menu/menu-anchor";
+import { hasProviderMark, ProviderMark } from "../provider-marks/provider-mark";
 import {
     currentWeekIndex,
     DayCell,
@@ -101,14 +101,17 @@ export type UsageWeekSession = { percent: number; colour: string; tip: string; f
 // How long the pointer rests on a logo before its name shows.
 const NameDelayMs = 300;
 
+// The slot of a logo in px (the logo's cell is 18 px wide and high): the mark fits it, as Claude's always did.
+const LogoSlot = 17;
+
 // The event a row's menu gets from its logo's button: Enter or Space is a click at 0, 0, which would put the menu in the
 // window's corner, so it opens under the button and, as a keyboard opening, focuses its first entry (#1439).
 export function openRowMenu(e: React.MouseEvent): React.MouseEvent {
     return anchoredMenuEvent(e, buttonMenuAnchor(e.currentTarget));
 }
 
-// The agents whose own logo MoltenTerm already ships; the others show the AI icon the launcher gives every agent. A
-// small popover names the agent, since not everyone knows every provider's logo: after a short rest of the pointer, or
+// The agents that have a mark in the shared set of provider marks (#2542) show their provider's own mark; the others show
+// the AI icon. A small popover names the agent, since not everyone knows every provider's logo: after a short rest of the pointer, or
 // at once when the keyboard reaches the logo. It floats in a portal, so it never moves the layout and no scrolling block
 // clips it. The logo is not clickable on its own. A row with a menu (#2341) makes its logo the button that opens it,
 // so the menu is reached from the keyboard too: Tab to the logo, then Enter or Space, the Menu key or Shift+F10 (which
@@ -126,7 +129,7 @@ function AgentLogo({
 }) {
     const t = useT();
     const displayName = windowLabel ? t("usageWeek.providerWindow", { name, window: windowLabel }) : name;
-    const claude = agent === "claude";
+    const marked = hasProviderMark(agent);
     const [open, setOpen] = useState(false);
     const { refs, floatingStyles, context } = useFloatingInPlace({
         open,
@@ -141,10 +144,14 @@ function AgentLogo({
         ref: refs.setReference,
         className: "mt-uw-logo",
         "data-testid": "usage-week-logo",
-        "data-logo": claude ? "claude" : "ai",
+        "data-logo": marked ? agent : "ai",
         "data-name": displayName,
     };
-    const icon = claude ? <ClaudeColorSvg /> : <i className={makeIconClass(AiIcon, true)} />;
+    const icon = marked ? (
+        <ProviderMark agent={agent} slot={LogoSlot} />
+    ) : (
+        <i className={makeIconClass(AiIcon, true)} />
+    );
     return (
         <>
             {onMenu == null ? (

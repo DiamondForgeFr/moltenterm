@@ -80,6 +80,32 @@ describe("agent presets", () => {
         expect(agentEntries(DefaultAgents)).toHaveLength(2);
     });
 
+    it("names the agent whose provider mark a row shows (#2542): its own id, or the program of its command", () => {
+        const installed = [
+            { id: "cursor", name: "Cursor CLI", command: "agent", installed: true },
+            { id: "kimi", name: "Kimi Code", command: "kimi", installed: true },
+            { id: "vibe", name: "Mistral Vibe", command: "vibe", installed: true },
+        ];
+        const presets = {
+            ...DefaultAgents,
+            "agent@work": { "display:name": "Work", "agent:command": "claude --model opus" },
+            "agent@mine": { "display:name": "Mine", "agent:command": "my-agent --fast" },
+        };
+        const byId = Object.fromEntries(agentEntries(presets, installed).map((e) => [e.id, e.agent]));
+        expect(byId).toEqual({
+            "agent:claude": "claude",
+            "agent:codex": "codex",
+            "agent:work": "claude",
+            "agent:mine": undefined,
+            "agent:cursor": "cursor",
+            "agent:kimi": undefined,
+            "agent:vibe": undefined,
+        });
+        for (const entry of agentEntries(presets, installed)) {
+            expect(entry.icon, entry.id).toBe("sparkles");
+        }
+    });
+
     it("shows the command as the CLI equivalent", () => {
         const [claude] = agentEntries(DefaultAgents);
         expect(claude).toMatchObject({ group: "agents", label: "Claude Code", cli: "claude" });

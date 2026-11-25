@@ -15,6 +15,7 @@ import { getLocale, t } from "../i18n/i18n";
 import { FallbackLanguage, languageText } from "../i18n/i18n-core";
 import { MoltentermLineMapView } from "../mission/line-map-model";
 import { MoltentermProjectView } from "../project/project-model";
+import { markAgentOf } from "../provider-marks/provider-marks";
 import { MoltentermSessionsView } from "../sessions/sessions-model";
 import { formatShortcutById } from "../shortcuts/format";
 import type { PinMove } from "../sidebar/view-menu-model";
@@ -272,6 +273,7 @@ export function agentEntries(
         label: p.name,
         detail: agentWorksDetail(matrix, p),
         icon: p.icon,
+        agent: markAgentOf(p.id, p.command),
         color: p.color || undefined,
         cli: p.command,
         keywords: paletteKeywords("agent", p.id),

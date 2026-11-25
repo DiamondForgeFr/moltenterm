@@ -9,10 +9,14 @@ import { cn, makeIconClass } from "@/util/util";
 import React from "react";
 import { EngineMark } from "../browser/engine-mark";
 import { FaviconMark } from "../favicon/favicon-mark";
+import { hasProviderMark, ProviderMark } from "../provider-marks/provider-mark";
 import { ViewCube } from "../sidebar/view-cube";
 import { isGlyphCube, isGlyphFavicon } from "../sidebar/view-menu-model";
 import { WorkspaceIcon } from "../workspace-icon";
 import { entryMatch, highlightRuns, PaletteEntry } from "./palette-model";
+
+// The slot of a provider's mark: the width of the icon column (w-4), so a row with a mark lines up with the others.
+const AgentMarkSlot = 16;
 
 export function Highlighted({ text, indices }: { text: string; indices: number[] }) {
     if (!indices?.length) {
@@ -67,6 +71,8 @@ export function PaletteRow({ entry, index, selected, query, onHover, onOpen }: P
                 </span>
             ) : entry.mark ? (
                 <EngineMark letters={entry.mark} />
+            ) : hasProviderMark(entry.agent) ? (
+                <ProviderMark agent={entry.agent} slot={AgentMarkSlot} />
             ) : (
                 <i
                     className={cn(
