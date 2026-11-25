@@ -231,10 +231,12 @@ export function chooseFolder(selection: PanelSelection, columnIndex: number, fol
     return { path: selection.path.slice(0, columnIndex), folder: folderId };
 }
 
-// Where a place sits for a bookmark's path: the names above it, as a result of the search shows.
+// Where each place of a bookmark sits, as a result of the search shows it: the names from the context down, then the
+// folder; the app alone for a bookmark placed at the app.
 export function bookmarkPaths(catalog: PlaceCatalog, store: BookmarkStore, b: Bookmark): string[] {
     return b.places.map((p) => {
-        const names = chainOf(catalog, p).map((n) => n.name);
+        const chain = chainOf(catalog, p);
+        const names = (chain.length > 1 ? chain.slice(1) : chain).map((n) => n.name);
         const folder = foldersAt(store, p).find((f) => f.id === p.folder)?.name;
         return [...names, ...(folder ? [folder] : [])].join(" › ");
     });

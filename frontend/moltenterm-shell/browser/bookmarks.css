@@ -70,7 +70,7 @@
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: var(--mt-text-12);
 }
 
 .molten-bm-mark .mt-favicon {
@@ -85,9 +85,9 @@
     width: 9px;
     height: 9px;
     padding: 1px;
-    border-radius: 2px;
-    background: #f2f2f2;
-    color: #111;
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-text-1);
+    color: var(--mt-surface-0);
 }
 
 .molten-bm-icon {
@@ -185,6 +185,13 @@
     gap: 2px;
 }
 
+.molten-bm-text {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
 .molten-bm-input {
     min-width: 0;
     padding: 5px 9px;
@@ -261,7 +268,7 @@
 
 .molten-bm-alert {
     padding: 8px 14px;
-    color: var(--mt-state-error, #e5484d);
+    color: var(--mt-state-error);
     font-size: var(--mt-text-12);
 }
 
@@ -270,7 +277,8 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    margin: 4px 12px 10px;
+    /* The first thing in its block, like a row: it climbs back over the room the pocket's chip leaves. */
+    margin: calc(var(--df-block-pad) - var(--df-block-pad-top) + 10px) 12px 10px;
     padding: 6px 9px;
     border: 1px solid var(--mt-action);
     border-radius: var(--mt-radius-control);
@@ -296,7 +304,7 @@
 .molten-bm-heading {
     padding: 8px 14px 3px;
     color: var(--mt-text-3);
-    font-size: 10.5px;
+    font-size: var(--mt-text-11);
     letter-spacing: 0.02em;
 }
 
@@ -344,7 +352,7 @@
     flex-shrink: 0;
     padding: 0 5px;
     border: 1px solid var(--mt-line-2);
-    border-radius: 3px;
+    border-radius: var(--mt-radius-control);
     color: var(--mt-text-3);
     font-size: var(--mt-text-11);
 }
@@ -357,6 +365,8 @@
     flex-shrink: 0;
     flex-direction: column;
     min-width: 0;
+    /* The page keeps some room whatever the panel's width: a narrow web page panel never loses the page under the panel. */
+    max-width: calc(100% - 160px);
     border-left: 1px solid var(--mt-line-1);
     background: var(--mt-surface-0);
     color: var(--mt-text-1);

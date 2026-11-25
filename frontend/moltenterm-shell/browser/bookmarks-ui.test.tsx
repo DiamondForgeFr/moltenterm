@@ -200,7 +200,8 @@ describe("the popover (mockup 2)", () => {
         const out = popover(fresh());
         expect(out.match(/data-testid="bookmark-folder"/g)).toHaveLength(2);
         expect(out).toContain("Folder: Environments");
-        expect(out).toContain("Folder: No folder");
+        expect(out).toContain(">No folder<");
+        expect(out).not.toContain("Folder: No folder");
         expect(out).toContain("2 places");
     });
 

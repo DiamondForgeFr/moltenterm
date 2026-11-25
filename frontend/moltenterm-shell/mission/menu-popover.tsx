@@ -81,7 +81,10 @@ export function MenuPopover({
             }),
         ],
     });
-    const { getFloatingProps } = useInteractions([useDismiss(context)]);
+    // A click in a menu this popover opened (the menu host's layer, outside the popover) is not a click outside it.
+    const { getFloatingProps } = useInteractions([
+        useDismiss(context, { outsidePress: (event) => !(event.target as Element)?.closest?.(".molten-menu-layer") }),
+    ]);
     const popover = (
         <div
             ref={refs.setFloating}

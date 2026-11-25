@@ -26,7 +26,8 @@ import type { PopoverRequest } from "./bookmark-popover-model";
 import { BookmarkMark, HighlightedName, PlaceMarker } from "./bookmark-parts";
 import { nodeOf, PlaceCatalog } from "./bookmark-places";
 import { bookmarkMenu, columnMenu, folderMenu } from "./bookmarks-menus";
-import { useBookmarkStore, useCatalog, useHere } from "./bookmark-world";
+import { savePanelWidth } from "./bookmark-prefs";
+import { useBookmarkPrefs, useBookmarkStore, useCatalog, useHere } from "./bookmark-world";
 import {
     BookmarkClip,
     chooseFolder,
@@ -82,7 +83,6 @@ export type BookmarksPanelHost = {
 // The page the panel shows: what Add the page bookmarks.
 export type ShownPage = { url: string; title: string };
 
-const WidthKey = "molten:bookmarks:panelwidth";
 const DragType = "application/x-molten-bookmark";
 
 // Cut or Copy on a bookmark waits here until a Paste: one clipboard for the window's panels.
@@ -93,21 +93,9 @@ export function clampPanelWidth(width: number, room: number): number {
     return Math.max(PanelMinPx, Math.min(max, Math.round(width)));
 }
 
-function readWidth(): number {
-    try {
-        const stored = Number(globalThis.localStorage?.getItem(WidthKey));
-        return stored > 0 ? clampPanelWidth(stored, PanelMaxPx) : PanelDefaultPx;
-    } catch {
-        return PanelDefaultPx;
-    }
-}
-
-function saveWidth(width: number): void {
-    try {
-        globalThis.localStorage?.setItem(WidthKey, String(width));
-    } catch (e) {
-        console.log("bookmarks: panel width not kept", e);
-    }
+// The width the panel opens at: the one it was dragged to, else its default (about 640 px).
+export function openingWidth(stored: number): number {
+    return stored > 0 ? clampPanelWidth(stored, PanelMaxPx) : PanelDefaultPx;
 }
 
 type DragInfo = { id: string; from: PlaceRef };
@@ -485,7 +473,8 @@ export function BookmarksPanel({ host, page, start }: { host: BookmarksPanelHost
     const catalog = useCatalog();
     const [clip, setClip] = useAtom(bookmarkClipAtom);
     const [selection, setSelection] = useState<PanelSelection>(() => start?.selection ?? selectionOfHere(catalog, here));
-    const [width, setWidth] = useState(readWidth);
+    const prefs = useBookmarkPrefs();
+    const [width, setWidth] = useState(() => openingWidth(prefs.width));
     const [bodyWidth, setBodyWidth] = useState(width);
     const [searching, setSearching] = useState(start?.searching ?? false);
     const [typed, setTyped] = useState(start?.typed ?? "");
@@ -655,7 +644,7 @@ export function BookmarksPanel({ host, page, start }: { host: BookmarksPanelHost
     const endResize = () => {
         if (drag.current != null) {
             drag.current = null;
-            saveWidth(width);
+            fireAndForget(() => savePanelWidth(width));
         }
     };
 
@@ -717,7 +706,7 @@ export function BookmarksPanel({ host, page, start }: { host: BookmarksPanelHost
                         e.preventDefault();
                         const next = clampPanelWidth(width + step, PanelMaxPx);
                         setWidth(next);
-                        saveWidth(next);
+                        fireAndForget(() => savePanelWidth(next));
                     }
                 }}
             />
@@ -825,7 +814,7 @@ export function BookmarksPanel({ host, page, start }: { host: BookmarksPanelHost
                 </button>
                 <button
                     type="button"
-                    className="molten-btn cursor-pointer rounded-4 px-3 py-1 text-12"
+                    className="molten-btn molten-bm-small cursor-pointer rounded-4 px-3 py-1 text-12"
                     disabled={searching || pageUrl === ""}
                     title={pageUrl === "" ? t("browser.bookmarks.panel.addPageNone") : undefined}
                     data-testid="bookmarks-add-page"

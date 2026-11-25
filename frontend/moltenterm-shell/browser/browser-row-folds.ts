@@ -14,10 +14,11 @@
 // Back, Comment, the 360 view button, the command panel trigger, Close and the connection button never fold: the host
 // shrinks first (the widths leave it room for the start of its name).
 
-export const FoldLabelsMaxPx = 539;
-export const FoldPairMaxPx = 439;
-export const FoldNavMaxPx = 399;
-export const FoldLastMaxPx = 349;
+// Each is 28 px above what it was before the add-bookmark button (#2531) took that room from the host's name.
+export const FoldLabelsMaxPx = 567;
+export const FoldPairMaxPx = 467;
+export const FoldNavMaxPx = 427;
+export const FoldLastMaxPx = 377;
 
 export type RowFolds = { labels: boolean; pair: boolean; nav: boolean; last: boolean };
 

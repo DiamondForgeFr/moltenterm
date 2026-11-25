@@ -25,8 +25,9 @@ import {
     problemMessage,
     sameRef,
 } from "./bookmarks";
-import { useBookmarkStore, useCatalog, useHere } from "./bookmark-world";
-import { noteRecentPlace, nodeOf, pathOf, PlaceCatalog, readRecentKeys } from "./bookmark-places";
+import { useBookmarkPrefs, useBookmarkStore, useCatalog, useHere } from "./bookmark-world";
+import { nodeOf, pathOf, PlaceCatalog } from "./bookmark-places";
+import { noteRecentPlace } from "./bookmark-prefs";
 import {
     defaultPlace,
     finderItems,
@@ -89,8 +90,9 @@ function FolderButton({
     onNew: () => void;
 }) {
     const t = useT();
-    const name = folders.find((f) => f.id === current)?.name ?? t("browser.bookmarks.folder.none");
-    const label = labelled(t("browser.bookmarks.folder.label"), name);
+    // "Folder: Environments" once one is chosen, "No folder" before, as the mockup draws them.
+    const chosen = folders.find((f) => f.id === current)?.name;
+    const label = chosen != null ? labelled(t("browser.bookmarks.folder.label"), chosen) : t("browser.bookmarks.folder.none");
     return (
         <button
             type="button"
@@ -125,7 +127,7 @@ function PlaceRowView({
     const t = useT();
     const node = nodeOf(catalog, row.ref);
     const name = node?.name ?? "";
-    const description = row.elsewhere ? pathText([...pathOf(catalog, row.ref)]) : placeHint(t, row.ref.level);
+    const description = row.elsewhere ? pathText(pathOf(catalog, row.ref).slice(1)) : placeHint(t, row.ref.level);
     return (
         <CheckRow
             checked={row.checked}
@@ -310,7 +312,7 @@ export function Finder({
     const t = useT();
     const [typed, setTyped] = useState(initialTyped);
     const [index, setIndex] = useState(0);
-    const recent = useMemo(() => readRecentKeys(), []);
+    const recent = useBookmarkPrefs().recent;
     const items = useMemo(
         () => finderItems(catalog, here, bookmark, typed, recent),
         [catalog, here, bookmark, typed, recent]
@@ -457,12 +459,14 @@ function ElsewhereView({
         <SectionBlock icon={MapPin} title={t("browser.bookmarks.elsewhere.title")} data-testid="bookmark-elsewhere">
             <BlockRows>
                 <div className="molten-bm-row-line">
-                    <span className="molten-bm-row-label molten-bm-stack">
-                        <span className="df-check-label">{bookmark.title}</span>
-                        <span className="df-check-desc">{t("browser.bookmarks.elsewhere.at", { places: where })}</span>
-                    </span>
-                    <span className="molten-bm-icon">
-                        <AddressIcon address={bookmark.url} />
+                    <span className="molten-bm-row-label">
+                        <span className="molten-bm-icon">
+                            <AddressIcon address={bookmark.url} />
+                        </span>
+                        <span className="molten-bm-text">
+                            <span className="df-check-label">{bookmark.title}</span>
+                            <span className="df-check-desc">{t("browser.bookmarks.elsewhere.at", { places: where })}</span>
+                        </span>
                     </span>
                 </div>
                 <div className="molten-bm-row-line">
@@ -632,9 +636,6 @@ export function BookmarkPopover({
                     title={t("browser.bookmarks.popover.where")}
                     data-testid="bookmark-popover-places"
                 >
-                    <span className="molten-bm-scope" data-testid="bookmark-scope">
-                        {tCount("browser.bookmarks.popover.placesCount", bookmark.places.length)}
-                    </span>
                     <BlockRows>
                         {rows.map((row) => (
                             <Fragment key={`${row.ref.level}:${row.ref.id}`}>
@@ -666,6 +667,9 @@ export function BookmarkPopover({
                             </button>
                         </div>
                     </BlockRows>
+                    <span className="molten-bm-scope" data-testid="bookmark-scope">
+                        {tCount("browser.bookmarks.popover.placesCount", bookmark.places.length)}
+                    </span>
                 </SectionBlock>
                 <div className="molten-bm-foot">
                     <button
