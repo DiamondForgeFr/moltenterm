@@ -11,7 +11,16 @@ import { CarpetGroup, GroupAll, GroupPages } from "./carpet-group";
 import { placeOptions } from "./carpet-places";
 import type { PanelPlacement, View360Model } from "./view360-model";
 import { CarpetHeaderButton, headerPlacement } from "./view360-places";
-import { chooserChoices, EvenZonesRow, groupPlanLines, optionCaption, optionsWhy } from "./view360-places-chooser";
+import {
+    chooserChoices,
+    EvenZonesRow,
+    groupPlanLines,
+    optionCaption,
+    optionsWhy,
+    pickPlaceOption,
+    PlaceCount,
+    placesKeyChoice,
+} from "./view360-places-chooser";
 
 const fake = vi.hoisted(() => ({ view360: null as unknown }));
 
@@ -89,10 +98,73 @@ describe("the chooser's words (AC2, AC3, AC13)", () => {
             "Too narrow on this screen",
         ]);
         expect(optionsWhy(options)).toContain("Close the sidebar or use a wider screen");
-        const few = placeOptions(2, 3160);
-        expect(few.map(optionCaption).slice(1)).toEqual(["Nothing to store", "Nothing to store"]);
-        expect(optionsWhy(few)).toContain("nothing would be stored");
         expect(optionsWhy(placeOptions(6, 3160))).toBeNull();
+    });
+});
+
+// #2549: a developer with two panels on the carpet could not switch to 360 × 2, greyed "Nothing to store".
+describe("every layout stays selectable, nothing to store is said (#2549)", () => {
+    const two = placeOptions(2, 3160);
+
+    function card(n: number, options = two): string {
+        const option = options.find((o) => o.n === n);
+        return renderToStaticMarkup(
+            <PlaceCount option={option} hover={false} testId={`mt-places-${n}`} onHover={vi.fn()} onApply={vi.fn()} />
+        );
+    }
+
+    it("offers 360 × 2 and × 3 with two panels, their card saying nothing goes on the carpet", () => {
+        expect(two.map(optionCaption)).toEqual([
+            "Half and half · 1 stored",
+            "All panels visible, nothing on the carpet",
+            "All panels visible, nothing on the carpet",
+        ]);
+        for (const n of [2, 3]) {
+            const html = card(n);
+            expect(html).toContain('data-offered="true"');
+            expect(html).toContain('aria-disabled="false"');
+            expect(html).toContain("cursor-pointer");
+            expect(html).not.toContain("is-off");
+            expect(html).toContain("All panels visible, nothing on the carpet");
+        }
+        expect(optionsWhy(two)).toBeNull();
+    });
+
+    it("applies 1, 2 and 3 from their keys with two panels", () => {
+        for (const key of ["1", "2", "3"]) {
+            const n = placesKeyChoice({ key });
+            expect(n).toBe(Number(key));
+            expect(pickPlaceOption(two, n)?.n).toBe(n);
+        }
+        expect(placesKeyChoice({ key: "2", metaKey: true })).toBeNull();
+        expect(placesKeyChoice({ key: "4" })).toBeNull();
+    });
+
+    it("keeps a number the screen is too narrow for disabled, with its reason", () => {
+        const narrow = placeOptions(2, 1200);
+        expect(pickPlaceOption(narrow, 2)).toBeNull();
+        expect(pickPlaceOption(narrow, 1)?.n).toBe(1);
+        const html = card(2, narrow);
+        expect(html).toContain('aria-disabled="true"');
+        expect(html).toContain("is-off");
+        expect(html).toContain('data-reason="narrow"');
+        expect(html).toContain("Too narrow on this screen");
+        expect(optionsWhy(narrow)).toContain("Close the sidebar or use a wider screen");
+    });
+
+    it("lists 360 × 2 in the command panel with two panels on the carpet", () => {
+        const view = {
+            activeAtom: atom(false),
+            placementsAtom: atom({} as Record<string, PanelPlacement>),
+            rolesAtom: atom({ agent: "first", page: "carpet", files: "carpet" } as Record<string, PanelPlacement>),
+            shownPlacesAtom: atom(null as number),
+            placeOptions: () => two,
+            applyPlaces: vi.fn(() => true),
+        } as unknown as View360Model;
+        const items = carpetPlacesItems(view, "page");
+        expect(items.map((i) => i.id)).toEqual(["molten:places:1", "molten:places:2", "molten:places:3"]);
+        (items[1] as { run: () => void }).run();
+        expect(view.applyPlaces).toHaveBeenCalledWith("page", 2);
     });
 });
 
@@ -100,17 +172,20 @@ describe("Even out the zones, where the chooser and the command panel offer it (
     it("is a row of the chooser, enabled while the zones are uneven", () => {
         const html = renderToStaticMarkup(<EvenZonesRow why={null} onRun={vi.fn()} />);
         expect(html).toContain("Even out the zones");
-        expect(html).toContain('aria-disabled="false"');
+        expect(html).not.toContain("aria-disabled");
         expect(html).toContain('data-testid="mt-places-even-zones"');
         expect(html).not.toContain("mt-places-even-why");
     });
 
-    it("is disabled with its reason written under it when the zones are even or a single one is in view", () => {
+    it("stays clickable with nothing to do, saying why under it (#2549)", () => {
         const even = renderToStaticMarkup(<EvenZonesRow why="even" onRun={vi.fn()} />);
-        expect(even).toContain('aria-disabled="true"');
-        expect(even).toContain("is-off");
+        expect(even).not.toContain("aria-disabled");
+        expect(even).not.toContain("is-off");
+        expect(even).toContain("cursor-pointer");
+        expect(even).toContain('aria-describedby="mt-places-even-why"');
         expect(even).toContain("The zones already have equal widths");
         const single = renderToStaticMarkup(<EvenZonesRow why="single" onRun={vi.fn()} />);
+        expect(single).not.toContain("is-off");
         expect(single).toContain("One zone is in view: there is nothing to even out");
     });
 
@@ -145,14 +220,16 @@ describe("Even out the zones, where the chooser and the command panel offer it (
         expect(ids.indexOf("molten:places:even-zones")).toBeGreaterThan(-1);
         expect(ids.indexOf("molten:places:even-zones")).toBeLessThan(ids.indexOf("molten:places:leave"));
         const item = items.find((i) => i.id === "molten:places:even-zones");
-        expect(item).toMatchObject({ type: "action", label: "Even out the zones", disabled: false });
+        expect(item).toMatchObject({ type: "action", label: "Even out the zones" });
+        expect((item as { disabled?: boolean }).disabled).toBeFalsy();
         (item as { run: () => void }).run();
         expect(view.evenZones).toHaveBeenCalledTimes(1);
     });
 
-    it("is disabled in the command panel, with its reason, when the zones are even", () => {
+    it("stays enabled in the command panel when the zones are even, saying so (#2549)", () => {
         const item = carpetPlacesItems(panelView("even"), "page").find((i) => i.id === "molten:places:even-zones");
-        expect(item).toMatchObject({ disabled: true, disabledReason: "The zones already have equal widths" });
+        expect((item as { disabled?: boolean }).disabled).toBeFalsy();
+        expect(item).toMatchObject({ detail: "The zones already have equal widths" });
     });
 
     it("is left out of the command panel outside a 360 × N", () => {

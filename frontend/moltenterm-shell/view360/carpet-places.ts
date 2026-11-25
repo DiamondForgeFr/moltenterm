@@ -24,13 +24,15 @@ export const MaxPlaces = 3;
 export const WheelStepPx = 24;
 const EdgeEpsilonPx = 0.5;
 
-export type PlaceRefusal = "nothing" | "narrow";
+// Only what the layout cannot do refuses a number (#2549): places under their readable width. A number that would
+// store nothing stays offered and says so (stored is 0).
+export type PlaceRefusal = "narrow";
 
 export type PlaceOption = {
     n: number;
     offered: boolean;
     reason?: PlaceRefusal;
-    // How many carpet panels it stores, and the width each place gets.
+    // How many carpet panels it stores (0: every panel in view, nothing on the carpet), and the width each place gets.
     stored: number;
     slotPx: number;
 };
@@ -91,20 +93,24 @@ export function placesFit(widthPx: number, n: number, floorPx = 0, besidePx = 0)
     return placesShareSlotPx(widthPx, n, floorPx, besidePx) + EdgeEpsilonPx >= ReadableCarpetColumnPx;
 }
 
-// The numbers the chooser shows (AC3), computed each time it opens: offered when it stores at least one carpet
-// column (C > N) and each place keeps its readable width; otherwise greyed with its reason.
+// The numbers the chooser shows (AC3), computed each time it opens: offered while each place keeps its readable
+// width, greyed with its reason otherwise. A number that stores nothing (C <= N) stays offered (#2549): the developer
+// may want every panel in view, and its card says nothing goes on the carpet.
 export function placeOptions(carpetColumns: number, widthPx: number, floorPx = 0, besidePx = 0): PlaceOption[] {
     return PlaceChoices.map((n) => {
         const slotPx = placesShareSlotPx(widthPx, n, floorPx, besidePx);
         const stored = Math.max(0, carpetColumns - n);
-        if (carpetColumns <= n) {
-            return { n, offered: false, reason: "nothing", stored, slotPx };
-        }
         if (!placesFit(widthPx, n, floorPx, besidePx)) {
             return { n, offered: false, reason: "narrow", stored, slotPx };
         }
         return { n, offered: true, stored, slotPx };
     });
+}
+
+// A number the first-time offer proposes (FR-SHELL-066-AC11): one that applies and stores at least one panel, since
+// the offer comes unasked and switching to 360 view without storing anything changes nothing for the developer.
+export function storesOnCarpet(option: PlaceOption): boolean {
+    return option.offered && option.stored > 0;
 }
 
 // The places shown (AC7): the view's N while it fits, otherwise the largest number that does, at least one. N itself

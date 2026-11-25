@@ -94,8 +94,8 @@ export function carpetPlacesItems(view360: View360Model, blockId: string): Panel
             label: t("view360.zones.evenOut"),
             icon: "arrows-left-right",
             keywords: ["360", "carpet", "zones", "equal", "width", "égaliser"],
-            disabled: why != null,
-            disabledReason:
+            // Nothing to even out is said, not disabled (#2549).
+            detail:
                 why == null
                     ? undefined
                     : t(why === "single" ? "view360.zones.evenOutSingle" : "view360.zones.evenOutEven"),

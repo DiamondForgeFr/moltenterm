@@ -123,8 +123,10 @@ describe("360 on the pages in the model (FR-SHELL-124)", () => {
         expect(model.placeOptions(GroupPages).map((o) => o.stored)).toEqual([3, 2, 1]);
         const two = makeModel(rowOf("a", "p1", "int", "p2"));
         two.pass();
-        expect(two.model.placeOptions(GroupAll).map((o) => o.offered)).toEqual([true, true, false]);
-        expect(two.model.placeOptions(GroupPages).map((o) => o.offered)).toEqual([true, false, false]);
+        expect(two.model.placeOptions(GroupAll).map((o) => o.stored)).toEqual([2, 1, 0]);
+        expect(two.model.placeOptions(GroupPages).map((o) => o.stored)).toEqual([1, 0, 0]);
+        // Storing nothing greys no number (#2549).
+        expect(two.model.placeOptions(GroupAll).map((o) => o.offered)).toEqual([true, true, true]);
     });
 
     it("pins the other panels beside the agent on a wide window, marked, in one write with N (AC2, AC4)", () => {

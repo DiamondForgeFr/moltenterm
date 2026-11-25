@@ -114,10 +114,11 @@ beforeEach(() => {
 });
 
 describe("360 × N in the model (FR-SHELL-123)", () => {
-    it("offers the numbers the view's columns and width allow", () => {
+    it("offers every number the width allows, also those that store nothing (#2549)", () => {
         const { model, pass } = makeModel(rowOf(3));
         pass();
-        expect(model.placeOptions().map((o) => o.offered)).toEqual([true, false, false]);
+        expect(model.placeOptions().map((o) => o.offered)).toEqual([true, true, true]);
+        expect(model.placeOptions().map((o) => o.stored)).toEqual([1, 0, 0]);
         const wide = makeModel(rowOf(5));
         wide.pass();
         expect(wide.model.placeOptions().map((o) => o.offered)).toEqual([true, true, true]);
@@ -151,9 +152,38 @@ describe("360 × N in the model (FR-SHELL-123)", () => {
         expect(wholeInView(model)).toEqual(["c1", "c2", "c3"]);
     });
 
-    it("refuses a number that is not offered", () => {
+    it("applies 360 × 2 with two panels on the carpet, and says nothing is stored (#2549)", () => {
         const { model, pass } = makeModel(rowOf(3));
         pass();
+        expect(model.applyPlaces("b-c1", 2)).toBe(true);
+        expect(model.places()).toBe(2);
+        // Both panels in view: the N is kept while the carpet would only repeat the grid (FR-SHELL-123-AC15).
+        expect(pass()).toBeNull();
+        expect(globalStore.get(model.decisionAtom)).toMatchObject({ wanted: true, idle: true });
+        expect(vi.mocked(showToast).mock.calls.at(-1)[0]).toMatchObject({
+            id: PlacesToastId,
+            title: "2 panels visible on the right",
+            message: "All panels visible, nothing on the carpet.",
+        });
+    });
+
+    it("draws the 360 × 2 chosen with nothing to store once a panel comes to store (#2549)", () => {
+        const root = rowOf(3);
+        const { model, pass } = makeModel(root);
+        pass();
+        model.applyPlaces("b-c1", 2);
+        expect(pass()).toBeNull();
+        root.children.push(leaf("c3"));
+        pass();
+        expect(model.active).toBe(true);
+        expect(globalStore.get(model.shownPlacesAtom)).toBe(2);
+    });
+
+    it("refuses a number the screen is too narrow for (#2549: only what the layout cannot do)", () => {
+        const narrow = { ...Wide, width: 1200 };
+        const { model, pass } = makeModel(rowOf(5));
+        pass(narrow);
+        expect(model.placeOptions().map((o) => o.reason ?? "ok")).toEqual(["ok", "narrow", "narrow"]);
         expect(model.applyPlaces("b-c1", 2)).toBe(false);
         expect(model.places()).toBeNull();
     });

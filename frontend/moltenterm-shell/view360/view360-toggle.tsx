@@ -92,9 +92,10 @@ export function view360MenuItems(view360: View360Model): ContextMenuItem[] {
         const why = view360.evenZonesWhy();
         const reason =
             why == null ? undefined : t(why === "single" ? "view360.zones.evenOutSingle" : "view360.zones.evenOutEven");
+        // Nothing to even out is said, not disabled (#2549).
         menu.push({
             label: t("view360.zones.evenOut"),
-            enabled: why == null,
+            enabled: true,
             sublabel: reason,
             tooltip: reason,
             click: () => view360.evenZones(),

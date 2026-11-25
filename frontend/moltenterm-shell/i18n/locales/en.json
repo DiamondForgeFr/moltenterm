@@ -8121,15 +8121,11 @@
                 "other": "{count} stored"
             },
             "shareStored": "{share} · {stored}",
-            "nothing": "Nothing to store",
+            "allVisible": "All panels visible, nothing on the carpet",
             "narrow": "Too narrow on this screen",
             "whyNarrow": {
                 "one": "{count} visible panel doesn't fit on this screen: it would be under {min} px. Close the sidebar or use a wider screen.",
                 "other": "{count} visible panels don't fit on this screen: each would be under {min} px. Close the sidebar or use a wider screen."
-            },
-            "whyNothing": {
-                "one": "{count} visible panel would show every panel: nothing would be stored.",
-                "other": "{count} visible panels would show every panel: nothing would be stored."
             },
             "pinned": {
                 "one": "{count} panel stays pinned in the fixed zone",
@@ -8151,6 +8147,7 @@
                 "one": "{count} panel stored on the carpet, still active.",
                 "other": "{count} panels stored on the carpet, still active."
             },
+            "toastNothing": "All panels visible, nothing on the carpet.",
             "pinTook": {
                 "one": "The pin takes the last place. It comes back when you unpin.",
                 "other": "The pin takes the last {count} places. They come back when you unpin."

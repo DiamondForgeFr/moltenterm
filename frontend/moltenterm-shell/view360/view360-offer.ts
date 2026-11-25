@@ -9,7 +9,7 @@
 
 import { RpcApi } from "@/app/store/wshclientapi";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
-import { PlaceOption, readPlaces } from "./carpet-places";
+import { PlaceOption, readPlaces, storesOnCarpet } from "./carpet-places";
 import type { ScreenInfo } from "./screen-threshold";
 import { AutoMinColumns, overThreshold, View360SettingKey, view360Unchosen } from "./view360-decision";
 import { OfferGrid } from "./view360-meta";
@@ -35,7 +35,7 @@ export function offerKeptGrid(rawSetting: unknown, answer: string): boolean {
 }
 
 // Whether the offer shows now: the view is eligible and has gone beyond the threshold with the columns for a carpet,
-// nothing switched it (the safety net did not), and at least one number can apply.
+// nothing switched it (the safety net did not), and at least one number can apply and store a panel.
 export function offerDue(input: {
     eligible: boolean;
     columnCount: number;
@@ -46,7 +46,7 @@ export function offerDue(input: {
     if (!input.eligible || input.active || !input.columnsOver || input.columnCount < AutoMinColumns) {
         return false;
     }
-    return (input.options ?? []).some((o) => o.offered);
+    return (input.options ?? []).some(storesOnCarpet);
 }
 
 // What the check "Do the same in every view" stores: Keep the grid, or Automatic with the number of visible panels.
