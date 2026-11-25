@@ -78,12 +78,15 @@ func TestInitializeTellsEveryAgentToShowPagesInMoltenTerm(t *testing.T) {
 	}
 }
 
-// Claude Code and Codex both learn of the project's bookmarks from the molten browser server (FR-BRW-020).
+// Claude Code and Codex both learn of the bookmarks visible from their terminal (the app's, the context's, the
+// workspace's and the project's) from the molten browser server (FR-BRW-020, #2531).
 func TestAgentInstructionsMentionMoltenBookmarks(t *testing.T) {
 	for _, name := range []string{"", "Olivia"} {
 		got := AgentInstructions(name)
-		if !strings.Contains(got, "molten bookmarks list") || !strings.Contains(got, "bookmarks.md") {
-			t.Fatalf("instructions for %q do not mention molten bookmarks: %s", name, got)
+		for _, want := range []string{"molten bookmarks list", "bookmarks.md", "visible from your terminal", "the app, a context, a workspace or a project"} {
+			if !strings.Contains(got, want) {
+				t.Fatalf("instructions for %q lack %q: %s", name, want, got)
+			}
 		}
 	}
 }

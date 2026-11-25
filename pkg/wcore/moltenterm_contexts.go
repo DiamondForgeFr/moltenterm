@@ -104,6 +104,8 @@ func ApplyContexts(ctx context.Context, change contexts.Change) (contexts.State,
 			for _, key := range contextpins.Orphans(client.Meta, contextIdsOf(next.Contexts)) {
 				delete(client.Meta, key)
 			}
+			// A deleted context takes its bookmarks' places with it, as it takes its top row.
+			forgetContextBookmarks(client, state.Contexts, next.Contexts)
 			clientId = client.OID
 			return wstore.DBUpdate(tctx, client)
 		})

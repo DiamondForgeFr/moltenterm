@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/bookmarks"
 	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
 	"github.com/wavetermdev/waveterm/pkg/molten/reopen"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -72,6 +73,8 @@ type workspaceUndoEntry struct {
 	iconFiles   []workspaceUndoIcon
 	railIndex   int
 	railNext    string
+	// The bookmarks placed in the workspace or its projects live in the client's meta, which a delete drops them from.
+	bookmarks bookmarks.Store
 }
 
 type workspaceUndoStore struct {
@@ -200,6 +203,7 @@ func CaptureWorkspaceUndo(ctx context.Context, workspaceId string, kind string, 
 		color:       ws.Color,
 		meta:        reopen.CleanMeta(ws.Meta),
 		railIndex:   -1,
+		bookmarks:   moltenWorkspaceBookmarksPart(ctx, ws.OID),
 	}
 	for _, tabId := range ws.TabIds {
 		tab, ok := captureUndoTab(ctx, tabId)
@@ -325,6 +329,7 @@ func RestoreWorkspaceUndo(ctx context.Context, undoId string) (*WorkspaceUndoRes
 		}
 		restoreUndoIconFiles(e.iconFiles)
 		restoreUndoRailPlace(ctx, e)
+		moltenRestoreWorkspaceBookmarks(ctx, e.bookmarks)
 	} else {
 		rtn.ClosedTabIds = slices.Clone(existing.TabIds)
 	}

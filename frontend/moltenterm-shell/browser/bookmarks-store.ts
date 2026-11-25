@@ -1,229 +1,183 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The writes of the project bookmarks (FR-BRW-019, FR-BRW-021): each one reads the workspace as it is now, applies a
-// pure change from bookmarks.ts and saves the key in one meta write, so the panel's menu and the settings card, which
-// read the same meta, follow at once. wavesrv never writes them.
+// The writes of the bookmarks (FR-BRW-019, FR-BRW-021, #2531): each one reads the client's meta as it is now, applies a
+// pure change from bookmarks.ts and saves the key in one meta write, so the popover, the column panel and the settings
+// card, which read the same meta, follow at once. wavesrv never writes them (it only drops the places of a removed
+// project, workspace or context, and migrates the bookmarks of the former per-project layout once).
 
-import { atoms, globalStore } from "@/app/store/global";
-import { getWaveObjectAtom, makeORef } from "@/app/store/wos";
-import { projectLabel, readProjects } from "../sidebar/workspace-projects";
-import { writeMeta } from "../sidebar/workspace-projects-store";
+import { ClientModel } from "@/app/store/client-model";
+import { globalStore } from "@/app/store/global";
+import { makeORef } from "@/app/store/wos";
+import { RpcApi } from "@/app/store/wshclientapi";
+import { TabRpcClient } from "@/app/store/wshrpcutil";
 import {
     addBookmark,
-    AllBookmarks,
+    addPage,
     Bookmark,
     BookmarkDraft,
     BookmarkProblem,
     BookmarkResult,
     BookmarksMetaKey,
+    BookmarkStore,
     copyBookmarkTo,
     createFolder,
     deleteBookmark,
     deleteFolder,
-    findBookmarkByAddress,
+    FolderChoice,
     moveBookmark,
-    problemKey,
-    ProjectBookmarks,
-    readProjectBookmarks,
+    placeBookmark,
+    PlaceRef,
+    readStore,
     renameFolder,
+    storeValue,
+    unplaceBookmark,
     updateBookmark,
-    withProjectsBookmarks,
 } from "./bookmarks";
 
 export const SaveFailedProblem: BookmarkProblem = "browser.bookmarks.problem.notSaved";
 
-export function activeWorkspaceNow(): Workspace {
-    return globalStore.get(atoms.workspace);
-}
+type Change<T> = (store: BookmarkStore) => BookmarkResult<{ store: BookmarkStore; result: T }>;
+export type Applied<T> = { problem: BookmarkProblem; result?: undefined } | { problem: null; result: T };
 
-function latestWorkspace(ws: Workspace): Workspace {
-    return globalStore.get(getWaveObjectAtom<Workspace>(makeORef("workspace", ws.oid))) ?? ws;
+function latestClient(): Client {
+    const atom = ClientModel.getInstance().clientAtom;
+    return atom == null ? null : globalStore.get(atom);
 }
-
-type Read = (projectId: string) => ProjectBookmarks;
-type Change = (read: Read) => BookmarkResult<Record<string, ProjectBookmarks>>;
 
 // Every change rewrites the whole `molten:bookmarks` key from what it read, so two running together would erase each
-// other: they run one after the other, and each reads the workspace again once the one before it has saved.
+// other: they run one after the other, and each reads the client again once the one before it has saved.
 let queue: Promise<unknown> = Promise.resolve();
 
-// The window's copy of the workspace follows a save a moment later: until a newer version of it arrives, the next
-// change reads what the last one wrote, so it never starts from the older value. The server sends the versions in
-// order, so the first newer one holds that write.
-let saved: { oid: string; value: AllBookmarks; version: number } = null;
+// The window's copy of the client follows a save a moment later: until a newer version of it arrives, the next change
+// reads what the last one wrote, so it never starts from the older value. The server sends the versions in order, so the
+// first newer one holds that write.
+let saved: { oid: string; value: ReturnType<typeof storeValue>; version: number } = null;
 
-function metaNow(latest: Workspace): Record<string, any> {
-    const meta = (latest.meta ?? {}) as Record<string, any>;
-    if (saved != null && saved.oid === latest.oid && saved.version === latest.version) {
+function metaNow(client: Client): Record<string, any> {
+    const meta = (client.meta ?? {}) as Record<string, any>;
+    if (saved != null && saved.oid === client.oid && saved.version === client.version) {
         return { ...meta, [BookmarksMetaKey]: saved.value };
     }
     return meta;
 }
 
-async function applyChange(ws: Workspace, change: Change): Promise<BookmarkProblem> {
-    const latest = latestWorkspace(ws);
-    if (latest == null) {
-        return SaveFailedProblem;
+async function applyChange<T>(change: Change<T>): Promise<Applied<T>> {
+    const client = latestClient();
+    if (client == null) {
+        return { problem: SaveFailedProblem };
     }
-    const meta = metaNow(latest);
-    const known = readProjects(latest).map((p) => p.id);
-    const result = change((id) => readProjectBookmarks(meta, id));
-    if (result.problem != null) {
-        return result.problem;
+    const changed = change(readStore(metaNow(client)));
+    if (changed.problem != null) {
+        return { problem: changed.problem };
     }
-    const value = withProjectsBookmarks(meta, result.value, known);
+    const value = storeValue(changed.value.store);
     try {
-        await writeMeta(latest, { [BookmarksMetaKey]: value });
+        await RpcApi.SetMetaCommand(TabRpcClient, {
+            oref: makeORef("client", client.oid),
+            meta: { [BookmarksMetaKey]: value } as MetaType,
+        });
     } catch (e) {
         console.error("bookmarks: save failed", e);
         saved = null;
-        return SaveFailedProblem;
+        return { problem: SaveFailedProblem };
     }
-    saved = { oid: latest.oid, value, version: latest.version };
-    return null;
+    saved = { oid: client.oid, value, version: client.version };
+    return { problem: null, result: changed.value.result };
 }
 
-// Applies a change to the workspace's latest bookmarks. The answer is the problem to tell, or null once saved.
-export function changeBookmarks(ws: Workspace, change: Change): Promise<BookmarkProblem> {
-    const run = queue.then(() => applyChange(ws, change));
+// Applies a change to the client's latest bookmarks. The answer is the problem to tell, or the change's result once saved.
+export function changeBookmarks<T>(change: Change<T>): Promise<Applied<T>> {
+    const run = queue.then(() => applyChange(change));
     queue = run.catch(() => null);
     return run;
 }
 
-const OtherProjectProblems: Record<string, string> = {
-    "browser.bookmarks.problem.tooMany": "browser.bookmarks.problem.alsoTooMany",
-    "browser.bookmarks.problem.tooManyFolders": "browser.bookmarks.problem.alsoTooManyFolders",
-};
-
-// A problem met in a project other than the one edited names that project: "this project" would read as the edited one.
-function aboutProject(ws: Workspace, projectId: string, problem: BookmarkProblem): BookmarkProblem {
-    const project = readProjects(latestWorkspace(ws)).find((p) => p.id === projectId);
-    const key = problemKey(problem);
-    if (project == null || OtherProjectProblems[key] == null) {
-        return problem;
-    }
-    return { key: OtherProjectProblems[key], project: projectLabel(project) };
-}
-
-function inProject(projectId: string, mutate: (data: ProjectBookmarks) => BookmarkResult<ProjectBookmarks>): Change {
-    return (read) => {
-        const result = mutate(read(projectId));
-        return result.problem != null ? { problem: result.problem } : { value: { [projectId]: result.value } };
+function plain(change: (store: BookmarkStore) => BookmarkResult<BookmarkStore>): Change<null> {
+    return (store) => {
+        const result = change(store);
+        return result.problem != null ? { problem: result.problem } : { value: { store: result.value, result: null } };
     };
 }
 
-// Adds a bookmark to a project and, when asked, a copy to each of the other projects named in alsoTo (never otherwise).
-export function addProjectBookmark(
-    ws: Workspace,
-    projectId: string,
+async function problemOf(applied: Promise<Applied<unknown>>): Promise<BookmarkProblem> {
+    return (await applied).problem;
+}
+
+// Adds a bookmark at one place (the folder of the choice, or a new one). Answers the bookmark made.
+export function addBookmarkAt(
     draft: BookmarkDraft,
-    alsoTo: readonly string[] = []
-): Promise<BookmarkProblem> {
-    return changeBookmarks(ws, (read) => {
-        const added = addBookmark(read(projectId), draft);
-        if (added.problem != null) {
-            return { problem: added.problem };
-        }
-        const updates: Record<string, ProjectBookmarks> = { [projectId]: added.value.data };
-        for (const other of alsoTo) {
-            if (other === projectId) {
-                continue;
-            }
-            if (findBookmarkByAddress(read(other), added.value.bookmark.url) != null) {
-                continue;
-            }
-            const copy = addBookmark(read(other), {
-                url: added.value.bookmark.url,
-                title: added.value.bookmark.title,
-                description: added.value.bookmark.description,
-                folder: "",
-                newFolder: folderNameOf(added.value.data, added.value.bookmark),
-            });
-            if (copy.problem != null) {
-                return { problem: aboutProject(ws, other, copy.problem) };
-            }
-            updates[other] = copy.value.data;
-        }
-        return { value: updates };
+    ref: PlaceRef,
+    choice: FolderChoice = {}
+): Promise<Applied<Bookmark>> {
+    return changeBookmarks((store) => {
+        const added = addBookmark(store, draft, ref, choice);
+        return added.problem != null
+            ? { problem: added.problem }
+            : { value: { store: added.value.store, result: added.value.bookmark } };
     });
 }
 
-function folderNameOf(data: ProjectBookmarks, bookmark: Bookmark): string {
-    return data.folders.find((f) => f.id === bookmark.folder)?.name ?? "";
+// The shown page at one place (the panel's Add the page): an existing bookmark of that address is placed there too.
+export function addPageAt(draft: BookmarkDraft, ref: PlaceRef, choice: FolderChoice = {}): Promise<Applied<Bookmark>> {
+    return changeBookmarks((store) => {
+        const added = addPage(store, draft, ref, choice);
+        return added.problem != null
+            ? { problem: added.problem }
+            : { value: { store: added.value.store, result: added.value.bookmark } };
+    });
 }
 
-export function updateProjectBookmark(
-    ws: Workspace,
-    projectId: string,
-    id: string,
-    draft: BookmarkDraft
-): Promise<BookmarkProblem> {
-    return changeBookmarks(
-        ws,
-        inProject(projectId, (data) => updateBookmark(data, id, draft))
-    );
-}
-
-export function moveProjectBookmark(
-    ws: Workspace,
-    projectId: string,
-    id: string,
-    folderId: string
-): Promise<BookmarkProblem> {
-    return changeBookmarks(
-        ws,
-        inProject(projectId, (data) => ({ value: moveBookmark(data, id, folderId) }))
-    );
-}
-
-export function deleteProjectBookmark(ws: Workspace, projectId: string, id: string): Promise<BookmarkProblem> {
-    return changeBookmarks(
-        ws,
-        inProject(projectId, (data) => ({ value: deleteBookmark(data, id) }))
-    );
-}
-
-export function createProjectFolder(ws: Workspace, projectId: string, name: string): Promise<BookmarkProblem> {
-    return changeBookmarks(
-        ws,
-        inProject(projectId, (data) => createFolder(data, name))
-    );
-}
-
-export function renameProjectFolder(
-    ws: Workspace,
-    projectId: string,
-    folderId: string,
-    name: string
-): Promise<BookmarkProblem> {
-    return changeBookmarks(
-        ws,
-        inProject(projectId, (data) => renameFolder(data, folderId, name))
-    );
-}
-
-export function deleteProjectFolder(ws: Workspace, projectId: string, folderId: string): Promise<BookmarkProblem> {
-    return changeBookmarks(
-        ws,
-        inProject(projectId, (data) => ({ value: deleteFolder(data, folderId) }))
-    );
-}
-
-// An independent copy in another project: the developer's explicit action, never done by itself.
-export function copyProjectBookmark(
-    ws: Workspace,
-    fromProjectId: string,
-    id: string,
-    toProjectId: string
-): Promise<BookmarkProblem> {
-    return changeBookmarks(ws, (read) => {
-        if (fromProjectId === toProjectId) {
-            return { problem: "browser.bookmarks.problem.sameProject" };
-        }
-        const copied = copyBookmarkTo(read(fromProjectId), id, read(toProjectId));
+// A separate bookmark with its own name, at one place.
+export function copyBookmarkAt(id: string, ref: PlaceRef, choice: FolderChoice = {}): Promise<Applied<Bookmark>> {
+    return changeBookmarks((store) => {
+        const copied = copyBookmarkTo(store, id, ref, choice);
         return copied.problem != null
-            ? { problem: aboutProject(ws, toProjectId, copied.problem) }
-            : { value: { [toProjectId]: copied.value } };
+            ? { problem: copied.problem }
+            : { value: { store: copied.value.store, result: copied.value.bookmark } };
     });
+}
+
+export function editBookmark(id: string, draft: BookmarkDraft): Promise<BookmarkProblem> {
+    return problemOf(changeBookmarks(plain((store) => updateBookmark(store, id, draft))));
+}
+
+export function placeBookmarkAt(id: string, ref: PlaceRef, choice: FolderChoice = {}): Promise<BookmarkProblem> {
+    return problemOf(changeBookmarks(plain((store) => placeBookmark(store, id, ref, choice))));
+}
+
+export function unplaceBookmarkAt(id: string, ref: PlaceRef): Promise<BookmarkProblem> {
+    return problemOf(changeBookmarks(plain((store) => ({ value: unplaceBookmark(store, id, ref) }))));
+}
+
+export function moveBookmarkTo(
+    id: string,
+    from: PlaceRef,
+    to: PlaceRef,
+    choice: FolderChoice = {}
+): Promise<BookmarkProblem> {
+    return problemOf(changeBookmarks(plain((store) => moveBookmark(store, id, from, to, choice))));
+}
+
+export function removeBookmarkEverywhere(id: string): Promise<BookmarkProblem> {
+    return problemOf(changeBookmarks(plain((store) => ({ value: deleteBookmark(store, id) }))));
+}
+
+export function createFolderAt(ref: PlaceRef, name: string): Promise<BookmarkProblem> {
+    return problemOf(
+        changeBookmarks((store) => {
+            const created = createFolder(store, ref, name);
+            return created.problem != null
+                ? { problem: created.problem }
+                : { value: { store: created.value.store, result: created.value.folder } };
+        })
+    );
+}
+
+export function renameFolderAt(ref: PlaceRef, folderId: string, name: string): Promise<BookmarkProblem> {
+    return problemOf(changeBookmarks(plain((store) => renameFolder(store, ref, folderId, name))));
+}
+
+export function deleteFolderAt(ref: PlaceRef, folderId: string): Promise<BookmarkProblem> {
+    return problemOf(changeBookmarks(plain((store) => ({ value: deleteFolder(store, ref, folderId) }))));
 }

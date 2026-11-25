@@ -1,34 +1,32 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The dialog that adds or edits a bookmark (FR-BRW-019): address, title, description, folder, and for a new bookmark the
-// other projects to also add it to (a separate copy in each, nothing ticked by default). Opened by the web page panel's
-// Bookmarks menu and by the Browser settings; nothing opens it by itself.
+// The dialog Settings › Browser edits a bookmark with (FR-BRW-021, #2531): address, title and note of the one record (a
+// change shows at every place the bookmark is at), and for a new bookmark the folder of the place it is added to. The
+// web page panel does not use it: its popover edits the bookmark in place.
 
-import { atoms } from "@/app/store/global";
 import { fireAndForget } from "@/util/util";
-import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { DialogFrame } from "../dialog-frame";
 import { AddressIcon } from "../favicon/favicon-mark";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
-import { projectLabel, readProjects } from "../sidebar/workspace-projects";
+import { useBookmarkStore } from "./bookmark-world";
 import {
     bookmarkAddress,
     BookmarkLimits,
     BookmarkProblem,
-    findBookmarkByAddress,
+    foldersAt,
+    PlaceRef,
     problemMessage,
-    readProjectBookmarks,
 } from "./bookmarks";
-import { addProjectBookmark, updateProjectBookmark } from "./bookmarks-store";
+import { addBookmarkAt, editBookmark } from "./bookmarks-store";
 
 export type BookmarkDialogRequest = {
-    projectId: string;
-    projectName: string;
-    // "page": the shown page; "new": an empty bookmark (settings); "edit": an existing one.
-    mode: "page" | "new" | "edit";
+    // The place a new bookmark is added to, named for the subtitle.
+    ref: PlaceRef;
+    placeName: string;
+    mode: "new" | "edit";
     editingId?: string;
     initial: { url: string; title: string; description: string; folder: string };
 };
@@ -44,28 +42,20 @@ const PlainButton =
     "cursor-pointer rounded-6 border border-border px-3 py-1.5 text-12 text-secondary hover:bg-hover hover:text-primary";
 
 const TitleKeys = {
-    page: "browser.bookmarks.dialog.titleAdd",
     new: "browser.bookmarks.dialog.titleNew",
     edit: "browser.bookmarks.dialog.titleEdit",
 };
 
 export function BookmarkDialog({ request, onClose }: { request: BookmarkDialogRequest; onClose: () => void }) {
     const t = useT();
-    const ws = useAtomValue(atoms.workspace);
-    const data = readProjectBookmarks(ws?.meta, request.projectId);
-    const others = readProjects(ws).filter((p) => p.id !== request.projectId);
+    const store = useBookmarkStore();
+    const folders = foldersAt(store, request.ref);
     const [url, setUrl] = useState(request.initial.url);
     const [title, setTitle] = useState(request.initial.title.slice(0, BookmarkLimits.title));
     const [description, setDescription] = useState(request.initial.description);
-    const [folder, setFolder] = useState(
-        data.folders.some((f) => f.id === request.initial.folder) ? request.initial.folder : ""
-    );
+    const [folder, setFolder] = useState(folders.some((f) => f.id === request.initial.folder) ? request.initial.folder : "");
     const [newFolder, setNewFolder] = useState("");
-    const [also, setAlso] = useState<string[]>([]);
-    // A page whose address cannot be kept says why as soon as the dialog opens, not when saving fails.
-    const [problem, setProblem] = useState<BookmarkProblem>(() =>
-        request.mode === "page" ? (bookmarkAddress(request.initial.url).problem ?? null) : null
-    );
+    const [problem, setProblem] = useState<BookmarkProblem>(null);
     const [busy, setBusy] = useState(false);
     const editing = request.mode === "edit";
     const typed = bookmarkAddress(url).value ?? "";
@@ -73,16 +63,15 @@ export function BookmarkDialog({ request, onClose }: { request: BookmarkDialogRe
         fireAndForget(async () => {
             setBusy(true);
             setProblem(null);
-            const draft = {
-                url,
-                title,
-                description,
-                folder: folder === NewFolderValue ? "" : folder,
-                newFolder: folder === NewFolderValue ? newFolder : "",
-            };
+            const draft = { url, title, description };
             const failed = editing
-                ? await updateProjectBookmark(ws, request.projectId, request.editingId, draft)
-                : await addProjectBookmark(ws, request.projectId, draft, also);
+                ? await editBookmark(request.editingId, draft)
+                : (
+                      await addBookmarkAt(draft, request.ref, {
+                          folder: folder === NewFolderValue ? "" : folder,
+                          newFolder: folder === NewFolderValue ? newFolder : "",
+                      })
+                  ).problem;
             setBusy(false);
             if (failed != null) {
                 setProblem(failed);
@@ -100,7 +89,9 @@ export function BookmarkDialog({ request, onClose }: { request: BookmarkDialogRe
         <DialogFrame
             role="bookmark-dialog"
             title={t(TitleKeys[request.mode])}
-            subtitle={t("browser.bookmarks.dialog.subtitle", { project: request.projectName })}
+            subtitle={
+                editing ? t("browser.bookmarks.dialog.subtitleEdit") : t("browser.bookmarks.dialog.subtitle", { place: request.placeName })
+            }
             subtitleClass="text-12"
             widthClass="w-[520px]"
             onEscape={busy ? undefined : onClose}
@@ -164,62 +155,39 @@ export function BookmarkDialog({ request, onClose }: { request: BookmarkDialogRe
                 />
                 <div className={HintClass}>{t("browser.bookmarks.dialog.descriptionHint")}</div>
             </label>
-            <label className="block">
-                <span className={LabelClass}>{t("browser.bookmarks.dialog.folder")}</span>
-                <select
-                    className={InputClass}
-                    value={folder}
-                    onChange={(e) => setFolder(e.target.value)}
-                    data-testid="bookmark-folder"
-                >
-                    <option value="">{t("browser.bookmarks.dialog.folderNone")}</option>
-                    {data.folders.map((f) => (
-                        <option key={f.id} value={f.id}>
-                            {f.name}
-                        </option>
-                    ))}
-                    <option value={NewFolderValue}>{t("browser.bookmarks.dialog.folderNew")}</option>
-                </select>
-            </label>
-            {folder === NewFolderValue ? (
-                <input
-                    className={InputClass}
-                    value={newFolder}
-                    autoFocus
-                    maxLength={BookmarkLimits.folderName + 1}
-                    placeholder={t("browser.bookmarks.dialog.newFolderName")}
-                    aria-label={t("browser.bookmarks.dialog.newFolderName")}
-                    onChange={(e) => setNewFolder(e.target.value)}
-                    onKeyDown={onFieldKey}
-                    data-testid="bookmark-new-folder"
-                />
-            ) : null}
-            {!editing && others.length > 0 ? (
-                <fieldset className="min-w-0">
-                    <legend className={LabelClass}>{t("browser.bookmarks.dialog.alsoAdd")}</legend>
-                    {others.map((p) => {
-                        const there =
-                            typed !== "" && findBookmarkByAddress(readProjectBookmarks(ws?.meta, p.id), typed) != null;
-                        return (
-                            <label key={p.id} className="flex cursor-pointer items-center gap-2 py-0.5 text-secondary">
-                                <input
-                                    type="checkbox"
-                                    disabled={there}
-                                    checked={also.includes(p.id) && !there}
-                                    onChange={(e) =>
-                                        setAlso(e.target.checked ? [...also, p.id] : also.filter((id) => id !== p.id))
-                                    }
-                                    data-testid={`bookmark-also-${p.id}`}
-                                />
-                                {projectLabel(p)}
-                                {there ? (
-                                    <span className="text-muted">{t("browser.bookmarks.dialog.alreadyThere")}</span>
-                                ) : null}
-                            </label>
-                        );
-                    })}
-                    <div className={HintClass}>{t("browser.bookmarks.dialog.alsoAddHint")}</div>
-                </fieldset>
+            {!editing ? (
+                <>
+                    <label className="block">
+                        <span className={LabelClass}>{t("browser.bookmarks.dialog.folder")}</span>
+                        <select
+                            className={InputClass}
+                            value={folder}
+                            onChange={(e) => setFolder(e.target.value)}
+                            data-testid="bookmark-folder"
+                        >
+                            <option value="">{t("browser.bookmarks.folder.none")}</option>
+                            {folders.map((f) => (
+                                <option key={f.id} value={f.id}>
+                                    {f.name}
+                                </option>
+                            ))}
+                            <option value={NewFolderValue}>{t("browser.bookmarks.folder.new")}</option>
+                        </select>
+                    </label>
+                    {folder === NewFolderValue ? (
+                        <input
+                            className={InputClass}
+                            value={newFolder}
+                            autoFocus
+                            maxLength={BookmarkLimits.folderName + 1}
+                            placeholder={t("browser.bookmarks.folder.newName")}
+                            aria-label={t("browser.bookmarks.folder.newName")}
+                            onChange={(e) => setNewFolder(e.target.value)}
+                            onKeyDown={onFieldKey}
+                            data-testid="bookmark-new-folder"
+                        />
+                    ) : null}
+                </>
             ) : null}
             {problem != null ? (
                 <div role="alert" className="text-danger" data-testid="bookmark-problem">

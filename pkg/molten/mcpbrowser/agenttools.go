@@ -116,10 +116,11 @@ const PagesInstructions = " To show a page to the user (\"open the doc\", \"show
 	"To bring a page you already have open back in front of the user, call tabs_show on its tab. " +
 	"Details: pages.md in the folder `molten docs` prints."
 
-// BookmarksInstructions: the web pages the developer bookmarked for the project, with a note on each (FR-BRW-020,
-// pkg/molten/agentdocs/bookmarks.md); agents only read them.
-const BookmarksInstructions = " The developer keeps the project's useful web pages as bookmarks with a note on each: " +
-	"`molten bookmarks list [--json]` lists them (read-only); opening one goes through these browser tools. " +
+// BookmarksInstructions: the web pages the developer bookmarked, at the app, context, workspace or project level, with a
+// note on each (FR-BRW-020, pkg/molten/agentdocs/bookmarks.md); agents only read the ones visible from their terminal.
+const BookmarksInstructions = " The developer keeps useful web pages as bookmarks with a note on each, for the app, a " +
+	"context, a workspace or a project: `molten bookmarks list [--json]` lists the ones visible from your terminal " +
+	"(read-only); opening one goes through these browser tools. " +
 	"Details: bookmarks.md in the folder `molten docs` prints."
 
 // LearningInstructions: a guided workflow remembers what the developer adjusts, and an agent that drives one reads and

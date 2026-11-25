@@ -9,7 +9,7 @@
 //   1. the labels of Share and Open in go, and the connection button's word (their icons stay);
 //   2. Share and Open in move into the "⋯", with Copy link, and the test context chip goes;
 //   3. Forward and Maximize move into the "⋯";
-//   4. Reload and Bookmarks move into the "⋯" last.
+//   4. Reload, the add-bookmark button (#2531, right after Reload) and the Bookmarks panel button move into the "⋯" last.
 //
 // Back, Comment, the 360 view button, the command panel trigger, Close and the connection button never fold: the host
 // shrinks first (the widths leave it room for the start of its name).
@@ -30,7 +30,15 @@ export function rowFoldsAt(width: number): RowFolds {
     };
 }
 
-export type MenuPart = "forward" | "maximize" | "reload" | "bookmarks" | "copyLink" | "share" | "engine";
+export type MenuPart =
+    | "forward"
+    | "maximize"
+    | "reload"
+    | "bookmarkPage"
+    | "bookmarks"
+    | "copyLink"
+    | "share"
+    | "engine";
 
 // What the row folded into its "⋯" at this width, in the order the menu lists it. Nothing while the "⋯" is not shown.
 export function menuPartsAt(width: number): MenuPart[] {
@@ -43,7 +51,7 @@ export function menuPartsAt(width: number): MenuPart[] {
         parts.push("forward");
     }
     if (folds.last) {
-        parts.push("reload");
+        parts.push("reload", "bookmarkPage");
     }
     if (folds.nav) {
         parts.push("maximize");

@@ -5,11 +5,13 @@ package bookmarks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/contexts"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -19,15 +21,25 @@ import (
 
 // `molten bookmarks list` reaches the bookmarks through a leaf of wavesrv's router answering a plain command name,
 // like `molten material` (nothing is declared in pkg/wshrpc). Agents only read in this version: the route knows one
-// command, so no caller can write a bookmark through it; the developer writes them in a window.
+// command, so no caller can write a bookmark through it; the developer writes them in a window. A terminal reads what
+// its own place sees (its project, its workspace, its context, the app) and nothing of the other places.
 
 const dbTimeout = 2 * time.Second
 
-// workspaceReader gives the workspace meta and the tab of a terminal's block.
-type workspaceReader func(blockId string) (waveobj.MetaMapType, string, error)
+// terminalSite is what the route reads of a terminal's surroundings: its workspace, the tab it is in, and the client
+// whose meta holds the bookmarks and the contexts.
+type terminalSite struct {
+	workspaceId   string
+	workspaceName string
+	workspaceMeta waveobj.MetaMapType
+	tabId         string
+	clientMeta    waveobj.MetaMapType
+}
+
+type siteReader func(blockId string) (terminalSite, error)
 
 type routeLink struct {
-	read workspaceReader
+	read siteReader
 }
 
 func (l *routeLink) route() localroute.Route {
@@ -54,45 +66,66 @@ func (l *routeLink) handle(command string, caller localroute.Caller, data any) (
 	if caller.IsLocalTerminal && req.BlockId != caller.BlockId {
 		return nil, fmt.Errorf("a terminal reads its own workspace's bookmarks only")
 	}
-	meta, tabId, err := l.read(req.BlockId)
+	site, err := l.read(req.BlockId)
 	if err != nil {
 		return nil, err
 	}
-	project, ok := ProjectOf(meta, tabId)
-	if !ok {
-		return nil, fmt.Errorf("this workspace has no project yet: bookmarks belong to a project")
-	}
-	list := Read(meta, project.Id)
-	if list == nil {
-		list = []molten.Bookmark{}
-	}
-	return molten.BookmarksView{Project: project, Bookmarks: list}, nil
+	return viewOf(site), nil
 }
 
-func readBlockWorkspace(blockId string) (waveobj.MetaMapType, string, error) {
+func viewOf(site terminalSite) molten.BookmarksView {
+	list := contexts.ReadContexts(site.clientMeta)
+	contextId := contexts.ContextOf(list, site.workspaceMeta)
+	contextName := ""
+	for _, c := range list {
+		if c.Id == contextId {
+			contextName = c.Name
+		}
+	}
+	here := Here{ContextId: contextId, WorkspaceId: site.workspaceId}
+	names := Names{Context: contextName, Workspace: site.workspaceName}
+	view := molten.BookmarksView{Workspace: nameOr(site.workspaceName, site.workspaceId), Context: nameOr(contextName, contextId)}
+	if project, ok := ProjectOf(site.workspaceMeta, site.tabId); ok {
+		view.Project = project
+		here.ProjectId = project.Id
+		names.Project = project.Name
+	}
+	view.Bookmarks = VisibleFrom(ReadStore(site.clientMeta), here, names)
+	return view
+}
+
+func readBlockSite(blockId string) (terminalSite, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
 	defer cancel()
 	tabId, err := wstore.DBFindTabForBlockId(ctx, blockId)
 	if err != nil {
-		return nil, "", err
+		return terminalSite{}, err
 	}
 	wsId, err := wstore.DBFindWorkspaceForTabId(ctx, tabId)
 	if err != nil {
-		return nil, "", err
+		return terminalSite{}, err
 	}
 	ws, err := wstore.DBGet[*waveobj.Workspace](ctx, wsId)
 	if err != nil {
-		return nil, "", err
+		return terminalSite{}, err
 	}
 	if ws == nil {
-		return nil, "", fmt.Errorf("no such workspace")
+		return terminalSite{}, fmt.Errorf("no such workspace")
 	}
-	return ws.Meta, tabId, nil
+	site := terminalSite{workspaceId: ws.OID, workspaceName: ws.Name, workspaceMeta: ws.Meta, tabId: tabId}
+	client, err := wstore.DBGetSingleton[*waveobj.Client](ctx)
+	if err != nil && !errors.Is(err, wstore.ErrNotFound) {
+		return terminalSite{}, err
+	}
+	if client != nil {
+		site.clientMeta = client.Meta
+	}
+	return site, nil
 }
 
 // StartRoute registers the route; wavesrv calls it once.
 func StartRoute() {
-	link := &routeLink{read: readBlockWorkspace}
+	link := &routeLink{read: readBlockSite}
 	if _, err := localroute.Register(wshutil.DefaultRouter, link.route()); err != nil {
 		log.Printf("molten: bookmarks route not started: %v\n", err)
 	}

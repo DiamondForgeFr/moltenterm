@@ -5,6 +5,7 @@
 // moves as is into the shared UI kit. Text comes from the caller (each app owns its translations); icons are
 // components, the suite's Lucide set (suite-icons.ts).
 
+import { Check } from "lucide-react";
 import { useId, useLayoutEffect, useRef } from "react";
 import "./suite.css";
 
@@ -381,6 +382,64 @@ export function OptionRow({
             </span>
             {selected ? <span className="df-option-selected">{selectedLabel}</span> : null}
         </label>
+    );
+}
+
+export type CheckRowProps = {
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    label: React.ReactNode;
+    // A line under the label.
+    description?: React.ReactNode;
+    // What stands before the label: a marker, an icon.
+    lead?: React.ReactNode;
+    // What belongs to the row at its end, outside the label so that using it never toggles the row.
+    trailing?: React.ReactNode;
+    disabled?: boolean;
+    className?: string;
+    value?: string;
+};
+
+// One place among several that can all be on: a real checkbox inside a label, over the same faint accent wash as an
+// option row's choice (#2531).
+export function CheckRow({
+    checked,
+    onChange,
+    label,
+    description,
+    lead,
+    trailing,
+    disabled,
+    className,
+    value,
+}: CheckRowProps) {
+    return (
+        <div
+            className={joinClasses("df-check-row", className)}
+            data-checked={checked ? "" : undefined}
+            data-disabled={disabled ? "" : undefined}
+            data-option={value}
+        >
+            <label className="df-check-main">
+                <input
+                    type="checkbox"
+                    className="df-sr-only"
+                    value={value}
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={(e) => onChange(e.target.checked)}
+                />
+                <span className="df-check" aria-hidden>
+                    <Check strokeWidth={3} aria-hidden />
+                </span>
+                {lead ? <span className="df-check-lead">{lead}</span> : null}
+                <span className="df-check-text">
+                    <span className="df-check-label">{label}</span>
+                    {description ? <span className="df-check-desc">{description}</span> : null}
+                </span>
+            </label>
+            {trailing}
+        </div>
     );
 }
 

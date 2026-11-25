@@ -8,14 +8,24 @@ const pane = (url: string, view = "molten-browser") => ({ view, url });
 const config = (...panes: Record<string, any>[]) => ({ tree: { pane: 0 }, panes });
 
 describe("the addresses the window sends to main (#2482)", () => {
-    it("lists the bookmarks of every project of the workspace", () => {
+    it("lists the bookmarks of the whole app, each once however many places it is at", () => {
         const meta = {
             "molten:bookmarks": {
-                p1: {
-                    folders: [],
-                    items: [{ url: "https://example-shop.com/cart" }, { url: "https://docs.example.org/" }],
-                },
-                p2: { folders: [], items: [{ url: "https://other.dev/" }, { title: "no address" }, { url: 42 }] },
+                records: [
+                    {
+                        id: "b1",
+                        url: "https://example-shop.com/cart",
+                        places: [
+                            { level: "app", id: "", folder: "" },
+                            { level: "project", id: "w1/p1", folder: "" },
+                        ],
+                    },
+                    { id: "b2", url: "https://docs.example.org/", places: [{ level: "context", id: "c1", folder: "" }] },
+                    { id: "b3", url: "https://other.dev/", places: [{ level: "workspace", id: "w2", folder: "" }] },
+                    { id: "b4", title: "no address" },
+                    { id: "b5", url: 42 },
+                ],
+                folders: {},
             },
         };
         expect(bookmarkAddresses(meta)).toEqual([
@@ -25,11 +35,11 @@ describe("the addresses the window sends to main (#2482)", () => {
         ]);
     });
 
-    it("reads nothing from a workspace without bookmarks or with a broken key", () => {
+    it("reads nothing from a client without bookmarks or with a broken key", () => {
         expect(bookmarkAddresses(null)).toEqual([]);
         expect(bookmarkAddresses({})).toEqual([]);
         expect(bookmarkAddresses({ "molten:bookmarks": "x" })).toEqual([]);
-        expect(bookmarkAddresses({ "molten:bookmarks": { p: { items: "x" } } })).toEqual([]);
+        expect(bookmarkAddresses({ "molten:bookmarks": { records: "x" } })).toEqual([]);
     });
 
     it("lists the web pages of the pins of every context and of the workspace's own pinned views", () => {
@@ -58,8 +68,8 @@ describe("the addresses the window sends to main (#2482)", () => {
     it("sends both lists together", () => {
         expect(
             knownAddresses(
-                { "molten:bookmarks": { p: { items: [{ url: "https://a.example/" }] } } },
                 {
+                    "molten:bookmarks": { records: [{ id: "b", url: "https://a.example/", places: [] }], folders: {} },
                     "molten:contextpins:workshop": [
                         { id: "g", name: "n", rev: 1, config: config(pane("https://b.example/")) },
                     ],
@@ -67,6 +77,6 @@ describe("the addresses the window sends to main (#2482)", () => {
                 []
             )
         ).toEqual({ bookmarks: ["https://a.example/"], pinned: ["https://b.example/"] });
-        expect(knownAddresses(null, null, null)).toEqual({ bookmarks: [], pinned: [] });
+        expect(knownAddresses(null, null)).toEqual({ bookmarks: [], pinned: [] });
     });
 });

@@ -122,7 +122,7 @@ describe("where the Comment button stands in the address row", () => {
         const before = row.slice(row.indexOf('"arrow-right"'), at);
         expect(before).not.toMatch(/<span|<div/);
         // The group of Share, Bookmarks and Open in <browser>, which does hide, no longer holds it.
-        const group = row.slice(row.indexOf("<BookmarksButton"), row.indexOf("<BookmarksButton") + 400);
+        const group = row.slice(row.indexOf("<BookmarkAddButton"), row.indexOf("<BookmarkAddButton") + 400);
         expect(group).not.toContain("CommentButton");
     });
 });

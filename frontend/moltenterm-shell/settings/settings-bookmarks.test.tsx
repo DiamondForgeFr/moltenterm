@@ -5,17 +5,25 @@ import { Provider, createStore } from "jotai";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-const { current } = vi.hoisted(() => ({ current: { ws: null as any } }));
+const { current } = vi.hoisted(() => ({ current: { client: null as any, ws: null as any, contexts: [] as any[] } }));
 
+vi.mock("@/app/store/client-model", async () => {
+    const { atom } = await import("jotai");
+    const clientAtom = atom(() => current.client);
+    return { ClientModel: { getInstance: () => ({ clientAtom, clientId: "c1" }) } };
+});
 vi.mock("@/app/store/global", async () => {
     const { atom } = await import("jotai");
-    return { atoms: { workspace: atom(() => current.ws) }, globalStore: { get: () => current.ws } };
+    return { atoms: { workspace: atom(() => current.ws) }, globalStore: { get: () => current.client } };
 });
-vi.mock("@/app/store/wos", () => ({
-    makeORef: (otype: string, oid: string) => `${otype}:${oid}`,
-    getWaveObjectAtom: () => ({}),
+vi.mock("@/app/store/wos", () => ({ makeORef: (otype: string, oid: string) => `${otype}:${oid}` }));
+vi.mock("@/app/store/wshclientapi", () => ({ RpcApi: { SetMetaCommand: async () => {} } }));
+vi.mock("@/app/store/wshrpcutil", () => ({ TabRpcClient: {} }));
+vi.mock("../contexts/context-store", () => ({
+    useContexts: () => current.contexts,
+    getContexts: () => current.contexts,
 }));
-vi.mock("../sidebar/workspace-projects-store", () => ({ writeMeta: async () => {} }));
+vi.mock("../workspace-sources", () => ({ subscribeWorkspaceSources: () => () => {} }));
 vi.mock("../dialog-frame", () => ({
     DialogFrame: ({ role, title, subtitle, children, buttons }: any) => (
         <div role="dialog" aria-label={title} data-role={role}>
@@ -26,43 +34,68 @@ vi.mock("../dialog-frame", () => ({
     ),
 }));
 
-import { BookmarkDialog } from "../browser/bookmark-dialog";
-import { BookmarksMetaKey } from "../browser/bookmarks";
+import { BookmarkDialog, type BookmarkDialogRequest } from "../browser/bookmark-dialog";
+import { BookmarksMetaKey, LevelProject, projectPlaceId } from "../browser/bookmarks";
 import { BookmarksCard } from "./settings-bookmarks";
 
-function workspace(extra: Record<string, any> = {}) {
-    return {
-        oid: "w1",
+const P1 = projectPlaceId("w1", "p1");
+
+function world(extra: { projects?: boolean; records?: any[]; folders?: any } = {}) {
+    const projects = extra.projects !== false;
+    current.contexts = [{ id: "sefers", name: "Client: SEFERS" }];
+    current.client = {
+        oid: "c1",
+        version: 1,
         meta: {
-            "molten:projects": [
-                { id: "p1", type: "Desktop", dir: "/work/app" },
-                { id: "p2", type: "Website", dir: "/work/site" },
-            ],
-            "molten:currentproject": "p1",
-            "molten:project": "/work/app",
-            "molten:projecttype": "Desktop",
             [BookmarksMetaKey]: {
-                p1: {
-                    folders: [{ id: "f1", name: "Docs" }],
-                    items: [
-                        {
-                            id: "b1",
-                            url: "https://vite.dev/config/",
-                            title: "Vite config",
-                            description: "The build options the renderer relies on.",
-                            folder: "f1",
-                        },
-                        {
-                            id: "b2",
-                            url: "https://staging.example.com/",
-                            title: "Staging",
-                            description: "",
-                            folder: "",
-                        },
-                    ],
-                },
+                records: extra.records ?? [
+                    {
+                        id: "b1",
+                        url: "https://vite.dev/config/",
+                        title: "Vite config",
+                        description: "The build options the renderer relies on.",
+                        places: [
+                            { level: "project", id: P1, folder: "f1" },
+                            { level: "app", id: "", folder: "" },
+                        ],
+                    },
+                    {
+                        id: "b2",
+                        url: "https://staging.example.com/",
+                        title: "Staging",
+                        description: "",
+                        places: [{ level: "project", id: P1, folder: "" }],
+                    },
+                    {
+                        id: "b3",
+                        url: "https://ctx.example.com/",
+                        title: "Context page",
+                        description: "",
+                        places: [{ level: "context", id: "sefers", folder: "" }],
+                    },
+                ],
+                folders: extra.folders ?? { [`project:${P1}`]: [{ id: "f1", name: "Docs" }] },
             },
-            ...extra,
+        },
+    };
+    current.ws = {
+        oid: "w1",
+        name: "Échanges",
+        icon: "bolt",
+        color: "#2fa6a0",
+        meta: {
+            "molten:context": "sefers",
+            ...(projects
+                ? {
+                      "molten:projects": [
+                          { id: "p1", type: "Desktop", dir: "/work/app" },
+                          { id: "p2", type: "Website", dir: "/work/site" },
+                      ],
+                      "molten:currentproject": "p1",
+                      "molten:project": "/work/app",
+                      "molten:projecttype": "Desktop",
+                  }
+                : {}),
         },
     };
 }
@@ -71,171 +104,148 @@ function render(node: React.ReactElement) {
     return renderToStaticMarkup(<Provider store={createStore()}>{node}</Provider>);
 }
 
-describe("Settings › Browser › Bookmarks", () => {
-    it("lists every project of the workspace, its bookmarks outside folders, then its folders", () => {
-        current.ws = workspace();
+describe("Settings › Browser › Bookmarks (#2531)", () => {
+    it("lists the places visible from the workspace: the app, its context, the workspace and each project", () => {
+        world();
         const html = render(<BookmarksCard />);
         expect(html).toContain("Bookmarks");
-        expect(html).toContain("Desktop");
-        expect(html).toContain("Website");
+        for (const place of ["The whole app", "Context · Client: SEFERS", "Workspace · Échanges", "Project · Desktop", "Project · Website"]) {
+            expect(html, place).toContain(place);
+        }
+        expect(html.indexOf("The whole app")).toBeLessThan(html.indexOf("Context · Client: SEFERS"));
+        expect(html.indexOf("Context · Client: SEFERS")).toBeLessThan(html.indexOf("Workspace · Échanges"));
+        expect(html.indexOf("Workspace · Échanges")).toBeLessThan(html.indexOf("Project · Desktop"));
         expect(html).toContain("shown now");
-        expect(html.indexOf("Staging")).toBeGreaterThan(-1);
-        expect(html.indexOf("Staging")).toBeLessThan(html.indexOf("Docs"));
-        expect(html.indexOf("Docs")).toBeLessThan(html.indexOf("Vite config"));
-        expect(html).toContain("https://vite.dev/config/");
-        expect(html).toContain("The build options the renderer relies on.");
-        expect(html).toContain("No bookmark in this project yet.");
     });
 
-    it("offers edit, move, copy and a two-step delete on each bookmark, and rename and delete on each folder", () => {
-        current.ws = workspace();
+    it("lists a place's bookmarks outside folders, then its folders", () => {
+        world();
+        const html = render(<BookmarksCard />);
+        const desktop = html.slice(html.indexOf('data-testid="bookmarks-place-project:' + P1));
+        expect(desktop.indexOf("Staging")).toBeGreaterThan(-1);
+        expect(desktop.indexOf("Staging")).toBeLessThan(desktop.indexOf("Docs"));
+        expect(desktop.indexOf("Docs")).toBeLessThan(desktop.indexOf("Vite config"));
+        expect(html).toContain("https://vite.dev/config/");
+        expect(html).toContain("The build options the renderer relies on.");
+        expect(html).toContain("No bookmark at this place yet.");
+    });
+
+    it("lists a bookmark placed at several places at each of them, as one bookmark with its number of places", () => {
+        world();
+        const html = render(<BookmarksCard />);
+        expect(html.match(/Vite config<\/span>/g)).toHaveLength(2);
+        expect(html).toContain("Placed at 2 places");
+        expect(html).toContain('data-shared="true"');
+        expect(html).toContain('data-testid="bookmark-delete-everywhere-b1"');
+        expect(html).not.toContain('data-testid="bookmark-delete-everywhere-b2"');
+    });
+
+    it("offers edit, move, place also, remove and a folder's rename and delete, removing in two steps", () => {
+        world();
         const html = render(<BookmarksCard />);
         expect(html).toContain('aria-label="Edit Vite config"');
         expect(html).toContain('aria-label="Move Vite config to a folder"');
-        expect(html).toContain('aria-label="Copy Vite config to another project"');
-        expect(html).toContain('aria-label="Delete Vite config"');
-        expect(html).toContain(">Delete<");
+        expect(html).toContain('aria-label="Also place Vite config at another place"');
+        expect(html).toContain('aria-label="Remove Vite config from this place"');
+        expect(html).toContain("Remove here");
+        expect(html).toContain("Remove everywhere");
         expect(html).not.toContain("Click again");
         expect(html).toContain('aria-label="Rename the folder Docs"');
         expect(html).toContain("Delete folder");
-        expect(html).toContain("Its bookmarks stay in the project.");
-        expect(html).toContain('data-testid="bookmark-add-p1"');
-        expect(html).toContain('data-testid="bookmark-add-p2"');
+        expect(html).toContain("Its bookmarks stay at this place.");
+        expect(html).toContain(`data-testid="bookmark-add-project:${P1}"`);
+        expect(html).toContain('data-testid="bookmark-add-app"');
+        expect(html).not.toContain("Copy to project");
     });
 
-    it("offers no copy to another project when the workspace has one project, and no move without a folder", () => {
-        current.ws = workspace({
-            "molten:projects": [{ id: "p1", type: "Desktop", dir: "/work/app" }],
-            [BookmarksMetaKey]: {
-                p1: {
-                    folders: [],
-                    items: [
-                        {
-                            id: "b2",
-                            url: "https://staging.example.com/",
-                            title: "Staging",
-                            description: "",
-                            folder: "",
-                        },
-                    ],
+    it("offers no move without a folder at the place, and no place-also for a bookmark at every place it can be", () => {
+        world({
+            projects: false,
+            folders: {},
+            records: [
+                {
+                    id: "b1",
+                    url: "https://staging.example.com/",
+                    title: "Staging",
+                    description: "",
+                    places: [{ level: "workspace", id: "w1", folder: "" }],
                 },
-            },
+            ],
         });
         const html = render(<BookmarksCard />);
-        expect(html).not.toContain("Copy Staging to another project");
         expect(html).not.toContain("Move Staging to a folder");
+        expect(html).toContain("Also place Staging at another place");
         expect(html).not.toContain("shown now");
-        expect(html).toContain("Staging");
     });
 
-    it("says that bookmarks belong to a project in a workspace without one", () => {
-        current.ws = { oid: "w2", meta: {} };
+    it("keeps working in a workspace with no project, listing the app, the context and the workspace", () => {
+        world({
+            projects: false,
+            records: [
+                {
+                    id: "b3",
+                    url: "https://ctx.example.com/",
+                    title: "Context page",
+                    description: "",
+                    places: [{ level: "context", id: "sefers", folder: "" }],
+                },
+            ],
+        });
         const html = render(<BookmarksCard />);
-        expect(html).toContain("This workspace has no project yet");
+        expect(html).toContain("This workspace has no project yet: link one to keep bookmarks for it alone.");
+        expect(html).toContain("Workspace · Échanges");
+        expect(html).not.toContain("Project ·");
+        expect(html).toContain("Context page");
     });
 });
 
-describe("the bookmark dialog", () => {
-    const request = {
-        projectId: "p1",
-        projectName: "Desktop",
-        mode: "page" as const,
+describe("the bookmark dialog of Settings", () => {
+    const request: BookmarkDialogRequest = {
+        ref: { level: LevelProject, id: P1 },
+        placeName: "Project · Desktop",
+        mode: "new",
         initial: { url: "https://example.com/page", title: "A page", description: "", folder: "" },
     };
 
-    it("asks for the address, title, description and folder of a page, and names the project", () => {
-        current.ws = workspace();
+    it("asks for the address, title, note and folder of a bookmark added at a place", () => {
+        world();
         const html = render(<BookmarkDialog request={request} onClose={() => {}} />);
-        expect(html).toContain("Bookmark this page");
-        expect(html).toContain("In the project Desktop");
+        expect(html).toContain("Add a bookmark");
+        expect(html).toContain("At Project · Desktop");
         expect(html).toContain('value="https://example.com/page"');
         expect(html).toContain('value="A page"');
-        expect(html).toContain("What this page is for. The agents of this project read it.");
-        expect(html).toContain("In the project, outside any folder");
+        expect(html).toContain("Note for agents");
+        expect(html).toContain("What this page is for. The agents that see this bookmark read it.");
+        expect(html).toContain("No folder");
         expect(html).toContain(">Docs<");
         expect(html).toContain("New folder…");
-        expect(html).toContain("Add bookmark");
     });
 
-    it("offers the other projects to add the page to, none ticked, and marks one that has it already", () => {
-        current.ws = workspace({
-            [BookmarksMetaKey]: {
-                p2: {
-                    folders: [],
-                    items: [{ id: "b9", url: "https://example.com/page", title: "x", description: "", folder: "" }],
-                },
-            },
-        });
+    it("offers no other project to add the page to: a bookmark is placed from its popover and its places", () => {
+        world();
         const html = render(<BookmarkDialog request={request} onClose={() => {}} />);
-        expect(html).toContain("Also add to another project");
-        expect(html).toContain('data-testid="bookmark-also-p2"');
-        expect(html).toContain("already there");
-        expect(html).not.toContain("checked");
-        expect(html).not.toContain('data-testid="bookmark-also-p1"');
-        const single = (current.ws = workspace({
-            "molten:projects": [{ id: "p1", type: "Desktop", dir: "/work/app" }],
-        }));
-        expect(single).toBeTruthy();
-        expect(render(<BookmarkDialog request={request} onClose={() => {}} />)).not.toContain(
-            "Also add to another project"
-        );
+        expect(html).not.toContain("Also add to another project");
+        expect(html).not.toContain("bookmark-also-");
     });
 
-    it("edits an existing bookmark without the other projects", () => {
-        current.ws = workspace();
+    it("edits the one bookmark, saying so, with no folder to choose", () => {
+        world();
         const html = render(
             <BookmarkDialog
-                request={{
-                    projectId: "p1",
-                    projectName: "Desktop",
-                    mode: "edit",
-                    editingId: "b1",
-                    initial: {
-                        url: "https://vite.dev/config/",
-                        title: "Vite config",
-                        description: "Note",
-                        folder: "f1",
-                    },
-                }}
+                request={{ ...request, mode: "edit", editingId: "b1", initial: { ...request.initial, title: "Vite config" } }}
                 onClose={() => {}}
             />
         );
         expect(html).toContain("Edit bookmark");
-        expect(html).not.toContain("Also add to another project");
-        expect(html).toContain('<option value="f1" selected="">Docs</option>');
-        expect(html).toContain(">Note</textarea>");
+        expect(html).toContain("The same bookmark at every place it is at");
+        expect(html).not.toContain('data-testid="bookmark-folder"');
+        expect(html).toContain("molten-btn");
         expect(html).toContain(">Save<");
     });
 
-    it("cuts the title prefilled from a long page title to what a bookmark keeps", () => {
-        current.ws = workspace();
-        const html = render(
-            <BookmarkDialog
-                request={{ ...request, initial: { ...request.initial, title: "T".repeat(500) } }}
-                onClose={() => {}}
-            />
-        );
-        expect(html).toContain(`value="${"T".repeat(200)}"`);
-        expect(html).not.toContain("T".repeat(201));
-    });
-
-    it("says why a page cannot be bookmarked as soon as the dialog opens", () => {
-        current.ws = workspace();
-        const tooLong = "https://example.com/" + "a".repeat(2100);
-        const long = render(
-            <BookmarkDialog
-                request={{ ...request, initial: { ...request.initial, url: tooLong } }}
-                onClose={() => {}}
-            />
-        );
-        expect(long).toContain("This address is too long (2048 characters at most).");
-        const password = render(
-            <BookmarkDialog
-                request={{ ...request, initial: { ...request.initial, url: "https://me:secret@example.com/" } }}
-                onClose={() => {}}
-            />
-        );
-        expect(password).toContain("Remove the user name and password from the address");
-        expect(render(<BookmarkDialog request={request} onClose={() => {}} />)).not.toContain('role="alert"');
+    it("says at once why a bookmark cannot be kept, only when saving fails", () => {
+        world();
+        const html = render(<BookmarkDialog request={request} onClose={() => {}} />);
+        expect(html).not.toContain('data-testid="bookmark-problem"');
     });
 });

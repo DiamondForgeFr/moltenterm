@@ -11,44 +11,55 @@ import (
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
-	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
 )
 
-// A workspace of two projects, as the database hands it over after a round trip through JSON: Desktop (p1, the current
-// one) and Website (p2); tab-web belongs to Website.
-const twoProjects = `{
-  "molten:projects": [
-    {"id": "p1", "type": "Desktop", "dir": "/work/app"},
-    {"id": "p2", "type": "", "dir": "/work/site"}
+// The client's meta as the database hands it over after a round trip through JSON. The developer works in the
+// workspace ws-a (projects p1 Desktop and p2 Website) of the context ctx-client; ws-b is another workspace that also has
+// a project p1; ctx-perso is another context. Every place has bookmarks the others must not see.
+const fixtureStore = `{
+  "records": [
+    {"id": "b-1", "url": "https://vite.dev/config/", "title": "Vite config", "description": "The build options the renderer relies on.",
+     "places": [{"level": "project", "id": "ws-a/p1", "folder": "f-docs"}, {"level": "app", "id": "", "folder": ""}]},
+    {"id": "b-2", "url": "https://staging.example.com/", "title": "Staging", "description": "",
+     "places": [{"level": "project", "id": "ws-a/p1", "folder": ""}, {"level": "context", "id": "ctx-client", "folder": "f-ops"}]},
+    {"id": "b-3", "url": "https://grafana.example.com/d/abc?token=SECRET&orgId=1", "title": "Dashboards", "description": "Latency and errors.",
+     "places": [{"level": "workspace", "id": "ws-a", "folder": "f-shared"}]},
+    {"id": "b-4", "url": "https://other-workspace.example.com/", "title": "Other workspace's p1", "description": "",
+     "places": [{"level": "project", "id": "ws-b/p1", "folder": "f-secret-project"}]},
+    {"id": "b-5", "url": "https://personal.example.com/", "title": "Personal", "description": "",
+     "places": [{"level": "context", "id": "ctx-perso", "folder": "f-secret-context"}]},
+    {"id": "b-6", "url": "https://site.example.com/", "title": "Site", "description": "The marketing site.",
+     "places": [{"level": "project", "id": "ws-a/p2", "folder": ""}]},
+    {"id": "b-7", "url": "https://everywhere.example.com/", "title": "Everywhere", "description": "",
+     "places": [{"level": "context", "id": "ctx-perso", "folder": ""}, {"level": "app", "id": "", "folder": ""}, {"level": "project", "id": "ws-b/p1", "folder": ""}]}
   ],
-  "molten:currentproject": "p1",
-  "molten:project": "/work/app",
-  "molten:projecttype": "Desktop",
-  "molten:tabprojects": {"tab-web": "p2", "tab-app": "p1", "tab-gone": "p9"},
-  "molten:bookmarks": {
-    "p1": {
-      "folders": [{"id": "f1", "name": "Docs"}, {"id": "f2", "name": "Ops"}],
-      "items": [
-        {"id": "b1", "url": "https://vite.dev/config/", "title": "Vite config", "description": "The build options the renderer relies on.", "folder": "f1"},
-        {"id": "b2", "url": "https://staging.example.com/", "title": "Staging", "description": "", "folder": ""},
-        {"id": "b3", "url": "https://grafana.example.com/d/abc?token=SECRET&orgId=1", "title": "Dashboards", "description": "Latency and errors.", "folder": "f2"},
-        {"id": "b4", "url": "https://example.com/lost", "title": "Lost folder", "description": "", "folder": "f-removed"}
-      ]
-    },
-    "p2": {
-      "items": [{"id": "b5", "url": "https://site.example.com/", "title": "Site", "description": "The marketing site."}]
-    }
+  "folders": {
+    "project:ws-a/p1": [{"id": "f-docs", "name": "Docs"}, {"id": "f-api", "name": "API"}],
+    "context:ctx-client": [{"id": "f-ops", "name": "Ops"}],
+    "workspace:ws-a": [{"id": "f-shared", "name": "Shared"}],
+    "project:ws-b/p1": [{"id": "f-secret-project", "name": "Secret project folder"}],
+    "context:ctx-perso": [{"id": "f-secret-context", "name": "Secret context folder"}]
   }
 }`
 
-func meta(t *testing.T, raw string) waveobj.MetaMapType {
+var (
+	hereInP1 = Here{ContextId: "ctx-client", WorkspaceId: "ws-a", ProjectId: "p1"}
+	namesOfA = Names{Context: "Client SEFERS", Workspace: "Acme", Project: "Desktop"}
+)
+
+func clientMeta(t *testing.T, store string) waveobj.MetaMapType {
 	t.Helper()
-	var m waveobj.MetaMapType
-	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+	var value any
+	if err := json.Unmarshal([]byte(store), &value); err != nil {
 		t.Fatal(err)
 	}
-	return m
+	return waveobj.MetaMapType{molten.BookmarksMetaKey: value}
+}
+
+func fixture(t *testing.T) Store {
+	t.Helper()
+	return ReadStore(clientMeta(t, fixtureStore))
 }
 
 func titles(list []molten.Bookmark) []string {
@@ -59,33 +70,131 @@ func titles(list []molten.Bookmark) []string {
 	return rtn
 }
 
-func TestReadGivesOneProjectsBookmarksRootFirstThenFolders(t *testing.T) {
-	m := meta(t, twoProjects)
-	got := Read(m, "p1")
-	if want := []string{"Staging", "Lost folder", "Vite config", "Dashboards"}; !reflect.DeepEqual(titles(got), want) {
-		t.Fatalf("p1 = %v, want %v", titles(got), want)
+// shapes lists each bookmark as "Title @ level:name:folder, level:name:folder" for a compact comparison.
+func shapes(list []molten.Bookmark) []string {
+	rtn := []string{}
+	for _, b := range list {
+		places := []string{}
+		for _, p := range b.Places {
+			places = append(places, fmt.Sprintf("%s:%s:%s", p.Level, p.Name, p.Folder))
+		}
+		rtn = append(rtn, b.Title+" @ "+strings.Join(places, ", "))
 	}
-	if got[2].Folder != "Docs" || got[2].Description != "The build options the renderer relies on." || got[1].Folder != "" {
-		t.Fatalf("folders and descriptions: %+v", got)
+	return rtn
+}
+
+func TestVisibleFromGivesWhatTheTerminalsPlaceSeesOnceEach(t *testing.T) {
+	t.Parallel()
+	got := shapes(VisibleFrom(fixture(t), hereInP1, namesOfA))
+	want := []string{
+		"Staging @ project:Desktop:, context:Client SEFERS:Ops",
+		"Vite config @ project:Desktop:Docs, app::",
+		"Dashboards @ workspace:Acme:Shared",
+		"Everywhere @ app::",
 	}
-	other := Read(m, "p2")
-	if len(other) != 1 || other[0].Title != "Site" {
-		t.Fatalf("p2 = %+v", other)
-	}
-	if Read(m, "p3") != nil || Read(meta(t, `{}`), "p1") != nil {
-		t.Fatal("a project without bookmarks reads as none")
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
 
-func TestReadNeverGivesAnAgentACredential(t *testing.T) {
-	m := meta(t, `{"molten:bookmarks": {"p1": {"items": [
-      {"id": "a", "url": "https://user:pass@example.com/page?token=abc&page=2", "title": "With userinfo"},
-      {"id": "b", "url": "https://bucket.example.com/f?X-Amz-Signature=abc&X-Amz-Expires=60", "title": "Signed", "description": "Keep for the report."},
-      {"id": "c", "url": "https://app.example.com/callback#access_token=abc123&state=xyz", "title": "OAuth return"},
-      {"id": "d", "url": "https://shop.example.com/reset#9f8e7d6c5b4a", "title": "Reset link"},
-      {"id": "e", "url": "https://docs.example.com/guide#install", "title": "Anchor"}
-    ]}}}`)
-	got := Read(m, "p1")
+// Project ids repeat from workspace to workspace: p1 of ws-b is not p1 of ws-a.
+func TestVisibleFromSeparatesTheProjectsOfTwoWorkspacesThatShareAProjectId(t *testing.T) {
+	t.Parallel()
+	inB := Here{ContextId: "ctx-client", WorkspaceId: "ws-b", ProjectId: "p1"}
+	got := titles(VisibleFrom(fixture(t), inB, Names{Workspace: "Beta", Project: "Desktop"}))
+	if want := []string{"Everywhere", "Other workspace's p1", "Staging", "Vite config"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ws-b/p1 sees %v, want %v: not ws-a/p1's own bookmarks, which only the context's and the app's places share", got, want)
+	}
+	inP2 := Here{ContextId: "ctx-client", WorkspaceId: "ws-a", ProjectId: "p2"}
+	got = titles(VisibleFrom(fixture(t), inP2, Names{Project: "Website"}))
+	if want := []string{"Site", "Dashboards", "Staging", "Vite config", "Everywhere"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ws-a/p2 sees %v, want %v: the workspace's, the context's and the app's bookmarks are shared by its projects", got, want)
+	}
+}
+
+func TestVisibleFromHidesAnotherContext(t *testing.T) {
+	t.Parallel()
+	inPerso := Here{ContextId: "ctx-perso", WorkspaceId: "ws-c"}
+	got := shapes(VisibleFrom(fixture(t), inPerso, Names{Context: "Personal", Workspace: "Home"}))
+	want := []string{"Everywhere @ context:Personal:, app::", "Personal @ context:Personal:Secret context folder", "Vite config @ app::"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// An agent never learns the name of a place it is not in, nor a folder there, nor that a record sits there.
+func TestVisibleFromNeverNamesAPlaceTheTerminalIsNotIn(t *testing.T) {
+	t.Parallel()
+	data, err := json.Marshal(VisibleFrom(fixture(t), hereInP1, namesOfA))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leak := range []string{"ctx-perso", "ws-b", "Secret", "Personal", "other-workspace", "p2", "Website", "f-docs", "f-ops"} {
+		if strings.Contains(string(data), leak) {
+			t.Errorf("%q reached the terminal: %s", leak, data)
+		}
+	}
+}
+
+func TestVisibleFromWithoutAProjectListsTheWorkspaceTheContextAndTheApp(t *testing.T) {
+	t.Parallel()
+	got := shapes(VisibleFrom(fixture(t), Here{ContextId: "ctx-client", WorkspaceId: "ws-a"}, Names{Context: "Client SEFERS", Workspace: "Acme"}))
+	want := []string{
+		"Dashboards @ workspace:Acme:Shared",
+		"Staging @ context:Client SEFERS:Ops",
+		"Vite config @ app::",
+		"Everywhere @ app::",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestVisibleFromNamesAPlaceByItsIdWhenItHasNoName(t *testing.T) {
+	t.Parallel()
+	got := shapes(VisibleFrom(fixture(t), hereInP1, Names{}))
+	if want := "Staging @ project:p1:, context:ctx-client:Ops"; got[0] != want {
+		t.Errorf("got %q, want %q", got[0], want)
+	}
+	if want := "Dashboards @ workspace:ws-a:Shared"; got[2] != want {
+		t.Errorf("got %q, want %q", got[2], want)
+	}
+}
+
+// Most specific place first; in a place, the bookmarks directly in it, then folder by folder in the folders' order, then
+// in record order.
+func TestVisibleFromOrdersByPlaceThenFolderThenRecord(t *testing.T) {
+	t.Parallel()
+	meta := clientMeta(t, `{
+	  "records": [
+	    {"id": "r1", "url": "https://a.example.com/", "title": "r1 in B", "places": [{"level": "workspace", "id": "w", "folder": "fb"}]},
+	    {"id": "r2", "url": "https://b.example.com/", "title": "r2 loose", "places": [{"level": "workspace", "id": "w", "folder": ""}]},
+	    {"id": "r3", "url": "https://c.example.com/", "title": "r3 in A", "places": [{"level": "workspace", "id": "w", "folder": "fa"}]},
+	    {"id": "r4", "url": "https://d.example.com/", "title": "r4 in B", "places": [{"level": "workspace", "id": "w", "folder": "fb"}]},
+	    {"id": "r5", "url": "https://e.example.com/", "title": "r5 loose", "places": [{"level": "workspace", "id": "w", "folder": ""}]},
+	    {"id": "r6", "url": "https://f.example.com/", "title": "r6 app", "places": [{"level": "app", "id": "", "folder": ""}]},
+	    {"id": "r7", "url": "https://g.example.com/", "title": "r7 context", "places": [{"level": "context", "id": "c", "folder": ""}]},
+	    {"id": "r8", "url": "https://h.example.com/", "title": "r8 project", "places": [{"level": "project", "id": "w/p1", "folder": ""}, {"level": "app", "id": "", "folder": ""}]}
+	  ],
+	  "folders": {"workspace:w": [{"id": "fa", "name": "A"}, {"id": "fb", "name": "B"}]}
+	}`)
+	got := titles(VisibleFrom(ReadStore(meta), Here{ContextId: "c", WorkspaceId: "w", ProjectId: "p1"}, Names{}))
+	want := []string{"r8 project", "r2 loose", "r5 loose", "r3 in A", "r1 in B", "r4 in B", "r7 context", "r6 app"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestVisibleFromNeverGivesAnAgentACredential(t *testing.T) {
+	t.Parallel()
+	meta := clientMeta(t, `{"records": [
+	  {"id": "a", "url": "https://user:pass@example.com/page?token=abc&page=2", "title": "With userinfo", "places": [{"level": "app"}]},
+	  {"id": "b", "url": "https://bucket.example.com/f?X-Amz-Signature=abc&X-Amz-Expires=60", "title": "Signed", "description": "Keep for the report.", "places": [{"level": "app"}]},
+	  {"id": "c", "url": "https://app.example.com/callback#access_token=abc123&state=xyz", "title": "OAuth return", "places": [{"level": "app"}]},
+	  {"id": "d", "url": "https://shop.example.com/reset#9f8e7d6c5b4a", "title": "Reset link", "places": [{"level": "app"}]},
+	  {"id": "e", "url": "https://docs.example.com/guide#install", "title": "Anchor", "places": [{"level": "app"}]}
+	]}`)
+	got := VisibleFrom(ReadStore(meta), Here{}, Names{})
 	if len(got) != 5 {
 		t.Fatalf("%+v", got)
 	}
@@ -103,111 +212,57 @@ func TestReadNeverGivesAnAgentACredential(t *testing.T) {
 	}
 }
 
-func TestReadIgnoresWhatIsNotAWebAddress(t *testing.T) {
-	m := meta(t, `{"molten:bookmarks": {"p1": {"items": [
-      {"id": "a", "url": "javascript:alert(document.cookie)", "title": "Script"},
-      {"id": "b", "url": "file:///etc/passwd", "title": "File"},
-      {"id": "c", "url": "data:text/html,<b>x</b>", "title": "Data"},
-      {"id": "d", "url": "vscode://file/etc/hosts", "title": "Editor"},
-      {"id": "e", "url": "ftp://example.com/", "title": "Ftp"},
-      {"id": "f", "url": "https:///nohost", "title": "No host"},
-      {"id": "g", "url": "not an address", "title": "Words"},
-      {"id": "h", "url": "https://ok.example.com/", "title": "Ok"}
-    ]}}}`)
-	got := Read(m, "p1")
-	if len(got) != 1 || got[0].Title != "Ok" {
-		t.Fatalf("only the web address stays, and nothing is given as withheld for the rest: %+v", got)
+func TestVisibleFromNamesAnUntitledBookmarkByItsAddressOrItsHost(t *testing.T) {
+	t.Parallel()
+	meta := clientMeta(t, `{"records": [
+	  {"id": "a", "url": "https://a.example.com", "places": [{"level": "app"}]},
+	  {"id": "b", "url": "https://bucket.example.com/f?X-Amz-Signature=abc&X-Amz-Expires=60", "places": [{"level": "app"}]}
+	]}`)
+	got := VisibleFrom(ReadStore(meta), Here{}, Names{})
+	if len(got) != 2 || got[0].Title != "https://a.example.com" || !got[1].Withheld || got[1].Title != "bucket.example.com" {
+		t.Fatalf("an untitled bookmark is named by its address, or by its host when the address is withheld: %+v", got)
 	}
 }
 
-func TestReadCutsWhatIsReadToTheLimits(t *testing.T) {
-	var folders, items []any
-	for i := 0; i < maxFolders+10; i++ {
-		folders = append(folders, map[string]any{"id": fmt.Sprintf("f%d", i), "name": fmt.Sprintf("Folder %d", i)})
-	}
-	folders[0] = map[string]any{"id": "f0", "name": strings.Repeat("n", maxFolderName+30)}
-	for i := 0; i < maxBookmarks+40; i++ {
-		items = append(items, map[string]any{"id": fmt.Sprintf("b%d", i), "url": fmt.Sprintf("https://example.com/%d", i), "title": fmt.Sprintf("Page %d", i), "folder": "f0"})
-	}
-	items[0] = map[string]any{
-		"id": "b0", "url": "https://example.com/0", "folder": "f0",
-		"title":       strings.Repeat("t", maxTitle+100),
-		"description": strings.Repeat("d", maxDescription+100),
-	}
-	items[1] = map[string]any{"id": "b1", "url": "https://example.com/" + strings.Repeat("a", maxAddress), "title": "Too long"}
-	m := waveobj.MetaMapType{molten.BookmarksMetaKey: map[string]any{"p1": map[string]any{"folders": folders, "items": items}}}
-	got := Read(m, "p1")
-	if len(got) != maxBookmarks {
-		t.Fatalf("%d bookmarks, want %d", len(got), maxBookmarks)
-	}
-	if len([]rune(got[0].Title)) != maxTitle || len([]rune(got[0].Description)) != maxDescription || len([]rune(got[0].Folder)) != maxFolderName {
-		t.Errorf("texts cut: title %d, description %d, folder %d", len(got[0].Title), len(got[0].Description), len(got[0].Folder))
-	}
-	for _, b := range got {
-		if b.Title == "Too long" {
-			t.Errorf("an address over the limit was given: %+v", b)
-		}
-	}
-	// A folder past the limit is not one: its bookmarks read as directly in the project.
-	items[2] = map[string]any{"id": "b2", "url": "https://example.com/2", "title": "Lost", "folder": fmt.Sprintf("f%d", maxFolders+5)}
-	for _, b := range Read(m, "p1") {
-		if b.Title == "Lost" && b.Folder != "" {
-			t.Errorf("a folder past the limit: %+v", b)
-		}
-	}
-}
-
-func TestReadRemovesControlCharactersFromTheTexts(t *testing.T) {
-	m := meta(t, `{"molten:bookmarks": {"p1": {"folders": [{"id": "f", "name": "Ops\u001b[31m\nteam"}], "items": [
-      {"id": "a", "url": "https://example.com/", "title": "Docs\u001b]0;pwned\u0007 now", "description": "Line one\nline\ttwo\u001b[2J\u0000end", "folder": "f"}
-    ]}}}`)
-	got := Read(m, "p1")
+func TestVisibleFromRemovesControlCharactersFromTheTexts(t *testing.T) {
+	t.Parallel()
+	meta := clientMeta(t, `{"records": [
+	  {"id": "a", "url": "https://example.com/", "title": "Docs\u001b]0;pwned\u0007 now", "description": "Line one\nline\ttwo\u001b[2J\u0000end",
+	   "places": [{"level": "workspace", "id": "w", "folder": "f"}]}
+	], "folders": {"workspace:w": [{"id": "f", "name": "Ops\u001b[31m\nteam"}]}}`)
+	got := VisibleFrom(ReadStore(meta), Here{WorkspaceId: "w"}, Names{Workspace: "Acme\u001b[2J\u0007"})
 	if len(got) != 1 {
 		t.Fatalf("%+v", got)
 	}
-	for _, s := range []string{got[0].Title, got[0].Description, got[0].Folder} {
+	b := got[0]
+	for _, s := range []string{b.Title, b.Description, b.Places[0].Folder, b.Places[0].Name} {
 		for _, r := range s {
 			if r < ' ' && r != '\n' {
 				t.Errorf("control character %q in %q", r, s)
 			}
 		}
 	}
-	if got[0].Description != "Line one\nline two[2Jend" || got[0].Folder != "Ops[31m team" || strings.Contains(got[0].Title, "\n") {
-		t.Errorf("texts: %+v", got[0])
-	}
-}
-
-func TestReadNamesAnUntitledWithheldBookmarkByItsHost(t *testing.T) {
-	m := meta(t, `{"molten:bookmarks": {"p1": {"items": [
-      {"id": "a", "url": "https://bucket.example.com/f?X-Amz-Signature=abc&X-Amz-Expires=60"}
-    ]}}}`)
-	got := Read(m, "p1")
-	if len(got) != 1 || !got[0].Withheld || got[0].Title != "bucket.example.com" {
-		t.Fatalf("an untitled bookmark whose address is withheld shows its host as its title: %+v", got)
-	}
-}
-
-func TestReadSurvivesMalformedValues(t *testing.T) {
-	for _, raw := range []string{
-		`{"molten:bookmarks": "oops"}`,
-		`{"molten:bookmarks": {"p1": "oops"}}`,
-		`{"molten:bookmarks": {"p1": {"folders": "x", "items": [1, "a", null, {"url": 4}]}}}`,
-		`{"molten:bookmarks": {"p1": {"folders": [{"id": "", "name": "x"}, {"id": "f", "name": ""}], "items": [{"url": "https://a.example.com", "folder": "f"}]}}}`,
-	} {
-		got := Read(meta(t, raw), "p1")
-		for _, b := range got {
-			if b.Url != "" && b.Folder != "" {
-				t.Errorf("%s: %+v", raw, b)
-			}
-		}
-	}
-	if got := Read(meta(t, `{"molten:bookmarks": {"p1": {"items": [{"url": "https://a.example.com"}]}}}`), "p1"); len(got) != 1 || got[0].Title != "https://a.example.com" {
-		t.Errorf("an untitled bookmark is named by its address: %+v", got)
+	if b.Description != "Line one\nline two[2Jend" || b.Places[0].Folder != "Ops[31m team" || strings.Contains(b.Title, "\n") || b.Places[0].Name != "Acme[2J" {
+		t.Errorf("texts: %+v", b)
 	}
 }
 
 func TestProjectOfIsTheTabsProjectElseTheCurrentOne(t *testing.T) {
-	m := meta(t, twoProjects)
+	t.Parallel()
+	var m waveobj.MetaMapType
+	raw := `{
+	  "molten:projects": [
+	    {"id": "p1", "type": "Desktop", "dir": "/work/app"},
+	    {"id": "p2", "type": "", "dir": "/work/site"}
+	  ],
+	  "molten:currentproject": "p1",
+	  "molten:project": "/work/app",
+	  "molten:projecttype": "Desktop",
+	  "molten:tabprojects": {"tab-web": "p2", "tab-app": "p1", "tab-gone": "p9"}
+	}`
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		t.Fatal(err)
+	}
 	cases := []struct {
 		tab, id, name string
 	}{
@@ -223,86 +278,11 @@ func TestProjectOfIsTheTabsProjectElseTheCurrentOne(t *testing.T) {
 			t.Errorf("tab %q: %+v %v, want %s %s", c.tab, got, ok, c.id, c.name)
 		}
 	}
-	if _, ok := ProjectOf(meta(t, `{}`), "tab-x"); ok {
-		t.Error("a workspace without a project has no bookmarks")
+	if _, ok := ProjectOf(waveobj.MetaMapType{}, "tab-x"); ok {
+		t.Error("a workspace without a project has no project place")
 	}
-	single, ok := ProjectOf(meta(t, `{"molten:project": "/work/app"}`), "tab-x")
+	single, ok := ProjectOf(waveobj.MetaMapType{"molten:project": "/work/app"}, "tab-x")
 	if !ok || single.Id != "p1" || single.Name != "app" {
 		t.Errorf("one project without a list reads as p1: %+v %v", single, ok)
-	}
-}
-
-func TestWithoutProjectDropsOnlyThatProjectsEntry(t *testing.T) {
-	m := meta(t, twoProjects)
-	value, changed := WithoutProject(m, "p2")
-	if !changed {
-		t.Fatal("p2 had an entry")
-	}
-	left, _ := value.(map[string]any)
-	if _, has := left["p1"]; !has || len(left) != 1 {
-		t.Fatalf("left = %v", left)
-	}
-	if _, has := m[molten.BookmarksMetaKey].(map[string]any)["p2"]; !has {
-		t.Fatal("the workspace's own meta was changed")
-	}
-	if _, changed := WithoutProject(m, "p9"); changed {
-		t.Error("a project without an entry changes nothing")
-	}
-	only := meta(t, `{"molten:bookmarks": {"p1": {"items": []}}}`)
-	if value, changed := WithoutProject(only, "p1"); !changed || value != nil {
-		t.Errorf("the last entry deletes the key: %v %v", value, changed)
-	}
-}
-
-func fakeReader(m waveobj.MetaMapType, tab string) workspaceReader {
-	return func(blockId string) (waveobj.MetaMapType, string, error) {
-		if blockId != "block-1" {
-			return nil, "", fmt.Errorf("block %s not found", blockId)
-		}
-		return m, tab, nil
-	}
-}
-
-func TestRouteListsTheTerminalsProjectOnly(t *testing.T) {
-	m := meta(t, twoProjects)
-	term := localroute.Caller{IsLocalTerminal: true, BlockId: "block-1"}
-	out, err := (&routeLink{read: fakeReader(m, "tab-web")}).handle(molten.BookmarksListCommand, term, molten.BookmarksRequest{BlockId: "block-1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	view := out.(molten.BookmarksView)
-	if view.Project.Id != "p2" || len(view.Bookmarks) != 1 || view.Bookmarks[0].Title != "Site" {
-		t.Fatalf("a terminal of the Website tab reads Website's bookmarks: %+v", view)
-	}
-	out, err = (&routeLink{read: fakeReader(m, "tab-app")}).handle(molten.BookmarksListCommand, term, molten.BookmarksRequest{BlockId: "block-1"})
-	if err != nil || out.(molten.BookmarksView).Project.Id != "p1" || len(out.(molten.BookmarksView).Bookmarks) != 4 {
-		t.Fatalf("Desktop: %+v %v", out, err)
-	}
-	empty, err := (&routeLink{read: fakeReader(meta(t, `{"molten:project": "/work/app"}`), "t")}).handle(molten.BookmarksListCommand, term, molten.BookmarksRequest{BlockId: "block-1"})
-	if err != nil || empty.(molten.BookmarksView).Bookmarks == nil {
-		t.Errorf("a project without a bookmark lists an empty array: %+v %v", empty, err)
-	}
-}
-
-func TestRouteRefusesWhatIsNotAListing(t *testing.T) {
-	l := &routeLink{read: fakeReader(meta(t, twoProjects), "tab-app")}
-	term := localroute.Caller{IsLocalTerminal: true, BlockId: "block-1"}
-	for _, command := range []string{"moltenbookmarksadd", "moltenbookmarksdelete", "moltenbookmarksset", ""} {
-		if _, err := l.handle(command, term, molten.BookmarksRequest{BlockId: "block-1"}); err == nil {
-			t.Errorf("%q was answered: agents only read", command)
-		}
-	}
-	if _, err := l.handle(molten.BookmarksListCommand, term, molten.BookmarksRequest{BlockId: "block-2"}); err == nil {
-		t.Error("a terminal read another terminal's workspace")
-	}
-	if _, err := l.handle(molten.BookmarksListCommand, term, molten.BookmarksRequest{}); err == nil {
-		t.Error("a listing without a terminal was answered")
-	}
-	if _, err := (&routeLink{read: fakeReader(meta(t, `{}`), "tab")}).handle(molten.BookmarksListCommand, term, molten.BookmarksRequest{BlockId: "block-1"}); err == nil {
-		t.Error("a workspace without a project was answered")
-	}
-	policy := l.route().Policy
-	if !policy.Admits(molten.BookmarksListCommand, term) || policy.Admits(molten.BookmarksListCommand, localroute.Caller{}) {
-		t.Error("only local callers list")
 	}
 }

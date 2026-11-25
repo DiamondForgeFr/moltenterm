@@ -567,6 +567,12 @@ func main() {
 	if err != nil {
 		log.Printf("error migrating timeline blocks: %v\n", err)
 	}
+	// MOLTENTERM-PATCH (#2531): the bookmarks kept per project in each workspace's meta become records placed at levels,
+	// in the client's meta, before any window loads them
+	err = wcore.MigrateLegacyBookmarks()
+	if err != nil {
+		log.Printf("error migrating bookmarks: %v\n", err)
+	}
 	err = clearTempFiles()
 	if err != nil {
 		log.Printf("error clearing temp files: %v\n", err)

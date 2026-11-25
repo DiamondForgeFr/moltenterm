@@ -1,0 +1,608 @@
+/* Copyright 2026, DiamondForge
+   SPDX-License-Identifier: AGPL-3.0-only */
+
+/* The bookmark popover, the column panel and their parts (FR-BRW-019, #2531, the validated mockup's sections 1, 2, 2 bis, 2 ter
+   and 3). The popover is built with the suite kit (blocks, label chips, accent icon tiles, check rows) and keeps a popover's
+   own look: 4 px corners and no light. Colour: the workspace owns place colour, orange is action, and the selected item of a
+   column carries the place liseré through .mt-selected. */
+
+/* ── The row's buttons (section 1) ─────────────────────────────────────────────────────────────────────────────────────── */
+
+.molten-bm-add-icon,
+.molten-bm-book-icon {
+    width: 14px;
+    height: 14px;
+}
+
+.molten-bm-add-icon.is-saved {
+    color: var(--mt-text-1);
+}
+
+/* The panel button takes the header's existing active fill and nothing more: no liseré (the same fill as the open carpet
+   button, view360.css). */
+.molten-bm-book[aria-pressed="true"] {
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2);
+}
+
+/* ── Marks shared by the popover, the panel and Settings ───────────────────────────────────────────────────────────────── */
+
+.molten-bm-marker {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--mt-text-3);
+}
+
+.molten-bm-dot {
+    --molten-bm-place: var(--mt-place);
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--molten-bm-place);
+}
+
+.molten-bm-ribbon {
+    --molten-bm-place: var(--mt-place);
+    display: inline-block;
+    width: 14px;
+    height: 9px;
+    flex-shrink: 0;
+    background: var(--molten-bm-place);
+    clip-path: polygon(0 0, 70% 0, 100% 50%, 70% 100%, 0 100%);
+}
+
+.molten-bm-found {
+    color: var(--mt-action-text, var(--mt-accent));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* A bookmark's site icon, and the small shortcut mark of a bookmark placed at several places (like an alias). */
+.molten-bm-mark {
+    position: relative;
+    display: inline-flex;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.molten-bm-mark .mt-favicon {
+    width: 14px;
+    height: 14px;
+}
+
+.molten-bm-alias {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 9px;
+    height: 9px;
+    padding: 1px;
+    border-radius: 2px;
+    background: #f2f2f2;
+    color: #111;
+}
+
+.molten-bm-icon {
+    display: inline-flex;
+    width: 16px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+.molten-bm-tile {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--mt-radius-control);
+    background: color-mix(in srgb, var(--mt-action) 22%, var(--mt-surface-2));
+    border: 1px solid color-mix(in srgb, var(--mt-action) 45%, transparent);
+    color: var(--mt-text-1);
+}
+
+.molten-bm-tile .molten-bm-marker {
+    width: 11px;
+    height: 11px;
+    color: inherit;
+}
+
+.molten-bm-tile .molten-bm-dot {
+    width: 7px;
+    height: 7px;
+}
+
+.molten-bm-tile .molten-bm-ribbon {
+    width: 11px;
+    height: 7px;
+    background: var(--mt-text-1);
+}
+
+/* ── The popover (sections 2, 2 bis, 2 ter) ────────────────────────────────────────────────────────────────────────────── */
+
+.molten-bm-popover {
+    border-radius: var(--mt-radius-control);
+    font-size: var(--mt-text-12);
+    background: var(--mt-surface-1);
+}
+
+.molten-bm-popover .df-block {
+    margin-top: 28px;
+}
+
+.molten-bm-scope {
+    position: absolute;
+    top: -10px;
+    right: 12px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 9px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: 9999px;
+    background: var(--mt-surface-1);
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+}
+
+.molten-bm-row-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 14px;
+    min-width: 0;
+}
+
+.molten-bm-row-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 9px 14px;
+}
+
+.molten-bm-row-label {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.molten-bm-stack {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.molten-bm-input {
+    min-width: 0;
+    padding: 5px 9px;
+    border: 1px solid var(--mt-line-control);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-2);
+    color: var(--mt-text-1);
+    font: inherit;
+    outline: none;
+}
+
+.molten-bm-input:focus {
+    border-color: var(--mt-action);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--mt-action) 55%, transparent);
+}
+
+.molten-bm-name {
+    width: 12.5rem;
+}
+
+.molten-bm-note {
+    width: 100%;
+    resize: vertical;
+}
+
+.molten-bm-small {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--mt-radius-control);
+    font-size: var(--mt-text-12);
+    cursor: pointer;
+}
+
+.molten-bm-small > svg {
+    width: 13px;
+    height: 13px;
+}
+
+/* The folder picker of a checked place, on the right of its row. */
+.molten-bm-fold {
+    display: inline-flex;
+    max-width: 11rem;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 7px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: var(--mt-radius-control);
+    background: transparent;
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-11);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.molten-bm-fold:hover {
+    background: var(--mt-surface-3);
+}
+
+.molten-bm-fold > svg {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+}
+
+.molten-bm-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 2px 2px;
+}
+
+.molten-bm-alert {
+    padding: 8px 14px;
+    color: var(--mt-state-error, #e5484d);
+    font-size: var(--mt-text-12);
+}
+
+/* The place finder (2 ter). */
+.molten-bm-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 12px 10px;
+    padding: 6px 9px;
+    border: 1px solid var(--mt-action);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-2);
+    color: var(--mt-text-3);
+}
+
+.molten-bm-search > svg {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+}
+
+.molten-bm-search-input {
+    min-width: 0;
+    flex: 1;
+    background: transparent;
+    color: var(--mt-text-1);
+    font: inherit;
+    outline: none;
+}
+
+.molten-bm-heading {
+    padding: 8px 14px 3px;
+    color: var(--mt-text-3);
+    font-size: 10.5px;
+    letter-spacing: 0.02em;
+}
+
+.molten-bm-empty {
+    padding: 10px 14px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-12);
+}
+
+.molten-bm-pick {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 7px 14px;
+    background: transparent;
+    color: var(--mt-text-1);
+    text-align: left;
+    cursor: pointer;
+}
+
+.molten-bm-pick[data-selected="true"] {
+    background: color-mix(in srgb, var(--mt-action) 7%, transparent);
+    box-shadow: inset 2px 0 0 var(--mt-action);
+}
+
+.molten-bm-pick[data-there="true"] {
+    opacity: 0.7;
+}
+
+.molten-bm-pick-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.molten-bm-there {
+    flex-shrink: 0;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.molten-bm-key {
+    flex-shrink: 0;
+    padding: 0 5px;
+    border: 1px solid var(--mt-line-2);
+    border-radius: 3px;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+/* ── The column panel (section 3) ──────────────────────────────────────────────────────────────────────────────────────── */
+
+.molten-bm-panel {
+    position: relative;
+    display: flex;
+    flex-shrink: 0;
+    flex-direction: column;
+    min-width: 0;
+    border-left: 1px solid var(--mt-line-1);
+    background: var(--mt-surface-0);
+    color: var(--mt-text-1);
+    font-size: var(--mt-text-12);
+}
+
+/* The panel resizes from its left edge. */
+.molten-bm-grip {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -3px;
+    z-index: 3;
+    width: 6px;
+    cursor: col-resize;
+    touch-action: none;
+}
+
+.molten-bm-grip:hover,
+.molten-bm-grip:focus-visible {
+    background: color-mix(in srgb, var(--mt-action) 45%, transparent);
+    outline: none;
+}
+
+.molten-bm-top {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 8px 8px 12px;
+    border-bottom: 1px solid var(--mt-line-1);
+}
+
+.molten-bm-tool {
+    display: inline-flex;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--mt-radius-control);
+    color: var(--mt-text-2);
+    cursor: pointer;
+}
+
+.molten-bm-tool:hover {
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+}
+
+.molten-bm-tool > svg {
+    width: 13px;
+    height: 13px;
+}
+
+.molten-bm-tool-bordered {
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--mt-line-2);
+}
+
+.molten-bm-tool-bordered[aria-pressed="true"] {
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+}
+
+/* The path and the search field share one line and never overlap: the field takes the whole line while it shows. */
+.molten-bm-top-line {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    overflow: hidden;
+}
+
+.molten-bm-path {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    white-space: nowrap;
+    color: var(--mt-text-2);
+    font-size: var(--mt-text-11);
+}
+
+.molten-bm-crumb {
+    min-width: 0;
+    padding: 2px 3px;
+    border-radius: var(--mt-radius-control);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: inherit;
+    cursor: pointer;
+}
+
+.molten-bm-crumb:hover {
+    background: var(--mt-surface-3);
+    color: var(--mt-text-1);
+}
+
+.molten-bm-crumb[aria-current="location"] {
+    color: var(--mt-text-1);
+    font-weight: 600;
+}
+
+.molten-bm-chevron {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    color: var(--mt-text-3);
+}
+
+.molten-bm-search-field {
+    width: 100%;
+    min-width: 0;
+    padding: 4px 9px;
+    border: 1px solid var(--mt-action);
+    border-radius: var(--mt-radius-control);
+    background: var(--mt-surface-2);
+    color: var(--mt-text-1);
+    font: inherit;
+    outline: none;
+}
+
+.molten-bm-body {
+    position: relative;
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+}
+
+.molten-bm-cols {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+}
+
+.molten-bm-col {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 1px;
+    overflow-y: auto;
+    padding: 6px 4px;
+    border-right: 1px solid var(--mt-line-1);
+}
+
+.molten-bm-col:last-child {
+    border-right: 0;
+}
+
+.molten-bm-col[data-drop="true"] {
+    background: color-mix(in srgb, var(--mt-action) 6%, transparent);
+}
+
+.molten-bm-item {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 6px;
+    border-radius: var(--mt-radius-control);
+    color: var(--mt-text-1);
+    text-align: left;
+    cursor: pointer;
+}
+
+.molten-bm-item:hover {
+    background: var(--mt-surface-2);
+}
+
+.molten-bm-item.mt-selected {
+    background: var(--mt-surface-3);
+}
+
+.molten-bm-item[data-drop="true"] {
+    background: color-mix(in srgb, var(--mt-action) 14%, transparent);
+    outline: 1px dashed var(--mt-action);
+}
+
+.molten-bm-item-name {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+}
+
+.molten-bm-item-text {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+}
+
+.molten-bm-item-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+.molten-bm-count {
+    flex-shrink: 0;
+    color: var(--mt-text-3);
+    font-size: var(--mt-text-11);
+}
+
+/* "You are here": the dot marking the current place. */
+.molten-bm-here {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: var(--mt-action);
+}
+
+.molten-bm-results {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 1px;
+    overflow-y: auto;
+    padding: 6px 8px;
+}
+
+.molten-bm-hit {
+    padding: 6px 8px;
+}
+
+.molten-bm-bottom {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--mt-line-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .molten-bm-fold,
+    .molten-bm-tool {
+        transition: none;
+    }
+}
