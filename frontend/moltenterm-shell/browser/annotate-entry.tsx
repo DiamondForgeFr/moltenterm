@@ -70,12 +70,7 @@ export function CommentEntryView({
                     aria-hidden
                 >
                     {entryPaths(size).map((d, i) => (
-                        <path
-                            key={i}
-                            d={d}
-                            pathLength={100}
-                            onAnimationEnd={i === 0 ? onLightsDone : undefined}
-                        />
+                        <path key={i} d={d} pathLength={100} onAnimationEnd={i === 0 ? onLightsDone : undefined} />
                     ))}
                 </svg>
             ) : null}
