@@ -76,7 +76,7 @@ const Css = `
 .draft.zone { border: 2px dashed var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
 .hover { border: 2px solid var(--c); border-radius: 2px; background: color-mix(in srgb, var(--c) 16%, transparent); }
 .draft svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; }
-.draft polyline { fill: none; stroke: var(--c); stroke-width: 3; stroke-dasharray: 2 5; stroke-linecap: round; stroke-linejoin: round; }
+.draft polyline { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .capture { position: fixed; left: 0; top: 0; right: 0; bottom: 0; cursor: crosshair; user-select: none; -webkit-user-select: none; touch-action: none; pointer-events: auto; }
 .capture.paused { pointer-events: none; }
 .capture.locked { cursor: progress; pointer-events: auto; }
