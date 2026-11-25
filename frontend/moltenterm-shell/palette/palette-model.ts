@@ -11,8 +11,8 @@ import type { WorkspaceIconSource } from "../workspace-icon-model";
 
 // "panel": the focused panel's command panel items (FR-SHELL-047), listed only while a query is typed. "suggestions":
 // the ready-made combinations a new view's chooser offers above its list (FR-SHELL-138); no other list holds them.
-// "web": what the typed words do on the web (#2312): the chooser's "Search the web" row and its address row, which sit
-// first or last in the chooser's order (webGroupOrder), never in the others'.
+// "web": what the typed words do on the web (#2312): the "Search the web" row and the address row, which sit first or
+// last in every palette's order (webGroupOrder), the chooser's and since #2545 the open palette's and a split picker's.
 export type PaletteGroupId = "suggestions" | "agents" | "panels" | "folders" | "actions" | "panel" | "web";
 
 export const PaletteGroupOrder: PaletteGroupId[] = ["suggestions", "agents", "panels", "folders", "actions", "panel"];
@@ -72,6 +72,24 @@ export type PaletteRun =
 // The entries that open something in the palette's pane; the others act elsewhere (a tab, a sheet, a workspace).
 export function fillsPanel(run: PaletteRun): boolean {
     return run?.kind === "widget" || run?.kind === "folder" || run?.kind === "agent";
+}
+
+// What Enter does with an entry (FR-SHELL-013, FR-SHELL-042): "fill" opens it where the placement says, and in a
+// split's picker that is the new panel, whose split it consumes; "elsewhere" is an action that opens nothing in the
+// new panel (a tab, the settings, a workspace), which cancels the split first so no empty panel stays behind.
+export type PaletteOpenPlan =
+    | { kind: "fill"; placement: "replace" | "new" | "right"; consumeSplit: boolean }
+    | { kind: "elsewhere"; focusOrigin: boolean };
+
+export function paletteOpenPlan(
+    run: PaletteRun,
+    target: { inPlace: "replace" | "new" | "right"; right: boolean; blockId: string; picker: boolean }
+): PaletteOpenPlan {
+    if (target.picker && !fillsPanel(run)) {
+        return { kind: "elsewhere", focusOrigin: run?.kind === "focusorigin" };
+    }
+    const placement = target.right && target.blockId && !target.picker ? "right" : target.inPlace;
+    return { kind: "fill", placement, consumeSplit: target.picker };
 }
 
 export type PaletteEntry = {
