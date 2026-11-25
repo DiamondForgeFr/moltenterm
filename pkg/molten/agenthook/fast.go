@@ -127,19 +127,26 @@ func runState(sa StateArgs, env Env) (bool, int) {
 	if blockId == "" {
 		return false, 0
 	}
-	message := sa.Message
-	if sa.Stdin {
-		var send bool
-		if message, send = StateReport(sa.State, message, env.Stdin); !send {
-			return true, 0
-		}
+	req, send := StateArgsRequest(sa, blockId, env.Stdin, env.Getenv)
+	if !send {
+		return true, 0
 	}
-	req := AgentStateRequest{BlockId: blockId, State: sa.State, Agent: sa.Agent, Message: message, Provider: ProviderHostFor(sa.Agent, env.Getenv)}
 	if err := SendAgentState(token, req); err != nil {
 		fmt.Fprintf(env.Stderr, "molten: %v\n", err)
 		return true, 1
 	}
 	return true, 0
+}
+
+// StateArgsRequest is the report `molten agent state` sends for its arguments in the pane blockId; send false when it
+// reports nothing (StateRequestFrom).
+func StateArgsRequest(sa StateArgs, blockId string, stdin io.Reader, getenv func(string) string) (AgentStateRequest, bool) {
+	message, subagent, send := StateRequestFrom(sa.State, sa.Message, sa.Stdin, stdin)
+	if !send {
+		return AgentStateRequest{}, false
+	}
+	return AgentStateRequest{BlockId: blockId, State: sa.State, Agent: sa.Agent, Message: message, Subagent: subagent,
+		Provider: ProviderHostFor(sa.Agent, getenv)}, true
 }
 
 // SendAgentState reports a state on its own connection.

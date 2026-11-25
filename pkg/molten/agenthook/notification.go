@@ -73,12 +73,6 @@ func ClaudeNotificationWaits(input HookInput) bool {
 // StateReport applies --stdin to a report of `molten agent state`: the message the input gives when --message did
 // not, and send false for a waiting report from a notification that waits for nothing (the state stays as it is).
 func StateReport(state string, message string, stdin io.Reader) (string, bool) {
-	input := ReadHookInput(stdin)
-	if message == "" {
-		message = input.Message
-	}
-	if state == AgentStateWaiting && !ClaudeNotificationWaits(input) {
-		return message, false
-	}
-	return message, true
+	message, _, send := StateRequestFrom(state, message, true, stdin)
+	return message, send
 }

@@ -20,6 +20,7 @@ import (
 var goroutinesWithoutRecover = map[string]string{
 	"localroute/routetest/routetest.go:Ask":     "test helper, never runs in the app",
 	"agenthook/relay.go:RunStatusLineCommand":   "runs in wsh, not wavesrv, and only forwards a signal to the child",
+	"agenthook/statesubagent.go:pipedHookInput": "runs in a hook's molten or wsh, not wavesrv, and only reads its input",
 	"companion/manager.go:Manager.lease":        "w.loop defers its own recover",
 	"browsers/opener.go:ExecRunner":             "only waits for the process (cmd.Wait into a channel)",
 	"mission/builds.go:Runs.launchBuild":        "only reaps the process (go cmd.Wait())",
