@@ -11,6 +11,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/wconfig"
 )
@@ -35,9 +36,6 @@ const (
 	ReasonFormat   = "format"
 	ReasonExpired  = "expired"
 	ReasonFailed   = "failed"
-
-	// A day of a deduced week MoltenTerm holds no reading for (#2451): unknown, never 0 %.
-	DeducedDayUnknown = -1
 )
 
 // UsageAdapter is what MoltenTerm knows of one agent's plan usage.
@@ -153,10 +151,13 @@ type UsageWindow struct {
 	// ResetsAt is in Unix milliseconds; 0 when the source does not tell.
 	ResetsAt   int64 `json:"resetsat,omitempty"`
 	WindowMins int64 `json:"windowmins,omitempty"`
-	// Deduced: MoltenTerm computed the window from another one (a week from the month, #2451). Days is then each
-	// day's use, Monday first, in percent of a seventh of the window; DeducedDayUnknown for a day with no reading.
-	Deduced bool      `json:"deduced,omitempty"`
-	Days    []float64 `json:"days,omitempty"`
+	// SessionWorth is what a full session is worth in percent of this window, the pool of the global reset, as MoltenTerm
+	// measured it from a session it saw used in full (#2532, history.go). 0 until measured, and always 0 on a window
+	// that is not a week or a month.
+	SessionWorth float64 `json:"sessionworth,omitempty"`
+	// SessionMins is the length of the session the worth was measured on, in minutes: the plan has a session window even
+	// while a reading carries none (it is dropped once past its reset). Set with SessionWorth only.
+	SessionMins int64 `json:"sessionmins,omitempty"`
 }
 
 type UsageMonthlySpend struct {
@@ -279,7 +280,9 @@ func ReadGauges(ctx context.Context, a UsageAdapter, settings *wconfig.SettingsT
 		_, polled := s.(PolledSource)
 		reads = append(reads, sourceRead{id: s.Id(), name: s.Name(), polled: polled, snap: snap, err: err})
 	}
-	return mergeReads(a.Id(), sources[0].Name(), reads, nowMs)
+	res := mergeReads(a.Id(), sources[0].Name(), reads, nowMs)
+	NoteReading(a.Id(), res.Snapshot, time.UnixMilli(nowMs))
+	return res
 }
 
 // Without merges again what the other sources gave, as if the given one were off: the gauges show those sources'
@@ -364,6 +367,8 @@ func mergeReads(agent string, bestName string, reads []sourceRead, nowMs int64) 
 	if len(used) > 0 {
 		rtn.SourceName = strings.Join(used, " and ")
 	}
+	// A re-merge of readings already kept still tells the session's worth (#2532); only ReadGauges keeps a reading.
+	defaultHistory.Annotate(agent, &merged, time.UnixMilli(nowMs))
 	rtn.State, rtn.Snapshot, rtn.Reason = GaugesEnabled, &merged, ""
 	return rtn
 }
@@ -387,6 +392,7 @@ func ClearValues(a UsageAdapter) {
 	if a == nil {
 		return
 	}
+	defaultHistory.Clear(a.Id())
 	for _, s := range a.Sources() {
 		if c, ok := s.(interface{ Clear() }); ok {
 			c.Clear()

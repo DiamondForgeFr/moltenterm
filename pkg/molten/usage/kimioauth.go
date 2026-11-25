@@ -37,8 +37,9 @@ type KimiOAuthSource struct {
 	oauthEngine
 	connection func() (kimiManagedConnection, error)
 	// stamp gives the credential file's metadata, never its content; "" when there is no file.
-	stamp   func(path string) string
-	history *kimiHistory
+	stamp func(path string) string
+	// history is the last reading, kept for an expired token.
+	history *kimiLast
 	// on is what the source last knew of its opt-in (kimiSourceUnknown until told), for Clear's on-to-off rule.
 	onLock sync.Mutex
 	on     string
@@ -64,18 +65,18 @@ func MakeKimiOAuthSource() *KimiOAuthSource {
 		credentials: readKimiCredentials,
 		store:       kimiCredentialStore,
 		now:         time.Now,
-	}, connection: currentKimiManagedConnection, stamp: credentialFileStamp, history: &kimiHistory{path: defaultKimiHistoryPath}}
+	}, connection: currentKimiManagedConnection, stamp: credentialFileStamp, history: &kimiLast{path: defaultKimiLastPath}}
 	s.fetchFn = s.fetchKeepingLast
 	return s
 }
 
-// fetchKeepingLast records each reading, and gives the last one back, marked stale, while the token has expired:
+// fetchKeepingLast keeps each reading as the last one, and gives it back, marked stale, while the token has expired:
 // Kimi Code refreshes it only while it runs, and MoltenTerm never refreshes it itself (refresh tokens rotate, and a
 // concurrent refresh could sign Kimi Code out).
 func (s *KimiOAuthSource) fetchKeepingLast(ctx context.Context) (UsageSnapshot, oauthOutcome) {
 	snap, outcome := s.fetch(ctx)
 	if outcome.reason == "" {
-		s.history.record(snap, s.now())
+		s.history.record(snap)
 		return snap, outcome
 	}
 	if outcome.reason != ReasonTokenExpired {
@@ -91,9 +92,9 @@ func (s *KimiOAuthSource) fetchKeepingLast(ctx context.Context) (UsageSnapshot, 
 	return *last, oauthOutcome{stale: ReasonTokenExpired}
 }
 
-// Clear forgets what the source read. The recorded readings, file included (NFR-SHELL-011), go only when the source
-// goes from on to off: SyncSources clears every source that is off at each settings change, and an unrelated edit of
-// settings.json must never wipe the week's history.
+// Clear forgets what the source read. The kept reading, file included (NFR-SHELL-011), goes only when the source goes
+// from on to off: SyncSources clears every source that is off at each settings change, and an unrelated edit of
+// settings.json must never wipe it.
 func (s *KimiOAuthSource) Clear() {
 	s.oauthEngine.Clear()
 	if s.setOn(false) {
@@ -166,11 +167,7 @@ func (s *KimiOAuthSource) Read(ctx context.Context, blockId string) (UsageSnapsh
 		s.noteCredentials(s.stamp(path))
 	}
 	ctx = context.WithValue(ctx, kimiConnectionContextKey{}, connection)
-	snap, err := s.oauthEngine.Read(ctx, blockId)
-	if err != nil {
-		return snap, err
-	}
-	return s.history.withDeducedWeek(snap, s.now()), nil
+	return s.oauthEngine.Read(ctx, blockId)
 }
 
 type KimiOAuthTestHooks struct {
@@ -181,11 +178,10 @@ type KimiOAuthTestHooks struct {
 	Now         func() time.Time
 	Managed     func() error
 	Connection  func() (kimiManagedConnection, error)
-	// CredentialStamp stands for the credential file's metadata; History is where the readings are kept ("" keeps
-	// none), Location the time zone of their days.
+	// CredentialStamp stands for the credential file's metadata; History is where the last reading is kept ("" keeps
+	// none).
 	CredentialStamp func() string
 	History         string
-	Location        *time.Location
 }
 
 func (s *KimiOAuthSource) UseForTest(hooks KimiOAuthTestHooks) func() {
@@ -201,7 +197,7 @@ func (s *KimiOAuthSource) UseForTest(hooks KimiOAuthTestHooks) func() {
 		s.stamp = func(string) string { return hooks.CredentialStamp() }
 	}
 	historyPath := hooks.History
-	s.history = &kimiHistory{path: func() string { return historyPath }, loc: hooks.Location}
+	s.history = &kimiLast{path: func() string { return historyPath }}
 	previousConnection := s.connection
 	if hooks.Connection != nil {
 		s.connection = hooks.Connection

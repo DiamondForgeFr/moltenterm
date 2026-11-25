@@ -88,8 +88,10 @@ func SyncSources(a UsageAdapter, settings *wconfig.SettingsType) {
 	if a == nil {
 		return
 	}
+	enabled := false
 	for _, s := range a.Sources() {
 		if s.Enabled(settings) {
+			enabled = true
 			if r, ok := s.(interface{ Resume() }); ok {
 				r.Resume()
 			}
@@ -99,4 +101,6 @@ func SyncSources(a UsageAdapter, settings *wconfig.SettingsType) {
 			c.Clear()
 		}
 	}
+	// The usage history of the agent (#2532) goes with its gauges, once, when they turn off.
+	SyncHistory(a.Id(), enabled)
 }
