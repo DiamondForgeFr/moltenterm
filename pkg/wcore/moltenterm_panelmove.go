@@ -6,6 +6,7 @@ package wcore
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/wavetermdev/waveterm/pkg/molten/panelmove"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
@@ -82,6 +83,60 @@ func MoveTabMainPanel(ctx context.Context, req panelmove.MoveRequest) (panelmove
 		SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_LayoutState, from.LayoutState))
 	}
 	return rtn, nil
+}
+
+// moveBlockBetweenTabs gives a panel to another tab of the same workspace (a view made from an agent's panel, #2548):
+// the block leaves the first tab's list and joins the second's, so its shell, its files and its agent keep running. It
+// reports whether the first tab is left without a panel; laying the panel out is the caller's.
+func moveBlockBetweenTabs(ctx context.Context, fromTabId string, toTabId string, blockId string) (bool, error) {
+	if err := panelmove.CheckRequest(panelmove.MoveRequest{FromTabId: fromTabId, ToTabId: toTabId}); err != nil {
+		return false, err
+	}
+	fromWs, err := wstore.DBFindWorkspaceForTabId(ctx, fromTabId)
+	if err != nil {
+		return false, fmt.Errorf("the panel's view is in no workspace: %w", err)
+	}
+	toWs, err := wstore.DBFindWorkspaceForTabId(ctx, toTabId)
+	if err != nil {
+		return false, fmt.Errorf("the new view is in no workspace: %w", err)
+	}
+	if fromWs == "" || fromWs != toWs {
+		return false, fmt.Errorf("panels move between views of one workspace only")
+	}
+	empty, err := wstore.WithTxRtn(ctx, func(tx *wstore.TxWrap) (bool, error) {
+		txCtx := tx.Context()
+		from, err := wstore.DBMustGet[*waveobj.Tab](txCtx, fromTabId)
+		if err != nil {
+			return false, err
+		}
+		to, err := wstore.DBMustGet[*waveobj.Tab](txCtx, toTabId)
+		if err != nil {
+			return false, err
+		}
+		if !slices.Contains(from.BlockIds, blockId) {
+			return false, fmt.Errorf("the panel is not in the view it is moved from")
+		}
+		block, err := wstore.DBMustGet[*waveobj.Block](txCtx, blockId)
+		if err != nil {
+			return false, err
+		}
+		from.BlockIds = utilfn.RemoveElemFromSlice(from.BlockIds, blockId)
+		to.BlockIds = append(to.BlockIds, blockId)
+		block.ParentORef = waveobj.MakeORef(waveobj.OType_Tab, to.OID).String()
+		for _, obj := range []waveobj.WaveObj{from, to, block} {
+			if err := wstore.DBUpdate(txCtx, obj); err != nil {
+				return false, err
+			}
+		}
+		return len(from.BlockIds) == 0, nil
+	})
+	if err != nil {
+		return false, err
+	}
+	SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Block, blockId))
+	SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Tab, fromTabId))
+	SendWaveObjUpdate(waveobj.MakeORef(waveobj.OType_Tab, toTabId))
+	return empty, nil
 }
 
 // StartPanelMoveRoute lets the windows move a tab's panel into the tab they show; wavesrv calls it once.
