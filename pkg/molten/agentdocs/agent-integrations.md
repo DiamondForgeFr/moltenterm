@@ -65,8 +65,12 @@ managed block after that explicit approval. The dialog shows the backup and next
 copying the documented `[[hooks]]` TOML recipe of `agent-states.md` remains a manual fallback and does not mark setup
 installed or active.
 
-Only Kimi Code 2.6.3 is qualified for installation, update and repair. A missing, unreadable or different version is
-a read-only compatibility review. An existing complete managed block can still be removed safely in that state.
+Kimi Code 2.7.2 is the qualified version. Another or an undetected version is not blocked: the dialog says the version
+is not qualified yet, what that risks (hooks that do not fire or report nothing until removed), and writes only once
+you confirm. Only a version whose hook contract is known to be incompatible is a read-only compatibility review; an
+existing complete managed block can still be removed safely in that state. When the installed block differs from the
+one this version ships, the dialog lists the changed events, commands, timeouts and versions, and offers **Update
+MoltenTerm hooks**.
 Every existing-file mutation creates a backup, preserves permissions and uses a same-directory atomic write. Every
 byte outside the managed block is retained. Invalid TOML, marker conflicts, duplicate unmanaged Molten hooks,
 symlinks and stale dialog digests fail closed; installation-state failure rolls the configuration back where

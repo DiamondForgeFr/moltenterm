@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest";
 import {
     AgentHookOffer,
     dismissedWith,
+    hookApplyNeedsConfirmation,
+    hookApplyTextKey,
+    hookChangeValue,
     hookOfferQueryKey,
     hookOfferTexts,
     hookProposalTextKey,
@@ -82,6 +85,45 @@ describe("hook setup offer", () => {
         expect(hookProposalTextKey({ ...offer, updatekind: "definition" })).toBe("cmdpanel.proposals.updateHooks");
         expect(hookProposalTextKey({ ...offer, updatekind: "repair" })).toBe("cmdpanel.proposals.repairHooks");
         expect(hookProposalTextKey({ ...offer, updatekind: "compatibility" })).toBe("cmdpanel.proposals.reviewHooks");
+    });
+
+    // #2543: the header dot and the command entry lead to the update once hooks differ, whatever the version; only a
+    // known incompatible version reads as a compatibility check.
+    it("words a difference as an update, also on an unqualified version, and asks before that write", () => {
+        const kimi: AgentHookOffer = {
+            ...offer,
+            agent: "kimi",
+            agentname: "Kimi Code",
+            persistent: true,
+            status: "definition-update",
+            action: "update",
+            updatekind: "definition",
+            updatekey: "revision-1",
+            canapply: true,
+            unqualified: true,
+            currentkimiversion: "2.9.0",
+        };
+        expect(visibleHookOffer({ ...claude, agent: "kimi", hooked: true }, kimi, [])).toBe(kimi);
+        expect(hookProposalTextKey(kimi)).toBe("cmdpanel.proposals.updateHooks");
+        expect(translate("fr", hookProposalTextKey(kimi), { agent: "Kimi Code" })).toBe(
+            "Mettre à jour les hooks de Kimi Code"
+        );
+        expect(translate("en", hookProposalTextKey(kimi), { agent: "Kimi Code" })).toBe("Update Kimi Code's hooks");
+        expect(hookApplyTextKey(kimi)).toBe("agent.hooks.update");
+        expect(hookApplyNeedsConfirmation(kimi)).toBe(true);
+        expect(hookApplyNeedsConfirmation({ ...kimi, unqualified: false })).toBe(false);
+        expect(hookApplyNeedsConfirmation({ ...kimi, canapply: false })).toBe(false);
+        const claudeUpdate: AgentHookOffer = { ...offer, status: "definition-update", updatekind: "definition", updatekey: "k" };
+        expect(visibleHookOffer({ ...claude, hooked: true }, claudeUpdate, [])).toBe(claudeUpdate);
+        expect(hookProposalTextKey(claudeUpdate)).toBe("cmdpanel.proposals.updateHooks");
+    });
+
+    it("shows a change's values in words", () => {
+        const t = (key: string, vars?: any) => translate("en", key, vars);
+        expect(hookChangeValue({ kind: "changed", field: "timeout" }, "15", t)).toBe("15 s");
+        expect(hookChangeValue({ kind: "changed", field: "timeout" }, "", t)).toBe("default");
+        expect(hookChangeValue({ kind: "changed", field: "matcher" }, "", t)).toBe("none");
+        expect(hookChangeValue({ kind: "changed", field: "command" }, "molten agent hook", t)).toBe("molten agent hook");
     });
 
     it("words the offer in the interface language for Claude Code and Codex (#988)", () => {

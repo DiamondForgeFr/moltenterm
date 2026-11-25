@@ -55,7 +55,31 @@ export type AgentHookOffer = {
     canremove?: boolean;
     errorcode?: string;
     detectionerror?: string;
+    changes?: AgentHookChange[];
+    unqualified?: boolean;
 };
+
+// must match AgentHookChange in pkg/molten/agenthookdiff.go
+export type AgentHookChange = {
+    kind: "added" | "removed" | "changed";
+    event?: string;
+    field?: "command" | "timeout" | "matcher" | "definition" | "qualifiedversion" | "block";
+    installed?: string;
+    available?: string;
+};
+
+// The apply button asks first on a version that is not qualified (#2543): the developer confirms, nothing blocks.
+export function hookApplyNeedsConfirmation(offer: AgentHookOffer): boolean {
+    return offer?.canapply === true && offer.unqualified === true;
+}
+
+// A change's values as the dialog shows them: a timeout in seconds or "default", an empty value as "none".
+export function hookChangeValue(change: AgentHookChange, value: string, t: (key: string, vars?: any) => string): string {
+    if (change.field === "timeout") {
+        return value ? t("agent.hooks.changes.seconds", { value }) : t("agent.hooks.changes.default");
+    }
+    return value || t("agent.hooks.changes.none");
+}
 
 export type AgentHookMutationResult = { offer: AgentHookOffer; backuppath?: string };
 

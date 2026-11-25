@@ -67,9 +67,12 @@ it and a Copy button; you apply it yourself. MoltenTerm only reads their setting
 already there (Claude Code: `~/.claude/settings.json` or `$CLAUDE_CONFIG_DIR/settings.json`, its `settings.local.json`,
 the managed settings, and the `.claude/settings.json` and `.claude/settings.local.json` of the pane's folder and its
 parents up to the repository's root; Codex: `~/.codex/hooks.json` or `$CODEX_HOME/hooks.json` running
-`molten agent hook`, or the older notify line running `molten agent state` in its `config.toml`).
+`molten agent hook`, or the older notify line running `molten agent state` in its `config.toml`). When the user file
+(`settings.json` for Claude Code, `hooks.json` for Codex) holds MoltenTerm hooks that differ from this snippet, the
+command panel offers **Update hooks** instead: the same dialog lists the events added, removed or changed, and you
+paste the new snippet yourself.
 
-For Kimi Code 2.6.3, the same offer names `$KIMI_CODE_HOME/config.toml` (else `~/.kimi-code/config.toml`) and provides
+For Kimi Code, the same offer names `$KIMI_CODE_HOME/config.toml` (else `~/.kimi-code/config.toml`) and provides
 an explicit **Install MoltenTerm hooks** action. Copying the TOML remains a manual fallback; copying never marks the
 hooks installed or active. An installed block asks you to restart Kimi Code until hooks report, after which the
 ordinary setup proposal disappears. Definition updates, managed-block repair and compatibility review can still
@@ -283,9 +286,11 @@ hooks turned off (`[features] hooks = false`) or managed hooks only leave it out
 
 Kimi Code 2.6.3 has 11 qualified lifecycle events. MoltenTerm has no Kimi launcher or per-run hook override. Instead,
 the **Set up hooks** proposal and companion Integration panel can install a marked block after you approve the exact
-configuration file. Installation, update and repair require a successful probe of Kimi Code 2.6.3; a missing,
-unreadable or different version is a read-only compatibility review. These actions change MoltenTerm's hooks, never
-update the Kimi application, and apply from the next Kimi Code start.
+configuration file. Kimi Code 2.7.2 is qualified (its hook contract matches 2.6.3's). On another or an undetected
+version, installation, update and repair ask you to confirm the risk before writing; only a version known to be
+incompatible is a read-only compatibility review. An update lists what differs between the installed hooks and the
+available ones. These actions change MoltenTerm's hooks, never update the Kimi application, and apply from the next
+Kimi Code start.
 
 The managed block records MoltenTerm's definition version and canonical definition fingerprint, the qualified Kimi
 version and event set. MoltenTerm also keeps installation metadata and the complete block hash in its data folder.

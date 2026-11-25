@@ -40,6 +40,13 @@ func kimiHooksTestEnv(t *testing.T) (AgentEnv, string) {
 	return env, filepath.Join(home, "config.toml")
 }
 
+// markKimiIncompatible records a version as known incompatible for one test.
+func markKimiIncompatible(t *testing.T, version string) {
+	t.Helper()
+	kimiHookIncompatibleVersions[version] = true
+	t.Cleanup(func() { delete(kimiHookIncompatibleVersions, version) })
+}
+
 func kimiOffer(env AgentEnv, hooked bool, detection AgentHookDetection) AgentHookOffer {
 	return MakeAgentHookOfferDetected(env, AgentIdKimi, "", hooked, detection)
 }
@@ -172,6 +179,7 @@ func TestKimiManagedDriftAndCompatibilityPrecedeReports(t *testing.T) {
 		t.Fatalf("repair: %+v, %v", repaired, err)
 	}
 	unknown := AgentHookDetection{Installed: true, Version: "9.8.7"}
+	markKimiIncompatible(t, unknown.Version)
 	review := kimiOffer(env, true, unknown)
 	if review.Status != HookStatusCompatibilityReview || review.UpdateKind != HookUpdateCompatibility || !review.Show || review.CanApply || !review.CanRemove {
 		t.Fatalf("compatibility review: %+v", review)
@@ -320,9 +328,10 @@ func TestKimiManagedFailsClosedWithoutMutation(t *testing.T) {
 			t.Fatalf("target changed: %q", got)
 		}
 	})
-	t.Run("unknown version", func(t *testing.T) {
+	t.Run("known incompatible version", func(t *testing.T) {
 		env, config := kimiHooksTestEnv(t)
-		offer := kimiOffer(env, false, AgentHookDetection{Installed: true, Version: "2.7.0"})
+		markKimiIncompatible(t, "2.5.0")
+		offer := kimiOffer(env, false, AgentHookDetection{Installed: true, Version: "2.5.0"})
 		if offer.Status != HookStatusCompatibilityReview || offer.CanApply || offer.Action != HookActionReview {
 			t.Fatalf("review: %+v", offer)
 		}
@@ -436,6 +445,8 @@ func TestKimiManagedFailureRollback(t *testing.T) {
 
 func TestKimiHookRevisionDismissal(t *testing.T) {
 	env, _ := kimiHooksTestEnv(t)
+	markKimiIncompatible(t, "9.0.0")
+	markKimiIncompatible(t, "9.0.1")
 	if err := MarkAgentHooksSeen(env.DataDir, AgentIdKimi); err != nil {
 		t.Fatal(err)
 	}

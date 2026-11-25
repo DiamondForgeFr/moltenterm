@@ -237,7 +237,7 @@ var agentHookEvents = []string{
 	agenthook.HookEventNotification, agenthook.HookEventStop, agenthook.HookEventSubagentStart, agenthook.HookEventSubagentStop,
 }
 
-// Kimi Code 2.6.3's documented observation events. PermissionRequest is observation-only there, so this handler only
+// Kimi Code 2.6.3's documented observation events, unchanged in 2.7.2 (#2543). PermissionRequest is observation-only there, so this handler only
 // reports the wait; it never answers it. Unknown events remain a no-op in agenthook.RunHookEvent.
 var kimiHookEvents = []string{
 	agenthook.HookEventSessionStart, agenthook.HookEventUserPromptSubmit, agenthook.HookEventPostToolUse,

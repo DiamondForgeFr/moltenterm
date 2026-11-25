@@ -93,6 +93,25 @@ const English: Record<string, string> = {
     "agent.hooks.dontOffer": "Don't offer again",
     "agent.hooks.guide": "Open the hook guide",
     "agent.hooks.error.invalid-toml": "The TOML is invalid; no changes were made.",
+    "agent.hooks.addTo": "Add this to",
+    "agent.hooks.also": ", {also}:",
+    "agent.hooks.manualUpdate": "Your settings run older MoltenTerm hooks. Replace them with the snippet below.",
+    "agent.hooks.changes.title": "What changes",
+    "agent.hooks.changes.added": "Added",
+    "agent.hooks.changes.removed": "Removed",
+    "agent.hooks.changes.default": "default",
+    "agent.hooks.changes.none": "none",
+    "agent.hooks.changes.seconds": "{value} s",
+    "agent.hooks.changes.field.command": "Command",
+    "agent.hooks.changes.field.timeout": "Timeout",
+    "agent.hooks.changes.field.qualifiedversion": "Qualified {name} version",
+    "agent.hooks.unqualified.title": "Version not qualified yet",
+    "agent.hooks.unqualified.body":
+        "MoltenTerm has not yet checked the hook contract of {name} {version} (qualified version: {qualified}).",
+    "agent.hooks.unqualified.risk": "If the contract changed, the hooks may not fire.",
+    "agent.hooks.unqualified.ask": "Write MoltenTerm's hooks for this version anyway?",
+    "agent.hooks.unqualified.confirm": "Confirm and write",
+    "common.cancel": "Cancel",
     "common.close": "Close",
     "companion.integration.persistentTitle": "Kimi Code hooks",
     "companion.integration.persistentHint": "Persistent hooks for {name}",
@@ -105,7 +124,7 @@ vi.mock("./i18n/i18n", () => ({
         (English[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => String(vars?.[name] ?? `{${name}}`)),
 }));
 
-import { AgentHookOfferDialog } from "./agent-hooks-ui";
+import { AgentHookOfferDialog, HookConfirmButtons } from "./agent-hooks-ui";
 import { IntegrationDetails } from "./companion/companion-integration";
 import type { CompanionView } from "./companion/companion-model";
 
@@ -200,6 +219,97 @@ describe("the shared persistent hook approval dialog", () => {
         const manual = dialog({ status: "manual", managed: false, canapply: false, canremove: false });
         expect(manual).toContain("Manual configuration detected");
         expect(manual).not.toContain("Remove MoltenTerm hooks");
+    });
+
+    // #2543: hooks installed for 2.6.3 while Kimi Code runs 2.7.2, the qualified version.
+    it("shows what differs and offers the update when installed and available hooks differ", () => {
+        const html = dialog({
+            status: "definition-update",
+            action: "update",
+            updatekind: "definition",
+            qualifiedkimiversion: "2.7.2",
+            currentkimiversion: "2.7.2",
+            installedkimiversion: "2.6.3",
+            canremove: true,
+            changes: [
+                { kind: "changed", field: "qualifiedversion", installed: "2.6.3", available: "2.7.2" },
+                { kind: "changed", event: "Stop", field: "timeout", installed: "10", available: "15" },
+                { kind: "added", event: "Interrupt" },
+            ],
+        });
+        expect(html).toContain("What changes");
+        expect(html).toContain("Qualified Kimi Code version");
+        expect(html).toContain("2.6.3");
+        expect(html).toContain("10 s");
+        expect(html).toContain("15 s");
+        expect(html).toContain("Interrupt");
+        expect(html).toContain("Added");
+        expect(html.match(/data-testid="agent-hooks-change"/g)).toHaveLength(3);
+        expect(html).toContain('data-testid="agent-hooks-apply"');
+        expect(html).toContain("Update MoltenTerm hooks");
+        expect(html).not.toContain('data-testid="agent-hooks-unqualified"');
+    });
+
+    it("says an unqualified newer version is not checked yet, and still offers the update", () => {
+        const html = dialog({
+            status: "definition-update",
+            action: "update",
+            updatekind: "definition",
+            qualifiedkimiversion: "2.7.2",
+            currentkimiversion: "2.9.0",
+            unqualified: true,
+            changes: [{ kind: "changed", event: "Stop", field: "timeout", installed: "10", available: "15" }],
+        });
+        expect(html).toContain('data-testid="agent-hooks-unqualified"');
+        expect(html).toContain(
+            "MoltenTerm has not yet checked the hook contract of Kimi Code 2.9.0 (qualified version: 2.7.2)."
+        );
+        expect(html).toContain('data-testid="agent-hooks-apply"');
+        expect(html).not.toContain("read-only");
+    });
+
+    it("asks before writing an unqualified version, and Confirm writes", () => {
+        const onConfirm = vi.fn();
+        const onCancel = vi.fn();
+        const t = (key: string) => English[key] ?? key;
+        const html = renderToStaticMarkup(
+            <HookConfirmButtons busy={false} onCancel={onCancel} onConfirm={onConfirm} t={t} />
+        );
+        expect(html).toContain("Write MoltenTerm&#x27;s hooks for this version anyway?");
+        expect(html).toContain("Confirm and write");
+        expect(html).toContain("Cancel");
+        const element = HookConfirmButtons({ busy: false, onCancel, onConfirm, t });
+        const confirm = (element.props.children as any[]).find((c) => c?.props?.["data-testid"] === "agent-hooks-confirm");
+        confirm.props.onClick();
+        expect(onConfirm).toHaveBeenCalledTimes(1);
+        expect(onCancel).not.toHaveBeenCalled();
+    });
+
+    it("shows a Claude Code user file's older hooks with the recipe to paste, never a write", () => {
+        const html = dialog({
+            agent: "claude",
+            agentname: "Claude Code",
+            persistent: false,
+            file: "~/.claude/settings.json",
+            language: "json",
+            status: "definition-update",
+            updatekind: "definition",
+            action: undefined,
+            canapply: false,
+            qualifiedkimiversion: undefined,
+            currentkimiversion: undefined,
+            changes: [{ kind: "changed", event: "Stop", field: "command", installed: "old", available: "new" }],
+        });
+        expect(html).toContain("Your settings run older MoltenTerm hooks.");
+        expect(html).toContain('data-testid="agent-hooks-changes"');
+        expect(html).not.toContain('data-testid="agent-hooks-apply"');
+    });
+
+    it("offers no update when nothing differs", () => {
+        const html = dialog({ status: "reporting", action: "remove", canapply: false, canremove: true, unqualified: false });
+        expect(html).not.toContain('data-testid="agent-hooks-changes"');
+        expect(html).not.toContain('data-testid="agent-hooks-apply"');
+        expect(html).not.toContain('data-testid="agent-hooks-unqualified"');
     });
 
     it("fails closed for invalid configuration", () => {

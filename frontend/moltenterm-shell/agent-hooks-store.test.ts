@@ -78,6 +78,26 @@ describe("persistent hook mutations in the shared store", () => {
         expect(globalStore.get(store.detailsAtom("block-kimi"))).toEqual(refreshed);
     });
 
+    // #2543: a version that is not qualified writes only with the developer's confirmation, sent with the request.
+    it("sends the confirmation for an unqualified version only when the developer gave it", async () => {
+        const store = AgentHookOffers.getInstance();
+        const reviewed = offer({ unqualified: true, currentkimiversion: "2.9.0" });
+        rpc.result = { offer: offer({ status: "installed-not-reporting", action: "remove", updatekind: undefined }) };
+        await store.apply(reviewed, true);
+        expect(rpc.calls[0]).toEqual({
+            command: AgentHookApplyCommand,
+            data: {
+                blockid: "block-kimi",
+                action: "update",
+                updatekey: "reviewed-revision",
+                expecteddigest: "reviewed-digest",
+                confirmunqualified: true,
+            },
+        });
+        await store.apply(reviewed);
+        expect(rpc.calls[1].data).not.toHaveProperty("confirmunqualified");
+    });
+
     it("can remove from Integration details even when the proposal is hidden", async () => {
         const store = AgentHookOffers.getInstance();
         const reviewed = offer({ show: false, status: "compatibility-review", action: "review", canapply: false });

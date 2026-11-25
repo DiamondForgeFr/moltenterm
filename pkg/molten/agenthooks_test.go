@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -329,5 +330,52 @@ func TestAgentDocPath(t *testing.T) {
 	}
 	if _, err := AgentDocPath(dataDir, "9.9.9", "../secret.md"); err == nil {
 		t.Fatalf("an unknown guide is refused")
+	}
+}
+
+// #2543: Claude Code and Codex user files holding older MoltenTerm hooks get the update offer with the differences,
+// even once hooks reported; the current recipe, or a dismissed revision, offers nothing.
+func TestManualHookUpdateShowsDifferences(t *testing.T) {
+	for _, tc := range []struct {
+		agent string
+		file  func(env AgentEnv) string
+	}{
+		{AgentIdClaude, func(env AgentEnv) string { return filepath.Join(env.Home, ".claude", "settings.json") }},
+		{AgentIdCodex, func(env AgentEnv) string { return filepath.Join(env.Home, ".codex", "hooks.json") }},
+	} {
+		t.Run(tc.agent, func(t *testing.T) {
+			env := hookTestEnv(t)
+			setup := agentHookSetups[tc.agent]
+			writeTestFile(t, tc.file(env), setup.snippet)
+			if offer := MakeAgentHookOffer(env, tc.agent, "", true); offer.Show || offer.UpdateKind != "" || len(offer.Changes) != 0 {
+				t.Fatalf("the current recipe offers nothing: %+v", offer)
+			}
+			older := `{"model":"x","hooks":{"Stop":[{"hooks":[{"type":"command","command":"[ -n \"$WAVETERM_BLOCKID\" ] && molten agent state done --agent ` + tc.agent + ` || true"}]}],` +
+				`"PreCompact":[{"hooks":[{"type":"command","command":"molten agent hook --agent ` + tc.agent + `"}]}]}}`
+			writeTestFile(t, tc.file(env), older)
+			offer := MakeAgentHookOffer(env, tc.agent, "", true)
+			if !offer.Show || offer.Status != HookStatusDefinitionUpdate || offer.UpdateKind != HookUpdateDefinition || offer.UpdateKey == "" || offer.CanApply || offer.Persistent {
+				t.Fatalf("older hooks: %+v", offer)
+			}
+			stop := AgentStateHooks(tc.agent)[slices.IndexFunc(AgentStateHooks(tc.agent), func(e AgentHookEntry) bool { return e.Event == "Stop" })]
+			for _, want := range []AgentHookChange{
+				{Kind: HookChangeChanged, Event: "Stop", Field: HookFieldCommand, Installed: `[ -n "$WAVETERM_BLOCKID" ] && molten agent state done --agent ` + tc.agent + ` || true`, Available: stop.Command},
+				{Kind: HookChangeAdded, Event: "SessionStart"},
+				{Kind: HookChangeRemoved, Event: "PreCompact"},
+			} {
+				if !slices.Contains(offer.Changes, want) {
+					t.Fatalf("missing %+v in %+v", want, offer.Changes)
+				}
+			}
+			if again := MakeAgentHookOffer(env, tc.agent, "", true); again.UpdateKey != offer.UpdateKey || !slices.Equal(again.Changes, offer.Changes) {
+				t.Fatalf("the revision is stable: %+v vs %+v", again, offer)
+			}
+			if err := DeclineAgentHookUpdate(env.DataDir, tc.agent, offer.UpdateKey); err != nil {
+				t.Fatal(err)
+			}
+			if dismissed := MakeAgentHookOffer(env, tc.agent, "", true); dismissed.Show || dismissed.Reason != HookOfferDeclined {
+				t.Fatalf("a dismissed revision: %+v", dismissed)
+			}
+		})
 	}
 }

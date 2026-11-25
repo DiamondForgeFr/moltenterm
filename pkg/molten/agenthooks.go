@@ -17,8 +17,8 @@ import (
 )
 
 // The hook setup offer (#221, FR-SHELL-011): an agent whose hooks never reported shows its states from its pane's
-// output only (#217). Claude and Codex setup is a read-only manual recipe. Kimi Code 2.6.3 additionally supports an
-// explicitly approved, transactional managed block (kimihooks.go).
+// output only (#217). Claude and Codex setup is a read-only manual recipe. Kimi Code (qualified on 2.7.2) additionally
+// supports an explicitly approved, transactional managed block (kimihooks.go).
 
 const (
 	AgentHookOfferCommand   = "moltenagenthookoffer"
@@ -197,6 +197,11 @@ type AgentHookOffer struct {
 	CanRemove                  bool     `json:"canremove,omitempty"`
 	ErrorCode                  string   `json:"errorcode,omitempty"`
 	DetectionError             string   `json:"detectionerror,omitempty"`
+	// Changes: what differs between the installed MoltenTerm hooks and the available ones (#2543).
+	Changes []AgentHookChange `json:"changes,omitempty"`
+	// Unqualified: the agent's version is not the qualified one nor known incompatible. Applying is allowed once the
+	// developer confirms the risk (ConfirmUnqualified); only a known incompatible version stays read-only.
+	Unqualified bool `json:"unqualified,omitempty"`
 }
 
 type AgentHookOfferRequest struct {
@@ -213,6 +218,8 @@ type AgentHookMutationRequest struct {
 	Action         string `json:"action"`
 	UpdateKey      string `json:"updatekey"`
 	ExpectedDigest string `json:"expecteddigest"`
+	// The developer confirmed writing hooks for a version that is not qualified yet.
+	ConfirmUnqualified bool `json:"confirmunqualified,omitempty"`
 }
 
 type AgentHookMutationResult struct {
@@ -400,6 +407,18 @@ func MakeAgentHookOfferDetected(env AgentEnv, agent string, cwd string, hooked b
 	offer.Snippet = setup.snippet
 	if agent == AgentIdKimi {
 		return makeKimiAgentHookOffer(env, offer, hooked, detection)
+	}
+	// Older MoltenTerm hooks in the user's file: the dialog shows what differs and the recipe to paste, like Kimi's
+	// update, ahead of the memory of an earlier run (#2543). MoltenTerm still never writes these settings.
+	if changes := manualHookChanges(agent, setup.file(env)); len(changes) > 0 {
+		offer.Status, offer.UpdateKind, offer.Changes = HookStatusDefinitionUpdate, HookUpdateDefinition, changes
+		offer.UpdateKey = manualHookUpdateKey(agent, offer.File, changes)
+		if IsAgentHookUpdateDeclined(env.DataDir, agent, offer.UpdateKey) {
+			offer.Reason = HookOfferDeclined
+			return offer
+		}
+		offer.Show = true
+		return offer
 	}
 	switch {
 	case hooked:
