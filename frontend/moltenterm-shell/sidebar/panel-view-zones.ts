@@ -21,6 +21,8 @@ export type PanelZoneState = {
     hit: PanelHit;
     // The sentence the zone shows: where the new view goes.
     caption: string;
+    // The sentence of the folder's row the pointer is on, which rings it; the zone keeps its own.
+    folderCaption: string;
 };
 
 function destinationFor(hit: PanelHit, zone: PanelZone) {
@@ -34,10 +36,19 @@ export function usePanelZone(zone: "top" | "tiles" | "temporary"): PanelZoneStat
     const active = drag != null;
     const over = active && drag.hit?.zone === zone;
     if (!active) {
-        return { active, over, hit: null, caption: "" };
+        return { active, over, hit: null, caption: "", folderCaption: "" };
     }
-    const dest = destinationFor(drag.hit, zone);
-    return { active, over, hit: over ? drag.hit : null, caption: dest == null ? "" : captionText(dest) };
+    const hit = drag.hit;
+    const inFolder = over && hit.folderId != null;
+    const dest = destinationFor(inFolder ? { ...hit, folderId: undefined } : hit, zone);
+    const folderDest = inFolder ? destinationFor(hit, zone) : null;
+    return {
+        active,
+        over,
+        hit: over ? hit : null,
+        caption: dest == null ? "" : captionText(dest),
+        folderCaption: folderDest == null ? "" : captionText(folderDest),
+    };
 }
 
 // The mark of the place a view would take beside a block of the top row or the tiles: the same bar a reorder shows.

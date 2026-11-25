@@ -19,6 +19,7 @@ import {
     panelViewEntries,
     PanelViewMenuFacts,
     PanelViewNames,
+    pointIn,
     sameHit,
 } from "./panel-view-model";
 
@@ -61,6 +62,27 @@ describe("where a dropped view lands in a row of blocks", () => {
     it("marks the end of the row after its last block, and nothing in an empty row", () => {
         expect(endMark(order)).toEqual({ key: "c", after: true });
         expect(endMark([])).toEqual({ key: null, after: false });
+    });
+});
+
+describe("the sidebar's zones are lit only over the sidebar", () => {
+    const box = { left: 0, top: 0, right: 260, bottom: 800 };
+
+    it("is a point on the box, edges included", () => {
+        expect(pointIn(box, 100, 400)).toBe(true);
+        expect(pointIn(box, 0, 0)).toBe(true);
+        expect(pointIn(box, 260, 800)).toBe(true);
+    });
+
+    it("is not a point over the panels, so a drag between panels is drawn as it always was", () => {
+        expect(pointIn(box, 261, 400)).toBe(false);
+        expect(pointIn(box, 700, 300)).toBe(false);
+        expect(pointIn(box, 100, -1)).toBe(false);
+    });
+
+    it("is never a point of a sidebar that is not on screen", () => {
+        expect(pointIn(null, 10, 10)).toBe(false);
+        expect(pointIn(undefined, 10, 10)).toBe(false);
     });
 });
 

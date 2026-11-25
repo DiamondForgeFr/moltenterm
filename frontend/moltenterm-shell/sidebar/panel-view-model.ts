@@ -52,6 +52,16 @@ export function sameHit(a: PanelHit, b: PanelHit): boolean {
     );
 }
 
+// Whether a point is over a box (the sidebar's): the zones are lit only while a panel is over the sidebar, so a drag
+// between panels is drawn as it always was.
+export function pointIn(
+    box: { left: number; top: number; right: number; bottom: number },
+    x: number,
+    y: number
+): boolean {
+    return box != null && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+}
+
 // The id a block dropped beside the one under the pointer lands before: that block itself, or the one after it. A pointer
 // on no block, or on one the order does not hold, drops at the end.
 export function landsBefore(order: readonly string[], key: string, after: boolean): string {
