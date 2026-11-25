@@ -32,6 +32,10 @@ export const ForkedFromMetaKey = "molten:forkedfrom";
 // A patch of a tab's meta that pins instances together names the slot they share (#1760): wavesrv moves it into the
 // workspace's slots. must match SlotHintMetaKey in pkg/molten/projectviews/projectviews.go
 export const SlotHintMetaKey = "molten:viewslot";
+// A patch of a new tab's meta that names the project the view is made for (#2548): wavesrv stamps the tab with it
+// (a workspace with two projects or more) and takes the hint off. must match ViewProjectHintMetaKey in
+// pkg/molten/projectviews/projectviews.go
+export const ViewProjectHintMetaKey = "molten:viewproject";
 // An instance made for a project that never showed it: it has no panel until it is shown.
 export const InstanceMetaKey = "molten:viewsibling";
 
@@ -445,6 +449,12 @@ export function agentBlocksOf(data: AgentStatesData, blockIds: string[]): string
 export function instanceStale(tab: { meta?: Record<string, any> }, pin: GlobalPin): boolean {
     const rev = tab?.meta?.[GlobalPinRevMetaKey];
     return typeof rev !== "number" || rev < (pin?.rev ?? 0);
+}
+
+// A new pin of the top row, before the pin named (a view made from a panel lands where it was dropped), else last.
+export function insertPin(pins: GlobalPin[], pin: GlobalPin, beforeId?: string): GlobalPin[] {
+    const at = beforeId ? pins.findIndex((p) => p.id === beforeId) : -1;
+    return at < 0 ? [...pins, pin] : [...pins.slice(0, at), pin, ...pins.slice(at)];
 }
 
 export function withoutPin(pins: GlobalPin[], id: string): GlobalPin[] {

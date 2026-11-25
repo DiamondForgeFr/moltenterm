@@ -142,6 +142,22 @@ describe("a folder's row", () => {
         expect(row({ state: dragged })).not.toContain("data-fo-target");
     });
 
+    it("says where a panel dragged over it makes its view, rather than adding a view to it (#2548)", () => {
+        const panel: ListDragState = {
+            key: "panel",
+            before: null,
+            out: false,
+            target: "folder:f1",
+            away: false,
+            inFrame: false,
+            cap: "New view in the folder Terminals",
+        };
+        const html = row({ state: panel });
+        expect(html).toContain('data-fo-target="true"');
+        expect(html).toContain('data-fo-cap="New view in the folder Terminals"');
+        expect(html).not.toContain("Add to");
+    });
+
     it("reads in French", () => {
         expect(en.sidebar.folders.rowLabel.other).toBe("Folder “{name}”, {count} views");
         expect(fr.sidebar.folders.rowLabel.other).toBe("Dossier « {name} », {count} vues");

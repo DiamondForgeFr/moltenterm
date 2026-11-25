@@ -19,6 +19,7 @@ import { BrowserProvider } from "./browser";
 import { CarpetPlacesProvider } from "./carpet-places";
 import { DeveloperProvider } from "./developer";
 import { MoltenProviders } from "./molten";
+import { PanelViewProvider } from "./panel-view";
 import { PreviewProvider } from "./preview";
 import { TerminalProvider } from "./terminal";
 import { WaveMenuProvider } from "./wave";
@@ -38,4 +39,5 @@ export function registerBuiltinCommandProviders() {
     registerCommandProvider(DeveloperProvider);
     MoltenProviders.forEach((p) => registerCommandProvider(p));
     registerCommandProvider(CarpetPlacesProvider);
+    registerCommandProvider(PanelViewProvider);
 }

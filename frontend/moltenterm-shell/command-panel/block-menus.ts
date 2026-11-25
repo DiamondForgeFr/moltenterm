@@ -11,6 +11,7 @@ import { fireAndForget } from "@/util/util";
 import { t } from "../i18n/i18n";
 import { DeveloperSection } from "../menu/menu-model";
 import { acceleratorById } from "../shortcuts/format";
+import { panelViewMenuItems } from "../sidebar/panel-view-menu";
 import { PanelSection, splitMenuItems } from "../split/split-menu";
 import { pinMenuItems } from "../view360/view360-pin";
 import { openCommandPanel, openCommandPanelAtPoint } from "./command-panel-store";
@@ -91,6 +92,7 @@ export function blockBodyMenuItems(blockId: string, nodeModel: MagnifyNode): Con
         ...splitMenuItems(blockId, ""),
         magnifyMenuItem(nodeModel, ""),
         ...pinMenuItems(blockId, ""),
+        ...panelViewMenuItems(blockId, ""),
         { ...moreMenuItem(blockId), section: "" },
         ...panelDeveloperItems(blockId),
         { type: "separator" },
@@ -111,6 +113,7 @@ export function terminalBodyMenuTail(blockId: string, nodeModel: MagnifyNode): C
         ...splitMenuItems(blockId, PanelSection),
         magnifyMenuItem(nodeModel, PanelSection),
         ...pinMenuItems(blockId, PanelSection),
+        ...panelViewMenuItems(blockId, PanelSection),
         { ...moreMenuItem(blockId), section: PanelSection },
         ...panelDeveloperItems(blockId),
     ];
