@@ -320,6 +320,20 @@ export function batchMethodShown(methods: ReviewMergeMethods, picked: ReviewMerg
     return methods.method ?? null;
 }
 
+// batchReleaseNote: the modal's release pull requests (#2562) merge with a merge commit whatever its method; in a
+// repository that allows none, the group merge stops at them and molten release sync-back merges them. "" when none.
+export function batchReleaseNote(methods: ReviewMergeMethods): string {
+    const prs = methods?.releaseprs ?? [];
+    if (prs.length === 0 || methods.queue) {
+        return "";
+    }
+    const numbers = prs.map((n) => `#${n}`).join(", ");
+    if (!(methods.methods ?? []).includes("merge")) {
+        return t("reviews.batch.confirm.releaseNoMerge", { numbers });
+    }
+    return t("reviews.batch.confirm.release", { numbers });
+}
+
 // batchStartRequest: the modal's PRs join the queue in the order shown, bound to the heads listed, with the method
 // shown (#957): the queue merges each of them with it, or stops it.
 export function batchStartRequest(
@@ -524,6 +538,9 @@ export function batchReasonText(item: BatchItem, base: string): string {
     }
     if (item.reason === "method") {
         return t("reviews.batch.why.method", { method: methodText(item.names?.[0] ?? "") });
+    }
+    if (item.reason === "warnings" && (item.names ?? []).includes("releasemethod")) {
+        return t("reviews.batch.why.releaseMethod", { base });
     }
     if (item.reason === "unavailable") {
         return item.status

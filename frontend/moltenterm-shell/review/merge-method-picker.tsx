@@ -3,7 +3,8 @@
 
 // The merge method of every sheet that merges (FR-REV-012 AC2, FR-REV-025, #957): Validate and the batch modal show
 // the same picker, preselected on the repository's remembered method, say the choice is the repository's default, and
-// announce a remembered method GitHub no longer allows instead of replacing it silently.
+// announce a remembered method GitHub no longer allows instead of replacing it silently. A release pull request's sheet
+// says its method is the release's (#2562), and note carries what the sheet adds about release pull requests.
 
 import { useT } from "../i18n/i18n";
 import { SegmentedControl } from "../segmented-control";
@@ -16,6 +17,8 @@ export function MergeMethodPicker({
     method,
     refused,
     queue,
+    release,
+    note,
     onSelect,
     testId,
 }: {
@@ -24,11 +27,13 @@ export function MergeMethodPicker({
     method: ReviewMergeMethod;
     refused?: ReviewMergeMethod;
     queue?: boolean;
+    release?: boolean;
+    note?: string;
     onSelect?: (method: ReviewMergeMethod) => void;
     testId: string;
 }) {
     const t = useT();
-    const notes = mergeMethodNotes(defaultMethod, method, refused, queue ?? false);
+    const notes = mergeMethodNotes(defaultMethod, method, refused, queue ?? false, release);
     const choosable = !queue && onSelect != null && (methods?.length ?? 0) > 1;
     const segments = (methods ?? []).map((m) => ({
         value: m,
@@ -65,6 +70,15 @@ export function MergeMethodPicker({
                     data-testid={`${testId}-refused`}
                 >
                     {notes.refused}
+                </p>
+            ) : null}
+            {note ? (
+                <p
+                    className="rounded-4 border border-warning/40 bg-warning/10 px-2 py-1 text-11 text-warning"
+                    role="status"
+                    data-testid={`${testId}-release`}
+                >
+                    {note}
                 </p>
             ) : null}
         </div>

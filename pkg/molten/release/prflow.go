@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
@@ -22,7 +23,7 @@ import (
 // ever pushed to the release branch itself.
 
 const (
-	DefaultRcBranchPattern = "rc-{version}"
+	DefaultRcBranchPattern = molten.DefaultRcBranchPattern
 
 	MergeMethodMerge  = "merge"
 	MergeMethodSquash = "squash"

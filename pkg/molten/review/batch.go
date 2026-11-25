@@ -580,6 +580,11 @@ func (b *BatchRunner) itemOf(req QueueAddRequest, pr BatchPr) (BatchItem, error)
 		// Each PR keeps the method shown when it joined: a later batch with another method does not change it.
 		if item.Method == "" {
 			item.Method = req.Method
+			if b.env.Merger != nil {
+				ctx, cancel := context.WithTimeout(context.Background(), batchStepTimeout)
+				defer cancel()
+				item.Method = b.env.Merger.releaseItemMethod(ctx, req.Dir, req.Repo, req.Base, pr.HeadRef, item.Method)
+			}
 		}
 		return item, nil
 	}
@@ -594,7 +599,9 @@ func (b *BatchRunner) itemOf(req QueueAddRequest, pr BatchPr) (BatchItem, error)
 		return item, fmt.Errorf("PR #%d goes into %s, not %s", pr.Number, plan.BaseRef, req.Base)
 	}
 	item.HeadOid, item.Valid, item.Method = plan.HeadOid, plan.HeadOid, plan.Method
-	b.env.Merger.keepChosenMethod(req.Repo, plan.Method, plan.Queue)
+	if plan.Release == "" {
+		b.env.Merger.keepChosenMethod(req.Repo, plan.Method, plan.Queue)
+	}
 	if pr.Override {
 		item.Overridden = plan.Warnings
 	}
