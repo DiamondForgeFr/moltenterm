@@ -9,6 +9,7 @@ import { FlexDirection, type LayoutNode } from "@/layout/lib/types";
 import { atom, type PrimitiveAtom } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { showToast } from "../toast-store";
+import { storesOnCarpet } from "./carpet-places";
 import { PlacesToastId } from "./carpet-places-toast";
 import type { FakeScreens } from "./screen-store-fake";
 import type { ScreenInfo } from "./screen-threshold";
@@ -116,8 +117,9 @@ function noticeToasts() {
     return vi.mocked(showToast).mock.calls.filter((c) => c[0].id === View360NoticeToastId);
 }
 
+// The numbers the card shows: those that store a panel (#2549).
 function offeredNumbers(model: View360Model): number[] {
-    return (globalStore.get(model.offerAtom)?.options ?? []).filter((o) => o.offered).map((o) => o.n);
+    return (globalStore.get(model.offerAtom)?.options ?? []).filter(storesOnCarpet).map((o) => o.n);
 }
 
 beforeEach(() => {

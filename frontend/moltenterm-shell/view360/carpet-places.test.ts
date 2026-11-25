@@ -14,6 +14,7 @@ import {
     placesSlotPx,
     placesStartIndex,
     readPlaces,
+    storesOnCarpet,
 } from "./carpet-places";
 
 function offered(carpetColumns: number, width: number, floorPx = 0): number[] {
@@ -23,12 +24,17 @@ function offered(carpetColumns: number, width: number, floorPx = 0): number[] {
 }
 
 describe("offered counts (FR-SHELL-123-AC3, AC4)", () => {
-    it("offers only the numbers that store at least one panel", () => {
-        expect(offered(1, 3160)).toEqual([]);
-        expect(offered(2, 3160)).toEqual([1]);
-        expect(offered(3, 3160)).toEqual([1, 2]);
-        expect(offered(4, 3160)).toEqual([1, 2, 3]);
+    it("offers every number, also those that store nothing (#2549)", () => {
+        expect(offered(1, 3160)).toEqual([1, 2, 3]);
+        expect(offered(2, 3160)).toEqual([1, 2, 3]);
+        expect(offered(3, 3160)).toEqual([1, 2, 3]);
         expect(offered(6, 3160)).toEqual([1, 2, 3]);
+        expect(placeOptions(2, 3160).map((o) => o.stored)).toEqual([1, 0, 0]);
+    });
+
+    it("leaves the unasked first-time offer to the numbers that store a panel", () => {
+        expect(placeOptions(2, 3160).filter(storesOnCarpet).map((o) => o.n)).toEqual([1]);
+        expect(placeOptions(6, 1200).filter(storesOnCarpet).map((o) => o.n)).toEqual([1]);
     });
 
     it("offers what fits at each usable width", () => {
@@ -38,9 +44,9 @@ describe("offered counts (FR-SHELL-123-AC3, AC4)", () => {
         expect(offered(4, 3160)).toEqual([1, 2, 3]);
     });
 
-    it("greys a number with its reason, nothing to store before too narrow", () => {
+    it("greys only a number too narrow for the screen, with its reason", () => {
         const options = placeOptions(2, 1200);
-        expect(options.map((o) => o.reason ?? "ok")).toEqual(["ok", "nothing", "nothing"]);
+        expect(options.map((o) => o.reason ?? "ok")).toEqual(["ok", "narrow", "narrow"]);
         const narrow = placeOptions(6, 1200);
         expect(narrow.map((o) => o.reason ?? "ok")).toEqual(["ok", "narrow", "narrow"]);
         expect(narrow[0].stored).toBe(5);

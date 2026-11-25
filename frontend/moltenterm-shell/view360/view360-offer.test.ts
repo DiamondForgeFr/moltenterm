@@ -3,7 +3,7 @@
 
 import { RpcApi } from "@/app/store/wshclientapi";
 import { describe, expect, it, vi } from "vitest";
-import { placeOptions } from "./carpet-places";
+import { placeOptions, storesOnCarpet } from "./carpet-places";
 import { OfferGrid } from "./view360-meta";
 import {
     adoptedPlaces,
@@ -61,11 +61,13 @@ describe("when the offer shows (AC11)", () => {
         expect(offerDue({ ...due, active: true })).toBe(false);
     });
 
-    it("needs at least one number that applies", () => {
-        // Two carpet columns store something with 1 only: 2 and 3 are greyed, 1 is offered.
+    it("needs at least one number that applies and stores a panel", () => {
+        // Two carpet columns store something with 1 only: the chooser offers 2 and 3 too (#2549), the card shows 1.
         const two = placeOptions(2, 2400, 0, 0);
-        expect(two.filter((o) => o.offered).map((o) => o.n)).toEqual([1]);
+        expect(two.filter(storesOnCarpet).map((o) => o.n)).toEqual([1]);
         expect(offerDue({ ...due, columnCount: 3, options: two })).toBe(true);
+        // One carpet column: every number shows it all, the unasked card has nothing to propose.
+        expect(offerDue({ ...due, columnCount: 3, options: placeOptions(1, 2400, 0, 0) })).toBe(false);
         // Too narrow for any number: nothing to offer.
         const narrow = placeOptions(4, 700, 0, 0);
         expect(narrow.some((o) => o.offered)).toBe(false);

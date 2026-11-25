@@ -90,6 +90,7 @@ import {
     placesFixedPx,
     placesStartIndex,
     placeWidthPx,
+    storesOnCarpet,
     WheelStepPx,
 } from "./carpet-places";
 import { showPinPlacesToast, showPlacesToast, showZonesToast } from "./carpet-places-toast";
@@ -817,8 +818,10 @@ export class View360Model {
         if (choice === OfferGrid) {
             this.writeOfferAnswer(OfferGrid);
         } else {
+            // The offer proposes only the numbers that store a panel (storesOnCarpet), unlike the chooser (#2549).
             const blockId = this.placesBlockId();
-            if (blockId == null || !this.applyPlaces(blockId, choice)) {
+            const option = this.placeOptions().find((o) => o.n === choice);
+            if (blockId == null || option == null || !storesOnCarpet(option) || !this.applyPlaces(blockId, choice)) {
                 return false;
             }
         }

@@ -34,13 +34,14 @@ function shareKey(n: number): string {
     return `view360.places.share${n}`;
 }
 
-// The tile's caption: its share and what it stores, or why it cannot apply.
+// The tile's caption: its share and what it stores, that it stores nothing (#2549: still selectable), or why it
+// cannot apply.
 export function optionCaption(option: PlaceOption): string {
-    if (option.reason === "nothing") {
-        return t("view360.places.nothing");
-    }
     if (option.reason === "narrow") {
         return t("view360.places.narrow");
+    }
+    if (option.stored === 0) {
+        return t("view360.places.allVisible");
     }
     return t("view360.places.shareStored", {
         share: t(shareKey(option.n)),
@@ -54,10 +55,23 @@ export function optionsWhy(options: PlaceOption[]): string {
     if (greyed == null) {
         return null;
     }
-    if (greyed.reason === "narrow") {
-        return tCount("view360.places.whyNarrow", greyed.n, { min: ReadableCarpetColumnPx });
+    return tCount("view360.places.whyNarrow", greyed.n, { min: ReadableCarpetColumnPx });
+}
+
+// The number a key picks while the chooser is open: 1, 2 or 3 without a modifier.
+export function placesKeyChoice(e: { key: string; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean }): number {
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+        return null;
     }
-    return tCount("view360.places.whyNothing", greyed.n);
+    const n = Number(e.key);
+    return n >= 1 && n <= 3 ? n : null;
+}
+
+// The option a click or a key applies: any offered number, storing something or not (#2549); a number greyed for
+// what the layout cannot do is not applied.
+export function pickPlaceOption(options: PlaceOption[], n: number): PlaceOption {
+    const option = options.find((o) => o.n === n);
+    return option?.offered ? option : null;
 }
 
 function PlacesDiagram({ option, active }: { option: PlaceOption; active: boolean }) {
@@ -166,20 +180,20 @@ export function groupPlanLines(
     return lines;
 }
 
-// "Even out the zones" (FR-SHELL-123-AC20, #2433): the row of the chooser's "Already in 360 view" section. Disabled, it
-// says why under itself: the zones are already even, or a single zone is in view.
+// "Even out the zones" (FR-SHELL-123-AC20, #2433): the row of the chooser's "Already in 360 view" section. With nothing
+// to do (the zones are already even, or a single zone is in view) it stays clickable and says so under itself (#2549):
+// the click leaves the zones as they are.
 export function EvenZonesRow({ why, onRun }: { why: "single" | "even" | null; onRun: () => void }) {
     const t = useT();
     return (
         <>
             <button
                 type="button"
-                className={cn("mt-places-row", why == null ? "cursor-pointer" : "is-off")}
-                aria-disabled={why != null}
+                className="mt-places-row cursor-pointer"
                 aria-describedby={why != null ? "mt-places-even-why" : undefined}
                 data-testid="mt-places-even-zones"
                 data-reason={why ?? ""}
-                onClick={() => why == null && onRun()}
+                onClick={onRun}
             >
                 <i className="fa fa-solid fa-arrows-left-right" aria-hidden="true" />
                 <span>{t("view360.zones.evenOut")}</span>
@@ -286,8 +300,7 @@ export function PlacesChooser({ view360, state }: ChooserProps) {
 
     const apply = (n: number) => {
         const current = groupRef.current;
-        const option = (current === GroupPages ? choices.pages : choices.all).find((o) => o.n === n);
-        if (option == null || !option.offered) {
+        if (pickPlaceOption(current === GroupPages ? choices.pages : choices.all, n) == null) {
             return;
         }
         closePlacesChooser();
@@ -308,15 +321,13 @@ export function PlacesChooser({ view360, state }: ChooserProps) {
     }, [isPositioned]);
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.metaKey || e.ctrlKey || e.altKey) {
+            const n = placesKeyChoice(e);
+            if (n == null) {
                 return;
             }
-            const n = Number(e.key);
-            if (n >= 1 && n <= 3) {
-                e.preventDefault();
-                e.stopPropagation();
-                apply(n);
-            }
+            e.preventDefault();
+            e.stopPropagation();
+            apply(n);
         };
         document.addEventListener("keydown", onKey, true);
         return () => {

@@ -41,17 +41,29 @@ describe("Even out the zones in the view's menu", () => {
         expect(view.evenZones).toHaveBeenCalledTimes(1);
     });
 
-    it("is disabled, with its reason shown, when the zones are already even", () => {
+    it("stays enabled, with its reason shown, when the zones are already even (#2549)", () => {
         const item = view360MenuItems(menuView(2, "even")).find((i) => i.label === "Even out the zones");
-        expect(item.enabled).toBe(false);
+        expect(item.enabled).toBe(true);
         expect(item.sublabel).toBe("The zones already have equal widths");
         expect(item.tooltip).toBe("The zones already have equal widths");
     });
 
-    it("says it has nothing to do when a single zone is in view", () => {
+    it("says it has nothing to do when a single zone is in view, still enabled (#2549)", () => {
         const item = view360MenuItems(menuView(1, "single")).find((i) => i.label === "Even out the zones");
-        expect(item.enabled).toBe(false);
+        expect(item.enabled).toBe(true);
         expect(item.sublabel).toBe("One zone is in view: there is nothing to even out");
+    });
+
+    it("lists every 360 × N the screen allows, also those that store nothing (#2549)", () => {
+        const view = menuView(null as number, null);
+        (view as unknown as { placeOptions: () => unknown }).placeOptions = () => [
+            { n: 1, offered: true, stored: 1, slotPx: 900 },
+            { n: 2, offered: true, stored: 0, slotPx: 600 },
+            { n: 3, offered: false, reason: "narrow", stored: 0, slotPx: 300 },
+        ];
+        const labels = view360MenuItems(view).map((i) => i.label);
+        expect(labels).toContain("Store on the carpet: 2 visible panels on the right");
+        expect(labels).not.toContain("Store on the carpet: 3 visible panels on the right");
     });
 
     it("shows no reason while it can run", () => {

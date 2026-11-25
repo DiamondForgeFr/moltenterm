@@ -12,6 +12,7 @@ import { useAtomValue } from "jotai";
 import { memo, useId, useState } from "react";
 import { useT } from "../i18n/i18n";
 import { MoltenWave } from "../molten-button";
+import { storesOnCarpet } from "./carpet-places";
 import { ScreenModel } from "./screen-store";
 import { screenSaveOffered } from "./screen-threshold";
 import { CarpetIcon } from "./view360-icon";
@@ -36,7 +37,7 @@ export function FirstTimeOffer({ view360, offer }: FirstTimeProps) {
     const labelId = useId();
     const [everyView, setEveryView] = useState(false);
     const [hover, setHover] = useState<number>(null);
-    const offered = offer.options.filter((o) => o.offered);
+    const offered = offer.options.filter(storesOnCarpet);
     return (
         <section
             role="group"

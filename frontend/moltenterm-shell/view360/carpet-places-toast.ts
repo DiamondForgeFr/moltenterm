@@ -14,7 +14,7 @@ export const PlacesUndoMs = 10000;
 export function placesToastText(n: number, stored: number): { title: string; message: string } {
     return {
         title: tCount("view360.places.toastTitle", n),
-        message: tCount("view360.places.toastStored", stored),
+        message: stored > 0 ? tCount("view360.places.toastStored", stored) : t("view360.places.toastNothing"),
     };
 }
 
