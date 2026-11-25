@@ -57,6 +57,9 @@ func (l *routeLink) handle(ctx context.Context, command string, _ localroute.Cal
 		if req.WorkspaceId == "" || len(req.Config.Panes) == 0 {
 			return nil, fmt.Errorf("a view to open needs its workspace and at least one panel")
 		}
+		if err := CheckAdopt(req); err != nil {
+			return nil, err
+		}
 		return l.store.Build(ctx, req)
 	}
 	return nil, fmt.Errorf("unknown view pin command %q", command)

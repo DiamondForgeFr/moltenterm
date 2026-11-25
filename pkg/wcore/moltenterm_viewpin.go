@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/panelmove"
 	"github.com/wavetermdev/waveterm/pkg/molten/projectviews"
 	"github.com/wavetermdev/waveterm/pkg/molten/reopen"
 	"github.com/wavetermdev/waveterm/pkg/molten/viewpin"
@@ -81,6 +82,9 @@ func captureViewPin(ctx context.Context, req viewpin.CaptureRequest) (viewpin.Co
 		return block.Meta, true
 	}
 	cfg := viewpin.Capture(req.Tree, agents, project, metaOf)
+	if req.Copy {
+		cfg = viewpin.CaptureCopy(req.Tree, agents, metaOf)
+	}
 	if len(cfg.Panes) == 0 {
 		return viewpin.Config{}, fmt.Errorf("the view has no panel to pin")
 	}
@@ -142,9 +146,28 @@ func buildViewPin(ctx context.Context, req viewpin.BuildRequest) (viewpin.BuildR
 		}
 		oldBlocks = slices.Clone(tab.BlockIds)
 	}
+	adopted := ""
+	if req.AdoptBlockId != "" && req.TabId == "" {
+		sourceEmpty, err := moveBlockBetweenTabs(ctx, req.AdoptFromTabId, tabId, req.AdoptBlockId)
+		if err != nil {
+			return viewpin.BuildResult{TabId: tabId}, err
+		}
+		adopted = req.AdoptBlockId
+		if !sourceEmpty {
+			detach := waveobj.LayoutActionData{ActionType: panelmove.LayoutActionDetach, BlockId: adopted}
+			if err := QueueLayoutActionForTab(ctx, req.AdoptFromTabId, detach); err != nil {
+				return viewpin.BuildResult{TabId: tabId}, fmt.Errorf("the panel moved but its old view was not told: %w", err)
+			}
+		}
+	}
 	actions := []waveobj.LayoutActionData{{ActionType: LayoutActionDataType_ClearTree}}
 	blockIds := make([]string, len(leaves))
 	for i, leaf := range leaves {
+		if i == 0 && adopted != "" {
+			blockIds[i] = adopted
+			actions = append(actions, tabLeafAction(leaf, adopted, blockIds))
+			continue
+		}
 		block, err := CreateBlockWithTelemetry(ctx, tabId, &waveobj.BlockDef{Meta: leaf.Meta}, &waveobj.RuntimeOpts{}, false)
 		if err != nil {
 			log.Printf("molten: opening a panel of a pinned view: %v\n", err)

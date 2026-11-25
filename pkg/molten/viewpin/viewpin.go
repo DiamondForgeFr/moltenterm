@@ -9,6 +9,7 @@
 package viewpin
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -68,6 +69,9 @@ type CaptureRequest struct {
 	TabId       string   `json:"tabid"`
 	Tree        Node     `json:"tree"`
 	AgentBlocks []string `json:"agentblocks,omitempty"`
+	// Copy reads a panel to make a copy of it (a view made from a panel, #2548), not a configuration to pin: the page's
+	// address and the terminal's folder are kept exactly, never turned into the project's.
+	Copy bool `json:"copy,omitempty"`
 }
 
 // BuildRequest makes a view from a configuration, on the workspace's project: a new tab (TabId empty, named Name,
@@ -83,10 +87,28 @@ type BuildRequest struct {
 	// Pending: a new workspace's view shown for the first time (FR-SHELL-092): wavesrv opens it from its own tab's
 	// configuration, once, and Config is ignored.
 	Pending bool `json:"pending,omitempty"`
+	// AdoptBlockId: a new tab whose first panel is a panel that already exists, moved in from AdoptFromTabId instead of
+	// made again (an agent's panel cannot live in two places, #2548). Its shell, its files and its agent stay.
+	AdoptBlockId   string `json:"adoptblockid,omitempty"`
+	AdoptFromTabId string `json:"adoptfromtabid,omitempty"`
 }
 
 type BuildResult struct {
 	TabId string `json:"tabid"`
+}
+
+// CheckAdopt: a panel is moved into a new tab only, and from a tab that is named.
+func CheckAdopt(req BuildRequest) error {
+	if req.AdoptBlockId == "" {
+		return nil
+	}
+	if req.AdoptFromTabId == "" {
+		return fmt.Errorf("a panel moved into a new view needs the view it leaves")
+	}
+	if req.TabId != "" {
+		return fmt.Errorf("a panel moves into a new view, never into an existing one")
+	}
+	return nil
 }
 
 // The keys a panel keeps besides its MoltenTerm ones: what it shows, not where or when.
@@ -171,6 +193,26 @@ func PaneConfig(meta waveobj.MetaMapType, agent bool, p Project) waveobj.MetaMap
 	}
 	if file, ok := rtn[waveobj.MetaKey_File].(string); ok {
 		rtn[waveobj.MetaKey_File] = tokenizePath(file, p.Dir)
+	}
+	return rtn
+}
+
+// CopyPane is what a panel keeps when a view is made from it (#2548): the same as a pinned panel, but where it is is
+// kept as it is. A page keeps its exact address (never the repository's token), a terminal its folder, a file panel its
+// path. An agent's terminal still becomes an agent slot: the agent runs in the panel it started in.
+func CopyPane(meta waveobj.MetaMapType, agent bool) waveobj.MetaMapType {
+	rtn := PaneConfig(meta, agent, Project{})
+	if agent && isTerm(meta) {
+		return rtn
+	}
+	if url, ok := meta[waveobj.MetaKey_Url].(string); ok {
+		rtn[waveobj.MetaKey_Url] = url
+	}
+	if tabs, ok := meta[browserTabsMetaKey]; ok && tabs != nil {
+		rtn[browserTabsMetaKey] = tabs
+	}
+	if cwd := meta.GetString(waveobj.MetaKey_CmdCwd, ""); cwd != "" {
+		rtn[waveobj.MetaKey_CmdCwd] = cwd
 	}
 	return rtn
 }
@@ -302,7 +344,8 @@ func ResolvePane(meta waveobj.MetaMapType, p Project) waveobj.MetaMapType {
 	for k, v := range meta {
 		rtn[k] = v
 	}
-	if isTerm(rtn) && dir != "" {
+	// A configuration never carries a terminal's folder: only a copy of a panel does (CopyPane), and it keeps it.
+	if cwd := rtn.GetString(waveobj.MetaKey_CmdCwd, ""); isTerm(rtn) && dir != "" && cwd == "" {
 		rtn[waveobj.MetaKey_CmdCwd] = dir
 	}
 	if url, ok := rtn[waveobj.MetaKey_Url].(string); ok {
@@ -319,6 +362,22 @@ func ResolvePane(meta waveobj.MetaMapType, p Project) waveobj.MetaMapType {
 
 // Capture turns a view's layout into a configuration; meta reads a panel's block (false: gone, left out).
 func Capture(tree Node, agents map[string]bool, p Project, meta func(blockId string) (waveobj.MetaMapType, bool)) Config {
+	return capture(tree, agents, meta, func(m waveobj.MetaMapType, agent bool) waveobj.MetaMapType {
+		return PaneConfig(m, agent, p)
+	})
+}
+
+// CaptureCopy turns the panels of a layout into the configuration of a copy (#2548): where each is, kept as it is.
+func CaptureCopy(tree Node, agents map[string]bool, meta func(blockId string) (waveobj.MetaMapType, bool)) Config {
+	return capture(tree, agents, meta, CopyPane)
+}
+
+func capture(
+	tree Node,
+	agents map[string]bool,
+	meta func(blockId string) (waveobj.MetaMapType, bool),
+	paneOf func(m waveobj.MetaMapType, agent bool) waveobj.MetaMapType,
+) Config {
 	cfg := Config{Panes: []waveobj.MetaMapType{}}
 	var walk func(n Node) (Node, bool)
 	walk = func(n Node) (Node, bool) {
@@ -328,7 +387,7 @@ func Capture(tree Node, agents map[string]bool, p Project, meta func(blockId str
 				return Node{}, false
 			}
 			idx := len(cfg.Panes)
-			cfg.Panes = append(cfg.Panes, PaneConfig(m, agents[n.BlockId], p))
+			cfg.Panes = append(cfg.Panes, paneOf(m, agents[n.BlockId]))
 			return Node{Pane: &idx}, true
 		}
 		out := Node{Dir: splitDir(n.Dir)}
