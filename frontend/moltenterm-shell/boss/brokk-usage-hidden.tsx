@@ -7,6 +7,7 @@
 // does. The list is the same under the grid and in the usage detail.
 
 import { cn } from "@/util/util";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { relativeTime } from "../companion/companion-model";
 import { agentName } from "../companion/companion-task-model";
@@ -86,7 +87,8 @@ export function UsageHiddenList({
     );
 }
 
-// Under the grid: nothing while no provider is left out.
+// Under the grid, under a thin line (#2565): its name on the left, how many wait and a chevron on the right. Nothing
+// while no provider is left out. The button's own name keeps the count in it, as it always did.
 export function UsageHidden({
     items,
     now,
@@ -101,19 +103,27 @@ export function UsageHidden({
     if (items.length === 0) {
         return null;
     }
+    const Chevron = open ? ChevronDown : ChevronRight;
     return (
-        <div className="mt-1" data-testid="brokk-usage-hidden-block">
+        <div className="mt-3 border-t border-line pt-1.5" data-testid="brokk-usage-hidden-block">
             <button
                 type="button"
                 className={cn(
-                    "cursor-pointer rounded-4 py-0.5 text-11 text-muted hover:text-primary",
+                    "flex w-full cursor-pointer items-center justify-between gap-2 rounded-4 py-0.5 text-11 text-muted hover:text-primary",
                     open && "text-secondary"
                 )}
                 aria-expanded={open}
+                aria-label={t("usageWeek.hidden.toggle", { count: items.length })}
                 data-testid="brokk-usage-hidden-toggle"
                 onClick={() => setOpen(!open)}
             >
-                {t("usageWeek.hidden.toggle", { count: items.length })}
+                <span className="min-w-0 truncate">{t("usageWeek.hidden.title")}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                    <span className="tabular-nums" data-testid="brokk-usage-hidden-count">
+                        {items.length}
+                    </span>
+                    <Chevron size={10} strokeWidth={1.75} aria-hidden="true" />
+                </span>
             </button>
             {open ? <UsageHiddenList items={items} now={now} onChoose={onChoose} /> : null}
         </div>

@@ -135,19 +135,16 @@ const sharesOf = (html: string, window: string): string[] =>
 const textOf = (html: string, window: string, testid: string): string =>
     new RegExp(`data-testid="${testid}">([^<]*)<`).exec(rowHtml(html, window))?.[1] ?? "";
 const ringTag = (html: string): string => /<span class="mt-uw-ring"[^>]*>/.exec(html)?.[0] ?? "";
+// The week a monthly row shows, in the line under it (#2565): its short count then its days, "Wk 2/5 · 8–14 Jan".
 const weeksOf = (html: string, window: string): string[] =>
-    [
-        ...(/data-testid="usage-week-weeks">(.*?)<\/span><\/span>/.exec(rowHtml(html, window))?.[1] ?? "").matchAll(
-            /<span>([^<]*)(?:<|$)/g
-        ),
-    ].map((m) => m[1]);
+    (/data-testid="usage-week-weeks">([^<]*)</.exec(rowHtml(html, window))?.[1] ?? "").split(" · ");
 const buttonOf = (html: string, dir: "prev" | "next"): string =>
     new RegExp(`<button[^>]*data-testid="usage-week-${dir}"[^>]*>`).exec(html)?.[0] ?? "";
 
 // ---- the month spread over its days, from the reset (rows 2 and 3) ----
 
 describe("the month in the companion, read like a week (#2532)", () => {
-    it("is a row of the week grid: 'Consumption', over the month, seven blocks, the week it shows and its two controls", () => {
+    it("is a row of the week grid: 'Consumption', over the month, seven blocks, then the week it shows and its two controls in the line under it", () => {
         const html = markup(kimi);
         expect(rowTag(html, "month")).toContain('data-monthly="true"');
         expect(rowTag(html, "month")).not.toContain("data-plain");
@@ -156,9 +153,11 @@ describe("the month in the companion, read like a week (#2532)", () => {
         );
         // Wednesday 10 January is in the second of the five weeks of the month.
         expect(rowTag(html, "month")).toContain('data-week="2"');
-        expect(weeksOf(html, "month")).toEqual(["Week 2 of 5", expect.stringMatching(/8.*14/)]);
+        expect(weeksOf(html, "month")).toEqual(["Wk 2/5", expect.stringMatching(/8.*14/)]);
         expect(blocksOf(html, "month")).toHaveLength(7);
-        expect(html).toContain('data-nav="true"');
+        // The caption is no longer under the label, and no column of the grid is the controls' (#2565).
+        expect(rowHtml(html, "month")).toContain('over the month</span></span><span class="mt-uw-cell"');
+        expect(html).not.toContain("data-nav");
         expect(buttonOf(html, "prev")).toContain('aria-label="Previous week"');
         expect(buttonOf(html, "next")).toContain('aria-label="Next week"');
         expect(buttonOf(html, "prev")).not.toContain("disabled");
@@ -252,12 +251,12 @@ describe("browsing the weeks of the month (rows 2, 3 and 5)", () => {
         expect(rowTag(first, "month")).toContain('data-week="1"');
         expect(buttonOf(first, "prev")).toContain("disabled");
         expect(buttonOf(first, "next")).not.toContain("disabled");
-        expect(weeksOf(first, "month")[0]).toBe("Week 1 of 5");
+        expect(weeksOf(first, "month")[0]).toBe("Wk 1/5");
         const last = grid(4);
         expect(rowTag(last, "month")).toContain('data-week="5"');
         expect(buttonOf(last, "next")).toContain("disabled");
         expect(buttonOf(last, "prev")).not.toContain("disabled");
-        expect(weeksOf(last, "month")[0]).toBe("Week 5 of 5");
+        expect(weeksOf(last, "month")[0]).toBe("Wk 5/5");
         const middle = grid(2);
         expect(buttonOf(middle, "prev")).not.toContain("disabled");
         expect(buttonOf(middle, "next")).not.toContain("disabled");
@@ -268,10 +267,13 @@ describe("browsing the weeks of the month (rows 2, 3 and 5)", () => {
 
     it("wires each control to its own step, and keeps the week the developer picked while the window runs", () => {
         const source = readFileSync(join(__dirname, "../usage-week/usage-week.tsx"), "utf8");
-        const prev = /<WeekButton\s+dir="prev"[\s\S]*?onClick=\{\(\) => moveTo\(stepWeek\(([^)]*)\)\)\}/.exec(source);
-        const next = /<WeekButton\s+dir="next"[\s\S]*?onClick=\{\(\) => moveTo\(stepWeek\(([^)]*)\)\)\}/.exec(source);
-        expect(prev?.[1]).toBe('pager.index, pager.weeks.count, "prev"');
-        expect(next?.[1]).toBe('pager.index, pager.weeks.count, "next"');
+        const prev = /<WeekButton\s+dir="prev"[\s\S]*?onClick=\{\(\) => onMove\(stepWeek\(([^)]*)\)\)\}/.exec(source);
+        const next = /<WeekButton\s+dir="next"[\s\S]*?onClick=\{\(\) => onMove\(stepWeek\(([^)]*)\)\)\}/.exec(source);
+        expect(prev?.[1]).toBe('index, count, "prev"');
+        expect(next?.[1]).toBe('index, count, "next"');
+        expect(source).toContain(
+            "<WeekControls caption={caption} index={pager.index} count={pager.weeks.count} onMove={moveTo} />"
+        );
         // A pick is kept for the window it was made in: another reset time (the month turned) drops it.
         expect(source).toContain("pick.reset == null || pick.reset === line.resetsAt");
         expect(source).toContain("setPicks({ ...picks, [row.key]: { reset: line.resetsAt, index } })");
@@ -316,7 +318,7 @@ describe("browsing the weeks of the month (rows 2, 3 and 5)", () => {
             false,
             false,
         ]);
-        expect(weeksOf(midWeek, "month")[0]).toBe("Week 1 of 5");
+        expect(weeksOf(midWeek, "month")[0]).toBe("Wk 1/5");
         // 3.72 days used of the 2.5 gone: 1.2 days ahead.
         expect(textOf(midWeek, "month", "usage-week-late")).toBe("1.2 d ahead");
     });
@@ -330,7 +332,7 @@ describe("browsing the weeks of the month (rows 2, 3 and 5)", () => {
         const last = grid(4, 40);
         // The cells of the figures' line are all there, empty for an outside day, so the columns keep their places.
         const pads = [...last.matchAll(/class="mt-uw-share-pad"/g)].length;
-        expect(pads).toBe(4);
+        expect(pads).toBe(2);
         expect(sharesOf(last, "month")).toHaveLength(7);
     });
 });
@@ -355,7 +357,8 @@ describe("the share lost, hatched at the end of the window and left out of the d
         expect(rowTag(html, "month")).toContain("13 % lost (4 d)");
         // The week of 29 to 31 January is lost, its figures say so, and the days after it are outside the window.
         const row = rowHtml(html, "month");
-        expect(row).toContain("Week 4 of 5");
+        expect(weeksOf(html, "month")[0]).toBe("Wk 4/5");
+        expect(rowTag(html, "month")).toContain("Week 4 of 5");
         const last = renderToStaticMarkup(
             <UsageWeekGrid
                 rows={[
@@ -428,7 +431,8 @@ describe("the share lost, hatched at the end of the window and left out of the d
             expect(html).toContain('data-testid="usage-week-sublabel">sur le mois<');
             expect(buttonOf(html, "prev")).toContain('aria-label="Semaine précédente"');
             expect(buttonOf(html, "next")).toContain('aria-label="Semaine suivante"');
-            expect(weeksOf(html, "month")[0]).toBe("Semaine 4 sur 5");
+            expect(weeksOf(html, "month")[0]).toBe("Sem. 4/5");
+            expect(rowTag(html, "month")).toContain("Semaine 4 sur 5");
         } finally {
             i18n.setLanguageSetting("");
         }
@@ -577,26 +581,27 @@ describe("what stays as it is (#2473, #2106, #2451, #2458)", () => {
         expect([...html.matchAll(/data-testid="usage-week-day"/g)]).toHaveLength(7);
     });
 
-    it("adds one empty cell on either side of every row of a grid that has a monthly row, so the columns stay aligned", () => {
+    it("gives a grid with a monthly row no column of controls: every row has the same cells, a pad on each side of its figures", () => {
         const both = kimiAt(now, [
             session,
             { id: "week", label: "This week", usedpercent: 20, resetsat: at(1, 16, 9), windowmins: 10080 },
             monthWindow(30),
         ]);
         const html = markup(both);
-        expect(html).toContain('data-nav="true"');
-        // The weekly row keeps its figures line, with a pad for each control's column.
+        expect(html).not.toContain("data-nav");
         expect(blocksOf(html, "week")).toHaveLength(7);
         expect(rowHtml(html, "week")).not.toContain("usage-week-prev");
-        expect([...rowHtml(html, "week").matchAll(/class="mt-uw-share-pad"/g)]).toHaveLength(4);
-        expect([...rowHtml(html, "month").matchAll(/class="mt-uw-share-pad"/g)]).toHaveLength(4);
+        expect([...rowHtml(html, "week").matchAll(/class="mt-uw-share-pad"/g)]).toHaveLength(2);
+        expect([...rowHtml(html, "month").matchAll(/class="mt-uw-share-pad"/g)]).toHaveLength(2);
         const css = readFileSync(join(__dirname, "../usage-week/usage-week.css"), "utf8").replace(
             /\/\*[\s\S]*?\*\//g,
             ""
         );
-        expect(/\.mt-uw\[data-nav="true"\] \{([^}]*)\}/.exec(css)?.[1]).toContain(
-            "var(--mt-uw-first) var(--mt-uw-nav) repeat(7, minmax(var(--mt-uw-block-min), 1fr))"
+        expect(/\n\.mt-uw \{([^}]*)\}/.exec(css)?.[1]).toContain(
+            "var(--mt-uw-first) repeat(7, minmax(var(--mt-uw-block-min), 1fr))"
         );
+        expect(css).not.toContain("data-nav");
+        expect(css).not.toContain("--mt-uw-nav");
     });
 
     it("keeps the figures leaving a narrow block, and the cells of their line staying", () => {
@@ -652,12 +657,10 @@ describe("Brokk's grid (FR-BOSS-009 AC109 and AC110)", () => {
         expect(rowTag(html, "month")).toContain("9 d late");
         expect(buttonOf(html, "prev")).toContain('aria-label="Previous week"');
         expect(blocksOf(html, "month")).toHaveLength(7);
-        // A row led by a logo has no room for the caption under a label: it starts the line under the row.
+        // A row led by a logo says its week at the left of the line under it, as a labelled row does (#2565).
         expect(html).toContain('data-testid="usage-week-logo"');
         expect(html).not.toContain('class="mt-uw-label"');
-        expect(html).toMatch(
-            /class="mt-uw-pace-weeks" data-testid="usage-week-weeks">Week 2 of 5 · [^<]*8[^<]*14[^<]*</
-        );
+        expect(html).toMatch(/class="mt-uw-weeks" data-testid="usage-week-weeks">Wk 2\/5 · [^<]*8[^<]*14[^<]*</);
         // Brokk draws no session ring: the session window has no row of its own there.
         expect(html).not.toContain("usage-week-session");
     });

@@ -15,13 +15,16 @@
 // labels its rows by window gets a label column as wide as its widest label (#2458), and gives a row a small reset icon
 // before its percent for the reset time. A surface that has a session window draws it as a ring round today's letter
 // rather than as a row (#2473). A calendar month is read like a week (#2532): one calendar week of its days at a time,
-// with a control on each side to move between the weeks, a line under the row for the days late or ahead and the share
-// lost, and the lost days hatched at the end of the window.
+// with a control to move between the weeks, the days late or ahead and the share lost, and the lost days hatched at the
+// end of the window. Every row has one shape (#2565): the lead, the seven blocks and the percent, then one thin line
+// under the blocks and the percent. On its left the line holds the row's context, the reset day of a weekly row or the
+// week of a monthly one with its two controls; on its right, the pace and the share lost. No column of the grid is the
+// controls', so the blocks of every row have the same width.
 
 import { cn, makeIconClass } from "@/util/util";
 import { autoUpdate, flip, FloatingPortal, offset, shift, useHover, useInteractions } from "@floating-ui/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { CSSProperties, useState } from "react";
+import { CSSProperties, ReactNode, useState } from "react";
 import { AiIcon } from "../ai-icon";
 import { usageReasonText } from "../companion/companion-gauges-model";
 import { relativeTime } from "../companion/companion-model";
@@ -44,6 +47,7 @@ import {
     stepWeek,
     UnusedBlueFrom,
     UsageWeekLine,
+    WeekCaption,
     weekCaption,
     weekdayIndex,
     WeekDayKeys,
@@ -203,21 +207,8 @@ function paceKind(line: UsageWeekLine): string {
     return line.pace > PaceRedAt ? "red" : "above";
 }
 
-// The two lines that say which calendar week a monthly row shows ("Week 2 of 5", "8–14 Jan").
-type WeekCaptionText = { count: string; range: string };
-
-function WeekCaption({ caption }: { caption: WeekCaptionText }) {
-    return (
-        <span className="mt-uw-weeks" data-testid="usage-week-weeks">
-            <span>{caption.count}</span>
-            <span>{caption.range}</span>
-        </span>
-    );
-}
-
-// What starts a row: the label of its window when the row has one, else the agent's logo. A monthly row's caption goes
-// under its label (a row led by a logo has no room for it: its caption starts its line under the row).
-function RowLead({ row, caption }: { row: UsageWeekRow; caption?: WeekCaptionText }) {
+// What starts a row: the label of its window when the row has one, else the agent's logo.
+function RowLead({ row }: { row: UsageWeekRow }) {
     if (row.label == null) {
         return <AgentLogo agent={row.agent} name={row.name} windowLabel={row.windowLabel} onMenu={row.onContextMenu} />;
     }
@@ -229,7 +220,6 @@ function RowLead({ row, caption }: { row: UsageWeekRow; caption?: WeekCaptionTex
                     {row.sublabel}
                 </span>
             ) : null}
-            {caption ? <WeekCaption caption={caption} /> : null}
         </span>
     );
 }
@@ -265,6 +255,34 @@ function WeekButton({ dir, disabled, onClick }: { dir: "prev" | "next"; disabled
         >
             <Chevron size={12} aria-hidden="true" />
         </button>
+    );
+}
+
+// The week a monthly row shows, in the line under it (#2565): its two controls on either side of a short caption,
+// "Wk 2/5 · 8–14 Jan". The row's accessible name carries the long caption.
+export function WeekControls({
+    caption,
+    index,
+    count,
+    onMove,
+}: {
+    caption: WeekCaption;
+    index: number;
+    count: number;
+    onMove: (index: number) => void;
+}) {
+    return (
+        <span className="mt-uw-context" data-testid="usage-week-context">
+            <WeekButton dir="prev" disabled={index <= 0} onClick={() => onMove(stepWeek(index, count, "prev"))} />
+            <span className="mt-uw-weeks" data-testid="usage-week-weeks">
+                {`${caption.short} · ${caption.range}`}
+            </span>
+            <WeekButton
+                dir="next"
+                disabled={index >= count - 1}
+                onClick={() => onMove(stepWeek(index, count, "next"))}
+            />
+        </span>
     );
 }
 
@@ -317,12 +335,11 @@ export function UsageWeekLegend({ popovers }: { popovers?: boolean }) {
 // decoration for the eye: the row's accessible name already carries the percent. Each cell is a container of its own
 // width, which is its block's: the figure inside leaves when the block is too narrow for it (usage-week.css), whatever
 // the width of the label column and of the percent's.
-function DayFigures({ cells, nav }: { cells: DayCell[]; nav: boolean }) {
+function DayFigures({ cells }: { cells: DayCell[] }) {
     const t = useT();
     return (
         <>
             <span className="mt-uw-share-pad" aria-hidden />
-            {nav ? <span className="mt-uw-share-pad" aria-hidden /> : null}
             {cells.map((cell, i) =>
                 cell.share == null ? (
                     <span key={i} className="mt-uw-share" aria-hidden data-testid="usage-week-share" data-out="true" />
@@ -351,31 +368,27 @@ function DayFigures({ cells, nav }: { cells: DayCell[]; nav: boolean }) {
                     </span>
                 )
             )}
-            {nav ? <span className="mt-uw-share-pad" aria-hidden /> : null}
             <span className="mt-uw-share-pad" aria-hidden />
         </>
     );
 }
 
-// The line under a row (#2532): the calendar week a monthly row shows when a logo leads it, then how late or ahead the
-// row is in days, then the share lost. It spans the grid and sits at its right.
-function PaceLine({ note, caption }: { note: PaceNote | null; caption?: WeekCaptionText }) {
-    if (note == null && caption == null) {
+// The line under a row (#2565, #2532), across its blocks and its percent: on its left the row's context (the reset day
+// of a weekly row, the week of a monthly one with its controls), on its right how late or ahead the row is in days, in
+// the pace colour, and the share lost beside it. A row with neither draws no line.
+function RowLine({ context, note }: { context: ReactNode; note: PaceNote | null }) {
+    if (context == null && note == null) {
         return null;
     }
     return (
-        <span
-            className="mt-uw-pace-note"
-            data-testid="usage-week-pace-note"
-            data-lost={note?.lost ? "true" : undefined}
-        >
-            {caption ? (
-                <span className="mt-uw-pace-weeks" data-testid="usage-week-weeks">
-                    {caption.count} · {caption.range}
-                </span>
-            ) : null}
+        <span className="mt-uw-line" data-testid="usage-week-line">
+            {context}
             {note ? (
-                <span className="mt-uw-pace-text">
+                <span
+                    className="mt-uw-pace-note"
+                    data-testid="usage-week-pace-note"
+                    data-lost={note.lost ? "true" : undefined}
+                >
                     <span data-testid="usage-week-late">{note.pace}</span>
                     {note.lost ? (
                         <>
@@ -498,19 +511,15 @@ export function UsageWeekGrid({
     );
     const today = weekdayIndex(now);
     const labelled = rows.some((row) => row.label != null);
-    // A grid with a monthly row has a column for its two controls on either side of the blocks, in every row.
-    const nav = rows.some((row) => row.line != null && !row.line.plain && row.line.span?.monthly);
     return (
         <span
             className="mt-uw"
             data-labelled={labelled ? "true" : undefined}
             data-figures={dayFigures ? "true" : undefined}
             data-minimal={minimal ? "true" : undefined}
-            data-nav={nav ? "true" : undefined}
             data-testid="usage-week"
         >
             <span aria-hidden />
-            {nav ? <span aria-hidden /> : null}
             {WeekDayKeys.map((key, i) => {
                 const ringed = session != null && i === today;
                 return (
@@ -533,7 +542,6 @@ export function UsageWeekGrid({
                     </span>
                 );
             })}
-            {nav ? <span aria-hidden /> : null}
             <span aria-hidden />
             {rows.map((row) => {
                 const { line, name } = row;
@@ -608,6 +616,20 @@ export function UsageWeekGrid({
                     </b>
                 );
                 const moveTo = (index: number) => setPicks({ ...picks, [row.key]: { reset: line.resetsAt, index } });
+                // A weekly row says its reset day, unless the surface says the reset time with an icon of its own (the
+                // companion's) or the reading is stale, which says its age under the row instead.
+                let context: ReactNode = null;
+                if (pager && caption) {
+                    context = (
+                        <WeekControls caption={caption} index={pager.index} count={pager.weeks.count} onMove={moveTo} />
+                    );
+                } else if (day && !line.plain && !hasReset && !row.stale) {
+                    context = (
+                        <span className="mt-uw-context" data-testid="usage-week-context">
+                            {t("usageWeek.resetsOn", { day })}
+                        </span>
+                    );
+                }
                 return (
                     <span
                         key={row.key}
@@ -628,18 +650,7 @@ export function UsageWeekGrid({
                         data-week={pager ? pager.index + 1 : undefined}
                         onContextMenu={row.onContextMenu}
                     >
-                        <RowLead row={row} caption={row.label != null ? caption : undefined} />
-                        {nav ? (
-                            pager ? (
-                                <WeekButton
-                                    dir="prev"
-                                    disabled={pager.index <= 0}
-                                    onClick={() => moveTo(stepWeek(pager.index, pager.weeks.count, "prev"))}
-                                />
-                            ) : (
-                                <span aria-hidden />
-                            )
-                        ) : null}
+                        <RowLead row={row} />
                         {line.plain ? (
                             <PlainGauge line={line} resets={row.resets} />
                         ) : (
@@ -668,17 +679,6 @@ export function UsageWeekGrid({
                                 </span>
                             ))
                         )}
-                        {nav ? (
-                            pager ? (
-                                <WeekButton
-                                    dir="next"
-                                    disabled={pager.index >= pager.weeks.count - 1}
-                                    onClick={() => moveTo(stepWeek(pager.index, pager.weeks.count, "next"))}
-                                />
-                            ) : (
-                                <span aria-hidden />
-                            )
-                        ) : null}
                         {row.chip || hasReset ? (
                             <span className="mt-uw-pct-chipped">
                                 {hasReset ? <ResetIcon text={row.reset} popovers={popovers} /> : null}
@@ -697,8 +697,8 @@ export function UsageWeekGrid({
                         ) : (
                             percentEl
                         )}
-                        {dayFigures && !line.plain ? <DayFigures cells={cells} nav={nav} /> : null}
-                        <PaceLine note={note} caption={row.label == null ? caption : undefined} />
+                        {dayFigures && !line.plain ? <DayFigures cells={cells} /> : null}
+                        <RowLine context={context} note={note} />
                         {row.stale ? (
                             <span className="mt-uw-detail" data-testid="usage-week-stale">
                                 {t("usageWeek.stale", { ago: age })}

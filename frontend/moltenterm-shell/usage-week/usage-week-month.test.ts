@@ -121,12 +121,14 @@ describe("one calendar week at a time (mockup rows 2, 3, 5 and 6)", () => {
         const weeks = windowWeeks(line.span);
         const second = weekCaption(weeks, 1);
         expect(second.count).toBe("Week 2 of 5");
+        expect(second.short).toBe("Wk 2/5");
         expect(second.range).toMatch(/8.*14/);
         const i18n = I18nModel.getInstance();
         try {
             i18n.setLanguageSetting("fr");
             const fr = weekCaption(weeks, 1);
             expect(fr.count).toBe("Semaine 2 sur 5");
+            expect(fr.short).toBe("Sem. 2/5");
             expect(fr.range).toMatch(/8.*14.*janv/);
         } finally {
             i18n.setLanguageSetting("");

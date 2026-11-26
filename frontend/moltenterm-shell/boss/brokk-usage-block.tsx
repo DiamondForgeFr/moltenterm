@@ -4,6 +4,8 @@
 // The usage block under Brokk's square (FR-BOSS-009, AC17, AC20, AC48 to AC51 and AC93 to AC98, #2100, #2341): the week grid
 // of the providers that share a reading, the most used first, and under it the quiet line of the providers not used lately.
 // It reads the readings, the use of each agent over 7 days and the developer's choices itself, so the group only draws it.
+// It never shows the session window (AC117, #2565): two providers each have a 5-hour session, and one ring on today's
+// letter would not say whose it is. So the grid is never given a `session`; brokk-group.test.tsx guards it.
 //
 // It loads on demand: the group asks for it once the window is up (preloadUsageBlock in brokk-group.tsx), outside the
 // JavaScript every view loads up front (NFR-PERF-003, bundle.initialJsMB).
