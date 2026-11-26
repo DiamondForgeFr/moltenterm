@@ -127,7 +127,10 @@ describe("the slim week grid (FR-BOSS-009, AC56, #2106)", () => {
         expect(grid).toContain("repeat(7, minmax(var(--mt-uw-block-min), 1fr))");
         expect(grid).not.toContain("justify-content: start;");
         expect(grid).toContain("--mt-uw-col-gap: 3px;");
-        expect(grid).toContain("gap: 7px var(--mt-uw-col-gap);");
+        // The rows are apart by the top margin of their cells, so the line under a row stays close to it (#2565).
+        expect(grid).toContain("gap: 0 var(--mt-uw-col-gap);");
+        expect(grid).toContain("--mt-uw-row-gap: var(--mt-space-12);");
+        expect(css).toMatch(/\n\.mt-uw-row > \* \{[^}]*margin-top: var\(--mt-uw-row-gap\);/);
         expect(rule(".mt-uw-cell")).toContain("height: var(--mt-uw-block-h);");
     });
 
@@ -152,9 +155,12 @@ describe("the slim week grid (FR-BOSS-009, AC56, #2106)", () => {
         expect(css).toMatch(/\.prefers-reduced-motion \.mt-uw-ring-fill \{\s*transition: none;\s*animation: none;/);
     });
 
-    it("gives the percent a column wide enough for 100 % on one line", () => {
-        expect(rule(".mt-uw")).toContain("minmax(52px, max-content);");
+    it("gives the percent one column of the same width for every row, wide enough for 100 % on one line, right-aligned in tabular figures (#2565)", () => {
+        expect(rule(".mt-uw")).toContain("--mt-uw-pct-w: 44px;");
+        expect(rule(".mt-uw")).toContain("minmax(var(--mt-uw-pct-w), max-content);");
         expect(rule(".mt-uw-pct")).toContain("white-space: nowrap;");
+        expect(rule(".mt-uw-pct")).toContain("text-align: right;");
+        expect(rule(".mt-uw-pct")).toContain("font-variant-numeric: tabular-nums;");
     });
 
     it("rings the reset day thin and close, and outlines today with 1 px at low opacity", () => {

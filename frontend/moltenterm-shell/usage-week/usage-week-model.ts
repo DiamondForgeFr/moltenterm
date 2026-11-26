@@ -311,14 +311,17 @@ export function stepWeek(index: number, count: number, dir: "prev" | "next"): nu
     return Math.min(count - 1, Math.max(0, index + (dir === "next" ? 1 : -1)));
 }
 
-// "Week 2 of 5" and "8–14 Jan": the two lines under a monthly row's label. The range is the calendar week's, Monday to
-// Sunday, in the interface language.
-export function weekCaption(weeks: WindowWeeks, index: number): { count: string; range: string } {
+// Which calendar week a monthly row shows: "Week 2 of 5" (the row's accessible name), "Wk 2/5" (the line under the row,
+// #2565) and "8–14 Jan". The range is the calendar week's, Monday to Sunday, in the interface language.
+export type WeekCaption = { count: string; short: string; range: string };
+
+export function weekCaption(weeks: WindowWeeks, index: number): WeekCaption {
     const monday = addDays(weeks.first, index * DaysInWeek);
     const sunday = addDays(monday, DaysInWeek - 1);
     const format = new Intl.DateTimeFormat(getLocale(), { day: "numeric", month: "short" }) as RangeFormat;
     return {
         count: t("usageWeek.weekOf", { week: index + 1, weeks: weeks.count }),
+        short: t("usageWeek.weekShort", { week: index + 1, weeks: weeks.count }),
         range: format.formatRange(new Date(monday), new Date(sunday)),
     };
 }

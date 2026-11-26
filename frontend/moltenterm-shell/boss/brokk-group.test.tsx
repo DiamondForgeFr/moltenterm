@@ -1730,6 +1730,36 @@ describe("the block under the square (AC17 and AC20)", () => {
         expect(html).toContain("62 %");
         expect(html).not.toContain("99 %");
     });
+
+    // AC117 (#2565): two providers each have a 5-hour session, so one ring on today's letter would not say whose it is.
+    it("never shows the session window, as a row or as a ring, whatever the providers read", () => {
+        const withSession = (agent: string, percent: number) => ({
+            ...reading(agent, percent),
+            windows: [
+                { id: "session", label: "Current session", usedpercent: 40, resetsat: Date.now() + 60 * Min },
+                { id: "week", label: "This week", usedpercent: percent, resetsat: Date.now() + 2 * 24 * 60 * Min },
+            ],
+        });
+        globalStore.set(UsageReadingsAtom, { claude: withSession("claude", 62), codex: withSession("codex", 20) });
+        const html = render();
+        expect(html.match(/data-testid="usage-week-row"/g)).toHaveLength(2);
+        expect(html).not.toContain("usage-week-session");
+        expect(html).not.toContain("mt-uw-ring");
+        expect(html).not.toContain("data-ringed");
+        // Today's letter stays a plain letter: nothing on it is focusable or named.
+        expect(
+            [...html.matchAll(/<span [^>]*data-testid="usage-week-day"[^>]*>/g)].every((m) =>
+                m[0].includes('aria-hidden="true"')
+            )
+        ).toBe(true);
+    });
+
+    it("never gives the grid a session ring, in the block's source", () => {
+        const source = readFileSync(join(__dirname, "brokk-usage-block.tsx"), "utf8");
+        const body = source.replace(/\/\/[^\n]*/g, "");
+        expect(body).toContain("<UsageWeekGrid rows={weekRows} now={now} />");
+        expect(body).not.toMatch(/session\s*=|UsageWeekSession|withSessionRing|SessionRing/);
+    });
 });
 
 describe("what Brokk sees when the group closes (AC19)", () => {

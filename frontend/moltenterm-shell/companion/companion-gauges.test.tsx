@@ -1026,11 +1026,11 @@ describe("the share of each day under its block (#2164)", () => {
         ).toContain("display: none");
         // The unit needs a wider block than the figure, which needs one wider than its own neighbour's gap.
         expect(MinUnitBlockPx).toBeGreaterThan(MinFigureBlockPx);
-        // A grid with figures spaces its rows by margin, so a line of figures that leaves takes no gap with it.
-        expect(/\n\.mt-uw\[data-figures="true"\] \{([^}]*)\}/.exec(css)?.[1]).toContain("row-gap: 0");
-        expect(/\.mt-uw\[data-figures="true"\] \.mt-uw-row > \* \{([^}]*)\}/.exec(css)?.[1]).toContain(
-            "margin-top: 7px"
-        );
+        // A grid spaces its rows by margin, so a line of figures that leaves takes no gap with it; one with figures
+        // draws more under each row, so its rows are a little closer than Brokk's (#2565).
+        expect(/\n\.mt-uw \{([^}]*)\}/.exec(css)?.[1]).toContain("gap: 0 var(--mt-uw-col-gap)");
+        expect(/\n\.mt-uw-row > \* \{([^}]*)\}/.exec(css)?.[1]).toContain("margin-top: var(--mt-uw-row-gap)");
+        expect(/\n\.mt-uw\[data-figures="true"\] \{([^}]*)\}/.exec(css)?.[1]).toContain("--mt-uw-row-gap: 9px");
         expect(markup(enabled)).toContain('data-figures="true"');
         expect(compactOf(enabled)).toContain('data-figures="true"');
         const rows = [{ key: "week", agent: "claude", name: "Claude", line: gaugeRows(enabled.snapshot, now)[1].line }];
