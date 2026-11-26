@@ -498,11 +498,8 @@ func (r *Runs) launchAt(dir, project string, command TrustedCommand, artifact st
 	return rec, nil
 }
 
-// update follows output and authoritative completion independently; even a missing log cannot hide completion.
-func (r *Runs) update(rec *RunRecord) bool {
-	if rec.State != RunStateRunning {
-		return false
-	}
+// readOutput takes the log's size and the phase markers it holds onto the record; true when either changed.
+func (r *Runs) readOutput(rec *RunRecord) bool {
 	data, _ := os.ReadFile(r.logFile(rec.storageProject(), rec.Id))
 	changed := int64(len(data)) != rec.LogSize
 	rec.LogSize = int64(len(data))
@@ -518,16 +515,30 @@ func (r *Runs) update(rec *RunRecord) bool {
 		rec.Phases = phases
 		changed = true
 	}
+	return changed
+}
+
+// update follows output and authoritative completion independently; even a missing log cannot hide completion.
+func (r *Runs) update(rec *RunRecord) bool {
+	if rec.State != RunStateRunning {
+		return false
+	}
+	// Completion is read before the log, never after: the supervisor publishes it once the command has exited, so a
+	// log read after it holds the whole output. Read the other way round, a run that ended between the two reads was
+	// recorded as finished with the phases of the earlier read, and a finished record is never read again (#2568).
+	code, done := r.completion(*rec)
+	changed := r.readOutput(rec)
 	if rec.Preparing {
 		return changed
 	}
-	if code, ok := r.completion(*rec); ok {
+	if done {
 		r.complete(rec, code)
 		return true
 	}
 	if !processAlive(rec.Pid) {
 		// The supervisor may have published between the first read and its process exiting.
 		if code, ok := r.completion(*rec); ok {
+			r.readOutput(rec)
 			r.complete(rec, code)
 			return true
 		}
