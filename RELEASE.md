@@ -222,6 +222,30 @@ set of final files (`scripts/moltenterm-release-files.sh`, `scripts/moltenterm-r
 A point that fails: open a ticket, fix it on `develop`, rehearse again, and cut the next candidate (`-N+1`). Never
 re-tag a published candidate.
 
+### The release ticket's status (#2563)
+
+The release moves its ticket ("Release vX.Y.Z") through the project's SaaSFoundry workflow, with
+`workflow-cli.sh update-status`, so that the workflow's guards run. The names are the ones `.saasfoundry.json` declares
+(`workflow.statuses`); on the Solo preset:
+
+| Moment | Status |
+| --- | --- |
+| `prepare` | In progress |
+| The RC branch is pushed (`open-pr`, `tag --rc-branch`) | AI testing |
+| The RC pull request is open for review (`open-pr`) | In review |
+| A public release is back on `develop` (`sync-back --merge`, or `sync-back` once `develop` holds the tag) | Done |
+
+Each move is printed in the step's log (`Release ticket #N moved from X to Y`). A release candidate that comes back
+leaves the version's ticket open: it is Done once the public release is back. A ticket already at or past a status is
+never moved back, and a moment the workflow has no status for is skipped.
+
+When the workflow's guards refuse a move, the step stops and its last line is the guard's message. The release sets no
+escape hatch: fix the cause, or move the ticket by hand (an escape hatch is the developer's to apply, see
+`.claude/skills/sf-workflow/escape-hatches.md`), then run the step again, which finishes the move. Known limits on
+SaaSFoundry's side: the Done guard wants the version's release pull request and its synchronization pull request
+(`main` into `develop`, merged with a merge commit) to be unambiguous, so several `rc-*` branches or release pull
+requests on one ticket can refuse it; a Team-preset ticket created late needs `nature:internal`.
+
 ### The preflight, before the tag (#2365)
 
 `release.yml` runs the dependency scan once the tag is pushed, so a refusal there leaves a public tag and a burnt
