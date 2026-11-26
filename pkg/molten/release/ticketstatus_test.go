@@ -296,7 +296,7 @@ func TestReleaseTicketRefusalStopsTheRunAndTheStepCanResume(t *testing.T) {
 	guard := "  The pushed-commits guard refuses: rc-1.0.0 holds a commit origin does not have.\n  Push it, then run update-status again.\n"
 
 	w.refuse("In Progress", "  Complexity label missing.\n")
-	mustFail(t, f, "prepare with a refusal", e.PreparePr(ctx, "v1.0.0-1"), `release ticket #1078 was not moved to In Progress, the release is being prepared: ✗ Ticket #1078 cannot move to In Progress.`)
+	mustFail(t, f, "prepare with a refusal", e.PreparePr(ctx, "v1.0.0-1"), `release ticket #1078 was not moved to In Progress, the release is being prepared: ✗ Ticket #1078 cannot move to In Progress; molten release sets no escape hatch`)
 	wantOutput(t, f, "The workflow refused to move release ticket #1078 to In Progress:", "  Complexity label missing.")
 	if strings.Contains(f.out.String(), "\x1b") {
 		t.Fatalf("the guard's colour codes reached the log:\n%q", f.out.String())

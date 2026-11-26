@@ -137,7 +137,7 @@ func (e *Env) sayRefusal(res WorkflowResult) string {
 		}
 		e.printf("  %s\n", line)
 	}
-	return strings.TrimSpace(lines[0])
+	return strings.TrimRight(strings.TrimSpace(lines[0]), ".")
 }
 
 // ticketStatus reads where the workflow has a ticket.
