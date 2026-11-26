@@ -47,7 +47,7 @@ func (e *Env) SyncBack(ctx context.Context, tag string) error {
 	}
 	if e.isAncestor(ctx, p.Root, e.revParse(ctx, p.Root, "refs/tags/"+tag), trunkRef) {
 		e.printf("%s already holds %s: nothing to carry back.\n", p.Trunk, tag)
-		return nil
+		return e.ticketShipped(ctx, p, tag, v.IsRc(), v.Base().String())
 	}
 	// A tag on a pull request's merge commit (#1046) carries the release commit it merged, not the merge itself.
 	commit := e.releaseCommitOfTag(ctx, p.Root, tag)
@@ -209,7 +209,7 @@ func (e *Env) SyncBackMerge(ctx context.Context, tag string) error {
 	tagged := e.revParse(ctx, p.Root, "refs/tags/"+tag)
 	if e.isAncestor(ctx, p.Root, tagged, trunkRef) {
 		e.printf("%s already holds %s: nothing to bring back.\n", p.Trunk, tag)
-		return nil
+		return e.ticketShipped(ctx, p, tag, v.IsRc(), v.Base().String())
 	}
 	pr, err := e.openReleaseIntoTrunk(ctx, p, v.Base().String(), tag)
 	if err != nil || pr == nil {
@@ -223,5 +223,5 @@ func (e *Env) SyncBackMerge(ctx context.Context, tag string) error {
 		return err
 	}
 	e.printf("%s merged into %s with a merge commit: %s is now part of %s's history.\n", p.Release, p.Trunk, tag, p.Trunk)
-	return nil
+	return e.ticketShipped(ctx, p, tag, v.IsRc(), v.Base().String())
 }

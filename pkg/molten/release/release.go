@@ -83,6 +83,9 @@ type Env struct {
 	// MoltenTerm's data folder, where the release tickets' locks are (#2492); empty keeps them in the repository's git
 	// folder.
 	DataDir string
+	// Runs the CLI of the project's SaaSFoundry workflow, which moves the release ticket's status (#2563); nil runs it
+	// with ExecWorkflow.
+	Workflow WorkflowRunner
 
 	// Called once when the release ticket's lock is held by another resolution (tests).
 	ticketLockWaiting func()

@@ -54,14 +54,16 @@ type manifest struct {
 
 func readManifest(dir string) (manifest, bool) {
 	var m manifest
+	ok := readJsonManifest(dir, &m)
+	return m, ok
+}
+
+func readJsonManifest(dir string, into any) bool {
 	data, err := os.ReadFile(filepath.Join(dir, molten.ProjectSaaSFoundryFile))
 	if err != nil {
-		return m, false
+		return false
 	}
-	if json.Unmarshal(data, &m) != nil {
-		return m, false
-	}
-	return m, true
+	return json.Unmarshal(data, into) == nil
 }
 
 // ToolOf is where the project keeps its ticket CLI (a path relative to its root) when its workflow uses one on a board,

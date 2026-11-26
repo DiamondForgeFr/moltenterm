@@ -246,6 +246,9 @@ func (e *Env) OpenPr(ctx context.Context, tag string) error {
 	}
 	head := e.revParse(ctx, wt, "HEAD")
 	e.printf("%s pushed (%s) with the release commit of %s.\n", branch, head[:min(7, len(head))], tag)
+	if err := e.moveTicket(ctx, p, v.Base().String(), MomentPushed); err != nil {
+		return err
+	}
 	if !e.OnGithub(ctx, p.Root) {
 		e.printf("origin is not on GitHub: merge %s into %s there with a merge commit, then tag it (molten release tag %s).\n", branch, p.Release, tag)
 		return nil
@@ -256,7 +259,7 @@ func (e *Env) OpenPr(ctx context.Context, tag string) error {
 	}
 	if open != nil {
 		e.printf("The pull request is already open, updated: %s\n", open.Url)
-		return nil
+		return e.moveTicket(ctx, p, v.Base().String(), MomentReview)
 	}
 	title, _ := e.git(ctx, wt, "log", "-1", "--format=%s", "HEAD")
 	body := fmt.Sprintf("Releases %s: the version files, the release notes and the changelogs, on %s made from %s. Once merged with a merge commit, the tag goes on the merge commit (`molten release tag %s`).\n\nOpened by `molten release open-pr`.", tag, branch, p.Trunk, tag)
@@ -270,7 +273,7 @@ func (e *Env) OpenPr(ctx context.Context, tag string) error {
 		return fmt.Errorf("%s is pushed, but the pull request could not be opened: %w", branch, err)
 	}
 	e.printf("Pull request opened: %s\n", strings.TrimSpace(string(created)))
-	return nil
+	return e.moveTicket(ctx, p, v.Base().String(), MomentReview)
 }
 
 // TagRcBranch cuts a release candidate that nothing publishes (no workflow starts on its tag): the release commit on
@@ -297,6 +300,11 @@ func (e *Env) TagRcBranch(ctx context.Context, tag string) error {
 	if err := e.fetch(ctx, p.Root); err != nil {
 		return err
 	}
+	// A step stopped by the workflow's refusal came after the push: run again, it only has the ticket left to move.
+	if e.rcTagPushed(ctx, p.Root, branch, tag) {
+		e.printf("%s is already tagged and pushed with %s: nothing to cut again.\n", tag, branch)
+		return e.moveTicket(ctx, p, v.Base().String(), MomentPushed)
+	}
 	if where := e.tagTaken(ctx, p.Root, tag); where != "" {
 		return fmt.Errorf("%s already exists %s: nothing was committed", tag, where)
 	}
@@ -319,7 +327,16 @@ func (e *Env) TagRcBranch(ctx context.Context, tag string) error {
 	}
 	head := e.revParse(ctx, wt, "HEAD")
 	e.printf("%s committed on %s (%s), tagged and pushed with it. Nothing reaches %s or %s: the candidate lives on %s.\n", tag, branch, head[:min(7, len(head))], p.Release, p.Trunk, branch)
-	return nil
+	return e.moveTicket(ctx, p, v.Base().String(), MomentPushed)
+}
+
+// rcTagPushed tells whether the tag is on origin, on the very commit origin's RC branch ends at: what TagRcBranch leaves.
+func (e *Env) rcTagPushed(ctx context.Context, root string, branch string, tag string) bool {
+	if pushed, err := e.tagOnOrigin(ctx, root, tag); err != nil || !pushed {
+		return false
+	}
+	tagged := e.revParse(ctx, root, "refs/tags/"+tag)
+	return tagged != "" && tagged == e.revParse(ctx, root, "origin/"+branch)
 }
 
 func upToDateHint(p *Project, tag string) string {
