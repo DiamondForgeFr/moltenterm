@@ -79,6 +79,10 @@ func (e *Env) prepare(ctx context.Context, tag string, pr bool) error {
 	if err := e.readyToPrepare(ctx, p, tag, v, pr); err != nil {
 		return err
 	}
+	// Before anything is written: a workflow that refuses leaves nothing to undo, and the step is run again as it was.
+	if err := e.moveTicket(ctx, p, v.Base().String(), MomentPrepared); err != nil {
+		return err
+	}
 	start, onBranch := "origin/"+p.Release, p.Release
 	rcBranch := ""
 	if pr {
