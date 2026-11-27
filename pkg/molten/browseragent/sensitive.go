@@ -5,6 +5,7 @@ package browseragent
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"unicode"
 
@@ -13,8 +14,9 @@ import (
 
 // Sensitive actions (FR-BRW-010, DS-BRW-016, NFR-BRW-005): before an input action, emain describes its target with
 // fixed code in MoltenTerm's isolated world (Molten.inspect), so the page's scripts cannot change the answer. These
-// actions ask the user every time, and an answer is never remembered: typing into a password or payment field,
-// submitting a form that holds one, opening a file chooser, and any download a controlled tab starts.
+// actions ask the user every time, and an answer is never remembered except for a sensitive frame the user permanently
+// allows: typing into a password or payment field, submitting a form that holds one, opening a file chooser, and any
+// download a controlled tab starts.
 
 const (
 	reasonSensitiveField = "sensitive-field"
@@ -47,9 +49,11 @@ type targetInfo struct {
 	// Frame: the element is a frame, whose content MoltenTerm cannot inspect.
 	Frame bool `json:"frame"`
 	// FrameSensitive: the main document has a sensitive field or the frame is a payment or sign-in surface.
-	FrameSensitive bool       `json:"framesensitive"`
-	Link           bool       `json:"link"`
-	Rect           *rectValue `json:"rect"`
+	FrameSensitive bool `json:"framesensitive"`
+	// FrameSource identifies this frame for a persistent consent, without its query or fragment.
+	FrameSource string     `json:"framesource"`
+	Link        bool       `json:"link"`
+	Rect        *rectValue `json:"rect"`
 }
 
 type rectValue struct {
@@ -122,6 +126,28 @@ func clickReason(t targetInfo, button string) string {
 	return ""
 }
 
+func normalizedFrameSource(title string, source string) string {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return strings.TrimSpace(title)
+	}
+	u, err := url.Parse(source)
+	if err != nil {
+		return source
+	}
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
+}
+
+func frameConsentKey(site string, title string, source string) string {
+	source = normalizedFrameSource(title, source)
+	if source == "" {
+		return ""
+	}
+	return site + "|" + source
+}
+
 // typeReason: typing into the focused element asks when it is sensitive, or when focus is in a frame MoltenTerm cannot
 // look into (card fields are often in one).
 func typeReason(focused targetInfo) string {
@@ -182,6 +208,9 @@ func withTargetAt(ref targetInfo, at targetInfo) targetInfo {
 	ref.Link = ref.Link || at.Link
 	ref.Frame = ref.Frame || at.Frame
 	ref.FrameSensitive = ref.FrameSensitive || at.FrameSensitive
+	if at.Frame {
+		ref.FrameSource = at.FrameSource
+	}
 	if at.SubmitControl && at.FormSensitive {
 		ref.SubmitControl, ref.FormSensitive = true, true
 	}

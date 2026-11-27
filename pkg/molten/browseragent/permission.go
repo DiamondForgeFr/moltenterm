@@ -45,6 +45,7 @@ type permissionRequest struct {
 	tabId      int64
 	key        TabKey
 	site       string
+	frameKey   string `json:"framekey,omitempty"`
 	created    time.Time
 	done       chan struct{}
 	outcome    string
@@ -288,13 +289,16 @@ func validDecision(decision string) bool {
 	return false
 }
 
-// decisionFits: a site request takes the site answers, an action or a reuse request Allow or Deny; Escape (dismiss)
-// refuses all of them.
+// decisionFits: a site request takes the site answers, an action Allow, Deny or Always for a sensitive frame, a reuse
+// request Allow or Deny; Escape (dismiss) refuses all of them.
 func decisionFits(kind string, decision string) bool {
 	if decision == DecisionDismiss {
 		return true
 	}
-	if kind == PromptAction || kind == PromptReuse {
+	if kind == PromptAction {
+		return decision == DecisionAllow || decision == DecisionDeny || decision == DecisionAlways
+	}
+	if kind == PromptReuse {
 		return decision == DecisionAllow || decision == DecisionDeny
 	}
 	return decision == DecisionOnce || decision == DecisionAlways || decision == DecisionBlock
@@ -335,7 +339,7 @@ func (m *Manager) takeRequest(requestId string, key TabKey, decision string) (*p
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	pending := m.requests[requestId]
-	if pending == nil || pending.key != key || pending.outcome != "" || !decisionFits(pending.kind, decision) {
+	if pending == nil || pending.key != key || pending.outcome != "" || !decisionFits(pending.kind, decision) || (pending.kind == PromptAction && decision == DecisionAlways && pending.frameKey == "") {
 		return nil, sessionInfo{}, false
 	}
 	s := m.sessions[pending.sessionId]
@@ -351,8 +355,16 @@ func (m *Manager) takeRequest(requestId string, key TabKey, decision string) (*p
 		s.allowedOnce[pending.site] = true
 		m.setOutcomeLocked(pending, outcomeAllowed)
 	case DecisionAlways:
-		s.allowedOnce[pending.site] = true
-		m.recent[pending.site] = recentDecision{decision: SiteAllow, at: m.now()}
+		if pending.kind == PromptAction {
+			if pending.frameKey != "" {
+				if err := m.env.SetAgentFrameConsent(pending.frameKey, true); err != nil {
+					m.logf("%s the frame decision could not be saved: %v\n", logPrefix, err)
+				}
+			}
+		} else {
+			s.allowedOnce[pending.site] = true
+			m.recent[pending.site] = recentDecision{decision: SiteAllow, at: m.now()}
+		}
 		m.setOutcomeLocked(pending, outcomeAllowed)
 	case DecisionBlock:
 		m.recent[pending.site] = recentDecision{decision: SiteBlock, at: m.now()}
@@ -447,9 +459,9 @@ func (m *Manager) pruneRecentLocked() {
 }
 
 // askAction asks the user to allow one sensitive action (DS-BRW-016): typing into a password or payment field,
-// submitting a form that holds one, a file chooser, a download. Every action asks anew and nothing is remembered; the
-// call waits inside runOnTab, so Stop and takeover end the wait.
-func (m *Manager) askAction(ctx context.Context, s sessionInfo, tabId int64, key TabKey, site string, reason string) error {
+// submitting a form that holds one, a file chooser, a download. Every action asks anew and nothing is remembered unless
+// the user permanently allowed this frame; the call waits inside runOnTab, so Stop and takeover end the wait.
+func (m *Manager) askAction(ctx context.Context, s sessionInfo, tabId int64, key TabKey, site string, reason string, frameKey string) error {
 	// A call Stop or takeover just cancelled asks nothing (its last look at the page failed because of that).
 	if err := ctx.Err(); err != nil {
 		return err
@@ -457,7 +469,10 @@ func (m *Manager) askAction(ctx context.Context, s sessionInfo, tabId int64, key
 	if errText := m.tabStateError(s.id, tabId); errText != "" {
 		return refusal(errText)
 	}
-	req := m.addActionRequest(s.id, tabId, key, site, reason)
+	if frameKey != "" && m.env.AgentFrameConsents()[frameKey] == SiteAllow {
+		return nil
+	}
+	req := m.addActionRequest(s.id, tabId, key, site, reason, frameKey)
 	if req == nil {
 		return refusal(mcpbrowser.ErrSessionEnded)
 	}
@@ -489,7 +504,7 @@ func (m *Manager) waitAction(ctx context.Context, req *permissionRequest) error 
 	return refusal(mcpbrowser.ErrActionDenied)
 }
 
-func (m *Manager) addActionRequest(sessionId string, tabId int64, key TabKey, site string, reason string) *permissionRequest {
+func (m *Manager) addActionRequest(sessionId string, tabId int64, key TabKey, site string, reason string, frameKey string) *permissionRequest {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	s := m.sessions[sessionId]
@@ -505,6 +520,7 @@ func (m *Manager) addActionRequest(sessionId string, tabId int64, key TabKey, si
 		tabId:      tabId,
 		key:        key,
 		site:       site,
+		frameKey:   frameKey,
 		created:    m.now(),
 		done:       make(chan struct{}),
 		waiters:    1,
@@ -534,7 +550,7 @@ func (m *Manager) AskDownload(ctx context.Context, source string, req DownloadRe
 	if len(site) > 253 {
 		site = site[:253]
 	}
-	err := m.askAction(ctx, s, tabId, key, site, reasonDownload)
+	err := m.askAction(ctx, s, tabId, key, site, reasonDownload, "")
 	if err != nil {
 		return DownloadAnswer{Allow: false}, nil
 	}

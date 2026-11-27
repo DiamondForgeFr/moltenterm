@@ -1206,6 +1206,10 @@
                 "label": "Permissions des agents par site",
                 "description": "Les sites que les agents peuvent utiliser ou qui leur sont interdits dans le panneau Page web."
             },
+            "browser:agentframeconsents": {
+                "label": "Permissions sur les cadres sensibles",
+                "description": "Cadres sensibles sur lesquels un agent peut cliquer sans redemander. Retirez une entrée pour redemander."
+            },
             "browser:localpages": {
                 "label": "Fichiers ouverts sans demander",
                 "description": "Les fichiers de cet ordinateur qu'un terminal ou un agent peut ouvrir dans le panneau Page web sans poser la question."
@@ -3181,6 +3185,7 @@
             "siteDetail": "Il pourra lire les pages de ce site et y agir, avec vos connexions.",
             "allowOnce": "Autoriser une fois",
             "always": "Toujours pour ce site",
+            "alwaysFrame": "Toujours pour ce cadre",
             "block": "Bloquer",
             "reuseAria": "Demande d'utilisation de cette page",
             "reuseTitle": "{name} voudrait utiliser cette page",

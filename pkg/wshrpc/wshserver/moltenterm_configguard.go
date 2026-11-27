@@ -23,6 +23,7 @@ import (
 // companion:ticketsummaries spends the developer's subscription on the milestone's sentences (#2392): his to agree to.
 var moltenConsentConfigKeys = map[string]bool{
 	wconfig.ConfigKey_BrowserAgentSites:         true,
+	wconfig.ConfigKey_BrowserAgentFrameConsents: true,
 	wconfig.ConfigKey_BrowserSitePermissions:    true,
 	wconfig.ConfigKey_BrowserClientCertificates: true,
 	wconfig.ConfigKey_BrowserLocalPages:         true,

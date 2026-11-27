@@ -644,7 +644,7 @@ export const InspectElementSource = `(el, lean) => {
         const source = el.getAttribute("src") || el.getAttribute("data") || "";
         const sensitiveDocument = Array.from(doc.querySelectorAll("input, textarea")).some(sensitive);
         const sensitiveFrame = SensitiveFrameSource.test(title + " " + source);
-        return { found: true, kind: "frame", frame: true, framesensitive: sensitiveDocument || sensitiveFrame, label: title, rect: { x: r.x, y: r.y, width: r.width, height: r.height } };
+        return { found: true, kind: "frame", frame: true, framesensitive: sensitiveDocument || sensitiveFrame, framesource: source, label: title, rect: { x: r.x, y: r.y, width: r.width, height: r.height } };
     }
     const target = el.closest("a[href], button, input, select, textarea, label, [role=button], [role=link], [contenteditable=''], [contenteditable=true]") || el;
     const t = tagOf(target);

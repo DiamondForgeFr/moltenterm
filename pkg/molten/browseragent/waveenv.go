@@ -322,6 +322,26 @@ func (waveEnv) SetAgentSite(site string, decision string) error {
 	return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserAgentSites: sites})
 }
 
+func (waveEnv) AgentFrameConsents() map[string]string {
+	return wconfig.GetWatcher().GetFullConfig().Settings.BrowserAgentFrameConsents
+}
+
+func (waveEnv) SetAgentFrameConsent(frameKey string, allow bool) error {
+	consents := make(map[string]string)
+	for k, v := range wconfig.GetWatcher().GetFullConfig().Settings.BrowserAgentFrameConsents {
+		consents[k] = v
+	}
+	if allow {
+		consents[frameKey] = SiteAllow
+	} else {
+		delete(consents, frameKey)
+	}
+	if len(consents) == 0 {
+		return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserAgentFrameConsents: nil})
+	}
+	return wconfig.SetBaseConfigValue(waveobj.MetaMapType{wconfig.ConfigKey_BrowserAgentFrameConsents: consents})
+}
+
 func (waveEnv) TypeLine(ctx context.Context, blockId string, line string) TypeLineResult {
 	out := termupdate.TypeShareLine(ctx, blockId, line)
 	return TypeLineResult{Sent: out.Result == termupdate.InputSent, Message: out.Message, MessageText: out.MessageText}

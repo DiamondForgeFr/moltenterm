@@ -10,6 +10,7 @@ describe("per-site settings as lists (FR-SHELL-106)", () => {
         expect(isSiteListKey("browser:agentsites")).toBe(true);
         expect(isSiteListKey("browser:sitepermissions")).toBe(true);
         expect(isSiteListKey("browser:clientcertificates")).toBe(true);
+        expect(isSiteListKey("browser:agentframeconsents")).toBe(true);
         expect(isSiteListKey("browser:default")).toBe(false);
     });
 

@@ -326,8 +326,8 @@ func (m *Manager) pointTarget(ctx context.Context, s sessionInfo, p pageContext,
 }
 
 // confirm asks the user for a sensitive action, then checks the page is still the one the user answered about.
-func (m *Manager) confirm(ctx context.Context, s sessionInfo, p pageContext, reason string) error {
-	if err := m.askAction(ctx, s, p.tabId, p.key, p.site, reason); err != nil {
+func (m *Manager) confirm(ctx context.Context, s sessionInfo, p pageContext, reason string, frameKey string) error {
+	if err := m.askAction(ctx, s, p.tabId, p.key, p.site, reason, frameKey); err != nil {
 		return err
 	}
 	page, err := m.currentPage(ctx, p.key)
@@ -422,7 +422,7 @@ func (m *Manager) runInput(ctx context.Context, s sessionInfo, p pageContext, pl
 			return mcpbrowser.CallResult{}, err
 		}
 		if reason := clickReason(info, how.button); reason != "" {
-			if err := m.confirm(ctx, s, p, reason); err != nil {
+			if err := m.confirm(ctx, s, p, reason, frameConsentKey(p.site, info.Label, info.FrameSource)); err != nil {
 				return mcpbrowser.CallResult{}, err
 			}
 			// The user answered about this target: one that moved or changed while they were asked is not it.
@@ -526,7 +526,7 @@ func rectCue(r *rectValue) *ActionCue {
 func (m *Manager) typeText(ctx context.Context, s sessionInfo, p pageContext, plan inputPlan) (mcpbrowser.CallResult, error) {
 	focused := m.inspect(ctx, p.key, map[string]any{"focused": true})
 	if reason := typeReason(focused); reason != "" {
-		if err := m.confirm(ctx, s, p, reason); err != nil {
+		if err := m.confirm(ctx, s, p, reason, ""); err != nil {
 			return mcpbrowser.CallResult{}, err
 		}
 		if typeReason(m.inspect(ctx, p.key, map[string]any{"focused": true})) != reason {
@@ -575,7 +575,7 @@ func (m *Manager) pressKeys(ctx context.Context, s sessionInfo, p pageContext, p
 			if keyNeedsInspection(chord) {
 				focused := m.inspect(ctx, p.key, keyInspectParams(chord))
 				if reason := keyReason(focused, chord); reason != "" && !allowed[reason] {
-					if err := m.confirm(ctx, s, p, reason); err != nil {
+					if err := m.confirm(ctx, s, p, reason, ""); err != nil {
 						return mcpbrowser.CallResult{}, err
 					}
 					if keyReason(m.inspect(ctx, p.key, keyInspectParams(chord)), chord) != reason {
@@ -717,7 +717,7 @@ func (m *Manager) formInput(ctx context.Context, s sessionInfo, loc BlockLocatio
 			return mcpbrowser.CallResult{}, refusal(mcpbrowser.ErrFileInput)
 		}
 		if info.Sensitive {
-			if err := m.confirm(inputCtx, s, p, reasonSensitiveFill); err != nil {
+			if err := m.confirm(inputCtx, s, p, reasonSensitiveFill, ""); err != nil {
 				return mcpbrowser.CallResult{}, err
 			}
 		}

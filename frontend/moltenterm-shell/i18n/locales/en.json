@@ -1003,6 +1003,10 @@
                 "label": "Agent site permissions",
                 "description": "Sites agents may use or are blocked from in the Web page panel."
             },
+            "browser:agentframeconsents": {
+                "label": "Sensitive frame permissions",
+                "description": "Sensitive frames an agent may click without asking again. Remove an entry to ask again."
+            },
             "browser:localpages": {
                 "label": "Files opened without asking",
                 "description": "Files from this computer that a terminal or an agent may open in the Web page panel without a question."
@@ -3181,6 +3185,7 @@
             "siteDetail": "It can read and act on this site's pages, with your sign-ins.",
             "allowOnce": "Allow once",
             "always": "Always for this site",
+            "alwaysFrame": "Always for this frame",
             "block": "Block",
             "reuseAria": "Request to use this page",
             "reuseTitle": "{name} would like to use this page",
