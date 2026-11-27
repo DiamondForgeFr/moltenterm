@@ -102,6 +102,7 @@ the event (`hook_event_name`) and reports what it means, printing nothing:
 | `Stop`, `Interrupt` (Kimi Code) | done |
 | `StopFailure` (Kimi Code) | error |
 | `SubagentStart`, `SubagentStop` | the sub-agent (its id, type and, at its end, its transcript), for the companion, and that it runs or stopped |
+| `PreToolUse` (Claude Code, `Bash` calls that run `molten agent plan`) | nothing; inside a sub-agent it prints the call back with `--subagent <agent_id>` (`updatedInput`), so the sub-agent's plan stays its own and its lead's is unchanged |
 
 Any other event reports nothing. An event fired inside a sub-agent carries its `agent_id`: its `UserPromptSubmit`,
 `PostToolUse` or `Stop` is the sub-agent's work, never the session's state. While the session is idle or done and

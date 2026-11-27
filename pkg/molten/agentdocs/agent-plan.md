@@ -29,6 +29,11 @@ The plan belongs to the agent session of the terminal you run the command in. It
 A new session (after `/clear`, or another run of the agent) starts with an empty plan. Run the command from your own
 terminal: outside a MoltenTerm terminal it fails. It sends nothing over the network and never changes your files.
 
+A sub-agent runs in its lead's terminal, yet its calls never change its lead's plan: they keep a plan of its own, which
+`show` prints and which the companion does not show as the lead's. The command says so in its output. MoltenTerm tells
+a sub-agent from its lead by what the agent CLI gives it: Claude Code's hook adds `--subagent <id>` to a sub-agent's
+call, and Codex gives every thread its own `CODEX_THREAD_ID`. Never pass `--subagent` yourself.
+
 ## When the agent keeps its own task list
 
 Claude Code (`TodoWrite`, or `TaskCreate` / `TaskUpdate`), Codex (`update_plan`) and Kimi Code (`TodoList`) keep a

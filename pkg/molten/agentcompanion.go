@@ -73,10 +73,17 @@ type AgentSessionRequest struct {
 // AgentPlanRequest is what `molten agent plan` sends (#2430): the operation on the plan of the agent in a block, and
 // its arguments. Op is one of the plan operations of pkg/molten/agentplan; Steps, Index and Text are read by the
 // operations that take them. The companion keeps the plan for the session the block shows.
+//
+// A sub-agent's shell inherits its lead's terminal, so the block alone names the lead (#2585). Subagent: the
+// sub-agent the call comes from, as Claude Code's PreToolUse hook input names it (agent_id; `molten agent hook` adds
+// it to the call). Thread: the CODEX_THREAD_ID of the call's shell, which Codex sets per thread, a sub-agent's being
+// its own. Either one keeps the call off the lead's plan.
 type AgentPlanRequest struct {
-	BlockId string   `json:"blockid"`
-	Op      string   `json:"op"`
-	Steps   []string `json:"steps,omitempty"`
-	Index   int      `json:"index,omitempty"`
-	Text    string   `json:"text,omitempty"`
+	BlockId  string   `json:"blockid"`
+	Op       string   `json:"op"`
+	Steps    []string `json:"steps,omitempty"`
+	Index    int      `json:"index,omitempty"`
+	Text     string   `json:"text,omitempty"`
+	Subagent string   `json:"subagent,omitempty"`
+	Thread   string   `json:"thread,omitempty"`
 }

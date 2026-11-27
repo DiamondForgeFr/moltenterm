@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agentplan"
 	"github.com/wavetermdev/waveterm/pkg/molten/proctree"
 	"github.com/wavetermdev/waveterm/pkg/molten/subagentwork"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
@@ -243,6 +244,8 @@ type Manager struct {
 	// each session's plan is kept on disk, so it survives a restart while the session lives; empty keeps them in memory.
 	plans   map[string]planEntry
 	planDir string
+	// subagentPlans: the plans the sub-agents of a block's agent published, by block then sub-agent (#2585), in memory.
+	subagentPlans map[string]map[string]agentplan.Plan
 	// sweeper: when each lead's sub-agents are read again (leadwork.go, #2502); afterFunc starts its timers.
 	sweeper   *leadSweeper
 	afterFunc func(d time.Duration, f func()) *time.Timer
@@ -290,6 +293,7 @@ func MakeManager() *Manager {
 		tracks:          map[string]*runTrack{},
 		subagentPaths:   map[string]bool{},
 		plans:           map[string]planEntry{},
+		subagentPlans:   map[string]map[string]agentplan.Plan{},
 		sweeper:         makeLeadSweeper(),
 		afterFunc:       time.AfterFunc,
 		adapterFor:      AdapterFor,
@@ -426,6 +430,7 @@ func (m *Manager) ForgetBlock(blockId string) {
 	delete(m.statusLines, blockId)
 	delete(m.refusedTranscripts, blockId)
 	delete(m.plans, blockId)
+	delete(m.subagentPlans, blockId)
 	usage.DefaultStatusLineStore.Forget(blockId)
 }
 

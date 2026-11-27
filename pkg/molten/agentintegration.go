@@ -293,6 +293,11 @@ func AgentStateHookCovers(agent string, event string, command string) bool {
 	return IsAgentStateHookCommand(command)
 }
 
+// IsAgentHookCommand tells whether a hook command runs `molten agent hook`, the handler of every event.
+func IsAgentHookCommand(command string) bool {
+	return strings.Contains(command, agentHookCommand)
+}
+
 // IsAgentSessionHookCommand tells whether a hook command links the session (`molten agent hook`, or an older
 // `molten agent session`).
 func IsAgentSessionHookCommand(command string) bool {

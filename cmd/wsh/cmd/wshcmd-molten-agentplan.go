@@ -67,7 +67,15 @@ var moltenAgentPlanShowCmd = moltenAgentPlanCommand("show", "print the plan, its
 		return molten.AgentPlanRequest{Op: agentplan.OpShow}, nil
 	})
 
+// moltenAgentPlanSubagent: the sub-agent the call comes from (#2585). MoltenTerm's PreToolUse hook adds it to a Claude
+// Code sub-agent's call (agenthook.SubagentPlanInput), since that shell has its lead's environment.
+var moltenAgentPlanSubagent string
+
+// Codex sets it in every command's environment, per thread: a sub-agent's is its own.
+const codexThreadIdVar = "CODEX_THREAD_ID"
+
 func init() {
+	moltenAgentPlanCmd.PersistentFlags().StringVar(&moltenAgentPlanSubagent, agentplan.SubagentFlag, "", "the sub-agent whose own plan this is (MoltenTerm's hook sets it in a sub-agent)")
 	moltenAgentPlanShowCmd.Flags().BoolVar(&moltenJson, "json", false, "print the plan as JSON")
 	for _, c := range []*cobra.Command{moltenAgentPlanSetCmd, moltenAgentPlanStartCmd, moltenAgentPlanDoneCmd, moltenAgentPlanAddCmd, moltenAgentPlanClearCmd, moltenAgentPlanShowCmd} {
 		moltenAgentPlanCmd.AddCommand(c)
@@ -114,6 +122,13 @@ func moltenAgentPlanRun(req molten.AgentPlanRequest) error {
 	if req.BlockId == "" {
 		return fmt.Errorf("not in a MoltenTerm terminal")
 	}
+	if moltenAgentPlanSubagent != "" && !agentplan.ValidSubagentId(moltenAgentPlanSubagent) {
+		return fmt.Errorf("invalid sub-agent id %q (letters, digits, dashes and underscores)", moltenAgentPlanSubagent)
+	}
+	req.Subagent = moltenAgentPlanSubagent
+	if thread := os.Getenv(codexThreadIdVar); agentplan.ValidSubagentId(thread) {
+		req.Thread = thread
+	}
 	resp, err := RpcClient.SendRpcRequest(molten.CompanionPlanCommand, req, &wshrpc.RpcOpts{Route: molten.CompanionRoute, Timeout: moltenAgentPlanTimeoutMs})
 	if err != nil {
 		return err
@@ -129,8 +144,19 @@ func moltenAgentPlanRun(req molten.AgentPlanRequest) error {
 	return nil
 }
 
-// formatMoltenPlan says what the operation did, in English (agents parse it).
+// formatMoltenPlan says what the operation did, in English (agents parse it). A sub-agent is told that the plan is its
+// own: its lead's plan, the one the companion shows, is unchanged.
 func formatMoltenPlan(req molten.AgentPlanRequest, plan agentplan.Plan) string {
+	text := formatMoltenPlanOp(req, plan)
+	if plan.Subagent == "" {
+		return text
+	}
+	return text + "\n" + moltenSubagentPlanNote
+}
+
+const moltenSubagentPlanNote = "This is your own plan as a sub-agent: your lead's plan in the companion is unchanged."
+
+func formatMoltenPlanOp(req molten.AgentPlanRequest, plan agentplan.Plan) string {
 	done, total := plan.Counts()
 	switch req.Op {
 	case agentplan.OpSet:

@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -309,6 +310,8 @@ type plannedHook struct {
 	command string
 	// timeout in seconds, 0 for Claude Code's default.
 	timeout int
+	// ifRule: the handler's `if` (permission rule syntax), "" to run on every occurrence the matcher lets through.
+	ifRule string
 }
 
 const coffeeApprovalName = "Coffee approvals"
@@ -375,6 +378,14 @@ func planClaudeStateHooks(managed settingsSource, sources []settingsSource, plan
 		}
 		hooks = append(hooks, plannedHook{event: h.Event, matcher: h.Matcher, command: h.Command})
 		added = append(added, h.Event)
+	}
+	// A sub-agent's `molten agent plan` keeps to its own plan (#2585): only this hook tells it from its lead's.
+	if where := hookWhere(all, agenthook.HookEventPreToolUse, molten.IsAgentHookCommand); where != "" {
+		skipped, skippedIn = append(skipped, agenthook.HookEventPreToolUse), where
+	} else {
+		hooks = append(hooks, plannedHook{event: agenthook.HookEventPreToolUse, matcher: agenthook.ClaudeBashTool,
+			command: molten.ClaudeStateHookCommand, ifRule: agenthook.ClaudePlanHookIf})
+		added = append(added, agenthook.HookEventPreToolUse)
 	}
 	if len(added) > 0 {
 		plan.Added = append(plan.Added, addedItem(molten.IntegrationStateHooks, stateHooksPhrase(added)))
@@ -533,6 +544,9 @@ func claudeSettingsJSON(flag map[string]json.RawMessage, hooks []plannedHook, st
 			handler := map[string]any{"type": "command", "command": h.command}
 			if h.timeout > 0 {
 				handler["timeout"] = h.timeout
+			}
+			if h.ifRule != "" {
+				handler["if"] = h.ifRule
 			}
 			group := map[string]any{"hooks": []any{handler}}
 			if h.matcher != "" {
