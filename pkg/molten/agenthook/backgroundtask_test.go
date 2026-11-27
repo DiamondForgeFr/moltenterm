@@ -58,3 +58,32 @@ func TestTaskNotificationEnds(t *testing.T) {
 		t.Fatalf("no ids: %v", got)
 	}
 }
+
+// #2582: the lines Claude Code 2.1.332 writes when the agent stops a background command with TaskStop. No task
+// notification follows: the tool's result is the end.
+func taskStopLines(id string, command string) string {
+	return `{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_stop","name":"TaskStop","input":{"task_id":"` + id + `"}}]}}` + "\n" +
+		`{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_stop","type":"tool_result","content":"{\"message\":\"Successfully stopped task: ` + id + ` (` + command + `)\",\"task_id\":\"` + id + `\",\"task_type\":\"local_bash\",\"command\":\"` + command + `\"}"}]},"toolUseResult":{"message":"Successfully stopped task: ` + id + ` (` + command + `)","task_id":"` + id + `","task_type":"local_bash","command":"` + command + `"}}` + "\n"
+}
+
+func TestTaskNotificationEndsReadsATaskStop(t *testing.T) {
+	t.Parallel()
+	data := taskStopLines("bstop0001", "sleep 600") +
+		// A TaskStop that found nothing to stop, and one the machine did not confirm, end nothing.
+		`{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_x","name":"TaskStop","input":{"task_id":"bgone0002"}}]}}` + "\n" +
+		`{"type":"user","message":{"role":"user","content":[{"type":"tool_result","content":"<tool_use_error>Task bgone0002 is not running (status: completed)</tool_use_error>","is_error":true,"tool_use_id":"toolu_x"}]}}` + "\n" +
+		`{"type":"user","toolUseResult":{"message":"Task bmaybe003 may still be running: the machine that runs it did not confirm the stop.","task_id":"bmaybe003","task_type":"local_bash"}}` + "\n"
+	got := TaskNotificationEnds(strings.NewReader(data), []string{"bstop0001", "bgone0002", "bmaybe003", "bstop"})
+	if !reflect.DeepEqual(got, []string{"bstop0001"}) {
+		t.Fatalf("only the stopped command ended, not an id it starts with: %v", got)
+	}
+
+	// The stop's marker straddles the first read's end (a chunk plus the longest marker's overlap).
+	marker := `Successfully stopped task: bcut00004 (`
+	prefix := `{"type":"user","toolUseResult":{"message":"`
+	pad := strings.Repeat("x", TaskNotificationScanChunk+len(marker)-1-len(prefix)-10)
+	cut := pad + prefix + marker + `go test ./...)","task_id":"bcut00004","task_type":"local_bash"}}` + "\n"
+	if got := TaskNotificationEnds(strings.NewReader(cut), []string{"bcut00004"}); !reflect.DeepEqual(got, []string{"bcut00004"}) {
+		t.Fatalf("a marker cut between two reads: %v", got)
+	}
+}

@@ -22,7 +22,8 @@ import (
 // marked background, with the command's words or "N background commands running", and raises no notice.
 //
 // The set is what the agent reported, never a guess: a command counts from its report (agenthook/backgroundtask.go)
-// until the session's transcript names its end, read when the main session's turn ends. Unlike a sub-agent, a command
+// until the session's transcript names its end (a task notification, or the TaskStop that stopped it, #2582), read when
+// the main session's turn ends. Unlike a sub-agent, a command
 // outlives the turn that started it, which is the point; one whose end is never told (an agent killed with its
 // commands) is forgotten with the run, at the session's next start, or never tracked when the set is full.
 

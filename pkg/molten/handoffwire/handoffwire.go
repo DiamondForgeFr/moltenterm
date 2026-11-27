@@ -101,8 +101,11 @@ type AgentEntry struct {
 	FirstName string `json:"firstname"`
 	Agent     string `json:"agent"`
 	AgentName string `json:"agentname"`
-	State     string `json:"state,omitempty"`
-	Project   string `json:"project,omitempty"`
+	// State: the main session's own state, whether it takes a hand-off now. A pane whose session is done while its
+	// background sub-agents or commands run (FR-CONT-015) says working in `molten session list` and the rail (#2582):
+	// that is the pane's work, not the session's turn.
+	State   string `json:"state,omitempty"`
+	Project string `json:"project,omitempty"`
 	// ProjectDir: the project folder (the workspace's project, else the folder's git root, else the folder).
 	ProjectDir string `json:"projectdir,omitempty"`
 	Folder     string `json:"folder,omitempty"`
