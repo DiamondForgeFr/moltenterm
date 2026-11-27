@@ -54,8 +54,13 @@ var (
 	crashHeadRe = regexp.MustCompile(`^(?:\[wavesrv\] )?(?:panic: |fatal error: )|^Uncaught Exception|` +
 		`^wavesrv exited \(code [1-9]\d*|^wavesrv exited \(code [^,]*, signal SIG(?:SEGV|ABRT|BUS|ILL|FPE|TRAP|SYS)\)`)
 	panicHeadRe = regexp.MustCompile(`^(?:\[wavesrv\] )?\[panic\] in `)
-	// errWordRe and warningWordRe read a lower-cased line, once a plain substring check found the word in it.
-	errWordRe     = regexp.MustCompile(`(?:^|[^a-z])err(?:[^a-z]|$)`)
+	// errWordRe, errorWordRe and warningWordRe read a lower-cased line, once a plain substring check found the word in
+	// it. The word stands alone: inside an identifier ("ciFailed", "onErrorRetry", "noFailure", #2577) it is data.
+	errWordRe   = regexp.MustCompile(`(?:^|[^a-z])err(?:[^a-z]|$)`)
+	errorWordRe = regexp.MustCompile(`(?:^|[^a-z])(?:errors?|errored|exceptions?|failed|failures?|fatal)(?:[^a-z]|$)`)
+	// errorTypeRe reads the line as written: an error type's name ("TypeError", "NullPointerException") ends with the
+	// word glued to a capitalised name, which a lower-cased word match cannot tell from an identifier.
+	errorTypeRe   = regexp.MustCompile(`(?:^|[^A-Za-z0-9_])[A-Z][A-Za-z0-9]*(?:Error|Exception)(?:[^A-Za-z0-9_]|$)`)
 	warningWordRe = regexp.MustCompile(`(?:^|[^a-z])(?:warn|warning)(?:[^a-z]|$)`)
 	// emptyMentionRe is an error or warning field that holds nothing ("err:<nil>", "error=null", `"warning": none`): a
 	// report that all went well, which says nothing of a problem. It reads a lower-cased line; the end of a bare word
@@ -214,7 +219,8 @@ func classify(text string) string {
 		lower = emptyMentionRe.ReplaceAllString(lower, "${1} ")
 	}
 	switch {
-	case containsAny(lower, "error", "exception", "failed", "failure", "fatal"):
+	case containsAny(lower, "error", "exception", "failed", "failure", "fatal") &&
+		(errorWordRe.MatchString(lower) || errorTypeRe.MatchString(first)):
 		return KindError
 	case strings.Contains(lower, "err") && errWordRe.MatchString(lower):
 		return KindError
