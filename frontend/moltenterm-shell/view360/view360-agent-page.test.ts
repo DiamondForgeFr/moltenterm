@@ -41,7 +41,9 @@ vi.mock("../panel-size/panel-size-store", () => ({
 vi.mock("./carpet-agent-page", () => ({ isAgentPagePanel: vi.fn() }));
 const shownLayout = vi.hoisted(() => ({ current: null as unknown }));
 vi.mock("@/layout/lib/layoutModelHooks", () => ({ getLayoutModelForStaticTab: () => shownLayout.current }));
-vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(performance.now()), 0));
+// A frame every 16 ms as on a screen: a 0 ms frame is a fake-clock timer per millisecond of each glide, and the async
+// timer advance yields to the event loop after every timer it fires, which a loaded machine stretches past 5 s (#2580).
+vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => setTimeout(() => cb(performance.now()), 16));
 vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
 
 const Wide = { top: 0, left: 0, width: 2400, height: 900 };
@@ -86,8 +88,17 @@ function resolvesTo(isAgentPage: boolean) {
     return promise;
 }
 
+// Every test runs on its own fake clock, dropped at its end (#2580): a glide left running on the real clock went on
+// into the next test, where the fake performance clock restarts at 0, and read a negative progress there for as long
+// as that test advanced its clock.
 beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
     vi.mocked(isAgentPagePanel).mockReset();
+});
+
+afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
 });
 
 describe("a panel added to the carpet (#1812)", () => {
@@ -140,27 +151,22 @@ describe("a panel added to the carpet (#1812)", () => {
         });
 
         it("advances the carpet by whole places until the page is in view", async () => {
-            vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
-            try {
-                const { model, layoutModel, focusedNode, pass } = underN();
-                globalStore.set(focusedNode, findNode(layoutModel.treeState.rootNode, "c1"));
-                const layout = pass();
-                const column = layout.columns.find((c) => c.nodeId === "c5");
-                const before = model.scrollLeft;
-                expect(before + layout.viewport.width).toBeLessThan(column.x + column.width);
-                const asked = resolvesTo(true);
-                model.onBlocksAdded(["b-c5"]);
-                await asked;
-                await vi.advanceTimersByTimeAsync(1000);
-                const after = model.scrollLeft;
-                expect(after).toBeGreaterThan(before);
-                expect(after).toBe(scrollToRevealColumn(layout, "c5", before));
-                expect(carpetScrollStops(layout)).toContain(after);
-                expect(after + layout.viewport.width).toBeGreaterThanOrEqual(column.x + column.width - 1);
-                expect(globalStore.get(focusedNode)?.id).toBe("c1");
-            } finally {
-                vi.useRealTimers();
-            }
+            const { model, layoutModel, focusedNode, pass } = underN();
+            globalStore.set(focusedNode, findNode(layoutModel.treeState.rootNode, "c1"));
+            const layout = pass();
+            const column = layout.columns.find((c) => c.nodeId === "c5");
+            const before = model.scrollLeft;
+            expect(before + layout.viewport.width).toBeLessThan(column.x + column.width);
+            const asked = resolvesTo(true);
+            model.onBlocksAdded(["b-c5"]);
+            await asked;
+            await vi.advanceTimersByTimeAsync(1000);
+            const after = model.scrollLeft;
+            expect(after).toBeGreaterThan(before);
+            expect(after).toBe(scrollToRevealColumn(layout, "c5", before));
+            expect(carpetScrollStops(layout)).toContain(after);
+            expect(after + layout.viewport.width).toBeGreaterThanOrEqual(column.x + column.width - 1);
+            expect(globalStore.get(focusedNode)?.id).toBe("c1");
         });
 
         it("leaves any other panel opened without the focus on the carpet, as FR-SHELL-123 AC11 says", async () => {
@@ -199,11 +205,9 @@ describe("a page the agent shows again (#1994)", () => {
 
     afterEach(() => {
         shownLayout.current = null;
-        vi.useRealTimers();
     });
 
     it("scrolls the carpet to the page's column, on the same stops as a page opened, keeping the focus", async () => {
-        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
         const rig = makeModel(rowOf(6));
         rig.pass();
         globalStore.set(rig.focusedNode, findNode(rig.layoutModel.treeState.rootNode, "c0"));
@@ -223,7 +227,6 @@ describe("a page the agent shows again (#1994)", () => {
     });
 
     it("leaves the carpet where it is when the page is already in view", async () => {
-        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
         const rig = makeModel(rowOf(3));
         rig.pass();
         shownBy(rig);
