@@ -4,6 +4,7 @@
 package companion
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -179,6 +180,103 @@ func TestPlanFileHoldsOnlyItsSession(t *testing.T) {
 	}
 	if b, ok := readPlanFile(dir, "/sessions/b.jsonl"); !ok || b.Steps[0].Text != "B" {
 		t.Fatalf("session b's file = %+v, %v", b, ok)
+	}
+}
+
+// #2585: a sub-agent's shell runs in its lead's terminal, so its calls name the lead's block. They keep to the
+// sub-agent's own plan, and the lead's plan, the one the companion shows, does not change.
+func TestSubagentCallsNeverTouchTheLeadsPlan(t *testing.T) {
+	t.Parallel()
+	m := planTestManager("/sessions/a.jsonl")
+	applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpSet, Steps: []string{"Brief the agent", "Follow it", "Report"}})
+	applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpStart, Index: 2})
+
+	sub := applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpSet, Subagent: "a4e95569a24e07cb3", Steps: []string{"Read", "Fix", "Test", "Open the PR"}})
+	if sub.Subagent != "a4e95569a24e07cb3" || len(sub.Steps) != 4 {
+		t.Fatalf("the sub-agent's plan = %+v", sub)
+	}
+	applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpDone, Subagent: "a4e95569a24e07cb3", Index: 3})
+
+	lead, ok := m.planFor("block-1", "/sessions/a.jsonl")
+	if !ok || len(lead.Steps) != 3 || lead.Current() != 2 || lead.Steps[2].Status != agentplan.StatusPending {
+		t.Fatalf("the sub-agent's calls changed the lead's plan: %+v", lead)
+	}
+	// The lead's own calls keep working on its plan, not the sub-agent's.
+	applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpDone, Index: 3})
+	shown := applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpShow, Subagent: "a4e95569a24e07cb3"})
+	if len(shown.Steps) != 4 || shown.Steps[2].Status != agentplan.StatusCompleted || shown.Steps[3].Status != agentplan.StatusPending {
+		t.Fatalf("the lead's done changed the sub-agent's plan: %+v", shown)
+	}
+	if lead := applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpShow}); lead.Subagent != "" || lead.Steps[2].Status != agentplan.StatusCompleted {
+		t.Fatalf("the lead's plan = %+v", lead)
+	}
+	// Two sub-agents keep a plan each.
+	other := applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpShow, Subagent: "b0c1"})
+	if !other.Empty() {
+		t.Fatalf("another sub-agent sees %+v", other)
+	}
+}
+
+func TestSubagentPlanRefusesAnInvalidId(t *testing.T) {
+	t.Parallel()
+	m := planTestManager("/sessions/a.jsonl")
+	if _, err := m.ApplyPlan(molten.AgentPlanRequest{BlockId: "block-1", Op: agentplan.OpSet, Subagent: "a b", Steps: []string{"Read"}}); err == nil {
+		t.Fatal("an invalid sub-agent id was accepted")
+	}
+	if _, ok := m.planFor("block-1", "/sessions/a.jsonl"); ok {
+		t.Fatal("a refused sub-agent call wrote the lead's plan")
+	}
+}
+
+// Codex sets CODEX_THREAD_ID per thread: the lead's thread is the linked session's, any other is a sub-agent's.
+func TestCodexThreadTellsASubagentFromItsLead(t *testing.T) {
+	t.Parallel()
+	const lead = "019a0000-1111-7222-8333-444455556666"
+	const subThread = "019a0000-9999-7aaa-8bbb-ccccddddeeee"
+	m := planTestManager("")
+	m.reports["block-1"] = sessionReport{agent: molten.AgentIdCodex, path: "/codex/sessions/2026/11/27/rollout-2026-11-27T10-00-00-" + lead + ".jsonl", at: time.UnixMilli(1)}
+
+	applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpSet, Thread: lead, Steps: []string{"Lead step"}})
+	sub := applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpSet, Thread: subThread, Steps: []string{"Sub step 1", "Sub step 2"}})
+	if sub.Subagent != subThread {
+		t.Fatalf("a sub-agent thread's call went to %+v", sub)
+	}
+	shown := applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpShow, Thread: lead})
+	if shown.Subagent != "" || len(shown.Steps) != 1 || shown.Steps[0].Text != "Lead step" {
+		t.Fatalf("the lead's plan = %+v", shown)
+	}
+}
+
+// A thread is only told from the lead's against the session the block shows: a Claude Code block, or a Codex block with
+// no linked session, keeps every call on the block's plan, as before.
+func TestThreadWithoutACodexSessionStaysTheLeads(t *testing.T) {
+	t.Parallel()
+	for name, report := range map[string]sessionReport{
+		"claude": {agent: molten.AgentIdClaude, path: "/sessions/a.jsonl", at: time.UnixMilli(1)},
+		"none":   {},
+	} {
+		if got := planSubagent(molten.AgentPlanRequest{Thread: "019a0000-9999-7aaa-8bbb-ccccddddeeee"}, report); got != "" {
+			t.Errorf("%s: the call went to sub-agent %q", name, got)
+		}
+	}
+}
+
+func TestSubagentPlansAreBoundedAndDroppedWithTheBlock(t *testing.T) {
+	t.Parallel()
+	m := planTestManager("/sessions/a.jsonl")
+	for i := 0; i <= agentplan.MaxSubagentPlans; i++ {
+		m.now = func() time.Time { return time.UnixMilli(int64(10000 + i)) }
+		applyOp(t, m, molten.AgentPlanRequest{Op: agentplan.OpSet, Subagent: fmt.Sprintf("agent-%d", i), Steps: []string{"Read"}})
+	}
+	if n := len(m.subagentPlans["block-1"]); n != agentplan.MaxSubagentPlans {
+		t.Fatalf("the block keeps %d sub-agents' plans", n)
+	}
+	if _, ok := m.subagentPlans["block-1"]["agent-0"]; ok {
+		t.Fatal("the plan changed longest ago was kept")
+	}
+	m.ForgetBlock("block-1")
+	if len(m.subagentPlans["block-1"]) != 0 {
+		t.Fatal("a closed block keeps its sub-agents' plans")
 	}
 }
 

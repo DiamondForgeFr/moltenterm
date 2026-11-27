@@ -17,7 +17,8 @@ import (
 // the same command, `molten agent hook --agent <id>`, and the event decides what it reports. Codex trusts a hook against
 // the hash of its definition: the command text never carries the event.
 //
-// It prints nothing: the agents may add a hook's standard output to the model's context.
+// It prints nothing: the agents may add a hook's standard output to the model's context. The one exception is
+// Claude Code's PreToolUse in a sub-agent, answered with the sub-agent's changed plan call (pretool.go, #2585).
 
 // must match pkg/molten (checked by its tests)
 const (
@@ -110,6 +111,13 @@ func runHook(ha HookArgs, env Env) (bool, int) {
 		return false, 0
 	}
 	input := ReadHookInput(env.Stdin)
+	if input.HookEventName == HookEventPreToolUse {
+		// Nothing to report: the answer is the sub-agent's changed call, or nothing (pretool.go).
+		if out, ok := PreToolUseOutput(input); ok && env.Stdout != nil {
+			env.Stdout.Write(out)
+		}
+		return true, 0
+	}
 	input.Provider = ProviderHostFor(ha.Agent, env.Getenv)
 	caller, done := makeHookCaller(token)
 	defer done()

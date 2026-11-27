@@ -46,6 +46,9 @@ func readToolField(input *HookInput, key string, raw json.RawMessage) {
 		if json.Unmarshal(raw, &ti) == nil {
 			input.ToolDescription = ti.Description
 		}
+		if len(raw) <= maxKeptToolInput {
+			input.ToolInput = string(raw)
+		}
 	case "tool_response":
 		if !bytes.Contains(raw, backgroundTaskIdKey) {
 			return

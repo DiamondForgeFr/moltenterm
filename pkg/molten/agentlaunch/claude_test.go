@@ -70,6 +70,7 @@ type generatedSettings struct {
 			Type    string `json:"type"`
 			Command string `json:"command"`
 			Timeout int    `json:"timeout"`
+			If      string `json:"if"`
 		} `json:"hooks"`
 	} `json:"hooks"`
 	StatusLine map[string]any `json:"statusLine"`
@@ -212,9 +213,14 @@ func TestClaudePlanEmptySettings(t *testing.T) {
 	if n := gen.Hooks["Notification"]; len(n) != 1 || n[0].Matcher != agenthook.ClaudeWaitingNotificationMatcher {
 		t.Errorf("Notification: %+v", n)
 	}
+	// #2585: the PreToolUse hook hands a sub-agent's `molten agent plan` back with its id; it runs for those calls only.
+	if p := gen.Hooks["PreToolUse"]; len(p) != 1 || p[0].Matcher != "Bash" || len(p[0].Hooks) != 1 ||
+		p[0].Hooks[0].Command != molten.ClaudeStateHookCommand || p[0].Hooks[0].If != agenthook.ClaudePlanHookIf {
+		t.Errorf("PreToolUse: %+v", p)
+	}
 	for event, matchers := range gen.Hooks {
 		for _, m := range matchers {
-			if m.Matcher != "" && event != "Notification" {
+			if m.Matcher != "" && event != "Notification" && event != "PreToolUse" {
 				t.Errorf("%s has a matcher %q: SessionStart must run on startup, resume, clear and compact", event, m.Matcher)
 			}
 		}
@@ -335,6 +341,22 @@ func TestClaudePlanSkipsUserHooks(t *testing.T) {
 	}
 }
 
+// #2585: a user's own copy of the handler on PreToolUse is left in charge of the sub-agents' plan calls.
+func TestClaudePlanSkipsTheUsersPreToolUseHandler(t *testing.T) {
+	tree := makeFakeTree(t)
+	tree.write(t, tree.userSettings(), `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"molten agent hook --agent claude"}]}]}}`)
+	plan, gen, _ := planOf(t, tree.ctx())
+	if _, ok := gen.Hooks["PreToolUse"]; ok {
+		t.Fatalf("PreToolUse is the user's: %v", gen.Hooks["PreToolUse"])
+	}
+	for _, it := range plan.Skipped {
+		if it.Kind == molten.IntegrationStateHooks && strings.Contains(it.Name, "PreToolUse") {
+			return
+		}
+	}
+	t.Fatalf("skipped %+v", plan.Skipped)
+}
+
 // #2140: an older `molten agent state` on PostToolUse or Stop never reads the hook's input, where Claude Code tells a
 // command left running in the background: MoltenTerm's handler runs next to it. Its other events stay the user's.
 func TestClaudePlanAddsTheHandlerNextToOlderStateHooks(t *testing.T) {
@@ -361,8 +383,9 @@ func TestClaudePlanCoffeeApprovalHook(t *testing.T) {
 	validator := `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bun ~/.claude/scripts/command-validator/src/cli.ts"}]}]}}`
 	tree.write(t, tree.userSettings(), validator)
 	plan, gen, _ := planOf(t, tree.ctx())
-	if _, ok := gen.Hooks["PreToolUse"]; ok {
-		t.Fatalf("the user's PreToolUse hook must not be copied: %v", gen.Hooks["PreToolUse"])
+	// The generated PreToolUse holds MoltenTerm's own handler only (#2585); Claude Code merges the user's from their file.
+	if got := hookCommands(gen, "PreToolUse"); !slices.Equal(got, []string{molten.ClaudeStateHookCommand}) {
+		t.Fatalf("the user's PreToolUse hook must not be copied: %q", got)
 	}
 	if got := hookCommands(gen, molten.ClaudePermissionHookEvent); !slices.Equal(got, []string{molten.ClaudePermissionHookCommand}) {
 		t.Fatalf("PermissionRequest: %q", got)

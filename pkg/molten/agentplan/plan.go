@@ -28,9 +28,16 @@ const (
 	OpShow  = "show"
 )
 
+// SubagentFlag is the flag of `molten agent plan` that names the sub-agent a call comes from (#2585).
+const SubagentFlag = "subagent"
+
 const (
 	MaxSteps    = 100
 	MaxStepText = 500
+	// MaxSubagentId: the longest sub-agent id a plan is kept under.
+	MaxSubagentId = 128
+	// MaxSubagentPlans: the sub-agents' plans a block keeps; the one changed longest ago goes first.
+	MaxSubagentPlans = 64
 )
 
 type Step struct {
@@ -46,6 +53,8 @@ type Plan struct {
 	Steps []Step `json:"steps,omitempty"`
 	// UpdatedAt: when the plan last changed (unix ms).
 	UpdatedAt int64 `json:"updatedat,omitempty"`
+	// Subagent: in the companion's answer only, the sub-agent whose own plan this is (#2585), "" for the lead's.
+	Subagent string `json:"subagent,omitempty"`
 }
 
 func (p Plan) Empty() bool {
@@ -158,6 +167,20 @@ func (p Plan) checkIndex(n int) error {
 
 func (p Plan) clone() Plan {
 	return Plan{Steps: append([]Step(nil), p.Steps...), UpdatedAt: p.UpdatedAt}
+}
+
+// ValidSubagentId tells whether an id may name a sub-agent's plan: Claude Code's agent ids and Codex's thread ids are
+// letters, digits and dashes. The hook writes it into a shell command, so nothing else is let through.
+func ValidSubagentId(id string) bool {
+	if id == "" || len(id) > MaxSubagentId {
+		return false
+	}
+	for _, r := range id {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 // cleanText puts a step on one line and cuts it to MaxStepText runes.

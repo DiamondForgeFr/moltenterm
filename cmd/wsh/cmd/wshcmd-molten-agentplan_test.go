@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/agenthook"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentplan"
 )
 
@@ -54,6 +55,51 @@ func TestFormatMoltenPlanSaysWhatChanged(t *testing.T) {
 	for name, c := range cases {
 		if got := formatMoltenPlan(c.req, plan); got != c.want {
 			t.Errorf("%s:\n got %q\nwant %q", name, got, c.want)
+		}
+	}
+}
+
+// #2585: the hook adds --subagent after the operation, and cobra reads it there and before it.
+// It parses into the command's package variable, so it does not run in parallel with another test that does.
+func TestMoltenAgentPlanTakesTheSubagentFlagAnywhere(t *testing.T) {
+	t.Cleanup(func() { moltenAgentPlanSubagent = "" })
+	for _, args := range [][]string{
+		{"plan", "done", "--subagent", "a4e9", "3"},
+		{"plan", "--subagent", "a4e9", "done", "3"},
+		{"plan", "done", "3", "--subagent=a4e9"},
+	} {
+		moltenAgentPlanSubagent = ""
+		found, rest, err := moltenAgentCmd.Find(args)
+		if err != nil || found == nil || found.Name() != "done" {
+			t.Fatalf("%v: %v %v", args, found, err)
+		}
+		if err := found.ParseFlags(rest); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+		if moltenAgentPlanSubagent != "a4e9" || len(found.Flags().Args()) != 1 || found.Flags().Arg(0) != "3" {
+			t.Fatalf("%v: subagent %q, args %v", args, moltenAgentPlanSubagent, found.Flags().Args())
+		}
+	}
+}
+
+func TestFormatMoltenPlanTellsASubagentItsPlanIsItsOwn(t *testing.T) {
+	t.Parallel()
+	plan := agentplan.Plan{Subagent: "a4e9", Steps: []agentplan.Step{{Text: "Read", Status: agentplan.StatusPending}}}
+	got := formatMoltenPlan(molten.AgentPlanRequest{Op: agentplan.OpSet, Subagent: "a4e9"}, plan)
+	if got != "Plan set: 1 step, all to do.\n"+moltenSubagentPlanNote {
+		t.Fatalf("sub-agent set = %q", got)
+	}
+	if got := formatMoltenPlan(molten.AgentPlanRequest{Op: agentplan.OpSet}, agentplan.Plan{Steps: plan.Steps}); strings.Contains(got, "sub-agent") {
+		t.Fatalf("the lead is told it is a sub-agent: %q", got)
+	}
+}
+
+// The small molten program cannot import agentplan: its copy of the id rule must agree.
+func TestSubagentIdRulesAgree(t *testing.T) {
+	t.Parallel()
+	for _, id := range []string{"a4e95569a24e07cb3", "019a0000-1111-7222-8333-444455556666", "a_b", "", "a b", "a;b", "$(x)", "é", strings.Repeat("a", 128), strings.Repeat("a", 129)} {
+		if agentplan.ValidSubagentId(id) != agenthook.ValidSubagentId(id) {
+			t.Errorf("%q: agentplan %v, agenthook %v", id, agentplan.ValidSubagentId(id), agenthook.ValidSubagentId(id))
 		}
 	}
 }

@@ -42,6 +42,9 @@ type HookInput struct {
 	ToolName         string `json:"tool_name"`
 	ToolDescription  string `json:"-"`
 	BackgroundTaskId string `json:"-"`
+	// ToolInput: the tool's whole input, kept up to maxKeptToolInput, for a PreToolUse to hand back changed (pretool.go).
+	// A string, not a json.RawMessage, so that a HookInput stays comparable.
+	ToolInput string `json:"-"`
 	// Provider is not in the input: runHook sets the provider host the hook's env names (provider.go).
 	Provider string `json:"-"`
 }
