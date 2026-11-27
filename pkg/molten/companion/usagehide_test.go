@@ -98,8 +98,11 @@ func TestHidingForgetsTheCodexSessionLogAndShowReadsItAgain(t *testing.T) {
 	waitLimits(t, m, func(l usage.CodexTranscriptLimits) bool {
 		return len(l.Records) == 1 && l.Records[0].RateLimits["primary"].(map[string]any)["used_percent"] == 30.0
 	})
+	// While the read is under way the companion publishes the waiting state, which names the source but holds no
+	// snapshot yet: a loaded machine shows it long enough to be the last publication the test sees.
 	p := waitPublished(t, g, "b2", func(i UsageInfo) bool {
-		return i.SourceName == "Codex session log" && i.Snapshot.Windows[0].UsedPercent == 30
+		return i.SourceName == "Codex session log" && i.Snapshot != nil && len(i.Snapshot.Windows) > 0 &&
+			i.Snapshot.Windows[0].UsedPercent == 30
 	})
 	if p.Snapshot.Windows[0].UsedPercent != 30 {
 		t.Errorf("read again from the log's start, the latest record wins: %+v", p.Snapshot)
