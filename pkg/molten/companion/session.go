@@ -63,6 +63,8 @@ type Todo struct {
 	Status string `json:"status"`
 	// At: for a published plan step, when it was done, or when it became the current one (unix ms); 0 for a native task.
 	At int64 `json:"at,omitempty"`
+	// key: the agent's own id of the task (Claude Code's task ids), for the calls that change one task by its id.
+	key string
 }
 
 type ToolCall struct {
@@ -141,6 +143,10 @@ type Session struct {
 	// promptTurn: the turn the latest prompt was added in.
 	promptTurn int
 	todosAt    int64
+	// taskCalls: the task-list calls waiting for their result, by call id (claudetasks.go); nextTaskId: the id the
+	// agent gives the next task it creates, one more than the highest seen.
+	taskCalls  map[string]string
+	nextTaskId int
 	turnsEnded int
 	// turnOpen: a turn started, or the agent wrote in it, and its end is not recorded yet (#2257).
 	turnOpen bool
@@ -478,21 +484,65 @@ func (s *Session) SetTodos(todos []Todo) {
 	s.touch()
 }
 
-// UpsertTodo adds a task or updates one by its key (Claude Code's TaskCreate / TaskUpdate).
-func (s *Session) UpsertTodo(index int, text string, status string) {
-	if index < 0 || index >= MaxTodos {
+// todoDeleted is the status that removes a task from the list (Claude Code's TaskUpdate).
+const todoDeleted = "deleted"
+
+func (s *Session) todoIndex(key string) int {
+	for i := range s.todos {
+		if s.todos[i].key == key {
+			return i
+		}
+	}
+	return -1
+}
+
+// UpsertTodo adds a task or changes one by its key (Claude Code's TaskCreate / TaskUpdate / TaskGet). A task the
+// list does not hold yet is added only with its text: a status alone has no row to show.
+func (s *Session) UpsertTodo(key string, text string, status string) {
+	if key == "" {
 		return
 	}
-	for len(s.todos) <= index {
-		s.todos = append(s.todos, Todo{Status: TodoPending})
+	i := s.todoIndex(key)
+	if strings.EqualFold(strings.TrimSpace(status), todoDeleted) {
+		if i >= 0 {
+			s.todos = append(s.todos[:i:i], s.todos[i+1:]...)
+			s.todosAt = s.recordAt
+			s.touch()
+		}
+		return
+	}
+	if i < 0 {
+		if text == "" || len(s.todos) >= MaxTodos {
+			return
+		}
+		s.todos = append(s.todos, Todo{Status: TodoPending, key: key})
+		i = len(s.todos) - 1
 	}
 	if text != "" {
-		s.todos[index].Text = cutString(oneLine(text), MaxTodoText)
+		s.todos[i].Text = cutString(oneLine(text), MaxTodoText)
 	}
 	if status != "" {
-		s.todos[index].Status = normaliseTodoStatus(status)
+		s.todos[i].Status = normaliseTodoStatus(status)
 	}
 	s.todosAt = s.recordAt
+	s.touch()
+}
+
+// RekeyTodo gives a task the id the agent returned for it; an empty id drops the task (its creation failed).
+func (s *Session) RekeyTodo(from string, to string) {
+	i := s.todoIndex(from)
+	if i < 0 || from == to {
+		return
+	}
+	if to == "" {
+		s.UpsertTodo(from, "", todoDeleted)
+		return
+	}
+	if j := s.todoIndex(to); j >= 0 {
+		s.todos = append(s.todos[:j:j], s.todos[j+1:]...)
+		i = s.todoIndex(from)
+	}
+	s.todos[i].key = to
 	s.touch()
 }
 
@@ -500,7 +550,7 @@ func normaliseTodoStatus(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "completed", "complete", "done":
 		return TodoCompleted
-	case "in_progress", "in-progress", "inprogress", "active", "running":
+	case "in_progress", "in-progress", "inprogress", "in progress", "active", "running":
 		return TodoInProgress
 	}
 	return TodoPending
@@ -711,7 +761,11 @@ func (s *Session) Diff(path string) (FileDiff, bool) {
 }
 
 func (s *Session) Todos() []Todo {
-	return append([]Todo(nil), s.todos...)
+	todos := append([]Todo(nil), s.todos...)
+	for i := range todos {
+		todos[i].key = ""
+	}
+	return todos
 }
 
 // TodosAt is when the native task list was last written (unix ms, 0 when it was never).

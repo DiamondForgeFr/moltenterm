@@ -547,6 +547,10 @@ func (a *KimiAdapter) parseKimiToolCall(event map[string]any, s *Session, at int
 	}
 	switch name {
 	case "TodoList":
+		// A call without todos reads the list back: it does not empty it.
+		if _, ok := args["todos"]; !ok {
+			return
+		}
 		var todos []Todo
 		for _, item := range arr(args, "todos") {
 			todo := asObj(item)

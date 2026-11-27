@@ -31,6 +31,10 @@ terminal: outside a MoltenTerm terminal it fails. It sends nothing over the netw
 
 ## When the agent keeps its own task list
 
-Claude Code (`TodoWrite`, `TaskCreate`), Codex (`update_plan`) and Kimi keep a task list the companion reads. When both
-a native list and a published plan exist, the companion shows the one updated last. You may still publish a plan
-with this command; keep it in step with your native list if you use both.
+Claude Code (`TodoWrite`, or `TaskCreate` / `TaskUpdate`), Codex (`update_plan`) and Kimi Code (`TodoList`) keep a
+task list the companion reads. When both a native list and a published plan exist, the companion shows the one updated
+last. You may still publish a plan with this command; keep it in step with your native list if you use both.
+
+Check that you really have a task tool before you count on it. Recent Claude Code versions give the task tools only to
+some models, and a sub-agent may run without them: when none is in your tool list, publish your plan with this command.
+After a context compaction or summary, set your list again at once (re-load your task tool first if it is deferred).

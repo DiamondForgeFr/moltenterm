@@ -471,12 +471,14 @@ func (a *CodexAdapter) parseEvent(ev map[string]any, s *Session, at int64) {
 			}
 		case "SubAgentActivity":
 			a.parseSubagentActivity(item, s, at)
-		case "TodoList", "Plan":
-			todos := codexPlan(arr(item, "items"))
-			if todos == nil {
-				todos = codexPlan(arr(item, "plan"))
+		case "TodoList", "todo_list", "todoList", "Plan":
+			// A plan-mode Plan item holds the plan as text ({id, text}), with no steps: it leaves the list as it is.
+			for _, field := range []string{"items", "plan"} {
+				if _, ok := item[field]; ok {
+					s.SetTodos(codexPlan(arr(item, field)))
+					return
+				}
 			}
-			s.SetTodos(todos)
 		}
 	}
 }
