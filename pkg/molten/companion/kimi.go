@@ -302,7 +302,13 @@ func (a *KimiAdapter) WorkFolder(sessionPath string) (string, bool) {
 	if !ok || !filepath.IsAbs(state.Cwd) {
 		return "", false
 	}
-	return filepath.Clean(state.Cwd), true
+	work, ok := cachedWorkTail(a, sessionPath, kimiSettingsTail, func(tail []byte) workTail {
+		return workTail{folders: kimiWorkFolders(tail)}
+	})
+	if !ok {
+		return filepath.Clean(state.Cwd), true
+	}
+	return kimiMainWorkFolder(state.Cwd, work.folders), true
 }
 
 func (a *KimiAdapter) ReadSettings(path string) (molten.AgentSettings, bool) {

@@ -8,10 +8,10 @@
 // states the windows hold, the pull requests the Reviews list holds and the board status wavesrv read with the tickets.
 // Pure, so it is tested without a window.
 
-import { AgentStatesData } from "../agent-state-model";
+import { AgentStatesData, agentToolName } from "../agent-state-model";
 import { branchTicketNumber } from "../agent-work-model";
 import { ReviewPr, ReviewsAnswer } from "../reviews/reviews-model";
-import { branchAgents, UpcomingAnswer } from "../reviews/reviews-upcoming-model";
+import { AgentBarFacts, agentFacts, branchAgents, UpcomingAnswer } from "../reviews/reviews-upcoming-model";
 import {
     certainTicket,
     LinkAgent,
@@ -34,8 +34,9 @@ export type TicketHold =
     | { kind: "mine" }
     // Another agent of this workspace.
     | { kind: "agent"; owner: TicketOwner }
-    // An agent of another workspace: the ticket is taken, the agent is not named (the activity shown stays per workspace).
-    | { kind: "away" }
+    // An agent of another workspace: the ticket is taken; the tag stays the same (the activity shown stays per
+    // workspace) and its tip names the agent (#2572).
+    | { kind: "away"; owner?: TicketOwner }
     // No agent MoltenTerm knows, but the ticket is taken all the same:
     | { kind: "status"; status: string }
     | { kind: "pr"; pr: number; url?: string }
@@ -177,7 +178,6 @@ function ownersOf(
             if (facts.kind === "subagent" && facts.subState !== "running") {
                 continue;
             }
-            const blockId = facts.kind === "subagent" ? (facts.parentBlockId ?? "") : (facts.blockId ?? "");
             if (
                 inputs.ownBlockId &&
                 (facts.blockId === inputs.ownBlockId || facts.parentBlockId === inputs.ownBlockId)
@@ -185,20 +185,48 @@ function ownersOf(
                 mine = true;
                 continue;
             }
-            const key = `${facts.kind}:${blockId}:${facts.description ?? ""}`;
+            const owner = ownerOf(facts, inputs.states);
+            if (owner == null) {
+                continue;
+            }
+            const key = `${facts.kind}:${owner.blockId}:${facts.description ?? ""}`;
             if (seen.has(key)) {
                 continue;
             }
             seen.add(key);
-            owners.push({
-                blockId,
-                name: (facts.kind === "subagent" ? facts.parentName : facts.name) ?? "",
-                tool: facts.agentName ?? "",
-                subagent: facts.kind === "subagent",
-            });
+            owners.push(owner);
         }
     }
     return { owners, mine };
+}
+
+// The holder an agent on a ticket's branch names (#2572): the panel to go to and who is there, its first name and its
+// tool, read from the windows' agent states when the placement does not say them. A sub-agent, or a background agent
+// whose lead is known, is its lead's ("Sous-agent"); a signed background agent is its signer's session. An agent with no
+// live panel to go to holds nothing: the ticket falls back to its board status, its pull request or its branch, never
+// to an anonymous "an agent" with nowhere to go.
+function ownerOf(facts: AgentBarFacts, states: AgentStatesData): TicketOwner {
+    let blockId = "";
+    let name = "";
+    let subagent = false;
+    if (facts.kind === "panel") {
+        blockId = facts.blockId ?? "";
+        name = facts.name ?? "";
+    } else if (facts.kind === "subagent" || (facts.kind === "background" && !facts.blockId)) {
+        blockId = facts.parentBlockId ?? "";
+        name = facts.parentName ?? "";
+        subagent = true;
+    } else {
+        blockId = facts.blockId ?? "";
+        name = facts.name ?? "";
+    }
+    const info = blockId ? states?.states?.[blockId] : null;
+    if (info == null) {
+        return null;
+    }
+    const tool = agentFacts(facts).cli || agentToolName(info) || "";
+    name = (name || info.firstname || "").trim() || tool;
+    return { blockId, name, tool: tool.toLowerCase() === name.toLowerCase() ? "" : tool, subagent };
 }
 
 // The tickets the Integration panel places this companion's sub-agents on, by the sub-agent's own id (#2522): the
@@ -222,6 +250,20 @@ export function placedTickets(upcoming: UpcomingAnswer, ownBlockId: string): Map
     return placed;
 }
 
+// startedHere (#2572): this companion's session started the work of the ticket's worktree (its own panel or one of its
+// sub-agents was the first seen at work there, wavesrv's record). With nobody at work in it now, the ticket stays this
+// session's: never "in progress, nobody on it" for the session that is busy with it.
+function startedHere(ticket: number, branches: Set<string>, inputs: HoldInputs): boolean {
+    if (!inputs.ownBlockId) {
+        return false;
+    }
+    return (inputs.upcoming?.starters ?? []).some(
+        (s) =>
+            s.blockid === inputs.ownBlockId &&
+            (branches?.has(s.branch) || branchTicketNumber(s.branch) === ticket)
+    );
+}
+
 function inThisWorkspace(owner: TicketOwner, inputs: HoldInputs): boolean {
     const workspace = inputs.states?.states?.[owner.blockId]?.workspaceid;
     return !workspace || !inputs.workspaceId || workspace === inputs.workspaceId;
@@ -243,12 +285,12 @@ export function classifyTickets(tickets: MilestoneTicket[], inputs: HoldInputs):
         const pr = found.prs.get(n);
         const { owners, mine } = ownersOf(n, found.branches.get(n), pr?.number ?? 0, inputs);
         const here = owners.find((o) => inThisWorkspace(o, inputs));
-        if (mine) {
+        if (mine || (owners.length === 0 && startedHere(n, found.branches.get(n), inputs))) {
             holds.set(n, { kind: "mine" });
         } else if (here != null) {
             holds.set(n, { kind: "agent", owner: here });
         } else if (owners.length > 0) {
-            holds.set(n, { kind: "away" });
+            holds.set(n, { kind: "away", owner: owners[0] });
         } else if (pr != null && statusInReview(ticket.status)) {
             holds.set(n, { kind: "review", pr: pr.number, url: pr.url, status: ticket.status });
         } else if (statusStarted(ticket.status)) {

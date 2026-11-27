@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { describe, expect, it } from "vitest";
+import type { BranchAgent, UpcomingAnswer } from "../reviews/reviews-upcoming-model";
 import {
+    agentState,
     AllLeads,
     EveryLead,
     Flore,
@@ -334,11 +336,12 @@ describe("an agent that stops holding", () => {
 });
 
 describe("agents of other workspaces and of other providers", () => {
-    it("takes a ticket an agent of another workspace holds without naming that agent", () => {
+    it("takes a ticket an agent of another workspace holds, and still knows who that agent is (#2572)", () => {
         const answer = upcomingOf([panelOn(Remy, "feature/7-x"), subagent(Remy, 8)]);
         const holds = classifyTickets(ticketsOf(7, 8, 9), inputs(Flore, [], { upcoming: answer }));
         expect(kinds(holds)).toBe("7:away 8:away 9:free");
-        expect(JSON.stringify([...holds.values()])).not.toContain("Rémy");
+        const away = holds.get(8);
+        expect(away.kind === "away" ? away.owner : null).toMatchObject({ name: "Rémy", tool: "Codex", subagent: true });
         const all = classifyTickets(NineTickets, inputs(Flore, [], { upcoming: answer }));
         const lists = taskLists(nineOpen(), new Map(), all);
         expect(lists.free.map((t) => t.number)).toEqual([1, 2, 3, 4, 5, 6, 9]);
@@ -434,5 +437,114 @@ describe("the lists and counts of a milestone", () => {
         expect(agentsRunKey(statesOf({ ...Flore, state: "waiting" }, Jerome))).toBe(a);
         expect(agentsRunKey(statesOf({ ...Flore, started: 5 }, Jerome))).not.toBe(a);
         expect(agentsRunKey(null)).toBe("");
+    });
+});
+
+// #2572: on 2026-11-27 ticket 1984, worked by a Kimi Code session in ../MoltenTerm-1984, showed under "Taken by others"
+// as "? An agent", a disabled tag: wavesrv knew only an unsigned background agent in that worktree (Kimi's work folder
+// stayed its start folder), and the owner built from it had no name, no tool and no panel.
+describe("a ticket's holder is always named and linked (#2572)", () => {
+    const branch = "fix/1984-sensitive-frame-click";
+    const sibling = "/MoltenTerm-1984";
+    const tickets = ticketsOf(1984).map((t) => ({ ...t, status: "AI Testing" }));
+    const background = (more: Partial<BranchAgent> = {}): BranchAgent => ({
+        branch,
+        worktree: sibling,
+        kind: "background",
+        activeat: 1,
+        ...more,
+    });
+    const worktreeBranch = [{ branch, ticket: 1984, ahead: 2, worktree: sibling }];
+    const Victor = agentState("victor", "kimi", "Kimi Code", "Victor");
+
+    it("names a Kimi Code panel placed in the worktree, and links to it, as a Claude Code one", () => {
+        const answer = upcomingOf([panelOn(Victor, branch, { worktree: sibling })], worktreeBranch);
+        const holds = classifyTickets(tickets, inputs(Flore, [], { upcoming: answer, states: statesOf(Flore, Victor) }));
+        expect(holds.get(1984)).toEqual({
+            kind: "agent",
+            owner: { blockId: "victor", name: "Victor", tool: "Kimi Code", subagent: false },
+        });
+    });
+
+    it("names a panel from the windows' states when its placement has no first name", () => {
+        const answer = upcomingOf([panelOn(Victor, branch, { worktree: sibling, firstname: "" })], worktreeBranch);
+        const noName = { ...Victor, firstname: "" };
+        const holds = classifyTickets(tickets, inputs(Flore, [], { upcoming: answer, states: statesOf(Flore, noName) }));
+        expect(holds.get(1984)).toEqual({
+            kind: "agent",
+            owner: { blockId: "victor", name: "Kimi Code", tool: "", subagent: false },
+        });
+    });
+
+    it("never makes an owner of an agent with no panel to go to: the ticket falls back to its status, PR or branch", () => {
+        const anon = upcomingOf([background()], worktreeBranch);
+        const st = statesOf(Flore, Victor);
+        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: anon, states: st })).get(1984)).toEqual({
+            kind: "status",
+            status: "AI Testing",
+        });
+        const backlog = ticketsOf(1984);
+        const withPr = inputs(Flore, [], { upcoming: anon, states: st, reviews: reviewsOf({ number: 77, branch }) });
+        expect(classifyTickets(backlog, withPr).get(1984)).toMatchObject({ kind: "pr", pr: 77 });
+        expect(classifyTickets(backlog, inputs(Flore, [], { upcoming: anon, states: st })).get(1984)).toEqual({
+            kind: "branch",
+            branch,
+        });
+        // A signed agent whose session no window knows, or a sub-agent whose lead closed, is no holder either.
+        const gone = upcomingOf(
+            [background({ signed: true, firstname: "Lina", agentname: "Kimi Code" }), subagent(Victor, 1984, "running", { branch })],
+            worktreeBranch
+        );
+        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: gone, states: statesOf(Flore) })).get(1984)?.kind).toBe(
+            "status"
+        );
+        for (const hold of classifyTickets(tickets, inputs(Flore, [], { upcoming: gone, states: statesOf(Flore) })).values()) {
+            expect(JSON.stringify(hold)).not.toContain('"name":""');
+        }
+    });
+
+    it("names a sub-agent, or a background agent whose lead is known, after its lead and links to the lead's panel", () => {
+        const st = statesOf(Flore, Victor);
+        const sub = upcomingOf([subagent(Victor, 1984, "running", { branch, worktree: sibling })], worktreeBranch);
+        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: sub, states: st })).get(1984)).toEqual({
+            kind: "agent",
+            owner: { blockId: "victor", name: "Victor", tool: "Kimi Code", subagent: true },
+        });
+        const led = upcomingOf([background({ parentblockid: "victor", parentfirstname: "Victor" })], worktreeBranch);
+        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: led, states: st })).get(1984)).toEqual({
+            kind: "agent",
+            owner: { blockId: "victor", name: "Victor", tool: "Kimi Code", subagent: true },
+        });
+    });
+
+    it("keeps the work this session started its own, never another's or nobody's", () => {
+        const st = statesOf(Flore, Victor);
+        // wavesrv names the anonymous background agent after the session that started the worktree's work.
+        const led = upcomingOf([background({ parentblockid: "flore", parentfirstname: "Flore" })], worktreeBranch);
+        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: led, states: st })).get(1984)).toEqual({ kind: "mine" });
+        // Nobody at work in it now: the starter's record keeps it this session's, not "in progress, nobody on it".
+        const quiet: UpcomingAnswer = {
+            ...upcomingOf([], worktreeBranch),
+            starters: [{ branch, worktree: sibling, blockid: "flore" }],
+        };
+        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: quiet, states: st })).get(1984)).toEqual({ kind: "mine" });
+        // In another session's companion, the same record says nothing: the ticket is idle there.
+        expect(classifyTickets(tickets, inputs(Victor, [], { upcoming: quiet, states: st })).get(1984)?.kind).toBe("status");
+        // Another session at work in it now holds it, named.
+        const busy: UpcomingAnswer = {
+            ...upcomingOf([panelOn(Victor, branch, { worktree: sibling })], worktreeBranch),
+            starters: quiet.starters,
+        };
+        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: busy, states: st })).get(1984)?.kind).toBe("agent");
+    });
+
+    it("names the agent of another workspace too", () => {
+        const away = { ...Victor, workspaceid: OtherWorkspace };
+        const answer = upcomingOf([panelOn(away, branch, { worktree: sibling })], worktreeBranch);
+        const holds = classifyTickets(tickets, inputs(Flore, [], { upcoming: answer, states: statesOf(Flore, away) }));
+        expect(holds.get(1984)).toEqual({
+            kind: "away",
+            owner: { blockId: "victor", name: "Victor", tool: "Kimi Code", subagent: false },
+        });
     });
 });
