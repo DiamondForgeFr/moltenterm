@@ -605,6 +605,7 @@ async function checkInput(client, tabId, opts) {
     await client.callTool("navigate", { tabId, url: `${site.url}/framesensitive` });
     const sensitiveFrame = await client.callTool("read_page", { tabId, filter: "interactive" });
     const sensitiveFrameRef = refOn(sensitiveFrame.text, 'frame "Payment"');
+    check(sensitiveFrameRef != null, "the sensitive frame has a ref", sensitiveFrame.text);
     const deniedFrame = await client.callTool("computer", { tabId, action: "left_click", ref: sensitiveFrameRef });
     check(deniedFrame.isError && deniedFrame.text === ActionDenied, "a sensitive frame click asks; Deny", deniedFrame.text);
     check(site.hits("/frame-clicked") === 0, "the denied frame click never reached the frame");
@@ -614,6 +615,7 @@ async function checkInput(client, tabId, opts) {
     await client.callTool("navigate", { tabId, url: `${site.url}/frameplain` });
     const plainFrame = await client.callTool("read_page", { tabId, filter: "interactive" });
     const plainFrameRef = refOn(plainFrame.text, 'frame "Video player"');
+    check(plainFrameRef != null, "the ordinary frame has a ref", plainFrame.text);
     const plainClick = await client.callTool("computer", { tabId, action: "left_click", ref: plainFrameRef });
     check(!plainClick.isError, "an ordinary frame click needs no prompt", oneLine(plainClick.text));
 
