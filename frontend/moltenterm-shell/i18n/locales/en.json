@@ -11587,6 +11587,7 @@
                 "sensitivefield": "type into a password or payment field",
                 "sensitivefill": "fill in a password or payment field",
                 "framefield": "type into a field inside a frame, which MoltenTerm cannot check",
+                "sensitiveframeclick": "click inside a payment or sign-in frame",
                 "sensitiveform": "submit a form with a password or payment field",
                 "filechooser": "open a file chooser",
                 "download": "start a download",

@@ -33,6 +33,7 @@ import {
     redirectLeavesHost,
     sanitizeEmulationParams,
     sanitizeInputParams,
+    sensitiveFrameSource,
     setFieldParams,
     SetFieldSource,
     slimAxTree,
@@ -434,6 +435,58 @@ describe("Molten.inspect and Molten.setField (FR-BRW-010)", () => {
         expect(() => new Function(`return (${SetFieldSource});`)).not.toThrow();
         expect(inspectPointScript(Number.NaN, 2)).toContain("elementFromPoint(NaN, 2)");
         expect(InspectElementSource).not.toMatch(/control\.value|target\.value|\.value\b(?!\s*=)/);
+    });
+
+    it("marks only payment and sign-in frame sources as sensitive", () => {
+        for (const [title, source] of [
+            ["Payment", ""],
+            ["", "https://login.example.com"],
+            ["", "https://example.com/sign-in"],
+            ["", "https://example.com/checkout"],
+            ["", "https://example.com/authentication"],
+        ]) {
+            expect(sensitiveFrameSource(title, source), `${title} ${source}`).toBe(true);
+        }
+        for (const [title, source] of [
+            ["Video player", ""],
+            ["Captcha", ""],
+            ["", "https://example.com/author"],
+            ["", "https://example.com/oauth"],
+        ]) {
+            expect(sensitiveFrameSource(title, source), `${title} ${source}`).toBe(false);
+        }
+    });
+
+    it("marks a frame as sensitive from its source or a sensitive main document", () => {
+        const inspect = new Function(`return (${InspectElementSource});`)();
+        const frame = (doc: any) => ({
+            nodeType: 1,
+            tagName: "IFRAME",
+            ownerDocument: doc,
+            getAttribute: () => "",
+            getBoundingClientRect: () => ({ x: 0, y: 0, width: 100, height: 100 }),
+        });
+        const documentWith = (password: boolean) => {
+            const field = {
+                nodeType: 1,
+                tagName: "INPUT",
+                getAttribute: (name: string) => (name === "type" ? "password" : ""),
+            };
+            return {
+                defaultView: { getComputedStyle: () => ({}) },
+                querySelectorAll: (selector: string) => {
+                    if (selector === "input[type=password]") {
+                        return password ? [field] : [];
+                    }
+                    if (selector === "input, textarea") {
+                        return password ? [field] : [];
+                    }
+                    return [];
+                },
+            };
+        };
+        expect(inspect(frame(documentWith(true)), false).framesensitive).toBe(true);
+        expect(inspect(frame(documentWith(false)), false).framesensitive).toBe(false);
     });
 
     it("names a download's host only", () => {

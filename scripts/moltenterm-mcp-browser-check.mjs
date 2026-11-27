@@ -40,7 +40,7 @@ const SiteBlocked = "The user blocked agents on this site";
 const SchemeRefused = "Only http and https pages can be opened";
 const PlantedPassword = "PLANTED-PASSWORD-301";
 const AllTools =
-  "tabs_context,tabs_create,tabs_close,navigate,read_page,get_page_text,find,computer,form_input,resize,browser_batch";
+  "tabs_context,tabs_create,tabs_show,tabs_close,navigate,read_page,get_page_text,find,computer,form_input,resize,browser_batch,list_agents,send_to_agent";
 const ActionDenied = "The user denied this action";
 const PlantedTyped = "PLANTED-TYPED-302";
 // A call may wait 2 minutes for the user's answer in the permission bar.
@@ -380,6 +380,19 @@ const FilesPage = `<!doctype html><html><head><title>Files</title></head><body><
 <label>Attach <input type="file" name="attachment"></label>
 <pre id="log"></pre></main>${LogScript}</body></html>`;
 
+const SensitiveFramePage = `<!doctype html><html><head><title>Sensitive frame</title></head><body><main>
+<h1>Payment frame (test page)</h1>
+<label>Password <input name="password" type="password" autocomplete="current-password"></label>
+<iframe title="Payment" src="/frame-content"></iframe>
+<pre id="log"></pre></main>${LogScript}</body></html>`;
+
+const PlainFramePage = `<!doctype html><html><head><title>Ordinary frame</title></head><body><main>
+<h1>Video frame (test page)</h1>
+<iframe title="Video player" src="/frame-content"></iframe>
+<pre id="log"></pre></main>${LogScript}</body></html>`;
+
+const FrameContent = `<!doctype html><html><body><button onclick="fetch('/frame-clicked')">Pay</button></body></html>`;
+
 async function startInputSite() {
   const hits = {};
   const site = await serve((req, res) => {
@@ -390,7 +403,15 @@ async function startInputSite() {
       res.end("a test report\n");
       return;
     }
-    const pages = { "/form": FormPage, "/signin": SignInPage, "/checkout": CheckoutPage, "/files": FilesPage };
+    const pages = {
+      "/form": FormPage,
+      "/signin": SignInPage,
+      "/checkout": CheckoutPage,
+      "/files": FilesPage,
+      "/framesensitive": SensitiveFramePage,
+      "/frameplain": PlainFramePage,
+      "/frame-content": FrameContent,
+    };
     let body = pages[path];
     if (path === "/welcome" || path === "/paid") {
       body = `<!doctype html><title>Done</title><main><h1>${path === "/welcome" ? "Signed in" : "Paid"}</h1></main>`;
@@ -580,6 +601,21 @@ async function checkInput(client, tabId, opts) {
     await client.callTool("computer", { tabId, action: "left_click", ref: cardRef });
     const card = await client.callTool("computer", { tabId, action: "type", text: "4242424242424242" });
     check(card.isError && card.text === ActionDenied, "typing into a card field asks; Deny", card.text);
+
+    await client.callTool("navigate", { tabId, url: `${site.url}/framesensitive` });
+    const sensitiveFrame = await client.callTool("read_page", { tabId, filter: "interactive" });
+    const sensitiveFrameRef = refOn(sensitiveFrame.text, 'frame "Payment"');
+    const deniedFrame = await client.callTool("computer", { tabId, action: "left_click", ref: sensitiveFrameRef });
+    check(deniedFrame.isError && deniedFrame.text === ActionDenied, "a sensitive frame click asks; Deny", deniedFrame.text);
+    check(site.hits("/frame-clicked") === 0, "the denied frame click never reached the frame");
+    const allowedFrame = await client.callTool("computer", { tabId, action: "left_click", ref: sensitiveFrameRef });
+    check(!allowedFrame.isError, "Allow clicks the sensitive frame", oneLine(allowedFrame.text));
+
+    await client.callTool("navigate", { tabId, url: `${site.url}/frameplain` });
+    const plainFrame = await client.callTool("read_page", { tabId, filter: "interactive" });
+    const plainFrameRef = refOn(plainFrame.text, 'frame "Video player"');
+    const plainClick = await client.callTool("computer", { tabId, action: "left_click", ref: plainFrameRef });
+    check(!plainClick.isError, "an ordinary frame click needs no prompt", oneLine(plainClick.text));
 
     await client.callTool("navigate", { tabId, url: `${site.url}/files` });
     const files = await client.callTool("read_page", { tabId, filter: "interactive" });
