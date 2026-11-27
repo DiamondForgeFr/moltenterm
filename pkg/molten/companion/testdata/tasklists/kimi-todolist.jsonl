@@ -1,0 +1,5 @@
+{"type":"metadata","protocol_version":"1.5","created_at":1795041015663,"min_protocol_version":"1.5"}
+{"type":"context.append_loop_event","time":1795041015669,"agentId":"main","event":{"type":"tool.call","turnId":"t1","step":1,"toolCallId":"todo-1","name":"TodoList","args":{"todos":[{"title":"Inspect the fixture","status":"in_progress"},{"title":"Run the checks","status":"pending"}]}}}
+{"type":"context.append_loop_event","time":1795041015670,"agentId":"main","event":{"type":"tool.result","turnId":"t1","step":1,"toolCallId":"todo-1","result":{"output":"updated","isError":false}}}
+{"type":"context.append_loop_event","time":1795041015671,"agentId":"main","event":{"type":"tool.call","turnId":"t1","step":1,"toolCallId":"todo-2","name":"TodoList","args":{"todos":[{"title":"Inspect the fixture","status":"done"},{"title":"Run the checks","status":"in_progress"}]}}}
+{"type":"context.append_loop_event","time":1795041015672,"agentId":"main","event":{"type":"tool.call","turnId":"t1","step":1,"toolCallId":"todo-3","name":"TodoList","args":{}}}

@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -391,6 +390,7 @@ func (a *ClaudeAdapter) parseUser(rec map[string]any, s *Session, at int64) {
 			s.SetSubagentId(id, str(result, "agentId"))
 			a.parseResume(result, s, at)
 			a.parseTaskStop(result, s)
+			claudeTaskResult(id, boolean(block, "is_error"), result, s)
 		case "text":
 			text := str(block, "text")
 			if a.parseNotifications(text, s) {
@@ -531,7 +531,7 @@ func (a *ClaudeAdapter) parseAssistant(rec map[string]any, s *Session, at int64)
 			if name == "Artifact" {
 				s.notePublishInput(str(block, "id"), claudePublishFiles(input))
 			}
-			a.parseTasks(name, input, s)
+			claudeTaskCall(str(block, "id"), name, input, s)
 			a.parseSubagent(str(block, "id"), name, input, s, at)
 		}
 	}
@@ -576,78 +576,14 @@ func (a *ClaudeAdapter) parseNotifications(text string, s *Session) bool {
 	return only
 }
 
-// parseTasks follows the task list: TodoWrite replaces it; TaskCreate and TaskUpdate change one task.
-func (a *ClaudeAdapter) parseTasks(tool string, input map[string]any, s *Session) {
-	switch tool {
-	case "TodoWrite":
-		var todos []Todo
-		for _, item := range arr(input, "todos") {
-			todo := asObj(item)
-			text := str(todo, "content")
-			if text == "" {
-				text = str(todo, "subject")
-			}
-			if text != "" {
-				todos = append(todos, Todo{Text: text, Status: str(todo, "status")})
-			}
-		}
-		s.SetTodos(todos)
-	case "TaskCreate":
-		text := str(input, "subject")
-		if text == "" {
-			text = str(input, "description")
-		}
-		if text != "" {
-			s.UpsertTodo(len(s.todos), text, str(input, "status"))
-		}
-	case "TaskUpdate":
-		index, ok := taskIndex(input["taskId"])
-		if ok {
-			s.UpsertTodo(index, str(input, "subject"), str(input, "status"))
-		}
-	}
-}
-
-// Task ids count from 1.
-func taskIndex(v any) (int, bool) {
-	switch id := v.(type) {
-	case float64:
-		return int(id) - 1, id >= 1
-	case string:
-		n, err := strconv.Atoi(strings.TrimPrefix(id, "#"))
-		return n - 1, err == nil && n >= 1
-	}
-	return 0, false
-}
-
-// Task reminders repeat the task list as Claude Code sees it.
+// Task reminders repeat the task list as Claude Code sees it (claudetasks.go).
 func (a *ClaudeAdapter) parseAttachment(att map[string]any, s *Session) {
 	switch str(att, "type") {
 	case "queued_command":
 		if prompt, ok := att["prompt"].(string); ok {
 			a.parseNotifications(prompt, s)
 		}
-		return
 	case "task_reminder", "todo_reminder":
-	default:
-		return
-	}
-	items := arr(att, "content")
-	if len(items) == 0 {
-		return
-	}
-	var todos []Todo
-	for _, item := range items {
-		todo := asObj(item)
-		text := str(todo, "subject")
-		if text == "" {
-			text = str(todo, "content")
-		}
-		if text != "" {
-			todos = append(todos, Todo{Text: text, Status: str(todo, "status")})
-		}
-	}
-	if len(todos) > 0 {
-		s.SetTodos(todos)
+		claudeReadTaskList(arr(att, "content"), s)
 	}
 }

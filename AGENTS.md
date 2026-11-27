@@ -121,6 +121,10 @@ How this project answers the generated "UI work" section below, for a ticket lab
 
 For any work of three steps or more, keep your native task list up to date (Claude Code's todo or task tools, Codex's plan, Kimi's todo list): one item per step, marked in progress and done as you go. The developer follows your progress in the agent companion's "Tasks" section, which shows only that list.
 
+- **No task tool in your list** (recent Claude Code versions give them only to some models, sub-agents often run without them): publish the same list with `molten agent plan` (`set`, `start <n>`, `done <n>`, `add`).
+- **A session that delegates** keeps one item per ticket or delegation in flight, and updates it as each agent reports (briefed, draft PR, Local CI green, handed back).
+- **After a context compaction or summary**, re-create the list at once, before anything else, re-loading the task tool first if it is deferred.
+
 ## Agent shell
 
 Shell habits that keep agent sessions from stopping on a permission prompt, on top of the generic rules in "File edits and shell calls" below.
