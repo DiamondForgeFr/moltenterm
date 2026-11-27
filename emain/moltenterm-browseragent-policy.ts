@@ -582,6 +582,12 @@ export function setFieldParams(params: any): SetFieldParams {
     return { backendNodeId: params.backendnodeid, value };
 }
 
+const SensitiveFrameSource = /\b(payment|checkout|billing|sign[-_]?in|log[-_]?in|auth(?:entication)?)\b/i;
+
+export function sensitiveFrameSource(title: string, source: string): boolean {
+    return SensitiveFrameSource.test(`${title ?? ""} ${source ?? ""}`);
+}
+
 // The fixed function Molten.inspect runs on an element in MoltenTerm's isolated world: the page's scripts cannot
 // change what it reads. It says what the element is for the sensitive-action rules (DS-BRW-016) and the bar's line,
 // never a field's value. Must match targetInfo in pkg/molten/browseragent/sensitive.go. With lean set (a key that
@@ -592,6 +598,7 @@ export const InspectElementSource = `(el, lean) => {
     const SensitiveAutocomplete = /(^|\\s)(cc-[a-z-]+|current-password|new-password|one-time-code)(\\s|$)/i;
     const CardName = /(card.?num|cc.?num|cc-?number|credit.?card|cvc|cvv|csc|card.?code|security.?code|card.?verif)/i;
     const SecretName = /(^|[^a-z])(pass(word|wd|code|phrase)?|pwd|otp|pin(code)?)([^a-z]|$)/i;
+    const SensitiveFrameSource = /\b(payment|checkout|billing|sign[-_]?in|log[-_]?in|auth(?:entication)?)\b/i;
     const TextTypes = new Set(["", "text", "search", "email", "url", "tel", "number", "password", "date", "datetime-local", "month", "time", "week"]);
     if (el == null || el.nodeType !== 1) {
         return { found: false, kind: "element" };
@@ -633,7 +640,11 @@ export const InspectElementSource = `(el, lean) => {
     const tag = tagOf(el);
     if (tag === "iframe" || tag === "frame" || tag === "object" || tag === "embed") {
         const r = el.getBoundingClientRect();
-        return { found: true, kind: "frame", frame: true, label: el.getAttribute("title") || "", rect: { x: r.x, y: r.y, width: r.width, height: r.height } };
+        const title = el.getAttribute("title") || "";
+        const source = el.getAttribute("src") || el.getAttribute("data") || "";
+        const sensitiveDocument = Array.from(doc.querySelectorAll("input, textarea")).some(sensitive);
+        const sensitiveFrame = SensitiveFrameSource.test(title + " " + source);
+        return { found: true, kind: "frame", frame: true, framesensitive: sensitiveDocument || sensitiveFrame, label: title, rect: { x: r.x, y: r.y, width: r.width, height: r.height } };
     }
     const target = el.closest("a[href], button, input, select, textarea, label, [role=button], [role=link], [contenteditable=''], [contenteditable=true]") || el;
     const t = tagOf(target);

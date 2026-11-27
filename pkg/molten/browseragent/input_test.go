@@ -397,6 +397,7 @@ func TestSensitiveClassifier(t *testing.T) {
 	searchButton := targetInfo{Found: true, Kind: "button", SubmitControl: true}
 	file := targetInfo{Found: true, Kind: "file", FileInput: true}
 	frame := targetInfo{Found: true, Kind: "frame", Frame: true}
+	sensitiveFrame := targetInfo{Found: true, Kind: "frame", Frame: true, FrameSensitive: true}
 	cases := []struct {
 		name string
 		got  string
@@ -411,6 +412,8 @@ func TestSensitiveClassifier(t *testing.T) {
 		{"right-click a sensitive submit", clickReason(submit, "right"), ""},
 		{"click a file input", clickReason(file, "left"), reasonFileChooser},
 		{"click inside a frame", clickReason(frame, "left"), ""},
+		{"click inside a sensitive frame", clickReason(sensitiveFrame, "left"), reasonSensitiveFrame},
+		{"right-click inside a sensitive frame", clickReason(sensitiveFrame, "right"), ""},
 		{"a letter into a password", keyReason(password, letter), reasonSensitiveField},
 		{"Enter in a sensitive form's field", keyReason(email, enter), reasonSensitiveForm},
 		{"Enter in a plain field", keyReason(plain, enter), ""},
@@ -428,7 +431,7 @@ func TestSensitiveClassifier(t *testing.T) {
 	if keyNeedsInspection(tab) || !keyNeedsInspection(enter) || !keyNeedsInspection(letter) {
 		t.Fatalf("only chords that can type or submit are inspected")
 	}
-	for _, reason := range []string{reasonSensitiveField, reasonSensitiveFill, reasonFrameField, reasonSensitiveForm, reasonFileChooser, reasonDownload} {
+	for _, reason := range []string{reasonSensitiveField, reasonSensitiveFill, reasonFrameField, reasonSensitiveForm, reasonSensitiveFrame, reasonFileChooser, reasonDownload} {
 		if actionPromptText(reason) == actionPromptText("other") {
 			t.Fatalf("%s has its own words", reason)
 		}
@@ -548,6 +551,30 @@ func TestTypingIntoAFrameAsks(t *testing.T) {
 	}
 	w.answer(t, w.actionPrompt(t), DecisionDeny)
 	expectError(t, waitResult(t, pending), mcpbrowser.ErrActionDenied)
+}
+
+func TestClickingASensitiveFrameAsks(t *testing.T) {
+	w, ip := makeInputWorld(t)
+	w.navigateAllowed(t, "https://shop.example/checkout")
+	ip.set(func(ip *inputPage) {
+		ip.atPoint = targetInfo{Found: true, Kind: "frame", Frame: true, FrameSensitive: true}
+	})
+	pending := w.callAsync(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[100,200]`))
+	if p := w.actionPrompt(t); p.Action != actionPromptText(reasonSensitiveFrame) || p.Site != "shop.example" {
+		t.Fatalf("prompt %+v", p)
+	}
+	w.answer(t, w.actionPrompt(t), DecisionDeny)
+	expectError(t, waitResult(t, pending), mcpbrowser.ErrActionDenied)
+	if n := ip.count("Input.dispatchMouseEvent"); n != 0 {
+		t.Fatalf("a denied frame click reached the page: %d", n)
+	}
+
+	ip.set(func(ip *inputPage) {
+		ip.atPoint = targetInfo{Found: true, Kind: "frame", Frame: true}
+	})
+	if r := w.call(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[100,200]`)); r.IsError {
+		t.Fatalf("an ordinary frame click needs no prompt: %s", text(r))
+	}
 }
 
 func TestActionAnswersComeFromAWindowAndFitTheRequest(t *testing.T) {

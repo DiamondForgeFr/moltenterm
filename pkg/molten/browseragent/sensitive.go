@@ -21,6 +21,7 @@ const (
 	reasonSensitiveFill  = "sensitive-fill"
 	reasonFrameField     = "frame-field"
 	reasonSensitiveForm  = "sensitive-submit"
+	reasonSensitiveFrame = "sensitive-frame-click"
 	reasonFileChooser    = "file-chooser"
 	reasonDownload       = "download"
 
@@ -44,9 +45,11 @@ type targetInfo struct {
 	// FileInput: a file input or the label of one, which opens the OS file chooser.
 	FileInput bool `json:"fileinput"`
 	// Frame: the element is a frame, whose content MoltenTerm cannot inspect.
-	Frame bool       `json:"frame"`
-	Link  bool       `json:"link"`
-	Rect  *rectValue `json:"rect"`
+	Frame bool `json:"frame"`
+	// FrameSensitive: the main document has a sensitive field or the frame is a payment or sign-in surface.
+	FrameSensitive bool       `json:"framesensitive"`
+	Link           bool       `json:"link"`
+	Rect           *rectValue `json:"rect"`
 }
 
 type rectValue struct {
@@ -70,6 +73,8 @@ func actionPromptText(reason string) string {
 		return "type into a field inside a frame, which MoltenTerm cannot check"
 	case reasonSensitiveForm:
 		return "submit a form with a password or payment field"
+	case reasonSensitiveFrame:
+		return "click inside a payment or sign-in frame"
 	case reasonFileChooser:
 		return "open a file chooser"
 	case reasonDownload:
@@ -89,6 +94,8 @@ func actionPromptCode(reason string) *uimsg.Text {
 		return uimsg.Make("browser.prompt.framefield")
 	case reasonSensitiveForm:
 		return uimsg.Make("browser.prompt.sensitiveform")
+	case reasonSensitiveFrame:
+		return uimsg.Make("browser.prompt.sensitiveframeclick")
 	case reasonFileChooser:
 		return uimsg.Make("browser.prompt.filechooser")
 	case reasonDownload:
@@ -105,6 +112,9 @@ func clickReason(t targetInfo, button string) string {
 	}
 	if t.FileInput {
 		return reasonFileChooser
+	}
+	if t.Frame && t.FrameSensitive {
+		return reasonSensitiveFrame
 	}
 	if t.SubmitControl && t.FormSensitive {
 		return reasonSensitiveForm
@@ -170,6 +180,8 @@ func withTargetAt(ref targetInfo, at targetInfo) targetInfo {
 	}
 	ref.FileInput = ref.FileInput || at.FileInput
 	ref.Link = ref.Link || at.Link
+	ref.Frame = ref.Frame || at.Frame
+	ref.FrameSensitive = ref.FrameSensitive || at.FrameSensitive
 	if at.SubmitControl && at.FormSensitive {
 		ref.SubmitControl, ref.FormSensitive = true, true
 	}

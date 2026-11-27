@@ -68,7 +68,7 @@ func TestShareErrorsAreCoded(t *testing.T) {
 }
 
 func TestActionPromptCode(t *testing.T) {
-	for _, reason := range []string{reasonSensitiveField, reasonSensitiveFill, reasonFrameField, reasonSensitiveForm, reasonFileChooser, reasonDownload, "other"} {
+	for _, reason := range []string{reasonSensitiveField, reasonSensitiveFill, reasonFrameField, reasonSensitiveForm, reasonSensitiveFrame, reasonFileChooser, reasonDownload, "other"} {
 		if text := actionPromptCode(reason); text == nil || text.Code == "" {
 			t.Errorf("%q has no code", reason)
 		}

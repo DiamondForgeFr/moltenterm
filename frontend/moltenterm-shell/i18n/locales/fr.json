@@ -11587,6 +11587,7 @@
                 "sensitivefield": "saisir dans un champ de mot de passe ou de paiement",
                 "sensitivefill": "remplir un champ de mot de passe ou de paiement",
                 "framefield": "saisir dans un champ à l'intérieur d'un cadre, que MoltenTerm ne peut pas vérifier",
+                "sensitiveframeclick": "cliquer dans un cadre de paiement ou de connexion",
                 "sensitiveform": "envoyer un formulaire avec un champ de mot de passe ou de paiement",
                 "filechooser": "ouvrir un sélecteur de fichiers",
                 "download": "lancer un téléchargement",
