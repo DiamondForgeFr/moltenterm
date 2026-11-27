@@ -87,6 +87,19 @@ describe("what the visit says of the event that brought him (FR-BOSS-009, AC29, 
         expect(visitLineOf(visit("agent:a"), [waiting], T, picking(0))).toMatchObject({ vars: { minutes: 1 } });
     });
 
+    // #2577: the scene renders again every minute while a visit is up; the minutes are a variable of the sentence, never
+    // part of what it asks for, so a visit that lasts draws (and saves) its words once.
+    it("asks for one sentence however many minutes the visit stays up", () => {
+        const waiting = row("agent:a", "waiting", { name: "Léa", since: T - 2 * Min });
+        const pick = picking(0);
+        for (let minute = 0; minute < 30; minute++) {
+            visitLineOf(visit("agent:a", "ci:/work/app:12"), [waiting], T + minute * Min, pick);
+        }
+        expect(new Set(pick.asked.map(([reason, signature]) => `${reason}#${signature}`))).toEqual(
+            new Set(["waitedFor#waitedFor|agent:a"])
+        );
+    });
+
     it("says that an agent waits, without a duration, when it does not know since when", () => {
         const waiting = row("agent:a", "waiting", { name: "Léa", since: 0 });
         expect(visitLineOf(visit("agent:a"), [waiting], T, picking(1))).toEqual({

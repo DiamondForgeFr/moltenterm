@@ -114,6 +114,41 @@ func TestAnEmptyErrorMentionIsNoProblem(t *testing.T) {
 	}
 }
 
+// #2577: the words that make a line a problem match as words; inside an identifier (a data key such as Brokk's visit
+// reason "ciFailed") they are data. An error type's name ("TypeError") still is an error.
+func TestAWordInsideAnIdentifierIsNoProblem(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		`[wavesrv] SetMetaCommand: client:2b1e0b9c-5a2f-4e44-9d1c-0b6f2a8c9e11 | map[moltenterm:brokkvisitwords:{"waitedFor":[2,0,3],"ciFailed":[3,2,1],"download":[1,3]}]`: "",
+		"[wavesrv] options {onErrorRetry:true}":         "",
+		"[wavesrv] state {noFailure:1, lastFailures:0}": "",
+		"[wavesrv] flags isFatal=false":                 "",
+		"[wavesrv] handlers onException, unfailedJobs":  "",
+		"[wavesrv] config warningsShown=3, prewarmed":   "",
+		"[wavesrv] sync failed: timeout":                KindError,
+		"error: disk full":                              KindError,
+		"ERROR disk full":                               KindError,
+		"Failed to open the store":                      KindError,
+		"[wavesrv] FAILED: open the store":              KindError,
+		"fatal: not a git repository":                   KindError,
+		"exception in the render loop":                  KindError,
+		"[wavesrv] 2 errors while saving":               KindError,
+		"[wavesrv] job errored after 3 tries":           KindError,
+		"[wavesrv] two failures in a row":               KindError,
+		"[wavesrv] sync_failed: timeout":                KindError,
+		"ReferenceError: x is not defined":              KindError,
+		"java.lang.NullPointerException at Foo.bar":     KindError,
+		"[wavesrv] got *fs.PathError from the store":    KindError,
+		"[wavesrv] warning: slow query":                 KindWarning,
+		"[wavesrv] ciFailed visit, warn: slow query":    KindWarning,
+	}
+	for text, want := range cases {
+		if got := classify(text); got != want {
+			t.Errorf("classify(%q) = %q, want %q", text, got, want)
+		}
+	}
+}
+
 // A recovered panic is one record with its stack; its top frames skip the runtime's, the panic handler's and panic()
 // itself, and the ordinary line after it is not part of it.
 func TestAPanicIsGroupedWithItsStack(t *testing.T) {
