@@ -15,10 +15,18 @@ import (
 // ends. That end comes through no hook: Claude Code writes a task notification naming the id to the session's
 // transcript, `<task-notification>\n<task-id>bz4ehrk6q</task-id>...<status>completed</status>...`, whatever the
 // command's status (completed, failed, killed). Codex's commands never resume a session: it has no such report.
+//
+// A command the agent stops with its TaskStop tool writes no task notification (#2582, Claude Code 2.1.332): its end is
+// only the tool's result, `{"message":"Successfully stopped task: bz4ehrk6q (sleep 600)","task_id":"bz4ehrk6q",
+// "task_type":"local_bash","command":"sleep 600"}`, in the result line's toolUseResult and, JSON-quoted, in its
+// tool_result. A stop that failed, or that the machine running the command did not confirm, words it otherwise.
 
 const (
 	taskIdOpen  = "<task-id>"
 	taskIdClose = "</task-id>"
+	// taskStoppedPrefix + id + taskStoppedSuffix: what a TaskStop that stopped the command answers.
+	taskStoppedPrefix = "Successfully stopped task: "
+	taskStoppedSuffix = " ("
 	// BackgroundTaskIdMaxLength: longer ids are not Claude Code's (nine characters today).
 	BackgroundTaskIdMaxLength = 128
 	// TaskNotificationScanChunk: how much of a transcript TaskNotificationEnds reads at once.
@@ -52,17 +60,19 @@ func readToolField(input *HookInput, key string, raw json.RawMessage) {
 }
 
 // TaskNotificationEnds reads a transcript (from where the commands started) and returns the ids among ids that a task
-// notification names: those commands ended. It reads in chunks that overlap by the longest marker, so a marker cut
-// between two reads is still found; a read error ends the scan with what was found.
+// notification, or a TaskStop that stopped them, names: those commands ended. It reads in chunks that overlap by the
+// longest marker, so a marker cut between two reads is still found; a read error ends the scan with what was found.
 func TaskNotificationEnds(r io.Reader, ids []string) []string {
 	if len(ids) == 0 {
 		return nil
 	}
-	markers := make([][]byte, len(ids))
+	markers := make([][2][]byte, len(ids))
 	overlap := 0
 	for i, id := range ids {
-		markers[i] = []byte(taskIdOpen + id + taskIdClose)
-		overlap = max(overlap, len(markers[i])-1)
+		markers[i] = [2][]byte{[]byte(taskIdOpen + id + taskIdClose), []byte(taskStoppedPrefix + id + taskStoppedSuffix)}
+		for _, m := range markers[i] {
+			overlap = max(overlap, len(m)-1)
+		}
 	}
 	found := make([]bool, len(ids))
 	var ended []string
@@ -72,7 +82,7 @@ func TaskNotificationEnds(r io.Reader, ids []string) []string {
 		n, err := io.ReadFull(r, buf[kept:])
 		data := buf[:kept+n]
 		for i, m := range markers {
-			if !found[i] && bytes.Contains(data, m) {
+			if !found[i] && (bytes.Contains(data, m[0]) || bytes.Contains(data, m[1])) {
 				found[i] = true
 				ended = append(ended, ids[i])
 			}

@@ -163,6 +163,58 @@ func TestBackgroundCommandEndGivesTheTurnBack(t *testing.T) {
 	}
 }
 
+// #2582: what Claude Code 2.1.332 writes when the agent stops a background command with its TaskStop tool: the call
+// and its result, and no task notification.
+func bgTaskStopRecords(id string, command string) string {
+	return fmt.Sprintf(`{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_stop","name":"TaskStop","input":{"task_id":%q}}]},"sessionId":"s"}`, id) + "\n" +
+		fmt.Sprintf(`{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_stop","type":"tool_result","content":"{\"message\":\"Successfully stopped task: %s (%s)\",\"task_id\":\"%s\",\"task_type\":\"local_bash\",\"command\":\"%s\"}"}]},"toolUseResult":{"message":"Successfully stopped task: %s (%s)","task_id":"%s","task_type":"local_bash","command":"%s"},"sessionId":"s"}`, id, command, id, command, id, command, id, command) + "\n"
+}
+
+func bgHookTaskStop(transcript string, id string, command string) string {
+	return fmt.Sprintf(`{"session_id":"s","transcript_path":%q,"hook_event_name":"PostToolUse","tool_name":"TaskStop","tool_input":{"task_id":%q},"tool_response":{"message":"Successfully stopped task: %s (%s)","task_id":%q,"task_type":"local_bash","command":%q}}`, transcript, id, id, command, id, command)
+}
+
+// A command the agent stops with TaskStop ends at the turn end that follows: the pane drops "In the background", and
+// the main session's state (`molten agent list`) and the pane's (`molten session list`, the rail) agree again.
+func TestBackgroundCommandStoppedWithTaskStop(t *testing.T) {
+	t.Parallel()
+	h := makeAgentHarness()
+	tr := makeTranscript(t)
+	h.hookNotify(t, "b1", hookMainPrompt, bgHookTool(tr, "bz4ehrk6q", "Poll the CI"), bgHookStop(tr))
+	wantBackground(t, h, "b1", "agentState.backgroundCommandNamed")
+
+	// The developer asks the agent to stop it; no task notification follows the stop.
+	h.hookNotify(t, "b1", hookMainPrompt)
+	appendTranscript(t, tr, bgTaskStopRecords("bz4ehrk6q", "sleep 600"))
+	h.hookNotify(t, "b1", bgHookTaskStop(tr, "bz4ehrk6q", "sleep 600"), bgHookStop(tr))
+	wantNoSubagents(t, h, "b1", molten.AgentStateDone)
+	if run, _ := h.states.runOf("b1"); run.State != h.info("b1").State {
+		t.Fatalf("the agent list and the session list agree: %+v vs %+v", run, h.info("b1"))
+	}
+
+	// Started and stopped within one turn: nothing is left in the background either.
+	h2 := makeAgentHarness()
+	tr2 := makeTranscript(t)
+	h2.hookNotify(t, "b2", hookMainPrompt, bgHookTool(tr2, "b2stopped", "Watch the logs"))
+	appendTranscript(t, tr2, bgTaskStopRecords("b2stopped", "tail -f app.log"))
+	h2.hookNotify(t, "b2", bgHookTaskStop(tr2, "b2stopped", "tail -f app.log"), bgHookStop(tr2))
+	wantNoSubagents(t, h2, "b2", molten.AgentStateDone)
+	if len(h2.notices) != 1 {
+		t.Fatalf("the turn's end calls the developer: %v", h2.notices)
+	}
+
+	// A stop of another command leaves this one running.
+	h3 := makeAgentHarness()
+	tr3 := makeTranscript(t)
+	h3.hookNotify(t, "b3", hookMainPrompt, bgHookTool(tr3, "b3running", "Run the suite"), bgHookTool(tr3, "b3other00", "Watch"))
+	appendTranscript(t, tr3, bgTaskStopRecords("b3other00", "tail -f app.log"))
+	h3.hookNotify(t, "b3", bgHookStop(tr3))
+	info := wantBackground(t, h3, "b3", "agentState.backgroundCommandNamed")
+	if info.MessageText.Vars["description"] != "Run the suite" {
+		t.Fatalf("the command still running: %+v", info.MessageText)
+	}
+}
+
 // A turn that ends with nothing in the background still waits for the developer.
 func TestNoBackgroundCommandNoChange(t *testing.T) {
 	t.Parallel()
