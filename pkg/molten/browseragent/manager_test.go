@@ -21,20 +21,21 @@ import (
 // fakeEnv is a small MoltenTerm: terminals and browser panels in tabs of workspaces, tokens naming terminals, and
 // what emain and the panels were told.
 type fakeEnv struct {
-	lock       sync.Mutex
-	tokens     map[string]string
-	blocks     map[string]BlockLocation
-	panels     map[string]*Panel
-	agentNames map[string]string
-	control    map[TabKey]bool
-	published  []PanelState
-	cdpCalls   []string
-	closed     []TabKey
-	cdpBlock   chan struct{}
-	cdpStarted chan struct{}
-	nextPanel  int
-	sites      map[string]string
-	siteWrites []string
+	lock          sync.Mutex
+	tokens        map[string]string
+	blocks        map[string]BlockLocation
+	panels        map[string]*Panel
+	agentNames    map[string]string
+	control       map[TabKey]bool
+	published     []PanelState
+	cdpCalls      []string
+	closed        []TabKey
+	cdpBlock      chan struct{}
+	cdpStarted    chan struct{}
+	nextPanel     int
+	sites         map[string]string
+	frameConsents map[string]string
+	siteWrites    []string
 	// cdpFn plays the page for the reading tools; without it only Page.getNavigationHistory answers.
 	cdpFn func(key TabKey, method string, params any) (json.RawMessage, error)
 	// typed: the lines typed into terminals ("block: line"); typeRefusal makes TypeLine refuse with it.
@@ -50,16 +51,17 @@ type fakeEnv struct {
 
 func makeFakeEnv() *fakeEnv {
 	return &fakeEnv{
-		tokens:     map[string]string{"tok-a": "term-a", "tok-b": "term-b", "tok-c": "term-c", "tok-web": "web-1", "tok-r": "term-r"},
-		blocks:     map[string]BlockLocation{},
-		panels:     map[string]*Panel{},
-		agentNames: map[string]string{},
-		control:    map[TabKey]bool{},
-		sites:      map[string]string{},
-		tabNames:   map[string]string{},
-		shownTabs:  map[string]string{},
-		recent:     map[string]int{},
-		active:     map[string]string{},
+		tokens:        map[string]string{"tok-a": "term-a", "tok-b": "term-b", "tok-c": "term-c", "tok-web": "web-1", "tok-r": "term-r"},
+		blocks:        map[string]BlockLocation{},
+		panels:        map[string]*Panel{},
+		agentNames:    map[string]string{},
+		control:       map[TabKey]bool{},
+		sites:         map[string]string{},
+		frameConsents: map[string]string{},
+		tabNames:      map[string]string{},
+		shownTabs:     map[string]string{},
+		recent:        map[string]int{},
+		active:        map[string]string{},
 	}
 }
 
@@ -119,6 +121,27 @@ func (e *fakeEnv) SetAgentSite(site string, decision string) error {
 		return nil
 	}
 	e.sites[site] = decision
+	return nil
+}
+
+func (e *fakeEnv) AgentFrameConsents() map[string]string {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	rtn := make(map[string]string, len(e.frameConsents))
+	for k, v := range e.frameConsents {
+		rtn[k] = v
+	}
+	return rtn
+}
+
+func (e *fakeEnv) SetAgentFrameConsent(frameKey string, allow bool) error {
+	e.lock.Lock()
+	defer e.lock.Unlock()
+	if allow {
+		e.frameConsents[frameKey] = SiteAllow
+	} else {
+		delete(e.frameConsents, frameKey)
+	}
 	return nil
 }
 

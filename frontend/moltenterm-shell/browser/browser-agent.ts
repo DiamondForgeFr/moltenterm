@@ -57,6 +57,7 @@ export const ShownNoteMs = 6000;
 export type AgentPermission = {
     requestid: string;
     site: string;
+    framekey?: string;
     kind?: string;
     action?: string;
     actiontext?: ServerText;
@@ -254,7 +255,8 @@ export function viewportText(viewport: AgentViewport): string {
 
 // The permission bar of a tab whose agent waits for the user's decision, or null. For a site (DS-BRW-013), Allow once
 // is first so it is the first tab stop, and Always for this site is the primary action. For a sensitive action
-// (DS-BRW-016), Deny is the first tab stop and Allow, for this one action, the primary.
+// (DS-BRW-016), Deny is the first tab stop and Allow, for this one action, the primary; a sensitive frame also offers
+// Always for this frame, which persists only for that frame.
 export function permissionBarView(tab: AgentTab): PermissionBarView {
     if (tab?.permission?.requestid == null || tab.state !== AgentStateActive) {
         return null;
@@ -276,6 +278,9 @@ export function permissionBarView(tab: AgentTab): PermissionBarView {
             buttons: [
                 { label: t("browser.permission.deny"), decision: "deny", primary: false },
                 { label: t("browser.permission.allow"), decision: "allow", primary: true },
+                ...(tab.permission.framekey
+                    ? [{ label: t("browser.permission.alwaysFrame"), decision: "always" as const, primary: false }]
+                    : []),
             ],
         };
     }

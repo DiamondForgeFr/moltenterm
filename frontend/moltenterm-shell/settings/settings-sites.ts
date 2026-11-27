@@ -14,8 +14,9 @@ export const SitePermissionsListKey = "browser:sitepermissions";
 
 // must match ClientCertificatesKey in browser/client-certificate.ts
 export const ClientCertificatesListKey = "browser:clientcertificates";
+export const AgentFrameConsentsKey = "browser:agentframeconsents";
 
-export const SiteListKeys = [SiteEnginesKey, AgentSitesKey, SitePermissionsListKey, ClientCertificatesListKey];
+export const SiteListKeys = [SiteEnginesKey, AgentSitesKey, SitePermissionsListKey, ClientCertificatesListKey, AgentFrameConsentsKey];
 
 export const SiteDecisions = [DecisionAllow, DecisionBlock];
 

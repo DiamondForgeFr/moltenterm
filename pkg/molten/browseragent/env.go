@@ -188,7 +188,7 @@ type StateRequest struct {
 }
 
 // AnswerRequest is the user's answer in the permission bar: once, always, block or dismiss (Escape) for a site; allow,
-// deny or dismiss for a sensitive action.
+// deny, always for a sensitive frame, or dismiss for a sensitive action.
 type AnswerRequest struct {
 	BlockId      string `json:"blockid"`
 	BrowserTabId string `json:"browsertabid"`
@@ -244,6 +244,10 @@ type Env interface {
 	AgentSites() map[string]string
 	// SetAgentSite stores a site decision in the user's settings; an empty decision removes it.
 	SetAgentSite(site string, decision string) error
+	// AgentFrameConsents is browser:agentframeconsents, the persistent consent to click a specific sensitive frame.
+	AgentFrameConsents() map[string]string
+	// SetAgentFrameConsent stores or revokes a frame's persistent click consent.
+	SetAgentFrameConsent(frameKey string, allow bool) error
 	// TypeLine types a line into the prompt of the agent in a terminal, without Enter, with the guarded agent input's
 	// checks (pkg/molten/termupdate); it says whether it typed and why not.
 	TypeLine(ctx context.Context, blockId string, line string) TypeLineResult

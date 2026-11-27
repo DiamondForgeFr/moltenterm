@@ -16,6 +16,7 @@ import { DecisionAllow, DecisionBlock, SitePermissionStore } from "../browser/si
 import { writeSettings } from "../command-panel/bindings";
 import { useT } from "../i18n/i18n";
 import {
+    AgentFrameConsentsKey,
     AgentSitesKey,
     ClientCertificatesListKey,
     SiteDecisions,
@@ -289,6 +290,7 @@ export function SiteList(props: ListProps) {
             return <CertificateSites {...props} />;
         case SiteEnginesKey:
             return <EngineSites {...props} />;
+        case AgentFrameConsentsKey:
         case AgentSitesKey:
             return <AgentSites {...props} />;
         case SitePermissionsListKey:

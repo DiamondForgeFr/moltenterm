@@ -577,6 +577,43 @@ func TestClickingASensitiveFrameAsks(t *testing.T) {
 	}
 }
 
+func TestAlwaysFrameConsentIsScopedAndRevocable(t *testing.T) {
+	w, ip := makeInputWorld(t)
+	w.navigateAllowed(t, "https://shop.example/checkout")
+	source := "https://pay.example/embed?token=SECRET#fragment"
+	ip.set(func(ip *inputPage) {
+		ip.atPoint = targetInfo{Found: true, Kind: "frame", Label: "Payment", Frame: true, FrameSensitive: true, FrameSource: source}
+	})
+	pending := w.callAsync(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[100,200]`))
+	w.answer(t, w.actionPrompt(t), DecisionAlways)
+	if r := waitResult(t, pending); r.IsError {
+		t.Fatalf("always allow: %s", text(r))
+	}
+	key := frameConsentKey("shop.example", "Payment", source)
+	if key != "shop.example|https://pay.example/embed" {
+		t.Fatalf("the consent key drops query and fragment: %q", key)
+	}
+	if got := w.env.AgentFrameConsents()[key]; got != SiteAllow {
+		t.Fatalf("Always is stored for this frame only: %v", got)
+	}
+	if r := w.call(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[100,200]`)); r.IsError {
+		t.Fatalf("the stored frame consent needs no new prompt: %s", text(r))
+	}
+
+	w.env.SetAgentFrameConsent(key, false)
+	pending = w.callAsync(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[100,200]`))
+	w.answer(t, w.actionPrompt(t), DecisionDeny)
+	expectError(t, waitResult(t, pending), mcpbrowser.ErrActionDenied)
+
+	w.navigateAllowed(t, "https://shop.example/login")
+	ip.set(func(ip *inputPage) {
+		ip.focused = targetInfo{Found: true, Kind: "textbox", Sensitive: true, Editable: true}
+	})
+	pending = w.callAsync(mcpbrowser.ToolComputer, w.args(`"action":"type","text":"x"`))
+	w.answer(t, w.actionPrompt(t), DecisionDeny)
+	expectError(t, waitResult(t, pending), mcpbrowser.ErrActionDenied)
+}
+
 func TestActionAnswersComeFromAWindowAndFitTheRequest(t *testing.T) {
 	w, ip := makeInputWorld(t)
 	w.navigateAllowed(t, "https://example.com/login")
@@ -605,11 +642,11 @@ func TestACancelledOrStoppedCallAsksNothing(t *testing.T) {
 	s, _ := w.m.sessionFor(w.sid, "proc:a")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := w.m.askAction(ctx, s, w.tab, w.key, "example.com", reasonSensitiveField); !errors.Is(err, context.Canceled) {
+	if err := w.m.askAction(ctx, s, w.tab, w.key, "example.com", reasonSensitiveField, ""); !errors.Is(err, context.Canceled) {
 		t.Fatalf("a cancelled call: %v", err)
 	}
 	w.m.Control(wshutil.ElectronRoute, ControlRequest{BlockId: w.key.PanelId, BrowserTabId: w.key.BrowserTabId, Action: ControlStop})
-	err := w.m.askAction(context.Background(), s, w.tab, w.key, "example.com", reasonSensitiveField)
+	err := w.m.askAction(context.Background(), s, w.tab, w.key, "example.com", reasonSensitiveField, "")
 	if text, _ := refusalText(err); text != mcpbrowser.ErrStopped {
 		t.Fatalf("a stopped tab: %v", err)
 	}

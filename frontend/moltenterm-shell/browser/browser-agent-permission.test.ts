@@ -170,6 +170,14 @@ describe("sensitive action bar (DS-BRW-016)", () => {
         expect(permissionBarView(asking()).escape).toBe("dismiss");
     });
 
+    it("offers Always for this frame only when the request identifies one", () => {
+        expect(permissionBarView(confirming()).buttons.map((b) => b.label)).toEqual(["Deny", "Allow"]);
+        const view = permissionBarView(confirming({ permission: { ...confirming().permission, framekey: "shop.example|payment" } }));
+        expect(view.buttons.map((b) => b.label)).toEqual(["Deny", "Allow", "Always for this frame"]);
+        expect(view.buttons.map((b) => b.decision)).toEqual(["deny", "allow", "always"]);
+        expect(view.buttons.filter((b) => b.primary).map((b) => b.decision)).toEqual(["allow"]);
+    });
+
     it("words a download without a host, and shows nothing for an empty request", () => {
         const download = permissionBarView(
             confirming({ permission: { requestid: "r", site: "", kind: "action", action: "start a download" } })
