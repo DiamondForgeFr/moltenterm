@@ -48,6 +48,7 @@ func liveUpcomingEnv(collector *Collector, run Runner) UpcomingEnv {
 		ReviewTreesDir: func(projectDir string) string {
 			return molten.ReviewTreesDir(wavebase.GetWaveDataDir(), projectDir)
 		},
+		StartersFile: filepath.Join(CacheDir(wavebase.GetWaveDataDir()), StartersFileName),
 	}
 }
 

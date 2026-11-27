@@ -670,7 +670,11 @@ function HoldTag({ hold }: { hold: TicketHold }) {
             return (
                 <span
                     className="mt-cwork-tag"
-                    data-tip={t("companion.work.awayTitle")}
+                    data-tip={
+                        hold.owner
+                            ? t("companion.work.awayNamed", { name: ownerLabel(t, hold.owner) })
+                            : t("companion.work.awayTitle")
+                    }
                     data-testid="companion-taken-away"
                 >
                     {t("companion.work.away")}
@@ -682,9 +686,13 @@ function HoldTag({ hold }: { hold: TicketHold }) {
 
 // The agent that holds the ticket: its first name and tool, "sub-agent of" its lead's name for a sub-agent. A click goes
 // to that agent's panel, as Go to the agent does in the Integration panel.
+function ownerLabel(t: ReturnType<typeof useT>, owner: TicketOwner): string {
+    return [owner.name, owner.tool].filter((s) => !!s).join(" · ") || t("companion.work.someAgent");
+}
+
 function OwnerLink({ owner }: { owner: TicketOwner }) {
     const t = useT();
-    const label = [owner.name, owner.tool].filter((s) => !!s).join(" · ") || t("companion.work.someAgent");
+    const label = ownerLabel(t, owner);
     const title = owner.subagent
         ? t("companion.work.subagentOf", { name: owner.name || t("companion.work.someAgent") })
         : t("companion.work.goTo", { name: label });

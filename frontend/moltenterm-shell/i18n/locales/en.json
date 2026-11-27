@@ -2371,6 +2371,7 @@
             "onBranch": "On a branch",
             "away": "In another workspace",
             "awayTitle": "An agent of another workspace works on it",
+            "awayNamed": "{name} works on it in another workspace",
             "reading": "Reading the milestone…",
             "tabsLabel": "Tasks by milestone",
             "moreTabs": "+{count}",

@@ -2371,6 +2371,7 @@
             "onBranch": "Sur une branche",
             "away": "Dans un autre espace",
             "awayTitle": "Un agent d'un autre espace de travail y travaille",
+            "awayNamed": "{name} y travaille dans un autre espace de travail",
             "reading": "Lecture du jalon…",
             "tabsLabel": "Tâches par jalon",
             "moreTabs": "+{count}",

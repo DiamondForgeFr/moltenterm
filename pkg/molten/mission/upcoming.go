@@ -145,6 +145,8 @@ type UpcomingAnswer struct {
 	Leftovers []UpcomingLeftover `json:"leftovers"`
 	// PrBranches: the other branches of the tickets that have an open PR, listed on its card, never Upcoming (#1172).
 	PrBranches []UpcomingPrBranch `json:"prbranches,omitempty"`
+	// Starters: the linked worktrees whose work an agent terminal still running started (#2572).
+	Starters []UpcomingStarter `json:"starters,omitempty"`
 	// HumanTesting: whether the project's workflow has a Human Testing column (UpcomingHumanTestingYes, …No), ""
 	// when it declares none (#1172).
 	HumanTesting string      `json:"humantesting,omitempty"`
@@ -199,6 +201,8 @@ type UpcomingEnv struct {
 	ReviewTreesDir func(projectDir string) string
 	// Procs: the process table, read once per answer that has a lock held by a live process (#1143); nil: none.
 	Procs func() ProcFacts
+	// StartersFile: where the worktrees' starters are kept (#2572); "": only for wavesrv's life.
+	StartersFile string
 }
 
 type upcomingState struct {
@@ -222,6 +226,8 @@ type Upcoming struct {
 	running map[string]*sync.Mutex
 	// Where each agent terminal was last placed, and since when (#1841), by its block.
 	seen map[string]panelSeen
+	// The session that started each linked worktree's work (#2572).
+	starters *StarterBook
 }
 
 func MakeUpcoming(env UpcomingEnv) *Upcoming {
@@ -231,7 +237,21 @@ func MakeUpcoming(env UpcomingEnv) *Upcoming {
 	if env.FileTime == nil {
 		env.FileTime = fileTimeMs
 	}
-	return &Upcoming{env: env, states: map[string]*upcomingState{}, running: map[string]*sync.Mutex{}, seen: map[string]panelSeen{}}
+	return &Upcoming{
+		env: env, states: map[string]*upcomingState{}, running: map[string]*sync.Mutex{}, seen: map[string]panelSeen{},
+		starters: MakeStarterBook(env.StartersFile),
+	}
+}
+
+// liveLeads: the agent terminals that run an agent now, review sessions aside.
+func liveLeads(places []AgentPlace) map[string]bool {
+	rtn := map[string]bool{}
+	for _, p := range places {
+		if !p.Review && p.Agent != "" && p.BlockId != "" {
+			rtn[p.BlockId] = true
+		}
+	}
+	return rtn
 }
 
 func fileTimeMs(path string) int64 {
@@ -378,6 +398,8 @@ func (u *Upcoming) compute(dir string, places []AgentPlace) UpcomingAnswer {
 	if len(trees) > 0 {
 		answer.Agents = tieAgentsToPrs(g, answer.Agents, snap, trees[0].path)
 	}
+	starters := u.starters.Note(trees, answer.Agents, liveLeads(places), answer.At)
+	answer.Agents, answer.Starters = WithStarters(trees, answer.Agents, places, starters)
 	refs := parseBranchRefs(g.lines("for-each-ref", "--format=%(refname)%00%(committerdate:unix)", "refs/heads", "refs/remotes/origin"))
 	heads, known := openPrHeads(snap)
 	if !known {

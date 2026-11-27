@@ -924,14 +924,14 @@ describe("who works on what (#2418)", () => {
         expect(html).toContain('<span data-kind="idle">1 idle</span>');
     });
 
-    it("takes a ticket an agent of another workspace holds out of the list without naming that agent", () => {
+    it("takes a ticket an agent of another workspace holds out of the list, the same tag naming that agent in its tip (#2572)", () => {
         const html = render(Flore, [], 1400, {
             holds: { upcoming: upcomingOf([panelOn(Remy, "feature/5-x")]), states: EveryLead },
         });
         expect(ticketRows(html)).not.toContain(5);
-        expect(html).toContain('data-testid="companion-taken-away">In another workspace<');
-        expect(html).not.toContain("Rémy");
-        expect(html).not.toContain("Codex");
+        expect(html).toContain(
+            'data-tip="Rémy · Codex works on it in another workspace" data-testid="companion-taken-away">In another workspace<'
+        );
     });
 
     it("gives a ticket back when its sub-agent finishes, and shows no group when nobody holds anything", () => {

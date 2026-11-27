@@ -105,6 +105,9 @@ export type UpcomingPrBranch = {
     worktree?: string;
 };
 
+// must match UpcomingStarter in pkg/molten/mission/upcoming_starters.go
+export type UpcomingStarter = { branch: string; worktree: string; blockid: string };
+
 // must match UpcomingAnswer in pkg/molten/mission/upcoming.go
 export type UpcomingAnswer = {
     dir: string;
@@ -114,6 +117,8 @@ export type UpcomingAnswer = {
     drafts?: UpcomingDraft[];
     leftovers?: UpcomingLeftover[];
     prbranches?: UpcomingPrBranch[];
+    // #2572: the linked worktrees whose work a still running agent terminal started.
+    starters?: UpcomingStarter[];
     // Whether the project's workflow has a Human Testing column (#1172); unset when it declares no statuses.
     humantesting?: "yes" | "no";
     error?: string;
