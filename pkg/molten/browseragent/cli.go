@@ -27,7 +27,7 @@ const (
 	// How often the sessions of terminals that closed are forgotten.
 	cliSweepEvery = time.Minute
 
-	// ErrSessionEnded tells to restart the MCP server, which a command line has none of.
+	// mcpbrowser.ErrSessionEnded tells to restart the MCP server, which a command line has none of.
 	errCliSessionEnded = "This terminal's browser session ended while the command ran: run it again"
 )
 
