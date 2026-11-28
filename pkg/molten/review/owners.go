@@ -87,12 +87,19 @@ func leadsOnBranch(agents []mission.BranchAgent, branch string) map[string]bool 
 // them), and the sub-agents in no worktree whose task names it while their lead already works on the branch (#2297: a
 // "#N" in a task alone ties nothing). A panel that only passes through, or a review session, is not one.
 func (r *Restarter) gate(ctx context.Context, req RestartRequest) ownerGate {
+	g, _ := r.gateKnown(ctx, req)
+	return g
+}
+
+// gateKnown is gate that also says whether the index could be read: false is "nobody known", which is not "nobody works
+// there". What puts something on a branch unasked (the step after a security fix, which updates it) needs the first.
+func (r *Restarter) gateKnown(ctx context.Context, req RestartRequest) (ownerGate, bool) {
 	if r.env.BranchAgents == nil {
-		return ownerGate{}
+		return ownerGate{}, false
 	}
 	agents, ok := r.env.BranchAgents(ctx, req.Dir)
 	if !ok {
-		return ownerGate{}
+		return ownerGate{}, false
 	}
 	ticket := restartTicket(req)
 	leads := leadsOnBranch(agents, req.HeadRef)
@@ -112,7 +119,7 @@ func (r *Restarter) gate(ctx context.Context, req RestartRequest) ownerGate {
 			rows = append(rows, row)
 		}
 	}
-	return ownerGate{rows: rows}
+	return ownerGate{rows: rows}, true
 }
 
 // ownerRowOf says what an agent of the index is now; false for one nothing reaches any more (a closed terminal).

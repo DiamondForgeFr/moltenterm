@@ -55,7 +55,12 @@ type AgentOrigin struct {
 	Tag   string `json:"tag,omitempty"`
 	Phase string `json:"phase,omitempty"`
 	Step  string `json:"step,omitempty"`
-	Mode  string `json:"mode"`
+	// Ticket and Advisories: the ticket and the advisories a security fix's agent works on (#2589).
+	Ticket     int    `json:"ticket,omitempty"`
+	Advisories string `json:"advisories,omitempty"`
+	// Auto: started without a click, under the developer's consent (#2589).
+	Auto bool   `json:"auto,omitempty"`
+	Mode string `json:"mode"`
 	// At: when the developer asked, Unix milliseconds.
 	At int64 `json:"at"`
 }

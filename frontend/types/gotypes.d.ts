@@ -1442,6 +1442,7 @@ declare global {
         "review:publishlanguage"?: string;
         "review:reviewername"?: string;
         "review:validategreenonly"?: boolean;
+        "review:securityfix"?: boolean;
         "app:language"?: string;
         "companion:usagegauges"?: string[];
         "companion:usageclaudeoauth"?: boolean;

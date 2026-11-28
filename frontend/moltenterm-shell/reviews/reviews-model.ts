@@ -12,7 +12,9 @@ import type { NotRepoText } from "../mission/mission-frame";
 import type { ReviewCleanupPr, ReviewCleanupResult } from "../review/review-cleanup";
 import type { InvestigateBlockers } from "../review/review-client";
 import type { ReviewMergedPr } from "./reviews-merged-model";
+import type { SecurityBlock, SecurityOffer, SecurityUnread } from "./reviews-security-model";
 import type { PrTaskKind } from "./reviews-task-model";
+import type { SecurityFix } from "./security-fix-model";
 
 export const MoltentermReviewsView = "molten-reviews";
 
@@ -82,6 +84,8 @@ export type ReviewPr = {
     // What the PR waits on, still open (#1841): declared in its body, its author's comments or its ticket, or GitHub's
     // "blocked by" relationship.
     waitson?: ReviewDependency[];
+    // The fingerprint of the security block its failed scan belongs to (FR-REV-036), in the answer's securityblocks.
+    securityblock?: string;
 };
 
 // must match ReviewDependency in pkg/molten/mission/reviews_waits.go
@@ -116,6 +120,14 @@ export type ReviewsAnswer = {
     refreshing?: boolean;
     reportsat?: number;
     reportserror?: string;
+    // The failed dependency or security scans (FR-REV-036): the sets of advisories that block pull requests, the checks
+    // that look like the scan until the developer answers, and the scans whose advisories could not be read.
+    securityblocks?: SecurityBlock[];
+    securityoffers?: SecurityOffer[];
+    securityunread?: SecurityUnread[];
+    // The fixes of those blocks (FR-REV-036 AC9 to AC13, security-fix-model.ts): the ones in flight and the ones that ended
+    // lately.
+    securityfixes?: SecurityFix[];
 };
 
 export type Tone = "success" | "failure" | "pending" | "neutral";
@@ -502,6 +514,9 @@ function outcomeOf(result: RebaseResult, error: Phrase, what: keyof typeof Outco
             return { kind: "info", text: phrase("reviews.rebase.notready", vars) };
     }
     switch (result.reason) {
+        case "securitycovered":
+            // Every check that fails is the shared dependency scan, which a security fix covers (FR-REV-036 AC14).
+            return { kind: "info", text: phrase("reviews.rebase.securityCovered") };
         case "maincheckout":
             return { kind: "failed", text: phrase("reviews.rebase.maincheckout", vars) };
         case "terminal":

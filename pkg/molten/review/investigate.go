@@ -48,6 +48,9 @@ type InvestigateCheck struct {
 	JobId    int64  `json:"jobid,omitempty"`
 	// Local: a status the local CI posts (molten ci run's local-<job>, or a check named after the local CI).
 	Local bool `json:"local,omitempty"`
+	// Security: the advisories of the shared security block this check fails on (#2589, FR-REV-036 AC14); only wavesrv
+	// sets it, never believing the window's.
+	Security string `json:"security,omitempty"`
 }
 
 type InvestigateRequest struct {
@@ -86,6 +89,8 @@ type blockers struct {
 	changesRequested bool
 	round            *Round
 	roundNumber      int
+	// security: the checks a security fix covers, left out of remote (#2589).
+	security securityCover
 }
 
 func (b blockers) empty() bool {
@@ -174,6 +179,7 @@ func (r *Restarter) readBlockers(req InvestigateRequest) blockers {
 		}
 		b.remote = append(b.remote, c)
 	}
+	b.remote, b.security = r.securityCover(req.Dir, req.Number, b.remote)
 	b.localMissing = len(b.local) == 0 && !req.LocalSeen && publishesLocalStatuses(req.Dir)
 	if r.store != nil {
 		if state, err := r.store.Get(req.PrKey); err == nil {
@@ -204,6 +210,9 @@ func (r *Restarter) AskInvestigate(ctx context.Context, req InvestigateRequest) 
 	pruned := pruneInvestigate(&req, now)
 	b := r.readBlockers(req)
 	if b.empty() {
+		if b.security.any() {
+			return RestartResult{Status: RestartFailed, Reason: RestartReasonSecurityCovered, Message: b.security.coveredMessage()}, nil
+		}
 		if pruned {
 			return r.staleResult(req.PrKey, req.Dir, req.HeadRef, RestartReasonProblemGone, req.HeadOid, now), nil
 		}
@@ -390,7 +399,9 @@ func writeChecks(sb *strings.Builder, req InvestigateRequest, checks []Investiga
 		case c.RunId > 0:
 			fmt.Fprintf(sb, "\n  - log: `gh run view %d --log-failed -R %s`", c.RunId, req.Repo)
 		}
-		if c.RunId > 0 {
+		if c.Security != "" {
+			fmt.Fprintf(sb, "\n  - a shared dependency advisory (%s), not this pull request's: do not rerun it", c.Security)
+		} else if c.RunId > 0 {
 			fmt.Fprintf(sb, "\n  - rerun: `gh run rerun %d --failed -R %s`", c.RunId, req.Repo)
 		}
 		sb.WriteString("\n")
@@ -452,7 +463,11 @@ func renderInvestigateBrief(req InvestigateRequest, b blockers, tree string, tic
 		sb.WriteString(", then `git push` (never force).\n")
 		fmt.Fprintf(&sb, "- A flaky or unrelated test: rerun the failed jobs once (the rerun commands above). If the same unrelated failure comes back, look for an open ticket on that test first (`gh issue list -R %s --state open --search \"<test name> in:title\"`) and open one only when none exists, following the project's workflow, with the test, the failing runs and the log lines. Link it in a PR comment (`gh pr comment %d -R %s --body '…'`), then rerun the failed jobs again.\n",
 			req.Repo, req.Number, req.Repo)
+		if hasSecurityMark(b.remote) {
+			sb.WriteString("- A check marked as a shared dependency advisory: the failure is not this pull request's, whatever it changes. Do not rerun it, do not open a ticket for it (MoltenTerm owns the ticket and the fix of that set of advisories) and do not touch the dependencies here; resolve the other blockers, and if none is left write `needs you: shared security block` as your outcome line.\n")
+		}
 	}
+	writeSecurityCover(&sb, b)
 	if len(b.local) > 0 || b.localMissing {
 		section("Local CI")
 		if len(b.local) > 0 {

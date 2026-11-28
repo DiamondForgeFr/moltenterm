@@ -92,6 +92,9 @@ type handoffTask struct {
 	remains func(now prNow) bool
 	// resend: the notification action that asks the same task again, from the card's own flow.
 	resend *molten.NotificationAction
+	// applies, when set, replaces the checks above: a rebase asked after a security fix merged stays valid whatever head the
+	// agent pushes meanwhile, until the branch holds the fix (securityfix_unblock.go).
+	applies func(ctx context.Context) bool
 }
 
 type handoffTaskKey struct{}
@@ -143,6 +146,9 @@ func (r *Restarter) appRequest(ctx context.Context, found agenthandoff.LeadFound
 // taskApplies: the PR is still open at the head the request was written for and some problem it names remains. GitHub
 // not answering proves nothing: the request keeps applying.
 func (r *Restarter) taskApplies(ctx context.Context, task *handoffTask) bool {
+	if task.applies != nil {
+		return task.applies(ctx)
+	}
 	now := r.readPrNow(ctx, task.req.PrKey, task.req.Dir)
 	if !now.read {
 		return true

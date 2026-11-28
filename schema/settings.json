@@ -619,6 +619,18 @@
             "order": 149
           }
         },
+        "review:securityfix": {
+          "type": "boolean",
+          "description": "Start the fix of a dependency advisory that blocks pull requests on its own, in the background, as soon as MoltenTerm sees the block (one ticket and one agent per set of advisories; it never merges). Off when unset or false: MoltenTerm only offers the fix. Counts only once confirmed in MoltenTerm's own window, which asks once; a terminal cannot set it",
+          "x-moltenterm": {
+            "section": "agents",
+            "group": "Code review",
+            "label": "Fix a shared security block on its own",
+            "description": "A dependency advisory that blocks pull requests gets one ticket and one background agent, started for you.",
+            "control": "toggle",
+            "order": 149
+          }
+        },
         "app:language": {
           "type": "string",
           "description": "The interface language: system (the OS preferred languages, the default), en, fr or an installed language",

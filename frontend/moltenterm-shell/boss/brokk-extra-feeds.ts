@@ -17,6 +17,7 @@ import type { BrokkEvent } from "./brokk-visit-events";
 export const DownloadsSource = "downloads";
 export const UpdateSource = "update";
 export const UsageSource = "usage";
+export const SecurityFixSource = "securityfix";
 
 // The plan usage at which Brokk may come (the setting is the row "Plan usage above 90 %").
 export const UsageThresholdPercent = 90;
@@ -99,6 +100,38 @@ export function updateEventsOf(offer: string, seen: string): BrokkEvent[] {
         return [];
     }
     return [{ key: `update:${offer}`, kind: "update", since: 0 }];
+}
+
+// ---- the security fix --------------------------------------------------------------------------------------------------
+
+// A dependency fix MoltenTerm started, or one that needs the developer, raises Brokk's existing security event (FR-REV-036
+// AC13, FR-BOSS-009, #2589): its source is the fix's own notifications (pkg/molten/review/securityfix_notify.go), so it
+// serves every project and every coding agent alike. The key of each is the notification's: the event holds while that
+// notification is open, and the developer opening Brokk has seen it. must match securityNoticePrefix and the kinds
+// "started" and "needs" in pkg/molten/review, which this file does not import (it is part of the bubble's up-front
+// JavaScript).
+const SecurityFixNoticePrefix = "molten:secfix:";
+const SecurityFixNoticeKinds = ["started:", "needs:"];
+
+// The keys of the fix notifications still open (neither resolved nor archived), sorted: what a source atom holds.
+export function openSecurityFixKeys(entries: MoltentermNotification[]): string[] {
+    return (entries ?? [])
+        .filter(
+            (entry) =>
+                entry.key?.startsWith(SecurityFixNoticePrefix) &&
+                SecurityFixNoticeKinds.some((kind) => entry.key.startsWith(SecurityFixNoticePrefix + kind)) &&
+                entry.resolved == null &&
+                entry.archived == null
+        )
+        .map((entry) => entry.key)
+        .sort();
+}
+
+// `known`: the notifications the developer has seen by opening Brokk.
+export function securityFixEventsOf(keys: string[], known: ReadonlySet<string>): BrokkEvent[] {
+    return (keys ?? [])
+        .filter((key) => !known.has(key))
+        .map((key) => ({ key: `security:fix:${key}`, kind: "security" as const, since: 0 }));
 }
 
 // ---- plan usage -------------------------------------------------------------------------------------------------------

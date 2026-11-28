@@ -27,7 +27,10 @@ export type ReviewCleanupStepId =
     | "local-trunk"
     | "other-prs"
     // #1121: the PR's local copies the request names (the Leftovers group only, never Validate's sheet).
-    | "copy-branches";
+    | "copy-branches"
+    // #2590: the merged PR is a security fix's, so the PRs its block held were brought back; in the result only for such a
+    // PR, never in Validate's plan.
+    | "unblock";
 
 export type ReviewCleanupState = "done" | "skipped" | "failed";
 // planned: a step of Validate's plan sheet, before the merge (pkg/molten/review/postmerge.go).
@@ -78,7 +81,13 @@ export type ReviewCleanupPrFlag =
     | "needs-agent"
     | "needs-rebase"
     | "checking"
-    | "batch";
+    | "batch"
+    // #2590, the unblock step's PRs: its branch was updated onto the trunk, its failed checks were rerun, the rebase waits
+    // for its busy agent (agent-busy: someone works on it and it was left alone, needs-agent: it conflicts with the trunk
+    // and nobody works on it, needs-rebase: it could not be brought back, no flag: its checks do not fail).
+    | "updated"
+    | "rerun"
+    | "rebase-queued";
 
 // must match CleanupPr in pkg/molten/review/cleanup.go; agent: the first name of the agent asked or busy.
 export type ReviewCleanupPr = {

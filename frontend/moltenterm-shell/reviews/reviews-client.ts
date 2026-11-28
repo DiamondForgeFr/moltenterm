@@ -20,12 +20,14 @@ import { makeShownAsk, useAskWhenShown } from "../shown-ask";
 import { TabActivity, whileShown } from "../tab-activity";
 import { ReviewsMerges, withLocalMerges } from "./reviews-merges";
 import { ReviewsAnswer } from "./reviews-model";
+import type { SecurityScanAnswer } from "./reviews-security-model";
 import { SharedReviewsAnswersAtom } from "./reviews-state-atoms";
 
 // must match the names in pkg/molten/mission/reviews.go and reviews_rerun.go
 export const ReviewsCommand = "moltenmissionreviews";
 export const ReviewsEvent = "molten:mission:reviews";
 export const ReviewsRerunCommand = "moltenmissionreviewsrerun";
+export const ReviewsSecurityCommand = "moltenmissionsecurityscan";
 
 const ReviewsRpcTimeoutMs = 15000;
 // reviews_rerun.go's rerunTimeout, plus a margin.
@@ -42,6 +44,25 @@ export function reviewsRerunFailed(dir: string, number: number): Promise<Reviews
         { route: MissionRouteId, timeout: ReviewsRerunTimeoutMs }
     );
 }
+// The developer's answer about a check that looks like the project's security scan (FR-REV-036 AC2): confirm it is the
+// scan, say it is not, or take the answer back. wavesrv keeps it in its own data, never in the repository, and answers
+// with the list as it reads then.
+export async function reviewsAnswerSecurityScan(
+    dir: string,
+    check: string,
+    answer: SecurityScanAnswer
+): Promise<ReviewsAnswer> {
+    const next: ReviewsAnswer = await TabRpcClient.wshRpcCall(
+        ReviewsSecurityCommand,
+        { dir, check, answer },
+        { route: MissionRouteId, timeout: ReviewsRpcTimeoutMs }
+    );
+    if (next?.dir === dir) {
+        ReviewsAnswers.getInstance().store(next);
+    }
+    return next;
+}
+
 // The rail's ask while the window shows; wavesrv decides whether GitHub is due (railGithubInterval).
 const RailPollMs = 60000;
 

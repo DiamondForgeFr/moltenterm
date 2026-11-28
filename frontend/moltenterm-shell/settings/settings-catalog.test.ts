@@ -634,3 +634,34 @@ describe("Kimi managed usage settings", () => {
         }
     });
 });
+
+// #2589, FR-REV-036 AC10: MoltenTerm starts an agent without a click only after one explicit confirmation, that a terminal
+// cannot write, in both languages.
+describe("the security fix setting (FR-REV-036 AC10)", () => {
+    const tr = (key: string) => translate("en", key);
+    const trFr = (key: string) => translate("fr", key);
+
+    it("sits with the code review settings, off by default, behind an explicit confirmation", () => {
+        const fix = entry("review:securityfix");
+        expect(fix).toMatchObject({ control: "toggle", section: "agents", group: "Code review" });
+        expect(fix.defaultValue ?? false).toBe(false);
+        expect(ConfirmOnKeys.has("review:securityfix")).toBe(true);
+        for (const translateTo of [tr, trFr]) {
+            for (const part of ["label", "description", "confirm", "confirmOn", "confirmCancel"]) {
+                const key = `settings.items.review:securityfix.${part}`;
+                expect(translateTo(key), key).not.toBe(key);
+            }
+        }
+        expect(tr("settings.items.review:securityfix.confirm")).toMatch(/never merges/);
+        expect(tr("settings.items.review:securityfix.confirm")).toMatch(/stop it at any time/);
+    });
+
+    it("counts only with the confirmation of the client's meta, which an agent's settings.json lacks", () => {
+        expect(consentMeta("review:securityfix", true, 1234)).toEqual({ "molten:securityfix": 1234 });
+        expect(consentMeta("review:securityfix", false, 1234)).toEqual({ "molten:securityfix": null });
+        expect(confirmedOn("review:securityfix", true, { "molten:securityfix": 1234 })).toBe(true);
+        expect(confirmedOn("review:securityfix", true, {})).toBe(false);
+        expect(confirmedOn("review:securityfix", true, { "molten:securityfix": true })).toBe(false);
+        expect(confirmedOn("review:securityfix", false, { "molten:securityfix": 1234 })).toBe(false);
+    });
+});

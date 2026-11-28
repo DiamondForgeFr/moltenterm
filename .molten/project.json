@@ -57,7 +57,12 @@
                 "run": "node scripts/moltenterm-affected.mjs --run --only go",
                 "description": "The Go packages the commit's change against develop affects, and their dependents; all of them on develop itself, or when the change touches shared ground."
             }
-        ]
+        ],
+        "security": {
+            "checks": ["Dependency security / Scan dependencies"],
+            "report": { "artifact": "dependency-security-*", "file": "report.json", "format": "moltenterm" },
+            "dependencyfiles": ["security/dependencies.json"]
+        }
     },
     "builds": [
         {

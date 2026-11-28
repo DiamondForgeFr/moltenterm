@@ -32,6 +32,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/materials"
 	"github.com/wavetermdev/waveterm/pkg/molten/milestones"
 	"github.com/wavetermdev/waveterm/pkg/molten/railorder"
+	"github.com/wavetermdev/waveterm/pkg/molten/secfix"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -763,6 +764,9 @@ func Start() {
 	reviews = MakeReviews(collector, ExecRunner, publishReviews)
 	reviews.notify = attention.PublishNotification
 	reviews.ci = ci
+	reviews.securityStore = secfix.MakeStore(filepath.Join(CacheDir(dataDir), SecurityScansFileName))
+	reviews.securityFixes = secfix.MakeFixStore(filepath.Join(CacheDir(dataDir), SecurityFixesFileName))
+	reviews.securityFixes.OnChange(reviews.publishCurrent)
 	useLiveReviews(reviews)
 	worktrees := MakeWorktrees(ExecRunner, nil)
 	runs.UseWorktrees(worktrees, dataDir)
