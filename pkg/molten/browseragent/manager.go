@@ -294,6 +294,9 @@ func (m *Manager) openSessionLocked(source string, blockId string, name string) 
 		s.agentName = name
 		return sessionInfo{id: s.id, blockId: s.blockId, agentName: s.agentName}, false
 	}
+	if info, adopted := m.adoptCliSessionLocked(source, blockId, name); adopted {
+		return info, false
+	}
 	s := &session{
 		id:          uuid.NewString(),
 		source:      source,

@@ -315,6 +315,40 @@ func (m *Manager) Gate(source string) error {
 	return nil
 }
 
+// GateBlock is Gate for a call that comes over no server's route, the command line's (#2596): it refuses it while the
+// developer has stopped one of the terminal's servers of that kind, so the stop holds whatever way the agent takes. A
+// stopped link whose agent has quit does not count: nothing is left to stop.
+func (m *Manager) GateBlock(blockId string, server string) error {
+	if blockId == "" {
+		return nil
+	}
+	for _, pid := range m.stoppedAgents(blockId, server) {
+		if pid <= 0 || m.env.Alive(pid) {
+			return errors.New(agentlinkwire.ErrStopped)
+		}
+	}
+	return nil
+}
+
+// stoppedAgents lists, for each stopped link of the terminal's servers of that kind that still counts, its agent's
+// pid: 0 for a link still connected or one that does not report its agent, which count whatever the agent does.
+func (m *Manager) stoppedAgents(blockId string, server string) []int {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	var rtn []int
+	for _, l := range m.links {
+		if l.blockId != blockId || l.report.Server != server || !l.stopped {
+			continue
+		}
+		if l.connected {
+			rtn = append(rtn, 0)
+			continue
+		}
+		rtn = append(rtn, l.report.AgentPid)
+	}
+	return rtn
+}
+
 // OnStop runs fn with the route of each link the developer stops.
 func (m *Manager) OnStop(fn func(source string)) {
 	m.lock.Lock()

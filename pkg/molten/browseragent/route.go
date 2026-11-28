@@ -13,6 +13,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/agentlinks"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
 	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
+	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/util/utilfn"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 	"github.com/wavetermdev/waveterm/pkg/wshrpc/wshclient"
@@ -44,6 +45,7 @@ func (l *routeLink) route() localroute.Route {
 		mcpbrowser.HelloCommand: localroute.AllowLocalTerminal,
 		mcpbrowser.CallCommand:  localroute.AllowLocalTerminal,
 		mcpbrowser.ByeCommand:   localroute.AllowLocalTerminal,
+		mcpbrowser.CliCommand:   localroute.AllowLocalTerminal,
 	}
 	refusals := map[string]string{}
 	for command := range session {
@@ -61,7 +63,7 @@ func commandTimeout(command string) time.Duration {
 	switch command {
 	case mcpbrowser.HelloCommand:
 		return helloTimeout
-	case mcpbrowser.CallCommand, mcpbrowser.DownloadCommand:
+	case mcpbrowser.CallCommand, mcpbrowser.CliCommand, mcpbrowser.DownloadCommand:
 		return callTimeout
 	case mcpbrowser.ShareTellCommand:
 		return shareTellTimeout
@@ -93,6 +95,12 @@ func (l *routeLink) handle(ctx context.Context, command string, caller localrout
 			return mcpbrowser.ErrorResult(err.Error()), nil
 		}
 		return l.manager.Call(ctx, source, req), nil
+	case mcpbrowser.CliCommand:
+		var req mcpbrowser.CliRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.manager.CliCall(ctx, caller, req), nil
 	case mcpbrowser.ByeCommand:
 		var req mcpbrowser.ByeRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -184,5 +192,21 @@ func Start() {
 		rpcClient := wshclient.GetBareRpcClient()
 		rpcClient.EventListener.On(wps.Event_RouteDown, func(event *wps.WaveEvent) { handleRouteDown(manager, event) })
 		wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: wps.Event_RouteDown, AllScopes: true}, nil)
+		go sweepCliSessionsEvery(manager, cliSweepEvery)
 	})
+}
+
+func sweepCliSessionsEvery(manager *Manager, every time.Duration) {
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for range ticker.C {
+		sweepCliSessionsOnce(manager)
+	}
+}
+
+func sweepCliSessionsOnce(manager *Manager) {
+	defer func() {
+		panichandler.PanicHandler("molten:browseragent:clisweep", recover())
+	}()
+	manager.sweepCliSessions(context.Background())
 }

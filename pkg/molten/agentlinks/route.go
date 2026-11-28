@@ -113,6 +113,16 @@ func Gate(source string) error {
 	return m.Gate(source)
 }
 
+// GateBlock refuses a terminal's call that comes over no server's route while one of its servers of that kind is
+// stopped (#2596); nil before the registry starts.
+func GateBlock(blockId string, server string) error {
+	m := running()
+	if m == nil {
+		return nil
+	}
+	return m.GateBlock(blockId, server)
+}
+
 // OnStop runs fn with the route of each link the developer stops.
 func OnStop(fn func(source string)) {
 	if m := running(); m != nil {

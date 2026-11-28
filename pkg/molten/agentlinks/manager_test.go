@@ -312,3 +312,52 @@ func TestByeAndLegacySessions(t *testing.T) {
 		t.Fatalf("after bye: %+v %v", all, err)
 	}
 }
+
+// The command line (#2596) has no route a stop could name, so a terminal's stop of its browser server is asked by
+// terminal: it holds while the agent that owned the server lives, and for any other kind of server it holds nothing.
+func TestGateBlockHoldsTheStopOfATerminalsBrowserServerForTheCommandLine(t *testing.T) {
+	env := makeFakeEnv()
+	m := MakeManager(env)
+	if err := m.GateBlock("b1", agentlinkwire.ServerBrowser); err != nil {
+		t.Fatalf("no server, nothing stopped: %v", err)
+	}
+	mustWatch(t, m, terminal("b1", "proc:a"), report("b1", agentlinkwire.ServerBrowser, 1001, 100, "c"))
+	mustWatch(t, m, terminal("b2", "proc:b"), report("b2", agentlinkwire.ServerBrowser, 2001, 200, "c"))
+	if err := m.GateBlock("b1", agentlinkwire.ServerBrowser); err != nil {
+		t.Fatalf("a running server stops nothing: %v", err)
+	}
+	if err := m.Control(window, agentlinkwire.ControlRequest{BlockId: "b1", LinkKey: LinkKey(agentlinkwire.ServerBrowser, 1001), Action: agentlinkwire.ActionStop}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.GateBlock("b1", agentlinkwire.ServerBrowser); err == nil || err.Error() != agentlinkwire.ErrStopped {
+		t.Fatalf("the stop holds for the terminal's commands: %v", err)
+	}
+	if err := m.GateBlock("b1", agentlinkwire.ServerReview); err != nil {
+		t.Fatalf("the browser's stop is not the review server's: %v", err)
+	}
+	if err := m.GateBlock("b2", agentlinkwire.ServerBrowser); err != nil {
+		t.Fatalf("another terminal is not stopped: %v", err)
+	}
+	if err := m.GateBlock("", agentlinkwire.ServerBrowser); err != nil {
+		t.Fatalf("no terminal, no stop: %v", err)
+	}
+
+	m.RouteDown("proc:a")
+	if err := m.GateBlock("b1", agentlinkwire.ServerBrowser); err == nil {
+		t.Fatalf("the agent lives: its stop holds while its server's route is down")
+	}
+	env.kill(100)
+	if err := m.GateBlock("b1", agentlinkwire.ServerBrowser); err != nil {
+		t.Fatalf("the agent quit, nothing is left to stop: %v", err)
+	}
+
+	if err := m.Control(window, agentlinkwire.ControlRequest{BlockId: "b2", LinkKey: LinkKey(agentlinkwire.ServerBrowser, 2001), Action: agentlinkwire.ActionStop}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Control(window, agentlinkwire.ControlRequest{BlockId: "b2", LinkKey: LinkKey(agentlinkwire.ServerBrowser, 2001), Action: agentlinkwire.ActionReconnect}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.GateBlock("b2", agentlinkwire.ServerBrowser); err != nil {
+		t.Fatalf("Reconnect lifts the stop for the commands too: %v", err)
+	}
+}

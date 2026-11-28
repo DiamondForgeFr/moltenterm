@@ -12,11 +12,12 @@ import (
 	"encoding/json"
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
+	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
 const (
-	TabStateActive    = "active"
+	TabStateActive    = mcpbrowser.TabStateActive
 	TabStateTakenOver = "takenover"
 	TabStateStopped   = "stopped"
 
