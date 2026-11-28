@@ -10,27 +10,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/BurntSushi/toml"
-	"github.com/wavetermdev/waveterm/pkg/filebackup"
 )
 
 const (
 	KimiHookDefinitionVersion = 1
 	// 2.7.2 (#2543): the same 11 events in its hook enum, the same strict [[hooks]] table (event, matcher, command,
 	// timeout 1..600) and the same snake_case stdin payload (hook_event_name, session_id, cwd, turn_id) as 2.6.3.
-	KimiHookQualifiedVersion  = "2.7.2"
-	kimiHookStateFileName     = "kimi-hook-installations.json"
-	kimiHookStartMarker       = "# >>> MoltenTerm managed Kimi hooks — do not edit >>>"
-	kimiHookEndMarker         = "# <<< MoltenTerm managed Kimi hooks <<<"
-	maxKimiHookConfigBytes    = 4 * 1024 * 1024
+	KimiHookQualifiedVersion = "2.7.2"
+	kimiHookStateFileName    = "kimi-hook-installations.json"
+	kimiHookStartMarker      = "# >>> MoltenTerm managed Kimi hooks — do not edit >>>"
+	kimiHookEndMarker        = "# <<< MoltenTerm managed Kimi hooks <<<"
 )
 
 type kimiHookDefinition struct {
@@ -79,10 +75,19 @@ type kimiConfigInspection struct {
 // Any other version that is not the qualified one is written after the developer confirms (#2543). A var for tests.
 var kimiHookIncompatibleVersions = map[string]bool{}
 
-var kimiConfigLocks sync.Map
-var kimiMakeFileBackup = filebackup.MakeFileBackupFromData
-var kimiWriteFileAtomically = writeKimiFileAtomically
 var kimiSaveInstallations = saveKimiInstallations
+
+// kimiHookAdapter: a managed block between markers in Kimi Code's config.toml, with an installation record that
+// tells a hand-edited block (repair) from an older one (update).
+type kimiHookAdapter struct{}
+
+func (kimiHookAdapter) offer(env AgentEnv, offer AgentHookOffer, cwd string, hooked bool, detection AgentHookDetection) AgentHookOffer {
+	return makeKimiAgentHookOffer(env, offer, hooked, detection)
+}
+
+func (kimiHookAdapter) mutate(env AgentEnv, req AgentHookMutationRequest, hooked bool, detection AgentHookDetection, remove bool) (AgentHookMutationResult, error) {
+	return mutateKimiHooks(env, req, hooked, detection, remove)
+}
 
 func currentKimiHookDefinition() kimiHookDefinition {
 	entries := AgentStateHooks(AgentIdKimi)
@@ -158,15 +163,7 @@ func saveKimiInstallations(dataDir string, state kimiInstallationsFile) error {
 	if err != nil {
 		return err
 	}
-	return writeKimiFileAtomically(path, append(data, '\n'), 0600)
-}
-
-func digestKimiConfig(data []byte, exists bool) string {
-	if !exists {
-		return "absent"
-	}
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:])
+	return writeAgentHookFileAtomically(path, append(data, '\n'), 0600)
 }
 
 func digestKimiBlock(data []byte) string {
@@ -204,56 +201,12 @@ func hasManualKimiHooks(data []byte) (manual bool, valid bool, conflict bool) {
 
 func inspectKimiConfig(path string) kimiConfigInspection {
 	rtn := kimiConfigInspection{Path: path, BlockStart: -1, BlockEnd: -1}
-	pathInfo, err := os.Lstat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		rtn.Digest = digestKimiConfig(nil, false)
+	file := readAgentHookConfigFile(path)
+	rtn.Data, rtn.Exists, rtn.Mode, rtn.Digest, rtn.ErrorCode = file.Data, file.Exists, file.Mode, file.Digest, file.ErrorCode
+	if rtn.ErrorCode != "" || !rtn.Exists {
 		return rtn
 	}
-	if err != nil {
-		rtn.ErrorCode = "read-config"
-		return rtn
-	}
-	if pathInfo.Mode()&os.ModeSymlink != 0 {
-		rtn.ErrorCode = "symlink"
-		return rtn
-	}
-	if !pathInfo.Mode().IsRegular() {
-		rtn.ErrorCode = "config-type"
-		return rtn
-	}
-	if pathInfo.Size() > maxKimiHookConfigBytes {
-		rtn.ErrorCode = "config-too-large"
-		return rtn
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		rtn.ErrorCode = "read-config"
-		return rtn
-	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() || !os.SameFile(pathInfo, info) {
-		rtn.ErrorCode = "read-config"
-		return rtn
-	}
-	data, err := io.ReadAll(io.LimitReader(file, maxKimiHookConfigBytes+1))
-	if err != nil {
-		rtn.ErrorCode = "read-config"
-		return rtn
-	}
-	if len(data) > maxKimiHookConfigBytes {
-		rtn.ErrorCode = "config-too-large"
-		return rtn
-	}
-	currentPathInfo, err := os.Lstat(path)
-	if err != nil || currentPathInfo.Mode()&os.ModeSymlink != 0 || !currentPathInfo.Mode().IsRegular() || !os.SameFile(info, currentPathInfo) {
-		rtn.ErrorCode = "read-config"
-		return rtn
-	}
-	rtn.Data = data
-	rtn.Exists = true
-	rtn.Mode = info.Mode().Perm()
-	rtn.Digest = digestKimiConfig(data, true)
+	data := rtn.Data
 	if !validKimiTOML(data) {
 		rtn.ErrorCode = "invalid-toml"
 		return rtn
@@ -332,11 +285,6 @@ func parseKimiBlockMetadata(block []byte) kimiBlockMetadata {
 
 func completeKimiBlockMetadata(metadata kimiBlockMetadata) bool {
 	return metadata.DefinitionVersion > 0 && len(metadata.DefinitionSHA256) == 64 && metadata.KimiVersion != "" && metadata.Events != ""
-}
-
-func kimiConfigLock(path string) *sync.Mutex {
-	lock, _ := kimiConfigLocks.LoadOrStore(path, &sync.Mutex{})
-	return lock.(*sync.Mutex)
 }
 
 func kimiUpdateKey(offer AgentHookOffer) string {
@@ -432,26 +380,12 @@ func makeKimiAgentHookOffer(env AgentEnv, offer AgentHookOffer, hooked bool, det
 		offer.Changes = kimiBlockChanges(inspection.HasBlock, inspection.Block, inspection.Metadata, definition)
 	}
 	offer.UpdateKey = kimiUpdateKey(offer)
-
-	initial := offer.Status == HookStatusAbsent
-	if initial && (AgentHooksSeen(env.DataDir, AgentIdKimi) || IsAgentHooksOfferDeclined(env.DataDir, AgentIdKimi) || IsAgentDeclined(env.DataDir, guideProfileOfAgent(AgentIdKimi))) {
-		offer.Show = false
-		if offer.Reason == "" {
-			offer.Reason = HookOfferDeclined
-		}
-		return offer
-	}
-	if offer.UpdateKind != "" && IsAgentHookUpdateDeclined(env.DataDir, AgentIdKimi, offer.UpdateKey) {
-		offer.Reason = HookOfferDeclined
-		return offer
-	}
-	offer.Show = offer.Status != HookStatusReporting && offer.Status != HookStatusManual && offer.Status != HookStatusCurrent
-	return offer
+	return decideHookOfferShow(env, AgentIdKimi, "", hooked, offer, nil)
 }
 
 func mutateKimiHooks(env AgentEnv, req AgentHookMutationRequest, hooked bool, detection AgentHookDetection, remove bool) (AgentHookMutationResult, error) {
 	path := kimiConfigPath(env)
-	lock := kimiConfigLock(path)
+	lock := agentHookConfigLock(path)
 	lock.Lock()
 	defer lock.Unlock()
 	offer := MakeAgentHookOfferDetected(env, AgentIdKimi, "", hooked, detection)
@@ -514,7 +448,7 @@ func mutateKimiHooks(env AgentEnv, req AgentHookMutationRequest, hooked bool, de
 	}
 	backupPath := ""
 	if inspection.Exists {
-		backupPath, err = kimiMakeFileBackup(path, inspection.Data, inspection.Mode)
+		backupPath, err = agentHookBackup(path, inspection.Data, inspection.Mode)
 		if err != nil {
 			return AgentHookMutationResult{Offer: offer}, fmt.Errorf("back up Kimi configuration: %w", err)
 		}
@@ -529,7 +463,7 @@ func mutateKimiHooks(env AgentEnv, req AgentHookMutationRequest, hooked bool, de
 	if removeCreatedFile {
 		err = os.Remove(path)
 	} else {
-		err = kimiWriteFileAtomically(path, next, mode)
+		err = agentHookWriteFile(path, next, mode)
 	}
 	if err != nil {
 		return AgentHookMutationResult{Offer: offer, BackupPath: backupPath}, fmt.Errorf("write Kimi configuration: %w", err)
@@ -563,45 +497,5 @@ func rollbackKimiConfig(path string, before kimiConfigInspection, removed bool) 
 		}
 		return nil
 	}
-	return kimiWriteFileAtomically(path, before.Data, before.Mode)
-}
-
-func ApplyAgentHookMutation(env AgentEnv, req AgentHookMutationRequest, hooked bool, detection AgentHookDetection) (AgentHookMutationResult, error) {
-	return mutateKimiHooks(env, req, hooked, detection, false)
-}
-
-func RemoveAgentHookMutation(env AgentEnv, req AgentHookMutationRequest, hooked bool, detection AgentHookDetection) (AgentHookMutationResult, error) {
-	return mutateKimiHooks(env, req, hooked, detection, true)
-}
-
-func writeKimiFileAtomically(path string, data []byte, mode fs.FileMode) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".molten-*")
-	if err != nil {
-		return err
-	}
-	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
-	if err := tmp.Chmod(mode.Perm()); err != nil {
-		tmp.Close()
-		return err
-	}
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		return err
-	}
-	if dir, err := os.Open(filepath.Dir(path)); err == nil {
-		_ = dir.Sync()
-		_ = dir.Close()
-	}
-	return nil
+	return agentHookWriteFile(path, before.Data, before.Mode)
 }

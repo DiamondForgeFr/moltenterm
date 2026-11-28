@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The common hook dialog (#221, #1693): command proposals and Integration control the same exported component and
-// store methods. Manual recipes stay read-only; persistent capabilities add explicitly approved managed mutations.
-// An update lists what differs, and a version that is not qualified asks for confirmation, never blocks (#2543).
+// store methods. Every provider gets the same dialog (#2595): the file, what changes, Apply after a backup, Copy for
+// those who add it by hand. An update lists what differs, and a version that is not qualified asks for confirmation,
+// never blocks (#2543). What a provider differs in comes as data from wavesrv (trustrequired), never as a branch here.
 
 import { fireAndForget } from "@/util/util";
 import { useEffect, useRef, useState } from "react";
@@ -45,7 +46,7 @@ function HookChangeRow({ change, name, t }: { change: AgentHookChange; name: str
         );
     }
     const label = t(`agent.hooks.changes.field.${change.field}`, { name });
-    if (change.field === "block") {
+    if (change.field === "block" || change.field === "duplicate") {
         return (
             <li data-testid="agent-hooks-change" className="text-secondary">
                 {label}
@@ -198,8 +199,8 @@ export function AgentHookOfferDialog({
         }
         mutate(false);
     };
-    const title = offer.persistent ? t("agent.hooks.persistentTitle", { name }) : t("agent.hooks.title", { name });
-    const subtitle = offer.persistent ? t("agent.hooks.persistentSubtitle") : t("agent.hooks.subtitle");
+    const title = t("agent.hooks.title", { name });
+    const subtitle = t("agent.hooks.subtitle");
     const buttons = confirming ? (
         <HookConfirmButtons
             busy={busy}
@@ -259,66 +260,66 @@ export function AgentHookOfferDialog({
         >
             <div className="flex flex-col gap-3 pt-2">
                 <p className="text-secondary">{t("agent.hooks.intro", { name, brings: texts.brings })}</p>
-                {offer.persistent ? (
-                    <div className="flex flex-col gap-2" data-testid="agent-hooks-persistent-details">
-                        <div className="font-medium text-primary" data-testid="agent-hooks-status">
-                            {t(`agent.hooks.status.${offer.status ?? "absent"}`, { name })}
-                        </div>
-                        <p className="text-secondary">
-                            {t("agent.hooks.exactFile")} <code className="font-mono text-primary">{offer.file}</code>
-                        </p>
-                        <p className="text-secondary">
-                            {t(`agent.hooks.explanation.${offer.status ?? "absent"}`, { name })}
-                        </p>
-                        {offer.errorcode ? (
-                            <p className="text-warning" data-testid="agent-hooks-config-error">
-                                {t(`agent.hooks.error.${offer.errorcode}`)}
-                            </p>
-                        ) : null}
-                        <div className="flex flex-col gap-1 text-11 text-muted">
-                            {offer.qualifiedkimiversion ? (
-                                <div>{t("agent.hooks.qualifiedVersion", { version: offer.qualifiedkimiversion })}</div>
-                            ) : null}
-                            {offer.currentkimiversion ? (
-                                <div>{t("agent.hooks.currentVersion", { version: offer.currentkimiversion })}</div>
-                            ) : null}
-                            {offer.installedkimiversion ? (
-                                <div>{t("agent.hooks.installedVersion", { version: offer.installedkimiversion })}</div>
-                            ) : null}
-                            {offer.definitionversion ? (
-                                <div>
-                                    {t("agent.hooks.definitionVersion", {
-                                        version: offer.installeddefinitionversion || offer.definitionversion,
-                                        target: offer.definitionversion,
-                                    })}
-                                </div>
-                            ) : null}
-                        </div>
+                {offer.launcheralso ? (
+                    <p className="text-warning" data-testid="agent-hooks-launcher-also">
+                        {t("agent.hooks.launcherAlso", { name })}
+                    </p>
+                ) : null}
+                <div className="flex flex-col gap-2" data-testid="agent-hooks-persistent-details">
+                    <div className="font-medium text-primary" data-testid="agent-hooks-status">
+                        {t(`agent.hooks.status.${offer.status ?? "absent"}`, { name })}
                     </div>
-                ) : (
-                    <>
-                        {offer.changes?.length ? (
-                            <p className="text-secondary" data-testid="agent-hooks-manual-update">
-                                {t("agent.hooks.manualUpdate")}
-                            </p>
-                        ) : null}
-                        <p>
-                            {t("agent.hooks.addTo")} <code className="font-mono text-primary">{offer.file}</code>
-                            {t("agent.hooks.also", { also: texts.also })}
+                    <p className="text-secondary">
+                        {t("agent.hooks.exactFile")} <code className="font-mono text-primary">{offer.file}</code>
+                    </p>
+                    <p className="text-secondary">
+                        {t(`agent.hooks.explanation.${offer.status ?? "absent"}`, { name })}
+                    </p>
+                    {offer.errorcode ? (
+                        <p className="text-warning" data-testid="agent-hooks-config-error">
+                            {t(`agent.hooks.error.${offer.errorcode}`)}
                         </p>
-                    </>
-                )}
+                    ) : null}
+                    <div className="flex flex-col gap-1 text-11 text-muted">
+                        {offer.qualifiedkimiversion ? (
+                            <div>
+                                {t("agent.hooks.qualifiedVersion", { name, version: offer.qualifiedkimiversion })}
+                            </div>
+                        ) : null}
+                        {offer.currentkimiversion ? (
+                            <div>{t("agent.hooks.currentVersion", { name, version: offer.currentkimiversion })}</div>
+                        ) : null}
+                        {offer.installedkimiversion ? (
+                            <div>
+                                {t("agent.hooks.installedVersion", { name, version: offer.installedkimiversion })}
+                            </div>
+                        ) : null}
+                        {offer.definitionversion ? (
+                            <div>
+                                {t("agent.hooks.definitionVersion", {
+                                    version: offer.installeddefinitionversion || offer.definitionversion,
+                                    target: offer.definitionversion,
+                                })}
+                            </div>
+                        ) : null}
+                    </div>
+                </div>
                 <HookChanges offer={offer} name={name} t={t} />
                 {needsConfirmation ? <UnqualifiedNotice offer={offer} name={name} t={t} /> : null}
-                {offer.persistent && (offer.canapply || offer.canremove) ? (
+                {offer.canapply || offer.canremove ? (
                     <p className="text-secondary">{t("agent.hooks.backupNotice")}</p>
                 ) : null}
-                {offer.persistent && backup?.digest === offer.configdigest ? (
+                {backup?.digest === offer.configdigest ? (
                     <p className="text-secondary" data-testid="agent-hooks-backup">
                         {t("agent.hooks.backupCreated")} <code className="font-mono break-all">{backup.path}</code>
                     </p>
                 ) : null}
-                {offer.persistent ? <p className="text-muted">{t("agent.hooks.persistentRestart", { name })}</p> : null}
+                <p className="text-muted">{t("agent.hooks.persistentRestart", { name })}</p>
+                {offer.trustrequired ? (
+                    <p className="text-muted" data-testid="agent-hooks-trust">
+                        {t("agent.hooks.trustAfterApply", { name })}
+                    </p>
+                ) : null}
                 <pre
                     className="max-h-64 overflow-auto rounded-4 border border-border bg-black/30 px-2 py-1.5 font-mono text-11 leading-relaxed whitespace-pre text-secondary select-text"
                     data-language={offer.language}
@@ -326,7 +327,7 @@ export function AgentHookOfferDialog({
                     {offer.snippet}
                 </pre>
                 <p className="text-muted">
-                    {offer.persistent ? t("agent.hooks.manualFallback") : t("agent.hooks.restart", { name })}{" "}
+                    {t("agent.hooks.manualFallback", { also: texts.also })}{" "}
                     <button type="button" className="cursor-pointer text-accent hover:underline" onClick={openGuide}>
                         {t("agent.hooks.guide")}
                     </button>

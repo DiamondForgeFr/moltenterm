@@ -27,16 +27,7 @@ func kimiHooksTestEnv(t *testing.T) (AgentEnv, string) {
 		}
 		return ""
 	}
-	oldBackup := kimiMakeFileBackup
-	kimiMakeFileBackup = func(path string, data []byte, _ os.FileMode) (string, error) {
-		dir := filepath.Join(env.DataDir, "test-backups")
-		if err := os.MkdirAll(dir, 0700); err != nil {
-			return "", err
-		}
-		backup := filepath.Join(dir, fmt.Sprintf("backup-%d", len(data)))
-		return backup, os.WriteFile(backup, data, 0600)
-	}
-	t.Cleanup(func() { kimiMakeFileBackup = oldBackup })
+	useTestHookBackups(t, env)
 	return env, filepath.Join(home, "config.toml")
 }
 
@@ -52,7 +43,7 @@ func kimiOffer(env AgentEnv, hooked bool, detection AgentHookDetection) AgentHoo
 }
 
 func kimiRequest(offer AgentHookOffer, action string) AgentHookMutationRequest {
-	return AgentHookMutationRequest{BlockId: "block-kimi", Action: action, UpdateKey: offer.UpdateKey, ExpectedDigest: offer.ConfigDigest}
+	return AgentHookMutationRequest{BlockId: "block-kimi", Agent: AgentIdKimi, Action: action, UpdateKey: offer.UpdateKey, ExpectedDigest: offer.ConfigDigest}
 }
 
 func applyKimiForTest(env AgentEnv, offer AgentHookOffer) (AgentHookMutationResult, error) {
@@ -416,7 +407,7 @@ func TestKimiManagedFailureRollback(t *testing.T) {
 	t.Run("backup failure prevents mutation", func(t *testing.T) {
 		env, config := kimiHooksTestEnv(t)
 		writeTestFile(t, config, "model = \"k3\"\n")
-		kimiMakeFileBackup = func(string, []byte, os.FileMode) (string, error) {
+		agentHookBackup = func(string, []byte, os.FileMode) (string, error) {
 			return "", errors.New("backup denied")
 		}
 		_, err := applyKimiForTest(env, kimiOffer(env, false, qualifiedKimiDetection))
@@ -426,9 +417,9 @@ func TestKimiManagedFailureRollback(t *testing.T) {
 	})
 	t.Run("atomic write failure saves no state", func(t *testing.T) {
 		env, config := kimiHooksTestEnv(t)
-		oldWrite := kimiWriteFileAtomically
-		kimiWriteFileAtomically = func(string, []byte, os.FileMode) error { return errors.New("rename failed") }
-		t.Cleanup(func() { kimiWriteFileAtomically = oldWrite })
+		oldWrite := agentHookWriteFile
+		agentHookWriteFile = func(string, []byte, os.FileMode) error { return errors.New("rename failed") }
+		t.Cleanup(func() { agentHookWriteFile = oldWrite })
 		_, err := applyKimiForTest(env, kimiOffer(env, false, qualifiedKimiDetection))
 		if err == nil {
 			t.Fatal("write failure accepted")
