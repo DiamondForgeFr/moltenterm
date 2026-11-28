@@ -422,7 +422,11 @@ func (m *Manager) runInput(ctx context.Context, s sessionInfo, p pageContext, pl
 			return mcpbrowser.CallResult{}, err
 		}
 		if reason := clickReason(info, how.button); reason != "" {
-			if err := m.confirm(ctx, s, p, reason, frameConsentKey(p.site, info.Label, info.FrameSource)); err != nil {
+			frameKey := ""
+			if reason == reasonSensitiveFrame {
+				frameKey = frameConsentKey(p.site, info.Label, info.FrameSource)
+			}
+			if err := m.confirm(ctx, s, p, reason, frameKey); err != nil {
 				return mcpbrowser.CallResult{}, err
 			}
 			// The user answered about this target: one that moved or changed while they were asked is not it.

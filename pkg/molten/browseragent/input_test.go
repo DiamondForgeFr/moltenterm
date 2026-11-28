@@ -498,7 +498,7 @@ func TestSubmittingASensitiveFormAndOpeningAFileChooserAsk(t *testing.T) {
 	})
 	pending := w.callAsync(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[100,200]`))
 	p := w.actionPrompt(t)
-	if p.Action != "submit a form with a password or payment field" {
+	if p.Action != "submit a form with a password or payment field" || p.FrameKey != "" {
 		t.Fatalf("prompt %+v", p)
 	}
 	if n := ip.count("Input.dispatchMouseEvent"); n != 0 {
@@ -518,7 +518,7 @@ func TestSubmittingASensitiveFormAndOpeningAFileChooserAsk(t *testing.T) {
 	})
 	pending = w.callAsync(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[10,10]`))
 	p = w.actionPrompt(t)
-	if p.Action != "open a file chooser" {
+	if p.Action != "open a file chooser" || p.FrameKey != "" {
 		t.Fatalf("prompt %+v", p)
 	}
 	w.answer(t, p, DecisionDeny)

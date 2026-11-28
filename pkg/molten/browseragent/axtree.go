@@ -35,7 +35,7 @@ const (
 var interactiveRoles = map[string]bool{
 	"link": true, "button": true, "textbox": true, "checkbox": true, "radio": true, "combobox": true, "menuitem": true,
 	"tab": true, "switch": true, "slider": true, "searchbox": true, "option": true, "spinbutton": true, "listbox": true,
-	"menuitemcheckbox": true, "menuitemradio": true, "treeitem": true,
+	"menuitemcheckbox": true, "menuitemradio": true, "treeitem": true, "Iframe": true,
 }
 
 // Fields whose value the agent may see is checked against the DOM: these roles hold typed text.
@@ -329,6 +329,9 @@ func (d *axDoc) describe(n *axNode, name string) string {
 	role := n.role()
 	if role == "StaticText" {
 		role = "text"
+	}
+	if role == "Iframe" {
+		role = "frame"
 	}
 	var b strings.Builder
 	b.WriteString(role)
