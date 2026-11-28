@@ -12,12 +12,7 @@ import type { ReviewPr, ReviewsAnswer } from "./reviews-model";
 export type SecurityReason = "trunk" | "prs" | "nodependencychange";
 
 // must match the Cause constants in pkg/molten/secfix/advisories.go
-export type SecurityCause =
-    | "scanner-input-failure"
-    | "report-unreadable"
-    | "log-unreadable"
-    | "no-advisory"
-    | "no-job";
+export type SecurityCause = "scanner-input-failure" | "report-unreadable" | "log-unreadable" | "no-advisory" | "no-job";
 
 // must match Advisory in pkg/molten/secfix/secfix.go
 export type SecurityAdvisory = {

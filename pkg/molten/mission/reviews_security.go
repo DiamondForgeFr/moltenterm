@@ -6,7 +6,6 @@ package mission
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -126,6 +125,27 @@ func (r *Reviews) applySecurity(answer *ReviewsAnswer) (secfix.Input, string) {
 	return in, key
 }
 
+// SecurityResult is what the project's last assessment of its failed scans found, for the work that follows a shared
+// block; false when none ran, or the failed checks that could be the scan are gone since.
+func (r *Reviews) SecurityResult(dir string) (secfix.Result, bool) {
+	if r == nil {
+		return secfix.Result{}, false
+	}
+	dir = filepath.Clean(dir)
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	state := r.scans[dir]
+	if state == nil || !state.has || state.key == "" {
+		return secfix.Result{}, false
+	}
+	return state.result, true
+}
+
+// LiveSecurityResult is SecurityResult on the running Mission Control; false when it is not started.
+func LiveSecurityResult(dir string) (secfix.Result, bool) {
+	return liveReviews().SecurityResult(dir)
+}
+
 // prepareSecurity says whether an assessment starts now: the failed checks that could be the scan changed, the last
 // one is old, or the developer forced a refresh; never two at once, and the same inputs at most once every few seconds.
 func (r *Reviews) prepareSecurity(dir string, key string, force bool) bool {
@@ -220,11 +240,7 @@ func (r *Reviews) assessSecurity(in secfix.Input, repoRef string) (result secfix
 	gh := func(ctx context.Context, dir string, args ...string) ([]byte, error) {
 		return r.run(ctx, dir, "gh", ghRepoArgs(repoRef, args)...)
 	}
-	result = r.securityReader.Assess(ctx, gh, in)
-	if len(result.Blocks) > 0 || len(result.Offers) > 0 {
-		log.Printf("molten: %d failed security scan(s) read in %s\n", len(result.Blocks), in.Dir)
-	}
-	return result, true
+	return r.securityReader.Assess(ctx, gh, in), true
 }
 
 // startSecurity asks for the assessment the answer's failed checks call for, in the background.
