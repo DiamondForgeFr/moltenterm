@@ -29,12 +29,14 @@ type Input struct {
 	Trunk  string
 	Policy Policy
 	Prs    []PrInput
+	// WatchTrunk: read the trunk's own checks too when the project names its scan (declared or confirmed), every few
+	// minutes, whether or not a pull request fails (FR-REV-036 AC16): a trunk that is red with no open pull request is a
+	// block too. Left false, an assessment reads only what a failed check of a pull request leads it to.
+	WatchTrunk bool
 }
 
-// Key changes when something the assessment would read changes: a failed check that could be the scan, on a head, run
-// and job, or the policy's answers. It is empty when no failed check could be one: nothing is read then, so a project
-// whose checks are green or unrelated costs no gh call.
-func (in Input) Key() string {
+// failedScanLines are the failed checks that could be the scan, on a head, run and job.
+func (in Input) failedScanLines() []string {
 	var lines []string
 	for _, pr := range in.Prs {
 		for _, check := range pr.Checks {
@@ -43,7 +45,21 @@ func (in Input) Key() string {
 			}
 		}
 	}
-	if len(lines) == 0 {
+	return lines
+}
+
+// HasFailedScan tells whether a failed check of a listed pull request could be the scan: what a pull request's block is
+// made of. Without one, only the trunk's own block (no pull request) can still stand.
+func (in Input) HasFailedScan() bool {
+	return len(in.failedScanLines()) > 0
+}
+
+// Key changes when something the assessment would read changes: a failed check that could be the scan, on a head, run
+// and job, or the policy's answers. It is empty when no failed check could be one (and, with WatchTrunk, the project names
+// no scan): nothing is read then, so a project whose checks are green or unrelated costs no gh call.
+func (in Input) Key() string {
+	lines := in.failedScanLines()
+	if len(lines) == 0 && !in.watchesTrunk() {
 		return ""
 	}
 	sort.Strings(lines)
@@ -94,18 +110,18 @@ func (r *Reader) Assess(ctx context.Context, gh Gh, in Input) Result {
 	}
 	readings := r.readAll(ctx, gh, in, append(append([]scanItem{}, scans...), candidates...))
 	result.Offers = offersOf(candidates, readings)
-	if len(scans) == 0 {
-		return result
+	if len(scans) > 0 {
+		trunk := r.trunkFacts(ctx, gh, in, scans)
+		facts, unread := prFactsOf(in, scans, readings)
+		result.Unread = unread
+		r.addFiles(ctx, gh, in, facts)
+		var extra []string
+		if in.Policy.Declaration != nil {
+			extra = in.Policy.Declaration.DependencyFiles
+		}
+		result.Blocks = buildBlocks(facts, trunk, extra)
 	}
-	trunk := r.trunkFacts(ctx, gh, in, scans)
-	facts, unread := prFactsOf(in, scans, readings)
-	result.Unread = unread
-	r.addFiles(ctx, gh, in, facts)
-	var extra []string
-	if in.Policy.Declaration != nil {
-		extra = in.Policy.Declaration.DependencyFiles
-	}
-	result.Blocks = buildBlocks(facts, trunk, extra)
+	result.Blocks = append(result.Blocks, r.trunkOnlyBlocks(ctx, gh, in, result.Blocks)...)
 	return result
 }
 

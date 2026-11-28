@@ -211,6 +211,19 @@ describe("reviews model", () => {
         );
     });
 
+    // #2589, FR-REV-036 AC14: Analyze and resolve on a pull request whose only failure is the shared scan a fix covers.
+    it("says there is nothing to resolve when every failing check is the scan a security fix covers", () => {
+        const covered = rebaseOutcome(
+            { status: "failed", reason: "securitycovered", message: "English detail" },
+            undefined,
+            "investigate"
+        );
+        expect(covered).toMatchObject({ kind: "info" });
+        expect(covered.text).toContain("security fix covers them");
+        expect(covered.text).toContain("nothing to resolve here");
+        expect(covered.text).not.toContain("English detail");
+    });
+
     it("keeps the line a stale hand-off left on its card until the card is asked again (#2145)", () => {
         const model = ReviewsModel.getInstance();
         const key = rebaseAskKey("/p", 4);

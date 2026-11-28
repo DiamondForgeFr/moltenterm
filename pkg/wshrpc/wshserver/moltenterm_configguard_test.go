@@ -36,6 +36,11 @@ func TestMoltenConsentConfigCallers(t *testing.T) {
 		{wconfig.ConfigKey_BossAutoApprove: true},
 		// #2392: the companion's sentences spend the developer's subscription, his to agree to.
 		{wconfig.ConfigKey_CompanionTicketSummaries: true},
+		// #2589: starting a security fix agent without a click is the developer's consent; an agent can neither give it to
+		// itself nor take it back.
+		{wconfig.ConfigKey_ReviewSecurityFix: true},
+		{wconfig.ConfigKey_ReviewSecurityFix: false},
+		{"term:fontsize": 12, wconfig.ConfigKey_ReviewSecurityFix: nil},
 	}
 	for _, from := range []routetest.From{e.Window(), e.Electron()} {
 		for _, meta := range consent {
@@ -65,7 +70,8 @@ func mustRefuseConsentConfig(t *testing.T, name string, err error) {
 	t.Helper()
 	if err == nil || !(strings.HasPrefix(err.Error(), "refused: a terminal cannot set browser:") ||
 		strings.HasPrefix(err.Error(), "refused: a terminal cannot set boss:autoapprove") ||
-		strings.HasPrefix(err.Error(), "refused: a terminal cannot set companion:ticketsummaries")) {
+		strings.HasPrefix(err.Error(), "refused: a terminal cannot set companion:ticketsummaries") ||
+		strings.HasPrefix(err.Error(), "refused: a terminal cannot set review:securityfix")) {
 		t.Errorf("%s: %v, want a refusal", name, err)
 	}
 }

@@ -48,6 +48,8 @@ export type SecurityBlock = {
     // the same scan fails on the trunk with advisories of this set, or ones nobody could read
     trunkfailing?: boolean;
     trunkrun?: number;
+    // the trunk's own scan names advisories of this set (what starts a fix on its own, with two pull requests failing on them)
+    trunknamed?: boolean;
     // at least one of its pull requests did not cause it
     shared: boolean;
     prs: SecurityBlockPr[];

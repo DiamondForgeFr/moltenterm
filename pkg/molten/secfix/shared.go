@@ -26,9 +26,21 @@ type Block struct {
 	// The same scan fails on the trunk, with advisories of this set (or ones that could not be read).
 	TrunkFailing bool  `json:"trunkfailing,omitempty"`
 	TrunkRun     int64 `json:"trunkrun,omitempty"`
+	// TrunkNamed: the trunk's own scan names advisories of this set, as the trunk's report or log says (not only that the
+	// scan fails there). What the trunk says is the project's own, and no pull request's.
+	TrunkNamed bool `json:"trunknamed,omitempty"`
 	// Shared: at least one of its pull requests did not cause it.
 	Shared bool      `json:"shared"`
 	Prs    []BlockPr `json:"prs"`
+}
+
+// TrustedForAuto says whether the block's advisories come from somewhere no pull request's author controls, which is what
+// lets MoltenTerm start its fix without a click: the trunk's own scan names them, or at least two pull requests whose heads
+// are in the repository itself (the listed ones: a fork's never are) fail on them. A single pull request's failed scan is
+// text that pull request's CI wrote, and a pull request that touches no dependency file makes its block shared too: that
+// alone never starts an agent. The developer's click may still launch it.
+func (b Block) TrustedForAuto() bool {
+	return (b.TrunkFailing && b.TrunkNamed) || len(b.Prs) >= 2
 }
 
 // BlockPr is one pull request of a block.
@@ -66,7 +78,8 @@ type Result struct {
 }
 
 // Restrict keeps what concerns the listed pull requests: a pull request that merged or closed since the assessment
-// leaves its block, and a block with none left goes.
+// leaves its block, and a block with none left goes. A block that never had a pull request (the trunk's own, FR-REV-036
+// AC16) stays: no pull request leaving can end it.
 func (r Result) Restrict(listed map[int]bool) Result {
 	out := Result{Blocks: []Block{}, Offers: []Offer{}, Unread: []Unread{}}
 	for _, block := range r.Blocks {
@@ -80,6 +93,8 @@ func (r Result) Restrict(listed map[int]bool) Result {
 		}
 		if len(kept) > 0 {
 			block.Prs, block.Shared = kept, shared
+			out.Blocks = append(out.Blocks, block)
+		} else if len(block.Prs) == 0 {
 			out.Blocks = append(out.Blocks, block)
 		}
 	}
@@ -281,6 +296,7 @@ func buildBlocks(prs []prFacts, trunk trunkFacts, extra []string) []Block {
 			lists = append(lists, trunk.Advisories)
 		}
 		block.TrunkFailing = joinedTrunk || trunkUnknown
+		block.TrunkNamed = joinedTrunk
 		if block.TrunkFailing {
 			block.TrunkRun = trunk.Run
 		}

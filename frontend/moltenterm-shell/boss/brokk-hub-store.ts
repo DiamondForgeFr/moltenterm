@@ -14,9 +14,9 @@ import { fireAndForget } from "@/util/util";
 import { atom, Atom, PrimitiveAtom } from "jotai";
 import { makeSeenViewAtom } from "../agent-seen";
 import { AgentStates } from "../agent-state-store";
+import { brainstormHolds } from "../brainstorm/brainstorm-hold";
 import { ContextScope } from "../contexts/context-scope";
 import { hiddenEventKeys } from "../contexts/context-scope-model";
-import { brainstormHolds } from "../brainstorm/brainstorm-hold";
 import { DownloadsModel } from "../downloads/downloads-store";
 import { dropLegacy, readLegacy } from "../legacy-storage";
 import { modalIsOpen } from "../modal-open";
@@ -31,7 +31,13 @@ import { BossBubbleModel } from "./boss-store";
 import { askUsageUse, UsageReadingsAtom, UsageUseAtom } from "./boss-usage";
 import { FaceHoverIntent } from "./brokk-avatar-model";
 import { SidebarPlace, sidebarPlaceOf } from "./brokk-edge-model";
-import { closedDownloadIds, listedUpdateCard, readUsageMemory, usageMemoryText } from "./brokk-extra-feeds";
+import {
+    closedDownloadIds,
+    listedUpdateCard,
+    openSecurityFixKeys,
+    readUsageMemory,
+    usageMemoryText,
+} from "./brokk-extra-feeds";
 import { BrokkHub } from "./brokk-hub";
 import { AvatarBadge, avatarBadgeOf } from "./brokk-hub-feed";
 import { feedBrokkHub } from "./brokk-hub-feed-store";
@@ -95,6 +101,8 @@ export class BrokkHubModel {
     updateOfferAtom: Atom<string>;
     // The downloads whose notification the developer settled or cleared (FR-BOSS-009, AC16), the same set while it holds.
     closedDownloadsAtom: Atom<ReadonlySet<string>>;
+    // The notifications of a security fix MoltenTerm started or that needs the developer, still open (FR-REV-036 AC13).
+    securityFixKeysAtom: Atom<string[]>;
     // The agents whose Done card the Notifications panel still lists (#2210), the same set while it holds.
     openDoneAtom: Atom<ReadonlySet<string>>;
     hub: BrokkHub;
@@ -127,6 +135,15 @@ export class BrokkHubModel {
                 return closedDownloads;
             }
             closedDownloads = next;
+            return next;
+        });
+        let securityKeys: string[] = [];
+        this.securityFixKeysAtom = atom((get) => {
+            const next = openSecurityFixKeys(get(MoltentermNotifications.getInstance().entriesAtom));
+            if (next.length === securityKeys.length && next.every((key, i) => key === securityKeys[i])) {
+                return securityKeys;
+            }
+            securityKeys = next;
             return next;
         });
         let openDone: ReadonlySet<string> = new Set();
@@ -272,6 +289,7 @@ export class BrokkHubModel {
             downloadsAtom: DownloadsModel.getInstance().itemsAtom,
             closedDownloadsAtom: this.closedDownloadsAtom,
             updateOfferAtom: this.updateOfferAtom,
+            securityFixKeysAtom: this.securityFixKeysAtom,
             usageAtom: UsageReadingsAtom,
             usageContextAtom,
             // What he showed and when he was last opened are the same for every page (FR-BOSS-009, AC106, #2391).

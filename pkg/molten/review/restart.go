@@ -215,6 +215,8 @@ type RestartEnv struct {
 	// HandoffQueued (#2145): a request still waits for the agent's prompt in the handoffs' queue; a hand-off that waits
 	// there is handled. nil: none does.
 	HandoffQueued func(blockId string) bool
+	// SecurityFix (#2589, securityfix.go): the fix of a shared security block.
+	SecurityFix SecurityFixEnv
 }
 
 type Restarter struct {
@@ -227,6 +229,16 @@ type Restarter struct {
 	handed map[handedKey]handedTask
 	// The Upcoming resumes sent to a lead and still handled, by branch and sub-agent (upcoming_resume.go).
 	resumed map[string]handedTask
+	// The security fixes being followed, by project and set of advisories (securityfix_follow.go).
+	secFollows map[string]bool
+	// spawn runs the work an assessment starts apart; nil starts a goroutine (the tests run it in place).
+	spawn func(func())
+	// What the security fix told once (securityfix.go), by key.
+	secTold map[string]bool
+	// What the advisory database and the repository's collaborators answered lately, by id and by login
+	// (securityfix_advisories.go, securityfix_ticket.go).
+	secDb      map[string]advisoryAnswer
+	secWriters map[string]writerAnswer
 }
 
 func MakeRestarter(store *Store, env RestartEnv) *Restarter {
@@ -239,7 +251,7 @@ func MakeRestarter(store *Store, env RestartEnv) *Restarter {
 	if env.LeadStartPoll <= 0 {
 		env.LeadStartPoll = defaultLeadStartPoll
 	}
-	return &Restarter{env: env, store: store, running: map[PrKey]bool{}, handed: map[handedKey]handedTask{}}
+	return &Restarter{env: env, store: store, running: map[PrKey]bool{}, handed: map[handedKey]handedTask{}, secFollows: map[string]bool{}}
 }
 
 func (r *Restarter) claim(k PrKey) bool {

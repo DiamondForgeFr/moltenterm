@@ -9,6 +9,7 @@ import { waveEventSubscribeSingle } from "@/app/store/wps";
 import { TabRpcClient } from "@/app/store/wshrpcutil";
 import type { ServerText } from "../i18n/server-text";
 import type { MarkReadyResult } from "../reviews/reviews-model";
+import type { SecurityFix } from "../reviews/security-fix-model";
 import type { ReviewCleanupResult, ReviewCleanupStepResult } from "./review-cleanup";
 import { ReviewAnchor, ReviewDepth, reviewScope } from "./review-session";
 
@@ -136,7 +137,15 @@ export type ReviewRestartStatus =
     | "noagent"
     | "failed"
     | "offer"
-    | "leadgone";
+    | "leadgone"
+    // The security fix (pkg/molten/review/securityfix.go): a fix already stands for the advisories, joins the one in flight,
+    // is held (the developer stopped it, or it failed), waits for a place, or is someone else's.
+    | "covered"
+    | "addendum"
+    | "held"
+    | "waiting"
+    | "external"
+    | "stopped";
 
 export type ReviewRestartResult = {
     status: ReviewRestartStatus;
@@ -717,6 +726,8 @@ export type InvestigateCheck = {
     runid?: number;
     jobid?: number;
     local?: boolean;
+    // The advisories of the shared security block the check fails on: wavesrv sets it, and never believes the window's.
+    security?: string;
 };
 
 // The blockers a row read (#1020), as InvestigateRequest in pkg/molten/review/investigate.go names them.
@@ -814,6 +825,35 @@ export function askReleaseResolve(req: {
     tabname?: string;
 }): Promise<ReviewRestartResult> {
     return call(ReleaseResolveCommand, req, RestartTimeoutMs);
+}
+
+// must match SecurityFixCommand and SecurityFixStopCommand in pkg/molten/review/securityfix.go
+const SecurityFixCommand = "moltenreviewsecurityfix";
+const SecurityFixStopCommand = "moltenreviewsecurityfixstop";
+
+// What a request for the fix of a shared security block answers: the agent that started (as for any agent MoltenTerm
+// starts, so the window can offer another one) and where the fix stands.
+export type ReviewSecurityFixResult = ReviewRestartResult & { fix?: SecurityFix };
+
+// askSecurityFix is the developer's click on "Launch the fix" of a shared security block (FR-REV-036 AC10), or their
+// answer "this time only" to the first-time ask: one ticket and one agent, in the background, in a new copy of the trunk.
+// wavesrv reads the block named by its fingerprint from its own last assessment, never the advisories from the window.
+export function askSecurityFix(req: {
+    dir: string;
+    repo: string;
+    trunk: string;
+    fingerprint: string;
+    workspaceid: string;
+    tabname?: string;
+    agent?: string;
+}): Promise<ReviewSecurityFixResult> {
+    return call(SecurityFixCommand, req, RestartTimeoutMs);
+}
+
+// stopSecurityFix is the developer's Stop, from the block, the notification or the card (FR-REV-036 AC13): the agent's
+// session ends and the fix is never started again on its own for the same advisories.
+export function stopSecurityFix(req: { dir: string; fingerprint: string }): Promise<ReviewSecurityFixResult> {
+    return call(SecurityFixStopCommand, req);
 }
 
 const MarkReadyCommand = "moltenreviewmarkready";

@@ -98,6 +98,28 @@ describe("the origin line (#758)", () => {
         );
     });
 
+    // #2589: the terminal of a security fix says whether the developer clicked or the consent started it.
+    it("says what a security fix's agent works on, and whether it started on its own", () => {
+        const origin = readOrigin({
+            kind: "security",
+            repo: "acme/app",
+            number: 0,
+            branch: "fix/101-ghsa-aaaa-bbbb-cccc",
+            base: "develop",
+            ticket: 101,
+            advisories: "GHSA-aaaa-bbbb-cccc, GO-2026-1",
+            mode: "background",
+            at,
+        });
+        expect(originText(origin, en, "en-GB")).toBe(
+            "Started by you at 11:21 to fix the dependency advisories GHSA-aaaa-bbbb-cccc, GO-2026-1 (ticket #101)"
+        );
+        expect(originText({ ...origin, auto: true }, en, "en-GB")).toBe(
+            "Started by MoltenTerm at 11:21, with your consent, to fix the dependency advisories GHSA-aaaa-bbbb-cccc, GO-2026-1 (ticket #101)"
+        );
+        expect(originText({ ...origin, auto: true }, fr, "fr-FR")).toContain("avec votre accord");
+    });
+
     it("ignores what is not an origin", () => {
         expect(readOrigin(null)).toBeNull();
         expect(readOrigin({ kind: "review", number: 1, at: 1 })).toBeNull();

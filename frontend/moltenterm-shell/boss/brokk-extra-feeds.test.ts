@@ -3,11 +3,14 @@
 
 import { describe, expect, it } from "vitest";
 import type { DownloadRecord } from "../downloads/downloads-model";
+import type { MoltentermNotification } from "../notifications-model";
 import type { UsageReadings } from "./boss-usage";
 import {
     acknowledgeDownloads,
     downloadEventsOf,
     makeDownloadsMemory,
+    openSecurityFixKeys,
+    securityFixEventsOf,
     updateEventsOf,
     UsageThresholdPercent,
 } from "./brokk-extra-feeds";
@@ -191,5 +194,44 @@ describe("the plan usage feeds the visit model", () => {
         const fell = usageEventsAfter(seen, { claude: reading("claude", [30]) }, Now);
         expect(fell.events).toEqual([]);
         expect(usageEventsAfter(fell.memory, hot, Now).events).toHaveLength(1);
+    });
+});
+
+describe("a security fix feeds the visit model through its notifications (FR-REV-036 AC13, #2589)", () => {
+    function notice(key: string, over: Partial<MoltentermNotification> = {}): MoltentermNotification {
+        return { id: key, key, source: "deps", title: "t", time: 1, updated: 1, kind: "info", read: false, ...over };
+    }
+    const started = "molten:secfix:started:/p:abcd:";
+    const needs = "molten:secfix:needs:/p:abcd:";
+
+    it("reads the open notifications of a fix that started or needs the developer, sorted", () => {
+        expect(
+            openSecurityFixKeys([
+                notice(needs),
+                notice(started),
+                notice("molten:secfix:ready:/p:abcd:"),
+                notice("molten:secfix:merged:/p:abcd:"),
+                notice("molten:deps:/p:other:"),
+                notice("molten:notif:x"),
+            ])
+        ).toEqual([needs, started]);
+    });
+
+    it("lets go of one the developer settled or archived, and tolerates what is not there", () => {
+        expect(openSecurityFixKeys([notice(started, { resolved: 5 }), notice(needs, { archived: 6 })])).toEqual([]);
+        expect(openSecurityFixKeys([notice(started, { read: true })])).toEqual([started]);
+        expect(openSecurityFixKeys([{ ...notice(started), key: undefined }])).toEqual([]);
+        expect(openSecurityFixKeys(null)).toEqual([]);
+    });
+
+    it("raises the existing security event once for each, under a key the visit line says is a security alert", () => {
+        const events = securityFixEventsOf([needs, started], new Set());
+        expect(events).toEqual([
+            { key: `security:fix:${needs}`, kind: "security", since: 0 },
+            { key: `security:fix:${started}`, kind: "security", since: 0 },
+        ]);
+        expect(securityFixEventsOf([needs, started], new Set([started]))).toEqual([events[0]]);
+        expect(securityFixEventsOf([], new Set())).toEqual([]);
+        expect(securityFixEventsOf(null, new Set())).toEqual([]);
     });
 });

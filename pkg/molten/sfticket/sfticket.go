@@ -23,6 +23,7 @@ const (
 	toolKind = "github-projects"
 
 	TypeTask         = "task"
+	TypeIssue        = "issue"
 	ComplexityLow    = "low"
 	NatureInternal   = "internal"
 	createTicketVerb = "create-ticket"
@@ -91,8 +92,19 @@ func IssueNumber(url string) int {
 	return n
 }
 
+// CommittedScript reads the ticket CLI as committed on origin's trunk (or the other refs given), the copy the project
+// reviewed, never the working copy's; nil when none holds it. git reads a ref in dir and returns its standard output.
+func CommittedScript(ctx context.Context, git func(ctx context.Context, dir string, args ...string) (string, error), dir string, rel string, refs ...string) []byte {
+	for _, ref := range refs {
+		if out, err := git(ctx, dir, "show", ref+":"+rel); err == nil && out != "" {
+			return []byte(out + "\n")
+		}
+	}
+	return nil
+}
+
 // Spec is the ticket to make. SrsBypassReason is passed to the CLI only when the project's SRS is enabled, which
-// refuses a ticket without a source otherwise.
+// refuses a ticket without a source otherwise. Nature may be left empty.
 type Spec struct {
 	Type            string
 	Title           string
@@ -127,8 +139,11 @@ func Create(ctx context.Context, run Runner, dir string, script []byte, tmpParen
 	if os.WriteFile(tool, script, 0700) != nil || os.WriteFile(bodyFile, []byte(spec.Body+"\n"), 0600) != nil {
 		return 0, false, nil
 	}
-	args := []string{tool, createTicketVerb, spec.Type, spec.Title, "--body-file", bodyFile,
-		"--complexity", spec.Complexity, "--nature", spec.Nature}
+	args := []string{tool, createTicketVerb, spec.Type, spec.Title, "--body-file", bodyFile, "--complexity", spec.Complexity}
+	// The nature decides whether a ticket goes through Human Testing: a spec that names none leaves it to the developer.
+	if spec.Nature != "" {
+		args = append(args, "--nature", spec.Nature)
+	}
 	if spec.Milestone != "" {
 		args = append(args, "--milestone", spec.Milestone)
 	}
