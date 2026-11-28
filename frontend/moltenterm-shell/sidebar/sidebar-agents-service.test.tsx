@@ -92,7 +92,10 @@ describe("the row of an agent that left a service running", () => {
     });
 
     it("words several services by their count, and a service without words as 'Service running'", () => {
-        const two = rowOf(render([agent("svc-two", "Basile", "done", { services: [Daemon, "Dev server"] })]), "svc-two");
+        const two = rowOf(
+            render([agent("svc-two", "Basile", "done", { services: [Daemon, "Dev server"] })]),
+            "svc-two"
+        );
         expect(two).toContain('mt-sb-agent-ss">2 services running</span>');
         const unnamed = rowOf(render([agent("svc-anon", "Basile", "done", { services: [""] })]), "svc-anon");
         expect(unnamed).toContain('mt-sb-agent-ss">Service running</span>');
@@ -157,7 +160,9 @@ describe("the tree of an agent with services", () => {
         seedBlock("tree-a", { "molten:agenttree": { open: true } });
         const row = rowOf(render([agent("tree-a", "Basile", "done", { services: [Daemon, ""] })]), "tree-a");
         expect(row).toContain('data-testid="sidebar-agent-section-services"');
-        expect(row).toMatch(/sidebar-agent-section-services"[\s\S]*?<span>Services<\/span><span class="mt-sb-tl-n">2<\/span>/);
+        expect(row).toMatch(
+            /sidebar-agent-section-services"[\s\S]*?<span>Services<\/span><span class="mt-sb-tl-n">2<\/span>/
+        );
         const leaves = row.match(/data-testid="sidebar-agent-service-leaf"/g) ?? [];
         expect(leaves).toHaveLength(2);
         expect(row).toContain(`<span class="mt-sb-leaf-t">${Daemon}</span>`);
