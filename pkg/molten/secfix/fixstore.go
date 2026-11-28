@@ -111,6 +111,19 @@ func (s *FixStore) List(dir string) []Fix {
 	return fixes
 }
 
+// OfPr is the fix whose pull request this is, or false: the step after a merge asks which fix a merged pull request was.
+func (s *FixStore) OfPr(dir string, pr int) (Fix, bool) {
+	if pr <= 0 {
+		return Fix{}, false
+	}
+	for _, fix := range s.List(dir) {
+		if fix.Pr == pr {
+			return fix, true
+		}
+	}
+	return Fix{}, false
+}
+
 // Get is the fix of a set, or false.
 func (s *FixStore) Get(dir string, fingerprint string) (Fix, bool) {
 	for _, fix := range s.List(dir) {

@@ -62,6 +62,8 @@ export type SecurityFix = {
     outcome?: string;
     // advisories that joined after the agent started and that it has not been told of yet
     extra?: string[];
+    // the pull requests the fix's merge unblocks, as the block held them when the fix became ready and when it merged
+    unblocks?: number[];
     tries?: number;
     // Unix ms: when starting may be tried again without the developer
     retryat?: number;
@@ -157,7 +159,8 @@ export function securityFixOfBlock(answer: ReviewsAnswer, block: SecurityBlock):
     return best;
 }
 
-// The pull requests the fix's merge unblocks, as the answer holds them: the ones of its block that did not cause it.
+// The pull requests the fix's merge unblocks: the ones of its block that did not cause it, as the answer holds them; once
+// the block is gone (the merge turned them green), the ones the fix kept when it became ready and when it merged.
 export function securityFixUnblocks(answer: ReviewsAnswer, fix: SecurityFix): number[] {
     if (fix == null) {
         return [];
@@ -168,7 +171,7 @@ export function securityFixUnblocks(answer: ReviewsAnswer, fix: SecurityFix): nu
             return sharedSecurityPrNumbers(block).filter((number) => number !== fix.pr);
         }
     }
-    return [];
+    return fix.unblocks ?? [];
 }
 
 // The fix in flight that stands for a pull request's blocked scan (the card state "blocked by a security fix"): the

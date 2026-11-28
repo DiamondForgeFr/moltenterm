@@ -626,7 +626,7 @@
             "section": "agents",
             "group": "Code review",
             "label": "Fix a shared security block on its own",
-            "description": "A dependency advisory that blocks pull requests gets one ticket and one background agent, started for you. It never merges.",
+            "description": "A dependency advisory that blocks pull requests gets one ticket and one background agent, started for you.",
             "control": "toggle",
             "order": 149
           }

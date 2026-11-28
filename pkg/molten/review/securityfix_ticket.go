@@ -61,6 +61,19 @@ func (r *Restarter) ghAt(ctx context.Context, dir string, args ...string) ([]byt
 	return r.env.Gh(ctx, dir, args...)
 }
 
+// ghInRepo is gh with the repository named in the placeholders of the calls that use them ({owner} and {repo} of an api
+// call): gh resolves a remote named upstream before origin, so the project's own repository is said, never guessed.
+func (r *Restarter) ghInRepo(repo string) func(ctx context.Context, dir string, args ...string) ([]byte, error) {
+	owner, name, _ := strings.Cut(repo, "/")
+	return func(ctx context.Context, dir string, args ...string) ([]byte, error) {
+		named := make([]string, len(args))
+		for i, arg := range args {
+			named[i] = strings.NewReplacer("{owner}", owner, "{repo}", name).Replace(arg)
+		}
+		return r.ghAt(ctx, dir, named...)
+	}
+}
+
 // citing lists the open issues or pull requests (kind "issue" or "pr") that cite one of the advisories, lowest number
 // first; one search per advisory, for the first few of the set.
 func (r *Restarter) citing(ctx context.Context, dir string, repo string, kind string, ids []string) ([]ghFoundIssue, error) {
@@ -165,7 +178,7 @@ func (r *Restarter) createSecurityTicket(ctx context.Context, in securityLaunch,
 	body := secfix.TicketBody(in.block.Advisories, in.block.Check, in.trunk, in.block.TrunkFailing, blockPrNumbers(in.block))
 	milestone := ""
 	if r.env.Gh != nil {
-		milestone = milestones.ReleaseBeingPrepared(ctx, r.env.Gh, in.dir)
+		milestone = milestones.ReleaseBeingPrepared(ctx, r.ghInRepo(in.repo), in.dir)
 	}
 	if rel := sfticket.ToolOf(in.dir); rel != "" && r.env.SecurityFix.Run != nil {
 		script := sfticket.CommittedScript(ctx, r.git, in.dir, rel, "origin/"+in.trunk)

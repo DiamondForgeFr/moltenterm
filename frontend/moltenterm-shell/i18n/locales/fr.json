@@ -1506,7 +1506,7 @@
             },
             "review:securityfix": {
                 "label": "Corriger seul un blocage de sécurité partagé",
-                "description": "Une alerte de dépendance qui bloque des pull requests reçoit un ticket et un agent en arrière-plan, lancés pour vous. Il ne fusionne jamais.",
+                "description": "Une alerte de dépendance qui bloque des pull requests reçoit un ticket et un agent en arrière-plan, lancés pour vous.",
                 "confirm": "Une fois activé, quand l'analyse des dépendances de votre projet échoue sur des alertes qu'aucune pull request n'a causées, MoltenTerm ouvre un seul ticket pour elles et lance un seul agent de code en arrière-plan, dans sa propre copie du tronc, sans vous demander. L'agent monte la dépendance ou consigne pourquoi l'alerte ne s'applique pas, puis ouvre une pull request. MoltenTerm la marque prête quand ses checks sont verts et ne la fusionne jamais : la fusion reste la vôtre. Vous pouvez l'arrêter à tout moment, et un correctif que vous avez arrêté n'est jamais relancé seul. Seule une analyse que votre projet a déclarée, ou que vous avez confirmée, peut le lancer.",
                 "confirmOn": "Activer",
                 "confirmCancel": "Continuer à demander"

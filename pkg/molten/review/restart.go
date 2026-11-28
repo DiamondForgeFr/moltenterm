@@ -231,6 +231,10 @@ type Restarter struct {
 	resumed map[string]handedTask
 	// The security fixes being followed, by project and set of advisories (securityfix_follow.go).
 	secFollows map[string]bool
+	// spawn runs the work an assessment starts apart; nil starts a goroutine (the tests run it in place).
+	spawn func(func())
+	// What the security fix told once (securityfix.go), by key.
+	secTold map[string]bool
 }
 
 func MakeRestarter(store *Store, env RestartEnv) *Restarter {

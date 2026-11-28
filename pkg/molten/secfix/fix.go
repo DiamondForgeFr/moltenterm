@@ -126,6 +126,9 @@ type Fix struct {
 	Outcome string `json:"outcome,omitempty"`
 	// Extra are advisories that joined after the agent started and that it has not been told of yet.
 	Extra []string `json:"extra,omitempty"`
+	// Unblocks are the pull requests the fix's merge unblocks (the shared block's, the fix's own left out), as the last
+	// assessment held them when the fix became ready and when it merged: the block goes once they are green, this stays.
+	Unblocks []int `json:"unblocks,omitempty"`
 	// Tries is how many times starting it failed before an agent was there; RetryAt (Unix ms) is when it may be tried
 	// again without the developer.
 	Tries   int   `json:"tries,omitempty"`

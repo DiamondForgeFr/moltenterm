@@ -210,6 +210,23 @@ func TestFixStoreTellsWhoChanged(t *testing.T) {
 	}
 }
 
+func TestOfPrFindsTheFixOfAPullRequest(t *testing.T) {
+	t.Parallel()
+	store := makeFixStore(t)
+	dir := t.TempDir()
+	store.Begin(dir, Fix{Ids: []string{"GO-2026-1"}}, false)
+	fp := Fingerprint([]string{"GO-2026-1"})
+	store.Update(dir, fp, func(f *Fix) bool { f.Pr = 150; return true })
+	if fix, ok := store.OfPr(dir, 150); !ok || fix.Fingerprint != fp {
+		t.Fatalf("OfPr = %+v, %v", fix, ok)
+	}
+	for _, number := range []int{0, -1, 151} {
+		if _, ok := store.OfPr(dir, number); ok {
+			t.Errorf("pull request %d has no fix", number)
+		}
+	}
+}
+
 func TestBeginRefusesAFixWithoutAdvisories(t *testing.T) {
 	t.Parallel()
 	if _, _, err := makeFixStore(t).Begin(t.TempDir(), Fix{Ids: []string{"not an id!"}}, false); err == nil {

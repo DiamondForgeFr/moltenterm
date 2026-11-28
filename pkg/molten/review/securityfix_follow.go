@@ -503,13 +503,14 @@ func (r *Restarter) securityGreen(ctx context.Context, st *securityFollowState, 
 			return true
 		}
 	}
+	unblocks := r.securityUnblocks(fix)
 	updated, _, _ := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
-		f.State, f.Reason = secfix.FixReady, ""
+		f.State, f.Reason, f.Unblocks = secfix.FixReady, "", unblocks
 		return true
 	})
 	r.resolveSecurityNotice(ctx, updated, securityNoticeNeeds)
 	if !st.said(securityNoticeReady, strconv.Itoa(updated.Pr)) {
-		r.notify(ctx, securityReady(updated, r.securityUnblocks(updated)))
+		r.notify(ctx, securityReady(updated, unblocks))
 	}
 	return true
 }
@@ -532,9 +533,14 @@ func (r *Restarter) securityExternalState(ctx context.Context, fix secfix.Fix, p
 // securityMergedNow: the pull request landed. The fix is merged and its notifications are over; the agent's terminal goes,
 // and its copy when nothing is left in it.
 func (r *Restarter) securityMergedNow(ctx context.Context, fix secfix.Fix) {
+	// What the block holds now; once the merge turned the blocked pull requests green the block is gone, and what the fix
+	// kept when it became ready stands.
 	unblocks := r.securityUnblocks(fix)
+	if len(unblocks) == 0 {
+		unblocks = fix.Unblocks
+	}
 	updated, _, _ := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
-		f.State, f.Reason, f.MergedAt = secfix.FixMerged, "", r.env.Now().UnixMilli()
+		f.State, f.Reason, f.MergedAt, f.Unblocks = secfix.FixMerged, "", r.env.Now().UnixMilli(), unblocks
 		return true
 	})
 	r.resolveSecurityNotice(ctx, updated, securityNoticeStarted, securityNoticeNeeds, securityNoticeReady)

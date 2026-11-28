@@ -1315,7 +1315,7 @@
             },
             "review:securityfix": {
                 "label": "Fix a shared security block on its own",
-                "description": "A dependency advisory that blocks pull requests gets one ticket and one background agent, started for you. It never merges.",
+                "description": "A dependency advisory that blocks pull requests gets one ticket and one background agent, started for you.",
                 "confirm": "Turned on, when your project's dependency scan fails on advisories that no pull request caused, MoltenTerm opens one ticket for them and starts one coding agent in the background, in its own copy of the trunk, without asking you. The agent bumps the dependency or records why the advisory does not apply, and opens a pull request. MoltenTerm marks it ready when its checks are green and never merges it: the merge stays yours. You can stop it at any time, and a fix you stopped is never started again on its own. Only a scan your project declared, or that you confirmed, can start it.",
                 "confirmOn": "Turn it on",
                 "confirmCancel": "Keep asking me"
