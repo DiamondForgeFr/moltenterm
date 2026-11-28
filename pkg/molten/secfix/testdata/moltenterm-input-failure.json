@@ -1,0 +1,8 @@
+{
+    "schema": 1,
+    "status": "scanner-input-failure",
+    "exitCode": 2,
+    "reasons": [],
+    "findings": [],
+    "error": "npm 10.9.2 is required; found 9.0.0"
+}

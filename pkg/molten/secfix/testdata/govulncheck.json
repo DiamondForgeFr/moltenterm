@@ -1,0 +1,45 @@
+{
+	"config": {
+		"protocol_version": "v1.0.0",
+		"scanner_name": "govulncheck",
+		"scanner_version": "v1.1.4"
+	}
+}
+{
+	"progress": {
+		"message": "Scanning your code and 12 packages across 3 dependent modules for known vulnerabilities..."
+	}
+}
+{
+	"osv": {
+		"id": "GO-2099-0001",
+		"summary": "Fake lib parses input unsafely",
+		"aliases": ["CVE-2099-0001"],
+		"database_specific": {"severity": "HIGH"}
+	}
+}
+{
+	"osv": {
+		"id": "GO-2099-0003",
+		"summary": "Only imported, never called",
+		"database_specific": {"severity": "LOW"}
+	}
+}
+{
+	"finding": {
+		"osv": "GO-2099-0001",
+		"fixed_version": "v1.2.4",
+		"trace": [
+			{"module": "example.com/fake/lib", "version": "v1.2.0", "package": "example.com/fake/lib/parse", "function": "Parse"}
+		]
+	}
+}
+{
+	"finding": {
+		"osv": "GO-2099-0003",
+		"fixed_version": "v0.9.9",
+		"trace": [
+			{"module": "example.com/fake/idle", "version": "v0.9.0"}
+		]
+	}
+}

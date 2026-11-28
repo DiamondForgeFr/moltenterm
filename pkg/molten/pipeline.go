@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/wavetermdev/waveterm/pkg/molten/secfix"
 	"github.com/wavetermdev/waveterm/pkg/molten/versions"
 )
 
@@ -86,6 +87,9 @@ type PipelineCi struct {
 	Prepare *PipelineCommand `json:"prepare,omitempty"`
 	// "github": each job's verdict is published as the commit status local-<job>.
 	Statuses string `json:"statuses,omitempty"`
+	// The project's dependency or security scan among its GitHub checks (FR-REV-036): what Moltenterm reads when it
+	// fails on a pull request. Declaring it needs no local job.
+	Security *secfix.Declaration `json:"security,omitempty"`
 }
 
 const PipelineCiStatusesGithub = "github"
@@ -733,8 +737,11 @@ func (c *pipelineChecker) check(p *Pipeline) {
 	}
 	if p.Ci != nil {
 		seen := map[string]bool{}
-		if len(p.Ci.Jobs) == 0 {
+		if len(p.Ci.Jobs) == 0 && p.Ci.Security == nil {
 			c.errorf("ci.jobs is empty: leave ci out, or declare at least one job")
+		}
+		for _, problem := range p.Ci.Security.Problems() {
+			c.errorf("ci.security: %s", problem)
 		}
 		for i, job := range p.Ci.Jobs {
 			label := fmt.Sprintf("ci.jobs[%d]", i)
