@@ -192,7 +192,12 @@ func Start() {
 		rpcClient := wshclient.GetBareRpcClient()
 		rpcClient.EventListener.On(wps.Event_RouteDown, func(event *wps.WaveEvent) { handleRouteDown(manager, event) })
 		wshclient.EventSubCommand(rpcClient, wps.SubscriptionRequest{Event: wps.Event_RouteDown, AllScopes: true}, nil)
-		go sweepCliSessionsEvery(manager, cliSweepEvery)
+		go func() {
+			defer func() {
+				panichandler.PanicHandler("molten:browseragent:clisweep", recover())
+			}()
+			sweepCliSessionsEvery(manager, cliSweepEvery)
+		}()
 	})
 }
 
@@ -204,6 +209,7 @@ func sweepCliSessionsEvery(manager *Manager, every time.Duration) {
 	}
 }
 
+// A sweep that panics must not end the sweeping: the next one goes on.
 func sweepCliSessionsOnce(manager *Manager) {
 	defer func() {
 		panichandler.PanicHandler("molten:browseragent:clisweep", recover())
