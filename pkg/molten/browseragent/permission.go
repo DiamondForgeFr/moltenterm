@@ -45,7 +45,7 @@ type permissionRequest struct {
 	tabId      int64
 	key        TabKey
 	site       string
-	frameKey   string `json:"framekey,omitempty"`
+	frameKey   string
 	created    time.Time
 	done       chan struct{}
 	outcome    string
@@ -278,7 +278,7 @@ func (m *Manager) pendingPromptLocked(key TabKey) *PermissionPrompt {
 	if oldest == nil {
 		return nil
 	}
-	return &PermissionPrompt{RequestId: oldest.id, Site: oldest.site, Kind: oldest.kind, Action: oldest.action, ActionText: oldest.actionText}
+	return &PermissionPrompt{RequestId: oldest.id, Site: oldest.site, Kind: oldest.kind, Action: oldest.action, ActionText: oldest.actionText, FrameKey: oldest.frameKey}
 }
 
 func validDecision(decision string) bool {

@@ -560,7 +560,7 @@ func TestClickingASensitiveFrameAsks(t *testing.T) {
 		ip.atPoint = targetInfo{Found: true, Kind: "frame", Frame: true, FrameSensitive: true}
 	})
 	pending := w.callAsync(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[100,200]`))
-	if p := w.actionPrompt(t); p.Action != actionPromptText(reasonSensitiveFrame) || p.Site != "shop.example" {
+	if p := w.actionPrompt(t); p.Action != actionPromptText(reasonSensitiveFrame) || p.Site != "shop.example" || p.FrameKey != "" {
 		t.Fatalf("prompt %+v", p)
 	}
 	w.answer(t, w.actionPrompt(t), DecisionDeny)
@@ -585,13 +585,17 @@ func TestAlwaysFrameConsentIsScopedAndRevocable(t *testing.T) {
 		ip.atPoint = targetInfo{Found: true, Kind: "frame", Label: "Payment", Frame: true, FrameSensitive: true, FrameSource: source}
 	})
 	pending := w.callAsync(mcpbrowser.ToolComputer, w.args(`"action":"left_click","coordinate":[100,200]`))
-	w.answer(t, w.actionPrompt(t), DecisionAlways)
-	if r := waitResult(t, pending); r.IsError {
-		t.Fatalf("always allow: %s", text(r))
-	}
 	key := frameConsentKey("shop.example", "Payment", source)
 	if key != "shop.example|https://pay.example/embed" {
 		t.Fatalf("the consent key drops query and fragment: %q", key)
+	}
+	prompt := w.actionPrompt(t)
+	if prompt.FrameKey != key {
+		t.Fatalf("the bar gets the frame key that shows Always for this frame: %+v", prompt)
+	}
+	w.answer(t, prompt, DecisionAlways)
+	if r := waitResult(t, pending); r.IsError {
+		t.Fatalf("always allow: %s", text(r))
 	}
 	if got := w.env.AgentFrameConsents()[key]; got != SiteAllow {
 		t.Fatalf("Always is stored for this frame only: %v", got)
