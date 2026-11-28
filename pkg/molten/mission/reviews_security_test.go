@@ -205,8 +205,9 @@ func TestReviewsSecurityClearsWhatTheChecksNoLongerCall(t *testing.T) {
 	fixed := securityPrs(scanRollup(500, 5001, "SUCCESS"), scanRollup(501, 5011, "SUCCESS"))
 	green := BuildReviews(reviewsSnapshot(dir, fixed))
 	in, key := reviews.applySecurity(&green)
-	if key != "" || len(in.Prs) == 0 {
-		t.Fatalf("no failed check could be the scan: key %q", key)
+	// No failed check could be the scan; the project names its scan, so its trunk is still watched (FR-REV-036 AC16).
+	if in.HasFailedScan() || len(in.Prs) == 0 || key == "" {
+		t.Fatalf("no failed check could be the scan, and the trunk is watched: key %q", key)
 	}
 	if len(green.SecurityBlocks) != 0 || green.Ready[0].SecurityBlock != "" {
 		t.Fatalf("a scan that passes again leaves no block: %+v", green.SecurityBlocks)
@@ -304,6 +305,10 @@ func TestReviewsSecurityReadsNothingWithoutAFailedScan(t *testing.T) {
 	t.Parallel()
 	gh := &securityGh{reports: map[string]string{}}
 	reviews, dir := securityReviews(t, gh)
+	// A project that names no scan has nothing to read while no check fails; one that does has its trunk watched.
+	if err := os.WriteFile(filepath.Join(dir, ".molten", "project.json"), []byte(`{"schema":1,"name":"app"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
 	green := BuildReviews(reviewsSnapshot(dir, securityPrs(scanRollup(500, 5001, "SUCCESS"), scanRollup(501, 5011, "SUCCESS"))))
 	in, key := reviews.applySecurity(&green)
 	reviews.startSecurity(green, in, key, true)

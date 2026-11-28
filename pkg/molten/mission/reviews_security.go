@@ -52,6 +52,8 @@ type securityState struct {
 	has     bool
 	result  secfix.Result
 	usedAt  time.Time
+	// failing: a listed pull request fails a check that could be the scan, as the answers last showed.
+	failing bool
 }
 
 // readSecurityDeclaration reads `ci.security` of the project's pipeline; nil when the project declares none or its
@@ -90,7 +92,8 @@ func (r *Reviews) securityInput(answer ReviewsAnswer) (secfix.Input, bool) {
 		return secfix.Input{}, false
 	}
 	confirmed, dismissed := r.securityStore.Get(answer.Dir)
-	in := secfix.Input{Dir: answer.Dir, Trunk: answer.Target, Policy: secfix.Policy{Declaration: readSecurityDeclaration(answer.Dir), Confirmed: confirmed, Dismissed: dismissed}}
+	in := secfix.Input{Dir: answer.Dir, Trunk: answer.Target, WatchTrunk: true,
+		Policy: secfix.Policy{Declaration: readSecurityDeclaration(answer.Dir), Confirmed: confirmed, Dismissed: dismissed}}
 	for _, pr := range append(append([]ReviewPr{}, answer.Ready...), answer.Drafts...) {
 		in.Prs = append(in.Prs, secfix.PrInput{Number: pr.Number, HeadOid: pr.HeadOid, Checks: securityChecks(pr)})
 	}
@@ -112,6 +115,12 @@ func (r *Reviews) applySecurity(answer *ReviewsAnswer) (secfix.Input, string) {
 	if key == "" || state == nil || !state.has {
 		return in, key
 	}
+	// No listed pull request fails a scan any more: what the last assessment found of them is gone, the trunk's own block
+	// (a red scan with no pull request, FR-REV-036 AC16) is not.
+	state.failing = in.HasFailedScan()
+	if !state.failing {
+		state.result = state.result.TrunkOnly()
+	}
 	listed := map[int]bool{}
 	for _, pr := range append(append([]ReviewPr{}, answer.Ready...), answer.Drafts...) {
 		listed[pr.Number] = true
@@ -127,7 +136,8 @@ func (r *Reviews) applySecurity(answer *ReviewsAnswer) (secfix.Input, string) {
 }
 
 // SecurityResult is what the project's last assessment of its failed scans found, for the work that follows a shared
-// block; false when none ran, or the failed checks that could be the scan are gone since.
+// block; false when none ran, or the failed checks that could be the scan are gone since (the trunk's own block, which
+// no pull request's check leads to, is still there while the trunk's scan fails).
 func (r *Reviews) SecurityResult(dir string) (secfix.Result, bool) {
 	if r == nil {
 		return secfix.Result{}, false
@@ -138,6 +148,10 @@ func (r *Reviews) SecurityResult(dir string) (secfix.Result, bool) {
 	state := r.scans[dir]
 	if state == nil || !state.has || state.key == "" {
 		return secfix.Result{}, false
+	}
+	if !state.failing {
+		only := state.result.TrunkOnly()
+		return only, len(only.Blocks) > 0
 	}
 	return state.result, true
 }
@@ -199,6 +213,15 @@ func (r *Reviews) evictScansLocked() {
 	}
 }
 
+// noteFailing keeps whether a listed pull request failed a check that could be the scan when the assessment ran.
+func (r *Reviews) noteFailing(dir string, failing bool) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if state := r.scans[dir]; state != nil {
+		state.failing = failing
+	}
+}
+
 // storeSecurity keeps an assessment's result; true when the inputs changed while it ran, so another one follows.
 func (r *Reviews) storeSecurity(dir string, result secfix.Result, assessed bool) bool {
 	r.lock.Lock()
@@ -220,9 +243,13 @@ func (r *Reviews) storeSecurity(dir string, result secfix.Result, assessed bool)
 // readSecurity assesses the failed scans in the background and tells the views.
 func (r *Reviews) readSecurity(in secfix.Input, repoRef string) {
 	result, assessed := r.assessSecurity(in, repoRef)
+	r.noteFailing(in.Dir, in.HasFailedScan())
 	again := r.storeSecurity(in.Dir, result, assessed)
 	if assessed {
 		r.publishCurrent(in.Dir)
+		if !in.HasFailedScan() {
+			result = result.TrunkOnly()
+		}
 		notifySecurityObserver(SecurityAssessed{Dir: in.Dir, Repo: repoRef, Trunk: in.Trunk, Result: result})
 	}
 	if again {
