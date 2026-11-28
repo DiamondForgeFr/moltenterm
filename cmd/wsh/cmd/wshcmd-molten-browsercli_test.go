@@ -24,8 +24,9 @@ func moltenCommandByWords(command string) *cobra.Command {
 	return found
 }
 
+// The tests that look commands up walk the program's own command tree, which cobra sorts and caches as it is read: they
+// run one after the other, not in parallel.
 func TestEveryToolOfTheServerHasItsCommandOrItsReason(t *testing.T) {
-	t.Parallel()
 	seen := map[string]bool{}
 	for _, b := range mcpbrowser.CliBindings() {
 		seen[b.Tool] = true
@@ -73,7 +74,6 @@ func serverToolNamesOf(t *testing.T) []string {
 }
 
 func TestNoBrowserCommandWithoutABinding(t *testing.T) {
-	t.Parallel()
 	want := map[string]bool{}
 	for _, b := range mcpbrowser.CliBindings() {
 		if strings.HasPrefix(b.Command, mcpbrowser.CliGroup+" ") && !b.Existing {
@@ -92,7 +92,6 @@ func TestNoBrowserCommandWithoutABinding(t *testing.T) {
 }
 
 func TestBrowserCommandsTakeTheArgumentsOfTheirTools(t *testing.T) {
-	t.Parallel()
 	cases := []struct {
 		line string
 		use  string
@@ -134,7 +133,6 @@ func TestBrowserCommandsTakeTheArgumentsOfTheirTools(t *testing.T) {
 }
 
 func TestBrowserCommandsRouteThroughMolten(t *testing.T) {
-	t.Parallel()
 	for line, want := range map[string]string{
 		"molten browser list":                 "list",
 		"molten browser open example.com":     "open",
