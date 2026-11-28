@@ -1,0 +1,36 @@
+{
+    "auditReportVersion": 2,
+    "vulnerabilities": {
+        "left-fake": {
+            "name": "left-fake",
+            "severity": "high",
+            "isDirect": true,
+            "via": [
+                {
+                    "source": 1099001,
+                    "name": "left-fake",
+                    "dependency": "left-fake",
+                    "title": "Prototype pollution in left-fake",
+                    "url": "https://github.com/advisories/GHSA-aaaa-bbbb-cccc",
+                    "severity": "high",
+                    "range": "<3.0.5"
+                }
+            ],
+            "effects": ["right-fake"],
+            "range": "<3.0.5",
+            "nodes": ["node_modules/left-fake"],
+            "fixAvailable": {"name": "left-fake", "version": "3.0.5", "isSemVerMajor": false}
+        },
+        "right-fake": {
+            "name": "right-fake",
+            "severity": "high",
+            "isDirect": false,
+            "via": ["left-fake"],
+            "effects": [],
+            "range": "*",
+            "nodes": ["node_modules/right-fake"],
+            "fixAvailable": true
+        }
+    },
+    "metadata": {"vulnerabilities": {"high": 2, "total": 2}}
+}

@@ -1,0 +1,17 @@
+{
+    "schema": 1,
+    "status": "reported-only",
+    "exitCode": 0,
+    "reasons": [],
+    "findings": [
+        {
+            "ecosystem": "npm",
+            "id": "GHSA-aaaa-bbbb-cccc",
+            "package": "left-fake",
+            "version": "3.0.1",
+            "severity": "moderate",
+            "title": "Reported only",
+            "verdict": "reported"
+        }
+    ]
+}

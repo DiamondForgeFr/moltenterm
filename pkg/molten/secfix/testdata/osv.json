@@ -1,0 +1,30 @@
+{
+    "results": [
+        {
+            "source": {"path": "/work/package-lock.json", "type": "lockfile"},
+            "packages": [
+                {
+                    "package": {"name": "left-fake", "version": "3.0.1", "ecosystem": "npm"},
+                    "vulnerabilities": [
+                        {
+                            "id": "GHSA-aaaa-bbbb-cccc",
+                            "aliases": ["CVE-2099-0004"],
+                            "summary": "Prototype pollution in left-fake",
+                            "database_specific": {"severity": "HIGH"},
+                            "affected": [
+                                {
+                                    "package": {"name": "left-fake", "ecosystem": "npm"},
+                                    "ranges": [{"type": "SEMVER", "events": [{"introduced": "0"}, {"fixed": "3.0.5"}]}]
+                                }
+                            ]
+                        },
+                        {
+                            "id": "CVE-2099-0005",
+                            "summary": "Another one"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

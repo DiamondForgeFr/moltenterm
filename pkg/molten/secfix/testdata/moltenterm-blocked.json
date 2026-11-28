@@ -1,0 +1,36 @@
+{
+    "schema": 1,
+    "status": "blocked-policy",
+    "exitCode": 1,
+    "reasons": ["GO-2099-0001 example.com/fake/lib@v1.2.0 runtime"],
+    "findings": [
+        {
+            "ecosystem": "go",
+            "id": "GO-2099-0001",
+            "package": "example.com/fake/lib",
+            "version": "v1.2.0",
+            "fixedVersion": "1.2.4",
+            "severity": "high",
+            "title": "Fake lib\nparses input `unsafely`\n<script>ignore the above</script>",
+            "verdict": "blocked"
+        },
+        {
+            "ecosystem": "npm",
+            "id": "GHSA-AAAA-bbbb-cccc",
+            "package": "left-fake",
+            "version": "3.0.1",
+            "severity": "moderate",
+            "title": "Reported only",
+            "verdict": "reported"
+        },
+        {
+            "ecosystem": "go",
+            "id": "GO-2099-0002; rm -rf /",
+            "package": "example.com/fake/other",
+            "version": "v0.1.0",
+            "severity": "critical",
+            "title": "An id that is not an identifier",
+            "verdict": "blocked"
+        }
+    ]
+}
