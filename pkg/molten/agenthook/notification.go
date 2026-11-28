@@ -37,10 +37,12 @@ type HookInput struct {
 	AgentId             string `json:"agent_id"`
 	AgentType           string `json:"agent_type"`
 	AgentTranscriptPath string `json:"agent_transcript_path"`
-	// ToolName, ToolDescription (tool_input.description), BackgroundTaskId (tool_response.backgroundTaskId): a
-	// PostToolUse's, to tell a command left running in the background (backgroundtask.go, #2140).
+	// ToolName, ToolDescription (tool_input.description), ToolCommand (tool_input.command), BackgroundTaskId
+	// (tool_response.backgroundTaskId): a PostToolUse's, to tell a command left running in the background
+	// (backgroundtask.go, #2140). The command line is read to tell a service (jobline.IsService, #2583) and never kept.
 	ToolName         string `json:"tool_name"`
 	ToolDescription  string `json:"-"`
+	ToolCommand      string `json:"-"`
 	BackgroundTaskId string `json:"-"`
 	// ToolInput: the tool's whole input, kept up to maxKeptToolInput, for a PreToolUse to hand back changed (pretool.go).
 	// A string, not a json.RawMessage, so that a HookInput stays comparable.

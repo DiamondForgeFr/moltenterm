@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/jobline"
 )
 
 // The one hook handler of Claude Code, Codex and Kimi Code (#988, FR-SHELL-036, FR-SHELL-038, FR-CONT-030): the agents
@@ -171,8 +173,8 @@ func RunHookEvent(input HookInput, agent string, blockId string, call HookCaller
 		if input.HookEventName == HookEventPostToolUse && input.BackgroundTaskId != "" {
 			return call(AgentStateSetCommand, AgentStatesRoute, AgentStateRequest{
 				BlockId: blockId, State: AgentStateWorking, Agent: agent, BackgroundTask: input.BackgroundTaskId,
-				BackgroundDescription: input.ToolDescription, Transcript: absPath(input.TranscriptPath), TurnId: input.TurnId,
-				SessionId: input.SessionId,
+				BackgroundDescription: input.ToolDescription, BackgroundService: jobline.IsService(input.ToolCommand),
+				Transcript: absPath(input.TranscriptPath), TurnId: input.TurnId, SessionId: input.SessionId,
 			})
 		}
 		// The transcript rides with the state (#2142): a wavesrv restarted since SessionStart links the pane again

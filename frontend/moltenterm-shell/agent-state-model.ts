@@ -82,6 +82,10 @@ export type AgentStateInfo = {
     // The sub-agents at work as their own files say (#2502), with the background jobs they wait for: those that wait
     // on their own tests or build after the lead's turn ended are in it, and counted by subagents.
     work?: SubagentWork[];
+    // The services the session left running in the background (#2583): a dev server, a daemon. One entry each, in the
+    // order they started: the words the agent gave it, "" when it gave none. A service is not work: state is never
+    // working because of one.
+    services?: string[];
     cleared?: boolean;
     // The block is Brokk's own session (FR-BOSS-009, AC26): no list of agents shows it, his face alone shows it works.
     own?: boolean;

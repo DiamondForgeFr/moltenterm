@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 // The sidebar's agents (FR-SHELL-084): one row per agent of the workspace, between the pinned views and the temporary
-// ones. A row says who, what it is doing and its state; its twisty opens its sub-agents, the agents it is linked to,
-// then the link to everything about it. Tools, MCP servers, pages and commands stay in that window, not in the tree.
+// ones. A row says who, what it is doing and its state; its twisty opens its sub-agents, the services it left running,
+// the agents it is linked to, then the link to everything about it. Tools, MCP servers, pages and commands stay in that
+// window, not in the tree. An agent whose turn ended with only services left runs is not at work (#2583): its row shows
+// its own state, a calm plug and what runs, and it is not among the active ones.
 // Any of these rows can carry the developer's own short note (agent-note-ui.tsx, #2008).
 
 import { ContextMenuModel } from "@/app/store/contextmenu";
@@ -11,6 +13,7 @@ import { getBlockMetaKeyAtom } from "@/app/store/global";
 import { globalStore } from "@/app/store/jotaiStore";
 import { cn, fireAndForget } from "@/util/util";
 import { atom, useAtomValue } from "jotai";
+import { Plug } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { agentFactsLine, agentRunFacts } from "../agent-facts";
 import {
@@ -53,6 +56,7 @@ import {
     agentProjectLabel,
     agentRowLook,
     agentRowTarget,
+    agentServiceLine,
     type AgentProjectLabel,
     type AgentTreeSection,
 } from "./sidebar-agents-model";
@@ -117,6 +121,23 @@ export function SubagentsPill({ count }: { count: number }) {
         >
             <span aria-hidden>{count}</span>
             <DominoLoader />
+        </span>
+    );
+}
+
+// A service the agent left running (#2583, FR-SHELL-084): a calm plug where the dominoes would be, not animated. It says
+// which services run and that they do not count as active.
+export function ServiceMark({ label }: { label: string }) {
+    const t = useT();
+    return (
+        <span
+            className="mt-sb-agent-svc"
+            role="img"
+            aria-label={label}
+            title={t("sidebar.agents.serviceTitle")}
+            data-testid="sidebar-agent-service"
+        >
+            <Plug size={13} strokeWidth={1.8} aria-hidden="true" />
         </span>
     );
 }
@@ -308,6 +329,42 @@ function SubagentsGroup({ info, companion }: { info: AgentStateInfo; companion: 
     );
 }
 
+// The services the agent left running (#2583), in every state: the row only gives a count, this says which. A leaf is
+// static, there is nothing to open: the agent's own words, or "Service running" when it gave none.
+function ServicesGroup({ info, shut }: { info: AgentStateInfo; shut: boolean }) {
+    const t = useT();
+    const services = info.services ?? [];
+    if (services.length === 0) {
+        return null;
+    }
+    return (
+        <>
+            <SectionTitle
+                blockId={info.blockid}
+                section="services"
+                label={t("agentInfo.services")}
+                count={services.length}
+                shut={shut}
+            />
+            {shut
+                ? null
+                : services.map((words, i) => (
+                      <div
+                          key={i}
+                          className="mt-sb-leaf is-static is-svc"
+                          title={t("sidebar.agents.serviceTitle")}
+                          data-testid="sidebar-agent-service-leaf"
+                      >
+                          <Plug size={13} strokeWidth={1.8} aria-hidden="true" className="shrink-0" />
+                          <span className="mt-sb-leaf-t">
+                              {words.trim() !== "" ? words : t("sidebar.agents.serviceUnnamed")}
+                          </span>
+                      </div>
+                  ))}
+        </>
+    );
+}
+
 // The linked agent's own note: the one its row under Agents shows, kept in its workspace.
 export function LinkedLeaf({
     row,
@@ -385,6 +442,7 @@ function AgentTree({ info, shut }: { info: AgentStateInfo; shut: Partial<Record<
         <div className="mt-sb-tree" data-testid="sidebar-agent-tree">
             <AgentNoteFull subject={note} />
             <SubagentsGroup info={info} companion={companion} />
+            <ServicesGroup info={info} shut={!!shut?.services} />
             {links.length > 0 ? (
                 <>
                     <SectionTitle
@@ -577,12 +635,14 @@ function AgentBlock({
     order: AgentRowOrder;
 }) {
     const t = useT();
+    const tc = useTCount();
     const tree = useAtomValue(AgentInfoModel.getInstance().treeAtom(info.blockid));
     const folder = useAtomValue(getBlockMetaKeyAtom(info.blockid, "cmd:cwd")) ?? "";
     const open = !!tree?.open;
     const look = agentRowLook(info);
     const name = agentDisplayName(info);
-    const doing = agentDoing(info);
+    const serviceLine = agentServiceLine(t, tc, info);
+    const doing = serviceLine || agentDoing(info);
     const subs = info.subagents ?? 0;
     const label = grouped ? null : agentProjectLabel(folder, projects);
     const go = () => fireAndForget(() => goToAgent(agentRowTarget(info)));
@@ -613,6 +673,7 @@ function AgentBlock({
                     "mt-sb-row mt-sb-arow",
                     `is-${look}`,
                     info.background === true && subs > 0 && "is-subs",
+                    serviceLine !== "" && "is-service",
                     active && "is-on",
                     editing && "is-noting",
                     order.drop === "before" && "is-drop-before",
@@ -622,6 +683,7 @@ function AgentBlock({
                 title={[
                     t("sidebar.agents.goTo", { name }),
                     `${agentStateLabel(info.state)}${doing !== agentStateLabel(info.state) ? ` · ${doing}` : ""}`,
+                    serviceLine !== "" ? t("sidebar.agents.serviceTitle") : "",
                     agentFactsLine(agentRunFacts(info)),
                 ]
                     .filter(Boolean)
@@ -674,6 +736,7 @@ function AgentBlock({
                         {look === "working" && subs === 0 ? (
                             <WorkingDominoes label={agentStateLabel("working")} />
                         ) : null}
+                        {serviceLine !== "" ? <ServiceMark label={serviceLine} /> : null}
                     </>
                 )}
             </div>

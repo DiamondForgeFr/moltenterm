@@ -99,13 +99,14 @@ func (a *agentStates) subagentWorkOf(blockId string, rec *agentRecord) (int, []m
 }
 
 // subagentsInfo shows a pane whose main session is idle or done, and whose sub-agents run, as working in the
-// background, and so do its background commands (backgroundcommands.go, #2140). A state MoltenTerm holds
-// (agenthold.go) keeps its own words.
+// background, and so do its background commands that end by themselves (backgroundcommands.go, #2140). The services it
+// left running are only listed (#2583): they are not work. A state MoltenTerm holds (agenthold.go) keeps its own words.
 func (a *agentStates) subagentsInfo(blockId string, rec *agentRecord, info *molten.AgentStateInfo) {
 	n, work := a.subagentWorkOf(blockId, rec)
 	info.Subagents = n
 	info.Work = work
-	commands := len(rec.commands)
+	info.Services = serviceWords(rec)
+	commands := boundedCommands(rec)
 	if n+commands == 0 || info.State != rec.state || (rec.state != molten.AgentStateIdle && rec.state != molten.AgentStateDone) {
 		return
 	}

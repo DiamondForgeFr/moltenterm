@@ -4,6 +4,7 @@
 package agenthook
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -39,6 +40,58 @@ func TestReadHookInputBackgroundCommand(t *testing.T) {
 		if in := ReadHookInput(strings.NewReader(payload)); in.BackgroundTaskId != "" {
 			t.Fatalf("%s: %+v", payload, in)
 		}
+	}
+}
+
+// #2583: the hook reads the command line once, to tell a service from bounded work, and sends the answer: the line
+// itself never leaves the hook.
+func TestBackgroundCommandIsAServiceByItsCommandLine(t *testing.T) {
+	t.Parallel()
+	payload := func(command string) string {
+		return strings.Replace(backgroundBashPayload, "until gh pr checks 2140; do sleep 30; done", command, 1)
+	}
+	for command, service := range map[string]bool{
+		"cd app && npm run dev":                      true,
+		"node ~/x/molten-browser.mjs daemon":         true,
+		"molten mcp browser":                         true,
+		"tail -f build.log":                          true,
+		"sleep 600":                                  false,
+		"molten ci run":                              false,
+		"gh pr checks 2140 --watch":                  false,
+		"until gh pr checks 2140; do sleep 30; done": false,
+		"npx vitest run frontend/a.test.ts":          false,
+	} {
+		input := ReadHookInput(strings.NewReader(payload(command)))
+		if input.ToolCommand != command {
+			t.Fatalf("%q: read %q", command, input.ToolCommand)
+		}
+		var sent []AgentStateRequest
+		call := func(_ string, _ string, data any) error {
+			sent = append(sent, data.(AgentStateRequest))
+			return nil
+		}
+		if err := RunHookEvent(input, "claude", "b1", call); err != nil {
+			t.Fatal(err)
+		}
+		if len(sent) != 1 || sent[0].BackgroundService != service || sent[0].BackgroundTask != "bz4ehrk6q" {
+			t.Fatalf("%q: sent %+v, want service %v", command, sent, service)
+		}
+		if raw, _ := json.Marshal(sent[0]); strings.Contains(string(raw), "daemon") || strings.Contains(string(raw), "tail -f") {
+			t.Fatalf("%q: the command line is never sent: %s", command, raw)
+		}
+	}
+
+	// A response that tells no background command sends no service.
+	input := ReadHookInput(strings.NewReader(`{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"npm run dev"},"tool_response":{"stdout":"a"}}`))
+	var sent []AgentStateRequest
+	if err := RunHookEvent(input, "claude", "b1", func(_ string, _ string, data any) error {
+		sent = append(sent, data.(AgentStateRequest))
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(sent) != 1 || sent[0].BackgroundService || sent[0].BackgroundTask != "" {
+		t.Fatalf("a foreground command: %+v", sent)
 	}
 }
 

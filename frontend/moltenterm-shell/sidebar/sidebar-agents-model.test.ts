@@ -4,9 +4,11 @@
 import { describe, expect, it } from "vitest";
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
 import {
+    agentHasServiceLeft,
     agentProjectLabel,
     agentRowLook,
     agentRowTarget,
+    agentServiceLine,
     readTreeState,
     readTreeStates,
     sidebarSections,
@@ -224,5 +226,56 @@ describe("tree states", () => {
         expect(readTreeStates({ a: { open: true, shut: { subs: true, other: true } }, b: 3 })).toEqual({
             a: { open: true, shut: { subs: true } },
         });
+    });
+
+    it("keeps the services section shut or open on its own (#2583)", () => {
+        const s = toggleSection(toggleTree(null), "services");
+        expect(s.shut).toEqual({ services: true });
+        expect(readTreeState({ open: true, shut: { services: true, subs: false } })).toEqual({
+            open: true,
+            shut: { services: true },
+        });
+    });
+});
+
+describe("agentServiceLine (#2583, FR-SHELL-084)", () => {
+    const words: Record<string, string> = {
+        "sidebar.agents.service": "Service running: {name}",
+        "sidebar.agents.serviceUnnamed": "Service running",
+    };
+    const t = (key: string, vars?: Record<string, string | number>) =>
+        (words[key] ?? key).replace("{name}", String(vars?.name ?? ""));
+    const tc = (key: string, count: number) => `${key}#${count}`;
+    const info = (state: AgentStateInfo["state"], services?: string[]): AgentStateInfo => ({
+        blockid: "b1",
+        state,
+        services,
+        version: 1,
+    });
+
+    it("names the service of an agent whose turn ended", () => {
+        expect(agentServiceLine(t, tc, info("done", ["Molten browser daemon"]))).toBe(
+            "Service running: Molten browser daemon"
+        );
+        expect(agentServiceLine(t, tc, info("idle", ["Molten browser daemon"]))).toBe(
+            "Service running: Molten browser daemon"
+        );
+    });
+
+    it("says only that one runs when the agent gave no words, and counts several", () => {
+        expect(agentServiceLine(t, tc, info("done", [""]))).toBe("Service running");
+        expect(agentServiceLine(t, tc, info("done", ["  "]))).toBe("Service running");
+        expect(agentServiceLine(t, tc, info("done", ["a", "b"]))).toBe("sidebar.agents.services#2");
+    });
+
+    it("says nothing while the agent works, waits or failed, nor without a service", () => {
+        for (const state of ["working", "waiting", "error"] as const) {
+            expect(agentServiceLine(t, tc, info(state, ["Molten browser daemon"]))).toBe("");
+            expect(agentHasServiceLeft(info(state, ["Molten browser daemon"]))).toBe(false);
+        }
+        expect(agentServiceLine(t, tc, info("done"))).toBe("");
+        expect(agentServiceLine(t, tc, info("done", []))).toBe("");
+        expect(agentServiceLine(t, tc, null)).toBe("");
+        expect(agentHasServiceLeft(info("done", ["x"]))).toBe(true);
     });
 });

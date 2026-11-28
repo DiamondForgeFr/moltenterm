@@ -110,7 +110,9 @@ its sub-agents run, the pane shows working with "N sub-agents running", and its 
 (`send_to_agent`). A sub-agent's `Notification` that waits is the pane's waiting: its question shows in the
 session's terminal. When the session's turn ends (its `Stop`, an error, an interrupt), the sub-agents it counted are
 forgotten, since a finished or interrupted sub-agent does not always report its stop: one that still runs counts again
-at its next tool.
+at its next tool. A command the session left running in the background keeps the pane working until it ends, except a
+service (a dev server, a daemon, `tail -f`): it runs until somebody stops it, so the pane shows the agent's own state
+and lists the service instead.
 
 ```
 molten agent state <working|waiting|done|error|idle> [--agent <name>] [--message <text>] [--stdin]

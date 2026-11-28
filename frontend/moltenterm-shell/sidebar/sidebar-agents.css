@@ -220,6 +220,23 @@
     color: var(--mt-accent);
 }
 
+/* A service the agent left running (#2583): the agent is not at work, so a calm plug takes the dominoes' place, in the
+   discreet text, with no animation. Its line says what runs, one step brighter than the done row's own words, which the
+   row's dimming would leave hard to read. */
+.mt-sb-agent-svc {
+    display: inline-flex;
+    flex: none;
+    color: var(--mt-text-3);
+}
+
+.mt-sb-arow.is-service .mt-sb-agent-ss {
+    color: var(--mt-text-2);
+}
+
+.mt-sb-leaf.is-svc > svg {
+    color: var(--mt-text-3);
+}
+
 .mt-sb-tree {
     display: flex;
     flex-direction: column;

@@ -7,7 +7,8 @@
 // hook's work, so `molten` is a small program of its own (cmd/molten) that runs these two commands with this package
 // and hands every other command to wsh. wsh runs them with this package too.
 //
-// This package imports the standard library only: whatever it imports, every hook run starts.
+// This package imports the standard library only, and pkg/molten/jobline, which does too: whatever it imports, every
+// hook run starts.
 package agenthook
 
 // must match pkg/molten (checked by its tests)
@@ -43,9 +44,11 @@ type AgentStateRequest struct {
 	Provider string `json:"provider,omitempty"`
 	// BackgroundTask, BackgroundDescription, Transcript: a command left running in the background and where its end is
 	// told (backgroundtask.go, #2140). The main session's working and done reports carry Transcript too: it links the
-	// pane again after a wavesrv restart (#2142).
+	// pane again after a wavesrv restart (#2142). BackgroundService: the command is a service, a program that runs
+	// until it is stopped (jobline.IsService, #2583).
 	BackgroundTask        string `json:"backgroundtask,omitempty"`
 	BackgroundDescription string `json:"backgrounddescription,omitempty"`
+	BackgroundService     bool   `json:"backgroundservice,omitempty"`
 	Transcript            string `json:"transcript,omitempty"`
 	// SessionId: the hook's session_id, for the main session's reports (#2474).
 	SessionId string `json:"sessionid,omitempty"`

@@ -12,10 +12,11 @@ import (
 	"testing"
 )
 
-// Every hook run starts what the molten program links: this package and cmd/molten import the standard library only
-// (FR-PERF-012, DS-PERF-011).
+// Every hook run starts what the molten program links: this package, cmd/molten and the line reader this package uses
+// (pkg/molten/jobline, #2583) import the standard library only (FR-PERF-012, DS-PERF-011), and none compiles a regular
+// expression at start.
 func TestImportsTheStandardLibraryOnly(t *testing.T) {
-	for _, dir := range []string{".", "../../../cmd/molten"} {
+	for _, dir := range []string{".", "../../../cmd/molten", "../jobline"} {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			t.Fatal(err)
@@ -30,11 +31,14 @@ func TestImportsTheStandardLibraryOnly(t *testing.T) {
 			}
 			for _, imp := range f.Imports {
 				path, _ := strconv.Unquote(imp.Path.Value)
-				if path == "github.com/wavetermdev/waveterm/pkg/molten/agenthook" {
+				if path == "github.com/wavetermdev/waveterm/pkg/molten/agenthook" || path == "github.com/wavetermdev/waveterm/pkg/molten/jobline" {
 					continue
 				}
 				if first := strings.Split(path, "/")[0]; strings.Contains(first, ".") {
 					t.Errorf("%s/%s imports %s", dir, e.Name(), path)
+				}
+				if dir == "../jobline" && path == "regexp" {
+					t.Errorf("%s/%s imports regexp: it would compile at every hook run", dir, e.Name())
 				}
 			}
 		}
