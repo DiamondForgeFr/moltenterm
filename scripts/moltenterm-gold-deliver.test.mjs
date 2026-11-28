@@ -27,6 +27,12 @@ function fakeApp(root, label) {
 
 const read = (file) => fs.readFileSync(file, "utf8");
 
+// deliverGold clones the app with a synchronous `cp -c -R` (`ditto` on a fallback): three process starts
+// per test on darwin. Alone they take a few milliseconds each, but on a loaded machine a spawn from a vitest
+// worker can take seconds, so the default 5 s would fail a test whose behaviour is fine (#2602). The spawn is
+// the behaviour under test (APFS clones), so the test keeps it and bounds only a failing run.
+const SpawningTestTimeoutMs = 60_000;
+
 describe("gold delivery", () => {
   it("places the gold folder under Application Support unless overridden", () => {
     expect(goldDir({}, "/Users/a")).toBe("/Users/a/Library/Application Support/Moltenterm Local Builds/gold.noindex");
@@ -40,28 +46,35 @@ describe("gold delivery", () => {
     ]);
   });
 
-  it("delivers a first gold, then keeps the previous one beside the next", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "mt-gold-"));
-    const dir = path.join(root, "Local Builds", "gold");
-    const first = makeManifest({ version: "0.14.5", buildId: 100, builtAt: "t1", commit: "c1", notes: [] });
-    deliverGold({ app: fakeApp(root, "one"), dir, manifest: first });
-    expect(read(path.join(dir, GoldAppName, "Contents", "label.txt"))).toBe("one");
-    expect(JSON.parse(read(path.join(dir, "manifest.json")))).toMatchObject({
-      schema: 1,
-      buildId: 100,
-      app: GoldAppName,
-    });
-    expect(fs.existsSync(path.join(dir, "previous"))).toBe(false);
+  it(
+    "delivers a first gold, then keeps the previous one beside the next",
+    () => {
+      const root = fs.mkdtempSync(path.join(os.tmpdir(), "mt-gold-"));
+      try {
+        const dir = path.join(root, "Local Builds", "gold");
+        const first = makeManifest({ version: "0.14.5", buildId: 100, builtAt: "t1", commit: "c1", notes: [] });
+        deliverGold({ app: fakeApp(root, "one"), dir, manifest: first });
+        expect(read(path.join(dir, GoldAppName, "Contents", "label.txt"))).toBe("one");
+        expect(JSON.parse(read(path.join(dir, "manifest.json")))).toMatchObject({
+          schema: 1,
+          buildId: 100,
+          app: GoldAppName,
+        });
+        expect(fs.existsSync(path.join(dir, "previous"))).toBe(false);
 
-    const second = makeManifest({ version: "0.14.5", buildId: 200, builtAt: "t2", commit: "c2", notes: [] });
-    deliverGold({ app: fakeApp(root, "two"), dir, manifest: second });
-    expect(read(path.join(dir, GoldAppName, "Contents", "label.txt"))).toBe("two");
-    expect(JSON.parse(read(path.join(dir, "manifest.json"))).buildId).toBe(200);
-    expect(read(path.join(dir, "previous", GoldAppName, "Contents", "label.txt"))).toBe("one");
-    expect(JSON.parse(read(path.join(dir, "previous", "manifest.json"))).buildId).toBe(100);
-    expect(fs.readdirSync(path.dirname(dir)).sort()).toEqual(["gold"]);
-    fs.rmSync(root, { recursive: true, force: true });
-  });
+        const second = makeManifest({ version: "0.14.5", buildId: 200, builtAt: "t2", commit: "c2", notes: [] });
+        deliverGold({ app: fakeApp(root, "two"), dir, manifest: second });
+        expect(read(path.join(dir, GoldAppName, "Contents", "label.txt"))).toBe("two");
+        expect(JSON.parse(read(path.join(dir, "manifest.json"))).buildId).toBe(200);
+        expect(read(path.join(dir, "previous", GoldAppName, "Contents", "label.txt"))).toBe("one");
+        expect(JSON.parse(read(path.join(dir, "previous", "manifest.json"))).buildId).toBe(100);
+        expect(fs.readdirSync(path.dirname(dir)).sort()).toEqual(["gold"]);
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+      }
+    },
+    SpawningTestTimeoutMs,
+  );
 
   it("moves an old delivery out of Spotlight's reach and keeps the old name as a link (#191)", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "gold-migrate-"));
