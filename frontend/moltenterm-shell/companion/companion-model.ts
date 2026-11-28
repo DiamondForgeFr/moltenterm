@@ -165,6 +165,8 @@ export type CompanionSubagent = {
     agentid?: string;
     waiting?: boolean;
     jobs?: BackgroundJob[];
+    // The agentid of the sub-agent that started this one (#2587), absent for the session's own sub-agents.
+    parentid?: string;
 };
 export type CompanionActivity = { tool: string; target?: string; at?: number };
 

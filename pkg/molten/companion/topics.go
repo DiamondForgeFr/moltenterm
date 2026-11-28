@@ -50,6 +50,9 @@ const SubagentReviveAfter = time.Minute
 // nothing until that work reports, often for longer than SubagentQuietAfter: it stays running this long (#2498).
 const SubagentWaitingQuietAfter = 2 * time.Hour
 
+// The most levels of sub-agents' sub-agents followed up to the session's own (a guard against a loop in the records).
+const maxSubagentDepth = 8
+
 var (
 	taskNotificationRegex = regexp.MustCompile(`(?s)<task-notification>.*?</task-notification>`)
 	notificationToolRegex = regexp.MustCompile(`<tool-use-id>\s*([^<\s]{1,200})\s*</tool-use-id>`)
@@ -103,6 +106,8 @@ type subagent struct {
 	path string
 	// found: an agent read only from its own rollout (a sub-agent's sub-agent): its rollout's turns say its state.
 	found bool
+	// parentId: the agent id of the sub-agent that started this one (#2587), "" for the session's own sub-agents.
+	parentId string
 }
 
 // PRLink is a pull request the session pushed, as the agent recorded it (Claude Code's pr-link records).
@@ -146,6 +151,8 @@ type SubagentInfo struct {
 	AgentId string                 `json:"agentid,omitempty"`
 	Waiting bool                   `json:"waiting,omitempty"`
 	Jobs    []molten.BackgroundJob `json:"jobs,omitempty"`
+	// ParentId: the AgentId of the sub-agent that started this one (#2587), absent for the session's own.
+	ParentId string `json:"parentid,omitempty"`
 }
 
 // ActivityInfo is the main agent's latest tool call: the tool and what it was given (a command's description, a
@@ -408,6 +415,9 @@ func (s *Session) mergeSubagentRows(sa *subagent) {
 		if sa.started == 0 {
 			sa.started = other.started
 		}
+		if sa.parentId == "" {
+			sa.parentId = other.parentId
+		}
 		s.subagents = append(s.subagents[:i:i], s.subagents[i+1:]...)
 		s.touch()
 		return
@@ -612,6 +622,7 @@ func (s *Session) AddFoundSubagent(f FoundSubagent) {
 	s.subagents = append(s.subagents, &subagent{
 		id: cutString(f.AgentId, 200), agentId: cutString(f.AgentId, 200), description: cutRunes(oneLine(f.Name), MaxSubagentText),
 		kind: cutString(f.Kind, 100), background: true, state: SubagentRunning, started: f.Started, path: cutString(f.Path, 300), found: true,
+		parentId: cutString(f.ParentId, 200),
 	})
 	s.trimSubagents()
 	s.touch()
@@ -640,15 +651,50 @@ func (s *Session) oldestSubagent(match func(sa *subagent) bool) int {
 	return -1
 }
 
+// awaitedParents are the agent ids of the sub-agents one of whose own sub-agents runs, at any depth (#2587): an agent
+// that waits on the agents it started is at work, whatever its own files say (Claude Code marks its meta finished when
+// its turn ends on background agents; it writes nothing while a foreground one works).
+func (s *Session) awaitedParents() map[string]bool {
+	byAgent := map[string]*subagent{}
+	for _, sa := range s.subagents {
+		if sa.agentId != "" {
+			byAgent[sa.agentId] = sa
+		}
+	}
+	awaited := map[string]bool{}
+	for _, sa := range s.subagents {
+		if sa.state != SubagentRunning {
+			continue
+		}
+		parent := sa.parentId
+		for depth := 0; parent != "" && depth < maxSubagentDepth && !awaited[parent]; depth++ {
+			awaited[parent] = true
+			p := byAgent[parent]
+			if p == nil {
+				break
+			}
+			parent = p.parentId
+		}
+	}
+	return awaited
+}
+
+// Subagents lists the session's sub-agents. One whose own sub-agents still run is shown at work, waiting on them,
+// even when it ended its turn or went quiet: its end shows again once they end.
 func (s *Session) Subagents() []SubagentInfo {
 	rtn := make([]SubagentInfo, 0, len(s.subagents))
+	awaited := s.awaitedParents()
 	for _, sa := range s.subagents {
+		state, ended, waiting := sa.state, sa.ended, sa.waiting && sa.state == SubagentRunning
+		if sa.agentId != "" && awaited[sa.agentId] && (state == SubagentDone || state == SubagentQuiet) {
+			state, ended, waiting = SubagentRunning, 0, true
+		}
 		rtn = append(rtn, SubagentInfo{
 			Id: sa.id, Description: sa.description, Kind: sa.kind, Model: sa.model, Effort: sa.effort, Branch: sa.branch,
 			Worktree:   sa.worktree,
-			Background: sa.background, State: sa.state, Started: sa.started, Ended: sa.ended,
+			Background: sa.background, State: state, Started: sa.started, Ended: ended,
 			Ticket: sa.ticket.number, Complexity: sa.ticket.complexity,
-			AgentId: sa.agentId, Waiting: sa.waiting && sa.state == SubagentRunning,
+			AgentId: sa.agentId, Waiting: waiting, ParentId: sa.parentId,
 		})
 	}
 	return rtn

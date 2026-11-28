@@ -84,6 +84,8 @@ export type AgentRow = {
     job?: JobsView;
     // A sub-agent's own branch, read from its folder (#967).
     branch?: string;
+    // How deep a sub-agent's sub-agent sits under the session's own (#2587): 1 under one of them, absent for those.
+    depth?: number;
     portrait?: string;
     capabilities?: string[];
 };
@@ -224,15 +226,66 @@ export function subagentRow(sub: CompanionSubagent, now: number, parent?: ModelE
 
 export type AgentsView = { rows: AgentRow[]; finished: number; failed: number };
 
+// The most levels of sub-agents' sub-agents drawn under each other (pkg/molten/companion/topics.go maxSubagentDepth).
+const MaxNestDepth = 8;
+
+// Each sub-agent's own sub-agents right under it (#2587), in the order given, with their depth; the others keep their
+// place. A sub-agent whose parent is not at work, or a loop in the records, stays at the first level.
+export function nestRows(subs: CompanionSubagent[], rows: AgentRow[]): AgentRow[] {
+    const byId = new Map((subs ?? []).map((s) => [s.id, s]));
+    const rowOfAgent = new Map<string, AgentRow>();
+    for (const row of rows) {
+        const agentId = byId.get(row.id)?.agentid;
+        if (agentId) {
+            rowOfAgent.set(agentId, row);
+        }
+    }
+    const children = new Map<string, AgentRow[]>();
+    const roots: AgentRow[] = [];
+    for (const row of rows) {
+        const parentId = byId.get(row.id)?.parentid;
+        const parent = parentId ? rowOfAgent.get(parentId) : null;
+        if (parent == null || parent === row) {
+            roots.push(row);
+            continue;
+        }
+        children.set(parent.id, [...(children.get(parent.id) ?? []), row]);
+    }
+    const out: AgentRow[] = [];
+    const seen = new Set<string>();
+    const visit = (row: AgentRow, depth: number) => {
+        if (seen.has(row.id)) {
+            return;
+        }
+        seen.add(row.id);
+        out.push(depth > 0 ? { ...row, depth } : row);
+        for (const child of children.get(row.id) ?? []) {
+            visit(child, Math.min(depth + 1, MaxNestDepth));
+        }
+    };
+    roots.forEach((row) => visit(row, 0));
+    for (const row of rows) {
+        if (!seen.has(row.id)) {
+            seen.add(row.id);
+            out.push(row);
+        }
+    }
+    return out;
+}
+
 // The agents at work: the main session first, then the sub-agents it started that still run, the ones that wait on
-// their own work first (#2502), then the newest first; those that ended are counted.
+// their own work first (#2502), then the newest first, each with its own sub-agents under it (#2587); those that ended
+// are counted.
 export function agentsView(view: CompanionView, agentState: AgentStateInfo, now: number): AgentsView {
     const subs = view?.subagents ?? [];
     const parent = mainModelEffort(view, agentState);
-    const running = subs
+    const sorted = subs
         .filter((s) => stillRunning(s, view, agentState))
-        .sort((a, b) => Number(b.waiting === true) - Number(a.waiting === true) || (b.started ?? 0) - (a.started ?? 0))
-        .map((s) => subagentRow(s, now, parent));
+        .sort((a, b) => Number(b.waiting === true) - Number(a.waiting === true) || (b.started ?? 0) - (a.started ?? 0));
+    const running = nestRows(
+        sorted,
+        sorted.map((s) => subagentRow(s, now, parent))
+    );
     // The main session reads as working in the background while its sub-agents work, not as finished above them (#2294).
     return {
         rows: [mainAgentRow(view, stateWithSubagents(agentState, running.length)), ...running],

@@ -7,14 +7,14 @@
 // own tests or build stays at the top and says what for: the job in plain words, how long it runs and its tier as a
 // chip. Each row is an end of the lines the milestone draws to it.
 
-import { useState } from "react";
+import { CSSProperties, useState } from "react";
 import { jobLine, subagentTaskTitle, waitingWords } from "../activity/job-words";
 import { useT, useTCount } from "../i18n/i18n";
 import { durationText } from "../reviews/reviews-upcoming-model";
 import { StateMark } from "../state-mark";
 import { MoreButton } from "./companion-block";
 import { capList } from "./companion-flow-model";
-import { agentEnd, certainTicket, heatOf, subagentTicket } from "./companion-milestone-model";
+import { agentEnd, certainTicket, heatOf, subagentTicket, subagentTickets } from "./companion-milestone-model";
 import { CompanionSubagent, CompanionView } from "./companion-model";
 import type { AgentLinkMarks } from "./companion-recap";
 import { finishedSubagents, type AgentRow } from "./companion-recap-model";
@@ -31,6 +31,8 @@ function endAttrsOf(row: AgentRow, marks: AgentLinkMarks) {
         "data-linked": marks?.ends?.has(end) ? "" : undefined,
         "data-link-hot": marks?.hot?.has(end) ? "" : undefined,
         "data-heat": marks?.heat?.(row),
+        "data-depth": row.depth > 0 ? row.depth : undefined,
+        style: row.depth > 0 ? ({ "--mt-cwork-sub-depth": row.depth } as CSSProperties) : undefined,
     };
 }
 
@@ -39,16 +41,15 @@ function SubAgent({
     sub,
     marks,
     now,
-    placed,
+    ticket,
 }: {
     row: AgentRow;
     sub: CompanionSubagent;
     marks: AgentLinkMarks;
     now: number;
-    placed?: ReadonlyMap<string, number>;
+    ticket: number;
 }) {
     const t = useT();
-    const ticket = subagentTicket(sub?.branch ?? row.branch ?? "", sub?.description ?? "", sub?.agentid, placed);
     const title = shortTask(sub?.description ?? "") || sub?.kind || row.name;
     const age = sub?.started ? durationText(t, now - sub.started) : "";
     const tip = sub?.description || row.name;
@@ -120,9 +121,8 @@ function SubAgent({
 }
 
 // A finished or failed sub-agent, on one line, when the quiet line is opened.
-function FinishedAgent({ sub, now }: { sub: CompanionSubagent; now: number }) {
+function FinishedAgent({ sub, now, ticket }: { sub: CompanionSubagent; now: number; ticket: number }) {
     const t = useT();
-    const ticket = certainTicket(sub.branch ?? "", sub.description ?? "");
     const title = shortTask(sub.description ?? "") || sub.kind || t("companion.agents.subagent");
     const when = sub.ended ? durationText(t, now - sub.ended) : "";
     return (
@@ -166,6 +166,7 @@ export function AgentsBlockBody({
     const [open, setOpen] = useState(false);
     const [seeFinished, setSeeFinished] = useState(false);
     const subs = new Map((view?.subagents ?? []).map((s) => [s.id, s]));
+    const tickets = subagentTickets(view?.subagents, placed);
     const others = rows.filter((r) => !r.main);
     const list = capList(others, open);
     const finished = ended ? finishedSubagents(view) : [];
@@ -188,7 +189,15 @@ export function AgentsBlockBody({
                                 sub={subs.get(row.id)}
                                 marks={marks}
                                 now={now}
-                                placed={placed}
+                                ticket={
+                                    tickets.get(row.id) ??
+                                    subagentTicket(
+                                        row.branch ?? "",
+                                        subs.get(row.id)?.description ?? "",
+                                        undefined,
+                                        placed
+                                    )
+                                }
                             />
                         ))}
                     </ul>
@@ -224,7 +233,12 @@ export function AgentsBlockBody({
             {seeFinished && finished.length > 0 ? (
                 <ul data-testid="companion-subagents-finished">
                     {finished.map((sub) => (
-                        <FinishedAgent key={sub.id} sub={sub} now={now} />
+                        <FinishedAgent
+                            key={sub.id}
+                            sub={sub}
+                            now={now}
+                            ticket={tickets.get(sub.id) ?? certainTicket(sub.branch ?? "", sub.description ?? "")}
+                        />
                     ))}
                 </ul>
             ) : null}

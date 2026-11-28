@@ -610,6 +610,11 @@
     border-top: 1px solid var(--mt-cwork-hair);
 }
 
+/* A sub-agent's own sub-agent sits under it, one step in per level (#2587). */
+.mt-cwork-sub-row[data-depth] {
+    padding-left: calc(var(--df-block-pad) + var(--mt-cwork-sub-depth, 1) * 16px);
+}
+
 .mt-cwork-sub-body {
     display: flex;
     flex: 1;

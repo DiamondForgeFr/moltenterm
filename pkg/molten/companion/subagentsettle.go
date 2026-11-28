@@ -108,6 +108,10 @@ func (s *Session) SettleSubagentFiles(ids []SubagentIdentity, now int64) bool {
 			}
 			continue
 		}
+		if sa.parentId == "" && id.ParentId != "" {
+			sa.parentId = cutString(id.ParentId, 200)
+			changed = true
+		}
 		if !id.Finished || (sa.state != SubagentRunning && sa.state != SubagentQuiet) {
 			continue
 		}
@@ -167,7 +171,7 @@ func (s *Session) addFileSubagent(id SubagentIdentity, now int64) bool {
 	s.subagents = append(s.subagents, &subagent{
 		id: rowId, agentId: agentId, description: cutRunes(oneLine(id.Description), MaxSubagentText),
 		kind: cutString(id.Kind, 100), model: cutString(id.Model, 100), effort: cutString(id.Effort, 40),
-		background: true, state: SubagentRunning, started: id.Started, found: true,
+		background: true, state: SubagentRunning, started: id.Started, found: true, parentId: cutString(id.ParentId, 200),
 	})
 	s.trimSubagents()
 	return true

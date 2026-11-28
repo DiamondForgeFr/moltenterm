@@ -134,9 +134,12 @@ describe("a sub-agent in a worktree beside the project folder (#2522)", () => {
         expect(holds.get(1320)).toEqual({ kind: "mine" });
         const placed = placedTickets(answer, Flore.blockid);
         expect(placed.get("a0ef11c100895d164")).toBe(1320);
-        // Its records name develop and a task that does not start with #1320: the placement names its ticket.
+        // Its records name develop and a task that names #1320 (#2587: the one ticket a description names counts);
+        // without that, the placement names its ticket.
         expect(subagentTicket("develop", "Build #1320 meeting images", "a0ef11c100895d164", placed)).toBe(1320);
-        expect(subagentTicket("develop", "Build #1320 meeting images", "a0ef11c100895d164")).toBe(0);
+        expect(subagentTicket("develop", "Build #1320 meeting images", "a0ef11c100895d164")).toBe(1320);
+        expect(subagentTicket("develop", "Build the meeting images", "a0ef11c100895d164", placed)).toBe(1320);
+        expect(subagentTicket("develop", "Build the meeting images", "a0ef11c100895d164")).toBe(0);
         const m = { number: 1, title: "v1.0.0", open: 1, closed: 0, remaining: 1, tickets };
         const links = linksOf(1320);
         const lists = taskLists(m, links, holds);
@@ -363,15 +366,18 @@ describe("agents of other workspaces and of other providers", () => {
         expect(OtherWorkspace).not.toBe(ThisWorkspace);
     });
 
-    it("finds a sub-agent still on its own worktree-agent branch by the ticket its description starts with", () => {
+    it("finds a sub-agent still on its own worktree-agent branch by the one ticket its description names", () => {
         const answer = upcomingOf([
             subagent(Jerome, 7, "running", { branch: "worktree-agent-ab12", description: "#7 smooth the switch" }),
-            subagent(Julie, 8, "running", { branch: "worktree-agent-cd34", description: "Port the fix from #8" }),
+            subagent(Julie, 8, "running", { branch: "worktree-agent-cd34", description: "Analyse + plan #8" }),
+            subagent(Remy, 9, "running", { branch: "worktree-agent-ef56", description: "Port the fix from #9 to #10" }),
         ]);
-        const holds = classifyTickets(ticketsOf(7, 8), inputs(Flore, [], { upcoming: answer }));
+        const holds = classifyTickets(ticketsOf(7, 8, 9, 10), inputs(Flore, [], { upcoming: answer }));
         expect(holds.get(7)?.kind).toBe("agent");
-        // A #N elsewhere than at the start names another ticket as often as its own: never a hold.
-        expect(holds.get(8)?.kind).toBe("free");
+        // #2587: the one ticket named anywhere is held; two named are no certainty, never a hold.
+        expect(holds.get(8)?.kind).toBe("agent");
+        expect(holds.get(9)?.kind).toBe("free");
+        expect(holds.get(10)?.kind).toBe("free");
     });
 });
 
@@ -459,7 +465,10 @@ describe("a ticket's holder is always named and linked (#2572)", () => {
 
     it("names a Kimi Code panel placed in the worktree, and links to it, as a Claude Code one", () => {
         const answer = upcomingOf([panelOn(Victor, branch, { worktree: sibling })], worktreeBranch);
-        const holds = classifyTickets(tickets, inputs(Flore, [], { upcoming: answer, states: statesOf(Flore, Victor) }));
+        const holds = classifyTickets(
+            tickets,
+            inputs(Flore, [], { upcoming: answer, states: statesOf(Flore, Victor) })
+        );
         expect(holds.get(1984)).toEqual({
             kind: "agent",
             owner: { blockId: "victor", name: "Victor", tool: "Kimi Code", subagent: false },
@@ -469,7 +478,10 @@ describe("a ticket's holder is always named and linked (#2572)", () => {
     it("names a panel from the windows' states when its placement has no first name", () => {
         const answer = upcomingOf([panelOn(Victor, branch, { worktree: sibling, firstname: "" })], worktreeBranch);
         const noName = { ...Victor, firstname: "" };
-        const holds = classifyTickets(tickets, inputs(Flore, [], { upcoming: answer, states: statesOf(Flore, noName) }));
+        const holds = classifyTickets(
+            tickets,
+            inputs(Flore, [], { upcoming: answer, states: statesOf(Flore, noName) })
+        );
         expect(holds.get(1984)).toEqual({
             kind: "agent",
             owner: { blockId: "victor", name: "Kimi Code", tool: "", subagent: false },
@@ -492,13 +504,19 @@ describe("a ticket's holder is always named and linked (#2572)", () => {
         });
         // A signed agent whose session no window knows, or a sub-agent whose lead closed, is no holder either.
         const gone = upcomingOf(
-            [background({ signed: true, firstname: "Lina", agentname: "Kimi Code" }), subagent(Victor, 1984, "running", { branch })],
+            [
+                background({ signed: true, firstname: "Lina", agentname: "Kimi Code" }),
+                subagent(Victor, 1984, "running", { branch }),
+            ],
             worktreeBranch
         );
-        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: gone, states: statesOf(Flore) })).get(1984)?.kind).toBe(
-            "status"
-        );
-        for (const hold of classifyTickets(tickets, inputs(Flore, [], { upcoming: gone, states: statesOf(Flore) })).values()) {
+        expect(
+            classifyTickets(tickets, inputs(Flore, [], { upcoming: gone, states: statesOf(Flore) })).get(1984)?.kind
+        ).toBe("status");
+        for (const hold of classifyTickets(
+            tickets,
+            inputs(Flore, [], { upcoming: gone, states: statesOf(Flore) })
+        ).values()) {
             expect(JSON.stringify(hold)).not.toContain('"name":""');
         }
     });
@@ -521,21 +539,29 @@ describe("a ticket's holder is always named and linked (#2572)", () => {
         const st = statesOf(Flore, Victor);
         // wavesrv names the anonymous background agent after the session that started the worktree's work.
         const led = upcomingOf([background({ parentblockid: "flore", parentfirstname: "Flore" })], worktreeBranch);
-        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: led, states: st })).get(1984)).toEqual({ kind: "mine" });
+        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: led, states: st })).get(1984)).toEqual({
+            kind: "mine",
+        });
         // Nobody at work in it now: the starter's record keeps it this session's, not "in progress, nobody on it".
         const quiet: UpcomingAnswer = {
             ...upcomingOf([], worktreeBranch),
             starters: [{ branch, worktree: sibling, blockid: "flore" }],
         };
-        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: quiet, states: st })).get(1984)).toEqual({ kind: "mine" });
+        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: quiet, states: st })).get(1984)).toEqual({
+            kind: "mine",
+        });
         // In another session's companion, the same record says nothing: the ticket is idle there.
-        expect(classifyTickets(tickets, inputs(Victor, [], { upcoming: quiet, states: st })).get(1984)?.kind).toBe("status");
+        expect(classifyTickets(tickets, inputs(Victor, [], { upcoming: quiet, states: st })).get(1984)?.kind).toBe(
+            "status"
+        );
         // Another session at work in it now holds it, named.
         const busy: UpcomingAnswer = {
             ...upcomingOf([panelOn(Victor, branch, { worktree: sibling })], worktreeBranch),
             starters: quiet.starters,
         };
-        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: busy, states: st })).get(1984)?.kind).toBe("agent");
+        expect(classifyTickets(tickets, inputs(Flore, [], { upcoming: busy, states: st })).get(1984)?.kind).toBe(
+            "agent"
+        );
     });
 
     it("names the agent of another workspace too", () => {
