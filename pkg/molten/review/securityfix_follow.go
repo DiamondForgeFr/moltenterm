@@ -6,6 +6,7 @@ package review
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -146,6 +147,12 @@ func blockOfFix(result secfix.Result, fix secfix.Fix) (secfix.Block, bool) {
 // securityFollowWaiting tries a fix that waits for a place again, once its time came; a block that is not seen any more
 // is let go after a while.
 func (r *Restarter) securityFollowWaiting(ctx context.Context, fix secfix.Fix) bool {
+	if fix.Auto && !r.securityConsentOn() {
+		// A claim made under the consent, left waiting for its place, outlives it: the developer turned it off, and nothing
+		// starts on its own after that. The claim is dropped, and the block only offers the fix again.
+		r.fixStore().Remove(fix.Dir, fix.Fingerprint)
+		return false
+	}
 	if !r.retryDue(fix, false) {
 		return true
 	}
@@ -287,11 +294,11 @@ func (r *Restarter) securityTerminalGone(ctx context.Context, st *securityFollow
 // securityNeeds puts the fix in "needs you", with why, and says so once per reason.
 func (r *Restarter) securityNeeds(ctx context.Context, st *securityFollowState, fix secfix.Fix, reason string, detail string) {
 	detail = secfix.CleanLine(detail, outcomeMaxLength)
-	updated, found, _ := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+	updated, found, err := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
 		f.State, f.Reason, f.Outcome = secfix.FixNeedsYou, reason, detail
 		return true
 	})
-	if !found || st.said(securityNoticeNeeds, reason+"/"+detail) {
+	if !found || errors.Is(err, secfix.ErrEnded) || st.said(securityNoticeNeeds, reason+"/"+detail) {
 		return
 	}
 	if r.env.StopSettled != nil && fix.BlockId != "" && r.env.StopSettled(fix.BlockId) {
@@ -345,12 +352,33 @@ type ghFoundPr struct {
 	IsDraft     bool   `json:"isDraft"`
 	HeadRefName string `json:"headRefName"`
 	MergedAt    string `json:"mergedAt"`
+	// Whose pull request it is: anyone can open one from a fork with the fix's branch name, and MoltenTerm marks ready the
+	// pull request it follows.
+	IsCrossRepository   bool `json:"isCrossRepository"`
+	HeadRepositoryOwner struct {
+		Login string `json:"login"`
+	} `json:"headRepositoryOwner"`
+	Author struct {
+		Login string `json:"login"`
+	} `json:"author"`
+}
+
+// ownPr says whether a pull request is one of the repository itself, opened by someone who can write to it: the agent's own
+// (it runs with the developer's gh) is, a fork's never is. Only such a pull request is followed, marked ready or counted as
+// the fix's.
+func (r *Restarter) ownPr(ctx context.Context, fix secfix.Fix, pr ghFoundPr) bool {
+	owner, _, _ := strings.Cut(fix.Repo, "/")
+	if pr.IsCrossRepository || !strings.EqualFold(pr.HeadRepositoryOwner.Login, owner) {
+		return false
+	}
+	return r.authorWrites(ctx, fix.Dir, fix.Repo, pr.Author.Login)
 }
 
 // securityFindPr finds the pull request of the fix's branch (or, for a ticket someone else's agent works on, the one that
-// resolves the ticket) and keeps it in the fix; the fix as it is when none is found.
+// resolves the ticket) and keeps it in the fix; the fix as it is when none is found. A pull request from a fork, or by
+// someone who cannot write to the repository, is never the one, whatever its branch is called.
 func (r *Restarter) securityFindPr(ctx context.Context, fix secfix.Fix) secfix.Fix {
-	args := []string{"pr", "list", "--repo", fix.Repo, "--state", "all", "--json", "number,url,state,isDraft,headRefName,mergedAt", "--limit", "3"}
+	args := []string{"pr", "list", "--repo", fix.Repo, "--state", "all", "--json", "number,url,state,isDraft,headRefName,mergedAt,isCrossRepository,headRepositoryOwner,author", "--limit", "10"}
 	switch {
 	case fix.Branch != "":
 		args = append(args, "--head", fix.Branch)
@@ -368,7 +396,7 @@ func (r *Restarter) securityFindPr(ctx context.Context, fix secfix.Fix) secfix.F
 		return fix
 	}
 	for _, pr := range prs {
-		if pr.Number <= 0 || strings.EqualFold(pr.State, "CLOSED") {
+		if pr.Number <= 0 || strings.EqualFold(pr.State, "CLOSED") || !r.ownPr(ctx, fix, pr) {
 			continue
 		}
 		updated, _, _ := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
@@ -409,6 +437,16 @@ type ghPrFacts struct {
 	State    string `json:"state"`
 	IsDraft  bool   `json:"isDraft"`
 	MergedAt string `json:"mergedAt"`
+	// Where its head is: a pull request from a fork is never the fix's.
+	IsCrossRepository   bool `json:"isCrossRepository"`
+	HeadRepositoryOwner struct {
+		Login string `json:"login"`
+	} `json:"headRepositoryOwner"`
+}
+
+func (p ghPrFacts) fromRepository(repo string) bool {
+	owner, _, _ := strings.Cut(repo, "/")
+	return !p.IsCrossRepository && strings.EqualFold(p.HeadRepositoryOwner.Login, owner)
 }
 
 // securityFollowPr watches the pull request: its checks (and the local CI's status when the project declares it), then
@@ -428,13 +466,22 @@ func (r *Restarter) securityFollowPr(ctx context.Context, st *securityFollowStat
 		return true
 	}
 	st.checkedAt = r.env.Now()
-	out, err := r.ghAt(ctx, fix.Dir, "pr", "view", strconv.Itoa(fix.Pr), "--json", "state,isDraft,mergedAt", "--repo", fix.Repo)
+	out, err := r.ghAt(ctx, fix.Dir, "pr", "view", strconv.Itoa(fix.Pr), "--json", "state,isDraft,mergedAt,isCrossRepository,headRepositoryOwner", "--repo", fix.Repo)
 	if err != nil {
 		log.Printf("%s security fix %s: the pull request could not be read: %v\n", logPrefix, fix.Fingerprint, err)
 		return true
 	}
 	var pr ghPrFacts
 	if json.Unmarshal(out, &pr) != nil {
+		return true
+	}
+	if !pr.fromRepository(fix.Repo) {
+		// Not a pull request of the repository itself: never followed, never marked ready. The one that is will be found.
+		log.Printf("%s security fix %s: #%d is not a pull request of the repository itself: it is let go\n", logPrefix, fix.Fingerprint, fix.Pr)
+		r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+			f.Pr, f.PrUrl = 0, ""
+			return true
+		})
 		return true
 	}
 	switch {
@@ -497,17 +544,42 @@ func (r *Restarter) securityGreen(ctx context.Context, st *securityFollowState, 
 	if fix.State == secfix.FixReady {
 		return true
 	}
-	if pr.IsDraft {
+	if pr.IsDraft && fix.ReadiedAt == 0 {
+		// The claim is made in the store before the call, under its lock: a Stop that landed since this step read the fix
+		// refuses it (ErrEnded), so no pull request is marked ready after a Stop; and the call is made once, whatever the
+		// steps that follow do.
+		now := r.env.Now().UnixMilli()
+		claimed, found, err := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+			if f.ReadiedAt > 0 {
+				return false
+			}
+			f.ReadiedAt = now
+			return true
+		})
+		if !found || errors.Is(err, secfix.ErrEnded) {
+			return false
+		}
+		if claimed.ReadiedAt != now {
+			return true
+		}
 		if _, err := r.ghAt(ctx, fix.Dir, "pr", "ready", strconv.Itoa(fix.Pr), "--repo", fix.Repo); err != nil {
+			// It did not happen: the claim is given back, and the next look tries again.
+			r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+				f.ReadiedAt = 0
+				return true
+			})
 			r.securityNeeds(ctx, st, fix, secfix.ReasonNotReady, "The pull request could not be marked ready: "+secfix.CleanLine(err.Error(), 120))
 			return true
 		}
 	}
 	unblocks := r.securityUnblocks(fix)
-	updated, _, _ := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+	updated, _, err := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
 		f.State, f.Reason, f.Unblocks = secfix.FixReady, "", unblocks
 		return true
 	})
+	if errors.Is(err, secfix.ErrEnded) {
+		return false
+	}
 	r.resolveSecurityNotice(ctx, updated, securityNoticeNeeds)
 	if !st.said(securityNoticeReady, strconv.Itoa(updated.Pr)) {
 		r.notify(ctx, securityReady(updated, unblocks))
@@ -539,10 +611,13 @@ func (r *Restarter) securityMergedNow(ctx context.Context, fix secfix.Fix) {
 	if len(unblocks) == 0 {
 		unblocks = fix.Unblocks
 	}
-	updated, _, _ := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+	updated, _, err := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
 		f.State, f.Reason, f.MergedAt, f.Unblocks = secfix.FixMerged, "", r.env.Now().UnixMilli(), unblocks
 		return true
 	})
+	if errors.Is(err, secfix.ErrEnded) {
+		return
+	}
 	r.resolveSecurityNotice(ctx, updated, securityNoticeStarted, securityNoticeNeeds, securityNoticeReady)
 	r.notify(ctx, securityMerged(updated, unblocks))
 	r.securityCleanup(ctx, updated)
@@ -552,10 +627,13 @@ func (r *Restarter) securityMergedNow(ctx context.Context, fix secfix.Fix) {
 // again on its own, and the developer is told.
 func (r *Restarter) securityClosedNow(ctx context.Context, st *securityFollowState, fix secfix.Fix) {
 	detail := "Its pull request #" + strconv.Itoa(fix.Pr) + " was closed without a merge."
-	updated, _, _ := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+	updated, _, err := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
 		f.State, f.Reason, f.Outcome = secfix.FixFailed, secfix.ReasonPrClosed, detail
 		return true
 	})
+	if errors.Is(err, secfix.ErrEnded) {
+		return
+	}
 	r.resolveSecurityNotice(ctx, updated, securityNoticeStarted, securityNoticeReady)
 	r.notify(ctx, securityNeedsYou(updated, detail))
 	r.securityCleanup(ctx, updated)
@@ -612,11 +690,16 @@ func (r *Restarter) StopSecurityFix(ctx context.Context, req SecurityFixStopRequ
 		f.State, f.Reason = secfix.FixStopped, ""
 		return true
 	})
+	if errors.Is(err, secfix.ErrEnded) {
+		return SecurityFixResult{RestartResult: RestartResult{Status: RestartFailed, Message: "No security fix is running for these advisories."}, Fix: &stopped}, nil
+	}
 	if err != nil {
 		return SecurityFixResult{}, err
 	}
-	if fix.BlockId != "" && r.env.SecurityFix.StopAgent != nil {
-		if _, err := r.env.SecurityFix.StopAgent(ctx, fix.BlockId); err != nil {
+	// What the agent is, is read from the record the stop was made on: a launch that finished since this call read the fix
+	// has its terminal in it, and a launch that did not is refused by the stop and ends what it made itself.
+	if stopped.BlockId != "" && r.env.SecurityFix.StopAgent != nil {
+		if _, err := r.env.SecurityFix.StopAgent(ctx, stopped.BlockId); err != nil {
 			log.Printf("%s security fix %s: the agent's session could not be ended: %v\n", logPrefix, fix.Fingerprint, err)
 		}
 	}

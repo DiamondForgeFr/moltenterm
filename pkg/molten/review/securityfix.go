@@ -5,6 +5,7 @@ package review
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -85,16 +86,21 @@ const (
 const (
 	SecurityReasonBlockGone = "blockgone"
 	SecurityReasonNotShared = "notshared"
+	// SecurityReasonConsentOff: the standing consent was turned off since the fix was claimed; SecurityReasonUnverified: the
+	// advisory database does not know an id the scan named.
+	SecurityReasonConsentOff = "consentoff"
+	SecurityReasonUnverified = "unverified"
 )
 
 var fingerprintPattern = regexp.MustCompile(`^[0-9a-f]{16}$`)
 
-// SecurityFixRequest is the developer's click on "Launch the fix" of a shared block (a window's only). The advisories
-// are never taken from it: wavesrv reads the block it names from its own last assessment.
+// SecurityFixRequest is the developer's click on "Launch the fix" of a shared block (a window's only). Neither the
+// advisories nor where they live are taken from it: wavesrv reads the block it names, the repository and the trunk from its
+// own last assessment (Repo and Trunk are only checked, when given, and never used).
 type SecurityFixRequest struct {
 	Dir         string `json:"dir"`
-	Repo        string `json:"repo"`
-	Trunk       string `json:"trunk"`
+	Repo        string `json:"repo,omitempty"`
+	Trunk       string `json:"trunk,omitempty"`
 	Fingerprint string `json:"fingerprint"`
 	// WorkspaceId: the workspace the agent's tab goes in, named TabName (the window's words).
 	WorkspaceId string `json:"workspaceid"`
@@ -107,8 +113,10 @@ func (req SecurityFixRequest) check() error {
 	if err := checkDir(req.Dir); err != nil {
 		return err
 	}
-	if err := checkSecurityRepo(req.Repo, req.Trunk); err != nil {
-		return err
+	if req.Repo != "" || req.Trunk != "" {
+		if err := checkSecurityRepo(req.Repo, req.Trunk); err != nil {
+			return err
+		}
 	}
 	if !fingerprintPattern.MatchString(req.Fingerprint) {
 		return fmt.Errorf("fingerprint must be the one of the block's advisories")
@@ -149,8 +157,13 @@ type SecurityFixStopRequest struct {
 type SecurityFixEnv struct {
 	// Store keeps the fixes (mission's, shared with the Integration list's answer).
 	Store func() *secfix.FixStore
-	// Result is the project's last assessment of its failed scans (mission.LiveSecurityResult).
+	// Result is the project's last assessment of its failed scans (mission.LiveSecurityResult); Scope the repository and the
+	// trunk it read (mission.LiveSecurityScope).
 	Result func(dir string) (secfix.Result, bool)
+	Scope  func(dir string) (repo string, trunk string, ok bool)
+	// Lookup is what the advisory database says of an advisory, one entry per affected package; false when it holds none for
+	// the id. Without it nothing is verified, so no fix starts: the ids a scan names are never trusted for what to install.
+	Lookup func(ctx context.Context, id string) ([]secfix.Advisory, bool, error)
 	// Consent says what the developer answered about starting the fix on its own (secfix.ConsentOn, Off, Unasked).
 	Consent func() string
 	// Run runs a program in a folder (the project's ticket CLI).
@@ -182,6 +195,9 @@ type securityLaunch struct {
 	tabName     string
 	agent       string
 	block       secfix.Block
+	// unverified are the ids of the block that the advisory database does not know: the brief shows them as the scan named
+	// them and says so. Only a launch the developer asked for may have any.
+	unverified []string
 	// auto: started without a click, under the developer's consent. force: the developer asked by hand, so a set that was
 	// stopped or failed starts again.
 	auto  bool
@@ -216,14 +232,22 @@ func (r *Restarter) AskSecurityFix(ctx context.Context, req SecurityFixRequest) 
 		return SecurityFixResult{RestartResult: RestartResult{Status: RestartFailed, Reason: SecurityReasonNotShared,
 			Message: "These advisories come from the pull request itself: fix them in it (Analyze and resolve)."}}, nil
 	}
-	return r.launchSecurityFix(ctx, securityLaunch{dir: req.Dir, repo: req.Repo, trunk: req.Trunk, workspaceId: req.WorkspaceId,
+	repo, trunk, scoped := "", "", false
+	if r.env.SecurityFix.Scope != nil {
+		repo, trunk, scoped = r.env.SecurityFix.Scope(req.Dir)
+	}
+	if !scoped || checkSecurityRepo(repo, trunk) != nil {
+		return SecurityFixResult{RestartResult: RestartResult{Status: RestartFailed, Reason: SecurityReasonBlockGone,
+			Message: "The scan no longer fails on these advisories: there is nothing to fix."}}, nil
+	}
+	return r.launchSecurityFix(ctx, securityLaunch{dir: req.Dir, repo: repo, trunk: trunk, workspaceId: req.WorkspaceId,
 		tabName: req.TabName, agent: req.Agent, block: block, force: true}), nil
 }
 
 // securityAssessed is told of each assessment of a project's failed scans. With the developer's consent, each shared block
 // gets its fix, one after the other and in the background; without it nothing happens here, the block only offers.
 func (r *Restarter) securityAssessed(assessed mission.SecurityAssessed) {
-	if r.env.SecurityFix.Consent == nil || r.env.SecurityFix.Consent() != secfix.ConsentOn {
+	if !r.securityConsentOn() {
 		return
 	}
 	if len(assessed.Result.Blocks) == 0 || checkSecurityRepo(assessed.Repo, assessed.Trunk) != nil {
@@ -248,10 +272,15 @@ func (r *Restarter) apart(work func()) {
 	}()
 }
 
+// securityConsentOn: the developer allowed the fix to start without a click, and the answer stands now.
+func (r *Restarter) securityConsentOn() bool {
+	return r.env.SecurityFix.Consent != nil && r.env.SecurityFix.Consent() == secfix.ConsentOn
+}
+
 // launchAssessed gives each shared block of an assessment its fix, one after the other.
 func (r *Restarter) launchAssessed(assessed mission.SecurityAssessed) {
 	for _, block := range assessed.Result.Blocks {
-		if !block.Shared || len(block.Advisories) == 0 || !securityBlockLaunchable(block) {
+		if !block.Shared || len(block.Advisories) == 0 || !securityBlockLaunchable(block) || !block.TrustedForAuto() {
 			continue
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), restartTimeout)
@@ -261,7 +290,9 @@ func (r *Restarter) launchAssessed(assessed mission.SecurityAssessed) {
 	}
 }
 
-// securityBlockLaunchable: only a scan the project declared or the developer confirmed starts anything (AC10).
+// securityBlockLaunchable: only a scan the project declared or the developer confirmed starts anything (AC10). Without a
+// click, launchAssessed also asks for a block that is TrustedForAuto: a single pull request's own CI log is no ground to
+// start an agent on.
 func securityBlockLaunchable(block secfix.Block) bool {
 	return block.Origin == secfix.OriginDeclared || block.Origin == secfix.OriginConfirmed
 }
@@ -295,6 +326,12 @@ func (r *Restarter) launchSecurityFix(ctx context.Context, in securityLaunch) Se
 			return securityAnswer(SecurityFixCovered, decided)
 		}
 		in.workspaceId, in.agent = firstNonEmpty(in.workspaceId, decided.WorkspaceId), firstNonEmpty(in.agent, decided.Agent)
+		if in.force && decided.Auto {
+			// The developer asks for it by hand now: the claim is theirs, and the consent turned off later does not drop it.
+			if updated, _, _ := store.Update(in.dir, decided.Fingerprint, func(f *secfix.Fix) bool { f.Auto = false; return true }); updated.State != "" {
+				decided = updated
+			}
+		}
 		return r.startSecurityFix(ctx, in, decided, ids)
 	case secfix.PlanAddendum:
 		r.securityAddendum(ctx, in, decided, ids)
@@ -352,7 +389,7 @@ func (r *Restarter) securityPlace() (string, bool) {
 func (r *Restarter) securityWait(in securityLaunch, fix secfix.Fix, reason string, count bool) SecurityFixResult {
 	store := r.fixStore()
 	retryAt := r.env.Now().Add(securityRetryAfter).UnixMilli()
-	updated, _, _ := store.Update(in.dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+	updated, _, err := store.Update(in.dir, fix.Fingerprint, func(f *secfix.Fix) bool {
 		f.State, f.Reason, f.RetryAt = secfix.FixWaiting, reason, retryAt
 		f.WorkspaceId, f.Agent = firstNonEmpty(in.workspaceId, f.WorkspaceId), firstNonEmpty(in.agent, f.Agent)
 		if count {
@@ -360,24 +397,47 @@ func (r *Restarter) securityWait(in securityLaunch, fix secfix.Fix, reason strin
 		}
 		return true
 	})
+	if errors.Is(err, secfix.ErrEnded) {
+		return securityAnswer(SecurityFixStoppedStatus, updated)
+	}
 	r.followSecurityFix(in.dir, fix.Fingerprint)
 	return securityAnswer(SecurityFixWaiting, updated)
 }
 
 // securityGiveUp ends a fix that could not start after several tries: it is failed, so it is never started again on its
-// own, and the developer is told why.
+// own, and the developer is told why. A fix the developer stopped meanwhile stays stopped, and nobody is told.
 func (r *Restarter) securityGiveUp(ctx context.Context, in securityLaunch, fix secfix.Fix, reason string, detail string) SecurityFixResult {
-	updated, _, _ := r.fixStore().Update(in.dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+	updated, _, err := r.fixStore().Update(in.dir, fix.Fingerprint, func(f *secfix.Fix) bool {
 		f.State, f.Reason, f.Outcome = secfix.FixFailed, reason, secfix.CleanLine(detail, outcomeMaxLength)
 		return true
 	})
+	if errors.Is(err, secfix.ErrEnded) {
+		return securityAnswer(SecurityFixStoppedStatus, updated)
+	}
 	r.notify(ctx, securityNeedsYou(updated, detail))
 	return SecurityFixResult{RestartResult: RestartResult{Status: RestartFailed, Message: detail}, Fix: &updated}
+}
+
+// securityEnded tells whether the fix this launch works for ended meanwhile (the developer stopped it, or its claim was let
+// go): a launch asks before each step that makes something, and a Stop that landed is never undone by the steps that follow.
+func (r *Restarter) securityEnded(in securityLaunch, fix secfix.Fix) (secfix.Fix, bool) {
+	current, ok := r.fixStore().Get(in.dir, fix.Fingerprint)
+	if !ok {
+		return fix, true
+	}
+	return current, current.Ended()
 }
 
 // startSecurityFix takes a claimed fix to a running agent: the place, the agent, the ticket, the worktree, the brief and
 // the terminal, in that order, each undone when the next fails.
 func (r *Restarter) startSecurityFix(ctx context.Context, in securityLaunch, fix secfix.Fix, ids []string) SecurityFixResult {
+	if in.auto && !r.securityConsentOn() {
+		// A claim that waited for its place outlived the consent: what the developer turned off starts nothing, not even what
+		// was claimed while it was on.
+		r.fixStore().Remove(in.dir, fix.Fingerprint)
+		return SecurityFixResult{RestartResult: RestartResult{Status: RestartFailed, Reason: SecurityReasonConsentOff,
+			Message: "The standing consent to start the fix without a click is off: nothing was started."}}
+	}
 	if reason, ok := r.securityPlace(); !ok {
 		return r.securityWait(in, fix, reason, false)
 	}
@@ -412,6 +472,23 @@ func (r *Restarter) startSecurityFix(ctx context.Context, in securityLaunch, fix
 	if r.env.OpenTerminal == nil || r.env.AgentTab == nil {
 		return r.securityRetry(ctx, in, fix, secfix.ReasonLaunchFailed, "MoltenTerm cannot open terminals yet")
 	}
+	verified, unverified, err := r.securityVerify(ctx, in)
+	if err != nil {
+		log.Printf("%s security fix %s: the advisories could not be checked: %v\n", logPrefix, fix.Fingerprint, err)
+		return r.securityRetry(ctx, in, fix, secfix.ReasonLaunchFailed, "The advisory database could not be read: "+secfix.CleanLine(err.Error(), 120))
+	}
+	if len(unverified) > 0 && in.auto {
+		// An id the database does not know is a scan's word and nobody's: nothing starts on its own for it, and nothing is
+		// kept, so the developer's click (which shows the id as the scan named it, and nothing else) is still there.
+		log.Printf("%s security fix %s: the advisory database does not know %s: nothing starts on its own\n", logPrefix, fix.Fingerprint, strings.Join(unverified, ", "))
+		r.fixStore().Remove(in.dir, fix.Fingerprint)
+		return SecurityFixResult{RestartResult: RestartResult{Status: RestartFailed, Reason: SecurityReasonUnverified,
+			Message: "The advisory database does not know " + strings.Join(shownIds(unverified), ", ") + ": nothing was started."}}
+	}
+	in.block.Advisories, in.unverified = verified, unverified
+	if current, ended := r.securityEnded(in, fix); ended {
+		return securityAnswer(SecurityFixStoppedStatus, current)
+	}
 	ticket, err := r.securityTicket(ctx, in, &fix)
 	if err != nil {
 		log.Printf("%s security fix %s: no ticket: %v\n", logPrefix, fix.Fingerprint, err)
@@ -420,27 +497,43 @@ func (r *Restarter) startSecurityFix(ctx context.Context, in securityLaunch, fix
 	if ticket.external {
 		return r.securityExternal(ctx, in, fix, ticket)
 	}
-	// The ticket is kept at once: a launch that fails past this point finds it again, never makes a second one (a search of
-	// GitHub's may not see a ticket made a moment ago).
-	if kept, found, _ := r.fixStore().Update(in.dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+	// The ticket is kept at once, whatever happens to the fix after: a launch that fails past this point finds it again,
+	// never makes a second one (a search of GitHub's may not see a ticket made a moment ago).
+	if kept, found, _ := r.fixStore().Amend(in.dir, fix.Fingerprint, func(f *secfix.Fix) bool {
 		f.Ticket, f.TicketUrl, f.TicketNew = ticket.number, ticket.url, ticket.created
 		return true
 	}); found {
 		fix = kept
+	}
+	if current, ended := r.securityEnded(in, fix); ended {
+		return securityAnswer(SecurityFixStoppedStatus, current)
 	}
 	branch := r.securityBranch(ctx, in.dir, ticket.number, ids)
 	tree, err := r.securityTree(ctx, in.dir, in.trunk, branch, ticket.number)
 	if err != nil {
 		return r.securityRetry(ctx, in, fix, secfix.ReasonLaunchFailed, err.Error())
 	}
-	// A launch that fails leaves nothing behind: its copy goes, and the branch it just cut with it (nothing was pushed).
-	removeTree := func() {
+	// A launch that fails, or that the developer stops while it works, leaves nothing behind: its copy goes, and the branch
+	// it just cut with it (nothing was pushed); what it opened (the tab, the terminal and its agent) goes too.
+	var tabId, blockId string
+	undo := func() {
+		if blockId != "" {
+			if r.env.SecurityFix.StopAgent != nil {
+				r.env.SecurityFix.StopAgent(ctx, blockId)
+			}
+			if r.env.CloseTerminal != nil {
+				r.env.CloseTerminal(ctx, blockId)
+			}
+		}
+		if tabId != "" && r.env.CloseTab != nil {
+			r.env.CloseTab(ctx, tabId)
+		}
 		r.git(ctx, in.dir, "worktree", "remove", "--force", tree)
 		r.git(ctx, in.dir, "branch", "-D", branch)
 	}
 	briefPath, err := r.securityBrief(in, fix, ticket.number, branch, tree)
 	if err != nil {
-		removeTree()
+		undo()
 		return r.securityRetry(ctx, in, fix, secfix.ReasonLaunchFailed, fmt.Sprintf("the brief could not be written: %v", err))
 	}
 	origin := AgentOrigin{Kind: AgentOriginSecurity, Repo: in.repo, Branch: branch, Base: in.trunk, Ticket: ticket.number,
@@ -449,13 +542,24 @@ func (r *Restarter) startSecurityFix(ctx context.Context, in securityLaunch, fix
 	if name == "" {
 		name = "Security fix #" + strconv.Itoa(ticket.number)
 	}
-	tabId, err := r.env.AgentTab(ctx, in.workspaceId, name, waveobj.MetaMapType{AgentTabMetaKey: securityTabPrefix + fix.Fingerprint}, true)
+	if current, ended := r.securityEnded(in, fix); ended {
+		undo()
+		return securityAnswer(SecurityFixStoppedStatus, current)
+	}
+	tabId, err = r.env.AgentTab(ctx, in.workspaceId, name, waveobj.MetaMapType{AgentTabMetaKey: securityTabPrefix + fix.Fingerprint}, true)
 	if err != nil {
-		removeTree()
+		tabId = ""
+		undo()
 		return r.securityRetry(ctx, in, fix, secfix.ReasonLaunchFailed, fmt.Sprintf("The agent's tab could not be made: %v", err))
 	}
+	// The last look before an agent starts: after it, a Stop finds the fix with its terminal and ends the agent itself.
+	if current, ended := r.securityEnded(in, fix); ended {
+		undo()
+		return securityAnswer(SecurityFixStoppedStatus, current)
+	}
 	command := reviewsession.CommandLine(agent, []string{"--", securityPromptLine(ticket.number, ids, briefPath)})
-	blockId, err := r.env.OpenTerminal(ctx, tabId, "", waveobj.MetaMapType{
+	var openErr error
+	blockId, openErr = r.env.OpenTerminal(ctx, tabId, "", waveobj.MetaMapType{
 		waveobj.MetaKey_View:       "term",
 		waveobj.MetaKey_Controller: "shell",
 		waveobj.MetaKey_CmdCwd:     tree,
@@ -463,19 +567,21 @@ func (r *Restarter) startSecurityFix(ctx context.Context, in securityLaunch, fix
 		OriginMetaKey:              origin,
 	}, command)
 	if blockId == "" {
-		if r.env.CloseTab != nil {
-			r.env.CloseTab(ctx, tabId)
-		}
-		removeTree()
-		return r.securityRetry(ctx, in, fix, secfix.ReasonLaunchFailed, fmt.Sprintf("The agent was not started (%v).", err))
+		undo()
+		return r.securityRetry(ctx, in, fix, secfix.ReasonLaunchFailed, fmt.Sprintf("The agent was not started (%v).", openErr))
 	}
-	started, _, _ := r.fixStore().Update(in.dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+	started, _, uerr := r.fixStore().Update(in.dir, fix.Fingerprint, func(f *secfix.Fix) bool {
 		f.State, f.Reason, f.RetryAt, f.Tries = secfix.FixWorking, "", 0, 0
 		f.Ticket, f.TicketUrl, f.TicketNew = ticket.number, ticket.url, ticket.created
 		f.Branch, f.Tree, f.Agent, f.AgentName = branch, tree, agent, molten.AgentDisplayName(agent)
 		f.WorkspaceId, f.TabId, f.BlockId = in.workspaceId, tabId, blockId
 		return true
 	})
+	if errors.Is(uerr, secfix.ErrEnded) {
+		// Stopped while the terminal opened: the Stop did not know of it, so this launch ends what it started.
+		undo()
+		return securityAnswer(SecurityFixStoppedStatus, started)
+	}
 	result.Status, result.BlockId, result.Agent, result.AgentName = RestartStarted, blockId, agent, molten.AgentDisplayName(agent)
 	result.TabId, result.Hidden, result.Worktree, result.WorktreeCreated, result.BriefPath = tabId, true, tree, true, briefPath
 	result.Branch, result.Fix = branch, &started

@@ -68,6 +68,8 @@ func liveSecurityFixEnv() SecurityFixEnv {
 	return SecurityFixEnv{
 		Store:            mission.LiveSecurityFixes,
 		Result:           mission.LiveSecurityResult,
+		Scope:            mission.LiveSecurityScope,
+		Lookup:           liveAdvisoryLookup,
 		Consent:          liveSecurityConsent,
 		Run:              sfticket.Runner(mission.ExecRunner),
 		ProjectWorkspace: attention.ProjectWorkspace,

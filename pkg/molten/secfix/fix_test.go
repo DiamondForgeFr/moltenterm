@@ -4,6 +4,7 @@
 package secfix
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -156,6 +157,41 @@ func TestBeginHoldsAStoppedSetUnlessTheDeveloperAsks(t *testing.T) {
 	}
 	if fixes := store.List(dir); len(fixes) != 1 {
 		t.Fatalf("the new fix does not replace the stopped one: %+v", fixes)
+	}
+}
+
+// A fix that ended is not changed by an update: a Stop that lands while a launch or a follow works, on a picture of the fix
+// it read before, stays. Only Begin starts the set again; Amend keeps what a fix holds beside its state.
+func TestUpdateNeverChangesAFixThatEnded(t *testing.T) {
+	t.Parallel()
+	for _, ended := range []string{FixStopped, FixFailed, FixMerged} {
+		store := makeFixStore(t)
+		dir := t.TempDir()
+		if plan, _, err := store.Begin(dir, Fix{Ids: []string{"GO-2026-1"}}, false); err != nil || plan != PlanLaunch {
+			t.Fatalf("begin: %q %v", plan, err)
+		}
+		fp := Fingerprint([]string{"GO-2026-1"})
+		if _, _, err := store.Update(dir, fp, func(f *Fix) bool { f.State = ended; return true }); err != nil {
+			t.Fatalf("the first end is made: %v", err)
+		}
+		called := false
+		got, found, err := store.Update(dir, fp, func(f *Fix) bool { called = true; f.State = FixWorking; f.BlockId = "b"; return true })
+		if !errors.Is(err, ErrEnded) || !found || called || got.State != ended {
+			t.Fatalf("%s: an update of a fix that ended is refused: %+v %v %v called %v", ended, got, found, err, called)
+		}
+		if _, _, err := store.Update(dir, fp, func(f *Fix) bool { f.State = FixStopped; return true }); !errors.Is(err, ErrEnded) {
+			t.Fatalf("%s: the first end stands, a second one is refused: %v", ended, err)
+		}
+		if fix, _ := store.Get(dir, fp); fix.State != ended || fix.BlockId != "" {
+			t.Fatalf("%s: the stored fix is as it ended: %+v", ended, fix)
+		}
+		kept, found, err := store.Amend(dir, fp, func(f *Fix) bool { f.Ticket, f.State, f.Reason = 77, FixWorking, "x"; return true })
+		if err != nil || !found || kept.Ticket != 77 || kept.State != ended || kept.Reason != "" {
+			t.Fatalf("%s: a ticket is kept, the state is not touched: %+v %v", ended, kept, err)
+		}
+		if plan, _, err := store.Begin(dir, Fix{Ids: []string{"GO-2026-1"}}, true); err != nil || plan != PlanLaunch {
+			t.Fatalf("%s: the developer's click starts the set again: %q %v", ended, plan, err)
+		}
 	}
 }
 

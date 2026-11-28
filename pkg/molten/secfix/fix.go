@@ -137,6 +137,9 @@ type Fix struct {
 	StartedAt int64 `json:"startedat"`
 	UpdatedAt int64 `json:"updatedat"`
 	MergedAt  int64 `json:"mergedat,omitempty"`
+	// ReadiedAt is when MoltenTerm took the fix's pull request out of draft (Unix ms), claimed in the store before the call
+	// is made: it is done once, and a pull request the developer takes back to draft is not marked ready again.
+	ReadiedAt int64 `json:"readiedat,omitempty"`
 }
 
 // NormalizeIds gives ids their one spelling, once each, sorted.

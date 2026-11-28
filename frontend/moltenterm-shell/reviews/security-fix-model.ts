@@ -70,6 +70,8 @@ export type SecurityFix = {
     startedat: number;
     updatedat: number;
     mergedat?: number;
+    // Unix ms: when MoltenTerm took the pull request out of draft, once
+    readiedat?: number;
 };
 
 // must match SecurityFixStopGesture in pkg/molten/review/securityfix.go: the notification's Stop

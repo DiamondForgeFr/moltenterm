@@ -469,7 +469,10 @@ func TestSecurityFixAfterTheMergeStartsANewSetOnlyForNewAdvisories(t *testing.T)
 	other := securityBlock()
 	other.Advisories = []secfix.Advisory{{Id: "CVE-2026-9999", Package: "sharp", Version: "0.32.6"}}
 	other.Fingerprint = secfix.Fingerprint(secfix.Ids(other.Advisories))
-	f.set(func() { f.milestones = []string{"1.0.0"} })
+	f.set(func() {
+		f.milestones = []string{"1.0.0"}
+		f.database["CVE-2026-9999"] = []secfix.Advisory{{Id: "CVE-2026-9999", Package: "sharp", Fixed: "0.33.0"}}
+	})
 	fresh := f.r.launchSecurityFix(context.Background(), securityLaunch{dir: f.dir, repo: restartRepo, trunk: securityTrunk, workspaceId: "ws-1", block: other, auto: true})
 	if fresh.Status != RestartStarted || len(f.terminalLines()) != 2 || len(f.store.List(f.dir)) != 2 {
 		t.Fatalf("a new advisory starts a new set: %+v", fresh)

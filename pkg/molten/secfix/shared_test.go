@@ -81,6 +81,31 @@ func TestBuildBlocksTrunkAdvisoriesJoinTheSet(t *testing.T) {
 	}
 }
 
+// A block starts an agent on its own only when no pull request's author controls what names its advisories: the trunk's own
+// scan names them, or at least two pull requests of the repository fail on them.
+func TestBlockTrustedForAutoNeedsTheTrunkOrTwoPullRequests(t *testing.T) {
+	t.Parallel()
+	one := buildBlocks([]prFacts{factsOf(1, []string{"README.md"}, "GO-1")}, trunkFacts{}, nil)[0]
+	if !one.Shared || one.TrustedForAuto() {
+		t.Fatalf("a pull request that touches no dependency file makes its block shared, and that is all it makes: %+v", one)
+	}
+	unknown := buildBlocks([]prFacts{factsOf(1, []string{"go.mod"}, "GO-1")}, trunkFacts{Failing: true, Run: 7}, nil)[0]
+	if !unknown.TrunkFailing || unknown.TrunkNamed || unknown.TrustedForAuto() {
+		t.Fatalf("a trunk that is red with no advisory anyone read names nothing: %+v", unknown)
+	}
+	named := buildBlocks([]prFacts{factsOf(1, []string{"go.mod"}, "GO-1")}, trunkFacts{Failing: true, Run: 7, Advisories: advisoriesOf("GO-1")}, nil)[0]
+	if !named.TrunkNamed || !named.TrustedForAuto() {
+		t.Fatalf("the trunk's own scan names the advisories: %+v", named)
+	}
+	two := buildBlocks([]prFacts{factsOf(1, []string{"README.md"}, "GO-1"), factsOf(2, []string{"README.md"}, "GO-1")}, trunkFacts{}, nil)[0]
+	if two.TrunkFailing || !two.TrustedForAuto() {
+		t.Fatalf("two pull requests of the repository on the same advisories: %+v", two)
+	}
+	if (Block{TrunkFailing: true, TrunkNamed: true, Prs: []BlockPr{}}).TrustedForAuto() != true || (Block{Prs: []BlockPr{{Number: 1}}}).TrustedForAuto() {
+		t.Fatal("the trunk's own block with no pull request is trusted; a single pull request is not")
+	}
+}
+
 func TestBuildBlocksAFailingTrunkOfAnotherSetStaysApart(t *testing.T) {
 	t.Parallel()
 	blocks := buildBlocks([]prFacts{factsOf(1, []string{"go.mod"}, "GO-1")},

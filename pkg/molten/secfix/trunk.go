@@ -127,7 +127,7 @@ func (r *Reader) trunkOnlyBlocks(ctx context.Context, gh Gh, in Input, existing 
 		}
 		seen[fingerprint] = true
 		blocks = append(blocks, Block{Fingerprint: fingerprint, Check: CleanLine(run.Name, 80), Origin: class, Source: reading.Source,
-			Advisories: reading.Advisories, TrunkFailing: true, TrunkRun: check.RunId, Shared: true, Prs: []BlockPr{}})
+			Advisories: reading.Advisories, TrunkFailing: true, TrunkNamed: true, TrunkRun: check.RunId, Shared: true, Prs: []BlockPr{}})
 	}
 	return blocks
 }

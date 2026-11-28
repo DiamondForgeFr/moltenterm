@@ -198,9 +198,36 @@ func (s *FixStore) Begin(dir string, fix Fix, force bool) (string, Fix, error) {
 	return PlanLaunch, fix, nil
 }
 
+// ErrEnded is what a change says of a fix that ended (stopped, failed or merged) while the one who changes it worked on an
+// older picture of it: the change was not made, and the fix returned with it is as it stands.
+var ErrEnded = errors.New("the fix has ended")
+
 // Update changes the fix of a set under the lock; change returns false to leave it as it is. The fix as it is then is
-// returned, with whether it was found.
+// returned, with whether it was found. A fix that ended (stopped, failed or merged) is never changed by it (ErrEnded): a
+// Stop that lands while a launch or a follow works must not be undone by the step that read the fix before it. The change
+// that ends a fix is an Update of a fix still in flight, so the first end stands (a Stop and a closed pull request that race
+// leave one answer); only Begin starts a set again.
 func (s *FixStore) Update(dir string, fingerprint string, change func(*Fix) bool) (Fix, bool, error) {
+	return s.change(dir, fingerprint, modeActive, change)
+}
+
+// Amend changes what a fix keeps beside its state (the ticket a launch made, the pull request found) whatever its state is:
+// the state and its reason are never changed by it. The ticket a launch made while the developer stopped it is still kept.
+func (s *FixStore) Amend(dir string, fingerprint string, change func(*Fix) bool) (Fix, bool, error) {
+	return s.change(dir, fingerprint, modeAny, func(fix *Fix) bool {
+		state, reason := fix.State, fix.Reason
+		changed := change(fix)
+		fix.State, fix.Reason = state, reason
+		return changed
+	})
+}
+
+const (
+	modeActive = "active"
+	modeAny    = "any"
+)
+
+func (s *FixStore) change(dir string, fingerprint string, mode string, change func(*Fix) bool) (Fix, bool, error) {
 	if s == nil {
 		return Fix{}, false, errors.New("the fixes cannot be kept here")
 	}
@@ -213,6 +240,9 @@ func (s *FixStore) Update(dir string, fingerprint string, change func(*Fix) bool
 			continue
 		}
 		fix := all[key][i]
+		if mode == modeActive && fix.Ended() {
+			return fix, true, ErrEnded
+		}
 		if !change(&fix) {
 			return fix, true, nil
 		}

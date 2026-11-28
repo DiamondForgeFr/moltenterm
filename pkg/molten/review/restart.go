@@ -235,6 +235,10 @@ type Restarter struct {
 	spawn func(func())
 	// What the security fix told once (securityfix.go), by key.
 	secTold map[string]bool
+	// What the advisory database and the repository's collaborators answered lately, by id and by login
+	// (securityfix_advisories.go, securityfix_ticket.go).
+	secDb      map[string]advisoryAnswer
+	secWriters map[string]writerAnswer
 }
 
 func MakeRestarter(store *Store, env RestartEnv) *Restarter {

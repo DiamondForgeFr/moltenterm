@@ -54,6 +54,10 @@ type securityState struct {
 	usedAt  time.Time
 	// failing: a listed pull request fails a check that could be the scan, as the answers last showed.
 	failing bool
+	// repo and trunk are the repository (as gh names it) and the branch the last assessment read: what a fix of its blocks
+	// works on, whatever a window asks for.
+	repo  string
+	trunk string
 }
 
 // readSecurityDeclaration reads `ci.security` of the project's pipeline; nil when the project declares none or its
@@ -161,6 +165,26 @@ func LiveSecurityResult(dir string) (secfix.Result, bool) {
 	return liveReviews().SecurityResult(dir)
 }
 
+// SecurityScope is the repository (owner/name, as gh names it) and the trunk the project's last assessment read; false when
+// none ran. A fix works on these, never on what a request says: the click names a block, not where it lives.
+func (r *Reviews) SecurityScope(dir string) (repo string, trunk string, ok bool) {
+	if r == nil {
+		return "", "", false
+	}
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	state := r.scans[filepath.Clean(dir)]
+	if state == nil || !state.has || state.repo == "" {
+		return "", "", false
+	}
+	return state.repo, state.trunk, true
+}
+
+// LiveSecurityScope is SecurityScope on the running Mission Control.
+func LiveSecurityScope(dir string) (string, string, bool) {
+	return liveReviews().SecurityScope(dir)
+}
+
 // prepareSecurity says whether an assessment starts now: the failed checks that could be the scan changed, the last
 // one is old, or the developer forced a refresh; never two at once, and the same inputs at most once every few seconds.
 func (r *Reviews) prepareSecurity(dir string, key string, force bool) bool {
@@ -222,6 +246,15 @@ func (r *Reviews) noteFailing(dir string, failing bool) {
 	}
 }
 
+// noteScope keeps the repository and the trunk an assessment read.
+func (r *Reviews) noteScope(dir string, repo string, trunk string) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if state := r.scans[dir]; state != nil {
+		state.repo, state.trunk = repo, trunk
+	}
+}
+
 // storeSecurity keeps an assessment's result; true when the inputs changed while it ran, so another one follows.
 func (r *Reviews) storeSecurity(dir string, result secfix.Result, assessed bool) bool {
 	r.lock.Lock()
@@ -246,6 +279,7 @@ func (r *Reviews) readSecurity(in secfix.Input, repoRef string) {
 	r.noteFailing(in.Dir, in.HasFailedScan())
 	again := r.storeSecurity(in.Dir, result, assessed)
 	if assessed {
+		r.noteScope(in.Dir, repoRef, in.Trunk)
 		r.publishCurrent(in.Dir)
 		if !in.HasFailedScan() {
 			result = result.TrunkOnly()
