@@ -33,6 +33,7 @@ function window_(settings: VisitSettings = DefaultVisitSettings) {
         update: atom("") as PrimitiveAtom<string>,
         usage: atom({} as UsageReadings) as PrimitiveAtom<UsageReadings>,
         usageContext: atom({} as UsageContext) as PrimitiveAtom<UsageContext>,
+        securityFix: atom([] as string[]) as PrimitiveAtom<string[]>,
     };
     const hub = new BrokkHub({
         now: () => T + 1000,
@@ -57,6 +58,7 @@ function window_(settings: VisitSettings = DefaultVisitSettings) {
         updateOfferAtom: sources.update,
         usageAtom: sources.usage,
         usageContextAtom: sources.usageContext,
+        securityFixKeysAtom: sources.securityFix,
     });
     return { store, sources, hub };
 }
@@ -162,6 +164,42 @@ describe("the downloads, the update notice and the plan usage reach Brokk (FR-BO
         const w = window_({ ...DefaultVisitSettings, coming: { ...DefaultVisitSettings.coming, download: "rien" } });
         w.store.set(w.sources.downloads, [done("a", "completed")]);
         expect(w.hub.getView().badge).toBe(0);
+    });
+
+    // FR-REV-036 AC13: the fix MoltenTerm starts raises his existing security event, whose default is to come.
+    it("brings him, as for any dependency alert, when a security fix starts or needs the developer", () => {
+        const w = window_();
+        w.store.set(w.sources.securityFix, ["molten:secfix:started:/p:abcd:"]);
+        expect(w.hub.getView().visit?.severity).toBe("important");
+        expect(w.hub.getView().badge).toBe(1);
+        // The fix ends (its notification is resolved): the event goes with it.
+        w.store.set(w.sources.securityFix, []);
+        expect(w.hub.getView().visit).toBeNull();
+        expect(w.hub.getView().badge).toBe(0);
+    });
+
+    it("only counts a security fix on the badge when the developer set the security event to Badge, and never when Rien", () => {
+        const badge = window_({
+            ...DefaultVisitSettings,
+            coming: { ...DefaultVisitSettings.coming, security: "badge" },
+        });
+        badge.store.set(badge.sources.securityFix, ["molten:secfix:needs:/p:abcd:"]);
+        expect(badge.hub.getView().visit).toBeNull();
+        expect(badge.hub.getView().badge).toBe(1);
+        const off = window_({ ...DefaultVisitSettings, coming: { ...DefaultVisitSettings.coming, security: "rien" } });
+        off.store.set(off.sources.securityFix, ["molten:secfix:needs:/p:abcd:"]);
+        expect(off.hub.getView().badge).toBe(0);
+    });
+
+    it("tells a security fix once: opening his panel is seeing it, and a new fix is news again", () => {
+        const w = window_();
+        w.store.set(w.sources.securityFix, ["molten:secfix:started:/p:abcd:"]);
+        expect(w.hub.getView().badge).toBe(1);
+        w.store.set(w.sources.card, true);
+        expect(w.hub.getView().badge).toBe(0);
+        w.store.set(w.sources.card, false);
+        w.store.set(w.sources.securityFix, ["molten:secfix:started:/p:abcd:", "molten:secfix:needs:/p:abcd:"]);
+        expect(w.hub.getView().badge).toBe(1);
     });
 
     it("forgets them all when the developer opens his panel, and tells the next one", () => {

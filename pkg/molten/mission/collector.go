@@ -765,6 +765,8 @@ func Start() {
 	reviews.notify = attention.PublishNotification
 	reviews.ci = ci
 	reviews.securityStore = secfix.MakeStore(filepath.Join(CacheDir(dataDir), SecurityScansFileName))
+	reviews.securityFixes = secfix.MakeFixStore(filepath.Join(CacheDir(dataDir), SecurityFixesFileName))
+	reviews.securityFixes.OnChange(reviews.publishCurrent)
 	useLiveReviews(reviews)
 	worktrees := MakeWorktrees(ExecRunner, nil)
 	runs.UseWorktrees(worktrees, dataDir)

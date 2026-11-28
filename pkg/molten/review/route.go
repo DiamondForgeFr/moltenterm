@@ -251,6 +251,10 @@ func Start() {
 			wps.Broker.Publish(wps.WaveEvent{Event: NotesEvent, Scopes: []string{NotesScope(notes.Repo)}, Data: notes})
 		}
 		SetPostMerge(service)
+		// The fix of a shared security block (#2589): told of each assessment of the failed scans, and taking up again the
+		// fixes that were in flight when MoltenTerm last stopped.
+		mission.SetSecurityObserver(service.restarter.securityAssessed)
+		service.restarter.resumeSecurityFixes()
 		service.handoff = defaultHandoffEnv()
 		service.discuss = reviewsession.Discuss
 		service.translate = reviewsession.Translate
@@ -398,7 +402,7 @@ func commandTimeout(command string) time.Duration {
 		return publishTimeout
 	case CleanupCommand:
 		return cleanupTimeout
-	case RestartCommand, RebaseCommand, InvestigateCommand, ReleaseResolveCommand, FinishCommand, UpcomingResumeCommand:
+	case RestartCommand, RebaseCommand, InvestigateCommand, ReleaseResolveCommand, FinishCommand, UpcomingResumeCommand, SecurityFixCommand:
 		return restartTimeout
 	}
 	return controlTimeout
@@ -657,6 +661,21 @@ func (l *routeLink) handle(ctx context.Context, command string, data any) (any, 
 			return nil, err
 		}
 		return s.AskReleaseResolve(ctx, req)
+	case SecurityFixCommand:
+		// The developer's click on Launch the fix of a shared security block (#2589): a window's only, never an agent's from
+		// a terminal. The consent that starts one without a click is wavesrv's own read of the setting and its confirmation.
+		req, err := decode[SecurityFixRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.AskSecurityFix(ctx, req)
+	case SecurityFixStopCommand:
+		// The developer's Stop (#2589), from the block, the notification or the card: a window's only.
+		req, err := decode[SecurityFixStopRequest](data)
+		if err != nil {
+			return nil, err
+		}
+		return s.StopSecurityFix(ctx, req)
 	case MarkReadyCommand:
 		// The developer's click on Mark ready for review (#687): GitHub notifies the reviewers, so never a terminal's.
 		req, err := decode[MarkReadyRequest](data)

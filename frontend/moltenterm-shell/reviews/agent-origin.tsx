@@ -12,7 +12,7 @@ import { useLocale, useT } from "../i18n/i18n";
 export const OriginMetaKey = "molten:origin";
 
 export type AgentOrigin = {
-    kind: "rebase" | "restart" | "batch" | "investigate" | "release" | "finish" | "lead" | "brainstorm";
+    kind: "rebase" | "restart" | "batch" | "investigate" | "release" | "finish" | "lead" | "brainstorm" | "security";
     repo: string;
     number: number;
     branch: string;
@@ -26,6 +26,11 @@ export type AgentOrigin = {
     tag?: string;
     phase?: string;
     step?: string;
+    // The ticket and the advisories a security fix's agent works on (#2589); auto: started under the developer's consent,
+    // without a click.
+    ticket?: number;
+    advisories?: string;
+    auto?: boolean;
     mode: string;
     at: number;
 };
@@ -39,6 +44,7 @@ const OriginKinds: AgentOrigin["kind"][] = [
     "finish",
     "lead",
     "brainstorm",
+    "security",
 ];
 
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
@@ -72,7 +78,12 @@ export function originText(origin: AgentOrigin, translate: Translate, locale?: s
         count: origin.count ?? 0,
         tag: origin.tag ?? "",
         step: origin.step ?? "",
+        ticket: origin.ticket ?? 0,
+        advisories: origin.advisories ?? "",
     };
+    if (origin.kind === "security") {
+        return translate(origin.auto ? "agentOrigin.securityAuto" : "agentOrigin.security", vars);
+    }
     if (origin.kind === "release") {
         return translate(origin.mode === "together" ? "agentOrigin.releaseTogether" : "agentOrigin.release", vars);
     }

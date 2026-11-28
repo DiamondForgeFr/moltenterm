@@ -37,3 +37,7 @@ func pathOutsideError() error {
 func rebaseUnavailableError() error {
 	return uimsg.Errorf(uimsg.Make("review.rebaseunavailable"), "Ask for a rebase is not available")
 }
+
+func securityFixUnavailableError() error {
+	return uimsg.Errorf(uimsg.Make("review.securityfixunavailable"), "The security fix is not available")
+}

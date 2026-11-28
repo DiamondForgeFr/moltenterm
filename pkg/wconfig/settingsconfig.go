@@ -134,6 +134,9 @@ type SettingsType struct {
 	ReviewReviewerName string `json:"review:reviewername,omitempty" jsonschema_description:"Your first name in the Reviewed by line MoltenTerm writes in a pull request's body when you validate it; unset, the first word of the project's git user.name"`
 	// MOLTENTERM-PATCH (#912): Validate stays blocked while checks run instead of queuing the PR (FR-REV-026 AC10).
 	ReviewValidateGreenOnly bool `json:"review:validategreenonly,omitempty" jsonschema_description:"Validate a pull request only once its CI is green; off (the default), a pull request whose checks still run can be validated and the merge queue merges it once green"`
+	// MOLTENTERM-PATCH (#2589): the consent to start a security fix without a click (FR-REV-036 AC10, pkg/molten/secfix). A
+	// pointer: unset means the Integration panel never asked, false that the developer said it only offers the fix.
+	ReviewSecurityFix *bool `json:"review:securityfix,omitempty" jsonschema_description:"Start the fix of a dependency advisory that blocks pull requests on its own, in the background, as soon as MoltenTerm sees the block (one ticket and one agent per set of advisories; it never merges). Off when unset or false: MoltenTerm only offers the fix. Counts only once confirmed in MoltenTerm's own window, which asks once; a terminal cannot set it"`
 	// MOLTENTERM-PATCH (#623): the interface language (FR-I18N-001, frontend/moltenterm-shell/i18n).
 	AppLanguage string `json:"app:language,omitempty" jsonschema_description:"The interface language: system (the OS preferred languages, the default), en, fr or an installed language"`
 

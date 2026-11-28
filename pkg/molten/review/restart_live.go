@@ -78,6 +78,22 @@ func (s *Service) AskReleaseResolve(ctx context.Context, req ReleaseResolveReque
 	return s.restarter.AskReleaseResolve(ctx, req)
 }
 
+// AskSecurityFix is the developer's click on Launch the fix of a shared security block (#2589).
+func (s *Service) AskSecurityFix(ctx context.Context, req SecurityFixRequest) (SecurityFixResult, error) {
+	if s.restarter == nil {
+		return SecurityFixResult{}, securityFixUnavailableError()
+	}
+	return s.restarter.AskSecurityFix(ctx, req)
+}
+
+// StopSecurityFix is the developer's Stop on a security fix (#2589).
+func (s *Service) StopSecurityFix(ctx context.Context, req SecurityFixStopRequest) (SecurityFixResult, error) {
+	if s.restarter == nil {
+		return SecurityFixResult{}, securityFixUnavailableError()
+	}
+	return s.restarter.StopSecurityFix(ctx, req)
+}
+
 // liveRestartEnv: Mission Control's worktree terminals, the agent states, the guarded typing path of the handoffs and
 // the review sessions' way of opening a terminal.
 func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
@@ -86,6 +102,7 @@ func liveRestartEnv(git reviewsession.GitRunner) RestartEnv {
 	env.BranchAgents = func(ctx context.Context, dir string) ([]mission.BranchAgent, bool) {
 		return mission.LiveBranchAgents(dir)
 	}
+	env.SecurityFix = liveSecurityFixEnv()
 	return env
 }
 

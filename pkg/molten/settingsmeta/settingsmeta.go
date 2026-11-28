@@ -342,6 +342,8 @@ var settings = []Setting{
 	{Key: "review:reviewername", Section: SectionAgents, Group: "Code review", Label: "Your first name", Description: "Written as \"Reviewed by\" in the pull requests you validate; empty: from the project's git user name.", Control: ControlText},
 	// Agents, Code review (FR-REV-026 AC10, #912).
 	{Key: "review:validategreenonly", Section: SectionAgents, Group: "Code review", Label: "Validate only once CI is green", Description: "Off: a PR whose checks still run can be validated; the merge queue merges it once green.", Control: ControlToggle},
+	// Agents, Code review (FR-REV-036 AC10, #2589): the one setting that lets MoltenTerm start an agent without a click.
+	{Key: "review:securityfix", Section: SectionAgents, Group: "Code review", Label: "Fix a shared security block on its own", Description: "A dependency advisory that blocks pull requests gets one ticket and one background agent, started for you. It never merges.", Control: ControlToggle},
 	// General, Language (FR-I18N-001): listed last so the rows above keep their order.
 	{Key: "app:language", Section: SectionGeneral, Group: "Language", Label: "Interface language", Description: "The language of menus, panels and dialogs. Applies at once.", Control: ControlSelect, OptionsFrom: OptionsLanguages, UnsetLabel: "Same as the system"},
 	// Agents, Coding agent (#845): the default of the Agent option in the panels that start an agent.

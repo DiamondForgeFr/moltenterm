@@ -1313,6 +1313,13 @@
                 "label": "Validate only once CI is green",
                 "description": "Off: a PR whose checks still run can be validated; the merge queue merges it once green."
             },
+            "review:securityfix": {
+                "label": "Fix a shared security block on its own",
+                "description": "A dependency advisory that blocks pull requests gets one ticket and one background agent, started for you. It never merges.",
+                "confirm": "Turned on, when your project's dependency scan fails on advisories that no pull request caused, MoltenTerm opens one ticket for them and starts one coding agent in the background, in its own copy of the trunk, without asking you. The agent bumps the dependency or records why the advisory does not apply, and opens a pull request. MoltenTerm marks it ready when its checks are green and never merges it: the merge stays yours. You can stop it at any time, and a fix you stopped is never started again on its own. Only a scan your project declared, or that you confirmed, can start it.",
+                "confirmOn": "Turn it on",
+                "confirmCancel": "Keep asking me"
+            },
             "app:newviewopen": {
                 "label": "When a new view opens",
                 "description": "Ask shows the chooser; or open one type directly, without it.",
@@ -9157,6 +9164,7 @@
             "inflight": "An agent is already being reached for this pull request.",
             "alreadyHanded": "{name} already has this for the head {head}: nothing more was sent.",
             "alreadyHandedAnon": "An agent already has this for the head {head}: nothing more was sent.",
+            "securityCovered": "The dependency scan fails on advisories this pull request did not cause, and MoltenTerm's security fix covers them: there is nothing to resolve here. It resumes once the fix is merged.",
             "stale": {
                 "headMoved": "This pull request moved on since the card was drawn (its head is now {head}): nothing was sent. The card is reading it again.",
                 "problemGone": "What this asked for is no longer true on GitHub (the pull request is at {head}): nothing was sent. The card is reading it again.",
@@ -10828,6 +10836,7 @@
             "nogh": "gh, GitHub's command line, is not available.",
             "pathoutside": "The path must stay in the project.",
             "rebaseunavailable": "Ask for a rebase is not available.",
+            "securityfixunavailable": "The security fix is not available.",
             "restartunavailable": "Restart work is not available.",
             "notesfile": "The notes file could not be read: {detail}",
             "answergone": "This answer is no longer in the pull request's review.",
@@ -11286,6 +11295,32 @@
                 "left": "Open it again whenever you want, from the Help menu or the command palette.",
                 "open": "Open Getting started"
             },
+            "secfix": {
+                "stop": "Stop",
+                "startedTitle": "{name} started the security fix #{ticket}",
+                "started": "One ticket and one agent for {advisories}: it works in the background and never merges. You can stop it.",
+                "startedAuto": "Started on its own, with your consent: one ticket and one agent for {advisories}. It works in the background and never merges. You can stop it.",
+                "needsTitle": "{name} needs you on the security fix #{ticket}",
+                "needsTitleNoTicket": "The security fix needs you",
+                "why": {
+                    "outcome": "{reason}",
+                    "launchfailed": "The fix could not start: {detail}",
+                    "noagent": "No supported coding agent is installed on this computer: install one, or pick it in the options (Agent), then launch the fix.",
+                    "noworkspace": "No workspace is linked to this project: link one, then launch the fix.",
+                    "nopr": "The agent stopped without opening a pull request: its terminal says why.",
+                    "checksfailed": "{detail}",
+                    "agentgone": "The agent's terminal closed before it opened the pull request.",
+                    "prclosed": "The fix's pull request was closed without a merge.",
+                    "notready": "{detail}",
+                    "newadvisory": "More advisories joined the set after its agent was gone: merge the fix, and the next one starts."
+                },
+                "readyTitle": "Security fix #{pr} is ready to merge",
+                "readyUnblocksTitle": "Merging #{pr} unblocks {prs}",
+                "ready": "Its checks are green. Merging it is yours: MoltenTerm never merges.",
+                "mergedTitle": "Security fix #{pr} merged",
+                "merged": "The advisories {advisories} are fixed on {trunk}.",
+                "mergedUnblocks": "The advisories {advisories} are fixed on {trunk}. {prs} can resume."
+            },
             "release": {
                 "needsTitle": "{name} needs you on the release {tag}",
                 "doneTitle": "Release {tag}: {step} looked into",
@@ -11719,6 +11754,7 @@
             "finish": "Finish #{number}"
         },
         "noReview": "The pull request to open is not known.",
+        "noSecurityFix": "No security fix is running for these advisories.",
         "agent": "Agent",
         "otherAgents": "Other agents",
         "notInstalled": "{agent}: not installed",
@@ -11737,6 +11773,8 @@
         "lead": "Started by you at {time}: the lead agent's session resumed to take #{number} back",
         "release": "Started by you at {time} to analyze and resolve the failed step {step} of the release {tag}",
         "releaseTogether": "Started by you at {time} to investigate the failed step {step} of the release {tag} with you, its logs beside",
+        "security": "Started by you at {time} to fix the dependency advisories {advisories} (ticket #{ticket})",
+        "securityAuto": "Started by MoltenTerm at {time}, with your consent, to fix the dependency advisories {advisories} (ticket #{ticket})",
         "brainstormSetup": "Opened by you at {time} from a brainstorm, to set up SaaSFoundryAI in this project: its questions are asked here",
         "brainstormUpdate": "Opened by you at {time} from a brainstorm, to add SaaSFoundryAI's full profile to this project: its questions are asked here",
         "brainstormHandoff": "Started by you at {time} from a brainstorm, to take the first step of this project with its brief"

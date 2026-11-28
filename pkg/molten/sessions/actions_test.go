@@ -132,6 +132,23 @@ var detachedS = molten.DurableSession{Id: "detached", Reason: molten.SessionReas
 var paneGoneS = molten.DurableSession{Id: "panegone", Reason: molten.SessionReasonPaneGone, CanShow: true, CanEnd: true, Connection: "me@box"}
 var olderS = molten.DurableSession{Id: "older", Shown: true, Reason: molten.SessionReasonOlderVersion, CanEnd: true, WorkspaceId: "wsA", TabId: "tabA", BlockId: "blockOld"}
 
+// A security fix the developer stops (FR-REV-036 AC13) ends the session its agent's terminal shows, by the block.
+func TestEndBlock(t *testing.T) {
+	a, _, ops := makeTestActions(shownB, detachedS)
+	ctx := context.Background()
+	if ended, err := a.EndBlock(ctx, "blockB"); err != nil || !ended || ops.trace() != "terminate shown" {
+		t.Fatalf("ended %v, %v after %q; want the shown session terminated", ended, err, ops.trace())
+	}
+	for _, blockId := range []string{"", "no-such-block"} {
+		if ended, err := a.EndBlock(ctx, blockId); err != nil || ended {
+			t.Fatalf("block %q: ended %v, %v; want nothing ended", blockId, ended, err)
+		}
+	}
+	if ops.trace() != "terminate shown" {
+		t.Fatalf("a block without a session ended something: %q", ops.trace())
+	}
+}
+
 func TestEnd(t *testing.T) {
 	a, _, ops := makeTestActions(shownB, detachedS)
 	ctx := context.Background()
