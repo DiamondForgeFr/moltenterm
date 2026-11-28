@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -166,7 +167,9 @@ func offersOf(candidates []scanItem, readings map[string]Reading) []Offer {
 			order = append(order, item.check.Name)
 		}
 		offer.Ids = unionIds(offer.Ids, Ids(reading.Advisories))
-		offer.Prs = append(offer.Prs, item.pr)
+		if !slices.Contains(offer.Prs, item.pr) {
+			offer.Prs = append(offer.Prs, item.pr)
+		}
 	}
 	offers := []Offer{}
 	for _, name := range order {
@@ -210,7 +213,8 @@ func (r *Reader) trunkFacts(ctx context.Context, gh Gh, in Input, scans []scanIt
 			decl = in.Policy.Declaration
 		}
 		trunk := r.TrunkOf(ctx, gh, in.Dir, in.Trunk, decl, item.check)
-		if !trunk.Failing {
+		// A scan that could not run on the trunk fails it for no advisory: it says nothing of the pull requests'.
+		if !trunk.Failing || trunk.Reading.Status == StatusScannerInputFailure {
 			continue
 		}
 		facts.Failing = true

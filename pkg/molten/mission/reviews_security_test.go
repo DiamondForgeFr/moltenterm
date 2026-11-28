@@ -107,7 +107,13 @@ func TestReviewsSecurityBlocksFollowTheFailedScans(t *testing.T) {
 	reviews, dir := securityReviews(t, gh)
 	prs := securityPrs(scanRollup(500, 5001, "FAILURE"), scanRollup(501, 5011, "FAILURE"))
 	first := BuildReviews(reviewsSnapshot(dir, prs))
+	if _, ok := reviews.SecurityResult(dir); ok {
+		t.Fatal("nothing was assessed yet")
+	}
 	assessNow(t, reviews, &first)
+	if result, ok := reviews.SecurityResult(dir); !ok || len(result.Blocks) != 1 {
+		t.Fatalf("the work that follows a shared block reads what was found: %+v, %v", result, ok)
+	}
 
 	again := BuildReviews(reviewsSnapshot(dir, prs))
 	reviews.applySecurity(&again)
@@ -206,6 +212,9 @@ func TestReviewsSecurityClearsWhatTheChecksNoLongerCall(t *testing.T) {
 		t.Fatalf("a scan that passes again leaves no block: %+v", green.SecurityBlocks)
 	}
 	reviews.prepareSecurity(dir, key, false)
+	if _, ok := reviews.SecurityResult(dir); ok {
+		t.Fatal("what was found is no longer there to follow")
+	}
 	back := BuildReviews(reviewsSnapshot(dir, failing))
 	reviews.applySecurity(&back)
 	if len(back.SecurityBlocks) != 0 {

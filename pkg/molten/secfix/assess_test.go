@@ -508,6 +508,36 @@ func TestReadReportAsksForTheArtifactByNameOrByPattern(t *testing.T) {
 	}
 }
 
+func TestAssessATrunkWhoseScanCouldNotRunSaysNothingOfThePrs(t *testing.T) {
+	t.Parallel()
+	s := makeScenario(t)
+	s.reports[1311] = blockedReport(t, "GO-2099-0001")
+	s.trunkRuns = []int64{901}
+	s.trunkJobs[901] = []fakeJob{{Id: 9011, Name: scanName, Conclusion: "failure"}}
+	s.reports[901] = fixture(t, "moltenterm-input-failure.json")
+	s.files[131] = []string{"go.mod"}
+	in := Input{Dir: "/p", Trunk: "develop", Policy: declaredPolicy(), Prs: []PrInput{{Number: 131, HeadOid: "a", Checks: []Check{failedScan(1311)}}}}
+	block := MakeReader().Assess(context.Background(), s.gh, in).Blocks[0]
+	if block.TrunkFailing || block.Shared {
+		t.Fatalf("the trunk's scan failed for no advisory: %+v", block)
+	}
+}
+
+func TestAssessOffersEachPrOnce(t *testing.T) {
+	t.Parallel()
+	s := makeScenario(t)
+	s.logs[1411] = "##[error]GO-2099-0001\n"
+	s.logs[1412] = "##[error]GO-2099-0001\n"
+	in := Input{Dir: "/p", Trunk: "develop", Prs: []PrInput{{Number: 141, HeadOid: "a", Checks: []Check{
+		{Name: "Security audit", Workflow: "Audit", Failed: true, RunId: 141, JobId: 1411},
+		{Name: "Security audit", Workflow: "Nightly", Failed: true, RunId: 142, JobId: 1412},
+	}}}}
+	offers := MakeReader().Assess(context.Background(), s.gh, in).Offers
+	if len(offers) != 1 || !reflect.DeepEqual(offers[0].Prs, []int{141}) {
+		t.Fatalf("offers = %+v", offers)
+	}
+}
+
 func TestFindReportFileReadsRegularFilesOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
