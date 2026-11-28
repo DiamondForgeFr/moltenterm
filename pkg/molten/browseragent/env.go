@@ -154,6 +154,8 @@ type PermissionPrompt struct {
 	Action    string `json:"action,omitempty"`
 	// ActionText: Action's code for the window (#656).
 	ActionText *uimsg.Text `json:"actiontext,omitempty"`
+	// FrameKey: set on a sensitive frame click, whose bar also offers Always for this frame.
+	FrameKey string `json:"framekey,omitempty"`
 }
 
 // PanelReuseAsk is an agent asking to use a page the user opened in this panel (#2333): the tab's bar asks, and the
