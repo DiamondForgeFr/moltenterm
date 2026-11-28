@@ -6,6 +6,7 @@ package review
 import (
 	"context"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -149,6 +150,12 @@ func TestSecurityFollowMarksTheFixReadyOnceItsChecksAreGreen(t *testing.T) {
 		ready.Kind != "success" || !strings.HasPrefix(ready.Key, securityNoticePrefix+"ready:") {
 		t.Fatalf("ready: %+v", ready)
 	}
+	if !reflect.DeepEqual(fix.Unblocks, []int{9, 12, 14}) {
+		t.Fatalf("the fix keeps the pull requests its merge unblocks: %+v", fix.Unblocks)
+	}
+	if found, ok := f.store.OfPr(f.dir, 150); !ok || found.Fingerprint != f.block.Fingerprint {
+		t.Fatalf("the step after a merge finds the fix of a pull request: %+v %v", found, ok)
+	}
 	f.advance(securityRecheckReady + time.Second)
 	f.step()
 	f.advance(securityRecheckReady + time.Second)
@@ -214,13 +221,18 @@ func TestSecurityFollowSeesTheMergeAndCleansUp(t *testing.T) {
 	f.prOpen(true)
 	f.set(func() { f.checks = checkPass })
 	f.step()
-	f.set(func() { f.prView = `{"state":"MERGED","isDraft":false,"mergedAt":"2026-11-28T10:00:00Z"}` })
+	// The merge turns the blocked pull requests green and the block goes before the follow sees it: what the fix kept when it
+	// became ready is what the merge unblocked.
+	f.set(func() {
+		f.prView = `{"state":"MERGED","isDraft":false,"mergedAt":"2026-11-28T10:00:00Z"}`
+		f.result = secfix.Result{Blocks: []secfix.Block{}}
+	})
 	f.advance(securityRecheckReady + time.Second)
 	if f.step() {
 		t.Fatal("the follow ends with the merge")
 	}
 	fix := f.fix(f.block)
-	if fix.State != secfix.FixMerged || fix.MergedAt != f.now().UnixMilli() {
+	if fix.State != secfix.FixMerged || fix.MergedAt != f.now().UnixMilli() || !reflect.DeepEqual(fix.Unblocks, []int{9, 12, 14}) {
 		t.Fatalf("fix: %+v", fix)
 	}
 	merged := f.lastNotice()

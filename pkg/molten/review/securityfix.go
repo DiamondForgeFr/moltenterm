@@ -229,9 +229,22 @@ func (r *Restarter) securityAssessed(assessed mission.SecurityAssessed) {
 	if len(assessed.Result.Blocks) == 0 || checkSecurityRepo(assessed.Repo, assessed.Trunk) != nil {
 		return
 	}
-	go func() {
+	r.apart(func() {
 		defer func() { panichandler.PanicHandler("molten:review:securityfix:assessed", recover()) }()
 		r.launchAssessed(assessed)
+	})
+}
+
+// apart runs work off the caller's goroutine, which is told of an assessment from the one that made it; the tests run it
+// where they stand, so that they know when it is over.
+func (r *Restarter) apart(work func()) {
+	if r.spawn != nil {
+		r.spawn(work)
+		return
+	}
+	go func() {
+		defer func() { panichandler.PanicHandler("molten:review:securityfix:apart", recover()) }()
+		work()
 	}()
 }
 
@@ -290,6 +303,20 @@ func (r *Restarter) launchSecurityFix(ctx context.Context, in securityLaunch) Se
 		return securityAnswer(SecurityFixHeld, decided)
 	}
 	return r.startSecurityFix(ctx, in, decided, ids)
+}
+
+// firstTime is true the first time it is asked for a key, for as long as MoltenTerm runs: what is told once and not again.
+func (r *Restarter) firstTime(key string) bool {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	if r.secTold[key] {
+		return false
+	}
+	if r.secTold == nil {
+		r.secTold = map[string]bool{}
+	}
+	r.secTold[key] = true
+	return true
 }
 
 func firstNonEmpty(values ...string) string {
@@ -366,8 +393,13 @@ func (r *Restarter) startSecurityFix(ctx context.Context, in securityLaunch, fix
 		} else {
 			result.Message = agentchoice.NoneText() + ". Nothing was started."
 		}
-		// Nothing is recorded for an agent that is not installed: the next assessment, or the click, tries again.
+		// Nothing is recorded for an agent that is not installed: the next assessment, or the click, tries again. The
+		// developer who allowed it is told once why nothing starts.
 		r.fixStore().Remove(in.dir, fix.Fingerprint)
+		if in.auto && r.firstTime("noagent:"+in.dir+":"+fix.Fingerprint) {
+			fix.Reason = secfix.ReasonNoAgent
+			r.notify(ctx, securityNeedsYou(fix, result.Message))
+		}
 		return result
 	}
 	if in.workspaceId == "" && r.env.SecurityFix.ProjectWorkspace != nil {
@@ -388,12 +420,24 @@ func (r *Restarter) startSecurityFix(ctx context.Context, in securityLaunch, fix
 	if ticket.external {
 		return r.securityExternal(ctx, in, fix, ticket)
 	}
+	// The ticket is kept at once: a launch that fails past this point finds it again, never makes a second one (a search of
+	// GitHub's may not see a ticket made a moment ago).
+	if kept, found, _ := r.fixStore().Update(in.dir, fix.Fingerprint, func(f *secfix.Fix) bool {
+		f.Ticket, f.TicketUrl, f.TicketNew = ticket.number, ticket.url, ticket.created
+		return true
+	}); found {
+		fix = kept
+	}
 	branch := r.securityBranch(ctx, in.dir, ticket.number, ids)
 	tree, err := r.securityTree(ctx, in.dir, in.trunk, branch, ticket.number)
 	if err != nil {
 		return r.securityRetry(ctx, in, fix, secfix.ReasonLaunchFailed, err.Error())
 	}
-	removeTree := func() { r.git(ctx, in.dir, "worktree", "remove", "--force", tree) }
+	// A launch that fails leaves nothing behind: its copy goes, and the branch it just cut with it (nothing was pushed).
+	removeTree := func() {
+		r.git(ctx, in.dir, "worktree", "remove", "--force", tree)
+		r.git(ctx, in.dir, "branch", "-D", branch)
+	}
 	briefPath, err := r.securityBrief(in, fix, ticket.number, branch, tree)
 	if err != nil {
 		removeTree()

@@ -45,6 +45,8 @@ type securityFixture struct {
 	working    int
 	nowMs      int64
 	createErr  error
+	// terminalErr: the terminal cannot be opened.
+	terminalErr error
 	// What the fakes saw.
 	ghCalls     []string
 	issues      int
@@ -68,14 +70,18 @@ func makeSecurityFixture(t *testing.T) *securityFixture {
 		consent: secfix.ConsentOn, issueFound: "[]", prFound: "[]", headPrs: "[]", milestones: []string{"1.1.0", "1.0.0", "Later"},
 		nowMs: 1_000_000, opened: make(chan string, 16), noted: make(chan molten.NotificationInput, 16)}
 	f.store.UseClock(func() time.Time { return f.now() })
+	rf.r.spawn = func(work func()) { work() }
 	env := &rf.r.env
 	env.Now = f.now
 	env.Gh = f.gh
 	env.OpenTerminal = func(ctx context.Context, tabId string, afterBlockId string, meta waveobj.MetaMapType, line string) (string, error) {
 		f.lock.Lock()
+		defer f.lock.Unlock()
+		if f.terminalErr != nil {
+			return "", f.terminalErr
+		}
 		f.terminals = append(f.terminals, line)
 		f.terminalMap = append(f.terminalMap, meta)
-		f.lock.Unlock()
 		f.opened <- line
 		return "new-block", nil
 	}
@@ -605,6 +611,15 @@ func TestSecurityFixStartsOnItsOwnOnlyWithTheConsent(t *testing.T) {
 	}
 }
 
+// What an assessment starts runs off the goroutine that made it; the tests run it in place to know when it is over.
+func TestAnAssessmentsWorkRunsApart(t *testing.T) {
+	t.Parallel()
+	r := MakeRestarter(nil, RestartEnv{})
+	done := make(chan struct{})
+	r.apart(func() { close(done) })
+	awaitSignal(t, done, "the work started apart")
+}
+
 // AC11: a fix the developer stopped, or that failed, is never started again on its own for the same advisories; the
 // developer's click starts it again.
 func TestSecurityFixIsNeverRelaunchedOnItsOwnAfterAStop(t *testing.T) {
@@ -678,6 +693,14 @@ func TestSecurityFixWithoutAnAgentRecordsNothing(t *testing.T) {
 	if res.Status != RestartNoAgent || len(f.store.List(f.dir)) != 0 || len(f.ghCalls) != 0 || len(f.terminalLines()) != 0 {
 		t.Fatalf("no agent, nothing: %+v, fixes %v, gh %v", res, f.store.List(f.dir), f.ghCalls)
 	}
+	// The developer who allowed the launch on its own is told once why nothing starts, not at each assessment.
+	assessed := mission.SecurityAssessed{Dir: f.dir, Repo: restartRepo, Trunk: securityTrunk, Result: secfix.Result{Blocks: []secfix.Block{block}}}
+	f.r.securityAssessed(assessed)
+	f.r.securityAssessed(assessed)
+	notes := f.noticesSnapshot()
+	if len(notes) != 1 || notes[0].Kind != "warning" || notes[0].MessageText.Code != "notif.secfix.why.noagent" || len(f.store.List(f.dir)) != 0 {
+		t.Fatalf("told once, nothing kept: %+v %v", notes, f.store.List(f.dir))
+	}
 	f.installed = map[string]bool{molten.AgentIdClaude: true}
 	f.codingAgent("codex")
 	res = f.ask(block)
@@ -720,6 +743,33 @@ func TestSecurityFixThatCannotStartIsFailedAfterThreeTries(t *testing.T) {
 	}
 	if trees := f.git(f.dir, "worktree", "list"); strings.Contains(trees, "fix/") {
 		t.Fatalf("no worktree was left behind:\n%s", trees)
+	}
+}
+
+// A launch that fails after the ticket was made keeps the ticket: the next try uses it, never makes a second one, and leaves
+// no worktree or tab behind.
+func TestSecurityFixThatFailsAfterItsTicketKeepsTheTicket(t *testing.T) {
+	t.Parallel()
+	f := makeSecurityFixture(t)
+	block := securityBlock()
+	f.set(func() { f.terminalErr = fmt.Errorf("the terminal could not be opened") })
+	res := f.ask(block)
+	fix := f.fix(block)
+	if res.Status != SecurityFixWaiting || fix.State != secfix.FixWaiting || fix.Reason != secfix.ReasonLaunchFailed || fix.Ticket != 101 || fix.Tries != 1 {
+		t.Fatalf("first try: %+v %+v", res, fix)
+	}
+	if trees := f.git(f.dir, "worktree", "list"); strings.Contains(trees, "fix/101") {
+		t.Fatalf("the worktree is not left behind:\n%s", trees)
+	}
+	f.set(func() { f.terminalErr = nil })
+	f.advance(securityRetryAfter + time.Second)
+	f.r.securityFollowStep(context.Background(), f.dir, block.Fingerprint, &securityFollowState{})
+	fix = f.fix(block)
+	if fix.State != secfix.FixWorking || fix.Ticket != 101 || len(f.calls("issue create")) != 1 || len(f.terminalLines()) != 1 {
+		t.Fatalf("second try: %+v, tickets %v, terminals %v", fix, f.calls("issue create"), f.terminalLines())
+	}
+	if fix.Branch != "fix/101-ghsa-aaaa-bbbb-cccc-go-2026-1" {
+		t.Errorf("the first try left no branch: the second takes the name again: %q", fix.Branch)
 	}
 }
 

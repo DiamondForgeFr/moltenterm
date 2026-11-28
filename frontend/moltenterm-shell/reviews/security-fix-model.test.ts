@@ -148,6 +148,9 @@ describe("what the panel reads of a fix", () => {
         expect(securityFixUnblocks({ dir: "/p", ready: [], drafts: [] }, fix("ready"))).toEqual([]);
         const inBlock = fix("ready", { pr: 11 });
         expect(securityFixUnblocks(answer([inBlock]), inBlock)).toEqual([12]);
+        // The merge turned them green and the block left the answer: what the fix kept stands.
+        const merged = fix("merged", { pr: 150, unblocks: [11, 12] });
+        expect(securityFixUnblocks(answer([merged], { securityblocks: [] }), merged)).toEqual([11, 12]);
     });
 
     it("finds the fix in flight that covers a pull request whose failure is not its own", () => {

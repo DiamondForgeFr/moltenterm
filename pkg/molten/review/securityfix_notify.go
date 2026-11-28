@@ -116,11 +116,26 @@ func securityNeedsYou(fix secfix.Fix, detail string) molten.NotificationInput {
 
 // securityReasonText words why the fix needs the developer: MoltenTerm's reason by its code, or the agent's own line.
 func securityReasonText(reason string, detail string) *uimsg.Text {
+	// Each reason has its sentence in notif.secfix.why; the detail is MoltenTerm's own English line or a tool's.
 	switch reason {
-	case secfix.ReasonNoAgent, secfix.ReasonNoWorkspace, secfix.ReasonLaunchFailed, secfix.ReasonNoPr, secfix.ReasonChecksFailed,
-		secfix.ReasonAgentGone, secfix.ReasonPrClosed, secfix.ReasonNotReady, secfix.ReasonNewAdvisory:
-		// Each reason has its sentence in notif.secfix.why; the detail is MoltenTerm's own English line or a tool's.
-		return uimsg.Make("notif.secfix.why."+reason, "detail", detail)
+	case secfix.ReasonNoAgent:
+		return uimsg.Make("notif.secfix.why.noagent", "detail", detail)
+	case secfix.ReasonNoWorkspace:
+		return uimsg.Make("notif.secfix.why.noworkspace", "detail", detail)
+	case secfix.ReasonLaunchFailed:
+		return uimsg.Make("notif.secfix.why.launchfailed", "detail", detail)
+	case secfix.ReasonNoPr:
+		return uimsg.Make("notif.secfix.why.nopr", "detail", detail)
+	case secfix.ReasonChecksFailed:
+		return uimsg.Make("notif.secfix.why.checksfailed", "detail", detail)
+	case secfix.ReasonAgentGone:
+		return uimsg.Make("notif.secfix.why.agentgone", "detail", detail)
+	case secfix.ReasonPrClosed:
+		return uimsg.Make("notif.secfix.why.prclosed", "detail", detail)
+	case secfix.ReasonNotReady:
+		return uimsg.Make("notif.secfix.why.notready", "detail", detail)
+	case secfix.ReasonNewAdvisory:
+		return uimsg.Make("notif.secfix.why.newadvisory", "detail", detail)
 	}
 	return uimsg.Make("notif.secfix.why.outcome", "reason", detail)
 }
