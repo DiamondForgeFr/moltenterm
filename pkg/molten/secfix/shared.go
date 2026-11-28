@@ -66,7 +66,8 @@ type Result struct {
 }
 
 // Restrict keeps what concerns the listed pull requests: a pull request that merged or closed since the assessment
-// leaves its block, and a block with none left goes.
+// leaves its block, and a block with none left goes. A block that never had a pull request (the trunk's own, FR-REV-036
+// AC16) stays: no pull request leaving can end it.
 func (r Result) Restrict(listed map[int]bool) Result {
 	out := Result{Blocks: []Block{}, Offers: []Offer{}, Unread: []Unread{}}
 	for _, block := range r.Blocks {
@@ -80,6 +81,8 @@ func (r Result) Restrict(listed map[int]bool) Result {
 		}
 		if len(kept) > 0 {
 			block.Prs, block.Shared = kept, shared
+			out.Blocks = append(out.Blocks, block)
+		} else if len(block.Prs) == 0 {
 			out.Blocks = append(out.Blocks, block)
 		}
 	}

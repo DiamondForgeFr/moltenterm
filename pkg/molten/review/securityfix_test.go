@@ -375,6 +375,31 @@ func TestAskSecurityFixStartsOneAgentInTheBackground(t *testing.T) {
 	}
 }
 
+// AC16: a trunk that is red with no open pull request still gets its fix; the ticket and the brief say the scan blocks the
+// trunk, and nothing names a pull request.
+func TestSecurityFixStartsForATrunkThatIsRedWithNoOpenPullRequest(t *testing.T) {
+	t.Parallel()
+	f := makeSecurityFixture(t)
+	block := securityBlock()
+	block.Prs = []secfix.BlockPr{}
+	res := f.ask(block)
+	if res.Status != RestartStarted {
+		t.Fatalf("result: %+v", res)
+	}
+	creates := f.calls("issue create")
+	if len(creates) != 1 || !strings.Contains(creates[0], "The same scan fails on `develop`.") || strings.Contains(creates[0], "Blocked pull requests") {
+		t.Fatalf("the ticket says the scan blocks the trunk and names no pull request: %v", creates)
+	}
+	brief := readText(t, res.BriefPath)
+	if !strings.Contains(brief, "- The same scan fails on develop too: the fix is for the trunk") || strings.Contains(brief, "Pull requests the scan blocks") {
+		t.Fatalf("the brief:\n%s", brief)
+	}
+	ready := securityReady(f.fix(block), f.r.securityUnblocks(f.fix(block)))
+	if ready.Title != "Security fix #0 is ready to merge" || ready.TitleText.Code != "notif.secfix.readyTitle" {
+		t.Errorf("no pull request is unblocked: %+v", ready)
+	}
+}
+
 // AC12: the same brief and the same command path for every coding agent.
 func TestSecurityFixParityAcrossCodingAgents(t *testing.T) {
 	t.Parallel()
