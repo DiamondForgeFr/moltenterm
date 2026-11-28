@@ -65,6 +65,7 @@ var englishFields = map[string]string{
 	"review.MarkReadyResult.Message":        "gh's raw error, the detail of the reason error",
 	"review.RestartResult.Reason":           "a code (RestartReason…) the Review tab words",
 	"brokksession.Result.Reason":            "a code (Reason…) the panel's talk field words (boss.panel.talk.*, #2003)",
+	"mcpbrowser.ContextTab.Note":            "agent-facing, as tabs_context words it for the MCP tool and `molten browser list` prints it: \"shared just now\", \"given back\" (#971, #2596)",
 	"brokksession.TalkState.Reason":         "the same code, as the talk every window shows keeps it (boss.panel.talk.*, #2382)",
 	"mission.AnnotateResult.Reason":         "a code (AnnotateRefused…) the annotate review words under browser.annotate.refused.* (#2327)",
 	"brokksession.Result.Message":           "the English detail of a refusal, logged and never shown: the field words the Reason (#2003)",
