@@ -100,6 +100,44 @@ func TestCreateRunsTheGivenScriptAndKeepsAnUnfinishedTicket(t *testing.T) {
 	}
 }
 
+// A security fix's ticket names no nature (#2589): the label decides whether a ticket goes through Human Testing, which is
+// the developer's to apply, so the CLI is not given one.
+func TestCreateLeavesTheNatureToTheDeveloper(t *testing.T) {
+	var seen []string
+	run := func(ctx context.Context, cwd string, name string, args ...string) ([]byte, error) {
+		seen = args
+		return []byte("Issue URL: https://github.com/o/r/issues/40\n"), nil
+	}
+	spec := Spec{Type: TypeIssue, Title: "Dependency advisories: GO-2026-1", Body: "b", Complexity: ComplexityLow, Milestone: "1.0.0", SrsBypassReason: "no user-facing change"}
+	n, ok, _ := Create(context.Background(), run, t.TempDir(), []byte("x"), t.TempDir(), spec)
+	if !ok || n != 40 {
+		t.Fatalf("%d %v", n, ok)
+	}
+	line := strings.Join(seen, " ")
+	if !strings.Contains(line, "create-ticket issue Dependency advisories: GO-2026-1 ") || strings.Contains(line, "--nature") ||
+		!strings.HasSuffix(line, " --complexity low --milestone 1.0.0") {
+		t.Fatalf("call: %q", line)
+	}
+}
+
+func TestCommittedScriptReadsTheFirstRefThatHoldsIt(t *testing.T) {
+	var asked []string
+	git := func(ctx context.Context, dir string, args ...string) (string, error) {
+		asked = append(asked, args[1])
+		if args[1] == "origin/release:tool.sh" {
+			return "the reviewed script", nil
+		}
+		return "", fmt.Errorf("fatal: path does not exist")
+	}
+	got := CommittedScript(context.Background(), git, "/p", "tool.sh", "origin/develop", "origin/release")
+	if string(got) != "the reviewed script\n" || strings.Join(asked, ",") != "origin/develop:tool.sh,origin/release:tool.sh" {
+		t.Fatalf("%q after %v", got, asked)
+	}
+	if CommittedScript(context.Background(), git, "/p", "tool.sh", "origin/develop") != nil {
+		t.Fatal("a ref that holds nothing gave a script")
+	}
+}
+
 func TestCreateMakesNothingWithoutAScriptOrAnAddress(t *testing.T) {
 	run := func(ctx context.Context, cwd string, name string, args ...string) ([]byte, error) {
 		return []byte("Error: nope\n"), fmt.Errorf("exit 1")

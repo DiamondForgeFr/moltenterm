@@ -191,15 +191,17 @@ export const UnknownGroup = "Other settings";
 
 // The switches that turn on only after one explicit confirmation of what they allow (#2257): a security choice of the
 // developer's, never on unless he set it. Each has settings.items.<key>.confirm, confirmOn and confirmCancel.
-export const ConfirmOnKeys = new Set<string>(["boss:autoapprove", "companion:ticketsummaries"]);
+export const ConfirmOnKeys = new Set<string>(["boss:autoapprove", "companion:ticketsummaries", "review:securityfix"]);
 
 // The confirmation each of them records in the client's meta, which wavesrv requires with the setting: a terminal
 // cannot write it, so an agent that sets the key in settings.json by hand gets nothing. Must match
-// pkg/molten/brokksession/permit.go AutoApproveConsentKey and pkg/molten/milestones/route.go SummariesConsentKey
-// (#2392: the companion's ticket sentences spend the developer's subscription).
+// pkg/molten/brokksession/permit.go AutoApproveConsentKey, pkg/molten/milestones/route.go SummariesConsentKey
+// (#2392: the companion's ticket sentences spend the developer's subscription) and pkg/molten/secfix ConsentKey
+// (#2589: MoltenTerm starts a security fix without a click).
 export const ConfirmConsentKeys: Record<string, string> = {
     "boss:autoapprove": "molten:brokkautoapprove",
     "companion:ticketsummaries": "molten:ticketsummaries",
+    "review:securityfix": "molten:securityfix",
 };
 
 // The switch shows on only when the setting and its confirmation agree, as wavesrv reads it: a setting an agent wrote

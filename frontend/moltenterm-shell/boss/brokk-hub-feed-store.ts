@@ -19,6 +19,8 @@ import {
     DownloadsSource,
     EmptyUsageMemory,
     makeDownloadsMemory,
+    securityFixEventsOf,
+    SecurityFixSource,
     updateEventsOf,
     UpdateSource,
     type UsageMemory,
@@ -65,6 +67,9 @@ export type HubSources = {
     // The downloads whose notification was settled or cleared: their event is handled (FR-BOSS-009, AC16).
     closedDownloadsAtom?: Atom<ReadonlySet<string>>;
     updateOfferAtom?: Atom<string>;
+    // The keys of the notifications of a security fix that are still open (FR-REV-036 AC13, #2589): the fix MoltenTerm
+    // started, or that needs the developer. A window without one leaves it out.
+    securityFixKeysAtom?: Atom<string[]>;
     usageAtom?: Atom<UsageReadings>;
     // What the usage grid reads besides the readings (#2341): the use of each agent over 7 days and the developer's
     // choices. A provider the grid does not show never brings him for its usage. A window without one leaves it out, and
@@ -123,6 +128,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const { store } = src;
     const startedAt = Date.now();
     let downloads = makeDownloadsMemory(startedAt);
+    let securitySeen: ReadonlySet<string> = new Set();
     let localUpdate = "";
     let localUsage = EmptyUsageMemory;
     const seenUpdate = () => (src.updateSeen != null ? src.updateSeen.read() : localUpdate);
@@ -148,6 +154,8 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
     const feedDownloads = () =>
         hub.feed(DownloadsSource, downloadEventsOf({ ...downloads, floor: floor() }, items(), closed()));
     const feedUpdate = () => hub.feed(UpdateSource, updateEventsOf(offer(), seenUpdate()));
+    const securityKeys = () => (src.securityFixKeysAtom != null ? store.get(src.securityFixKeysAtom) : []);
+    const feedSecurityFix = () => hub.feed(SecurityFixSource, securityFixEventsOf(securityKeys(), securitySeen));
     // Runs `run` with the rules at hand: at once when they are loaded, else when they are, and never for no reading at all,
     // which has nothing to tell.
     const withVisit = (run: (visit: UsageVisit) => void) => {
@@ -175,9 +183,11 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
         feedDownloads();
         feedUpdate();
         feedUsage();
+        feedSecurityFix();
     };
     const acknowledge = () => {
         downloads = acknowledgeDownloads(downloads, items());
+        securitySeen = new Set([...securitySeen, ...securityKeys()]);
         if (offer() !== seenUpdate()) {
             localUpdate = offer();
             src.updateSeen?.write(offer());
@@ -189,6 +199,7 @@ function extraFeeds(hub: BrokkHub, src: HubSources) {
         src.downloadsAtom != null ? store.sub(src.downloadsAtom, feedDownloads) : null,
         src.closedDownloadsAtom != null ? store.sub(src.closedDownloadsAtom, feedDownloads) : null,
         src.updateOfferAtom != null ? store.sub(src.updateOfferAtom, feedUpdate) : null,
+        src.securityFixKeysAtom != null ? store.sub(src.securityFixKeysAtom, feedSecurityFix) : null,
         src.usageAtom != null ? store.sub(src.usageAtom, feedUsage) : null,
         src.usageContextAtom != null ? store.sub(src.usageContextAtom, feedUsage) : null,
         src.heardAtAtom != null ? store.sub(src.heardAtAtom, feedDownloads) : null,

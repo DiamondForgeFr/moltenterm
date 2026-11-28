@@ -1508,6 +1508,13 @@
                 "label": "Votre prénom",
                 "description": "Écrit en « Reviewed by » dans les pull requests que vous validez ; vide : d'après le nom d'utilisateur git du projet."
             },
+            "review:securityfix": {
+                "label": "Corriger seul un blocage de sécurité partagé",
+                "description": "Une alerte de dépendance qui bloque des pull requests reçoit un ticket et un agent en arrière-plan, lancés pour vous. Il ne fusionne jamais.",
+                "confirm": "Une fois activé, quand l'analyse des dépendances de votre projet échoue sur des alertes qu'aucune pull request n'a causées, MoltenTerm ouvre un seul ticket pour elles et lance un seul agent de code en arrière-plan, dans sa propre copie du tronc, sans vous demander. L'agent monte la dépendance ou consigne pourquoi l'alerte ne s'applique pas, puis ouvre une pull request. MoltenTerm la marque prête quand ses checks sont verts et ne la fusionne jamais : la fusion reste la vôtre. Vous pouvez l'arrêter à tout moment, et un correctif que vous avez arrêté n'est jamais relancé seul. Seule une analyse que votre projet a déclarée, ou que vous avez confirmée, peut le lancer.",
+                "confirmOn": "Activer",
+                "confirmCancel": "Continuer à demander"
+            },
             "review:validategreenonly": {
                 "label": "Valider seulement une fois la CI verte",
                 "description": "Désactivé : une PR dont les checks tournent peut être validée ; la file de fusion la fusionne une fois verte."
@@ -9160,6 +9167,7 @@
             "waiting": "{name} attend votre réponse sur {branch}.",
             "inflight": "Un agent est déjà en cours de contact pour cette pull request.",
             "alreadyHanded": "{name} a déjà cette demande pour la tête {head} : rien n'a été envoyé de plus.",
+            "securityCovered": "L'analyse des dépendances échoue sur des alertes que cette pull request n'a pas causées, et le correctif de sécurité de MoltenTerm les couvre : il n'y a rien à résoudre ici. Elle reprend une fois le correctif fusionné.",
             "alreadyHandedAnon": "Un agent a déjà cette demande pour la tête {head} : rien n'a été envoyé de plus.",
             "stale": {
                 "headMoved": "Cette pull request a avancé depuis l'affichage de la carte (sa tête est maintenant {head}) : rien n'a été envoyé. La carte la relit.",
@@ -10832,6 +10840,7 @@
             "nogh": "gh, la ligne de commande de GitHub, n'est pas disponible.",
             "pathoutside": "Le chemin doit rester dans le projet.",
             "rebaseunavailable": "Demander un rebase n'est pas disponible.",
+            "securityfixunavailable": "Le correctif de sécurité n'est pas disponible.",
             "restartunavailable": "Relancer le travail n'est pas disponible.",
             "notesfile": "Le fichier des notes n'a pas pu être lu : {detail}",
             "answergone": "Cette réponse n'est plus dans la revue de la PR.",
@@ -11290,6 +11299,32 @@
                 "left": "Rouvrez-le quand vous voulez, depuis le menu Aide ou la palette de commandes.",
                 "open": "Ouvrir Premiers pas"
             },
+            "secfix": {
+                "stop": "Arrêter",
+                "startedTitle": "{name} a lancé le correctif de sécurité #{ticket}",
+                "started": "Un ticket et un agent pour {advisories} : il travaille en arrière-plan et ne fusionne jamais. Vous pouvez l'arrêter.",
+                "startedAuto": "Lancé tout seul, avec votre accord : un ticket et un agent pour {advisories}. Il travaille en arrière-plan et ne fusionne jamais. Vous pouvez l'arrêter.",
+                "needsTitle": "{name} a besoin de vous sur le correctif de sécurité #{ticket}",
+                "needsTitleNoTicket": "Le correctif de sécurité a besoin de vous",
+                "why": {
+                    "outcome": "{reason}",
+                    "launchfailed": "Le correctif n'a pas pu démarrer : {detail}",
+                    "noagent": "Aucun agent de code pris en charge n'est installé sur cet ordinateur : installez-en un, ou choisissez-le dans les options (Agent), puis lancez le correctif.",
+                    "noworkspace": "Aucun espace de travail n'est lié à ce projet : liez-en un, puis lancez le correctif.",
+                    "nopr": "L'agent s'est arrêté sans ouvrir de pull request : son terminal dit pourquoi.",
+                    "checksfailed": "{detail}",
+                    "agentgone": "Le terminal de l'agent s'est fermé avant qu'il ouvre la pull request.",
+                    "prclosed": "La pull request du correctif a été fermée sans fusion.",
+                    "notready": "{detail}",
+                    "newadvisory": "D'autres alertes ont rejoint l'ensemble quand son agent n'était plus là : fusionnez le correctif, et le suivant démarre."
+                },
+                "readyTitle": "Le correctif de sécurité #{pr} est prêt à fusionner",
+                "readyUnblocksTitle": "Fusionner #{pr} débloque {prs}",
+                "ready": "Ses checks sont verts. La fusion est à vous : MoltenTerm ne fusionne jamais.",
+                "mergedTitle": "Le correctif de sécurité #{pr} est fusionné",
+                "merged": "Les alertes {advisories} sont corrigées sur {trunk}.",
+                "mergedUnblocks": "Les alertes {advisories} sont corrigées sur {trunk}. {prs} peut reprendre."
+            },
             "release": {
                 "needsTitle": "{name} a besoin de vous sur la release {tag}",
                 "doneTitle": "Release {tag} : {step} examinée",
@@ -11724,6 +11759,7 @@
             "finish": "Finir #{number}"
         },
         "noReview": "La pull request à ouvrir n'est pas connue.",
+        "noSecurityFix": "Aucun correctif de sécurité n'est en cours pour ces alertes.",
         "agent": "Agent",
         "otherAgents": "Autres agents",
         "notInstalled": "{agent} : non installé",
@@ -11742,6 +11778,8 @@
         "lead": "Lancé par vous à {time} : la session de l'agent principal reprise pour récupérer #{number}",
         "release": "Lancé par vous à {time} pour analyser et résoudre l'étape en échec {step} de la release {tag}",
         "releaseTogether": "Lancé par vous à {time} pour enquêter avec vous sur l'étape en échec {step} de la release {tag}, ses logs à côté",
+        "security": "Lancé par vous à {time} pour corriger les alertes de dépendance {advisories} (ticket #{ticket})",
+        "securityAuto": "Lancé par MoltenTerm à {time}, avec votre accord, pour corriger les alertes de dépendance {advisories} (ticket #{ticket})",
         "brainstormSetup": "Ouvert par vous à {time} depuis un brainstorm, pour installer SaaSFoundryAI dans ce projet : ses questions sont posées ici",
         "brainstormUpdate": "Ouvert par vous à {time} depuis un brainstorm, pour ajouter le profil complet de SaaSFoundryAI à ce projet : ses questions sont posées ici",
         "brainstormHandoff": "Lancé par vous à {time} depuis un brainstorm, pour faire le premier pas de ce projet avec son brief"

@@ -204,6 +204,9 @@ type ReviewsAnswer struct {
 	SecurityBlocks []secfix.Block  `json:"securityblocks,omitempty"`
 	SecurityOffers []secfix.Offer  `json:"securityoffers,omitempty"`
 	SecurityUnread []secfix.Unread `json:"securityunread,omitempty"`
+	// The fixes of those blocks (FR-REV-036 AC9 to AC13, reviews_securityfix.go): the ones in flight and the ones that ended
+	// lately, whether the developer asked for them or the consent started them.
+	SecurityFixes []secfix.Fix `json:"securityfixes,omitempty"`
 }
 
 type ghReviewRollup struct {
@@ -676,6 +679,8 @@ type Reviews struct {
 	securityStore  *secfix.Store
 	securityReader *secfix.Reader
 	scans          map[string]*securityState
+	// The fixes of the shared blocks (reviews_securityfix.go); nil: none is kept.
+	securityFixes *secfix.FixStore
 	// publishLock orders the answers that reach the views (publishCurrent); publishWaiting counts the publishers
 	// queued behind it, which the tests wait for.
 	publishLock    sync.Mutex

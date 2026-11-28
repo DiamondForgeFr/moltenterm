@@ -21,6 +21,8 @@ import (
 // them. browser:localpages lists the files the user let a terminal open in the panel without a question (#1978).
 // boss:autoapprove lets Brokk's agent act without asking (#2257): an agent must never give it to itself.
 // companion:ticketsummaries spends the developer's subscription on the milestone's sentences (#2392): his to agree to.
+// review:securityfix lets MoltenTerm start a coding agent without a click (#2589, FR-REV-036 AC10), the widest reach it gives
+// one: no agent may switch it on, or off to hide that it did.
 var moltenConsentConfigKeys = map[string]bool{
 	wconfig.ConfigKey_BrowserAgentSites:         true,
 	wconfig.ConfigKey_BrowserAgentFrameConsents: true,
@@ -29,6 +31,7 @@ var moltenConsentConfigKeys = map[string]bool{
 	wconfig.ConfigKey_BrowserLocalPages:         true,
 	wconfig.ConfigKey_BossAutoApprove:           true,
 	wconfig.ConfigKey_CompanionTicketSummaries:  true,
+	wconfig.ConfigKey_ReviewSecurityFix:         true,
 }
 
 func moltenCheckConfigWrite(ctx context.Context, meta waveobj.MetaMapType) error {

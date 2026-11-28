@@ -156,6 +156,29 @@ func (a *Actions) EndIn(ctx context.Context, id string, callerBlockId string, wo
 	return a.end(ctx, s)
 }
 
+// EndBlock ends the session the terminal block shows, for MoltenTerm's own stop of an agent it started (a security fix,
+// FR-REV-036 AC13); false when no session runs in the block. The list is read again first, as for any end.
+func (a *Actions) EndBlock(ctx context.Context, blockId string) (bool, error) {
+	if blockId == "" {
+		return false, nil
+	}
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	data, err := a.model.Rebuild()
+	if err != nil {
+		return false, err
+	}
+	for _, s := range data.Sessions {
+		if s.BlockId != blockId {
+			continue
+		}
+		defer a.rebuild()
+		_, err := a.end(ctx, s)
+		return err == nil, err
+	}
+	return false, nil
+}
+
 func (a *Actions) end(ctx context.Context, s molten.DurableSession) (molten.DurableSessionEndResult, error) {
 	var err error
 	if s.Shown {

@@ -100,6 +100,7 @@ func (r *Reviews) securityInput(answer ReviewsAnswer) (secfix.Input, bool) {
 // applySecurity fills the answer with what the last assessment found, for the pull requests it lists and only while
 // one of their failed checks could still be the scan; it returns what a new assessment would look at and its key.
 func (r *Reviews) applySecurity(answer *ReviewsAnswer) (secfix.Input, string) {
+	answer.SecurityFixes = r.fixesShown(answer.Dir)
 	in, ok := r.securityInput(*answer)
 	if !ok {
 		return in, ""
@@ -222,6 +223,7 @@ func (r *Reviews) readSecurity(in secfix.Input, repoRef string) {
 	again := r.storeSecurity(in.Dir, result, assessed)
 	if assessed {
 		r.publishCurrent(in.Dir)
+		notifySecurityObserver(SecurityAssessed{Dir: in.Dir, Repo: repoRef, Trunk: in.Trunk, Result: result})
 	}
 	if again {
 		r.Get(ReviewsRequest{Dir: in.Dir})

@@ -8,11 +8,13 @@ import (
 	"log"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wavetermdev/waveterm/pkg/jobcontroller"
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/localroute"
+	"github.com/wavetermdev/waveterm/pkg/molten/review"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/remote/conncontroller"
 	"github.com/wavetermdev/waveterm/pkg/waveobj"
@@ -46,6 +48,18 @@ var watchedEvents = []string{
 var objUpdateScopes = []string{waveobj.OType_Block + ":*", waveobj.OType_Tab + ":*", waveobj.OType_Workspace + ":*"}
 
 var startOnce sync.Once
+
+// The running actions, for MoltenTerm's own stop of an agent it started (EndBlockSession); nil until Start.
+var liveActions atomic.Pointer[Actions]
+
+// EndBlockSession ends the session the terminal block shows: false when none runs there, or the sessions are not started.
+func EndBlockSession(ctx context.Context, blockId string) (bool, error) {
+	actions := liveActions.Load()
+	if actions == nil {
+		return false, nil
+	}
+	return actions.EndBlock(ctx, blockId)
+}
 
 func publishSessions(data molten.DurableSessionsData) {
 	wps.Broker.Publish(wps.WaveEvent{Event: molten.DurableSessionsEvent, Data: data})
@@ -183,6 +197,9 @@ func Start() {
 		src := makeLiveSources()
 		model := MakeModel(src.Build, publishSessions)
 		link := &routeLink{model: model, actions: MakeActions(model, liveOps{})}
+		liveActions.Store(link.actions)
+		// A security fix MoltenTerm started is stopped by ending its session (#2589).
+		review.UseAgentStopper(EndBlockSession)
 		if _, err := localroute.Register(wshutil.DefaultRouter, link.route()); err != nil {
 			log.Printf("molten: sessions route not started: %v\n", err)
 		}
