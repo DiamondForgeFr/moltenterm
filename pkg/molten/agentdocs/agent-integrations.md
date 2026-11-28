@@ -27,6 +27,12 @@ and it hands its work to the agent of that first name with a brief (goal, contex
 MoltenTerm's data folder, after you allow it. Its instructions tell the agent its own first name. From a shell, the
 same is `molten agent list --active` and `molten agent send <name> --goal "..."`.
 
+The browser itself needs no MCP server either: from a shell, `molten browser list|open|read|show|close` runs the same
+tools with the same rules (the first action on a site asks you, a tab you stopped or took over is refused), so an agent
+MoltenTerm does not start with its server, Kimi Code included, opens a page in the panel next to its terminal and reads
+it. If you stopped an agent's browser server from the terminal's connections menu, its commands are refused too. See
+`pages.md` in the folder `molten docs` prints.
+
 A first name can be locked for a project, from the agent's Connections: a new agent started in that project gets the
 name back, and no agent of another project gets it. `list_agents` lists a locked name no agent holds as "locked for
 <project>, not running", and a hand-off to it is refused with that reason: MoltenTerm never starts an agent for it, so
