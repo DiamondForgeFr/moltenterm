@@ -43,7 +43,12 @@ export type MergeOrderStep = {
     impactsLater: number[];
     // The earlier PRs it would have put in conflict, merged before it for that reason.
     impactsEarlier: number[];
+    // The pull requests its merge unblocks (a security fix's, FR-REV-036 AC16): it goes first, whatever it costs in rebases.
+    unblocks?: number[];
 };
+
+// The pull requests that go first in the order, with the pull requests their merge unblocks: by number.
+export type FirstInOrder = Readonly<Record<number, readonly number[]>>;
 
 export type MergeOrder = {
     // The forecast could order the list: false while it computes, failed or is about another base.
@@ -302,16 +307,28 @@ export function mergeOrderOfNodes(nodes: OrderNode[]): { numbers: number[]; exac
     return { numbers, exact };
 }
 
+// putFirst: the pull requests of first, in their order, before the others, whose order is kept.
+export function putFirst(numbers: readonly number[], first?: FirstInOrder): number[] {
+    const front = numbers.filter((n) => first?.[n] != null);
+    return [...front, ...numbers.filter((n) => first?.[n] == null)];
+}
+
 // suggestedMergeOrder orders the PRs waiting for review (ready) for the fewest CI runs, from the forecast about the
-// listed PRs (ready and drafts). Not usable while the forecast cannot say: the list's order is kept then.
-export function suggestedMergeOrder(forecast: Forecast, ready: ReviewPr[], listed: ReviewPr[]): MergeOrder {
+// listed PRs (ready and drafts). Not usable while the forecast cannot say: the list's order is kept then. The PRs of
+// first (a security fix that unblocks others, FR-REV-036) go first: the cost then counts the rebases that order makes.
+export function suggestedMergeOrder(
+    forecast: Forecast,
+    ready: ReviewPr[],
+    listed: ReviewPr[],
+    first?: FirstInOrder
+): MergeOrder {
     const current = (ready ?? []).map((pr) => pr.number);
     const uptodate = forecast?.uptodate ?? "unknown";
     const nodes = orderNodes(forecast, ready, listed);
     if (nodes == null) {
         return {
             usable: false,
-            numbers: current,
+            numbers: putFirst(current, first),
             steps: [],
             outside: [],
             cost: 0,
@@ -322,8 +339,12 @@ export function suggestedMergeOrder(forecast: Forecast, ready: ReviewPr[], liste
     }
     const ordered = nodes.filter((n) => n.group !== "conflictsbase");
     const left = nodes.filter((n) => n.group === "conflictsbase").map((n) => n.number);
-    const { numbers, exact } = mergeOrderOfNodes(ordered);
-    const steps = orderSteps(numbers, ordered);
+    const solved = mergeOrderOfNodes(ordered);
+    const numbers = putFirst(solved.numbers, first);
+    const exact = solved.exact;
+    const steps = orderSteps(numbers, ordered).map((s) =>
+        first?.[s.number] != null ? { ...s, unblocks: [...first[s.number]] } : s
+    );
     return {
         usable: true,
         numbers,
@@ -368,6 +389,9 @@ export function mergeOrderReason(
     ids?: Record<number, number>
 ): string {
     const parts: string[] = [];
+    if ((step.unblocks?.length ?? 0) > 0) {
+        parts.push(t("reviews.order.reason.unblocks", { prs: prsText([...step.unblocks]) }));
+    }
     if (step.group === "conflictsbase") {
         parts.push(t("reviews.order.reason.conflictsBase", { base: base || "base" }));
     } else if (step.group === "missing") {

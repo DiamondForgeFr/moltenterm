@@ -8965,7 +8965,8 @@
                 "missing": "Not forecast yet",
                 "ciFailing": "CI failing",
                 "ciRunning": "CI running",
-                "blocked": "Cannot merge yet"
+                "blocked": "Cannot merge yet",
+                "unblocks": "Unblocks {prs}"
             }
         },
         "queue": {
@@ -9034,11 +9035,13 @@
                 "wait": "the queue will wait for it",
                 "rebaseAfter": "to rebase after {prs}",
                 "before": "before {prs}",
-                "noImpact": "touches no other pull request"
+                "noImpact": "touches no other pull request",
+                "unblocks": "unblocks {prs}"
             },
             "fact": {
                 "sameLines": "same lines as {prs}: {paths}",
-                "noPaths": "conflicts with {prs}"
+                "noPaths": "conflicts with {prs}",
+                "afterFix": "after #{number}: nothing to rebase"
             },
             "tag": {
                 "paths": "⇄ conflict with #{number} · {paths}",
@@ -9382,6 +9385,9 @@
                 },
                 "interrupted": "Work interrupted",
                 "conflicts": "Conflicts with {base}",
+                "securityBlocked": "Blocked by a security fix: #{number}",
+                "securityBlockedNoRef": "Blocked by a security fix",
+                "securityAlert": "Blocked by the security alert above",
                 "failing": "CI failing: {names}",
                 "changes": "Changes requested",
                 "reviewRequired": "Review required",
@@ -9412,6 +9418,11 @@
                 "recentCommit": "a commit landed lately",
                 "workflowDraft": "your workflow leaves drafts to the agents until review",
                 "agentFinish": "your workflow has no Human Testing: the agent marks its draft ready itself",
+                "securityTrunk": "the dependency scan fails on {base}, not because of it",
+                "securityPrs": "the dependency scan fails on other pull requests too, not because of it",
+                "securityNoDeps": "it changes no dependency file: the scan fails, not because of it",
+                "securityFix": "security fix",
+                "securityFixAuto": "security fix started on its own",
                 "interrupted": "{name} stopped before finishing {what}",
                 "interruptedGone": "{name}'s session ended before finishing {what}",
                 "nobody": "nobody on it",
@@ -9452,7 +9463,9 @@
                 "markReady": "Mark ready for review",
                 "markReadyMenu": "Mark ready for review: the PR leaves draft",
                 "settle": "Mark the stop as settled",
-                "goTo": "Go to #{number}"
+                "goTo": "Go to #{number}",
+                "seeAlert": "See the alert",
+                "stopSecurityFix": "Stop the security fix"
             },
             "ciRun": {
                 "notStarted": "The local CI did not start."
@@ -9461,6 +9474,7 @@
                 "approveCommands": "Open the project's declared commands to approve them. Approving starts nothing.",
                 "runCi": "Run the local CI on {branch}, asking for the approval of the commands first when it is missing",
                 "goTo": "Show #{number} · {title}",
+                "seeAlert": "Bring the security alert at the top of the list into view",
                 "answer": "Show {name}'s terminal: it is waiting for your answer",
                 "follow": "Show {name}'s terminal",
                 "relaunch": "Send the same task to {name} again, in its session, with the pull request as it is now",
@@ -9473,6 +9487,9 @@
                 "ciFailing": "CI failing: {names}",
                 "othersGreen": "{count} other checks green",
                 "ciGreen": "CI {success}/{total}",
+                "ciCount": "CI {success}/{total}",
+                "scan": "{names}",
+                "scanFix": "{names} → #{number}",
                 "ciSkipped": "CI {success}/{total}, {skipped} skipped",
                 "report": "report",
                 "noReport": "no test report",
@@ -9491,6 +9508,16 @@
             "history": {
                 "gone": "{name} stopped before finishing {what}."
             },
+            "tag": {
+                "securityAlert": "security alert",
+                "securityAlertTitle": "This pull request fails the dependency scan on advisories it did not bring: the security alert at the top of the list holds it.",
+                "securityFix": "fix #{number}",
+                "securityFixNoRef": "security fix",
+                "securityFixTitle": "A security fix covers the advisories the dependency scan fails on.",
+                "unblocks": "unblocks {count}",
+                "willUnblock": "will unblock {count}",
+                "unblocksTitle": "Merging it unblocks {numbers}"
+            },
             "status": {
                 "idle": "Nothing runs · {why}",
                 "ci": "CI running · {done}/{total} · {names}",
@@ -9499,6 +9526,8 @@
                 "agentSince": "{name} is working on it · {elapsed}",
                 "agentProbably": "An agent is probably working on it",
                 "merge": "GitHub is checking the merge",
+                "securityBlocked": "Nothing to do here · resumes on its own once #{number} is merged",
+                "securityBlockedNoRef": "Nothing to do here · resumes on its own once the fix is merged",
                 "why": {
                     "agentWaiting": "{name} waits for your answer",
                     "waitingOn": "waiting for #{number} to merge",
@@ -9530,6 +9559,140 @@
             "settle": {
                 "none": "No stop waits on this agent any more.",
                 "ownPrompt": "This agent is blocked on a prompt of its own terminal: answer it there."
+            }
+        },
+        "securityFix": {
+            "aria": "Security fix",
+            "tab": "Security fix",
+            "anAgent": "An agent",
+            "ticket": "ticket #{ticket}",
+            "goToCard": "Show the card of #{number}",
+            "go": "Go there",
+            "stop": "Stop",
+            "stopTitle": "Stops the agent. This fix is not started again on its own for these advisories.",
+            "relaunch": "Relaunch the fix",
+            "unblocks": "Will unblock",
+            "auto": "started on its own · {time}",
+            "autoTitle": "Started without a click, with your consent. Settings › Agents: Fix a shared security block on its own.",
+            "blocks": {
+                "one": "{count} advisory on {trunk} blocks {prs}.",
+                "other": "{count} advisories on {trunk} block {prs}."
+            },
+            "blocksTrunk": {
+                "one": "{count} advisory on {trunk}.",
+                "other": "{count} advisories on {trunk}."
+            },
+            "table": {
+                "aria": "Security advisories",
+                "ariaRaised": "What the pull request raises",
+                "advisory": "Advisory",
+                "module": "Module",
+                "version": "Version",
+                "raised": "Raised",
+                "review": "Review",
+                "notApplicable": "not applicable here"
+            },
+            "ask": {
+                "title": {
+                    "one": "A security alert blocks {count} pull request",
+                    "other": "A security alert blocks {count} pull requests"
+                },
+                "titleTrunk": "A security alert blocks {trunk}",
+                "subTrunkPrs": "The dependency scan ({check}) fails on {trunk} and on {prs}. These advisories are about modules {trunk} already uses: none of these pull requests brought them.",
+                "subPrs": "The dependency scan ({check}) fails on {prs}, and none of these pull requests brought these advisories.",
+                "subTrunk": "The dependency scan ({check}) fails on {trunk}. These advisories are about modules {trunk} already uses.",
+                "launch": "Launch the fix",
+                "launchTitle": "Opens the ticket and starts an agent in its own copy of the repository. Nothing merges without you.",
+                "always": "Launch it on its own each time",
+                "alwaysTitle": "Turns on Settings › Agents: Fix a shared security block on its own",
+                "later": "Later",
+                "note": "MoltenTerm opens a ticket (or takes up the one that already cites these advisories), hands the fix to an agent in its own copy of the repository, out of sight, and tells you by notification. Nothing merges without you, and you can stop it at any time. Asked once; you can change it in Settings › Agents.",
+                "noteOffer": "MoltenTerm starts the fix only when you ask. To let it start on its own, turn on “Fix a shared security block on its own” in Settings › Agents."
+            },
+            "working": {
+                "title": "Security fix in progress",
+                "bump": "{name} raises the modules to the fixed versions, then runs the local CI.",
+                "review": "{name} records why these advisories do not apply here: a review with its evidence, no version bump.",
+                "preparing": "{name} prepares the fix, out of sight, in its own copy of the repository.",
+                "external": "A fix was already on its way: MoltenTerm follows it and starts nothing beside it."
+            },
+            "waiting": {
+                "title": "The security fix waits for a place",
+                "machineBusy": "This computer is busy: the agent starts as soon as it is free. MoltenTerm tries again every two minutes.",
+                "agentLimit": "The agents at work fill their places: the fix starts as soon as one is free. No agent is stopped for it.",
+                "retry": "The fix could not start yet. MoltenTerm tries again. {detail}"
+            },
+            "needsYou": {
+                "title": "{name} needs you on the security fix #{ticket}",
+                "titleNoTicket": "The security fix needs you",
+                "go": "Go to the terminal"
+            },
+            "bar": {
+                "working": "working",
+                "waits": "waits for you",
+                "ci": "CI {done}/{total}"
+            },
+            "ready": {
+                "title": "Merging #{pr} unblocks {prs}",
+                "titleAlone": "The security fix #{pr} is ready to merge",
+                "bump": {
+                    "one": "Raises {count} dependency to its fixed version.",
+                    "other": "Raises {count} dependencies to their fixed versions."
+                },
+                "reviewDone": "Records why these advisories do not apply here, with its evidence: no version bump.",
+                "ci": "CI {success}/{total}",
+                "localCi": "local CI passed",
+                "report": "test report",
+                "merge": "Merge #{pr}…",
+                "mergeTitle": "Opens the Validate sheet of #{pr}: rebase and merge, like any pull request",
+                "assistedReview": "Assisted review",
+                "github": "Open on GitHub",
+                "note": "Once it is merged, MoltenTerm brings {prs} onto {trunk} and their checks start again. A notification gives you the result."
+            },
+            "merged": {
+                "title": {
+                    "one": "#{pr} merged · {count} pull request unblocked",
+                    "other": "#{pr} merged · {count} pull requests unblocked"
+                },
+                "titleNoPr": "Security fix merged",
+                "sub": "The advisories are fixed on {trunk}: the pull requests they blocked resume.",
+                "hide": "Hide"
+            },
+            "after": {
+                "progress": {
+                    "running": "checks running",
+                    "green": "checks passed",
+                    "red": "checks failed",
+                    "waiting": "waits to be brought onto {trunk}",
+                    "gone": "no longer open"
+                },
+                "updated": "brought onto {trunk}",
+                "rerun": "checks started again",
+                "handed": "{agent} was working on it: the rebase is handed to {agent}",
+                "failed": "could not be brought onto the fixed trunk: yours to do",
+                "mark": {
+                    "running": "Running",
+                    "ready": "Ready",
+                    "blocked": "Blocked",
+                    "draft": "Waiting"
+                }
+            },
+            "stopped": {
+                "title": "Security fix stopped",
+                "sub": {
+                    "one": "You stopped it: it is not started again on its own. {count} advisory still blocks {prs}.",
+                    "other": "You stopped it: it is not started again on its own. {count} advisories still block {prs}."
+                },
+                "subTrunk": "You stopped it: it is not started again on its own for these advisories."
+            },
+            "failed": {
+                "title": "The security fix did not go through"
+            },
+            "problem": {
+                "blockGone": "The scan no longer fails on these advisories: there is nothing to fix.",
+                "notShared": "These advisories come from a pull request itself: fix them in it (Analyze and resolve).",
+                "busy": "A security fix is already being started for this project.",
+                "failed": "The fix could not be started."
             }
         },
         "sort": {

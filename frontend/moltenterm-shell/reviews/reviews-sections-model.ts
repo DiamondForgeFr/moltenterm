@@ -23,6 +23,7 @@ import {
     UpcomingAnswer,
     UpcomingBranch,
 } from "./reviews-upcoming-model";
+import type { SecurityCardFacts } from "./security-card-model";
 
 // The PR sections, in the order the panel shows them.
 export const TurnOrder: CardTurn[] = ["yours", "ready", "waiting", "agents"];
@@ -41,6 +42,9 @@ export type CardContext = {
     now: number;
     boardText: (status: string) => string;
     batchRun?: (base: string) => BatchRun;
+    // What the project's shared security blocks and fixes say of each pull request, by number (FR-REV-036): every reader of
+    // the card states (the panel, the sidebar's dots) gets it with the context, so a card is counted where it is listed.
+    security?: Record<number, SecurityCardFacts>;
 };
 
 // cardAgents: every agent of the PR's branch, and the merge queue's agent while the queue works on the PR (#1128).
@@ -97,6 +101,7 @@ export function cardInputOf(pr: ReviewPr, ask: RebaseAsk, ctx: CardContext): Car
         now: ctx.now,
         batchStopped: batchStoppedOn(run, pr),
         groupHold: groupHoldOf(run, pr.number),
+        security: ctx.security?.[pr.number],
     };
 }
 
@@ -195,14 +200,22 @@ export function sectionRows(sections: readonly TurnSection[], folded: Partial<Re
 // "leftover:<branch>".
 export type FilledCandidate = { key: string; molten: boolean };
 
+// The key of the security fix block (FR-REV-036 AC15) when it holds the panel's filled button.
+export const SecurityFilledKey = "security";
+
 // filledAction: the one card whose primary stays a filled molten button (#1351, FR-REV-032), the first of "Yours" in
 // its shown order whose primary is the developer's move: its PR cards, then its leftover cards. Every other card's
 // primary is outlined, so the eye has one entry point. Null when "Yours" asks nothing: no section gets a filled one.
+// The security fix block at the top of the list takes it first, while it needs the developer (blockFilled).
 export function filledAction(
     sections: readonly TurnSection[],
     cards: Record<number, CardState>,
-    yoursLeftovers?: readonly FilledCandidate[]
+    yoursLeftovers?: readonly FilledCandidate[],
+    blockFilled?: boolean
 ): string {
+    if (blockFilled) {
+        return SecurityFilledKey;
+    }
     const yours = sections.find((s) => s.turn === "yours");
     const candidates: FilledCandidate[] = [
         ...(yours?.prs ?? []).map((pr) => ({ key: `pr:${pr.number}`, molten: !!cards[pr.number]?.molten })),

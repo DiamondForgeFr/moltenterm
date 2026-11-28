@@ -8965,7 +8965,8 @@
                 "missing": "Pas encore prévue",
                 "ciFailing": "CI en échec",
                 "ciRunning": "CI en cours",
-                "blocked": "Pas encore fusionnable"
+                "blocked": "Pas encore fusionnable",
+                "unblocks": "Débloque {prs}"
             }
         },
         "queue": {
@@ -9034,11 +9035,13 @@
                 "wait": "la file l'attendra",
                 "rebaseAfter": "à rebaser après {prs}",
                 "before": "avant {prs}",
-                "noImpact": "ne touche aucune autre PR"
+                "noImpact": "ne touche aucune autre PR",
+                "unblocks": "débloque {prs}"
             },
             "fact": {
                 "sameLines": "mêmes lignes que {prs} : {paths}",
-                "noPaths": "en conflit avec {prs}"
+                "noPaths": "en conflit avec {prs}",
+                "afterFix": "après #{number} : rien à rebaser"
             },
             "tag": {
                 "paths": "⇄ conflit avec #{number} · {paths}",
@@ -9382,6 +9385,9 @@
                 },
                 "interrupted": "Travail interrompu",
                 "conflicts": "Conflits avec {base}",
+                "securityBlocked": "Bloquée par un correctif de sécurité : #{number}",
+                "securityBlockedNoRef": "Bloquée par un correctif de sécurité",
+                "securityAlert": "Bloquée par l'alerte de sécurité ci-dessus",
                 "failing": "CI en échec : {names}",
                 "changes": "Modifications demandées",
                 "reviewRequired": "Revue requise",
@@ -9416,6 +9422,11 @@
                 "interruptedGone": "la session de {name} s'est terminée avant de finir {what}",
                 "nobody": "personne dessus",
                 "onHead": "sur le dernier commit",
+                "securityTrunk": "l'analyse des dépendances échoue sur {base}, pas à cause d'elle",
+                "securityPrs": "l'analyse des dépendances échoue aussi sur d'autres pull requests, pas à cause d'elle",
+                "securityNoDeps": "elle ne touche à aucun fichier de dépendances : l'analyse échoue, pas à cause d'elle",
+                "securityFix": "correctif de sécurité",
+                "securityFixAuto": "correctif de sécurité lancé tout seul",
                 "approval": "GitHub attend une approbation",
                 "reasons": "{reasons}",
                 "yours": "à vous",
@@ -9451,6 +9462,8 @@
                 "rerun": "Relancer les jobs en échec : {names}",
                 "markReady": "Passer en revue",
                 "settle": "Marquer l'arrêt comme réglé",
+                "seeAlert": "Voir l'alerte",
+                "stopSecurityFix": "Arrêter le correctif de sécurité",
                 "goTo": "Aller à #{number}",
                 "markReadyMenu": "Passer en revue : la PR quitte le brouillon"
             },
@@ -9461,6 +9474,7 @@
                 "approveCommands": "Ouvre les commandes déclarées du projet pour les approuver. Approuver ne lance rien.",
                 "runCi": "Lance la CI locale sur {branch}, en demandant d'abord l'approbation des commandes si elle manque",
                 "goTo": "Afficher #{number} · {title}",
+                "seeAlert": "Amener à l'écran l'alerte de sécurité, en haut de la liste",
                 "answer": "Afficher le terminal de {name} : il attend votre réponse",
                 "follow": "Afficher le terminal de {name}",
                 "relaunch": "Renvoyer la même tâche à {name}, dans sa session, avec la pull request telle qu'elle est",
@@ -9473,6 +9487,9 @@
                 "ciFailing": "CI en échec : {names}",
                 "othersGreen": "{count} autres vérifications vertes",
                 "ciGreen": "CI {success}/{total}",
+                "ciCount": "CI {success}/{total}",
+                "scan": "{names}",
+                "scanFix": "{names} → #{number}",
                 "ciSkipped": "CI {success}/{total}, ignorées : {skipped}",
                 "report": "rapport",
                 "noReport": "sans rapport de test",
@@ -9491,6 +9508,16 @@
             "history": {
                 "gone": "{name} s'est arrêté avant de finir {what}."
             },
+            "tag": {
+                "securityAlert": "alerte de sécurité",
+                "securityAlertTitle": "Cette pull request échoue à l'analyse des dépendances sur des avis qu'elle n'a pas introduits : l'alerte de sécurité, en haut de la liste, la retient.",
+                "securityFix": "correctif #{number}",
+                "securityFixNoRef": "correctif de sécurité",
+                "securityFixTitle": "Un correctif de sécurité couvre les avis sur lesquels l'analyse des dépendances échoue.",
+                "unblocks": "débloque {count}",
+                "willUnblock": "débloquera {count}",
+                "unblocksTitle": "La fusionner débloque {numbers}"
+            },
             "status": {
                 "idle": "Rien ne tourne · {why}",
                 "ci": "CI en cours · {done}/{total} · {names}",
@@ -9499,6 +9526,8 @@
                 "agentSince": "{name} travaille dessus · {elapsed}",
                 "agentProbably": "Un agent y travaille probablement",
                 "merge": "GitHub vérifie la fusion",
+                "securityBlocked": "Rien à faire ici · reprend seule après la fusion de #{number}",
+                "securityBlockedNoRef": "Rien à faire ici · reprend seule après la fusion du correctif",
                 "why": {
                     "agentWaiting": "{name} attend votre réponse",
                     "waitingOn": "attend la fusion de #{number}",
@@ -9530,6 +9559,140 @@
             "settle": {
                 "none": "Plus aucun arrêt n'attend cet agent.",
                 "ownPrompt": "Cet agent est bloqué sur une question de son propre terminal : répondez-y là."
+            }
+        },
+        "securityFix": {
+            "aria": "Correctif de sécurité",
+            "tab": "Correctif de sécurité",
+            "anAgent": "Un agent",
+            "ticket": "ticket #{ticket}",
+            "goToCard": "Afficher la carte de #{number}",
+            "go": "Y aller",
+            "stop": "Arrêter",
+            "stopTitle": "Arrête l'agent. Ce correctif n'est pas relancé tout seul pour ces avis.",
+            "relaunch": "Relancer le correctif",
+            "unblocks": "Débloquera",
+            "auto": "lancé tout seul · {time}",
+            "autoTitle": "Lancé sans clic, avec votre accord. Réglages › Agents : Corriger seul un blocage de sécurité partagé.",
+            "blocks": {
+                "one": "{count} avis sur {trunk} bloque {prs}.",
+                "other": "{count} avis sur {trunk} bloquent {prs}."
+            },
+            "blocksTrunk": {
+                "one": "{count} avis sur {trunk}.",
+                "other": "{count} avis sur {trunk}."
+            },
+            "table": {
+                "aria": "Avis de sécurité",
+                "ariaRaised": "Ce que la pull request monte",
+                "advisory": "Avis",
+                "module": "Module",
+                "version": "Version",
+                "raised": "Monté",
+                "review": "Revue",
+                "notApplicable": "non applicable ici"
+            },
+            "ask": {
+                "title": {
+                    "one": "Une alerte de sécurité bloque {count} pull request",
+                    "other": "Une alerte de sécurité bloque {count} pull requests"
+                },
+                "titleTrunk": "Une alerte de sécurité bloque {trunk}",
+                "subTrunkPrs": "L'analyse des dépendances ({check}) échoue sur {trunk} et sur {prs}. Ces avis portent sur des modules que {trunk} utilise déjà : aucune de ces pull requests ne les a introduits.",
+                "subPrs": "L'analyse des dépendances ({check}) échoue sur {prs}, et aucune de ces pull requests n'a introduit ces avis.",
+                "subTrunk": "L'analyse des dépendances ({check}) échoue sur {trunk}. Ces avis portent sur des modules que {trunk} utilise déjà.",
+                "launch": "Lancer le correctif",
+                "launchTitle": "Ouvre le ticket et lance un agent dans sa propre copie du dépôt. Rien ne fusionne sans vous.",
+                "always": "Le lancer seul à chaque fois",
+                "alwaysTitle": "Active Réglages › Agents : Corriger seul un blocage de sécurité partagé",
+                "later": "Plus tard",
+                "note": "MoltenTerm ouvre un ticket (ou reprend celui qui cite déjà ces avis), confie le correctif à un agent dans sa propre copie du dépôt, hors de vue, et vous prévient par notification. Rien ne fusionne sans vous, et vous pouvez l'arrêter à tout moment. Demandé une seule fois ; modifiable dans Réglages › Agents.",
+                "noteOffer": "MoltenTerm ne lance le correctif que lorsque vous le demandez. Pour qu'il parte tout seul, activez « Corriger seul un blocage de sécurité partagé » dans Réglages › Agents."
+            },
+            "working": {
+                "title": "Correctif de sécurité en cours",
+                "bump": "{name} monte les modules aux versions corrigées, puis lance la CI locale.",
+                "review": "{name} consigne pourquoi ces avis ne s'appliquent pas ici : une revue avec ses preuves, sans montée de version.",
+                "preparing": "{name} prépare le correctif, hors de vue, dans sa propre copie du dépôt.",
+                "external": "Un correctif était déjà en route : MoltenTerm le suit et n'en lance pas à côté."
+            },
+            "waiting": {
+                "title": "Le correctif de sécurité attend une place",
+                "machineBusy": "Cet ordinateur est occupé : l'agent démarre dès qu'il est libre. MoltenTerm réessaie toutes les deux minutes.",
+                "agentLimit": "Les agents au travail occupent toutes les places : le correctif démarre dès qu'une se libère. Aucun agent n'est arrêté pour lui.",
+                "retry": "Le correctif n'a pas encore pu démarrer. MoltenTerm réessaie. {detail}"
+            },
+            "needsYou": {
+                "title": "{name} a besoin de vous sur le correctif de sécurité #{ticket}",
+                "titleNoTicket": "Le correctif de sécurité a besoin de vous",
+                "go": "Aller au terminal"
+            },
+            "bar": {
+                "working": "travaille",
+                "waits": "vous attend",
+                "ci": "CI {done}/{total}"
+            },
+            "ready": {
+                "title": "Fusionner #{pr} débloque {prs}",
+                "titleAlone": "Le correctif de sécurité #{pr} est prêt à fusionner",
+                "bump": {
+                    "one": "Monte {count} dépendance à sa version corrigée.",
+                    "other": "Monte {count} dépendances à leurs versions corrigées."
+                },
+                "reviewDone": "Consigne pourquoi ces avis ne s'appliquent pas ici, avec ses preuves : pas de montée de version.",
+                "ci": "CI {success}/{total}",
+                "localCi": "CI locale réussie",
+                "report": "rapport de test",
+                "merge": "Fusionner #{pr}…",
+                "mergeTitle": "Ouvre la feuille Valider de #{pr} : rebaser et fusionner, comme toute pull request",
+                "assistedReview": "Revue assistée",
+                "github": "Ouvrir sur GitHub",
+                "note": "Après la fusion, MoltenTerm met {prs} à jour sur {trunk} et leurs vérifications repartent. Une notification vous donne le résultat."
+            },
+            "merged": {
+                "title": {
+                    "one": "#{pr} fusionnée · {count} pull request débloquée",
+                    "other": "#{pr} fusionnée · {count} pull requests débloquées"
+                },
+                "titleNoPr": "Correctif de sécurité fusionné",
+                "sub": "Les avis sont corrigés sur {trunk} : les pull requests qu'ils bloquaient reprennent.",
+                "hide": "Masquer"
+            },
+            "after": {
+                "progress": {
+                    "running": "vérifications en cours",
+                    "green": "vérifications réussies",
+                    "red": "vérifications en échec",
+                    "waiting": "attend d'être mise à jour sur {trunk}",
+                    "gone": "n'est plus ouverte"
+                },
+                "updated": "mise à jour sur {trunk}",
+                "rerun": "vérifications relancées",
+                "handed": "{agent} y travaillait : rebase confié à {agent}",
+                "failed": "n'a pas pu être mise à jour sur le tronc corrigé : à vous de jouer",
+                "mark": {
+                    "running": "En cours",
+                    "ready": "Prête",
+                    "blocked": "Bloquée",
+                    "draft": "Attend"
+                }
+            },
+            "stopped": {
+                "title": "Correctif de sécurité arrêté",
+                "sub": {
+                    "one": "Vous l'avez arrêté : il n'est pas relancé tout seul. {count} avis bloque encore {prs}.",
+                    "other": "Vous l'avez arrêté : il n'est pas relancé tout seul. {count} avis bloquent encore {prs}."
+                },
+                "subTrunk": "Vous l'avez arrêté : il n'est pas relancé tout seul pour ces avis."
+            },
+            "failed": {
+                "title": "Le correctif de sécurité n'a pas abouti"
+            },
+            "problem": {
+                "blockGone": "L'analyse n'échoue plus sur ces avis : il n'y a rien à corriger.",
+                "notShared": "Ces avis viennent d'une pull request elle-même : corrigez-les dedans (Analyser et résoudre).",
+                "busy": "Un correctif de sécurité est déjà en train de démarrer pour ce projet.",
+                "failed": "Le correctif n'a pas pu démarrer."
             }
         },
         "sort": {

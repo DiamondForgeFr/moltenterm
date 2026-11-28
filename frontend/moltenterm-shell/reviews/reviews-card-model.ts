@@ -16,6 +16,14 @@ import { blockedReasons, checkNames, checksOf, LeadFacts, ReviewDependency, Revi
 import { cardStatus, type CardStatus } from "./reviews-status-model";
 import type { PrTask, PrTaskState } from "./reviews-task-model";
 import type { AgentBarFacts, DraftTurn } from "./reviews-upcoming-model";
+import {
+    securityCoversFailing,
+    securityFixRef,
+    securityFixTarget,
+    securityScanChecks,
+    type SecurityCardFacts,
+} from "./security-card-model";
+import { isSecurityFixStoppable } from "./security-fix-model";
 
 // In precedence order: the first that applies is the card's state.
 export const CardStateKinds = [
@@ -25,6 +33,8 @@ export const CardStateKinds = [
     "agent-finish",
     "interrupted",
     "conflicts",
+    "security-blocked",
+    "security-alert",
     "failing",
     "queue-stopped",
     "ci-trust",
@@ -77,12 +87,14 @@ export type CardActionId =
     | "run-ci"
     | "launch"
     | "github"
-    | "go-to-pr";
+    | "go-to-pr"
+    | "see-alert"
+    | "stop-security-fix";
 
 // An action of the card. disabled: why GitHub refuses it (shown, never hidden); confirm: what the developer confirms
 // before it runs (#943: a soft signal asks, it never blocks); blockId: the agent's terminal it acts on; target: the PR
 // or issue it goes to (#1841). confirmKeys: the keys of the confirmation's two buttons when they are not "Validate
-// anyway" and "Cancel" (#2318).
+// anyway" and "Cancel" (#2318). fingerprint: the security block it brings into view (FR-REV-036).
 export type CardAction = {
     id: CardActionId;
     label: Phrase;
@@ -91,6 +103,7 @@ export type CardAction = {
     confirmKeys?: { yes: string; no: string };
     blockId?: string;
     target?: ReviewDependency;
+    fingerprint?: string;
 };
 
 // running: checks still run, with a still mark (the card's one animation is its state line or its agent line, #1085).
@@ -98,6 +111,15 @@ export type CardFactTone = "ok" | "soft" | "bad" | "muted" | "running";
 
 // title: what the fact means, on hover, when its few words alone do not say it.
 export type CardFact = { id: string; text: Phrase; tone: CardFactTone; title?: Phrase };
+
+// A small tag after the card's title (FR-REV-036 AC15): the security alert or fix that holds the pull request, or what its
+// merge unblocks. bad: the heat of a blocked card; good: the patina of what can move forward.
+export type CardTag = {
+    id: "security-alert" | "security-fix" | "unblocks";
+    tone: "bad" | "good";
+    text: Phrase;
+    title?: Phrase;
+};
 
 export type CardState = {
     kind: CardStateKind;
@@ -117,6 +139,8 @@ export type CardState = {
     facts: CardFact[];
     // What a stopped task left, one muted line ("Salomé stopped without fixing Backend").
     history?: Phrase;
+    // What a shared security block says of the card (FR-REV-036): the tags after its title.
+    tags: CardTag[];
     // Something runs on the PR now (#1085, FR-REV-022 AC13; #1876: the status line's truth, whatever the card's state):
     // the dominoes' meaning.
     works: boolean;
@@ -167,6 +191,8 @@ export type CardInput = {
     batchStopped?: boolean;
     // What a running group merge holds of the PR (#2318, groupHoldOf): its Validate waits for the run.
     groupHold?: GroupHold;
+    // What the answer's shared security blocks and fixes say of the PR (FR-REV-036, securityCardFacts).
+    security?: SecurityCardFacts;
 };
 
 // openWaits (#1841): what a PR waits on that is still open, as wavesrv last read it.
@@ -182,6 +208,8 @@ export const CardStateTones: Record<CardStateKind, CardTone> = {
     "agent-finish": "draft",
     interrupted: "you",
     conflicts: "broken",
+    "security-blocked": "wait",
+    "security-alert": "broken",
     failing: "broken",
     "queue-stopped": "you",
     "ci-trust": "you",
@@ -200,6 +228,8 @@ const Turns: Record<CardStateKind, CardTurn> = {
     "agent-finish": "agents",
     interrupted: "yours",
     conflicts: "yours",
+    "security-blocked": "waiting",
+    "security-alert": "yours",
     failing: "yours",
     "queue-stopped": "yours",
     "ci-trust": "yours",
@@ -215,8 +245,16 @@ const Turns: Record<CardStateKind, CardTurn> = {
 // (#1085): their card shows the dominoes.
 const CalmKinds = new Set<CardStateKind>(["agent-working", "ci-running"]);
 // A draft left to its agent (#1212), or held until another PR merges (#1841), asks nothing of the developer either, but
-// nothing works on it: calm, no dominoes.
-const QuietKinds = new Set<CardStateKind>([...CalmKinds, "waiting-on", "agent-finish", "ci-elsewhere"]);
+// nothing works on it: calm, no dominoes. A card held by a shared security block asks nothing either: the panel's block
+// at the top holds the one action (FR-REV-036 AC15).
+const QuietKinds = new Set<CardStateKind>([
+    ...CalmKinds,
+    "waiting-on",
+    "agent-finish",
+    "ci-elsewhere",
+    "security-blocked",
+    "security-alert",
+]);
 
 // agentLineMoves: an agent line shows the dominoes (reviews-agent-bar.tsx) while its agent works or runs in the
 // background, unless it tells a stopped task. The card reads the same so it never shows a second animation.
@@ -387,6 +425,11 @@ function pickKind(input: CardInput, waiting: AgentBarFacts, working: AgentBarFac
     if (pr.merge === "conflicts") {
         return "conflicts";
     }
+    // FR-REV-036: the one thing that fails is the shared dependency scan, which is not the PR's own: a fix is on it, or the
+    // block at the top of the panel asks. Nothing else of the PR is wrong, so nothing on the card is the developer's.
+    if (securityCoversFailing(input.security, checksOf(pr.ci, "failure")) && !changesRequested(pr)) {
+        return input.security.blocked.fix != null ? "security-blocked" : "security-alert";
+    }
     if (checksOf(pr.ci, "failure").length > 0 || changesRequested(pr)) {
         return "failing";
     }
@@ -437,7 +480,18 @@ function cardFacts(input: CardInput, kind: CardStateKind, said: Set<string>): Ca
     const failed = checksOf(pr.ci, "failure");
     const success = pr.ci?.success ?? 0;
     const pending = pr.ci?.pending ?? 0;
-    if (failed.length > 0 && !said.has("ci")) {
+    const scan = securityScanChecks(input.security, failed);
+    const securityKind = kind === "security-blocked" || kind === "security-alert";
+    if (securityKind) {
+        // The sentence says the block; the facts say what ran and which scan failed, and where its fix is (FR-REV-036).
+        if (checks.length > 0) {
+            facts.push({
+                id: "ci",
+                text: phrase("reviews.card.fact.ciCount", { success, total: checks.length }),
+                tone: "muted",
+            });
+        }
+    } else if (failed.length > 0 && !said.has("ci")) {
         facts.push({
             id: "ci",
             text: phrase("reviews.card.fact.ciFailing", { names: checkNames(failed) }),
@@ -461,6 +515,19 @@ function cardFacts(input: CardInput, kind: CardStateKind, said: Set<string>): Ca
                 skipped: checks.length - success,
             }),
             tone: "muted",
+        });
+    }
+    const scanRef =
+        scan.length > 0 ? securityFixRef(input.security.blocked.fix ?? input.security.blocked.merged) : null;
+    if (scan.length > 0 && (securityKind || scanRef != null)) {
+        const ref = scanRef;
+        facts.push({
+            id: "scan",
+            text: phrase(ref != null ? "reviews.card.fact.scanFix" : "reviews.card.fact.scan", {
+                names: checkNames(scan),
+                number: ref?.number ?? 0,
+            }),
+            tone: "bad",
         });
     }
     if (pr.report?.state === "present") {
@@ -627,6 +694,70 @@ function menuOrder(menu: CardAction[]): CardAction[] {
     return [{ ...ready, label: phrase("reviews.card.action.markReadyMenu") }, ...menu.filter((a) => a !== ready)];
 }
 
+// Why a failed dependency scan is not the pull request's own, as the block found it: the trunk fails the same way, other
+// pull requests do, or it changes no dependency file.
+function securityWhy(security: SecurityCardFacts, base: string): Phrase {
+    const reasons = security?.blocked?.reasons ?? [];
+    if (reasons.includes("trunk")) {
+        return phrase("reviews.card.why.securityTrunk", { base });
+    }
+    if (reasons.includes("prs")) {
+        return phrase("reviews.card.why.securityPrs");
+    }
+    return phrase("reviews.card.why.securityNoDeps");
+}
+
+// Stop works from the card of the fix's pull request as from the block and the notification (FR-REV-036 AC13): it ends the
+// fix, and the fix is never started again on its own. It takes the place of the agent's own Stop, which would end its
+// session without telling the fix.
+function withSecurityStop(menu: CardAction[], fingerprint: string): CardAction[] {
+    const stop: CardAction = { ...action("stop-security-fix", "reviews.card.action.stopSecurityFix"), fingerprint };
+    const rest = menu.filter((a) => a.id !== "stop");
+    const github = rest.findIndex((a) => a.id === "github");
+    return github < 0 ? [...rest, stop] : [...rest.slice(0, github), stop, ...rest.slice(github)];
+}
+
+// The tags after the card's title (FR-REV-036 AC15): the alert or the fix its failed scan belongs to, and what its own
+// merge unblocks when it is a fix's pull request.
+function cardTags(input: CardInput): CardTag[] {
+    const tags: CardTag[] = [];
+    const blocked = input.security?.blocked;
+    if (blocked != null && securityScanChecks(input.security, checksOf(input.pr.ci, "failure")).length > 0) {
+        const fix = blocked.fix ?? blocked.merged;
+        const ref = securityFixRef(fix);
+        if (fix == null) {
+            tags.push({
+                id: "security-alert",
+                tone: "bad",
+                text: phrase("reviews.card.tag.securityAlert"),
+                title: phrase("reviews.card.tag.securityAlertTitle"),
+            });
+        } else {
+            tags.push({
+                id: "security-fix",
+                tone: "bad",
+                text: ref
+                    ? phrase("reviews.card.tag.securityFix", { number: ref.number })
+                    : phrase("reviews.card.tag.securityFixNoRef"),
+                title: phrase("reviews.card.tag.securityFixTitle"),
+            });
+        }
+    }
+    const own = input.security?.own;
+    if (own != null && own.unblocks.length > 0) {
+        const numbers = own.unblocks.map((n) => `#${n}`).join(", ");
+        tags.push({
+            id: "unblocks",
+            tone: "good",
+            text: phrase(own.fix.state === "ready" ? "reviews.card.tag.unblocks" : "reviews.card.tag.willUnblock", {
+                count: own.unblocks.length,
+            }),
+            title: phrase("reviews.card.tag.unblocksTitle", { numbers }),
+        });
+    }
+    return tags;
+}
+
 // cardState: the card's one state, its sentence, its primary action (none when nothing is the developer's to do and
 // there is no agent to follow), its menu and its facts.
 export function cardState(input: CardInput): CardState {
@@ -692,6 +823,10 @@ export function cardState(input: CardInput): CardState {
             } else if (failed.length > 0) {
                 why = phrase("reviews.card.why.ciFailing", { names: checkNames(failed) });
                 said.add("ci");
+            } else if (input.security?.own != null) {
+                why = phrase(
+                    input.security.own.fix.auto ? "reviews.card.why.securityFixAuto" : "reviews.card.why.securityFix"
+                );
             } else if (input.boardStatus) {
                 why = phrase("reviews.card.why.board", { status: input.boardStatus });
                 said.add("board");
@@ -792,6 +927,33 @@ export function cardState(input: CardInput): CardState {
             why = phrase("reviews.card.why.nobody");
             said.add("conflicts");
             primary = action("rebase", "reviews.card.action.rebase");
+            menu = [AssistedReview(), mergeAction(input, null), Github()];
+            break;
+        case "security-blocked": {
+            // A fix is in flight for the advisories the dependency scan fails on: nothing is the developer's to do here, and
+            // the card resumes on its own once the fix is merged (FR-REV-036 AC15).
+            const ref = securityFixRef(input.security.blocked.fix);
+            sentence = ref
+                ? phrase("reviews.card.state.securityBlocked", { number: ref.number })
+                : phrase("reviews.card.state.securityBlockedNoRef");
+            why = securityWhy(input.security, pr.base);
+            primary = ref
+                ? {
+                      ...action("go-to-pr", "reviews.card.action.goTo", { number: ref.number }),
+                      target: securityFixTarget(ref),
+                  }
+                : null;
+            menu = [AssistedReview(), mergeAction(input, null), Github()];
+            break;
+        }
+        case "security-alert":
+            // The scan fails on advisories the PR did not bring and no fix is on them: the block at the top asks.
+            sentence = phrase("reviews.card.state.securityAlert");
+            why = securityWhy(input.security, pr.base);
+            primary = {
+                ...action("see-alert", "reviews.card.action.seeAlert"),
+                fingerprint: input.security.blocked.fingerprint,
+            };
             menu = [AssistedReview(), mergeAction(input, null), Github()];
             break;
         case "failing": {
@@ -897,6 +1059,9 @@ export function cardState(input: CardInput): CardState {
             menu = [AssistedReview(), Launch(), Github()];
             break;
     }
+    if (input.security?.own != null && isSecurityFixStoppable(input.security.own.fix)) {
+        menu = withSecurityStop(menu, input.security.own.fix.fingerprint);
+    }
     const status = cardStatus(
         input,
         kind,
@@ -928,5 +1093,6 @@ export function cardState(input: CardInput): CardState {
         menu: menuOrder(menu.filter((a) => a != null && a.id !== primary?.id)),
         facts: [...extra, ...cardFacts(input, kind, said)],
         history,
+        tags: cardTags(input),
     };
 }

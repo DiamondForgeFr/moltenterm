@@ -12,6 +12,7 @@
 import { ContextMenuModel } from "@/app/store/contextmenu";
 import { cn, fireAndForget } from "@/util/util";
 import { useAtomValue } from "jotai";
+import { Hourglass, LockOpen, ShieldAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useEscape } from "../dialog-frame";
 import { useLocale, useT } from "../i18n/i18n";
@@ -32,6 +33,7 @@ import {
     CardFactTone,
     cardState,
     CardState,
+    CardTag,
     CardTone,
     confirmKeysOf,
     settledPhrase,
@@ -55,6 +57,7 @@ import { cardInputOf } from "./reviews-sections-model";
 import { settleAll, settleFromCard } from "./reviews-settle-client";
 import { ReviewsModel } from "./reviews-store";
 import type { PrTaskKind } from "./reviews-task-model";
+import { stopSecurityFixOf } from "./security-fix-block-actions";
 
 // The card's edge by heat (FR-SHELL-116, the theme's Integration mockup): what runs glows at 60 %, so the edge stays
 // calmer than a blocked or a ready one.
@@ -139,6 +142,8 @@ function actionTitle(action: CardAction, pr: ReviewPr, name: Phrase): Phrase {
             return action.target?.title
                 ? phrase("reviews.card.actionTitle.goTo", { number: action.target.number, title: action.target.title })
                 : null;
+        case "see-alert":
+            return phrase("reviews.card.actionTitle.seeAlert");
     }
     return null;
 }
@@ -171,11 +176,17 @@ export function ReviewRow({
     filled,
     owner,
     ownerByHand,
+    afterFix,
+    onSeeAlert,
 }: {
     // The agent that owns the work and the lead that handed it over (FR-REV-034); ownerByHand: nobody signed this one,
     // in a list where agents sign.
     owner?: OwnerFacts;
     ownerByHand?: boolean;
+    // It comes after a security fix in the merge order and needs no rebase for it (FR-REV-036, queueAfterFix).
+    afterFix?: Phrase;
+    // "See the alert": brings the security fix block of the fingerprint into view.
+    onSeeAlert?: (fingerprint: string) => void;
     // The state the list computed for the card's section (#1061).
     card?: CardState;
     // Whether the panel gives this card its one filled button (#1351, filledAction); alone, the card's state says.
@@ -360,6 +371,12 @@ export function ReviewRow({
                 }
                 return;
             }
+            case "see-alert":
+                onSeeAlert?.(action.fingerprint);
+                return;
+            case "stop-security-fix":
+                runPhrase(action.id, () => stopSecurityFixOf(dir, action.fingerprint));
+                return;
         }
     };
     const onStopAction = (action: BatchStopAction) => {
@@ -442,6 +459,7 @@ export function ReviewRow({
     const molten = card.molten && filled !== false;
     const relationFact = word(relation?.fact);
     const relationTag = word(relation?.tag);
+    const afterFixFact = word(afterFix);
     const primaryName =
         card.agent != null
             ? phrase("reviews.card.name", { name: card.agent.name || card.agent.parentName || "" })
@@ -479,6 +497,8 @@ export function ReviewRow({
                 ...facts.map((f) => word(f.text)),
                 relationFact,
                 relationTag,
+                afterFixFact,
+                ...card.tags.map((tag) => word(tag.text)),
             ]
                 .filter(Boolean)
                 .join(", ")}
@@ -552,11 +572,19 @@ export function ReviewRow({
                                 {relationTag}
                             </span>
                         ) : null}
+                        {card.tags.map((tag) => (
+                            <SecurityTag key={tag.id} tag={tag} />
+                        ))}
                         <span className="ml-auto" />
                         <OwnerChip owner={owner} byHand={ownerByHand} />
                     </div>
                     <CardStateLine tone={card.tone} sentence={sentence} why={why} working={false} />
-                    <CardStatusLine running={card.status.running} moving={card.motion === "state"} text={status} />
+                    <CardStatusLine
+                        running={card.status.running}
+                        moving={card.motion === "state"}
+                        waiting={card.kind === "security-blocked" && !card.status.running}
+                        text={status}
+                    />
                     {wait ? (
                         <div
                             className="flex min-w-0 items-center gap-1.5 text-11 leading-4 text-secondary"
@@ -596,6 +624,11 @@ export function ReviewRow({
                                 <span className="min-w-0 truncate" title={relationFact}>
                                     {relationFact}
                                 </span>
+                            </span>
+                        ) : null}
+                        {afterFixFact ? (
+                            <span className="whitespace-nowrap text-muted" data-testid="reviews-fact-after-fix">
+                                {afterFixFact}
                             </span>
                         ) : null}
                         <BatchRowChip mark={batchMark} />
@@ -777,7 +810,18 @@ export function CardStateLine({
 // The card's status line (#1876, FR-REV-001 AC17): what runs on the PR now, with the dominoes beside it while nothing
 // else of the card moves, or "Nothing runs" and why, still. It is always there, so a card never reads idle while a check
 // runs, nor busy when nothing does.
-export function CardStatusLine({ running, moving, text }: { running: boolean; moving: boolean; text: string }) {
+export function CardStatusLine({
+    running,
+    moving,
+    waiting,
+    text,
+}: {
+    running: boolean;
+    moving: boolean;
+    // Nothing runs and nothing is the developer's: the card waits for something else (a security fix, FR-REV-036 AC15).
+    waiting?: boolean;
+    text: string;
+}) {
     return (
         <div
             className={cn(
@@ -792,10 +836,34 @@ export function CardStatusLine({ running, moving, text }: { running: boolean; mo
                     <DominoLoader />
                 </span>
             ) : null}
+            {waiting ? <Hourglass size={12} className="shrink-0" strokeWidth={2} aria-hidden /> : null}
             <span className="min-w-0 truncate" title={text}>
                 {text}
             </span>
         </div>
+    );
+}
+
+// A security tag after the card's title (FR-REV-036 AC15): the alert or the fix its failed scan belongs to in the heat of a
+// blocked card, what a fix's merge unblocks in the patina of what can move forward. The words say it, the colour only
+// repeats it.
+function SecurityTag({ tag }: { tag: CardTag }) {
+    const word = useWordPhrase();
+    const Icon = tag.id === "unblocks" ? LockOpen : ShieldAlert;
+    return (
+        <span
+            className={cn(
+                "inline-flex shrink-0 items-center gap-1 rounded-4 border px-1.5 text-11 leading-4 font-medium whitespace-nowrap",
+                tag.tone === "good"
+                    ? "border-[color-mix(in_srgb,var(--mt-state-ready)_45%,transparent)] text-[var(--mt-state-ready)]"
+                    : "border-[color-mix(in_srgb,var(--mt-state-blocked)_45%,transparent)] text-[var(--mt-state-blocked-text)]"
+            )}
+            title={word(tag.title) || undefined}
+            data-testid={`reviews-tag-${tag.id}`}
+        >
+            <Icon size={12} className="shrink-0" strokeWidth={2} aria-hidden />
+            {word(tag.text)}
+        </span>
     );
 }
 

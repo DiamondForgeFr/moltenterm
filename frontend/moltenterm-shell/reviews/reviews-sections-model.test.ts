@@ -22,11 +22,13 @@ import {
     sectionOf,
     sectionRows,
     sectionsByTurn,
+    SecurityFilledKey,
     upcomingEntries,
     upcomingWaitingCount,
     withTurnShown,
 } from "./reviews-sections-model";
 import type { AgentBarFacts, UpcomingAnswer, UpcomingBranch } from "./reviews-upcoming-model";
+import type { SecurityFix } from "./security-fix-model";
 
 const Green: ReviewCheck[] = [
     { name: "Backend", state: "success" },
@@ -198,6 +200,61 @@ describe("sections by turn (FR-REV-001 AC12)", () => {
         // Without a Yours card, no section gets a filled button: elsewhere every action is outlined.
         const noYours = sections.filter((s) => s.turn !== "yours");
         expect(filledAction(noYours, cards)).toBeNull();
+    });
+
+    it("gives it to the security fix block while the block needs the developer, to no card then (FR-REV-036 AC17)", () => {
+        const prs = panel();
+        const cards = cardStates(prs, {}, (n) => `/p#${n}`, Ctx);
+        const sections = sectionsByTurn(prs, cards, "state");
+        expect(filledAction(sections, cards, [], true)).toBe(SecurityFilledKey);
+        expect(
+            filledAction(
+                sections.filter((s) => s.turn !== "yours"),
+                cards,
+                [],
+                true
+            )
+        ).toBe(SecurityFilledKey);
+        // the block at work, or none: the cards decide as they did
+        expect(filledAction(sections, cards, [], false)).toBe("pr:1103");
+        expect(filledAction(sections, cards)).toBe("pr:1103");
+    });
+
+    it("counts a pull request held by the shared scan where its card is listed: waiting for the fix, or yours to read the alert", () => {
+        const Scan = "Dependency security / Scan dependencies";
+        const held = pr(1121, {
+            merge: "failing",
+            ci: {
+                state: "failure",
+                success: 3,
+                failure: 1,
+                pending: 0,
+                checks: [{ name: Scan, state: "failure" }],
+            },
+        });
+        const blocked = (fix: SecurityFix): CardContext => ({
+            ...Ctx,
+            security: {
+                1121: { blocked: { fingerprint: "aaaa", checks: [Scan], reasons: ["trunk"], fix, merged: null } },
+            },
+        });
+        const inFlight = {
+            fingerprint: "aaaa",
+            ids: ["GO-1"],
+            dir: "/p",
+            state: "working",
+            pr: 1130,
+            startedat: 1,
+            updatedat: 2,
+        } as SecurityFix;
+        const waiting = cardStates([held], {}, (n) => `/p#${n}`, blocked(inFlight));
+        expect(waiting[1121].turn).toBe("waiting");
+        expect(sectionsByTurn([held], waiting, "state").map((s) => s.turn)).toEqual(["waiting"]);
+        const asking = cardStates([held], {}, (n) => `/p#${n}`, blocked(null));
+        expect(asking[1121].turn).toBe("yours");
+        expect(sectionsByTurn([held], asking, "state").map((s) => s.turn)).toEqual(["yours"]);
+        expect(cardInputOf(held, null, blocked(inFlight)).security?.blocked?.fix).toBe(inFlight);
+        expect(cardInputOf(held, null, Ctx).security).toBeUndefined();
     });
 
     it("builds the card's input as the card does", () => {

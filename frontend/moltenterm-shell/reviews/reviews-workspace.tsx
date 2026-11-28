@@ -54,11 +54,14 @@ export function useWorkspaceReviews(): ProjectReviews[] {
     const now = useMinuteNow();
     return useMemo(
         () =>
-            dirs.map((dir) => ({
-                dir,
-                answer: withLocalMerges(answers[dir] ?? null, merges),
-                ctx: makeCardContext(dir, t, upcomings[dir] ?? null, states, now, runs),
-            })),
+            dirs.map((dir) => {
+                const answer = withLocalMerges(answers[dir] ?? null, merges);
+                return {
+                    dir,
+                    answer,
+                    ctx: makeCardContext(dir, t, upcomings[dir] ?? null, states, now, runs, answer),
+                };
+            }),
         [dirs, answers, merges, upcomings, states, runs, now, t]
     );
 }

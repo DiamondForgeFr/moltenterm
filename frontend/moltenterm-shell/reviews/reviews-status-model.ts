@@ -12,6 +12,7 @@ import { batchStatePhrase } from "./reviews-batch-agent";
 import type { CardInput, CardStateKind } from "./reviews-card-model";
 import { checkNames, checksOf, type ReviewCheck } from "./reviews-model";
 import { durationText, type AgentBarFacts } from "./reviews-upcoming-model";
+import { securityFixRef } from "./security-card-model";
 
 // running: something runs on the PR now, so the card shows the dominoes beside the line.
 export type CardStatus = { running: boolean; line: Phrase };
@@ -122,6 +123,8 @@ function idleWhy(input: CardInput, kind: CardStateKind, who: StatusWho, now: num
             return phrase("reviews.card.status.why.interrupted", { name: who.taskName });
         case "conflicts":
             return phrase("reviews.card.status.why.conflicts", { base: pr.base });
+        case "security-alert":
+            return ciEndedWhy(input, now, false);
         case "failing":
             return checksOf(pr.ci, "failure").length > 0
                 ? ciEndedWhy(input, now, false)
@@ -150,6 +153,16 @@ function idleWhy(input: CardInput, kind: CardStateKind, who: StatusWho, now: num
 export function cardStatus(input: CardInput, kind: CardStateKind, who: StatusWho, now: number): CardStatus {
     if (running(input, kind, who)) {
         return { running: true, line: runningLine(input, kind, who, now) };
+    }
+    if (kind === "security-blocked") {
+        // Nothing runs and nothing is the developer's: the card resumes on its own once the fix is merged (FR-REV-036 AC15).
+        const ref = securityFixRef(input.security?.blocked?.fix);
+        return {
+            running: false,
+            line: ref
+                ? phrase("reviews.card.status.securityBlocked", { number: ref.number })
+                : phrase("reviews.card.status.securityBlockedNoRef"),
+        };
     }
     return { running: false, line: phrase("reviews.card.status.idle", { why: idleWhy(input, kind, who, now) }) };
 }

@@ -12,7 +12,7 @@ import { joinPhrases, phrase, type Phrase } from "../i18n/phrase";
 import { groupMergeRunning, type BatchRun } from "./reviews-batch-model";
 import { Forecast, impactedBy, impactsOf, pathsText } from "./reviews-forecast-model";
 import type { ReviewPr, ReviewsAnswer } from "./reviews-model";
-import { orderTier, suggestedMergeOrder } from "./reviews-order-model";
+import { orderTier, putFirst, suggestedMergeOrder, type FirstInOrder } from "./reviews-order-model";
 
 // Merge in this order is offered from this many chosen steps (#1211: "Merge this 1" when one PR can merge now).
 export const QueueMinSteps = 1;
@@ -31,6 +31,8 @@ export type QueueStep = {
     before: number[];
     // Merged since the last read: struck through until the next one (FR-REV-024).
     merged?: boolean;
+    // The pull requests its merge unblocks, for a security fix's (FR-REV-036 AC16): it is the queue's first step.
+    unblocks?: number[];
 };
 
 export type MergeQueue = {
@@ -150,7 +152,8 @@ export function mergeQueue(
     ready: readonly ReviewPr[],
     listed: readonly ReviewPr[],
     taken?: readonly number[],
-    busy?: BusyOf
+    busy?: BusyOf,
+    first?: FirstInOrder
 ): MergeQueue {
     const takenOut = new Set(taken ?? []);
     const queued = queueCandidates(ready);
@@ -167,18 +170,20 @@ export function mergeQueue(
     const candidates = all.filter((pr) => !out.includes(pr.number));
     const ids = shownNumbersOf(listed, ready);
     const byNumber = new Map(candidates.map((pr) => [pr.number, pr]));
-    const order = suggestedMergeOrder(forecast, candidates, [...listed]);
+    const order = suggestedMergeOrder(forecast, candidates, [...listed], first);
     if (!order.usable) {
-        const steps = candidates
-            .filter((pr) => !conflictsBase(pr))
-            .map((pr, i) => ({
-                number: pr.number,
-                rank: i + 1,
-                rebase: false,
-                wait: ciWaits(pr),
-                rebaseAfter: [],
-                before: [],
-            }));
+        const steps: QueueStep[] = putFirst(
+            candidates.filter((pr) => !conflictsBase(pr)).map((pr) => pr.number),
+            first
+        ).map((number, i) => ({
+            number,
+            rank: i + 1,
+            rebase: false,
+            wait: ciWaits(byNumber.get(number)),
+            rebaseAfter: [],
+            before: [],
+            ...(first?.[number] != null ? { unblocks: [...first[number]] } : {}),
+        }));
         return {
             usable: false,
             steps,
@@ -193,13 +198,14 @@ export function mergeQueue(
     }
     const rankOf = new Map(order.steps.map((s) => [s.number, s.rank]));
     const byRank = (numbers: number[]) => [...numbers].sort((a, b) => rankOf.get(a) - rankOf.get(b));
-    const steps = order.steps.map((s) => ({
+    const steps: QueueStep[] = order.steps.map((s) => ({
         number: s.number,
         rank: s.rank,
         rebase: s.rebase,
         wait: ciWaits(byNumber.get(s.number)),
         rebaseAfter: byRank(s.rebaseAfter),
         before: byRank(s.impactsLater),
+        ...(s.unblocks != null ? { unblocks: s.unblocks } : {}),
     }));
     return {
         usable: true,
@@ -400,6 +406,10 @@ export function queueWhy(queue: MergeQueue, number: number, partners: ConflictPa
     if (step.wait) {
         return phrase("reviews.queue.why.wait");
     }
+    // A security fix goes first for the pull requests it unblocks (FR-REV-036 AC16), whatever the forecast says.
+    if ((step.unblocks?.length ?? 0) > 0) {
+        return phrase("reviews.queue.why.unblocks", { prs: numbersPhrase(step.unblocks) });
+    }
     if (!queue.usable) {
         return null;
     }
@@ -413,6 +423,23 @@ export function queueWhy(queue: MergeQueue, number: number, partners: ConflictPa
         return phrase("reviews.queue.why.noImpact");
     }
     return null;
+}
+
+// The pull requests a security fix unblocks, by the numbers of GitHub and the Validate sheet (FR-REV-036: the block names
+// pull requests, not tickets).
+function numbersPhrase(numbers: readonly number[]): Phrase {
+    return listPhrase(numbers.map((number) => phrase("reviews.queue.pr", { number })));
+}
+
+// queueAfterFix: a step that comes after a security fix and needs no rebase for it, as the mockup of the fix says it
+// ("after #4110: nothing to rebase"); null for any other step.
+export function queueAfterFix(queue: MergeQueue, number: number): Phrase {
+    const step = queue?.steps.find((s) => s.number === number && !s.merged);
+    if (step == null || step.rebase || (step.unblocks?.length ?? 0) > 0) {
+        return null;
+    }
+    const fix = (queue.steps ?? []).find((s) => !s.merged && (s.unblocks?.length ?? 0) > 0 && s.rank < step.rank);
+    return fix == null ? null : phrase("reviews.queue.fact.afterFix", { number: fix.number });
 }
 
 // conflictPartners: the listed PRs a PR conflicts with, either way (#1201 ↔ #1202), with the conflicting paths: those

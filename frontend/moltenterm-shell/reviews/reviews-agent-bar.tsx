@@ -33,8 +33,8 @@ import { pathBaseName } from "../workspace-project";
 import { PrSignature, signatureLine } from "./pr-signature";
 import { BatchRuns, queueKey } from "./reviews-batch-client";
 import type { BatchRun } from "./reviews-batch-model";
-import { reviewsGet } from "./reviews-client";
-import type { AgentSignature, RebaseAsk, ReviewPr } from "./reviews-model";
+import { ReviewsAnswers, reviewsGet } from "./reviews-client";
+import type { AgentSignature, RebaseAsk, ReviewPr, ReviewsAnswer } from "./reviews-model";
 import { cardAgents, type CardContext } from "./reviews-sections-model";
 import {
     AgentLine,
@@ -61,6 +61,7 @@ import {
     durationText,
     type UpcomingAnswer,
 } from "./reviews-upcoming-model";
+import { securityCardFacts } from "./security-card-model";
 
 const MinuteMs = 60_000;
 
@@ -133,17 +134,23 @@ export function useCardContext(dir: string): CardContext {
     const states = useAtomValue(AgentStates.getInstance().dataAtom);
     const now = useMinuteNow();
     const runs = useAtomValue(BatchRuns.getInstance().runsAtom);
-    return useMemo(() => makeCardContext(dir, t, upcoming, states, now, runs), [upcoming, states, now, t, runs, dir]);
+    const answer = useAtomValue(ReviewsAnswers.getInstance().answersAtom)[dir];
+    return useMemo(
+        () => makeCardContext(dir, t, upcoming, states, now, runs, answer),
+        [upcoming, states, now, t, runs, dir, answer]
+    );
 }
 
 // The same context for a project the window reads without showing its list (FR-SHELL-087: the counts of every project).
+// answer: the project's list, whose shared security blocks and fixes the cards say (FR-REV-036).
 export function makeCardContext(
     dir: string,
     t: TFunction,
     upcoming: UpcomingAnswer,
     states: AgentStatesData,
     now: number,
-    runs: Record<string, BatchRun>
+    runs: Record<string, BatchRun>,
+    answer?: ReviewsAnswer
 ): CardContext {
     return {
         upcoming,
@@ -151,6 +158,7 @@ export function makeCardContext(
         now,
         boardText: (status: string) => boardStatusText(t, status),
         batchRun: (base: string) => runs[queueKey(dir, base)] ?? null,
+        security: securityCardFacts(answer),
     };
 }
 

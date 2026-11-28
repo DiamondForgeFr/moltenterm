@@ -10,7 +10,7 @@ import { t, tCount } from "../i18n/i18n";
 import type { ReviewMergeMethod, ReviewMergeMethods } from "../review/review-client";
 import { Forecast } from "./reviews-forecast-model";
 import { ReviewPr, Tone } from "./reviews-model";
-import { MergeOrder, MergeOrderStep, mergeOrderReason, suggestedMergeOrder } from "./reviews-order-model";
+import { FirstInOrder, MergeOrder, MergeOrderStep, mergeOrderReason, suggestedMergeOrder } from "./reviews-order-model";
 
 // must match pkg/molten/review/batch.go
 export const QueueAddCommand = "moltenreviewqueueadd";
@@ -246,9 +246,15 @@ export type BatchPlan = {
     method: string;
 };
 
-export function batchPlan(forecast: Forecast, selected: ReviewPr[], listed: ReviewPr[], base: string): BatchPlan {
+export function batchPlan(
+    forecast: Forecast,
+    selected: ReviewPr[],
+    listed: ReviewPr[],
+    base: string,
+    first?: FirstInOrder
+): BatchPlan {
     const prs = (selected ?? []).filter(batchSelectable);
-    const order = suggestedMergeOrder(forecast, prs, listed);
+    const order = suggestedMergeOrder(forecast, prs, listed, first);
     const byNumber = new Map(prs.map((pr) => [pr.number, pr]));
     const stepOf = new Map<number, MergeOrderStep>([...order.steps, ...order.outside].map((s) => [s.number, s]));
     // The reasons name the PRs by the number their cards show (#1108).
@@ -279,7 +285,13 @@ export function batchPlan(forecast: Forecast, selected: ReviewPr[], listed: Revi
 
 // queueOrder: the suggested order (#781) of the PRs of the queue and of the ones joining it, sent on each join so the
 // PRs not started yet follow it; none while the forecast cannot say (they keep the order they joined in).
-export function queueOrder(forecast: Forecast, listed: ReviewPr[], run: BatchRun, joining: number[]): number[] {
+export function queueOrder(
+    forecast: Forecast,
+    listed: ReviewPr[],
+    run: BatchRun,
+    joining: number[],
+    first?: FirstInOrder
+): number[] {
     const numbers = new Set<number>(joining);
     for (const it of batchActive(run) ? run.items : []) {
         if (!batchItemEnded(it)) {
@@ -287,7 +299,7 @@ export function queueOrder(forecast: Forecast, listed: ReviewPr[], run: BatchRun
         }
     }
     const prs = (listed ?? []).filter((pr) => numbers.has(pr.number) && batchSelectable(pr));
-    const order = suggestedMergeOrder(forecast, prs, listed);
+    const order = suggestedMergeOrder(forecast, prs, listed, first);
     return order.usable ? withOutside(order) : [];
 }
 

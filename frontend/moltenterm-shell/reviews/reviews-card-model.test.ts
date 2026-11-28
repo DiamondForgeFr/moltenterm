@@ -9,8 +9,11 @@ import { I18nModel } from "../i18n/i18n";
 import { wordPhrase } from "../i18n/phrase";
 import { CardInput, cardState, CardStateKind, CardStateKinds } from "./reviews-card-model";
 import type { ReviewCheck, ReviewPr } from "./reviews-model";
+import type { SecurityReason } from "./reviews-security-model";
 import type { PrTask } from "./reviews-task-model";
 import type { AgentBarFacts } from "./reviews-upcoming-model";
+import type { SecurityCardFacts } from "./security-card-model";
+import type { SecurityFix } from "./security-fix-model";
 
 const Green: ReviewCheck[] = [
     { name: "Backend", state: "success" },
@@ -61,6 +64,27 @@ const Rebase: PrTask = { kind: "rebase", name: "Jeanne", blockId: "jeanne", head
 const Fix: PrTask = { kind: "investigate", name: "Salomé", blockId: "salome", head: "abc1234", at: 1 };
 
 const Failed = (name = "Backend"): ReviewCheck => ({ name, state: "failure", runid: 7 });
+const Scan = "Dependency security / Scan dependencies";
+const fixInFlight: SecurityFix = {
+    fingerprint: "aaaa",
+    ids: ["GO-2026-9101"],
+    dir: "/p",
+    state: "working",
+    auto: true,
+    ticket: 4109,
+    pr: 4110,
+    startedat: 1,
+    updatedat: 2,
+};
+
+// What the answer says of a pull request held by the shared scan block: the fix in flight that stands for it, or none.
+function blockedBy(
+    fix: SecurityFix,
+    reasons: SecurityReason[] = ["trunk"],
+    merged: SecurityFix = null
+): SecurityCardFacts {
+    return { blocked: { fingerprint: "aaaa", checks: [Scan], reasons, fix, merged } };
+}
 // #1713: the agent's "AI testing / Local CI" status, as wavesrv rereads it with the local CI.
 const WaitingLocal: ReviewCheck = { name: "AI testing / Local CI", state: "untrusted" };
 const StoppedAt = Date.UTC(2026, 9, 28, 13, 7);
@@ -116,6 +140,15 @@ const Cases: { kind: CardStateKind; input: Partial<CardInput> & { pr: ReviewPr }
         },
     },
     { kind: "conflicts", input: { pr: pr({ merge: "conflicts" }) } },
+    // FR-REV-036: the one failed check is the shared dependency scan; a fix is on it, or the block above asks.
+    {
+        kind: "security-blocked",
+        input: { pr: pr({ merge: "failing" }, [Failed(Scan), ...Green.slice(1)]), security: blockedBy(fixInFlight) },
+    },
+    {
+        kind: "security-alert",
+        input: { pr: pr({ merge: "failing" }, [Failed(Scan), ...Green.slice(1)]), security: blockedBy(null) },
+    },
     { kind: "failing", input: { pr: pr({ merge: "failing" }, [Failed(), ...Green.slice(1)]), rerunnable: true } },
     // #1876: the merge queue stopped on a PR that is otherwise fine.
     { kind: "queue-stopped", input: { pr: pr(), batchStopped: true } },
@@ -739,9 +772,204 @@ describe("a local CI nothing runs (#1713)", () => {
     });
 });
 
+describe("a pull request held by a shared security block (FR-REV-036 AC17, #2591)", () => {
+    const scanOnly = (extra: Partial<ReviewPr> = {}) => pr({ merge: "failing", ...extra }, [Failed(Scan), ...Green]);
+
+    it("is blocked by the fix: grey, in progress, nothing to do, one calm Go to #N", () => {
+        const input = { pr: scanOnly(), security: blockedBy(fixInFlight) };
+        const s = state(input);
+        const w = words(input);
+        expect(s.kind).toBe("security-blocked");
+        expect(s.tone).toBe("wait");
+        expect(s.turn).toBe("waiting");
+        expect(w.sentence).toBe("Blocked by a security fix: #4110");
+        expect(w.why).toBe("the dependency scan fails on develop, not because of it");
+        expect(w.primary).toBe("Go to #4110");
+        expect(s.primary.id).toBe("go-to-pr");
+        expect(s.primary.target).toMatchObject({ number: 4110, kind: "pr" });
+        expect(s.molten).toBe(false);
+        expect(wordPhrase(s.status.line)).toBe("Nothing to do here · resumes on its own once #4110 is merged");
+        expect(s.status.running).toBe(false);
+        expect(s.works).toBe(false);
+    });
+
+    it("says what ran and which scan failed, and where its fix is", () => {
+        expect(words({ pr: scanOnly(), security: blockedBy(fixInFlight) }).facts).toEqual([
+            "CI 4/5",
+            "Dependency security / Scan dependencies → #4110",
+            "report",
+        ]);
+    });
+
+    it("tags the card with the fix, and the alert when no fix is on it", () => {
+        const fixed = state({ pr: scanOnly(), security: blockedBy(fixInFlight) });
+        expect(fixed.tags.map((t) => [t.id, t.tone, wordPhrase(t.text)])).toEqual([
+            ["security-fix", "bad", "fix #4110"],
+        ]);
+        const asking = state({ pr: scanOnly(), security: blockedBy(null) });
+        expect(asking.tags.map((t) => [t.id, wordPhrase(t.text)])).toEqual([["security-alert", "security alert"]]);
+    });
+
+    it("points at the fix's ticket while it has no pull request, and at nothing before it has either", () => {
+        const noPr = state({ pr: scanOnly(), security: blockedBy({ ...fixInFlight, pr: undefined }) });
+        expect(wordPhrase(noPr.sentence)).toBe("Blocked by a security fix: #4109");
+        expect(noPr.primary.target).toMatchObject({ number: 4109, kind: "issue" });
+        const nothing = state({
+            pr: scanOnly(),
+            security: blockedBy({ ...fixInFlight, pr: undefined, ticket: undefined }),
+        });
+        expect(wordPhrase(nothing.sentence)).toBe("Blocked by a security fix");
+        expect(nothing.primary).toBeNull();
+        expect(wordPhrase(nothing.status.line)).toBe("Nothing to do here · resumes on its own once the fix is merged");
+    });
+
+    it("says why the failure is not its own, by what the block found", () => {
+        const why = (reasons: SecurityReason[]) =>
+            words({ pr: scanOnly(), security: blockedBy(fixInFlight, reasons) }).why;
+        expect(why(["trunk", "prs"])).toBe("the dependency scan fails on develop, not because of it");
+        expect(why(["prs"])).toBe("the dependency scan fails on other pull requests too, not because of it");
+        expect(why(["nodependencychange"])).toBe("it changes no dependency file: the scan fails, not because of it");
+    });
+
+    it("asks nothing of the card when no fix is on it: the block above holds the action, See the alert brings it", () => {
+        const input = { pr: scanOnly(), security: blockedBy(null) };
+        const s = state(input);
+        const w = words(input);
+        expect(s.kind).toBe("security-alert");
+        expect(s.tone).toBe("broken");
+        expect(s.turn).toBe("yours");
+        expect(w.sentence).toBe("Blocked by the security alert above");
+        expect(w.primary).toBe("See the alert");
+        expect(s.primary.fingerprint).toBe("aaaa");
+        expect(s.molten).toBe(false);
+        expect(wordPhrase(s.status.line)).toMatch(/^Nothing runs · CI finished/);
+        expect(wordPhrase(s.status.line)).toContain("red on Dependency security / Scan dependencies");
+    });
+
+    it("stays failing when something else fails besides the scan, with the fix as a fact", () => {
+        const both = pr({ merge: "failing" }, [Failed(Scan), Failed("Backend"), ...Green.slice(1)]);
+        const s = state({ pr: both, security: blockedBy(fixInFlight) });
+        expect(s.kind).toBe("failing");
+        expect(wordPhrase(s.sentence)).toBe("CI failing: Dependency security / Scan dependencies, Backend");
+        expect(s.facts.map((f) => wordPhrase(f.text))).toContain("Dependency security / Scan dependencies → #4110");
+        expect(s.tags.map((t) => t.id)).toEqual(["security-fix"]);
+        expect(state({ pr: both, security: blockedBy(null) }).facts.map((f) => f.id)).not.toContain("scan");
+    });
+
+    it("stays failing when a review asked for changes", () => {
+        const input = { pr: scanOnly({ reviewdecision: "CHANGES_REQUESTED" }), security: blockedBy(fixInFlight) };
+        expect(state(input).kind).toBe("failing");
+    });
+
+    it("keeps the states before it: an agent at work, conflicts", () => {
+        const working = state({ pr: scanOnly(), agents: [Nathan], security: blockedBy(fixInFlight) });
+        expect(working.kind).toBe("agent-working");
+        expect(working.tags.map((t) => t.id)).toEqual(["security-fix"]);
+        expect(working.facts.map((f) => wordPhrase(f.text))).toContain(
+            "Dependency security / Scan dependencies → #4110"
+        );
+        expect(state({ pr: scanOnly({ merge: "conflicts" }), security: blockedBy(fixInFlight) }).kind).toBe(
+            "conflicts"
+        );
+    });
+
+    it("is read again once the fix merged: the scan fails on the old head, which is the card's, with the fix named", () => {
+        const merged: SecurityFix = { ...fixInFlight, state: "merged", mergedat: 5 };
+        const s = state({ pr: scanOnly(), security: blockedBy(null, ["trunk"], merged) });
+        expect(s.kind).toBe("security-alert");
+        expect(s.tags.map((t) => wordPhrase(t.text))).toEqual(["fix #4110"]);
+        expect(s.facts.map((f) => wordPhrase(f.text))).toContain("Dependency security / Scan dependencies → #4110");
+    });
+
+    it("is not touched when nothing fails, or the pull request is in no block", () => {
+        expect(state({ pr: pr(), security: blockedBy(fixInFlight) }).kind).toBe("ready");
+        expect(state({ pr: scanOnly() }).kind).toBe("failing");
+        expect(state({ pr: pr() }).tags).toEqual([]);
+    });
+
+    it("is quiet: neither of its states takes the orange button, and the dots count them where they are listed", () => {
+        expect(state({ pr: scanOnly(), security: blockedBy(fixInFlight) }).molten).toBe(false);
+        expect(state({ pr: scanOnly(), security: blockedBy(null) }).molten).toBe(false);
+        const inFlightTurn = state({ pr: scanOnly(), security: blockedBy(fixInFlight) }).turn;
+        expect(inFlightTurn).toBe("waiting");
+    });
+
+    describe("the fix's own pull request", () => {
+        const own = (state: SecurityFix["state"]): SecurityCardFacts => ({
+            own: { fix: { ...fixInFlight, state }, unblocks: [4102, 4105, 4107] },
+        });
+
+        it("tells what its merge unblocks, as will unblock until it can be merged", () => {
+            const ready = state({ pr: pr(), security: own("ready") });
+            expect(ready.tags.map((t) => [t.id, t.tone, wordPhrase(t.text), wordPhrase(t.title)])).toEqual([
+                ["unblocks", "good", "unblocks 3", "Merging it unblocks #4102, #4105, #4107"],
+            ]);
+            const draft = state({ pr: pr({ draft: true }), agents: [Nathan], security: own("working") });
+            expect(draft.tags.map((t) => wordPhrase(t.text))).toEqual(["will unblock 3"]);
+        });
+
+        it("says that a security fix started on its own is what its agent works on", () => {
+            const s = state({ pr: pr({ draft: true }), agents: [Nathan], security: own("working") });
+            expect(s.kind).toBe("agent-working");
+            expect(wordPhrase(s.why)).toBe("security fix started on its own");
+            const byHand: SecurityCardFacts = { own: { fix: { ...fixInFlight, auto: false }, unblocks: [4102] } };
+            expect(wordPhrase(state({ pr: pr({ draft: true }), agents: [Nathan], security: byHand }).why)).toBe(
+                "security fix"
+            );
+        });
+
+        it("keeps the conflicts and the failing checks as the reason, before the fix", () => {
+            const conflicting = state({
+                pr: pr({ draft: true, merge: "conflicts" }),
+                agents: [Nathan],
+                security: own("working"),
+            });
+            expect(wordPhrase(conflicting.why)).toBe("conflicts with develop");
+        });
+
+        it("has Stop in its menu in place of the agent's own, the one the block and the notification have", () => {
+            const s = state({ pr: pr({ draft: true }), agents: [Nathan], security: own("working") });
+            const ids = s.menu.map((a) => a.id);
+            expect(ids).toContain("stop-security-fix");
+            expect(ids).not.toContain("stop");
+            expect(ids.indexOf("stop-security-fix")).toBeLessThan(ids.indexOf("github"));
+            expect(s.menu.find((a) => a.id === "stop-security-fix").fingerprint).toBe("aaaa");
+            expect(wordPhrase(s.menu.find((a) => a.id === "stop-security-fix").label)).toBe("Stop the security fix");
+        });
+
+        it("has no Stop for a fix that is someone else's, and keeps the agent's own", () => {
+            const external: SecurityCardFacts = { own: { fix: { ...fixInFlight, external: true }, unblocks: [4102] } };
+            const ids = state({ pr: pr({ draft: true }), agents: [Nathan], security: external }).menu.map((a) => a.id);
+            expect(ids).not.toContain("stop-security-fix");
+            expect(ids).toContain("stop");
+        });
+    });
+});
+
 describe("in French", () => {
     beforeAll(() => I18nModel.getInstance().setLanguageSetting("fr"));
     afterAll(() => I18nModel.getInstance().setLanguageSetting("en"));
+
+    it("words the states of a pull request held by a shared security block (FR-REV-036)", () => {
+        const scan = pr({ merge: "failing" }, [Failed(Scan), ...Green]);
+        const blocked = words({ pr: scan, security: blockedBy(fixInFlight) });
+        expect(blocked.sentence).toBe("Bloquée par un correctif de sécurité : #4110");
+        expect(blocked.why).toBe("l'analyse des dépendances échoue sur develop, pas à cause d'elle");
+        expect(blocked.primary).toBe("Aller à #4110");
+        expect(blocked.facts).toContain("Dependency security / Scan dependencies → #4110");
+        expect(wordPhrase(state({ pr: scan, security: blockedBy(fixInFlight) }).status.line)).toBe(
+            "Rien à faire ici · reprend seule après la fusion de #4110"
+        );
+        const alert = words({ pr: scan, security: blockedBy(null) });
+        expect(alert.sentence).toBe("Bloquée par l'alerte de sécurité ci-dessus");
+        expect(alert.primary).toBe("Voir l'alerte");
+        expect(
+            state({
+                pr: pr(),
+                security: { own: { fix: { ...fixInFlight, state: "ready" }, unblocks: [4102, 4105] } },
+            }).tags.map((t) => wordPhrase(t.text))
+        ).toEqual(["débloque 2"]);
+    });
 
     it("words a local CI nothing runs (#1713)", () => {
         expect(words({ pr: pr({}, [WaitingLocal, ...Green]) }).sentence).toBe(
