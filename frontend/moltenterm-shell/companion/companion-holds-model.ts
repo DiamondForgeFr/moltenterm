@@ -116,8 +116,8 @@ function addTo<K, V>(map: Map<K, Set<V>>, key: K, value: V) {
 }
 
 // The branches, pull requests and worktrees that name a ticket: a ticket's branch is feature|fix/<N>-…; a sub-agent still
-// on its own worktree-agent-… branch is on the ticket its description starts with (the rule the sub-agents of this
-// companion are linked by).
+// on its own worktree-agent-… branch is on the ticket its description names (certainTicket: the rule the sub-agents of
+// this companion are linked by).
 function candidatesOf(upcoming: UpcomingAnswer, reviews: ReviewsAnswer): Candidates {
     const found: Candidates = { branches: new Map(), prs: new Map(), worktrees: new Map() };
     for (const b of upcoming?.branches ?? []) {
@@ -230,7 +230,7 @@ function ownerOf(facts: AgentBarFacts, states: AgentStatesData): TicketOwner {
 }
 
 // The tickets the Integration panel places this companion's sub-agents on, by the sub-agent's own id (#2522): the
-// branch of the worktree it works in, wherever that worktree lies, or the ticket its task starts with. It completes
+// branch of the worktree it works in, wherever that worktree lies, or the ticket its task names. It completes
 // what the sub-agent's own records say (certainTicket of its branch and its task), so that the Agents at work block and
 // the milestone's rows name the same ticket for it.
 export function placedTickets(upcoming: UpcomingAnswer, ownBlockId: string): Map<string, number> {

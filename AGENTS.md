@@ -123,6 +123,7 @@ For any work of three steps or more, keep your native task list up to date (Clau
 
 - **No task tool in your list** (recent Claude Code versions give them only to some models, sub-agents often run without them): publish the same list with `molten agent plan` (`set`, `start <n>`, `done <n>`, `add`).
 - **A session that delegates** keeps one item per ticket or delegation in flight, and updates it as each agent reports (briefed, draft PR, Local CI green, handed back).
+- **A sub-agent's description starts with its ticket** (`#2587 plan + mockup`, not `Plan + mockup #2587`), whoever starts it: a session or a sub-agent, on any provider. The companion links the sub-agent to that milestone ticket; a description that names one ticket elsewhere is linked too, one that names two or more is not (FR-SHELL-018). A sub-agent's own sub-agents carry its ticket.
 - **After a context compaction or summary**, re-create the list at once, before anything else, re-loading the task tool first if it is deferred.
 
 ## Agent shell

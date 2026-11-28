@@ -59,6 +59,8 @@ type SubagentIdentity struct {
 	Jobs []molten.BackgroundJob
 	// FirstWrite: when its transcript began, in Unix milliseconds, 0 when unknown (#2502): the age a window shows.
 	FirstWrite int64
+	// ParentId: the agent id of the sub-agent that started it (#2587), "" when the session itself did.
+	ParentId string
 }
 
 // SubagentLister is an adapter that lists a session's sub-agents from their own files.
@@ -66,13 +68,16 @@ type SubagentLister interface {
 	ListSubagents(sessionPath string) []SubagentIdentity
 }
 
-// claudeSubagentMeta is what Claude Code writes next to a sub-agent's transcript.
+// claudeSubagentMeta is what Claude Code writes next to a sub-agent's transcript. A sub-agent's own sub-agents sit in
+// the same subagents/ folder as the session's (#2587): their meta names the agent that started them (parentAgentId,
+// Claude Code 2.1.332), absent for the session's own.
 type claudeSubagentMeta struct {
-	AgentType    string `json:"agentType"`
-	WorktreePath string `json:"worktreePath"`
-	Description  string `json:"description"`
-	ToolUseId    string `json:"toolUseId"`
-	Finished     bool   `json:"finished"`
+	AgentType     string `json:"agentType"`
+	WorktreePath  string `json:"worktreePath"`
+	Description   string `json:"description"`
+	ToolUseId     string `json:"toolUseId"`
+	Finished      bool   `json:"finished"`
+	ParentAgentId string `json:"parentAgentId"`
 }
 
 func readClaudeSubagentMeta(path string) (claudeSubagentMeta, bool) {
@@ -97,6 +102,9 @@ func claudeIdentity(agentId string, meta claudeSubagentMeta, metaAt int64, writt
 		AgentId: agentId, Description: cutString(oneLine(meta.Description), MaxSubagentText), Kind: cutString(meta.AgentType, 100),
 		Worktree: meta.WorktreePath, Finished: claudeFinished(meta, metaAt, written), LastWrite: written,
 		CallId: cutString(meta.ToolUseId, 200),
+	}
+	if parent := meta.ParentAgentId; parent != agentId && claudeAgentIdRegex.MatchString(parent) {
+		id.ParentId = parent
 	}
 	if id.Finished {
 		id.Ended = metaAt
@@ -365,7 +373,38 @@ func ApplyHookSubagents(ids []SubagentIdentity, hooks []SubagentHookEvent, now t
 		}
 		id.State = identityState(*id, now)
 	}
+	holdAwaitedParents(ids)
 	return ids
+}
+
+// holdAwaitedParents keeps at work a sub-agent one of whose own sub-agents runs (#2587), waiting on them: the one rule
+// Session.Subagents applies to the companion's rows.
+func holdAwaitedParents(ids []SubagentIdentity) {
+	byAgent := map[string]int{}
+	for i, id := range ids {
+		byAgent[id.AgentId] = i
+	}
+	awaited := map[string]bool{}
+	for _, id := range ids {
+		if id.State != SubagentRunning {
+			continue
+		}
+		parent := id.ParentId
+		for depth := 0; parent != "" && depth < maxSubagentDepth && !awaited[parent]; depth++ {
+			awaited[parent] = true
+			i, ok := byAgent[parent]
+			if !ok {
+				break
+			}
+			parent = ids[i].ParentId
+		}
+	}
+	for i := range ids {
+		id := &ids[i]
+		if awaited[id.AgentId] && id.State != SubagentRunning {
+			id.Finished, id.Ended, id.Waiting, id.State = false, 0, true, SubagentRunning
+		}
+	}
 }
 
 // hookSessionPath is the parent session the pane's hook reports point to, validated as a transcript of the

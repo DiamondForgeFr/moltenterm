@@ -181,12 +181,28 @@ func (s *Session) ResolveTickets(complexity func(number int, fetch bool) (string
 	}
 	changed = updateTicket(&s.ticket, resolveTicket(s.Branch(), topic), true, complexity) || changed
 	for _, sa := range s.subagents {
-		number := resolveTicket(sa.branch, sa.description)
+		number := s.subagentTicket(sa)
 		changed = updateTicket(&sa.ticket, number, sa.state == SubagentRunning, complexity) || changed
 	}
 	if changed {
 		s.touch()
 	}
+}
+
+// subagentTicket is a sub-agent's own ticket (resolveTicket), else, for a sub-agent's sub-agent (#2587), the ticket of
+// the sub-agent that started it: an Explore agent a planner starts works on the planner's ticket. The session's own
+// sub-agents never take the main agent's.
+func (s *Session) subagentTicket(sa *subagent) int {
+	for depth := 0; sa != nil && depth < maxSubagentDepth; depth++ {
+		if n := resolveTicket(sa.branch, sa.description); n > 0 {
+			return n
+		}
+		if sa.parentId == "" {
+			return 0
+		}
+		sa = s.subagent(sa.parentId)
+	}
+	return 0
 }
 
 func updateTicket(ref *ticketRef, number int, fetch bool, complexity func(number int, fetch bool) (string, bool)) bool {

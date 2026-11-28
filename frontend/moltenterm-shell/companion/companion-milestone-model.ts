@@ -6,7 +6,7 @@
 // working on it. A link is drawn only on a certain match, never guessed. Pure, so it is tested without a window.
 
 import type { StateMarkKind } from "../state-mark";
-import { CompanionTodo, CompanionView } from "./companion-model";
+import { CompanionSubagent, CompanionTodo, CompanionView } from "./companion-model";
 import type { AgentRow, AgentRowState } from "./companion-recap-model";
 
 // must match pkg/molten/milestones/milestones.go
@@ -197,21 +197,35 @@ const BranchTicketRegex = /^(?:feature|fix)\/(\d{1,9})(?:-|$)/;
 // A text that starts with its ticket: "#2390 smooth the switch".
 const LeadingTicketRegex = /^\s*#(\d{1,9})\b/;
 
-// The ticket a text starts with; 0 when it does not start with one. A #N anywhere else ("Port the fix from #2391")
-// names another ticket as often as its own: it never counts.
+// A ticket named in a sentence: "#601", not "a#1" nor "&#39;" (pkg/molten/companion/tickets.go textTicketRegex).
+const AnyTicketRegex = /(?:^|[^\w&#/])#(\d{1,9})\b/g;
+
+// The ticket a text starts with; 0 when it does not start with one.
 export function leadingTicket(text: string): number {
     const m = LeadingTicketRegex.exec(text ?? "");
     return m == null ? 0 : Number(m[1]);
 }
 
-// The ticket an agent works on, when it is certain: its own branch names it, else its own description starts with it.
-// Anything else is 0.
+// The ticket a description names (#2587): the one it starts with (the convention for agents that delegate), else the
+// only ticket it names anywhere ("Analyse + plan #2587"). Two numbers or more are no certainty ("Port the fix from #2391
+// to #2400"): 0, never a guess. Whether the number is a ticket of the milestone is the caller's check (ticketLinks).
+export function namedTicket(text: string): number {
+    const leading = leadingTicket(text);
+    if (leading > 0) {
+        return leading;
+    }
+    const numbers = new Set(Array.from((text ?? "").matchAll(AnyTicketRegex), (m) => Number(m[1])));
+    return numbers.size === 1 ? [...numbers][0] : 0;
+}
+
+// The ticket an agent works on, when it is certain: its own branch names it, else its own description names it
+// (namedTicket). Anything else is 0.
 export function certainTicket(branch: string, description: string): number {
     const m = BranchTicketRegex.exec((branch ?? "").trim());
     if (m != null) {
         return Number(m[1]);
     }
-    return leadingTicket(description);
+    return namedTicket(description);
 }
 
 // kind and model: what a sub-agent is (its type and its model, as its row says it), which the "→" chip names it by
@@ -238,10 +252,36 @@ export function subagentTicket(
     return certainTicket(branch, description) || (agentId ? (placed?.get(agentId) ?? 0) : 0);
 }
 
+// The most levels of sub-agents' sub-agents followed (pkg/molten/companion/topics.go maxSubagentDepth).
+const MaxSubagentDepth = 8;
+
+// The ticket of each of the session's sub-agents, by row id (#2587): its own (subagentTicket), else, for a sub-agent's
+// own sub-agent, the ticket of the sub-agent that started it, up its parents. The session's own sub-agents never take
+// the main agent's.
+export function subagentTickets(subs: CompanionSubagent[], placed?: ReadonlyMap<string, number>): Map<string, number> {
+    const list = subs ?? [];
+    const byAgent = new Map(list.filter((s) => s.agentid).map((s) => [s.agentid, s]));
+    const tickets = new Map<string, number>();
+    for (const sub of list) {
+        let ticket = 0;
+        let at = sub;
+        for (let depth = 0; at != null && depth < MaxSubagentDepth; depth++) {
+            ticket = subagentTicket(at.branch ?? "", (at.description ?? "").trim(), at.agentid, placed);
+            if (ticket > 0 || !at.parentid) {
+                break;
+            }
+            at = byAgent.get(at.parentid);
+        }
+        tickets.set(sub.id, ticket);
+    }
+    return tickets;
+}
+
 // The agents at work a task can link to: the main agent by its session's branch only (its topic is no certainty), each
-// sub-agent by subagentTicket.
+// sub-agent by subagentTickets.
 export function linkAgents(rows: AgentRow[], view: CompanionView, placed?: ReadonlyMap<string, number>): LinkAgent[] {
     const subs = new Map((view?.subagents ?? []).map((s) => [s.id, s]));
+    const tickets = subagentTickets(view?.subagents, placed);
     return (rows ?? []).map((row) => {
         if (row.main) {
             return {
@@ -258,7 +298,7 @@ export function linkAgents(rows: AgentRow[], view: CompanionView, placed?: Reado
             id: row.id,
             name: row.name,
             state: row.state,
-            ticket: subagentTicket(sub?.branch ?? row.branch, description, sub?.agentid, placed),
+            ticket: tickets.get(row.id) ?? subagentTicket(row.branch, description, undefined, placed),
             description,
             kind: (sub?.kind ?? "").trim(),
             // The row's model and effort start with the model, its own or its parent's.

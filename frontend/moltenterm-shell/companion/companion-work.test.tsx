@@ -967,10 +967,15 @@ describe("links from a task to its agent (#2392)", () => {
         expect(certainTicket("", "Compare #35 with #41")).toBe(0);
         expect(certainTicket("feature/v2-thing", "Review the docs")).toBe(0);
         expect(certainTicket("", "a#1 and &#39;")).toBe(0);
-        // A #N elsewhere than at the start names another ticket as often as its own: never a link.
-        expect(certainTicket("worktree-agent-2", "Port the fix from #2391")).toBe(0);
+        // #2587: the one ticket a description names, wherever it stands; two or more are never a link.
+        expect(certainTicket("worktree-agent-2", "Port the fix from #2391")).toBe(2391);
+        expect(certainTicket("", "Analyse + plan #2587")).toBe(2587);
+        expect(certainTicket("", "Plan + mockup #2587, then #2587 again")).toBe(2587);
+        expect(certainTicket("", "Port the fix from #2391 to #2400")).toBe(0);
         expect(certainTicket("worktree-agent-3", "#2390 smooth the workspace switch")).toBe(2390);
         expect(certainTicket("", "  #2390 smooth")).toBe(2390);
+        // The convention for agents that delegate: the ticket it starts with is certain, whatever else it names.
+        expect(certainTicket("", "#2390 port the fix from #2391")).toBe(2390);
         expect(Object.fromEntries(agents.map((a) => [a.id, a.ticket]))).toEqual({ main: 0, a: 38, b: 41, c: 0, d: 0 });
     });
 
@@ -1047,7 +1052,7 @@ describe("links from a task to its agent (#2392)", () => {
     it("draws no line and no chip without a certain match", () => {
         const porting: CompanionSubagent = {
             id: "p",
-            description: "Port the fix from #41",
+            description: "Port the fix from #35 to #41",
             background: true,
             state: "running",
             started: now - Min,
