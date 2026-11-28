@@ -26,6 +26,9 @@ const (
 
 	// How often the sessions of terminals that closed are forgotten.
 	cliSweepEvery = time.Minute
+
+	// ErrSessionEnded tells to restart the MCP server, which a command line has none of.
+	errCliSessionEnded = "This terminal's browser session ended while the command ran: run it again"
 )
 
 // cliGate is the developer's Stop of a terminal's browser server (FR-CONT-022), which tests replace.
@@ -54,16 +57,15 @@ func (m *Manager) CliCall(ctx context.Context, caller localroute.Caller, req mcp
 		m.endSessions(func(s *session) bool { return s.source == cliSource(blockId) }, "stopped by the developer")
 		return mcpbrowser.ErrorResult(err.Error())
 	}
-	var result mcpbrowser.CallResult
 	// A session that went with its route between the lookup and the call is not the command's fault: look again once.
 	for attempt := 0; attempt < 2; attempt++ {
 		info, source := m.paneSession(blockId)
-		result = m.Call(ctx, source, mcpbrowser.CallRequest{SessionId: info.id, Tool: req.Tool, Args: req.Args})
+		result := m.Call(ctx, source, mcpbrowser.CallRequest{SessionId: info.id, Tool: req.Tool, Args: req.Args})
 		if !(result.IsError && len(result.Content) > 0 && result.Content[0].Text == mcpbrowser.ErrSessionEnded) {
 			return result
 		}
 	}
-	return result
+	return mcpbrowser.ErrorResult(errCliSessionEnded)
 }
 
 func (m *Manager) cliPane(ctx context.Context, caller localroute.Caller, token string) (string, error) {
