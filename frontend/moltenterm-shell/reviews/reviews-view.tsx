@@ -101,6 +101,7 @@ import {
     cardRelations,
     edgeLine,
     mergeQueue,
+    queueAfterFix,
     queueCanMerge,
     queueChoice,
     queueOrderShown,
@@ -121,9 +122,14 @@ import {
     sectionsByTurn,
     withTurnShown,
 } from "./reviews-sections-model";
+import { SecurityFixBlock } from "./reviews-security-fix";
 import { ReviewsModel } from "./reviews-store";
 import { useUpcomingAnswer } from "./reviews-upcoming-client";
 import { useOutsideOtherProjects } from "./reviews-workspace";
+import { securityUnblockFirst } from "./security-card-model";
+import { useSecurityFixConsent } from "./security-fix-block-actions";
+import { SecurityFixHiddenStore, useSecurityFixHidden } from "./security-fix-hidden-store";
+import { mergedFixKey, securityFilledBlock, securityFixBlockViews } from "./security-fix-panel-model";
 
 export { MoltentermReviewsView, ReviewRow, ReviewsList };
 
@@ -438,9 +444,11 @@ function ReviewsList({
     // The merge queue (#1062, FR-REV-024): the suggested order of the PRs the developer can merge now (#1211), for
     // those kept in the group merge (#1108); the others wait, an agent on them, their CI or an earlier PR.
     const groupOut = groupOuts[dir];
+    // A security fix that unblocks pull requests goes first in the order (FR-REV-036 AC17).
+    const unblockFirst = useMemo(() => securityUnblockFirst(answer), [answer]);
     const baseQueue = useMemo(
-        () => mergeQueue(forecast, listSplit.ready, listed, groupOut, (n) => busyAgentOf(cards[n])),
-        [forecast, listSplit, listed, groupOut, cards]
+        () => mergeQueue(forecast, listSplit.ready, listed, groupOut, (n) => busyAgentOf(cards[n]), unblockFirst),
+        [forecast, listSplit, listed, groupOut, cards, unblockFirst]
     );
     const afterMerge = afterMerges[dir];
     const queue = useMemo(
@@ -480,6 +488,15 @@ function ReviewsList({
     // A queue that runs holds every other merge: its banner heads the list (#2141).
     const bannerInWaiting = batchVisible && batchBannerTurn(batchRun) === "waiting";
     const bannerOnTop = batchVisible && !bannerInWaiting;
+    // The security fix block at the top of the list (FR-REV-036 AC17): the fix of each shared block of failed dependency
+    // scans. While it needs the developer it holds the panel's one filled button.
+    const consent = useSecurityFixConsent();
+    const hiddenBlocks = useSecurityFixHidden(dir);
+    const securityBlocks = useMemo(
+        () => securityFixBlockViews(answer, consent, ctx.now, hiddenBlocks),
+        [answer, consent, ctx.now, hiddenBlocks]
+    );
+    const securityFilled = securityFilledBlock(securityBlocks);
     const sectionsByState = useMemo(() => {
         let rtn = withTurnShown(sectionsByTurn(listed, cards, sort, ranks), "waiting", bannerInWaiting || batchPointer);
         rtn = withTurnShown(rtn, "waiting", (leftoverTurns.waiting?.length ?? 0) > 0);
@@ -518,9 +535,10 @@ function ReviewsList({
                 (leftoverTurns.yours ?? []).map((row) => ({
                     key: `leftover:${row.leftover.branch}`,
                     molten: !!leftoverOwnerCard(row.ask, "")?.molten,
-                }))
+                })),
+                securityFilled != null
             ),
-        [sections, cards, leftoverTurns]
+        [sections, cards, leftoverTurns, securityFilled]
     );
     const turnOpen = (turn: CardTurn) => sectionOpen(folds, dir, turn, true);
     const foldedTurns: Partial<Record<CardTurn, boolean>> = {};
@@ -555,8 +573,8 @@ function ReviewsList({
         return listSplit.ready.filter((pr) => numbers.has(pr.number));
     }, [queue, listSplit]);
     const plannedBatch = useMemo(
-        () => (confirming ? batchPlan(forecast, queuePrs, listed, answer.target) : null),
-        [confirming, forecast, queuePrs, listed, answer.target, locale]
+        () => (confirming ? batchPlan(forecast, queuePrs, listed, answer.target, unblockFirst) : null),
+        [confirming, forecast, queuePrs, listed, answer.target, locale, unblockFirst]
     );
     const takenByQueue = (n: number) => {
         const item = queueItem(batchRun, n);
@@ -576,7 +594,8 @@ function ReviewsList({
                 forecast,
                 listed,
                 batchRun,
-                plannedBatch.steps.map((s) => s.pr.number)
+                plannedBatch.steps.map((s) => s.pr.number),
+                unblockFirst
             );
             await BatchRuns.getInstance().add(
                 batchStartRequest(dir, answer.repo, answer.target, plannedBatch, method, workspaceId, order)
@@ -595,7 +614,7 @@ function ReviewsList({
         }
         const workspaceId = globalStore.get(atoms.workspace)?.oid;
         try {
-            const order = queueOrder(forecast, listed, batchRun, [number]);
+            const order = queueOrder(forecast, listed, batchRun, [number], unblockFirst);
             await BatchRuns.getInstance().add(batchRetryRequest(batchRun, item, workspaceId, order));
         } catch (e) {
             return errorPhrase(e);
@@ -654,6 +673,17 @@ function ReviewsList({
         }
         setSelected(number);
         requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>(`[data-pr="${number}"]`)?.focus());
+    };
+    // "See the alert" on a card: the block of its advisories is brought back if it was put off, and into view.
+    const seeAlert = (fingerprint: string) => {
+        SecurityFixHiddenStore.getInstance().show(dir, fingerprint);
+        requestAnimationFrame(() => {
+            const block = Array.from(listRef.current?.querySelectorAll<HTMLElement>("[data-security-fix]") ?? []).find(
+                (el) => el.getAttribute("data-security-fix") === fingerprint
+            );
+            block?.scrollIntoView?.({ block: "start" });
+            block?.focus();
+        });
     };
     const handOver = () => {
         if (handing) {
@@ -716,6 +746,8 @@ function ReviewsList({
         onBatchRetry: () => retryBatchItem(pr.number),
         owner: ownerFacts(ownerOf(pr), edges),
         ownerByHand: owned,
+        afterFix: shown ? queueAfterFix(queue, pr.number) : null,
+        onSeeAlert: seeAlert,
     });
     // Everyone who owns work in the project, for the Owners menu: the pull requests and the tickets without one yet.
     const ownerCounts = useMemo(
@@ -813,6 +845,22 @@ function ReviewsList({
                     {t("reviews.reportsError")}
                 </div>
             ) : null}
+            {securityBlocks.map((view) => (
+                <SecurityFixBlock
+                    key={view.key}
+                    view={view}
+                    answer={answer}
+                    dir={dir}
+                    repo={answer.repo}
+                    trunk={answer.target}
+                    now={ctx.now}
+                    onGoToCard={goToCard}
+                    onValidate={(pr) => model.openValidate(dir, pr, answer.repo, blockId)}
+                    onAssistedReview={(pr) => fireAndForget(() => model.openAssistedReview(dir, pr, answer.repo))}
+                    onLater={() => SecurityFixHiddenStore.getInstance().later(dir, view.key)}
+                    onDismiss={() => SecurityFixHiddenStore.getInstance().dismiss(dir, mergedFixKey(view.fix))}
+                />
+            ))}
             {bannerOnTop ? <BatchBanner run={batchRun} ids={shownIds} /> : null}
             {queueTurn == null ? queueBlock : null}
             {sections.length === 0 ? <NoneOpenLine target={answer.target} hidden={scoped.hidden.length > 0} /> : null}
