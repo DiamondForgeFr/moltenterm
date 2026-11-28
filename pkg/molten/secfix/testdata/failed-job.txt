@@ -1,0 +1,7 @@
+Scan dependencies	Scan and evaluate	2099-01-01T10:00:00.0000000Z Scanning example.com/fake/lib for linux/amd64, CGO=0
+Scan dependencies	Scan and evaluate	2099-01-01T10:00:09.0000000Z ##[error]GO-2099-0001 example.com/fake/lib@v1.2.0 runtime: no assessment
+Scan dependencies	Scan and evaluate	2099-01-01T10:00:09.0000000Z ##[error]ghsa-AAAA-bbbb-cccc left-fake@3.0.1 shipped-runtime: high
+Scan dependencies	Scan and evaluate	2099-01-01T10:00:09.0000000Z ##[error]GO-2099-0001 example.com/fake/lib@v1.2.0 again
+Scan dependencies	Scan and evaluate	2099-01-01T10:00:10.0000000Z see CVE-2099-0007 and cve-2099-12345 for details
+Scan dependencies	Scan and evaluate	2099-01-01T10:00:10.0000000Z not ids: GO-99-1, GHSA-xx, CVE-2099-1, XGO-2099-0009
+Scan dependencies	Scan and evaluate	2099-01-01T10:00:11.0000000Z ##[error]Process completed with exit code 1.

@@ -157,7 +157,7 @@ func TestParseReportRefusesWhatItDoesNotRead(t *testing.T) {
 
 func TestParseLogFindsEachIdOnce(t *testing.T) {
 	t.Parallel()
-	got := Ids(ParseLog(string(fixture(t, "failed.log"))))
+	got := Ids(ParseLog(string(fixture(t, "failed-job.txt"))))
 	want := []string{"CVE-2099-0007", "CVE-2099-12345", "GHSA-aaaa-bbbb-cccc", "GO-2099-0001"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("ids = %v, want %v", got, want)
