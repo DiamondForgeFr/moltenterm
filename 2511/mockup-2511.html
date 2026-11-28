@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Correctif de sécurité</title>
+<style>
+:root {
+    --mt-surface-0: #141210;
+    --mt-surface-1: #1a1815;
+    --mt-surface-2: #23201c;
+    --mt-surface-3: #2b2723;
+    --mt-text-1: #f2ede6;
+    --mt-text-2: #c3bbb1;
+    --mt-text-3: #a0968b;
+    --mt-line-1: rgba(242, 237, 230, 0.08);
+    --mt-line-2: rgba(242, 237, 230, 0.14);
+    --mt-hover: color-mix(in srgb, #f2ede6 10%, transparent);
+    --mt-state-blocked: #ee4f6b;
+    --mt-state-blocked-text: #ff8a9a;
+    --mt-state-running: #ffb547;
+    --mt-state-ready: #4cc38a;
+    --mt-state-draft: #8e8780;
+    --mt-state-waiting: #b59cf5;
+    --mt-state-warning: #e8d46a;
+    --mt-state-info: #7faee6;
+    --mt-action: #ff7c0d;
+    --mt-action-hover: #ff9a45;
+    --mt-action-press: #e86a00;
+    --mt-action-fg: #1c0f04;
+    --mt-action-text: #ff9442;
+    --mt-action-wash: rgba(255, 124, 13, 0.12);
+    --mt-place: rgb(255, 124, 13);
+    --mt-shadow-e2: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 6px 20px -4px rgb(0 0 0 / 0.5);
+    --mt-ease: cubic-bezier(0.2, 0, 0, 1);
+    color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+    background: var(--mt-surface-0);
+    color: var(--mt-text-1);
+    font-family: "IBM Plex Sans", Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 12px;
+    line-height: 1.35;
+    -webkit-font-smoothing: antialiased;
+}
+.mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; }
+svg.i { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; vertical-align: -2px; }
+svg.i-12 { width: 12px; height: 12px; }
+svg.i-16 { width: 16px; height: 16px; }
+
+/* Mockup chrome, not part of the app */
+.mock-bar { position: sticky; top: 0; z-index: 20; background: #0d0c0a; border-bottom: 1px solid var(--mt-line-2); padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+.mock-bar h1 { margin: 0; font-size: 13px; font-weight: 600; }
+.mock-bar .sub { color: var(--mt-text-3); font-size: 11px; }
+.mock-tabs { display: flex; flex-wrap: wrap; border: 1px solid var(--mt-line-2); border-radius: 4px; overflow: hidden; }
+.mock-tabs button { background: transparent; color: var(--mt-text-2); border: 0; border-right: 1px solid var(--mt-line-2); padding: 5px 10px; font: inherit; font-size: 12px; cursor: pointer; }
+.mock-tabs button:last-child { border-right: 0; }
+.mock-tabs button[aria-pressed="true"] { background: var(--mt-hover); color: var(--mt-text-1); box-shadow: inset 0 -2px 0 var(--mt-action); }
+.stage { display: flex; flex-wrap: wrap; gap: 20px; padding: 20px 16px 40px; align-items: flex-start; justify-content: center; }
+
+/* The Integration panel */
+.panel { position: relative; width: 600px; max-width: 100%; height: 860px; background: var(--mt-surface-1); border: 1px solid var(--mt-line-2); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; }
+.panel-title { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-bottom: 1px solid var(--mt-line-1); background: var(--mt-surface-0); color: var(--mt-text-2); font-size: 12px; box-shadow: inset 3px 0 0 var(--mt-place); }
+.panel-title b { color: var(--mt-text-1); font-weight: 500; }
+.hdr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; border-bottom: 1px solid var(--mt-line-2); padding: 8px 12px; }
+.hdr .proj { color: var(--mt-text-2); font-size: 12px; }
+.hdr .right { margin-left: auto; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.muted { color: var(--mt-text-3); }
+.sec { color: var(--mt-text-2); }
+.t11 { font-size: 11px; }
+code.base { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11px; color: var(--mt-text-2); }
+.seg { display: inline-flex; border: 1px solid var(--mt-line-2); border-radius: 4px; overflow: hidden; }
+.seg span { padding: 2px 8px; font-size: 11px; color: var(--mt-text-3); cursor: pointer; }
+.seg span.on { background: var(--mt-hover); color: var(--mt-text-1); box-shadow: inset 0 -2px 0 var(--mt-action); }
+.iconbtn { width: 24px; height: 24px; border-radius: 6px; display: inline-grid; place-items: center; color: var(--mt-text-2); cursor: pointer; border: 0; background: transparent; }
+.iconbtn:hover { background: var(--mt-hover); color: var(--mt-text-1); }
+
+.list { position: relative; flex: 1; min-height: 0; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 16px; }
+section.grp { display: flex; flex-direction: column; gap: 8px; }
+.sh { display: flex; align-items: baseline; gap: 8px; cursor: pointer; }
+.sh .chev { color: var(--mt-text-3); width: 10px; transition: transform 180ms var(--mt-ease); }
+.sh .chev.open { transform: rotate(90deg); }
+.sh .tt { font-size: 13px; font-weight: 600; line-height: 20px; }
+.sh .cnt { font-size: 12px; color: var(--mt-text-3); font-variant-numeric: tabular-nums; }
+.sh .hint { font-size: 11px; color: var(--mt-text-3); }
+.cards { border: 1px solid var(--mt-line-2); border-radius: 4px; overflow: clip; }
+
+.card { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 10px 15px; border-bottom: 1px solid var(--mt-line-2); cursor: pointer; }
+.card:last-child { border-bottom: 0; }
+.card:hover { background: var(--mt-hover); }
+.rail { position: absolute; inset: 0 auto 0 0; width: 3px; }
+.rail.ready { background: var(--mt-state-ready); }
+.rail.you { background: var(--mt-state-waiting); }
+.rail.agent { background: color-mix(in srgb, var(--mt-state-running) 60%, transparent); }
+.rail.broken { background: var(--mt-state-blocked); }
+.rail.wait { background: var(--mt-line-2); }
+.top { display: flex; align-items: flex-start; gap: 10px; }
+.top .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tline { display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 20px; font-weight: 500; min-width: 0; }
+.tline .num { font-weight: 400; color: var(--mt-text-3); }
+.tline .ttl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank { height: 16px; min-width: 16px; padding: 0 3px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--mt-action) 50%, transparent); background: color-mix(in srgb, var(--mt-action) 10%, transparent); color: var(--mt-action); font-size: 10px; font-weight: 600; display: inline-grid; place-items: center; }
+.owner { margin-left: auto; flex: none; border: 1px solid var(--mt-line-2); border-radius: 999px; padding: 0 8px; font-size: 11px; line-height: 16px; color: var(--mt-text-2); font-weight: 400; }
+.tag { flex: none; border-radius: 4px; padding: 0 6px; font-size: 11px; line-height: 16px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+.tag.sec-fix { border: 1px solid color-mix(in srgb, var(--mt-state-blocked) 45%, transparent); color: var(--mt-state-blocked-text); }
+.tag.unblocks { border: 1px solid color-mix(in srgb, var(--mt-state-ready) 45%, transparent); color: var(--mt-state-ready); }
+.sline { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 500; }
+.sline .why { font-weight: 400; color: var(--mt-text-2); }
+.sline.ready { color: var(--mt-state-ready); }
+.sline.broken { color: var(--mt-state-blocked-text); }
+.sline.running { color: var(--mt-state-running); }
+.sline.you { color: var(--mt-state-waiting); }
+.sline.wait { color: var(--mt-text-2); }
+.stat { font-size: 11px; line-height: 16px; color: var(--mt-text-3); display: flex; align-items: center; gap: 4px; }
+.stat.moving { color: var(--mt-text-2); }
+.facts { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 11px; line-height: 16px; color: var(--mt-text-3); }
+.facts .ok::before { content: "✓ "; color: var(--mt-state-ready); }
+.facts .bad { color: var(--mt-state-blocked-text); }
+.facts .link { color: var(--mt-text-2); text-decoration: underline; text-decoration-color: var(--mt-line-2); text-underline-offset: 2px; }
+.prchip { border: 1px solid var(--mt-line-2); border-radius: 4px; padding: 0 5px; color: var(--mt-text-2); }
+.btns { display: flex; align-items: center; gap: 6px; flex: none; }
+
+/* State marks (moltenterm-shell.css .mt-state-mark) */
+.mark { width: 8px; height: 8px; border-radius: 999px; flex: none; display: inline-block; }
+.mark.blocked { border-radius: 0; transform: rotate(45deg) scale(.82); background: var(--mt-state-blocked); }
+.mark.ready { background: var(--mt-state-ready); }
+.mark.draft { border: 1.5px solid var(--mt-state-draft); }
+.mark.waiting { background: var(--mt-state-waiting); box-shadow: 0 0 0 2px color-mix(in srgb, var(--mt-state-waiting) 30%, transparent); }
+.mark.running { border: 2px solid var(--mt-state-running); border-right-color: color-mix(in srgb, var(--mt-state-running) 25%, transparent); animation: spin 1.1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Buttons */
+.btn { height: 26px; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; padding: 0 10px; font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.btn.calm { background: transparent; border: 1px solid var(--mt-line-2); color: var(--mt-text-1); }
+.btn.calm:hover { background: var(--mt-hover); }
+.btn.ghost { background: transparent; border: 1px solid transparent; color: var(--mt-text-2); }
+.btn.ghost:hover { color: var(--mt-text-1); background: var(--mt-hover); }
+.btn.more { width: 26px; padding: 0; justify-content: center; }
+.molten-btn { position: relative; overflow: hidden; isolation: isolate; background: var(--mt-action); color: var(--mt-action-fg); border: 0; font-weight: 500; transition: box-shadow 120ms var(--mt-ease), transform 120ms var(--mt-ease); }
+.molten-btn:hover { box-shadow: 0 5px 16px -6px color-mix(in srgb, var(--mt-action) 75%, transparent); }
+.molten-btn:active { transform: scale(.98); background: var(--mt-action-press); }
+.molten-btn .wave { position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity 180ms var(--mt-ease); pointer-events: none; }
+.molten-btn .wave::before, .molten-btn .wave::after { content: ""; position: absolute; width: 140%; aspect-ratio: 1; left: -20%; top: 55%; border-radius: 42%; animation: spin 3.2s linear infinite; }
+.molten-btn .wave::before { background: color-mix(in srgb, var(--mt-action) 80%, rgb(255, 246, 222)); }
+.molten-btn .wave::after { background: color-mix(in srgb, var(--mt-action) 70%, rgb(255, 222, 140)); top: 62%; animation-duration: 4.4s; opacity: .7; }
+.molten-btn:hover .wave { opacity: 1; }
+
+/* Domino loader (suite.css df-domino-loader) */
+.dominos { position: relative; display: inline-block; width: 32px; height: 14px; vertical-align: middle; flex: none; color: var(--mt-state-running); }
+.dominos.small { transform: scale(.75); margin: 0 -4px; }
+.dominos > span { position: absolute; top: calc(50% - 1px); height: 2px; width: 8px; background: currentColor; transform-origin: 0 50%; animation: dominos 1s ease infinite; }
+.dominos > span:nth-child(1) { left: 0; animation-delay: 0s; }
+.dominos > span:nth-child(2) { left: 3px; animation-delay: .915s; }
+.dominos > span:nth-child(3) { left: 6px; animation-delay: .79s; }
+.dominos > span:nth-child(4) { left: 9px; animation-delay: .665s; }
+.dominos > span:nth-child(5) { left: 12px; animation-delay: .54s; }
+.dominos > span:nth-child(6) { left: 15px; animation-delay: .425s; }
+.dominos > span:nth-child(7) { left: 18px; animation-delay: .3s; }
+.dominos > span:nth-child(8) { left: 21px; animation-delay: .125s; }
+@keyframes dominos { 50% { opacity: .7; } 75% { transform: rotate(90deg); } 80% { opacity: 1; } }
+
+/* Agent bar docked at a card's bottom (reviews-agent-bar.tsx) */
+.agentbar { margin: 4px -12px -10px -15px; border-top: 1px solid color-mix(in srgb, var(--mt-line-2) 50%, transparent); background: rgb(0 0 0 / .2); padding: 4px 8px 4px 14px; font-size: 11px; line-height: 20px; color: var(--mt-text-3); display: flex; align-items: center; gap: 6px; }
+.agentbar .who { font-weight: 500; color: var(--mt-text-1); }
+.agentbar .st { color: var(--mt-state-running); display: inline-flex; align-items: center; gap: 4px; }
+.agentbar .go { margin-left: auto; height: 20px; border-radius: 4px; padding: 0 6px; color: var(--mt-text-2); background: transparent; border: 0; font: inherit; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.agentbar .go:hover { background: var(--mt-hover); color: var(--mt-text-1); }
+
+/* NEW: the security fix block (top of the list) */
+.fix { border: 1px solid var(--mt-line-2); border-radius: 4px; background: var(--mt-surface-2); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; position: relative; overflow: hidden; }
+.fix.is-ready { box-shadow: inset 3px 0 0 var(--mt-state-ready); }
+.fix.is-blocked { box-shadow: inset 3px 0 0 var(--mt-state-blocked); }
+.fix.is-working { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--mt-state-running) 60%, transparent); }
+.fix.is-done { box-shadow: inset 3px 0 0 var(--mt-line-2); }
+.fix-head { display: flex; align-items: flex-start; gap: 10px; }
+.tile { width: 28px; height: 28px; border-radius: 4px; display: grid; place-items: center; flex: none; background: var(--mt-surface-3); border: 1px solid var(--mt-line-2); }
+.tile.blocked { color: var(--mt-state-blocked); }
+.tile.ready { color: var(--mt-state-ready); }
+.tile.running { color: var(--mt-state-running); }
+.tile.done { color: var(--mt-text-2); }
+.fix-title { font-size: 13px; font-weight: 600; line-height: 20px; }
+.fix-title .num { color: var(--mt-text-3); font-weight: 400; }
+.fix-sub { font-size: 12px; color: var(--mt-text-2); line-height: 17px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--mt-line-2); border-radius: 4px; padding: 0 6px; font-size: 11px; line-height: 16px; color: var(--mt-text-2); }
+.chip.auto { border-color: color-mix(in srgb, var(--mt-state-running) 40%, transparent); color: var(--mt-state-running); }
+.adv { width: 100%; border-collapse: collapse; font-size: 11px; }
+.adv th { text-align: left; font-weight: 500; color: var(--mt-text-3); padding: 3px 8px 3px 0; border-bottom: 1px solid var(--mt-line-1); }
+.adv td { padding: 3px 8px 3px 0; border-bottom: 1px solid var(--mt-line-1); color: var(--mt-text-2); vertical-align: top; }
+.adv tr:last-child td { border-bottom: 0; }
+.adv td.id { font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--mt-text-1); white-space: nowrap; }
+.adv td.ver { font-family: "IBM Plex Mono", ui-monospace, monospace; white-space: nowrap; }
+.adv .arrow { color: var(--mt-state-ready); }
+.unblock-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.prlink { color: var(--mt-text-1); border: 1px solid var(--mt-line-2); border-radius: 4px; padding: 0 5px; font-size: 11px; line-height: 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.prlink:hover { background: var(--mt-hover); }
+.fix-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fix-note { font-size: 11px; color: var(--mt-text-3); line-height: 16px; }
+.after-rows { display: flex; flex-direction: column; gap: 4px; }
+.after-rows .r { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.after-rows .r .n { color: var(--mt-text-1); min-width: 44px; }
+.after-rows .r .w { color: var(--mt-text-2); }
+
+/* Toast (notification center) */
+.toast { position: absolute; right: 12px; bottom: 12px; width: 340px; max-width: calc(100% - 24px); background: var(--mt-surface-3); border: 1px solid var(--mt-line-2); border-radius: 4px; box-shadow: var(--mt-shadow-e2); padding: 10px 12px; display: flex; gap: 10px; z-index: 5; }
+.toast .tt { font-size: 12px; font-weight: 600; }
+.toast .tx { font-size: 12px; color: var(--mt-text-2); margin-top: 2px; line-height: 17px; }
+.toast .ac { display: flex; gap: 6px; margin-top: 8px; }
+.toast .src { font-size: 11px; color: var(--mt-text-3); margin-bottom: 2px; display: flex; align-items: center; gap: 4px; }
+.toast .x { margin-left: auto; color: var(--mt-text-3); align-self: flex-start; }
+
+/* Notes column */
+.notes { width: 340px; max-width: 100%; display: flex; flex-direction: column; gap: 12px; }
+.note { background: var(--mt-surface-1); border: 1px solid var(--mt-line-2); border-radius: 6px; padding: 12px; }
+.note h2 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.note p, .note li { color: var(--mt-text-2); font-size: 12px; line-height: 18px; margin: 0 0 6px; }
+.note ul { margin: 0; padding-left: 16px; }
+.note .k { color: var(--mt-text-1); font-weight: 500; }
+.legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--mt-text-2); margin: 4px 0; }
+
+[data-states] { display: none; }
+[data-states].on { display: revert; }
+.cards [data-states].on, .list [data-states].on, .fix-actions [data-states].on { display: flex; }
+span[data-states].on, button[data-states].on { display: inline-flex; }
+tr[data-states].on { display: table-row; }
+.toast[data-states].on { display: flex; }
+
+@media (prefers-reduced-motion: reduce) {
+    .mark.running, .molten-btn .wave::before, .molten-btn .wave::after { animation: none; }
+    .dominos > span { animation: none; }
+    .dominos > span:nth-child(1) { transform: rotate(0deg); }
+    .dominos > span:nth-child(2) { transform: rotate(13deg); }
+    .dominos > span:nth-child(3) { transform: rotate(26deg); }
+    .dominos > span:nth-child(4) { transform: rotate(39deg); }
+    .dominos > span:nth-child(5) { transform: rotate(51deg); }
+    .dominos > span:nth-child(6) { transform: rotate(64deg); }
+    .dominos > span:nth-child(7) { transform: rotate(77deg); }
+    .dominos > span:nth-child(8) { transform: rotate(90deg); }
+}
+@media (max-width: 640px) {
+    .panel { height: auto; min-height: 720px; }
+    .top { flex-wrap: wrap; }
+    .toast { position: static; width: auto; margin: 0 12px 12px; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+  <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-merge" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></symbol>
+  <symbol id="i-pr" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M6 9v12"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
+  <symbol id="i-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="m3.3 7 7.7 4.73a2 2 0 0 0 2 0L20.7 7"/></symbol>
+  <symbol id="i-unlock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></symbol>
+  <symbol id="i-hourglass" viewBox="0 0 24 24"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.17a2 2 0 0 0-.59-1.42L12 12l-4.41 4.41A2 2 0 0 0 7 17.83V22"/><path d="M7 2v4.17a2 2 0 0 0 .59 1.42L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.27 21a2 2 0 0 0 3.46 0"/><path d="M3.26 15.33A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.67C19.41 13.96 18 12.5 18 8A6 6 0 0 0 6 8c0 4.5-1.41 5.96-2.74 7.33"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></symbol>
+  <symbol id="i-pr-draft" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 6V5"/><path d="M18 11v-1"/><path d="M6 9v12"/></symbol>
+</svg>
+
+<div class="mock-bar">
+  <div>
+    <h1>#2511 · Intégration : correctif de sécurité lancé tout seul</h1>
+    <div class="sub">Maquette · données fictives · thème sombre · choisissez un moment du parcours</div>
+  </div>
+  <div class="mock-tabs" role="group" aria-label="Moment du parcours">
+    <button data-go="1" aria-pressed="false">1 · Première fois</button>
+    <button data-go="2" aria-pressed="true">2 · Lancé tout seul</button>
+    <button data-go="3" aria-pressed="false">3 · Prêt à fusionner</button>
+    <button data-go="4" aria-pressed="false">4 · Après la fusion</button>
+  </div>
+</div>
+
+<div class="stage">
+
+<div class="panel" role="region" aria-label="Panneau Intégration">
+  <div class="panel-title"><svg class="i"><use href="#i-pr"/></svg><b>Intégration</b><span class="muted">· atelier</span></div>
+
+  <div class="hdr">
+    <span class="proj">atelier · <code class="base">develop</code></span>
+    <div class="right">
+      <span class="muted t11">vers <code class="base">develop</code></span>
+      <span class="seg"><span class="on">Par état</span><span>Ordre de fusion</span></span>
+      <span class="muted t11">mis à jour il y a 1 min</span>
+      <button class="iconbtn" title="Actualiser"><svg class="i i-12"><use href="#i-refresh"/></svg></button>
+      <button class="iconbtn" title="Légende"><svg class="i i-12"><use href="#i-help"/></svg></button>
+    </div>
+  </div>
+
+  <div class="list">
+
+    <!-- NEW: security fix block, state 1: first time, asked once -->
+    <div class="fix is-blocked" data-states="1">
+      <div class="fix-head">
+        <div class="tile blocked"><svg class="i i-16"><use href="#i-shield"/></svg></div>
+        <div style="flex:1;min-width:0">
+          <div class="fix-title">Une alerte de sécurité bloque 3 pull requests</div>
+          <div class="fix-sub">L'analyse des dépendances (<span class="mono t11">Dependency security / Scan dependencies</span>) échoue sur <code class="base">develop</code> et sur #4102, #4105, #4107. Ces avis portent sur des modules que <code class="base">develop</code> utilise déjà : aucune de ces pull requests ne les a introduits.</div>
+        </div>
+      </div>
+      <table class="adv" aria-label="Avis de sécurité">
+        <thead><tr><th>Avis</th><th>Module</th><th>Version</th></tr></thead>
+        <tbody>
+          <tr><td class="id">GO-2026-9101</td><td>go.exemple.io/telemetrie</td><td class="ver">1.4.0 <span class="arrow">→</span> 1.7.0</td></tr>
+          <tr><td class="id">GO-2026-9102</td><td>github.com/exemple/websocket</td><td class="ver">1.5.3 <span class="arrow">→</span> 1.5.4</td></tr>
+          <tr><td class="id">GHSA-xxxx-0000-yyyy</td><td>npm · exemple-parser</td><td class="ver">2.1.0 <span class="arrow">→</span> 2.1.3</td></tr>
+        </tbody>
+      </table>
+      <div class="fix-actions">
+        <button class="btn molten-btn" title="Ouvre le ticket, lance un agent dans sa propre copie du dépôt. Rien ne fusionne sans vous.">Lancer le correctif<i class="wave"></i></button>
+        <button class="btn calm" title="Active Réglages › Agents › Correctifs de sécurité : lancés tout seuls">Le lancer seul à chaque fois</button>
+        <button class="btn ghost">Plus tard</button>
+      </div>
+      <div class="fix-note">MoltenTerm ouvre un ticket (ou reprend celui qui cite déjà ces avis), confie le correctif à un agent dans sa propre copie du dépôt, hors de vue, et vous prévient par notification. Rien ne fusionne sans vous, et vous pouvez l'arrêter à tout moment. Demandé une seule fois ; modifiable dans Réglages › Agents.</div>
+    </div>
+
+    <!-- NEW: state 2: launched by itself, working -->
+    <div class="fix is-working" data-states="2">
+      <div class="fix-head">
+        <div class="tile running"><span class="dominos small" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></div>
+        <div style="flex:1;min-width:0">
+          <div class="fix-title">Correctif de sécurité en cours <span class="num">· ticket #4109</span></div>
+          <div class="fix-sub">3 avis sur <code class="base">develop</code> bloquent #4102, #4105, #4107. Lucie monte les modules aux versions corrigées, puis lance la CI locale.</div>
+        </div>
+        <span class="chip auto" title="Réglages › Agents › Correctifs de sécurité : lancés tout seuls">lancé tout seul · 10:42</span>
+      </div>
+      <table class="adv" aria-label="Avis de sécurité">
+        <thead><tr><th>Avis</th><th>Module</th><th>Version</th></tr></thead>
+        <tbody>
+          <tr><td class="id">GO-2026-9101</td><td>go.exemple.io/telemetrie</td><td class="ver">1.4.0 <span class="arrow">→</span> 1.7.0</td></tr>
+          <tr><td class="id">GO-2026-9102</td><td>github.com/exemple/websocket</td><td class="ver">1.5.3 <span class="arrow">→</span> 1.5.4</td></tr>
+          <tr><td class="id">GHSA-xxxx-0000-yyyy</td><td>npm · exemple-parser</td><td class="ver">2.1.0 <span class="arrow">→</span> 2.1.3</td></tr>
+        </tbody>
+      </table>
+      <div class="unblock-line"><span class="muted">Débloquera</span>
+        <span class="prlink">#4102</span><span class="prlink">#4105</span><span class="prlink">#4107</span>
+      </div>
+      <div class="agentbar" style="margin:0 -12px -10px -12px">
+        <svg class="i i-12"><use href="#i-bot"/></svg><span class="who">Lucie</span><span>Claude Code · <span class="mono">fix/4109-avis-dependances</span></span>
+        <span class="st"><span class="dominos small" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>CI locale 3/5</span><span>· 6 min</span>
+        <button class="go">Y aller <svg class="i i-12"><use href="#i-arrow"/></svg></button>
+        <button class="go" title="Arrête l'agent ; ce correctif n'est pas relancé tout seul pour ces avis"><svg class="i i-12"><use href="#i-stop"/></svg>Arrêter</button>
+      </div>
+    </div>
+
+    <!-- NEW: state 3: fix PR ready, the one filled action of the panel -->
+    <div class="fix is-ready" data-states="3">
+      <div class="fix-head">
+        <div class="tile ready"><svg class="i i-16"><use href="#i-shield-check"/></svg></div>
+        <div style="flex:1;min-width:0">
+          <div class="fix-title">Fusionner #4110 débloque #4102, #4105, #4107</div>
+          <div class="fix-sub">fix(#4109) : monte 3 dépendances aux versions corrigées. CI 14/14, CI locale réussie, rapport de test sur le ticket.</div>
+        </div>
+      </div>
+      <table class="adv" aria-label="Ce que la pull request monte">
+        <thead><tr><th>Avis</th><th>Module</th><th>Monté</th></tr></thead>
+        <tbody>
+          <tr><td class="id">GO-2026-9101</td><td>go.exemple.io/telemetrie</td><td class="ver">1.4.0 <span class="arrow">→</span> 1.7.0</td></tr>
+          <tr><td class="id">GO-2026-9102</td><td>github.com/exemple/websocket</td><td class="ver">1.5.3 <span class="arrow">→</span> 1.5.4</td></tr>
+          <tr><td class="id">GHSA-xxxx-0000-yyyy</td><td>npm · exemple-parser</td><td class="ver">2.1.0 <span class="arrow">→</span> 2.1.3</td></tr>
+        </tbody>
+      </table>
+      <div class="fix-actions">
+        <button class="btn molten-btn" title="Ouvre la feuille Valider de #4110 : rebaser et fusionner, comme toute pull request">Fusionner #4110…<i class="wave"></i></button>
+        <button class="btn calm">Revue assistée</button>
+        <button class="btn ghost"><svg class="i i-12"><use href="#i-ext"/></svg>Ouvrir sur GitHub</button>
+      </div>
+      <div class="fix-note">Après la fusion, MoltenTerm met #4102, #4105 et #4107 à jour sur <code class="base">develop</code> et leurs vérifications repartent. Une notification vous donne le résultat.</div>
+    </div>
+
+    <!-- NEW: state 4: after the merge -->
+    <div class="fix is-done" data-states="4">
+      <div class="fix-head">
+        <div class="tile done"><svg class="i i-16"><use href="#i-unlock"/></svg></div>
+        <div style="flex:1;min-width:0">
+          <div class="fix-title">#4110 fusionnée · 3 pull requests débloquées</div>
+          <div class="fix-sub">L'analyse des dépendances repasse sur <code class="base">develop</code>. MoltenTerm a remis à jour les pull requests qu'elle bloquait.</div>
+        </div>
+        <button class="iconbtn" title="Masquer"><svg class="i i-12"><use href="#i-x"/></svg></button>
+      </div>
+      <div class="after-rows">
+        <div class="r"><span class="mark running" role="img" aria-label="En cours"></span><span class="n">#4102</span><span class="w">mise à jour sur develop · vérifications en cours</span></div>
+        <div class="r"><span class="mark running" role="img" aria-label="En cours"></span><span class="n">#4105</span><span class="w">Bastien y travaillait : rebase confié à Bastien</span></div>
+        <div class="r"><span class="mark ready" role="img" aria-label="Prête"></span><span class="n">#4107</span><span class="w">mise à jour sur develop · vérifications réussies</span></div>
+      </div>
+    </div>
+
+    <!-- Section: Intervention requise -->
+    <section class="grp">
+      <div class="sh"><svg class="i i-12 chev open"><use href="#i-chev"/></svg><span class="tt">Intervention requise</span>
+        <span class="cnt" data-states="1">4</span><span class="cnt" data-states="2 3 4">1</span>
+        <span class="hint">bloquées tant que vous n'agissez pas</span></div>
+      <div class="cards">
+        <div class="card">
+          <div class="rail broken"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4096</span><span class="ttl">Raccourcis : exporter la liste</span><span class="owner">Hugo</span></div>
+            <div class="sline broken"><span class="mark blocked" role="img" aria-label="Bloquée"></span>Modifications demandées<span class="why">· à vous</span></div>
+            <div class="stat">Rien ne tourne · une revue attend sa réponse</div>
+            <div class="facts"><span class="prchip">PR #4100</span><span class="ok">CI 14/14</span><span class="ok">rapport</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Répondre à Hugo</button><button class="btn calm more" title="Plus"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+        </div>
+
+        <!-- state 1: blocked PRs, the action lives in the block above -->
+        <div class="card" data-states="1">
+          <div class="rail broken"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4098</span><span class="ttl">Fichiers : tri des dossiers en premier</span><span class="tag sec-fix"><svg class="i i-12"><use href="#i-shield"/></svg>alerte de sécurité</span><span class="owner">Inès</span></div>
+            <div class="sline broken"><span class="mark blocked" role="img" aria-label="Bloquée"></span>Bloquée par l'alerte de sécurité ci-dessus<span class="why">· pas à cause d'elle</span></div>
+            <div class="stat">Rien ne tourne · CI terminée il y a 12 min, rouge sur Scan dependencies</div>
+            <div class="facts"><span class="prchip">PR #4102</span><span>CI 13/14</span><span class="bad">Scan dependencies</span><span class="ok">rapport</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Voir l'alerte</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+        </div>
+        <div class="card" data-states="1">
+          <div class="rail broken"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4103</span><span class="ttl">Navigateur : favicon des pages uniques</span><span class="tag sec-fix"><svg class="i i-12"><use href="#i-shield"/></svg>alerte de sécurité</span><span class="owner">Bastien</span></div>
+            <div class="sline broken"><span class="mark blocked" role="img" aria-label="Bloquée"></span>Bloquée par l'alerte de sécurité ci-dessus<span class="why">· pas à cause d'elle</span></div>
+            <div class="stat">Rien ne tourne · CI terminée il y a 20 min, rouge sur Scan dependencies</div>
+            <div class="facts"><span class="prchip">PR #4105</span><span>CI 13/14</span><span class="bad">Scan dependencies</span><span>sans rapport de test</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Voir l'alerte</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+        </div>
+        <div class="card" data-states="1">
+          <div class="rail broken"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4106</span><span class="ttl">Sessions : reprendre la dernière ouverte</span><span class="tag sec-fix"><svg class="i i-12"><use href="#i-shield"/></svg>alerte de sécurité</span><span class="owner">à la main</span></div>
+            <div class="sline broken"><span class="mark blocked" role="img" aria-label="Bloquée"></span>Bloquée par l'alerte de sécurité ci-dessus<span class="why">· pas à cause d'elle</span></div>
+            <div class="stat">Rien ne tourne · CI terminée il y a 31 min, rouge sur Scan dependencies</div>
+            <div class="facts"><span class="prchip">PR #4107</span><span>CI 13/14</span><span class="bad">Scan dependencies</span><span class="ok">rapport</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Voir l'alerte</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Prêtes à fusionner -->
+    <section class="grp">
+      <div class="sh"><svg class="i i-12 chev open"><use href="#i-chev"/></svg><span class="tt">Prêtes à fusionner</span>
+        <span class="cnt" data-states="1 2">1</span><span class="cnt" data-states="3">2</span><span class="cnt" data-states="4">2</span>
+        <span class="hint">CI verte, rien d'ouvert</span></div>
+      <div class="cards">
+        <!-- state 3: the fix PR, ranked first in the merge order -->
+        <div class="card" data-states="3">
+          <div class="rail ready"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="rank" title="Position 1 dans l'ordre de fusion suggéré">1</span><span class="num">#4109</span><span class="ttl">Avis de sécurité sur 3 dépendances</span><span class="tag unblocks"><svg class="i i-12"><use href="#i-unlock"/></svg>débloque 3</span><span class="owner">Lucie</span></div>
+            <div class="sline ready"><span class="mark ready" role="img" aria-label="Prête"></span>Prête à fusionner<span class="why">· débloque #4102, #4105, #4107</span></div>
+            <div class="stat">Rien ne tourne · CI terminée il y a 2 min, verte</div>
+            <div class="facts"><span class="prchip">PR #4110</span><span class="ok">CI 14/14</span><span class="ok">CI locale</span><span class="ok">rapport</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Valider</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+        </div>
+        <div class="card">
+          <div class="rail ready"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="rank" data-states="3">2</span><span class="num">#4095</span><span class="ttl">Onglets : glisser vers une autre fenêtre</span><span class="owner">Inès</span></div>
+            <div class="sline ready"><span class="mark ready" role="img" aria-label="Prête"></span>Prête à fusionner</div>
+            <div class="stat">Rien ne tourne · CI terminée il y a 1 h, verte</div>
+            <div class="facts"><span class="prchip">PR #4099</span><span class="ok">CI 14/14</span><span class="ok">rapport</span><span data-states="3">après #4110 : rien à rebaser</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Valider</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+        </div>
+        <!-- state 4: #4107 unblocked and green -->
+        <div class="card" data-states="4">
+          <div class="rail ready"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4106</span><span class="ttl">Sessions : reprendre la dernière ouverte</span><span class="owner">à la main</span></div>
+            <div class="sline ready"><span class="mark ready" role="img" aria-label="Prête"></span>Prête à fusionner<span class="why">· débloquée par #4110</span></div>
+            <div class="stat">Rien ne tourne · CI terminée il y a 1 min, verte</div>
+            <div class="facts"><span class="prchip">PR #4107</span><span class="ok">CI 14/14</span><span class="ok">rapport</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Valider</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: En cours -->
+    <section class="grp">
+      <div class="sh"><svg class="i i-12 chev open"><use href="#i-chev"/></svg><span class="tt">En cours</span>
+        <span class="cnt" data-states="1">0</span><span class="cnt" data-states="2">4</span><span class="cnt" data-states="3">3</span><span class="cnt" data-states="4">2</span>
+        <span class="hint">quelque chose tourne</span></div>
+      <div class="cards">
+        <!-- state 2: the fix PR draft, its agent at work -->
+        <div class="card" data-states="2">
+          <div class="rail agent"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4109</span><span class="ttl">Avis de sécurité sur 3 dépendances</span><span class="tag unblocks"><svg class="i i-12"><use href="#i-unlock"/></svg>débloquera 3</span><span class="owner">Lucie</span></div>
+            <div class="sline running"><span class="dominos small" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>Lucie s'en occupe<span class="why">· correctif de sécurité lancé tout seul</span></div>
+            <div class="stat moving">CI locale en cours · 3/5 · go-test, ts-check</div>
+            <div class="facts"><span class="prchip">PR #4110</span><span>brouillon</span><span>sans rapport de test</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Suivre Lucie</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+          <div class="agentbar"><svg class="i i-12"><use href="#i-bot"/></svg><span class="who">Lucie</span><span>Claude Code · opus · élevé</span><span class="st"><span class="dominos small" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>travaille</span><span>· 6 min</span><button class="go">Y aller <svg class="i i-12"><use href="#i-arrow"/></svg></button></div>
+        </div>
+
+        <!-- states 2-3: blocked PRs, nothing to do on them -->
+        <div class="card" data-states="2 3">
+          <div class="rail wait"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4098</span><span class="ttl">Fichiers : tri des dossiers en premier</span><span class="tag sec-fix"><svg class="i i-12"><use href="#i-shield"/></svg>correctif #4110</span><span class="owner">Inès</span></div>
+            <div class="sline wait"><span class="mark draft" role="img" aria-label="Attend"></span>Bloquée par un correctif de sécurité : #4110<span class="why">· l'analyse des dépendances échoue sur develop, pas à cause d'elle</span></div>
+            <div class="stat"><svg class="i i-12"><use href="#i-hourglass"/></svg>Rien à faire ici · reprend seule après la fusion de #4110</div>
+            <div class="facts"><span class="prchip">PR #4102</span><span>CI 13/14</span><span class="bad">Scan dependencies → #4110</span><span class="ok">rapport</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Aller à #4110</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+        </div>
+        <!-- an agent already works on #4105: its own state wins, the block is a fact -->
+        <div class="card" data-states="2 3">
+          <div class="rail agent"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4103</span><span class="ttl">Navigateur : favicon des pages uniques</span><span class="tag sec-fix"><svg class="i i-12"><use href="#i-shield"/></svg>correctif #4110</span><span class="owner">Bastien</span></div>
+            <div class="sline running"><span class="dominos small" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>Bastien s'en occupe</div>
+            <div class="stat moving">Bastien travaille dessus · Scan dependencies attend #4110</div>
+            <div class="facts"><span class="prchip">PR #4105</span><span>CI 13/14</span><span class="bad">Scan dependencies → #4110</span><span>sans rapport de test</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Suivre Bastien</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+          <div class="agentbar"><svg class="i i-12"><use href="#i-bot"/></svg><span class="who">Bastien</span><span>Codex · gpt · moyen</span><span class="st"><span class="dominos small" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>travaille</span><span>· 14 min</span><button class="go">Y aller <svg class="i i-12"><use href="#i-arrow"/></svg></button></div>
+        </div>
+        <div class="card" data-states="2 3">
+          <div class="rail wait"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4106</span><span class="ttl">Sessions : reprendre la dernière ouverte</span><span class="tag sec-fix"><svg class="i i-12"><use href="#i-shield"/></svg>correctif #4110</span><span class="owner">à la main</span></div>
+            <div class="sline wait"><span class="mark draft" role="img" aria-label="Attend"></span>Bloquée par un correctif de sécurité : #4110<span class="why">· l'analyse des dépendances échoue sur develop, pas à cause d'elle</span></div>
+            <div class="stat"><svg class="i i-12"><use href="#i-hourglass"/></svg>Rien à faire ici · reprend seule après la fusion de #4110</div>
+            <div class="facts"><span class="prchip">PR #4107</span><span>CI 13/14</span><span class="bad">Scan dependencies → #4110</span><span class="ok">rapport</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Aller à #4110</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+        </div>
+
+        <!-- state 4: unblocked, running again -->
+        <div class="card" data-states="4">
+          <div class="rail agent"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4098</span><span class="ttl">Fichiers : tri des dossiers en premier</span><span class="owner">Inès</span></div>
+            <div class="sline running"><span class="mark running" role="img" aria-label="En cours"></span>En attente de la CI<span class="why">· mise à jour sur develop après #4110</span></div>
+            <div class="stat moving">CI en cours · 9/14 · Scan dependencies, go-test</div>
+            <div class="facts"><span class="prchip">PR #4102</span><span class="ok">rapport</span></div>
+          </div>
+          <div class="btns"><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+        </div>
+        <div class="card" data-states="4">
+          <div class="rail agent"></div>
+          <div class="top"><div class="main">
+            <div class="tline"><span class="num">#4103</span><span class="ttl">Navigateur : favicon des pages uniques</span><span class="owner">Bastien</span></div>
+            <div class="sline running"><span class="dominos small" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>Bastien s'en occupe<span class="why">· rebase sur develop après #4110</span></div>
+            <div class="stat moving">Bastien travaille dessus · rebase demandé à la fin de sa tâche</div>
+            <div class="facts"><span class="prchip">PR #4105</span><span>sans rapport de test</span></div>
+          </div>
+          <div class="btns"><button class="btn calm">Suivre Bastien</button><button class="btn calm more"><svg class="i"><use href="#i-more"/></svg></button></div></div>
+          <div class="agentbar"><svg class="i i-12"><use href="#i-bot"/></svg><span class="who">Bastien</span><span>Codex · gpt · moyen</span><span class="st"><span class="dominos small" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>travaille</span><span>· 22 min</span><button class="go">Y aller <svg class="i i-12"><use href="#i-arrow"/></svg></button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section: Aux agents (folded, unchanged) -->
+    <section class="grp">
+      <div class="sh"><svg class="i i-12 chev"><use href="#i-chev"/></svg><span class="tt">Aux agents</span><span class="cnt">2</span><span class="hint">rien ne tourne, rien pour vous</span></div>
+    </section>
+
+    <!-- Tail sections (unchanged) -->
+    <section class="grp">
+      <div class="sh"><svg class="i i-12 chev"><use href="#i-chev"/></svg><span class="tt">À venir</span><span class="cnt">5</span></div>
+    </section>
+    <section class="grp">
+      <div class="sh"><svg class="i i-12 chev"><use href="#i-chev"/></svg><span class="tt">Fusionnées récemment</span>
+        <span class="cnt" data-states="1 2 3">7</span><span class="cnt" data-states="4">8</span>
+        <span class="hint">7 derniers jours</span></div>
+    </section>
+  </div>
+
+  <!-- Notification toasts -->
+  <div class="toast" data-states="2" role="status">
+    <svg class="i i-16" style="color:var(--mt-state-running)"><use href="#i-shield"/></svg>
+    <div style="flex:1;min-width:0">
+      <div class="src"><svg class="i i-12"><use href="#i-bell"/></svg>Dépendances · atelier</div>
+      <div class="tt">Correctif de sécurité lancé</div>
+      <div class="tx">3 avis sur develop bloquent #4102, #4105 et #4107. Lucie le prépare hors de vue dans sa propre copie : ticket #4109.</div>
+      <div class="ac"><button class="btn calm">Voir dans Intégration</button><button class="btn ghost"><svg class="i i-12"><use href="#i-stop"/></svg>Arrêter</button></div>
+    </div>
+    <span class="x"><svg class="i i-12"><use href="#i-x"/></svg></span>
+  </div>
+  <div class="toast" data-states="3" role="status">
+    <svg class="i i-16" style="color:var(--mt-state-ready)"><use href="#i-shield-check"/></svg>
+    <div style="flex:1;min-width:0">
+      <div class="src"><svg class="i i-12"><use href="#i-bell"/></svg>Dépendances · atelier</div>
+      <div class="tt">#4110 est prête</div>
+      <div class="tx">La fusionner débloque #4102, #4105 et #4107.</div>
+      <div class="ac"><button class="btn calm">Voir dans Intégration</button></div>
+    </div>
+    <span class="x"><svg class="i i-12"><use href="#i-x"/></svg></span>
+  </div>
+  <div class="toast" data-states="4" role="status">
+    <svg class="i i-16" style="color:var(--mt-text-2)"><use href="#i-unlock"/></svg>
+    <div style="flex:1;min-width:0">
+      <div class="src"><svg class="i i-12"><use href="#i-bell"/></svg>Dépendances · atelier</div>
+      <div class="tt">#4110 fusionnée : 3 pull requests débloquées</div>
+      <div class="tx">#4102 et #4107 remises à jour sur develop, leurs vérifications tournent. Le rebase de #4105 est confié à Bastien, qui y travaillait.</div>
+      <div class="ac"><button class="btn calm">Voir dans Intégration</button></div>
+    </div>
+    <span class="x"><svg class="i i-12"><use href="#i-x"/></svg></span>
+  </div>
+</div>
+
+<aside class="notes">
+  <div class="note" data-states="1">
+    <h2>1 · Première fois : demandé une seule fois</h2>
+    <ul>
+      <li>L'échec de <span class="k">Scan dependencies</span> est reconnu comme l'analyse de sécurité du projet, et partagé : <span class="mono t11">develop</span> échoue aussi, et aucune PR ne touche aux manifestes.</li>
+      <li>Le bloc en haut porte la seule action orange du panneau. <span class="k">Le lancer seul à chaque fois</span> enregistre le consentement (Réglages › Agents) ; ensuite rien n'est plus demandé.</li>
+      <li>Les PR bloquées n'ont pas d'action propre : <span class="k">Voir l'alerte</span> ramène au bloc.</li>
+    </ul>
+  </div>
+  <div class="note" data-states="2">
+    <h2>2 · Lancé tout seul, en cours</h2>
+    <ul>
+      <li>Un seul ticket (#4109) pour les 3 avis, quel que soit le nombre de PR bloquées ; un seul agent, dans sa propre copie, hors de vue.</li>
+      <li>Domino partout où un agent travaille ; <span class="k">Arrêter</span> dans le bloc et dans la notification. Arrêté, il n'est pas relancé tout seul pour ces avis.</li>
+      <li>Les PR bloquées passent en « En cours » avec un point creux gris : <span class="k">Bloquée par un correctif de sécurité : #4110</span>, rien à faire. Une PR où un agent travaille déjà garde son état ; le blocage devient un fait.</li>
+    </ul>
+  </div>
+  <div class="note" data-states="3">
+    <h2>3 · Une seule chose à fusionner</h2>
+    <ul>
+      <li><span class="k">Fusionner #4110 débloque #4102, #4105, #4107</span> : ce qu'elle monte, ce qu'elle débloque.</li>
+      <li><span class="k">Fusionner #4110…</span> ouvre la feuille Valider existante : même flux de fusion, rien ne fusionne avant votre confirmation.</li>
+      <li>Sa carte est classée n° 1 dans l'ordre de fusion avec le fait « débloque 3 ».</li>
+    </ul>
+  </div>
+  <div class="note" data-states="4">
+    <h2>4 · Après la fusion</h2>
+    <ul>
+      <li>Les PR qui ne contiennent pas le correctif sont mises à jour sur develop (une simple relance analyserait la même tête et échouerait encore).</li>
+      <li>Une PR où un agent travaille : le rebase lui est confié à la fin de sa tâche, jamais poussé par-dessus lui.</li>
+      <li>Une seule notification résume le tout ; le bloc refroidit et se masque.</li>
+    </ul>
+  </div>
+  <div class="note">
+    <h2>Codes visuels</h2>
+    <div class="legend-row"><span class="mark blocked"></span>Bloquée (braise, losange)</div>
+    <div class="legend-row"><span class="dominos small"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>Un agent travaille (domino)</div>
+    <div class="legend-row"><span class="mark running"></span>La CI tourne (arc incandescent)</div>
+    <div class="legend-row"><span class="mark ready"></span>Prête (patine, point plein)</div>
+    <div class="legend-row"><span class="mark draft"></span>Attend autre chose (point creux)</div>
+    <p style="margin-top:6px">Orange = action, une seule par panneau. Nouveau : le bloc « correctif de sécurité » en tête de liste, l'état « Bloquée par un correctif de sécurité », les faits « correctif #N » et « débloque N ». Tout le reste est le panneau d'aujourd'hui.</p>
+  </div>
+</aside>
+
+</div>
+
+<script>
+(function () {
+    var current = "2";
+    function show(state) {
+        current = state;
+        document.querySelectorAll("[data-states]").forEach(function (el) {
+            var on = el.getAttribute("data-states").split(" ").indexOf(state) >= 0;
+            el.classList.toggle("on", on);
+        });
+        document.querySelectorAll(".mock-tabs button").forEach(function (b) {
+            b.setAttribute("aria-pressed", b.getAttribute("data-go") === state ? "true" : "false");
+        });
+        try { localStorage.setItem("mockup-2511-state", state); } catch (e) {}
+    }
+    document.querySelectorAll(".mock-tabs button").forEach(function (b) {
+        b.addEventListener("click", function () { show(b.getAttribute("data-go")); });
+    });
+    var saved = null;
+    try { saved = localStorage.getItem("mockup-2511-state"); } catch (e) {}
+    show(saved || current);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rail Agents #2583</title>
+<style>
+/* Tokens copied from frontend/moltenterm-shell/tokens.css and moltenterm-shell.css (dark theme). */
+:root {
+    --mt-surface-0: #141210;
+    --mt-surface-1: #1a1815;
+    --mt-surface-2: #23201c;
+    --mt-surface-3: #2b2723;
+    --mt-text-1: #f2ede6;
+    --mt-text-2: #c3bbb1;
+    --mt-text-3: #a0968b;
+    --mt-line-1: rgba(242, 237, 230, 0.08);
+    --mt-line-2: rgba(242, 237, 230, 0.14);
+    --mt-veil: #ffffff;
+    --mt-state-running: #ffb547;
+    --mt-state-ready: #4cc38a;
+    --mt-state-waiting: #b59cf5;
+    --mt-state-blocked: #ee4f6b;
+    --mt-state-done: var(--mt-state-ready);
+    --mt-state-error: var(--mt-state-blocked);
+    --mt-action: #ff7c0d;
+    --mt-accent: var(--mt-action);
+    /* The workspace's own colour (a place): a sample one, never the action orange. */
+    --mt-place: #38bdc8;
+    --mt-selected-line: inset 0 -2px 0 var(--mt-place);
+    --mt-radius-control: 4px;
+    --mt-radius-panel: 6px;
+    --mt-text-11: 11px;
+    --mt-text-12: 12px;
+    --mt-text-13: 13px;
+    --mt-sb-fg-3: var(--mt-text-3);
+    --color-primary: var(--mt-text-1);
+    --color-secondary: var(--mt-text-2);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    padding: 24px 16px 40px;
+    background: #0c0b0a;
+    color: var(--mt-text-1);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+h1 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+.lead { color: var(--mt-text-2); margin: 0 0 20px; max-width: 900px; }
+
+.cols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    align-items: flex-start;
+}
+
+.col { width: 288px; }
+.col-h {
+    display: flex; align-items: center; gap: 8px;
+    margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--mt-text-2);
+}
+.tag {
+    padding: 1px 7px; border-radius: 9999px; font-size: 11px; font-weight: 600;
+}
+.tag.bug { background: color-mix(in srgb, var(--mt-state-blocked) 22%, transparent); color: #ff8a9a; }
+.tag.new { background: color-mix(in srgb, var(--mt-state-ready) 20%, transparent); color: var(--mt-state-ready); }
+
+/* The sidebar frame: cast iron, the workspace shows only through its cues (left liseré, switcher dots). */
+.mt-sb {
+    position: relative;
+    padding: 8px 8px 10px 12px;
+    border-radius: 10px;
+    background: var(--mt-surface-0);
+    box-shadow: inset 0 0 0 1px var(--mt-line-1);
+    overflow: hidden;
+}
+.mt-sb::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--mt-place);
+}
+.sb-views {
+    display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px;
+}
+.sb-view {
+    display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px;
+    border-radius: var(--mt-radius-panel); color: var(--mt-text-2); font-size: 12px;
+}
+.sb-view svg { color: var(--mt-text-3); }
+.sb-switch {
+    display: flex; gap: 6px; justify-content: center; margin-top: 10px; padding-top: 8px;
+    border-top: 1px solid var(--mt-line-1);
+}
+.sb-switch i { width: 8px; height: 8px; border-radius: 9999px; background: var(--mt-surface-3); }
+.sb-switch i.on { background: var(--mt-place); }
+
+/* Agents header (sidebar-agents.tsx:759). */
+.ag-h {
+    display: flex; align-items: center; gap: 6px; padding: 6px 4px 2px;
+    font-size: 11px; letter-spacing: 0.07em; color: var(--mt-text-3); text-transform: uppercase;
+}
+.ag-h .n { margin-left: auto; letter-spacing: normal; text-transform: none; }
+.ag-h .n.diff { color: var(--mt-text-1); font-weight: 600; }
+.ag-list { display: flex; flex-direction: column; gap: 1px; }
+
+/* sidebar-agents.css, as shipped. */
+.mt-sb-agent { display: flex; flex-direction: column; }
+.mt-sb-arow {
+    position: relative; display: flex; align-items: center; gap: 6px; min-height: 36px;
+    padding: 0 6px 0 2px; border-radius: var(--mt-radius-panel); cursor: pointer;
+    color: var(--color-secondary); font-size: var(--mt-text-12);
+}
+.mt-sb-arow:hover { background: color-mix(in srgb, var(--mt-veil) 8%, transparent); color: var(--color-primary); }
+.mt-sb-arow.is-on {
+    background: color-mix(in srgb, var(--mt-veil) 15%, transparent);
+    box-shadow: var(--mt-selected-line); color: var(--color-primary);
+}
+.mt-sb-arow.is-done { opacity: 0.62; }
+.mt-sb-tw {
+    display: flex; flex: none; align-items: center; justify-content: center; width: 18px; height: 22px;
+    padding: 0; border: 0; border-radius: var(--mt-radius-control); background: transparent;
+    color: var(--mt-sb-fg-3); cursor: pointer;
+}
+.mt-sb-agent.is-closed .mt-sb-tw > svg, .mt-sb-tl.is-shut > svg { transform: rotate(-90deg); }
+.mt-sb-av {
+    position: relative; display: flex; flex: none; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 9999px; background: var(--mt-surface-3);
+    box-shadow: inset 0 0 0 1px var(--mt-line-2); color: var(--color-primary);
+    font-size: var(--mt-text-11); font-weight: 600;
+}
+.mt-sb-av.is-waiting::after, .mt-sb-av.is-done::after, .mt-sb-av.is-error::after {
+    content: ""; position: absolute; right: -2px; bottom: -2px; width: 8px; height: 8px;
+    border-radius: 9999px; box-shadow: 0 0 0 2px var(--mt-surface-0);
+}
+.mt-sb-av.is-done::after { background: var(--mt-state-done); }
+.mt-sb-av.is-waiting::after { background: var(--mt-state-waiting); }
+.mt-sb-agent-tx { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; line-height: 1.25; }
+.mt-sb-agent-nm {
+    overflow: hidden; color: var(--color-primary); font-weight: 600; text-overflow: ellipsis; white-space: nowrap;
+}
+.mt-sb-agent-ss {
+    overflow: hidden; color: var(--mt-sb-fg-3); font-size: var(--mt-text-11);
+    text-overflow: ellipsis; white-space: nowrap;
+}
+.mt-sb-arow.is-subs .mt-sb-agent-ss { color: var(--mt-accent); }
+.mt-sb-agent-dom { flex: none; color: var(--mt-state-running); }
+.mt-sb-agent-subs {
+    display: inline-flex; flex: none; align-items: center; gap: 6px; padding: 1px 7px;
+    border: 1px solid var(--mt-line-2); border-radius: 9999px;
+    background: color-mix(in srgb, var(--mt-veil) 10%, transparent); color: var(--mt-text-2);
+    font-size: var(--mt-text-11); font-variant-numeric: tabular-nums; line-height: 16px;
+}
+.mt-sb-agent-subs > .df-domino-loader { color: var(--mt-state-running); }
+.mt-sb-note {
+    display: inline-flex; flex: 0 100000 auto; align-items: center; gap: 3px; min-width: 12px;
+    max-width: 46%; color: var(--mt-text-3); font-size: var(--mt-text-11);
+}
+.mt-sb-note-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-sb-tree {
+    display: flex; flex-direction: column; gap: 1px; margin: 0 0 6px 18px; padding-left: 9px;
+    border-left: 1px solid color-mix(in srgb, var(--mt-veil) 12%, transparent);
+}
+.mt-sb-tl {
+    display: flex; align-items: center; gap: 4px; width: 100%; padding: 5px 4px 2px; border: 0;
+    background: transparent; color: var(--mt-sb-fg-3); font: inherit; font-size: var(--mt-text-11);
+    letter-spacing: 0.07em; text-align: left; text-transform: uppercase; cursor: pointer;
+}
+.mt-sb-tl-n { margin-left: auto; letter-spacing: 0; text-transform: none; }
+.mt-sb-leaf {
+    display: flex; align-items: center; gap: 7px; width: 100%; min-height: 26px; padding: 0 6px;
+    border: 0; border-radius: var(--mt-radius-panel); background: transparent;
+    color: var(--color-secondary); font: inherit; font-size: var(--mt-text-12); text-align: left; cursor: pointer;
+}
+.mt-sb-leaf:hover { background: color-mix(in srgb, var(--mt-veil) 8%, transparent); color: var(--color-primary); }
+.mt-sb-leaf-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-sb-cta {
+    display: inline-flex; align-items: center; align-self: flex-start; gap: 5px; margin: 4px 0 2px 4px;
+    padding: 3px 8px; border: 0; border-radius: var(--mt-radius-panel); background: transparent;
+    color: color-mix(in srgb, var(--mt-accent) 75%, white); font: inherit; font-size: var(--mt-text-12);
+    font-weight: 600; cursor: pointer;
+}
+.mt-sb-cta:hover { background: color-mix(in srgb, var(--mt-accent) 16%, transparent); }
+
+/* Proposed (#2583): a service left running. Calm: discreet text, no animation, not counted. */
+.mt-sb-agent-svc { display: inline-flex; flex: none; color: var(--mt-text-3); }
+.mt-sb-arow.is-service .mt-sb-agent-ss { color: var(--mt-text-2); }
+.mt-sb-leaf.is-svc { cursor: default; }
+.mt-sb-leaf.is-svc svg { color: var(--mt-text-3); }
+
+/* The suite's dominoes (suite.css .df-domino-loader). */
+.df-domino-loader { position: relative; display: inline-block; flex-shrink: 0; width: 32px; height: 14px; vertical-align: middle; }
+.df-domino-loader > span {
+    position: absolute; top: calc(50% - 1px); height: 2px; width: 8px; background: currentColor;
+    animation: df-dominos 1s ease infinite;
+}
+.df-domino-loader > span:nth-child(1) { left: 0; }
+.df-domino-loader > span:nth-child(2) { left: 3px; animation-delay: .915s; --df-domino-still: 13deg; }
+.df-domino-loader > span:nth-child(3) { left: 6px; animation-delay: .79s; --df-domino-still: 26deg; }
+.df-domino-loader > span:nth-child(4) { left: 9px; animation-delay: .665s; --df-domino-still: 39deg; }
+.df-domino-loader > span:nth-child(5) { left: 12px; animation-delay: .54s; --df-domino-still: 51deg; }
+.df-domino-loader > span:nth-child(6) { left: 15px; animation-delay: .425s; --df-domino-still: 64deg; }
+.df-domino-loader > span:nth-child(7) { left: 18px; animation-delay: .3s; --df-domino-still: 77deg; }
+.df-domino-loader > span:nth-child(8) { left: 21px; animation-delay: .125s; --df-domino-still: 90deg; }
+@keyframes df-dominos { 50% { opacity: .7; } 75% { transform: rotate(90deg); } 80% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    .df-domino-loader > span { animation: none; transform: rotate(var(--df-domino-still, 0deg)); }
+}
+
+/* Annotations around the mockup. */
+.callout {
+    margin: 6px 0 0; padding: 8px 10px; border-radius: 6px; background: var(--mt-surface-1);
+    box-shadow: inset 0 0 0 1px var(--mt-line-1); color: var(--mt-text-2); font-size: 12px;
+}
+.callout b { color: var(--mt-text-1); font-weight: 600; }
+.callout.bug { box-shadow: inset 3px 0 0 #ff8a9a, inset 0 0 0 1px var(--mt-line-1); }
+.callout.ok { box-shadow: inset 3px 0 0 var(--mt-state-ready), inset 0 0 0 1px var(--mt-line-1); }
+.rule { flex: 1 1 300px; max-width: 420px; }
+.rule h2 { font-size: 13px; margin: 0 0 8px; color: var(--mt-text-1); }
+.rule table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rule td { padding: 5px 6px; border-top: 1px solid var(--mt-line-1); vertical-align: top; color: var(--mt-text-2); }
+.rule td:first-child { color: var(--mt-text-1); white-space: nowrap; }
+.rule code { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--mt-text-1); }
+.rule ul { margin: 6px 0 0; padding-left: 18px; color: var(--mt-text-2); font-size: 12px; }
+.rule li { margin: 3px 0; }
+.hl { outline: 1px dashed color-mix(in srgb, var(--mt-text-3) 70%, transparent); outline-offset: 1px; border-radius: 6px; }
+
+@media (max-width: 680px) {
+    .col, .rule { width: 100%; max-width: none; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+        <symbol id="chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="note" viewBox="0 0 24 24"><path d="M5 4h14v10l-5 6H5z M14 20v-6h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+        <symbol id="sub" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="6" r="2.5"/><path d="M7 8.5V15a3 3 0 0 0 3 3h5"/><circle cx="17.5" cy="18" r="2.5"/></g></symbol>
+        <!-- Lucide "plug" -->
+        <symbol id="plug" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></g></symbol>
+        <!-- Lucide "terminal" and "globe", for the views above the agents -->
+        <symbol id="term" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></g></symbol>
+        <symbol id="globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></g></symbol>
+    </defs>
+</svg>
+
+<h1>Rail Agents : un service laissé en marche n'est pas un agent au travail (#2583)</h1>
+<p class="lead">Mêmes cinq agents dans les deux colonnes. Agent B a fini son tour mais a laissé tourner le démon du navigateur Molten. Aujourd'hui il s'anime et compte comme actif ; proposé, il est au repos avec une marque calme et ne compte plus.</p>
+
+<div class="cols">
+
+    <!-- TODAY -->
+    <section class="col" aria-label="Aujourd'hui">
+        <div class="col-h"><span>Aujourd'hui</span><span class="tag bug">bug</span></div>
+        <div class="mt-sb">
+            <div class="sb-views">
+                <div class="sb-view"><svg width="14" height="14"><use href="#term"/></svg>Terminal</div>
+                <div class="sb-view"><svg width="14" height="14"><use href="#globe"/></svg>Page web</div>
+            </div>
+            <div class="ag-h"><span>Agents</span><span class="n diff">4 actifs</span></div>
+            <div class="ag-list">
+                <div class="mt-sb-agent is-closed">
+                    <div class="mt-sb-arow is-working is-on">
+                        <button class="mt-sb-tw" aria-label="Afficher ce à quoi Agent A est relié"><svg width="13" height="13"><use href="#chev"/></svg></button>
+                        <span class="mt-sb-av">A</span>
+                        <span class="mt-sb-agent-tx"><span class="mt-sb-agent-nm">Agent A</span><span class="mt-sb-agent-ss">Modifie sidebar-agents.tsx</span></span>
+                        <span class="mt-sb-note"><svg width="11" height="11"><use href="#note"/></svg><span class="mt-sb-note-t">revue #12</span></span>
+                        <span class="df-domino-loader mt-sb-agent-dom" role="status" aria-label="au travail"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+                    </div>
+                </div>
+                <div class="mt-sb-agent">
+                    <div class="mt-sb-arow is-working hl">
+                        <button class="mt-sb-tw" aria-label="Masquer ce à quoi Agent B est relié"><svg width="13" height="13"><use href="#chev"/></svg></button>
+                        <span class="mt-sb-av">B</span>
+                        <span class="mt-sb-agent-tx"><span class="mt-sb-agent-nm">Agent B</span><span class="mt-sb-agent-ss">En arrière-plan : Molten browser daemon</span></span>
+                        <span class="df-domino-loader mt-sb-agent-dom" role="status" aria-label="au travail"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+                    </div>
+                    <div class="mt-sb-tree">
+                        <button class="mt-sb-cta">Tout sur Agent B<svg width="12" height="12"><use href="#arrow"/></svg></button>
+                    </div>
+                </div>
+                <div class="mt-sb-agent is-closed">
+                    <div class="mt-sb-arow is-working is-subs">
+                        <button class="mt-sb-tw"><svg width="13" height="13"><use href="#chev"/></svg></button>
+                        <span class="mt-sb-av">D</span>
+                        <span class="mt-sb-agent-tx"><span class="mt-sb-agent-nm">Agent D</span><span class="mt-sb-agent-ss">2 sous-agents au travail</span></span>
+                        <span class="mt-sb-agent-subs" role="status" aria-label="2 sous-agents au travail"><span aria-hidden="true">2</span><span class="df-domino-loader"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></span>
+                    </div>
+                </div>
+                <div class="mt-sb-agent is-closed">
+                    <div class="mt-sb-arow is-working">
+                        <button class="mt-sb-tw"><svg width="13" height="13"><use href="#chev"/></svg></button>
+                        <span class="mt-sb-av">E</span>
+                        <span class="mt-sb-agent-tx"><span class="mt-sb-agent-nm">Agent E</span><span class="mt-sb-agent-ss">En arrière-plan : Attendre la CI</span></span>
+                        <span class="df-domino-loader mt-sb-agent-dom" role="status" aria-label="au travail"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+                    </div>
+                </div>
+                <div class="mt-sb-agent is-closed">
+                    <div class="mt-sb-arow is-done">
+                        <button class="mt-sb-tw"><svg width="13" height="13"><use href="#chev"/></svg></button>
+                        <span class="mt-sb-av is-done">C</span>
+                        <span class="mt-sb-agent-tx"><span class="mt-sb-agent-nm">Agent C</span><span class="mt-sb-agent-ss">terminé</span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="sb-switch" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
+        </div>
+        <p class="callout bug"><b>Agent B</b> a fini son tour, mais il s'anime et compte dans « 4 actifs » parce qu'un démon tourne. On le croit encore au travail.</p>
+    </section>
+
+    <!-- PROPOSED -->
+    <section class="col" aria-label="Proposé">
+        <div class="col-h"><span>Proposé</span><span class="tag new">#2583</span></div>
+        <div class="mt-sb">
+            <div class="sb-views">
+                <div class="sb-view"><svg width="14" height="14"><use href="#term"/></svg>Terminal</div>
+                <div class="sb-view"><svg width="14" height="14"><use href="#globe"/></svg>Page web</div>
+            </div>
+            <div class="ag-h"><span>Agents</span><span class="n diff">3 actifs</span></div>
+            <div class="ag-list">
+                <div class="mt-sb-agent is-closed">
+                    <div class="mt-sb-arow is-working is-on">
+                        <button class="mt-sb-tw" aria-label="Afficher ce à quoi Agent A est relié"><svg width="13" height="13"><use href="#chev"/></svg></button>
+                        <span class="mt-sb-av">A</span>
+                        <span class="mt-sb-agent-tx"><span class="mt-sb-agent-nm">Agent A</span><span class="mt-sb-agent-ss">Modifie sidebar-agents.tsx</span></span>
+                        <span class="mt-sb-note"><svg width="11" height="11"><use href="#note"/></svg><span class="mt-sb-note-t">revue #12</span></span>
+                        <span class="df-domino-loader mt-sb-agent-dom" role="status" aria-label="au travail"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+                    </div>
+                </div>
+                <div class="mt-sb-agent">
+                    <div class="mt-sb-arow is-done is-service hl" title="Aller à la vue de Agent B&#10;terminé · Service actif : Molten browser daemon&#10;Laissé en marche par l'agent ; il ne compte pas comme actif">
+                        <button class="mt-sb-tw" aria-label="Masquer ce à quoi Agent B est relié"><svg width="13" height="13"><use href="#chev"/></svg></button>
+                        <span class="mt-sb-av is-done">B</span>
+                        <span class="mt-sb-agent-tx"><span class="mt-sb-agent-nm">Agent B</span><span class="mt-sb-agent-ss">Service actif : Molten browser daemon</span></span>
+                        <span class="mt-sb-agent-svc" role="img" aria-label="Service actif : Molten browser daemon" title="Laissé en marche par l'agent ; il ne compte pas comme actif"><svg width="13" height="13"><use href="#plug"/></svg></span>
+                    </div>
+                    <div class="mt-sb-tree">
+                        <button class="mt-sb-tl"><svg width="10" height="10"><use href="#chev"/></svg><span>Services</span><span class="mt-sb-tl-n">1</span></button>
+                        <div class="mt-sb-leaf is-svc" title="Laissé en marche par l'agent ; il ne compte pas comme actif"><svg width="13" height="13"><use href="#plug"/></svg><span class="mt-sb-leaf-t">Molten browser daemon</span></div>
+                        <button class="mt-sb-cta">Tout sur Agent B<svg width="12" height="12"><use href="#arrow"/></svg></button>
+                    </div>
+                </div>
+                <div class="mt-sb-agent is-closed">
+                    <div class="mt-sb-arow is-working is-subs">
+                        <button class="mt-sb-tw"><svg width="13" height="13"><use href="#chev"/></svg></button>
+                        <span class="mt-sb-av">D</span>
+                        <span class="mt-sb-agent-tx"><span class="mt-sb-agent-nm">Agent D</span><span class="mt-sb-agent-ss">2 sous-agents au travail</span></span>
+                        <span class="mt-sb-agent-subs" role="status" aria-label="2 sous-agents au travail"><span aria-hidden="true">2</span><span class="df-domino-loader"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></span>
+                    </div>
+                </div>
+                <div class="mt-sb-agent is-closed">
+                    <div class="mt-sb-arow is-working">
+                        <button class="mt-sb-tw"><svg width="13" height="13"><use href="#chev"/></svg></button>
+                        <span class="mt-sb-av">E</span>
+                        <span class="mt-sb-agent-tx"><span class="mt-sb-agent-nm">Agent E</span><span class="mt-sb-agent-ss">En arrière-plan : Attendre la CI</span></span>
+                        <span class="df-domino-loader mt-sb-agent-dom" role="status" aria-label="au travail"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span>
+                    </div>
+                </div>
+                <div class="mt-sb-agent is-closed">
+                    <div class="mt-sb-arow is-done">
+                        <button class="mt-sb-tw"><svg width="13" height="13"><use href="#chev"/></svg></button>
+                        <span class="mt-sb-av is-done">C</span>
+                        <span class="mt-sb-agent-tx"><span class="mt-sb-agent-nm">Agent C</span><span class="mt-sb-agent-ss">terminé</span></span>
+                    </div>
+                </div>
+            </div>
+            <div class="sb-switch" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
+        </div>
+        <p class="callout ok"><b>Agent B</b> est au repos (point patine, ligne atténuée comme « terminé »). Une prise calme, pas d'animation, et il sort du compteur : <b>3 actifs</b>. Son arbre nomme le service. <b>Agent E</b> attend la CI, un travail borné : il reste au travail.</p>
+    </section>
+
+    <!-- THE RULE -->
+    <section class="rule" aria-label="La règle">
+        <h2>Ce qui fait un service</h2>
+        <p class="callout">La ligne de commande de la commande laissée en arrière-plan, lue par le lecteur de MoltenTerm (déjà utilisé pour les tâches des sous-agents). Une liste explicite, sans délai ni mots de l'agent. Commun à tous les agents.</p>
+        <table>
+            <tr><td><code>molten mcp …</code></td><td>les serveurs de MoltenTerm</td></tr>
+            <tr><td><code>… daemon | serve | server</code></td><td>premier argument du programme</td></tr>
+            <tr><td><code>task dev</code></td><td>serveur de développement</td></tr>
+            <tr><td><code>npm run dev | start | serve | preview | watch</code></td><td>aussi pnpm, yarn, bun</td></tr>
+            <tr><td><code>vite</code>, <code>next dev | start</code></td><td>pas <code>vite build</code></td></tr>
+            <tr><td><code>tail -f</code></td><td>ne s'arrête jamais seul</td></tr>
+        </table>
+        <ul>
+            <li>Tout le reste est un travail borné : <code>molten ci run</code>, <code>gh pr checks --watch</code>, <code>sleep</code>, les tests et les builds gardent l'agent au travail.</li>
+            <li>Tour en cours : au travail comme aujourd'hui ; le service n'apparaît que dans l'arbre.</li>
+            <li>Tour fini avec seulement des services : son état (terminé ou inactif), « Service actif : … » ou « 2 services actifs », la notification de fin part.</li>
+            <li>Compteur « N actifs » : au travail, en attente ou en erreur. Un agent qui n'a plus que des services n'y compte pas.</li>
+        </ul>
+    </section>
+
+</div>
+</body>
+</html>
