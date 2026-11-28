@@ -11155,7 +11155,8 @@
             "reviews": {
                 "rerunUnknown": "MoltenTerm has not read #{number} on GitHub yet: refresh the list, then try again.",
                 "rerunNothing": "No GitHub Actions check of #{number} failed: nothing to rerun.",
-                "rerunFailed": "The failed jobs could not be rerun: {detail}"
+                "rerunFailed": "The failed jobs could not be rerun: {detail}",
+                "securityAnswer": "The answer about the security scan could not be kept: {detail}"
             },
             "release": {
                 "noSteps": "The pipeline declares no release.{channel} steps.",

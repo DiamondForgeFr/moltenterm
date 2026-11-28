@@ -11155,7 +11155,8 @@
             "reviews": {
                 "rerunUnknown": "MoltenTerm n'a pas encore lu #{number} sur GitHub : actualisez la liste, puis réessayez.",
                 "rerunNothing": "Aucune vérification GitHub Actions de #{number} n'a échoué : rien à relancer.",
-                "rerunFailed": "Les jobs en échec n'ont pas pu être relancés : {detail}"
+                "rerunFailed": "Les jobs en échec n'ont pas pu être relancés : {detail}",
+                "securityAnswer": "La réponse sur l'analyse de sécurité n'a pas pu être gardée : {detail}"
             },
             "release": {
                 "noSteps": "Le pipeline ne déclare aucune étape release.{channel}.",
