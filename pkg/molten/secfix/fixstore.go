@@ -23,6 +23,10 @@ type FixStore struct {
 	file    string
 	now     func() time.Time
 	changed func(dir string)
+	// What the file holds, read once: this process is its only writer, and the Integration list asks for the fixes at every
+	// refresh.
+	cache  map[string][]Fix
+	loaded bool
 }
 
 func MakeFixStore(file string) *FixStore {
@@ -50,12 +54,24 @@ func (s *FixStore) nowMs() int64 {
 	return s.now().UnixMilli()
 }
 
+// readLocked is a copy of what the store holds, which the caller may change and write back.
 func (s *FixStore) readLocked() map[string][]Fix {
-	all := map[string][]Fix{}
-	if data, err := os.ReadFile(s.file); err == nil {
-		json.Unmarshal(data, &all)
+	if !s.loaded {
+		s.cache = map[string][]Fix{}
+		if data, err := os.ReadFile(s.file); err == nil {
+			json.Unmarshal(data, &s.cache)
+		}
+		s.loaded = true
 	}
-	return all
+	return copyFixes(s.cache)
+}
+
+func copyFixes(all map[string][]Fix) map[string][]Fix {
+	rtn := make(map[string][]Fix, len(all))
+	for dir, fixes := range all {
+		rtn[dir] = append([]Fix(nil), fixes...)
+	}
+	return rtn
 }
 
 func (s *FixStore) writeLocked(all map[string][]Fix) error {
@@ -70,7 +86,11 @@ func (s *FixStore) writeLocked(all map[string][]Fix) error {
 	if err := os.WriteFile(tmp, data, 0600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.file)
+	if err := os.Rename(tmp, s.file); err != nil {
+		return err
+	}
+	s.cache, s.loaded = copyFixes(all), true
+	return nil
 }
 
 // prune keeps the fixes in flight and the latest ones that ended.
