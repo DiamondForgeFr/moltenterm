@@ -14,6 +14,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten/attention"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/secfix"
 	"github.com/wavetermdev/waveterm/pkg/molten/termupdate"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 	"github.com/wavetermdev/waveterm/pkg/wavebase"
@@ -84,6 +85,15 @@ func (s *Service) AskSecurityFix(ctx context.Context, req SecurityFixRequest) (S
 		return SecurityFixResult{}, securityFixUnavailableError()
 	}
 	return s.restarter.AskSecurityFix(ctx, req)
+}
+
+// SecurityFixMerged is the cleanup after a merge asking whether the merged PR is a security fix's, and bringing back the
+// PRs its block held when it is (#2590).
+func (s *Service) SecurityFixMerged(ctx context.Context, dir string, number int) (secfix.Fix, bool) {
+	if s.restarter == nil {
+		return secfix.Fix{}, false
+	}
+	return s.restarter.SecurityMergedPr(ctx, dir, number)
 }
 
 // StopSecurityFix is the developer's Stop on a security fix (#2589).

@@ -11319,7 +11319,19 @@
                 "ready": "Ses checks sont verts. La fusion est à vous : MoltenTerm ne fusionne jamais.",
                 "mergedTitle": "Le correctif de sécurité #{pr} est fusionné",
                 "merged": "Les alertes {advisories} sont corrigées sur {trunk}.",
-                "mergedUnblocks": "Les alertes {advisories} sont corrigées sur {trunk}. {prs} peut reprendre."
+                "mergedUnblocks": "Les alertes {advisories} sont corrigées sur {trunk}. {prs} peut reprendre.",
+                "mergedUnblockedTitle": "Le correctif de sécurité #{pr} est fusionné : {count} pull request(s) débloquée(s)",
+                "unblock": {
+                    "then": "{first} {second}",
+                    "updated": "Mise à jour sur {trunk}, vérifications relancées : {prs}.",
+                    "rerun": "Correctif déjà présent, vérifications en échec relancées : {prs}.",
+                    "handed": "Rebase confié à {name}, qui y travaille : {prs}.",
+                    "queued": "Rebase en attente de la fin de la tâche de {name} : {prs}.",
+                    "waits": "Rien n'est touché, quelqu'un y travaille : {prs}.",
+                    "conflicts": "Conflit avec {trunk}, demandez un rebase depuis la carte : {prs}.",
+                    "failed": "Remise à jour impossible, voir la carte : {prs}.",
+                    "left": "Rien n'est touché, aucune vérification n'échoue : {prs}."
+                }
             },
             "release": {
                 "needsTitle": "{name} a besoin de vous sur la release {tag}",

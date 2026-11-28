@@ -198,12 +198,13 @@ func Start() {
 			wps.Broker.Publish(wps.WaveEvent{Event: UpdateEvent, Scopes: []string{mcpreview.ScopeOf(k.Repo, k.Number)}, Data: state})
 		})
 		service.cleaner = MakeCleaner(CleanupEnv{
-			Run:        cleanupRunner,
-			Terminals:  mission.WorktreeTerminalsOf,
-			AgentState: agentStateOf,
-			EndSession: reviewsession.EndSession,
-			AskRebase:  service.AskRebase,
-			Notify:     attention.PublishNotification,
+			Run:            cleanupRunner,
+			Terminals:      mission.WorktreeTerminalsOf,
+			AgentState:     agentStateOf,
+			EndSession:     reviewsession.EndSession,
+			AskRebase:      service.AskRebase,
+			SecurityMerged: service.SecurityFixMerged,
+			Notify:         attention.PublishNotification,
 			ResolveNotices: func(ctx context.Context, keyPrefix string) error {
 				return attention.ResolveNotificationsExcept(ctx, keyPrefix, nil)
 			},

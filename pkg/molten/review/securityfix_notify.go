@@ -162,8 +162,13 @@ func securityReady(fix secfix.Fix, unblocks []int) molten.NotificationInput {
 	return input
 }
 
-// securityMerged: the fix landed; what follows (the blocked pull requests resuming) is told once by the step after the merge.
+// securityMerged: the fix landed. This is the one summary notification after the merge (FR-REV-036 AC13, AC15): when the
+// step after the merge brought blocked pull requests back, it says what became of each; otherwise it only says the merge
+// and which pull requests can resume.
 func securityMerged(fix secfix.Fix, unblocks []int) molten.NotificationInput {
+	if input, ok := securityMergedUnblocked(fix); ok {
+		return input
+	}
 	pr := strconv.Itoa(fix.Pr)
 	input := molten.NotificationInput{
 		Key:         securityNoticeKey(fix.Dir, fix.Fingerprint, securityNoticeMerged),

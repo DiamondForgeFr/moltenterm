@@ -8,6 +8,7 @@ import {
     isSecurityBlockFixable,
     isSecurityFixInFlight,
     isSecurityFixStoppable,
+    isSecurityUnblockActed,
     mergedSecurityFixes,
     securityFixBlocks,
     securityFixConsentOf,
@@ -15,6 +16,7 @@ import {
     securityFixCoveringPr,
     securityFixCovers,
     securityFixOfBlock,
+    securityFixUnblockedShown,
     securityFixUnblocks,
     type SecurityFix,
     type SecurityFixState,
@@ -185,5 +187,28 @@ describe("what the panel reads of a fix", () => {
         expect(rows[0].fix).toBe(merged);
         expect(mergedSecurityFixes(answer([merged, fix("working", { fingerprint: "zzzz" })]))).toEqual([merged]);
         expect(securityFixBlocks(null)).toEqual([]);
+    });
+});
+
+describe("what became of the pull requests a merged fix unblocked (FR-REV-036 AC15)", () => {
+    const unblocked = [
+        { pr: 11, outcome: "updated" },
+        { pr: 12, outcome: "gone" },
+        { pr: 13, outcome: "queued", agent: "Bastien" },
+        { pr: 14, outcome: "conflicts" },
+        { pr: 15, outcome: "failed", detail: "boom" },
+    ] as SecurityFix["unblocked"];
+
+    it("shows the pull requests the step dealt with, in its order, without those that went away", () => {
+        const merged = fix("merged", { unblocked, unblockedat: 5 });
+        expect(securityFixUnblockedShown(merged).map((item) => item.pr)).toEqual([11, 13, 14, 15]);
+        expect(securityFixUnblockedShown(fix("ready"))).toEqual([]);
+        expect(securityFixUnblockedShown(null)).toEqual([]);
+    });
+
+    it("tells which outcomes brought the checks back: updated, rerun, handed or queued", () => {
+        const acted = unblocked.filter((item) => isSecurityUnblockActed(item)).map((item) => item.pr);
+        expect(acted).toEqual([11, 13]);
+        expect(isSecurityUnblockActed(null)).toBe(false);
     });
 });

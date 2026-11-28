@@ -82,6 +82,45 @@ const (
 	ResolutionNotApplicable = "notapplicable"
 )
 
+// What became of a pull request the merge of a fix unblocked (FR-REV-036 AC15). Updated: its head held none of the fix, so
+// its branch was updated onto the trunk and its checks run again with it; Rerun: it held the fix already, so its failed
+// checks were run again; Handed: the rebase went to the agent that works on its branch (Agent names it), typed now;
+// Queued: that agent is busy, the rebase reaches it when its task is done; Waits: someone works on it and cannot be
+// reached, so it was left alone; Conflicts: it conflicts with the trunk and nobody works on it, so it needs a rebase
+// asked; Left: none of its checks fails, so it was left alone; Gone: it merged or closed since; Failed: it could not be
+// updated or its checks rerun (Detail says why).
+const (
+	UnblockUpdated   = "updated"
+	UnblockRerun     = "rerun"
+	UnblockHanded    = "handed"
+	UnblockQueued    = "queued"
+	UnblockWaits     = "waits"
+	UnblockConflicts = "conflicts"
+	UnblockLeft      = "left"
+	UnblockGone      = "gone"
+	UnblockFailed    = "failed"
+)
+
+// Unblocked is what became of one pull request of the block a merged fix unblocks.
+type Unblocked struct {
+	Pr      int    `json:"pr"`
+	Outcome string `json:"outcome"`
+	// Agent is the first name (else the name) of the agent that has the rebase, for Handed, Queued and Waits.
+	Agent string `json:"agent,omitempty"`
+	// Detail is why it failed, cleaned to one line.
+	Detail string `json:"detail,omitempty"`
+}
+
+// Acted: MoltenTerm did something that brings the pull request's checks back: it updated it, reran its checks, or gave the
+// rebase to its agent.
+func (u Unblocked) Acted() bool {
+	switch u.Outcome {
+	case UnblockUpdated, UnblockRerun, UnblockHanded, UnblockQueued:
+		return true
+	}
+	return false
+}
+
 // mergedCovers is how long a merged fix still stands for its advisories: the scan on the trunk turns green only after the
 // trunk's own CI ran on the merge, and until then the failure it fixed is still the last one it shows.
 const mergedCovers = 3 * 60 * 60 * 1000
@@ -129,6 +168,10 @@ type Fix struct {
 	// Unblocks are the pull requests the fix's merge unblocks (the shared block's, the fix's own left out), as the last
 	// assessment held them when the fix became ready and when it merged: the block goes once they are green, this stays.
 	Unblocks []int `json:"unblocks,omitempty"`
+	// Unblocked is what the step after the merge did with each of them, and UnblockedAt (Unix ms) when it ended: the panel
+	// says it, and the summary notification was told once from it.
+	Unblocked   []Unblocked `json:"unblocked,omitempty"`
+	UnblockedAt int64       `json:"unblockedat,omitempty"`
 	// Tries is how many times starting it failed before an agent was there; RetryAt (Unix ms) is when it may be tried
 	// again without the developer.
 	Tries   int   `json:"tries,omitempty"`

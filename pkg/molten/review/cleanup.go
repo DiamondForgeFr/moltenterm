@@ -18,6 +18,7 @@ import (
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/mission"
 	"github.com/wavetermdev/waveterm/pkg/molten/reviewsession"
+	"github.com/wavetermdev/waveterm/pkg/molten/secfix"
 	"github.com/wavetermdev/waveterm/pkg/molten/uimsg"
 )
 
@@ -43,6 +44,9 @@ const (
 	CleanupStepOtherPrs     = "other-prs"
 	// CleanupStepCopyBranches: the PR's local copies the request names (#1121); never part of Validate's sheet.
 	CleanupStepCopyBranches = "copy-branches"
+	// CleanupStepUnblock: the merged PR is a security fix (FR-REV-036 AC15), so the PRs its block held are brought back; it
+	// is in the result only for such a PR, and never part of Validate's plan.
+	CleanupStepUnblock = "unblock"
 
 	// CleanupStatePlanned: a step of Validate's plan sheet, before the merge (postmerge.go).
 	CleanupStatePlanned = "planned"
@@ -59,6 +63,13 @@ const (
 	CleanupFlagNeedsAgent  = "needs-agent"
 	CleanupFlagNeedsRebase = "needs-rebase"
 	CleanupFlagChecking    = "checking"
+	// What became of a PR a merged security fix unblocked (the unblock step): its branch was updated onto the trunk, its
+	// failed checks were rerun, the rebase waits for its busy agent (rebase-queued), or someone works on it and it was left
+	// alone (agent-busy); needs-agent: it conflicts with the trunk and nobody works on it; needs-rebase: it could not be
+	// brought back; no flag: left alone, its checks do not fail.
+	CleanupFlagUpdated      = "updated"
+	CleanupFlagRerun        = "rerun"
+	CleanupFlagRebaseQueued = "rebase-queued"
 	// batch: a PR the running batch merge rebases itself in turn (FR-REV-025).
 	CleanupFlagBatch = "batch"
 
@@ -97,8 +108,10 @@ const (
 	CleanupCodePushedAfter      = "pushedafter"
 	// localfirst: origin's branch waits for the worktrees and the local branch to go (#1132).
 	CleanupCodeLocalFirst = "localfirst"
-	CleanupCodeNoOtherPr        = "noother"
-	CleanupCodeOtherPrs         = "otherprs"
+	CleanupCodeNoOtherPr  = "noother"
+	CleanupCodeOtherPrs   = "otherprs"
+	// unblocked: the merged PR was a security fix and its blocked PRs were taken in turn.
+	CleanupCodeUnblocked = "unblocked"
 	// #1121: a PR closed without merging, cleaned up from the Leftovers group (closedpr: the step is not one of its
 	// leftovers'); a lock's holder still runs (lockheld); local copies kept for their commits (copieskept).
 	CleanupCodeClosedPr   = "closedpr"
@@ -251,6 +264,10 @@ type CleanupEnv struct {
 	EndSession func(ctx context.Context, repo string, number int) error
 	// AskRebase hands a conflicting PR to the agent on its branch (Restarter.AskRebase, #683); never with Start.
 	AskRebase func(ctx context.Context, req RebaseRequest) (RestartResult, error)
+	// SecurityMerged takes the merge of a PR that is a security fix's (Restarter.SecurityMergedPr): the PRs its block held are
+	// brought back (securityfix_unblock.go), and the fix as it is then comes back. false when the PR is no fix, or another
+	// caller took the merge.
+	SecurityMerged func(ctx context.Context, dir string, number int) (secfix.Fix, bool)
 	// Notify, ResolveNotices: the notification center, which says why the local trunk was not updated (#909).
 	Notify         func(ctx context.Context, input molten.NotificationInput) error
 	ResolveNotices func(ctx context.Context, keyPrefix string) error
@@ -382,7 +399,7 @@ func (req CleanupRequest) check() error {
 		return err
 	}
 	for _, id := range req.Steps {
-		if !slices.Contains(CleanupSteps, id) && id != CleanupStepCopyBranches {
+		if !slices.Contains(CleanupSteps, id) && id != CleanupStepCopyBranches && id != CleanupStepUnblock {
 			return fmt.Errorf("unknown cleanup step %q", id)
 		}
 	}
@@ -447,6 +464,11 @@ func (c *Cleaner) Run(ctx context.Context, req CleanupRequest) (CleanupResult, e
 	}
 	if r.wanted(CleanupStepOtherPrs) {
 		r.add(r.checkOtherPrs())
+	}
+	if r.wanted(CleanupStepUnblock) {
+		if step, ok := r.unblockPrs(); ok {
+			r.add(step)
+		}
 	}
 	r.result.EndAt = c.env.Now().UnixMilli()
 	return r.result, nil
@@ -1017,6 +1039,51 @@ func (r *cleanupRun) askRebase(pr openPrFacts, item *CleanupPr) {
 			item.Error = res.Status
 		}
 	}
+}
+
+// unblockPrs is the step of a merged PR that is a security fix's (FR-REV-036 AC15): the PRs its block held are brought back
+// onto the trunk, or their rebase handed to their agent, or their failed checks rerun, and the step says what became of
+// each. It is in the result only for such a PR (and only once: the follow of the fix may have taken the merge first).
+func (r *cleanupRun) unblockPrs() (CleanupStepResult, bool) {
+	if r.c.env.SecurityMerged == nil || r.pr.State != cleanupPrStateMerged {
+		return CleanupStepResult{}, false
+	}
+	fix, ok := r.c.env.SecurityMerged(r.ctx, r.dir, r.req.Number)
+	if !ok {
+		return CleanupStepResult{}, false
+	}
+	step := CleanupStepResult{Id: CleanupStepUnblock, State: CleanupStateDone, Code: CleanupCodeUnblocked, Base: r.pr.BaseRefName, Prs: []CleanupPr{}}
+	for _, item := range fix.Unblocked {
+		if item.Outcome == secfix.UnblockGone {
+			continue
+		}
+		pr := CleanupPr{Number: item.Pr, State: CleanupStateDone, Agent: item.Agent}
+		switch item.Outcome {
+		case secfix.UnblockUpdated:
+			pr.Flag = CleanupFlagUpdated
+		case secfix.UnblockRerun:
+			pr.Flag = CleanupFlagRerun
+		case secfix.UnblockHanded:
+			pr.Flag = CleanupFlagRebaseAsked
+		case secfix.UnblockQueued:
+			pr.Flag = CleanupFlagRebaseQueued
+		case secfix.UnblockWaits:
+			pr.State, pr.Flag = CleanupStateSkipped, CleanupFlagAgentBusy
+		case secfix.UnblockConflicts:
+			pr.State, pr.Flag = CleanupStateSkipped, CleanupFlagNeedsAgent
+			step.Conflicting++
+		case secfix.UnblockFailed:
+			pr.State, pr.Flag, pr.Error = CleanupStateFailed, CleanupFlagNeedsRebase, item.Detail
+			step.Failed++
+		default:
+			step.Unaffected++
+		}
+		step.Prs = append(step.Prs, pr)
+	}
+	if step.Failed > 0 {
+		step.State = CleanupStateFailed
+	}
+	return step, true
 }
 
 // checkOtherPrs leaves alone the other open PRs on the base that still merge cleanly: Validate brings a PR up to date

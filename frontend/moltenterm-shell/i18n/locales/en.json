@@ -11319,7 +11319,19 @@
                 "ready": "Its checks are green. Merging it is yours: MoltenTerm never merges.",
                 "mergedTitle": "Security fix #{pr} merged",
                 "merged": "The advisories {advisories} are fixed on {trunk}.",
-                "mergedUnblocks": "The advisories {advisories} are fixed on {trunk}. {prs} can resume."
+                "mergedUnblocks": "The advisories {advisories} are fixed on {trunk}. {prs} can resume.",
+                "mergedUnblockedTitle": "Security fix #{pr} merged, {count} pull request(s) unblocked",
+                "unblock": {
+                    "then": "{first} {second}",
+                    "updated": "Updated onto {trunk}, checks running again: {prs}.",
+                    "rerun": "Already holding the fix, failed checks run again: {prs}.",
+                    "handed": "Rebase handed to {name}, who works on it: {prs}.",
+                    "queued": "Rebase waits for {name} to finish the task in hand: {prs}.",
+                    "waits": "Left alone, someone is working on it: {prs}.",
+                    "conflicts": "Conflicts with {trunk}, ask for a rebase from its card: {prs}.",
+                    "failed": "Could not be brought back, see its card: {prs}.",
+                    "left": "Left alone, none of its checks fails: {prs}."
+                }
             },
             "release": {
                 "needsTitle": "{name} needs you on the release {tag}",

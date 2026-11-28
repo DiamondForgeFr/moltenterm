@@ -383,7 +383,8 @@ func (r *Restarter) securityFindPr(ctx context.Context, fix secfix.Fix) secfix.F
 	return fix
 }
 
-// securityUnblocks are the pull requests the fix's merge unblocks: the ones the block of its advisories holds.
+// securityUnblocks are the pull requests the fix's merge unblocks: the ones the block of its advisories holds that did not
+// cause it. A pull request that brought an advisory itself stays with Analyze and resolve, which fixes it in the pull request.
 func (r *Restarter) securityUnblocks(fix secfix.Fix) []int {
 	if r.env.SecurityFix.Result == nil {
 		return nil
@@ -398,7 +399,7 @@ func (r *Restarter) securityUnblocks(fix secfix.Fix) []int {
 	}
 	var numbers []int
 	for _, pr := range block.Prs {
-		if pr.Number != fix.Pr {
+		if pr.Number != fix.Pr && pr.Shared {
 			numbers = append(numbers, pr.Number)
 		}
 	}
@@ -530,22 +531,12 @@ func (r *Restarter) securityExternalState(ctx context.Context, fix secfix.Fix, p
 	})
 }
 
-// securityMergedNow: the pull request landed. The fix is merged and its notifications are over; the agent's terminal goes,
-// and its copy when nothing is left in it.
+// securityMergedNow: the pull request landed. The fix is merged and its notifications are over; the pull requests it
+// blocked are brought back and told in one notification (securityfix_unblock.go), the agent's terminal goes, and its copy
+// when nothing is left in it. The Validate sheet's cleanup takes the same step when the developer merged from there: it
+// runs once, whichever sees the merge first.
 func (r *Restarter) securityMergedNow(ctx context.Context, fix secfix.Fix) {
-	// What the block holds now; once the merge turned the blocked pull requests green the block is gone, and what the fix
-	// kept when it became ready stands.
-	unblocks := r.securityUnblocks(fix)
-	if len(unblocks) == 0 {
-		unblocks = fix.Unblocks
-	}
-	updated, _, _ := r.fixStore().Update(fix.Dir, fix.Fingerprint, func(f *secfix.Fix) bool {
-		f.State, f.Reason, f.MergedAt, f.Unblocks = secfix.FixMerged, "", r.env.Now().UnixMilli(), unblocks
-		return true
-	})
-	r.resolveSecurityNotice(ctx, updated, securityNoticeStarted, securityNoticeNeeds, securityNoticeReady)
-	r.notify(ctx, securityMerged(updated, unblocks))
-	r.securityCleanup(ctx, updated)
+	r.takeSecurityMerge(ctx, fix)
 }
 
 // securityClosedNow: the pull request was closed without a merge. The fix did not land, so it is failed: it is not started

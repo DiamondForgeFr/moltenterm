@@ -31,6 +31,33 @@ export type SecurityFixReason =
 // advisories do not apply here (a review with its evidence, never an exception)
 export type SecurityFixResolution = "bump" | "notapplicable";
 
+// must match the Unblock… constants in pkg/molten/secfix/fix.go: what became of a pull request the merge of the fix
+// unblocked. updated: its branch was updated onto the trunk, its checks run again with the fix; rerun: it held the fix
+// already, its failed checks were run again; handed: the rebase went to the agent that works on it (typed now); queued:
+// that agent is busy, the rebase reaches it when its task is done; waits: someone works on it and it was left alone;
+// conflicts: it conflicts with the trunk and nobody works on it, a rebase must be asked; left: none of its checks fails;
+// gone: it merged or closed since; failed: it could not be brought back (detail says why).
+export type SecurityUnblockOutcome =
+    | "updated"
+    | "rerun"
+    | "handed"
+    | "queued"
+    | "waits"
+    | "conflicts"
+    | "left"
+    | "gone"
+    | "failed";
+
+// must match Unblocked in pkg/molten/secfix/fix.go
+export type SecurityUnblocked = {
+    pr: number;
+    outcome: SecurityUnblockOutcome;
+    // the first name (else the name) of the agent that has the rebase, for handed, queued and waits
+    agent?: string;
+    // why it failed, on one line (English: it is the detail under the outcome)
+    detail?: string;
+};
+
 // must match Fix in pkg/molten/secfix/fix.go
 export type SecurityFix = {
     // keys the set the fix was started for; ids are the advisories it covers now
@@ -64,6 +91,9 @@ export type SecurityFix = {
     extra?: string[];
     // the pull requests the fix's merge unblocks, as the block held them when the fix became ready and when it merged
     unblocks?: number[];
+    // what the step after the merge did with each of them, and when it ended (Unix ms): the block says it after the merge
+    unblocked?: SecurityUnblocked[];
+    unblockedat?: number;
     tries?: number;
     // Unix ms: when starting may be tried again without the developer
     retryat?: number;
@@ -172,6 +202,24 @@ export function securityFixUnblocks(answer: ReviewsAnswer, fix: SecurityFix): nu
         }
     }
     return fix.unblocks ?? [];
+}
+
+// What the step after the merge did with each pull request of the block, in the order it took them, without those that
+// merged or closed since (the block of a merged fix tells the others). Empty before the merge, and for a fix MoltenTerm
+// only follows when it had nothing to bring back.
+export function securityFixUnblockedShown(fix: SecurityFix): SecurityUnblocked[] {
+    return (fix?.unblocked ?? []).filter((item) => item.outcome !== "gone");
+}
+
+// MoltenTerm did something that brings the pull request's checks back (the same reading as Acted in
+// pkg/molten/secfix/fix.go): it updated it, reran its checks or gave the rebase to its agent.
+export function isSecurityUnblockActed(item: SecurityUnblocked): boolean {
+    return (
+        item?.outcome === "updated" ||
+        item?.outcome === "rerun" ||
+        item?.outcome === "handed" ||
+        item?.outcome === "queued"
+    );
 }
 
 // The fix in flight that stands for a pull request's blocked scan (the card state "blocked by a security fix"): the

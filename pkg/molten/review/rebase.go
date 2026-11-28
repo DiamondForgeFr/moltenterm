@@ -50,6 +50,8 @@ type RebaseRequest struct {
 	TabName     string `json:"tabname,omitempty"`
 	// Agent: the coding agent picked for this run (#845).
 	Agent string `json:"agent,omitempty"`
+	// security: set by the step after a security fix merged (securityfix_unblock.go), never read from a window.
+	security *securityRebase
 }
 
 func (req RebaseRequest) check() error {
@@ -240,6 +242,9 @@ func (r *Restarter) rebaseLine(req RebaseRequest, tree string, result *RestartRe
 
 // rebasePromptLine holds the rules that must hold even if the brief is not read; it fits the guarded typing path.
 func rebasePromptLine(req RebaseRequest, briefPath string) string {
+	if req.security != nil {
+		return req.security.promptLine(req, briefPath)
+	}
 	return fmt.Sprintf("MoltenTerm: PR #%d (%s) conflicts with %s. Rebase it on origin/%s (never merge %s into the branch), "+
 		"resolve the conflicts, re-run the project's checks, then push with git push --force-with-lease. Brief: %s",
 		req.Number, req.HeadRef, req.BaseRef, req.BaseRef, req.BaseRef, briefPath)
@@ -248,12 +253,16 @@ func rebasePromptLine(req RebaseRequest, briefPath string) string {
 func renderRebaseBrief(req RebaseRequest, tree string, ticket int) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Rebase PR #%d on %s\n\n", req.Number, req.BaseRef)
-	if req.MergedPr > 0 {
+	switch {
+	case req.security != nil:
+		b.WriteString(req.security.briefIntro(req))
+	case req.MergedPr > 0:
 		fmt.Fprintf(&b, "MoltenTerm wrote this brief after the developer merged PR #%d into %s: the pull request ", req.MergedPr, req.BaseRef)
-	} else {
+		fmt.Fprintf(&b, "conflicts with %s and cannot be merged until it is rebased. You work under the developer's usual permissions.\n\n", req.BaseRef)
+	default:
 		b.WriteString("MoltenTerm wrote this brief when the developer clicked Ask for a rebase in the Integration panel (the PR panel): the pull request ")
+		fmt.Fprintf(&b, "conflicts with %s and cannot be merged until it is rebased. You work under the developer's usual permissions.\n\n", req.BaseRef)
 	}
-	fmt.Fprintf(&b, "conflicts with %s and cannot be merged until it is rebased. You work under the developer's usual permissions.\n\n", req.BaseRef)
 	fmt.Fprintf(&b, "- Pull request: #%d", req.Number)
 	if req.Title != "" {
 		fmt.Fprintf(&b, " %s", req.Title)
