@@ -60,22 +60,34 @@ func AgentHookOffer(ctx context.Context, blockId string) (molten.AgentHookOffer,
 		offer.Agent, offer.AgentName, offer.Reason = run.Agent, molten.AgentDisplayName(run.Agent), molten.HookOfferRemote
 		return offer, nil
 	}
-	if IsAgentIntegrated(blockId) {
-		offer.Agent, offer.AgentName, offer.Reason = run.Agent, molten.AgentDisplayName(run.Agent), molten.HookOfferIntegrated
-		return offer, nil
-	}
 	env, err := hookOfferEnv()
 	if err != nil {
 		return offer, err
 	}
 	cwd := block.Meta.GetString(waveobj.MetaKey_CmdCwd, "")
-	detection := molten.AgentHookDetection{}
-	if run.Agent == molten.AgentIdKimi {
-		detection = molten.DetectKimiHookVersion(ctx)
-	}
-	rtn := molten.MakeAgentHookOfferDetected(env, run.Agent, wavebase.ExpandHomeDirSafe(cwd), defaultAgentStates.isAgentHooked(run.Agent), detection)
+	rtn := molten.MakeAgentHookOfferDetected(env, run.Agent, wavebase.ExpandHomeDirSafe(cwd), defaultAgentStates.isAgentHooked(run.Agent), hookDetection(ctx, run.Agent))
 	rtn.BlockId = blockId
+	if IsAgentIntegrated(blockId) {
+		return integratedHookOffer(rtn), nil
+	}
 	return rtn, nil
+}
+
+// integratedHookOffer: the launcher gave this run its current hooks, so there is nothing to set up. Older MoltenTerm
+// hooks in the user's file still run next to the launcher's (#2595): that update stays offered, and says so.
+func integratedHookOffer(offer molten.AgentHookOffer) molten.AgentHookOffer {
+	if offer.UpdateKind == molten.HookUpdateDefinition && offer.Show {
+		offer.LauncherAlso = true
+		return offer
+	}
+	return molten.AgentHookOffer{BlockId: offer.BlockId, Agent: offer.Agent, AgentName: offer.AgentName, Reason: molten.HookOfferIntegrated}
+}
+
+func hookDetection(ctx context.Context, agent string) molten.AgentHookDetection {
+	if agent != molten.AgentIdKimi {
+		return molten.AgentHookDetection{}
+	}
+	return molten.DetectKimiHookVersion(ctx)
 }
 
 func DismissAgentHookOffer(agent string, updateKey string) error {
@@ -97,15 +109,17 @@ func mutateAgentHook(ctx context.Context, req molten.AgentHookMutationRequest, r
 	if err != nil {
 		return molten.AgentHookMutationResult{}, err
 	}
-	if offer.Agent != molten.AgentIdKimi || !offer.Persistent {
-		return molten.AgentHookMutationResult{}, fmt.Errorf("managed hook mutation is only available for a local Kimi Code run")
+	if offer.Agent == "" || !offer.Persistent {
+		return molten.AgentHookMutationResult{}, fmt.Errorf("managed hook mutation is only available for a local agent run with a hook file")
 	}
 	env, err := hookOfferEnv()
 	if err != nil {
 		return molten.AgentHookMutationResult{}, err
 	}
-	detection := molten.DetectKimiHookVersion(ctx)
-	hooked := defaultAgentStates.isAgentHooked(molten.AgentIdKimi)
+	// The terminal's own agent, never the caller's: an approval only writes the file the offer named.
+	req.Agent = offer.Agent
+	detection := hookDetection(ctx, offer.Agent)
+	hooked := defaultAgentStates.isAgentHooked(offer.Agent)
 	if remove {
 		return molten.RemoveAgentHookMutation(env, req, hooked, detection)
 	}

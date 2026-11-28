@@ -4,13 +4,7 @@
 package molten
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"os"
-	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -127,58 +121,4 @@ func kimiBlockChanges(present bool, block []byte, metadata kimiBlockMetadata, de
 		rtn = append(rtn, AgentHookChange{Kind: HookChangeChanged, Field: HookFieldBlock})
 	}
 	return rtn
-}
-
-// jsonHookEntries reads MoltenTerm's hooks from a Claude Code settings file or a Codex hooks.json (the same shape).
-// ok is false when the file is missing, does not parse or runs none of MoltenTerm's hooks.
-func jsonHookEntries(path string) ([]AgentHookEntry, bool) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, false
-	}
-	var settings struct {
-		Hooks map[string][]struct {
-			Matcher string `json:"matcher"`
-			Hooks   []struct {
-				Command string `json:"command"`
-				Timeout int    `json:"timeout"`
-			} `json:"hooks"`
-		} `json:"hooks"`
-	}
-	if err := json.Unmarshal(data, &settings); err != nil {
-		return nil, false
-	}
-	var rtn []AgentHookEntry
-	for event, groups := range settings.Hooks {
-		for _, group := range groups {
-			for _, hook := range group.Hooks {
-				if IsAgentStateHookCommand(hook.Command) || IsAgentSessionHookCommand(hook.Command) {
-					rtn = append(rtn, AgentHookEntry{Event: event, Matcher: group.Matcher, Command: hook.Command, Timeout: hook.Timeout})
-				}
-			}
-		}
-	}
-	// The map has no order; the update key hashes the changes, so they must come out the same every time.
-	slices.SortStableFunc(rtn, func(a, b AgentHookEntry) int { return strings.Compare(a.Event, b.Event) })
-	return rtn, len(rtn) > 0
-}
-
-// manualHookChanges: what a Claude Code or Codex user file holding MoltenTerm's hooks lacks against this version's
-// recipe. Nil when the file holds none or holds the current ones.
-func manualHookChanges(agent string, path string) []AgentHookChange {
-	installed, ok := jsonHookEntries(path)
-	if !ok {
-		return nil
-	}
-	return diffAgentHookEntries(installed, AgentStateHooks(agent))
-}
-
-func manualHookUpdateKey(agent string, file string, changes []AgentHookChange) string {
-	key, _ := json.Marshal(struct {
-		Agent   string
-		File    string
-		Changes []AgentHookChange
-	}{agent, file, changes})
-	hash := sha256.Sum256(key)
-	return hex.EncodeToString(hash[:])
 }

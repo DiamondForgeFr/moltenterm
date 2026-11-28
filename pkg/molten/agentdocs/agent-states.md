@@ -51,7 +51,8 @@ An agent's state ends with its run, whatever its hooks said last: when the agent
 (`molten session end`, the Sessions view, the shell exiting) or when the pane is closed, the agent leaves every list
 and count at once.
 
-MoltenTerm never changes your agent's configuration by itself.
+MoltenTerm never changes your agent's configuration by itself: only when you click Apply in the hooks dialog, on the
+change it shows you.
 
 **Started in a local MoltenTerm terminal, `claude` and `codex` need none of the settings below**: MoltenTerm's
 launcher adds the state hooks, the session link and the rest for that run only, without editing your files (see
@@ -62,15 +63,25 @@ full path or by another program, or with the integration turned off. They are yo
 ### The offer in the pane header
 
 While Claude Code, Codex or Kimi Code runs in a local terminal without these hooks and without MoltenTerm's launcher
-integration, the command panel can offer **Set up hooks**. Claude Code and Codex open the snippet below, where to add
-it and a Copy button; you apply it yourself. MoltenTerm only reads their settings to know whether the hooks are
-already there (Claude Code: `~/.claude/settings.json` or `$CLAUDE_CONFIG_DIR/settings.json`, its `settings.local.json`,
-the managed settings, and the `.claude/settings.json` and `.claude/settings.local.json` of the pane's folder and its
-parents up to the repository's root; Codex: `~/.codex/hooks.json` or `$CODEX_HOME/hooks.json` running
-`molten agent hook`, or the older notify line running `molten agent state` in its `config.toml`). When the user file
-(`settings.json` for Claude Code, `hooks.json` for Codex) holds MoltenTerm hooks that differ from this snippet, the
-command panel offers **Update hooks** instead: the same dialog lists the events added, removed or changed, and you
-paste the new snippet yourself.
+integration, the command panel can offer **Set up hooks**. Every agent gets the same dialog (#2595): it names the
+user file it would change (Claude Code: `~/.claude/settings.json` or `$CLAUDE_CONFIG_DIR/settings.json`; Codex:
+`~/.codex/hooks.json` or `$CODEX_HOME/hooks.json`; Kimi Code: its `config.toml`), lists what changes, and offers
+**Apply** and **Copy**. Apply backs the file up, then writes MoltenTerm's hooks into it: every hook and setting that
+is not MoltenTerm's stays as it was, and the dialog shows where the backup is. A file you changed after the dialog
+read it is not written: the dialog reads it again and shows the new difference. Copy keeps the snippet below for
+those who prefer to add it by hand. The same dialog opens from the companion's Integration badge, with Remove, which
+takes MoltenTerm's hooks out of the file the same way. To know whether the hooks are already there, MoltenTerm also
+reads, without writing them, Claude Code's `settings.local.json`, the managed settings and the `.claude/settings.json`
+and `.claude/settings.local.json` of the pane's folder and its parents up to the repository's root, and Codex's older
+notify line running `molten agent state` in its `config.toml`. When the user file holds MoltenTerm hooks that differ
+from this snippet, the command panel offers **Update hooks** instead: the dialog lists the events added, removed or
+changed, and Apply replaces the older MoltenTerm hooks with the current ones. Codex then runs the new hooks once you
+trust them in its `/hooks`, which MoltenTerm never answers for you.
+
+A `claude` or `codex` started by MoltenTerm's launcher gets the current hooks for its run. Older MoltenTerm hooks
+still in the user file run as well: on Claude Code's `PostToolUse` and `Stop` an older `molten agent state` runs next
+to the launcher's `molten agent hook`, and on the other events the older one runs instead of it. The update stays
+offered on such a run and says so; applying it leaves one current handler per event.
 
 For Kimi Code, the same offer names `$KIMI_CODE_HOME/config.toml` (else `~/.kimi-code/config.toml`) and provides
 an explicit **Install MoltenTerm hooks** action. Copying the TOML remains a manual fallback; copying never marks the

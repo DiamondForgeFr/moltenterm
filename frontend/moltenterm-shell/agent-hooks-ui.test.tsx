@@ -51,51 +51,53 @@ vi.mock("@/app/store/global", async () => {
 vi.mock("../command-panel/bindings", () => ({ writeSettings: vi.fn() }));
 
 const English: Record<string, string> = {
-    "agent.hooks.persistentTitle": "Manage {name} hooks",
-    "agent.hooks.persistentSubtitle": "Persistent MoltenTerm lifecycle hooks",
+    "agent.hooks.title": "Precise states for {name}",
+    "agent.hooks.subtitle": "MoltenTerm only changes your agent's settings when you apply, after a backup.",
     "agent.hooks.intro": "MoltenTerm reports {brings}.",
     "agent.hooks.exactFile": "Configuration file:",
     "agent.hooks.status.absent": "Hooks not configured",
-    "agent.hooks.status.installed-not-reporting": "Hooks installed — restart Kimi Code to activate them",
+    "agent.hooks.status.installed-not-reporting": "Hooks installed — restart {name} to activate them",
     "agent.hooks.status.reporting": "Hooks active/reporting",
     "agent.hooks.status.definition-update": "MoltenTerm hook update available",
     "agent.hooks.status.drift": "Managed hooks need repair",
-    "agent.hooks.status.compatibility-review": "Review Kimi Code compatibility",
+    "agent.hooks.status.compatibility-review": "Review {name} compatibility",
     "agent.hooks.status.manual": "Manual configuration detected",
     "agent.hooks.status.invalid": "Hook configuration needs attention",
     "agent.hooks.status.conflict": "Conflicting hook configuration",
     "agent.hooks.explanation.absent": "Install the managed block after reviewing the target file.",
-    "agent.hooks.explanation.installed-not-reporting": "The current Kimi Code process must be restarted.",
+    "agent.hooks.explanation.installed-not-reporting": "The {name} running now must be restarted.",
     "agent.hooks.explanation.reporting": "MoltenTerm is receiving hook reports.",
     "agent.hooks.explanation.definition-update": "Update MoltenTerm hooks to use the reviewed definition.",
     "agent.hooks.explanation.drift": "Repair the managed block without replacing your other settings.",
     "agent.hooks.explanation.compatibility-review":
-        "This Kimi Code version is read-only until its hook contract is reviewed.",
+        "This {name} version is read-only until its hook contract is reviewed.",
     "agent.hooks.explanation.manual": "Your existing hooks are left unchanged.",
     "agent.hooks.explanation.invalid": "No managed write is allowed until the configuration is safe.",
     "agent.hooks.explanation.conflict": "Remove the conflicting duplicate before managing hooks.",
-    "agent.hooks.qualifiedVersion": "Qualified Kimi Code version: {version}",
-    "agent.hooks.currentVersion": "Current Kimi Code version: {version}",
-    "agent.hooks.installedVersion": "Installed hook Kimi Code version: {version}",
+    "agent.hooks.qualifiedVersion": "Qualified {name} version: {version}",
+    "agent.hooks.currentVersion": "Current {name} version: {version}",
+    "agent.hooks.installedVersion": "Installed hook {name} version: {version}",
     "agent.hooks.definitionVersion": "Hook definition: {version} (target {target})",
     "agent.hooks.eventCount": "{count} lifecycle events",
     "agent.hooks.backupNotice": "Before changing an existing file, MoltenTerm creates a backup.",
-    "agent.hooks.persistentRestart": "The change applies from the next Kimi Code start.",
-    "agent.hooks.manualFallback": "Copying TOML is a manual fallback and does not mark hooks installed or active.",
-    "agent.hooks.install": "Install MoltenTerm hooks",
-    "agent.hooks.update": "Update MoltenTerm hooks",
-    "agent.hooks.repair": "Repair MoltenTerm hooks",
+    "agent.hooks.backupCreated": "Backup created:",
+    "agent.hooks.persistentRestart": "The change applies from the next {name} start.",
+    "agent.hooks.trustAfterApply": "{name} runs new hooks only once you trust them in its /hooks.",
+    "agent.hooks.launcherAlso": "Sessions MoltenTerm starts already get its current hooks.",
+    "agent.hooks.manualFallback": "To add it yourself instead, copy the snippet below into this file, {also}.",
+    "agent.hooks.alsoBy.claude": "or in a project's .claude/settings.json",
+    "agent.hooks.install": "Apply",
+    "agent.hooks.update": "Apply the update",
+    "agent.hooks.repair": "Apply the repair",
     "agent.hooks.review": "Review compatibility",
     "agent.hooks.manage": "Manage hooks",
     "agent.hooks.remove": "Remove MoltenTerm hooks",
-    "agent.hooks.copy": "Copy TOML",
+    "agent.hooks.copy": "Copy",
     "agent.hooks.copied": "Copied",
     "agent.hooks.dontOffer": "Don't offer again",
     "agent.hooks.guide": "Open the hook guide",
     "agent.hooks.error.invalid-toml": "The TOML is invalid; no changes were made.",
-    "agent.hooks.addTo": "Add this to",
-    "agent.hooks.also": ", {also}:",
-    "agent.hooks.manualUpdate": "Your settings run older MoltenTerm hooks. Replace them with the snippet below.",
+    "agent.hooks.error.invalid-json": "The JSON is invalid; no changes were made.",
     "agent.hooks.changes.title": "What changes",
     "agent.hooks.changes.added": "Added",
     "agent.hooks.changes.removed": "Removed",
@@ -105,6 +107,7 @@ const English: Record<string, string> = {
     "agent.hooks.changes.field.command": "Command",
     "agent.hooks.changes.field.timeout": "Timeout",
     "agent.hooks.changes.field.qualifiedversion": "Qualified {name} version",
+    "agent.hooks.changes.field.duplicate": "Runs MoltenTerm's hook more than once",
     "agent.hooks.unqualified.title": "Version not qualified yet",
     "agent.hooks.unqualified.body":
         "MoltenTerm has not yet checked the hook contract of {name} {version} (qualified version: {qualified}).",
@@ -113,7 +116,7 @@ const English: Record<string, string> = {
     "agent.hooks.unqualified.confirm": "Confirm and write",
     "common.cancel": "Cancel",
     "common.close": "Close",
-    "companion.integration.persistentTitle": "Kimi Code hooks",
+    "companion.integration.persistentTitle": "Agent hooks",
     "companion.integration.persistentHint": "Persistent hooks for {name}",
     "companion.history.back": "Back",
     "companion.integration.guide": "Integration guide",
@@ -158,25 +161,48 @@ function dialog(fields: Partial<AgentHookOffer> = {}): string {
     );
 }
 
+function claudeUpdate(fields: Partial<AgentHookOffer> = {}): Partial<AgentHookOffer> {
+    return {
+        blockid: "block-claude",
+        agent: "claude",
+        agentname: "Claude Code",
+        file: "~/.claude/settings.json",
+        language: "json",
+        status: "definition-update",
+        action: "update",
+        updatekind: "definition",
+        canapply: true,
+        canremove: true,
+        definitionversion: undefined,
+        definitionsha256: undefined,
+        qualifiedkimiversion: undefined,
+        currentkimiversion: undefined,
+        changes: [{ kind: "changed", event: "Stop", field: "command", installed: "old", available: "new" }],
+        ...fields,
+    };
+}
+
 describe("the shared persistent hook approval dialog", () => {
     beforeEach(() => {
         hookState.offer = null;
         vi.clearAllMocks();
     });
 
-    it("names the exact target, backup and next-start behavior before Install", () => {
+    it("names the exact target, backup and next-start behavior before Apply", () => {
         const html = dialog();
         expect(html).toContain("~/.kimi-code/config.toml");
         expect(html).toContain("Before changing an existing file, MoltenTerm creates a backup.");
         expect(html).toContain("The change applies from the next Kimi Code start.");
-        expect(html).toContain("Install MoltenTerm hooks");
+        expect(html).toContain("Apply");
         expect(html).toContain("Qualified Kimi Code version: 2.6.3");
         expect(html).toContain('data-testid="agent-hooks-apply"');
         expect(html).not.toContain('data-testid="agent-hooks-remove"');
-        expect(html).toContain("Copying TOML is a manual fallback and does not mark hooks installed or active.");
+        expect(html).toContain("To add it yourself instead, copy the snippet below into this file");
+        expect(html).toContain("MoltenTerm only changes your agent&#x27;s settings when you apply, after a backup.");
+        expect(html).not.toContain("never");
     });
 
-    it("uses Update MoltenTerm hooks, never an application update, and retains Remove", () => {
+    it("applies the update of MoltenTerm's hooks, never an application update, and retains Remove", () => {
         const html = dialog({
             status: "definition-update",
             action: "update",
@@ -184,7 +210,7 @@ describe("the shared persistent hook approval dialog", () => {
             installedkimiversion: "2.6.3",
             canremove: true,
         });
-        expect(html).toContain("Update MoltenTerm hooks");
+        expect(html).toContain("Apply the update");
         expect(html).toContain("Remove MoltenTerm hooks");
         expect(html).not.toContain("Update Kimi");
     });
@@ -246,7 +272,7 @@ describe("the shared persistent hook approval dialog", () => {
         expect(html).toContain("Added");
         expect(html.match(/data-testid="agent-hooks-change"/g)).toHaveLength(3);
         expect(html).toContain('data-testid="agent-hooks-apply"');
-        expect(html).toContain("Update MoltenTerm hooks");
+        expect(html).toContain("Apply the update");
         expect(html).not.toContain('data-testid="agent-hooks-unqualified"');
     });
 
@@ -279,34 +305,87 @@ describe("the shared persistent hook approval dialog", () => {
         expect(html).toContain("Confirm and write");
         expect(html).toContain("Cancel");
         const element = HookConfirmButtons({ busy: false, onCancel, onConfirm, t });
-        const confirm = (element.props.children as any[]).find((c) => c?.props?.["data-testid"] === "agent-hooks-confirm");
+        const confirm = (element.props.children as any[]).find(
+            (c) => c?.props?.["data-testid"] === "agent-hooks-confirm"
+        );
         confirm.props.onClick();
         expect(onConfirm).toHaveBeenCalledTimes(1);
         expect(onCancel).not.toHaveBeenCalled();
     });
 
-    it("shows a Claude Code user file's older hooks with the recipe to paste, never a write", () => {
-        const html = dialog({
-            agent: "claude",
-            agentname: "Claude Code",
-            persistent: false,
-            file: "~/.claude/settings.json",
-            language: "json",
-            status: "definition-update",
-            updatekind: "definition",
-            action: undefined,
-            canapply: false,
-            qualifiedkimiversion: undefined,
-            currentkimiversion: undefined,
-            changes: [{ kind: "changed", event: "Stop", field: "command", installed: "old", available: "new" }],
-        });
-        expect(html).toContain("Your settings run older MoltenTerm hooks.");
+    // #2595: the Claude Code update the developer met in the gold, now applied from the dialog.
+    it("applies a Claude Code user file's older hooks, with the diff and Copy kept", () => {
+        const html = dialog(claudeUpdate());
+        expect(html).toContain("Precise states for Claude Code");
+        expect(html).toContain("~/.claude/settings.json");
         expect(html).toContain('data-testid="agent-hooks-changes"');
-        expect(html).not.toContain('data-testid="agent-hooks-apply"');
+        expect(html).toContain('data-testid="agent-hooks-apply"');
+        expect(html).toContain("Apply the update");
+        expect(html).toContain("Copy");
+        expect(html).toContain("Before changing an existing file, MoltenTerm creates a backup.");
+        expect(html).toContain("or in a project&#x27;s .claude/settings.json");
+        expect(html).not.toContain("Qualified");
+        expect(html).not.toContain('data-testid="agent-hooks-trust"');
+    });
+
+    it("says the launcher's hooks run next to the older ones on a launched run", () => {
+        expect(dialog(claudeUpdate({ launcheralso: true }))).toContain('data-testid="agent-hooks-launcher-also"');
+        expect(dialog(claudeUpdate())).not.toContain('data-testid="agent-hooks-launcher-also"');
+    });
+
+    it("says when the agent asks to trust new hooks, as data from wavesrv", () => {
+        const html = dialog(
+            claudeUpdate({ agent: "codex", agentname: "Codex", file: "~/.codex/hooks.json", trustrequired: true })
+        );
+        expect(html).toContain("Codex runs new hooks only once you trust them in its /hooks.");
+    });
+
+    it("lists a doubled MoltenTerm hook as a change", () => {
+        const html = dialog(claudeUpdate({ changes: [{ kind: "changed", event: "Stop", field: "duplicate" }] }));
+        expect(html).toContain("Runs MoltenTerm&#x27;s hook more than once");
+    });
+
+    // The common floor: the same state shows the same controls whatever the provider.
+    it("gives every provider the same controls for the same state", () => {
+        const providers: Partial<AgentHookOffer>[] = [
+            { agent: "claude", agentname: "Claude Code", file: "~/.claude/settings.json", language: "json" },
+            { agent: "codex", agentname: "Codex", file: "~/.codex/hooks.json", language: "json" },
+            { agent: "kimi", agentname: "Kimi Code", file: "~/.kimi-code/config.toml", language: "toml" },
+        ];
+        const states: Partial<AgentHookOffer>[] = [
+            { status: "absent", action: "install", canapply: true },
+            {
+                status: "definition-update",
+                action: "update",
+                updatekind: "definition",
+                canapply: true,
+                canremove: true,
+            },
+            { status: "installed-not-reporting", action: "remove", canapply: false, canremove: true },
+            { status: "invalid", canapply: false, canremove: false, errorcode: "read-config" },
+            { status: "absent", action: "install", canapply: true, unqualified: true },
+        ];
+        const controls = (html: string) =>
+            [...html.matchAll(/data-testid="(agent-hooks-[a-z-]+)"/g)]
+                .map((m) => m[1])
+                .filter((id) => id !== "agent-hooks-change");
+        for (const state of states) {
+            const seen = providers.map((p) =>
+                controls(dialog({ qualifiedkimiversion: undefined, currentkimiversion: undefined, ...p, ...state }))
+            );
+            expect(seen[1]).toEqual(seen[0]);
+            expect(seen[2]).toEqual(seen[0]);
+        }
     });
 
     it("offers no update when nothing differs", () => {
-        const html = dialog({ status: "reporting", action: "remove", canapply: false, canremove: true, unqualified: false });
+        const html = dialog({
+            status: "reporting",
+            action: "remove",
+            canapply: false,
+            canremove: true,
+            unqualified: false,
+        });
         expect(html).not.toContain('data-testid="agent-hooks-changes"');
         expect(html).not.toContain('data-testid="agent-hooks-apply"');
         expect(html).not.toContain('data-testid="agent-hooks-unqualified"');

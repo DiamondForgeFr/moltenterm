@@ -210,11 +210,16 @@ export function IntegrationDetails({
                         </div>
                         <div className="flex flex-col gap-1 text-11 text-muted">
                             {hookOffer.currentkimiversion ? (
-                                <div>{t("agent.hooks.currentVersion", { version: hookOffer.currentkimiversion })}</div>
+                                <div>
+                                    {t("agent.hooks.currentVersion", { name, version: hookOffer.currentkimiversion })}
+                                </div>
                             ) : null}
                             {hookOffer.installedkimiversion ? (
                                 <div>
-                                    {t("agent.hooks.installedVersion", { version: hookOffer.installedkimiversion })}
+                                    {t("agent.hooks.installedVersion", {
+                                        name,
+                                        version: hookOffer.installedkimiversion,
+                                    })}
                                 </div>
                             ) : null}
                             {hookOffer.definitionversion ? (

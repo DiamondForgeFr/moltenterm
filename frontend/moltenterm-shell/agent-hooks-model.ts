@@ -1,9 +1,9 @@
 // Copyright 2026, DiamondForge
 // SPDX-License-Identifier: AGPL-3.0-only
 
-// The hook setup offer (#221): wavesrv owns detection and all mutation decisions. Claude/Codex remain manual recipes;
-// qualified persistent providers expose the same offer through an approval dialog and Integration management. Kept
-// apart from the store and components so the rules can be tested without the app.
+// The hook setup offer (#221): wavesrv owns detection and all mutation decisions. Every provider (Claude Code, Codex,
+// Kimi Code) exposes the same offer through the approval dialog and Integration management (#2595). Kept apart from
+// the store and components so the rules can be tested without the app.
 
 import { AgentStateInfo } from "./agent-state-model";
 
@@ -57,13 +57,15 @@ export type AgentHookOffer = {
     detectionerror?: string;
     changes?: AgentHookChange[];
     unqualified?: boolean;
+    trustrequired?: boolean;
+    launcheralso?: boolean;
 };
 
 // must match AgentHookChange in pkg/molten/agenthookdiff.go
 export type AgentHookChange = {
     kind: "added" | "removed" | "changed";
     event?: string;
-    field?: "command" | "timeout" | "matcher" | "definition" | "qualifiedversion" | "block";
+    field?: "command" | "timeout" | "matcher" | "definition" | "qualifiedversion" | "block" | "duplicate";
     installed?: string;
     available?: string;
 };
@@ -74,7 +76,11 @@ export function hookApplyNeedsConfirmation(offer: AgentHookOffer): boolean {
 }
 
 // A change's values as the dialog shows them: a timeout in seconds or "default", an empty value as "none".
-export function hookChangeValue(change: AgentHookChange, value: string, t: (key: string, vars?: any) => string): string {
+export function hookChangeValue(
+    change: AgentHookChange,
+    value: string,
+    t: (key: string, vars?: any) => string
+): string {
     if (change.field === "timeout") {
         return value ? t("agent.hooks.changes.seconds", { value }) : t("agent.hooks.changes.default");
     }

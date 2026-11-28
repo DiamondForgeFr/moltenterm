@@ -17,8 +17,9 @@ import (
 )
 
 // The hook setup offer (#221, FR-SHELL-011): an agent whose hooks never reported shows its states from its pane's
-// output only (#217). Claude and Codex setup is a read-only manual recipe. Kimi Code (qualified on 2.7.2) additionally
-// supports an explicitly approved, transactional managed block (kimihooks.go).
+// output only (#217). Every provider of agentHookSetups gets the same flow (#2595, agenthookfile.go): the dialog shows
+// what changes, Apply writes it into the file the offer names after a backup, Copy keeps the manual recipe. The
+// adapters: Kimi Code's managed TOML block (kimihooks.go), Claude Code's and Codex's JSON hooks (agenthookjson.go).
 
 const (
 	AgentHookOfferCommand   = "moltenagenthookoffer"
@@ -133,24 +134,36 @@ type agentHookSetup struct {
 	also       string
 	brings     string
 	configured func(env AgentEnv, cwd string) bool
+	// adapter reads, applies and removes MoltenTerm's hooks in file; every provider has one (agenthookflow_test.go).
+	adapter agentHookAdapter
+}
+
+func claudeUserSettingsPath(env AgentEnv) string {
+	return filepath.Join(claudeConfigDir(env), "settings.json")
+}
+
+func codexUserHooksPath(env AgentEnv) string {
+	return filepath.Join(codexHome(env), CodexHooksFile)
 }
 
 var agentHookSetups = map[string]agentHookSetup{
 	"claude": {
 		language:   "json",
 		snippet:    claudeHooksSnippet,
-		file:       func(env AgentEnv) string { return filepath.Join(claudeConfigDir(env), "settings.json") },
+		file:       claudeUserSettingsPath,
 		also:       "or in a project's .claude/settings.json, merged with the hooks you already have",
 		brings:     "waiting when it asks for a permission, done when its turn ends, working again once you approved",
 		configured: claudeHooksConfigured,
+		adapter:    jsonHookAdapter{agent: AgentIdClaude, path: claudeUserSettingsPath, configured: claudeHooksConfigured},
 	},
 	"codex": {
 		language:   "json",
 		snippet:    codexHooksSnippet,
-		file:       func(env AgentEnv) string { return filepath.Join(codexHome(env), CodexHooksFile) },
+		file:       codexUserHooksPath,
 		also:       "or in a project's .codex/hooks.json, merged with the hooks you already have; Codex runs them once you trust them in /hooks",
 		brings:     "working while it works, done when its turn ends, and its session linked as soon as it starts",
 		configured: codexHooksConfigured,
+		adapter:    jsonHookAdapter{agent: AgentIdCodex, path: codexUserHooksPath, configured: codexHooksConfigured, trust: true},
 	},
 	"kimi": {
 		language:   "toml",
@@ -159,6 +172,7 @@ var agentHookSetups = map[string]agentHookSetup{
 		also:       "merged with the hooks you already have; Kimi Code reads hooks from this user file, not from the project",
 		brings:     "working, waiting for a permission, done, errors and interruptions, plus the session and sub-agent links",
 		configured: kimiHooksConfigured,
+		adapter:    kimiHookAdapter{},
 	},
 }
 
@@ -202,6 +216,12 @@ type AgentHookOffer struct {
 	// Unqualified: the agent's version is not the qualified one nor known incompatible. Applying is allowed once the
 	// developer confirms the risk (ConfirmUnqualified); only a known incompatible version stays read-only.
 	Unqualified bool `json:"unqualified,omitempty"`
+	// TrustRequired: the agent runs hooks it was not shown before only once the developer trusts them in its own
+	// screen (Codex's /hooks); MoltenTerm never answers that for them.
+	TrustRequired bool `json:"trustrequired,omitempty"`
+	// LauncherAlso: this run was started by MoltenTerm's launcher, which added its current hooks, so the older
+	// MoltenTerm hooks of the file run next to them until the update replaces them (#2595).
+	LauncherAlso bool `json:"launcheralso,omitempty"`
 }
 
 type AgentHookOfferRequest struct {
@@ -214,7 +234,9 @@ type AgentHookDismissRequest struct {
 }
 
 type AgentHookMutationRequest struct {
-	BlockId        string `json:"blockid"`
+	BlockId string `json:"blockid"`
+	// Agent is the run's agent, which wavesrv sets from the terminal; what a caller sends there is ignored.
+	Agent          string `json:"agent,omitempty"`
 	Action         string `json:"action"`
 	UpdateKey      string `json:"updatekey"`
 	ExpectedDigest string `json:"expecteddigest"`
@@ -405,38 +427,7 @@ func MakeAgentHookOfferDetected(env AgentEnv, agent string, cwd string, hooked b
 	offer.Brings = setup.brings
 	offer.Language = setup.language
 	offer.Snippet = setup.snippet
-	if agent == AgentIdKimi {
-		return makeKimiAgentHookOffer(env, offer, hooked, detection)
-	}
-	// Older MoltenTerm hooks in the user's file: the dialog shows what differs and the recipe to paste, like Kimi's
-	// update, ahead of the memory of an earlier run (#2543). MoltenTerm still never writes these settings.
-	if changes := manualHookChanges(agent, setup.file(env)); len(changes) > 0 {
-		offer.Status, offer.UpdateKind, offer.Changes = HookStatusDefinitionUpdate, HookUpdateDefinition, changes
-		offer.UpdateKey = manualHookUpdateKey(agent, offer.File, changes)
-		if IsAgentHookUpdateDeclined(env.DataDir, agent, offer.UpdateKey) {
-			offer.Reason = HookOfferDeclined
-			return offer
-		}
-		offer.Show = true
-		return offer
-	}
-	switch {
-	case hooked:
-		offer.Reason = HookOfferHooked
-	case AgentHooksSeen(env.DataDir, agent):
-		offer.Reason = HookOfferSeen
-	case IsAgentHooksOfferDeclined(env.DataDir, agent):
-		offer.Reason = HookOfferDeclined
-	case guideProfileOfAgent(agent) != "" && IsAgentDeclined(env.DataDir, guideProfileOfAgent(agent)):
-		offer.Reason = HookOfferRemoved
-	case setup.configured(env, cwd):
-		offer.Reason = HookOfferConfigured
-	}
-	if offer.Reason != "" {
-		return offer
-	}
-	offer.Show = true
-	return offer
+	return setup.adapter.offer(env, offer, cwd, hooked, detection)
 }
 
 // AgentStatesDocPath writes the documentation of this version where `molten docs` does, and returns its page on

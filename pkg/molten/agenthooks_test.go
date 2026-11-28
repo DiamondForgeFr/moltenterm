@@ -333,8 +333,9 @@ func TestAgentDocPath(t *testing.T) {
 	}
 }
 
-// #2543: Claude Code and Codex user files holding older MoltenTerm hooks get the update offer with the differences,
-// even once hooks reported; the current recipe, or a dismissed revision, offers nothing.
+// #2543, #2595: Claude Code and Codex user files holding older MoltenTerm hooks get the update offer with the
+// differences, which Apply writes, even once hooks reported; the current recipe, or a dismissed revision, offers
+// nothing.
 func TestManualHookUpdateShowsDifferences(t *testing.T) {
 	for _, tc := range []struct {
 		agent string
@@ -354,7 +355,7 @@ func TestManualHookUpdateShowsDifferences(t *testing.T) {
 				`"PreCompact":[{"hooks":[{"type":"command","command":"molten agent hook --agent ` + tc.agent + `"}]}]}}`
 			writeTestFile(t, tc.file(env), older)
 			offer := MakeAgentHookOffer(env, tc.agent, "", true)
-			if !offer.Show || offer.Status != HookStatusDefinitionUpdate || offer.UpdateKind != HookUpdateDefinition || offer.UpdateKey == "" || offer.CanApply || offer.Persistent {
+			if !offer.Show || offer.Status != HookStatusDefinitionUpdate || offer.UpdateKind != HookUpdateDefinition || offer.UpdateKey == "" || !offer.CanApply || !offer.CanRemove || !offer.Persistent || offer.Action != HookActionUpdate {
 				t.Fatalf("older hooks: %+v", offer)
 			}
 			stop := AgentStateHooks(tc.agent)[slices.IndexFunc(AgentStateHooks(tc.agent), func(e AgentHookEntry) bool { return e.Event == "Stop" })]
