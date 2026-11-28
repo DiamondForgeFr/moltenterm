@@ -19,6 +19,7 @@ import (
 
 	"github.com/wavetermdev/waveterm/pkg/molten"
 	"github.com/wavetermdev/waveterm/pkg/molten/agentsign"
+	"github.com/wavetermdev/waveterm/pkg/molten/secfix"
 	"github.com/wavetermdev/waveterm/pkg/panichandler"
 	"github.com/wavetermdev/waveterm/pkg/wps"
 )
@@ -168,6 +169,9 @@ type ReviewPr struct {
 	Agents []agentsign.Signature `json:"agents,omitempty"`
 	// WaitsOn (#1841): the open PRs or issues the PR waits on, once the reports query read them (reviews_waits.go).
 	WaitsOn []ReviewDependency `json:"waitson,omitempty"`
+	// SecurityBlock (FR-REV-036): the fingerprint of the security block the PR's failed scan belongs to, once its
+	// advisories were read (reviews_security.go); the block itself is in the answer's SecurityBlocks.
+	SecurityBlock string `json:"securityblock,omitempty"`
 	// What the PR's body says it waits on, read with the PR.
 	declared []reviewDeclared
 }
@@ -194,6 +198,12 @@ type ReviewsAnswer struct {
 	Refreshing   bool   `json:"refreshing,omitempty"`
 	ReportsAt    int64  `json:"reportsat,omitempty"`
 	ReportsError string `json:"reportserror,omitempty"`
+	// The project's failed dependency or security scans (FR-REV-036, reviews_security.go): the sets of advisories that
+	// block pull requests and why a block is or is not shared, the checks that look like the scan and wait for the
+	// developer's answer, and the scans whose advisories could not be read. Empty until a failed scan was read.
+	SecurityBlocks []secfix.Block  `json:"securityblocks,omitempty"`
+	SecurityOffers []secfix.Offer  `json:"securityoffers,omitempty"`
+	SecurityUnread []secfix.Unread `json:"securityunread,omitempty"`
 }
 
 type ghReviewRollup struct {
@@ -660,6 +670,12 @@ type Reviews struct {
 	followedWant map[headKey]string
 	followCount  int
 	followEvery  time.Duration
+	// The failed dependency scans (FR-REV-036, reviews_security.go): what the developer answered about a check that
+	// looks like the scan (nil: nothing is kept), what each project's last assessment found, and the reader that keeps
+	// what a run's report or log said.
+	securityStore  *secfix.Store
+	securityReader *secfix.Reader
+	scans          map[string]*securityState
 	// publishLock orders the answers that reach the views (publishCurrent); publishWaiting counts the publishers
 	// queued behind it, which the tests wait for.
 	publishLock    sync.Mutex
@@ -668,7 +684,7 @@ type Reviews struct {
 
 func MakeReviews(collector *Collector, run Runner, publish func(ReviewsAnswer)) *Reviews {
 	return &Reviews{collector: collector, run: run, now: time.Now, publish: publish, reports: map[string]*reviewReportsState{}, ships: map[string]*reviewShipsState{}, history: map[string]*mergedHistoryState{},
-		follows: map[headKey]*headFollow{}, followedWant: map[headKey]string{}}
+		follows: map[headKey]*headFollow{}, followedWant: map[headKey]string{}, securityReader: secfix.MakeReader(), scans: map[string]*securityState{}}
 }
 
 func publishReviews(answer ReviewsAnswer) {
@@ -715,6 +731,7 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 		answer := BuildReviews(snap)
 		reconcileAnswerLocalCi(r.ci, &answer, r.now())
 		r.applyKnownReports(&answer)
+		r.applySecurity(&answer)
 		return answer, nil
 	}
 	maxAge := DefaultMaxAgeSec * time.Second
@@ -730,6 +747,8 @@ func (r *Reviews) Get(req ReviewsRequest) (ReviewsAnswer, error) {
 	if start := r.prepareReports(&answer, req.Force); start {
 		go r.readReports(dir)
 	}
+	in, key := r.applySecurity(&answer)
+	r.startSecurity(answer, in, key, req.Force)
 	if start := r.prepareShips(&answer, snap, req.Force); start {
 		goRecovered("molten:mission:reviews:ships", func() { r.readShips(dir) })
 	}
@@ -892,6 +911,7 @@ func (r *Reviews) publishCurrent(dir string) {
 func (r *Reviews) answerOf(snap Snapshot) ReviewsAnswer {
 	answer := BuildReviews(snap)
 	reconcileAnswerLocalCi(r.ci, &answer, r.now())
+	r.applySecurity(&answer)
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.applyLocked(&answer, r.reports[snap.Dir])

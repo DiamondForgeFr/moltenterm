@@ -362,6 +362,13 @@ func (l *routeLink) handle(command string, data any) (any, error) {
 		}
 		return l.reviews.RerunFailed(req)
 	}
+	if command == ReviewsSecurityCommand {
+		var req ReviewsSecurityRequest
+		if err := utilfn.ReUnmarshal(&req, data); err != nil {
+			return nil, err
+		}
+		return l.reviews.AnswerSecurityScan(req)
+	}
 	if command == MergedHistoryCommand {
 		var req MergedHistoryRequest
 		if err := utilfn.ReUnmarshal(&req, data); err != nil {
@@ -497,6 +504,7 @@ var windowCommands = map[string]string{
 	GitInitCommand:         "a repository can only be initialized here from a MoltenTerm window",
 	GithubRunRerunCommand:  "a GitHub run can only be started again from a MoltenTerm window",
 	ReviewsRerunCommand:    "a pull request's failed jobs can only be rerun from a MoltenTerm window",
+	ReviewsSecurityCommand: "which check is the project's security scan is answered from a MoltenTerm window",
 	JobDescribeCommand:     "an agent can only be asked to describe a job from a MoltenTerm window",
 	WorktreeRemoveCommand:  "a worktree can only be removed from a MoltenTerm window",
 	ProjectTabCommand:      "the Project tab can only be opened from a MoltenTerm window",
