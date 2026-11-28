@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"strings"
 	"testing"
+
+	"github.com/wavetermdev/waveterm/pkg/molten/mcpbrowser"
 )
 
 // pages.md is what the instructions of the molten-browser server point to for a page shown to the developer (#1812).
@@ -49,6 +51,37 @@ func TestPagesGuideExplainsReusingAnOpenPage(t *testing.T) {
 		"Allow and Open another tab", "waiting for the developer", "`newTab: true`", "`reload: true`", "molten open --new-tab",
 		"hands nothing to you",
 	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("pages.md does not mention %q", want)
+		}
+	}
+}
+
+// pages.md tells an agent without the MCP server to use `molten browser` (#2596): every command of the group, what it is
+// the command of, the rules it keeps, and the tools that stay MCP-only.
+func TestPagesGuideExplainsTheCommandLineForAgentsWithoutTheMcpServer(t *testing.T) {
+	data, err := fs.ReadFile(Files, "pages.md")
+	if err != nil {
+		t.Fatalf("pages.md is not embedded: %v", err)
+	}
+	text := string(data)
+	for _, b := range mcpbrowser.CliBindings() {
+		switch {
+		case b.Command == "":
+			if !strings.Contains(text, "`"+b.Tool+"`") {
+				t.Errorf("pages.md does not say that %s stays an MCP tool", b.Tool)
+			}
+		case strings.HasPrefix(b.Command, mcpbrowser.CliGroup+" "):
+			if !strings.Contains(text, "molten "+b.Command) {
+				t.Errorf("pages.md does not show `molten %s`", b.Command)
+			}
+			if !strings.Contains(text, "`"+b.Tool+"`") {
+				t.Errorf("pages.md does not say which tool %s runs", b.Command)
+			}
+		}
+	}
+	for _, want := range []string{"Without an MCP server", "--json", "--new-tab", "--reload", "once the developer confirms", "untrusted-page-content",
+		"asks the developer", "connections menu", "molten agent send", "exits 1"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("pages.md does not mention %q", want)
 		}

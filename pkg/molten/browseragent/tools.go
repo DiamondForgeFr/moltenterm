@@ -307,7 +307,28 @@ func (m *Manager) tabsContext(ctx context.Context, s sessionInfo, loc BlockLocat
 	if len(others) > 0 {
 		parts = append(parts, otherPagesHint)
 	}
-	return mcpbrowser.TextResult(strings.Join(parts, "\n"))
+	result := mcpbrowser.TextResult(strings.Join(parts, "\n"))
+	result.Data = contextData(entries, pages, others, otherPages)
+	return result
+}
+
+// contextData is the listing as data, for the command line: the same tabs and pages the text lists, each with the
+// title and address its untrusted block carries.
+func contextData(entries []tabEntry, pages []tabPage, others []pageEntry, otherPages []otherPage) json.RawMessage {
+	data := mcpbrowser.ContextData{Tabs: make([]mcpbrowser.ContextTab, 0, len(entries))}
+	for i, e := range entries {
+		data.Tabs = append(data.Tabs, mcpbrowser.ContextTab{TabId: e.TabId, Owner: e.Owner, State: e.State, Site: e.Site, Note: e.Note,
+			Title: pages[i].Title, Url: pages[i].Url})
+	}
+	for i, e := range others {
+		data.OtherPages = append(data.OtherPages, mcpbrowser.ContextPage{Page: e.Page, Owner: e.Owner, Agent: e.Agent, State: e.State,
+			Site: e.Site, Panel: e.Panel, Reuse: e.Reuse, Tab: otherPages[i].Tab, Title: otherPages[i].Title, Url: otherPages[i].Url})
+	}
+	raw, err := json.Marshal(data)
+	if err != nil {
+		return nil
+	}
+	return raw
 }
 
 // readTabs lists the session's visible tabs with their page: live from the webview when the agent may act on the

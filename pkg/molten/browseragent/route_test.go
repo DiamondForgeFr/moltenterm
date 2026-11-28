@@ -160,7 +160,7 @@ func TestRouteRefusesForgedSources(t *testing.T) {
 		routetest.MustRefuse(t, link, nonUi, command, stop)
 	}
 	notTerminals := append([]routetest.From{e.Window(), e.Electron()}, e.Forged()...)
-	for _, command := range []string{mcpbrowser.HelloCommand, mcpbrowser.CallCommand, mcpbrowser.ByeCommand} {
+	for _, command := range []string{mcpbrowser.HelloCommand, mcpbrowser.CallCommand, mcpbrowser.ByeCommand, mcpbrowser.CliCommand} {
 		routetest.MustRefuseWith(t, link, notTerminals, command, mcpbrowser.CallRequest{SessionId: sid, Tool: mcpbrowser.ToolTabsContext}, mcpbrowser.ErrRemotePane)
 	}
 	snapshot, _ := m.PanelSnapshot("tab:t1", "p1")

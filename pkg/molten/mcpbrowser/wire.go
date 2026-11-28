@@ -30,6 +30,9 @@ const (
 	ListCommand      = "moltenbrowseragentlist"
 	ShareCommand     = "moltenbrowseragentshare"
 	ShareTellCommand = "moltenbrowseragentsharetell"
+	// One call of `molten browser` (#2596): the same tools, for an agent without the MCP server. The caller sends the
+	// pane's token with each call instead of holding a session.
+	CliCommand = "moltenbrowseragentcli"
 	// WPS event with the agent state of one browser panel (scope: the panel's block oref).
 	StateEvent = "molten:browseragent"
 )
@@ -188,6 +191,17 @@ type ContentItem struct {
 type CallResult struct {
 	Content []ContentItem `json:"content"`
 	IsError bool          `json:"iserror,omitempty"`
+	// Data is what a tool's result holds as data, for the tools whose text does not carry it all (tabs_context): the
+	// command line reads it, and the MCP server never sends it.
+	Data json.RawMessage `json:"data,omitempty"`
+}
+
+// CliRequest is one call of `molten browser`. Token is the pane's WAVETERM_JWT, as in HelloRequest: wavesrv takes the
+// pane from it and the session from the pane, never from the arguments.
+type CliRequest struct {
+	Token string          `json:"token"`
+	Tool  string          `json:"tool"`
+	Args  json.RawMessage `json:"args,omitempty"`
 }
 
 func TextResult(text string) CallResult {

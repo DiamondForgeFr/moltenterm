@@ -114,6 +114,7 @@ const PagesInstructions = " To show a page to the user (\"open the doc\", \"show
 	"and `molten open` both do it; the user is asked first when the page is theirs; newTab: true, or `--new-tab`, " +
 	"opens a second copy on purpose). " +
 	"To bring a page you already have open back in front of the user, call tabs_show on its tab. " +
+	"From a shell that has no MCP server, `molten browser list|open|read|show|close` does the same with the same rules. " +
 	"Details: pages.md in the folder `molten docs` prints."
 
 // BookmarksInstructions: the web pages the developer bookmarked, at the app, context, workspace or project level, with a

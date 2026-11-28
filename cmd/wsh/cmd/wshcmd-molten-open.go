@@ -120,40 +120,49 @@ func moltenOpenRun(cmd *cobra.Command, args []string) error {
 	if tabId == "" {
 		return fmt.Errorf("molten must run in a MoltenTerm terminal to open a page in MoltenTerm (WAVETERM_TABID is not set)")
 	}
-	if !moltenOpenNewTab {
-		// A page this tab already shows is brought into view, not opened a second time; if that cannot be found out, the
-		// page opens as it always did.
+	panel, reused, err := openInMoltenTerm(tabId, url, moltenOpenNewTab)
+	if err != nil {
+		return err
+	}
+	result.Panel = panel
+	result.Reused = reused
+	if moltenJson {
+		return moltenWriteJson(result)
+	}
+	if reused {
+		WriteStdout("already open in MoltenTerm (browser panel block:%s): brought it into view; --new-tab opens another\n", panel)
+		return nil
+	}
+	WriteStdout("opened in MoltenTerm (browser panel block:%s)\n", panel)
+	return nil
+}
+
+// openInMoltenTerm shows a page in the browser panel of the Wave tab: a page this tab already shows is brought into view,
+// not opened a second time (unless newTab), and a tab with no panel gets one. It returns the panel and whether the page
+// was already open. `molten open` and `molten browser open` for a local file both go through it.
+func openInMoltenTerm(tabId string, url string, newTab bool) (string, bool, error) {
+	if !newTab {
+		// If it cannot be found out whether the tab shows the page, the page opens as it always did.
 		if shown, err := showOpenPage(tabId, url); err == nil && shown != "" {
-			result.Panel = shown
-			result.Reused = true
-			if moltenJson {
-				return moltenWriteJson(result)
-			}
-			WriteStdout("already open in MoltenTerm (browser panel block:%s): brought it into view; --new-tab opens another\n", shown)
-			return nil
+			return shown, true, nil
 		}
 	}
 	panel, err := openInBrowserPanel(tabId, url)
 	if err != nil {
-		return err
+		return "", false, err
 	}
-	if panel == "" {
-		oref, err := wshclient.CreateBlockCommand(RpcClient, wshrpc.CommandCreateBlockData{
-			TabId:    tabId,
-			BlockDef: &waveobj.BlockDef{Meta: map[string]any{waveobj.MetaKey_View: molten.BrowserView, waveobj.MetaKey_Url: url}},
-			Focused:  true,
-		}, nil)
-		if err != nil {
-			return fmt.Errorf("creating a browser panel: %w", err)
-		}
-		panel = oref.OID
+	if panel != "" {
+		return panel, false, nil
 	}
-	result.Panel = panel
-	if moltenJson {
-		return moltenWriteJson(result)
+	oref, err := wshclient.CreateBlockCommand(RpcClient, wshrpc.CommandCreateBlockData{
+		TabId:    tabId,
+		BlockDef: &waveobj.BlockDef{Meta: map[string]any{waveobj.MetaKey_View: molten.BrowserView, waveobj.MetaKey_Url: url}},
+		Focused:  true,
+	}, nil)
+	if err != nil {
+		return "", false, fmt.Errorf("creating a browser panel: %w", err)
 	}
-	WriteStdout("opened in MoltenTerm (browser panel block:%s)\n", panel)
-	return nil
+	return oref.OID, false, nil
 }
 
 // handOffBySite sends a page `wsh web open` opens to the installed browser when the per-site choice or the default
