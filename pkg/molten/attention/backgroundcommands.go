@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -27,9 +28,57 @@ import (
 // outlives the turn that started it, which is the point; one whose end is never told (an agent killed with its
 // commands) is forgotten with the run, at the session's next start, or never tracked when the set is full.
 
+// A service is the exception (#2583): a command that starts a program known to run until it is stopped (a dev server,
+// a daemon, `tail -f`; pkg/molten/jobline) never ends by itself, so the agent never resumes on it. It is tracked like
+// any command, for its end and to be named, but it is not work: the pane shows its own state (done, idle), the turn
+// end raises its notice, and the services are only listed (AgentStateInfo.Services).
+
 // commandEndOverlap: a transcript is read again from a little before where the last read stopped, so a task
 // notification Claude Code was still writing then is read whole.
 const commandEndOverlap = 4096
+
+// maxServicesShown bounds the services a pane publishes.
+const maxServicesShown = 16
+
+// backgroundCommand is what a main session's report says of a command it left running: description, the words the
+// agent gave it; service, whether it starts a program that runs until it is stopped; order, which it was among the
+// pane's commands, for a stable list.
+type backgroundCommand struct {
+	description string
+	service     bool
+	order       int
+}
+
+// boundedCommands counts the commands that end by themselves: the work an agent resumes on.
+func boundedCommands(rec *agentRecord) int {
+	n := 0
+	for _, c := range rec.commands {
+		if !c.service {
+			n++
+		}
+	}
+	return n
+}
+
+// serviceWords lists the pane's services in the order they started: the words each was given, "" for none.
+func serviceWords(rec *agentRecord) []string {
+	var services []backgroundCommand
+	for _, c := range rec.commands {
+		if c.service {
+			services = append(services, c)
+		}
+	}
+	if len(services) == 0 {
+		return nil
+	}
+	slices.SortFunc(services, func(a, b backgroundCommand) int { return a.order - b.order })
+	services = services[:min(len(services), maxServicesShown)]
+	words := make([]string, len(services))
+	for i, c := range services {
+		words[i] = c.description
+	}
+	return words
+}
 
 // commandEnds is what a turn end read of a pane's transcript: the commands that ended and how far it read.
 type commandEnds struct {
@@ -114,36 +163,39 @@ func (a *agentStates) backgroundCommandLocked(blockId string, rec *agentRecord, 
 		return
 	}
 	if rec.commands == nil {
-		rec.commands = map[string]string{}
+		rec.commands = map[string]backgroundCommand{}
 	}
 	if len(rec.commands) == 0 || rec.commandsTranscript != req.Transcript {
 		rec.commandsTranscript = req.Transcript
 		rec.commandsOffset = max(startSize, 0)
 	}
-	rec.commands[id] = molten.CleanAgentMessage(req.BackgroundDescription)
+	rec.commands[id] = backgroundCommand{description: molten.CleanAgentMessage(req.BackgroundDescription), service: req.BackgroundService, order: rec.commandsStarted}
+	rec.commandsStarted++
 	a.markDirtyLocked(blockId)
 }
 
-// applyCommandEndsLocked forgets the commands a turn end read the end of; released: the last one went, so the pane
-// gives its turn end back to the developer (the user's own `molten agent state done` may have reported it first).
+// applyCommandEndsLocked forgets the commands a turn end read the end of; released: the last command that ends by
+// itself went, so the pane gives its turn end back to the developer (the user's own `molten agent state done` may have
+// reported it first). A service that ends releases nothing: it never held the turn.
 func (a *agentStates) applyCommandEndsLocked(blockId string, rec *agentRecord, ends *commandEnds) (released bool) {
 	if ends == nil || rec.commandsTranscript != ends.path {
 		return false
 	}
 	rec.commandsOffset = max(rec.commandsOffset, ends.offset)
 	for _, id := range ends.ended {
-		if _, known := rec.commands[id]; !known {
+		command, known := rec.commands[id]
+		if !known {
 			continue
 		}
 		delete(rec.commands, id)
-		released = true
+		released = released || !command.service
 		a.markDirtyLocked(blockId)
 	}
-	return released && len(rec.commands) == 0
+	return released && boundedCommands(rec) == 0
 }
 
 func (a *agentStates) forgetCommandsLocked(blockId string, rec *agentRecord) {
-	rec.commandsTranscript, rec.commandsOffset = "", 0
+	rec.commandsTranscript, rec.commandsOffset, rec.commandsStarted = "", 0, 0
 	if len(rec.commands) == 0 {
 		return
 	}
@@ -152,24 +204,25 @@ func (a *agentStates) forgetCommandsLocked(blockId string, rec *agentRecord) {
 }
 
 // backgroundDoneSignal tells whether a terminal's own "done" signal comes from an agent that waits for its background
-// commands: no notice, as for its hook's Stop.
+// commands: no notice, as for its hook's Stop. A service is not waited for.
 func (a *agentStates) backgroundDoneSignal(blockId string, signal AttentionSignal) bool {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	rec := a.records[blockId]
-	return rec != nil && rec.running && len(rec.commands) > 0 && molten.AttentionAgentState(signal.Title, signal.Message) == molten.AgentStateDone
+	return rec != nil && rec.running && boundedCommands(rec) > 0 && molten.AttentionAgentState(signal.Title, signal.Message) == molten.AgentStateDone
 }
 
-// commandsMessage words a pane's background commands: the command's own words when one runs and has some.
+// commandsMessage words a pane's background commands that end by themselves: the command's own words when one runs
+// and has some. The services are not work, they are listed apart (serviceWords).
 func commandsMessage(rec *agentRecord, info *molten.AgentStateInfo) {
-	n := len(rec.commands)
+	n := boundedCommands(rec)
 	if n > 1 {
 		info.Message, info.MessageText = fmt.Sprintf("%d background commands running", n), uimsg.Make("agentState.backgroundCommands", "count", strconv.Itoa(n))
 		return
 	}
-	for _, description := range rec.commands {
-		if description != "" {
-			info.Message, info.MessageText = "In the background: "+description, uimsg.Make("agentState.backgroundCommandNamed", "description", description)
+	for _, c := range rec.commands {
+		if !c.service && c.description != "" {
+			info.Message, info.MessageText = "In the background: "+c.description, uimsg.Make("agentState.backgroundCommandNamed", "description", c.description)
 			return
 		}
 	}

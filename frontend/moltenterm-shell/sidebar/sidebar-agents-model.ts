@@ -5,6 +5,7 @@
 // in the order they were created. A view where an agent runs stays listed as a view (#1246).
 
 import type { AgentStateInfo, AgentStatesData } from "../agent-state-model";
+import type { TFunction } from "../i18n/i18n";
 import { pathBaseName } from "../workspace-project";
 import type { SidebarTabSplit } from "./sidebar-model";
 import { projectLabel, type WorkspaceProjectEntry } from "./workspace-projects";
@@ -33,6 +34,33 @@ export function agentRowLook(info: AgentStateInfo): AgentRowLook {
             return info.state;
     }
     return "idle";
+}
+
+// An agent whose turn ended with services left running (#2583, FR-SHELL-084): a dev server or a daemon runs until
+// somebody stops it, so the agent is not at work. Its row keeps its own state (done, idle), says what runs on its second
+// line and wears a calm plug where the dominoes would be. A working agent shows its services in its tree only, and a
+// waiting or failed one keeps its own words: they matter more.
+export function agentHasServiceLeft(info: AgentStateInfo): boolean {
+    const look = agentRowLook(info);
+    return (info?.services?.length ?? 0) > 0 && (look === "done" || look === "idle");
+}
+
+// "Service running: Molten browser daemon", "Service running" when the agent gave no words, "2 services running" for
+// several; "" unless agentHasServiceLeft. tc is the plural form of a key for a count (useTCount).
+export function agentServiceLine(
+    t: TFunction,
+    tc: (key: string, count: number) => string,
+    info: AgentStateInfo
+): string {
+    if (!agentHasServiceLeft(info)) {
+        return "";
+    }
+    const services = info.services;
+    if (services.length > 1) {
+        return tc("sidebar.agents.services", services.length);
+    }
+    const name = (services[0] ?? "").trim();
+    return name === "" ? t("sidebar.agents.serviceUnnamed") : t("sidebar.agents.service", { name });
 }
 
 // The project chip on an agent's name line (FR-SHELL-084, #1746): shown only when the workspace holds two projects or
@@ -113,7 +141,7 @@ export function agentRowTarget(info: AgentStateInfo): { workspaceid: string; tab
 
 // What the developer opened or closed in an agent's tree, kept on the agent terminal's block (#1763): the tree
 // itself, and each section.
-export type AgentTreeSection = "subs" | "links";
+export type AgentTreeSection = "subs" | "services" | "links";
 export type AgentTreeState = { open?: boolean; shut?: Partial<Record<AgentTreeSection, boolean>> };
 export type AgentTreeStates = Record<string, AgentTreeState>;
 
@@ -135,6 +163,9 @@ export function readTreeState(raw: unknown): AgentTreeState {
     const shut: AgentTreeState["shut"] = {};
     if (v.shut?.subs === true) {
         shut.subs = true;
+    }
+    if (v.shut?.services === true) {
+        shut.services = true;
     }
     if (v.shut?.links === true) {
         shut.links = true;

@@ -333,11 +333,13 @@ type AgentStateRequest struct {
 	// the run talks to Anthropic, another report without one changes nothing.
 	Provider string `json:"provider,omitempty"`
 	// BackgroundTask: the main session left a command running in the background (Claude Code's backgroundTaskId,
-	// #2140), BackgroundDescription its words. Transcript: the session's transcript, where its end is told; a hook's
-	// working or done report of the main session carries it too, and links a pane the companion has no report for
-	// (#2142: a wavesrv restart forgets the SessionStart reports).
+	// #2140), BackgroundDescription its words. BackgroundService: the command is a service (a program that runs until
+	// it is stopped, pkg/molten/jobline, #2583): it never keeps the agent working. Transcript: the session's transcript,
+	// where its end is told; a hook's working or done report of the main session carries it too, and links a pane the
+	// companion has no report for (#2142: a wavesrv restart forgets the SessionStart reports).
 	BackgroundTask        string `json:"backgroundtask,omitempty"`
 	BackgroundDescription string `json:"backgrounddescription,omitempty"`
+	BackgroundService     bool   `json:"backgroundservice,omitempty"`
 	Transcript            string `json:"transcript,omitempty"`
 	// SessionId: the agent's id for the main session the report is about (its hook's session_id). It tells which
 	// session runs now, so that what the developer sets for a session (#2474) is never taken for another's.
@@ -396,6 +398,10 @@ type AgentStateInfo struct {
 	// counts the ones that wait on their own tests or build after the lead's turn ended, which its hooks forgot:
 	// Subagents is at least its length.
 	Work []SubagentWork `json:"work,omitempty"`
+	// Services: the services the session left running in the background (#2583), one entry each, in the order they
+	// started: the words the agent gave the command, "" for one it gave none. A service is not work: it never makes
+	// State working, whatever its entry says.
+	Services []string `json:"services,omitempty"`
 	// Cleared: the block has no agent any more.
 	Cleared bool `json:"cleared,omitempty"`
 	// Own: the block is Brokk's own session (OwnSessionMetaKey): the windows keep it out of every list of agents.

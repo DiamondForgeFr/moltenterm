@@ -163,11 +163,13 @@ type agentRecord struct {
 	// subagents: the sub-agents of the session its hooks reported running (subagents.go, #1092). They are forgotten when
 	// the main session's turn ends; what the sub-agents' own files say is in the states' work registry.
 	subagents map[string]bool
-	// commands: the commands the session left running in the background, by id, with their words; their ends are
-	// read from commandsTranscript after commandsOffset (backgroundcommands.go, #2140).
-	commands           map[string]string
+	// commands: the commands the session left running in the background, by id, with their words and whether each is a
+	// service; their ends are read from commandsTranscript after commandsOffset (backgroundcommands.go, #2140, #2583).
+	commands           map[string]backgroundCommand
 	commandsTranscript string
 	commandsOffset     int64
+	// commandsStarted: how many commands the pane tracked, to keep the services in the order they started.
+	commandsStarted int
 	// sessionId: the id of the main session the run's own hooks last reported (sessionlink.go), which
 	// names the session that runs now (#2474); a new record starts without.
 	sessionId string
@@ -548,7 +550,7 @@ func (a *agentStates) report(req molten.AgentStateRequest) (*AttentionSignal, st
 	if (previous == req.State && !released) || (req.State != molten.AgentStateWaiting && req.State != molten.AgentStateDone) {
 		return nil, "", nil
 	}
-	if req.State == molten.AgentStateDone && (a.heldLocked(req.BlockId) || len(rec.commands) > 0) {
+	if req.State == molten.AgentStateDone && (a.heldLocked(req.BlockId) || boundedCommands(rec) > 0) {
 		return nil, "", nil
 	}
 	if !a.allowNoticeLocked(req.BlockId, noticeFromHook) {

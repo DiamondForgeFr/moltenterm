@@ -12122,6 +12122,7 @@
         "everything": "Everything about {name}",
         "plugTitle": "Everything about {name}: tool, model, links, MCP servers and connections",
         "subagents": "Sub-agents",
+        "services": "Services",
         "linked": "Linked agents",
         "aTerminal": "a terminal",
         "link": {
@@ -12368,6 +12369,13 @@
                 "one": "{count} sub-agent at work",
                 "other": "{count} sub-agents at work"
             },
+            "service": "Service running: {name}",
+            "serviceUnnamed": "Service running",
+            "services": {
+                "one": "{count} service running",
+                "other": "{count} services running"
+            },
+            "serviceTitle": "Left running by the agent; it does not count as active",
             "goTo": "Go to {name}'s view",
             "expand": "Show what {name} is linked to",
             "collapse": "Hide what {name} is linked to",

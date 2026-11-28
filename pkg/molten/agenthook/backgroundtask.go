@@ -42,9 +42,11 @@ func readToolField(input *HookInput, key string, raw json.RawMessage) {
 	case "tool_input":
 		var ti struct {
 			Description string `json:"description"`
+			Command     string `json:"command"`
 		}
 		if json.Unmarshal(raw, &ti) == nil {
 			input.ToolDescription = ti.Description
+			input.ToolCommand = ti.Command
 		}
 		if len(raw) <= maxKeptToolInput {
 			input.ToolInput = string(raw)
